@@ -1,0 +1,13 @@
+# Node / pnpm artifacts
+node_modules/
+.pnpm-store/
+pnpm-lock.yaml
+
+# Rust / Tauri build artifacts
+src-tauri/target/
+src-tauri/.cargo/
+
+# Misc
+dist/
+*.log
+*.tmp

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mihomo 配置管理</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Mihomo 配置管理</h1>
+        <p>浏览、导入、编辑 YAML 配置，保存后由 Mihomo Despicable Infiltrator 自动接管服务。</p>
+      </div>
+      <button id="refresh-btn" type="button">同步配置</button>
+    </header>
+
+    <section class="panel">
+      <h2>现有配置</h2>
+      <div id="profiles" class="profiles"></div>
+      <p id="profiles-status" class="status"></p>
+      <div class="hint">
+        配置文件位于 <code>%USERPROFILE%\.config\mihomo-rs\configs</code>，
+        同步配置会重新读取磁盘上的文件。
+      </div>
+    </section>
+
+    <div class="panel-grid">
+      <section class="panel">
+        <h2>通过订阅 URL 导入</h2>
+        <form id="import-form">
+          <label>
+            配置名称
+            <input id="profile-name" name="name" type="text" placeholder="airport-main" required />
+          </label>
+          <label>
+            订阅链接
+            <input id="profile-url" name="url" type="url" placeholder="https://example.com/sub.yaml" required />
+          </label>
+          <label class="checkbox">
+            <input id="profile-activate" name="activate" type="checkbox" />
+            导入完成后立即设为当前配置
+          </label>
+          <button type="submit">导入</button>
+        </form>
+        <p class="hint">
+          仅保存为 YAML 文件，不会上传数据。导入后可以在上方列表中切换到该配置。
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>从本地文件导入</h2>
+        <form id="local-import-form">
+          <label>
+            配置文件
+            <input id="local-file" name="file" type="file" accept=".yaml,.yml,.txt" required />
+          </label>
+          <label>
+            配置名称
+            <input id="local-name" name="name" type="text" placeholder="local-profile" />
+          </label>
+          <label class="checkbox">
+            <input id="local-activate" name="activate" type="checkbox" />
+            导入完成后立即设为当前配置
+          </label>
+          <button type="submit">导入本地文件</button>
+        </form>
+        <p class="hint">会读取本地文件内容并保存为 YAML 配置。</p>
+      </section>
+    </div>
+
+    <section class="panel">
+      <h2>外部编辑器</h2>
+      <form id="editor-config-form">
+        <label>
+          编辑器路径（可选）
+          <input
+            id="editor-path"
+            name="editor"
+            type="text"
+            placeholder="留空使用 VSCode，否则回退到记事本"
+          />
+        </label>
+        <div class="inline-actions">
+          <button id="editor-config-save" type="submit">保存设置</button>
+          <button id="editor-config-reset" type="button" class="ghost">使用默认</button>
+        </div>
+      </form>
+      <p class="hint">默认优先使用 VSCode（code 命令可用时），否则回退到记事本。</p>
+      <p id="editor-config-status" class="status"></p>
+    </section>
+
+    <section class="panel">
+      <div class="section-header">
+        <h2>内核版本管理</h2>
+        <button id="core-refresh-btn" type="button" class="ghost">刷新版本</button>
+      </div>
+      <p class="hint">当前版本：<span id="core-current">读取中...</span></p>
+      <div id="core-versions" class="profiles"></div>
+      <p id="core-status" class="status"></p>
+    </section>
+
+    <section id="editor-panel" class="panel editor-panel">
+      <div class="editor-header">
+        <div>
+          <h2>配置编辑器</h2>
+          <p class="hint">可直接编辑 YAML 内容并保存，支持新建或覆盖现有配置。</p>
+        </div>
+        <div class="editor-actions">
+          <button id="open-external-btn" type="button" class="ghost">外部编辑</button>
+          <button id="new-profile-btn" type="button">新建配置</button>
+          <button id="reset-editor-btn" type="button" class="ghost">清空</button>
+        </div>
+      </div>
+      <form id="editor-form">
+        <label>
+          配置名称
+          <input id="editor-name" type="text" placeholder="custom-profile" required />
+        </label>
+        <label>
+          配置内容
+          <textarea
+            id="editor-content"
+            rows="16"
+            spellcheck="false"
+            placeholder="# 在此粘贴或输入 YAML 配置"
+          ></textarea>
+        </label>
+        <label class="checkbox">
+          <input id="editor-activate" type="checkbox" />
+          保存后立即设为当前配置
+        </label>
+        <div class="editor-buttons">
+          <button id="editor-save-btn" type="submit">保存配置</button>
+        </div>
+      </form>
+      <p id="editor-status" class="status"></p>
+    </section>
+
+    <section id="status" class="status" role="status"></section>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

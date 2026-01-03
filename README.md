@@ -1,0 +1,133 @@
+# Mihomo Despicable Infiltrator
+
+Mihomo Despicable Infiltrator 是一个 Tauri v2 托盘应用，使用 `mihomo-rs` 管理 mihomo 内核，并通过内置 Axum 服务提供 Web UI 与订阅管理界面。
+
+## 功能概览
+
+- 托盘主进程：启动/监控 mihomo 内核、发送运行态事件。
+- Web UI：内置静态服务器托管 `zashboard`（Mihomo Web UI）与 `config-manager-ui`（订阅/配置管理）。
+- 配置管理：管理配置列表、导入订阅或本地文件、保存/切换/删除配置，支持外部编辑器打开。
+- 系统代理切换（Windows）。
+- 内核更新：获取最新 Stable 版本，下载进度可视化，重启内核并清理旧版本。
+- 内核版本管理：可手动切换已下载的内核版本，首次启动无版本时使用捆绑内核。
+- 管理员权限重启：安全关闭服务后重启，并保持端口稳定。
+- 开机自启：Windows 使用计划任务；可在托盘切换“启动时打开 Web UI”。
+
+## 目录结构
+
+- `src-tauri/` – Tauri v2 Rust 后端（托盘主进程 + Axum 服务）。
+- `mihomo-windows-amd64-v3.exe` – 离线备用内核二进制。
+- `mihomo-rs/`（可选）– SDK 源码，便于调试与对齐 API。
+- `zashboard/` – Mihomo Web UI 静态资源。
+- `config-manager-ui/` – 订阅/配置管理 UI 静态资源。
+
+## 环境要求
+
+- Node.js ≥ 18.18
+- pnpm ≥ 8
+- Rust toolchain (1.75+ recommended) + `cargo`
+
+## 安装依赖
+
+```powershell
+# 在仓库根目录
+pnpm install            # 安装 Tauri CLI
+```
+
+## 开发流程
+
+```powershell
+# 启动仅托盘模式的 Tauri 应用
+pnpm dev
+```
+
+`pnpm dev` / `tauri dev` 过程说明：
+
+1. Tauri 后端（`src-tauri/src/main.rs`）无窗口启动，通过 `mihomo-rs` 启动内核，并同时托管 `zashboard/` 与 `config-manager-ui/` 的静态服务。
+2. Web UI 默认不自动打开浏览器，可在托盘菜单中启用“启动时打开 Web UI”；托盘左键或“显示主界面”可打开。
+3. 后端事件：
+   - `mihomo://ready` – 内核就绪时的控制器地址与配置路径。
+   - `mihomo://traffic` – 来自 `mihomo-rs` 的流量数据。
+   - `mihomo://summary`、`mihomo://mode-changed`、`mihomo://error` – 托盘交互与状态事件。
+
+## 构建/打包流程
+
+```powershell
+pnpm build
+```
+
+Tauri 打包包含：
+
+- Web UI 静态资源（`bin/zashboard/`）
+- 配置管理 UI 静态资源（`bin/config-manager/`）
+- 备用内核 `bin/mihomo/mihomo.exe`（见 `tauri.conf.json > bundle.resources`）
+
+`mihomo-rs` 会通过 `VersionManager` 安装/更新官方版本；若失败（离线/防火墙等），回退使用捆绑的 Windows 二进制，并存放在应用数据目录。
+
+MSI 输出路径（Windows）：
+
+- `src-tauri/target/release/bundle/msi/Mihomo Despicable Infiltrator_0.5.5_x64_zh-CN.msi`
+
+## 运行时结构与目录
+
+- 资源打包路径：`bin/`
+  - `bin/zashboard/`：Web UI 静态资源
+  - `bin/config-manager/`：订阅/配置管理 UI 静态资源
+  - `bin/mihomo/mihomo.exe`：备用内核
+- 端口策略：
+  - Web UI 默认从 `4173` 起寻找可用端口
+  - 配置管理默认从 `5210` 起寻找可用端口
+  - 管理员重启会携带 `--static-port` / `--admin-port`，避免端口漂移
+- 权限：
+  - 需要管理员权限时，托盘菜单可触发“以管理员身份重启”
+  - 开机自启使用计划任务，默认关闭
+
+## Rust 后端概览
+
+- `MihomoRuntime::bootstrap`（`src-tauri/src/main.rs`）负责串联 SDK：
+  - `ConfigManager` 保证配置与控制器。
+  - `VersionManager` 解析内核二进制或使用捆绑版本。
+  - 启动服务并推送流量/日志到 Tauri 事件。
+- UI 可调用的命令（`invoke`）：
+  - `get_mihomo_summary` – 代理组、模式、控制器地址、运行状态。
+  - `toggle_core_mode` – 切换 Rule/Global 模式。
+  - `switch_proxy_group` – 切换代理组节点。
+  - `restart_mihomo` – 重启服务并重载配置。
+- 系统托盘（Tauri v2 `TrayIconBuilder`）快捷功能：
+  - 打开 Web UI / 配置管理
+  - 系统代理切换（Windows）
+  - 内核管理（版本展示/更新）
+  - 选择已下载内核版本
+  - 以管理员身份重启
+  - 开机自启 / 启动时打开 Web UI
+  - 退出
+
+后续 UI 可通过 `window.__TAURI__.invoke` 或监听事件与托盘保持同步，避免重复实现后端调用。
+
+## 贡献/发布说明
+
+- 版本号：每次发布递增小版本（例如 `0.5.2 -> 0.5.3`），同步更新 `src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`、`package.json`。
+- 测试：`cargo test`（`src-tauri/`）用于编译与基础回归。
+- 打包：`pnpm build` 产出 MSI（路径见上文）。
+- 许可证合规：发布前请核对所用库的许可证与二次分发要求。
+
+主要依赖与许可证（以 Cargo registry 元数据为准）：
+
+- `tauri` – Apache-2.0 OR MIT
+- `tauri-build` – Apache-2.0 OR MIT
+- `tauri-plugin-log` – Apache-2.0 OR MIT
+- `axum` – MIT
+- `tower-http` – MIT
+- `tokio` – MIT
+- `reqwest` – MIT OR Apache-2.0
+- `serde` / `serde_json` / `serde_yaml` – MIT OR Apache-2.0
+- `windows-sys` – MIT OR Apache-2.0
+- `mihomo-rs` – MIT (see `mihomo-rs/Cargo.toml`)
+
+静态 UI（`zashboard/`、`config-manager-ui/`）可能包含上游资产与字体，请在发布前确认其上游许可证要求。
+
+## 额外提示
+
+- 静态服务器默认使用 `zashboard/`；如需覆盖，设置 `METACUBEXD_STATIC_DIR=/absolute/path/to/dist`。
+- 管理界面默认使用 `config-manager-ui/`；如需覆盖，设置 `METACUBEXD_ADMIN_DIR=/absolute/path/to/dist`。
+- 若自维护 mihomo 配置，请放置在 `%USERPROFILE%\\.config\\mihomo-rs\\configs`（Windows）或 `~/.config/mihomo-rs/configs`。

@@ -1,0 +1,25 @@
+[package]
+name = "Mihomo-Despicable-Infiltrator"
+version = "0.5.8"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+axum = "0.7"
+log = "0.4"
+mihomo-rs = "1.2.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+tauri = { version = "2.0.0", features = ["tray-icon"] }
+tauri-plugin-log = "2.0.0"
+tower-http = { version = "0.6", features = ["fs"] }
+tokio = { version = "1.36", features = ["macros", "rt-multi-thread", "fs", "time", "sync", "net"] }
+windows-sys = { version = "0.59.0", features = ["Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_System_Registry", "Win32_Networking_WinInet", "Win32_Security", "Win32_System_Threading"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[build-dependencies]
+tauri-build = { version = "2.0.0", features = [] }
+
+[patch.crates-io]
+mihomo-rs = { path = "../mihomo-rs" }

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Mihomo Despicable Infiltrator",
+  "version": "0.5.8",
+  "identifier": "com.mihomo.despicable-infiltrator",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devUrl": "app://localhost",
+    "frontendDist": "../zashboard"
+  },
+  "app": {
+    "windows": []
+  },
+  "bundle": {
+    "active": true,
+    "publisher": "3FrogRepresents",
+    "shortDescription": "这是一个卑鄙的潜伏者",
+    "longDescription": "这是一个卑鄙的潜伏者",
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "resources": {
+      "../mihomo-windows-amd64-v3.exe": "bin/mihomo/mihomo.exe",
+      "../zashboard": "bin/zashboard",
+      "../config-manager-ui": "bin/config-manager"
+    },
+    "copyright": "Mihomo Despicable Infiltrator",
+    "targets": [
+      "nsis",
+      "msi"
+    ],
+    "windows": {
+      "wix": {
+        "language": "zh-CN"
+      },
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "startMenuFolder": "Mihomo Despicable Infiltrator"
+      }
+    }
+  }
+}
