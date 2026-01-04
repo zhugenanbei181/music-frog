@@ -2519,10 +2519,16 @@ async fn resolve_binary(
         return Ok(path);
     }
 
-    let version = vm
-        .install_channel(Channel::Stable)
-        .await
-        .map_err(|e| anyhow!(e.to_string()))?;
+    let version = match vm.install_channel(Channel::Stable).await {
+        Ok(version) => version,
+        Err(err) => {
+            warn!("failed to download stable core: {err}");
+            if let Some(path) = copy_bundled_binary(app).await? {
+                return Ok(path);
+            }
+            return Err(anyhow!(err.to_string()));
+        }
+    };
     vm.set_default(&version)
         .await
         .map_err(|e| anyhow!(e.to_string()))?;
@@ -2547,6 +2553,13 @@ async fn copy_bundled_binary(app: &AppHandle) -> anyhow::Result<Option<PathBuf>>
             candidates.push(project_resource);
         }
 
+        if let Ok(resource_dir) = app.path().resource_dir() {
+            let resource_path = resource_dir.join("bin").join("mihomo").join("mihomo.exe");
+            if resource_path.exists() {
+                candidates.push(resource_path);
+            }
+        }
+
         if let Ok(resource_path) = app
             .path()
             .resolve("bin/mihomo/mihomo.exe", BaseDirectory::Resource)
@@ -2557,8 +2570,10 @@ async fn copy_bundled_binary(app: &AppHandle) -> anyhow::Result<Option<PathBuf>>
         }
 
         let Some(source_path) = candidates.into_iter().find(|p| p.exists()) else {
+            warn!("bundled core not found in resources or project directory");
             return Ok(None);
         };
+        info!("using bundled mihomo core: {}", source_path.display());
 
         let resolver = app.path().clone();
         let data_dir = resolver
