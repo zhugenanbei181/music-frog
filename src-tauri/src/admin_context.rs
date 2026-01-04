@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use tauri::AppHandle;
+use tauri::{async_runtime, AppHandle};
 
-use crate::{app_state::AppState, runtime::rebuild_runtime};
+use crate::{app_state::AppState, platform, runtime::rebuild_runtime};
 use despicable_infiltrator_core::admin_api::AdminApiContext;
 
 #[derive(Clone)]
@@ -30,5 +30,11 @@ impl AdminApiContext for TauriAdminContext {
 
     async fn set_editor_path(&self, path: Option<String>) {
         self.app_state.set_editor_path(path).await;
+    }
+
+    async fn pick_editor_path(&self) -> Option<String> {
+        async_runtime::spawn_blocking(|| platform::pick_editor_path())
+            .await
+            .unwrap_or(None)
     }
 }

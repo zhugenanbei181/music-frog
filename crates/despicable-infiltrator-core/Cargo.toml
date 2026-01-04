@@ -1,6 +1,6 @@
 [package]
 name = "despicable-infiltrator-core"
-version = "0.1.6"
+version = "0.1.10"
 edition = "2021"
 
 [dependencies]
@@ -21,3 +21,4 @@ yaml-rust2 = "0.8"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
+windows-sys = { version = "0.52", features = ["Win32_System_Threading"] }

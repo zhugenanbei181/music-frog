@@ -4,6 +4,7 @@ mod admin_context;
 mod app_state;
 mod autostart;
 mod core_update;
+mod factory_reset;
 mod frontend;
 mod paths;
 mod platform;

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::anyhow;
-use despicable_infiltrator_core::settings as core_settings;
+use despicable_infiltrator_core::{settings as core_settings, AppSettings};
 
 use crate::{app_state::AppState, paths::app_data_dir};
 
@@ -16,6 +16,23 @@ pub(crate) async fn save_settings(state: &AppState) -> anyhow::Result<()> {
     let path = settings_path(state).await?;
     let settings = state.settings.read().await;
     core_settings::save_settings(&path, &settings).await?;
+    Ok(())
+}
+
+pub(crate) async fn reset_settings(state: &AppState) -> anyhow::Result<()> {
+    let path = settings_path(state).await?;
+    if path.exists() {
+        tokio::fs::remove_file(&path).await?;
+    }
+    let legacy_path = path.with_extension("json");
+    if legacy_path.exists() {
+        tokio::fs::remove_file(&legacy_path).await?;
+    }
+    {
+        let mut guard = state.settings.write().await;
+        *guard = AppSettings::default();
+    }
+    save_settings(state).await?;
     Ok(())
 }
 

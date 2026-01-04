@@ -3,6 +3,10 @@ node_modules/
 .pnpm-store/
 pnpm-lock.yaml
 
+# Vite artifacts
+config-manager-ui/.vite/
+config-manager-ui/dist/
+
 # Rust / Tauri build artifacts
 target/
 src-tauri/target/
@@ -12,6 +16,7 @@ src-tauri/.cargo/
 dist/
 *.log
 *.tmp
+_tmp_*
 
 # Bundled core binary
 mihomo.exe

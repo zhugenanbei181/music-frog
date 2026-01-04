@@ -1,6 +1,10 @@
 use anyhow::anyhow;
 #[cfg(target_os = "windows")]
 use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
 
 #[derive(Clone, Default)]
 pub struct SystemProxyState {
@@ -92,7 +96,9 @@ fn read_windows_system_proxy_state() -> anyhow::Result<SystemProxyState> {
 
 #[cfg(target_os = "windows")]
 fn refresh_internet_settings() {
-    let status = Command::new("rundll32.exe")
+    let mut command = Command::new("rundll32.exe");
+    command.creation_flags(CREATE_NO_WINDOW);
+    let status = command
         .args(["user32.dll,UpdatePerUserSystemParameters"])
         .status();
     if let Ok(status) = status {

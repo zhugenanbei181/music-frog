@@ -1,6 +1,10 @@
 use anyhow::anyhow;
-use mihomo_rs::config::{ConfigManager, Profile as MihomoProfile};
+use mihomo_rs::{
+    config::{ConfigManager, Profile as MihomoProfile},
+    core::find_available_port,
+};
 use serde::Serialize;
+use tokio::fs;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ProfileInfo {
@@ -71,4 +75,35 @@ pub fn sanitize_profile_name(name: &str) -> anyhow::Result<String> {
         ));
     }
     Ok(trimmed.to_string())
+}
+
+pub async fn reset_profiles_to_default() -> anyhow::Result<ProfileInfo> {
+    let home = mihomo_rs::core::get_home_dir()?;
+    let config_dir = home.join("configs");
+    if config_dir.exists() {
+        fs::remove_dir_all(&config_dir).await?;
+    }
+
+    let manager = ConfigManager::with_home(home)?;
+    let default_config = build_default_config()?;
+    manager.save("default", &default_config).await?;
+    manager.set_current("default").await?;
+    load_profile_info("default").await
+}
+
+fn build_default_config() -> anyhow::Result<String> {
+    let port = find_available_port(9090).ok_or_else(|| {
+        anyhow!("无法找到可用的控制接口端口（9090-9190）")
+    })?;
+    Ok(format!(
+        r#"# mihomo configuration
+port: 7890
+socks-port: 7891
+allow-lan: false
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:{}
+"#,
+        port
+    ))
 }

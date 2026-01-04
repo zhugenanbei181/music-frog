@@ -2,6 +2,10 @@ use anyhow::anyhow;
 use log::warn;
 #[cfg(target_os = "windows")]
 use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
 
 pub(crate) fn open_in_browser(url: &str) -> anyhow::Result<()> {
     webbrowser::open(url).map_err(|err| anyhow!(err.to_string()))
@@ -18,6 +22,15 @@ pub(crate) fn confirm_dialog(message: &str, title: &str) -> bool {
         result,
         rfd::MessageDialogResult::Ok | rfd::MessageDialogResult::Yes
     )
+}
+
+pub(crate) fn pick_editor_path() -> Option<String> {
+    let dialog = rfd::FileDialog::new().set_title("选择编辑器");
+    #[cfg(target_os = "windows")]
+    let dialog = dialog.add_filter("可执行文件", &["exe", "cmd", "bat"]);
+    dialog
+        .pick_file()
+        .map(|path| path.to_string_lossy().to_string())
 }
 
 pub(crate) fn show_error_dialog(message: impl Into<String>) {
@@ -75,7 +88,9 @@ pub(crate) fn restart_as_admin(
         )
     };
 
-    let status = Command::new("powershell")
+    let mut powershell = Command::new("powershell");
+    powershell.creation_flags(CREATE_NO_WINDOW);
+    let status = powershell
         .args(["-NoProfile", "-Command", &command])
         .status()?;
 

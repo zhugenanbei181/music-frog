@@ -7,11 +7,13 @@ Mihomo Despicable Infiltrator 是一个 Tauri v2 托盘应用，使用 `mihomo-r
 - 托盘主进程：启动/监控 mihomo 内核、发送运行态事件。
 - Web UI：内置静态服务器托管 `zashboard`（Mihomo Web UI）与 `config-manager-ui`（订阅/配置管理）。
 - 配置管理：管理配置列表、导入订阅或本地文件、保存/切换/删除配置，支持外部编辑器打开。
+- 配置清空：一键清空配置并恢复默认配置。
 - 系统代理切换（Windows）。
 - 内核更新：获取最新 Stable 版本，下载进度可视化，重启内核并清理旧版本。
 - 内核版本管理：可手动切换已下载的内核版本，首次启动无版本时使用捆绑内核。
 - 管理员权限重启：安全关闭服务后重启，并保持端口稳定。
 - 开机自启：Windows 使用计划任务；可在托盘切换“启动时打开 Web UI”。
+- 恢复出厂设置：清空配置、已下载内核、日志与运行时设置，重启为默认状态。
 
 ## 目录结构
 
@@ -22,6 +24,55 @@ Mihomo Despicable Infiltrator 是一个 Tauri v2 托盘应用，使用 `mihomo-r
 - `config-manager-ui/` – 订阅/配置管理 UI 静态资源。
 - `CHANGELOG.md` – 版本记录（新版本在前）。
 - `USAGE_SPEC.md` – 使用规范说明（命名与目录约定）。
+
+## 模块细分（开发参考）
+
+### `src-tauri/src/`
+
+- `main.rs`：入口与应用生命周期，组装托盘/运行时/静态服务。
+- `tray.rs`：托盘菜单构建与交互事件。
+- `runtime.rs`：运行时启动/重启/停止，桥接 core crate。
+- `frontend.rs`：静态站点与管理界面托管。
+- `app_state.rs`：全局状态与托盘状态文本更新。
+- `admin_context.rs`：Admin API 上下文实现（连接 core）。
+- `core_update.rs`：内核更新流程与进度上报。
+- `autostart.rs`：Windows 计划任务自启开关。
+- `system_proxy.rs`：Windows 系统代理开关。
+- `platform.rs`：平台能力封装（管理员重启、权限检测）。
+- `paths.rs`：运行时路径/资源定位。
+- `settings.rs`：运行时设置读写与重置。
+- `factory_reset.rs`：恢复出厂设置流程（清空配置/日志/设置等）。
+- `utils.rs`：通用工具（端口解析、等待释放）。
+
+### `crates/despicable-infiltrator-core/src/`
+
+- `lib.rs`：对外模块导出。
+- `runtime.rs`：mihomo 运行时编排与生命周期。
+- `admin_api.rs`：Axum 管理 API（订阅导入/配置切换/重启）。
+- `servers.rs`：静态服务与管理服务封装。
+- `profiles.rs`：配置档案读取/保存/清空逻辑。
+- `config.rs`：配置校验（YAML/TOML）。
+- `editor.rs`：外部编辑器探测与打开配置。
+- `version.rs`：版本排序与展示辅助。
+- `settings.rs`：运行时设置读取/迁移。
+- `proxy.rs`：系统代理状态结构与格式化。
+
+### `config-manager-ui/src/`
+
+- `main.ts`：前端入口。
+- `App.vue`：页面布局与业务编排。
+- `api.ts`：Admin API 请求封装。
+- `types.ts`：前端类型定义。
+- `styles.css`：基础样式与设计变量。
+- `components/StatusHeader.vue`：顶部状态与刷新入口。
+- `components/ProfilesPanel.vue`：配置列表与筛选。
+- `components/ImportSubscriptionPanel.vue`：订阅导入。
+- `components/ImportLocalPanel.vue`：本地文件导入。
+- `components/EditorPanel.vue`：配置编辑器。
+- `components/EditorSettingsPanel.vue`：外部编辑器设置。
+- `components/CorePanel.vue`：内核版本管理入口。
+- `components/BusyOverlay.vue`：忙碌遮罩与进度提示。
+- `components/ToastList.vue`：临时通知。
 
 ## 环境要求
 
@@ -34,6 +85,7 @@ Mihomo Despicable Infiltrator 是一个 Tauri v2 托盘应用，使用 `mihomo-r
 ```powershell
 # 在仓库根目录
 pnpm install            # 安装 Tauri CLI
+pnpm --dir config-manager-ui install  # 安装配置管理 UI 依赖
 ```
 
 ## 开发流程
@@ -55,6 +107,10 @@ pnpm dev
 ## 构建/打包流程
 
 ```powershell
+# 先构建配置管理 UI 静态资源
+pnpm --dir config-manager-ui build
+
+# 再打包 Tauri 安装包
 pnpm build
 ```
 
@@ -68,7 +124,9 @@ Tauri 打包包含：
 
 MSI 输出路径（Windows）：
 
-- `target/release/bundle/msi/Mihomo Despicable Infiltrator_0.6.7_x64_zh-CN.msi`
+- `target/release/bundle/msi/Mihomo Despicable Infiltrator_0.8.2_x64_zh-CN.msi`
+
+
 
 版本记录请查看 `CHANGELOG.md`（新版本在前）。
 使用规范请查看 `USAGE_SPEC.md`（命名与目录约定）。

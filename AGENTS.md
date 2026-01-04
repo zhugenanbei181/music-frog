@@ -1,14 +1,53 @@
-# Repository Guidelines
+# 仓库指南
 
-## Project Name
+## 项目名称
 
 - Mihomo-Despicable-Infiltrator
 
 ## 项目结构与模块说明
 
 - `src-tauri/`：Tauri v2 Rust 后端（托盘主进程，管理 mihomo-rs、mihomo 内核与 Axum 服务；TUN 由 Web UI 在管理员权限下管理）。**核心**
-- `config-manager-ui/`：订阅/配置管理 UI 代码（管理界面）。**核心**
-- `zashboard/`：Mihomo Web UI 代码。**核心**
+  - `src-tauri/src/main.rs`：入口与应用生命周期，组装托盘、运行时与服务。
+  - `src-tauri/src/tray.rs`：托盘菜单与交互事件（内核更新、管理员重启、自启等）。
+  - `src-tauri/src/runtime.rs`：运行时启动/重启/停止，桥接 core crate。
+  - `src-tauri/src/frontend.rs`：静态站点与管理界面托管。
+  - `src-tauri/src/app_state.rs`：全局状态与托盘信息更新。
+  - `src-tauri/src/admin_context.rs`：Admin API 上下文实现（连接 core）。
+  - `src-tauri/src/core_update.rs`：内核更新流程与进度回传。
+  - `src-tauri/src/autostart.rs`：Windows 计划任务自启开关。
+  - `src-tauri/src/system_proxy.rs`：Windows 系统代理开关。
+  - `src-tauri/src/platform.rs`：平台能力封装（管理员重启、权限检测）。
+  - `src-tauri/src/paths.rs`：运行时路径/资源定位。
+  - `src-tauri/src/settings.rs`：运行时设置读写与重置。
+  - `src-tauri/src/factory_reset.rs`：恢复出厂设置流程（清空配置/日志/设置等）。
+  - `src-tauri/src/utils.rs`：通用工具（端口解析、等待释放）。
+- `crates/despicable-infiltrator-core/`：核心业务 crate（与 Tauri 解耦）。**核心**
+  - `crates/despicable-infiltrator-core/src/lib.rs`：对外模块导出。
+  - `crates/despicable-infiltrator-core/src/runtime.rs`：mihomo 运行时编排与生命周期。
+  - `crates/despicable-infiltrator-core/src/admin_api.rs`：Axum 管理 API（订阅导入/配置切换/重启）。
+  - `crates/despicable-infiltrator-core/src/servers.rs`：静态服务与管理服务封装。
+  - `crates/despicable-infiltrator-core/src/profiles.rs`：配置档案读取/保存/清空逻辑。
+  - `crates/despicable-infiltrator-core/src/config.rs`：配置校验（YAML/TOML）。
+  - `crates/despicable-infiltrator-core/src/editor.rs`：外部编辑器探测与打开配置。
+  - `crates/despicable-infiltrator-core/src/version.rs`：版本排序与展示辅助。
+  - `crates/despicable-infiltrator-core/src/settings.rs`：运行时设置读取/迁移。
+  - `crates/despicable-infiltrator-core/src/proxy.rs`：系统代理状态结构与格式化。
+- `config-manager-ui/`：配置管理 UI 代码，基于 Vue 3 + TypeScript + Tailwind CSS。**核心**
+  - `config-manager-ui/src/main.ts`：前端入口。
+  - `config-manager-ui/src/App.vue`：页面布局与业务编排。
+  - `config-manager-ui/src/api.ts`：Admin API 请求封装。
+  - `config-manager-ui/src/types.ts`：前端类型定义。
+  - `config-manager-ui/src/styles.css`：基础样式与设计变量。
+  - `config-manager-ui/src/components/StatusHeader.vue`：顶部状态与刷新入口。
+  - `config-manager-ui/src/components/ProfilesPanel.vue`：配置列表与筛选。
+  - `config-manager-ui/src/components/ImportSubscriptionPanel.vue`：订阅导入。
+  - `config-manager-ui/src/components/ImportLocalPanel.vue`：本地文件导入。
+  - `config-manager-ui/src/components/EditorPanel.vue`：配置编辑器。
+  - `config-manager-ui/src/components/EditorSettingsPanel.vue`：外部编辑器设置。
+  - `config-manager-ui/src/components/CorePanel.vue`：内核版本管理入口。
+  - `config-manager-ui/src/components/BusyOverlay.vue`：忙碌遮罩与进度提示。
+  - `config-manager-ui/src/components/ToastList.vue`：临时通知。
+- `zashboard/`：Mihomo Web UI 静态资源。**核心**
 - `mihomo-rs/`：Tauri 后端使用的 Rust SDK，包含测试与示例。
 - `mihomo.exe`：离线备用内核二进制（Windows，兼容旧名 `mihomo-windows-amd64-v3.exe`）。
 - `CHANGELOG.md`：版本记录（新版本在前）。
@@ -25,6 +64,7 @@
 ## 编码风格与命名规范
 
 - Rust：遵循 `rustfmt` 默认格式（4 空格缩进）；模块 `snake_case`、类型 `PascalCase`、函数 `snake_case`。
+- Rust：**禁止使用 `unsafe`**。如需系统能力必须优先选用安全库；确有必要时需给出安全替代方案或完整安全性说明并记录到规范中。
 - 非必要不修改二进制资源与生成物。
 
 ## 测试规范
@@ -38,6 +78,7 @@
 - 当前检出无 Git 历史，无法推断提交规范。
 - 若补充 Git 历史，建议使用 Conventional Commits（如 `feat(tauri): add tray toggle`）。
 - PR 应包含：简要说明、关联 issue（如有）、变更 UI 时的截图（`config-manager-ui/` 或 `zashboard/`）。
+- Each bug fix must bump the patch version and update `CHANGELOG.md`, `README.md`, `USAGE_SPEC.md`.
 
 ## 安全与配置提示
 

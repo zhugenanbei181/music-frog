@@ -13,6 +13,7 @@ use crate::{
     app_state::{AppState, TrayInfoItems},
     autostart::{is_autostart_enabled, set_autostart_enabled},
     core_update::{delete_core_version, switch_core_version, update_mihomo_core},
+    factory_reset::factory_reset,
     frontend::{open_admin_frontend, open_frontend},
     platform::{confirm_dialog, is_running_as_admin, restart_as_admin, show_error_dialog},
     runtime::rebuild_runtime,
@@ -207,6 +208,8 @@ async fn build_tray_menu(
     let config_item = MenuItem::with_id(app, "config-manager", "打开配置管理", true, None::<&str>)?;
     let restart_admin_item =
         MenuItem::with_id(app, "restart-admin", "以管理员身份重启", true, None::<&str>)?;
+    let factory_reset_item =
+        MenuItem::with_id(app, "factory-reset", "恢复出厂设置", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
 
     let is_admin = is_running_as_admin();
@@ -226,6 +229,7 @@ async fn build_tray_menu(
             &show_item,
             &config_item,
             &restart_admin_item,
+            &factory_reset_item,
             &quit_item,
         ],
     )?;
@@ -350,6 +354,26 @@ pub(crate) fn create_tray(app: &AppHandle, state: AppState) -> tauri::Result<()>
                     match restart_as_admin(static_port, admin_port) {
                         Ok(()) => app_handle.exit(0),
                         Err(err) => show_error_dialog(format!("以管理员身份重启失败: {err:#}")),
+                    }
+                });
+            }
+            "factory-reset" => {
+                let state_clone = state_for_menu.clone();
+                let app_handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let confirmed = confirm_dialog(
+                        "恢复出厂设置会清空所有配置、已下载内核、日志与应用设置，并重启服务。是否继续？",
+                        "恢复出厂设置",
+                    );
+                    if !confirmed {
+                        return;
+                    }
+                    if let Err(err) = factory_reset(&app_handle, &state_clone).await {
+                        show_error_dialog(format!("恢复出厂设置失败: {err:#}"));
+                        return;
+                    }
+                    if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
+                        warn!("failed to refresh tray menu: {err:#}");
                     }
                 });
             }

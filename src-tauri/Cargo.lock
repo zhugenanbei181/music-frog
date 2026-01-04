@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Mihomo-Despicable-Infiltrator"
-version = "0.6.7"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -19,6 +19,7 @@ dependencies = [
  "tauri-plugin-log",
  "tokio",
  "webbrowser",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1203,7 +1204,7 @@ dependencies = [
 
 [[package]]
 name = "despicable-infiltrator-core"
-version = "0.1.6"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1218,6 +1219,7 @@ dependencies = [
  "tokio",
  "toml 0.8.2",
  "tower-http",
+ "windows-sys 0.52.0",
  "winreg 0.52.0",
  "yaml-rust2",
 ]

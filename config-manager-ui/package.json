@@ -1,0 +1,22 @@
+{
+  "name": "config-manager-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config vite.config.mjs",
+    "build": "vite build --config vite.config.mjs",
+    "preview": "vite preview --config vite.config.mjs --host 127.0.0.1 --port 5210"
+  },
+  "dependencies": {
+    "vue": "^3.4.27"
+  },
+  "devDependencies": {
+    "@fontsource/manrope": "^5.0.12",
+    "@vitejs/plugin-vue": "^5.0.5",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.4.5",
+    "vite": "^5.3.1"
+  }
+}

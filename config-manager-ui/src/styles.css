@@ -1,0 +1,66 @@
+﻿@import "@fontsource/manrope/400.css";
+@import "@fontsource/manrope/600.css";
+@import "@fontsource/manrope/700.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --panel-border: rgba(15, 23, 42, 0.08);
+}
+
+body {
+  font-family: "Manrope", sans-serif;
+  background:
+    radial-gradient(circle at 15% 15%, rgba(94, 234, 212, 0.25), transparent 45%),
+    radial-gradient(circle at 85% 10%, rgba(251, 191, 36, 0.18), transparent 40%),
+    #f8f7f3;
+  min-height: 100vh;
+}
+
+section,
+header,
+main {
+  animation: floatIn 0.5s ease-out;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-2xl border border-[color:var(--panel-border)] bg-white/85 shadow-panel backdrop-blur;
+  }
+  .panel-title {
+    @apply text-lg font-semibold text-ink-900;
+  }
+  .label {
+    @apply text-sm font-semibold text-ink-700;
+  }
+  .input {
+    @apply w-full rounded-xl border border-ink-500/20 bg-white px-3 py-2 text-sm text-ink-900 focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-200;
+  }
+  .textarea {
+    @apply w-full rounded-xl border border-ink-500/20 bg-white px-3 py-2 text-sm text-ink-900 focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-200;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold transition;
+  }
+  .btn-primary {
+    @apply bg-accent-500 text-white shadow-sm hover:bg-accent-400;
+  }
+  .btn-ghost {
+    @apply border border-ink-500/20 text-ink-700 hover:border-accent-400 hover:text-accent-500;
+  }
+  .btn-danger {
+    @apply border border-red-300 text-red-600 hover:bg-red-50;
+  }
+  .badge {
+    @apply rounded-full px-2 py-0.5 text-xs font-semibold;
+  }
+  .badge-active {
+    @apply bg-accent-200 text-accent-500;
+  }
+  .badge-idle {
+    @apply bg-sand-200 text-ink-700;
+  }
+}

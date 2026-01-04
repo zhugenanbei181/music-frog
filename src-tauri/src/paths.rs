@@ -30,14 +30,17 @@ pub(crate) fn resolve_main_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
 
 pub(crate) fn resolve_admin_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
     let dev_admin = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../config-manager-ui");
+    let dev_admin_dist = dev_admin.join("dist");
 
     let admin_dir = if let Ok(custom) = env::var("METACUBEXD_ADMIN_DIR") {
         let path = PathBuf::from(custom);
         if path.exists() {
             path
         } else {
-            dev_admin.clone()
+            dev_admin_dist.clone()
         }
+    } else if dev_admin_dist.exists() {
+        dev_admin_dist
     } else if dev_admin.exists() {
         dev_admin
     } else {
@@ -47,7 +50,7 @@ pub(crate) fn resolve_admin_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
 
     if !admin_dir.exists() {
         return Err(anyhow!(
-            "未找到配置管理静态资源，请保留 config-manager-ui/ 目录"
+            "未找到配置管理静态资源，请构建或保留 config-manager-ui/ 目录"
         ));
     }
 
