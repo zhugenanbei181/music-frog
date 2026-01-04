@@ -16,10 +16,12 @@ Mihomo Despicable Infiltrator 是一个 Tauri v2 托盘应用，使用 `mihomo-r
 ## 目录结构
 
 - `src-tauri/` – Tauri v2 Rust 后端（托盘主进程 + Axum 服务）。
-- `mihomo-windows-amd64-v3.exe` – 离线备用内核二进制。
+- `mihomo.exe` – 离线备用内核二进制（兼容旧名 `mihomo-windows-amd64-v3.exe`）。
 - `mihomo-rs/`（可选）– SDK 源码，便于调试与对齐 API。
 - `zashboard/` – Mihomo Web UI 静态资源。
 - `config-manager-ui/` – 订阅/配置管理 UI 静态资源。
+- `CHANGELOG.md` – 版本记录（新版本在前）。
+- `USAGE_SPEC.md` – 使用规范说明（命名与目录约定）。
 
 ## 环境要求
 
@@ -66,7 +68,10 @@ Tauri 打包包含：
 
 MSI 输出路径（Windows）：
 
-- `src-tauri/target/release/bundle/msi/Mihomo Despicable Infiltrator_0.5.5_x64_zh-CN.msi`
+- `target/release/bundle/msi/Mihomo Despicable Infiltrator_0.6.7_x64_zh-CN.msi`
+
+版本记录请查看 `CHANGELOG.md`（新版本在前）。
+使用规范请查看 `USAGE_SPEC.md`（命名与目录约定）。
 
 ## 运行时结构与目录
 
@@ -81,6 +86,26 @@ MSI 输出路径（Windows）：
 - 权限：
   - 需要管理员权限时，托盘菜单可触发“以管理员身份重启”
   - 开机自启使用计划任务，默认关闭
+
+## 配置与数据目录
+
+- 运行时设置（托盘设置）：
+  - Windows：`%APPDATA%\\com.mihomo.despicable-infiltrator\\settings.toml`（旧 `settings.json` 自动迁移）
+  - 字段：`open_webui_on_startup`、`editor_path`、`use_bundled_core`
+- 内核版本管理目录（`mihomo-rs` VersionManager）：
+  - Windows：`%USERPROFILE%\\.config\\mihomo-rs\\versions\\<version>\\mihomo.exe`
+  - 默认版本记录：`%USERPROFILE%\\.config\\mihomo-rs\\config.toml`
+- 内核配置文件目录：
+  - Windows：`%USERPROFILE%\\.config\\mihomo-rs\\configs`
+- GeoIP 数据库文件：
+  - Windows：`%USERPROFILE%\\.config\\mihomo-rs\\configs\\geoip.metadb`
+  - 下载源可用环境变量覆盖：`MIHOMO_GEOIP_URL`（默认会尝试 GitHub 与 jsdelivr 镜像）
+  - 也可将 `geoip.metadb` 放在内核同目录（`bin/mihomo/`），启动时会自动复制
+- Mihomo 日志文件：
+  - Windows：`%USERPROFILE%\\.config\\mihomo-rs\\logs\\mihomo.log`
+  - 应用日志（托盘/Axum）：Windows：`%LOCALAPPDATA%\\com.mihomo.despicable-infiltrator\\logs\\Mihomo-Despicable-Infiltrator.log`
+- 开机自启：
+  - Windows 通过计划任务保存，任务名 `MihomoDespicableInfiltrator`
 
 ## Rust 后端概览
 
@@ -120,8 +145,12 @@ MSI 输出路径（Windows）：
 - `tower-http` – MIT
 - `tokio` – MIT
 - `reqwest` – MIT OR Apache-2.0
-- `serde` / `serde_json` / `serde_yaml` – MIT OR Apache-2.0
-- `windows-sys` – MIT OR Apache-2.0
+- `serde` / `serde_json` – MIT OR Apache-2.0
+- `yaml-rust2` – MIT OR Apache-2.0
+- `webbrowser` – MIT OR Apache-2.0
+- `rfd` – MIT
+- `is_elevated` – MIT
+- `winreg` – MIT
 - `mihomo-rs` – MIT (see `mihomo-rs/Cargo.toml`)
 
 静态 UI（`zashboard/`、`config-manager-ui/`）可能包含上游资产与字体，请在发布前确认其上游许可证要求。
@@ -131,3 +160,4 @@ MSI 输出路径（Windows）：
 - 静态服务器默认使用 `zashboard/`；如需覆盖，设置 `METACUBEXD_STATIC_DIR=/absolute/path/to/dist`。
 - 管理界面默认使用 `config-manager-ui/`；如需覆盖，设置 `METACUBEXD_ADMIN_DIR=/absolute/path/to/dist`。
 - 若自维护 mihomo 配置，请放置在 `%USERPROFILE%\\.config\\mihomo-rs\\configs`（Windows）或 `~/.config/mihomo-rs/configs`。
+- 构建产物默认输出到 `target/`，已在 `.gitignore` 忽略；如需提交或归档，请自行处理。

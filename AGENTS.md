@@ -10,7 +10,9 @@
 - `config-manager-ui/`：订阅/配置管理 UI 代码（管理界面）。**核心**
 - `zashboard/`：Mihomo Web UI 代码。**核心**
 - `mihomo-rs/`：Tauri 后端使用的 Rust SDK，包含测试与示例。
-- `mihomo-windows-amd64-v3.exe`：离线备用内核二进制（Windows）。
+- `mihomo.exe`：离线备用内核二进制（Windows，兼容旧名 `mihomo-windows-amd64-v3.exe`）。
+- `CHANGELOG.md`：版本记录（新版本在前）。
+- `USAGE_SPEC.md`：使用规范说明（命名与目录约定）。
 
 ## 构建、测试与开发命令
 
@@ -42,7 +44,15 @@
 - 后端默认托管 `bin/zashboard/`；如需覆盖，设置 `METACUBEXD_STATIC_DIR=/absolute/path/to/dist`。
 - 管理界面默认托管 `bin/config-manager/`；如需覆盖，设置 `METACUBEXD_ADMIN_DIR=/absolute/path/to/dist`。
 - 默认 mihomo 配置目录：Windows 为 `%USERPROFILE%\\.config\\mihomo-rs\\configs`，Unix 为 `~/.config/mihomo-rs/configs`。
-- 捆绑备用内核为 `mihomo-windows-amd64-v3.exe`，更新需谨慎并记录。
+- GeoIP 数据库文件：Windows 为 `%USERPROFILE%\.config\mihomo-rs\configs\geoip.metadb`，下载源可用 `MIHOMO_GEOIP_URL` 覆盖。（默认会尝试 GitHub 与 jsdelivr 镜像）
+- 可将 `geoip.metadb` 放在内核同目录（`bin/mihomo/`）便于首次启动无网络时使用。
+- Mihomo 日志文件：Windows 为 `%USERPROFILE%\.config\mihomo-rs\logs\mihomo.log`。
+- 应用日志（托盘/Axum）：Windows 为 `%LOCALAPPDATA%\\com.mihomo.despicable-infiltrator\\logs\\Mihomo-Despicable-Infiltrator.log`。
+- 捆绑备用内核为 `mihomo.exe`（兼容 `mihomo-windows-amd64-v3.exe`），更新需谨慎并记录。
+- 运行时设置文件：Windows 为 `%APPDATA%\\com.mihomo.despicable-infiltrator\\settings.toml`（旧 settings.json 自动迁移），包含 `open_webui_on_startup`、`editor_path`、`use_bundled_core`。
+- 版本管理目录：Windows 为 `%USERPROFILE%\\.config\\mihomo-rs\\versions`，默认版本记录在 `%USERPROFILE%\\.config\\mihomo-rs\\config.toml`。
+- 开机自启使用计划任务，任务名 `MihomoDespicableInfiltrator`。
+- 使用规范请见 `USAGE_SPEC.md`，包含默认内核命名与安装目录约定。
 
 ## 权限与提升运行（托盘）
 
@@ -55,5 +65,5 @@
 
 - 托盘主进程通过 `mihomo-rs` 启动 mihomo 内核，托管 Web UI 与配置管理的 Axum 静态服务，并发送运行事件。
 - 托盘菜单包含：打开 Web UI、系统代理切换（Windows）、内核更新到最新稳定版、管理员重启状态、开机自启、启动时打开 Web UI。
-- 内核更新使用 `mihomo-rs` VersionManager，下载稳定版并显示进度与网络状态，重启内核并仅保留最新版本。
+- 内核更新使用 `mihomo-rs` VersionManager，下载稳定版并显示进度与网络状态。
 - 配置管理支持订阅导入、本地文件导入、外部编辑器打开配置，并可切换已下载的内核版本。

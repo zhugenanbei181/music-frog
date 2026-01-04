@@ -1,5 +1,6 @@
-use crate::core::{MihomoError, Result};
-use std::path::Path;
+use crate::core::{get_home_dir, MihomoError, Result};
+use std::fs::OpenOptions;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -23,6 +24,11 @@ pub async fn spawn_daemon(binary: &Path, config: &Path) -> Result<u32> {
         )));
     }
 
+    let log_path = prepare_log_file().await?;
+    let stdout = open_log_file(&log_path)?;
+    let stderr = open_log_file(&log_path)?;
+    log::info!("mihomo log file: {}", log_path.display());
+
     let mut command = Command::new(binary);
     command
         .arg("-d")
@@ -30,8 +36,8 @@ pub async fn spawn_daemon(binary: &Path, config: &Path) -> Result<u32> {
         .arg("-f")
         .arg(config)
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stdout(Stdio::from(stdout))
+        .stderr(Stdio::from(stderr));
 
     #[cfg(windows)]
     {
@@ -44,6 +50,23 @@ pub async fn spawn_daemon(binary: &Path, config: &Path) -> Result<u32> {
 
     let pid = child.id();
     Ok(pid)
+}
+
+async fn prepare_log_file() -> Result<PathBuf> {
+    let home = get_home_dir()?;
+    let log_dir = home.join("logs");
+    fs::create_dir_all(&log_dir).await?;
+    Ok(log_dir.join("mihomo.log"))
+}
+
+fn open_log_file(path: &Path) -> Result<std::fs::File> {
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .map_err(|e| {
+            MihomoError::Service(format!("Failed to open log file {}: {}", path.display(), e))
+        })
 }
 
 pub fn kill_process(pid: u32) -> Result<()> {

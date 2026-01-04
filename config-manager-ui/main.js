@@ -261,11 +261,11 @@ async function switchProfile(name) {
   try {
     await request('profiles/switch', { method: 'POST', body: { name } });
     setStatus(`已切换到 ${name}`, 'success');
-    await refreshProfiles();
   } catch (err) {
     console.error(err);
     setStatus(err.message || String(err), 'error');
-    setBusy(false);
+  } finally {
+    await refreshProfiles();
   }
 }
 
@@ -370,11 +370,11 @@ importForm.addEventListener('submit', async (event) => {
       'success',
     );
     importForm.reset();
-    await refreshProfiles();
   } catch (err) {
     console.error(err);
     setStatus(err.message || String(err), 'error');
-    setBusy(false);
+  } finally {
+    await refreshProfiles();
   }
 });
 
@@ -416,11 +416,11 @@ localImportForm.addEventListener('submit', async (event) => {
       'success',
     );
     localImportForm.reset();
-    await refreshProfiles();
   } catch (err) {
     console.error(err);
     setStatus(err.message || String(err), 'error');
-    setBusy(false);
+  } finally {
+    await refreshProfiles();
   }
 });
 
@@ -442,14 +442,16 @@ editorForm.addEventListener('submit', async (event) => {
   setEditorBusy(true);
   setEditorStatus(`正在保存 ${name}...`, '');
   try {
-    await request('profiles/save', {
+    const response = await request('profiles/save', {
       method: 'POST',
       body: { name, content, activate },
     });
-    setEditorStatus(
-      activate ? `配置 ${name} 已保存并设为当前` : `配置 ${name} 已保存`,
-      'success',
-    );
+    let message = activate ? `配置 ${name} 已保存并设为当前` : `配置 ${name} 已保存`;
+    if (response?.controller_url) {
+      const suffix = response.controller_changed ? '（已更新）' : '';
+      message += `，控制接口：${response.controller_url}${suffix}`;
+    }
+    setEditorStatus(message, 'success');
     await refreshProfiles();
   } catch (err) {
     console.error(err);

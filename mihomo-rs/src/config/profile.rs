@@ -1,4 +1,4 @@
-use crate::core::Result;
+use crate::{config::yaml, core::Result};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
@@ -22,7 +22,7 @@ impl Profile {
         }
 
         let content = tokio::fs::read_to_string(&self.path).await?;
-        serde_yaml::from_str::<serde_yaml::Value>(&content)?;
+        yaml::validate(&content)?;
 
         Ok(())
     }

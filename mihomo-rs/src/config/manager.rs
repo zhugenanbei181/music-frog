@@ -1,4 +1,4 @@
-use super::profile::Profile;
+use super::{profile::Profile, yaml};
 use crate::core::{
     find_available_port, get_home_dir, is_port_available, parse_port_from_addr, MihomoError, Result,
 };
@@ -42,7 +42,7 @@ impl ConfigManager {
     pub async fn save(&self, profile: &str, content: &str) -> Result<()> {
         fs::create_dir_all(&self.config_dir).await?;
 
-        serde_yaml::from_str::<serde_yaml::Value>(content)?;
+        yaml::validate(content)?;
 
         let path = self.config_dir.join(format!("{}.yaml", profile));
         fs::write(&path, content).await?;
@@ -192,12 +192,10 @@ external-controller: 127.0.0.1:{}
         log::debug!("Reading external-controller from profile: {}", profile);
 
         let content = self.load(&profile).await?;
-        let config: serde_yaml::Value = serde_yaml::from_str(&content)?;
+        let config = yaml::load_yaml(&content)?;
 
-        let controller = config
-            .get("external-controller")
-            .and_then(|v| v.as_str())
-            .unwrap_or("127.0.0.1:9090");
+        let controller = yaml::get_str(&config, "external-controller")
+            .unwrap_or_else(|| "127.0.0.1:9090".to_string());
 
         let url = if controller.starts_with(':') {
             format!("http://127.0.0.1{}", controller)
@@ -216,9 +214,9 @@ external-controller: 127.0.0.1:{}
     pub async fn ensure_external_controller(&self) -> Result<String> {
         let profile = self.get_current().await?;
         let content = self.load(&profile).await?;
-        let mut config: serde_yaml::Value = serde_yaml::from_str(&content)?;
+        let mut config = yaml::load_yaml(&content)?;
 
-        let needs_update = match config.get("external-controller").and_then(|v| v.as_str()) {
+        let needs_update = match yaml::get_str(&config, "external-controller") {
             Some(controller) => {
                 // Parse the port from the controller address
                 let addr = if controller.starts_with(':') {
@@ -256,14 +254,8 @@ external-controller: 127.0.0.1:{}
             let controller_addr = format!("127.0.0.1:{}", port);
             log::info!("Setting external-controller to {}", controller_addr);
 
-            if let serde_yaml::Value::Mapping(ref mut map) = config {
-                map.insert(
-                    serde_yaml::Value::String("external-controller".to_string()),
-                    serde_yaml::Value::String(controller_addr.clone()),
-                );
-            }
-
-            let updated_content = serde_yaml::to_string(&config)?;
+            yaml::set_str(&mut config, "external-controller", &controller_addr)?;
+            let updated_content = yaml::to_string(&config)?;
             self.save(&profile, &updated_content).await?;
 
             Ok(format!("http://{}", controller_addr))

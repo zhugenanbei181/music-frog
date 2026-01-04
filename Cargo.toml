@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = [
+  "src-tauri",
+  "mihomo-rs",
+  "crates/despicable-infiltrator-core"
+]
+
+[patch.crates-io]
+mihomo-rs = { path = "mihomo-rs" }

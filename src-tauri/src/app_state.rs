@@ -1,0 +1,374 @@
+use std::sync::Arc;
+
+use anyhow::anyhow;
+use despicable_infiltrator_core::{
+    servers::{AdminServerHandle, StaticServerHandle},
+    AppSettings, MihomoRuntime, SystemProxyState,
+};
+use log::warn;
+use mihomo_rs::version::VersionManager;
+use tauri::{
+    menu::{CheckMenuItem, MenuItem},
+    AppHandle, Wry,
+};
+use tokio::sync::RwLock;
+
+use crate::{
+    settings::save_settings,
+    system_proxy::{apply_system_proxy, read_system_proxy_state},
+    utils::extract_port_from_url,
+};
+
+#[derive(Clone, Default)]
+pub(crate) struct AppState {
+    runtime: Arc<RwLock<Option<Arc<MihomoRuntime>>>>,
+    static_server: Arc<RwLock<Option<StaticServerHandle>>>,
+    admin_server: Arc<RwLock<Option<AdminServerHandle>>>,
+    tray_info: Arc<RwLock<Option<TrayInfoItems>>>,
+    system_proxy: Arc<RwLock<SystemProxyState>>,
+    pub(crate) settings: Arc<RwLock<AppSettings>>,
+    pub(crate) app_handle: Arc<RwLock<Option<AppHandle>>>,
+}
+
+#[derive(Clone)]
+pub(crate) struct TrayInfoItems {
+    pub controller: MenuItem<Wry>,
+    pub static_host: MenuItem<Wry>,
+    pub admin_host: MenuItem<Wry>,
+    pub system_proxy: MenuItem<Wry>,
+    pub admin_privilege: MenuItem<Wry>,
+    pub core_version: MenuItem<Wry>,
+    pub core_installed: MenuItem<Wry>,
+    pub core_status: MenuItem<Wry>,
+    pub core_network: MenuItem<Wry>,
+    pub core_update: MenuItem<Wry>,
+    pub core_default: CheckMenuItem<Wry>,
+    pub autostart: CheckMenuItem<Wry>,
+    pub open_webui: CheckMenuItem<Wry>,
+}
+
+impl AppState {
+    pub(crate) async fn set_runtime(&self, runtime: MihomoRuntime) {
+        let mut guard = self.runtime.write().await;
+        *guard = Some(Arc::new(runtime));
+    }
+
+    pub(crate) async fn runtime(&self) -> anyhow::Result<Arc<MihomoRuntime>> {
+        let guard = self.runtime.read().await;
+        guard
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| anyhow!("mihomo runtime is not ready yet"))
+    }
+
+    pub(crate) async fn set_static_server(&self, handle: StaticServerHandle) {
+        let mut guard = self.static_server.write().await;
+        *guard = Some(handle);
+    }
+
+    pub(crate) async fn stop_frontends(&self) {
+        if let Some(handle) = self.static_server.write().await.take() {
+            handle.stop();
+            self.update_static_info_text("静态站点: 已停止").await;
+        }
+        if let Some(handle) = self.admin_server.write().await.take() {
+            handle.stop();
+            self.update_admin_info_text("配置管理: 已停止").await;
+        }
+    }
+
+    pub(crate) async fn stop_runtime(&self) {
+        let runtime = self.runtime.write().await.take();
+        if let Some(runtime) = runtime {
+            if let Err(err) = runtime.shutdown().await {
+                warn!("failed to stop mihomo runtime: {err}");
+            } else {
+                self.update_controller_info_text("控制接口: 已停止").await;
+            }
+        }
+    }
+
+    pub(crate) async fn shutdown_all(&self) {
+        self.stop_frontends().await;
+        self.stop_runtime().await;
+        self.disable_system_proxy().await;
+    }
+
+    pub(crate) async fn static_server_url(&self) -> Option<String> {
+        self.static_server
+            .read()
+            .await
+            .as_ref()
+            .map(|handle| handle.url.clone())
+    }
+
+    pub(crate) async fn set_admin_server(&self, handle: AdminServerHandle) {
+        let mut guard = self.admin_server.write().await;
+        *guard = Some(handle);
+    }
+
+    pub(crate) async fn admin_server_url(&self) -> Option<String> {
+        self.admin_server
+            .read()
+            .await
+            .as_ref()
+            .map(|handle| handle.url.clone())
+    }
+
+    pub(crate) async fn set_tray_info_items(&self, items: TrayInfoItems) {
+        let mut guard = self.tray_info.write().await;
+        *guard = Some(items);
+    }
+
+    pub(crate) async fn set_app_handle(&self, handle: AppHandle) {
+        let mut guard = self.app_handle.write().await;
+        *guard = Some(handle);
+    }
+
+    pub(crate) async fn update_static_info_text(&self, text: impl Into<String>) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            if let Err(err) = items.static_host.set_text(text.into()) {
+                warn!("failed to update static host info menu item: {err}");
+            }
+        }
+    }
+
+    pub(crate) async fn update_controller_info_text(&self, text: impl Into<String>) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            if let Err(err) = items.controller.set_text(text.into()) {
+                warn!("failed to update controller info menu item: {err}");
+            }
+        }
+    }
+
+    pub(crate) async fn update_admin_info_text(&self, text: impl Into<String>) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            if let Err(err) = items.admin_host.set_text(text.into()) {
+                warn!("failed to update admin info menu item: {err}");
+            }
+        }
+    }
+
+    pub(crate) async fn update_system_proxy_text(&self, enabled: bool, endpoint: Option<&str>) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            let text = if enabled {
+                match endpoint {
+                    Some(addr) => format!("系统代理: 已开启 ({addr})"),
+                    None => "系统代理: 已开启".to_string(),
+                }
+            } else {
+                "系统代理: 已关闭".to_string()
+            };
+            if let Err(err) = items.system_proxy.set_text(text) {
+                warn!("failed to update system proxy menu item: {err}");
+            }
+        }
+    }
+
+    pub(crate) async fn update_admin_privilege_text(&self, is_admin: bool) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            let text = if is_admin {
+                "管理员权限: 已获取"
+            } else {
+                "管理员权限: 未获取（开机自启需管理员）"
+            };
+            if let Err(err) = items.admin_privilege.set_text(text) {
+                warn!("failed to update admin privilege menu item: {err}");
+            }
+        }
+    }
+
+    pub(crate) async fn update_core_version_text(&self, text: impl Into<String>) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            if let Err(err) = items.core_version.set_text(text.into()) {
+                warn!("failed to update core version menu item: {err}");
+            }
+        }
+    }
+
+    pub(crate) async fn update_core_installed_text(&self, text: impl Into<String>) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            if let Err(err) = items.core_installed.set_text(text.into()) {
+                warn!("failed to update core installed menu item: {err}");
+            }
+        }
+    }
+
+    pub(crate) async fn update_core_status_text(&self, text: impl Into<String>) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            if let Err(err) = items.core_status.set_text(text.into()) {
+                warn!("failed to update core status menu item: {err}");
+            }
+        }
+    }
+
+    pub(crate) async fn update_core_network_text(&self, text: impl Into<String>) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            if let Err(err) = items.core_network.set_text(text.into()) {
+                warn!("failed to update core network menu item: {err}");
+            }
+        }
+    }
+
+    pub(crate) async fn set_core_update_enabled(&self, enabled: bool) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            if let Err(err) = items.core_update.set_enabled(enabled) {
+                warn!("failed to update core update menu item: {err}");
+            }
+        }
+    }
+
+    pub(crate) async fn refresh_core_version_info(&self) {
+        match read_core_version_info(self).await {
+            Ok((current, installed, use_bundled)) => {
+                let current_text = if use_bundled || (current.is_none() && installed == 0) {
+                    "当前内核: 默认内核".to_string()
+                } else {
+                    current
+                        .map(|v| format!("当前内核: {v}"))
+                        .unwrap_or_else(|| "当前内核: 未设置".to_string())
+                };
+                let installed_text = format!("已下载版本: {installed}");
+                self.update_core_version_text(current_text).await;
+                self.update_core_installed_text(installed_text).await;
+                self.update_core_status_text("更新状态: 空闲")
+                    .await;
+                self.update_core_network_text("网络: 未检测")
+                    .await;
+                self.set_core_update_enabled(true).await;
+                if let Some(items) = self.tray_info.read().await.as_ref() {
+                    if let Err(err) = items.core_default.set_checked(use_bundled) {
+                        warn!("failed to update core default menu item: {err}");
+                    }
+                }
+            }
+            Err(err) => {
+                warn!("failed to read core version info: {err:#}");
+                self.update_core_version_text("当前内核: 读取失败")
+                    .await;
+                self.update_core_installed_text("已下载版本: 读取失败")
+                    .await;
+                self.update_core_status_text("更新状态: 读取失败")
+                    .await;
+                self.update_core_network_text("网络: 未检测")
+                    .await;
+                self.set_core_update_enabled(true).await;
+            }
+        }
+    }
+
+    pub(crate) async fn set_system_proxy_state(&self, enabled: bool, endpoint: Option<String>) {
+        let mut guard = self.system_proxy.write().await;
+        guard.enabled = enabled;
+        guard.endpoint = endpoint.clone();
+        drop(guard);
+        self.update_system_proxy_text(enabled, endpoint.as_deref())
+            .await;
+    }
+
+    pub(crate) async fn refresh_system_proxy_state(&self) {
+        match read_system_proxy_state() {
+            Ok(state) => {
+                self.set_system_proxy_state(state.enabled, state.endpoint)
+                    .await;
+            }
+            Err(err) => {
+                warn!("无法读取系统代理状态: {err:#}");
+            }
+        }
+    }
+
+    pub(crate) async fn is_system_proxy_enabled(&self) -> bool {
+        self.system_proxy.read().await.enabled
+    }
+
+    pub(crate) async fn disable_system_proxy(&self) {
+        if self.is_system_proxy_enabled().await {
+            if let Err(err) = apply_system_proxy(None) {
+                warn!("failed to disable system proxy: {err}");
+            }
+            self.refresh_system_proxy_state().await;
+        }
+    }
+
+    pub(crate) async fn current_ports(&self) -> (Option<u16>, Option<u16>) {
+        let static_port = self
+            .static_server_url()
+            .await
+            .and_then(|url| extract_port_from_url(&url));
+        let admin_port = self
+            .admin_server_url()
+            .await
+            .and_then(|url| extract_port_from_url(&url));
+        (static_port, admin_port)
+    }
+
+    pub(crate) async fn set_open_webui_on_startup(&self, enabled: bool) {
+        {
+            let mut guard = self.settings.write().await;
+            guard.open_webui_on_startup = enabled;
+        }
+        if let Err(err) = save_settings(self).await {
+            warn!("failed to save settings: {err}");
+        }
+    }
+
+    pub(crate) async fn set_open_webui_checked(&self, enabled: bool) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            if let Err(err) = items.open_webui.set_checked(enabled) {
+                warn!("failed to update open webui menu item: {err}");
+            }
+        }
+    }
+
+    pub(crate) async fn open_webui_on_startup(&self) -> bool {
+        self.settings.read().await.open_webui_on_startup
+    }
+
+    pub(crate) async fn set_editor_path(&self, path: Option<String>) {
+        {
+            let mut guard = self.settings.write().await;
+            guard.editor_path = path;
+        }
+        if let Err(err) = save_settings(self).await {
+            warn!("failed to save settings: {err}");
+        }
+    }
+
+    pub(crate) async fn editor_path(&self) -> Option<String> {
+        self.settings.read().await.editor_path.clone()
+    }
+
+    pub(crate) async fn set_use_bundled_core(&self, enabled: bool) {
+        {
+            let mut guard = self.settings.write().await;
+            guard.use_bundled_core = enabled;
+        }
+        if let Err(err) = save_settings(self).await {
+            warn!("failed to save settings: {err}");
+        }
+    }
+
+    pub(crate) async fn set_autostart_checked(&self, enabled: bool) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            if let Err(err) = items.autostart.set_checked(enabled) {
+                warn!("failed to update autostart menu item: {err}");
+            }
+        }
+    }
+
+    pub(crate) async fn use_bundled_core(&self) -> bool {
+        self.settings.read().await.use_bundled_core
+    }
+}
+
+async fn read_core_version_info(
+    state: &AppState,
+) -> anyhow::Result<(Option<String>, usize, bool)> {
+    let vm = VersionManager::new()?;
+    let installed = vm.list_installed().await?;
+    let current = vm.get_default().await.ok();
+    let installed_len = installed.len();
+    let use_bundled = state.use_bundled_core().await || installed_len == 0;
+    Ok((current, installed_len, use_bundled))
+}

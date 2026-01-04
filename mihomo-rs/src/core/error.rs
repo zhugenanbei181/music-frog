@@ -12,7 +12,10 @@ pub enum MihomoError {
     Json(#[from] serde_json::Error),
 
     #[error("YAML error: {0}")]
-    Yaml(#[from] serde_yaml::Error),
+    Yaml(#[from] yaml_rust2::ScanError),
+
+    #[error("YAML emit error: {0}")]
+    YamlEmit(String),
 
     #[error("URL parse error: {0}")]
     UrlParse(#[from] url::ParseError),

@@ -4,6 +4,7 @@ node_modules/
 pnpm-lock.yaml
 
 # Rust / Tauri build artifacts
+target/
 src-tauri/target/
 src-tauri/.cargo/
 
@@ -11,3 +12,6 @@ src-tauri/.cargo/
 dist/
 *.log
 *.tmp
+
+# Bundled core binary
+mihomo.exe
