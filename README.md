@@ -126,8 +126,6 @@ MSI 输出路径（Windows）：
 
 - `target/release/bundle/msi/Mihomo Despicable Infiltrator_0.8.3_x64_zh-CN.msi`
 
-
-
 版本记录请查看 `CHANGELOG.md`（新版本在前）。
 使用规范请查看 `USAGE_SPEC.md`（命名与目录约定）。
 

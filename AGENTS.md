@@ -116,13 +116,14 @@
 ### 1. unwrap/expect 使用限制
 
 | 场景 | 允许程度 | 说明 |
-|------|----------|------|
+| ---- | -------- | ---- |
 | 测试代码 | ✅ 允许 | `mihomo-rs/tests/` 下可自由使用 |
 | 示例代码 | ✅ 允许 | `mihomo-rs/examples/` 下可自由使用 |
 | 程序启动边界 | ⚠️ 谨慎 | 仅限 `main.rs` 入口初始化，需注释"为什么安全" |
 | 业务逻辑代码 | ❌ 禁止 | `src-tauri/src/`、`crates/` 下一律使用 `?` 或 `ok_or_else` |
 
 **已知例外**（需保留注释说明安全性）：
+
 - `admin_api.rs:57-63`：使用 `unwrap_or_else(|poisoned| poisoned.into_inner())` 处理 mutex poison，这是正确的模式
 - `admin_api.rs:108,120`：`Client::builder().build().unwrap_or_else()` 带回退，可接受
 
@@ -142,6 +143,7 @@ let rest = parts.get(1..).map(|s| s.to_vec()).unwrap_or_default();
 ```
 
 **当前问题点**（需修复）：
+
 - `editor.rs:270,278,279,335,337`：存在 `parts[0]`、`parts[1..]` 等直接索引
 - `admin_api.rs:720`：`bytes[0]`、`bytes[1]` 直接访问（虽有长度检查，建议改用 `get`）
 
@@ -220,6 +222,7 @@ fs::create_dir_all(parent).await?;
 ```
 
 **当前问题点**：
+
 - `mihomo-rs/src/version/manager.rs:117`：`.parent().unwrap()`
 - `mihomo-rs/src/config/manager.rs:108`：`.parent().unwrap()`
 - `mihomo-rs/src/service/process.rs:35`：`.parent().unwrap()`
@@ -261,23 +264,6 @@ tauri::async_runtime::spawn(async move {
 ## 当前项目潜在 Panic 问题清单
 
 以下是代码审计发现的潜在 panic 点，按优先级排序：
-
-### 高优先级（可能导致服务崩溃）
-
-| 文件 | 行号 | 问题 | 建议修复 |
-|------|------|------|----------|
-| `mihomo-rs/src/version/manager.rs` | 117 | `.parent().unwrap()` | 改用 `ok_or_else` |
-| `mihomo-rs/src/config/manager.rs` | 108 | `.parent().unwrap()` | 改用 `ok_or_else` |
-| `mihomo-rs/src/service/process.rs` | 35 | `.parent().unwrap()` | 改用 `ok_or_else` |
-| `crates/.../editor.rs` | 270,278,279 | `parts[0]`、`parts[1..]` 直接索引 | 改用 `.first()` 和 `.get(1..)` |
-| `crates/.../editor.rs` | 335,337 | `parts[..end]`、`parts[end..]` 直接索引 | 改用 `.get()` |
-
-### 中优先级（边界情况可能触发）
-
-| 文件 | 行号 | 问题 | 建议修复 |
-|------|------|------|----------|
-| `crates/.../admin_api.rs` | 720 | `bytes[0]`、`bytes[1]` 有长度检查但仍建议改进 | 改用 `.get()` |
-| `mihomo-rs/src/config/manager.rs` | 68 | `.unwrap_or("")` 可接受但可改用 `unwrap_or_default()` | 可选优化 |
 
 ### 低优先级（测试/示例代码）
 
