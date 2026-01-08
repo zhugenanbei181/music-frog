@@ -267,7 +267,8 @@ fn parse_command_line(input: &str) -> (String, Vec<String>) {
         return (String::new(), Vec::new());
     }
     if parts.len() == 1 {
-        return (parts[0].clone(), Vec::new());
+        // SAFETY: len() == 1 guarantees first() returns Some
+        return (parts.first().cloned().unwrap_or_default(), Vec::new());
     }
     #[cfg(target_os = "windows")]
     {
@@ -275,8 +276,9 @@ fn parse_command_line(input: &str) -> (String, Vec<String>) {
             return (command, args);
         }
     }
-    let command = parts[0].clone();
-    let args = parts[1..].to_vec();
+    // SAFETY: len() > 1 guarantees first() returns Some
+    let command = parts.first().cloned().unwrap_or_default();
+    let args = parts.get(1..).map(|s| s.to_vec()).unwrap_or_default();
     (command, args)
 }
 
@@ -332,9 +334,9 @@ fn split_quoted_command(input: &str) -> (String, Vec<String>) {
 #[cfg(target_os = "windows")]
 fn infer_windows_path_command(parts: &[String]) -> Option<(String, Vec<String>)> {
     for end in (1..=parts.len()).rev() {
-        let candidate = parts[..end].join(" ");
+        let candidate = parts.get(..end)?.join(" ");
         if is_path_like(&candidate) && PathBuf::from(&candidate).is_file() {
-            let args = parts[end..].to_vec();
+            let args = parts.get(end..).map(|s| s.to_vec()).unwrap_or_default();
             return Some((candidate, args));
         }
     }

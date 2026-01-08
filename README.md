@@ -124,7 +124,7 @@ Tauri 打包包含：
 
 MSI 输出路径（Windows）：
 
-- `target/release/bundle/msi/Mihomo Despicable Infiltrator_0.8.2_x64_zh-CN.msi`
+- `target/release/bundle/msi/Mihomo Despicable Infiltrator_0.8.3_x64_zh-CN.msi`
 
 
 

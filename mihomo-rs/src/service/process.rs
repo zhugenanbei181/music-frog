@@ -29,10 +29,14 @@ pub async fn spawn_daemon(binary: &Path, config: &Path) -> Result<u32> {
     let stderr = open_log_file(&log_path)?;
     log::info!("mihomo log file: {}", log_path.display());
 
+    let config_dir = config
+        .parent()
+        .ok_or_else(|| MihomoError::Config("Config file has no parent directory".to_string()))?;
+
     let mut command = Command::new(binary);
     command
         .arg("-d")
-        .arg(config.parent().unwrap())
+        .arg(config_dir)
         .arg("-f")
         .arg(config)
         .stdin(Stdio::null())

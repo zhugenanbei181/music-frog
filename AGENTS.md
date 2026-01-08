@@ -108,3 +108,191 @@
 - 托盘菜单包含：打开 Web UI、系统代理切换（Windows）、内核更新到最新稳定版、管理员重启状态、开机自启、启动时打开 Web UI。
 - 内核更新使用 `mihomo-rs` VersionManager，下载稳定版并显示进度与网络状态。
 - 配置管理支持订阅导入、本地文件导入、外部编辑器打开配置，并可切换已下载的内核版本。
+
+## Rust 防 Panic 编码规范
+
+本节规定项目中 Rust 代码必须遵循的防 panic 规范，目标是将"可能 panic"变成"显式失败"，避免服务进程意外崩溃。
+
+### 1. unwrap/expect 使用限制
+
+| 场景 | 允许程度 | 说明 |
+|------|----------|------|
+| 测试代码 | ✅ 允许 | `mihomo-rs/tests/` 下可自由使用 |
+| 示例代码 | ✅ 允许 | `mihomo-rs/examples/` 下可自由使用 |
+| 程序启动边界 | ⚠️ 谨慎 | 仅限 `main.rs` 入口初始化，需注释"为什么安全" |
+| 业务逻辑代码 | ❌ 禁止 | `src-tauri/src/`、`crates/` 下一律使用 `?` 或 `ok_or_else` |
+
+**已知例外**（需保留注释说明安全性）：
+- `admin_api.rs:57-63`：使用 `unwrap_or_else(|poisoned| poisoned.into_inner())` 处理 mutex poison，这是正确的模式
+- `admin_api.rs:108,120`：`Client::builder().build().unwrap_or_else()` 带回退，可接受
+
+### 2. 数组/切片索引访问
+
+**禁止**：直接使用 `[]` 索引访问
+**推荐**：使用 `.get()` 或 `.get_mut()` 返回 `Option`
+
+```rust
+// ❌ 禁止
+let first = parts[0];
+let rest = parts[1..].to_vec();
+
+// ✅ 推荐
+let first = parts.first().ok_or_else(|| anyhow!("parts is empty"))?;
+let rest = parts.get(1..).map(|s| s.to_vec()).unwrap_or_default();
+```
+
+**当前问题点**（需修复）：
+- `editor.rs:270,278,279,335,337`：存在 `parts[0]`、`parts[1..]` 等直接索引
+- `admin_api.rs:720`：`bytes[0]`、`bytes[1]` 直接访问（虽有长度检查，建议改用 `get`）
+
+### 3. 字符串切片
+
+**禁止**：直接使用 `&s[a..b]` 切片（UTF-8 边界可能 panic）
+**推荐**：使用 `.get(a..b)` 或迭代器 `.chars()`
+
+```rust
+// ❌ 禁止
+let sub = &text[start..end];
+
+// ✅ 推荐
+let sub = text.get(start..end).ok_or_else(|| anyhow!("invalid range"))?;
+```
+
+### 4. 并发锁处理
+
+**禁止**：`mutex.lock().unwrap()`
+**推荐**：显式处理 poison 或使用 `parking_lot::Mutex`（无 poison）
+
+```rust
+// ❌ 禁止
+let guard = self.data.lock().unwrap();
+
+// ✅ 推荐（当前项目模式）
+let guard = self.data.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
+// ✅ 或使用 if let
+if let Ok(mut guard) = self.data.lock() {
+    // ...
+}
+```
+
+**当前状态**：`admin_api.rs` 中的 `RebuildStatus` 已正确处理 poison，可作为参考。
+
+### 5. Option/Result 链式处理
+
+**推荐**：使用 `?` 向上传播错误，避免中途 unwrap
+
+```rust
+// ❌ 禁止
+let url = self.get_url().unwrap();
+let port = extract_port(&url).unwrap();
+
+// ✅ 推荐
+let url = self.get_url()?;
+let port = extract_port(&url).ok_or_else(|| anyhow!("no port in url"))?;
+```
+
+### 6. 整数运算
+
+**推荐**：明确选择 `checked_*`、`saturating_*` 或 `wrapping_*` 策略
+
+```rust
+// ❌ 隐式溢出可能 panic（debug 模式）
+let result = a + b;
+
+// ✅ 推荐
+let result = a.saturating_add(b);
+let result = a.checked_add(b).ok_or_else(|| anyhow!("overflow"))?;
+```
+
+### 7. Path 操作
+
+**注意**：`.parent()` 返回 `Option<&Path>`，需处理 `None`
+
+```rust
+// ❌ 当前问题代码
+fs::create_dir_all(self.config_file.parent().unwrap()).await?;
+
+// ✅ 推荐
+let parent = self.config_file.parent()
+    .ok_or_else(|| anyhow!("config file has no parent directory"))?;
+fs::create_dir_all(parent).await?;
+```
+
+**当前问题点**：
+- `mihomo-rs/src/version/manager.rs:117`：`.parent().unwrap()`
+- `mihomo-rs/src/config/manager.rs:108`：`.parent().unwrap()`
+- `mihomo-rs/src/service/process.rs:35`：`.parent().unwrap()`
+
+### 8. Clippy Lint 配置
+
+建议在 `Cargo.toml` 或 `.cargo/config.toml` 中启用以下 lint：
+
+```toml
+[lints.clippy]
+unwrap_used = "warn"           # 警告所有 unwrap 使用
+expect_used = "warn"           # 警告所有 expect 使用
+indexing_slicing = "warn"      # 警告直接索引访问
+arithmetic_side_effects = "warn" # 警告可能溢出的运算
+```
+
+### 9. 错误边界与日志
+
+- 所有 `spawn` 的异步任务必须在内部捕获错误并记录日志
+- 不要让 panic 逃逸出 `tokio::spawn` 边界
+- 使用 `log::warn!` 或 `log::error!` 记录可恢复错误
+
+```rust
+// ✅ 当前项目已有的正确模式
+tauri::async_runtime::spawn(async move {
+    if let Err(err) = some_operation().await {
+        warn!("operation failed: {err}");
+        // 不 panic，优雅降级
+    }
+});
+```
+
+### 10. 类型安全
+
+- 优先使用 `NonZeroU16` 等类型表达非空/非零约束
+- 使用 newtype 模式封装业务类型，在构造时校验
+- 使用 `#[must_use]` 标记不应忽略返回值的函数
+
+## 当前项目潜在 Panic 问题清单
+
+以下是代码审计发现的潜在 panic 点，按优先级排序：
+
+### 高优先级（可能导致服务崩溃）
+
+| 文件 | 行号 | 问题 | 建议修复 |
+|------|------|------|----------|
+| `mihomo-rs/src/version/manager.rs` | 117 | `.parent().unwrap()` | 改用 `ok_or_else` |
+| `mihomo-rs/src/config/manager.rs` | 108 | `.parent().unwrap()` | 改用 `ok_or_else` |
+| `mihomo-rs/src/service/process.rs` | 35 | `.parent().unwrap()` | 改用 `ok_or_else` |
+| `crates/.../editor.rs` | 270,278,279 | `parts[0]`、`parts[1..]` 直接索引 | 改用 `.first()` 和 `.get(1..)` |
+| `crates/.../editor.rs` | 335,337 | `parts[..end]`、`parts[end..]` 直接索引 | 改用 `.get()` |
+
+### 中优先级（边界情况可能触发）
+
+| 文件 | 行号 | 问题 | 建议修复 |
+|------|------|------|----------|
+| `crates/.../admin_api.rs` | 720 | `bytes[0]`、`bytes[1]` 有长度检查但仍建议改进 | 改用 `.get()` |
+| `mihomo-rs/src/config/manager.rs` | 68 | `.unwrap_or("")` 可接受但可改用 `unwrap_or_default()` | 可选优化 |
+
+### 低优先级（测试/示例代码）
+
+- `mihomo-rs/tests/` 下的 unwrap 使用：测试代码允许
+- `mihomo-rs/examples/` 下的 unwrap 使用：示例代码允许
+- `mihomo-rs/src/core/types.rs` 测试函数中的 unwrap：在 `#[cfg(test)]` 块中允许
+
+## 故障排查建议
+
+若 Tauri 服务在 mihomo 进程健在时崩溃：
+
+1. 检查应用日志：`%LOCALAPPDATA%\com.mihomo.despicable-infiltrator\logs\Mihomo-Despicable-Infiltrator.log`
+2. 启用 Rust backtrace：设置环境变量 `RUST_BACKTRACE=1`
+3. 检查是否为上述高优先级 panic 点之一
+4. 特别关注：
+   - 配置文件路径异常（无父目录）
+   - 编辑器命令解析（空字符串切分）
+   - 并发状态访问（虽已正确处理 poison）

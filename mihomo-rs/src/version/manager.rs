@@ -114,7 +114,9 @@ impl VersionManager {
             )));
         }
 
-        fs::create_dir_all(self.config_file.parent().unwrap()).await?;
+        if let Some(parent) = self.config_file.parent() {
+            fs::create_dir_all(parent).await?;
+        }
 
         let config = format!("[default]\nversion = \"{}\"\n", version);
         fs::write(&self.config_file, config).await?;

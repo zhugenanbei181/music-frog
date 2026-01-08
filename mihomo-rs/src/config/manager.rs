@@ -105,7 +105,9 @@ impl ConfigManager {
             )));
         }
 
-        fs::create_dir_all(self.settings_file.parent().unwrap()).await?;
+        if let Some(parent) = self.settings_file.parent() {
+            fs::create_dir_all(parent).await?;
+        }
 
         let mut config = if self.settings_file.exists() {
             let content = fs::read_to_string(&self.settings_file).await?;

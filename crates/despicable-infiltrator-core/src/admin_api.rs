@@ -717,7 +717,7 @@ fn decode_brotli(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
 }
 
 fn looks_like_gzip(bytes: &[u8]) -> bool {
-    bytes.len() >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b
+    matches!(bytes.get(..2), Some([0x1f, 0x8b]))
 }
 
 fn decode_utf8_text(bytes: &[u8]) -> anyhow::Result<String> {
