@@ -28,7 +28,11 @@ struct ReadyPayload {
 pub(crate) fn spawn_runtime(app: AppHandle, state: AppState) {
     let app_handle_for_refresh = app.clone();
     let state_for_refresh = state.clone();
+    let state_for_lock = state.clone();
     tauri::async_runtime::spawn(async move {
+        // Acquire lock for startup to prevent race with early tray actions
+        let _guard = state_for_lock.rebuild_lock.lock().await;
+        
         match bootstrap_runtime(&app, &state).await {
             Ok(runtime) => {
                 register_runtime(&app, &state, runtime).await;
@@ -75,6 +79,11 @@ pub(crate) async fn register_runtime(
 }
 
 pub(crate) async fn rebuild_runtime(app: &AppHandle, state: &AppState) -> anyhow::Result<()> {
+    let _guard = state.rebuild_lock.lock().await;
+    rebuild_runtime_without_lock(app, state).await
+}
+
+pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppState) -> anyhow::Result<()> {
     let previous_runtime = state.runtime().await.ok();
     let previous_controller_port = previous_runtime
         .as_ref()

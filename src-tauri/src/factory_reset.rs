@@ -10,12 +10,14 @@ use crate::{
     autostart::{is_autostart_enabled, set_autostart_enabled},
     frontend::spawn_frontends,
     paths::app_data_dir,
-    runtime::rebuild_runtime,
+    runtime::rebuild_runtime_without_lock,
     settings::reset_settings,
     utils::wait_for_port_release,
 };
 
 pub(crate) async fn factory_reset(app: &AppHandle, state: &AppState) -> anyhow::Result<()> {
+    let _guard = state.rebuild_lock.lock().await;
+
     let (static_port, admin_port) = state.current_ports().await;
     state.shutdown_all().await;
     if let Some(port) = static_port {
@@ -39,7 +41,7 @@ pub(crate) async fn factory_reset(app: &AppHandle, state: &AppState) -> anyhow::
     state.set_use_bundled_core(true).await;
     state.set_open_webui_checked(false).await;
 
-    rebuild_runtime(app, state).await?;
+    rebuild_runtime_without_lock(app, state).await?;
     spawn_frontends(app.clone(), state.clone(), static_port, admin_port);
     state.refresh_core_version_info().await;
     Ok(())

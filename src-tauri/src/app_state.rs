@@ -37,6 +37,7 @@ pub(crate) struct AppState {
     tray_proxy_map: Arc<RwLock<HashMap<String, (String, String)>>>,
     pub(crate) settings: Arc<RwLock<AppSettings>>,
     pub(crate) app_handle: Arc<RwLock<Option<AppHandle>>>,
+    pub(crate) rebuild_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 #[derive(Clone)]
