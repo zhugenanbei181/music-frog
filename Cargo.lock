@@ -4,10 +4,11 @@ version = 4
 
 [[package]]
 name = "Mihomo-Despicable-Infiltrator"
-version = "0.9.1"
+version = "0.9.10"
 dependencies = [
  "anyhow",
  "async-trait",
+ "chrono",
  "despicable-infiltrator-core",
  "is_elevated",
  "log",

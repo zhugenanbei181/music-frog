@@ -30,6 +30,13 @@ use crate::{
 use despicable_infiltrator_core::SubscriptionScheduler;
 
 fn main() {
+    std::panic::set_hook(Box::new(|info| {
+        let msg = format!("Critical Panic: {info}");
+        // Attempt to log if logger is ready, but definitely show dialog
+        log::error!("{msg}");
+        crate::platform::show_error_dialog(msg);
+    }));
+
     let launch_ports = parse_launch_ports();
     let builder = tauri::Builder::default()
         .manage(AppState::default())
@@ -55,11 +62,11 @@ fn main() {
                 launch_ports.static_port,
                 launch_ports.admin_port,
             );
-            let scheduler = SubscriptionScheduler::start(TauriAdminContext {
-                app: app.app_handle().clone(),
-                app_state: app.state::<AppState>().inner().clone(),
-            });
             tauri::async_runtime::block_on(async {
+                let scheduler = SubscriptionScheduler::start(TauriAdminContext {
+                    app: app.app_handle().clone(),
+                    app_state: app.state::<AppState>().inner().clone(),
+                });
                 app.state::<AppState>()
                     .inner()
                     .set_subscription_scheduler(scheduler)

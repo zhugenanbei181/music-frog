@@ -153,10 +153,8 @@ impl ConfigManager {
                     log::warn!("failed to store subscription url securely: {err}");
                 }
             }
-        } else {
-            if let Err(err) = delete_subscription_url(profile) {
-                log::warn!("failed to delete subscription url: {err}");
-            }
+        } else if let Err(err) = delete_subscription_url(profile) {
+            log::warn!("failed to delete subscription url: {err}");
         }
         set_optional_string(profile_table, "subscription_url_key", subscription_key);
         set_optional_string(profile_table, "subscription_url", subscription_fallback);
@@ -376,11 +374,41 @@ external-controller: 127.0.0.1:{}
             self.get_external_controller().await
         }
     }
+
+    /// Forcefully rotate the external-controller port to a new available one.
+    /// Used when the service fails to start despite the port appearing available initially.
+    pub async fn rotate_external_controller(&self) -> Result<String> {
+        let profile = self.get_current().await?;
+        let content = self.load(&profile).await?;
+        let mut config = yaml::load_yaml(&content)?;
+
+        let current_port = yaml::get_str(&config, "external-controller")
+            .and_then(|s| parse_port_from_addr(&s))
+            .unwrap_or(9090);
+
+        // Start searching from current_port + 1
+        let new_port = find_available_port(current_port + 1).ok_or_else(|| {
+            MihomoError::Config("No available ports found for rotation".to_string())
+        })?;
+
+        let controller_addr = format!("127.0.0.1:{}", new_port);
+        log::info!(
+            "Rotating external-controller from {} to {}",
+            current_port,
+            new_port
+        );
+
+        yaml::set_str(&mut config, "external-controller", &controller_addr)?;
+        let updated_content = yaml::to_string(&config)?;
+        self.save(&profile, &updated_content).await?;
+
+        Ok(format!("http://{}", controller_addr))
+    }
 }
 
-fn ensure_table<'a>(
-    value: &'a mut toml::Value,
-) -> Result<&'a mut toml::map::Map<String, toml::Value>> {
+fn ensure_table(
+    value: &mut toml::Value,
+) -> Result<&mut toml::map::Map<String, toml::Value>> {
     if !matches!(value, toml::Value::Table(_)) {
         *value = toml::Value::Table(toml::map::Map::new());
     }

@@ -1,25 +1,20 @@
+use std::{
+    sync::Arc,
+    time::Instant,
+};
+
 use anyhow::anyhow;
-use chrono::Utc;
 use axum::{
     body::Body,
     extract::{Path as AxumPath, State as AxumState},
     http::{Request, StatusCode},
-    middleware::{self, Next},
-    response::{IntoResponse, Response},
-    routing::{get, post},
-    Json, Router,
+    middleware::Next,
+    response::Response,
+    Json,
 };
+use chrono::Utc;
 use log::{info, warn};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use serde_json::json;
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
-    time::{Duration, Instant},
-};
 
 use crate::{
     config as core_config,
@@ -31,248 +26,10 @@ use crate::{
 };
 use mihomo_rs::{config::ConfigManager, version::VersionManager};
 
-#[async_trait::async_trait]
-pub trait AdminApiContext: Clone + Send + Sync + 'static {
-    async fn rebuild_runtime(&self) -> anyhow::Result<()>;
-    async fn set_use_bundled_core(&self, enabled: bool);
-    async fn refresh_core_version_info(&self);
-    async fn notify_subscription_update(
-        &self,
-        profile: String,
-        success: bool,
-        message: Option<String>,
-    );
-    async fn editor_path(&self) -> Option<String>;
-    async fn set_editor_path(&self, path: Option<String>);
-    async fn pick_editor_path(&self) -> Option<String>;
-}
+use super::models::*;
+use super::state::{AdminApiContext, AdminApiState, RebuildStatus};
 
-#[derive(Default)]
-struct RebuildStatus {
-    in_progress: AtomicBool,
-    last_error: Mutex<Option<String>>,
-    last_reason: Mutex<Option<String>>,
-}
-
-impl RebuildStatus {
-    fn snapshot(&self) -> RebuildStatusResponse {
-        let last_error = self
-            .last_error
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone();
-        let last_reason = self
-            .last_reason
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone();
-        RebuildStatusResponse {
-            in_progress: self.in_progress.load(Ordering::SeqCst),
-            last_error,
-            last_reason,
-        }
-    }
-
-    fn mark_start(&self, reason: &str) {
-        self.in_progress.store(true, Ordering::SeqCst);
-        if let Ok(mut guard) = self.last_error.lock() {
-            *guard = None;
-        }
-        if let Ok(mut guard) = self.last_reason.lock() {
-            *guard = Some(reason.to_string());
-        }
-    }
-
-    fn mark_success(&self) {
-        self.in_progress.store(false, Ordering::SeqCst);
-    }
-
-    fn mark_error(&self, err: String) {
-        self.in_progress.store(false, Ordering::SeqCst);
-        if let Ok(mut guard) = self.last_error.lock() {
-            *guard = Some(err);
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct AdminApiState<C> {
-    pub ctx: C,
-    pub http_client: Client,
-    pub raw_http_client: Client,
-    rebuild_status: Arc<RebuildStatus>,
-}
-
-impl<C: AdminApiContext> AdminApiState<C> {
-    pub fn new(ctx: C) -> Self {
-        let http_client = Client::builder()
-            .user_agent("Mihomo-Despicable-Infiltrator")
-            .timeout(Duration::from_secs(30))
-            .build()
-            .unwrap_or_else(|err| {
-                warn!("failed to build http client: {err}");
-                Client::new()
-            });
-        let raw_http_client = Client::builder()
-            .user_agent("Mihomo-Despicable-Infiltrator")
-            .timeout(Duration::from_secs(30))
-            .no_gzip()
-            .no_brotli()
-            .no_deflate()
-            .no_zstd()
-            .build()
-            .unwrap_or_else(|err| {
-                warn!("failed to build raw http client: {err}");
-                http_client.clone()
-            });
-        let rebuild_status = Arc::new(RebuildStatus::default());
-        Self {
-            ctx,
-            http_client,
-            raw_http_client,
-            rebuild_status,
-        }
-    }
-}
-
-#[derive(Deserialize)]
-pub struct SwitchProfilePayload {
-    pub name: String,
-}
-
-#[derive(Deserialize)]
-pub struct ImportProfilePayload {
-    pub name: String,
-    pub url: String,
-    pub activate: Option<bool>,
-}
-
-#[derive(Deserialize)]
-pub struct SaveProfilePayload {
-    pub name: String,
-    pub content: String,
-    pub activate: Option<bool>,
-}
-
-#[derive(Deserialize)]
-pub struct OpenProfilePayload {
-    pub name: String,
-}
-
-#[derive(Deserialize)]
-pub struct SubscriptionConfigPayload {
-    pub url: String,
-    pub auto_update_enabled: bool,
-    pub update_interval_hours: Option<u32>,
-}
-
-#[derive(Deserialize)]
-pub struct EditorConfigPayload {
-    pub editor: Option<String>,
-}
-
-#[derive(Serialize)]
-pub struct EditorConfigResponse {
-    pub editor: Option<String>,
-}
-
-#[derive(Serialize)]
-pub struct CoreVersionsResponse {
-    pub current: Option<String>,
-    pub versions: Vec<String>,
-}
-
-#[derive(Serialize)]
-pub struct RebuildStatusResponse {
-    pub in_progress: bool,
-    pub last_error: Option<String>,
-    pub last_reason: Option<String>,
-}
-
-#[derive(Serialize)]
-pub struct ProfileActionResponse {
-    pub profile: ProfileInfo,
-    pub rebuild_scheduled: bool,
-}
-
-#[derive(Deserialize)]
-pub struct CoreActivatePayload {
-    pub version: String,
-}
-
-pub struct ApiError {
-    status: StatusCode,
-    message: String,
-}
-
-impl ApiError {
-    fn bad_request(message: impl Into<String>) -> Self {
-        Self {
-            status: StatusCode::BAD_REQUEST,
-            message: message.into(),
-        }
-    }
-
-    fn internal(message: impl Into<String>) -> Self {
-        Self {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: message.into(),
-        }
-    }
-}
-
-impl From<anyhow::Error> for ApiError {
-    fn from(err: anyhow::Error) -> Self {
-        ApiError::internal(err.to_string())
-    }
-}
-
-impl IntoResponse for ApiError {
-    fn into_response(self) -> Response {
-        if self.status.is_client_error() || self.status.is_server_error() {
-            warn!("admin api error: {}", self.message);
-        }
-        (self.status, Json(json!({ "error": self.message }))).into_response()
-    }
-}
-
-pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
-    Router::new()
-        .route("/admin/api/profiles", get(list_profiles_http::<C>))
-        .route(
-            "/admin/api/profiles/:name",
-            get(get_profile_http::<C>).delete(delete_profile_http::<C>),
-        )
-        .route(
-            "/admin/api/profiles/:name/subscription",
-            post(set_profile_subscription_http::<C>)
-                .delete(clear_profile_subscription_http::<C>),
-        )
-        .route(
-            "/admin/api/profiles/:name/update-now",
-            post(update_profile_now_http::<C>),
-        )
-        .route("/admin/api/profiles/switch", post(switch_profile_http::<C>))
-        .route("/admin/api/profiles/save", post(save_profile_http::<C>))
-        .route("/admin/api/profiles/import", post(import_profile_http::<C>))
-        .route("/admin/api/profiles/clear", post(clear_profiles_http::<C>))
-        .route("/admin/api/profiles/open", post(open_profile_in_editor_http::<C>))
-        .route(
-            "/admin/api/editor",
-            get(get_editor_config_http::<C>).post(set_editor_config_http::<C>),
-        )
-        .route(
-            "/admin/api/editor/pick",
-            post(pick_editor_path_http::<C>),
-        )
-        .route("/admin/api/rebuild/status", get(get_rebuild_status_http::<C>))
-        .route("/admin/api/core/versions", get(list_core_versions_http::<C>))
-        .route("/admin/api/core/activate", post(activate_core_version_http::<C>))
-        .with_state(state)
-        .layer(middleware::from_fn(log_admin_request))
-}
-
-async fn list_profiles_http<C: AdminApiContext>(
+pub async fn list_profiles_http<C: AdminApiContext>(
     AxumState(_state): AxumState<AdminApiState<C>>,
 ) -> Result<Json<Vec<ProfileInfo>>, ApiError> {
     let profiles = core_profiles::list_profile_infos()
@@ -281,13 +38,13 @@ async fn list_profiles_http<C: AdminApiContext>(
     Ok(Json(profiles))
 }
 
-async fn get_rebuild_status_http<C: AdminApiContext>(
+pub async fn get_rebuild_status_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
 ) -> Result<Json<RebuildStatusResponse>, ApiError> {
     Ok(Json(state.rebuild_status.snapshot()))
 }
 
-async fn get_profile_http<C: AdminApiContext>(
+pub async fn get_profile_http<C: AdminApiContext>(
     AxumState(_state): AxumState<AdminApiState<C>>,
     AxumPath(name): AxumPath<String>,
 ) -> Result<Json<ProfileDetail>, ApiError> {
@@ -297,7 +54,7 @@ async fn get_profile_http<C: AdminApiContext>(
     Ok(Json(profile))
 }
 
-async fn switch_profile_http<C: AdminApiContext>(
+pub async fn switch_profile_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
     Json(payload): Json<SwitchProfilePayload>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
@@ -309,7 +66,7 @@ async fn switch_profile_http<C: AdminApiContext>(
     }))
 }
 
-async fn import_profile_http<C: AdminApiContext>(
+pub async fn import_profile_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
     Json(payload): Json<ImportProfilePayload>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
@@ -335,7 +92,7 @@ async fn import_profile_http<C: AdminApiContext>(
     }))
 }
 
-async fn save_profile_http<C: AdminApiContext>(
+pub async fn save_profile_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
     Json(payload): Json<SaveProfilePayload>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
@@ -388,7 +145,7 @@ async fn save_profile_http<C: AdminApiContext>(
     }))
 }
 
-async fn clear_profiles_http<C: AdminApiContext>(
+pub async fn clear_profiles_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let profile = core_profiles::reset_profiles_to_default()
@@ -404,7 +161,7 @@ async fn clear_profiles_http<C: AdminApiContext>(
     }))
 }
 
-async fn delete_profile_http<C: AdminApiContext>(
+pub async fn delete_profile_http<C: AdminApiContext>(
     AxumState(_state): AxumState<AdminApiState<C>>,
     AxumPath(name): AxumPath<String>,
 ) -> Result<StatusCode, ApiError> {
@@ -417,7 +174,7 @@ async fn delete_profile_http<C: AdminApiContext>(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn set_profile_subscription_http<C: AdminApiContext>(
+pub async fn set_profile_subscription_http<C: AdminApiContext>(
     AxumState(_state): AxumState<AdminApiState<C>>,
     AxumPath(name): AxumPath<String>,
     Json(payload): Json<SubscriptionConfigPayload>,
@@ -457,7 +214,7 @@ async fn set_profile_subscription_http<C: AdminApiContext>(
     Ok(Json(info))
 }
 
-async fn clear_profile_subscription_http<C: AdminApiContext>(
+pub async fn clear_profile_subscription_http<C: AdminApiContext>(
     AxumState(_state): AxumState<AdminApiState<C>>,
     AxumPath(name): AxumPath<String>,
 ) -> Result<Json<ProfileInfo>, ApiError> {
@@ -483,7 +240,7 @@ async fn clear_profile_subscription_http<C: AdminApiContext>(
     Ok(Json(info))
 }
 
-async fn update_profile_now_http<C: AdminApiContext>(
+pub async fn update_profile_now_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
     AxumPath(name): AxumPath<String>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
@@ -544,14 +301,14 @@ async fn update_profile_now_http<C: AdminApiContext>(
     }))
 }
 
-async fn get_editor_config_http<C: AdminApiContext>(
+pub async fn get_editor_config_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
 ) -> Result<Json<EditorConfigResponse>, ApiError> {
     let editor = state.ctx.editor_path().await;
     Ok(Json(EditorConfigResponse { editor }))
 }
 
-async fn set_editor_config_http<C: AdminApiContext>(
+pub async fn set_editor_config_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
     Json(payload): Json<EditorConfigPayload>,
 ) -> Result<StatusCode, ApiError> {
@@ -567,14 +324,14 @@ async fn set_editor_config_http<C: AdminApiContext>(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn pick_editor_path_http<C: AdminApiContext>(
+pub async fn pick_editor_path_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
 ) -> Result<Json<EditorConfigResponse>, ApiError> {
     let editor = state.ctx.pick_editor_path().await;
     Ok(Json(EditorConfigResponse { editor }))
 }
 
-async fn open_profile_in_editor_http<C: AdminApiContext>(
+pub async fn open_profile_in_editor_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
     Json(payload): Json<OpenProfilePayload>,
 ) -> Result<StatusCode, ApiError> {
@@ -586,7 +343,7 @@ async fn open_profile_in_editor_http<C: AdminApiContext>(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn list_core_versions_http<C: AdminApiContext>(
+pub async fn list_core_versions_http<C: AdminApiContext>(
     AxumState(_state): AxumState<AdminApiState<C>>,
 ) -> Result<Json<CoreVersionsResponse>, ApiError> {
     let vm = VersionManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
@@ -603,7 +360,7 @@ async fn list_core_versions_http<C: AdminApiContext>(
     }))
 }
 
-async fn activate_core_version_http<C: AdminApiContext>(
+pub async fn activate_core_version_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
     Json(payload): Json<CoreActivatePayload>,
 ) -> Result<StatusCode, ApiError> {
@@ -705,7 +462,7 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
     Ok((info, rebuild_scheduled))
 }
 
-async fn log_admin_request(req: Request<Body>, next: Next) -> Response {
+pub async fn log_admin_request(req: Request<Body>, next: Next) -> Response {
     let method = req.method().clone();
     let path = req.uri().path().to_string();
     let query = req
@@ -738,7 +495,6 @@ async fn log_admin_request(req: Request<Body>, next: Next) -> Response {
     }
     response
 }
-
 
 fn schedule_rebuild<C: AdminApiContext>(
     ctx: &C,

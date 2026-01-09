@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use despicable_infiltrator_core::MihomoRuntime;
 use log::warn;
-use mihomo_rs::{core::TrafficData, version::VersionManager};
+use mihomo_rs::{config::ConfigManager, core::TrafficData, version::VersionManager};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use tokio::time::{sleep, Duration, Instant};
@@ -10,6 +10,7 @@ use crate::{
     app_state::AppState,
     paths::{app_data_dir, bundled_core_candidates},
     system_proxy::apply_system_proxy,
+    tray::refresh_tray_menu,
     utils::{extract_port_from_url, is_port_available, wait_for_port_release},
 };
 
@@ -25,11 +26,17 @@ struct ReadyPayload {
 }
 
 pub(crate) fn spawn_runtime(app: AppHandle, state: AppState) {
+    let app_handle_for_refresh = app.clone();
+    let state_for_refresh = state.clone();
     tauri::async_runtime::spawn(async move {
         match bootstrap_runtime(&app, &state).await {
             Ok(runtime) => {
                 register_runtime(&app, &state, runtime).await;
                 spawn_traffic_stream(app.clone(), state.clone());
+                // Force a tray refresh now that runtime is ready
+                if let Err(err) = refresh_tray_menu(&app_handle_for_refresh, &state_for_refresh).await {
+                    warn!("initial tray menu refresh failed: {err}");
+                }
             }
             Err(err) => {
                 log::error!("failed to bootstrap mihomo runtime: {err:#}");
@@ -137,29 +144,79 @@ async fn bootstrap_runtime(app: &AppHandle, state: &AppState) -> anyhow::Result<
     let bundled_candidates = bundled_core_candidates(app);
     let installed = vm.list_installed().await.unwrap_or_default();
     let use_bundled = state.use_bundled_core().await || installed.is_empty();
-    let runtime =
-        MihomoRuntime::bootstrap(&vm, use_bundled, &bundled_candidates, &data_dir).await?;
-    wait_for_controller_ready(&runtime).await?;
-    if installed.is_empty() {
-        state.set_use_bundled_core(true).await;
+
+    let max_retries = 3;
+    let mut last_err = anyhow!("unknown error");
+
+    for attempt in 0..max_retries {
+        match MihomoRuntime::bootstrap(&vm, use_bundled, &bundled_candidates, &data_dir).await {
+            Ok(runtime) => match wait_for_controller_ready(&runtime).await {
+                Ok(_) => {
+                    if installed.is_empty() {
+                        state.set_use_bundled_core(true).await;
+                    }
+                    return Ok(runtime);
+                }
+                Err(err) => {
+                    warn!(
+                        "startup attempt {}/{} failed during readiness check: {err:#}",
+                        attempt + 1,
+                        max_retries
+                    );
+                    last_err = err;
+                    // shutdown if it was partially started
+                    let _ = runtime.shutdown().await;
+                }
+            },
+            Err(err) => {
+                warn!(
+                    "startup attempt {}/{} failed during bootstrap: {err:#}",
+                    attempt + 1,
+                    max_retries
+                );
+                last_err = err;
+            }
+        }
+
+        // Prepare for retry: rotate port if we have retries left
+        if attempt < max_retries - 1 {
+            match ConfigManager::new() {
+                Ok(cm) => {
+                    if let Err(e) = cm.rotate_external_controller().await {
+                        warn!("failed to rotate external controller port: {e}");
+                    } else {
+                        // wait a bit for old port to be technically released if it was bound
+                        sleep(Duration::from_millis(500)).await;
+                    }
+                }
+                Err(e) => warn!("failed to create config manager for rotation: {e}"),
+            }
+        }
     }
-    Ok(runtime)
+
+    Err(last_err)
 }
 
 async fn wait_for_controller_ready(runtime: &MihomoRuntime) -> anyhow::Result<()> {
-    let deadline = Instant::now() + Duration::from_secs(8);
+    let deadline = Instant::now() + Duration::from_secs(15);
     let mut last_err = None;
+
     while Instant::now() < deadline {
         match runtime.client().get_version().await {
             Ok(_) => return Ok(()),
             Err(err) => {
+                // Check if the process is still alive while we wait
+                if !runtime.is_running().await {
+                    return Err(anyhow!("内核进程已退出，启动失败"));
+                }
                 last_err = Some(err);
                 sleep(Duration::from_millis(500)).await;
             }
         }
     }
     Err(anyhow!(
-        "控制接口未就绪: {}",
+        "控制接口未就绪 ({}): {}",
+        runtime.controller_url,
         last_err
             .map(|err| err.to_string())
             .unwrap_or_else(|| "unknown error".to_string())

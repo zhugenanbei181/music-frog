@@ -134,6 +134,10 @@ impl MihomoRuntime {
             .map_err(|e| anyhow!(e.to_string()))
     }
 
+    pub async fn is_running(&self) -> bool {
+        self.service_manager.is_running().await
+    }
+
     pub async fn http_proxy_endpoint(&self) -> anyhow::Result<Option<String>> {
         let content = tokio::fs::read_to_string(&self.config_path).await?;
         let doc = parse_yaml_doc(&content)?;

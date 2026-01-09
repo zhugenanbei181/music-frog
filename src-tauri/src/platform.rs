@@ -1,11 +1,14 @@
 use anyhow::anyhow;
 use log::warn;
+
 #[cfg(target_os = "windows")]
-use std::process::Command;
+use std::ffi::OsStr;
 #[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
+use std::os::windows::ffi::OsStrExt;
 #[cfg(target_os = "windows")]
-use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
+use windows_sys::Win32::UI::Shell::ShellExecuteW;
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOW;
 
 pub(crate) fn open_in_browser(url: &str) -> anyhow::Result<()> {
     webbrowser::open(url).map_err(|err| anyhow!(err.to_string()))
@@ -73,29 +76,33 @@ pub(crate) fn restart_as_admin(
         args.push(format!("--admin-port={port}"));
     }
 
-    let exe = exe.to_string_lossy();
-    let escaped_exe = escape_powershell_single_quotes(&exe);
-    let command = if args.is_empty() {
-        format!("Start-Process -FilePath '{escaped_exe}' -Verb RunAs")
-    } else {
-        let args_list = args
-            .iter()
-            .map(|arg| format!("'{}'", escape_powershell_single_quotes(arg)))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!(
-            "Start-Process -FilePath '{escaped_exe}' -ArgumentList @({args_list}) -Verb RunAs"
+    let args_str = args
+        .iter()
+        .map(|arg| format!("\"{}\"", arg.replace('"', "\\\""))) // Simple escaping
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let file_path = to_u16(&exe.to_string_lossy());
+    let params = to_u16(&args_str);
+    let operation = to_u16("runas");
+
+    let ret = unsafe {
+        ShellExecuteW(
+            0,
+            operation.as_ptr(),
+            file_path.as_ptr(),
+            if args_str.is_empty() {
+                std::ptr::null()
+            } else {
+                params.as_ptr()
+            },
+            std::ptr::null(),
+            SW_SHOW,
         )
     };
 
-    let mut powershell = Command::new("powershell");
-    powershell.creation_flags(CREATE_NO_WINDOW);
-    let status = powershell
-        .args(["-NoProfile", "-Command", &command])
-        .status()?;
-
-    if !status.success() {
-        return Err(anyhow!("以管理员身份重启失败，PowerShell 退出码: {status}"));
+    if ret as isize <= 32 {
+        return Err(anyhow!("以管理员身份重启失败 (ShellExecuteW error: {})", ret));
     }
 
     Ok(())
@@ -110,6 +117,6 @@ pub(crate) fn restart_as_admin(
 }
 
 #[cfg(target_os = "windows")]
-fn escape_powershell_single_quotes(value: &str) -> String {
-    value.replace('\'', "''")
+fn to_u16(s: &str) -> Vec<u16> {
+    OsStr::new(s).encode_wide().chain(Some(0)).collect()
 }

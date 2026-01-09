@@ -16,6 +16,7 @@ Mihomo Despicable Infiltrator 是一个 Tauri v2 托盘应用，使用 `mihomo-r
 - 开机自启：Windows 使用计划任务；可在托盘切换“启动时打开 Web UI”。
 - 恢复出厂设置：清空配置、已下载内核、日志与运行时设置，重启为默认状态。
 - 托盘增强：快速切换配置、代理模式、代理组节点，支持 TUN 模式开关。
+- 托盘稳定性：菜单项名称过长或异常时自动截断并容错处理。
 
 ## 订阅链接存储
 
@@ -136,7 +137,7 @@ Tauri 打包包含：
 
 MSI 输出路径（Windows）：
 
-- `target/release/bundle/msi/Mihomo Despicable Infiltrator_0.8.3_x64_zh-CN.msi`
+- `target/release/bundle/msi/Mihomo Despicable Infiltrator_0.9.10_x64_zh-CN.msi`
 
 版本记录请查看 `CHANGELOG.md`（新版本在前）。
 使用规范请查看 `USAGE_SPEC.md`（命名与目录约定）。
@@ -229,3 +230,4 @@ MSI 输出路径（Windows）：
 - 管理界面默认使用 `config-manager-ui/`；如需覆盖，设置 `METACUBEXD_ADMIN_DIR=/absolute/path/to/dist`。
 - 若自维护 mihomo 配置，请放置在 `%USERPROFILE%\\.config\\mihomo-rs\\configs`（Windows）或 `~/.config/mihomo-rs/configs`。
 - 构建产物默认输出到 `target/`，已在 `.gitignore` 忽略；如需提交或归档，请自行处理。
+

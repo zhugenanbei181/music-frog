@@ -25,6 +25,7 @@ pub async fn spawn_daemon(binary: &Path, config: &Path) -> Result<u32> {
     }
 
     let log_path = prepare_log_file().await?;
+    // Open two separate file handles for stdout and stderr
     let stdout = open_log_file(&log_path)?;
     let stderr = open_log_file(&log_path)?;
     log::info!("mihomo log file: {}", log_path.display());
@@ -48,9 +49,18 @@ pub async fn spawn_daemon(binary: &Path, config: &Path) -> Result<u32> {
         command.creation_flags(CREATE_NO_WINDOW);
     }
 
-    let child = command
+    let mut child = command
         .spawn()
         .map_err(|e| MihomoError::Service(format!("Failed to spawn process: {}", e)))?;
+
+    // Give it a brief moment to see if it exits immediately (e.g. config error)
+    // We can't await it because it's a daemon, but we can check status
+    if let Ok(Some(status)) = child.try_wait() {
+        return Err(MihomoError::Service(format!(
+            "Process exited immediately with status: {}",
+            status
+        )));
+    }
 
     let pid = child.id();
     Ok(pid)

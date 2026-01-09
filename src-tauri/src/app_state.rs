@@ -33,6 +33,8 @@ pub(crate) struct AppState {
     proxy_groups: Arc<RwLock<HashMap<String, ProxyInfo>>>,
     tun_enabled: Arc<RwLock<bool>>,
     subscription_scheduler: Arc<RwLock<Option<SubscriptionScheduler>>>,
+    tray_profile_map: Arc<RwLock<HashMap<String, String>>>,
+    tray_proxy_map: Arc<RwLock<HashMap<String, (String, String)>>>,
     pub(crate) settings: Arc<RwLock<AppSettings>>,
     pub(crate) app_handle: Arc<RwLock<Option<AppHandle>>>,
 }
@@ -143,10 +145,6 @@ impl AppState {
         *guard = groups;
     }
 
-    pub(crate) async fn proxy_groups(&self) -> HashMap<String, ProxyInfo> {
-        self.proxy_groups.read().await.clone()
-    }
-
     pub(crate) async fn refresh_proxy_groups(
         &self,
     ) -> anyhow::Result<HashMap<String, ProxyInfo>> {
@@ -165,6 +163,27 @@ impl AppState {
         *guard = enabled;
     }
 
+    pub(crate) async fn set_tray_profile_map(&self, map: HashMap<String, String>) {
+        let mut guard = self.tray_profile_map.write().await;
+        *guard = map;
+    }
+
+    pub(crate) async fn tray_profile_map(&self) -> HashMap<String, String> {
+        self.tray_profile_map.read().await.clone()
+    }
+
+    pub(crate) async fn set_tray_proxy_map(
+        &self,
+        map: HashMap<String, (String, String)>,
+    ) {
+        let mut guard = self.tray_proxy_map.write().await;
+        *guard = map;
+    }
+
+    pub(crate) async fn tray_proxy_map(&self) -> HashMap<String, (String, String)> {
+        self.tray_proxy_map.read().await.clone()
+    }
+
     pub(crate) async fn refresh_tun_state(&self) -> anyhow::Result<(bool, bool)> {
         let runtime = self.runtime().await?;
         let config = runtime
@@ -172,13 +191,12 @@ impl AppState {
             .get_config()
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
-        let (available, enabled) = match config.tun.as_ref() {
-            Some(tun) => (
-                true,
-                tun.get("enable").and_then(|value| value.as_bool()).unwrap_or(false),
-            ),
-            None => (false, false),
+        let enabled = match config.tun.as_ref() {
+            Some(tun) => tun.get("enable").and_then(|value| value.as_bool()).unwrap_or(false),
+            None => false,
         };
+        // Always available to toggle if we can talk to the core
+        let available = true;
         self.set_tun_enabled(enabled).await;
         Ok((available, enabled))
     }
