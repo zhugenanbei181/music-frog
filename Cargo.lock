@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Mihomo-Despicable-Infiltrator"
-version = "1.0.0"
+version = "0.9.12"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1219,7 +1219,7 @@ dependencies = [
 
 [[package]]
 name = "despicable-infiltrator-core"
-version = "1.0.0"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "async-trait",
