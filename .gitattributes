@@ -1,0 +1,20 @@
+# 强制所有文本文件使用 LF 换行符
+* text=auto eol=lf
+
+# 保持二进制文件原样
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.mp3 binary
+*.wav binary
