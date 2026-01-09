@@ -18,6 +18,7 @@ use log::warn;
 use tauri::{Manager, RunEvent};
 
 use crate::{
+    admin_context::TauriAdminContext,
     app_state::AppState,
     frontend::spawn_frontends,
     platform::show_error_dialog,
@@ -26,6 +27,7 @@ use crate::{
     tray::create_tray,
     utils::parse_launch_ports,
 };
+use despicable_infiltrator_core::SubscriptionScheduler;
 
 fn main() {
     let launch_ports = parse_launch_ports();
@@ -36,6 +38,7 @@ fn main() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
+        .plugin(tauri_plugin_notification::init())
         .setup(move |app| {
             let state = app.state::<AppState>().inner().clone();
             tauri::async_runtime::block_on(async {
@@ -52,6 +55,16 @@ fn main() {
                 launch_ports.static_port,
                 launch_ports.admin_port,
             );
+            let scheduler = SubscriptionScheduler::start(TauriAdminContext {
+                app: app.app_handle().clone(),
+                app_state: app.state::<AppState>().inner().clone(),
+            });
+            tauri::async_runtime::block_on(async {
+                app.state::<AppState>()
+                    .inner()
+                    .set_subscription_scheduler(scheduler)
+                    .await;
+            });
             Ok(())
         });
 

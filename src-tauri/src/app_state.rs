@@ -1,16 +1,19 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::anyhow;
 use despicable_infiltrator_core::{
+    scheduler::SubscriptionScheduler,
     servers::{AdminServerHandle, StaticServerHandle},
     AppSettings, MihomoRuntime, SystemProxyState,
 };
 use log::warn;
+use mihomo_rs::core::ProxyInfo;
 use mihomo_rs::version::VersionManager;
 use tauri::{
     menu::{CheckMenuItem, MenuItem},
     AppHandle, Wry,
 };
+use tauri_plugin_notification::NotificationExt;
 use tokio::sync::RwLock;
 
 use crate::{
@@ -26,6 +29,10 @@ pub(crate) struct AppState {
     admin_server: Arc<RwLock<Option<AdminServerHandle>>>,
     tray_info: Arc<RwLock<Option<TrayInfoItems>>>,
     system_proxy: Arc<RwLock<SystemProxyState>>,
+    current_mode: Arc<RwLock<Option<String>>>,
+    proxy_groups: Arc<RwLock<HashMap<String, ProxyInfo>>>,
+    tun_enabled: Arc<RwLock<bool>>,
+    subscription_scheduler: Arc<RwLock<Option<SubscriptionScheduler>>>,
     pub(crate) settings: Arc<RwLock<AppSettings>>,
     pub(crate) app_handle: Arc<RwLock<Option<AppHandle>>>,
 }
@@ -89,6 +96,7 @@ impl AppState {
     }
 
     pub(crate) async fn shutdown_all(&self) {
+        self.shutdown_subscription_scheduler().await;
         self.stop_frontends().await;
         self.stop_runtime().await;
         self.disable_system_proxy().await;
@@ -123,6 +131,67 @@ impl AppState {
     pub(crate) async fn set_app_handle(&self, handle: AppHandle) {
         let mut guard = self.app_handle.write().await;
         *guard = Some(handle);
+    }
+
+    pub(crate) async fn set_current_mode(&self, mode: Option<String>) {
+        let mut guard = self.current_mode.write().await;
+        *guard = mode;
+    }
+
+    pub(crate) async fn set_proxy_groups(&self, groups: HashMap<String, ProxyInfo>) {
+        let mut guard = self.proxy_groups.write().await;
+        *guard = groups;
+    }
+
+    pub(crate) async fn proxy_groups(&self) -> HashMap<String, ProxyInfo> {
+        self.proxy_groups.read().await.clone()
+    }
+
+    pub(crate) async fn refresh_proxy_groups(
+        &self,
+    ) -> anyhow::Result<HashMap<String, ProxyInfo>> {
+        let runtime = self.runtime().await?;
+        let proxies = runtime
+            .client()
+            .get_proxies()
+            .await
+            .map_err(|err| anyhow!(err.to_string()))?;
+        self.set_proxy_groups(proxies.clone()).await;
+        Ok(proxies)
+    }
+
+    pub(crate) async fn set_tun_enabled(&self, enabled: bool) {
+        let mut guard = self.tun_enabled.write().await;
+        *guard = enabled;
+    }
+
+    pub(crate) async fn refresh_tun_state(&self) -> anyhow::Result<(bool, bool)> {
+        let runtime = self.runtime().await?;
+        let config = runtime
+            .client()
+            .get_config()
+            .await
+            .map_err(|err| anyhow!(err.to_string()))?;
+        let (available, enabled) = match config.tun.as_ref() {
+            Some(tun) => (
+                true,
+                tun.get("enable").and_then(|value| value.as_bool()).unwrap_or(false),
+            ),
+            None => (false, false),
+        };
+        self.set_tun_enabled(enabled).await;
+        Ok((available, enabled))
+    }
+
+    pub(crate) async fn set_subscription_scheduler(&self, scheduler: SubscriptionScheduler) {
+        let mut guard = self.subscription_scheduler.write().await;
+        *guard = Some(scheduler);
+    }
+
+    pub(crate) async fn shutdown_subscription_scheduler(&self) {
+        if let Some(scheduler) = self.subscription_scheduler.write().await.take() {
+            scheduler.shutdown();
+        }
     }
 
     pub(crate) async fn update_static_info_text(&self, text: impl Into<String>) {
@@ -359,6 +428,55 @@ impl AppState {
 
     pub(crate) async fn use_bundled_core(&self) -> bool {
         self.settings.read().await.use_bundled_core
+    }
+
+    pub(crate) async fn notify_subscription_update(
+        &self,
+        profile: &str,
+        success: bool,
+        message: Option<String>,
+    ) {
+        let title = if success {
+            "订阅更新成功"
+        } else {
+            "订阅更新失败"
+        };
+        let body = if success {
+            format!("配置 \"{profile}\" 已更新")
+        } else {
+            let reason = message.unwrap_or_else(|| "未知错误".to_string());
+            format!("配置 \"{profile}\" 更新失败：{reason}")
+        };
+        self.show_notification(title, &body).await;
+    }
+
+    pub(crate) async fn notify_subscription_update_start(&self) {
+        self.show_notification("订阅更新中", "正在更新所有订阅...").await;
+    }
+
+    pub(crate) async fn notify_subscription_update_summary(
+        &self,
+        updated: usize,
+        failed: usize,
+        skipped: usize,
+    ) {
+        let body = format!("成功 {updated}，失败 {failed}，跳过 {skipped}");
+        self.show_notification("订阅更新完成", &body).await;
+    }
+
+    async fn show_notification(&self, title: &str, body: &str) {
+        let app_handle = self.app_handle.read().await.clone();
+        if let Some(handle) = app_handle {
+            if let Err(err) = handle
+                .notification()
+                .builder()
+                .title(title)
+                .body(body)
+                .show()
+            {
+                warn!("failed to show notification: {err}");
+            }
+        }
     }
 }
 

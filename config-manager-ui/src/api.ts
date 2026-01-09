@@ -76,6 +76,20 @@ export const api = {
     }),
   deleteProfile: (name: string) =>
     request<void>(`profiles/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  setProfileSubscription: (
+    name: string,
+    payload: { url: string; auto_update_enabled: boolean; update_interval_hours?: number | null },
+  ) =>
+    request<ProfileInfo>(`profiles/${encodeURIComponent(name)}/subscription`, {
+      method: 'POST',
+      body: payload,
+    }),
+  clearProfileSubscription: (name: string) =>
+    request<ProfileInfo>(`profiles/${encodeURIComponent(name)}/subscription`, { method: 'DELETE' }),
+  updateProfileNow: (name: string) =>
+    request<ProfileActionResponse>(`profiles/${encodeURIComponent(name)}/update-now`, {
+      method: 'POST',
+    }),
   clearProfiles: () =>
     request<ProfileActionResponse>('profiles/clear', { method: 'POST' }),
   openProfile: (name: string) =>

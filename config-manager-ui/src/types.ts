@@ -4,6 +4,11 @@
   path: string;
   controller_url?: string | null;
   controller_changed?: boolean | null;
+  subscription_url?: string | null;
+  auto_update_enabled?: boolean | null;
+  update_interval_hours?: number | null;
+  last_updated?: string | null;
+  next_update?: string | null;
 }
 
 export interface ProfileDetail {
@@ -11,6 +16,11 @@ export interface ProfileDetail {
   active: boolean;
   path: string;
   content: string;
+  subscription_url?: string | null;
+  auto_update_enabled?: boolean | null;
+  update_interval_hours?: number | null;
+  last_updated?: string | null;
+  next_update?: string | null;
 }
 
 export interface ProfileActionResponse {

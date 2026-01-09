@@ -55,6 +55,7 @@
 
 ## 构建、测试与开发命令
 
+- 整个项目统一使用 `pnpm build` 进行编译与打包。
 - `pnpm install`：安装根目录工具（Tauri CLI）。
 - `pnpm dev`：启动仅托盘模式的 Tauri 应用。
 - `pnpm build`：通过 Tauri 生成安装包（Windows 需要产出 `.msi`）。
@@ -66,6 +67,13 @@
 - Rust：遵循 `rustfmt` 默认格式（4 空格缩进）；模块 `snake_case`、类型 `PascalCase`、函数 `snake_case`。
 - Rust：**禁止使用 `unsafe`**。如需系统能力必须优先选用安全库；确有必要时需给出安全替代方案或完整安全性说明并记录到规范中。
 - 非必要不修改二进制资源与生成物。
+
+## 代码约束（必须遵守）
+
+- **No unsafe**：业务代码与平台封装均不得使用 `unsafe`。
+- **No warnings**：提交前确保 `cargo build` / `cargo test` 无警告。
+- **No panic 隐患**：禁止 `unwrap/expect`、直接索引、字符串切片；统一显式错误处理（`?`/`ok_or_else`）。
+- **模块化/松耦合**：业务逻辑优先下沉 `despicable-infiltrator-core`，UI/托盘仅做编排；避免跨模块互相调用内部细节。
 
 ## 测试规范
 
@@ -142,11 +150,6 @@ let first = parts.first().ok_or_else(|| anyhow!("parts is empty"))?;
 let rest = parts.get(1..).map(|s| s.to_vec()).unwrap_or_default();
 ```
 
-**当前问题点**（需修复）：
-
-- `editor.rs:270,278,279,335,337`：存在 `parts[0]`、`parts[1..]` 等直接索引
-- `admin_api.rs:720`：`bytes[0]`、`bytes[1]` 直接访问（虽有长度检查，建议改用 `get`）
-
 ### 3. 字符串切片
 
 **禁止**：直接使用 `&s[a..b]` 切片（UTF-8 边界可能 panic）
@@ -221,12 +224,6 @@ let parent = self.config_file.parent()
 fs::create_dir_all(parent).await?;
 ```
 
-**当前问题点**：
-
-- `mihomo-rs/src/version/manager.rs:117`：`.parent().unwrap()`
-- `mihomo-rs/src/config/manager.rs:108`：`.parent().unwrap()`
-- `mihomo-rs/src/service/process.rs:35`：`.parent().unwrap()`
-
 ### 8. Clippy Lint 配置
 
 建议在 `Cargo.toml` 或 `.cargo/config.toml` 中启用以下 lint：
@@ -264,12 +261,6 @@ tauri::async_runtime::spawn(async move {
 ## 当前项目潜在 Panic 问题清单
 
 以下是代码审计发现的潜在 panic 点，按优先级排序：
-
-### 低优先级（测试/示例代码）
-
-- `mihomo-rs/tests/` 下的 unwrap 使用：测试代码允许
-- `mihomo-rs/examples/` 下的 unwrap 使用：示例代码允许
-- `mihomo-rs/src/core/types.rs` 测试函数中的 unwrap：在 `#[cfg(test)]` 块中允许
 
 ## 故障排查建议
 

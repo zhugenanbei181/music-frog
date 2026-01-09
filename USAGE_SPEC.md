@@ -33,6 +33,14 @@
   - `%USERPROFILE%\.config\mihomo-rs\logs\mihomo.log`
   - 应用日志（托盘/Axum）：`%LOCALAPPDATA%\\com.mihomo.despicable-infiltrator\\logs\\Mihomo-Despicable-Infiltrator.log`
 
+## 订阅更新与通知
+
+- 托盘菜单「配置切换」提供“立即更新所有订阅”。
+- 自动更新/手动更新成功或失败会触发系统通知。
+- 订阅链接默认存储在系统密钥链，配置文件保留回退副本用于密钥链丢失时恢复。
+- 不同配置的订阅链接分别存储，互不影响（key 格式：`subscription:{profile}`）。
+- Windows 可在“控制面板 → 凭据管理器 → Windows 凭据”中查看/删除，目标项名称为 `Mihomo-Despicable-Infiltrator`，账号名为 `subscription:{profile}`。
+
 ## 清空配置
 
 - 入口：配置管理界面「清空配置」。

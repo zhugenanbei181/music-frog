@@ -24,6 +24,17 @@ impl AdminApiContext for TauriAdminContext {
         self.app_state.refresh_core_version_info().await;
     }
 
+    async fn notify_subscription_update(
+        &self,
+        profile: String,
+        success: bool,
+        message: Option<String>,
+    ) {
+        self.app_state
+            .notify_subscription_update(&profile, success, message)
+            .await;
+    }
+
     async fn editor_path(&self) -> Option<String> {
         self.app_state.editor_path().await
     }

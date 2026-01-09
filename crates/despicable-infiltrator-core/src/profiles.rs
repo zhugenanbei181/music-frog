@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use chrono::{DateTime, Utc};
 use mihomo_rs::{
     config::{ConfigManager, Profile as MihomoProfile},
     core::find_available_port,
@@ -13,6 +14,11 @@ pub struct ProfileInfo {
     pub path: String,
     pub controller_url: Option<String>,
     pub controller_changed: Option<bool>,
+    pub subscription_url: Option<String>,
+    pub auto_update_enabled: bool,
+    pub update_interval_hours: Option<u32>,
+    pub last_updated: Option<DateTime<Utc>>,
+    pub next_update: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -21,6 +27,11 @@ pub struct ProfileDetail {
     pub active: bool,
     pub path: String,
     pub content: String,
+    pub subscription_url: Option<String>,
+    pub auto_update_enabled: bool,
+    pub update_interval_hours: Option<u32>,
+    pub last_updated: Option<DateTime<Utc>>,
+    pub next_update: Option<DateTime<Utc>>,
 }
 
 pub fn profile_to_info(profile: MihomoProfile) -> ProfileInfo {
@@ -30,6 +41,11 @@ pub fn profile_to_info(profile: MihomoProfile) -> ProfileInfo {
         path: profile.path.to_string_lossy().to_string(),
         controller_url: None,
         controller_changed: None,
+        subscription_url: profile.subscription_url,
+        auto_update_enabled: profile.auto_update_enabled,
+        update_interval_hours: profile.update_interval_hours,
+        last_updated: profile.last_updated,
+        next_update: profile.next_update,
     }
 }
 
@@ -58,6 +74,11 @@ pub async fn load_profile_detail(name: &str) -> anyhow::Result<ProfileDetail> {
         active: profile.active,
         path: profile.path,
         content,
+        subscription_url: profile.subscription_url,
+        auto_update_enabled: profile.auto_update_enabled,
+        update_interval_hours: profile.update_interval_hours,
+        last_updated: profile.last_updated,
+        next_update: profile.next_update,
     })
 }
 

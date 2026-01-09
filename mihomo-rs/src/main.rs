@@ -285,7 +285,11 @@ async fn run() -> anyhow::Result<()> {
                             .iter()
                             .map(|(name, delay)| vec![name.clone(), format!("{}ms", delay)])
                             .collect();
-                        rows.sort_by(|a, b| a[0].cmp(&b[0]));
+                        rows.sort_by(|a, b| {
+                            let left = a.get(0).map(String::as_str).unwrap_or("");
+                            let right = b.get(0).map(String::as_str).unwrap_or("");
+                            left.cmp(right)
+                        });
                         print_table(&["Proxy", "Delay"], rows);
                     }
                 }

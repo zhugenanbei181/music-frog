@@ -8,6 +8,7 @@ use mihomo_rs::{
 };
 use reqwest::{header::ACCEPT_ENCODING, Client};
 use serde::Serialize;
+use serde_json::json;
 use std::path::{Path, PathBuf};
 use yaml_rust2::{Yaml, YamlLoader};
 
@@ -88,6 +89,36 @@ impl MihomoRuntime {
         })
     }
 
+    pub async fn current_mode(&self) -> anyhow::Result<String> {
+        let config = self.client.get_config().await?;
+        Ok(normalize_mode(&config.mode))
+    }
+
+    pub async fn set_mode(&self, mode: &str) -> anyhow::Result<()> {
+        let normalized = normalize_mode(mode);
+        if !is_supported_mode(&normalized) {
+            return Err(anyhow!("不支持的代理模式: {}", mode));
+        }
+        self.client
+            .patch_config(json!({ "mode": normalized }))
+            .await
+            .map_err(|err| anyhow!(err.to_string()))
+    }
+
+    pub async fn switch_proxy(&self, group: &str, proxy: &str) -> anyhow::Result<()> {
+        self.client
+            .switch_proxy(group, proxy)
+            .await
+            .map_err(|err| anyhow!(err.to_string()))
+    }
+
+    pub async fn set_tun_enabled(&self, enabled: bool) -> anyhow::Result<()> {
+        self.client
+            .patch_config(json!({ "tun": { "enable": enabled } }))
+            .await
+            .map_err(|err| anyhow!(err.to_string()))
+    }
+
     async fn read_mode(&self, profile: &str) -> anyhow::Result<String> {
         let content = self.config_manager.load(profile).await?;
         let doc = parse_yaml_doc(&content)?;
@@ -109,6 +140,19 @@ impl MihomoRuntime {
         let port = get_yaml_u16(&doc, "mixed-port").or_else(|| get_yaml_u16(&doc, "port"));
         Ok(port.map(|p| format!("127.0.0.1:{p}")))
     }
+}
+
+fn normalize_mode(mode: &str) -> String {
+    let trimmed = mode.trim();
+    if trimmed.is_empty() {
+        "rule".to_string()
+    } else {
+        trimmed.to_ascii_lowercase()
+    }
+}
+
+fn is_supported_mode(mode: &str) -> bool {
+    matches!(mode, "rule" | "global" | "direct" | "script")
 }
 
 const GEOIP_URL: &str =

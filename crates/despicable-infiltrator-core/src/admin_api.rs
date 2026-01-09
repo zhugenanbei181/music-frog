@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use chrono::Utc;
 use axum::{
     body::Body,
     extract::{Path as AxumPath, State as AxumState},
@@ -9,14 +10,10 @@ use axum::{
     Json, Router,
 };
 use log::{info, warn};
-use reqwest::{
-    header::{ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE},
-    Client,
-};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{
-    io::Read,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -28,6 +25,7 @@ use crate::{
     config as core_config,
     editor as core_editor,
     profiles as core_profiles,
+    subscription as core_subscription,
     version as core_version,
     ProfileDetail, ProfileInfo,
 };
@@ -38,6 +36,12 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn rebuild_runtime(&self) -> anyhow::Result<()>;
     async fn set_use_bundled_core(&self, enabled: bool);
     async fn refresh_core_version_info(&self);
+    async fn notify_subscription_update(
+        &self,
+        profile: String,
+        success: bool,
+        message: Option<String>,
+    );
     async fn editor_path(&self) -> Option<String>;
     async fn set_editor_path(&self, path: Option<String>);
     async fn pick_editor_path(&self) -> Option<String>;
@@ -156,6 +160,13 @@ pub struct OpenProfilePayload {
 }
 
 #[derive(Deserialize)]
+pub struct SubscriptionConfigPayload {
+    pub url: String,
+    pub auto_update_enabled: bool,
+    pub update_interval_hours: Option<u32>,
+}
+
+#[derive(Deserialize)]
 pub struct EditorConfigPayload {
     pub editor: Option<String>,
 }
@@ -231,6 +242,15 @@ pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
         .route(
             "/admin/api/profiles/:name",
             get(get_profile_http::<C>).delete(delete_profile_http::<C>),
+        )
+        .route(
+            "/admin/api/profiles/:name/subscription",
+            post(set_profile_subscription_http::<C>)
+                .delete(clear_profile_subscription_http::<C>),
+        )
+        .route(
+            "/admin/api/profiles/:name/update-now",
+            post(update_profile_now_http::<C>),
         )
         .route("/admin/api/profiles/switch", post(switch_profile_http::<C>))
         .route("/admin/api/profiles/save", post(save_profile_http::<C>))
@@ -397,6 +417,133 @@ async fn delete_profile_http<C: AdminApiContext>(
     Ok(StatusCode::NO_CONTENT)
 }
 
+async fn set_profile_subscription_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+    AxumPath(name): AxumPath<String>,
+    Json(payload): Json<SubscriptionConfigPayload>,
+) -> Result<Json<ProfileInfo>, ApiError> {
+    let profile_name = ensure_valid_profile_name(&name)?;
+    let url = payload.url.trim();
+    if url.is_empty() {
+        return Err(ApiError::bad_request("订阅链接不能为空"));
+    }
+    if payload.auto_update_enabled && payload.update_interval_hours.unwrap_or(0) == 0 {
+        return Err(ApiError::bad_request("更新间隔不能为空"));
+    }
+
+    core_profiles::load_profile_info(&profile_name)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let manager = ConfigManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut metadata = manager
+        .get_profile_metadata(&profile_name)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    metadata.subscription_url = Some(url.to_string());
+    metadata.auto_update_enabled = payload.auto_update_enabled;
+    metadata.update_interval_hours = payload.update_interval_hours;
+    if payload.auto_update_enabled {
+        if let Some(hours) = payload.update_interval_hours {
+            metadata.next_update = Some(Utc::now() + chrono::Duration::hours(hours as i64));
+        }
+    } else {
+        metadata.next_update = None;
+    }
+    manager
+        .update_profile_metadata(&profile_name, &metadata)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let info = core_profiles::load_profile_info(&profile_name).await?;
+    Ok(Json(info))
+}
+
+async fn clear_profile_subscription_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+    AxumPath(name): AxumPath<String>,
+) -> Result<Json<ProfileInfo>, ApiError> {
+    let profile_name = ensure_valid_profile_name(&name)?;
+    core_profiles::load_profile_info(&profile_name)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let manager = ConfigManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut metadata = manager
+        .get_profile_metadata(&profile_name)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    metadata.subscription_url = None;
+    metadata.auto_update_enabled = false;
+    metadata.update_interval_hours = None;
+    metadata.last_updated = None;
+    metadata.next_update = None;
+    manager
+        .update_profile_metadata(&profile_name, &metadata)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let info = core_profiles::load_profile_info(&profile_name).await?;
+    Ok(Json(info))
+}
+
+async fn update_profile_now_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    AxumPath(name): AxumPath<String>,
+) -> Result<Json<ProfileActionResponse>, ApiError> {
+    let profile_name = ensure_valid_profile_name(&name)?;
+    core_profiles::load_profile_info(&profile_name)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let manager = ConfigManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut metadata = manager
+        .get_profile_metadata(&profile_name)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let url = metadata
+        .subscription_url
+        .as_deref()
+        .ok_or_else(|| ApiError::bad_request("未找到订阅链接"))?;
+
+    let content =
+        core_subscription::fetch_subscription_text(&state.http_client, &state.raw_http_client, url)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    let content = core_subscription::strip_utf8_bom(&content);
+    if core_config::validate_yaml(&content).is_err() {
+        return Err(ApiError::bad_request("订阅内容不是有效的 YAML"));
+    }
+    manager
+        .save(&profile_name, &content)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+
+    let now = Utc::now();
+    metadata.last_updated = Some(now);
+    metadata.next_update = if metadata.auto_update_enabled {
+        metadata
+            .update_interval_hours
+            .map(|hours| now + chrono::Duration::hours(hours as i64))
+    } else {
+        None
+    };
+    manager
+        .update_profile_metadata(&profile_name, &metadata)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    let rebuild_scheduled = manager
+        .get_current()
+        .await
+        .ok()
+        .as_deref()
+        == Some(&profile_name);
+    if rebuild_scheduled {
+        schedule_rebuild(&state.ctx, &state.rebuild_status, "subscription-update-now");
+    }
+    let profile = core_profiles::load_profile_info(&profile_name).await?;
+    Ok(Json(ProfileActionResponse {
+        profile,
+        rebuild_scheduled,
+    }))
+}
+
 async fn get_editor_config_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
 ) -> Result<Json<EditorConfigResponse>, ApiError> {
@@ -509,18 +656,19 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
         ));
     }
 
-    let masked_url = mask_subscription_url(source_url);
+    let masked_url = core_subscription::mask_subscription_url(source_url);
     info!(
         "admin import profile start: name={} url={}",
         profile_name, masked_url
     );
-    let content = fetch_subscription_text(client, raw_client, source_url).await?;
+    let content =
+        core_subscription::fetch_subscription_text(client, raw_client, source_url).await?;
     if content.trim().is_empty() {
         return Err(anyhow!(
             "订阅返回内容为空"
         ));
     }
-    let content = strip_utf8_bom(&content);
+    let content = core_subscription::strip_utf8_bom(&content);
     if core_config::validate_yaml(&content).is_err() {
         return Err(anyhow!(
             "订阅内容不是有效的 YAML"
@@ -536,6 +684,19 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
         schedule_rebuild(ctx, rebuild_status, "import-activate");
         rebuild_scheduled = true;
     }
+
+    let now = Utc::now();
+    let mut metadata = manager.get_profile_metadata(&profile_name).await?;
+    metadata.subscription_url = Some(source_url.to_string());
+    metadata.last_updated = Some(now);
+    metadata.next_update = if metadata.auto_update_enabled {
+        metadata
+            .update_interval_hours
+            .map(|hours| now + chrono::Duration::hours(hours as i64))
+    } else {
+        None
+    };
+    manager.update_profile_metadata(&profile_name, &metadata).await?;
 
     let mut info = core_profiles::load_profile_info(&profile_name).await?;
     if activate {
@@ -578,183 +739,6 @@ async fn log_admin_request(req: Request<Body>, next: Next) -> Response {
     response
 }
 
-async fn fetch_subscription_text(
-    default_client: &Client,
-    raw_client: &Client,
-    url: &str,
-) -> anyhow::Result<String> {
-    let primary = fetch_subscription_bytes(default_client, url, false).await;
-    let response = match primary {
-        Ok(response) => response,
-        Err(err) => {
-            if is_decode_error(&err) {
-                warn!("subscription decode error, retry with identity: {err}");
-                fetch_subscription_bytes(raw_client, url, true).await?
-            } else {
-                return Err(err);
-            }
-        }
-    };
-
-    let bytes = if response.used_raw_client {
-        decode_subscription_bytes(response.bytes, response.encoding.as_deref())?
-    } else {
-        response.bytes
-    };
-
-    let content = decode_utf8_text(&bytes)?;
-    let content = strip_utf8_bom(&content);
-    Ok(content)
-}
-
-struct SubscriptionResponse {
-    bytes: Vec<u8>,
-    encoding: Option<String>,
-    used_raw_client: bool,
-}
-
-async fn fetch_subscription_bytes(
-    client: &Client,
-    url: &str,
-    force_identity: bool,
-) -> anyhow::Result<SubscriptionResponse> {
-    let mut request = client.get(url).header(ACCEPT, "text/yaml, text/plain, */*");
-    if force_identity {
-        request = request.header(ACCEPT_ENCODING, "identity");
-    }
-    let response = request.send().await?;
-    let status = response.status();
-    let content_type = response
-        .headers()
-        .get(CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("-")
-        .to_string();
-    let encoding = response
-        .headers()
-        .get(CONTENT_ENCODING)
-        .and_then(|value| value.to_str().ok())
-        .map(|value| value.to_string());
-    let bytes = response.bytes().await?;
-    let size = bytes.len();
-    info!(
-        "subscription response: status={} content-type={} encoding={} bytes={}",
-        status.as_u16(),
-        content_type,
-        encoding.clone().unwrap_or_else(|| "-".to_string()),
-        size
-    );
-    if !status.is_success() {
-        return Err(anyhow!(
-            "拉取失败，HTTP {}",
-            status
-        ));
-    }
-    if size == 0 {
-        return Err(anyhow!(
-            "订阅返回内容为空"
-        ));
-    }
-    Ok(SubscriptionResponse {
-        bytes: bytes.to_vec(),
-        encoding,
-        used_raw_client: force_identity,
-    })
-}
-
-fn decode_subscription_bytes(bytes: Vec<u8>, encoding: Option<&str>) -> anyhow::Result<Vec<u8>> {
-    let encoding = encoding
-        .unwrap_or("")
-        .split(',')
-        .next()
-        .unwrap_or("")
-        .trim()
-        .to_ascii_lowercase();
-    let encoding = if encoding.is_empty() {
-        if looks_like_gzip(&bytes) {
-            "gzip".to_string()
-        } else {
-            String::new()
-        }
-    } else {
-        encoding
-    };
-
-    match encoding.as_str() {
-        "" => Ok(bytes),
-        "gzip" | "x-gzip" => decode_gzip(&bytes),
-        "deflate" => decode_deflate(&bytes),
-        "br" => decode_brotli(&bytes),
-        other => Err(anyhow!("不支持的订阅编码类型: {}", other)),
-    }
-}
-
-fn decode_gzip(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
-    let mut decoder = flate2::read::GzDecoder::new(bytes);
-    let mut output = Vec::new();
-    decoder
-        .read_to_end(&mut output)
-        .map_err(|e| anyhow!("gzip 解码失败: {e}"))?;
-    Ok(output)
-}
-
-fn decode_deflate(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
-    let mut decoder = flate2::read::DeflateDecoder::new(bytes);
-    let mut output = Vec::new();
-    decoder
-        .read_to_end(&mut output)
-        .map_err(|e| anyhow!("deflate 解码失败: {e}"))?;
-    Ok(output)
-}
-
-fn decode_brotli(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
-    let mut decoder = brotli::Decompressor::new(bytes, 4096);
-    let mut output = Vec::new();
-    decoder
-        .read_to_end(&mut output)
-        .map_err(|e| anyhow!("brotli 解码失败: {e}"))?;
-    Ok(output)
-}
-
-fn looks_like_gzip(bytes: &[u8]) -> bool {
-    matches!(bytes.get(..2), Some([0x1f, 0x8b]))
-}
-
-fn decode_utf8_text(bytes: &[u8]) -> anyhow::Result<String> {
-    match String::from_utf8(bytes.to_vec()) {
-        Ok(text) => Ok(text),
-        Err(err) => {
-            warn!("subscription utf-8 decode failed: {err}");
-            Ok(String::from_utf8_lossy(bytes).to_string())
-        }
-    }
-}
-
-fn strip_utf8_bom(content: &str) -> String {
-    content.trim_start_matches('\u{feff}').to_string()
-}
-
-fn mask_subscription_url(url: &str) -> String {
-    let mut masked = url.to_string();
-    if let Some(pos) = masked.find("link/") {
-        let start = pos + "link/".len();
-        let end = masked[start..]
-            .find('?')
-            .map(|offset| start + offset)
-            .unwrap_or_else(|| masked.len());
-        if start < end {
-            masked.replace_range(start..end, "***");
-        }
-    }
-    masked
-}
-
-fn is_decode_error(err: &anyhow::Error) -> bool {
-    let message = err.to_string().to_ascii_lowercase();
-    message.contains("error decoding response body")
-        || message.contains("failed to decode")
-        || message.contains("decoder")
-}
 
 fn schedule_rebuild<C: AdminApiContext>(
     ctx: &C,

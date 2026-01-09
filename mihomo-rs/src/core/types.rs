@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 
 // Helper function to deserialize null as empty vec
@@ -18,6 +19,16 @@ pub struct Version {
     pub premium: bool,
     #[serde(default)]
     pub meta: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigResponse {
+    #[serde(default)]
+    pub mode: String,
+    #[serde(default)]
+    pub script: Option<Value>,
+    #[serde(default)]
+    pub tun: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

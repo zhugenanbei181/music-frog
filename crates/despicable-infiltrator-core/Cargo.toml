@@ -8,6 +8,7 @@ async-trait = "0.1"
 anyhow = "1.0"
 axum = "0.7"
 brotli = "3.5"
+chrono = { version = "0.4", features = ["serde"] }
 flate2 = "1.0"
 log = "0.4"
 mihomo-rs = "1.2.1"

@@ -18,6 +18,8 @@
           @open-external="openExternal"
           @switch="switchProfile"
           @delete="deleteProfile"
+          @update-subscription="updateSubscription"
+          @update-now="updateSubscriptionNow"
         />
 
         <section class="lg:col-span-8 grid gap-6">
@@ -436,6 +438,55 @@ async function deleteProfile(name: string) {
     pushToast(message, 'error');
   } finally {
     await refreshProfiles(true);
+  }
+}
+
+async function updateSubscription(payload: {
+  name: string;
+  url: string;
+  auto_update_enabled: boolean;
+  update_interval_hours?: number | null;
+}) {
+  if (busy.value) {
+    return;
+  }
+  startBusy('保存订阅设置', `正在更新 ${payload.name}`);
+  try {
+    await api.setProfileSubscription(payload.name, {
+      url: payload.url,
+      auto_update_enabled: payload.auto_update_enabled,
+      update_interval_hours: payload.update_interval_hours ?? null,
+    });
+    setStatus('订阅设置已保存', payload.name);
+  } catch (err) {
+    const message = (err as Error).message || String(err);
+    setStatus('订阅设置失败', message);
+    pushToast(message, 'error');
+  } finally {
+    await refreshProfiles(true);
+    endBusy();
+  }
+}
+
+async function updateSubscriptionNow(name: string) {
+  if (busy.value) {
+    return;
+  }
+  startBusy('订阅更新中', `正在更新 ${name}`);
+  try {
+    const result = await api.updateProfileNow(name);
+    setStatus('订阅已更新', result.profile.name);
+    if (result.rebuild_scheduled) {
+      updateBusyDetail('内核重启中，请稍候…');
+      await waitForRebuild('订阅更新');
+    }
+  } catch (err) {
+    const message = (err as Error).message || String(err);
+    setStatus('订阅更新失败', message);
+    pushToast(message, 'error');
+  } finally {
+    await refreshProfiles(true);
+    endBusy();
   }
 }
 

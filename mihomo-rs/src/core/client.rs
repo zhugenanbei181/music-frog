@@ -2,7 +2,7 @@ use super::error::Result;
 use super::types::*;
 use futures_util::StreamExt;
 use reqwest::Client;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
@@ -38,6 +38,14 @@ impl MihomoClient {
 
     pub async fn get_version(&self) -> Result<Version> {
         let url = self.build_url("/version")?;
+        let req = self.client.get(url);
+        let req = self.add_auth(req);
+        let resp = req.send().await?;
+        Ok(resp.json().await?)
+    }
+
+    pub async fn get_config(&self) -> Result<ConfigResponse> {
+        let url = self.build_url("/configs")?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
         let resp = req.send().await?;
@@ -100,6 +108,14 @@ impl MihomoClient {
         } else {
             req = req.query(&[("force", "true")]);
         }
+        let req = self.add_auth(req);
+        req.send().await?;
+        Ok(())
+    }
+
+    pub async fn patch_config(&self, updates: Value) -> Result<()> {
+        let url = self.build_url("/configs")?;
+        let req = self.client.patch(url).json(&updates);
         let req = self.add_auth(req);
         req.send().await?;
         Ok(())
