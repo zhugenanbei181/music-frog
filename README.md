@@ -12,22 +12,26 @@
 ## 构建与运行
 
 ### 环境要求
+
 - Node.js ≥ 18.18, pnpm ≥ 8
 - Rust 1.75+
 
 ### 开发
+
 ```bash
 pnpm install
 pnpm dev
 ```
 
 ### 构建
+
 ```bash
 pnpm --dir config-manager-ui build
 pnpm build
 ```
 
 ## 目录结构
+
 - `src-tauri/`: Tauri 后端 (Rust)。
 - `crates/despicable-infiltrator-core/`: 核心业务逻辑 (Rust)。
 - `mihomo-rs/`: Mihomo SDK (Rust)。
@@ -35,6 +39,7 @@ pnpm build
 - `zashboard/`: 面板静态资源。
 
 ## 详细文档
+
 - [AGENTS.md](AGENTS.md): 开发规范。
 - [USAGE_SPEC.md](USAGE_SPEC.md): 路径与命名规范。
 - [CHANGELOG.md](CHANGELOG.md): 更新日志。
