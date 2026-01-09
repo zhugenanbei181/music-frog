@@ -1,38 +1,50 @@
 <template>
-  <section class="panel px-5 py-4">
+  <div class="panel p-6">
     <div class="flex items-center justify-between">
-      <h2 class="panel-title">从本地文件导入</h2>
-      <span class="badge badge-idle">文件</span>
+      <h2 class="panel-title">{{ $t('import_local.title') }}</h2>
+      <span class="badge badge-idle">{{ $t('import_local.badge') }}</span>
     </div>
-    <div class="mt-4 space-y-3">
-      <div>
-        <label class="label">选择文件</label>
-        <input type="file" class="input" @change="onFileChange" />
-      </div>
-      <div>
-        <label class="label">配置名称</label>
+    <div class="mt-4 space-y-4">
+      <div class="form-control w-full">
+        <label class="label">
+          <span class="label-text">{{ $t('import_local.file_label') }}</span>
+        </label>
         <input
+          type="file"
+          accept=".yaml,.yml,.txt"
+          @change="onFileChange"
+          class="file-input w-full"
+        />
+      </div>
+      <div class="form-control w-full">
+        <label class="label">
+          <span class="label-text">{{ $t('import_local.name_label') }}</span>
+        </label>
+        <input
+          type="text"
           :value="name"
-          class="input"
-          placeholder="例如 backup"
           @input="$emit('update:name', ($event.target as HTMLInputElement).value)"
+          :placeholder="$t('import_local.name_placeholder')"
+          class="input w-full"
         />
       </div>
-      <label class="flex items-center gap-2 text-sm text-ink-700">
-        <input
-          type="checkbox"
-          class="h-4 w-4"
-          :checked="activate"
-          @change="$emit('update:activate', ($event.target as HTMLInputElement).checked)"
-        />
-        导入后设为当前配置
-      </label>
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-2">
+          <input
+            type="checkbox"
+            class="checkbox checkbox-primary"
+            :checked="activate"
+            @change="$emit('update:activate', ($event.target as HTMLInputElement).checked)"
+          />
+          <span class="label-text">{{ $t('import_local.activate_after') }}</span>
+        </label>
+      </div>
       <button class="btn btn-primary w-full" @click="$emit('submit')">
-        保存本地配置
+        {{ $t('import_local.save') }}
       </button>
-      <p class="text-xs text-ink-500">支持直接选择 YAML 文件。</p>
+      <p class="text-xs text-ink-500">{{ $t('import_local.hint') }}</p>
     </div>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -42,14 +54,15 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (event: 'update:name', value: string): void;
-  (event: 'update:activate', value: boolean): void;
-  (event: 'file-change', file: File | null): void;
-  (event: 'submit'): void;
+  (e: 'update:name', value: string): void;
+  (e: 'update:activate', value: boolean): void;
+  (e: 'file-change', file: File | null): void;
+  (e: 'submit'): void;
 }>();
 
 function onFileChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  emit('file-change', input.files?.[0] || null);
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0] || null;
+  emit('file-change', file);
 }
 </script>

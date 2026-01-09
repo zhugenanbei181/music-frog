@@ -59,6 +59,18 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 }
 
 export const api = {
+  getAppSettings: () => request<{
+    open_webui_on_startup?: boolean;
+    editor_path?: string | null;
+    use_bundled_core?: boolean;
+    language?: string;
+  }>('settings'),
+  saveAppSettings: (settings: {
+    open_webui_on_startup?: boolean;
+    editor_path?: string | null;
+    use_bundled_core?: boolean;
+    language?: string;
+  }) => request<void>('settings', { method: 'POST', body: settings }),
   listProfiles: () => request<ProfileInfo[]>('profiles'),
   getProfile: (name: string) => request<ProfileDetail>(`profiles/${encodeURIComponent(name)}`),
   switchProfile: (name: string) =>

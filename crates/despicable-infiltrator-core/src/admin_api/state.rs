@@ -11,6 +11,8 @@ use reqwest::Client;
 
 use super::models::RebuildStatusResponse;
 
+use crate::settings::AppSettings;
+
 #[async_trait::async_trait]
 pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn rebuild_runtime(&self) -> anyhow::Result<()>;
@@ -25,6 +27,8 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn editor_path(&self) -> Option<String>;
     async fn set_editor_path(&self, path: Option<String>);
     async fn pick_editor_path(&self) -> Option<String>;
+    async fn get_app_settings(&self) -> AppSettings;
+    async fn save_app_settings(&self, settings: AppSettings) -> anyhow::Result<()>;
 }
 
 #[derive(Default)]

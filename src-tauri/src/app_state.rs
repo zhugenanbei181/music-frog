@@ -17,6 +17,7 @@ use tauri_plugin_notification::NotificationExt;
 use tokio::sync::RwLock;
 
 use crate::{
+    locales::{Lang, Localizer},
     settings::save_settings,
     system_proxy::{apply_system_proxy, read_system_proxy_state},
     utils::extract_port_from_url,
@@ -58,6 +59,10 @@ pub(crate) struct TrayInfoItems {
 }
 
 impl AppState {
+    pub(crate) async fn get_lang_code(&self) -> String {
+        self.settings.read().await.language.clone()
+    }
+
     pub(crate) async fn set_runtime(&self, runtime: MihomoRuntime) {
         let mut guard = self.runtime.write().await;
         *guard = Some(Arc::new(runtime));
@@ -239,13 +244,22 @@ impl AppState {
 
     pub(crate) async fn update_system_proxy_text(&self, enabled: bool, endpoint: Option<&str>) {
         if let Some(items) = self.tray_info.read().await.as_ref() {
+            let lang_code = self.get_lang_code().await;
+            let lang = Lang(lang_code.as_str());
+            let prefix = lang.tr("system_proxy");
+            let state_text = if enabled {
+                lang.tr("enabled")
+            } else {
+                lang.tr("disabled")
+            };
+
             let text = if enabled {
                 match endpoint {
-                    Some(addr) => format!("系统代理: 已开启 ({addr})"),
-                    None => "系统代理: 已开启".to_string(),
+                    Some(addr) => format!("{}: {} ({})", prefix, state_text, addr),
+                    None => format!("{}: {}", prefix, state_text),
                 }
             } else {
-                "系统代理: 已关闭".to_string()
+                format!("{}: {}", prefix, state_text)
             };
             if let Err(err) = items.system_proxy.set_text(text) {
                 warn!("failed to update system proxy menu item: {err}");
@@ -255,10 +269,12 @@ impl AppState {
 
     pub(crate) async fn update_admin_privilege_text(&self, is_admin: bool) {
         if let Some(items) = self.tray_info.read().await.as_ref() {
+            let lang_code = self.get_lang_code().await;
+            let lang = Lang(lang_code.as_str());
             let text = if is_admin {
-                "管理员权限: 已获取"
+                lang.tr("acquired")
             } else {
-                "管理员权限: 未获取（开机自启需管理员）"
+                lang.tr("not_acquired")
             };
             if let Err(err) = items.admin_privilege.set_text(text) {
                 warn!("failed to update admin privilege menu item: {err}");
@@ -307,21 +323,28 @@ impl AppState {
     }
 
     pub(crate) async fn refresh_core_version_info(&self) {
+        let lang_code = self.get_lang_code().await;
+        let lang = Lang(lang_code.as_str());
+
         match read_core_version_info(self).await {
             Ok((current, installed, use_bundled)) => {
+                let current_prefix = lang.tr("current_core");
+                let not_set = lang.tr("not_set");
+                let default_core = lang.tr("default_core");
+
                 let current_text = if use_bundled || (current.is_none() && installed == 0) {
-                    "当前内核: 默认内核".to_string()
+                    format!("{}: {}", current_prefix, default_core)
                 } else {
                     current
-                        .map(|v| format!("当前内核: {v}"))
-                        .unwrap_or_else(|| "当前内核: 未设置".to_string())
+                        .map(|v| format!("{}: {}", current_prefix, v))
+                        .unwrap_or_else(|| format!("{}: {}", current_prefix, not_set))
                 };
-                let installed_text = format!("已下载版本: {installed}");
+                let installed_text = format!("{}: {}", lang.tr("downloaded_version"), installed);
                 self.update_core_version_text(current_text).await;
                 self.update_core_installed_text(installed_text).await;
-                self.update_core_status_text("更新状态: 空闲")
+                self.update_core_status_text(format!("{}: {}", lang.tr("update_status"), lang.tr("idle")))
                     .await;
-                self.update_core_network_text("网络: 未检测")
+                self.update_core_network_text(format!("{}: {}", lang.tr("network_check"), lang.tr("not_set")))
                     .await;
                 self.set_core_update_enabled(true).await;
                 if let Some(items) = self.tray_info.read().await.as_ref() {
@@ -332,13 +355,15 @@ impl AppState {
             }
             Err(err) => {
                 warn!("failed to read core version info: {err:#}");
-                self.update_core_version_text("当前内核: 读取失败")
+                let reading_failed = lang.tr("profile_read_failed"); 
+
+                self.update_core_version_text(format!("{}: {}", lang.tr("current_core"), reading_failed))
                     .await;
-                self.update_core_installed_text("已下载版本: 读取失败")
+                self.update_core_installed_text(format!("{}: {}", lang.tr("downloaded_version"), reading_failed))
                     .await;
-                self.update_core_status_text("更新状态: 读取失败")
+                self.update_core_status_text(format!("{}: {}", lang.tr("update_status"), reading_failed))
                     .await;
-                self.update_core_network_text("网络: 未检测")
+                self.update_core_network_text(format!("{}: {}", lang.tr("network_check"), lang.tr("not_set")))
                     .await;
                 self.set_core_update_enabled(true).await;
             }
@@ -389,6 +414,25 @@ impl AppState {
             .await
             .and_then(|url| extract_port_from_url(&url));
         (static_port, admin_port)
+    }
+
+    pub(crate) async fn set_app_settings(&self, settings: AppSettings) -> anyhow::Result<()> {
+        {
+            let mut guard = self.settings.write().await;
+            *guard = settings;
+        }
+        if let Err(err) = save_settings(self).await {
+            warn!("failed to save settings: {err}");
+            return Err(err);
+        }
+        // If language changed, refresh tray immediately
+        if let Err(err) = crate::tray::refresh_tray_menu(
+            self.app_handle.read().await.as_ref().unwrap(),
+            self,
+        ).await {
+            warn!("failed to refresh tray menu after settings change: {err}");
+        }
+        Ok(())
     }
 
     pub(crate) async fn set_open_webui_on_startup(&self, enabled: bool) {
@@ -455,22 +499,28 @@ impl AppState {
         success: bool,
         message: Option<String>,
     ) {
+        let lang_code = self.get_lang_code().await;
+        let lang = Lang(lang_code.as_str());
+
         let title = if success {
-            "订阅更新成功"
+            lang.tr("sub_update_success")
         } else {
-            "订阅更新失败"
+            lang.tr("sub_update_failed")
         };
         let body = if success {
-            format!("配置 \"{profile}\" 已更新")
+            // Need to support formatting in locales, but simple replacement works for now
+            lang.tr("sub_updated").replace("{0}", profile)
         } else {
-            let reason = message.unwrap_or_else(|| "未知错误".to_string());
-            format!("配置 \"{profile}\" 更新失败：{reason}")
+            let reason = message.unwrap_or_else(|| lang.tr("unknown").into_owned());
+            lang.tr("sub_failed_reason").replace("{0}", profile).replace("{1}", &reason)
         };
-        self.show_notification(title, &body).await;
+        self.show_notification(&title, &body).await;
     }
 
     pub(crate) async fn notify_subscription_update_start(&self) {
-        self.show_notification("订阅更新中", "正在更新所有订阅...").await;
+        let lang_code = self.get_lang_code().await;
+        let lang = Lang(lang_code.as_str());
+        self.show_notification(&lang.tr("sub_updating_title"), &lang.tr("sub_updating_msg")).await;
     }
 
     pub(crate) async fn notify_subscription_update_summary(
@@ -479,8 +529,13 @@ impl AppState {
         failed: usize,
         skipped: usize,
     ) {
-        let body = format!("成功 {updated}，失败 {failed}，跳过 {skipped}");
-        self.show_notification("订阅更新完成", &body).await;
+        let lang_code = self.get_lang_code().await;
+        let lang = Lang(lang_code.as_str());
+        let body = lang.tr("sub_update_summary")
+            .replace("{0}", &updated.to_string())
+            .replace("{1}", &failed.to_string())
+            .replace("{2}", &skipped.to_string());
+        self.show_notification(&lang.tr("sub_update_done"), &body).await;
     }
 
     async fn show_notification(&self, title: &str, body: &str) {

@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use tauri::{async_runtime, AppHandle};
 
 use crate::{app_state::AppState, platform, runtime::rebuild_runtime};
-use despicable_infiltrator_core::admin_api::AdminApiContext;
+use despicable_infiltrator_core::{admin_api::AdminApiContext, AppSettings};
 
 #[derive(Clone)]
 pub(crate) struct TauriAdminContext {
@@ -47,5 +47,13 @@ impl AdminApiContext for TauriAdminContext {
         async_runtime::spawn_blocking(|| platform::pick_editor_path())
             .await
             .unwrap_or(None)
+    }
+
+    async fn get_app_settings(&self) -> AppSettings {
+        self.app_state.settings.read().await.clone()
+    }
+
+    async fn save_app_settings(&self, settings: AppSettings) -> anyhow::Result<()> {
+        self.app_state.set_app_settings(settings).await
     }
 }

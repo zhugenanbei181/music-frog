@@ -74,6 +74,14 @@ pub struct CoreActivatePayload {
     pub version: String,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct AppSettingsPayload {
+    pub open_webui_on_startup: Option<bool>,
+    pub editor_path: Option<String>,
+    pub use_bundled_core: Option<bool>,
+    pub language: Option<String>,
+}
+
 pub struct ApiError {
     status: StatusCode,
     message: String,

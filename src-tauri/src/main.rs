@@ -6,6 +6,7 @@ mod autostart;
 mod core_update;
 mod factory_reset;
 mod frontend;
+mod locales;
 mod paths;
 mod platform;
 mod runtime;

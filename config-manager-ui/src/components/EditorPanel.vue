@@ -1,47 +1,57 @@
 <template>
-  <section class="panel px-5 py-4">
-    <div class="flex items-center justify-between">
-      <h2 class="panel-title">配置编辑器</h2>
-      <button class="btn btn-ghost" @click="$emit('reset')">新建</button>
+  <div class="panel h-full flex flex-col p-6">
+    <div class="mb-4 flex items-center justify-between">
+      <h2 class="panel-title">{{ $t('editor.title') }}</h2>
+      <button class="btn btn-ghost" @click="$emit('reset')">{{ $t('editor.new') }}</button>
     </div>
-    <div class="mt-4 space-y-3">
-      <div>
-        <label class="label">配置名称</label>
+    <div class="flex-1 space-y-4">
+      <div class="form-control w-full">
+        <label class="label">
+          <span class="label-text">{{ $t('editor.name_label') }}</span>
+        </label>
         <input
+          type="text"
           :value="name"
-          class="input"
-          placeholder="例如 work"
           @input="$emit('update:name', ($event.target as HTMLInputElement).value)"
+          :placeholder="$t('editor.name_placeholder')"
+          class="input w-full"
         />
       </div>
-      <div>
-        <label class="label">配置内容</label>
+      <div class="form-control h-[300px] w-full">
+        <label class="label">
+          <span class="label-text">{{ $t('editor.content_label') }}</span>
+        </label>
         <textarea
           :value="content"
-          rows="10"
-          class="textarea"
-          placeholder="# 粘贴 YAML 配置"
           @input="$emit('update:content', ($event.target as HTMLTextAreaElement).value)"
+          class="textarea h-full w-full font-mono text-sm leading-relaxed"
+          :placeholder="$t('editor.content_placeholder')"
         ></textarea>
       </div>
-      <label class="flex items-center gap-2 text-sm text-ink-700">
-        <input
-          type="checkbox"
-          class="h-4 w-4"
-          :checked="activate"
-          @change="$emit('update:activate', ($event.target as HTMLInputElement).checked)"
-        />
-        保存后设为当前配置
-      </label>
-      <div class="flex flex-wrap gap-2">
-        <button class="btn btn-primary" @click="$emit('save')">保存配置</button>
-        <button class="btn btn-ghost" @click="$emit('open-external', name)">
-          外部编辑
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-2">
+          <input
+            type="checkbox"
+            class="checkbox checkbox-primary"
+            :checked="activate"
+            @change="$emit('update:activate', ($event.target as HTMLInputElement).checked)"
+          />
+          <span class="label-text">{{ $t('editor.activate_after') }}</span>
+        </label>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-primary flex-1" @click="$emit('save')">
+          {{ $t('editor.save') }}
+        </button>
+        <button class="btn btn-secondary flex-1" @click="$emit('open-external', name)">
+          {{ $t('editor.external_edit') }}
         </button>
       </div>
-      <p class="text-xs text-ink-500">支持外部编辑器打开当前配置文件。</p>
+      <p class="text-xs text-ink-500">
+        {{ $t('editor.hint') }}
+      </p>
     </div>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -52,11 +62,11 @@ defineProps<{
 }>();
 
 defineEmits<{
-  (event: 'update:name', value: string): void;
-  (event: 'update:content', value: string): void;
-  (event: 'update:activate', value: boolean): void;
-  (event: 'save'): void;
-  (event: 'reset'): void;
-  (event: 'open-external', name: string): void;
+  (e: 'update:name', value: string): void;
+  (e: 'update:content', value: string): void;
+  (e: 'update:activate', value: boolean): void;
+  (e: 'save'): void;
+  (e: 'reset'): void;
+  (e: 'open-external', name: string): void;
 }>();
 </script>

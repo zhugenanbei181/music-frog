@@ -3,9 +3,9 @@
     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <div class="space-y-1">
         <p class="text-sm uppercase tracking-[0.2em] text-ink-500">Mihomo Despicable Infiltrator</p>
-        <h1 class="text-2xl font-semibold text-ink-900">配置管理控制台</h1>
+        <h1 class="text-2xl font-semibold text-ink-900">{{ $t('header.title') }}</h1>
         <p class="text-sm text-ink-500">
-          订阅导入、配置编辑、内核切换统一在此完成，状态与结果会即时反馈。
+          {{ $t('header.subtitle') }}
         </p>
       </div>
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -13,7 +13,10 @@
           <p class="font-semibold text-ink-900">{{ statusMessage }}</p>
           <p class="text-xs text-ink-500">{{ statusDetail }}</p>
         </div>
-        <button class="btn btn-ghost" @click="$emit('refresh')">刷新状态</button>
+        <button class="btn btn-ghost" @click="$emit('toggle-lang')">
+          <span class="text-lg">🌐</span>
+        </button>
+        <button class="btn btn-ghost" @click="$emit('refresh')">{{ $t('header.refresh') }}</button>
       </div>
     </div>
   </header>
@@ -27,5 +30,6 @@ defineProps<{
 
 defineEmits<{
   (event: 'refresh'): void;
+  (event: 'toggle-lang'): void;
 }>();
 </script>

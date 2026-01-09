@@ -1,28 +1,33 @@
 <template>
-  <section class="panel px-5 py-4">
+  <div class="panel p-6">
     <div class="flex items-center justify-between">
-      <h2 class="panel-title">外部编辑器设置</h2>
+      <h2 class="panel-title">{{ $t('editor_settings.title') }}</h2>
       <div class="flex gap-2">
-        <button class="btn btn-ghost" @click="$emit('pick')">选择路径</button>
-        <button class="btn btn-ghost" @click="$emit('reset')">恢复默认</button>
-        <button class="btn btn-primary" @click="$emit('save')">保存</button>
+        <button class="btn btn-ghost" @click="$emit('pick')">{{ $t('editor_settings.pick') }}</button>
+        <button class="btn btn-ghost" @click="$emit('reset')">{{ $t('editor_settings.reset') }}</button>
+        <button class="btn btn-primary" @click="$emit('save')">{{ $t('editor_settings.save') }}</button>
       </div>
     </div>
-    <div class="mt-4 grid gap-3 md:grid-cols-[2fr_1fr]">
-      <div>
-        <label class="label">编辑器路径</label>
+    <div class="mt-4">
+      <div class="form-control w-full">
+        <label class="label">
+          <span class="label-text">{{ $t('editor_settings.path_label') }}</span>
+        </label>
         <input
+          type="text"
           :value="editorPath"
-          class="input"
-          placeholder="例如 C:\\Program Files\\Microsoft VS Code\\Code.exe"
           @input="$emit('update:editorPath', ($event.target as HTMLInputElement).value)"
+          :placeholder="$t('editor_settings.path_placeholder')"
+          class="input w-full font-mono text-sm"
         />
-      </div>
-      <div class="rounded-xl border border-ink-500/10 bg-sand-100 p-3 text-xs text-ink-500">
-        留空将自动定位 VSCode（安装目录或 PATH），未检测到时回退记事本。
+        <label class="label">
+          <span class="label-text-alt text-ink-500">
+            {{ $t('editor_settings.hint') }}
+          </span>
+        </label>
       </div>
     </div>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -31,9 +36,9 @@ defineProps<{
 }>();
 
 defineEmits<{
-  (event: 'pick'): void;
-  (event: 'update:editorPath', value: string): void;
-  (event: 'reset'): void;
-  (event: 'save'): void;
+  (e: 'update:editorPath', value: string): void;
+  (e: 'pick'): void;
+  (e: 'reset'): void;
+  (e: 'save'): void;
 }>();
 </script>

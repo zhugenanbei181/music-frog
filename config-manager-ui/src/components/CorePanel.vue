@@ -1,35 +1,42 @@
 <template>
-  <section class="panel px-5 py-4">
-    <div class="flex items-center justify-between">
-      <h2 class="panel-title">内核版本</h2>
-      <button class="btn btn-ghost" @click="$emit('refresh')">刷新</button>
+  <div class="panel h-full flex flex-col p-6">
+    <div class="mb-4 flex items-center justify-between">
+      <h2 class="panel-title">{{ $t('core.title') }}</h2>
+      <button class="btn btn-ghost" @click="$emit('refresh')">{{ $t('core.refresh') }}</button>
     </div>
-    <div class="mt-4 space-y-2">
-      <p class="text-sm text-ink-700">当前内核：{{ coreCurrent || '默认内核' }}</p>
-      <div class="max-h-[280px] space-y-2 overflow-y-auto pr-1">
-        <div
+    
+    <div class="mb-4 rounded-lg bg-sand-50 p-3 text-center">
+      <p class="text-sm text-ink-700">
+        {{ coreCurrent ? $t('core.current', { version: coreCurrent }) : $t('core.default') }}
+      </p>
+    </div>
+
+    <div class="flex-1 overflow-y-auto max-h-[300px]">
+      <ul class="space-y-2">
+        <li
           v-for="version in coreVersions"
           :key="version"
-          class="flex items-center justify-between rounded-xl border border-ink-500/10 bg-white px-3 py-2"
+          class="flex items-center justify-between rounded-lg border border-sand-200 p-3 hover:border-primary-200"
         >
           <div>
-            <p class="text-sm font-semibold text-ink-900">{{ version }}</p>
-            <p class="text-xs text-ink-500">{{ version === coreCurrent ? '已启用' : '可切换' }}</p>
+            <p class="font-mono text-sm font-medium">{{ version }}</p>
+            <p class="text-xs text-ink-500">{{ version === coreCurrent ? $t('core.active') : $t('core.switchable') }}</p>
           </div>
           <button
-            class="btn btn-primary"
+            class="btn btn-xs"
+            :class="version === coreCurrent ? 'btn-secondary' : 'btn-primary'"
             :disabled="version === coreCurrent"
             @click="$emit('activate', version)"
           >
-            {{ version === coreCurrent ? '当前' : '启用' }}
+            {{ version === coreCurrent ? $t('core.status_current') : $t('core.status_use') }}
           </button>
-        </div>
-        <div v-if="!coreVersions.length" class="text-sm text-ink-500">
-          尚未下载内核版本，将使用内置内核。
-        </div>
+        </li>
+      </ul>
+      <div v-if="coreVersions.length === 0" class="py-4 text-center text-xs text-ink-500">
+        {{ $t('core.empty') }}
       </div>
     </div>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -39,7 +46,7 @@ defineProps<{
 }>();
 
 defineEmits<{
-  (event: 'refresh'): void;
-  (event: 'activate', version: string): void;
+  (e: 'refresh'): void;
+  (e: 'activate', version: string): void;
 }>();
 </script>

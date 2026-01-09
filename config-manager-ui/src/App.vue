@@ -5,6 +5,7 @@
         :status-message="status.message"
         :status-detail="status.detail"
         @refresh="refreshAll"
+        @toggle-lang="toggleLanguage"
       />
 
       <main class="mt-6 grid gap-6 lg:grid-cols-12">
@@ -73,6 +74,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { api } from './api';
 import type { ProfileInfo } from './types';
 import StatusHeader from './components/StatusHeader.vue';
@@ -85,9 +87,11 @@ import EditorSettingsPanel from './components/EditorSettingsPanel.vue';
 import BusyOverlay from './components/BusyOverlay.vue';
 import ToastList from './components/ToastList.vue';
 
+const { t, locale } = useI18n();
+
 const status = reactive({
-  message: '准备就绪',
-  detail: '等待操作中…',
+  message: t('app.ready_msg'),
+  detail: t('app.ready_detail'),
 });
 
 const profiles = ref<ProfileInfo[]>([]);
@@ -159,6 +163,19 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function toggleLanguage() {
+  const newLang = locale.value === 'zh-CN' ? 'en-US' : 'zh-CN';
+  locale.value = newLang;
+  try {
+    await api.saveAppSettings({ language: newLang });
+    // Refresh UI text that relies on computed/functions
+    refreshAll(true);
+    setStatus(t('app.ready_msg'), t('app.ready_detail'));
+  } catch (err) {
+    pushToast(`Failed to save language setting: ${err}`, 'error');
+  }
+}
+
 async function waitForRebuild(label: string) {
   const timeoutMs = 120_000;
   const start = Date.now();
@@ -170,9 +187,9 @@ async function waitForRebuild(label: string) {
       const message = (err as Error).message || String(err);
       const elapsed = Date.now() - start;
       if (elapsed > timeoutMs) {
-        throw new Error(`${label}超时：${message}`);
+        throw new Error(t('app.timeout_wait', { label, message }));
       }
-      updateBusyDetail(`等待状态失败，重试中… (${message})`);
+      updateBusyDetail(t('app.timeout_retry', { message }));
       await sleep(1200);
       continue;
     }
@@ -184,9 +201,9 @@ async function waitForRebuild(label: string) {
     }
     const elapsed = Date.now() - start;
     if (elapsed > timeoutMs) {
-      throw new Error(`${label}超时，请稍后重试`);
+      throw new Error(t('app.timeout_generic', { label }));
     }
-    const reason = status.last_reason ? `内核重启中：${status.last_reason}` : '内核重启中，请稍候…';
+    const reason = status.last_reason ? t('app.restarting_reason', { reason: status.last_reason }) : t('app.restarting');
     updateBusyDetail(reason);
     await sleep(1200);
   }
@@ -197,12 +214,12 @@ async function refreshProfiles(silent = false) {
     const list = await api.listProfiles();
     profiles.value = list.sort((a, b) => a.name.localeCompare(b.name));
     if (!silent) {
-      setStatus('配置列表已更新', `共 ${profiles.value.length} 份配置`);
+      setStatus(t('app.profiles_updated_title'), t('app.profiles_updated_msg', { count: profiles.value.length }));
     }
   } catch (err) {
     const message = (err as Error).message || String(err);
     if (!silent) {
-      setStatus('加载配置失败', message);
+      setStatus(t('app.load_profiles_failed'), message);
     }
     pushToast(message, 'error');
   }
@@ -214,29 +231,32 @@ async function refreshCoreVersions(silent = false) {
     coreVersions.value = data.versions;
     coreCurrent.value = data.current || null;
     if (!silent) {
-      setStatus('内核版本已刷新', data.current ? `当前 ${data.current}` : '使用默认内核');
+      setStatus(t('app.core_refreshed'), data.current ? t('app.core_current', { version: data.current }) : t('app.core_default'));
     }
   } catch (err) {
     const message = (err as Error).message || String(err);
     if (!silent) {
-      setStatus('加载内核版本失败', message);
+      setStatus(t('app.load_core_failed'), message);
     }
     pushToast(message, 'error');
   }
 }
 
-async function refreshEditorConfig() {
+async function refreshSettings() {
   try {
-    const data = await api.getEditor();
-    editorPath.value = data.editor || '';
+    const data = await api.getAppSettings();
+    editorPath.value = data.editor_path || '';
+    if (data.language) {
+      locale.value = data.language;
+    }
   } catch (err) {
     const message = (err as Error).message || String(err);
     pushToast(message, 'error');
   }
 }
 
-async function refreshAll() {
-  await Promise.all([refreshProfiles(), refreshCoreVersions(), refreshEditorConfig()]);
+async function refreshAll(silent = false) {
+  await Promise.all([refreshProfiles(silent), refreshCoreVersions(silent), refreshSettings()]);
 }
 
 async function loadProfile(name: string) {
@@ -247,7 +267,7 @@ async function loadProfile(name: string) {
     editor.activate = detail.active;
     const element = editorSection.value?.$el as HTMLElement | undefined;
     element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setStatus('已载入配置', detail.name);
+    setStatus(t('app.profile_loaded'), detail.name);
   } catch (err) {
     const message = (err as Error).message || String(err);
     pushToast(message, 'error');
@@ -256,12 +276,12 @@ async function loadProfile(name: string) {
 
 async function openExternal(name: string) {
   if (!name) {
-    pushToast('请先选择或输入配置名称', 'error');
+    pushToast(t('app.select_profile_hint'), 'error');
     return;
   }
   try {
     await api.openProfile(name);
-    setStatus('已在外部编辑器打开', name);
+    setStatus(t('app.external_opened'), name);
   } catch (err) {
     const message = (err as Error).message || String(err);
     pushToast(message, 'error');
@@ -272,18 +292,18 @@ async function switchProfile(name: string) {
   if (busy.value) {
     return;
   }
-  startBusy('切换配置中', `正在切换到 ${name}`);
+  startBusy(t('app.switching_busy'), t('app.switching_detail', { name }));
   try {
     const result = await api.switchProfile(name);
-    setStatus('配置切换中', `正在切换到 ${result.profile.name}`);
+    setStatus(t('app.switch_status'), t('app.switching_detail', { name: result.profile.name }));
     if (result.rebuild_scheduled) {
-      updateBusyDetail('内核重启中，请稍候…');
-      await waitForRebuild('切换配置');
+      updateBusyDetail(t('app.switch_rebuild'));
+      await waitForRebuild(t('app.switch_status'));
     }
-    setStatus('配置已切换', result.profile.name);
+    setStatus(t('app.switch_success'), result.profile.name);
   } catch (err) {
     const message = (err as Error).message || String(err);
-    setStatus('配置切换失败', message);
+    setStatus(t('app.switch_failed'), message);
     pushToast(message, 'error');
   } finally {
     await refreshProfiles(true);
@@ -295,24 +315,22 @@ async function clearProfiles() {
   if (busy.value) {
     return;
   }
-  const confirmed = window.confirm(
-    '清空配置会删除所有订阅与本地配置，并恢复默认配置。此操作不可撤销，是否继续？',
-  );
+  const confirmed = window.confirm(t('app.clear_confirm'));
   if (!confirmed) {
     return;
   }
-  startBusy('清空配置中', '正在恢复默认配置');
+  startBusy(t('app.clearing_busy'), t('app.clearing_detail'));
   try {
     const result = await api.clearProfiles();
     resetEditor();
-    setStatus('配置已清空', result.profile.name);
+    setStatus(t('app.clear_success'), result.profile.name);
     if (result.rebuild_scheduled) {
-      updateBusyDetail('内核重启中，请稍候…');
-      await waitForRebuild('清空配置');
+      updateBusyDetail(t('app.switch_rebuild'));
+      await waitForRebuild(t('app.clearing_busy'));
     }
   } catch (err) {
     const message = (err as Error).message || String(err);
-    setStatus('清空配置失败', message);
+    setStatus(t('app.clear_failed'), message);
     pushToast(message, 'error');
   } finally {
     await refreshProfiles(true);
@@ -322,25 +340,25 @@ async function clearProfiles() {
 
 async function importProfile() {
   if (!importForm.name.trim() || !importForm.url.trim()) {
-    pushToast('请填写配置名称与订阅链接', 'error');
+    pushToast(t('app.import_missing_info'), 'error');
     return;
   }
   if (busy.value) {
     return;
   }
-  startBusy('订阅导入中', `正在导入 ${importForm.name.trim()}`);
+  startBusy(t('app.importing_busy'), t('app.importing_detail', { name: importForm.name.trim() }));
   try {
     const result = await api.importProfile(importForm.name.trim(), importForm.url.trim(), importForm.activate);
     importForm.url = '';
     importForm.name = '';
-    setStatus('订阅导入完成', result.profile.name);
+    setStatus(t('app.import_success'), result.profile.name);
     if (result.rebuild_scheduled) {
-      updateBusyDetail('内核重启中，请稍候…');
-      await waitForRebuild('订阅导入');
+      updateBusyDetail(t('app.switch_rebuild'));
+      await waitForRebuild(t('app.importing_busy'));
     }
   } catch (err) {
     const message = (err as Error).message || String(err);
-    setStatus('订阅导入失败', message);
+    setStatus(t('app.import_failed'), message);
     pushToast(message, 'error');
   } finally {
     await refreshProfiles(true);
@@ -357,30 +375,30 @@ function onLocalFileChange(file: File | null) {
 
 async function importLocal() {
   if (!localForm.file) {
-    pushToast('请选择本地配置文件', 'error');
+    pushToast(t('app.file_missing'), 'error');
     return;
   }
   if (busy.value) {
     return;
   }
   const name = localForm.name.trim() || localForm.file.name.replace(/\.[^/.]+$/, '');
-  startBusy('保存本地配置', `正在保存 ${name}`);
+  startBusy(t('app.saving_local_busy'), t('app.saving_local_detail', { name }));
   try {
     const content = await localForm.file.text();
     if (!content.trim()) {
-      throw new Error('文件内容为空');
+      throw new Error(t('app.file_empty'));
     }
     const result = await api.saveProfile(name, content, localForm.activate);
-    setStatus('本地配置已保存', result.profile.name);
+    setStatus(t('app.save_local_success'), result.profile.name);
     if (result.rebuild_scheduled) {
-      updateBusyDetail('内核重启中，请稍候…');
-      await waitForRebuild('本地配置保存');
+      updateBusyDetail(t('app.switch_rebuild'));
+      await waitForRebuild(t('app.saving_local_busy'));
     }
     localForm.file = null;
     localForm.name = '';
   } catch (err) {
     const message = (err as Error).message || String(err);
-    setStatus('本地配置保存失败', message);
+    setStatus(t('app.save_local_failed'), message);
     pushToast(message, 'error');
   } finally {
     await refreshProfiles(true);
@@ -390,30 +408,30 @@ async function importLocal() {
 
 async function saveProfile() {
   if (!editor.name.trim()) {
-    pushToast('配置名称不能为空', 'error');
+    pushToast(t('app.name_empty'), 'error');
     return;
   }
   if (!editor.content.trim()) {
-    pushToast('配置内容不能为空', 'error');
+    pushToast(t('app.content_empty'), 'error');
     return;
   }
   if (busy.value) {
     return;
   }
-  startBusy('保存配置', `正在保存 ${editor.name.trim()}`);
+  startBusy(t('app.saving_busy'), t('app.saving_detail', { name: editor.name.trim() }));
   try {
     const result = await api.saveProfile(editor.name.trim(), editor.content, editor.activate);
-    setStatus('配置已保存', result.profile.name);
+    setStatus(t('app.save_success'), result.profile.name);
     if (result.profile.controller_url) {
-      pushToast(`控制接口 ${result.profile.controller_url}`);
+      pushToast(t('app.controller_info', { url: result.profile.controller_url }));
     }
     if (result.rebuild_scheduled) {
-      updateBusyDetail('内核重启中，请稍候…');
-      await waitForRebuild('保存配置');
+      updateBusyDetail(t('app.switch_rebuild'));
+      await waitForRebuild(t('app.saving_busy'));
     }
   } catch (err) {
     const message = (err as Error).message || String(err);
-    setStatus('配置保存失败', message);
+    setStatus(t('app.save_failed'), message);
     pushToast(message, 'error');
   } finally {
     await refreshProfiles(true);
@@ -422,14 +440,13 @@ async function saveProfile() {
 }
 
 async function deleteProfile(name: string) {
-  const confirmation = window.prompt(`危险操作：删除配置 ${name}
-请输入配置名确认删除`);
+  const confirmation = window.prompt(t('app.delete_confirm', { name }));
   if (confirmation !== name) {
     return;
   }
   try {
     await api.deleteProfile(name);
-    setStatus('配置已删除', name);
+    setStatus(t('app.delete_success'), name);
     if (editor.name === name) {
       resetEditor();
     }
@@ -450,17 +467,17 @@ async function updateSubscription(payload: {
   if (busy.value) {
     return;
   }
-  startBusy('保存订阅设置', `正在更新 ${payload.name}`);
+  startBusy(t('app.save_sub_busy'), t('app.save_sub_detail', { name: payload.name }));
   try {
     await api.setProfileSubscription(payload.name, {
       url: payload.url,
       auto_update_enabled: payload.auto_update_enabled,
       update_interval_hours: payload.update_interval_hours ?? null,
     });
-    setStatus('订阅设置已保存', payload.name);
+    setStatus(t('app.save_sub_success'), payload.name);
   } catch (err) {
     const message = (err as Error).message || String(err);
-    setStatus('订阅设置失败', message);
+    setStatus(t('app.save_sub_failed'), message);
     pushToast(message, 'error');
   } finally {
     await refreshProfiles(true);
@@ -472,17 +489,17 @@ async function updateSubscriptionNow(name: string) {
   if (busy.value) {
     return;
   }
-  startBusy('订阅更新中', `正在更新 ${name}`);
+  startBusy(t('app.update_sub_busy'), t('app.update_sub_detail', { name }));
   try {
     const result = await api.updateProfileNow(name);
-    setStatus('订阅已更新', result.profile.name);
+    setStatus(t('app.update_sub_success'), result.profile.name);
     if (result.rebuild_scheduled) {
-      updateBusyDetail('内核重启中，请稍候…');
-      await waitForRebuild('订阅更新');
+      updateBusyDetail(t('app.switch_rebuild'));
+      await waitForRebuild(t('app.update_sub_busy'));
     }
   } catch (err) {
     const message = (err as Error).message || String(err);
-    setStatus('订阅更新失败', message);
+    setStatus(t('app.update_sub_failed'), message);
     pushToast(message, 'error');
   } finally {
     await refreshProfiles(true);
@@ -494,13 +511,13 @@ function resetEditor() {
   editor.name = '';
   editor.content = '';
   editor.activate = false;
-  setStatus('已准备新配置', '输入名称并粘贴 YAML');
+  setStatus(t('app.new_profile_ready'), t('app.new_profile_detail'));
 }
 
 async function saveEditorConfig() {
   try {
-    await api.setEditor(editorPath.value.trim() || null);
-    setStatus('编辑器设置已保存', editorPath.value || '自动检测');
+    await api.saveAppSettings({ editor_path: editorPath.value.trim() || null });
+    setStatus(t('app.editor_saved'), editorPath.value || t('app.editor_auto'));
   } catch (err) {
     const message = (err as Error).message || String(err);
     pushToast(message, 'error');
@@ -512,9 +529,9 @@ async function pickEditorPath() {
     const data = await api.pickEditor();
     if (data.editor) {
       editorPath.value = data.editor;
-      setStatus('已选择编辑器路径', data.editor);
+      setStatus(t('app.editor_picked'), data.editor);
     } else {
-      pushToast('已取消编辑器路径选择');
+      pushToast(t('app.editor_cancelled'));
     }
   } catch (err) {
     const message = (err as Error).message || String(err);
@@ -531,16 +548,16 @@ async function activateCore(version: string) {
   if (busy.value) {
     return;
   }
-  startBusy('切换内核版本', `正在切换到 ${version}`);
+  startBusy(t('app.switch_core_busy'), t('app.switch_core_detail', { version }));
   try {
     await api.activateCoreVersion(version);
-    setStatus('内核切换中', `正在切换到 ${version}`);
-    updateBusyDetail('内核重启中，请稍候…');
-    await waitForRebuild('切换内核');
-    setStatus('已切换内核版本', version);
+    setStatus(t('app.switch_core_status'), t('app.switch_core_detail', { version }));
+    updateBusyDetail(t('app.switch_rebuild'));
+    await waitForRebuild(t('app.switch_core_busy'));
+    setStatus(t('app.switch_core_success'), version);
   } catch (err) {
     const message = (err as Error).message || String(err);
-    setStatus('内核切换失败', message);
+    setStatus(t('app.switch_core_failed'), message);
     pushToast(message, 'error');
   } finally {
     await refreshCoreVersions(true);

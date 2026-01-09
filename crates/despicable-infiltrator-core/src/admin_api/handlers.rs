@@ -380,6 +380,42 @@ pub async fn activate_core_version_http<C: AdminApiContext>(
     Ok(StatusCode::NO_CONTENT)
 }
 
+pub async fn get_app_settings_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<AppSettingsPayload>, ApiError> {
+    let settings = state.ctx.get_app_settings().await;
+    Ok(Json(AppSettingsPayload {
+        open_webui_on_startup: Some(settings.open_webui_on_startup),
+        editor_path: settings.editor_path,
+        use_bundled_core: Some(settings.use_bundled_core),
+        language: Some(settings.language),
+    }))
+}
+
+pub async fn save_app_settings_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<AppSettingsPayload>,
+) -> Result<StatusCode, ApiError> {
+    let mut settings = state.ctx.get_app_settings().await;
+    
+    if let Some(val) = payload.open_webui_on_startup {
+        settings.open_webui_on_startup = val;
+    }
+    if let Some(val) = payload.editor_path {
+        let trimmed = val.trim().to_string();
+        settings.editor_path = if trimmed.is_empty() { None } else { Some(trimmed) };
+    }
+    if let Some(val) = payload.use_bundled_core {
+        settings.use_bundled_core = val;
+    }
+    if let Some(val) = payload.language {
+        settings.language = val;
+    }
+
+    state.ctx.save_app_settings(settings).await.map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 fn ensure_valid_profile_name(name: &str) -> Result<String, ApiError> {
     core_profiles::sanitize_profile_name(name).map_err(|e| ApiError::bad_request(e.to_string()))
 }

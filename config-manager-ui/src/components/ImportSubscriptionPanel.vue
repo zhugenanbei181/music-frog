@@ -1,45 +1,50 @@
 <template>
-  <section class="panel px-5 py-4">
-    <div class="flex items-center justify-between">
-      <h2 class="panel-title">通过订阅导入</h2>
-      <span class="badge badge-idle">URL</span>
-    </div>
-    <div class="mt-4 space-y-3">
-      <div>
-        <label class="label">配置名称</label>
+  <div class="panel p-6">
+    <h2 class="panel-title">{{ $t('import_sub.title') }}</h2>
+    <div class="mt-4 space-y-4">
+      <div class="form-control w-full">
+        <label class="label">
+          <span class="label-text">{{ $t('import_sub.name_label') }}</span>
+        </label>
         <input
+          type="text"
           :value="name"
-          class="input"
-          placeholder="例如 main"
           @input="$emit('update:name', ($event.target as HTMLInputElement).value)"
+          :placeholder="$t('import_sub.name_placeholder')"
+          class="input w-full"
         />
       </div>
-      <div>
-        <label class="label">订阅链接</label>
+      <div class="form-control w-full">
+        <label class="label">
+          <span class="label-text">{{ $t('import_sub.url_label') }}</span>
+        </label>
         <input
+          type="text"
           :value="url"
-          class="input"
-          placeholder="https://..."
           @input="$emit('update:url', ($event.target as HTMLInputElement).value)"
+          placeholder="https://..."
+          class="input w-full font-mono text-sm"
         />
       </div>
-      <label class="flex items-center gap-2 text-sm text-ink-700">
-        <input
-          type="checkbox"
-          class="h-4 w-4"
-          :checked="activate"
-          @change="$emit('update:activate', ($event.target as HTMLInputElement).checked)"
-        />
-        导入后设为当前配置
-      </label>
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-2">
+          <input
+            type="checkbox"
+            class="checkbox checkbox-primary"
+            :checked="activate"
+            @change="$emit('update:activate', ($event.target as HTMLInputElement).checked)"
+          />
+          <span class="label-text">{{ $t('import_sub.activate_after') }}</span>
+        </label>
+      </div>
       <button class="btn btn-primary w-full" @click="$emit('submit')">
-        立即导入
+        {{ $t('import_sub.import_now') }}
       </button>
       <p class="text-xs text-ink-500">
-        导入完成后会即时刷新列表，如需激活将后台重启内核。
+        {{ $t('import_sub.hint') }}
       </p>
     </div>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -50,9 +55,9 @@ defineProps<{
 }>();
 
 defineEmits<{
-  (event: 'update:name', value: string): void;
-  (event: 'update:url', value: string): void;
-  (event: 'update:activate', value: boolean): void;
-  (event: 'submit'): void;
+  (e: 'update:name', value: string): void;
+  (e: 'update:url', value: string): void;
+  (e: 'update:activate', value: boolean): void;
+  (e: 'submit'): void;
 }>();
 </script>

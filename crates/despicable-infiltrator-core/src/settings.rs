@@ -8,6 +8,7 @@ pub struct AppSettings {
     pub open_webui_on_startup: bool,
     pub editor_path: Option<String>,
     pub use_bundled_core: bool,
+    pub language: String,
 }
 
 impl Default for AppSettings {
@@ -16,6 +17,7 @@ impl Default for AppSettings {
             open_webui_on_startup: false,
             editor_path: None,
             use_bundled_core: true,
+            language: "zh-CN".to_string(),
         }
     }
 }

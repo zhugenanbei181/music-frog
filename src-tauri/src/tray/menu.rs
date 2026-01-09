@@ -19,19 +19,8 @@ use crate::{
     autostart::is_autostart_enabled,
     platform::{is_running_as_admin},
     frontend::open_frontend,
+    locales::{Lang, Localizer},
 };
-
-// Handlers are imported in handlers.rs, menu.rs only builds UI and updates it.
-// Wait, handlers logic was moved to handlers.rs. 
-// But menu.rs logic below includes handle_* calls? No, I see imports for handler logic?
-// Ah, `handle_system_proxy_toggle` etc were copied here in previous full overwrite? 
-// NO. The full overwrite of `tray.rs` (which I deleted) had them.
-// The new `tray/menu.rs` I created in Step 3 ONLY had build logic?
-// Let's check what I wrote to `tray/menu.rs`.
-// I wrote "build_tray_menu" and helpers.
-// But wait, the `handlers.rs` I wrote in Step 2 imports `refresh_tray_menu` from `menu.rs`.
-// And `menu.rs` imports handlers? No, it shouldn't.
-// Let's re-read the file I wrote to `src-tauri/src/tray/menu.rs`.
 
 pub(crate) async fn refresh_tray_menu(
     app: &AppHandle,
@@ -45,38 +34,50 @@ pub(crate) async fn refresh_tray_menu(
     state.refresh_system_proxy_state().await;
     state.update_admin_privilege_text(is_running_as_admin()).await;
     state.refresh_core_version_info().await;
+    
+    let lang_code = state.get_lang_code().await;
+    let lang = Lang(lang_code.as_str());
+
     if let Some(url) = state.static_server_url().await {
         state
-            .update_static_info_text(format!("静态站点: {url}"))
+            .update_static_info_text(format!("{}: {}", lang.tr("static_server"), url))
             .await;
     } else {
-        state.update_static_info_text("静态站点: 未启动").await;
+        state.update_static_info_text(format!("{}: {}", lang.tr("static_server"), lang.tr("not_started"))).await;
     }
     if let Some(url) = state.admin_server_url().await {
-        state.update_admin_info_text(format!("配置管理: {url}")).await;
+        state.update_admin_info_text(format!("{}: {}", lang.tr("admin_server"), url)).await;
     } else {
-        state.update_admin_info_text("配置管理: 未启动").await;
+        state.update_admin_info_text(format!("{}: {}", lang.tr("admin_server"), lang.tr("not_started"))).await;
     }
     if let Ok(runtime) = state.runtime().await {
         state
-            .update_controller_info_text(format!("控制接口: {}", runtime.controller_url))
+            .update_controller_info_text(format!("{}: {}", lang.tr("controller_api"), runtime.controller_url))
             .await;
     } else {
-        state.update_controller_info_text("控制接口: 未初始化").await;
+        state.update_controller_info_text(format!("{}: {}", lang.tr("controller_api"), lang.tr("initializing"))).await;
     }
     Ok(())
 }
 
 pub(crate) fn build_fallback_tray(app: &AppHandle, state: AppState) -> tauri::Result<()> {
+    // Fallback tray usually happens on error, likely before we load settings or if loading settings fails.
+    // We can try to get language, but synchronous here. 
+    // Since this is panic/error fallback, defaulting to Chinese or English hardcoded is fine.
+    // But let's try to be consistent if possible. However, state.get_lang_code() is async. 
+    // Let's stick to Chinese default for fallback to minimize complexity, or hardcode simple English.
+    // Or we can block on async if we really want, but `build_fallback_tray` is sync in signature above (tauri::Result).
+    // Let's just use hardcoded Chinese as it was before, or minimal English. 
+    // The previous code had Chinese.
     let error_item = MenuItem::with_id(
         app,
         "tray-error",
-        "托盘菜单初始化失败",
+        "托盘菜单初始化失败 / Tray Init Failed",
         false,
         None::<&str>,
     )?;
-    let show_item = MenuItem::with_id(app, "show", "打开浏览器", true, None::<&str>)?;
-    let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+    let show_item = MenuItem::with_id(app, "show", "打开浏览器 / Open Browser", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "退出 / Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&error_item, &show_item, &quit_item])?;
 
         TrayIconBuilder::with_id("metacube-tray")
@@ -106,6 +107,9 @@ pub(crate) async fn build_tray_menu(
 ) -> tauri::Result<(Menu<Wry>, TrayInfoItems)> {
     let mut profile_map: HashMap<String, String> = HashMap::new();
     let mut proxy_map: HashMap<String, (String, String)> = HashMap::new();
+    
+    let lang_code = state.get_lang_code().await;
+    let lang = Lang(lang_code.as_str());
 
     let open_webui_checked = state.open_webui_on_startup().await;
     let versions = match VersionManager::new() {
@@ -117,32 +121,32 @@ pub(crate) async fn build_tray_menu(
     };
     let core_default_checked = state.use_bundled_core().await || versions.is_empty();
 
-    let about_submenu = build_about_submenu(app, state).await?;
-    let mode_submenu = build_mode_submenu(app, state).await?;
-    let profile_switch_submenu = build_profile_switch_submenu(app, &mut profile_map).await?;
-    let proxy_groups_submenu = build_proxy_groups_submenu(app, state, &mut proxy_map).await?;
-    let tun_item = build_tun_menu_item(app, state).await?;
+    let about_submenu = build_about_submenu(app, state, &lang).await?;
+    let mode_submenu = build_mode_submenu(app, state, &lang).await?;
+    let profile_switch_submenu = build_profile_switch_submenu(app, &mut profile_map, &lang).await?;
+    let proxy_groups_submenu = build_proxy_groups_submenu(app, state, &mut proxy_map, &lang).await?;
+    let tun_item = build_tun_menu_item(app, state, &lang).await?;
 
     // Group 1: Connection Info
     let static_info_item = MenuItem::with_id(
-        app, "static-info", "静态站点: 启动中...", false, None::<&str>,
-    )?;
+        app, "static-info", format!("{}: {}", lang.tr("static_server"), lang.tr("starting")),
+    false, None::<&str>)?;
     let controller_info_item = MenuItem::with_id(
-        app, "controller-info", "控制接口: 初始化中", false, None::<&str>,
-    )?;
+        app, "controller-info", format!("{}: {}", lang.tr("controller_api"), lang.tr("initializing")),
+    false, None::<&str>)?;
     let admin_info_item = MenuItem::with_id(
-        app, "admin-info", "配置管理: 启动中...", false, None::<&str>,
-    )?;
+        app, "admin-info", format!("{}: {}", lang.tr("admin_server"), lang.tr("starting")),
+    false, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
 
     // Group 2: Privilege & Restart
     let admin_privilege_item = MenuItem::with_id(
-        app, "admin-privilege", "管理员权限: 检测中...", false, None::<&str>,
-    )?;
+        app, "admin-privilege", format!("{}: {}", lang.tr("admin_privilege"), lang.tr("checking")),
+    false, None::<&str>)?;
     let restart_admin_item =
-        MenuItem::with_id(app, "restart-admin", "以管理员身份重启", true, None::<&str>)?;
+        MenuItem::with_id(app, "restart-admin", lang.tr("restart_admin"), true, None::<&str>)?;
     let factory_reset_item =
-        MenuItem::with_id(app, "factory-reset", "恢复出厂设置", true, None::<&str>)?;
+        MenuItem::with_id(app, "factory-reset", lang.tr("factory_reset"), true, None::<&str>)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
 
     // Group 3: Settings & UI
@@ -150,33 +154,37 @@ pub(crate) async fn build_tray_menu(
     let autostart_supported = cfg!(target_os = "windows");
     let autostart_is_admin = is_running_as_admin();
     let autostart_label = if autostart_supported && !autostart_is_admin {
-        "开机自启（需管理员）"
+        lang.tr("autostart_admin_required")
     } else {
-        "开机自启"
+        lang.tr("autostart")
     };
     let autostart_item = CheckMenuItem::with_id(
         app, "autostart", autostart_label, autostart_supported && autostart_is_admin, autostart_enabled, None::<&str>,
     )?;
     let open_webui_item = CheckMenuItem::with_id(
-        app, "open-webui", "启动时打开 Web UI", true, open_webui_checked, None::<&str>,
+        app, "open-webui", lang.tr("open_webui_startup"), true, open_webui_checked, None::<&str>,
     )?;
     
     // Core submenu
-    let core_version_item = MenuItem::with_id(app, "core-version", "当前内核: 读取中...", false, None::<&str>)?;
-    let core_installed_item = MenuItem::with_id(app, "core-installed", "已下载版本: 读取中...", false, None::<&str>)?;
-    let core_status_item = MenuItem::with_id(app, "core-status", "更新状态: 读取中...", false, None::<&str>)?;
-    let core_network_item = MenuItem::with_id(app, "core-network", "网络: 读取中...", false, None::<&str>)?;
-    let core_update_item = MenuItem::with_id(app, "core-update", "更新到最新 Stable", true, None::<&str>)?;
-    let core_default_item = CheckMenuItem::with_id(app, "core-default", "默认内核", true, core_default_checked, None::<&str>)?;
+    let core_version_item = MenuItem::with_id(app, "core-version", format!("{}: {}", lang.tr("current_core"), lang.tr("reading")),
+    false, None::<&str>)?;
+    let core_installed_item = MenuItem::with_id(app, "core-installed", format!("{}: {}", lang.tr("downloaded_version"), lang.tr("reading")),
+    false, None::<&str>)?;
+    let core_status_item = MenuItem::with_id(app, "core-status", format!("{}: {}", lang.tr("update_status"), lang.tr("reading")),
+    false, None::<&str>)?;
+    let core_network_item = MenuItem::with_id(app, "core-network", format!("{}: {}", lang.tr("network_check"), lang.tr("reading")),
+    false, None::<&str>)?;
+    let core_update_item = MenuItem::with_id(app, "core-update", lang.tr("update_to_stable"), true, None::<&str>)?;
+    let core_default_item = CheckMenuItem::with_id(app, "core-default", lang.tr("default_core"), true, core_default_checked, None::<&str>)?;
     
             let mut version_submenus: Vec<Submenu<Wry>> = Vec::new();
             for version in versions {
-                let use_item = MenuItem::with_id(app, format!("core-use-{}", version.version), "启用", true, None::<&str>)?;
-                let delete_item = MenuItem::with_id(app, format!("core-delete-{}", version.version), "删除", true, None::<&str>)?;
+                let use_item = MenuItem::with_id(app, format!("core-use-{}", version.version), lang.tr("use"), true, None::<&str>)?;
+                let delete_item = MenuItem::with_id(app, format!("core-delete-{}", version.version), lang.tr("delete"), true, None::<&str>)?;
                 let submenu = Submenu::with_items(app, &version.version, true, &[&use_item, &delete_item])?;
                 version_submenus.push(submenu);
             }
-            let empty_versions_item = MenuItem::with_id(app, "core-empty", "暂无已下载版本", false, None::<&str>)?;
+            let empty_versions_item = MenuItem::with_id(app, "core-empty", lang.tr("empty"), false, None::<&str>)?;
             
             let core_versions_submenu = {
                 let mut version_items: Vec<&dyn IsMenuItem<Wry>> = Vec::new();
@@ -187,27 +195,28 @@ pub(crate) async fn build_tray_menu(
                         version_items.push(submenu);
                     }
                 }
-                Submenu::with_items(app, "已下载版本", true, version_items.as_slice())?
+                Submenu::with_items(app, lang.tr("downloaded_version"), true, version_items.as_slice())?
             };
     
-            let core_submenu = Submenu::with_items(        app, "内核管理", true,
+            let core_submenu = Submenu::with_items(        app, lang.tr("core_manager"), true,
         &[&core_version_item, &core_installed_item, &core_status_item, &core_network_item, &core_default_item, &core_versions_submenu, &core_update_item],
     )?;
 
     let settings_submenu = Submenu::with_items(
-        app, "设置", true,
+        app, lang.tr("settings"), true,
         &[&autostart_item, &open_webui_item, &tun_item],
     )?;
-    let proxy_item = MenuItem::with_id(app, "system-proxy", "系统代理: 已关闭", true, None::<&str>)?;
-    let show_item = MenuItem::with_id(app, "show", "打开浏览器", true, None::<&str>)?;
-    let config_item = MenuItem::with_id(app, "config-manager", "打开配置管理", true, None::<&str>)?;
+    let proxy_item = MenuItem::with_id(app, "system-proxy", format!("{}: {}", lang.tr("system_proxy"), lang.tr("disabled")),
+    true, None::<&str>)?;
+    let show_item = MenuItem::with_id(app, "show", lang.tr("open_browser"), true, None::<&str>)?;
+    let config_item = MenuItem::with_id(app, "config-manager", lang.tr("open_config_manager"), true, None::<&str>)?;
     let sep3 = PredefinedMenuItem::separator(app)?;
 
     // Group 4: Runtime Control
     let sep4 = PredefinedMenuItem::separator(app)?;
 
     // Group 5: About & Quit
-    let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", lang.tr("quit"), true, None::<&str>)?;
 
     let is_admin = is_running_as_admin();
     if let Err(err) = restart_admin_item.set_enabled(!is_admin) {
@@ -250,37 +259,38 @@ pub(crate) async fn build_tray_menu(
     Ok((menu, items))
 }
 
-async fn build_about_submenu(app: &AppHandle, state: &AppState) -> tauri::Result<Submenu<Wry>> {
+async fn build_about_submenu(app: &AppHandle, state: &AppState, lang: &Lang<'_>) -> tauri::Result<Submenu<Wry>> {
     let app_version = format!("Mihomo-Despicable-Infiltrator v{}", env!("CARGO_PKG_VERSION"));
     let sdk_version = "mihomo-rs v1.2.2";
     
     let core_version = if let Ok(runtime) = state.runtime().await {
         match runtime.client().get_version().await {
-            Ok(v) => format!("core-service {}", v.version),
-            Err(_) => "core-service (未知)".to_string(),
+            Ok(v) => format!("{} {}", lang.tr("core_service"), v.version),
+            Err(_) => format!("{} ({})", lang.tr("core_service"), lang.tr("unknown")),
         }
     } else {
-        "core-service (未启动)".to_string()
+        format!("{} ({})", lang.tr("core_service"), lang.tr("not_started"))
     };
 
     let app_item = MenuItem::with_id(app, "about-app", &app_version, false, None::<&str>)?;
     let sdk_item = MenuItem::with_id(app, "about-sdk", sdk_version, false, None::<&str>)?;
     let core_item = MenuItem::with_id(app, "about-core", &core_version, false, None::<&str>)?;
 
-    Submenu::with_items(app, "关于", true, &[&app_item, &sdk_item, &core_item])
+    Submenu::with_items(app, lang.tr("about"), true, &[&app_item, &sdk_item, &core_item])
 }
 
 async fn build_profile_switch_submenu(
     app: &AppHandle,
     profile_map: &mut HashMap<String, String>,
+    lang: &Lang<'_>,
 ) -> tauri::Result<Submenu<Wry>> {
     let mut profiles = match core_profiles::list_profile_infos().await {
         Ok(list) => list,
         Err(err) => {
             warn!("failed to list profiles: {err:#}");
             let failed_item =
-                MenuItem::with_id(app, "profile-switch-error", "配置读取失败", false, None::<&str>)?;
-            return Submenu::with_items(app, "配置切换", true, &[&failed_item]);
+                MenuItem::with_id(app, "profile-switch-error", lang.tr("profile_read_failed"), false, None::<&str>)?;
+            return Submenu::with_items(app, lang.tr("profile_switch"), true, &[&failed_item]);
         }
     };
     
@@ -288,8 +298,8 @@ async fn build_profile_switch_submenu(
 
     if profiles.is_empty() {
         let empty_item =
-            MenuItem::with_id(app, "profile-switch-empty", "暂无配置", false, None::<&str>)?;
-        return Submenu::with_items(app, "配置切换", true, &[&empty_item]);
+            MenuItem::with_id(app, "profile-switch-empty", lang.tr("profile_empty"), false, None::<&str>)?;
+        return Submenu::with_items(app, lang.tr("profile_switch"), true, &[&empty_item]);
     }
 
     profiles.sort_by(|a, b| b.active.cmp(&a.active).then_with(|| a.name.cmp(&b.name)));
@@ -300,7 +310,7 @@ async fn build_profile_switch_submenu(
     
     for profile in profiles.iter().take(max_visible) {
         let label = if profile.subscription_url.is_some() {
-            format!("{} (订阅)", profile.name)
+            format!("{} ({})", profile.name, lang.tr("subscription"))
         } else {
             profile.name.clone()
         };
@@ -336,7 +346,7 @@ async fn build_profile_switch_submenu(
             .map(|item| item as &dyn IsMenuItem<Wry>)
             .collect();
         let overflow_submenu =
-            Submenu::with_items(app, "更多配置", true, overflow_refs.as_slice())?;
+            Submenu::with_items(app, lang.tr("more_profiles"), true, overflow_refs.as_slice())?;
         items.push(Box::new(overflow_submenu));
     }
 
@@ -345,7 +355,7 @@ async fn build_profile_switch_submenu(
     let update_all_item = MenuItem::with_id(
         app,
         "profile-update-all",
-        "立即更新所有订阅",
+        lang.tr("update_all_subs"),
         has_subscription,
         None::<&str>,
     )?;
@@ -356,7 +366,7 @@ async fn build_profile_switch_submenu(
             let auto_update_item = CheckMenuItem::with_id(
                 app,
                 format!("profile-auto-update-{}", active.name),
-                "自动更新当前订阅",
+                lang.tr("auto_update_sub"),
                 true,
                 active.auto_update_enabled,
                 None::<&str>,
@@ -366,10 +376,10 @@ async fn build_profile_switch_submenu(
     }
 
     let item_refs: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|i| i.as_ref()).collect();
-    Submenu::with_items(app, "配置切换", true, &item_refs)
+    Submenu::with_items(app, lang.tr("profile_switch"), true, &item_refs)
 }
 
-async fn build_mode_submenu(app: &AppHandle, state: &AppState) -> tauri::Result<Submenu<Wry>> {
+async fn build_mode_submenu(app: &AppHandle, state: &AppState, lang: &Lang<'_>) -> tauri::Result<Submenu<Wry>> {
     let mut current_mode: Option<String> = None;
     let mut script_enabled = false;
     let mut menu_enabled = false;
@@ -396,11 +406,11 @@ async fn build_mode_submenu(app: &AppHandle, state: &AppState) -> tauri::Result<
     let is_script = current_mode.as_deref() == Some("script");
 
     let rule_item =
-        CheckMenuItem::with_id(app, "mode-rule", "规则模式", menu_enabled, is_rule, None::<&str>)?;
+        CheckMenuItem::with_id(app, "mode-rule", lang.tr("mode_rule"), menu_enabled, is_rule, None::<&str>)?;
     let global_item = CheckMenuItem::with_id(
         app,
         "mode-global",
-        "全局代理",
+        lang.tr("mode_global"),
         menu_enabled,
         is_global,
         None::<&str>,
@@ -408,15 +418,15 @@ async fn build_mode_submenu(app: &AppHandle, state: &AppState) -> tauri::Result<
     let direct_item = CheckMenuItem::with_id(
         app,
         "mode-direct",
-        "直连模式",
+        lang.tr("mode_direct"),
         menu_enabled,
         is_direct,
         None::<&str>,
     )?;
     let script_label = if script_enabled {
-        "脚本模式"
+        lang.tr("mode_script").into_owned()
     } else {
-        "脚本模式（未启用）"
+        format!("{} ({})", lang.tr("mode_script"), lang.tr("disabled"))
     };
     let script_item = CheckMenuItem::with_id(
         app,
@@ -429,7 +439,7 @@ async fn build_mode_submenu(app: &AppHandle, state: &AppState) -> tauri::Result<
 
     Submenu::with_items(
         app,
-        "代理模式",
+        lang.tr("proxy_mode"),
         true,
         &[&rule_item, &global_item, &direct_item, &script_item],
     )
@@ -439,14 +449,15 @@ async fn build_proxy_groups_submenu(
     app: &AppHandle,
     state: &AppState,
     proxy_map: &mut HashMap<String, (String, String)>,
+    lang: &Lang<'_>,
 ) -> tauri::Result<Submenu<Wry>> {
     let proxies = match state.refresh_proxy_groups().await {
         Ok(proxies) => proxies,
         Err(err) => {
             warn!("failed to refresh proxies: {err:#}");
             let failed_item =
-                MenuItem::with_id(app, "proxy-groups-error", "代理组读取失败", false, None::<&str>)?;
-            return Submenu::with_items(app, "代理组", true, &[&failed_item]);
+                MenuItem::with_id(app, "proxy-groups-error", lang.tr("proxy_groups_read_failed"), false, None::<&str>)?;
+            return Submenu::with_items(app, lang.tr("proxy_groups"), true, &[&failed_item]);
         }
     };
 
@@ -457,15 +468,15 @@ async fn build_proxy_groups_submenu(
         .collect();
     if groups.is_empty() {
         let empty_item =
-            MenuItem::with_id(app, "proxy-groups-empty", "暂无可选代理组", false, None::<&str>)?;
-        return Submenu::with_items(app, "代理组", true, &[&empty_item]);
+            MenuItem::with_id(app, "proxy-groups-empty", lang.tr("proxy_groups_empty"), false, None::<&str>)?;
+        return Submenu::with_items(app, lang.tr("proxy_groups"), true, &[&empty_item]);
     }
     groups.sort_by(|a, b| a.0.cmp(&b.0));
 
     let max_groups = 5usize;
     let mut group_submenus: Vec<Submenu<Wry>> = Vec::new();
     for (name, info) in groups.iter().take(max_groups) {
-        let submenu = build_proxy_group_submenu(app, &proxies, name, info, proxy_map)?;
+        let submenu = build_proxy_group_submenu(app, &proxies, name, info, proxy_map, lang)?;
         group_submenus.push(submenu);
     }
 
@@ -473,14 +484,14 @@ async fn build_proxy_groups_submenu(
         let mut overflow_submenus: Vec<Submenu<Wry>> = Vec::new();
         let mut overflow_items: Vec<&dyn IsMenuItem<Wry>> = Vec::new();
         for (name, info) in groups.iter().skip(max_groups) {
-            let submenu = build_proxy_group_submenu(app, &proxies, name, info, proxy_map)?;
+            let submenu = build_proxy_group_submenu(app, &proxies, name, info, proxy_map, lang)?;
             overflow_submenus.push(submenu);
         }
         for submenu in &overflow_submenus {
             overflow_items.push(submenu);
         }
         let overflow_submenu =
-            Submenu::with_items(app, "更多代理组", true, overflow_items.as_slice())?;
+            Submenu::with_items(app, lang.tr("more_groups"), true, overflow_items.as_slice())?;
         group_submenus.push(overflow_submenu);
     }
 
@@ -489,7 +500,7 @@ async fn build_proxy_groups_submenu(
         .map(|submenu| submenu as &dyn IsMenuItem<Wry>)
         .collect();
 
-    Submenu::with_items(app, "代理组", true, items.as_slice())
+    Submenu::with_items(app, lang.tr("proxy_groups"), true, items.as_slice())
 }
 
 fn build_proxy_group_submenu(
@@ -498,13 +509,14 @@ fn build_proxy_group_submenu(
     group_name: &str,
     group_info: &ProxyInfo,
     proxy_map: &mut HashMap<String, (String, String)>,
+    lang: &Lang<'_>,
 ) -> tauri::Result<Submenu<Wry>> {
     let nodes = group_info.all.clone().unwrap_or_default();
     if nodes.is_empty() {
         let empty_item = MenuItem::with_id(
             app,
             format!("proxy-empty-{group_name}"),
-            "暂无节点",
+            lang.tr("no_nodes"),
             false,
             None::<&str>,
         )?;
@@ -552,7 +564,7 @@ fn build_proxy_group_submenu(
             .map(|item| item as &dyn IsMenuItem<Wry>)
             .collect();
         let overflow_submenu =
-            Submenu::with_items(app, "更多节点", true, overflow_refs.as_slice())?;
+            Submenu::with_items(app, lang.tr("more_nodes"), true, overflow_refs.as_slice())?;
         overflow_submenus.push(overflow_submenu);
         if let Some(submenu) = overflow_submenus.last() {
             item_refs.push(submenu);
@@ -586,6 +598,7 @@ fn is_selectable_group(info: &ProxyInfo) -> bool {
 async fn build_tun_menu_item(
     app: &AppHandle,
     state: &AppState,
+    lang: &Lang<'_>,
 ) -> tauri::Result<CheckMenuItem<Wry>> {
     let is_admin = is_running_as_admin();
     let (available, enabled) = match state.refresh_tun_state().await {
@@ -596,11 +609,11 @@ async fn build_tun_menu_item(
         }
     };
     let label = if !is_admin {
-        "TUN 模式（需管理员）"
+        lang.tr("tun_mode_admin_required")
     } else if !available {
-        "TUN 模式（配置未启用）"
+        lang.tr("tun_mode_disabled")
     } else {
-        "TUN 模式"
+        lang.tr("tun_mode")
     };
     CheckMenuItem::with_id(
         app,
