@@ -22,7 +22,7 @@ pub(crate) fn is_autostart_enabled() -> bool {
         let output = new_hidden_command("schtasks")
             .args(["/Query", "/TN", AUTOSTART_TASK_NAME])
             .output();
-        return output.map(|o| o.status.success()).unwrap_or(false);
+        output.map(|o| o.status.success()).unwrap_or(false)
     }
     #[cfg(not(target_os = "windows"))]
     {

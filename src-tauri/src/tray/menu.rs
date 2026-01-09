@@ -206,6 +206,7 @@ pub(crate) async fn build_tray_menu(
         app, lang.tr("settings"), true,
         &[&autostart_item, &open_webui_item, &tun_item],
     )?;
+    let sync_submenu = build_sync_submenu(app, state, &lang).await?;
     let proxy_item = MenuItem::with_id(app, "system-proxy", format!("{}: {}", lang.tr("system_proxy"), lang.tr("disabled")),
     true, None::<&str>)?;
     let show_item = MenuItem::with_id(app, "show", lang.tr("open_browser"), true, None::<&str>)?;
@@ -231,7 +232,7 @@ pub(crate) async fn build_tray_menu(
             // Group 2
             &admin_privilege_item, &restart_admin_item, &factory_reset_item, &sep2,
             // Group 3
-            &core_submenu, &settings_submenu, &proxy_item, &show_item, &config_item, &sep3,
+            &core_submenu, &settings_submenu, &sync_submenu, &proxy_item, &show_item, &config_item, &sep3,
             // Group 4
             &mode_submenu, &profile_switch_submenu, &proxy_groups_submenu, &sep4,
             // Group 5
@@ -691,4 +692,30 @@ fn truncate_label(value: &str, max_chars: usize) -> String {
     let mut truncated: String = chars.into_iter().take(take_len).collect();
     truncated.push_str("...");
     truncated
+}
+
+async fn build_sync_submenu(
+    app: &AppHandle,
+    state: &AppState,
+    lang: &Lang<'_>,
+) -> tauri::Result<Submenu<Wry>> {
+    let settings = state.get_app_settings().await;
+    let enabled = settings.webdav.enabled;
+    
+    let status_label = if enabled {
+        format!("{}: {}", lang.tr("webdav_sync"), lang.tr("enabled"))
+    } else {
+        format!("{}: {}", lang.tr("webdav_sync"), lang.tr("disabled"))
+    };
+    
+    let status_item = MenuItem::with_id(app, "sync-status", &status_label, false, None::<&str>)?;
+    let sync_now_item = MenuItem::with_id(app, "webdav-sync-now", lang.tr("sync_now"), enabled, None::<&str>)?;
+    let sync_settings_item = MenuItem::with_id(app, "webdav-sync-settings", lang.tr("sync_settings"), true, None::<&str>)?;
+    
+    Submenu::with_items(
+        app,
+        lang.tr("sync_and_backup"),
+        true,
+        &[&status_item, &sync_now_item, &sync_settings_item],
+    )
 }

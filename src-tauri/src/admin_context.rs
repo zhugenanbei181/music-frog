@@ -44,7 +44,7 @@ impl AdminApiContext for TauriAdminContext {
     }
 
     async fn pick_editor_path(&self) -> Option<String> {
-        async_runtime::spawn_blocking(|| platform::pick_editor_path())
+        async_runtime::spawn_blocking(platform::pick_editor_path)
             .await
             .unwrap_or(None)
     }

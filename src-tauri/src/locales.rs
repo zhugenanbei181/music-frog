@@ -91,6 +91,18 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "no_nodes" => "暂无节点".into(),
         "more_nodes" => "更多节点".into(),
 
+        // Sync Group
+        "sync_and_backup" => "同步与备份".into(),
+        "webdav_sync" => "WebDAV 同步".into(),
+        "sync_now" => "立即同步".into(),
+        "sync_settings" => "同步设置".into(),
+        "webdav_sync_success" => "同步完成".into(),
+        "webdav_sync_failed" => "同步失败".into(),
+        "webdav_sync_done" => "成功同步 {0} 个文件".into(),
+        "webdav_sync_error" => "同步错误: {0}".into(),
+        "webdav_sync_disabled" => "WebDAV 同步未启用".into(),
+        "sync_now_failed" => "立即同步失败".into(),
+
         // About/Quit
         "about" => "关于".into(),
         "quit" => "退出".into(),
@@ -201,6 +213,18 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         "more_groups" => "More Groups".into(),
         "no_nodes" => "No nodes".into(),
         "more_nodes" => "More Nodes".into(),
+
+        // Sync Group
+        "sync_and_backup" => "Sync & Backup".into(),
+        "webdav_sync" => "WebDAV Sync".into(),
+        "sync_now" => "Sync Now".into(),
+        "sync_settings" => "Sync Settings".into(),
+        "webdav_sync_success" => "Sync Complete".into(),
+        "webdav_sync_failed" => "Sync Failed".into(),
+        "webdav_sync_done" => "Synced {0} file(s)".into(),
+        "webdav_sync_error" => "Sync error: {0}".into(),
+        "webdav_sync_disabled" => "WebDAV sync not enabled".into(),
+        "sync_now_failed" => "Sync Now Failed".into(),
 
         // About/Quit
         "about" => "About".into(),

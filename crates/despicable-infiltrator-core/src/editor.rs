@@ -104,11 +104,11 @@ fn default_editor_command() -> anyhow::Result<(String, Vec<String>)> {
     }
     #[cfg(target_os = "windows")]
     {
-        return Ok(("notepad.exe".to_string(), Vec::new()));
+        Ok(("notepad.exe".to_string(), Vec::new()))
     }
     #[cfg(target_os = "macos")]
     {
-        return Ok(("open".to_string(), Vec::new()));
+        Ok(("open".to_string(), Vec::new()))
     }
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
@@ -123,7 +123,7 @@ fn fallback_editor_command(current: &str) -> Option<(String, Vec<String>)> {
         if lower.ends_with("notepad.exe") {
             return None;
         }
-        return Some(("notepad.exe".to_string(), Vec::new()));
+        Some(("notepad.exe".to_string(), Vec::new()))
     }
     #[cfg(target_os = "macos")]
     {
@@ -131,7 +131,7 @@ fn fallback_editor_command(current: &str) -> Option<(String, Vec<String>)> {
         if lower == "open" || lower.ends_with("/open") {
             return None;
         }
-        return Some(("open".to_string(), Vec::new()));
+        Some(("open".to_string(), Vec::new()))
     }
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
@@ -155,7 +155,7 @@ fn resolve_command_path(command: &str) -> Option<PathBuf> {
         if candidate.is_empty() {
             return None;
         }
-        return Some(PathBuf::from(candidate));
+        Some(PathBuf::from(candidate))
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -221,6 +221,7 @@ fn expand_env_vars(value: &str) -> String {
     {
         let mut result = String::new();
         let mut chars = value.chars().peekable();
+        #[allow(clippy::while_let_on_iterator)]
         while let Some(ch) = chars.next() {
             if ch == '%' {
                 let mut name = String::new();
@@ -243,7 +244,7 @@ fn expand_env_vars(value: &str) -> String {
                 result.push(ch);
             }
         }
-        return result;
+        result
     }
     #[cfg(not(target_os = "windows"))]
     {

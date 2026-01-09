@@ -4,11 +4,36 @@ use std::path::Path;
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
+pub struct WebDavConfig {
+    pub enabled: bool,
+    pub url: String,
+    pub username: String,
+    pub password: String,
+    pub sync_interval_mins: u32,
+    pub sync_on_startup: bool,
+}
+
+impl Default for WebDavConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            url: "".to_string(),
+            username: "".to_string(),
+            password: "".to_string(),
+            sync_interval_mins: 60,
+            sync_on_startup: false,
+        }
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(default)]
 pub struct AppSettings {
     pub open_webui_on_startup: bool,
     pub editor_path: Option<String>,
     pub use_bundled_core: bool,
     pub language: String,
+    pub webdav: WebDavConfig,
 }
 
 impl Default for AppSettings {
@@ -18,6 +43,7 @@ impl Default for AppSettings {
             editor_path: None,
             use_bundled_core: true,
             language: "zh-CN".to_string(),
+            webdav: WebDavConfig::default(),
         }
     }
 }
@@ -56,4 +82,28 @@ pub fn settings_path(base_dir: &Path) -> anyhow::Result<std::path::PathBuf> {
         return Err(anyhow!("settings base dir is empty"));
     }
     Ok(base_dir.join("settings.toml"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_app_settings_default() {
+        let settings = AppSettings::default();
+        assert!(!settings.open_webui_on_startup);
+        assert!(settings.use_bundled_core);
+        assert_eq!(settings.language, "zh-CN");
+    }
+
+    #[test]
+    fn test_settings_path() {
+        let base_dir = PathBuf::from("test_dir");
+        let path = settings_path(&base_dir).expect("valid base dir should work");
+        assert_eq!(path, base_dir.join("settings.toml"));
+
+        let empty_dir = PathBuf::from("");
+        assert!(settings_path(&empty_dir).is_err());
+    }
 }

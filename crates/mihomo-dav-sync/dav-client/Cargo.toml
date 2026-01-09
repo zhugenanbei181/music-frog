@@ -1,0 +1,18 @@
+[package]
+name = "dav-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+reqwest = { workspace = true }
+url = { workspace = true }
+quick-xml = { workspace = true }
+serde = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+urlencoding = "2.1"
+data-encoding = "2.6"

@@ -22,6 +22,34 @@
     * **Commit Message**: 使用 Conventional Commits (如 `feat: add feature`, `fix: resolve bug`)。
     * **Documentation**: 功能变更必须同步更新 `USAGE_SPEC.md` 和 `README.md`。
 
+## 命名规范
+
+### 菜单 ID 命名
+
+托盘菜单和 UI 事件 ID 必须遵循以下规范，避免歧义：
+
+```
+格式: <功能域>-<动作>[-<子对象>]
+
+示例:
+  ✅ profile-switch-xxx     配置切换
+  ✅ profile-update-all     更新所有订阅
+  ✅ webdav-sync-now        WebDAV 立即同步
+  ✅ webdav-sync-settings   WebDAV 同步设置
+  ✅ core-update            内核更新
+  ✅ core-use-v1.2.3        启用指定版本内核
+  
+  ❌ sync_now               歧义：是订阅同步还是 WebDAV 同步？
+  ❌ sync-now               歧义：缺少功能域前缀
+  ❌ update                 歧义：更新什么？
+```
+
+**规则**:
+1. **功能域前缀**: 必须包含功能模块名 (`profile-`, `webdav-`, `core-`, `mode-`, `tun-`)
+2. **使用短横线**: 统一使用 `-` 连接单词，禁止混用 `_`
+3. **动作明确**: 使用动词描述操作 (`sync`, `update`, `switch`, `delete`)
+4. **避免缩写歧义**: 优先使用完整单词
+
 ## 错误处理范式
 
 ```rust
@@ -46,3 +74,14 @@ pub async fn critical_section(state: &AppState) -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+## 代码审查清单
+
+提交前必须检查：
+
+- [ ] 无 `unwrap()`/`expect()` (测试代码除外)
+- [ ] 无 `unsafe` 块 (FFI 封装除外)
+- [ ] 菜单 ID 符合命名规范
+- [ ] 国际化 key 完整 (zh-CN + en-US)
+- [ ] 错误处理有上下文信息
+- [ ] `cargo check --workspace` 无警告

@@ -1,5 +1,24 @@
 # 版本记录
 
+- 0.10.0 – **WebDAV 配置同步正式发布**：
+  - **WebDAV 多设备同步**：完整实现跨设备配置自动同步与云端备份功能
+    - `dav-client`: 基于标准 WebDAV 协议 (PROPFIND/GET/PUT/DELETE + If-Match 条件上传)
+    - `state-store`: SQLite 状态数据库追踪文件哈希与 ETag
+    - `sync-engine`: 三方对比算法 (本地/远端/上次状态) 智能决策上传/下载/删除
+    - 冲突处理: 双向修改时自动保存远端备份为 `.remote-bak-{timestamp}`
+  - **UI 完整集成**：
+    - WebDAV 配置面板 (URL/用户名/密码/同步间隔/启动时同步)
+    - 连接测试与手动同步按钮
+    - 完整国际化支持 (zh-CN / en-US)
+  - **后端调度器**：
+    - 自定义同步间隔 (默认 60 分钟)
+    - 启动时自动同步选项
+    - HTTP API (`/admin/api/webdav/sync`, `/admin/api/webdav/test`)
+  - **安全机制**：
+    - 原子写入 (`.sync-tmp` 临时文件 + rename)
+    - ETag 防并发冲突
+    - 仅同步 `.yaml/.yml/.toml` 配置文件
+
 - 0.9.12 – **技术栈升级与体验优化**：
   - **依赖升级**：前端构建工具升级至 Vite 8.0 Beta，Vue 3.5+，Tailwind CSS 4.0+。
   - **国际化 (i18n)**：全面支持简体中文 (zh-CN) 和 英语 (en-US)。托盘菜单和配置管理界面均已实现动态语言切换。

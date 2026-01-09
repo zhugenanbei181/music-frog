@@ -1,0 +1,12 @@
+[package]
+name = "platform-android"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+sync-engine = { path = "../sync-engine" }
+anyhow = { workspace = true }
+# uniffi = { version = "0.28" }

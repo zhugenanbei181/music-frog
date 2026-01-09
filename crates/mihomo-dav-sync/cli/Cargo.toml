@@ -1,0 +1,11 @@
+[package]
+name = "mihomo-sync-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sync-engine = { path = "../sync-engine" }
+dav-client = { path = "../dav-client" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+clap = { version = "4.5", features = ["derive"] }

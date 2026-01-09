@@ -45,6 +45,8 @@ pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
             "/admin/api/settings",
             get(get_app_settings_http::<C>).post(save_app_settings_http::<C>),
         )
+        .route("/admin/api/webdav/sync", post(sync_webdav_now_http::<C>))
+        .route("/admin/api/webdav/test", post(test_webdav_conn_http::<C>))
         .route("/admin/api/rebuild/status", get(get_rebuild_status_http::<C>))
         .route("/admin/api/core/versions", get(list_core_versions_http::<C>))
         .route("/admin/api/core/activate", post(activate_core_version_http::<C>))

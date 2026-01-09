@@ -1,0 +1,13 @@
+[package]
+name = "indexer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+chrono = { workspace = true }
+glob = { workspace = true }
+md5 = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }

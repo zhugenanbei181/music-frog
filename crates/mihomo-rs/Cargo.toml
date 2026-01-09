@@ -1,0 +1,57 @@
+[package]
+name = "mihomo-rs"
+version = "1.2.2"
+edition = "2021"
+authors = ["dingdangmaoup"]
+description = "A Rust SDK and CLI tool for mihomo proxy management with service lifecycle management, configuration handling, and real-time monitoring"
+license = "MIT"
+repository = "https://github.com/DINGDANGMAOUP/mihomo-rs"
+homepage = "https://github.com/DINGDANGMAOUP/mihomo-rs"
+documentation = "https://docs.rs/mihomo-rs"
+readme = "README.md"
+
+
+[dependencies]
+tokio = { workspace = true }
+reqwest = { workspace = true, features = ["stream", "query"] }
+clap = { version = "4.5.23", features = ["derive"] }
+serde = { workspace = true }
+serde_json = "1.0.134"
+yaml-rust2 = "0.11"
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+tokio-util = { version = "0.7.13", features = ["io"] }
+sysinfo = "0.33.0"
+url = { workspace = true }
+crossterm = "0.28.1"
+log = "0.4.22"
+env_logger = "0.11.6"
+dirs = "6.0.0"
+toml = "0.8.19"
+flate2 = "1.0.35"
+zip = "2.2.2"
+tokio-tungstenite = { version = "0.26.1", features = ["rustls-tls-native-roots"] }
+futures-util = "0.3.31"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Threading"] }
+keyring = { version = "3.6", features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6", features = ["apple-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6", features = ["linux-native"] }
+
+[dev-dependencies]
+tempfile = "3.24"
+mockito = "1.6"
+
+[[bin]]
+name = "mihomo-rs"
+path = "src/main.rs"
+
+[lib]
+name = "mihomo_rs"
+path = "src/lib.rs"

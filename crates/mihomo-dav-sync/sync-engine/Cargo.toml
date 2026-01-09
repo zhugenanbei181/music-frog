@@ -1,0 +1,16 @@
+[package]
+name = "sync-engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dav-client = { path = "../dav-client" }
+state-store = { path = "../state-store" }
+indexer = { path = "../indexer" }
+tokio = { workspace = true }
+serde = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+md5 = { workspace = true }

@@ -4,19 +4,39 @@ node_modules/
 pnpm-lock.yaml
 
 # Vite artifacts
-config-manager-ui/.vite/
-config-manager-ui/dist/
+webui/config-manager-ui/.vite/
+webui/config-manager-ui/dist/
 
 # Rust / Tauri build artifacts
 target/
 src-tauri/target/
 src-tauri/.cargo/
+crates/mihomo-dav-sync/target/
 
 # Misc
 dist/
 *.log
 *.tmp
 _tmp_*
+.DS_Store
+Thumbs.db
 
-# Bundled core binary
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Bundled core binary (tracked in vendor/)
 mihomo.exe
+!vendor/mihomo.exe
+
+# SQLite databases (runtime generated)
+*.db
+*.db-shm
+*.db-wal
+
+# Build outputs
+*.msi
+*.exe
+!vendor/*.exe

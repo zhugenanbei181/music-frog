@@ -1,18 +1,18 @@
 use anyhow::anyhow;
 use log::warn;
 use mihomo_rs::config::ConfigManager;
-use tauri::{menu::MenuEvent, AppHandle};
+use tauri::{menu::MenuEvent, AppHandle, Manager};
 use tokio::time::Duration;
 use chrono::{Duration as ChronoDuration, Utc};
 use despicable_infiltrator_core::profiles as core_profiles;
 
 use crate::{
-    admin_context::TauriAdminContext,
     app_state::AppState,
     autostart::{is_autostart_enabled, set_autostart_enabled},
     core_update::{delete_core_version, switch_core_version, update_mihomo_core},
     factory_reset::factory_reset,
     frontend::{open_admin_frontend, open_frontend},
+    locales::Localizer,
     platform::{confirm_dialog, is_running_as_admin, restart_as_admin, show_error_dialog},
     runtime::rebuild_runtime,
     system_proxy::apply_system_proxy,
@@ -55,27 +55,35 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
             });
         }
         "profile-update-all" => {
-            tauri::async_runtime::spawn(async move {
-                state_clone.notify_subscription_update_start().await;
-                let ctx = TauriAdminContext {
-                    app: app_handle.clone(),
-                    app_state: state_clone.clone(),
-                };
-                match despicable_infiltrator_core::scheduler::update_all_subscriptions(&ctx).await {
+            let app_cloned = app.clone();
+            tokio::spawn(async move {
+                let state = app_cloned.state::<AppState>();
+                let ctx = state.ctx_as_admin();
+                
+                // Notify start
+                state.notify_subscription_update_start().await;
+
+                let client = reqwest::Client::new();
+                let raw_client = reqwest::Client::new();
+                
+                match despicable_infiltrator_core::scheduler::subscription::update_all_subscriptions(
+                    &ctx,
+                    &client,
+                    &raw_client,
+                )
+                .await
+                {
                     Ok(summary) => {
-                        state_clone
-                            .notify_subscription_update_summary(
-                                summary.updated,
-                                summary.failed,
-                                summary.skipped,
-                            )
-                            .await;
-                        if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                            warn!("failed to refresh tray menu: {err:#}");
-                        }
+                        // Notify summary
+                        state.notify_subscription_update_summary(
+                            summary.updated,
+                            summary.failed,
+                            summary.skipped
+                        ).await;
                     }
                     Err(err) => {
-                        show_error_dialog(format!("更新订阅失败: {err:#}"));
+                        log::error!("failed to update subscriptions: {err}");
+                        state.notify_subscription_update("All Subscriptions", false, Some(err.to_string())).await;
                     }
                 }
             });
@@ -204,6 +212,31 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                     warn!("failed to refresh tray menu: {err:#}");
                 }
             });
+        }
+        "webdav-sync-now" => {
+            tauri::async_runtime::spawn(async move {
+                let settings = state_clone.get_app_settings().await;
+                if !settings.webdav.enabled {
+                    let lang_code = state_clone.get_lang_code().await;
+                    let lang = crate::locales::Lang(lang_code.as_str());
+                    show_error_dialog(lang.tr("webdav_sync_disabled").into_owned());
+                    return;
+                }
+                match despicable_infiltrator_core::scheduler::sync::run_sync_tick(&state_clone.ctx_as_admin(), &settings.webdav).await {
+                    Ok(summary) => {
+                        state_clone.notify_webdav_sync_result(true, summary.success_count, None).await;
+                        if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
+                            warn!("failed to refresh tray menu: {err:#}");
+                        }
+                    }
+                    Err(err) => {
+                        state_clone.notify_webdav_sync_result(false, 0, Some(err.to_string())).await;
+                    }
+                }
+            });
+        }
+        "webdav-sync-settings" => {
+            open_admin_frontend(state_clone);
         }
         "quit" => {
             app_handle.exit(0);

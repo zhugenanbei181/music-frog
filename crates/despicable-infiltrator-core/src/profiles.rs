@@ -128,3 +128,23 @@ external-controller: 127.0.0.1:{}
         port
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_profile_name_valid() {
+        assert_eq!(sanitize_profile_name("  valid_name  ").unwrap(), "valid_name");
+        assert_eq!(sanitize_profile_name("config-1").unwrap(), "config-1");
+    }
+
+    #[test]
+    fn test_sanitize_profile_name_invalid() {
+        assert!(sanitize_profile_name("").is_err());
+        assert!(sanitize_profile_name("   ").is_err());
+        assert!(sanitize_profile_name("invalid/name").is_err());
+        assert!(sanitize_profile_name("invalid\\name").is_err());
+        assert!(sanitize_profile_name("invalid:name").is_err());
+    }
+}

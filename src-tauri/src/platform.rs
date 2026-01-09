@@ -88,7 +88,7 @@ pub(crate) fn restart_as_admin(
 
     let ret = unsafe {
         ShellExecuteW(
-            0,
+            std::ptr::null_mut(),
             operation.as_ptr(),
             file_path.as_ptr(),
             if args_str.is_empty() {
@@ -101,8 +101,8 @@ pub(crate) fn restart_as_admin(
         )
     };
 
-    if ret as isize <= 32 {
-        return Err(anyhow!("以管理员身份重启失败 (ShellExecuteW error: {})", ret));
+    if (ret as usize) <= 32 {
+        return Err(anyhow!("以管理员身份重启失败 (ShellExecuteW error: {:?})", ret));
     }
 
     Ok(())

@@ -179,3 +179,36 @@ fn is_decode_error(err: &anyhow::Error) -> bool {
         || message.contains("failed to decode")
         || message.contains("decoder")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strip_utf8_bom() {
+        let content_with_bom = "\u{feff}hello";
+        assert_eq!(strip_utf8_bom(content_with_bom), "hello");
+
+        let content_without_bom = "hello";
+        assert_eq!(strip_utf8_bom(content_without_bom), "hello");
+    }
+
+    #[test]
+    fn test_mask_subscription_url() {
+        let url = "https://example.com/link/abcdefg123456?mu=0";
+        assert_eq!(mask_subscription_url(url), "https://example.com/link/***?mu=0");
+
+        let url_no_query = "https://example.com/link/abcdefg123456";
+        assert_eq!(mask_subscription_url(url_no_query), "https://example.com/link/***");
+
+        let normal_url = "https://google.com";
+        assert_eq!(mask_subscription_url(normal_url), "https://google.com");
+    }
+
+    #[test]
+    fn test_looks_like_gzip() {
+        assert!(looks_like_gzip(&[0x1f, 0x8b, 0x08]));
+        assert!(!looks_like_gzip(&[0x00, 0x00, 0x00]));
+        assert!(!looks_like_gzip(&[]));
+    }
+}

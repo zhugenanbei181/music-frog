@@ -55,7 +55,7 @@ fn main() {
                     warn!("failed to load settings: {err}");
                 }
             });
-            create_tray(&app.app_handle(), state.clone())?;
+            create_tray(app.app_handle(), state.clone())?;
             spawn_runtime(app.app_handle().clone(), state.clone());
             spawn_frontends(
                 app.app_handle().clone(),

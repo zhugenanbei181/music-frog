@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use tauri::{path::BaseDirectory, AppHandle, Manager};
 
 pub(crate) fn resolve_main_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
-    let dev_main = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../zashboard");
+    let dev_main = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../webui/mihomo-manager-ui");
 
     let main_dir = if let Ok(custom) = env::var("METACUBEXD_STATIC_DIR") {
         let path = PathBuf::from(custom);
@@ -16,12 +16,12 @@ pub(crate) fn resolve_main_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
     } else if dev_main.exists() {
         dev_main
     } else {
-        app.path().resolve("bin/zashboard", BaseDirectory::Resource)?
+        app.path().resolve("bin/mihomo-manager-ui", BaseDirectory::Resource)?
     };
 
     if !main_dir.exists() {
         return Err(anyhow!(
-            "未找到 Zashboard 静态资源，请将 dist 内容放到 zashboard/ 目录"
+            "未找到 Mihomo Manager UI 静态资源，请将内容放到 webui/mihomo-manager-ui/ 目录"
         ));
     }
 
@@ -29,7 +29,7 @@ pub(crate) fn resolve_main_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
 }
 
 pub(crate) fn resolve_admin_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
-    let dev_admin = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../config-manager-ui");
+    let dev_admin = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../webui/config-manager-ui");
     let dev_admin_dist = dev_admin.join("dist");
 
     let admin_dir = if let Ok(custom) = env::var("METACUBEXD_ADMIN_DIR") {
@@ -45,12 +45,12 @@ pub(crate) fn resolve_admin_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
         dev_admin
     } else {
         app.path()
-            .resolve("bin/config-manager", BaseDirectory::Resource)?
+            .resolve("bin/config-manager-ui", BaseDirectory::Resource)?
     };
 
     if !admin_dir.exists() {
         return Err(anyhow!(
-            "未找到配置管理静态资源，请构建或保留 config-manager-ui/ 目录"
+            "未找到配置管理静态资源，请构建 webui/config-manager-ui/ 目录"
         ));
     }
 
@@ -75,12 +75,12 @@ pub(crate) fn bundled_core_candidates(app: &AppHandle) -> Vec<PathBuf> {
     #[cfg(target_os = "windows")]
     {
         let mut candidates = Vec::new();
-        let project_resource = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../mihomo.exe");
+        let project_resource = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../vendor/mihomo.exe");
         if project_resource.exists() {
             candidates.push(project_resource);
         }
         let project_resource_legacy =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../mihomo-windows-amd64-v3.exe");
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../vendor/mihomo-windows-amd64-v3.exe");
         if project_resource_legacy.exists() {
             candidates.push(project_resource_legacy);
         }

@@ -4,22 +4,25 @@ version = "0.1.12"
 edition = "2021"
 
 [dependencies]
-async-trait = "0.1"
-anyhow = "1.0"
-axum = "0.7"
-brotli = "3.5"
-chrono = { version = "0.4", features = ["serde"] }
+async-trait = { workspace = true }
+anyhow = { workspace = true }
+axum = "0.8.1"
+brotli = "8.0"
+chrono = { workspace = true }
 flate2 = "1.0"
 log = "0.4"
-mihomo-rs = "1.2.1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip", "brotli", "deflate"] }
-serde = { version = "1.0", features = ["derive"] }
+mihomo-rs = "1.2.2"
+reqwest = { workspace = true, features = ["gzip", "brotli", "deflate"] }
+serde = { workspace = true }
 serde_json = "1.0"
-tokio = { version = "1.36", features = ["fs", "net", "sync"] }
-tower-http = { version = "0.6", features = ["fs"] }
-toml = "0.8"
-yaml-rust2 = "0.8"
+tokio = { workspace = true }
+tower-http = { version = "0.6.2", features = ["fs"] }
+toml = "0.8.19"
+yaml-rust2 = "0.11"
+dav-client = { path = "../mihomo-dav-sync/dav-client" }
+sync-engine = { path = "../mihomo-dav-sync/sync-engine" }
+state-store = { path = "../mihomo-dav-sync/state-store" }
 
 [target.'cfg(windows)'.dependencies]
-winreg = "0.52"
-windows-sys = { version = "0.52", features = ["Win32_System_Threading"] }
+winreg = "0.55"
+windows-sys = { version = "0.61", features = ["Win32_System_Threading"] }

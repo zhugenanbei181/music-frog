@@ -28,7 +28,7 @@ pub(crate) fn parse_launch_ports() -> LaunchPorts {
 pub(crate) fn extract_port_from_url(url: &str) -> Option<u16> {
     let host = url.split("://").nth(1)?;
     let host = host.split('/').next()?;
-    let port = host.split(':').last()?;
+    let port = host.split(':').next_back()?;
     port.parse::<u16>().ok()
 }
 

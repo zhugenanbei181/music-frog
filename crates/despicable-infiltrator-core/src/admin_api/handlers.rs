@@ -389,6 +389,7 @@ pub async fn get_app_settings_http<C: AdminApiContext>(
         editor_path: settings.editor_path,
         use_bundled_core: Some(settings.use_bundled_core),
         language: Some(settings.language),
+        webdav: Some(settings.webdav),
     }))
 }
 
@@ -411,9 +412,48 @@ pub async fn save_app_settings_http<C: AdminApiContext>(
     if let Some(val) = payload.language {
         settings.language = val;
     }
+    if let Some(val) = payload.webdav {
+        settings.webdav = val;
+    }
 
     state.ctx.save_app_settings(settings).await.map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn sync_webdav_now_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let settings = state.ctx.get_app_settings().await;
+    if !settings.webdav.enabled {
+        return Err(ApiError::bad_request("WebDAV 同步未开启"));
+    }
+    
+    // 手动触发同步逻辑
+    let summary = crate::scheduler::sync::run_sync_tick(&state.ctx, &settings.webdav)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+        
+    Ok(Json(serde_json::json!({
+        "success_count": summary.success_count,
+        "failed_count": summary.failed_count,
+        "total_actions": summary.total_actions,
+    })))
+}
+
+pub async fn test_webdav_conn_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<crate::settings::WebDavConfig>,
+) -> Result<StatusCode, ApiError> {
+    use dav_client::client::WebDavClient;
+    use dav_client::DavClient;
+
+    let dav = WebDavClient::new(&payload.url, &payload.username, &payload.password)
+        .map_err(|e| ApiError::bad_request(format!("无效的配置: {e}")))?;
+    
+    // 尝试 list 根目录来测试连接
+    dav.list("/").await.map_err(|e| ApiError::bad_request(format!("连接测试失败: {e}")))?;
+    
+    Ok(StatusCode::OK)
 }
 
 fn ensure_valid_profile_name(name: &str) -> Result<String, ApiError> {

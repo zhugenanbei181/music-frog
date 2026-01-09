@@ -59,6 +59,23 @@ pub(crate) struct TrayInfoItems {
 }
 
 impl AppState {
+    pub(crate) fn ctx_as_admin(&self) -> crate::admin_context::TauriAdminContext {
+        let handle = self.app_handle.try_read()
+            .ok()
+            .and_then(|g| g.as_ref().cloned());
+        if handle.is_none() {
+            log::error!("critical: attempting to create admin context without app handle");
+        }
+        crate::admin_context::TauriAdminContext {
+            app: handle.expect("app handle must be initialized before admin context use"),
+            app_state: self.clone(),
+        }
+    }
+
+    pub(crate) async fn get_app_settings(&self) -> AppSettings {
+        self.settings.read().await.clone()
+    }
+
     pub(crate) async fn get_lang_code(&self) -> String {
         self.settings.read().await.language.clone()
     }
@@ -178,16 +195,16 @@ impl AppState {
         self.tray_profile_map.read().await.clone()
     }
 
+    pub(crate) async fn tray_proxy_map(&self) -> HashMap<String, (String, String)> {
+        self.tray_proxy_map.read().await.clone()
+    }
+
     pub(crate) async fn set_tray_proxy_map(
         &self,
         map: HashMap<String, (String, String)>,
     ) {
         let mut guard = self.tray_proxy_map.write().await;
         *guard = map;
-    }
-
-    pub(crate) async fn tray_proxy_map(&self) -> HashMap<String, (String, String)> {
-        self.tray_proxy_map.read().await.clone()
     }
 
     pub(crate) async fn refresh_tun_state(&self) -> anyhow::Result<(bool, bool)> {
@@ -426,11 +443,13 @@ impl AppState {
             return Err(err);
         }
         // If language changed, refresh tray immediately
-        if let Err(err) = crate::tray::refresh_tray_menu(
-            self.app_handle.read().await.as_ref().unwrap(),
-            self,
-        ).await {
-            warn!("failed to refresh tray menu after settings change: {err}");
+        if let Some(app_handle) = self.app_handle.read().await.as_ref() {
+            if let Err(err) = crate::tray::refresh_tray_menu(
+                app_handle,
+                self,
+            ).await {
+                warn!("failed to refresh tray menu after settings change: {err}");
+            }
         }
         Ok(())
     }
@@ -536,6 +555,29 @@ impl AppState {
             .replace("{1}", &failed.to_string())
             .replace("{2}", &skipped.to_string());
         self.show_notification(&lang.tr("sub_update_done"), &body).await;
+    }
+
+    pub(crate) async fn notify_webdav_sync_result(
+        &self,
+        success: bool,
+        action_count: usize,
+        error_msg: Option<String>,
+    ) {
+        let lang_code = self.get_lang_code().await;
+        let lang = Lang(lang_code.as_str());
+
+        let title = if success {
+            lang.tr("webdav_sync_success")
+        } else {
+            lang.tr("webdav_sync_failed")
+        };
+        let body = if success {
+            lang.tr("webdav_sync_done").replace("{0}", &action_count.to_string())
+        } else {
+            let reason = error_msg.unwrap_or_else(|| lang.tr("unknown").into_owned());
+            lang.tr("webdav_sync_error").replace("{0}", &reason)
+        };
+        self.show_notification(&title, &body).await;
     }
 
     async fn show_notification(&self, title: &str, body: &str) {
