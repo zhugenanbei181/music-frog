@@ -1,7 +1,5 @@
 # Node / pnpm artifacts
 node_modules/
-.pnpm-store/
-pnpm-lock.yaml
 
 # Vite artifacts
 webui/config-manager-ui/.vite/
