@@ -40,6 +40,9 @@ mihomo.exe
 *.md
 !README.md
 !USAGE_SPEC.md
+.markdownlint-cli2.jsonc
+.markdownlint.json
+.markdownlintignore
 
 # Build outputs
 *.msi
