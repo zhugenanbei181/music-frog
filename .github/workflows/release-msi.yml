@@ -40,7 +40,7 @@ jobs:
       # 4. 直接安装依赖（setup-node 已处理缓存）
       - name: Install dependencies
         shell: pwsh
-        run: pnpm install --frozen-lockfile
+        run: pnpm --dir webui/config-manager-ui install --frozen-lockfile
 
       - name: Build config-manager UI
         shell: pwsh
