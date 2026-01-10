@@ -92,7 +92,7 @@ pub(crate) fn update_lock() -> &'static Mutex<()> {
 
 pub(crate) fn build_http_client() -> Client {
     Client::builder()
-        .user_agent("Mihomo-Despicable-Infiltrator")
+        .user_agent("MusicFrog-Despicable-Infiltrator")
         .timeout(Duration::from_secs(30))
         .build()
         .unwrap_or_else(|err| {
@@ -103,7 +103,7 @@ pub(crate) fn build_http_client() -> Client {
 
 pub(crate) fn build_raw_http_client(default_client: &Client) -> Client {
     Client::builder()
-        .user_agent("Mihomo-Despicable-Infiltrator")
+        .user_agent("MusicFrog-Despicable-Infiltrator")
         .timeout(Duration::from_secs(30))
         .no_gzip()
         .no_brotli()

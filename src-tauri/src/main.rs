@@ -80,7 +80,7 @@ fn main() {
         Ok(app) => app,
         Err(err) => {
             show_error_dialog(format!(
-                "初始化 Mihomo Despicable Infiltrator 失败: {err:#}"
+                "初始化 MusicFrog Despicable Infiltrator 失败: {err:#}"
             ));
             return;
         }

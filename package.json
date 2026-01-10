@@ -1,6 +1,6 @@
 {
-  "name": "mihomo-despicable-infiltrator",
-  "version": "0.11.0",
+  "name": "musicfrog-despicable-infiltrator",
+  "version": "0.12.4",
   "private": true,
   "type": "module",
   "scripts": {

@@ -16,16 +16,16 @@ pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
     Router::new()
         .route("/admin/api/profiles", get(list_profiles_http::<C>))
         .route(
-            "/admin/api/profiles/:name",
+            "/admin/api/profiles/{name}",
             get(get_profile_http::<C>).delete(delete_profile_http::<C>),
         )
         .route(
-            "/admin/api/profiles/:name/subscription",
+            "/admin/api/profiles/{name}/subscription",
             post(set_profile_subscription_http::<C>)
                 .delete(clear_profile_subscription_http::<C>),
         )
         .route(
-            "/admin/api/profiles/:name/update-now",
+            "/admin/api/profiles/{name}/update-now",
             post(update_profile_now_http::<C>),
         )
         .route("/admin/api/profiles/switch", post(switch_profile_http::<C>))
@@ -44,6 +44,30 @@ pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
         .route(
             "/admin/api/settings",
             get(get_app_settings_http::<C>).post(save_app_settings_http::<C>),
+        )
+        .route(
+            "/admin/api/dns",
+            get(get_dns_config_http::<C>).post(save_dns_config_http::<C>),
+        )
+        .route(
+            "/admin/api/fake-ip",
+            get(get_fake_ip_config_http::<C>).post(save_fake_ip_config_http::<C>),
+        )
+        .route(
+            "/admin/api/fake-ip/flush",
+            post(flush_fake_ip_cache_http::<C>),
+        )
+        .route(
+            "/admin/api/rule-providers",
+            get(get_rule_providers_http::<C>).post(save_rule_providers_http::<C>),
+        )
+        .route(
+            "/admin/api/rules",
+            get(get_rules_http::<C>).post(save_rules_http::<C>),
+        )
+        .route(
+            "/admin/api/tun",
+            get(get_tun_config_http::<C>).post(save_tun_config_http::<C>),
         )
         .route("/admin/api/webdav/sync", post(sync_webdav_now_http::<C>))
         .route("/admin/api/webdav/test", post(test_webdav_conn_http::<C>))

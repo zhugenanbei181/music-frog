@@ -1,11 +1,17 @@
 ﻿import type {
   AppSettings,
+  CacheFlushResponse,
   CoreVersionsResponse,
+  DnsConfig,
+  FakeIpConfig,
   ProfileActionResponse,
   ProfileDetail,
   ProfileInfo,
   RebuildStatusResponse,
+  RuleProvidersPayload,
+  RulesPayload,
   SyncResult,
+  TunConfig,
   WebDavConfig,
 } from './types';
 
@@ -112,4 +118,20 @@ export const api = {
   activateCoreVersion: (version: string) =>
     request<void>('core/activate', { method: 'POST', body: { version } }),
   getRebuildStatus: () => request<RebuildStatusResponse>('rebuild/status', { timeoutMs: 10000 }),
+  getDnsConfig: () => request<DnsConfig>('dns'),
+  saveDnsConfig: (config: DnsConfig) =>
+    request<DnsConfig>('dns', { method: 'POST', body: config }),
+  getFakeIpConfig: () => request<FakeIpConfig>('fake-ip'),
+  saveFakeIpConfig: (config: FakeIpConfig) =>
+    request<FakeIpConfig>('fake-ip', { method: 'POST', body: config }),
+  flushFakeIpCache: () => request<CacheFlushResponse>('fake-ip/flush', { method: 'POST' }),
+  getRuleProviders: () => request<RuleProvidersPayload>('rule-providers'),
+  saveRuleProviders: (payload: RuleProvidersPayload) =>
+    request<RuleProvidersPayload>('rule-providers', { method: 'POST', body: payload }),
+  getRules: () => request<RulesPayload>('rules'),
+  saveRules: (payload: RulesPayload) =>
+    request<RulesPayload>('rules', { method: 'POST', body: payload }),
+  getTunConfig: () => request<TunConfig>('tun'),
+  saveTunConfig: (config: TunConfig) =>
+    request<TunConfig>('tun', { method: 'POST', body: config }),
 };

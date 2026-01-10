@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Mihomo Despicable Infiltrator",
-  "version": "0.11.0",
-  "identifier": "com.mihomo.despicable-infiltrator",
+  "productName": "MusicFrog Despicable Infiltrator",
+  "version": "0.12.4",
+  "identifier": "com.musicfrog.despicable-infiltrator",
   "build": {
     "beforeDevCommand": "",
     "beforeBuildCommand": "",
@@ -28,7 +28,7 @@
       "../USAGE_SPEC.md": "docs/USAGE_SPEC.md",
       "../CHANGELOG.md": "docs/CHANGELOG.md"
     },
-    "copyright": "Mihomo Despicable Infiltrator",
+    "copyright": "MusicFrog Despicable Infiltrator",
     "targets": [
       "nsis",
       "msi"
@@ -39,7 +39,7 @@
       },
       "nsis": {
         "installerIcon": "icons/icon.ico",
-        "startMenuFolder": "Mihomo Despicable Infiltrator"
+        "startMenuFolder": "MusicFrog Despicable Infiltrator"
       }
     }
   }

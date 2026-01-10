@@ -3,7 +3,7 @@
 本文档分析当前代码库的 Android 平台兼容性，并规划移植路径。
 
 > **核心原则**: 重构过程中必须保证 Windows/macOS/Linux Tauri 应用的完整功能，不得引入破坏性变更。
-> **前置条件**: 仅当修改 Tauri 导入为新规划 crates 时，才要求通过 Tauri 构建与测试（`cargo build -p "Mihomo-Despicable-Infiltrator"` 与 `cargo test --workspace`）。新 crates 必须开发完整后再调整 Tauri 导入；未涉及导入变更时不强制编译。变更需同步更新 `README.md`/`USAGE_SPEC.md`，并保持 Tauri 对外接口与行为兼容。
+> **前置条件**: 仅当修改 Tauri 导入为新规划 crates 时，才要求通过 Tauri 构建与测试（`cargo build -p "MusicFrog-Despicable-Infiltrator"` 与 `cargo test --workspace`）。新 crates 必须开发完整后再调整 Tauri 导入；未涉及导入变更时不强制编译。变更需同步更新 `README.md`/`USAGE_SPEC.md`，并保持 Tauri 对外接口与行为兼容。
 > **迁移完整性**: 兼容层移除前必须确保新 crates 功能与原 crates 对齐，且 Tauri 应用功能完整可用。
 
 ## Crate 重新规划
@@ -688,24 +688,28 @@ Unknown(255): 未分类错误
 ### 多端都需要 (Desktop + Android)
 
 1. **DNS 专项管理**
-   - 目标: DoH/DoT/系统 DNS 切换、fallback、DNS 代理、分流 DNS 规则
-   - 归属: `infiltrator-core`(模型/校验/API) + UI 层
-   - 最小里程碑: 配置模型落地 + 管理 API + 基础 UI
+    - 目标: DoH/DoT/系统 DNS 切换、fallback、DNS 代理、分流 DNS 规则
+    - 归属: `infiltrator-core`(模型/校验/API) + UI 层
+    - 最小里程碑: 配置模型落地 + 管理 API + 基础 UI
+    - 进度: 配置模型 + 管理 API + UI 已完成
 
 2. **Fake-IP 管理**
-   - 目标: Fake-IP 范围、持久化、过滤名单、缓存清理入口
-   - 归属: `infiltrator-core`(模型/校验/API) + UI 层
-   - 最小里程碑: 配置落盘 + 管理 API
+    - 目标: Fake-IP 范围、持久化、过滤名单、缓存清理入口
+    - 归属: `infiltrator-core`(模型/校验/API) + UI 层
+    - 最小里程碑: 配置落盘 + 管理 API
+    - 进度: 配置模型 + 管理 API + 缓存清理入口 + UI 已完成
 
 3. **规则集/规则提供者管理**
-   - 目标: Rule Providers 管理、启停、更新、排序、状态查询
-   - 归属: `infiltrator-core`(模型/调度/API) + UI 层
-   - 最小里程碑: Providers 列表与更新 API
+    - 目标: Rule Providers 管理、启停、更新、排序、状态查询
+    - 归属: `infiltrator-core`(模型/调度/API) + UI 层
+    - 最小里程碑: Providers 列表与更新 API
+    - 进度: Providers 列表与更新 API 已完成，规则列表启停/排序已完成，UI 已完成
 
 4. **TUN 高级配置**
-   - 目标: 排除网段、DNS 劫持策略、FakeIP/TUN 联动策略
-   - 归属: `infiltrator-core`(配置模型) + 平台层权限提示
-   - 最小里程碑: 配置项落盘 + UI 开关
+    - 目标: 排除网段、DNS 劫持策略、FakeIP/TUN 联动策略
+    - 归属: `infiltrator-core`(配置模型) + 平台层权限提示
+    - 最小里程碑: 配置项落盘 + UI 开关
+    - 进度: 配置模型与管理 API + UI 已完成
 
 ### 仅 Android 需要 (Android 优先)
 
@@ -872,7 +876,6 @@ Admin API/静态服务器      ✅                    ☐ 前端访问/路由/�
   - `despicable_infiltrator_core::scheduler::sync::run_sync_tick`
     → `infiltrator_core::scheduler::sync::run_sync_tick`
 
-
 ### Stage 1: 提取 mihomo-api (1-2 天)
 
 ```bash
@@ -954,7 +957,7 @@ mkdir -p crates/infiltrator-desktop/src
 # Cargo.toml: infiltrator-desktop = { path = "../crates/infiltrator-desktop" }
 
 # 4. 验证
-cargo build -p "Mihomo-Despicable-Infiltrator"
+cargo build -p "MusicFrog-Despicable-Infiltrator"
 ```
 
 **验证点**: 完整功能测试通过
@@ -994,7 +997,7 @@ cargo build --workspace
 
 - [ ] `cargo build --workspace`
 - [ ] `cargo test --workspace`
-- [ ] `cargo build -p "Mihomo-Despicable-Infiltrator"` (Windows)
+- [ ] `cargo build -p "MusicFrog-Despicable-Infiltrator"` (Windows)
 - [ ] 手动测试:
   - [ ] 应用启动，内核正常运行
   - [ ] 系统代理切换正常
@@ -1631,9 +1634,9 @@ src-tauri/src/runtime.rs
 
 在每个重构阶段后必须验证：
 
-- [ ] `cargo build -p "Mihomo-Despicable-Infiltrator"` (Windows 构建)
-- [ ] `cargo build -p "Mihomo-Despicable-Infiltrator" --target x86_64-apple-darwin` (macOS 构建)
-- [ ] `cargo build -p "Mihomo-Despicable-Infiltrator" --target x86_64-unknown-linux-gnu` (Linux 构建)
+- [ ] `cargo build -p "MusicFrog-Despicable-Infiltrator"` (Windows 构建)
+- [ ] `cargo build -p "MusicFrog-Despicable-Infiltrator" --target x86_64-apple-darwin` (macOS 构建)
+- [ ] `cargo build -p "MusicFrog-Despicable-Infiltrator" --target x86_64-unknown-linux-gnu` (Linux 构建)
 - [ ] `cargo test --workspace` (全部测试通过)
 - [ ] 手动测试：启动应用 → 内核启动 → 系统代理切换 → 退出应用
 
@@ -1849,8 +1852,8 @@ fn get_home_dir() -> PathBuf {
 ```
 
 ### 解决方案
-状态更新: 已在 mihomo-rs 中提供 `apply_data_dir_override` 针对 `DataDirProvider` 的目录注入钩子。
 
+状态更新: 已在 mihomo-rs 中提供 `apply_data_dir_override` 针对 `DataDirProvider` 的目录注入钩子。
 
 通过 `DataDirProvider` trait 抽象路径获取：
 
@@ -1984,10 +1987,11 @@ cargo ndk -t arm64-v8a build -p platform-android --release
 10. [x] 清理 despicable-infiltrator-core 旧源码，仅保留 re-export
 11. [x] 移除 mihomo-rs 与 despicable-infiltrator-core 兼容层
 12. [x] infiltrator-android 预留 AndroidBridge 接口占位
+
 ### 验收标准
 
 - [x] Tauri 导入已切换到新 crates
-- [x] `cargo build -p "Mihomo-Despicable-Infiltrator"` 成功
+- [x] `cargo build -p "MusicFrog-Despicable-Infiltrator"` 成功
 - [x] `cargo test --workspace` 全部通过
 - [ ] 手动测试 Tauri 应用功能正常
 

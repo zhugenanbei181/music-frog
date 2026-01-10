@@ -6,6 +6,14 @@
 - [x] **依赖升级**: 将所有 Rust 依赖项升级至最新稳定版本并解决 API 兼容性问题
 - [x] **测试覆盖**: 为 `despicable-infiltrator-core` 核心模块添加初步单元测试
 - [x] **国际化**: 为 Web UI 和托盘菜单添加多语言支持（zh-CN / en-US）
+- [x] **Web UI 规范化**: 统一面板标题/按钮/表单样式、表单工具 composable、类型约束与占位文案
+- [x] **Web UI 细化**: 提取 `PanelCard` 并统一复用，优化列表按钮密度与提示文字色阶
+- [x] **Web UI 细节一致性**: 引入 `help-text`/`empty-text` 统一辅助/空态文字风格
+- [x] **Web UI 约束**: 统一写入面板组件/按钮密度/文案样式规范
+- [x] **Web UI 一致性**: 统一状态卡/列表项圆角与 hover 语义
+- [x] **Web UI 列表统一**: Profiles/Core 按钮密度与 Rules 列表项 hover/背景语义对齐
+- [x] **Web UI 细节统一**: 列表内按钮与订阅折叠区样式、checkbox 间距统一
+- [x] **托盘高级入口**: 增加 DNS/Fake-IP/规则集/TUN 高级入口与 Fake-IP 缓存清理
 - [x] **WebDAV 配置同步功能 (完整实现)**:
   - [x] **P0: 核心协议与状态 (Foundation)**
     - [x] 初始化 `crates/mihomo-dav-sync` 多 Crate 工作区
@@ -39,16 +47,16 @@
 
 - [x] **兼容层移除计划**: 完成 Tauri 导入切换与功能验证后，移除 `mihomo-rs` 与 `despicable-infiltrator-core`。
 - [ ] **Phase A (多端基础能力)**: DNS/Fake-IP/规则集/TUN 高级配置
-  - [ ] DNS 配置模型 (infiltrator-core): DoH/DoT/系统 DNS + fallback + 代理开关
-  - [ ] DNS 管理 API (infiltrator-core): 读取/更新/校验/应用
-  - [ ] DNS UI (config-manager-ui): 基础表单 + 生效状态提示
-  - [ ] Fake-IP 配置模型 (infiltrator-core): 范围/持久化/过滤名单
-  - [ ] Fake-IP 管理 API (infiltrator-core): 读取/更新/清理缓存入口
-  - [ ] 规则集模型 (infiltrator-core): Providers/规则排序/启停状态
-  - [ ] 规则集 API (infiltrator-core): 列表/更新/启停/排序/状态
-  - [ ] 规则集 UI (config-manager-ui): 列表 + 启停 + 更新入口
-  - [ ] TUN 高级配置模型 (infiltrator-core): 排除网段/DNS 劫持策略/FakeIP 联动
-  - [ ] TUN 高级配置 UI (config-manager-ui): 开关 + 说明提示
+  - [x] DNS 配置模型 (infiltrator-core): DoH/DoT/系统 DNS + fallback + 代理开关
+  - [x] DNS 管理 API (infiltrator-core): 读取/更新/校验/应用
+  - [x] DNS UI (config-manager-ui): 基础表单 + 生效状态提示
+  - [x] Fake-IP 配置模型 (infiltrator-core): 范围/持久化/过滤名单
+  - [x] Fake-IP 管理 API (infiltrator-core): 读取/更新/清理缓存入口
+  - [x] 规则集模型 (infiltrator-core): Providers/规则排序/启停状态
+  - [x] 规则集 API (infiltrator-core): 列表/更新/启停/排序/状态
+  - [x] 规则集 UI (config-manager-ui): 列表 + 启停 + 更新入口
+  - [x] TUN 高级配置模型 (infiltrator-core): 排除网段/DNS 劫持策略/FakeIP 联动
+  - [x] TUN 高级配置 UI (config-manager-ui): 开关 + 说明提示
 - [ ] **Phase B (Android 专项能力)**: 分应用代理/VPN Service/Core 运行模式
   - [ ] 分应用代理模型 (infiltrator-core): 白名单/黑名单 + UID 列表
   - [ ] 分应用代理 API (infiltrator-core): 读取/更新/应用规则

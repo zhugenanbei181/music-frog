@@ -1,8 +1,8 @@
-# Mihomo Despicable Infiltrator - Project Context
+# MusicFrog Despicable Infiltrator - Project Context
 
 ## Overview
 
-**Mihomo Despicable Infiltrator** is a Tauri v2 tray app managing the `mihomo` core.
+**MusicFrog Despicable Infiltrator** is a Tauri v2 tray app managing the `mihomo` core.
 
 ## Architecture
 
@@ -27,8 +27,20 @@
 2. `pnpm --dir config-manager-ui build`
 3. `pnpm build` (Outputs MSI on Windows)
 
+## Frontend
+
+- Vue 组件使用 `.vue` SFC + `<script setup>`.
+- TypeScript 使用 ES6+ 语法，避免旧式 `var`/构造式。
+- 类型集中在 `src/types.ts`，接口集中在 `src/api.ts`。
+- UI 文案保持 `en-US.json` 与 `zh-CN.json` 同步。
+- 表单解析工具统一使用 `src/composables/useFormUtils.ts`。
+- 业务逻辑优先下沉 `src/composables/`，保持 `App.vue` 轻量。
+- 面板统一使用 `PanelCard` + `PanelHeader`/`PanelFooter`/`PanelTitle`，辅助/空态文字使用 `help-text`/`empty-text`，列表内操作按钮优先 `btn-xs`，面板底部操作使用 `btn-sm`。
+
 ## Docs
 
+- **README.md**: English only. Structure: Name, Tech Stack, AI Codex (Gemini/Claude), Docs link.
+- **USAGE_SPEC.md**: Bilingual (ZH/EN). Focus on UI buttons, panels, and existing features for end-users. No raw API/Dev docs.
 - Markdown formatting: `pnpm dlx markdownlint-cli2 "**/*.md" --fix` (uses `.markdownlint-cli2.jsonc` and `.markdownlint.json`).
 
 ## Planning Playbook

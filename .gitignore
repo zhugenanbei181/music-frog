@@ -36,6 +36,11 @@ mihomo.exe
 *.db-shm
 *.db-wal
 
+# Documentation
+*.md
+!README.md
+!USAGE_SPEC.md
+
 # Build outputs
 *.msi
 *.exe

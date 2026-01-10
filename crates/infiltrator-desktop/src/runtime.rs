@@ -273,7 +273,7 @@ async fn download_geoip(client: &Client, url: &str) -> anyhow::Result<Vec<u8>> {
     let response = client
         .get(url)
         .header(ACCEPT_ENCODING, "identity")
-        .header("User-Agent", "Mihomo-Despicable-Infiltrator")
+        .header("User-Agent", "MusicFrog-Despicable-Infiltrator")
         .send()
         .await
         .map_err(|e| anyhow!("下载 GeoIP 数据库失败: {e}"))?;

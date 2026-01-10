@@ -1,60 +1,68 @@
 <template>
-  <div class="panel h-full flex flex-col p-6">
-    <div class="mb-4 flex items-center justify-between">
-      <h2 class="panel-title">{{ $t('editor.title') }}</h2>
-      <button class="btn btn-ghost" @click="$emit('reset')">{{ $t('editor.new') }}</button>
-    </div>
-    <div class="flex-1 space-y-4">
-      <div class="form-control w-full">
-        <label class="label">
-          <span class="label-text">{{ $t('editor.name_label') }}</span>
-        </label>
-        <input
-          type="text"
-          :value="name"
-          @input="$emit('update:name', ($event.target as HTMLInputElement).value)"
-          :placeholder="$t('editor.name_placeholder')"
-          class="input w-full"
-        />
-      </div>
-      <div class="form-control h-[300px] w-full">
-        <label class="label">
-          <span class="label-text">{{ $t('editor.content_label') }}</span>
-        </label>
-        <textarea
-          :value="content"
-          @input="$emit('update:content', ($event.target as HTMLTextAreaElement).value)"
-          class="textarea h-full w-full font-mono text-sm leading-relaxed"
-          :placeholder="$t('editor.content_placeholder')"
-        ></textarea>
-      </div>
-      <div class="form-control">
-        <label class="label cursor-pointer justify-start gap-2">
+  <PanelCard>
+      <PanelHeader>
+        <template #title>
+          <PanelTitle :text="$t('editor.title')" />
+        </template>
+        <template #actions>
+          <button class="btn btn-outline btn-sm gap-2" @click="$emit('reset')">
+            {{ $t('editor.new') }}
+          </button>
+        </template>
+      </PanelHeader>
+      <div class="space-y-4 flex-grow">
+        <div class="form-control w-full">
+          <label class="label py-1">
+            <span class="label-text font-medium">{{ $t('editor.name_label') }}</span>
+          </label>
           <input
-            type="checkbox"
-            class="checkbox checkbox-primary"
-            :checked="activate"
-            @change="$emit('update:activate', ($event.target as HTMLInputElement).checked)"
+            type="text"
+            :value="name"
+            @input="$emit('update:name', ($event.target as HTMLInputElement).value)"
+            :placeholder="$t('editor.name_placeholder')"
+            class="input input-bordered w-full input-sm focus:input-primary"
           />
-          <span class="label-text">{{ $t('editor.activate_after') }}</span>
-        </label>
+        </div>
+        <div class="form-control h-[300px] w-full">
+          <label class="label py-1">
+            <span class="label-text font-medium">{{ $t('editor.content_label') }}</span>
+          </label>
+          <textarea
+            :value="content"
+            @input="$emit('update:content', ($event.target as HTMLTextAreaElement).value)"
+            class="textarea textarea-bordered h-full w-full textarea-sm focus:textarea-primary font-mono text-sm leading-relaxed"
+            :placeholder="$t('editor.content_placeholder')"
+          ></textarea>
+        </div>
+        <div class="form-control">
+          <FormSwitch
+            :model-value="activate"
+            :label="$t('editor.activate_after')"
+            @update:model-value="$emit('update:activate', $event)"
+          />
+        </div>
+        <p class="help-text">
+          {{ $t('editor.hint') }}
+        </p>
       </div>
-      <div class="flex gap-2">
-        <button class="btn btn-primary flex-1" @click="$emit('save')">
+      <PanelFooter>
+        <button class="btn btn-primary btn-sm gap-2 flex-1" @click="$emit('save')">
           {{ $t('editor.save') }}
         </button>
-        <button class="btn btn-secondary flex-1" @click="$emit('open-external', name)">
+        <button class="btn btn-secondary btn-sm gap-2 flex-1" @click="$emit('open-external', name)">
           {{ $t('editor.external_edit') }}
         </button>
-      </div>
-      <p class="text-xs text-ink-500">
-        {{ $t('editor.hint') }}
-      </p>
-    </div>
-  </div>
+      </PanelFooter>
+  </PanelCard>
 </template>
 
 <script setup lang="ts">
+import FormSwitch from './FormSwitch.vue';
+import PanelCard from './PanelCard.vue';
+import PanelFooter from './PanelFooter.vue';
+import PanelHeader from './PanelHeader.vue';
+import PanelTitle from './PanelTitle.vue';
+
 defineProps<{
   name: string;
   content: string;

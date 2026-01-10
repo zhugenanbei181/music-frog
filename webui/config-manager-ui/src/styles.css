@@ -68,6 +68,12 @@ main {
   .label {
     @apply text-sm font-semibold text-ink-700;
   }
+  .help-text {
+    @apply text-xs text-ink-500;
+  }
+  .empty-text {
+    @apply text-sm text-ink-500;
+  }
   .input {
     @apply w-full rounded-xl border border-ink-500/20 bg-white px-3 py-2 text-sm text-ink-900 focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-200;
   }
@@ -110,9 +116,7 @@ main {
   .file-input {
     @apply file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent-50 file:text-accent-500 hover:file:bg-accent-100;
   }
-  .checkbox {
-    @apply h-5 w-5 rounded border-ink-500/20 text-accent-500 focus:ring-accent-500;
-  }
+
   .select {
     @apply w-full rounded-xl border border-ink-500/20 bg-white px-3 py-2 text-sm text-ink-900 focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-200;
   }

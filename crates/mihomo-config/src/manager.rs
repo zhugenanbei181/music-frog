@@ -493,7 +493,7 @@ fn parse_datetime(value: Option<&toml::Value>) -> Option<DateTime<Utc>> {
         .map(|parsed| parsed.with_timezone(&Utc))
 }
 
-const SUBSCRIPTION_SERVICE: &str = "Mihomo-Despicable-Infiltrator";
+const SUBSCRIPTION_SERVICE: &str = "MusicFrog-Despicable-Infiltrator";
 const SUBSCRIPTION_KEY_PREFIX: &str = "subscription";
 
 fn subscription_key(profile: &str) -> String {

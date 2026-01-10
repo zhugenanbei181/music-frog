@@ -64,6 +64,22 @@ pub struct RebuildStatusResponse {
 }
 
 #[derive(Serialize)]
+pub struct CacheFlushResponse {
+    pub removed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TunConfigPayload {
+    pub enable: Option<bool>,
+    pub stack: Option<String>,
+    pub dns_hijack: Option<Vec<String>>,
+    pub auto_route: Option<bool>,
+    pub auto_detect_interface: Option<bool>,
+    pub mtu: Option<u32>,
+    pub strict_route: Option<bool>,
+}
+
+#[derive(Serialize)]
 pub struct ProfileActionResponse {
     pub profile: ProfileInfo,
     pub rebuild_scheduled: bool,

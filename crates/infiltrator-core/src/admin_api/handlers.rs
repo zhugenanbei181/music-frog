@@ -18,7 +18,11 @@ use reqwest::Client;
 
 use crate::{
     config as core_config,
+    dns,
+    fake_ip,
     profiles as core_profiles,
+    rules,
+    tun,
     subscription as core_subscription,
     ProfileDetail, ProfileInfo,
 };
@@ -418,6 +422,93 @@ pub async fn save_app_settings_http<C: AdminApiContext>(
 
     state.ctx.save_app_settings(settings).await.map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn get_dns_config_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<dns::DnsConfig>, ApiError> {
+    let config = dns::load_dns_config().await?;
+    Ok(Json(config))
+}
+
+pub async fn save_dns_config_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<dns::DnsConfigPatch>,
+) -> Result<Json<dns::DnsConfig>, ApiError> {
+    let config = dns::save_dns_config(payload).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "dns-update");
+    Ok(Json(config))
+}
+
+pub async fn get_fake_ip_config_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<fake_ip::FakeIpConfig>, ApiError> {
+    let config = fake_ip::load_fake_ip_config().await?;
+    Ok(Json(config))
+}
+
+pub async fn save_fake_ip_config_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<fake_ip::FakeIpConfigPatch>,
+) -> Result<Json<fake_ip::FakeIpConfig>, ApiError> {
+    let config = fake_ip::save_fake_ip_config(payload).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "fake-ip-update");
+    Ok(Json(config))
+}
+
+pub async fn flush_fake_ip_cache_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<CacheFlushResponse>, ApiError> {
+    let removed = fake_ip::clear_fake_ip_cache().await?;
+    Ok(Json(CacheFlushResponse { removed }))
+}
+
+pub async fn get_rule_providers_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<rules::RuleProvidersPayload>, ApiError> {
+    let providers = rules::load_rule_providers().await?;
+    Ok(Json(rules::RuleProvidersPayload { providers }))
+}
+
+pub async fn save_rule_providers_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<rules::RuleProvidersPayload>,
+) -> Result<Json<rules::RuleProvidersPayload>, ApiError> {
+    let providers = rules::save_rule_providers(payload.providers).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "rule-providers-update");
+    Ok(Json(rules::RuleProvidersPayload { providers }))
+}
+
+pub async fn get_rules_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<rules::RulesPayload>, ApiError> {
+    let rules_list = rules::load_rules().await?;
+    Ok(Json(rules::RulesPayload { rules: rules_list }))
+}
+
+pub async fn save_rules_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<rules::RulesPayload>,
+) -> Result<Json<rules::RulesPayload>, ApiError> {
+    let rules_list = rules::save_rules(payload.rules).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "rules-update");
+    Ok(Json(rules::RulesPayload { rules: rules_list }))
+}
+
+pub async fn get_tun_config_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<tun::TunConfig>, ApiError> {
+    let config = tun::load_tun_config().await?;
+    Ok(Json(config))
+}
+
+pub async fn save_tun_config_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<tun::TunConfigPatch>,
+) -> Result<Json<tun::TunConfig>, ApiError> {
+    let config = tun::save_tun_config(payload).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "tun-update");
+    Ok(Json(config))
 }
 
 pub async fn sync_webdav_now_http<C: AdminApiContext>(

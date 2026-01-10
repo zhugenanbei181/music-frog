@@ -30,7 +30,7 @@ pub(crate) fn create_tray(app: &AppHandle, state: AppState) -> tauri::Result<()>
     let state_for_tray_click = state.clone();
 
     TrayIconBuilder::with_id("metacube-tray")
-        .tooltip("Mihomo Despicable Infiltrator")
+        .tooltip("MusicFrog Despicable Infiltrator")
         .icon(include_image!("icons/tray.ico"))
         .menu(&menu)
         .show_menu_on_left_click(false)

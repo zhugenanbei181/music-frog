@@ -82,7 +82,7 @@ pub(crate) fn build_fallback_tray(app: &AppHandle, state: AppState) -> tauri::Re
 
         TrayIconBuilder::with_id("metacube-tray")
 
-            .tooltip("Mihomo Despicable Infiltrator")
+            .tooltip("MusicFrog Despicable Infiltrator")
 
             .icon(include_image!("icons/tray.ico"))
 
@@ -112,6 +112,8 @@ pub(crate) async fn build_tray_menu(
     let lang = Lang(lang_code.as_str());
 
     let open_webui_checked = state.open_webui_on_startup().await;
+    let admin_ready = state.admin_server_url().await.is_some();
+    let core_ready = state.runtime().await.is_ok();
     let versions = match VersionManager::new() {
         Ok(vm) => vm.list_installed().await.unwrap_or_default(),
         Err(err) => {
@@ -207,10 +209,10 @@ pub(crate) async fn build_tray_menu(
         &[&autostart_item, &open_webui_item, &tun_item],
     )?;
     let sync_submenu = build_sync_submenu(app, state, &lang).await?;
+    let advanced_submenu = build_advanced_submenu(app, &lang, admin_ready, core_ready)?;
     let proxy_item = MenuItem::with_id(app, "system-proxy", format!("{}: {}", lang.tr("system_proxy"), lang.tr("disabled")),
     true, None::<&str>)?;
     let show_item = MenuItem::with_id(app, "show", lang.tr("open_browser"), true, None::<&str>)?;
-    let config_item = MenuItem::with_id(app, "config-manager", lang.tr("open_config_manager"), true, None::<&str>)?;
     let sep3 = PredefinedMenuItem::separator(app)?;
 
     // Group 4: Runtime Control
@@ -232,7 +234,7 @@ pub(crate) async fn build_tray_menu(
             // Group 2
             &admin_privilege_item, &restart_admin_item, &factory_reset_item, &sep2,
             // Group 3
-            &core_submenu, &settings_submenu, &sync_submenu, &proxy_item, &show_item, &config_item, &sep3,
+            &core_submenu, &settings_submenu, &sync_submenu, &advanced_submenu, &proxy_item, &show_item, &sep3,
             // Group 4
             &mode_submenu, &profile_switch_submenu, &proxy_groups_submenu, &sep4,
             // Group 5
@@ -261,7 +263,7 @@ pub(crate) async fn build_tray_menu(
 }
 
 async fn build_about_submenu(app: &AppHandle, state: &AppState, lang: &Lang<'_>) -> tauri::Result<Submenu<Wry>> {
-    let app_version = format!("Mihomo-Despicable-Infiltrator v{}", env!("CARGO_PKG_VERSION"));
+    let app_version = format!("MusicFrog-Despicable-Infiltrator v{}", env!("CARGO_PKG_VERSION"));
     let sdk_version = "mihomo-sdk (workspace)";
     
     let core_version = if let Ok(runtime) = state.runtime().await {
@@ -692,6 +694,65 @@ fn truncate_label(value: &str, max_chars: usize) -> String {
     let mut truncated: String = chars.into_iter().take(take_len).collect();
     truncated.push_str("...");
     truncated
+}
+
+fn build_advanced_submenu(
+    app: &AppHandle,
+    lang: &Lang<'_>,
+    admin_ready: bool,
+    core_ready: bool,
+) -> tauri::Result<Submenu<Wry>> {
+    let enabled = admin_ready && core_ready;
+    let open_item = MenuItem::with_id(
+        app,
+        "config-open-manager",
+        lang.tr("open_config_manager"),
+        admin_ready,
+        None::<&str>,
+    )?;
+    let dns_item = MenuItem::with_id(
+        app,
+        "dns-open-settings",
+        lang.tr("dns_settings"),
+        enabled,
+        None::<&str>,
+    )?;
+    let fake_ip_item = MenuItem::with_id(
+        app,
+        "fake-ip-open-settings",
+        lang.tr("fake_ip_settings"),
+        enabled,
+        None::<&str>,
+    )?;
+    let fake_ip_flush_item = MenuItem::with_id(
+        app,
+        "fake-ip-flush",
+        lang.tr("fake_ip_flush"),
+        enabled,
+        None::<&str>,
+    )?;
+    let rules_item = MenuItem::with_id(
+        app,
+        "rules-open-settings",
+        lang.tr("rules_settings"),
+        enabled,
+        None::<&str>,
+    )?;
+    let tun_item = MenuItem::with_id(
+        app,
+        "tun-open-settings",
+        lang.tr("tun_settings"),
+        enabled,
+        None::<&str>,
+    )?;
+    let sep = PredefinedMenuItem::separator(app)?;
+
+    Submenu::with_items(
+        app,
+        lang.tr("advanced_settings"),
+        true,
+        &[&open_item, &sep, &dns_item, &fake_ip_item, &fake_ip_flush_item, &rules_item, &tun_item],
+    )
 }
 
 async fn build_sync_submenu(

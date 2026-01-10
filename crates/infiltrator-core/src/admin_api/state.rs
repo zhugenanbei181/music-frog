@@ -91,7 +91,7 @@ pub struct AdminApiState<C> {
 impl<C: AdminApiContext> AdminApiState<C> {
     pub fn new(ctx: C) -> Self {
         let http_client = Client::builder()
-            .user_agent("Mihomo-Despicable-Infiltrator")
+            .user_agent("MusicFrog-Despicable-Infiltrator")
             .timeout(Duration::from_secs(30))
             .build()
             .unwrap_or_else(|err| {
@@ -99,7 +99,7 @@ impl<C: AdminApiContext> AdminApiState<C> {
                 Client::new()
             });
         let raw_http_client = Client::builder()
-            .user_agent("Mihomo-Despicable-Infiltrator")
+            .user_agent("MusicFrog-Despicable-Infiltrator")
             .timeout(Duration::from_secs(30))
             .no_gzip()
             .no_brotli()

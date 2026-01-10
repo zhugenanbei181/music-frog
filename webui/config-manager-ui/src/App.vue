@@ -71,6 +71,43 @@
               @sync-now="performSyncNow"
             />
           </div>
+
+          <div class="grid gap-6 md:grid-cols-2">
+            <div ref="dnsSection" id="dns">
+              <DnsPanel
+                v-model="dnsConfig"
+                @save="saveDnsConfig"
+                @refresh="refreshDnsConfig"
+              />
+            </div>
+            <div ref="fakeIpSection" id="fake-ip">
+              <FakeIpPanel
+                v-model="fakeIpConfig"
+                @save="saveFakeIpConfig"
+                @refresh="refreshFakeIpConfig"
+                @flush="flushFakeIpCache"
+              />
+            </div>
+          </div>
+
+          <div class="grid gap-6 md:grid-cols-2">
+            <div ref="rulesSection" id="rules">
+              <RulesPanel
+                v-model:rules="rules"
+                v-model:providers-json="ruleProvidersJson"
+                @save-rules="saveRules"
+                @save-providers="saveRuleProviders"
+                @refresh="refreshRulesAndProviders"
+              />
+            </div>
+            <div ref="tunSection" id="tun">
+              <TunPanel
+                v-model="tunConfig"
+                @save="saveTunConfig"
+                @refresh="refreshTunConfig"
+              />
+            </div>
+          </div>
         </section>
       </main>
     </div>
@@ -84,7 +121,17 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api } from './api';
-import type { ProfileInfo } from './types';
+import type { ProfileInfo, WebDavConfig } from './types';
+import { useAdvancedSettings } from './composables/useAdvancedSettings';
+import { useBusyState } from './composables/useBusyState';
+import { useCoreManager } from './composables/useCoreManager';
+import { useEditorSettings } from './composables/useEditorSettings';
+import { usePanelNavigator } from './composables/usePanelNavigator';
+import { useProfileManager } from './composables/useProfileManager';
+import { useRebuildWatcher } from './composables/useRebuildWatcher';
+import { useSettings } from './composables/useSettings';
+import { useToasts } from './composables/useToasts';
+import { useWebDavSync } from './composables/useWebDavSync';
 import StatusHeader from './components/StatusHeader.vue';
 import ProfilesPanel from './components/ProfilesPanel.vue';
 import ImportSubscriptionPanel from './components/ImportSubscriptionPanel.vue';
@@ -93,6 +140,10 @@ import EditorPanel from './components/EditorPanel.vue';
 import CorePanel from './components/CorePanel.vue';
 import EditorSettingsPanel from './components/EditorSettingsPanel.vue';
 import SyncSettingsPanel from './components/SyncSettingsPanel.vue';
+import DnsPanel from './components/DnsPanel.vue';
+import FakeIpPanel from './components/FakeIpPanel.vue';
+import RulesPanel from './components/RulesPanel.vue';
+import TunPanel from './components/TunPanel.vue';
 import BusyOverlay from './components/BusyOverlay.vue';
 import ToastList from './components/ToastList.vue';
 
@@ -103,82 +154,106 @@ const status = reactive({
   detail: t('app.ready_detail'),
 });
 
-const profiles = ref<ProfileInfo[]>([]);
-const profileFilter = ref('');
-const coreVersions = ref<string[]>([]);
-const coreCurrent = ref<string | null>(null);
+const { toasts, pushToast } = useToasts();
+const { busy, busyMessage, busyDetail, startBusy, updateBusyDetail, endBusy } = useBusyState();
+const { waitForRebuild } = useRebuildWatcher(updateBusyDetail);
+const { editorPath, webdav, refreshSettings } = useSettings(pushToast);
 const editorSection = ref<InstanceType<typeof EditorPanel> | null>(null);
+const dnsSection = ref<HTMLElement | null>(null);
+const fakeIpSection = ref<HTMLElement | null>(null);
+const rulesSection = ref<HTMLElement | null>(null);
+const tunSection = ref<HTMLElement | null>(null);
 
-const importForm = reactive({
-  name: '',
-  url: '',
-  activate: false,
+usePanelNavigator({
+  dns: dnsSection,
+  'fake-ip': fakeIpSection,
+  rules: rulesSection,
+  tun: tunSection,
 });
 
-const localForm = reactive({
-  name: '',
-  file: null as File | null,
-  activate: false,
-});
-
-const editor = reactive({
-  name: '',
-  content: '',
-  activate: false,
-});
-
-const editorPath = ref('');
-
-const webdav = reactive<WebDavConfig>({
-  enabled: false,
-  url: '',
-  username: '',
-  password: '',
-  sync_interval_mins: 60,
-  sync_on_startup: false,
-});
-
-const toasts = ref<Array<{ id: number; message: string; tone: 'info' | 'error' }>>([]);
-let toastCounter = 0;
-const busy = ref(false);
-const busyMessage = ref('');
-const busyDetail = ref('');
-
-const activeCount = computed(() => profiles.value.filter((profile) => profile.active).length);
-
-function pushToast(message: string, tone: 'info' | 'error' = 'info') {
-  const id = ++toastCounter;
-  toasts.value.push({ id, message, tone });
-  setTimeout(() => {
-    toasts.value = toasts.value.filter((toast) => toast.id !== id);
-  }, 4200);
+function scrollToEditor() {
+  const element = editorSection.value?.$el as HTMLElement | undefined;
+  element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+const {
+  profiles,
+  profileFilter,
+  importForm,
+  localForm,
+  editor,
+  activeCount,
+  refreshProfiles,
+  loadProfile,
+  openExternal,
+  switchProfile,
+  clearProfiles,
+  importProfile,
+  onLocalFileChange,
+  importLocal,
+  saveProfile,
+  deleteProfile,
+  updateSubscription,
+  updateSubscriptionNow,
+  resetEditor,
+} = useProfileManager({
+  busy,
+  setStatus,
+  pushToast,
+  waitForRebuild,
+  scrollToEditor,
+});
+
+const { coreVersions, coreCurrent, refreshCoreVersions, activateCore } = useCoreManager(
+  setStatus,
+  pushToast,
+  waitForRebuild,
+  {
+    busy,
+    startBusy,
+    updateBusyDetail,
+    endBusy,
+  },
+);
+
+const { saveEditorConfig, pickEditorPath, resetEditorConfig } = useEditorSettings(
+  editorPath,
+  setStatus,
+  pushToast,
+);
+
+const { saveSyncConfig, testSync, performSyncNow } = useWebDavSync(
+  webdav,
+  { startBusy, endBusy },
+  pushToast,
+  refreshProfiles,
+);
+const {
+  dnsConfig,
+  fakeIpConfig,
+  tunConfig,
+  rules,
+  ruleProvidersJson,
+  refreshDnsConfig,
+  refreshFakeIpConfig,
+  refreshRulesAndProviders,
+  refreshTunConfig,
+  saveDnsConfig,
+  saveFakeIpConfig,
+  flushFakeIpCache,
+  saveRuleProviders,
+  saveRules,
+  saveTunConfig,
+} = useAdvancedSettings(pushToast, {
+  busy,
+  startBusy,
+  updateBusyDetail,
+  endBusy,
+});
 
 function setStatus(message: string, detail = '') {
   status.message = message;
   status.detail = detail || ' ';
-}
-
-function startBusy(message: string, detail: string) {
-  busy.value = true;
-  busyMessage.value = message;
-  busyDetail.value = detail;
-}
-
-function updateBusyDetail(detail: string) {
-  if (busy.value) {
-    busyDetail.value = detail;
-  }
-}
-
-function endBusy() {
-  busy.value = false;
-  busyMessage.value = '';
-  busyDetail.value = '';
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function toggleLanguage() {
@@ -194,441 +269,18 @@ async function toggleLanguage() {
   }
 }
 
-async function waitForRebuild(label: string) {
-  const timeoutMs = 120_000;
-  const start = Date.now();
-  while (true) {
-    let status;
-    try {
-      status = await api.getRebuildStatus();
-    } catch (err) {
-      const message = (err as Error).message || String(err);
-      const elapsed = Date.now() - start;
-      if (elapsed > timeoutMs) {
-        throw new Error(t('app.timeout_wait', { label, message }));
-      }
-      updateBusyDetail(t('app.timeout_retry', { message }));
-      await sleep(1200);
-      continue;
-    }
-    if (!status.in_progress) {
-      if (status.last_error) {
-        throw new Error(status.last_error);
-      }
-      return;
-    }
-    const elapsed = Date.now() - start;
-    if (elapsed > timeoutMs) {
-      throw new Error(t('app.timeout_generic', { label }));
-    }
-    const reason = status.last_reason ? t('app.restarting_reason', { reason: status.last_reason }) : t('app.restarting');
-    updateBusyDetail(reason);
-    await sleep(1200);
-  }
-}
 
-async function refreshProfiles(silent = false) {
-  try {
-    const list = await api.listProfiles();
-    profiles.value = list.sort((a, b) => a.name.localeCompare(b.name));
-    if (!silent) {
-      setStatus(t('app.profiles_updated_title'), t('app.profiles_updated_msg', { count: profiles.value.length }));
-    }
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    if (!silent) {
-      setStatus(t('app.load_profiles_failed'), message);
-    }
-    pushToast(message, 'error');
-  }
-}
-
-async function refreshCoreVersions(silent = false) {
-  try {
-    const data = await api.listCoreVersions();
-    coreVersions.value = data.versions;
-    coreCurrent.value = data.current || null;
-    if (!silent) {
-      setStatus(t('app.core_refreshed'), data.current ? t('app.core_current', { version: data.current }) : t('app.core_default'));
-    }
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    if (!silent) {
-      setStatus(t('app.load_core_failed'), message);
-    }
-    pushToast(message, 'error');
-  }
-}
-
-async function refreshSettings() {
-  try {
-    const data = await api.getAppSettings();
-    editorPath.value = data.editor_path || '';
-    if (data.language) {
-      locale.value = data.language;
-    }
-    if (data.webdav) {
-      Object.assign(webdav, data.webdav);
-    }
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    pushToast(message, 'error');
-  }
-}
-
-async function saveSyncConfig() {
-  try {
-    await api.saveAppSettings({ webdav: { ...webdav } });
-    pushToast(t('settings.save_success') || t('common.save_success'));
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    pushToast(message, 'error');
-  }
-}
-
-async function testSync() {
-  startBusy(t('sync.test_conn'), t('sync.testing_detail') || '...');
-  try {
-    await api.testWebDav({ ...webdav });
-    pushToast(t('sync.test_success'));
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    pushToast(t('sync.test_failed') + ': ' + message, 'error');
-  } finally {
-    endBusy();
-  }
-}
-
-async function performSyncNow() {
-  startBusy(t('sync.sync_now_btn'), t('sync.syncing_detail') || '...');
-  try {
-    const result = await api.syncWebDavNow();
-    if (result.total_actions === 0) {
-      pushToast(t('sync.sync_no_changes') || t('sync.sync_success'));
-    } else {
-      const msg = t('sync.sync_summary', { 
-        success: result.success_count, 
-        failed: result.failed_count 
-      }) || `${t('sync.sync_success')}: ${result.success_count} synced`;
-      pushToast(msg, result.failed_count > 0 ? 'warning' : 'success');
-    }
-    await refreshProfiles(true);
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    pushToast(t('sync.sync_failed') + ': ' + message, 'error');
-  } finally {
-    endBusy();
-  }
-}
 
 async function refreshAll(silent = false) {
-  await Promise.all([refreshProfiles(silent), refreshCoreVersions(silent), refreshSettings()]);
-}
-
-async function loadProfile(name: string) {
-  try {
-    const detail = await api.getProfile(name);
-    editor.name = detail.name;
-    editor.content = detail.content;
-    editor.activate = detail.active;
-    const element = editorSection.value?.$el as HTMLElement | undefined;
-    element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setStatus(t('app.profile_loaded'), detail.name);
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    pushToast(message, 'error');
-  }
-}
-
-async function openExternal(name: string) {
-  if (!name) {
-    pushToast(t('app.select_profile_hint'), 'error');
-    return;
-  }
-  try {
-    await api.openProfile(name);
-    setStatus(t('app.external_opened'), name);
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    pushToast(message, 'error');
-  }
-}
-
-async function switchProfile(name: string) {
-  if (busy.value) {
-    return;
-  }
-  startBusy(t('app.switching_busy'), t('app.switching_detail', { name }));
-  try {
-    const result = await api.switchProfile(name);
-    setStatus(t('app.switch_status'), t('app.switching_detail', { name: result.profile.name }));
-    if (result.rebuild_scheduled) {
-      updateBusyDetail(t('app.switch_rebuild'));
-      await waitForRebuild(t('app.switch_status'));
-    }
-    setStatus(t('app.switch_success'), result.profile.name);
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    setStatus(t('app.switch_failed'), message);
-    pushToast(message, 'error');
-  } finally {
-    await refreshProfiles(true);
-    endBusy();
-  }
-}
-
-async function clearProfiles() {
-  if (busy.value) {
-    return;
-  }
-  const confirmed = window.confirm(t('app.clear_confirm'));
-  if (!confirmed) {
-    return;
-  }
-  startBusy(t('app.clearing_busy'), t('app.clearing_detail'));
-  try {
-    const result = await api.clearProfiles();
-    resetEditor();
-    setStatus(t('app.clear_success'), result.profile.name);
-    if (result.rebuild_scheduled) {
-      updateBusyDetail(t('app.switch_rebuild'));
-      await waitForRebuild(t('app.clearing_busy'));
-    }
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    setStatus(t('app.clear_failed'), message);
-    pushToast(message, 'error');
-  } finally {
-    await refreshProfiles(true);
-    endBusy();
-  }
-}
-
-async function importProfile() {
-  if (!importForm.name.trim() || !importForm.url.trim()) {
-    pushToast(t('app.import_missing_info'), 'error');
-    return;
-  }
-  if (busy.value) {
-    return;
-  }
-  startBusy(t('app.importing_busy'), t('app.importing_detail', { name: importForm.name.trim() }));
-  try {
-    const result = await api.importProfile(importForm.name.trim(), importForm.url.trim(), importForm.activate);
-    importForm.url = '';
-    importForm.name = '';
-    setStatus(t('app.import_success'), result.profile.name);
-    if (result.rebuild_scheduled) {
-      updateBusyDetail(t('app.switch_rebuild'));
-      await waitForRebuild(t('app.importing_busy'));
-    }
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    setStatus(t('app.import_failed'), message);
-    pushToast(message, 'error');
-  } finally {
-    await refreshProfiles(true);
-    endBusy();
-  }
-}
-
-function onLocalFileChange(file: File | null) {
-  localForm.file = file;
-  if (file && !localForm.name.trim()) {
-    localForm.name = file.name.replace(/\.[^/.]+$/, '');
-  }
-}
-
-async function importLocal() {
-  if (!localForm.file) {
-    pushToast(t('app.file_missing'), 'error');
-    return;
-  }
-  if (busy.value) {
-    return;
-  }
-  const name = localForm.name.trim() || localForm.file.name.replace(/\.[^/.]+$/, '');
-  startBusy(t('app.saving_local_busy'), t('app.saving_local_detail', { name }));
-  try {
-    const content = await localForm.file.text();
-    if (!content.trim()) {
-      throw new Error(t('app.file_empty'));
-    }
-    const result = await api.saveProfile(name, content, localForm.activate);
-    setStatus(t('app.save_local_success'), result.profile.name);
-    if (result.rebuild_scheduled) {
-      updateBusyDetail(t('app.switch_rebuild'));
-      await waitForRebuild(t('app.saving_local_busy'));
-    }
-    localForm.file = null;
-    localForm.name = '';
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    setStatus(t('app.save_local_failed'), message);
-    pushToast(message, 'error');
-  } finally {
-    await refreshProfiles(true);
-    endBusy();
-  }
-}
-
-async function saveProfile() {
-  if (!editor.name.trim()) {
-    pushToast(t('app.name_empty'), 'error');
-    return;
-  }
-  if (!editor.content.trim()) {
-    pushToast(t('app.content_empty'), 'error');
-    return;
-  }
-  if (busy.value) {
-    return;
-  }
-  startBusy(t('app.saving_busy'), t('app.saving_detail', { name: editor.name.trim() }));
-  try {
-    const result = await api.saveProfile(editor.name.trim(), editor.content, editor.activate);
-    setStatus(t('app.save_success'), result.profile.name);
-    if (result.profile.controller_url) {
-      pushToast(t('app.controller_info', { url: result.profile.controller_url }));
-    }
-    if (result.rebuild_scheduled) {
-      updateBusyDetail(t('app.switch_rebuild'));
-      await waitForRebuild(t('app.saving_busy'));
-    }
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    setStatus(t('app.save_failed'), message);
-    pushToast(message, 'error');
-  } finally {
-    await refreshProfiles(true);
-    endBusy();
-  }
-}
-
-async function deleteProfile(name: string) {
-  const confirmation = window.prompt(t('app.delete_confirm', { name }));
-  if (confirmation !== name) {
-    return;
-  }
-  try {
-    await api.deleteProfile(name);
-    setStatus(t('app.delete_success'), name);
-    if (editor.name === name) {
-      resetEditor();
-    }
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    pushToast(message, 'error');
-  } finally {
-    await refreshProfiles(true);
-  }
-}
-
-async function updateSubscription(payload: {
-  name: string;
-  url: string;
-  auto_update_enabled: boolean;
-  update_interval_hours?: number | null;
-}) {
-  if (busy.value) {
-    return;
-  }
-  startBusy(t('app.save_sub_busy'), t('app.save_sub_detail', { name: payload.name }));
-  try {
-    await api.setProfileSubscription(payload.name, {
-      url: payload.url,
-      auto_update_enabled: payload.auto_update_enabled,
-      update_interval_hours: payload.update_interval_hours ?? null,
-    });
-    setStatus(t('app.save_sub_success'), payload.name);
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    setStatus(t('app.save_sub_failed'), message);
-    pushToast(message, 'error');
-  } finally {
-    await refreshProfiles(true);
-    endBusy();
-  }
-}
-
-async function updateSubscriptionNow(name: string) {
-  if (busy.value) {
-    return;
-  }
-  startBusy(t('app.update_sub_busy'), t('app.update_sub_detail', { name }));
-  try {
-    const result = await api.updateProfileNow(name);
-    setStatus(t('app.update_sub_success'), result.profile.name);
-    if (result.rebuild_scheduled) {
-      updateBusyDetail(t('app.switch_rebuild'));
-      await waitForRebuild(t('app.update_sub_busy'));
-    }
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    setStatus(t('app.update_sub_failed'), message);
-    pushToast(message, 'error');
-  } finally {
-    await refreshProfiles(true);
-    endBusy();
-  }
-}
-
-function resetEditor() {
-  editor.name = '';
-  editor.content = '';
-  editor.activate = false;
-  setStatus(t('app.new_profile_ready'), t('app.new_profile_detail'));
-}
-
-async function saveEditorConfig() {
-  try {
-    await api.saveAppSettings({ editor_path: editorPath.value.trim() || null });
-    setStatus(t('app.editor_saved'), editorPath.value || t('app.editor_auto'));
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    pushToast(message, 'error');
-  }
-}
-
-async function pickEditorPath() {
-  try {
-    const data = await api.pickEditor();
-    if (data.editor) {
-      editorPath.value = data.editor;
-      setStatus(t('app.editor_picked'), data.editor);
-    } else {
-      pushToast(t('app.editor_cancelled'));
-    }
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    pushToast(message, 'error');
-  }
-}
-
-async function resetEditorConfig() {
-  editorPath.value = '';
-  await saveEditorConfig();
-}
-
-async function activateCore(version: string) {
-  if (busy.value) {
-    return;
-  }
-  startBusy(t('app.switch_core_busy'), t('app.switch_core_detail', { version }));
-  try {
-    await api.activateCoreVersion(version);
-    setStatus(t('app.switch_core_status'), t('app.switch_core_detail', { version }));
-    updateBusyDetail(t('app.switch_rebuild'));
-    await waitForRebuild(t('app.switch_core_busy'));
-    setStatus(t('app.switch_core_success'), version);
-  } catch (err) {
-    const message = (err as Error).message || String(err);
-    setStatus(t('app.switch_core_failed'), message);
-    pushToast(message, 'error');
-  } finally {
-    await refreshCoreVersions(true);
-    endBusy();
-  }
+  await Promise.all([
+    refreshProfiles(silent),
+    refreshCoreVersions(silent),
+    refreshSettings(),
+    refreshDnsConfig(silent),
+    refreshFakeIpConfig(silent),
+    refreshRulesAndProviders(silent),
+    refreshTunConfig(silent),
+  ]);
 }
 
 onMounted(() => {

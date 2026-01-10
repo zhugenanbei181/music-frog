@@ -52,6 +52,12 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "disabled" => "已关闭".into(),
         "open_browser" => "打开浏览器".into(),
         "open_config_manager" => "打开配置管理".into(),
+        "advanced_settings" => "高级设置".into(),
+        "dns_settings" => "DNS 设置".into(),
+        "fake_ip_settings" => "Fake-IP 设置".into(),
+        "fake_ip_flush" => "清理 Fake-IP 缓存".into(),
+        "rules_settings" => "规则集设置".into(),
+        "tun_settings" => "TUN 高级设置".into(),
         
         // Core Group
         "core_manager" => "内核管理".into(),
@@ -175,6 +181,12 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         "disabled" => "Disabled".into(),
         "open_browser" => "Open Browser".into(),
         "open_config_manager" => "Open Config Manager".into(),
+        "advanced_settings" => "Advanced Settings".into(),
+        "dns_settings" => "DNS Settings".into(),
+        "fake_ip_settings" => "Fake-IP Settings".into(),
+        "fake_ip_flush" => "Flush Fake-IP Cache".into(),
+        "rules_settings" => "Rules Settings".into(),
+        "tun_settings" => "TUN Advanced".into(),
 
         // Core Group
         "core_manager" => "Core Manager".into(),

@@ -1,6 +1,28 @@
 # 版本记录
 
-- Unreleased – **Android 迁移基础铺设**：
+- Unreleased
+
+- 0.12.3 – **UI 优化与项目重命名**：
+  - 项目重命名为 MusicFrog Despicable Infiltrator，避免版权争议。
+  - 所有 checkbox 开关改为现代 switch 样式。
+  - PanelCard/StatusHeader 统一使用圆角阴影毛玻璃效果。
+
+- 0.12.2 – **UI 美化与 API 兼容修复**：
+  - 修复 Axum 0.8 路由参数语法（`:param` → `{param}`），解决启动 panic。
+  - PanelCard/StatusHeader 统一使用 `.panel` 样式（圆角、阴影、毛玻璃效果）。
+  - WebDAV 配置表单始终可见，开关仅控制功能启用状态。
+  - AGENTS.md 新增依赖 API 变更记录章节，避免重复踩坑。
+
+- 0.12.1 – **稳定性修复**：
+  - 托盘“打开配置管理”在内核未就绪时仍可用，便于排错。
+  - 配置管理锚点解析增加容错，避免非法 hash 阻断导航。
+
+- 0.12.0 – **Android 迁移基础与高级配置**：
+  - 新增 DNS/Fake-IP/规则集/TUN 高级配置托盘入口与 Fake-IP 缓存清理。
+  - 托盘高级入口仅在内核可连接时启用（与代理规则一致）。
+  - 配置管理界面支持 hash 定位直达高级面板。
+  - Web UI 面板结构统一（PanelCard + 标题/底部组件），按钮密度与空态/辅助文字风格统一。
+  - App.vue 业务逻辑进一步下沉到 composables，表单工具与类型约束收敛。
   - mihomo-rs 引入 platform 抽象（CoreController/CredentialStore）。
   - DataDirProvider 接口占位，为 Android 目录注入做准备。
   - 新增 `apply_data_dir_override` 钩子，允许注入 Android 数据目录。
@@ -20,6 +42,11 @@
   - 文档补充兼容层移除前置条件与迁移计划约束。
   - Tauri 导入切换到新 crates，并完成根目录构建与测试。
   - 移除 `mihomo-rs` 与 `despicable-infiltrator-core` 兼容层。
+  - 新增 DNS 配置模型与管理 API（读取/更新/校验/应用）。
+  - 新增 Fake-IP 配置模型与管理 API（读取/更新/清理缓存）。
+  - 新增规则集与 Rule Providers 管理 API（列表/更新/启停/排序）。
+  - 新增 TUN 高级配置模型与管理 API（读取/更新/校验/应用）。
+  - 配置管理 UI 补齐 DNS/Fake-IP/规则集/TUN 高级配置面板。
 - 0.11.0 – **迁移切换完成**：
   - Tauri 依赖切换到新 crates（infiltrator/mihomo-*）。
   - 移除旧兼容层与遗留 workspace 依赖。
@@ -96,4 +123,3 @@
 - 0.5.7 – 外部编辑器报错更明确，删除配置/内核强提示确认。
 - 0.5.6 – 托盘内核管理支持默认内核与版本启用/删除，配置列表加入滚动。
 - 0.5.5 – 新增本地导入与外部编辑器设置，内核更新显示进度/网络状态，支持计划任务自启。
-

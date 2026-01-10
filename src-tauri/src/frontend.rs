@@ -99,14 +99,26 @@ pub(crate) fn open_frontend(state: AppState) {
 }
 
 pub(crate) fn open_admin_frontend(state: AppState) {
+    open_admin_frontend_anchor(state, None);
+}
+
+pub(crate) fn open_admin_frontend_anchor(state: AppState, anchor: Option<String>) {
     tauri::async_runtime::spawn(async move {
         match state.admin_server_url().await {
             Some(url) => {
-                if let Err(err) = open_in_browser(&url) {
+                let target = build_admin_url(&url, anchor.as_deref());
+                if let Err(err) = open_in_browser(&target) {
                     error!("打开配置管理界面失败: {err}");
                 }
             }
             None => warn!("配置管理界面尚未就绪"),
         }
     });
+}
+
+fn build_admin_url(base: &str, anchor: Option<&str>) -> String {
+    match anchor {
+        Some(value) if !value.trim().is_empty() => format!("{base}#{value}"),
+        _ => base.to_string(),
+    }
 }

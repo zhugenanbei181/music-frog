@@ -1,22 +1,24 @@
 <template>
-  <div class="card bg-base-100 shadow-xl border border-base-content/10 h-full flex flex-col">
-    <div class="card-body p-6 flex flex-col h-full">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="card-title text-xl font-bold flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-          </svg>
-          {{ t('sync.title') }}
-        </h2>
-        <input 
-          type="checkbox" 
-          class="toggle toggle-primary" 
-          :checked="modelValue.enabled" 
-          @change="updateField('enabled', ($event.target as HTMLInputElement).checked)"
-        />
-      </div>
+  <PanelCard>
+      <PanelHeader>
+        <template #title>
+          <PanelTitle :text="t('sync.title')">
+            <template #icon>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+              </svg>
+            </template>
+          </PanelTitle>
+        </template>
+        <template #actions>
+          <FormSwitch
+            :model-value="modelValue.enabled"
+            @update:model-value="updateField('enabled', $event)"
+          />
+        </template>
+      </PanelHeader>
 
-      <div class="space-y-4 flex-grow overflow-auto pr-1" v-if="modelValue.enabled">
+      <div class="space-y-4 flex-grow overflow-auto pr-1">
         <div class="form-control w-full">
           <label class="label py-1">
             <span class="label-text font-medium">{{ t('sync.url') }}</span>
@@ -64,24 +66,20 @@
               type="number" 
               class="input input-bordered w-full input-sm focus:input-primary"
               :value="modelValue.sync_interval_mins"
-              @input="updateField('sync_interval_mins', parseInt(($event.target as HTMLInputElement).value))"
+              @input="updateField('sync_interval_mins', parseNumber(($event.target as HTMLInputElement).value) ?? modelValue.sync_interval_mins)"
             />
           </div>
           <div class="form-control">
-            <label class="label cursor-pointer justify-start gap-3 py-2">
-              <input 
-                type="checkbox" 
-                class="checkbox checkbox-primary checkbox-sm" 
-                :checked="modelValue.sync_on_startup"
-                @change="updateField('sync_on_startup', ($event.target as HTMLInputElement).checked)"
-              />
-              <span class="label-text">{{ t('sync.sync_on_startup') }}</span>
-            </label>
+            <FormSwitch
+              :model-value="modelValue.sync_on_startup"
+              :label="t('sync.sync_on_startup')"
+              @update:model-value="updateField('sync_on_startup', $event)"
+            />
           </div>
         </div>
       </div>
 
-      <div class="mt-auto pt-6 flex flex-wrap gap-2 justify-end border-t border-base-content/5">
+      <PanelFooter>
         <button 
           class="btn btn-outline btn-sm gap-2" 
           @click="$emit('test')"
@@ -108,16 +106,22 @@
           </svg>
           {{ t('sync.sync_now_btn') }}
         </button>
-      </div>
-    </div>
-  </div>
+      </PanelFooter>
+  </PanelCard>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { useFormUtils } from '../composables/useFormUtils';
+import FormSwitch from './FormSwitch.vue';
+import PanelCard from './PanelCard.vue';
+import PanelFooter from './PanelFooter.vue';
+import PanelHeader from './PanelHeader.vue';
+import PanelTitle from './PanelTitle.vue';
 import type { WebDavConfig } from '../types';
 
 const { t } = useI18n();
+const { parseNumber } = useFormUtils();
 
 const props = defineProps<{
   modelValue: WebDavConfig;

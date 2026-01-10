@@ -39,7 +39,7 @@ pub(crate) fn pick_editor_path() -> Option<String> {
 pub(crate) fn show_error_dialog(message: impl Into<String>) {
     let body = message.into();
     let result = rfd::MessageDialog::new()
-        .set_title("Mihomo Despicable Infiltrator")
+        .set_title("MusicFrog Despicable Infiltrator")
         .set_description(&body)
         .set_buttons(rfd::MessageButtons::Ok)
         .set_level(rfd::MessageLevel::Error)

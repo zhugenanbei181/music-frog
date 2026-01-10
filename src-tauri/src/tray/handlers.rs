@@ -11,7 +11,7 @@ use crate::{
     autostart::{is_autostart_enabled, set_autostart_enabled},
     core_update::{delete_core_version, switch_core_version, update_mihomo_core},
     factory_reset::factory_reset,
-    frontend::{open_admin_frontend, open_frontend},
+    frontend::{open_admin_frontend, open_admin_frontend_anchor, open_frontend},
     locales::Localizer,
     platform::{confirm_dialog, is_running_as_admin, restart_as_admin, show_error_dialog},
     runtime::rebuild_runtime,
@@ -32,6 +32,21 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
         }
         "config-manager" => {
             open_admin_frontend(state_clone);
+        }
+        "config-open-manager" => {
+            open_admin_frontend_anchor(state_clone, None);
+        }
+        "dns-open-settings" => {
+            open_admin_frontend_anchor(state_clone, Some("dns".to_string()));
+        }
+        "fake-ip-open-settings" => {
+            open_admin_frontend_anchor(state_clone, Some("fake-ip".to_string()));
+        }
+        "rules-open-settings" => {
+            open_admin_frontend_anchor(state_clone, Some("rules".to_string()));
+        }
+        "tun-open-settings" => {
+            open_admin_frontend_anchor(state_clone, Some("tun".to_string()));
         }
         "system-proxy" => {
             tauri::async_runtime::spawn(async move {
@@ -250,6 +265,22 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
         }
         "webdav-sync-settings" => {
             open_admin_frontend(state_clone);
+        }
+        "fake-ip-flush" => {
+            tauri::async_runtime::spawn(async move {
+                match infiltrator_core::fake_ip::clear_fake_ip_cache().await {
+                    Ok(removed) => {
+                        if removed {
+                            log::info!("fake-ip cache cleared");
+                        } else {
+                            log::info!("fake-ip cache not found");
+                        }
+                    }
+                    Err(err) => {
+                        show_error_dialog(format!("清理 Fake-IP 缓存失败: {err:#}"));
+                    }
+                }
+            });
         }
         "quit" => {
             app_handle.exit(0);
