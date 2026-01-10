@@ -22,13 +22,13 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
 
       # 2. 再装 Node，并开启缓存
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       # 3. Rust 环境保持不变
       - name: Setup Rust toolchain
