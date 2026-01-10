@@ -1,0 +1,49 @@
+name: release-msi
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-msi:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "8"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build config-manager UI
+        run: pnpm --dir webui/config-manager-ui build
+
+      - name: Build MSI
+        env:
+          TAURI_BUNDLER: msi
+        run: pnpm build
+
+      - name: Upload MSI to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/bundle/msi/*.msi
