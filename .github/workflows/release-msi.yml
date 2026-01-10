@@ -11,55 +11,86 @@ permissions:
 jobs:
   build-msi:
     runs-on: windows-latest
+
     steps:
-      - name: Checkout (local)
-        env:
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          git clone --depth 1 --branch $env:GITHUB_REF_NAME https://x-access-token:$env:GITHUB_TOKEN@github.com/$env:GITHUB_REPOSITORY.git .
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: Ensure Node.js
-        run: |
-          $node = Get-Command node -ErrorAction SilentlyContinue
-          if (-not $node) {
-            choco install nodejs --version=20.11.1 -y
-          }
-          node --version
-          corepack enable
-          corepack prepare pnpm@8 --activate
-          pnpm --version
+      # Node + pnpm（官方方式，稳定且可缓存）
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
 
-      - name: Ensure Rust
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      # Rust（稳定装工具链）
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # Cargo 缓存（加速）
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      # pnpm store 缓存（actions/setup-node 的 pnpm cache 有时够用，但这层更稳）
+      - name: Get pnpm store path
+        id: pnpm-store
+        shell: pwsh
         run: |
-          $rustc = Get-Command rustc -ErrorAction SilentlyContinue
-          if (-not $rustc) {
-            Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
-            .\rustup-init.exe -y --default-toolchain stable
-            $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
-          }
-          rustc -V
-          cargo -V
+          $path = pnpm store path
+          "STORE_PATH=$path" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
+        shell: pwsh
         run: pnpm install --frozen-lockfile
 
       - name: Build config-manager UI
+        shell: pwsh
         run: pnpm --dir webui/config-manager-ui build
 
       - name: Build MSI
+        shell: pwsh
         env:
           TAURI_BUNDLER: msi
         run: pnpm build
 
+      # 确保 gh 存在（兜底）
+      - name: Ensure GitHub CLI (gh)
+        shell: pwsh
+        run: |
+          $gh = Get-Command gh -ErrorAction SilentlyContinue
+          if (-not $gh) {
+            choco install gh -y
+          }
+          gh --version
+
       - name: Upload MSI to Release
+        shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           $tag = $env:GITHUB_REF_NAME
           $msi = Get-ChildItem target\release\bundle\msi\*.msi | Select-Object -First 1
           if (-not $msi) {
             throw "MSI not found in target/release/bundle/msi"
           }
+
+          gh auth status
+
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag $msi.FullName --generate-notes
