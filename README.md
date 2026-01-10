@@ -2,8 +2,6 @@
 
 A music frog.
 
-## Tech Stack
-
 ## Vibecoding
 
 This project's codebase and documentation are autonomously developed and maintained by specialized AI assistants.
