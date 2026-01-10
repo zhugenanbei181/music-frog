@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use tauri::{async_runtime, AppHandle};
 
 use crate::{app_state::AppState, platform, runtime::rebuild_runtime};
-use despicable_infiltrator_core::{admin_api::AdminApiContext, AppSettings};
+use infiltrator_desktop::editor;
+use infiltrator_core::{admin_api::AdminApiContext, AppSettings};
 
 #[derive(Clone)]
 pub(crate) struct TauriAdminContext {
@@ -47,6 +48,11 @@ impl AdminApiContext for TauriAdminContext {
         async_runtime::spawn_blocking(platform::pick_editor_path)
             .await
             .unwrap_or(None)
+    }
+
+    async fn open_profile_in_editor(&self, profile_name: &str) -> anyhow::Result<()> {
+        let editor_path = self.app_state.editor_path().await;
+        editor::open_profile_in_editor(editor_path, profile_name).await
     }
 
     async fn get_app_settings(&self) -> AppSettings {

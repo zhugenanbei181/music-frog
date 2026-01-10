@@ -22,11 +22,13 @@
 - **内核配置**: `%USERPROFILE%\.config\mihomo-rs\configs`
 - **WebDAV 状态数据库**: `%USERPROFILE%\.config\mihomo-rs\sync_state.db`
 - **Mihomo 日志**: `%USERPROFILE%\.config\mihomo-rs\logs\mihomo.log`
-- **应用日志**: `%LOCALAPPDATA%\com.mihomo.despicable-infiltrator\logs\Mihomo-Despicable-Infiltrator.log`
+- **订阅存储**: 桌面端链接存入系统凭据管理器 (`Mihomo-Despicable-Infiltrator`)，已通过 `CredentialStore` 抽象为 Android 迁移预留。
+- **目录注入**: 通过 `DataDirProvider`/`apply_data_dir_override` 允许 Android 在启动时注入数据目录。
+- **迁移状态**: 已完成 mihomo-api/mihomo-config/mihomo-version 迁移基线，infiltrator-core/infiltrator-desktop 已改用新 crates，Tauri 导入已切换到新 crates，兼容层已移除。
 
 ## 行为规范
 
-- **订阅存储**: 链接存入系统凭据管理器 (`Mihomo-Despicable-Infiltrator`)。
+- **订阅存储**: 桌面端链接存入系统凭据管理器 (`Mihomo-Despicable-Infiltrator`)，已通过 `CredentialStore` 抽象为 Android 迁移预留。
 - **配置清空**: 删除所有配置并恢复默认，重置端口。
 - **出厂设置**: 清除所有配置、日志、已下载内核及应用设置，重启服务。
 - **开机自启**: 使用 Windows 计划任务 (`MihomoDespicableInfiltrator`)，需管理员权限。
@@ -35,3 +37,4 @@
   - 冲突文件保存为 `.remote-bak-{timestamp}` 便于手动处理
   - 使用 `.sync-tmp` 临时文件确保原子写入
   - 基于 ETag 机制防止并发冲突
+

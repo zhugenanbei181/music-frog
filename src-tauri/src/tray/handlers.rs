@@ -1,10 +1,10 @@
 use anyhow::anyhow;
 use log::warn;
-use mihomo_rs::config::ConfigManager;
+use mihomo_config::ConfigManager;
 use tauri::{menu::MenuEvent, AppHandle, Manager};
 use tokio::time::Duration;
 use chrono::{Duration as ChronoDuration, Utc};
-use despicable_infiltrator_core::profiles as core_profiles;
+use infiltrator_core::profiles as core_profiles;
 
 use crate::{
     app_state::AppState,
@@ -58,7 +58,13 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
             let app_cloned = app.clone();
             tokio::spawn(async move {
                 let state = app_cloned.state::<AppState>();
-                let ctx = state.ctx_as_admin();
+                let ctx = match state.ctx_as_admin() {
+                    Ok(ctx) => ctx,
+                    Err(err) => {
+                        show_error_dialog(format!("订阅更新失败: {err:#}"));
+                        return;
+                    }
+                };
                 
                 // Notify start
                 state.notify_subscription_update_start().await;
@@ -66,7 +72,7 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                 let client = reqwest::Client::new();
                 let raw_client = reqwest::Client::new();
                 
-                match despicable_infiltrator_core::scheduler::subscription::update_all_subscriptions(
+                match infiltrator_core::scheduler::subscription::update_all_subscriptions(
                     &ctx,
                     &client,
                     &raw_client,
@@ -222,7 +228,14 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                     show_error_dialog(lang.tr("webdav_sync_disabled").into_owned());
                     return;
                 }
-                match despicable_infiltrator_core::scheduler::sync::run_sync_tick(&state_clone.ctx_as_admin(), &settings.webdav).await {
+                let ctx = match state_clone.ctx_as_admin() {
+                    Ok(ctx) => ctx,
+                    Err(err) => {
+                        show_error_dialog(format!("WebDAV 同步失败: {err:#}"));
+                        return;
+                    }
+                };
+                match infiltrator_core::scheduler::sync::run_sync_tick(&ctx, &settings.webdav).await {
                     Ok(summary) => {
                         state_clone.notify_webdav_sync_result(true, summary.success_count, None).await;
                         if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {

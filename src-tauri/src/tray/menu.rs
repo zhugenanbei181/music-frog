@@ -3,10 +3,10 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use despicable_infiltrator_core::profiles as core_profiles;
+use infiltrator_core::profiles as core_profiles;
 use log::warn;
-use mihomo_rs::core::ProxyInfo;
-use mihomo_rs::version::VersionManager;
+use mihomo_api::ProxyInfo;
+use mihomo_version::VersionManager;
 use tauri::{
     include_image,
     menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
@@ -262,7 +262,7 @@ pub(crate) async fn build_tray_menu(
 
 async fn build_about_submenu(app: &AppHandle, state: &AppState, lang: &Lang<'_>) -> tauri::Result<Submenu<Wry>> {
     let app_version = format!("Mihomo-Despicable-Infiltrator v{}", env!("CARGO_PKG_VERSION"));
-    let sdk_version = "mihomo-rs v1.2.2";
+    let sdk_version = "mihomo-sdk (workspace)";
     
     let core_version = if let Ok(runtime) = state.runtime().await {
         match runtime.client().get_version().await {

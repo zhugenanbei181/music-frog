@@ -2,8 +2,13 @@
 resolver = "2"
 members = [
   "src-tauri",
-  "crates/mihomo-rs",
-  "crates/despicable-infiltrator-core",
+  "crates/mihomo-api",
+  "crates/mihomo-config",
+  "crates/mihomo-platform",
+  "crates/mihomo-version",
+  "crates/infiltrator-core",
+  "crates/infiltrator-desktop",
+  "crates/infiltrator-android",
   "crates/mihomo-dav-sync/dav-client",
   "crates/mihomo-dav-sync/sync-engine",
   "crates/mihomo-dav-sync/state-store",
@@ -15,12 +20,15 @@ members = [
 [workspace.dependencies]
 # Network & Async
 tokio = { version = "1.49", features = ["full"] }
-reqwest = { version = "0.13", default-features = false, features = ["native-tls", "json", "socks"] }
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "json", "socks", "stream"] }
 url = "2.5"
 
 # Data Handling
 quick-xml = { version = "0.37", features = ["serialize", "async-tokio"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono"] }
+axum = "0.8"
+brotli = "8.0"
+tower-http = { version = "0.6", features = ["fs"] }
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4.42", features = ["serde"] }
 
@@ -32,5 +40,19 @@ async-trait = "0.1"
 glob = "0.3"
 md5 = "0.7"
 
-[patch.crates-io]
-mihomo-rs = { path = "crates/mihomo-rs" }
+serde_json = "1.0"
+log = "0.4"
+toml = "0.8"
+yaml-rust2 = "0.11"
+windows-sys = { version = "0.61", features = ["Win32_System_Threading"] }
+keyring = { version = "3.6" }
+winreg = "0.55"
+
+futures-util = "0.3"
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }
+dirs = "6.0"
+flate2 = "1.0"
+zip = "2.2"
+sysinfo = "0.33"
+jni = "0.21"
+

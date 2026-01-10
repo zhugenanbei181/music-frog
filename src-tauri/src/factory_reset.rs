@@ -1,7 +1,7 @@
 use anyhow::anyhow;
-use despicable_infiltrator_core::profiles;
+use infiltrator_core::profiles;
 use log::warn;
-use mihomo_rs::core::get_home_dir;
+use mihomo_platform::get_home_dir;
 use tauri::AppHandle;
 use tokio::{fs, time::Duration};
 

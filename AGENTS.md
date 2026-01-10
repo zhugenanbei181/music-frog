@@ -15,12 +15,25 @@
     * **No Warnings**: 提交前必须确保 `cargo check --workspace` 无警告。
 
 3. **架构设计 (Architecture)**
-    * **模块化**: 业务逻辑下沉至 `crates/despicable-infiltrator-core`，Tauri 层仅负责 UI/OS 交互与编排。
+    * **模块化**: 业务逻辑下沉至 `crates/infiltrator-core`，Desktop 集成位于 `crates/infiltrator-desktop`。
     * **松耦合**: 模块间避免循环依赖，通过 Trait 或 Context 注入依赖。
 
 4. **变更管理 (Git)**
+    * **Tauri 变更**: 仅在新 crates 完整后再改动 Tauri 导入；改动导入时必须通过 Tauri 构建与测试，未改动导入不强制编译。
+    * **迁移完整性**: 新 crates 必须覆盖原 crates 的功能与行为，且 Tauri 应用功能完整可用后才允许移除兼容层。
+    * **构建位置**: 仅在仓库根目录执行构建/测试命令，避免锁定子目录。
     * **Commit Message**: 使用 Conventional Commits (如 `feat: add feature`, `fix: resolve bug`)。
     * **Documentation**: 功能变更必须同步更新 `USAGE_SPEC.md` 和 `README.md`。
+
+## 规划流程
+
+### 人话
+
+把差距整改分为两阶段：Phase A 做多端共用能力（DNS/Fake-IP/规则集/TUN 高级配置），Phase B 做 Android 专项（分应用代理/VPN Service/Core 运行模式）。每一项都明确“归属 crate + 最小里程碑”，并同步到 `TODO.md` 与 `ANDROID.md`。
+
+### AI 提示词工程
+
+你是规划执行代理。输出必须包含：功能拆分→归属 crate→最小里程碑→文档落点（`TODO.md`/`ANDROID.md`/`CHANGELOG.md`）。优先多端能力，再做 Android 专项；每一步更新文档状态并保持 Tauri 行为不变。
 
 ## 命名规范
 

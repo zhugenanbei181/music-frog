@@ -1,0 +1,28 @@
+[package]
+name = "mihomo-platform"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+log = { workspace = true }
+mihomo-api = { path = "../mihomo-api" }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+sysinfo = { workspace = true }
+dirs = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+keyring = { workspace = true, features = ["windows-native"] }
+windows-sys = { workspace = true, features = ["Win32_System_Threading"] }
+winreg = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { workspace = true, features = ["apple-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { workspace = true, features = ["linux-native"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { workspace = true }

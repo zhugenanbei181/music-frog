@@ -1,13 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Mihomo Despicable Infiltrator",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "identifier": "com.mihomo.despicable-infiltrator",
   "build": {
     "beforeDevCommand": "",
     "beforeBuildCommand": "",
     "devUrl": "app://localhost",
-    "frontendDist": "../zashboard"
+    "frontendDist": "../webui/mihomo-manager-ui"
   },
   "app": {
     "windows": []

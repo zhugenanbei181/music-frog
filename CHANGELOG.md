@@ -1,5 +1,30 @@
 # 版本记录
 
+- Unreleased – **Android 迁移基础铺设**：
+  - mihomo-rs 引入 platform 抽象（CoreController/CredentialStore）。
+  - DataDirProvider 接口占位，为 Android 目录注入做准备。
+  - 新增 `apply_data_dir_override` 钩子，允许注入 Android 数据目录。
+  - 新增目标 crates 骨架并加入工作区（Desktop 优先，Android 仅占位）。
+  - mihomo-api/mihomo-config/mihomo-version 完成迁移基线（从 mihomo-rs 拷贝实现）。
+  - infiltrator-core/infiltrator-desktop 提供分域 re-export 过渡。
+  - mihomo-rs 切换为兼容 re-export，对新 crates 进行转发。
+  - mihomo-platform 补齐 ProcessCoreController 桌面实现。
+  - infiltrator-core/infiltrator-desktop 完成文件拆分。
+  - despicable-infiltrator-core 切换为兼容 re-export。
+  - infiltrator-core 移除 mihomo-rs 依赖，改用新 crates。
+  - infiltrator-desktop 移除 mihomo-rs 依赖，改用新 crates。
+  - 清理 despicable-infiltrator-core 旧源码，保留兼容 re-export。
+  - ServiceManager 泛型化，桌面端类型别名保持兼容。
+  - ConfigManager 使用 CredentialStore 注入，订阅凭据存取解耦。
+  - 新增平台抽象相关测试（GenericServiceManager、CredentialStore）。
+  - 文档补充兼容层移除前置条件与迁移计划约束。
+  - Tauri 导入切换到新 crates，并完成根目录构建与测试。
+  - 移除 `mihomo-rs` 与 `despicable-infiltrator-core` 兼容层。
+- 0.11.0 – **迁移切换完成**：
+  - Tauri 依赖切换到新 crates（infiltrator/mihomo-*）。
+  - 移除旧兼容层与遗留 workspace 依赖。
+  - 修复管理员上下文构建时的 panic 风险。
+  - 预留 Android Bridge 接口（Core/Credential/DataDir）。
 - 0.10.0 – **WebDAV 配置同步正式发布**：
   - **WebDAV 多设备同步**：完整实现跨设备配置自动同步与云端备份功能
     - `dav-client`: 基于标准 WebDAV 协议 (PROPFIND/GET/PUT/DELETE + If-Match 条件上传)
@@ -71,3 +96,4 @@
 - 0.5.7 – 外部编辑器报错更明确，删除配置/内核强提示确认。
 - 0.5.6 – 托盘内核管理支持默认内核与版本启用/删除，配置列表加入滚动。
 - 0.5.5 – 新增本地导入与外部编辑器设置，内核更新显示进度/网络状态，支持计划任务自启。
+

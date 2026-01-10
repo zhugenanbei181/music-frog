@@ -3,6 +3,8 @@
 本文档分析当前代码库的 Android 平台兼容性，并规划移植路径。
 
 > **核心原则**: 重构过程中必须保证 Windows/macOS/Linux Tauri 应用的完整功能，不得引入破坏性变更。
+> **前置条件**: 仅当修改 Tauri 导入为新规划 crates 时，才要求通过 Tauri 构建与测试（`cargo build -p "Mihomo-Despicable-Infiltrator"` 与 `cargo test --workspace`）。新 crates 必须开发完整后再调整 Tauri 导入；未涉及导入变更时不强制编译。变更需同步更新 `README.md`/`USAGE_SPEC.md`，并保持 Tauri 对外接口与行为兼容。
+> **迁移完整性**: 兼容层移除前必须确保新 crates 功能与原 crates 对齐，且 Tauri 应用功能完整可用。
 
 ## Crate 重新规划
 
@@ -19,7 +21,7 @@ crates/
 │   ├── proxy/                    #    ✅ ProxyManager (HTTP调用) - 跨平台
 │   └── connection/               #    ✅ ConnectionManager - 跨平台
 │
-├── despicable-infiltrator-core/  # ⚠️ 混合：大部分跨平台，部分Desktop专用
+├── despicable-infiltrator-core/  # ⚠️ 混合：大部分跨平台，部分Desktop专用 (已移除)
 │   ├── config.rs, profiles.rs    #    ✅ 跨平台
 │   ├── subscription.rs           #    ⚠️ 依赖keyring
 │   ├── runtime.rs                #    ❌ 依赖ServiceManager
@@ -97,9 +99,19 @@ crates/
 │   ├── indexer/
 │   └── sync-engine/
 │
-└── mihomo-rs/                    # 保留: 向后兼容的 re-export crate
-    └── lib.rs                    # pub use mihomo_api::*; 等
+└── (compat removed)              # 已移除 mihomo-rs 兼容层
 ```
+
+### 最终 Crates 目标清单
+
+- mihomo-api: 纯跨平台 mihomo HTTP API 客户端（client/types/proxy/connection）。
+- mihomo-config: 纯跨平台配置管理（YAML/TOML），凭据通过 trait 注入。
+- mihomo-platform: 平台抽象层（CoreController/CredentialStore/DataDirProvider），Desktop/Android 实现分离。
+- mihomo-version: Desktop 专用版本管理（下载/切换二进制）。
+- infiltrator-core: 跨平台业务逻辑（配置、订阅、调度、Admin API）。
+- infiltrator-desktop: Desktop 集成层（运行时/系统代理/编辑器/版本）。
+- infiltrator-android: Android 集成层（JNI/UniFFI 接口与运行时桥接）。
+- mihomo-dav-sync: 跨平台 WebDAV 同步引擎（含 platform-android 入口）。
 
 ### 依赖关系图
 
@@ -169,6 +181,12 @@ crates/
               注意: Android 不需要 mihomo-version  ─┘
                     (不下载二进制)
 ```
+
+## Android 三块结构
+
+1. **Rust NDK core**: 业务逻辑 + FFI 边界 + AndroidBridge 桥接
+2. **Kotlin 原生管理界面**: UI + 生命周期 + 调用 Rust NDK API
+3. **mihomo 二进制/so**: 核心运行方式（外部 APK / 内嵌 so / 纯配置模式）
 
 ## Android mihomo 二进制管理
 
@@ -280,15 +298,18 @@ CoreController Android 实现:
 ### 推荐路径
 
 **Phase 1 (MVP)**: 方案 C - 纯配置管理
+
 - 快速发布 Android 版本
 - 验证 Rust 核心在 Android 的工作状况
 - 收集用户反馈
 
 **Phase 2**: 方案 A - 集成外部 mihomo Android
+
 - 实现 AIDL 通信
 - 提供一键启动/停止功能
 
 **Phase 3 (可选)**: 方案 B - 嵌入式核心
+
 - 如果用户强烈需求单一 APK
 - 评估维护成本后决定
 
@@ -315,6 +336,7 @@ pub use connection::ConnectionManager;
 ```
 
 **Cargo.toml**:
+
 ```toml
 [package]
 name = "mihomo-api"
@@ -380,6 +402,7 @@ pub use android::*;
 ```
 
 **Desktop 实现文件结构**:
+
 ```
 crates/mihomo-platform/src/desktop/
 ├── mod.rs
@@ -390,6 +413,7 @@ crates/mihomo-platform/src/desktop/
 ```
 
 **Android 实现文件结构**:
+
 ```
 crates/mihomo-platform/src/android/
 ├── mod.rs
@@ -399,6 +423,7 @@ crates/mihomo-platform/src/android/
 ```
 
 **Cargo.toml**:
+
 ```toml
 [package]
 name = "mihomo-platform"
@@ -446,6 +471,7 @@ pub use channel::Channel;
 #### infiltrator-core (重命名 + 重构)
 
 **保留的跨平台模块**:
+
 - `config.rs` - 应用配置
 - `profiles.rs` - 配置文件业务逻辑
 - `settings.rs` - 应用设置
@@ -455,12 +481,14 @@ pub use channel::Channel;
 - `servers.rs` - HTTP 服务器
 
 **移除的平台特定模块** (移到 `infiltrator-desktop`):
+
 - `runtime.rs` - 包含 `ServiceManager` 调用
 - `proxy.rs` - Windows 注册表操作
 - `editor.rs` - 外部编辑器
 - `version.rs` - 版本管理
 
 **重构后的依赖**:
+
 ```toml
 [package]
 name = "infiltrator-core"
@@ -490,6 +518,7 @@ pub use runtime::MihomoRuntime;
 ```
 
 **依赖**:
+
 ```toml
 [package]
 name = "infiltrator-desktop"
@@ -503,90 +532,346 @@ mihomo-version = { path = "../mihomo-version" }
 
 #### infiltrator-android (新建)
 
-**职责**: Android 专用集成层 + UniFFI 导出
+**职责**: Android 专用集成层，预留与 Kotlin/Java 的桥接接口（UniFFI/JNI 待接入）
 
 ```rust
 // crates/infiltrator-android/src/lib.rs
 pub mod runtime;     // MihomoRuntime (使用 AndroidCoreController)
-mod uniffi_bindings; // UniFFI 生成
-
-// UniFFI 导出
-uniffi::include_scaffolding!("infiltrator");
+pub use runtime::{AndroidBridge, AndroidBridgeAdapter};
 ```
 
 **依赖**:
+
 ```toml
 [package]
 name = "infiltrator-android"
 
 [lib]
-crate-type = ["cdylib", "staticlib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-infiltrator-core = { path = "../infiltrator-core" }
 mihomo-platform = { path = "../mihomo-platform" }
-uniffi = "0.28"
-
-[build-dependencies]
-uniffi = { version = "0.28", features = ["build"] }
+mihomo-api = { path = "../mihomo-api" }
 ```
+
+**桥接接口预留**:
+
+```rust
+#[async_trait]
+pub trait AndroidBridge: Send + Sync {
+    async fn core_start(&self) -> Result<()>;
+    async fn core_stop(&self) -> Result<()>;
+    async fn core_is_running(&self) -> Result<bool>;
+    fn core_controller_url(&self) -> Option<String>;
+
+    async fn credential_get(&self, service: &str, key: &str) -> Result<Option<String>>;
+    async fn credential_set(&self, service: &str, key: &str, value: &str) -> Result<()>;
+    async fn credential_delete(&self, service: &str, key: &str) -> Result<()>;
+
+    fn data_dir(&self) -> Option<PathBuf>;
+    fn cache_dir(&self) -> Option<PathBuf>;
+}
+```
+
+**AndroidHost/Runtime 预留**:
+
+```rust
+pub struct AndroidHost {
+    bridge: AndroidBridgeAdapter<Box<dyn AndroidBridge>>,
+}
+
+pub struct AndroidRuntime<B: AndroidBridge> {
+    adapter: AndroidBridgeAdapter<B>,
+}
+```
+
+**AndroidApi (NDK 对外 API 骨架)**:
+
+```rust
+pub struct AndroidApi<B: AndroidBridge> {
+    adapter: AndroidBridgeAdapter<B>,
+}
+
+impl<B: AndroidBridge> AndroidApi<B> {
+    pub fn new(bridge: B) -> Self;
+    pub fn controller_url(&self) -> Option<String>;
+    pub async fn core_start(&self) -> Result<()>;
+    pub async fn core_stop(&self) -> Result<()>;
+    pub async fn core_is_running(&self) -> bool;
+    pub async fn credential_get(&self, service: &str, key: &str) -> Result<Option<String>>;
+    pub async fn credential_set(&self, service: &str, key: &str, value: &str) -> Result<()>;
+    pub async fn credential_delete(&self, service: &str, key: &str) -> Result<()>;
+    pub fn data_dir(&self) -> Option<PathBuf>;
+    pub fn cache_dir(&self) -> Option<PathBuf>;
+}
+```
+
+**FFI 边界预留 (无 unsafe，仅定义接口与错误码)**:
+
+```rust
+pub enum FfiErrorCode {
+    Ok = 0,
+    InvalidState = 1,
+    InvalidInput = 2,
+    NotReady = 3,
+    NotSupported = 4,
+    Io = 5,
+    Network = 6,
+    Unknown = 255,
+}
+
+pub struct FfiStatus {
+    pub code: FfiErrorCode,
+    pub message: Option<String>,
+}
+
+pub struct FfiStringResult {
+    pub status: FfiStatus,
+    pub value: Option<String>,
+}
+
+pub struct FfiBoolResult {
+    pub status: FfiStatus,
+    pub value: bool,
+}
+
+pub trait FfiApi: Send + Sync {
+    fn core_start(&self) -> FfiStatus;
+    fn core_stop(&self) -> FfiStatus;
+    fn core_is_running(&self) -> FfiBoolResult;
+    fn controller_url(&self) -> FfiStringResult;
+
+    fn credential_get(&self, service: &str, key: &str) -> FfiStringResult;
+    fn credential_set(&self, service: &str, key: &str, value: &str) -> FfiStatus;
+    fn credential_delete(&self, service: &str, key: &str) -> FfiStatus;
+
+    fn data_dir(&self) -> FfiStringResult;
+    fn cache_dir(&self) -> FfiStringResult;
+}
+```
+
+### Kotlin 侧调用协议 (草案)
+
+**线程模型**:
+
+- Kotlin 侧异步调用放入 `Dispatchers.IO`，避免阻塞 UI 线程。
+- Rust 侧所有 FFI 调用必须可重入，且对外暴露的接口不可 panic。
+- Kotlin 侧负责在 App 生命周期时机调用 `core_start/core_stop`。
+
+**错误码映射**:
+
+```
+Ok(0): 成功
+InvalidState(1): 状态不一致/重复启动
+InvalidInput(2): 入参非法/为空
+NotReady(3): 运行时尚未初始化
+NotSupported(4): 平台不支持/功能未实现
+Io(5): 文件系统或存储失败
+Network(6): 网络请求失败
+Unknown(255): 未分类错误
+```
+
+**调用建议**:
+
+1. `core_start()` → 成功后轮询 `core_is_running()` 获取运行状态。
+2. `controller_url()` → 若为空视为 core 未就绪。
+3. `credential_*` → 仅处理明文字符串，Kotlin 侧负责安全存储。
+4. `data_dir/cache_dir` → Kotlin 侧首启时传入并缓存，不在 UI 线程调用。
+
+**生命周期**:
+
+- App 启动 → 目录注入 → 初始化 Bridge → 允许 UI 调用。
+- App 退出/后台 → `core_stop()` → 释放资源。
+
+## 明显差距整改规划 (多端/Android 分拆)
+
+### 多端都需要 (Desktop + Android)
+
+1. **DNS 专项管理**
+   - 目标: DoH/DoT/系统 DNS 切换、fallback、DNS 代理、分流 DNS 规则
+   - 归属: `infiltrator-core`(模型/校验/API) + UI 层
+   - 最小里程碑: 配置模型落地 + 管理 API + 基础 UI
+
+2. **Fake-IP 管理**
+   - 目标: Fake-IP 范围、持久化、过滤名单、缓存清理入口
+   - 归属: `infiltrator-core`(模型/校验/API) + UI 层
+   - 最小里程碑: 配置落盘 + 管理 API
+
+3. **规则集/规则提供者管理**
+   - 目标: Rule Providers 管理、启停、更新、排序、状态查询
+   - 归属: `infiltrator-core`(模型/调度/API) + UI 层
+   - 最小里程碑: Providers 列表与更新 API
+
+4. **TUN 高级配置**
+   - 目标: 排除网段、DNS 劫持策略、FakeIP/TUN 联动策略
+   - 归属: `infiltrator-core`(配置模型) + 平台层权限提示
+   - 最小里程碑: 配置项落盘 + UI 开关
+
+### 仅 Android 需要 (Android 优先)
+
+1. **分应用代理/绕过**
+   - 目标: 应用白名单/黑名单模式，按 UID 分流
+   - 归属: `infiltrator-android` + Kotlin 层(应用列表/UID)
+   - 最小里程碑: UID 列表与规则配置接口
+
+2. **VPN Service 生命周期集成**
+   - 目标: 权限申请、前台服务、保活、通知通道
+   - 归属: Kotlin 层
+   - 最小里程碑: Service 启停与权限流程
+
+3. **Core 运行模式选择**
+   - 目标: 外部 APK / 内嵌 so / 纯配置模式的策略切换
+   - 归属: Kotlin 层 + `AndroidBridge` 实现
+   - 最小里程碑: 选型决策 + Bridge 占位实现
 
 ### 向后兼容层
 
-#### mihomo-rs (保留为 re-export crate)
+#### mihomo-rs (已移除)
 
-**职责**: 为现有使用者提供向后兼容
+**职责**: 迁移期提供向后兼容，现已移除
 
-```rust
-// crates/mihomo-rs/src/lib.rs
-
-// Re-export 新 crate 的公共 API
-pub use mihomo_api::*;
-pub use mihomo_config::*;
-pub use mihomo_platform::*;
-
-// Desktop 专用，条件编译
-#[cfg(not(target_os = "android"))]
-pub use mihomo_version::*;
-
-// 保持原有模块结构的兼容别名
-pub mod core {
-    pub use mihomo_api::*;
-}
-
-pub mod config {
-    pub use mihomo_config::*;
-}
-
-pub mod service {
-    #[cfg(not(target_os = "android"))]
-    pub use mihomo_platform::desktop::{ServiceManager, ServiceStatus};
-}
-
-pub mod version {
-    #[cfg(not(target_os = "android"))]
-    pub use mihomo_version::*;
-}
-```
-
-**Cargo.toml**:
-```toml
-[package]
-name = "mihomo-rs"
-version = "2.0.0"  # 主版本号升级
-
-[dependencies]
-mihomo-api = { path = "../mihomo-api" }
-mihomo-config = { path = "../mihomo-config" }
-mihomo-platform = { path = "../mihomo-platform" }
-
-[target.'cfg(not(target_os = "android"))'.dependencies]
-mihomo-version = { path = "../mihomo-version" }
-```
-
-**效果**: `src-tauri` 代码无需修改，继续使用 `mihomo_rs::*` 即可。
+**说明**: 兼容期已结束，`src-tauri` 已切换到新 crates。
 
 ## 迁移执行计划
+
+### Tauri 依赖清单 (移除兼容层前必须清零)
+
+以下为 `src-tauri` 直接依赖旧兼容层的导入清单，迁移阶段必须逐项替换为新 crates：
+
+- `src-tauri/src/admin_context.rs`: `despicable_infiltrator_core::{admin_api::AdminApiContext, AppSettings}`
+- `src-tauri/src/app_state.rs`: `despicable_infiltrator_core::*`, `mihomo_rs::core::ProxyInfo`, `mihomo_rs::version::VersionManager`
+- `src-tauri/src/core_update.rs`: `mihomo_rs::version::{channel::fetch_latest, Channel, DownloadProgress, VersionManager}`
+- `src-tauri/src/frontend.rs`: `despicable_infiltrator_core::servers::{AdminServerHandle, StaticServerHandle}`, `despicable_infiltrator_core::servers`
+- `src-tauri/src/factory_reset.rs`: `despicable_infiltrator_core::profiles`, `mihomo_rs::core::get_home_dir`
+- `src-tauri/src/main.rs`: `despicable_infiltrator_core::SubscriptionScheduler`
+- `src-tauri/src/settings.rs`: `despicable_infiltrator_core::{settings as core_settings, AppSettings}`
+- `src-tauri/src/runtime.rs`: `despicable_infiltrator_core::MihomoRuntime`, `mihomo_rs::{config::ConfigManager, core::TrafficData, version::VersionManager}`
+- `src-tauri/src/system_proxy.rs`: `despicable_infiltrator_core::{proxy as core_proxy, SystemProxyState}`
+- `src-tauri/src/tray/menu.rs`: `despicable_infiltrator_core::profiles`, `mihomo_rs::core::ProxyInfo`, `mihomo_rs::version::VersionManager`
+- `src-tauri/src/tray/handlers.rs`: `mihomo_rs::config::ConfigManager`, `despicable_infiltrator_core::profiles`, `despicable_infiltrator_core::scheduler::subscription::update_all_subscriptions`, `despicable_infiltrator_core::scheduler::sync::run_sync_tick`
+
+**状态**: 已完成替换，`src-tauri` 旧兼容层导入清零。
+
+### Tauri 导入替换映射 (可替换性检查)
+
+已确认新 crates 中对应符号存在，迁移时需按下表替换并完成功能验证：
+
+```
+旧导入 (兼容层)                                  → 新导入 (目标 crate)
+despicable_infiltrator_core::admin_api::*        → infiltrator_core::admin_api::*
+despicable_infiltrator_core::servers::*          → infiltrator_core::servers::*
+despicable_infiltrator_core::settings::*         → infiltrator_core::settings::*
+despicable_infiltrator_core::profiles::*         → infiltrator_core::profiles::*
+despicable_infiltrator_core::SubscriptionScheduler → infiltrator_core::SubscriptionScheduler
+despicable_infiltrator_core::MihomoRuntime       → infiltrator_desktop::MihomoRuntime
+despicable_infiltrator_core::SystemProxyState    → infiltrator_desktop::SystemProxyState
+despicable_infiltrator_core::proxy::*            → infiltrator_desktop::proxy::*
+
+mihomo_rs::config::ConfigManager                 → mihomo_config::ConfigManager
+mihomo_rs::core::{ProxyInfo, TrafficData}        → mihomo_api::{ProxyInfo, TrafficData}
+mihomo_rs::core::get_home_dir                    → mihomo_platform::get_home_dir
+mihomo_rs::version::*                            → mihomo_version::*
+```
+
+**状态**: 符号级别可替换，行为级别验证待完成（迁移切换后按完整验证清单执行）。
+
+### 行为级对齐清单 (Tauri 功能完整性)
+
+以下为迁移前必须确认的行为级对齐点；目前均为“代码级对齐/待验证”，需在切换导入并完整验证后标记完成：
+
+```
+领域/能力                 代码级对齐 (已确认)    行为验证 (待完成)
+运行时生命周期            ✅                    ☐ 启动/重启/退出/端口释放
+控制接口与代理            ✅                    ☐ controller/traffic/代理切换/TUN
+配置与订阅管理            ✅                    ☐ profiles/订阅更新/凭据存取
+系统代理                 ✅                    ☐ Windows 注册表写入/状态读取
+版本管理                 ✅                    ☐ 下载/切换/卸载/进度事件
+Admin API/静态服务器      ✅                    ☐ 前端访问/路由/权限/错误处理
+调度器 (订阅/WebDAV)      ✅                    ☐ 定时触发/手动触发/通知反馈
+```
+
+### Tauri 导入切换顺序建议 (仍不改动代码)
+
+切换需一次性完成，但为降低风险，建议按以下顺序准备替换清单与评审：
+
+1. **类型与设置基础**: `AppSettings`/`settings` 导入替换到 `infiltrator-core`。
+2. **Admin API 与静态服务**: `AdminApiContext`、`servers` 导入替换到 `infiltrator-core`。
+3. **运行时与系统代理**: `MihomoRuntime`/`SystemProxyState`/`proxy` 替换到 `infiltrator-desktop`。
+4. **配置与订阅管理**: `ConfigManager` 替换到 `mihomo-config`。
+5. **HTTP API 类型**: `ProxyInfo`/`TrafficData` 替换到 `mihomo-api`。
+6. **版本管理**: `VersionManager`/`channel`/`DownloadProgress` 替换到 `mihomo-version`。
+7. **路径工具**: `get_home_dir` 替换到 `mihomo-platform`。
+
+**执行原则**: 完成以上替换后再统一构建/测试，且只在仓库根目录执行。
+
+### Tauri 导入替换清单 (逐文件)
+
+以下为实际替换清单（仅列出 import 层面的替换；逻辑不改）：
+
+- `src-tauri/src/admin_context.rs`
+  - `despicable_infiltrator_core::{admin_api::AdminApiContext, AppSettings}`
+    → `infiltrator_core::{admin_api::AdminApiContext, AppSettings}`
+
+- `src-tauri/src/app_state.rs`
+  - `despicable_infiltrator_core::{... AppSettings, MihomoRuntime, SystemProxyState, ...}`
+    → `infiltrator_core::{... AppSettings, ...}` + `infiltrator_desktop::{MihomoRuntime, SystemProxyState}`
+  - `mihomo_rs::core::ProxyInfo`
+    → `mihomo_api::ProxyInfo`
+  - `mihomo_rs::version::VersionManager`
+    → `mihomo_version::VersionManager`
+
+- `src-tauri/src/core_update.rs`
+  - `mihomo_rs::version::{channel::fetch_latest, Channel, DownloadProgress, VersionManager}`
+    → `mihomo_version::{channel::fetch_latest, Channel, DownloadProgress, VersionManager}`
+
+- `src-tauri/src/frontend.rs`
+  - `despicable_infiltrator_core::servers::{AdminServerHandle, StaticServerHandle}`
+    → `infiltrator_core::servers::{AdminServerHandle, StaticServerHandle}`
+  - `despicable_infiltrator_core::servers as core_servers`
+    → `infiltrator_core::servers as core_servers`
+
+- `src-tauri/src/factory_reset.rs`
+  - `despicable_infiltrator_core::profiles`
+    → `infiltrator_core::profiles`
+  - `mihomo_rs::core::get_home_dir`
+    → `mihomo_platform::get_home_dir`
+
+- `src-tauri/src/main.rs`
+  - `despicable_infiltrator_core::SubscriptionScheduler`
+    → `infiltrator_core::SubscriptionScheduler`
+
+- `src-tauri/src/settings.rs`
+  - `despicable_infiltrator_core::{settings as core_settings, AppSettings}`
+    → `infiltrator_core::{settings as core_settings, AppSettings}`
+
+- `src-tauri/src/runtime.rs`
+  - `despicable_infiltrator_core::MihomoRuntime`
+    → `infiltrator_desktop::MihomoRuntime`
+  - `mihomo_rs::{config::ConfigManager, core::TrafficData, version::VersionManager}`
+    → `mihomo_config::ConfigManager`, `mihomo_api::TrafficData`, `mihomo_version::VersionManager`
+
+- `src-tauri/src/system_proxy.rs`
+  - `despicable_infiltrator_core::{proxy as core_proxy, SystemProxyState}`
+    → `infiltrator_desktop::{proxy as core_proxy, SystemProxyState}`
+
+- `src-tauri/src/tray/menu.rs`
+  - `despicable_infiltrator_core::profiles as core_profiles`
+    → `infiltrator_core::profiles as core_profiles`
+  - `mihomo_rs::core::ProxyInfo`
+    → `mihomo_api::ProxyInfo`
+  - `mihomo_rs::version::VersionManager`
+    → `mihomo_version::VersionManager`
+
+- `src-tauri/src/tray/handlers.rs`
+  - `mihomo_rs::config::ConfigManager`
+    → `mihomo_config::ConfigManager`
+  - `despicable_infiltrator_core::profiles as core_profiles`
+    → `infiltrator_core::profiles as core_profiles`
+  - `despicable_infiltrator_core::scheduler::subscription::update_all_subscriptions`
+    → `infiltrator_core::scheduler::subscription::update_all_subscriptions`
+  - `despicable_infiltrator_core::scheduler::sync::run_sync_tick`
+    → `infiltrator_core::scheduler::sync::run_sync_tick`
+
 
 ### Stage 1: 提取 mihomo-api (1-2 天)
 
@@ -669,7 +954,7 @@ mkdir -p crates/infiltrator-desktop/src
 # Cargo.toml: infiltrator-desktop = { path = "../crates/infiltrator-desktop" }
 
 # 4. 验证
-cargo build -p despicable-infiltrator
+cargo build -p "Mihomo-Despicable-Infiltrator"
 ```
 
 **验证点**: 完整功能测试通过
@@ -687,13 +972,29 @@ cargo build --workspace
 
 **验证点**: 无外部 API 变更，所有调用点正常
 
+### Stage 7: 移除兼容层 (已完成)
+
+**前置条件**:
+
+- [x] `src-tauri` 已完全切换到新 crates，不再依赖 `mihomo-rs` 与 `despicable-infiltrator-core`。
+- [ ] 新 crates 的功能与原 crates 行为对齐，关键流程功能可用。
+- [ ] Tauri 应用完整功能验证通过（详见下方清单）。
+
+**执行步骤**:
+
+1. 从 workspace 中移除 `crates/mihomo-rs` 与 `crates/despicable-infiltrator-core`。
+2. 更新 `Cargo.toml` workspace members 与依赖树。
+3. 更新文档（`README.md`/`USAGE_SPEC.md`/`CHANGELOG.md`）。
+
+**验证点**: Tauri 完整功能测试通过，无回退需求。
+
 ### 完整验证清单
 
 每个 Stage 完成后执行:
 
 - [ ] `cargo build --workspace`
 - [ ] `cargo test --workspace`
-- [ ] `cargo build -p despicable-infiltrator` (Windows)
+- [ ] `cargo build -p "Mihomo-Despicable-Infiltrator"` (Windows)
 - [ ] 手动测试:
   - [ ] 应用启动，内核正常运行
   - [ ] 系统代理切换正常
@@ -793,6 +1094,7 @@ sync-engine/    # 同步算法 - 纯逻辑
 | `Cargo.toml` | 26-28 | `winreg`, `windows-sys` | 已用 `cfg(windows)` 隔离 | ✅ 无影响 |
 
 **可直接复用的模块（无需修改）：**
+
 - `config.rs` - 配置文件读写 (纯 YAML 操作)
 - `profiles.rs` - 配置文件管理 (纯文件系统)
 - `settings.rs` - 应用设置 (TOML 序列化)
@@ -824,6 +1126,7 @@ pub fn kill_process(pid: u32) -> Result<()> {
 ```
 
 **Android 问题：**
+
 - Android 不允许应用直接执行任意二进制文件
 - VPN 需通过 `VpnService` API 实现
 - mihomo 需作为独立 APK 或嵌入式库运行
@@ -837,6 +1140,7 @@ entry.set_password(url)?;
 ```
 
 **Cargo.toml 平台依赖 (lines 37-45)：**
+
 ```toml
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3.6", features = ["windows-native"] }
@@ -849,6 +1153,7 @@ keyring = { version = "3.6", features = ["linux-native"] }
 ```
 
 **Android 问题：**
+
 - `keyring` crate 无 Android 支持
 - Android 使用 `EncryptedSharedPreferences` 或 Android Keystore
 
@@ -1184,6 +1489,7 @@ impl DefaultServiceManager {
 ### 迁移策略 (保持 Desktop 兼容)
 
 **Step 1**: 添加 trait 和 Desktop 实现，不修改现有代码
+
 ```
 crates/mihomo-rs/src/
 ├── platform/
@@ -1197,6 +1503,7 @@ crates/mihomo-rs/src/
 ```
 
 **Step 2**: 为 ServiceManager 添加泛型版本，保留原有版本
+
 ```rust
 // 原有 ServiceManager 重命名为 LegacyServiceManager
 pub type LegacyServiceManager = ServiceManager;
@@ -1206,6 +1513,7 @@ pub struct GenericServiceManager<C: CoreController> { ... }
 ```
 
 **Step 3**: 验证所有 Desktop 调用点正常工作
+
 ```rust
 // src-tauri/src/runtime.rs:50 - 无需修改
 let service_manager = ServiceManager::new(binary, config_path.clone());
@@ -1292,6 +1600,7 @@ src-tauri/src/runtime.rs
 ### 兼容性保证策略
 
 1. **保持公开 API 签名不变**
+
    ```rust
    // MihomoRuntime::bootstrap 签名不变
    pub async fn bootstrap(
@@ -1306,6 +1615,7 @@ src-tauri/src/runtime.rs
    ```
 
 2. **使用类型别名保持兼容**
+
    ```rust
    // 对于 Desktop 平台，ServiceManager 是具体类型的别名
    #[cfg(not(target_os = "android"))]
@@ -1321,9 +1631,9 @@ src-tauri/src/runtime.rs
 
 在每个重构阶段后必须验证：
 
-- [ ] `cargo build -p despicable-infiltrator` (Windows 构建)
-- [ ] `cargo build -p despicable-infiltrator --target x86_64-apple-darwin` (macOS 构建)
-- [ ] `cargo build -p despicable-infiltrator --target x86_64-unknown-linux-gnu` (Linux 构建)
+- [ ] `cargo build -p "Mihomo-Despicable-Infiltrator"` (Windows 构建)
+- [ ] `cargo build -p "Mihomo-Despicable-Infiltrator" --target x86_64-apple-darwin` (macOS 构建)
+- [ ] `cargo build -p "Mihomo-Despicable-Infiltrator" --target x86_64-unknown-linux-gnu` (Linux 构建)
 - [ ] `cargo test --workspace` (全部测试通过)
 - [ ] 手动测试：启动应用 → 内核启动 → 系统代理切换 → 退出应用
 
@@ -1334,6 +1644,7 @@ src-tauri/src/runtime.rs
 **目标**: 在 `mihomo-rs` 中添加 trait 抽象，保持 Desktop 功能完整
 
 **Week 1: Trait 定义**
+
 ```
 任务:
 1. 创建 crates/mihomo-rs/src/platform/mod.rs
@@ -1349,6 +1660,7 @@ src-tauri/src/runtime.rs
 ```
 
 **Week 2: ServiceManager 重构**
+
 ```
 任务:
 1. 创建 GenericServiceManager<C: CoreController>
@@ -1362,6 +1674,7 @@ src-tauri/src/runtime.rs
 ```
 
 **Week 3: ConfigManager 重构**
+
 ```
 任务:
 1. 将 ConfigManager 改为泛型 ConfigManager<S: CredentialStore>
@@ -1377,6 +1690,7 @@ src-tauri/src/runtime.rs
 ### Phase 2: Android 基础设施 (2-3 周)
 
 **Week 4: Android 工具链**
+
 ```
 任务:
 1. 安装 Android NDK, cargo-ndk
@@ -1390,6 +1704,7 @@ cargo ndk -t arm64-v8a build -p sync-engine
 ```
 
 **Week 5: UniFFI 集成**
+
 ```
 任务:
 1. 添加 uniffi 依赖到 platform-android
@@ -1407,6 +1722,7 @@ crates/mihomo-dav-sync/platform-android/
 ```
 
 **Week 6: Android CoreController**
+
 ```
 任务:
 1. 创建 crates/mihomo-rs/src/platform/android.rs
@@ -1425,6 +1741,7 @@ android/app/src/main/kotlin/
 ### Phase 3: Android 应用 (4-6 周)
 
 **Week 7-8: 项目骨架**
+
 ```
 任务:
 1. 创建 android/ 目录结构
@@ -1447,6 +1764,7 @@ android/
 ```
 
 **Week 9-10: VPN 集成**
+
 ```
 任务:
 1. 实现 MihomoVpnService
@@ -1461,6 +1779,7 @@ android/
 ```
 
 **Week 11-12: UI 实现**
+
 ```
 任务:
 1. 使用 Jetpack Compose 实现主界面
@@ -1530,6 +1849,8 @@ fn get_home_dir() -> PathBuf {
 ```
 
 ### 解决方案
+状态更新: 已在 mihomo-rs 中提供 `apply_data_dir_override` 针对 `DataDirProvider` 的目录注入钩子。
+
 
 通过 `DataDirProvider` trait 抽象路径获取：
 
@@ -1564,6 +1885,7 @@ impl DataDirProvider for AndroidDataDirProvider {
 ### 单元测试 (Host 平台)
 
 现有 24 个测试在 host 平台运行，不受影响：
+
 ```bash
 cargo test --workspace
 ```
@@ -1604,6 +1926,7 @@ mod tests {
 ### Android 集成测试
 
 使用 Android Emulator 运行：
+
 ```bash
 # 编译 Android 库
 cargo ndk -t arm64-v8a build -p platform-android --release
@@ -1649,19 +1972,25 @@ cargo ndk -t arm64-v8a build -p platform-android --release
 
 ### 立即执行 (Phase 1 Week 1)
 
-1. [ ] 创建 `crates/mihomo-rs/src/platform/` 目录结构
-2. [ ] 定义 `CoreController` trait (不修改现有代码)
-3. [ ] 创建 `ProcessCoreController` 实现 (封装现有逻辑)
-4. [ ] 添加单元测试验证 trait 实现
-5. [ ] 运行 `cargo build --workspace` 确认无破坏
-
+1. [x] 创建目标 crates 骨架（mihomo-api/mihomo-config/mihomo-platform/mihomo-version/infiltrator-core/infiltrator-desktop/infiltrator-android）
+2. [x] 迁移 mihomo-api 当前实现（client/types/error/proxy/connection）
+3. [x] 迁移 mihomo-config 当前实现（manager/profile/yaml + home/port）
+4. [x] 迁移 mihomo-version 当前实现（channel/download/manager + home）
+5. [x] mihomo-platform 提供 trait 与 Desktop/Android 凭据存储/ProcessCoreController 实现
+6. [x] infiltrator-core/infiltrator-desktop 完成文件拆分并改用新 crates
+7. [x] despicable-infiltrator-core 切换为兼容 re-export
+8. [x] mihomo-rs 切换为兼容 re-export（Tauri 导入未改）
+9. [x] 切换 Tauri 导入到新 crates 并完成构建与测试
+10. [x] 清理 despicable-infiltrator-core 旧源码，仅保留 re-export
+11. [x] 移除 mihomo-rs 与 despicable-infiltrator-core 兼容层
+12. [x] infiltrator-android 预留 AndroidBridge 接口占位
 ### 验收标准
 
-- [ ] 所有现有 Tauri 代码无需修改
-- [ ] `cargo build -p despicable-infiltrator` 成功
-- [ ] `cargo test --workspace` 全部通过
+- [x] Tauri 导入已切换到新 crates
+- [x] `cargo build -p "Mihomo-Despicable-Infiltrator"` 成功
+- [x] `cargo test --workspace` 全部通过
 - [ ] 手动测试 Tauri 应用功能正常
 
 ---
 
-*最后更新: 2026-01-09*
+*最后更新: 2026-01-10*

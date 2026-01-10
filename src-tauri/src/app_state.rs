@@ -1,14 +1,15 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::anyhow;
-use despicable_infiltrator_core::{
+use infiltrator_core::{
     scheduler::SubscriptionScheduler,
     servers::{AdminServerHandle, StaticServerHandle},
-    AppSettings, MihomoRuntime, SystemProxyState,
+    AppSettings,
 };
+use infiltrator_desktop::{MihomoRuntime, SystemProxyState};
 use log::warn;
-use mihomo_rs::core::ProxyInfo;
-use mihomo_rs::version::VersionManager;
+use mihomo_api::ProxyInfo;
+use mihomo_version::VersionManager;
 use tauri::{
     menu::{CheckMenuItem, MenuItem},
     AppHandle, Wry,
@@ -59,17 +60,17 @@ pub(crate) struct TrayInfoItems {
 }
 
 impl AppState {
-    pub(crate) fn ctx_as_admin(&self) -> crate::admin_context::TauriAdminContext {
-        let handle = self.app_handle.try_read()
+    pub(crate) fn ctx_as_admin(&self) -> anyhow::Result<crate::admin_context::TauriAdminContext> {
+        let handle = self
+            .app_handle
+            .try_read()
             .ok()
-            .and_then(|g| g.as_ref().cloned());
-        if handle.is_none() {
-            log::error!("critical: attempting to create admin context without app handle");
-        }
-        crate::admin_context::TauriAdminContext {
-            app: handle.expect("app handle must be initialized before admin context use"),
+            .and_then(|g| g.as_ref().cloned())
+            .ok_or_else(|| anyhow!("app handle is not ready"))?;
+        Ok(crate::admin_context::TauriAdminContext {
+            app: handle,
             app_state: self.clone(),
-        }
+        })
     }
 
     pub(crate) async fn get_app_settings(&self) -> AppSettings {

@@ -7,8 +7,8 @@ use crate::{
     paths::{resolve_admin_dir, resolve_main_dir},
     platform::open_in_browser,
 };
-use despicable_infiltrator_core::servers::{AdminServerHandle, StaticServerHandle};
-use despicable_infiltrator_core::servers as core_servers;
+use infiltrator_core::servers::{AdminServerHandle, StaticServerHandle};
+use infiltrator_core::servers as core_servers;
 
 pub(crate) fn spawn_frontends(
     app: AppHandle,

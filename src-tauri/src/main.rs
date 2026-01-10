@@ -28,7 +28,7 @@ use crate::{
     tray::create_tray,
     utils::parse_launch_ports,
 };
-use despicable_infiltrator_core::SubscriptionScheduler;
+use infiltrator_core::SubscriptionScheduler;
 
 fn main() {
     std::panic::set_hook(Box::new(|info| {

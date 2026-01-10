@@ -1,7 +1,9 @@
 use anyhow::anyhow;
-use despicable_infiltrator_core::MihomoRuntime;
+use infiltrator_desktop::MihomoRuntime;
 use log::warn;
-use mihomo_rs::{config::ConfigManager, core::TrafficData, version::VersionManager};
+use mihomo_api::TrafficData;
+use mihomo_config::ConfigManager;
+use mihomo_version::VersionManager;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use tokio::time::{sleep, Duration, Instant};

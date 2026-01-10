@@ -37,17 +37,41 @@
 
 ## 📋 计划中
 
+- [x] **兼容层移除计划**: 完成 Tauri 导入切换与功能验证后，移除 `mihomo-rs` 与 `despicable-infiltrator-core`。
+- [ ] **Phase A (多端基础能力)**: DNS/Fake-IP/规则集/TUN 高级配置
+  - [ ] DNS 配置模型 (infiltrator-core): DoH/DoT/系统 DNS + fallback + 代理开关
+  - [ ] DNS 管理 API (infiltrator-core): 读取/更新/校验/应用
+  - [ ] DNS UI (config-manager-ui): 基础表单 + 生效状态提示
+  - [ ] Fake-IP 配置模型 (infiltrator-core): 范围/持久化/过滤名单
+  - [ ] Fake-IP 管理 API (infiltrator-core): 读取/更新/清理缓存入口
+  - [ ] 规则集模型 (infiltrator-core): Providers/规则排序/启停状态
+  - [ ] 规则集 API (infiltrator-core): 列表/更新/启停/排序/状态
+  - [ ] 规则集 UI (config-manager-ui): 列表 + 启停 + 更新入口
+  - [ ] TUN 高级配置模型 (infiltrator-core): 排除网段/DNS 劫持策略/FakeIP 联动
+  - [ ] TUN 高级配置 UI (config-manager-ui): 开关 + 说明提示
+- [ ] **Phase B (Android 专项能力)**: 分应用代理/VPN Service/Core 运行模式
+  - [ ] 分应用代理模型 (infiltrator-core): 白名单/黑名单 + UID 列表
+  - [ ] 分应用代理 API (infiltrator-core): 读取/更新/应用规则
+  - [ ] Kotlin 应用列表 (Android App): 包名/UID/图标采集
+  - [ ] Kotlin 权限流程 (Android App): VPN 权限申请与状态检测
+  - [ ] VPN Service 骨架 (Android App): 前台服务 + 通知通道 + 启停
+  - [ ] Core 运行模式选型 (产品/Android App): 外部 APK/内嵌 so/纯配置决策
+  - [ ] AndroidBridge 实现 (infiltrator-android + Android App): CoreController/凭据/目录注入落地
+
 - [ ] **CI/CD**: 配置 GitHub Actions 自动构建与发布
 - [ ] **跨平台支持**: macOS / Linux 适配
 - [ ] **性能监控**: 内核资源占用统计与可视化
 - [ ] **Android 平台支持** (详见 `ANDROID.md`):
   - [ ] **Stage 0: Crate 重新规划** (1-2周)
-    - [ ] 提取 `mihomo-api` (跨平台 HTTP 客户端)
-    - [ ] 提取 `mihomo-platform` (平台抽象 trait + 实现)
-    - [ ] 提取 `mihomo-config` (配置管理，使用 trait)
-    - [ ] 创建 `infiltrator-core` (跨平台业务逻辑)
-    - [ ] 创建 `infiltrator-desktop` (Desktop 集成层)
-    - [ ] 更新 `mihomo-rs` 为向后兼容 re-export crate
+    - [x] 提取 `mihomo-api` (跨平台 HTTP 客户端)
+    - [x] 提取 `mihomo-platform` (平台抽象 trait + 实现)
+    - [x] 提取 `mihomo-config` (配置管理，使用 trait)
+    - [x] 创建 `infiltrator-core` (跨平台业务逻辑)
+    - [x] 创建 `infiltrator-desktop` (Desktop 集成层)
+    - [x] 拆分 `despicable-infiltrator-core` -> `infiltrator-core`/`infiltrator-desktop`
+    - [x] `infiltrator-core` 改用新 crates（不再依赖 mihomo-rs）
+    - [x] `infiltrator-desktop` 改用新 crates（不再依赖 mihomo-rs）
+    - [x] 更新 `mihomo-rs` 为向后兼容 re-export crate
   - [ ] **Stage 1: Android 基础设施** (2-3周)
     - [ ] 配置 Android NDK + cargo-ndk
     - [ ] 创建 `infiltrator-android` crate

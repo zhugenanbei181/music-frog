@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use mihomo_rs::version::{channel::fetch_latest, Channel, DownloadProgress, VersionManager};
+use mihomo_version::{channel::fetch_latest, download::DownloadProgress, Channel, VersionManager};
 use tokio::{
     sync::mpsc,
     time::{timeout, Duration},

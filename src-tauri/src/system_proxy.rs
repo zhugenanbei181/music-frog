@@ -1,4 +1,4 @@
-use despicable_infiltrator_core::{proxy as core_proxy, SystemProxyState};
+use infiltrator_desktop::{proxy as core_proxy, SystemProxyState};
 
 pub(crate) fn apply_system_proxy(endpoint: Option<&str>) -> anyhow::Result<()> {
     core_proxy::apply_system_proxy(endpoint)
