@@ -17,44 +17,28 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Node + pnpm（官方方式，稳定且可缓存）
+      # 1. 必须先装 pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      # 2. 再装 Node，并开启缓存
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "pnpm"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 8
-
-      # Rust（稳定装工具链）
+      # 3. Rust 环境保持不变
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # Cargo 缓存（加速）
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
 
-      # pnpm store 缓存（actions/setup-node 的 pnpm cache 有时够用，但这层更稳）
-      - name: Get pnpm store path
-        id: pnpm-store
-        shell: pwsh
-        run: |
-          $path = pnpm store path
-          "STORE_PATH=$path" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.pnpm-store.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
+      # 4. 直接安装依赖（setup-node 已处理缓存）
       - name: Install dependencies
         shell: pwsh
         run: pnpm install --frozen-lockfile
@@ -69,29 +53,22 @@ jobs:
           TAURI_BUNDLER: msi
         run: pnpm build
 
-      # 确保 gh 存在（兜底）
-      - name: Ensure GitHub CLI (gh)
-        shell: pwsh
-        run: |
-          $gh = Get-Command gh -ErrorAction SilentlyContinue
-          if (-not $gh) {
-            choco install gh -y
-          }
-          gh --version
-
+      # 5. 上传 Release（gh CLI 在 windows-latest 是预装的，无需安装检查）
       - name: Upload MSI to Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = $env:GITHUB_REF_NAME
+          # 自动寻找生成的 msi 文件
           $msi = Get-ChildItem target\release\bundle\msi\*.msi | Select-Object -First 1
           if (-not $msi) {
             throw "MSI not found in target/release/bundle/msi"
           }
 
-          gh auth status
+          Write-Host "Found MSI: $($msi.FullName)"
 
+          # 检查 Release 是否存在，不存在则创建，存在则上传
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag $msi.FullName --generate-notes
