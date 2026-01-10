@@ -27,6 +27,10 @@
 2. `pnpm --dir config-manager-ui build`
 3. `pnpm build` (Outputs MSI on Windows)
 
+## Docs
+
+- Markdown formatting: `pnpm dlx markdownlint-cli2 "**/*.md" --fix` (uses `.markdownlint-cli2.jsonc` and `.markdownlint.json`).
+
 ## Planning Playbook
 
 ### Human Notes

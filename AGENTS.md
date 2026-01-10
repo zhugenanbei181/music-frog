@@ -24,6 +24,7 @@
     * **构建位置**: 仅在仓库根目录执行构建/测试命令，避免锁定子目录。
     * **Commit Message**: 使用 Conventional Commits (如 `feat: add feature`, `fix: resolve bug`)。
     * **Documentation**: 功能变更必须同步更新 `USAGE_SPEC.md` 和 `README.md`。
+    * **Markdown 规范化**: 文档格式必须通过 `pnpm dlx markdownlint-cli2 "**/*.md" --fix` 修复，配置统一使用 `.markdownlint-cli2.jsonc`、`.markdownlint.json`、`.markdownlintignore`。
 
 ## 规划流程
 
@@ -58,6 +59,7 @@
 ```
 
 **规则**:
+
 1. **功能域前缀**: 必须包含功能模块名 (`profile-`, `webdav-`, `core-`, `mode-`, `tun-`)
 2. **使用短横线**: 统一使用 `-` 连接单词，禁止混用 `_`
 3. **动作明确**: 使用动词描述操作 (`sync`, `update`, `switch`, `delete`)
@@ -92,9 +94,10 @@ pub async fn critical_section(state: &AppState) -> anyhow::Result<()> {
 
 提交前必须检查：
 
-- [ ] 无 `unwrap()`/`expect()` (测试代码除外)
-- [ ] 无 `unsafe` 块 (FFI 封装除外)
-- [ ] 菜单 ID 符合命名规范
-- [ ] 国际化 key 完整 (zh-CN + en-US)
-- [ ] 错误处理有上下文信息
-- [ ] `cargo check --workspace` 无警告
+* [ ] 无 `unwrap()`/`expect()` (测试代码除外)
+* [ ] 无 `unsafe` 块 (FFI 封装除外)
+* [ ] 菜单 ID 符合命名规范
+* [ ] 国际化 key 完整 (zh-CN + en-US)
+* [ ] 错误处理有上下文信息
+* [ ] `cargo check --workspace` 无警告
+* [ ] `pnpm dlx markdownlint-cli2 "**/*.md"` 无报错

@@ -21,6 +21,7 @@
 - 兼容层移除前必须保证新 crates 功能与原 crates 对齐，且 Tauri 应用功能完整可用。
 - 变更需同步更新 `README.md` 与 `USAGE_SPEC.md`。
 - 保持 Tauri 对外接口与行为兼容，避免破坏性改动。
+- 文档格式通过 `pnpm dlx markdownlint-cli2 "**/*.md" --fix` 修复。
 
 ## 规划流程
 
@@ -131,4 +132,3 @@ qiguai/
 ## License
 
 MIT
-

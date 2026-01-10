@@ -1,0 +1,10 @@
+{
+  "config": ".markdownlint.json",
+  "files": ["**/*.md"],
+  "ignores": [
+    "**/node_modules/**",
+    "webui/**/node_modules/**",
+    "target/**",
+    "vendor/**"
+  ]
+}
