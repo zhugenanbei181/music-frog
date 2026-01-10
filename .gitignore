@@ -37,9 +37,11 @@ mihomo.exe
 *.db-wal
 
 # Documentation
-*.md
-!README.md
-!USAGE_SPEC.md
+AGENTS.md
+ANDROID.md
+GEMINI.md
+TODO.md
+CHANGELOG.md
 .markdownlint-cli2.jsonc
 .markdownlint.json
 .markdownlintignore
