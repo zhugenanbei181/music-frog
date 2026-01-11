@@ -14,3 +14,20 @@ tokio = { workspace = true }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-platform = { path = "../mihomo-platform" }
+infiltrator-core = { path = "../infiltrator-core", default-features = false }
+reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uniffi = { workspace = true, features = ["tokio"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"] }
+rustls = { workspace = true }
+tun2proxy = "0.5"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+reqwest = { workspace = true, default-features = false, features = ["native-tls"] }
+
+[build-dependencies]
+camino = "1.0.8"

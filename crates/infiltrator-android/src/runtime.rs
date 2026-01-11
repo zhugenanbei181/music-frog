@@ -1,61 +1,8 @@
 use async_trait::async_trait;
 use mihomo_api::Result;
+pub use mihomo_platform::AndroidBridge;
 use mihomo_platform::{CoreController, CredentialStore, DataDirProvider};
 use std::path::PathBuf;
-
-#[async_trait]
-pub trait AndroidBridge: Send + Sync {
-    async fn core_start(&self) -> Result<()>;
-    async fn core_stop(&self) -> Result<()>;
-    async fn core_is_running(&self) -> Result<bool>;
-    fn core_controller_url(&self) -> Option<String>;
-
-    async fn credential_get(&self, service: &str, key: &str) -> Result<Option<String>>;
-    async fn credential_set(&self, service: &str, key: &str, value: &str) -> Result<()>;
-    async fn credential_delete(&self, service: &str, key: &str) -> Result<()>;
-
-    fn data_dir(&self) -> Option<PathBuf>;
-    fn cache_dir(&self) -> Option<PathBuf>;
-}
-
-#[async_trait]
-impl AndroidBridge for Box<dyn AndroidBridge> {
-    async fn core_start(&self) -> Result<()> {
-        self.as_ref().core_start().await
-    }
-
-    async fn core_stop(&self) -> Result<()> {
-        self.as_ref().core_stop().await
-    }
-
-    async fn core_is_running(&self) -> Result<bool> {
-        self.as_ref().core_is_running().await
-    }
-
-    fn core_controller_url(&self) -> Option<String> {
-        self.as_ref().core_controller_url()
-    }
-
-    async fn credential_get(&self, service: &str, key: &str) -> Result<Option<String>> {
-        self.as_ref().credential_get(service, key).await
-    }
-
-    async fn credential_set(&self, service: &str, key: &str, value: &str) -> Result<()> {
-        self.as_ref().credential_set(service, key, value).await
-    }
-
-    async fn credential_delete(&self, service: &str, key: &str) -> Result<()> {
-        self.as_ref().credential_delete(service, key).await
-    }
-
-    fn data_dir(&self) -> Option<PathBuf> {
-        self.as_ref().data_dir()
-    }
-
-    fn cache_dir(&self) -> Option<PathBuf> {
-        self.as_ref().cache_dir()
-    }
-}
 
 #[derive(Clone)]
 pub struct AndroidBridgeAdapter<B> {
@@ -65,6 +12,31 @@ pub struct AndroidBridgeAdapter<B> {
 impl<B> AndroidBridgeAdapter<B> {
     pub fn new(bridge: B) -> Self {
         Self { bridge }
+    }
+}
+
+impl<B> AndroidBridgeAdapter<B>
+where
+    B: AndroidBridge,
+{
+    pub async fn vpn_start(&self) -> Result<bool> {
+        self.bridge.vpn_start().await
+    }
+
+    pub async fn vpn_stop(&self) -> Result<bool> {
+        self.bridge.vpn_stop().await
+    }
+
+    pub async fn vpn_is_running(&self) -> Result<bool> {
+        self.bridge.vpn_is_running().await
+    }
+
+    pub async fn tun_set_enabled(&self, enabled: bool) -> Result<bool> {
+        self.bridge.tun_set_enabled(enabled).await
+    }
+
+    pub async fn tun_is_enabled(&self) -> Result<bool> {
+        self.bridge.tun_is_enabled().await
     }
 }
 
@@ -249,6 +221,26 @@ mod tests {
 
         fn cache_dir(&self) -> Option<PathBuf> {
             self.cache_dir.clone()
+        }
+
+        async fn vpn_start(&self) -> Result<bool> {
+            Ok(true)
+        }
+
+        async fn vpn_stop(&self) -> Result<bool> {
+            Ok(true)
+        }
+
+        async fn vpn_is_running(&self) -> Result<bool> {
+            Ok(false)
+        }
+
+        async fn tun_set_enabled(&self, _enabled: bool) -> Result<bool> {
+            Ok(true)
+        }
+
+        async fn tun_is_enabled(&self) -> Result<bool> {
+            Ok(false)
         }
     }
 

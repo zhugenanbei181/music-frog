@@ -10,7 +10,7 @@ dirs = { workspace = true }
 flate2 = { workspace = true }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
-reqwest = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -19,6 +19,12 @@ url = { workspace = true }
 zip = { workspace = true }
 futures-util = { workspace = true }
 toml = { workspace = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+reqwest = { workspace = true, default-features = false, features = ["native-tls"] }
 
 [dev-dependencies]
 mockito = "1.7"

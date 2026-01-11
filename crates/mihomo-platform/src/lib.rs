@@ -1,6 +1,10 @@
+mod android_bridge;
 mod paths;
 pub mod traits;
 
+pub use android_bridge::{
+    clear_android_bridge, get_android_bridge, set_android_bridge, AndroidBridge,
+};
 pub use paths::{get_home_dir, set_home_dir_override};
 pub use traits::{
     CoreController, CredentialStore, DataDirProvider, DefaultCredentialStore,

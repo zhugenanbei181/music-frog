@@ -6,23 +6,33 @@ edition = "2021"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-axum = { workspace = true }
+axum = { workspace = true, optional = true }
 brotli = { workspace = true }
 chrono = { workspace = true }
 flate2 = { workspace = true }
 log = { workspace = true }
 mihomo-config = { path = "../mihomo-config" }
 mihomo-platform = { path = "../mihomo-platform" }
-mihomo-version = { path = "../mihomo-version" }
-reqwest = { workspace = true, features = ["gzip", "brotli", "deflate"] }
+mihomo-version = { path = "../mihomo-version", optional = true }
+reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2", "gzip", "brotli", "deflate"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true, features = ["sync"] }
-tower-http = { workspace = true, features = ["fs"] }
+tower-http = { workspace = true, features = ["fs"], optional = true }
 toml = { workspace = true }
 yaml-rust2 = { workspace = true }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
 sync-engine = { path = "../mihomo-dav-sync/sync-engine" }
 state-store = { path = "../mihomo-dav-sync/state-store" }
+
+[features]
+default = ["admin-api"]
+admin-api = ["axum", "tower-http", "mihomo-version"]
+
+[target.'cfg(target_os = "android")'.dependencies]
+reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+reqwest = { workspace = true, default-features = false, features = ["native-tls"] }

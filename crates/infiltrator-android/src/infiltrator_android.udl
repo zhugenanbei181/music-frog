@@ -1,0 +1,123 @@
+namespace infiltrator_android {
+  // Sync functions
+  string ping();
+  boolean bridge_ready();
+  FfiStatus bridge_shutdown();
+  FfiStatus start_vpn(i32 fd);
+
+  // Async functions
+  [Async]
+  ProfilesResult profiles_list();
+
+  [Async]
+  FfiStatus profile_create(string name, string url);
+
+  [Async]
+  FfiStatus profile_select(string name);
+
+  [Async]
+  FfiStatus profile_update(string name);
+
+  [Async]
+  ProxyGroupsResult proxies_groups();
+
+  [Async]
+  FfiStatus proxy_select(string group, string server);
+
+  [Async]
+  FfiStatus config_patch_mode(string mode);
+
+  [Async]
+  TrafficResult traffic_snapshot();
+
+  [Async]
+  IpResult ip_check();
+
+  [Async]
+  TunStatusResult tun_status();
+};
+
+enum FfiErrorCode {
+  "Ok",
+  "InvalidState",
+  "InvalidInput",
+  "NotReady",
+  "NotSupported",
+  "Io",
+  "Network",
+  "Unknown",
+};
+
+dictionary FfiStatus {
+  FfiErrorCode code;
+  string? message;
+};
+
+dictionary FfiStringResult {
+  FfiStatus status;
+  string? value;
+};
+
+dictionary FfiBoolResult {
+  FfiStatus status;
+  boolean value;
+};
+
+dictionary ProfileSummary {
+  string name;
+  boolean active;
+  string? subscription_url;
+  boolean auto_update_enabled;
+  u32? update_interval_hours;
+  string? last_updated;
+  string? next_update;
+};
+
+dictionary ProfilesResult {
+  FfiStatus status;
+  sequence<ProfileSummary> profiles;
+};
+
+dictionary ProxyGroupSummary {
+  string name;
+  string group_type;
+  string? current;
+  sequence<string> all;
+};
+
+dictionary ProxyGroupsResult {
+  FfiStatus status;
+  sequence<ProxyGroupSummary> groups;
+};
+
+dictionary TrafficSnapshot {
+  u64 up_rate;
+  u64 down_rate;
+  u64 up_total;
+  u64 down_total;
+  u64 up_peak;
+  u64 down_peak;
+  u32 connections;
+};
+
+dictionary TrafficResult {
+  FfiStatus status;
+  TrafficSnapshot? snapshot;
+};
+
+dictionary IpCheckResult {
+  string ip;
+  string? country;
+  string? region;
+  string? city;
+};
+
+dictionary IpResult {
+  FfiStatus status;
+  IpCheckResult? value;
+};
+
+dictionary TunStatusResult {
+  FfiStatus status;
+  boolean enabled;
+};

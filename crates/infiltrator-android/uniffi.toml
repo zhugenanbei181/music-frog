@@ -1,0 +1,4 @@
+[bindings.kotlin]
+package_name = "infiltrator_android"
+cdylib_name = "infiltrator_android"
+android = true

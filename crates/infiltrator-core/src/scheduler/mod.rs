@@ -1,21 +1,34 @@
+#[cfg(feature = "admin-api")]
 use std::sync::OnceLock;
-use tokio::sync::{watch, Mutex};
-use tokio::time::{interval, Duration, Instant};
+#[cfg(feature = "admin-api")]
+use tokio::sync::Mutex;
+use tokio::time::Duration;
+#[cfg(feature = "admin-api")]
+use tokio::sync::watch;
+#[cfg(feature = "admin-api")]
+use tokio::time::{interval, Instant};
 use log::warn;
 use reqwest::Client;
 
+#[cfg(feature = "admin-api")]
 use crate::admin_api::AdminApiContext;
+#[cfg(feature = "admin-api")]
 use self::subscription::run_subscription_tick;
+#[cfg(feature = "admin-api")]
 use self::sync::run_sync_tick;
 
+#[cfg(feature = "admin-api")]
 pub mod subscription;
+#[cfg(feature = "admin-api")]
 pub mod sync;
 
+#[cfg(feature = "admin-api")]
 #[derive(Clone)]
 pub struct SubscriptionScheduler {
     stop_tx: watch::Sender<bool>,
 }
 
+#[cfg(feature = "admin-api")]
 impl SubscriptionScheduler {
     pub fn start<C: AdminApiContext>(ctx: C) -> Self {
         let (stop_tx, mut stop_rx) = watch::channel(false);
@@ -85,6 +98,7 @@ impl SubscriptionScheduler {
     }
 }
 
+#[cfg(feature = "admin-api")]
 pub(crate) fn update_lock() -> &'static Mutex<()> {
     static UPDATE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     UPDATE_LOCK.get_or_init(|| Mutex::new(()))

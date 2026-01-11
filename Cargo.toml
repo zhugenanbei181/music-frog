@@ -20,8 +20,9 @@ members = [
 [workspace.dependencies]
 # Network & Async
 tokio = { version = "1.49", features = ["full"] }
-reqwest = { version = "0.13", default-features = false, features = ["native-tls", "json", "socks", "stream", "http2"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "socks", "stream", "http2"] }
 url = "2.5"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 
 # Data Handling
 quick-xml = { version = "0.37", features = ["serialize", "async-tokio"] }
@@ -57,4 +58,6 @@ zip = "2.2"
 sysinfo = "0.33"
 jni = "0.21"
 tokio-stream = "0.1"
+uniffi = "0.30"
+uniffi_bindgen = "0.30"
 

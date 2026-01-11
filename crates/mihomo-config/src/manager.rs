@@ -446,7 +446,6 @@ external-controller: 127.0.0.1:{}
     }
 }
 
-#[cfg(not(target_os = "android"))]
 impl ConfigManager<DefaultCredentialStore> {
     pub fn new() -> Result<Self> {
         Self::new_with_store(DefaultCredentialStore::default())

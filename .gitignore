@@ -52,3 +52,26 @@ WebAdminDoc.md
 !vendor/*.exe
 
 scripts
+!scripts/android-build.ps1
+!scripts/android-build.sh
+
+# Android build outputs
+android/.gradle/
+android/.idea/
+android/.kotlin/
+android/.cxx/
+android/.externalNativeBuild/
+android/*.iml
+android/build/
+android/app/build/
+android/app/.cxx/
+android/app/.externalNativeBuild/
+android/app/src/main/jniLibs/
+android/local.properties
+android/app/src/main/assets/mihomo/mihomo-android-arm64-v8
+android/app/src/main/java/infiltrator_android/
+android/android/
+android/Medium-Phone-*
+
+# Tauri generated schemas
+src-tauri/gen/

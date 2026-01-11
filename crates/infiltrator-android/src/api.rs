@@ -54,6 +54,26 @@ where
     pub fn cache_dir(&self) -> Option<std::path::PathBuf> {
         self.adapter.cache_dir()
     }
+
+    pub async fn vpn_start(&self) -> Result<bool> {
+        self.adapter.vpn_start().await
+    }
+
+    pub async fn vpn_stop(&self) -> Result<bool> {
+        self.adapter.vpn_stop().await
+    }
+
+    pub async fn vpn_is_running(&self) -> Result<bool> {
+        self.adapter.vpn_is_running().await
+    }
+
+    pub async fn tun_set_enabled(&self, enabled: bool) -> Result<bool> {
+        self.adapter.tun_set_enabled(enabled).await
+    }
+
+    pub async fn tun_is_enabled(&self) -> Result<bool> {
+        self.adapter.tun_is_enabled().await
+    }
 }
 
 #[cfg(test)]
@@ -122,6 +142,26 @@ mod tests {
 
         fn cache_dir(&self) -> Option<PathBuf> {
             Some(PathBuf::from("cache"))
+        }
+
+        async fn vpn_start(&self) -> Result<bool> {
+            Ok(true)
+        }
+
+        async fn vpn_stop(&self) -> Result<bool> {
+            Ok(true)
+        }
+
+        async fn vpn_is_running(&self) -> Result<bool> {
+            Ok(false)
+        }
+
+        async fn tun_set_enabled(&self, _enabled: bool) -> Result<bool> {
+            Ok(true)
+        }
+
+        async fn tun_is_enabled(&self) -> Result<bool> {
+            Ok(false)
         }
     }
 

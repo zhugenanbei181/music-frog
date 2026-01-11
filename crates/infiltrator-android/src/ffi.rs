@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 #[repr(u32)]
 pub enum FfiErrorCode {
     Ok = 0,
@@ -11,7 +11,7 @@ pub enum FfiErrorCode {
     Unknown = 255,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct FfiStatus {
     pub code: FfiErrorCode,
     pub message: Option<String>,
@@ -33,7 +33,7 @@ impl FfiStatus {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct FfiStringResult {
     pub status: FfiStatus,
     pub value: Option<String>,
@@ -55,7 +55,7 @@ impl FfiStringResult {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct FfiBoolResult {
     pub status: FfiStatus,
     pub value: bool,
