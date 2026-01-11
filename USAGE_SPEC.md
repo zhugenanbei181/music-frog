@@ -95,6 +95,7 @@ Manage profiles, imports, editing, and synchronization in the **Profiles & Impor
       **Select Path / 选择路径**: 选择外部编辑器路径。
   - **Save / 保存** + **Reset / 恢复默认**: Save or reset editor settings.
       **Save / 保存** + **Reset / 恢复默认**: 保存或重置外部编辑器设置。
+
 ---
 
 ## 4. WebDAV Sync / WebDAV 同步
