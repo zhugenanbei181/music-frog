@@ -20,11 +20,41 @@ pub(crate) fn get_str(doc: &Yaml, key: &str) -> Option<String> {
         .map(|value| value.to_string())
 }
 
+pub(crate) fn get_u16(doc: &Yaml, key: &str) -> Option<u16> {
+    let value = doc.as_hash()?.get(&Yaml::String(key.to_string()))?;
+    match value {
+        Yaml::Integer(num) => {
+            if *num >= 0 && *num <= u16::MAX as i64 {
+                Some(*num as u16)
+            } else {
+                None
+            }
+        }
+        Yaml::Real(raw) => raw.parse::<u16>().ok(),
+        Yaml::String(raw) => raw.parse::<u16>().ok(),
+        _ => None,
+    }
+}
+
 pub(crate) fn set_str(doc: &mut Yaml, key: &str, value: &str) -> Result<()> {
     if let Yaml::Hash(ref mut hash) = doc {
         hash.insert(
             Yaml::String(key.to_string()),
             Yaml::String(value.to_string()),
+        );
+        Ok(())
+    } else {
+        Err(MihomoError::Config(
+            "Invalid YAML mapping".to_string(),
+        ))
+    }
+}
+
+pub(crate) fn set_u16(doc: &mut Yaml, key: &str, value: u16) -> Result<()> {
+    if let Yaml::Hash(ref mut hash) = doc {
+        hash.insert(
+            Yaml::String(key.to_string()),
+            Yaml::Integer(value as i64),
         );
         Ok(())
     } else {

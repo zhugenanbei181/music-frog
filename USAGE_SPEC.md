@@ -7,11 +7,13 @@ This document provides instructions for users on how to interact with the **Musi
 
 ## 1. Tray Menu / 托盘菜单
 
-The tray menu provides quick access to connection info and core controls.
-托盘菜单提供连接信息和核心控制的快速访问。
+The tray menu provides quick access to connection info, proxy/config pages, and core controls.
+托盘菜单提供连接信息、代理/配置页面与核心控制的快速访问。
 
-- **Open Browser / 打开浏览器**: Opens the management Web UI in your default browser.
-  **打开浏览器**: 在默认浏览器中打开管理 Web UI。
+- **Open Proxy Page / 打开代理页**: Opens the proxy Web UI in your default browser.
+  **打开代理页**: 在默认浏览器中打开代理 Web UI。
+- **Open Config Page / 打开配置页**: Opens the configuration page (Admin Web UI) in your default browser.
+  **打开配置页**: 在默认浏览器中打开配置页面（管理 Web UI）。
 - **System Proxy / 系统代理**: Toggle the system-wide proxy on or off.
   **系统代理**: 切换全局系统代理的开启或关闭。
 - **Proxy Mode / 代理模式**: Switch between `Rule`, `Global`, `Direct`, and `Script` modes.
@@ -23,87 +25,142 @@ The tray menu provides quick access to connection info and core controls.
 
 ---
 
-## 2. Profile Management / 配置管理
+## 2. Admin UI Navigation / 管理界面导航
 
-Manage your subscriptions and local configuration files.
-管理您的订阅和本地配置文件。
+The Admin Web UI uses a left-side **Sections** menu and a fixed top status header.
+管理 Web UI 使用左侧 **导航** 菜单与顶部固定状态栏。
 
-- **Import Subscription / 导入订阅**:
-  - **Name / 名称**: Enter a friendly name for the subscription.
-      **名称**: 输入订阅的友好名称。
-  - **URL**: Paste the subscription link.
-      **URL**: 粘贴订阅链接。
-  - **Import Now / 立即导入**: Downloads and saves the subscription.
-      **立即导入**: 下载并保存订阅。
-- **Import Local / 导入本地**:
-  - **Select File / 选择文件**: Choose a `.yaml` or `.toml` file from your disk.
-      **选择文件**: 从磁盘选择 `.yaml` 或 `.toml` 文件。
-  - **Save / 保存**: Imports the local file into the application.
-      **保存**: 将本地文件导入应用。
-- **Profiles List / 配置列表**:
+- **Status Header / 顶部状态栏**:
+  - **Language / 语言**: Select Follow System / 简体中文 / English.
+      **Language / 语言**: 选择 跟随系统 / 简体中文 / English。
+  - **Theme / 深色模式**: Select Follow System / Light / Dark.
+      **Theme / 深色模式**: 选择 跟随系统 / 浅色 / 深色。
+  - **Refresh Status / 刷新状态**: Reload status and panel data.
+      **Refresh Status / 刷新状态**: 刷新状态与各面板数据。
+  - **Refresh Updates / 刷新更新**: Appears when background changes are detected; click to reload the latest data.
+      **Refresh Updates / 刷新更新**: 检测到后台变更时出现，点击后刷新最新数据。
+- **Sections / 导航分组**:
+  - **Profiles & Imports / 配置管理**: Profile list, subscription import, local import, editor, and external editor.
+      **Profiles & Imports / 配置管理**: 配置列表、订阅导入、本地导入、编辑器与外部编辑器。
+  - **WebDAV Sync / WebDAV 同步**: WebDAV configuration, test, and manual sync.
+      **WebDAV Sync / WebDAV 同步**: WebDAV 配置、连接测试与手动同步。
+  - **DNS & Fake-IP / DNS / Fake-IP**: DNS settings and Fake-IP cache control.
+      **DNS & Fake-IP / DNS / Fake-IP**: DNS 设置与 Fake-IP 缓存控制。
+  - **Core & TUN / 内核与 TUN**: Core version switching and TUN advanced settings.
+      **Core & TUN / 内核与 TUN**: 内核版本切换与 TUN 高级设置。
+  - **Rules & Providers / 规则与 Providers**: Rule providers and rule list management.
+      **Rules & Providers / 规则与 Providers**: Rule Providers 与规则列表管理。
+
+---
+
+## 3. Profiles & Imports / 配置管理
+
+Manage profiles, imports, editing, and synchronization in the **Profiles & Imports** section.
+在 **Profiles & Imports**（配置管理）分组中完成配置管理、导入、编辑与同步。
+
+- **Profiles / 现有配置**:
+  - **Refresh / 刷新**: Reload profile list and status.
+      **Refresh / 刷新**: 重新加载配置列表与状态。
+  - **Clear Configs / 清空配置**: Clear all configs and restore defaults.
+      **Clear Configs / 清空配置**: 清空配置并恢复默认。
   - **Set Active / 设为当前**: Activate the selected profile and restart the core.
-      **设为当前**: 激活所选配置并重启内核。
-  - **Edit / 编辑**: Opens the built-in editor to modify the profile content.
-      **编辑**: 打开内置编辑器修改配置内容。
-  - **Delete / 删除**: Removes the profile from the list.
-      **删除**: 从列表中移除配置。
+      **Set Active / 设为当前**: 激活所选配置并重启内核。
+  - **Edit / 编辑**: Open the built-in **Config Editor** with the selected profile.
+      **Edit / 编辑**: 打开内置 **Config Editor** 进行编辑。
+  - **External Edit / 外部编辑**: Launch the external editor for the selected profile.
+      **External Edit / 外部编辑**: 用外部编辑器打开所选配置。
+  - **Delete / 删除**: Remove the selected profile.
+      **Delete / 删除**: 删除所选配置。
+  - **Update Now / 立即更新** + **Save Settings / 保存订阅设置**: Update subscription and save its schedule.
+      **Update Now / 立即更新** + **Save Settings / 保存订阅设置**: 立即更新订阅并保存更新计划。
+- **Import Subscription / 通过订阅导入**:
+  - **Name / 配置名称** + **Subscription URL / 订阅链接**: Fill in the subscription metadata.
+      **Name / 配置名称** + **Subscription URL / 订阅链接**: 填写订阅名称与 URL。
+  - **Set as active after import / 导入后设为当前配置** + **Import Now / 立即导入**:
+    Import the subscription and optionally activate it (core restarts in background).
+      **Set as active after import / 导入后设为当前配置** + **Import Now / 立即导入**:
+        导入订阅并可选自动激活（内核后台重启）。
+- **Import Local File / 从本地文件导入**:
+  - **Select File / 选择文件**: Choose a `.yaml` or `.toml` file from disk.
+      **Select File / 选择文件**: 从磁盘选择 `.yaml` 或 `.toml`。
+  - **Save Local Config / 保存本地配置**: Import and save the local file.
+      **Save Local Config / 保存本地配置**: 导入并保存本地文件。
+- **Config Editor / 配置编辑器**:
+  - **Save Config / 保存配置**: Save the content as a profile, optionally activate it.
+      **Save Config / 保存配置**: 保存内容为配置，并可选激活。
+  - **External Edit / 外部编辑**: Open the current profile in external editor.
+      **External Edit / 外部编辑**: 用外部编辑器打开当前配置。
+- **External Editor / 外部编辑器设置**:
+  - **Select Path / 选择路径**: Pick the external editor executable.
+      **Select Path / 选择路径**: 选择外部编辑器路径。
+  - **Save / 保存** + **Reset / 恢复默认**: Save or reset editor settings.
+      **Save / 保存** + **Reset / 恢复默认**: 保存或重置外部编辑器设置。
+---
+
+## 4. WebDAV Sync / WebDAV 同步
+
+Manage sync settings, tests, and manual sync in the **WebDAV Sync** section.
+在 **WebDAV Sync** 分组中管理同步设置、连接测试与手动同步。
+
+- **Test Connection / 连接测试**: Verify the WebDAV server.
+    **Test Connection / 连接测试**: 验证 WebDAV 服务可用性。
+- **Sync Now / 立即同步**: Start a manual synchronization.
+    **Sync Now / 立即同步**: 手动触发同步。
+- **Save / 保存**: Persist sync settings.
+    **Save / 保存**: 保存同步设置。
 
 ---
 
-## 3. Advanced Configuration / 高级配置
+## 5. DNS & Fake-IP / DNS 与 Fake-IP
 
-Fine-tune your proxy behavior through specialized panels.
-通过专门的面板精细调整代理行为。
+Tune network behavior in the **DNS & Fake-IP** section.
+在 **DNS & Fake-IP** 分组中调整网络行为。
 
-- **DNS Panel / DNS 面板**:
-  - **Enable / 启用**: Toggle the built-in DNS server.
-      **启用**: 切换内置 DNS 服务器。
-  - **Nameservers / 上游服务器**: List of DNS servers to use.
-      **上游服务器**: 要使用的 DNS 服务器列表。
-- **Tun Panel / Tun 面板**:
-  - **Enable / 启用**: Toggle TUN mode for transparent proxying (Requires Admin).
-      **启用**: 切换 TUN 模式以实现透明代理（需要管理员权限）。
-  - **Stack / 栈类型**: Select between `gVisor` or `System` network stacks.
-      **栈类型**: 在 `gVisor` 或 `System` 网络栈之间选择。
-- **Fake-IP Panel / Fake-IP 面板**:
-  - **Fake-IP Range / 范围**: Define the IP range for Fake-IP mapping.
-      **范围**: 定义 Fake-IP 映射的 IP 范围。
-  - **Flush Cache / 清理缓存**: Click to clear stored Fake-IP mappings.
-      **清理缓存**: 点击以清除存储的 Fake-IP 映射。
-- **Rules Panel / 规则面板**:
-  - **Add Rule / 添加规则**: Insert a new routing rule.
-      **添加规则**: 插入一条新的路由规则。
-  - **Save Rules / 保存规则**: Apply the changes to the rules list.
-      **保存规则**: 将更改应用到规则列表。
+- **DNS Settings / DNS 设置**:
+  - **Save / 保存**: Apply DNS settings.
+      **Save / 保存**: 应用 DNS 设置。
+  - **Refresh / 刷新**: Reload DNS settings.
+      **Refresh / 刷新**: 重新加载 DNS 设置。
+- **Fake-IP / Fake-IP**:
+  - **Save / 保存**: Apply Fake-IP settings.
+      **Save / 保存**: 应用 Fake-IP 设置。
+  - **Refresh / 刷新**: Reload Fake-IP settings.
+      **Refresh / 刷新**: 重新加载 Fake-IP 设置。
+  - **Flush Cache / 清理缓存**: Clear the Fake-IP cache.
+      **Flush Cache / 清理缓存**: 清理 Fake-IP 缓存。
 
 ---
 
-## 4. Sync & Backup / 同步与备份
+## 6. Core & TUN / 内核与 TUN
 
-Keep your configurations in sync across multiple devices using WebDAV.
-使用 WebDAV 在多个设备之间保持配置同步。
+Manage core versions and advanced TUN settings in the **Core & TUN** section.
+在 **Core & TUN** 分组中管理内核版本与 TUN 高级设置。
 
-- **WebDAV Settings / WebDAV 设置**:
-  - **Enable / 启用**: Toggle automatic synchronization.
-      **启用**: 切换自动同步。
-  - **URL / Username / Password**: Your WebDAV server credentials.
-      **地址 / 用户名 / 密码**: 您的 WebDAV 服务器凭据。
-  - **Sync Now / 立即同步**: Manually trigger a synchronization cycle.
-      **立即同步**: 手动触发一次同步循环。
-  - **Test Connection / 测试连接**: Verify if the server is accessible.
-      **测试连接**: 验证服务器是否可访问。
+- **Core Version / 内核版本**:
+  - **Refresh / 刷新**: Reload available core versions.
+      **Refresh / 刷新**: 重新加载可用内核版本。
+  - **Use / 启用**: Switch to the selected core version.
+      **Use / 启用**: 切换到所选内核版本。
+- **TUN Advanced / TUN 高级设置**:
+  - **Save / 保存**: Apply TUN settings.
+      **Save / 保存**: 应用 TUN 设置。
+  - **Refresh / 刷新**: Reload TUN settings.
+      **Refresh / 刷新**: 重新加载 TUN 设置。
 
 ---
 
-## 5. Core Management / 内核管理
+## 7. Rules & Providers / 规则与 Providers
 
-Manage the underlying `mihomo` binary versions.
-管理底层的 `mihomo` 二进制版本。
+Manage rule providers and rules in the **Rules & Providers** section.
+在 **Rules & Providers** 分组中管理 Rule Providers 与规则列表。
 
-- **Core Panel / 内核面板**:
-  - **Activate / 启用**: Switch to a specific downloaded version of the core.
-      **启用**: 切换到特定的已下载内核版本。
-  - **Update to Stable / 更新到稳定版**: Download the latest stable core version.
-      **更新到稳定版**: 下载最新的稳定版内核。
-  - **Default Core / 默认内核**: Toggle between the bundled core and downloaded versions.
-      **默认内核**: 在捆绑内核和下载版本之间切换。
+- **Rule Providers (JSON) / 规则提供者 (JSON)**:
+  - **Save Providers / 保存 Providers**: Save the JSON providers configuration.
+      **Save Providers / 保存 Providers**: 保存 Providers JSON 配置。
+- **Rules / 规则列表**:
+  - **Add Rule / 新增规则**: Insert a new rule line.
+      **Add Rule / 新增规则**: 添加新规则行。
+  - **Save Rules / 保存规则**: Apply rule list changes.
+      **Save Rules / 保存规则**: 保存规则列表更改。
+- **Rule list scroll / 规则列表滚动**: The rules list scrolls inside the panel to handle large sets.
+      **Rule list scroll / 规则列表滚动**: 规则列表在面板内滚动，以适配大量规则。

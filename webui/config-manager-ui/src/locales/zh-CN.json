@@ -2,7 +2,24 @@
   "header": {
     "title": "配置管理控制台",
     "subtitle": "订阅导入、配置编辑、内核切换统一在此完成，状态与结果会即时反馈。",
-    "refresh": "刷新状态"
+    "refresh": "刷新状态",
+    "refresh_updates": "刷新更新",
+    "language": "语言",
+    "theme": "深色模式",
+    "language_system": "跟随系统",
+    "language_zh": "简体中文",
+    "language_en": "English",
+    "theme_system": "跟随系统",
+    "theme_light": "浅色",
+    "theme_dark": "深色"
+  },
+  "nav": {
+    "title": "导航",
+    "profiles": "配置管理",
+    "webdav": "WebDAV 同步",
+    "network": "DNS / Fake-IP",
+    "core": "内核与 TUN",
+    "rules": "规则与 Providers"
   },
   "profiles": {
     "title": "现有配置",
@@ -24,6 +41,7 @@
     "subscription": "订阅",
     "next_update": "下次更新：{time}",
     "last_update": "上次更新：{time}",
+    "path_label": "路径：{path}",
     "sub_url": "订阅地址：{url}",
     "collapse": "收起",
     "enable_auto_update": "启用自动更新",
@@ -232,7 +250,7 @@
   "rules": {
     "title": "规则与 Providers",
     "providers_title": "规则提供者 (JSON)",
-    "providers_placeholder": "{\n  \"provider-name\": {\"type\": \"http\", \"behavior\": \"domain\", \"url\": \"...\"}\n}",
+    "providers_placeholder": "{'{'}\n  \"provider-name\": {'{'}\"type\": \"http\", \"behavior\": \"domain\", \"url\": \"...\"{'}'}\n{'}'}",
     "providers_hint": "保持 JSON 对象格式，保存到 rule-providers 段。",
     "rules_title": "规则列表",
     "add_rule": "新增规则",

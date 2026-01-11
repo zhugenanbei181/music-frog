@@ -41,14 +41,48 @@
 :root {
   color-scheme: light;
   --panel-border: rgba(15, 23, 42, 0.08);
+  --panel-bg: rgba(255, 255, 255, 0.85);
+  --input-bg: #ffffff;
+  --input-border: rgba(51, 65, 85, 0.2);
+  --app-bg:
+    radial-gradient(circle at 15% 15%, rgba(94, 234, 212, 0.25), transparent 45%),
+    radial-gradient(circle at 85% 10%, rgba(251, 191, 36, 0.18), transparent 40%),
+    #f8f7f3;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-ink-900: #e2e8f0;
+  --color-ink-700: #cbd5e1;
+  --color-ink-500: #94a3b8;
+  --color-sand-50: #0b1120;
+  --color-sand-100: #0f172a;
+  --color-sand-200: #111827;
+  --panel-border: rgba(148, 163, 184, 0.22);
+  --panel-bg: rgba(15, 23, 42, 0.82);
+  --input-bg: rgba(15, 23, 42, 0.7);
+  --input-border: rgba(148, 163, 184, 0.35);
+  --shadow-panel: 0 24px 60px -40px rgba(2, 6, 23, 0.8);
+  --app-bg:
+    radial-gradient(circle at 15% 15%, rgba(20, 184, 166, 0.15), transparent 45%),
+    radial-gradient(circle at 85% 10%, rgba(245, 158, 11, 0.12), transparent 40%),
+    #0b1120;
+}
+
+:root[data-theme="dark"] .btn-secondary,
+:root[data-theme="dark"] .btn-outline {
+  background-color: rgba(15, 23, 42, 0.6);
+  border-color: var(--panel-border);
+  color: var(--color-ink-700);
+}
+
+:root[data-theme="dark"] .btn-ghost {
+  color: var(--color-ink-700);
 }
 
 body {
   font-family: "Manrope", sans-serif;
-  background:
-    radial-gradient(circle at 15% 15%, rgba(94, 234, 212, 0.25), transparent 45%),
-    radial-gradient(circle at 85% 10%, rgba(251, 191, 36, 0.18), transparent 40%),
-    #f8f7f3;
+  background: var(--app-bg);
   min-height: 100vh;
 }
 
@@ -60,7 +94,9 @@ main {
 
 @layer components {
   .panel {
-    @apply rounded-2xl border border-[color:var(--panel-border)] bg-white/85 shadow-panel backdrop-blur;
+    @apply rounded-2xl border shadow-panel backdrop-blur;
+    border-color: var(--panel-border);
+    background-color: var(--panel-bg);
   }
   .panel-title {
     @apply text-lg font-semibold text-ink-900;
@@ -75,10 +111,14 @@ main {
     @apply text-sm text-ink-500;
   }
   .input {
-    @apply w-full rounded-xl border border-ink-500/20 bg-white px-3 py-2 text-sm text-ink-900 focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-200;
+    @apply w-full rounded-xl border px-3 py-2 text-sm text-ink-900 focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-200;
+    background-color: var(--input-bg);
+    border-color: var(--input-border);
   }
   .textarea {
-    @apply w-full rounded-xl border border-ink-500/20 bg-white px-3 py-2 text-sm text-ink-900 focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-200;
+    @apply w-full rounded-xl border px-3 py-2 text-sm text-ink-900 focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-200;
+    background-color: var(--input-bg);
+    border-color: var(--input-border);
   }
   .btn {
     @apply inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold transition;
@@ -118,6 +158,8 @@ main {
   }
 
   .select {
-    @apply w-full rounded-xl border border-ink-500/20 bg-white px-3 py-2 text-sm text-ink-900 focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-200;
+    @apply w-full rounded-xl border px-3 py-2 text-sm text-ink-900 focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-200;
+    background-color: var(--input-bg);
+    border-color: var(--input-border);
   }
 }

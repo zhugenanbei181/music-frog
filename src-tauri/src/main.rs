@@ -16,18 +16,21 @@ mod tray;
 mod utils;
 
 use log::warn;
+use mihomo_platform::set_home_dir_override;
 use tauri::{Manager, RunEvent};
 
 use crate::{
     admin_context::TauriAdminContext,
     app_state::AppState,
-    frontend::spawn_frontends,
+    frontend::{open_frontend, spawn_frontends},
+    paths::app_data_dir,
     platform::show_error_dialog,
     runtime::spawn_runtime,
     settings::load_settings,
     tray::create_tray,
     utils::parse_launch_ports,
 };
+use infiltrator_core::admin_api::{EVENT_CORE_CHANGED, EVENT_PROFILES_CHANGED};
 use infiltrator_core::SubscriptionScheduler;
 
 fn main() {
@@ -47,7 +50,21 @@ fn main() {
                 .build(),
         )
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let state = app.state::<AppState>().inner().clone();
+            open_frontend(state);
+        }))
         .setup(move |app| {
+            match app_data_dir(app.app_handle()) {
+                Ok(base_dir) => {
+                    if !set_home_dir_override(base_dir.clone()) {
+                        warn!("data dir override already set: {}", base_dir.display());
+                    }
+                }
+                Err(err) => {
+                    warn!("failed to resolve data dir for mihomo config: {err}");
+                }
+            }
             let state = app.state::<AppState>().inner().clone();
             tauri::async_runtime::block_on(async {
                 state.set_app_handle(app.app_handle().clone()).await;
@@ -63,6 +80,45 @@ fn main() {
                 launch_ports.static_port,
                 launch_ports.admin_port,
             );
+            {
+                let app_handle = app.app_handle().clone();
+                let state_for_events = app.state::<AppState>().inner().clone();
+                tauri::async_runtime::spawn(async move {
+                    let mut receiver = state_for_events.admin_event_bus().subscribe();
+                    loop {
+                        match receiver.recv().await {
+                            Ok(event) => {
+                                if event.kind == EVENT_PROFILES_CHANGED {
+                                    if let Err(err) = crate::tray::refresh_profile_switch_submenu(
+                                        &app_handle,
+                                        &state_for_events,
+                                    )
+                                    .await
+                                    {
+                                        warn!("failed to refresh profile switch submenu: {err:#}");
+                                    }
+                                } else if event.kind == EVENT_CORE_CHANGED {
+                                    if let Err(err) = crate::tray::refresh_core_versions_submenu(
+                                        &app_handle,
+                                        &state_for_events,
+                                    )
+                                    .await
+                                    {
+                                        warn!("failed to refresh core versions submenu: {err:#}");
+                                    }
+                                    state_for_events.refresh_core_version_info().await;
+                                }
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                                continue;
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
             tauri::async_runtime::block_on(async {
                 let scheduler = SubscriptionScheduler::start(TauriAdminContext {
                     app: app.app_handle().clone(),

@@ -10,6 +10,7 @@ use log::warn;
 use reqwest::Client;
 
 use super::models::RebuildStatusResponse;
+use super::events::AdminEventBus;
 
 use crate::settings::AppSettings;
 
@@ -86,10 +87,11 @@ pub struct AdminApiState<C> {
     pub http_client: Client,
     pub raw_http_client: Client,
     pub rebuild_status: Arc<RebuildStatus>,
+    pub events: AdminEventBus,
 }
 
 impl<C: AdminApiContext> AdminApiState<C> {
-    pub fn new(ctx: C) -> Self {
+    pub fn new(ctx: C, events: AdminEventBus) -> Self {
         let http_client = Client::builder()
             .user_agent("MusicFrog-Despicable-Infiltrator")
             .timeout(Duration::from_secs(30))
@@ -116,6 +118,7 @@ impl<C: AdminApiContext> AdminApiState<C> {
             http_client,
             raw_http_client,
             rebuild_status,
+            events,
         }
     }
 }

@@ -9,27 +9,58 @@
         </p>
       </div>
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div class="rounded-2xl border border-ink-500/10 bg-white/80 px-4 py-3 text-sm">
+        <div class="panel px-4 py-3 text-sm">
           <p class="font-semibold text-ink-900">{{ statusMessage }}</p>
           <p class="help-text">{{ statusDetail }}</p>
         </div>
-        <button class="btn btn-outline btn-sm gap-2" @click="$emit('toggle-lang')">
-          <span class="text-lg">🌐</span>
+        <div class="grid gap-2 sm:grid-cols-2">
+          <SelectMenu
+            class="min-w-[170px]"
+            :label="$t('header.language')"
+            :model-value="languageValue"
+            :options="languageOptions"
+            @update:modelValue="$emit('update:language', $event)"
+          />
+          <SelectMenu
+            class="min-w-[170px]"
+            :label="$t('header.theme')"
+            :model-value="themeValue"
+            :options="themeOptions"
+            @update:modelValue="$emit('update:theme', $event)"
+          />
+        </div>
+        <div class="flex flex-wrap gap-2">
+        <button
+          v-if="hasPendingUpdates"
+          class="btn btn-primary btn-sm gap-2"
+          @click="$emit('refresh-updates')"
+        >
+          {{ $t('header.refresh_updates') }}
         </button>
         <button class="btn btn-outline btn-sm gap-2" @click="$emit('refresh')">{{ $t('header.refresh') }}</button>
+        </div>
       </div>
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
+import SelectMenu from './SelectMenu.vue';
+
 defineProps<{
   statusMessage: string;
   statusDetail: string;
+  languageValue: string;
+  themeValue: string;
+  languageOptions: Array<{ value: string; label: string }>;
+  themeOptions: Array<{ value: string; label: string }>;
+  hasPendingUpdates?: boolean;
 }>();
 
 defineEmits<{
   (event: 'refresh'): void;
-  (event: 'toggle-lang'): void;
+  (event: 'refresh-updates'): void;
+  (event: 'update:language', value: string): void;
+  (event: 'update:theme', value: string): void;
 }>();
 </script>

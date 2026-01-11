@@ -1,19 +1,20 @@
 # MusicFrog Despicable Infiltrator
 
-A music frog.
+Desktop manager for mihomo-based proxy configurations with an Admin Web UI for profiles, network settings, core control, and rules, plus grouped tray shortcuts for proxy/config pages, language/theme preferences, and live update notifications for tray and core changes.
 
-## Vibecoding
+## Tech Stack & Libraries
 
-This project's codebase and documentation are autonomously developed and maintained by specialized AI assistants.
+- Backend: Tauri, Axum, SQLx, Reqwest, Tokio, Serde
+- Frontend: Vue 3, Vite, Tailwind CSS
 
-- **Google Gemini 2.5 / 3.0 Flash/Pro**: Primary architect for core logic, system integration, and advanced feature planning.
-- **Anthropic Claude 4.5 Sonnet**: Specialist for frontend UI/UX design, component refactoring, and complex state management logic.
-- **OpenAI codex**: Assists with code completion, boilerplate generation, and routine refactorings.
+## AI Codex
 
-*Note: All code changes, refactorings, and documentation updates are performed by AI agents.*
+This project is fully developed and maintained by AI assistants.
 
-## Documentation
+- **Google Gemini 2.5 / 3.0 Flash/Pro**: Core logic, system integration, and feature planning.
+- **Anthropic Claude 4.5 Sonnet**: Frontend UI/UX design and component refactoring.
+- **OpenAI Codex**: Code completion, routine refactorings, and documentation upkeep.
 
-For detailed instructions on how to use the application, please refer to the usage specification:
+## Documentation Links
 
 - [USAGE_SPEC.md](USAGE_SPEC.md) - Detailed feature descriptions and usage guide (Bilingual).

@@ -12,7 +12,7 @@
         </template>
       </PanelHeader>
 
-      <div class="space-y-4 flex-grow overflow-auto pr-1">
+      <div class="space-y-4 grow overflow-auto pr-1">
         <div class="grid grid-cols-2 gap-4">
           <div class="form-control w-full">
             <label class="label py-1">

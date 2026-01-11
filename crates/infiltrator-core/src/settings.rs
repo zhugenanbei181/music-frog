@@ -33,6 +33,7 @@ pub struct AppSettings {
     pub editor_path: Option<String>,
     pub use_bundled_core: bool,
     pub language: String,
+    pub theme: String,
     pub webdav: WebDavConfig,
 }
 
@@ -43,6 +44,7 @@ impl Default for AppSettings {
             editor_path: None,
             use_bundled_core: true,
             language: "zh-CN".to_string(),
+            theme: "system".to_string(),
             webdav: WebDavConfig::default(),
         }
     }
@@ -95,6 +97,7 @@ mod tests {
         assert!(!settings.open_webui_on_startup);
         assert!(settings.use_bundled_core);
         assert_eq!(settings.language, "zh-CN");
+        assert_eq!(settings.theme, "system");
     }
 
     #[test]

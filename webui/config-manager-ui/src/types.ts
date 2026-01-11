@@ -59,6 +59,7 @@ export interface AppSettings {
   editor_path: string | null;
   use_bundled_core: boolean;
   language: string;
+  theme?: string;
   webdav: WebDavConfig;
 }
 
@@ -129,4 +130,10 @@ export interface TunConfig {
 
 export interface CacheFlushResponse {
   removed: boolean;
+}
+
+export interface AdminEvent {
+  kind: string;
+  detail?: string | null;
+  timestamp?: number;
 }

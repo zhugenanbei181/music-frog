@@ -14,7 +14,7 @@ use tokio::{
 };
 use tower_http::services::{ServeDir, ServeFile};
 
-use crate::admin_api::{self, AdminApiContext, AdminApiState};
+use crate::admin_api::{self, AdminApiContext, AdminApiState, AdminEventBus};
 
 pub struct StaticServerHandle {
     pub url: String,
@@ -85,6 +85,7 @@ pub async fn start_admin_server<C: AdminApiContext>(
     ctx: C,
     preferred_port: Option<u16>,
     default_port: u16,
+    events: AdminEventBus,
 ) -> anyhow::Result<AdminServerHandle> {
     let port = match preferred_port {
         Some(port) => port,
@@ -101,7 +102,7 @@ pub async fn start_admin_server<C: AdminApiContext>(
         .append_index_html_on_directories(true)
         .fallback(ServeFile::new(admin_dir.join("index.html")));
 
-    let api_state = AdminApiState::new(ctx);
+    let api_state = AdminApiState::new(ctx, events);
     let router = Router::new()
         .merge(admin_api::router(api_state))
         .nest_service("/admin", admin_static_service)

@@ -2,6 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::anyhow;
 use infiltrator_core::{
+    admin_api::{AdminEvent, AdminEventBus},
     scheduler::SubscriptionScheduler,
     servers::{AdminServerHandle, StaticServerHandle},
     AppSettings,
@@ -11,7 +12,7 @@ use log::warn;
 use mihomo_api::ProxyInfo;
 use mihomo_version::VersionManager;
 use tauri::{
-    menu::{CheckMenuItem, MenuItem},
+    menu::{CheckMenuItem, MenuItem, Submenu},
     AppHandle, Wry,
 };
 use tauri_plugin_notification::NotificationExt;
@@ -40,6 +41,7 @@ pub(crate) struct AppState {
     pub(crate) settings: Arc<RwLock<AppSettings>>,
     pub(crate) app_handle: Arc<RwLock<Option<AppHandle>>>,
     pub(crate) rebuild_lock: Arc<tokio::sync::Mutex<()>>,
+    admin_events: AdminEventBus,
 }
 
 #[derive(Clone)]
@@ -55,6 +57,14 @@ pub(crate) struct TrayInfoItems {
     pub core_network: MenuItem<Wry>,
     pub core_update: MenuItem<Wry>,
     pub core_default: CheckMenuItem<Wry>,
+    pub core_versions: Submenu<Wry>,
+    pub tun_mode: CheckMenuItem<Wry>,
+    pub mode_rule: CheckMenuItem<Wry>,
+    pub mode_global: CheckMenuItem<Wry>,
+    pub mode_direct: CheckMenuItem<Wry>,
+    pub mode_script: CheckMenuItem<Wry>,
+    pub profile_switch: Submenu<Wry>,
+    pub proxy_groups: Submenu<Wry>,
     pub autostart: CheckMenuItem<Wry>,
     pub open_webui: CheckMenuItem<Wry>,
 }
@@ -73,12 +83,21 @@ impl AppState {
         })
     }
 
+    pub(crate) fn admin_event_bus(&self) -> AdminEventBus {
+        self.admin_events.clone()
+    }
+
+    pub(crate) fn emit_admin_event(&self, event: AdminEvent) {
+        self.admin_events.publish(event);
+    }
+
     pub(crate) async fn get_app_settings(&self) -> AppSettings {
         self.settings.read().await.clone()
     }
 
     pub(crate) async fn get_lang_code(&self) -> String {
-        self.settings.read().await.language.clone()
+        let lang = self.settings.read().await.language.clone();
+        crate::locales::resolve_language_code(&lang)
     }
 
     pub(crate) async fn set_runtime(&self, runtime: MihomoRuntime) {
@@ -154,6 +173,10 @@ impl AppState {
         *guard = Some(items);
     }
 
+    pub(crate) async fn tray_info_items(&self) -> Option<TrayInfoItems> {
+        self.tray_info.read().await.clone()
+    }
+
     pub(crate) async fn set_app_handle(&self, handle: AppHandle) {
         let mut guard = self.app_handle.write().await;
         *guard = Some(handle);
@@ -162,6 +185,27 @@ impl AppState {
     pub(crate) async fn set_current_mode(&self, mode: Option<String>) {
         let mut guard = self.current_mode.write().await;
         *guard = mode;
+    }
+
+    pub(crate) async fn update_mode_checked(&self, mode: Option<&str>) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            let is_rule = mode == Some("rule");
+            let is_global = mode == Some("global");
+            let is_direct = mode == Some("direct");
+            let is_script = mode == Some("script");
+            if let Err(err) = items.mode_rule.set_checked(is_rule) {
+                warn!("failed to update mode rule menu item: {err}");
+            }
+            if let Err(err) = items.mode_global.set_checked(is_global) {
+                warn!("failed to update mode global menu item: {err}");
+            }
+            if let Err(err) = items.mode_direct.set_checked(is_direct) {
+                warn!("failed to update mode direct menu item: {err}");
+            }
+            if let Err(err) = items.mode_script.set_checked(is_script) {
+                warn!("failed to update mode script menu item: {err}");
+            }
+        }
     }
 
     pub(crate) async fn set_proxy_groups(&self, groups: HashMap<String, ProxyInfo>) {
@@ -185,6 +229,14 @@ impl AppState {
     pub(crate) async fn set_tun_enabled(&self, enabled: bool) {
         let mut guard = self.tun_enabled.write().await;
         *guard = enabled;
+    }
+
+    pub(crate) async fn update_tun_checked(&self, enabled: bool) {
+        if let Some(items) = self.tray_info.read().await.as_ref() {
+            if let Err(err) = items.tun_mode.set_checked(enabled) {
+                warn!("failed to update tun menu item: {err}");
+            }
+        }
     }
 
     pub(crate) async fn set_tray_profile_map(&self, map: HashMap<String, String>) {

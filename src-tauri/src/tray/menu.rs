@@ -6,7 +6,7 @@ use std::{
 use infiltrator_core::profiles as core_profiles;
 use log::warn;
 use mihomo_api::ProxyInfo;
-use mihomo_version::VersionManager;
+use mihomo_version::{manager::VersionInfo, VersionManager};
 use tauri::{
     include_image,
     menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
@@ -76,7 +76,7 @@ pub(crate) fn build_fallback_tray(app: &AppHandle, state: AppState) -> tauri::Re
         false,
         None::<&str>,
     )?;
-    let show_item = MenuItem::with_id(app, "show", "打开浏览器 / Open Browser", true, None::<&str>)?;
+    let show_item = MenuItem::with_id(app, "show", "打开代理页 / Open Proxy Page", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "退出 / Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&error_item, &show_item, &quit_item])?;
 
@@ -115,7 +115,13 @@ pub(crate) async fn build_tray_menu(
     let admin_ready = state.admin_server_url().await.is_some();
     let core_ready = state.runtime().await.is_ok();
     let versions = match VersionManager::new() {
-        Ok(vm) => vm.list_installed().await.unwrap_or_default(),
+        Ok(vm) => match vm.list_installed().await {
+            Ok(list) => list,
+            Err(err) => {
+                warn!("failed to read installed versions: {err}");
+                Vec::new()
+            }
+        },
         Err(err) => {
             warn!("failed to read installed versions: {err}");
             Vec::new()
@@ -124,7 +130,7 @@ pub(crate) async fn build_tray_menu(
     let core_default_checked = state.use_bundled_core().await || versions.is_empty();
 
     let about_submenu = build_about_submenu(app, state, &lang).await?;
-    let mode_submenu = build_mode_submenu(app, state, &lang).await?;
+    let (mode_submenu, mode_items) = build_mode_submenu(app, state, &lang).await?;
     let profile_switch_submenu = build_profile_switch_submenu(app, &mut profile_map, &lang).await?;
     let proxy_groups_submenu = build_proxy_groups_submenu(app, state, &mut proxy_map, &lang).await?;
     let tun_item = build_tun_menu_item(app, state, &lang).await?;
@@ -141,7 +147,7 @@ pub(crate) async fn build_tray_menu(
     false, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
 
-    // Group 2: Privilege & Restart
+    // Group 3: Privilege & Restart
     let admin_privilege_item = MenuItem::with_id(
         app, "admin-privilege", format!("{}: {}", lang.tr("admin_privilege"), lang.tr("checking")),
     false, None::<&str>)?;
@@ -149,9 +155,19 @@ pub(crate) async fn build_tray_menu(
         MenuItem::with_id(app, "restart-admin", lang.tr("restart_admin"), true, None::<&str>)?;
     let factory_reset_item =
         MenuItem::with_id(app, "factory-reset", lang.tr("factory_reset"), true, None::<&str>)?;
+
+    // Group 2: Pages
+    let show_item = MenuItem::with_id(app, "show", lang.tr("open_browser"), true, None::<&str>)?;
+    let open_config_item = MenuItem::with_id(
+        app,
+        "config-open-manager",
+        lang.tr("open_config_manager"),
+        admin_ready,
+        None::<&str>,
+    )?;
     let sep2 = PredefinedMenuItem::separator(app)?;
 
-    // Group 3: Settings & UI
+    // Group 5: Settings & Sync
     let autostart_enabled = is_autostart_enabled();
     let autostart_supported = cfg!(target_os = "windows");
     let autostart_is_admin = is_running_as_admin();
@@ -168,40 +184,59 @@ pub(crate) async fn build_tray_menu(
     )?;
     
     // Core submenu
-    let core_version_item = MenuItem::with_id(app, "core-version", format!("{}: {}", lang.tr("current_core"), lang.tr("reading")),
-    false, None::<&str>)?;
-    let core_installed_item = MenuItem::with_id(app, "core-installed", format!("{}: {}", lang.tr("downloaded_version"), lang.tr("reading")),
-    false, None::<&str>)?;
-    let core_status_item = MenuItem::with_id(app, "core-status", format!("{}: {}", lang.tr("update_status"), lang.tr("reading")),
-    false, None::<&str>)?;
-    let core_network_item = MenuItem::with_id(app, "core-network", format!("{}: {}", lang.tr("network_check"), lang.tr("reading")),
-    false, None::<&str>)?;
-    let core_update_item = MenuItem::with_id(app, "core-update", lang.tr("update_to_stable"), true, None::<&str>)?;
-    let core_default_item = CheckMenuItem::with_id(app, "core-default", lang.tr("default_core"), true, core_default_checked, None::<&str>)?;
-    
-            let mut version_submenus: Vec<Submenu<Wry>> = Vec::new();
-            for version in versions {
-                let use_item = MenuItem::with_id(app, format!("core-use-{}", version.version), lang.tr("use"), true, None::<&str>)?;
-                let delete_item = MenuItem::with_id(app, format!("core-delete-{}", version.version), lang.tr("delete"), true, None::<&str>)?;
-                let submenu = Submenu::with_items(app, &version.version, true, &[&use_item, &delete_item])?;
-                version_submenus.push(submenu);
-            }
-            let empty_versions_item = MenuItem::with_id(app, "core-empty", lang.tr("empty"), false, None::<&str>)?;
-            
-            let core_versions_submenu = {
-                let mut version_items: Vec<&dyn IsMenuItem<Wry>> = Vec::new();
-                if version_submenus.is_empty() {
-                    version_items.push(&empty_versions_item);
-                } else {
-                    for submenu in &version_submenus {
-                        version_items.push(submenu);
-                    }
-                }
-                Submenu::with_items(app, lang.tr("downloaded_version"), true, version_items.as_slice())?
-            };
-    
-            let core_submenu = Submenu::with_items(        app, lang.tr("core_manager"), true,
-        &[&core_version_item, &core_installed_item, &core_status_item, &core_network_item, &core_default_item, &core_versions_submenu, &core_update_item],
+    let core_version_item = MenuItem::with_id(
+        app,
+        "core-version",
+        format!("{}: {}", lang.tr("current_core"), lang.tr("reading")),
+        false,
+        None::<&str>,
+    )?;
+    let core_installed_item = MenuItem::with_id(
+        app,
+        "core-installed",
+        format!("{}: {}", lang.tr("downloaded_version"), lang.tr("reading")),
+        false,
+        None::<&str>,
+    )?;
+    let core_status_item = MenuItem::with_id(
+        app,
+        "core-status",
+        format!("{}: {}", lang.tr("update_status"), lang.tr("reading")),
+        false,
+        None::<&str>,
+    )?;
+    let core_network_item = MenuItem::with_id(
+        app,
+        "core-network",
+        format!("{}: {}", lang.tr("network_check"), lang.tr("reading")),
+        false,
+        None::<&str>,
+    )?;
+    let core_update_item =
+        MenuItem::with_id(app, "core-update", lang.tr("update_to_stable"), true, None::<&str>)?;
+    let core_default_item = CheckMenuItem::with_id(
+        app,
+        "core-default",
+        lang.tr("default_core"),
+        true,
+        core_default_checked,
+        None::<&str>,
+    )?;
+    let core_versions_submenu = build_core_versions_submenu(app, &lang, &versions)?;
+
+    let core_submenu = Submenu::with_items(
+        app,
+        lang.tr("core_manager"),
+        true,
+        &[
+            &core_version_item,
+            &core_installed_item,
+            &core_status_item,
+            &core_network_item,
+            &core_default_item,
+            &core_versions_submenu,
+            &core_update_item,
+        ],
     )?;
 
     let settings_submenu = Submenu::with_items(
@@ -212,13 +247,23 @@ pub(crate) async fn build_tray_menu(
     let advanced_submenu = build_advanced_submenu(app, &lang, admin_ready, core_ready)?;
     let proxy_item = MenuItem::with_id(app, "system-proxy", format!("{}: {}", lang.tr("system_proxy"), lang.tr("disabled")),
     true, None::<&str>)?;
-    let show_item = MenuItem::with_id(app, "show", lang.tr("open_browser"), true, None::<&str>)?;
+
+    // Group 4: Core Manager
     let sep3 = PredefinedMenuItem::separator(app)?;
 
-    // Group 4: Runtime Control
+    // Group 5: Settings & Sync
     let sep4 = PredefinedMenuItem::separator(app)?;
 
-    // Group 5: About & Quit
+    // Group 6: Advanced Settings
+    let sep5 = PredefinedMenuItem::separator(app)?;
+
+    // Group 7: Runtime Control
+    let sep6 = PredefinedMenuItem::separator(app)?;
+
+    // Group 3: Privilege & Restart (after Group 7)
+    let sep7 = PredefinedMenuItem::separator(app)?;
+
+    // Group 8: About & Quit
     let quit_item = MenuItem::with_id(app, "quit", lang.tr("quit"), true, None::<&str>)?;
 
     let is_admin = is_running_as_admin();
@@ -232,12 +277,18 @@ pub(crate) async fn build_tray_menu(
             // Group 1
             &static_info_item, &controller_info_item, &admin_info_item, &sep1,
             // Group 2
-            &admin_privilege_item, &restart_admin_item, &factory_reset_item, &sep2,
-            // Group 3
-            &core_submenu, &settings_submenu, &sync_submenu, &advanced_submenu, &proxy_item, &show_item, &sep3,
+            &show_item, &open_config_item, &sep2,
             // Group 4
-            &mode_submenu, &profile_switch_submenu, &proxy_groups_submenu, &sep4,
+            &core_submenu, &sep3,
             // Group 5
+            &settings_submenu, &sync_submenu, &proxy_item, &sep4,
+            // Group 6
+            &advanced_submenu, &sep5,
+            // Group 7
+            &mode_submenu, &profile_switch_submenu, &proxy_groups_submenu, &sep6,
+            // Group 3 (after Group 7)
+            &admin_privilege_item, &restart_admin_item, &factory_reset_item, &sep7,
+            // Group 8
             &about_submenu, &quit_item,
         ],
     )?;
@@ -254,6 +305,14 @@ pub(crate) async fn build_tray_menu(
         core_network: core_network_item.clone(),
         core_update: core_update_item.clone(),
         core_default: core_default_item.clone(),
+        core_versions: core_versions_submenu.clone(),
+        tun_mode: tun_item.clone(),
+        mode_rule: mode_items.rule.clone(),
+        mode_global: mode_items.global.clone(),
+        mode_direct: mode_items.direct.clone(),
+        mode_script: mode_items.script.clone(),
+        profile_switch: profile_switch_submenu.clone(),
+        proxy_groups: proxy_groups_submenu.clone(),
         autostart: autostart_item.clone(),
         open_webui: open_webui_item.clone(),
     };
@@ -287,22 +346,32 @@ async fn build_profile_switch_submenu(
     profile_map: &mut HashMap<String, String>,
     lang: &Lang<'_>,
 ) -> tauri::Result<Submenu<Wry>> {
+    let items = build_profile_switch_items(app, profile_map, lang).await?;
+    let item_refs: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|i| i.as_ref()).collect();
+    Submenu::with_items(app, lang.tr("profile_switch"), true, &item_refs)
+}
+
+async fn build_profile_switch_items(
+    app: &AppHandle,
+    profile_map: &mut HashMap<String, String>,
+    lang: &Lang<'_>,
+) -> tauri::Result<Vec<Box<dyn IsMenuItem<Wry>>>> {
     let mut profiles = match core_profiles::list_profile_infos().await {
         Ok(list) => list,
         Err(err) => {
             warn!("failed to list profiles: {err:#}");
             let failed_item =
                 MenuItem::with_id(app, "profile-switch-error", lang.tr("profile_read_failed"), false, None::<&str>)?;
-            return Submenu::with_items(app, lang.tr("profile_switch"), true, &[&failed_item]);
+            return Ok(vec![Box::new(failed_item)]);
         }
     };
-    
+
     let active_profile = profiles.iter().find(|p| p.active).cloned();
 
     if profiles.is_empty() {
         let empty_item =
             MenuItem::with_id(app, "profile-switch-empty", lang.tr("profile_empty"), false, None::<&str>)?;
-        return Submenu::with_items(app, lang.tr("profile_switch"), true, &[&empty_item]);
+        return Ok(vec![Box::new(empty_item)]);
     }
 
     profiles.sort_by(|a, b| b.active.cmp(&a.active).then_with(|| a.name.cmp(&b.name)));
@@ -310,7 +379,7 @@ async fn build_profile_switch_submenu(
 
     let max_visible = 10usize;
     let mut items: Vec<Box<dyn IsMenuItem<Wry>>> = Vec::new();
-    
+
     for profile in profiles.iter().take(max_visible) {
         let label = if profile.subscription_url.is_some() {
             format!("{} ({})", profile.name, lang.tr("subscription"))
@@ -378,11 +447,21 @@ async fn build_profile_switch_submenu(
         }
     }
 
-    let item_refs: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|i| i.as_ref()).collect();
-    Submenu::with_items(app, lang.tr("profile_switch"), true, &item_refs)
+    Ok(items)
 }
 
-async fn build_mode_submenu(app: &AppHandle, state: &AppState, lang: &Lang<'_>) -> tauri::Result<Submenu<Wry>> {
+struct ModeMenuItems {
+    rule: CheckMenuItem<Wry>,
+    global: CheckMenuItem<Wry>,
+    direct: CheckMenuItem<Wry>,
+    script: CheckMenuItem<Wry>,
+}
+
+async fn build_mode_submenu(
+    app: &AppHandle,
+    state: &AppState,
+    lang: &Lang<'_>,
+) -> tauri::Result<(Submenu<Wry>, ModeMenuItems)> {
     let mut current_mode: Option<String> = None;
     let mut script_enabled = false;
     let mut menu_enabled = false;
@@ -440,12 +519,56 @@ async fn build_mode_submenu(app: &AppHandle, state: &AppState, lang: &Lang<'_>) 
         None::<&str>,
     )?;
 
-    Submenu::with_items(
+    let submenu = Submenu::with_items(
         app,
         lang.tr("proxy_mode"),
         true,
         &[&rule_item, &global_item, &direct_item, &script_item],
-    )
+    )?;
+
+    Ok((
+        submenu,
+        ModeMenuItems {
+            rule: rule_item,
+            global: global_item,
+            direct: direct_item,
+            script: script_item,
+        },
+    ))
+}
+
+fn build_core_versions_submenu(
+    app: &AppHandle,
+    lang: &Lang<'_>,
+    versions: &[VersionInfo],
+) -> tauri::Result<Submenu<Wry>> {
+    let items = build_core_versions_items(app, lang, versions)?;
+    let item_refs: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|item| item.as_ref()).collect();
+    Submenu::with_items(app, lang.tr("downloaded_version"), true, item_refs.as_slice())
+}
+
+fn build_core_versions_items(
+    app: &AppHandle,
+    lang: &Lang<'_>,
+    versions: &[VersionInfo],
+) -> tauri::Result<Vec<Box<dyn IsMenuItem<Wry>>>> {
+    if versions.is_empty() {
+        let empty_versions_item =
+            MenuItem::with_id(app, "core-empty", lang.tr("empty"), false, None::<&str>)?;
+        return Ok(vec![Box::new(empty_versions_item)]);
+    }
+
+    let mut items: Vec<Box<dyn IsMenuItem<Wry>>> = Vec::new();
+    for version in versions {
+        let use_item =
+            MenuItem::with_id(app, format!("core-use-{}", version.version), lang.tr("use"), true, None::<&str>)?;
+        let delete_item =
+            MenuItem::with_id(app, format!("core-delete-{}", version.version), lang.tr("delete"), true, None::<&str>)?;
+        let submenu = Submenu::with_items(app, &version.version, true, &[&use_item, &delete_item])?;
+        items.push(Box::new(submenu));
+    }
+
+    Ok(items)
 }
 
 async fn build_proxy_groups_submenu(
@@ -454,13 +577,24 @@ async fn build_proxy_groups_submenu(
     proxy_map: &mut HashMap<String, (String, String)>,
     lang: &Lang<'_>,
 ) -> tauri::Result<Submenu<Wry>> {
+    let items = build_proxy_groups_items(app, state, proxy_map, lang).await?;
+    let item_refs: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|i| i.as_ref()).collect();
+    Submenu::with_items(app, lang.tr("proxy_groups"), true, item_refs.as_slice())
+}
+
+async fn build_proxy_groups_items(
+    app: &AppHandle,
+    state: &AppState,
+    proxy_map: &mut HashMap<String, (String, String)>,
+    lang: &Lang<'_>,
+) -> tauri::Result<Vec<Box<dyn IsMenuItem<Wry>>>> {
     let proxies = match state.refresh_proxy_groups().await {
         Ok(proxies) => proxies,
         Err(err) => {
             warn!("failed to refresh proxies: {err:#}");
             let failed_item =
                 MenuItem::with_id(app, "proxy-groups-error", lang.tr("proxy_groups_read_failed"), false, None::<&str>)?;
-            return Submenu::with_items(app, lang.tr("proxy_groups"), true, &[&failed_item]);
+            return Ok(vec![Box::new(failed_item)]);
         }
     };
 
@@ -472,15 +606,15 @@ async fn build_proxy_groups_submenu(
     if groups.is_empty() {
         let empty_item =
             MenuItem::with_id(app, "proxy-groups-empty", lang.tr("proxy_groups_empty"), false, None::<&str>)?;
-        return Submenu::with_items(app, lang.tr("proxy_groups"), true, &[&empty_item]);
+        return Ok(vec![Box::new(empty_item)]);
     }
     groups.sort_by(|a, b| a.0.cmp(&b.0));
 
     let max_groups = 5usize;
-    let mut group_submenus: Vec<Submenu<Wry>> = Vec::new();
+    let mut items: Vec<Box<dyn IsMenuItem<Wry>>> = Vec::new();
     for (name, info) in groups.iter().take(max_groups) {
         let submenu = build_proxy_group_submenu(app, &proxies, name, info, proxy_map, lang)?;
-        group_submenus.push(submenu);
+        items.push(Box::new(submenu));
     }
 
     if groups.len() > max_groups {
@@ -495,15 +629,10 @@ async fn build_proxy_groups_submenu(
         }
         let overflow_submenu =
             Submenu::with_items(app, lang.tr("more_groups"), true, overflow_items.as_slice())?;
-        group_submenus.push(overflow_submenu);
+        items.push(Box::new(overflow_submenu));
     }
 
-    let items: Vec<&dyn IsMenuItem<Wry>> = group_submenus
-        .iter()
-        .map(|submenu| submenu as &dyn IsMenuItem<Wry>)
-        .collect();
-
-    Submenu::with_items(app, lang.tr("proxy_groups"), true, items.as_slice())
+    Ok(items)
 }
 
 fn build_proxy_group_submenu(
@@ -703,13 +832,6 @@ fn build_advanced_submenu(
     core_ready: bool,
 ) -> tauri::Result<Submenu<Wry>> {
     let enabled = admin_ready && core_ready;
-    let open_item = MenuItem::with_id(
-        app,
-        "config-open-manager",
-        lang.tr("open_config_manager"),
-        admin_ready,
-        None::<&str>,
-    )?;
     let dns_item = MenuItem::with_id(
         app,
         "dns-open-settings",
@@ -745,13 +867,12 @@ fn build_advanced_submenu(
         enabled,
         None::<&str>,
     )?;
-    let sep = PredefinedMenuItem::separator(app)?;
 
     Submenu::with_items(
         app,
         lang.tr("advanced_settings"),
         true,
-        &[&open_item, &sep, &dns_item, &fake_ip_item, &fake_ip_flush_item, &rules_item, &tun_item],
+        &[&dns_item, &fake_ip_item, &fake_ip_flush_item, &rules_item, &tun_item],
     )
 }
 
@@ -779,4 +900,91 @@ async fn build_sync_submenu(
         true,
         &[&status_item, &sync_now_item, &sync_settings_item],
     )
+}
+
+pub(crate) async fn refresh_profile_switch_submenu(
+    app: &AppHandle,
+    state: &AppState,
+) -> anyhow::Result<()> {
+    let Some(items) = state.tray_info_items().await else {
+        return Ok(());
+    };
+    let lang_code = state.get_lang_code().await;
+    let lang = Lang(lang_code.as_str());
+    let mut profile_map = HashMap::new();
+    {
+        let menu_items = build_profile_switch_items(app, &mut profile_map, &lang).await?;
+        clear_submenu_items(&items.profile_switch)?;
+        append_items_to_submenu(&items.profile_switch, &menu_items)?;
+    }
+    state.set_tray_profile_map(profile_map).await;
+    Ok(())
+}
+
+pub(crate) async fn refresh_proxy_groups_submenu(
+    app: &AppHandle,
+    state: &AppState,
+) -> anyhow::Result<()> {
+    let Some(items) = state.tray_info_items().await else {
+        return Ok(());
+    };
+    let lang_code = state.get_lang_code().await;
+    let lang = Lang(lang_code.as_str());
+    let mut proxy_map = HashMap::new();
+    {
+        let menu_items = build_proxy_groups_items(app, state, &mut proxy_map, &lang).await?;
+        clear_submenu_items(&items.proxy_groups)?;
+        append_items_to_submenu(&items.proxy_groups, &menu_items)?;
+    }
+    state.set_tray_proxy_map(proxy_map).await;
+    Ok(())
+}
+
+pub(crate) async fn refresh_core_versions_submenu(
+    app: &AppHandle,
+    state: &AppState,
+) -> anyhow::Result<()> {
+    let Some(items) = state.tray_info_items().await else {
+        return Ok(());
+    };
+    let lang_code = state.get_lang_code().await;
+    let lang = Lang(lang_code.as_str());
+    let versions = match VersionManager::new() {
+        Ok(vm) => match vm.list_installed().await {
+            Ok(list) => list,
+            Err(err) => {
+                warn!("failed to read installed versions: {err}");
+                Vec::new()
+            }
+        },
+        Err(err) => {
+            warn!("failed to read installed versions: {err}");
+            Vec::new()
+        }
+    };
+    let menu_items = build_core_versions_items(app, &lang, &versions)?;
+    clear_submenu_items(&items.core_versions)?;
+    append_items_to_submenu(&items.core_versions, &menu_items)?;
+    Ok(())
+}
+
+fn clear_submenu_items(submenu: &Submenu<Wry>) -> tauri::Result<()> {
+    loop {
+        let items = submenu.items()?;
+        if items.is_empty() {
+            break;
+        }
+        let _ = submenu.remove_at(0)?;
+    }
+    Ok(())
+}
+
+fn append_items_to_submenu(
+    submenu: &Submenu<Wry>,
+    items: &[Box<dyn IsMenuItem<Wry>>],
+) -> tauri::Result<()> {
+    for item in items {
+        submenu.append(item.as_ref())?;
+    }
+    Ok(())
 }

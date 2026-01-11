@@ -78,11 +78,19 @@ async fn start_admin_frontend(
 ) -> anyhow::Result<AdminServerHandle> {
     let admin_dir = resolve_admin_dir(app)?;
     info!("配置管理静态目录: {}", admin_dir.display());
+    let event_bus = state.admin_event_bus();
     let ctx = TauriAdminContext {
         app: app.clone(),
         app_state: state,
     };
-    core_servers::start_admin_server(admin_dir, ctx, preferred_port, 5210).await
+    core_servers::start_admin_server(
+        admin_dir,
+        ctx,
+        preferred_port,
+        5210,
+        event_bus,
+    )
+    .await
 }
 
 pub(crate) fn open_frontend(state: AppState) {

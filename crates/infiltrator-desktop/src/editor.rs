@@ -7,6 +7,10 @@ use infiltrator_core::profiles;
 
 #[cfg(target_os = "windows")]
 use std::path::Path;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
 
 pub async fn open_profile_in_editor(
     editor_path: Option<String>,
@@ -52,10 +56,12 @@ fn build_editor_command(editor: &str, args: &[String]) -> Command {
     if matches!(extension.as_deref(), Some("cmd") | Some("bat")) {
         let mut command = Command::new("cmd");
         command.arg("/C").arg(editor).args(args);
+        command.creation_flags(CREATE_NO_WINDOW);
         return command;
     }
     let mut command = Command::new(editor);
     command.args(args);
+    command.creation_flags(CREATE_NO_WINDOW);
     command
 }
 
@@ -151,11 +157,21 @@ fn resolve_command_path(command: &str) -> Option<PathBuf> {
             return None;
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let candidate = stdout.lines().next()?.trim();
-        if candidate.is_empty() {
+        let candidates: Vec<&str> = stdout
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .collect();
+        if candidates.is_empty() {
             return None;
         }
-        Some(PathBuf::from(candidate))
+        if let Some(exe) = candidates
+            .iter()
+            .find(|path| path.to_ascii_lowercase().ends_with(".exe"))
+        {
+            return Some(PathBuf::from(exe));
+        }
+        Some(PathBuf::from(candidates[0]))
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -345,6 +361,11 @@ fn infer_windows_path_command(parts: &[String]) -> Option<(String, Vec<String>)>
 }
 
 fn is_path_like(value: &str) -> bool {
-    let lower = value.to_ascii_lowercase();
-    value.contains(['\\', '/']) || lower.ends_with(".exe")
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let bytes = trimmed.as_bytes();
+    let has_drive = bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic();
+    trimmed.starts_with("\\\\") || trimmed.contains(['\\', '/']) || has_drive
 }

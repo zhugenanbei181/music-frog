@@ -1,5 +1,5 @@
 <template>
-  <PanelCard as="section" class="lg:col-span-4 h-fit">
+  <PanelCard as="section" class="h-fit">
       <PanelHeader>
         <template #title>
           <div>
@@ -22,7 +22,7 @@
         />
       </div>
 
-      <div class="max-h-[600px] overflow-y-auto">
+      <div class="max-h-150 overflow-y-auto">
         <ul class="space-y-3">
           <li
             v-for="profile in filteredProfiles"
@@ -45,6 +45,9 @@
                     {{ profile.active ? $t('profiles.current') : $t('profiles.available') }}
                   </span>
                 </div>
+                <p class="help-text break-all">
+                  {{ $t('profiles.path_label', { path: profile.path }) }}
+                </p>
                 <div class="mt-2 flex gap-2">
                   <button class="btn btn-ghost btn-xs" @click="$emit('load', profile.name)">{{ $t('profiles.edit') }}</button>
                   <button class="btn btn-ghost btn-xs" @click="$emit('open-external', profile.name)">{{ $t('profiles.external_edit') }}</button>

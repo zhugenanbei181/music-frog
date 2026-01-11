@@ -38,6 +38,7 @@ impl MihomoRuntime {
         let cm = ConfigManager::new()?;
 
         cm.ensure_default_config().await?;
+        cm.ensure_proxy_ports().await?;
         let controller_url = cm.ensure_external_controller().await?;
         let config_path = cm.get_current_path().await?;
         let binary =

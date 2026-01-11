@@ -4,27 +4,42 @@
       <StatusHeader
         :status-message="status.message"
         :status-detail="status.detail"
+        :has-pending-updates="hasPendingUpdates"
+        :language-value="languageSetting"
+        :theme-value="themeSetting"
+        :language-options="languageOptions"
+        :theme-options="themeOptions"
         @refresh="refreshAll"
-        @toggle-lang="toggleLanguage"
+        @refresh-updates="refreshPendingUpdates"
+        @update:language="updateLanguageSetting"
+        @update:theme="updateThemeSetting"
       />
 
       <main class="mt-6 grid gap-6 lg:grid-cols-12">
-        <ProfilesPanel
-          :profiles="profiles"
-          :active-count="activeCount"
-          v-model:filter="profileFilter"
-          @refresh="refreshProfiles"
-          @clear="clearProfiles"
-          @load="loadProfile"
-          @open-external="openExternal"
-          @switch="switchProfile"
-          @delete="deleteProfile"
-          @update-subscription="updateSubscription"
-          @update-now="updateSubscriptionNow"
+        <SideNav
+          class="lg:col-span-3"
+          v-model="activeSection"
+          :title="t('nav.title')"
+          :items="navItems"
         />
 
-        <section class="lg:col-span-8 grid gap-6">
-          <div class="grid gap-6 md:grid-cols-2">
+        <section class="lg:col-span-9">
+          <section v-if="activeSection === 'profiles'" class="grid gap-6 lg:grid-cols-2">
+            <ProfilesPanel
+              class="lg:col-span-2"
+              :profiles="profiles"
+              :active-count="activeCount"
+              v-model:filter="profileFilter"
+              @refresh="refreshProfiles"
+              @clear="clearProfiles"
+              @load="loadProfile"
+              @open-external="openExternal"
+              @switch="switchProfile"
+              @delete="deleteProfile"
+              @update-subscription="updateSubscription"
+              @update-now="updateSubscriptionNow"
+            />
+
             <ImportSubscriptionPanel
               v-model:name="importForm.name"
               v-model:url="importForm.url"
@@ -37,11 +52,10 @@
               @file-change="onLocalFileChange"
               @submit="importLocal"
             />
-          </div>
 
-          <div class="grid gap-6 md:grid-cols-2">
             <EditorPanel
               ref="editorSection"
+              class="lg:col-span-2"
               v-model:name="editor.name"
               v-model:content="editor.content"
               v-model:activate="editor.activate"
@@ -49,30 +63,26 @@
               @reset="resetEditor"
               @open-external="openExternal"
             />
-            <CorePanel
-              :core-versions="coreVersions"
-              :core-current="coreCurrent"
-              @refresh="refreshCoreVersions"
-              @activate="activateCore"
-            />
-          </div>
-
-          <div class="grid gap-6 md:grid-cols-2">
             <EditorSettingsPanel
+              class="lg:col-span-2"
               v-model:editor-path="editorPath"
               @pick="pickEditorPath"
               @save="saveEditorConfig"
               @reset="resetEditorConfig"
             />
+          </section>
+
+          <section v-else-if="activeSection === 'webdav'" class="grid gap-6 lg:grid-cols-2">
             <SyncSettingsPanel
+              class="lg:col-span-2"
               v-model="webdav"
               @save="saveSyncConfig"
               @test="testSync"
               @sync-now="performSyncNow"
             />
-          </div>
+          </section>
 
-          <div class="grid gap-6 md:grid-cols-2">
+          <section v-else-if="activeSection === 'network'" class="grid gap-6 md:grid-cols-2">
             <div ref="dnsSection" id="dns">
               <DnsPanel
                 v-model="dnsConfig"
@@ -88,9 +98,25 @@
                 @flush="flushFakeIpCache"
               />
             </div>
-          </div>
+          </section>
 
-          <div class="grid gap-6 md:grid-cols-2">
+          <section v-else-if="activeSection === 'core'" class="grid gap-6 md:grid-cols-2">
+            <CorePanel
+              :core-versions="coreVersions"
+              :core-current="coreCurrent"
+              @refresh="refreshCoreVersions"
+              @activate="activateCore"
+            />
+            <div ref="tunSection" id="tun">
+              <TunPanel
+                v-model="tunConfig"
+                @save="saveTunConfig"
+                @refresh="refreshTunConfig"
+              />
+            </div>
+          </section>
+
+          <section v-else-if="activeSection === 'rules'" class="grid gap-6">
             <div ref="rulesSection" id="rules">
               <RulesPanel
                 v-model:rules="rules"
@@ -100,14 +126,7 @@
                 @refresh="refreshRulesAndProviders"
               />
             </div>
-            <div ref="tunSection" id="tun">
-              <TunPanel
-                v-model="tunConfig"
-                @save="saveTunConfig"
-                @refresh="refreshTunConfig"
-              />
-            </div>
-          </div>
+          </section>
         </section>
       </main>
     </div>
@@ -121,10 +140,10 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api } from './api';
-import type { ProfileInfo, WebDavConfig } from './types';
 import { useAdvancedSettings } from './composables/useAdvancedSettings';
 import { useBusyState } from './composables/useBusyState';
 import { useCoreManager } from './composables/useCoreManager';
+import { useAdminEventStream } from './composables/useAdminEventStream';
 import { useEditorSettings } from './composables/useEditorSettings';
 import { usePanelNavigator } from './composables/usePanelNavigator';
 import { useProfileManager } from './composables/useProfileManager';
@@ -133,6 +152,7 @@ import { useSettings } from './composables/useSettings';
 import { useToasts } from './composables/useToasts';
 import { useWebDavSync } from './composables/useWebDavSync';
 import StatusHeader from './components/StatusHeader.vue';
+import SideNav from './components/SideNav.vue';
 import ProfilesPanel from './components/ProfilesPanel.vue';
 import ImportSubscriptionPanel from './components/ImportSubscriptionPanel.vue';
 import ImportLocalPanel from './components/ImportLocalPanel.vue';
@@ -147,7 +167,7 @@ import TunPanel from './components/TunPanel.vue';
 import BusyOverlay from './components/BusyOverlay.vue';
 import ToastList from './components/ToastList.vue';
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
 
 const status = reactive({
   message: t('app.ready_msg'),
@@ -157,19 +177,64 @@ const status = reactive({
 const { toasts, pushToast } = useToasts();
 const { busy, busyMessage, busyDetail, startBusy, updateBusyDetail, endBusy } = useBusyState();
 const { waitForRebuild } = useRebuildWatcher(updateBusyDetail);
-const { editorPath, webdav, refreshSettings } = useSettings(pushToast);
+const {
+  languageSetting,
+  themeSetting,
+  editorPath,
+  webdav,
+  refreshSettings,
+  dirty: settingsDirty,
+} = useSettings(pushToast);
 const editorSection = ref<InstanceType<typeof EditorPanel> | null>(null);
 const dnsSection = ref<HTMLElement | null>(null);
 const fakeIpSection = ref<HTMLElement | null>(null);
 const rulesSection = ref<HTMLElement | null>(null);
 const tunSection = ref<HTMLElement | null>(null);
+const activeSection = ref('profiles');
 
-usePanelNavigator({
-  dns: dnsSection,
-  'fake-ip': fakeIpSection,
-  rules: rulesSection,
-  tun: tunSection,
-});
+const navItems = computed(() => [
+  { id: 'profiles', label: t('nav.profiles') },
+  { id: 'webdav', label: t('nav.webdav') },
+  { id: 'network', label: t('nav.network') },
+  { id: 'core', label: t('nav.core') },
+  { id: 'rules', label: t('nav.rules') },
+]);
+
+const languageOptions = computed(() => [
+  { value: 'system', label: t('header.language_system') },
+  { value: 'zh-CN', label: t('header.language_zh') },
+  { value: 'en-US', label: t('header.language_en') },
+]);
+
+const themeOptions = computed(() => [
+  { value: 'system', label: t('header.theme_system') },
+  { value: 'light', label: t('header.theme_light') },
+  { value: 'dark', label: t('header.theme_dark') },
+]);
+
+const anchorSectionMap: Record<string, string> = {
+  dns: 'network',
+  'fake-ip': 'network',
+  tun: 'core',
+  rules: 'rules',
+};
+
+usePanelNavigator(
+  {
+    dns: dnsSection,
+    'fake-ip': fakeIpSection,
+    rules: rulesSection,
+    tun: tunSection,
+  },
+  {
+    onActivate(anchor) {
+      const section = anchorSectionMap[anchor];
+      if (section) {
+        activeSection.value = section;
+      }
+    },
+  },
+);
 
 function scrollToEditor() {
   const element = editorSection.value?.$el as HTMLElement | undefined;
@@ -182,6 +247,7 @@ const {
   importForm,
   localForm,
   editor,
+  editorDirty,
   activeCount,
   refreshProfiles,
   loadProfile,
@@ -197,7 +263,12 @@ const {
   updateSubscriptionNow,
   resetEditor,
 } = useProfileManager({
-  busy,
+  busy: {
+    busy,
+    startBusy,
+    updateBusyDetail,
+    endBusy,
+  },
   setStatus,
   pushToast,
   waitForRebuild,
@@ -220,6 +291,7 @@ const { saveEditorConfig, pickEditorPath, resetEditorConfig } = useEditorSetting
   editorPath,
   setStatus,
   pushToast,
+  refreshSettings,
 );
 
 const { saveSyncConfig, testSync, performSyncNow } = useWebDavSync(
@@ -227,6 +299,7 @@ const { saveSyncConfig, testSync, performSyncNow } = useWebDavSync(
   { startBusy, endBusy },
   pushToast,
   refreshProfiles,
+  refreshSettings,
 );
 const {
   dnsConfig,
@@ -234,6 +307,7 @@ const {
   tunConfig,
   rules,
   ruleProvidersJson,
+  dirty: advancedDirty,
   refreshDnsConfig,
   refreshFakeIpConfig,
   refreshRulesAndProviders,
@@ -256,20 +330,55 @@ function setStatus(message: string, detail = '') {
   status.detail = detail || ' ';
 }
 
-async function toggleLanguage() {
-  const newLang = locale.value === 'zh-CN' ? 'en-US' : 'zh-CN';
-  locale.value = newLang;
+const hasUnsavedChanges = computed(() =>
+  editorDirty.value ||
+  settingsDirty.editorPath ||
+  settingsDirty.webdav ||
+  advancedDirty.dns ||
+  advancedDirty.fakeIp ||
+  advancedDirty.tun ||
+  advancedDirty.rules ||
+  advancedDirty.ruleProviders,
+);
+
+const {
+  hasPendingUpdates,
+  refreshPendingUpdates,
+  clearPendingUpdates,
+} = useAdminEventStream({
+  busy,
+  hasUnsavedChanges,
+  refresh: () => refreshAll(true),
+});
+
+async function updateLanguageSetting(value: string) {
+  if (value === languageSetting.value) {
+    return;
+  }
+  const previous = languageSetting.value;
+  languageSetting.value = value;
   try {
-    await api.saveAppSettings({ language: newLang });
-    // Refresh UI text that relies on computed/functions
-    refreshAll(true);
+    await api.saveAppSettings({ language: value });
     setStatus(t('app.ready_msg'), t('app.ready_detail'));
   } catch (err) {
+    languageSetting.value = previous;
     pushToast(`Failed to save language setting: ${err}`, 'error');
   }
 }
 
-
+async function updateThemeSetting(value: string) {
+  if (value === themeSetting.value) {
+    return;
+  }
+  const previous = themeSetting.value;
+  themeSetting.value = value;
+  try {
+    await api.saveAppSettings({ theme: value });
+  } catch (err) {
+    themeSetting.value = previous;
+    pushToast(`Failed to save theme setting: ${err}`, 'error');
+  }
+}
 
 async function refreshAll(silent = false) {
   await Promise.all([
@@ -281,6 +390,7 @@ async function refreshAll(silent = false) {
     refreshRulesAndProviders(silent),
     refreshTunConfig(silent),
   ]);
+  clearPendingUpdates();
 }
 
 onMounted(() => {

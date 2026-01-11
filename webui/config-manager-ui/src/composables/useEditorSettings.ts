@@ -7,12 +7,14 @@ export function useEditorSettings(
   editorPath: Ref<string>,
   setStatus: (message: string, detail?: string) => void,
   pushToast: (message: string, tone?: ToastTone) => void,
+  refreshSettings: () => Promise<void>,
 ) {
   const { t } = useI18n();
 
   async function saveEditorConfig() {
     try {
       await api.saveAppSettings({ editor_path: editorPath.value.trim() || null });
+      await refreshSettings();
       setStatus(t('app.editor_saved'), editorPath.value || t('app.editor_auto'));
     } catch (err) {
       const message = (err as Error).message || String(err);

@@ -18,8 +18,18 @@ use crate::{
     system_proxy::apply_system_proxy,
     utils::wait_for_port_release,
 };
+use infiltrator_core::admin_api::{
+    AdminEvent,
+    EVENT_PROFILES_CHANGED,
+    EVENT_TUN_CHANGED,
+    EVENT_WEBDAV_SYNCED,
+};
 
-use super::menu::refresh_tray_menu;
+use super::menu::{
+    refresh_core_versions_submenu,
+    refresh_profile_switch_submenu,
+    refresh_proxy_groups_submenu,
+};
 
 pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
     let id = event.id.as_ref().to_string();
@@ -101,10 +111,12 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                             summary.failed,
                             summary.skipped
                         ).await;
+                        state.emit_admin_event(AdminEvent::new(EVENT_PROFILES_CHANGED));
                     }
                     Err(err) => {
                         log::error!("failed to update subscriptions: {err}");
                         state.notify_subscription_update("All Subscriptions", false, Some(err.to_string())).await;
+                        state.emit_admin_event(AdminEvent::new(EVENT_PROFILES_CHANGED));
                     }
                 }
             });
@@ -115,9 +127,7 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                     show_error_dialog(format!("切换 TUN 模式失败: {err:#}"));
                     return;
                 }
-                if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                    warn!("failed to refresh tray menu: {err:#}");
-                }
+                state_clone.emit_admin_event(AdminEvent::new(EVENT_TUN_CHANGED));
             });
         }
         "mode-rule" => {
@@ -125,9 +135,6 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                 if let Err(err) = handle_mode_switch(state_clone.clone(), "rule").await {
                     show_error_dialog(format!("切换代理模式失败: {err:#}"));
                     return;
-                }
-                if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                    warn!("failed to refresh tray menu: {err:#}");
                 }
             });
         }
@@ -137,9 +144,6 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                     show_error_dialog(format!("切换代理模式失败: {err:#}"));
                     return;
                 }
-                if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                    warn!("failed to refresh tray menu: {err:#}");
-                }
             });
         }
         "mode-direct" => {
@@ -148,9 +152,6 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                     show_error_dialog(format!("切换代理模式失败: {err:#}"));
                     return;
                 }
-                if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                    warn!("failed to refresh tray menu: {err:#}");
-                }
             });
         }
         "mode-script" => {
@@ -158,9 +159,6 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                 if let Err(err) = handle_mode_switch(state_clone.clone(), "script").await {
                     show_error_dialog(format!("切换代理模式失败: {err:#}"));
                     return;
-                }
-                if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                    warn!("failed to refresh tray menu: {err:#}");
                 }
             });
         }
@@ -171,9 +169,7 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                     show_error_dialog(format!("切换到默认内核失败: {err:#}"));
                     return;
                 }
-                if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                    warn!("failed to refresh tray menu: {err:#}");
-                }
+                state_clone.refresh_core_version_info().await;
             });
         }
         "core-update" => {
@@ -187,12 +183,13 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                 state_clone.set_core_update_enabled(false).await;
                 let result = update_mihomo_core(&app_handle, &state_clone).await;
                 state_clone.set_core_update_enabled(true).await;
-                state_clone.refresh_core_version_info().await;
                 if let Err(err) = result {
                     show_error_dialog(format!("更新 Mihomo 内核失败: {err:#}"));
+                    return;
                 }
-                if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                    warn!("failed to refresh tray menu: {err:#}");
+                state_clone.refresh_core_version_info().await;
+                if let Err(err) = refresh_core_versions_submenu(&app_handle, &state_clone).await {
+                    warn!("failed to refresh core versions submenu: {err:#}");
                 }
             });
         }
@@ -229,9 +226,6 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                     show_error_dialog(format!("恢复出厂设置失败: {err:#}"));
                     return;
                 }
-                if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                    warn!("failed to refresh tray menu: {err:#}");
-                }
             });
         }
         "webdav-sync-now" => {
@@ -253,12 +247,11 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                 match infiltrator_core::scheduler::sync::run_sync_tick(&ctx, &settings.webdav).await {
                     Ok(summary) => {
                         state_clone.notify_webdav_sync_result(true, summary.success_count, None).await;
-                        if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                            warn!("failed to refresh tray menu: {err:#}");
-                        }
+                        state_clone.emit_admin_event(AdminEvent::new(EVENT_WEBDAV_SYNCED));
                     }
                     Err(err) => {
                         state_clone.notify_webdav_sync_result(false, 0, Some(err.to_string())).await;
+                        state_clone.emit_admin_event(AdminEvent::new(EVENT_WEBDAV_SYNCED));
                     }
                 }
             });
@@ -291,8 +284,8 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                     if let Err(err) = handle_auto_update_toggle(profile_name.to_string()).await {
                         show_error_dialog(format!("切换自动更新失败: {err:#}"));
                     }
-                    if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                        warn!("failed to refresh tray menu: {err:#}");
+                    if let Err(err) = refresh_profile_switch_submenu(&app_handle, &state_clone).await {
+                        warn!("failed to refresh profile switch submenu: {err:#}");
                     }
                     return;
                 }
@@ -304,9 +297,6 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                         show_error_dialog(format!("切换配置失败: {err:#}"));
                         return;
                     }
-                    if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                        warn!("failed to refresh tray menu: {err:#}");
-                    }
                     return;
                 }
 
@@ -317,8 +307,8 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                         Ok(runtime) => runtime,
                         Err(_) => {
                             // Retry refresh if runtime not ready/proxy map outdated
-                            if let Err(_err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                                warn!("failed to retry refresh tray menu: {_err}");
+                            if let Err(err) = refresh_proxy_groups_submenu(&app_handle, &state_clone).await {
+                                warn!("failed to refresh proxy groups submenu: {err:#}");
                             }
                             return;
                         }
@@ -327,8 +317,8 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                         show_error_dialog(format!("切换代理失败: {err:#}"));
                         return;
                     }
-                    if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                        warn!("failed to refresh tray menu: {err:#}");
+                    if let Err(err) = refresh_proxy_groups_submenu(&app_handle, &state_clone).await {
+                        warn!("failed to refresh proxy groups submenu: {err:#}");
                     }
                     return;
                 }
@@ -337,9 +327,7 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                     if let Err(err) = switch_core_version(&app_handle, &state_clone, version).await
                     {
                         show_error_dialog(format!("切换内核版本失败: {err:#}"));
-                    }
-                    if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                        warn!("failed to refresh tray menu: {err:#}");
+                        return;
                     }
                     return;
                 }
@@ -353,10 +341,12 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                     }
                     if let Err(err) = delete_core_version(version).await {
                         show_error_dialog(format!("删除内核版本失败: {err:#}"));
+                        return;
                     }
-                    if let Err(err) = refresh_tray_menu(&app_handle, &state_clone).await {
-                        warn!("failed to refresh tray menu: {err:#}");
+                    if let Err(err) = refresh_core_versions_submenu(&app_handle, &state_clone).await {
+                        warn!("failed to refresh core versions submenu: {err:#}");
                     }
+                    state_clone.refresh_core_version_info().await;
                 }
             });
         }
@@ -413,6 +403,7 @@ async fn handle_tun_toggle(state: AppState) -> anyhow::Result<()> {
     let runtime = state.runtime().await?;
     runtime.set_tun_enabled(!enabled).await?;
     state.set_tun_enabled(!enabled).await;
+    state.update_tun_checked(!enabled).await;
     Ok(())
 }
 
@@ -420,7 +411,8 @@ async fn handle_mode_switch(state: AppState, mode: &str) -> anyhow::Result<()> {
     let runtime = state.runtime().await?;
     runtime.set_mode(mode).await?;
     let current_mode = runtime.current_mode().await.ok();
-    state.set_current_mode(current_mode).await;
+    state.set_current_mode(current_mode.clone()).await;
+    state.update_mode_checked(current_mode.as_deref()).await;
     Ok(())
 }
 

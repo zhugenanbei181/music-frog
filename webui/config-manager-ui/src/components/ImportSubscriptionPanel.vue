@@ -5,7 +5,7 @@
           <PanelTitle :text="$t('import_sub.title')" />
         </template>
       </PanelHeader>
-      <div class="space-y-4 flex-grow">
+      <div class="space-y-4 grow">
         <div class="form-control w-full">
           <label class="label py-1">
             <span class="label-text font-medium">{{ $t('import_sub.name_label') }}</span>

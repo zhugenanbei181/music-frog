@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api } from '../api';
 import type { DnsConfig, FakeIpConfig, RuleEntry, RuleProvider, TunConfig } from '../types';
@@ -21,6 +21,73 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
   const tunConfig = ref<TunConfig>({});
   const rules = ref<RuleEntry[]>([]);
   const ruleProvidersJson = ref('{}');
+  const dirty = reactive({
+    dns: false,
+    fakeIp: false,
+    tun: false,
+    rules: false,
+    ruleProviders: false,
+  });
+  const suppressDirty = {
+    dns: false,
+    fakeIp: false,
+    tun: false,
+    rules: false,
+    ruleProviders: false,
+  };
+
+  function setCleanValue<K extends keyof typeof dirty, T>(key: K, target: { value: T }, value: T) {
+    suppressDirty[key] = true;
+    target.value = value;
+    dirty[key] = false;
+    suppressDirty[key] = false;
+  }
+
+  watch(
+    dnsConfig,
+    () => {
+      if (!suppressDirty.dns) {
+        dirty.dns = true;
+      }
+    },
+    { deep: true, flush: 'sync' },
+  );
+  watch(
+    fakeIpConfig,
+    () => {
+      if (!suppressDirty.fakeIp) {
+        dirty.fakeIp = true;
+      }
+    },
+    { deep: true, flush: 'sync' },
+  );
+  watch(
+    tunConfig,
+    () => {
+      if (!suppressDirty.tun) {
+        dirty.tun = true;
+      }
+    },
+    { deep: true, flush: 'sync' },
+  );
+  watch(
+    rules,
+    () => {
+      if (!suppressDirty.rules) {
+        dirty.rules = true;
+      }
+    },
+    { deep: true, flush: 'sync' },
+  );
+  watch(
+    ruleProvidersJson,
+    () => {
+      if (!suppressDirty.ruleProviders) {
+        dirty.ruleProviders = true;
+      }
+    },
+    { flush: 'sync' },
+  );
 
   function isPlainObject(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -55,7 +122,7 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
   async function refreshDnsConfig(silent = false) {
     try {
       const data = await api.getDnsConfig();
-      dnsConfig.value = data || {};
+      setCleanValue('dns', dnsConfig, data || {});
     } catch (err) {
       const message = (err as Error).message || String(err);
       if (!silent) {
@@ -67,7 +134,7 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
   async function refreshFakeIpConfig(silent = false) {
     try {
       const data = await api.getFakeIpConfig();
-      fakeIpConfig.value = data || {};
+      setCleanValue('fakeIp', fakeIpConfig, data || {});
     } catch (err) {
       const message = (err as Error).message || String(err);
       if (!silent) {
@@ -79,7 +146,11 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
   async function refreshRuleProviders(silent = false) {
     try {
       const data = await api.getRuleProviders();
-      ruleProvidersJson.value = JSON.stringify(data.providers || {}, null, 2);
+      setCleanValue(
+        'ruleProviders',
+        ruleProvidersJson,
+        JSON.stringify(data.providers || {}, null, 2),
+      );
     } catch (err) {
       const message = (err as Error).message || String(err);
       if (!silent) {
@@ -91,7 +162,7 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
   async function refreshRules(silent = false) {
     try {
       const data = await api.getRules();
-      rules.value = data.rules || [];
+      setCleanValue('rules', rules, data.rules || []);
     } catch (err) {
       const message = (err as Error).message || String(err);
       if (!silent) {
@@ -107,7 +178,7 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
   async function refreshTunConfig(silent = false) {
     try {
       const data = await api.getTunConfig();
-      tunConfig.value = data || {};
+      setCleanValue('tun', tunConfig, data || {});
     } catch (err) {
       const message = (err as Error).message || String(err);
       if (!silent) {
@@ -240,6 +311,7 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
     tunConfig,
     rules,
     ruleProvidersJson,
+    dirty,
     refreshDnsConfig,
     refreshFakeIpConfig,
     refreshRuleProviders,

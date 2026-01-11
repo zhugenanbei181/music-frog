@@ -1,4 +1,4 @@
-import { computed, reactive, ref, type Ref } from 'vue';
+import { computed, reactive, ref, watch, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api } from '../api';
 import type { ProfileInfo } from '../types';
@@ -38,6 +38,27 @@ export function useProfileManager(options: ProfileManagerOptions) {
     content: '',
     activate: false,
   });
+  const editorDirty = ref(false);
+  let suppressEditorDirty = false;
+
+  function setEditorState(next: { name: string; content: string; activate: boolean }) {
+    suppressEditorDirty = true;
+    editor.name = next.name;
+    editor.content = next.content;
+    editor.activate = next.activate;
+    editorDirty.value = false;
+    suppressEditorDirty = false;
+  }
+
+  watch(
+    editor,
+    () => {
+      if (!suppressEditorDirty) {
+        editorDirty.value = true;
+      }
+    },
+    { deep: true, flush: 'sync' },
+  );
 
   const activeCount = computed(() => profiles.value.filter((profile) => profile.active).length);
 
@@ -63,9 +84,11 @@ export function useProfileManager(options: ProfileManagerOptions) {
   async function loadProfile(name: string) {
     try {
       const detail = await api.getProfile(name);
-      editor.name = detail.name;
-      editor.content = detail.content;
-      editor.activate = detail.active;
+      setEditorState({
+        name: detail.name,
+        content: detail.content,
+        activate: detail.active,
+      });
       options.scrollToEditor();
       options.setStatus(t('app.profile_loaded'), detail.name);
     } catch (err) {
@@ -236,6 +259,7 @@ export function useProfileManager(options: ProfileManagerOptions) {
         options.busy.updateBusyDetail(t('app.switch_rebuild'));
         await options.waitForRebuild(t('app.saving_busy'));
       }
+      editorDirty.value = false;
     } catch (err) {
       const message = (err as Error).message || String(err);
       options.setStatus(t('app.save_failed'), message);
@@ -315,9 +339,7 @@ export function useProfileManager(options: ProfileManagerOptions) {
   }
 
   function resetEditor() {
-    editor.name = '';
-    editor.content = '';
-    editor.activate = false;
+    setEditorState({ name: '', content: '', activate: false });
     options.setStatus(t('app.new_profile_ready'), t('app.new_profile_detail'));
   }
 
@@ -327,6 +349,7 @@ export function useProfileManager(options: ProfileManagerOptions) {
     importForm,
     localForm,
     editor,
+    editorDirty,
     activeCount,
     refreshProfiles,
     loadProfile,

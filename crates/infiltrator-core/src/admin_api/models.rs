@@ -96,6 +96,7 @@ pub struct AppSettingsPayload {
     pub editor_path: Option<String>,
     pub use_bundled_core: Option<bool>,
     pub language: Option<String>,
+    pub theme: Option<String>,
     pub webdav: Option<crate::settings::WebDavConfig>,
 }
 

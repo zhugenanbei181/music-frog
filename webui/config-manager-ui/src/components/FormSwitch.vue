@@ -30,7 +30,7 @@ const toggle = (event: Event) => {
       <span
         aria-hidden="true"
         class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-        :class="modelValue ? 'translate-x-[1.125rem]' : 'translate-x-0.5'"
+        :class="modelValue ? 'translate-x-4.5' : 'translate-x-0.5'"
       />
     </div>
     <div v-if="label || description" class="flex flex-col">

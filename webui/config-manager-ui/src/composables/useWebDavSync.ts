@@ -13,12 +13,14 @@ export function useWebDavSync(
   busy: BusyActions,
   pushToast: (message: string, tone?: ToastTone) => void,
   refreshProfiles: (silent?: boolean) => Promise<void>,
+  refreshSettings: () => Promise<void>,
 ) {
   const { t } = useI18n();
 
   async function saveSyncConfig() {
     try {
       await api.saveAppSettings({ webdav: { ...webdav } });
+      await refreshSettings();
       pushToast(t('settings.save_success') || t('common.save_success'));
     } catch (err) {
       const message = (err as Error).message || String(err);

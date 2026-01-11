@@ -1,4 +1,5 @@
 pub mod handlers;
+pub mod events;
 pub mod models;
 pub mod state;
 
@@ -10,6 +11,7 @@ use axum::{
 
 use self::handlers::*;
 pub use self::models::*;
+pub use self::events::*;
 pub use self::state::*;
 
 pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
@@ -71,6 +73,7 @@ pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
         )
         .route("/admin/api/webdav/sync", post(sync_webdav_now_http::<C>))
         .route("/admin/api/webdav/test", post(test_webdav_conn_http::<C>))
+        .route("/admin/api/events", get(stream_admin_events_http::<C>))
         .route("/admin/api/rebuild/status", get(get_rebuild_status_http::<C>))
         .route("/admin/api/core/versions", get(list_core_versions_http::<C>))
         .route("/admin/api/core/activate", post(activate_core_version_http::<C>))

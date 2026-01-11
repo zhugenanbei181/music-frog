@@ -17,7 +17,7 @@
         </p>
       </div>
 
-      <div class="flex-1 overflow-y-auto max-h-[300px]">
+      <div class="flex-1 overflow-y-auto max-h-75">
         <ul class="space-y-2">
           <li
             v-for="version in coreVersions"

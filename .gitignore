@@ -41,6 +41,7 @@ GEMINI.md
 TODO.md
 CHANGELOG.md
 coding.md
+WebAdminDoc.md
 .markdownlint-cli2.jsonc
 .markdownlint.json
 .markdownlintignore
@@ -49,3 +50,5 @@ coding.md
 *.msi
 *.exe
 !vendor/*.exe
+
+scripts

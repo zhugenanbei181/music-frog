@@ -16,6 +16,7 @@
 } from './types';
 
 const API_BASE = `${window.location.origin}/admin/api`;
+export const adminEventsUrl = `${API_BASE}/events`;
 
 type RequestOptions = {
   method?: string;

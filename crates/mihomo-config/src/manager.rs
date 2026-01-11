@@ -1,8 +1,7 @@
 use super::{profile::Profile, yaml};
-use crate::home::get_home_dir;
 use crate::port::{find_available_port, is_port_available, parse_port_from_addr};
 use mihomo_api::{MihomoError, Result};
-use mihomo_platform::{CredentialStore, DefaultCredentialStore};
+use mihomo_platform::{get_home_dir, CredentialStore, DefaultCredentialStore};
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 use tokio::fs;
@@ -300,6 +299,40 @@ external-controller: 127.0.0.1:{}
 
             self.save(&profile, &default_config).await?;
             log::info!("Created default config at: {}", path.display());
+        }
+
+        Ok(())
+    }
+
+    pub async fn ensure_proxy_ports(&self) -> Result<()> {
+        let profile = self.get_current().await?;
+        let content = self.load(&profile).await?;
+        let mut doc = yaml::load_yaml(&content)?;
+        let mut changed = false;
+
+        for key in ["mixed-port", "port", "socks-port"] {
+            let port = match yaml::get_u16(&doc, key) {
+                Some(port) => port,
+                None => continue,
+            };
+            if port == 0 {
+                continue;
+            }
+            if !is_port_available(port) {
+                let fallback = find_available_port(port).ok_or_else(|| {
+                    MihomoError::Config(format!("No available port found for {key}"))
+                })?;
+                if fallback != port {
+                    yaml::set_u16(&mut doc, key, fallback)?;
+                    log::warn!("{} {} is in use, switched to {}", key, port, fallback);
+                    changed = true;
+                }
+            }
+        }
+
+        if changed {
+            let updated = yaml::to_string(&doc)?;
+            self.save(&profile, &updated).await?;
         }
 
         Ok(())

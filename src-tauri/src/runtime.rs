@@ -1,5 +1,8 @@
 use anyhow::anyhow;
 use infiltrator_desktop::MihomoRuntime;
+use infiltrator_core::admin_api::{
+    AdminEvent, EVENT_REBUILD_FAILED, EVENT_REBUILD_FINISHED, EVENT_REBUILD_STARTED,
+};
 use log::warn;
 use mihomo_api::TrafficData;
 use mihomo_config::ConfigManager;
@@ -12,7 +15,7 @@ use crate::{
     app_state::AppState,
     paths::{app_data_dir, bundled_core_candidates},
     system_proxy::apply_system_proxy,
-    tray::refresh_tray_menu,
+    tray::{refresh_profile_switch_submenu, refresh_proxy_groups_submenu, refresh_tray_menu},
     utils::{extract_port_from_url, is_port_available, wait_for_port_release},
 };
 
@@ -86,6 +89,8 @@ pub(crate) async fn rebuild_runtime(app: &AppHandle, state: &AppState) -> anyhow
 }
 
 pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppState) -> anyhow::Result<()> {
+    state.emit_admin_event(AdminEvent::new(EVENT_REBUILD_STARTED));
+    let result = async {
     let previous_runtime = state.runtime().await.ok();
     let previous_controller_port = previous_runtime
         .as_ref()
@@ -105,19 +110,36 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
     if let Some(port) = previous_controller_port {
         wait_for_port_release(port, Duration::from_secs(5)).await;
         if !is_port_available(port).await {
-            return Err(anyhow!(
-                "控制接口端口 {} 仍被占用，请确认旧进程已退出或关闭占用程序",
-                port
-            ));
+            let manager = ConfigManager::new().map_err(|e| anyhow!(e.to_string()))?;
+            match manager.rotate_external_controller().await {
+                Ok(new_url) => {
+                    warn!(
+                        "controller port {} still occupied, rotated external controller to {}",
+                        port, new_url
+                    );
+                }
+                Err(err) => {
+                    return Err(anyhow!(
+                        "控制接口端口 {} 仍被占用，请确认旧进程已退出或关闭占用程序 ({})",
+                        port,
+                        err
+                    ));
+                }
+            }
         }
     }
     if let Some(port) = previous_proxy_port {
         wait_for_port_release(port, Duration::from_secs(5)).await;
         if !is_port_available(port).await {
-            return Err(anyhow!(
-                "代理端口 {} 仍被占用，请确认旧进程已退出或关闭占用程序",
+            let manager = ConfigManager::new().map_err(|e| anyhow!(e.to_string()))?;
+            manager
+                .ensure_proxy_ports()
+                .await
+                .map_err(|e| anyhow!(e.to_string()))?;
+            warn!(
+                "proxy port {} still occupied, switched to available port in config",
                 port
-            ));
+            );
         }
     }
     let runtime = bootstrap_runtime(app, state).await?;
@@ -146,7 +168,24 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
             }
         }
     }
+    if let Err(err) = refresh_profile_switch_submenu(app, state).await {
+        warn!("failed to refresh profile switch submenu after rebuild: {err}");
+    }
+    if let Err(err) = refresh_proxy_groups_submenu(app, state).await {
+        warn!("failed to refresh proxy groups submenu after rebuild: {err}");
+    }
     Ok(())
+    }
+    .await;
+
+    match &result {
+        Ok(()) => state.emit_admin_event(AdminEvent::new(EVENT_REBUILD_FINISHED)),
+        Err(err) => state.emit_admin_event(
+            AdminEvent::new(EVENT_REBUILD_FAILED).with_detail(err.to_string()),
+        ),
+    }
+
+    result
 }
 
 async fn bootstrap_runtime(app: &AppHandle, state: &AppState) -> anyhow::Result<MihomoRuntime> {

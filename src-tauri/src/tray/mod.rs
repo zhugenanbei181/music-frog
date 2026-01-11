@@ -7,7 +7,12 @@ use crate::app_state::AppState;
 use crate::frontend::open_frontend;
 use log::warn;
 
-pub(crate) use menu::refresh_tray_menu;
+pub(crate) use menu::{
+    refresh_core_versions_submenu,
+    refresh_profile_switch_submenu,
+    refresh_proxy_groups_submenu,
+    refresh_tray_menu,
+};
 
 pub(crate) fn create_tray(app: &AppHandle, state: AppState) -> tauri::Result<()> {
     let tray_menu = tauri::async_runtime::block_on(async { menu::build_tray_menu(app, &state).await });

@@ -15,6 +15,30 @@ impl<'a> Localizer for Lang<'a> {
     }
 }
 
+pub(crate) fn resolve_language_code(value: &str) -> String {
+    if value.eq_ignore_ascii_case("system") {
+        resolve_system_language().unwrap_or_else(|| "zh-CN".to_string())
+    } else if value.eq_ignore_ascii_case("en") {
+        "en-US".to_string()
+    } else {
+        value.to_string()
+    }
+}
+
+fn resolve_system_language() -> Option<String> {
+    let locale = sys_locale::get_locale()?;
+    Some(normalize_locale(&locale))
+}
+
+fn normalize_locale(locale: &str) -> String {
+    let normalized = locale.trim().to_ascii_lowercase();
+    if normalized.starts_with("zh") {
+        "zh-CN".to_string()
+    } else {
+        "en-US".to_string()
+    }
+}
+
 fn translate_zh_cn(key: &str) -> Cow<'static, str> {
     match key {
         // Status Group
@@ -43,15 +67,15 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "settings" => "设置".into(),
         "autostart" => "开机自启".into(),
         "autostart_admin_required" => "开机自启（需管理员）".into(),
-        "open_webui_startup" => "启动时打开 Web UI".into(),
+        "open_webui_startup" => "启动时打开代理页".into(),
         "tun_mode" => "TUN 模式".into(),
         "tun_mode_admin_required" => "TUN 模式（需管理员）".into(),
         "tun_mode_disabled" => "TUN 模式（配置未启用）".into(),
         "system_proxy" => "系统代理".into(),
         "enabled" => "已开启".into(),
         "disabled" => "已关闭".into(),
-        "open_browser" => "打开浏览器".into(),
-        "open_config_manager" => "打开配置管理".into(),
+        "open_browser" => "打开代理页".into(),
+        "open_config_manager" => "打开配置页".into(),
         "advanced_settings" => "高级设置".into(),
         "dns_settings" => "DNS 设置".into(),
         "fake_ip_settings" => "Fake-IP 设置".into(),
@@ -130,7 +154,7 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "switch_profile_failed" => "切换配置失败".into(),
         "toggle_autostart_failed" => "切换开机自启失败".into(),
         "autostart_need_admin" => "开启开机自启需要管理员权限".into(),
-        "toggle_webui_failed" => "切换启动打开 Web UI 失败".into(),
+        "toggle_webui_failed" => "切换启动打开代理页失败".into(),
         "toggle_tun_failed" => "切换 TUN 模式失败".into(),
         "tun_need_admin" => "启用 TUN 需要管理员权限".into(),
         "core_update_failed" => "更新 Mihomo 内核失败".into(),
@@ -172,15 +196,15 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         "settings" => "Settings".into(),
         "autostart" => "Autostart".into(),
         "autostart_admin_required" => "Autostart (Admin Req)".into(),
-        "open_webui_startup" => "Open Web UI on Startup".into(),
+        "open_webui_startup" => "Open Proxy Page on Startup".into(),
         "tun_mode" => "TUN Mode".into(),
         "tun_mode_admin_required" => "TUN Mode (Admin Req)".into(),
         "tun_mode_disabled" => "TUN Mode (Disabled in Config)".into(),
         "system_proxy" => "System Proxy".into(),
         "enabled" => "Enabled".into(),
         "disabled" => "Disabled".into(),
-        "open_browser" => "Open Browser".into(),
-        "open_config_manager" => "Open Config Manager".into(),
+        "open_browser" => "Open Proxy Page".into(),
+        "open_config_manager" => "Open Config Page".into(),
         "advanced_settings" => "Advanced Settings".into(),
         "dns_settings" => "DNS Settings".into(),
         "fake_ip_settings" => "Fake-IP Settings".into(),
@@ -259,7 +283,7 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         "switch_profile_failed" => "Switch Profile Failed".into(),
         "toggle_autostart_failed" => "Toggle Autostart Failed".into(),
         "autostart_need_admin" => "Autostart requires admin privilege".into(),
-        "toggle_webui_failed" => "Toggle Web UI setting failed".into(),
+        "toggle_webui_failed" => "Toggle Open Proxy Page on Startup failed".into(),
         "toggle_tun_failed" => "Toggle TUN Mode Failed".into(),
         "tun_need_admin" => "TUN Mode requires admin privilege".into(),
         "core_update_failed" => "Core Update Failed".into(),

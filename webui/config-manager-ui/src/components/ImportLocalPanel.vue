@@ -8,7 +8,7 @@
           <span class="badge badge-idle">{{ $t('import_local.badge') }}</span>
         </template>
       </PanelHeader>
-      <div class="space-y-4 flex-grow">
+      <div class="space-y-4 grow">
         <div class="form-control w-full">
           <label class="label py-1">
             <span class="label-text font-medium">{{ $t('import_local.file_label') }}</span>

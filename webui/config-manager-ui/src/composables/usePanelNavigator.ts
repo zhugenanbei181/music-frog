@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted } from 'vue';
 
 type PanelRef = { value: HTMLElement | null };
 
@@ -13,7 +13,14 @@ function resolveAnchor(hash: string): string {
   }
 }
 
-export function usePanelNavigator(panelMap: Record<string, PanelRef>) {
+type PanelNavigatorOptions = {
+  onActivate?: (anchor: string) => void;
+};
+
+export function usePanelNavigator(
+  panelMap: Record<string, PanelRef>,
+  options: PanelNavigatorOptions = {},
+) {
   function scrollToAnchor(anchor: string) {
     const target = panelMap[anchor]?.value;
     if (!target) {
@@ -27,7 +34,10 @@ export function usePanelNavigator(panelMap: Record<string, PanelRef>) {
     if (!anchor) {
       return;
     }
-    scrollToAnchor(anchor);
+    options.onActivate?.(anchor);
+    nextTick(() => {
+      scrollToAnchor(anchor);
+    });
   }
 
   onMounted(() => {

@@ -1,4 +1,3 @@
-mod home;
 pub mod port;
 pub mod manager;
 pub mod profile;

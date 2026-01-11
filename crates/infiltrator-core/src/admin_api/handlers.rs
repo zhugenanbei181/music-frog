@@ -1,6 +1,7 @@
 use std::{
+    convert::Infallible,
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use anyhow::anyhow;
@@ -9,12 +10,13 @@ use axum::{
     extract::{Path as AxumPath, State as AxumState},
     http::{Request, StatusCode},
     middleware::Next,
-    response::Response,
+    response::{sse::{Event, KeepAlive, Sse}, Response},
     Json,
 };
 use chrono::Utc;
 use log::{info, warn};
 use reqwest::Client;
+use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 
 use crate::{
     config as core_config,
@@ -29,6 +31,18 @@ use crate::{
 use mihomo_config::ConfigManager;
 use mihomo_version::VersionManager;
 
+use super::events::{
+    AdminEvent,
+    EVENT_CORE_CHANGED,
+    EVENT_DNS_CHANGED,
+    EVENT_FAKE_IP_CHANGED,
+    EVENT_PROFILES_CHANGED,
+    EVENT_RULE_PROVIDERS_CHANGED,
+    EVENT_RULES_CHANGED,
+    EVENT_SETTINGS_CHANGED,
+    EVENT_TUN_CHANGED,
+    EVENT_WEBDAV_SYNCED,
+};
 use super::models::*;
 use super::state::{AdminApiContext, AdminApiState, RebuildStatus};
 
@@ -47,6 +61,33 @@ pub async fn get_rebuild_status_http<C: AdminApiContext>(
     Ok(Json(state.rebuild_status.snapshot()))
 }
 
+pub async fn stream_admin_events_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
+    let stream = BroadcastStream::new(state.events.subscribe()).filter_map(|event| {
+        let payload = match event {
+            Ok(event) => match serde_json::to_string(&event) {
+                Ok(payload) => payload,
+                Err(err) => {
+                    warn!("failed to serialize admin event: {err}");
+                    return None;
+                }
+            },
+            Err(err) => {
+                warn!("admin event stream lagged: {err}");
+                return None;
+            }
+        };
+        Some(Ok(Event::default().data(payload)))
+    });
+
+    Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keepalive"),
+    )
+}
+
 pub async fn get_profile_http<C: AdminApiContext>(
     AxumState(_state): AxumState<AdminApiState<C>>,
     AxumPath(name): AxumPath<String>,
@@ -63,6 +104,7 @@ pub async fn switch_profile_http<C: AdminApiContext>(
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let name = ensure_valid_profile_name(&payload.name)?;
     let profile = switch_profile_internal(&state.ctx, &state.rebuild_status, &name).await?;
+    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(ProfileActionResponse {
         profile,
         rebuild_scheduled: true,
@@ -89,6 +131,7 @@ pub async fn import_profile_http<C: AdminApiContext>(
         payload.activate.unwrap_or(false),
     )
     .await?;
+    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(ProfileActionResponse {
         profile,
         rebuild_scheduled,
@@ -142,6 +185,7 @@ pub async fn save_profile_http<C: AdminApiContext>(
     let mut info = core_profiles::load_profile_info(&name).await?;
     info.controller_url = controller_url;
     info.controller_changed = controller_changed;
+    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(ProfileActionResponse {
         profile: info,
         rebuild_scheduled,
@@ -158,6 +202,7 @@ pub async fn clear_profiles_http<C: AdminApiContext>(
     let mut info = profile;
     info.controller_url = manager.get_external_controller().await.ok();
     schedule_rebuild(&state.ctx, &state.rebuild_status, "profiles-clear");
+    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(ProfileActionResponse {
         profile: info,
         rebuild_scheduled: true,
@@ -165,7 +210,7 @@ pub async fn clear_profiles_http<C: AdminApiContext>(
 }
 
 pub async fn delete_profile_http<C: AdminApiContext>(
-    AxumState(_state): AxumState<AdminApiState<C>>,
+    AxumState(state): AxumState<AdminApiState<C>>,
     AxumPath(name): AxumPath<String>,
 ) -> Result<StatusCode, ApiError> {
     let profile_name = ensure_valid_profile_name(&name)?;
@@ -174,11 +219,12 @@ pub async fn delete_profile_http<C: AdminApiContext>(
         .delete_profile(&profile_name)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn set_profile_subscription_http<C: AdminApiContext>(
-    AxumState(_state): AxumState<AdminApiState<C>>,
+    AxumState(state): AxumState<AdminApiState<C>>,
     AxumPath(name): AxumPath<String>,
     Json(payload): Json<SubscriptionConfigPayload>,
 ) -> Result<Json<ProfileInfo>, ApiError> {
@@ -214,11 +260,12 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let info = core_profiles::load_profile_info(&profile_name).await?;
+    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(info))
 }
 
 pub async fn clear_profile_subscription_http<C: AdminApiContext>(
-    AxumState(_state): AxumState<AdminApiState<C>>,
+    AxumState(state): AxumState<AdminApiState<C>>,
     AxumPath(name): AxumPath<String>,
 ) -> Result<Json<ProfileInfo>, ApiError> {
     let profile_name = ensure_valid_profile_name(&name)?;
@@ -240,6 +287,7 @@ pub async fn clear_profile_subscription_http<C: AdminApiContext>(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let info = core_profiles::load_profile_info(&profile_name).await?;
+    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(info))
 }
 
@@ -298,6 +346,7 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
         schedule_rebuild(&state.ctx, &state.rebuild_status, "subscription-update-now");
     }
     let profile = core_profiles::load_profile_info(&profile_name).await?;
+    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(ProfileActionResponse {
         profile,
         rebuild_scheduled,
@@ -324,6 +373,7 @@ pub async fn set_editor_config_http<C: AdminApiContext>(
         }
     });
     state.ctx.set_editor_path(editor).await;
+    state.events.publish(AdminEvent::new(EVENT_SETTINGS_CHANGED));
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -381,6 +431,7 @@ pub async fn activate_core_version_http<C: AdminApiContext>(
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "core-activate");
     state.ctx.refresh_core_version_info().await;
+    state.events.publish(AdminEvent::new(EVENT_CORE_CHANGED));
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -393,6 +444,7 @@ pub async fn get_app_settings_http<C: AdminApiContext>(
         editor_path: settings.editor_path,
         use_bundled_core: Some(settings.use_bundled_core),
         language: Some(settings.language),
+        theme: Some(settings.theme),
         webdav: Some(settings.webdav),
     }))
 }
@@ -416,11 +468,15 @@ pub async fn save_app_settings_http<C: AdminApiContext>(
     if let Some(val) = payload.language {
         settings.language = val;
     }
+    if let Some(val) = payload.theme {
+        settings.theme = val;
+    }
     if let Some(val) = payload.webdav {
         settings.webdav = val;
     }
 
     state.ctx.save_app_settings(settings).await.map_err(|e| ApiError::internal(e.to_string()))?;
+    state.events.publish(AdminEvent::new(EVENT_SETTINGS_CHANGED));
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -437,6 +493,7 @@ pub async fn save_dns_config_http<C: AdminApiContext>(
 ) -> Result<Json<dns::DnsConfig>, ApiError> {
     let config = dns::save_dns_config(payload).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "dns-update");
+    state.events.publish(AdminEvent::new(EVENT_DNS_CHANGED));
     Ok(Json(config))
 }
 
@@ -453,6 +510,7 @@ pub async fn save_fake_ip_config_http<C: AdminApiContext>(
 ) -> Result<Json<fake_ip::FakeIpConfig>, ApiError> {
     let config = fake_ip::save_fake_ip_config(payload).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "fake-ip-update");
+    state.events.publish(AdminEvent::new(EVENT_FAKE_IP_CHANGED));
     Ok(Json(config))
 }
 
@@ -476,6 +534,7 @@ pub async fn save_rule_providers_http<C: AdminApiContext>(
 ) -> Result<Json<rules::RuleProvidersPayload>, ApiError> {
     let providers = rules::save_rule_providers(payload.providers).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "rule-providers-update");
+    state.events.publish(AdminEvent::new(EVENT_RULE_PROVIDERS_CHANGED));
     Ok(Json(rules::RuleProvidersPayload { providers }))
 }
 
@@ -492,6 +551,7 @@ pub async fn save_rules_http<C: AdminApiContext>(
 ) -> Result<Json<rules::RulesPayload>, ApiError> {
     let rules_list = rules::save_rules(payload.rules).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "rules-update");
+    state.events.publish(AdminEvent::new(EVENT_RULES_CHANGED));
     Ok(Json(rules::RulesPayload { rules: rules_list }))
 }
 
@@ -508,6 +568,7 @@ pub async fn save_tun_config_http<C: AdminApiContext>(
 ) -> Result<Json<tun::TunConfig>, ApiError> {
     let config = tun::save_tun_config(payload).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "tun-update");
+    state.events.publish(AdminEvent::new(EVENT_TUN_CHANGED));
     Ok(Json(config))
 }
 
@@ -523,6 +584,8 @@ pub async fn sync_webdav_now_http<C: AdminApiContext>(
     let summary = crate::scheduler::sync::run_sync_tick(&state.ctx, &settings.webdav)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    state.events.publish(AdminEvent::new(EVENT_WEBDAV_SYNCED));
         
     Ok(Json(serde_json::json!({
         "success_count": summary.success_count,
