@@ -55,3 +55,23 @@ pub(crate) async fn is_port_available(port: u16) -> bool {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     TcpListener::bind(addr).await.is_ok()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::extract_port_from_url;
+
+    #[test]
+    fn extracts_port_from_urls() {
+        assert_eq!(extract_port_from_url("http://127.0.0.1:9090"), Some(9090));
+        assert_eq!(
+            extract_port_from_url("https://localhost:443/admin"),
+            Some(443)
+        );
+    }
+
+    #[test]
+    fn returns_none_when_port_missing_or_scheme_absent() {
+        assert_eq!(extract_port_from_url("http://localhost"), None);
+        assert_eq!(extract_port_from_url("127.0.0.1:9090"), None);
+    }
+}

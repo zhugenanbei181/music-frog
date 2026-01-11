@@ -4,6 +4,7 @@ use futures_util::StreamExt;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::time::Duration;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
 
@@ -17,7 +18,11 @@ pub struct MihomoClient {
 impl MihomoClient {
     pub fn new(base_url: &str, secret: Option<String>) -> Result<Self> {
         let base_url = Url::parse(base_url)?;
-        let client = Client::new();
+        // Avoid proxy loops to the local controller and cap hangs during restarts.
+        let client = Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_secs(8))
+            .build()?;
         Ok(Self {
             client,
             base_url,

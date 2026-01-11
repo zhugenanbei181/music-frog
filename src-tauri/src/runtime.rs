@@ -3,7 +3,7 @@ use infiltrator_desktop::MihomoRuntime;
 use infiltrator_core::admin_api::{
     AdminEvent, EVENT_REBUILD_FAILED, EVENT_REBUILD_FINISHED, EVENT_REBUILD_STARTED,
 };
-use log::warn;
+use log::{info, warn};
 use mihomo_api::TrafficData;
 use mihomo_config::ConfigManager;
 use mihomo_version::VersionManager;
@@ -90,6 +90,7 @@ pub(crate) async fn rebuild_runtime(app: &AppHandle, state: &AppState) -> anyhow
 
 pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppState) -> anyhow::Result<()> {
     state.emit_admin_event(AdminEvent::new(EVENT_REBUILD_STARTED));
+    info!("runtime rebuild start");
     let result = async {
     let previous_runtime = state.runtime().await.ok();
     let previous_controller_port = previous_runtime
@@ -102,14 +103,21 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
             previous_proxy_port = extract_port_from_url(&endpoint);
         }
     }
+    info!(
+        "runtime rebuild previous ports: controller={:?} proxy={:?}",
+        previous_controller_port, previous_proxy_port
+    );
     if let Some(runtime) = previous_runtime {
+        info!("stopping previous mihomo runtime");
         if let Err(err) = runtime.shutdown().await {
             warn!("failed to stop running mihomo instance: {err}");
         }
     }
     if let Some(port) = previous_controller_port {
+        info!("waiting for controller port release: {port}");
         wait_for_port_release(port, Duration::from_secs(5)).await;
         if !is_port_available(port).await {
+            warn!("controller port still occupied after wait: {port}");
             let manager = ConfigManager::new().map_err(|e| anyhow!(e.to_string()))?;
             match manager.rotate_external_controller().await {
                 Ok(new_url) => {
@@ -126,11 +134,15 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
                     ));
                 }
             }
+        } else {
+            info!("controller port released: {port}");
         }
     }
     if let Some(port) = previous_proxy_port {
+        info!("waiting for proxy port release: {port}");
         wait_for_port_release(port, Duration::from_secs(5)).await;
         if !is_port_available(port).await {
+            warn!("proxy port still occupied after wait: {port}");
             let manager = ConfigManager::new().map_err(|e| anyhow!(e.to_string()))?;
             manager
                 .ensure_proxy_ports()
@@ -140,10 +152,18 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
                 "proxy port {} still occupied, switched to available port in config",
                 port
             );
+        } else {
+            info!("proxy port released: {port}");
         }
     }
+    info!("bootstrapping new mihomo runtime");
     let runtime = bootstrap_runtime(app, state).await?;
+    info!(
+        "mihomo runtime bootstrapped: controller={}",
+        runtime.controller_url
+    );
     register_runtime(app, state, runtime).await;
+    info!("mihomo runtime registered");
     if state.is_system_proxy_enabled().await {
         if let Ok(runtime) = state.runtime().await {
             match runtime.http_proxy_endpoint().await {
@@ -179,7 +199,10 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
     .await;
 
     match &result {
-        Ok(()) => state.emit_admin_event(AdminEvent::new(EVENT_REBUILD_FINISHED)),
+        Ok(()) => {
+            info!("runtime rebuild finished");
+            state.emit_admin_event(AdminEvent::new(EVENT_REBUILD_FINISHED));
+        }
         Err(err) => state.emit_admin_event(
             AdminEvent::new(EVENT_REBUILD_FAILED).with_detail(err.to_string()),
         ),
@@ -199,12 +222,17 @@ async fn bootstrap_runtime(app: &AppHandle, state: &AppState) -> anyhow::Result<
     let mut last_err = anyhow!("unknown error");
 
     for attempt in 0..max_retries {
+        info!("bootstrap attempt {}/{}", attempt + 1, max_retries);
         match MihomoRuntime::bootstrap(&vm, use_bundled, &bundled_candidates, &data_dir).await {
             Ok(runtime) => match wait_for_controller_ready(&runtime).await {
                 Ok(_) => {
                     if installed.is_empty() {
                         state.set_use_bundled_core(true).await;
                     }
+                    info!(
+                        "mihomo controller ready: {}",
+                        runtime.controller_url
+                    );
                     return Ok(runtime);
                 }
                 Err(err) => {
@@ -248,22 +276,50 @@ async fn bootstrap_runtime(app: &AppHandle, state: &AppState) -> anyhow::Result<
 }
 
 async fn wait_for_controller_ready(runtime: &MihomoRuntime) -> anyhow::Result<()> {
+    info!(
+        "waiting for controller ready: {}",
+        runtime.controller_url
+    );
     let deadline = Instant::now() + Duration::from_secs(15);
     let mut last_err = None;
+    let mut attempt = 0u32;
 
     while Instant::now() < deadline {
+        attempt = attempt.saturating_add(1);
         match runtime.client().get_version().await {
-            Ok(_) => return Ok(()),
+            Ok(_) => {
+                info!(
+                    "controller ready after {} attempts: {}",
+                    attempt,
+                    runtime.controller_url
+                );
+                return Ok(());
+            }
             Err(err) => {
                 // Check if the process is still alive while we wait
                 if !runtime.is_running().await {
+                    warn!(
+                        "mihomo process exited before controller ready: {}",
+                        runtime.controller_url
+                    );
                     return Err(anyhow!("内核进程已退出，启动失败"));
                 }
+                warn!(
+                    "controller not ready (attempt {}): {} ({})",
+                    attempt,
+                    runtime.controller_url,
+                    err
+                );
                 last_err = Some(err);
                 sleep(Duration::from_millis(500)).await;
             }
         }
     }
+    warn!(
+        "controller readiness timeout after {} attempts: {}",
+        attempt,
+        runtime.controller_url
+    );
     Err(anyhow!(
         "控制接口未就绪 ({}): {}",
         runtime.controller_url,

@@ -51,6 +51,16 @@ impl TunConfig {
             self.strict_route = Some(value);
         }
     }
+
+    fn is_empty(&self) -> bool {
+        self.enable.is_none()
+            && self.stack.is_none()
+            && self.dns_hijack.is_none()
+            && self.auto_route.is_none()
+            && self.auto_detect_interface.is_none()
+            && self.mtu.is_none()
+            && self.strict_route.is_none()
+    }
 }
 
 pub async fn load_tun_config() -> Result<TunConfig> {
@@ -97,11 +107,11 @@ fn apply_tun_config(doc: &mut Value, config: &TunConfig) -> Result<()> {
     let map = doc
         .as_mapping_mut()
         .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
-    let tun_value = serde_yaml::to_value(config).context("encode tun config")?;
-    if tun_value == Value::Mapping(Mapping::new()) {
+    if config.is_empty() {
         map.remove(&Value::String("tun".to_string()));
         return Ok(());
     }
+    let tun_value = serde_yaml::to_value(config).context("encode tun config")?;
     map.insert(Value::String("tun".to_string()), tun_value);
     Ok(())
 }

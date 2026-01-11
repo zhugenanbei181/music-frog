@@ -122,3 +122,29 @@ impl<C: AdminApiContext> AdminApiState<C> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::RebuildStatus;
+
+    #[test]
+    fn rebuild_status_transitions() {
+        let status = RebuildStatus::default();
+        let snapshot = status.snapshot();
+        assert!(!snapshot.in_progress);
+        assert!(snapshot.last_error.is_none());
+        assert!(snapshot.last_reason.is_none());
+
+        status.mark_start("import-activate");
+        let snapshot = status.snapshot();
+        assert!(snapshot.in_progress);
+        assert_eq!(snapshot.last_reason.as_deref(), Some("import-activate"));
+        assert!(snapshot.last_error.is_none());
+
+        status.mark_error("boom".to_string());
+        let snapshot = status.snapshot();
+        assert!(!snapshot.in_progress);
+        assert_eq!(snapshot.last_error.as_deref(), Some("boom"));
+        assert_eq!(snapshot.last_reason.as_deref(), Some("import-activate"));
+    }
+}
