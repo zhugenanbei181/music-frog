@@ -1,0 +1,14 @@
+[package]
+name = "infiltrator-http"
+version = "0.1.1"
+edition = "2021"
+
+[dependencies]
+log = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2", "gzip", "brotli", "deflate"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+reqwest = { workspace = true, default-features = false, features = ["native-tls"] }

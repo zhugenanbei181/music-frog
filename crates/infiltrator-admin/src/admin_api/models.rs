@@ -7,7 +7,7 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::ProfileInfo;
+use infiltrator_core::{ProfileInfo, settings::WebDavConfig};
 
 #[derive(Deserialize)]
 pub struct SwitchProfilePayload {
@@ -97,7 +97,7 @@ pub struct AppSettingsPayload {
     pub use_bundled_core: Option<bool>,
     pub language: Option<String>,
     pub theme: Option<String>,
-    pub webdav: Option<crate::settings::WebDavConfig>,
+    pub webdav: Option<WebDavConfig>,
 }
 
 pub struct ApiError {

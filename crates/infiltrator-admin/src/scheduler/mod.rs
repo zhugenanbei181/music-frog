@@ -1,34 +1,23 @@
-#[cfg(feature = "admin-api")]
 use std::sync::OnceLock;
-#[cfg(feature = "admin-api")]
-use tokio::sync::Mutex;
-use tokio::time::Duration;
-#[cfg(feature = "admin-api")]
-use tokio::sync::watch;
-#[cfg(feature = "admin-api")]
-use tokio::time::{interval, Instant};
-use log::warn;
-use reqwest::Client;
 
-#[cfg(feature = "admin-api")]
+use log::warn;
+use tokio::sync::{Mutex, watch};
+use tokio::time::{interval, Duration, Instant};
+
+use infiltrator_http::{build_http_client, build_raw_http_client};
+
 use crate::admin_api::AdminApiContext;
-#[cfg(feature = "admin-api")]
 use self::subscription::run_subscription_tick;
-#[cfg(feature = "admin-api")]
 use self::sync::run_sync_tick;
 
-#[cfg(feature = "admin-api")]
 pub mod subscription;
-#[cfg(feature = "admin-api")]
 pub mod sync;
 
-#[cfg(feature = "admin-api")]
 #[derive(Clone)]
 pub struct SubscriptionScheduler {
     stop_tx: watch::Sender<bool>,
 }
 
-#[cfg(feature = "admin-api")]
 impl SubscriptionScheduler {
     pub fn start<C: AdminApiContext>(ctx: C) -> Self {
         let (stop_tx, mut stop_rx) = watch::channel(false);
@@ -39,8 +28,18 @@ impl SubscriptionScheduler {
             
             // 提高检查频率至 1 分钟，以便处理不同频率的定时任务
             let mut ticker = interval(Duration::from_secs(60));
-            let mut last_sub_update = Instant::now() - Duration::from_secs(3600);
-            let mut last_sync_update = Instant::now() - Duration::from_secs(3600);
+            // Avoid Instant underflow on early boot; force the first tick instead.
+            let initial_backfill = Duration::from_secs(3600);
+            let now = Instant::now();
+            let initial_instant = now.checked_sub(initial_backfill);
+            let (mut last_sub_update, mut force_sub_update) = match initial_instant {
+                Some(instant) => (instant, false),
+                None => (now, true),
+            };
+            let (mut last_sync_update, mut force_sync_update) = match initial_instant {
+                Some(instant) => (instant, false),
+                None => (now, true),
+            };
             
             loop {
                 tokio::select! {
@@ -54,13 +53,14 @@ impl SubscriptionScheduler {
                         };
 
                         // 1. 订阅更新 (每小时一次)
-                        if last_sub_update.elapsed() >= Duration::from_secs(3600) {
+                        if force_sub_update || last_sub_update.elapsed() >= Duration::from_secs(3600) {
                             match run_subscription_tick(&ctx_clone, &client, &raw_client).await {
                                 Ok(rebuild_needed) => {
                                     if rebuild_needed {
                                         let _ = ctx_clone.rebuild_runtime().await;
                                     }
                                     last_sub_update = Instant::now();
+                                    force_sub_update = false;
                                 }
                                 Err(err) => warn!("subscription scheduler failed: {err:#}"),
                             }
@@ -69,7 +69,7 @@ impl SubscriptionScheduler {
                         // 2. WebDAV 同步
                         if settings.webdav.enabled {
                             let interval = Duration::from_secs(settings.webdav.sync_interval_mins as u64 * 60);
-                            if last_sync_update.elapsed() >= interval {
+                            if force_sync_update || last_sync_update.elapsed() >= interval {
                                 match run_sync_tick(&ctx_clone, &settings.webdav).await {
                                     Ok(summary) => {
                                         if summary.total_actions > 0 {
@@ -79,6 +79,7 @@ impl SubscriptionScheduler {
                                     Err(err) => warn!("webdav sync scheduler failed: {err:#}"),
                                 }
                                 last_sync_update = Instant::now();
+                                force_sync_update = false;
                             }
                         }
                     }
@@ -98,34 +99,7 @@ impl SubscriptionScheduler {
     }
 }
 
-#[cfg(feature = "admin-api")]
 pub(crate) fn update_lock() -> &'static Mutex<()> {
     static UPDATE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     UPDATE_LOCK.get_or_init(|| Mutex::new(()))
-}
-
-pub(crate) fn build_http_client() -> Client {
-    Client::builder()
-        .user_agent("MusicFrog-Despicable-Infiltrator")
-        .timeout(Duration::from_secs(30))
-        .build()
-        .unwrap_or_else(|err| {
-            warn!("failed to build scheduler http client: {err}");
-            Client::new()
-        })
-}
-
-pub(crate) fn build_raw_http_client(default_client: &Client) -> Client {
-    Client::builder()
-        .user_agent("MusicFrog-Despicable-Infiltrator")
-        .timeout(Duration::from_secs(30))
-        .no_gzip()
-        .no_brotli()
-        .no_deflate()
-        .no_zstd()
-        .build()
-        .unwrap_or_else(|err| {
-            warn!("failed to build scheduler raw http client: {err}");
-            default_client.clone()
-        })
 }

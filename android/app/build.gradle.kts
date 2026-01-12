@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.musicfrog.despicableinfiltrator"
-        minSdk = 26
+        minSdk = 33
         //noinspection OldTargetApi
         targetSdk = 35
         versionCode = 1
@@ -19,6 +19,14 @@ android {
         ndk {
             //noinspection ChromeOsAbiSupport
             abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+    }
+
+    packaging {
+        jniLibs {
+            // Extract native libs so they're available in nativeLibraryDir
+            // Required for ProcessBuilder to execute mihomo binary
+            useLegacyPackaging = true
         }
     }
 

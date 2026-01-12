@@ -9,8 +9,12 @@ mod uniffi_api;
 pub use api::AndroidApi;
 pub use ffi::{FfiApi, FfiBoolResult, FfiErrorCode, FfiStatus, FfiStringResult};
 pub use uniffi_api::{
-    IpCheckResult, IpResult, ProfileSummary, ProfilesResult, ProxyGroupSummary,
-    ProxyGroupsResult, TrafficResult, TrafficSnapshot, TunStatusResult,
+    DnsSettings, DnsSettingsPatch, DnsSettingsResult, FakeIpSettings,
+    FakeIpSettingsPatch, FakeIpSettingsResult, IpCheckResult, IpResult,
+    ProfileSummary, ProfilesResult, ProxyGroupSummary, ProxyGroupsResult,
+    RuleEntryRecord, RuleProvidersResult, RulesResult, TrafficResult,
+    TrafficSnapshot, TunStatusResult, VpnTunSettings, VpnTunSettingsPatch,
+    VpnTunSettingsResult, WebDavSettings, WebDavSettingsResult, WebDavSyncResult,
 };
 pub use mihomo_platform::{clear_android_bridge, get_android_bridge, set_android_bridge};
 pub use runtime::{android_bridge_adapter, AndroidBridge, AndroidBridgeAdapter, AndroidRuntime};

@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use infiltrator_desktop::MihomoRuntime;
-use infiltrator_core::admin_api::{
+use infiltrator_admin::{
     AdminEvent, EVENT_REBUILD_FAILED, EVENT_REBUILD_FINISHED, EVENT_REBUILD_STARTED,
 };
 use log::{info, warn};

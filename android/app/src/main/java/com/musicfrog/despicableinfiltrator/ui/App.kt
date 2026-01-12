@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CloudSync
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.NetworkCheck
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
@@ -37,6 +38,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +49,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.musicfrog.despicableinfiltrator.MihomoHost
+import com.musicfrog.despicableinfiltrator.VpnStateManager
 
 import androidx.compose.material3.OutlinedButton
 import infiltrator_android.configPatchMode
@@ -64,7 +67,26 @@ import com.musicfrog.despicableinfiltrator.ui.settings.routing.AppRoutingScreen
 import com.musicfrog.despicableinfiltrator.ui.settings.dns.DnsScreen
 import com.musicfrog.despicableinfiltrator.ui.settings.fakeip.FakeIpScreen
 import com.musicfrog.despicableinfiltrator.ui.settings.rules.RulesScreen
+import com.musicfrog.despicableinfiltrator.ui.settings.tun.TunScreen
 import com.musicfrog.despicableinfiltrator.ui.sync.SyncScreen
+import com.musicfrog.despicableinfiltrator.ui.logs.LogsScreen
+import com.musicfrog.despicableinfiltrator.ui.common.DEFAULT_FFI_TIMEOUT_MS
+import com.musicfrog.despicableinfiltrator.ui.common.runFfiCall
+import com.musicfrog.despicableinfiltrator.ui.common.userMessage
+import infiltrator_android.FfiErrorCode
+import com.musicfrog.despicableinfiltrator.ui.common.ErrorDialog
+import com.musicfrog.despicableinfiltrator.ui.common.showToast
+import infiltrator_android.trafficSnapshot
+import infiltrator_android.logsGet
+import infiltrator_android.logsStartStreaming
+import infiltrator_android.LogEntry
+import infiltrator_android.LogLevel
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.Article
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -160,16 +182,20 @@ fun InfiltratorApp(
                         if (settingsSubScreen == null) {
                             SettingsScreen(
                                 onNavigateToRouting = { settingsSubScreen = "App Routing" },
+                                onNavigateToTun = { settingsSubScreen = "TUN" },
                                 onNavigateToDns = { settingsSubScreen = "DNS" },
                                 onNavigateToFakeIp = { settingsSubScreen = "Fake-IP" },
-                                onNavigateToRules = { settingsSubScreen = "Rules" }
+                                onNavigateToRules = { settingsSubScreen = "Rules" },
+                                onNavigateToLogs = { settingsSubScreen = "Logs" }
                             )
                         } else {
                             when (settingsSubScreen) {
                                 "App Routing" -> AppRoutingScreen()
+                                "TUN" -> TunScreen()
                                 "DNS" -> DnsScreen()
                                 "Fake-IP" -> FakeIpScreen()
                                 "Rules" -> RulesScreen()
+                                "Logs" -> LogsScreen()
                             }
                         }
                     }
@@ -188,11 +214,22 @@ private fun OverviewScreen(
     onRequestVpnPermission: () -> Unit,
     isExpanded: Boolean
 ) {
-    var coreRunning by remember { mutableStateOf(host?.coreIsRunning() == true) }
-    var vpnRunning by remember { mutableStateOf(host?.vpnIsRunning() == true) }
+    // Subscribe to VPN state from StateFlow
+    val vpnState by VpnStateManager.vpnState.collectAsState()
+    val coreRunning by VpnStateManager.coreRunning.collectAsState()
+    val vpnErrorMessage by VpnStateManager.errorMessage.collectAsState()
+    
+    val vpnRunning = vpnState == VpnStateManager.VpnState.RUNNING
+    val vpnStarting = vpnState == VpnStateManager.VpnState.STARTING
+    val vpnStopping = vpnState == VpnStateManager.VpnState.STOPPING
+    
     val scope = rememberCoroutineScope()
     var currentMode by remember { mutableStateOf("rule") } // Default display
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Show VPN error if any
+    val displayError = errorMessage ?: vpnErrorMessage
 
     val contentPadding = PaddingValues(bottom = 24.dp)
 
@@ -200,11 +237,22 @@ private fun OverviewScreen(
     val changeMode: (String) -> Unit = { mode ->
         scope.launch {
             try {
-                configPatchMode(mode)
-                currentMode = mode
-                android.widget.Toast.makeText(context, "Mode switched to $mode", android.widget.Toast.LENGTH_SHORT).show()
+                val call = runFfiCall(timeoutMs = DEFAULT_FFI_TIMEOUT_MS) {
+                    configPatchMode(mode)
+                }
+                if (call.error != null) {
+                    errorMessage = call.error
+                    return@launch
+                }
+                val status = call.value!!
+                if (status.code == FfiErrorCode.OK) {
+                    currentMode = mode
+                    showToast(context, "Mode switched to $mode")
+                } else {
+                    errorMessage = status.userMessage("Failed to switch mode")
+                }
             } catch (e: Exception) {
-                android.widget.Toast.makeText(context, "Failed to switch mode: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                errorMessage = "Failed to switch mode: ${e.message}"
             }
         }
         Unit
@@ -215,18 +263,18 @@ private fun OverviewScreen(
             if (coreRunning) {
                 val stopped = host?.coreStop() == true
                 if (stopped) {
-                    coreRunning = false
-                    android.widget.Toast.makeText(context, "Core stopped", android.widget.Toast.LENGTH_SHORT).show()
+                    VpnStateManager.updateCoreState(false)
+                    showToast(context, "Core stopped")
                 } else {
-                    android.widget.Toast.makeText(context, "Failed to stop Core", android.widget.Toast.LENGTH_SHORT).show()
+                    errorMessage = "Failed to stop Core"
                 }
             } else {
                 val started = host?.coreStart() == true
                 if (started) {
-                    coreRunning = true
-                    android.widget.Toast.makeText(context, "Core started", android.widget.Toast.LENGTH_SHORT).show()
+                    VpnStateManager.updateCoreState(true)
+                    showToast(context, "Core started")
                 } else {
-                    android.widget.Toast.makeText(context, "Failed to start Core", android.widget.Toast.LENGTH_SHORT).show()
+                    errorMessage = "Failed to start Core"
                 }
             }
         }
@@ -234,31 +282,43 @@ private fun OverviewScreen(
     }
 
     val onToggleVpn = {
-        scope.launch {
-            if (vpnRunning) {
-                val stopped = host?.vpnStop() == true
-                if (stopped) {
-                    vpnRunning = false
-                    android.widget.Toast.makeText(context, "VPN stopped", android.widget.Toast.LENGTH_SHORT).show()
+        if (!vpnStarting && !vpnStopping) {
+            scope.launch {
+                if (vpnRunning) {
+                    val stopped = host?.vpnStop() == true
+                    if (stopped) {
+                        showToast(context, "VPN stopping...")
+                    } else {
+                        errorMessage = "Failed to stop VPN"
+                    }
                 } else {
-                    android.widget.Toast.makeText(context, "Failed to stop VPN", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                val started = host?.vpnStart() == true
-                if (started) {
-                    vpnRunning = true
-                    android.widget.Toast.makeText(context, "VPN started", android.widget.Toast.LENGTH_SHORT).show()
-                } else {
-                    android.widget.Toast.makeText(context, "Failed to start VPN", android.widget.Toast.LENGTH_SHORT).show()
+                    val started = host?.vpnStart() == true
+                    if (started) {
+                        showToast(context, "VPN starting...")
+                    } else {
+                        errorMessage = "Failed to start VPN"
+                    }
                 }
             }
         }
         Unit
     }
 
+    if (displayError != null) {
+        ErrorDialog(
+            message = displayError,
+            onDismiss = { 
+                errorMessage = null
+                VpnStateManager.clearError()
+            }
+        )
+    }
+
     val cards = overviewCards(
         coreRunning = coreRunning,
         vpnRunning = vpnRunning,
+        vpnStarting = vpnStarting,
+        vpnStopping = vpnStopping,
         vpnPermissionGranted = vpnPermissionGranted,
         currentMode = currentMode,
         onRequestVpnPermission = onRequestVpnPermission,
@@ -303,6 +363,8 @@ private fun OverviewScreen(
 private fun overviewCards(
     coreRunning: Boolean,
     vpnRunning: Boolean,
+    vpnStarting: Boolean = false,
+    vpnStopping: Boolean = false,
     vpnPermissionGranted: Boolean,
     currentMode: String,
     onRequestVpnPermission: () -> Unit,
@@ -324,21 +386,33 @@ private fun overviewCards(
             )
         },
         {
+            val vpnSubtitle = when {
+                !vpnPermissionGranted -> "Permission required"
+                vpnStarting -> "Starting..."
+                vpnStopping -> "Stopping..."
+                vpnRunning -> "Active"
+                else -> "Idle"
+            }
+            val vpnButtonEnabled = vpnPermissionGranted && !vpnStarting && !vpnStopping
             StatusCard(
                 title = "VPN / TUN",
-                subtitle = when {
-                    !vpnPermissionGranted -> "Permission required"
-                    vpnRunning -> "Active"
-                    else -> "Idle"
-                },
+                subtitle = vpnSubtitle,
                 actions = {
                     if (!vpnPermissionGranted) {
                         TextButton(onClick = onRequestVpnPermission) {
                             Text(text = "Grant permission")
                         }
                     } else {
-                        val label = if (vpnRunning) "Stop" else "Start"
-                        TextButton(onClick = onToggleVpn) {
+                        val label = when {
+                            vpnStarting -> "Starting..."
+                            vpnStopping -> "Stopping..."
+                            vpnRunning -> "Stop"
+                            else -> "Start"
+                        }
+                        TextButton(
+                            onClick = onToggleVpn,
+                            enabled = vpnButtonEnabled
+                        ) {
                             Text(text = label)
                         }
                     }
@@ -376,6 +450,12 @@ private fun overviewCards(
                     }
                 }
             )
+        },
+        {
+            TrafficCard()
+        },
+        {
+            LogPreviewCard()
         }
     )
 }
@@ -427,6 +507,215 @@ private fun PlaceholderScreen(title: String, description: String) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(text = title, style = MaterialTheme.typography.displaySmall)
         Text(text = description, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/**
+ * Traffic Card showing real-time upload/download speeds and totals
+ */
+@Composable
+private fun TrafficCard() {
+    var upRate by remember { mutableStateOf(0L) }
+    var downRate by remember { mutableStateOf(0L) }
+    var upTotal by remember { mutableStateOf(0L) }
+    var downTotal by remember { mutableStateOf(0L) }
+    var connections by remember { mutableStateOf(0) }
+    var isLoading by remember { mutableStateOf(true) }
+    
+    // Refresh traffic every 2 seconds
+    LaunchedEffect(Unit) {
+        while (true) {
+            try {
+                val result = trafficSnapshot()
+                if (result.status.code == FfiErrorCode.OK && result.snapshot != null) {
+                    val snapshot = result.snapshot!!
+                    upRate = snapshot.upRate.toLong()
+                    downRate = snapshot.downRate.toLong()
+                    upTotal = snapshot.upTotal.toLong()
+                    downTotal = snapshot.downTotal.toLong()
+                    connections = snapshot.connections.toInt()
+                }
+                isLoading = false
+            } catch (e: Exception) {
+                // Ignore errors, keep last values
+            }
+            delay(2000)
+        }
+    }
+    
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize()
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.Speed,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Traffic",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+            }
+            
+            if (isLoading) {
+                Text(
+                    text = "Loading...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                // Speed row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "↑ ${formatSpeed(upRate)}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Upload",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "↓ ${formatSpeed(downRate)}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        Text(
+                            text = "Download",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                
+                // Total row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Total: ${formatBytes(upTotal)} ↑ / ${formatBytes(downTotal)} ↓",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "$connections conn",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun formatSpeed(bytesPerSec: Long): String {
+    return when {
+        bytesPerSec >= 1_000_000_000 -> String.format("%.1f GB/s", bytesPerSec / 1_000_000_000.0)
+        bytesPerSec >= 1_000_000 -> String.format("%.1f MB/s", bytesPerSec / 1_000_000.0)
+        bytesPerSec >= 1_000 -> String.format("%.1f KB/s", bytesPerSec / 1_000.0)
+        else -> "$bytesPerSec B/s"
+    }
+}
+
+private fun formatBytes(bytes: Long): String {
+    return when {
+        bytes >= 1_000_000_000 -> String.format("%.1f GB", bytes / 1_000_000_000.0)
+        bytes >= 1_000_000 -> String.format("%.1f MB", bytes / 1_000_000.0)
+        bytes >= 1_000 -> String.format("%.1f KB", bytes / 1_000.0)
+        else -> "$bytes B"
+    }
+}
+
+/**
+ * Log Preview Card showing recent log entries
+ */
+@Composable
+private fun LogPreviewCard() {
+    var logs by remember { mutableStateOf<List<LogEntry>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    
+    // Start streaming and poll for logs
+    LaunchedEffect(Unit) {
+        logsStartStreaming()
+        isLoading = false
+        
+        while (true) {
+            val result = logsGet(5u)
+            if (result.status.code == FfiErrorCode.OK) {
+                logs = result.entries.takeLast(5)
+            }
+            delay(3000)
+        }
+    }
+    
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize()
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.Description,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Recent Logs",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+            }
+            
+            if (isLoading) {
+                Text(
+                    text = "Loading...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else if (logs.isEmpty()) {
+                Text(
+                    text = "No logs yet",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                logs.reversed().forEach { entry ->
+                    val levelColor = when (entry.level) {
+                        LogLevel.ERROR -> MaterialTheme.colorScheme.error
+                        LogLevel.WARNING -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    Text(
+                        text = entry.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = levelColor,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
     }
 }
 

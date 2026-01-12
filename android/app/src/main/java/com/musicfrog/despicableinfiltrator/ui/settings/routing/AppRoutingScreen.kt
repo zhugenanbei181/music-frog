@@ -34,9 +34,30 @@ fun AppRoutingScreen() {
     val context = LocalContext.current
     val viewModel = remember { AppRoutingViewModel(context) }
     val apps by viewModel.uiState.collectAsState()
+    val routingMode by viewModel.routingMode.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
 
     androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxSize()) {
+        val proxySelected = routingMode == RoutingMode.ProxySelected
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Proxy Selected Only",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Switch(
+                checked = proxySelected,
+                onCheckedChange = { enabled ->
+                    val mode = if (enabled) RoutingMode.ProxySelected else RoutingMode.ProxyAll
+                    viewModel.setRoutingMode(mode)
+                }
+            )
+        }
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { 

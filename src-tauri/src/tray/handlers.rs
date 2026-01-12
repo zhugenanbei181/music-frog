@@ -18,7 +18,7 @@ use crate::{
     system_proxy::apply_system_proxy,
     utils::wait_for_port_release,
 };
-use infiltrator_core::admin_api::{
+use infiltrator_admin::{
     AdminEvent,
     EVENT_PROFILES_CHANGED,
     EVENT_TUN_CHANGED,
@@ -97,7 +97,7 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                 let client = reqwest::Client::new();
                 let raw_client = reqwest::Client::new();
                 
-                match infiltrator_core::scheduler::subscription::update_all_subscriptions(
+                match infiltrator_admin::scheduler::subscription::update_all_subscriptions(
                     &ctx,
                     &client,
                     &raw_client,
@@ -244,7 +244,7 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                         return;
                     }
                 };
-                match infiltrator_core::scheduler::sync::run_sync_tick(&ctx, &settings.webdav).await {
+                match infiltrator_admin::scheduler::sync::run_sync_tick(&ctx, &settings.webdav).await {
                     Ok(summary) => {
                         state_clone.notify_webdav_sync_result(true, summary.success_count, None).await;
                         state_clone.emit_admin_event(AdminEvent::new(EVENT_WEBDAV_SYNCED));

@@ -1,11 +1,12 @@
 [package]
 name = "MusicFrog-Despicable-Infiltrator"
-version = "0.12.15"
+version = "0.12.17"
 edition = "2021"
 
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+infiltrator-admin = { path = "../crates/infiltrator-admin" }
 infiltrator-core = { path = "../crates/infiltrator-core" }
 infiltrator-desktop = { path = "../crates/infiltrator-desktop" }
 log = "0.4"

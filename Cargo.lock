@@ -4,11 +4,12 @@ version = 4
 
 [[package]]
 name = "MusicFrog-Despicable-Infiltrator"
-version = "0.12.15"
+version = "0.12.17"
 dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "infiltrator-admin",
  "infiltrator-core",
  "infiltrator-desktop",
  "is_elevated",
@@ -2735,21 +2736,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "infiltrator-admin"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "chrono",
+ "dav-client",
+ "infiltrator-core",
+ "infiltrator-http",
+ "log",
+ "mihomo-config",
+ "mihomo-platform",
+ "mihomo-version",
+ "serde",
+ "serde_json",
+ "state-store",
+ "sync-engine",
+ "tokio",
+ "tokio-stream",
+ "tower-http",
+]
+
+[[package]]
 name = "infiltrator-android"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
  "camino",
+ "dav-client",
  "infiltrator-core",
  "jni",
  "log",
  "mihomo-api",
+ "mihomo-config",
  "mihomo-platform",
  "reqwest 0.13.1",
  "rustls",
  "serde",
  "serde_json",
+ "serde_yaml",
+ "state-store",
+ "sync-engine",
  "thiserror 2.0.17",
  "tokio",
  "tun2proxy",
@@ -2758,29 +2788,21 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
- "async-trait",
- "axum",
  "brotli",
  "chrono",
- "dav-client",
  "flate2",
+ "infiltrator-http",
  "log",
  "mihomo-config",
  "mihomo-platform",
- "mihomo-version",
- "reqwest 0.13.1",
  "serde",
  "serde_json",
  "serde_yaml",
- "state-store",
- "sync-engine",
  "tokio",
- "tokio-stream",
  "toml 0.8.2",
- "tower-http",
  "yaml-rust2",
 ]
 
@@ -2802,6 +2824,14 @@ dependencies = [
  "windows-sys 0.61.2",
  "winreg",
  "yaml-rust2",
+]
+
+[[package]]
+name = "infiltrator-http"
+version = "0.1.1"
+dependencies = [
+ "log",
+ "reqwest 0.13.1",
 ]
 
 [[package]]
@@ -3278,12 +3308,11 @@ dependencies = [
 
 [[package]]
 name = "mihomo-config"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
- "dirs",
  "log",
  "mihomo-api",
  "mihomo-platform",
@@ -3325,15 +3354,15 @@ dependencies = [
 
 [[package]]
 name = "mihomo-version"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
- "dirs",
  "flate2",
  "futures-util",
  "log",
  "mihomo-api",
+ "mihomo-platform",
  "mockito",
  "reqwest 0.13.1",
  "serde",

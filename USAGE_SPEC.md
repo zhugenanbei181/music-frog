@@ -165,3 +165,115 @@ Manage rule providers and rules in the **Rules & Providers** section.
       **Save Rules / 保存规则**: 保存规则列表更改。
 - **Rule list scroll / 规则列表滚动**: The rules list scrolls inside the panel to handle large sets.
       **Rule list scroll / 规则列表滚动**: 规则列表在面板内滚动，以适配大量规则。
+
+---
+
+## 8. Android App: VPN/TUN / Android 应用：VPN/TUN
+
+Manage VPN/TUN parameters in the **Settings > TUN** screen.
+在 **Settings > TUN** 页面管理 VPN/TUN 参数。
+
+- **MTU / MTU**: Set the MTU value.
+      **MTU / MTU**: 设置 MTU 数值。
+- **Auto Route / 自动路由**: Toggle default routing through the VPN.
+      **Auto Route / 自动路由**: 开关默认经由 VPN 的路由。
+- **Strict Route / 严格路由**: Toggle strict routing behavior (Android uses route settings as available).
+      **Strict Route / 严格路由**: 开关严格路由行为（Android 以现有路由设置为准）。
+- **IPv6 / IPv6**: Enable or disable IPv6 routing for VPN.
+      **IPv6 / IPv6**: 开关 VPN 的 IPv6 路由。
+- **DNS Servers (one per line) / DNS Servers（每行一个）**: Enter DNS server IPs, one per line.
+      **DNS Servers (one per line) / DNS Servers（每行一个）**: 逐行填写 DNS 服务器 IP。
+- **Save / 保存**: Apply VPN/TUN settings.
+      **Save / 保存**: 应用 VPN/TUN 设置。
+- **Reload / 重新加载**: Reload current settings from the active profile.
+      **Reload / 重新加载**: 从当前配置重新加载设置。
+
+---
+
+## 9. Android App: DNS / Android 应用：DNS
+
+Manage DNS settings in **Settings > DNS**.
+在 **Settings > DNS** 页面管理 DNS 设置。
+
+- **Enable DNS / 启用 DNS**: Toggle DNS on or off.
+      **Enable DNS / 启用 DNS**: 开关 DNS 功能。
+- **IPv6 / IPv6**: Enable or disable IPv6 resolution.
+      **IPv6 / IPv6**: 开关 IPv6 解析。
+- **Enhanced Mode / 增强模式**: Enter `fake-ip` or `redir-host`.
+      **Enhanced Mode / 增强模式**: 填写 `fake-ip` 或 `redir-host`。
+- **Nameserver / 主 DNS**: Enter DNS servers, one per line.
+      **Nameserver / 主 DNS**: 逐行填写 DNS 服务器。
+- **Default Nameserver / 默认 DNS**: Enter default DNS servers, one per line.
+      **Default Nameserver / 默认 DNS**: 逐行填写默认 DNS 服务器。
+- **Fallback / 备用 DNS**: Enter fallback DNS servers, one per line.
+      **Fallback / 备用 DNS**: 逐行填写备用 DNS 服务器。
+- **Save / 保存**: Apply DNS settings.
+      **Save / 保存**: 应用 DNS 设置。
+- **Reload / 重新加载**: Reload current DNS settings.
+      **Reload / 重新加载**: 重新加载 DNS 设置。
+
+---
+
+## 10. Android App: Fake-IP / Android 应用：Fake-IP
+
+Manage Fake-IP settings in **Settings > Fake-IP**.
+在 **Settings > Fake-IP** 页面管理 Fake-IP 设置。
+
+- **Fake-IP Range / Fake-IP 范围**: Set the fake IP CIDR range.
+      **Fake-IP Range / Fake-IP 范围**: 设置 Fake-IP 的 CIDR 范围。
+- **Fake-IP Filter / Fake-IP 过滤**: Enter filter rules, one per line.
+      **Fake-IP Filter / Fake-IP 过滤**: 逐行填写过滤规则。
+- **Store Fake-IP / 持久化 Fake-IP**: Toggle persistence for fake IP cache.
+      **Store Fake-IP / 持久化 Fake-IP**: 开关 Fake-IP 缓存持久化。
+- **Save / 保存**: Apply Fake-IP settings.
+      **Save / 保存**: 应用 Fake-IP 设置。
+- **Reload / 重新加载**: Reload current Fake-IP settings.
+      **Reload / 重新加载**: 重新加载 Fake-IP 设置。
+- **Clear Cache / 清理缓存**: Clear the Fake-IP cache file.
+      **Clear Cache / 清理缓存**: 清理 Fake-IP 缓存文件。
+
+---
+
+## 11. Android App: Rules / Android 应用：规则
+
+Manage rules and providers in **Settings > Rules**.
+在 **Settings > Rules** 页面管理规则与 Providers。
+
+- **New Rule / 新增规则** + **Add Rule / 添加规则**: Add a new rule line.
+      **New Rule / 新增规则** + **Add Rule / 添加规则**: 添加新规则行。
+- **Rule Toggle / 规则开关**: Enable or disable an entry.
+      **Rule Toggle / 规则开关**: 启用或禁用规则条目。
+- **Remove / 删除**: Remove a rule entry.
+      **Remove / 删除**: 删除规则条目。
+- **Save Rules / 保存规则**: Apply rule list changes.
+      **Save Rules / 保存规则**: 保存规则列表变更。
+- **Rule Providers (JSON) / Providers (JSON)**: Edit providers JSON config.
+      **Rule Providers (JSON) / Providers (JSON)**: 编辑 Providers 的 JSON 配置。
+- **Save Providers / 保存 Providers**: Save providers configuration.
+      **Save Providers / 保存 Providers**: 保存 Providers 配置。
+
+---
+
+## 12. Android App: WebDAV Sync / Android 应用：WebDAV 同步
+
+Manage WebDAV sync in the **Sync** tab.
+在 **Sync** 标签页管理 WebDAV 同步。
+
+- **Enable WebDAV Sync / 启用 WebDAV 同步**: Toggle WebDAV sync on or off.
+      **Enable WebDAV Sync / 启用 WebDAV 同步**: 开关 WebDAV 同步。
+- **WebDAV URL / WebDAV 地址**: Set the WebDAV endpoint.
+      **WebDAV URL / WebDAV 地址**: 设置 WebDAV 地址。
+- **Username / 用户名** + **Password / 密码**: Configure credentials.
+      **Username / 用户名** + **Password / 密码**: 配置用户名与密码。
+- **Sync interval (minutes) / 同步间隔（分钟）**: Set the sync interval.
+      **Sync interval (minutes) / 同步间隔（分钟）**: 设置同步间隔。
+- **Sync on startup / 启动时同步**: Run sync when the app starts.
+      **Sync on startup / 启动时同步**: 应用启动时触发同步。
+- **Save / 保存**: Persist WebDAV settings.
+      **Save / 保存**: 保存 WebDAV 设置。
+- **Test / 连接测试**: Verify the WebDAV connection.
+      **Test / 连接测试**: 验证 WebDAV 连接。
+- **Sync Now / 立即同步**: Trigger a manual sync.
+      **Sync Now / 立即同步**: 手动触发同步。
+- **Reload / 重新加载**: Reload WebDAV settings.
+      **Reload / 重新加载**: 重新加载 WebDAV 设置。

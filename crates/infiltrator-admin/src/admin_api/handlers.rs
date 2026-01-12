@@ -15,18 +15,20 @@ use axum::{
 };
 use chrono::Utc;
 use log::{info, warn};
-use reqwest::Client;
+use infiltrator_http::HttpClient;
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 
-use crate::{
+use infiltrator_core::{
     config as core_config,
     dns,
     fake_ip,
     profiles as core_profiles,
     rules,
-    tun,
+    settings::WebDavConfig,
     subscription as core_subscription,
-    ProfileDetail, ProfileInfo,
+    tun,
+    ProfileDetail,
+    ProfileInfo,
 };
 use mihomo_config::ConfigManager;
 use mihomo_version::VersionManager;
@@ -596,7 +598,7 @@ pub async fn sync_webdav_now_http<C: AdminApiContext>(
 
 pub async fn test_webdav_conn_http<C: AdminApiContext>(
     AxumState(_state): AxumState<AdminApiState<C>>,
-    Json(payload): Json<crate::settings::WebDavConfig>,
+    Json(payload): Json<WebDavConfig>,
 ) -> Result<StatusCode, ApiError> {
     use dav_client::client::WebDavClient;
     use dav_client::DavClient;
@@ -629,8 +631,8 @@ async fn switch_profile_internal<C: AdminApiContext>(
 async fn import_profile_from_url_internal<C: AdminApiContext>(
     ctx: &C,
     rebuild_status: &Arc<RebuildStatus>,
-    client: &Client,
-    raw_client: &Client,
+    client: &HttpClient,
+    raw_client: &HttpClient,
     name: &str,
     url: &str,
     activate: bool,

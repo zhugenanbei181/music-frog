@@ -14,15 +14,23 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SettingsScreen(
     onNavigateToRouting: () -> Unit,
+    onNavigateToTun: () -> Unit,
     onNavigateToDns: () -> Unit,
     onNavigateToFakeIp: () -> Unit,
-    onNavigateToRules: () -> Unit
+    onNavigateToRules: () -> Unit,
+    onNavigateToLogs: () -> Unit = {}
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         ListItem(
             headlineContent = { Text("App Routing") },
             supportingContent = { Text("Select which apps use the VPN") },
             modifier = Modifier.clickable { onNavigateToRouting() }
+        )
+        HorizontalDivider()
+        ListItem(
+            headlineContent = { Text("TUN") },
+            supportingContent = { Text("Configure MTU, routes, and DNS for VPN") },
+            modifier = Modifier.clickable { onNavigateToTun() }
         )
         HorizontalDivider()
         ListItem(
@@ -41,6 +49,12 @@ fun SettingsScreen(
             headlineContent = { Text("Rule Sets") },
             supportingContent = { Text("Manage rule providers and priorities") },
             modifier = Modifier.clickable { onNavigateToRules() }
+        )
+        HorizontalDivider()
+        ListItem(
+            headlineContent = { Text("Logs") },
+            supportingContent = { Text("View core runtime logs") },
+            modifier = Modifier.clickable { onNavigateToLogs() }
         )
     }
 }

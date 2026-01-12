@@ -30,8 +30,7 @@ use crate::{
     tray::create_tray,
     utils::parse_launch_ports,
 };
-use infiltrator_core::admin_api::{EVENT_CORE_CHANGED, EVENT_PROFILES_CHANGED};
-use infiltrator_core::SubscriptionScheduler;
+use infiltrator_admin::{EVENT_CORE_CHANGED, EVENT_PROFILES_CHANGED, SubscriptionScheduler};
 
 fn main() {
     std::panic::set_hook(Box::new(|info| {

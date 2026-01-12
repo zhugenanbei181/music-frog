@@ -1,14 +1,12 @@
 use anyhow::anyhow;
 use log::{info, warn};
-use reqwest::{
-    header::{ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE},
-    Client,
-};
+use infiltrator_http::reqwest::header::{ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE};
+use infiltrator_http::HttpClient;
 use std::io::Read;
 
 pub async fn fetch_subscription_text(
-    default_client: &Client,
-    raw_client: &Client,
+    default_client: &HttpClient,
+    raw_client: &HttpClient,
     url: &str,
 ) -> anyhow::Result<String> {
     let primary = fetch_subscription_bytes(default_client, url, false).await;
@@ -62,7 +60,7 @@ struct SubscriptionResponse {
 }
 
 async fn fetch_subscription_bytes(
-    client: &Client,
+    client: &HttpClient,
     url: &str,
     force_identity: bool,
 ) -> anyhow::Result<SubscriptionResponse> {

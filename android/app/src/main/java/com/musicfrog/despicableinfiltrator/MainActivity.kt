@@ -9,10 +9,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import com.musicfrog.despicableinfiltrator.ui.InfiltratorApp
@@ -25,23 +24,38 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         initRustBridge()
+        
+        // Register VpnStateManager receiver
+        VpnStateManager.register(this)
+        
         setContent {
             val windowSizeClass = calculateWindowSizeClass(this)
             val context = LocalContext.current
-            var vpnPermissionGranted by remember {
-                mutableStateOf(VpnService.prepare(context) == null)
+            
+            // Use VpnStateManager for permission state
+            val permissionState by VpnStateManager.permissionState.collectAsState()
+            val vpnPermissionGranted = permissionState == VpnStateManager.PermissionState.GRANTED
+            
+            // Initial permission check
+            LaunchedEffect(Unit) {
+                VpnStateManager.checkPermission(context)
             }
+            
             val launcher = rememberLauncherForActivityResult(
                 ActivityResultContracts.StartActivityForResult()
             ) {
-                vpnPermissionGranted = VpnService.prepare(context) == null
+                if (VpnStateManager.checkPermission(context)) {
+                    VpnStateManager.onPermissionGranted()
+                } else {
+                    VpnStateManager.onPermissionDenied()
+                }
             }
             val requestVpnPermission = {
                 val intent = VpnService.prepare(context)
                 if (intent != null) {
                     launcher.launch(intent)
                 } else {
-                    vpnPermissionGranted = true
+                    VpnStateManager.onPermissionGranted()
                 }
             }
 
@@ -54,6 +68,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        VpnStateManager.unregister(this)
     }
 
     private fun initRustBridge() {

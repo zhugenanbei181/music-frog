@@ -2,11 +2,11 @@ use anyhow::anyhow;
 use chrono::{Duration as ChronoDuration, Utc};
 use log::{info, warn};
 use mihomo_config::{ConfigManager, Profile};
-use reqwest::Client;
+use infiltrator_http::HttpClient;
 use tokio::time::{sleep, Duration};
 
-use crate::{
-    admin_api::AdminApiContext,
+use crate::admin_api::AdminApiContext;
+use infiltrator_core::{
     config as core_config,
     subscription::{fetch_subscription_text, mask_subscription_url, strip_utf8_bom},
 };
@@ -21,8 +21,8 @@ pub struct SubscriptionUpdateSummary {
 
 pub(super) async fn run_subscription_tick<C: AdminApiContext>(
     ctx: &C,
-    client: &Client,
-    raw_client: &Client,
+    client: &HttpClient,
+    raw_client: &HttpClient,
 ) -> anyhow::Result<bool> {
     let manager = ConfigManager::new()?;
     let profiles = manager.list_profiles().await?;
@@ -91,8 +91,8 @@ pub(super) async fn run_subscription_tick<C: AdminApiContext>(
 
 pub async fn update_all_subscriptions<C: AdminApiContext>(
     ctx: &C,
-    client: &Client,
-    raw_client: &Client,
+    client: &HttpClient,
+    raw_client: &HttpClient,
 ) -> anyhow::Result<SubscriptionUpdateSummary> {
     let manager = ConfigManager::new()?;
     let profiles = manager.list_profiles().await?;
@@ -164,8 +164,8 @@ struct ProfileUpdateParams<'a> {
     interval_hours: Option<u32>,
     auto_update_enabled: bool,
     now: chrono::DateTime<Utc>,
-    client: &'a Client,
-    raw_client: &'a Client,
+    client: &'a HttpClient,
+    raw_client: &'a HttpClient,
 }
 
 async fn update_profile_subscription(

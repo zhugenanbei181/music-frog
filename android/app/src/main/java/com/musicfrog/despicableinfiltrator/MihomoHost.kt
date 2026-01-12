@@ -46,7 +46,7 @@ class MihomoHost(private val context: Context) : BridgeHost {
     }
 
     override fun coreControllerUrl(): String? {
-        return CONTROLLER_URL
+        return processManager.readControllerUrl() ?: CONTROLLER_URL
     }
 
     override fun credentialGet(service: String, key: String): String? {
@@ -83,7 +83,7 @@ class MihomoHost(private val context: Context) : BridgeHost {
     }
 
     override fun vpnIsRunning(): Boolean {
-        return MihomoVpnService.isRunning()
+        return VpnStateManager.vpnState.value == VpnStateManager.VpnState.RUNNING
     }
 
     override fun tunSetEnabled(enabled: Boolean): Boolean {
@@ -175,11 +175,26 @@ private class MihomoProcessManager(private val context: Context) {
         if (!configDir.exists()) {
             configDir.mkdirs()
         }
-        val configFile = File(configDir, CONFIG_NAME)
+        val profileName = resolveCurrentProfileName()
+        var configFile = File(configDir, "$profileName.yaml")
         if (!configFile.exists()) {
-            configFile.writeText(defaultConfig())
+            if (profileName != "default") {
+                val fallback = File(configDir, CONFIG_NAME)
+                if (!fallback.exists()) {
+                    fallback.writeText(defaultConfig())
+                }
+                Log.w(TAG, "profile config missing: ${configFile.absolutePath}, fallback to default")
+                configFile = fallback
+            } else {
+                configFile.writeText(defaultConfig())
+            }
         }
         return configFile
+    }
+
+    fun readControllerUrl(): String? {
+        val configFile = ensureConfigFile()
+        return parseExternalController(configFile)
     }
 
     private fun ensureBinary(): File? {
@@ -205,6 +220,66 @@ private class MihomoProcessManager(private val context: Context) {
             tun:
               enable: false
         """.trimIndent() + "\n"
+    }
+
+    private fun resolveCurrentProfileName(): String {
+        val settingsFile = File(context.filesDir, "config.toml")
+        if (!settingsFile.exists()) {
+            return "default"
+        }
+        return try {
+            val lines = settingsFile.readLines()
+            var inDefault = false
+            for (rawLine in lines) {
+                val line = rawLine.trim()
+                if (line.isEmpty() || line.startsWith("#")) {
+                    continue
+                }
+                if (line.startsWith("[") && line.endsWith("]")) {
+                    inDefault = line == "[default]"
+                    continue
+                }
+                if (inDefault && line.startsWith("profile")) {
+                    val value = line.substringAfter("=").trim().trim('"')
+                    if (value.isNotEmpty()) {
+                        return value
+                    }
+                }
+            }
+            "default"
+        } catch (err: Exception) {
+            Log.w(TAG, "read current profile failed: ${err.message}")
+            "default"
+        }
+    }
+
+    private fun parseExternalController(configFile: File): String? {
+        if (!configFile.exists()) {
+            return null
+        }
+        return try {
+            val line = configFile.useLines { lines ->
+                lines.map { it.trim() }
+                    .firstOrNull { it.startsWith("external-controller:") }
+            }
+            val raw = line?.substringAfter("external-controller:")?.trim()?.trim('"')
+            normalizeControllerUrl(raw)
+        } catch (err: Exception) {
+            Log.w(TAG, "read controller url failed: ${err.message}")
+            null
+        }
+    }
+
+    private fun normalizeControllerUrl(value: String?): String? {
+        val trimmed = value?.trim().orEmpty()
+        if (trimmed.isEmpty()) {
+            return null
+        }
+        return when {
+            trimmed.startsWith("http://") || trimmed.startsWith("https://") -> trimmed
+            trimmed.startsWith(":") -> "http://127.0.0.1$trimmed"
+            else -> "http://$trimmed"
+        }
     }
 }
 

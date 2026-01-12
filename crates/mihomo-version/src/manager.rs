@@ -1,6 +1,6 @@
 use super::channel::{fetch_latest, Channel};
 use super::download::{DownloadProgress, Downloader};
-use crate::home::get_home_dir;
+use mihomo_platform::get_home_dir;
 use mihomo_api::{MihomoError, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

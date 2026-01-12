@@ -6,7 +6,8 @@ use state_store::StateStore;
 use sync_engine::{SyncPlanner, executor::SyncExecutor};
 use mihomo_platform::get_home_dir;
 
-use crate::{admin_api::AdminApiContext, settings::WebDavConfig};
+use crate::admin_api::AdminApiContext;
+use infiltrator_core::settings::WebDavConfig;
 
 /// Sync result summary for notification purposes
 #[derive(Debug, Default)]

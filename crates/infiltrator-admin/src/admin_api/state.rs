@@ -1,18 +1,14 @@
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
-    time::Duration,
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
 };
 
-use log::warn;
-use reqwest::Client;
+use infiltrator_http::{build_http_client, build_raw_http_client, HttpClient};
 
 use super::models::RebuildStatusResponse;
 use super::events::AdminEventBus;
 
-use crate::settings::AppSettings;
+use infiltrator_core::AppSettings;
 
 #[async_trait::async_trait]
 pub trait AdminApiContext: Clone + Send + Sync + 'static {
@@ -84,34 +80,16 @@ impl RebuildStatus {
 #[derive(Clone)]
 pub struct AdminApiState<C> {
     pub ctx: C,
-    pub http_client: Client,
-    pub raw_http_client: Client,
+    pub http_client: HttpClient,
+    pub raw_http_client: HttpClient,
     pub rebuild_status: Arc<RebuildStatus>,
     pub events: AdminEventBus,
 }
 
 impl<C: AdminApiContext> AdminApiState<C> {
     pub fn new(ctx: C, events: AdminEventBus) -> Self {
-        let http_client = Client::builder()
-            .user_agent("MusicFrog-Despicable-Infiltrator")
-            .timeout(Duration::from_secs(30))
-            .build()
-            .unwrap_or_else(|err| {
-                warn!("failed to build http client: {err}");
-                Client::new()
-            });
-        let raw_http_client = Client::builder()
-            .user_agent("MusicFrog-Despicable-Infiltrator")
-            .timeout(Duration::from_secs(30))
-            .no_gzip()
-            .no_brotli()
-            .no_deflate()
-            .no_zstd()
-            .build()
-            .unwrap_or_else(|err| {
-                warn!("failed to build raw http client: {err}");
-                http_client.clone()
-            });
+        let http_client = build_http_client();
+        let raw_http_client = build_raw_http_client(&http_client);
         let rebuild_status = Arc::new(RebuildStatus::default());
         Self {
             ctx,

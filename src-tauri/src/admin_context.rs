@@ -3,7 +3,8 @@ use tauri::{async_runtime, AppHandle};
 
 use crate::{app_state::AppState, platform, runtime::rebuild_runtime};
 use infiltrator_desktop::editor;
-use infiltrator_core::{admin_api::AdminApiContext, AppSettings};
+use infiltrator_admin::AdminApiContext;
+use infiltrator_core::AppSettings;
 
 #[derive(Clone)]
 pub(crate) struct TauriAdminContext {

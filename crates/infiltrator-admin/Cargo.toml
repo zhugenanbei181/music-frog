@@ -1,0 +1,24 @@
+[package]
+name = "infiltrator-admin"
+version = "0.1.1"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+axum = { workspace = true }
+chrono = { workspace = true }
+dav-client = { path = "../mihomo-dav-sync/dav-client" }
+infiltrator-core = { path = "../infiltrator-core" }
+infiltrator-http = { path = "../infiltrator-http" }
+log = { workspace = true }
+mihomo-config = { path = "../mihomo-config" }
+mihomo-platform = { path = "../mihomo-platform" }
+mihomo-version = { path = "../mihomo-version" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+state-store = { path = "../mihomo-dav-sync/state-store" }
+sync-engine = { path = "../mihomo-dav-sync/sync-engine" }
+tokio = { workspace = true }
+tokio-stream = { workspace = true, features = ["sync"] }
+tower-http = { workspace = true, features = ["fs"] }

@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import infiltrator_android.ProfileSummary
+import com.musicfrog.despicableinfiltrator.ui.common.ErrorDialog
 
 @Composable
 fun ProfilesScreen() {
@@ -46,6 +47,7 @@ fun ProfilesScreen() {
     val profiles by viewModel.profiles.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    val emptyMessage by viewModel.emptyMessage.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -71,14 +73,18 @@ fun ProfilesScreen() {
                 }
             }
 
+            if (!isLoading && profiles.isEmpty() && emptyMessage != null) {
+                Text(
+                    text = emptyMessage ?: "",
+                    modifier = Modifier.align(Alignment.Center),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
             if (error != null) {
-                AlertDialog(
-                    onDismissRequest = { viewModel.clearError() },
-                    confirmButton = {
-                        TextButton(onClick = { viewModel.clearError() }) { Text("OK") }
-                    },
-                    title = { Text("Error") },
-                    text = { Text(error!!) }
+                ErrorDialog(
+                    message = error ?: "",
+                    onDismiss = { viewModel.clearError() }
                 )
             }
 

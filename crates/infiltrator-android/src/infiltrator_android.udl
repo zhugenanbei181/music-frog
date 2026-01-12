@@ -4,6 +4,7 @@ namespace infiltrator_android {
   boolean bridge_ready();
   FfiStatus bridge_shutdown();
   FfiStatus start_vpn(i32 fd);
+  FfiStatus stop_vpn();
 
   // Async functions
   [Async]
@@ -35,6 +36,51 @@ namespace infiltrator_android {
 
   [Async]
   TunStatusResult tun_status();
+
+  [Async]
+  VpnTunSettingsResult vpn_tun_settings();
+
+  [Async]
+  VpnTunSettingsResult vpn_tun_settings_save(VpnTunSettingsPatch patch);
+
+  [Async]
+  DnsSettingsResult dns_settings();
+
+  [Async]
+  DnsSettingsResult dns_settings_save(DnsSettingsPatch patch);
+
+  [Async]
+  FakeIpSettingsResult fake_ip_settings();
+
+  [Async]
+  FakeIpSettingsResult fake_ip_settings_save(FakeIpSettingsPatch patch);
+
+  [Async]
+  FfiBoolResult fake_ip_cache_clear();
+
+  [Async]
+  RulesResult rules_list();
+
+  [Async]
+  RulesResult rules_save(sequence<RuleEntryRecord> rules);
+
+  [Async]
+  RuleProvidersResult rule_providers();
+
+  [Async]
+  RuleProvidersResult rule_providers_save(string json);
+
+  [Async]
+  WebDavSettingsResult webdav_settings();
+
+  [Async]
+  WebDavSettingsResult webdav_settings_save(WebDavSettings settings);
+
+  [Async]
+  FfiStatus webdav_test(WebDavSettings settings);
+
+  [Async]
+  WebDavSyncResult webdav_sync_now();
 };
 
 enum FfiErrorCode {
@@ -120,4 +166,101 @@ dictionary IpResult {
 dictionary TunStatusResult {
   FfiStatus status;
   boolean enabled;
+};
+
+dictionary VpnTunSettings {
+  u32? mtu;
+  boolean? auto_route;
+  boolean? strict_route;
+  sequence<string> dns_servers;
+  boolean? ipv6;
+};
+
+dictionary VpnTunSettingsPatch {
+  u32? mtu;
+  boolean? auto_route;
+  boolean? strict_route;
+  sequence<string>? dns_servers;
+  boolean? ipv6;
+};
+
+dictionary VpnTunSettingsResult {
+  FfiStatus status;
+  VpnTunSettings? settings;
+};
+
+dictionary DnsSettings {
+  boolean? enable;
+  boolean? ipv6;
+  string? enhanced_mode;
+  sequence<string> nameserver;
+  sequence<string> default_nameserver;
+  sequence<string> fallback;
+};
+
+dictionary DnsSettingsPatch {
+  boolean? enable;
+  boolean? ipv6;
+  string? enhanced_mode;
+  sequence<string>? nameserver;
+  sequence<string>? default_nameserver;
+  sequence<string>? fallback;
+};
+
+dictionary DnsSettingsResult {
+  FfiStatus status;
+  DnsSettings? settings;
+};
+
+dictionary FakeIpSettings {
+  string? fake_ip_range;
+  sequence<string> fake_ip_filter;
+  boolean? store_fake_ip;
+};
+
+dictionary FakeIpSettingsPatch {
+  string? fake_ip_range;
+  sequence<string>? fake_ip_filter;
+  boolean? store_fake_ip;
+};
+
+dictionary FakeIpSettingsResult {
+  FfiStatus status;
+  FakeIpSettings? settings;
+};
+
+dictionary RuleEntryRecord {
+  string rule;
+  boolean enabled;
+};
+
+dictionary RulesResult {
+  FfiStatus status;
+  sequence<RuleEntryRecord> rules;
+};
+
+dictionary RuleProvidersResult {
+  FfiStatus status;
+  string json;
+};
+
+dictionary WebDavSettings {
+  boolean enabled;
+  string url;
+  string username;
+  string password;
+  u32 sync_interval_mins;
+  boolean sync_on_startup;
+};
+
+dictionary WebDavSettingsResult {
+  FfiStatus status;
+  WebDavSettings? settings;
+};
+
+dictionary WebDavSyncResult {
+  FfiStatus status;
+  u32 success_count;
+  u32 failed_count;
+  u32 total_actions;
 };

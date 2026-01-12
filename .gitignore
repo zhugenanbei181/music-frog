@@ -42,6 +42,8 @@ TODO.md
 CHANGELOG.md
 coding.md
 WebAdminDoc.md
+ANDROID_BACKFILL_CHECKLIST.md
+CLEANUP_CHECKLIST.md
 .markdownlint-cli2.jsonc
 .markdownlint.json
 .markdownlintignore

@@ -1,4 +1,4 @@
-package com.musicfrog.despicableinfiltrator.ui.settings.fakeip
+package com.musicfrog.despicableinfiltrator.ui.settings.tun
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,8 +26,8 @@ import androidx.compose.ui.unit.dp
 import com.musicfrog.despicableinfiltrator.ui.common.ErrorDialog
 
 @Composable
-fun FakeIpScreen() {
-    val viewModel = remember { FakeIpViewModel() }
+fun TunScreen() {
+    val viewModel = remember { TunViewModel() }
     val state by viewModel.state.collectAsState()
 
     Column(
@@ -36,7 +36,7 @@ fun FakeIpScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(text = "Fake-IP Settings", style = MaterialTheme.typography.titleLarge)
+        Text(text = "TUN Settings", style = MaterialTheme.typography.titleLarge)
 
         if (state.isLoading) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -54,29 +54,43 @@ fun FakeIpScreen() {
         }
 
         OutlinedTextField(
-            value = state.fakeIpRange,
-            onValueChange = { viewModel.updateRange(it) },
-            label = { Text("Fake-IP Range") },
+            value = state.mtu,
+            onValueChange = { viewModel.updateMtu(it) },
+            label = { Text("MTU") },
             modifier = Modifier.fillMaxWidth(),
             enabled = !state.isLoading
         )
 
+        ToggleRow(
+            title = "Auto Route",
+            checked = state.autoRoute,
+            onCheckedChange = { viewModel.updateAutoRoute(it) },
+            enabled = !state.isLoading
+        )
+
+        ToggleRow(
+            title = "Strict Route",
+            checked = state.strictRoute,
+            onCheckedChange = { viewModel.updateStrictRoute(it) },
+            enabled = !state.isLoading
+        )
+
+        ToggleRow(
+            title = "IPv6",
+            checked = state.ipv6,
+            onCheckedChange = { viewModel.updateIpv6(it) },
+            enabled = !state.isLoading
+        )
+
         OutlinedTextField(
-            value = state.fakeIpFilter,
-            onValueChange = { viewModel.updateFilter(it) },
-            label = { Text("Fake-IP Filter (one per line)") },
+            value = state.dnsServers,
+            onValueChange = { viewModel.updateDnsServers(it) },
+            label = { Text("DNS Servers (one per line)") },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(140.dp),
             enabled = !state.isLoading,
             maxLines = 6
-        )
-
-        ToggleRow(
-            title = "Store Fake-IP",
-            checked = state.storeFakeIp,
-            onCheckedChange = { viewModel.updateStoreFakeIp(it) },
-            enabled = !state.isLoading
         )
 
         Row(
@@ -95,25 +109,11 @@ fun FakeIpScreen() {
             ) {
                 Text(text = "Reload")
             }
-            TextButton(
-                onClick = { viewModel.clearCache() },
-                enabled = !state.isLoading
-            ) {
-                Text(text = "Clear Cache")
-            }
         }
 
         if (state.saved) {
             Text(
                 text = "Saved",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-
-        if (state.cacheMessage != null) {
-            Text(
-                text = state.cacheMessage ?: "",
                 color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.bodyMedium
             )

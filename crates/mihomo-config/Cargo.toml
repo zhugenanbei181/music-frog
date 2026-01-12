@@ -1,13 +1,12 @@
 [package]
 name = "mihomo-config"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true }
-dirs = { workspace = true }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-platform = { path = "../mihomo-platform" }

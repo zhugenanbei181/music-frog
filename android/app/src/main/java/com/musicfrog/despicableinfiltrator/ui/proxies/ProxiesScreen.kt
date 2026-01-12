@@ -3,9 +3,11 @@ package com.musicfrog.despicableinfiltrator.ui.proxies
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -16,6 +18,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -32,19 +35,48 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import infiltrator_android.ProxyGroupSummary
+import com.musicfrog.despicableinfiltrator.ui.common.ErrorDialog
 
 @Composable
 fun ProxiesScreen() {
     val viewModel = remember { ProxiesViewModel() }
     val groups by viewModel.groups.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+    val emptyMessage by viewModel.emptyMessage.collectAsState()
 
-    LazyColumn(modifier = Modifier.padding(16.dp)) {
-        items(groups) { group ->
-            ProxyGroupCard(
-                group = group,
-                onSelect = { server -> viewModel.selectProxy(group.name, server) }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        LazyColumn {
+            items(groups) { group ->
+                ProxyGroupCard(
+                    group = group,
+                    onSelect = { server -> viewModel.selectProxy(group.name, server) }
+                )
+                Spacer(modifier = Modifier.padding(8.dp))
+            }
+        }
+
+        if (isLoading && groups.isEmpty()) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        }
+
+        if (!isLoading && groups.isEmpty() && emptyMessage != null) {
+            Text(
+                text = emptyMessage ?: "",
+                modifier = Modifier.align(Alignment.Center),
+                style = MaterialTheme.typography.bodyMedium
             )
-            Spacer(modifier = Modifier.padding(8.dp))
+        }
+
+        if (error != null) {
+            ErrorDialog(
+                message = error ?: "",
+                onDismiss = { viewModel.clearError() }
+            )
         }
     }
 }
