@@ -19,44 +19,66 @@ pub(crate) fn spawn_frontends(
     let app_for_main = app.clone();
     let state_for_main = state.clone();
     tauri::async_runtime::spawn(async move {
-        match start_main_frontend(&app_for_main, static_port).await {
-            Ok(handle) => {
-                let url = handle.url.clone();
-                info!("Zashboard 静态界面已托管在 {}", url);
-                state_for_main.set_static_server(handle).await;
-                state_for_main
-                    .update_static_info_text(format!("静态站点: {}", url))
-                    .await;
-                if state_for_main.open_webui_on_startup().await {
-                    if let Err(err) = open_in_browser(&url) {
-                        warn!("无法自动打开浏览器: {err}");
+        let mut retries = 0;
+        loop {
+            match start_main_frontend(&app_for_main, static_port).await {
+                Ok(handle) => {
+                    let url = handle.url.clone();
+                    info!("Zashboard 静态界面已托管在 {}", url);
+                    state_for_main.set_static_server(handle).await;
+                    state_for_main
+                        .update_static_info_text(format!("静态站点: {}", url))
+                        .await;
+                    if state_for_main.open_webui_on_startup().await {
+                        if let Err(err) = open_in_browser(&url) {
+                            warn!("无法自动打开浏览器: {err}");
+                        }
                     }
+                    break;
                 }
-            }
-            Err(err) => {
-                error!("启动静态站点失败: {err:#}");
-                crate::platform::show_error_dialog(format!("静态站点启动失败: {err:#}"));
-                state_for_main
-                    .update_static_info_text(format!("静态站点: 启动失败 ({err})"))
-                    .await;
+                Err(err) => {
+                    if retries < 10 {
+                        retries += 1;
+                        log::warn!("启动静态站点失败 (第 {} 次尝试): {err}", retries);
+                        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                        continue;
+                    }
+                    error!("启动静态站点失败: {err:#}");
+                    crate::platform::show_error_dialog(format!("静态站点启动失败: {err:#}"));
+                    state_for_main
+                        .update_static_info_text(format!("静态站点: 启动失败 ({err})"))
+                        .await;
+                    break;
+                }
             }
         }
     });
 
     tauri::async_runtime::spawn(async move {
-        match start_admin_frontend(&app, state.clone(), admin_port).await {
-            Ok(handle) => {
-                let url = handle.url.clone();
-                state.set_admin_server(handle).await;
-                state
-                    .update_admin_info_text(format!("配置管理: {}", url))
-                    .await;
-            }
-            Err(err) => {
-                error!("启动配置管理界面失败: {err:#}");
-                state
-                    .update_admin_info_text(format!("配置管理: 启动失败 ({err})"))
-                    .await;
+        let mut retries = 0;
+        loop {
+            match start_admin_frontend(&app, state.clone(), admin_port).await {
+                Ok(handle) => {
+                    let url = handle.url.clone();
+                    state.set_admin_server(handle).await;
+                    state
+                        .update_admin_info_text(format!("配置管理: {}", url))
+                        .await;
+                    break;
+                }
+                Err(err) => {
+                    if retries < 10 {
+                        retries += 1;
+                        log::warn!("启动配置管理界面失败 (第 {} 次尝试): {err}", retries);
+                        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                        continue;
+                    }
+                    error!("启动配置管理界面失败: {err:#}");
+                    state
+                        .update_admin_info_text(format!("配置管理: 启动失败 ({err})"))
+                        .await;
+                    break;
+                }
             }
         }
     });
@@ -68,7 +90,7 @@ async fn start_main_frontend(
 ) -> anyhow::Result<StaticServerHandle> {
     let main_dir = resolve_main_dir(app)?;
     info!("Zashboard 静态目录: {}", main_dir.display());
-    core_servers::start_static_server(main_dir, preferred_port, 4173).await
+    core_servers::start_static_server(main_dir, preferred_port, 24173).await
 }
 
 async fn start_admin_frontend(
@@ -87,7 +109,7 @@ async fn start_admin_frontend(
         admin_dir,
         ctx,
         preferred_port,
-        5210,
+        25210,
         event_bus,
     )
     .await

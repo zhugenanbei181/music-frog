@@ -12,6 +12,7 @@ pub(crate) use menu::{
     refresh_profile_switch_submenu,
     refresh_proxy_groups_submenu,
     refresh_tray_menu,
+    refresh_tun_menu_item,
 };
 
 pub(crate) fn create_tray(app: &AppHandle, state: AppState) -> tauri::Result<()> {
@@ -55,8 +56,13 @@ pub(crate) fn create_tray(app: &AppHandle, state: AppState) -> tauri::Result<()>
                 button_state: MouseButtonState::Up,
                 ..
             } = event {
-                // Do nothing on right click (menu opens automatically)
-                // Removing background refresh to prevent menu flickering/closing
+                // Refresh TUN state when menu is about to be shown
+                let state = state_for_tray_click.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(err) = crate::tray::refresh_tun_menu_item(&state).await {
+                        warn!("failed to refresh tun state on tray click: {err}");
+                    }
+                });
             }
         })
         .build(app)?;

@@ -968,6 +968,38 @@ pub(crate) async fn refresh_core_versions_submenu(
     Ok(())
 }
 
+pub(crate) async fn refresh_tun_menu_item(
+    state: &AppState,
+) -> anyhow::Result<()> {
+    let Some(items) = state.tray_info_items().await else {
+        return Ok(());
+    };
+    let lang_code = state.get_lang_code().await;
+    let lang = Lang(lang_code.as_str());
+
+    let is_admin = is_running_as_admin();
+    let (available, enabled) = match state.refresh_tun_state().await {
+        Ok(result) => result,
+        Err(err) => {
+            warn!("failed to refresh tun state: {err:#}");
+            (false, false)
+        }
+    };
+
+    let label = if !is_admin {
+        lang.tr("tun_mode_admin_required")
+    } else if !available {
+        lang.tr("tun_mode_disabled")
+    } else {
+        lang.tr("tun_mode")
+    };
+
+    items.tun_mode.set_text(label)?;
+    items.tun_mode.set_checked(enabled)?;
+    items.tun_mode.set_enabled(is_admin && available)?;
+    Ok(())
+}
+
 fn clear_submenu_items(submenu: &Submenu<Wry>) -> tauri::Result<()> {
     loop {
         let items = submenu.items()?;

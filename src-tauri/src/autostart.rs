@@ -2,7 +2,8 @@ use std::process::Command;
 
 use anyhow::anyhow;
 
-const AUTOSTART_TASK_NAME: &str = "MihomoDespicableInfiltrator";
+const AUTOSTART_NAME: &str = "MihomoDespicableInfiltrator";
+const REG_RUN_KEY: &str = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -19,8 +20,8 @@ fn new_hidden_command(program: &str) -> Command {
 pub(crate) fn is_autostart_enabled() -> bool {
     #[cfg(target_os = "windows")]
     {
-        let output = new_hidden_command("schtasks")
-            .args(["/Query", "/TN", AUTOSTART_TASK_NAME])
+        let output = new_hidden_command("reg")
+            .args(["query", REG_RUN_KEY, "/v", AUTOSTART_NAME])
             .output();
         output.map(|o| o.status.success()).unwrap_or(false)
     }
@@ -35,30 +36,29 @@ pub(crate) fn set_autostart_enabled(enabled: bool) -> anyhow::Result<()> {
     {
         if enabled {
             let exe = std::env::current_exe()?;
-            let task_cmd = format!("\"{}\"", exe.to_string_lossy());
-            let status = new_hidden_command("schtasks")
+            let task_cmd = format!("\"{}\" --autostart", exe.to_string_lossy());
+            let status = new_hidden_command("reg")
                 .args([
-                    "/Create",
-                    "/F",
-                    "/SC",
-                    "ONLOGON",
-                    "/RL",
-                    "HIGHEST",
-                    "/TN",
-                    AUTOSTART_TASK_NAME,
-                    "/TR",
+                    "add",
+                    REG_RUN_KEY,
+                    "/v",
+                    AUTOSTART_NAME,
+                    "/t",
+                    "REG_SZ",
+                    "/d",
                     &task_cmd,
+                    "/f",
                 ])
                 .status()?;
             if !status.success() {
-                return Err(anyhow!("创建计划任务失败"));
+                return Err(anyhow!("创建注册表启动项失败"));
             }
         } else if is_autostart_enabled() {
-            let status = new_hidden_command("schtasks")
-                .args(["/Delete", "/TN", AUTOSTART_TASK_NAME, "/F"])
+            let status = new_hidden_command("reg")
+                .args(["delete", REG_RUN_KEY, "/v", AUTOSTART_NAME, "/f"])
                 .status()?;
             if !status.success() {
-                return Err(anyhow!("删除计划任务失败"));
+                return Err(anyhow!("删除注册表启动项失败"));
             }
         }
         Ok(())

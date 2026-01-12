@@ -42,6 +42,7 @@ pub(crate) fn spawn_runtime(app: AppHandle, state: AppState) {
             Ok(runtime) => {
                 register_runtime(&app, &state, runtime).await;
                 spawn_traffic_stream(app.clone(), state.clone());
+                spawn_config_monitor(state.clone());
                 // Force a tray refresh now that runtime is ready
                 if let Err(err) = refresh_tray_menu(&app_handle_for_refresh, &state_for_refresh).await {
                     warn!("initial tray menu refresh failed: {err}");
@@ -55,6 +56,42 @@ pub(crate) fn spawn_runtime(app: AppHandle, state: AppState) {
                     .await;
                 if let Err(e) = app.emit("mihomo://error", err.to_string()) {
                     warn!("failed to emit runtime error event: {e}");
+                }
+            }
+        }
+    });
+}
+
+fn spawn_config_monitor(state: AppState) {
+    tauri::async_runtime::spawn(async move {
+        let mut last_tun_enabled = None;
+        loop {
+            sleep(Duration::from_secs(5)).await;
+            let runtime = match state.runtime().await {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
+
+            match runtime.client().get_config().await {
+                Ok(config) => {
+                    let current_tun = config.tun.as_ref()
+                        .and_then(|t| t.get("enable"))
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    
+                    if Some(current_tun) != last_tun_enabled {
+                        if last_tun_enabled.is_some() {
+                            // Only emit if it's a change after initial load
+                            info!("detected external TUN state change: {}", current_tun);
+                            state.set_tun_enabled(current_tun).await;
+                            state.update_tun_checked(current_tun).await;
+                            state.emit_admin_event(infiltrator_admin::AdminEvent::new(infiltrator_admin::EVENT_TUN_CHANGED));
+                        }
+                        last_tun_enabled = Some(current_tun);
+                    }
+                }
+                Err(err) => {
+                    warn!("config monitor failed to get config: {err}");
                 }
             }
         }

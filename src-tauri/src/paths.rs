@@ -5,27 +5,39 @@ use tauri::{path::BaseDirectory, AppHandle, Manager};
 
 pub(crate) fn resolve_main_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
     let dev_main = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../webui/mihomo-manager-ui");
+    let dev_main_dist = dev_main.join("dist");
 
-    let main_dir = if let Ok(custom) = env::var("METACUBEXD_STATIC_DIR") {
+    // 1. Check env override
+    if let Ok(custom) = env::var("METACUBEXD_STATIC_DIR") {
         let path = PathBuf::from(custom);
         if path.exists() {
-            path
-        } else {
-            dev_main.clone()
+            return Ok(path);
         }
-    } else if dev_main.exists() {
-        dev_main
-    } else {
-        app.path().resolve("bin/mihomo-manager-ui", BaseDirectory::Resource)?
-    };
-
-    if !main_dir.exists() {
-        return Err(anyhow!(
-            "未找到 Mihomo Manager UI 静态资源，请将内容放到 webui/mihomo-manager-ui/ 目录"
-        ));
+    }
+    
+    // 2. Check development dist path
+    if dev_main_dist.exists() {
+        return Ok(dev_main_dist);
+    }
+    
+    // 3. Check development root path (fallback)
+    if dev_main.exists() {
+        return Ok(dev_main);
     }
 
-    Ok(main_dir)
+    // 4. Resolve bundled resource path
+    let resource_path = app.path().resolve("bin/mihomo-manager-ui", BaseDirectory::Resource)?;
+    let resource_dist = resource_path.join("dist");
+    
+    if resource_dist.exists() {
+        Ok(resource_dist)
+    } else if resource_path.exists() {
+        Ok(resource_path)
+    } else {
+        Err(anyhow!(
+            "未找到 Mihomo Manager UI 静态资源，请确保资源已包含在 bin/mihomo-manager-ui 中"
+        ))
+    }
 }
 
 pub(crate) fn resolve_admin_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {

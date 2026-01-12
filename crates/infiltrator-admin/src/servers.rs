@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use axum::{
     http::StatusCode,
     response::Redirect,
@@ -49,14 +48,11 @@ pub async fn start_static_server(
 ) -> anyhow::Result<StaticServerHandle> {
     let port = match preferred_port {
         Some(port) => port,
-        None => find_available_port(default_port).ok_or_else(|| {
-            anyhow!(
-                "没有可用端口用于静态站点"
-            )
-        })?,
+        None => find_available_port(default_port).unwrap_or(0),
     };
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = TcpListener::bind(addr).await?;
+    let port = listener.local_addr()?.port();
 
     let main_service = ServeDir::new(root_dir.clone())
         .append_index_html_on_directories(true)
@@ -89,14 +85,11 @@ pub async fn start_admin_server<C: AdminApiContext>(
 ) -> anyhow::Result<AdminServerHandle> {
     let port = match preferred_port {
         Some(port) => port,
-        None => find_available_port(default_port).ok_or_else(|| {
-            anyhow!(
-                "没有可用端口用于配置管理界面"
-            )
-        })?,
+        None => find_available_port(default_port).unwrap_or(0),
     };
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = TcpListener::bind(addr).await?;
+    let port = listener.local_addr()?.port();
 
     let admin_static_service = ServeDir::new(admin_dir.clone())
         .append_index_html_on_directories(true)
