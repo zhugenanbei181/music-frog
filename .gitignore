@@ -12,6 +12,8 @@ src-tauri/.cargo/
 crates/mihomo-dav-sync/target/
 
 # Misc
+dist/
+!webui/mihomo-manager-ui/dist/
 *.log
 *.tmp
 _tmp_*
