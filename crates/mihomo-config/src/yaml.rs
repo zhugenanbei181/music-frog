@@ -37,7 +37,7 @@ pub(crate) fn get_u16(doc: &Yaml, key: &str) -> Option<u16> {
 }
 
 pub(crate) fn set_str(doc: &mut Yaml, key: &str, value: &str) -> Result<()> {
-    if let Yaml::Hash(ref mut hash) = doc {
+    if let Yaml::Hash(hash) = doc {
         hash.insert(
             Yaml::String(key.to_string()),
             Yaml::String(value.to_string()),
@@ -51,7 +51,7 @@ pub(crate) fn set_str(doc: &mut Yaml, key: &str, value: &str) -> Result<()> {
 }
 
 pub(crate) fn set_u16(doc: &mut Yaml, key: &str, value: u16) -> Result<()> {
-    if let Yaml::Hash(ref mut hash) = doc {
+    if let Yaml::Hash(hash) = doc {
         hash.insert(
             Yaml::String(key.to_string()),
             Yaml::Integer(value as i64),

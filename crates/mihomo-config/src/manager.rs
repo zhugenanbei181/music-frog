@@ -211,7 +211,7 @@ impl<S: CredentialStore> ConfigManager<S> {
                 .entry("default".to_string())
                 .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
 
-            if let toml::Value::Table(ref mut default) = default_table {
+            if let toml::Value::Table(default) = default_table {
                 default.insert(
                     "profile".to_string(),
                     toml::Value::String(profile.to_string()),
@@ -241,7 +241,7 @@ impl<S: CredentialStore> ConfigManager<S> {
         }
         let mut settings = self.read_settings_value().await?;
         if let toml::Value::Table(ref mut root) = settings {
-            if let Some(toml::Value::Table(ref mut profiles)) = root.get_mut("profiles") {
+            if let Some(toml::Value::Table(profiles)) = root.get_mut("profiles") {
                 profiles.remove(profile);
             }
         }
