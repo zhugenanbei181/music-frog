@@ -97,8 +97,8 @@ pub(crate) fn bundled_core_candidates(app: &AppHandle) -> Vec<PathBuf> {
             candidates.push(project_resource_legacy);
         }
 
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(exe_dir) = exe_path.parent() {
+        if let Ok(exe_path) = std::env::current_exe()
+            && let Some(exe_dir) = exe_path.parent() {
                 let install_dir = exe_dir.join("bin").join("mihomo");
                 let install_path = install_dir.join("mihomo.exe");
                 if install_path.exists() {
@@ -109,7 +109,6 @@ pub(crate) fn bundled_core_candidates(app: &AppHandle) -> Vec<PathBuf> {
                     candidates.push(install_path_legacy);
                 }
             }
-        }
 
         if let Ok(resource_dir) = app.path().resource_dir() {
             let resource_dir = resource_dir.join("bin").join("mihomo");
@@ -126,19 +125,15 @@ pub(crate) fn bundled_core_candidates(app: &AppHandle) -> Vec<PathBuf> {
         if let Ok(resource_path) = app
             .path()
             .resolve("bin/mihomo/mihomo.exe", BaseDirectory::Resource)
-        {
-            if resource_path.exists() {
+            && resource_path.exists() {
                 candidates.push(resource_path);
             }
-        }
         if let Ok(resource_path) = app
             .path()
             .resolve("bin/mihomo/mihomo-windows-amd64-v3.exe", BaseDirectory::Resource)
-        {
-            if resource_path.exists() {
+            && resource_path.exists() {
                 candidates.push(resource_path);
             }
-        }
 
         candidates
     }

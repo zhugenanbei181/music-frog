@@ -112,3 +112,105 @@ pub async fn fetch_releases(limit: usize) -> Result<Vec<ReleaseInfo>> {
     let releases: Vec<ReleaseInfo> = resp.json().await?;
     Ok(releases)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_channel_stable_as_str() {
+        assert_eq!(Channel::Stable.as_str(), "stable");
+    }
+
+    #[test]
+    fn test_channel_beta_as_str() {
+        assert_eq!(Channel::Beta.as_str(), "beta");
+    }
+
+    #[test]
+    fn test_channel_nightly_as_str() {
+        assert_eq!(Channel::Nightly.as_str(), "nightly");
+    }
+
+    #[test]
+    fn test_channel_from_str_stable() {
+        assert_eq!(Channel::from_str("stable"), Ok(Channel::Stable));
+        assert_eq!(Channel::from_str("Stable"), Ok(Channel::Stable));
+        assert_eq!(Channel::from_str("STABLE"), Ok(Channel::Stable));
+    }
+
+    #[test]
+    fn test_channel_from_str_beta() {
+        assert_eq!(Channel::from_str("beta"), Ok(Channel::Beta));
+        assert_eq!(Channel::from_str("Beta"), Ok(Channel::Beta));
+        assert_eq!(Channel::from_str("BETA"), Ok(Channel::Beta));
+    }
+
+    #[test]
+    fn test_channel_from_str_nightly() {
+        assert_eq!(Channel::from_str("nightly"), Ok(Channel::Nightly));
+        assert_eq!(Channel::from_str("Nightly"), Ok(Channel::Nightly));
+        assert_eq!(Channel::from_str("alpha"), Ok(Channel::Nightly));
+        assert_eq!(Channel::from_str("Alpha"), Ok(Channel::Nightly));
+    }
+
+    #[test]
+    fn test_channel_from_str_invalid() {
+        assert!(Channel::from_str("invalid").is_err());
+        assert!(Channel::from_str("").is_err());
+    }
+
+    #[test]
+    fn test_channel_info_serialization() {
+        let info = ChannelInfo {
+            channel: Channel::Stable,
+            version: "v1.19.0".to_string(),
+            release_date: "2024-01-01".to_string(),
+        };
+
+        let serialized = serde_json::to_string(&info);
+        assert!(serialized.is_ok());
+    }
+
+    #[test]
+    fn test_channel_info_deserialization() {
+        let json = r#"{
+            "channel": "Stable",
+            "version": "v1.19.0",
+            "release_date": "2024-01-01"
+        }"#;
+
+        let info: ChannelInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.channel, Channel::Stable);
+        assert_eq!(info.version, "v1.19.0");
+        assert_eq!(info.release_date, "2024-01-01");
+    }
+
+    #[test]
+    fn test_release_info_serialization() {
+        let info = ReleaseInfo {
+            version: "v1.19.0".to_string(),
+            name: "Mihomo v1.19.0".to_string(),
+            published_at: "2024-01-01T00:00:00Z".to_string(),
+            prerelease: false,
+        };
+
+        let serialized = serde_json::to_string(&info);
+        assert!(serialized.is_ok());
+    }
+
+    #[test]
+    fn test_release_info_deserialization() {
+        let json = r#"{
+            "tag_name": "v1.19.0",
+            "name": "Mihomo v1.19.0",
+            "published_at": "2024-01-01T00:00:00Z",
+            "prerelease": false
+        }"#;
+
+        let info: ReleaseInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.version, "v1.19.0");
+        assert_eq!(info.name, "Mihomo v1.19.0");
+        assert!(!info.prerelease);
+    }
+}

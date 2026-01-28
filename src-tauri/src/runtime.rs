@@ -134,12 +134,11 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
         .as_ref()
         .and_then(|runtime| extract_port_from_url(&runtime.controller_url));
     let mut previous_proxy_port = None;
-    if let Some(runtime) = previous_runtime.as_ref() {
-        if let Ok(Some(endpoint)) = runtime.http_proxy_endpoint().await {
+    if let Some(runtime) = previous_runtime.as_ref()
+        && let Ok(Some(endpoint)) = runtime.http_proxy_endpoint().await {
             let endpoint = format!("http://{}", endpoint);
             previous_proxy_port = extract_port_from_url(&endpoint);
         }
-    }
     info!(
         "runtime rebuild previous ports: controller={:?} proxy={:?}",
         previous_controller_port, previous_proxy_port
@@ -201,8 +200,8 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
     );
     register_runtime(app, state, runtime).await;
     info!("mihomo runtime registered");
-    if state.is_system_proxy_enabled().await {
-        if let Ok(runtime) = state.runtime().await {
+    if state.is_system_proxy_enabled().await
+        && let Ok(runtime) = state.runtime().await {
             match runtime.http_proxy_endpoint().await {
                 Ok(Some(endpoint)) => {
                     if let Err(err) = apply_system_proxy(Some(&endpoint)) {
@@ -224,7 +223,6 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
                 }
             }
         }
-    }
     if let Err(err) = refresh_profile_switch_submenu(app, state).await {
         warn!("failed to refresh profile switch submenu after rebuild: {err}");
     }

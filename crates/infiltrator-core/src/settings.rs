@@ -109,4 +109,20 @@ mod tests {
         let empty_dir = PathBuf::from("");
         assert!(settings_path(&empty_dir).is_err());
     }
+
+    #[tokio::test]
+    async fn test_save_and_load_settings() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let settings_file = temp_dir.path().join("settings.toml");
+        
+        let mut settings = AppSettings::default();
+        settings.language = "en-US".to_string();
+        settings.webdav.enabled = true;
+        
+        save_settings(&settings_file, &settings).await.unwrap();
+        
+        let loaded = load_settings(&settings_file).await.unwrap();
+        assert_eq!(loaded.language, "en-US");
+        assert!(loaded.webdav.enabled);
+    }
 }

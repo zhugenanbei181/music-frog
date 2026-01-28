@@ -90,20 +90,21 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                         return;
                     }
                 };
-                
+
                 // Notify start
                 state.notify_subscription_update_start().await;
 
                 let client = reqwest::Client::new();
                 let raw_client = reqwest::Client::new();
-                
-                match infiltrator_admin::scheduler::subscription::update_all_subscriptions(
+
+                let result = infiltrator_admin::scheduler::subscription::update_all_subscriptions(
                     &ctx,
                     &client,
                     &raw_client,
                 )
-                .await
-                {
+                .await;
+
+                match result {
                     Ok(summary) => {
                         // Notify summary
                         state.notify_subscription_update_summary(
@@ -111,12 +112,17 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                             summary.failed,
                             summary.skipped
                         ).await;
-                        state.emit_admin_event(AdminEvent::new(EVENT_PROFILES_CHANGED));
+
+                        // Only emit event if there were successful updates
+                        if summary.updated > 0 {
+                            // Small delay to ensure all file operations complete
+                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                            state.emit_admin_event(AdminEvent::new(EVENT_PROFILES_CHANGED));
+                        }
                     }
                     Err(err) => {
                         log::error!("failed to update subscriptions: {err}");
                         state.notify_subscription_update("All Subscriptions", false, Some(err.to_string())).await;
-                        state.emit_admin_event(AdminEvent::new(EVENT_PROFILES_CHANGED));
                     }
                 }
             });
@@ -134,7 +140,6 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
             tauri::async_runtime::spawn(async move {
                 if let Err(err) = handle_mode_switch(state_clone.clone(), "rule").await {
                     show_error_dialog(format!("切换代理模式失败: {err:#}"));
-                    return;
                 }
             });
         }
@@ -142,7 +147,6 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
             tauri::async_runtime::spawn(async move {
                 if let Err(err) = handle_mode_switch(state_clone.clone(), "global").await {
                     show_error_dialog(format!("切换代理模式失败: {err:#}"));
-                    return;
                 }
             });
         }
@@ -150,7 +154,6 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
             tauri::async_runtime::spawn(async move {
                 if let Err(err) = handle_mode_switch(state_clone.clone(), "direct").await {
                     show_error_dialog(format!("切换代理模式失败: {err:#}"));
-                    return;
                 }
             });
         }
@@ -158,7 +161,6 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
             tauri::async_runtime::spawn(async move {
                 if let Err(err) = handle_mode_switch(state_clone.clone(), "script").await {
                     show_error_dialog(format!("切换代理模式失败: {err:#}"));
-                    return;
                 }
             });
         }
@@ -224,7 +226,6 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                 }
                 if let Err(err) = factory_reset(&app_handle, &state_clone).await {
                     show_error_dialog(format!("恢复出厂设置失败: {err:#}"));
-                    return;
                 }
             });
         }

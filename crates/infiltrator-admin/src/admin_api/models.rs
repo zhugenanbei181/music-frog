@@ -9,38 +9,38 @@ use serde_json::json;
 
 use infiltrator_core::{ProfileInfo, settings::WebDavConfig};
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct SwitchProfilePayload {
     pub name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ImportProfilePayload {
     pub name: String,
     pub url: String,
     pub activate: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct SaveProfilePayload {
     pub name: String,
     pub content: String,
     pub activate: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct OpenProfilePayload {
     pub name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct SubscriptionConfigPayload {
     pub url: String,
     pub auto_update_enabled: bool,
     pub update_interval_hours: Option<u32>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct EditorConfigPayload {
     pub editor: Option<String>,
 }

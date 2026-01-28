@@ -33,8 +33,28 @@ class MihomoHost(private val context: Context) : BridgeHost {
     private val credentialStore = AndroidCredentialStore(context)
 
     override fun coreStart(): Boolean {
+        ensureCoreAssets()
         val configFile = processManager.ensureConfigFile()
         return processManager.start(configFile)
+    }
+
+    private fun ensureCoreAssets() {
+        val assetFiles = listOf("Country.mmdb", "geoip.dat", "geosite.dat")
+        for (fileName in assetFiles) {
+            val targetFile = File(context.filesDir, fileName)
+            if (!targetFile.exists()) {
+                try {
+                    context.assets.open(fileName).use { input ->
+                        targetFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    Log.i(TAG, "Deployed asset: $fileName")
+                } catch (e: IOException) {
+                    Log.w(TAG, "Failed to deploy asset $fileName from assets (might be missing in build): ${e.message}")
+                }
+            }
+        }
     }
 
     override fun coreStop(): Boolean {

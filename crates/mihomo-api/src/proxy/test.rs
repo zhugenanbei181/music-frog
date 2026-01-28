@@ -19,11 +19,10 @@ pub async fn test_all_delays(
     let mut results = HashMap::new();
 
     for (name, info) in proxies {
-        if info.proxy_type != "Selector" && info.proxy_type != "URLTest" {
-            if let Ok(delay) = client.test_delay(&name, test_url, timeout).await {
+        if info.proxy_type != "Selector" && info.proxy_type != "URLTest"
+            && let Ok(delay) = client.test_delay(&name, test_url, timeout).await {
                 results.insert(name, delay);
             }
-        }
     }
 
     Ok(results)

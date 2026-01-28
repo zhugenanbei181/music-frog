@@ -1,29 +1,37 @@
 package com.musicfrog.despicableinfiltrator
 
+import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
 import android.util.Log
-import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalContext
-import androidx.activity.compose.rememberLauncherForActivityResult
 import com.musicfrog.despicableinfiltrator.ui.InfiltratorApp
 import com.musicfrog.despicableinfiltrator.ui.theme.InfiltratorTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     private var bridgeHost: BridgeHost? = null
+    private var pendingImportUrl = mutableStateOf<String?>(null)
 
     @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         initRustBridge()
+        
+        // Handle initial intent
+        handleIntent(intent)
         
         // Register VpnStateManager receiver
         VpnStateManager.register(this)
@@ -31,6 +39,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val windowSizeClass = calculateWindowSizeClass(this)
             val context = LocalContext.current
+            val importUrl by pendingImportUrl
             
             // Use VpnStateManager for permission state
             val permissionState by VpnStateManager.permissionState.collectAsState()
@@ -50,12 +59,19 @@ class MainActivity : ComponentActivity() {
                     VpnStateManager.onPermissionDenied()
                 }
             }
-            val requestVpnPermission = {
-                val intent = VpnService.prepare(context)
-                if (intent != null) {
-                    launcher.launch(intent)
-                } else {
-                    VpnStateManager.onPermissionGranted()
+            val requestVpnPermission: () -> Unit = {
+                Log.d("VpnAuth", "Checking VPN permission for pkg=${this.packageName} uid=${android.os.Process.myUid()}")
+                try {
+                    val intent = VpnService.prepare(this)
+                    if (intent != null) {
+                        Log.d("VpnAuth", "Permission required, launching intent")
+                        launcher.launch(intent)
+                    } else {
+                        Log.d("VpnAuth", "Permission already granted")
+                        VpnStateManager.onPermissionGranted()
+                    }
+                } catch (e: Exception) {
+                    Log.e("VpnAuth", "VpnService.prepare failed", e)
                 }
             }
 
@@ -64,8 +80,27 @@ class MainActivity : ComponentActivity() {
                     windowSizeClass = windowSizeClass,
                     host = bridgeHost as? MihomoHost,
                     vpnPermissionGranted = vpnPermissionGranted,
-                    onRequestVpnPermission = requestVpnPermission
+                    onRequestVpnPermission = requestVpnPermission,
+                    pendingImportUrl = importUrl,
+                    onImportHandled = { pendingImportUrl.value = null }
                 )
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW) {
+            val data = intent.data
+            if (data?.scheme == "clash" && data.host == "install-config") {
+                val url = data.getQueryParameter("url")
+                if (!url.isNullOrBlank()) {
+                    pendingImportUrl.value = url
+                }
             }
         }
     }
@@ -86,6 +121,16 @@ class MainActivity : ComponentActivity() {
             Log.w("RustBridge", "register failed: $registerCode")
         } else {
             bridgeHost = host
+            // Auto-start core runtime
+            Thread {
+                if (host.coreStart()) {
+                    Log.i("MihomoCore", "Core runtime auto-started")
+                    VpnStateManager.updateCoreState(true)
+                } else {
+                    Log.e("MihomoCore", "Failed to auto-start core runtime")
+                    VpnStateManager.updateCoreState(false)
+                }
+            }.start()
         }
     }
 }

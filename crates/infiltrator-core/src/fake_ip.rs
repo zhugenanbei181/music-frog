@@ -117,11 +117,10 @@ fn apply_fake_ip_config(doc: &mut Value, config: &FakeIpConfig) -> Result<()> {
 }
 
 fn validate_fake_ip_config(config: &FakeIpConfig) -> Result<()> {
-    if let Some(range) = config.fake_ip_range.as_ref() {
-        if range.trim().is_empty() {
+    if let Some(range) = config.fake_ip_range.as_ref()
+        && range.trim().is_empty() {
             return Err(anyhow!("fake-ip-range is empty"));
         }
-    }
     if let Some(filter) = config.fake_ip_filter.as_ref() {
         for entry in filter {
             if entry.trim().is_empty() {
@@ -165,7 +164,7 @@ mod tests {
         };
         apply_fake_ip_config(&mut doc, &config).expect("apply fake ip");
         let map = doc.as_mapping().expect("mapping");
-        let dns = map.get(&Value::String("dns".to_string()));
+        let dns = map.get(Value::String("dns".to_string()));
         assert!(dns.is_some());
     }
 
@@ -173,6 +172,28 @@ mod tests {
     fn test_validate_rejects_empty_filter_entry() {
         let config = FakeIpConfig {
             fake_ip_filter: Some(vec!["".to_string()]),
+            ..FakeIpConfig::default()
+        };
+        assert!(validate_fake_ip_config(&config).is_err());
+    }
+
+    #[test]
+    fn test_apply_patch() {
+        let mut config = FakeIpConfig::default();
+        let patch = FakeIpConfigPatch {
+            fake_ip_range: Some("10.0.0.1/24".to_string()),
+            store_fake_ip: Some(true),
+            ..FakeIpConfigPatch::default()
+        };
+        config.apply_patch(patch);
+        assert_eq!(config.fake_ip_range, Some("10.0.0.1/24".to_string()));
+        assert_eq!(config.store_fake_ip, Some(true));
+    }
+
+    #[test]
+    fn test_validate_fake_ip_config_errors() {
+        let config = FakeIpConfig {
+            fake_ip_range: Some(" ".to_string()),
             ..FakeIpConfig::default()
         };
         assert!(validate_fake_ip_config(&config).is_err());

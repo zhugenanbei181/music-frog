@@ -168,7 +168,7 @@ fn apply_dns_config(doc: &mut Value, config: &DnsConfig) -> Result<()> {
         .as_mapping_mut()
         .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
     if config.is_empty() {
-        map.remove(&Value::String("dns".to_string()));
+        map.remove(Value::String("dns".to_string()));
         return Ok(());
     }
     let dns_value = serde_yaml::to_value(config).context("encode dns config")?;
@@ -189,16 +189,14 @@ fn validate_dns_config(config: &DnsConfig) -> Result<()> {
             return Err(anyhow!("unsupported enhanced-mode: {}", mode));
         }
     }
-    if let Some(listen) = config.listen.as_ref() {
-        if listen.trim().is_empty() {
+    if let Some(listen) = config.listen.as_ref()
+        && listen.trim().is_empty() {
             return Err(anyhow!("dns listen address is empty"));
         }
-    }
-    if let Some(range) = config.fake_ip_range.as_ref() {
-        if range.trim().is_empty() {
+    if let Some(range) = config.fake_ip_range.as_ref()
+        && range.trim().is_empty() {
             return Err(anyhow!("fake-ip-range is empty"));
         }
-    }
     Ok(())
 }
 
@@ -243,7 +241,7 @@ mod tests {
         let config = DnsConfig::default();
         apply_dns_config(&mut doc, &config).expect("apply dns");
         let map = doc.as_mapping().expect("mapping");
-        assert!(map.get(&Value::String("dns".to_string())).is_none());
+        assert!(map.get(Value::String("dns".to_string())).is_none());
     }
 
     #[test]
@@ -255,7 +253,7 @@ mod tests {
         };
         apply_dns_config(&mut doc, &config).expect("apply dns");
         let map = doc.as_mapping().expect("mapping");
-        assert!(map.get(&Value::String("dns".to_string())).is_some());
+        assert!(map.get(Value::String("dns".to_string())).is_some());
     }
 
     #[test]
@@ -264,6 +262,39 @@ mod tests {
             nameserver: Some(vec!["".to_string()]),
             ..DnsConfig::default()
         };
+        assert!(validate_dns_config(&config).is_err());
+    }
+
+    #[test]
+    fn test_apply_patch_full() {
+        let mut config = DnsConfig::default();
+        let patch = DnsConfigPatch {
+            enable: Some(true),
+            ipv6: Some(true),
+            listen: Some("0.0.0.0:53".to_string()),
+            enhanced_mode: Some("redir-host".to_string()),
+            fake_ip_range: Some("198.18.0.1/16".to_string()),
+            ..DnsConfigPatch::default()
+        };
+        config.apply_patch(patch);
+        assert_eq!(config.enable, Some(true));
+        assert_eq!(config.ipv6, Some(true));
+        assert_eq!(config.listen, Some("0.0.0.0:53".to_string()));
+        assert_eq!(config.enhanced_mode, Some("redir-host".to_string()));
+    }
+
+    #[test]
+    fn test_validate_dns_config_all_errors() {
+        // Empty listen
+        let config = DnsConfig { listen: Some(" ".to_string()), ..DnsConfig::default() };
+        assert!(validate_dns_config(&config).is_err());
+
+        // Invalid enhanced_mode
+        let config = DnsConfig { enhanced_mode: Some("vpn".to_string()), ..DnsConfig::default() };
+        assert!(validate_dns_config(&config).is_err());
+
+        // Empty fake_ip_range
+        let config = DnsConfig { fake_ip_range: Some("".to_string()), ..DnsConfig::default() };
         assert!(validate_dns_config(&config).is_err());
     }
 }

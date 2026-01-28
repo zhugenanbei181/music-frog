@@ -4,6 +4,7 @@ use log::{info, warn};
 use mihomo_config::{ConfigManager, Profile};
 use infiltrator_http::HttpClient;
 use tokio::time::{sleep, Duration};
+use tokio::task::JoinSet;
 
 use crate::admin_api::AdminApiContext;
 use infiltrator_core::{
@@ -17,6 +18,11 @@ pub struct SubscriptionUpdateSummary {
     pub updated: usize,
     pub failed: usize,
     pub skipped: usize,
+}
+
+pub(crate) struct SubscriptionUpdateResult {
+    profile_name: String,
+    needs_rebuild: bool,
 }
 
 pub(super) async fn run_subscription_tick<C: AdminApiContext>(
@@ -103,56 +109,139 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
     };
     let mut rebuild_needed = false;
 
-    for profile in profiles {
-        let url = match profile.subscription_url.as_deref() {
-            Some(url) if !url.trim().is_empty() => url.trim().to_string(),
-            _ => {
+    // Collect profiles with subscription URLs
+    let profiles_to_update: Vec<(String, Profile, Option<u32>, bool)> = profiles
+        .into_iter()
+        .filter_map(|profile| {
+            if let Some(url) = profile.subscription_url.as_deref()
+                .map(|url| url.trim().to_string())
+                .filter(|url| !url.is_empty()) 
+            {
+                Some((
+                    url,
+                    profile.clone(),
+                    profile.update_interval_hours,
+                    profile.auto_update_enabled
+                ))
+            } else {
                 summary.skipped += 1;
-                continue;
+                None
             }
-        };
+        })
+        .collect();
 
-        let result = update_profile_subscription_with_retry(
-            ProfileUpdateParams {
-                manager: &manager,
-                profile: &profile,
-                url: &url,
-                interval_hours: profile.update_interval_hours,
-                auto_update_enabled: profile.auto_update_enabled,
-                now,
-                client,
-                raw_client,
-            },
-            3,
-        )
-        .await;
+    if profiles_to_update.is_empty() {
+        return Ok(summary);
+    }
 
+    info!("starting parallel subscription update for {} profiles", profiles_to_update.len());
+
+    // Use JoinSet for parallel updates with limited concurrency
+    let max_concurrent = 5usize;
+    let mut join_set: JoinSet<anyhow::Result<SubscriptionUpdateResult>> = JoinSet::new();
+
+    for (url, profile, interval_hours, auto_update_enabled) in profiles_to_update {
+        // Wait for available slot if we've reached max concurrency
+        while join_set.len() >= max_concurrent {
+            if let Some(result) = join_set.join_next().await {
+                match result {
+                    Ok(Ok(update_result)) => {
+                        if update_result.needs_rebuild {
+                            rebuild_needed = true;
+                        }
+                        summary.updated += 1;
+                        ctx.notify_subscription_update(
+                            update_result.profile_name.clone(),
+                            true,
+                            None,
+                        )
+                        .await;
+                    }
+                    Ok(Err(err)) => {
+                        // Task failed with an error (not a panic)
+                        warn!("subscription update failed: {err}");
+                        summary.failed += 1;
+                    }
+                    Err(join_err) => {
+                        // Task panicked
+                        warn!("subscription update task panicked: {join_err}");
+                        summary.failed += 1;
+                    }
+                }
+            }
+        }
+
+        let client_clone = client.clone();
+        let raw_client_clone = raw_client.clone();
+        let profile_name = profile.name.clone();
+        let profile_for_task = profile.clone();
+        let interval_for_task = interval_hours;
+        let auto_update_for_task = auto_update_enabled;
+
+        join_set.spawn(async move {
+            let result = update_profile_subscription_with_retry(
+                ProfileUpdateParams {
+                    manager: &ConfigManager::new()?,
+                    profile: &profile_for_task,
+                    url: &url,
+                    interval_hours: interval_for_task,
+                    auto_update_enabled: auto_update_for_task,
+                    now,
+                    client: &client_clone,
+                    raw_client: &raw_client_clone,
+                },
+                3,
+            )
+            .await;
+
+            match result {
+                Ok(needs_rebuild) => Ok(SubscriptionUpdateResult {
+                    profile_name: profile_name.clone(),
+                    needs_rebuild,
+                }),
+                Err(err) => {
+                    warn!(
+                        "subscription update failed: profile={} url={} err={:#}",
+                        profile_name,
+                        mask_subscription_url(&url),
+                        err
+                    );
+                    Err(err)
+                }
+            }
+        });
+    }
+
+    // Wait for remaining tasks
+    while let Some(result) = join_set.join_next().await {
         match result {
-            Ok(needs_rebuild) => {
-                if needs_rebuild {
+            Ok(Ok(update_result)) => {
+                if update_result.needs_rebuild {
                     rebuild_needed = true;
                 }
                 summary.updated += 1;
-                ctx.notify_subscription_update(profile.name.clone(), true, None)
-                    .await;
-            }
-            Err(err) => {
-                summary.failed += 1;
                 ctx.notify_subscription_update(
-                    profile.name.clone(),
-                    false,
-                    Some(err.to_string()),
+                    update_result.profile_name.clone(),
+                    true,
+                    None,
                 )
                 .await;
+            }
+            Ok(Err(err)) => {
+                warn!("subscription update task panicked: {err}");
+                summary.failed += 1;
+            }
+            Err(join_err) => {
+                warn!("subscription update task join error: {join_err}");
+                summary.failed += 1;
             }
         }
     }
 
-    if rebuild_needed {
-        if let Err(err) = ctx.rebuild_runtime().await {
+    if rebuild_needed
+        && let Err(err) = ctx.rebuild_runtime().await {
             warn!("subscription batch rebuild failed: {err:#}");
         }
-    }
 
     Ok(summary)
 }
@@ -241,7 +330,7 @@ async fn update_profile_subscription_with_retry(
     }
 }
 
-async fn schedule_next_attempt(
+pub(crate) async fn schedule_next_attempt(
     manager: &ConfigManager,
     profile: &Profile,
     interval_hours: u32,

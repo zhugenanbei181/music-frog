@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Android 13+ notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Android 14+ requires specific foreground service types -->
@@ -16,9 +17,9 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@drawable/ic_launcher_foreground"
+        android:icon="@drawable/ic_app_icon"
         android:label="Infiltrator"
-        android:roundIcon="@drawable/ic_launcher_foreground"
+        android:roundIcon="@drawable/ic_app_icon"
         android:supportsRtl="true"
         android:theme="@style/Theme.Infiltrator"
         tools:targetApi="31">
@@ -27,10 +28,19 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="Infiltrator"
-            android:theme="@style/Theme.Infiltrator">
+            android:theme="@style/Theme.Infiltrator"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- URL Scheme for Clash import -->
+            <intent-filter android:label="Import Clash Config">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="clash" android:host="install-config" />
             </intent-filter>
         </activity>
 
@@ -43,6 +53,27 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
+
+        <service
+            android:name=".InfiltratorTileService"
+            android:exported="true"
+            android:label="Infiltrator"
+            android:icon="@drawable/ic_launcher_foreground"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

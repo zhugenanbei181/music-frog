@@ -186,3 +186,213 @@ impl VersionManager {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn setup_test_manager(temp_dir: &TempDir) -> VersionManager {
+        let home = temp_dir.path().to_path_buf();
+        VersionManager::with_home(home).unwrap()
+    }
+
+    #[test]
+    fn test_version_manager_new() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        assert_eq!(manager.install_dir, temp_dir.path().join("versions"));
+        assert_eq!(manager.config_file, temp_dir.path().join("config.toml"));
+    }
+
+    #[tokio::test]
+    async fn test_list_installed_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        let result = manager.list_installed().await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list_installed_with_versions() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        // Create version directories
+        tokio::fs::create_dir_all(manager.install_dir.join("v1.19.0")).await.unwrap();
+        tokio::fs::create_dir_all(manager.install_dir.join("v1.20.0")).await.unwrap();
+
+        let result = manager.list_installed().await;
+        assert!(result.is_ok());
+        let versions = result.unwrap();
+        assert_eq!(versions.len(), 2);
+        assert!(versions.iter().any(|v| v.version == "v1.19.0"));
+        assert!(versions.iter().any(|v| v.version == "v1.20.0"));
+    }
+
+    #[tokio::test]
+    async fn test_list_installed_sorted() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        // Create version directories
+        tokio::fs::create_dir_all(manager.install_dir.join("v1.18.0")).await.unwrap();
+        tokio::fs::create_dir_all(manager.install_dir.join("v1.20.0")).await.unwrap();
+        tokio::fs::create_dir_all(manager.install_dir.join("v1.19.0")).await.unwrap();
+
+        let result = manager.list_installed().await;
+        assert!(result.is_ok());
+        let versions = result.unwrap();
+        assert_eq!(versions.len(), 3);
+        assert_eq!(versions[0].version, "v1.20.0");
+        assert_eq!(versions[1].version, "v1.19.0");
+        assert_eq!(versions[2].version, "v1.18.0");
+    }
+
+    #[tokio::test]
+    async fn test_set_default() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        // Create version directory
+        tokio::fs::create_dir_all(manager.install_dir.join("v1.19.0")).await.unwrap();
+
+        let result = manager.set_default("v1.19.0").await;
+        assert!(result.is_ok());
+
+        let default = manager.get_default().await;
+        assert!(default.is_ok());
+        assert_eq!(default.unwrap(), "v1.19.0");
+    }
+
+    #[tokio::test]
+    async fn test_set_nonexistent_version() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        let result = manager.set_default("v1.19.0").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not installed"));
+    }
+
+    #[tokio::test]
+    async fn test_get_default_not_set() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        let result = manager.get_default().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No default version set"));
+    }
+
+    #[tokio::test]
+    async fn test_get_binary_path_with_version() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        let version_dir = manager.install_dir.join("v1.19.0");
+        tokio::fs::create_dir_all(&version_dir).await.unwrap();
+
+        let binary_name = if cfg!(windows) {
+            "mihomo.exe"
+        } else {
+            "mihomo"
+        };
+        let binary_path = version_dir.join(binary_name);
+        tokio::fs::write(&binary_path, "binary").await.unwrap();
+
+        let result = manager.get_binary_path(Some("v1.19.0")).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), binary_path);
+    }
+
+    #[tokio::test]
+    async fn test_get_binary_path_with_default() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        let version_dir = manager.install_dir.join("v1.19.0");
+        tokio::fs::create_dir_all(&version_dir).await.unwrap();
+
+        let binary_name = if cfg!(windows) {
+            "mihomo.exe"
+        } else {
+            "mihomo"
+        };
+        let binary_path = version_dir.join(binary_name);
+        tokio::fs::write(&binary_path, "binary").await.unwrap();
+
+        manager.set_default("v1.19.0").await.unwrap();
+
+        let result = manager.get_binary_path(None).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), binary_path);
+    }
+
+    #[tokio::test]
+    async fn test_get_binary_path_not_found() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        let version_dir = manager.install_dir.join("v1.19.0");
+        tokio::fs::create_dir_all(&version_dir).await.unwrap();
+
+        let result = manager.get_binary_path(Some("v1.19.0")).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Binary not found"));
+    }
+
+    #[tokio::test]
+    async fn test_install_version_already_installed() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        let version_dir = manager.install_dir.join("v1.19.0");
+        tokio::fs::create_dir_all(&version_dir).await.unwrap();
+
+        let result = manager.install("v1.19.0").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("already installed"));
+    }
+
+    #[tokio::test]
+    async fn test_uninstall_version() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        let version_dir = manager.install_dir.join("v1.19.0");
+        tokio::fs::create_dir_all(&version_dir).await.unwrap();
+
+        let result = manager.uninstall("v1.19.0").await;
+        assert!(result.is_ok());
+        assert!(!version_dir.exists());
+    }
+
+    #[tokio::test]
+    async fn test_uninstall_nonexistent_version() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        let result = manager.uninstall("v1.19.0").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not installed"));
+    }
+
+    #[tokio::test]
+    async fn test_uninstall_default_version() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+
+        let version_dir = manager.install_dir.join("v1.19.0");
+        tokio::fs::create_dir_all(&version_dir).await.unwrap();
+
+        manager.set_default("v1.19.0").await.unwrap();
+
+        let result = manager.uninstall("v1.19.0").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Cannot uninstall the default version"));
+    }
+}

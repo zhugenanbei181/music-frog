@@ -23,3 +23,6 @@ reqwest = { workspace = true, default-features = false, features = ["native-tls"
 [target.'cfg(windows)'.dependencies]
 winreg = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_System_Threading"] }
+
+[dev-dependencies]
+tempfile = "3"

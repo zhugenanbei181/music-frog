@@ -5,7 +5,10 @@ edition = "2024"
 
 [dependencies]
 log = { workspace = true }
-reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2", "gzip", "brotli", "deflate"] }
+reqwest = { workspace = true, default-features = false, features = ["json", "rustls", "socks", "stream", "http2", "gzip", "brotli", "deflate", "zstd"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "test-util", "rt-multi-thread"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"] }

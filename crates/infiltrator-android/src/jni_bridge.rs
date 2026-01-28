@@ -251,7 +251,7 @@ impl AndroidBridge for JniBridge {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_musicfrog_despicableinfiltrator_RustBridge_nativePing(
     env: JNIEnv,
     _object: JObject,
@@ -265,7 +265,7 @@ pub extern "system" fn Java_com_musicfrog_despicableinfiltrator_RustBridge_nativ
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_musicfrog_despicableinfiltrator_RustBridge_nativeInit(
     mut env: JNIEnv,
     _object: JObject,
@@ -276,7 +276,7 @@ pub extern "system" fn Java_com_musicfrog_despicableinfiltrator_RustBridge_nativ
     status.code as jint
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_musicfrog_despicableinfiltrator_RustBridge_nativeRegisterBridge(
     mut env: JNIEnv,
     _object: JObject,

@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.musicfrog.despicableinfiltrator"
-    compileSdk = 36 // 注意：确保你已安装 Android 16 Preview SDK
+    compileSdk = 36
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
         applicationId = "com.musicfrog.despicableinfiltrator"
-        minSdk = 33
+        minSdk = 29
         //noinspection OldTargetApi
         targetSdk = 35
         versionCode = 1
@@ -127,6 +127,9 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     // JNA 依赖必须带 @aar 以加载原生库
     implementation("net.java.dev.jna:jna:5.18.1@aar")
 }

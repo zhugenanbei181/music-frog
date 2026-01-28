@@ -29,11 +29,10 @@ pub(crate) fn spawn_frontends(
                     state_for_main
                         .update_static_info_text(format!("静态站点: {}", url))
                         .await;
-                    if state_for_main.open_webui_on_startup().await {
-                        if let Err(err) = open_in_browser(&url) {
+                    if state_for_main.open_webui_on_startup().await
+                        && let Err(err) = open_in_browser(&url) {
                             warn!("无法自动打开浏览器: {err}");
                         }
-                    }
                     break;
                 }
                 Err(err) => {

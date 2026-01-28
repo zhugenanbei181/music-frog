@@ -267,14 +267,13 @@ mod process {
         system.refresh_processes(ProcessesToUpdate::All, true);
 
         let pid = Pid::from_u32(pid);
-        if let Some(process) = system.process(pid) {
-            if !process.kill() {
+        if let Some(process) = system.process(pid)
+            && !process.kill() {
                 return Err(MihomoError::Service(format!(
                     "Failed to kill process {}",
                     pid
                 )));
             }
-        }
 
         Ok(())
     }

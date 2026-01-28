@@ -122,7 +122,7 @@ pub fn stop_vpn() -> FfiStatus {
     #[cfg(not(target_os = "android"))]
     {
         log::warn!("stop_vpn called on non-Android target");
-        return FfiStatus::ok();
+        FfiStatus::ok()
     }
 }
 
@@ -554,12 +554,11 @@ pub async fn profile_select(name: String) -> FfiStatus {
                 Ok(_) => {
                     // After switching profiles, we should restart the core if it's running
                     // to apply the new config.
-                    if let Some(bridge) = get_android_bridge() {
-                        if let Ok(true) = bridge.core_is_running().await {
+                    if let Some(bridge) = get_android_bridge()
+                        && let Ok(true) = bridge.core_is_running().await {
                             let _ = bridge.core_stop().await;
                             let _ = bridge.core_start().await;
                         }
-                    }
                     FfiStatus::ok()
                 }
                 Err(err) => map_anyhow_error(err),
@@ -1713,11 +1712,10 @@ async fn build_controller_client() -> Result<MihomoClient, FfiStatus> {
     let controller_url = match manager.get_external_controller().await {
         Ok(url) => url,
         Err(err) => {
-            if let Some(bridge) = get_android_bridge() {
-                if let Some(url) = bridge.core_controller_url() {
+            if let Some(bridge) = get_android_bridge()
+                && let Some(url) = bridge.core_controller_url() {
                     return MihomoClient::new(&url, None).map_err(map_mihomo_error);
                 }
-            }
             return Err(map_mihomo_error(err));
         }
     };

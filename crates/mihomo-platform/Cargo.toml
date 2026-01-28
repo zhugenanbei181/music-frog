@@ -26,3 +26,6 @@ keyring = { workspace = true, features = ["linux-native"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.10"

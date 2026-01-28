@@ -32,13 +32,11 @@ pub async fn resolve_binary(
 
     let mut versions: Vec<String> = installed.into_iter().map(|v| v.version).collect();
     sort_versions_desc(&mut versions);
-    if let Some(latest) = versions.first() {
-        if vm.set_default(latest).await.is_ok() {
-            if let Ok(path) = vm.get_binary_path(Some(latest)).await {
+    if let Some(latest) = versions.first()
+        && vm.set_default(latest).await.is_ok()
+            && let Ok(path) = vm.get_binary_path(Some(latest)).await {
                 return Ok(path);
             }
-        }
-    }
 
     Err(anyhow!("未找到可用内核，请检查已下载版本或捆绑内核"))
 }
@@ -111,4 +109,95 @@ fn parse_version(version: &str) -> Option<(u64, u64, u64)> {
     let minor = parts.next().unwrap_or(Some(0))?;
     let patch = parts.next().unwrap_or(Some(0))?;
     Some((major, minor, patch))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_version_valid() {
+        assert_eq!(parse_version("1.19.0"), Some((1, 19, 0)));
+        assert_eq!(parse_version("v1.19.0"), Some((1, 19, 0)));
+        assert_eq!(parse_version("1.20.5"), Some((1, 20, 5)));
+    }
+
+    #[test]
+    fn test_parse_version_with_suffix() {
+        assert_eq!(parse_version("1.19.0-alpha"), Some((1, 19, 0)));
+        assert_eq!(parse_version("v1.19.0-beta"), Some((1, 19, 0)));
+    }
+
+    #[test]
+    fn test_parse_version_partial() {
+        assert_eq!(parse_version("1.19"), Some((1, 19, 0)));
+        assert_eq!(parse_version("v1.19"), Some((1, 19, 0)));
+        assert_eq!(parse_version("1"), Some((1, 0, 0)));
+    }
+
+    #[test]
+    fn test_parse_version_invalid() {
+        assert_eq!(parse_version(""), None);
+        assert_eq!(parse_version("invalid"), None);
+        assert_eq!(parse_version("a.b.c"), None);
+    }
+
+    #[test]
+    fn test_compare_versions_desc() {
+        assert_eq!(compare_versions_desc("v1.20.0", "v1.19.0"), std::cmp::Ordering::Less);
+        assert_eq!(compare_versions_desc("v1.19.0", "v1.20.0"), std::cmp::Ordering::Greater);
+        assert_eq!(compare_versions_desc("v1.19.0", "v1.19.0"), std::cmp::Ordering::Equal);
+    }
+
+    #[test]
+    fn test_compare_versions_desc_partial() {
+        assert_eq!(compare_versions_desc("1.20", "1.19"), std::cmp::Ordering::Less);
+        assert_eq!(compare_versions_desc("1.19", "1.20"), std::cmp::Ordering::Greater);
+    }
+
+    #[test]
+    fn test_compare_versions_desc_invalid() {
+        assert_eq!(compare_versions_desc("invalid", "1.19.0"), std::cmp::Ordering::Greater);
+        assert_eq!(compare_versions_desc("1.19.0", "invalid"), std::cmp::Ordering::Less);
+    }
+
+    #[test]
+    fn test_sort_versions_desc() {
+        let mut versions = vec![
+            "v1.18.0".to_string(),
+            "v1.20.0".to_string(),
+            "v1.19.0".to_string(),
+        ];
+        sort_versions_desc(&mut versions);
+        assert_eq!(versions[0], "v1.20.0");
+        assert_eq!(versions[1], "v1.19.0");
+        assert_eq!(versions[2], "v1.18.0");
+    }
+
+    #[test]
+    fn test_sort_versions_desc_empty() {
+        let mut versions: Vec<String> = vec![];
+        sort_versions_desc(&mut versions);
+        assert!(versions.is_empty());
+    }
+
+    #[test]
+    fn test_sort_versions_desc_single() {
+        let mut versions = vec!["v1.19.0".to_string()];
+        sort_versions_desc(&mut versions);
+        assert_eq!(versions[0], "v1.19.0");
+    }
+
+    #[test]
+    fn test_sort_versions_desc_with_prefix() {
+        let mut versions = vec![
+            "1.18.0".to_string(),
+            "1.20.0".to_string(),
+            "1.19.0".to_string(),
+        ];
+        sort_versions_desc(&mut versions);
+        assert_eq!(versions[0], "1.20.0");
+        assert_eq!(versions[1], "1.19.0");
+        assert_eq!(versions[2], "1.18.0");
+    }
 }

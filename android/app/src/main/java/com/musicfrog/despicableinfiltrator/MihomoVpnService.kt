@@ -15,8 +15,13 @@ import infiltrator_android.VpnTunSettings
 import infiltrator_android.startVpn
 import infiltrator_android.stopVpn as stopTun2Proxy
 import infiltrator_android.vpnTunSettings
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import java.io.IOException
 
 class MihomoVpnService : VpnService() {
     private var vpnInterface: ParcelFileDescriptor? = null
@@ -26,9 +31,14 @@ class MihomoVpnService : VpnService() {
     private val PREFS_NAME = "app_routing"
     private val PREF_SELECTED_PACKAGES = "selected_packages"
     private val PREF_ROUTING_MODE = "routing_mode"
+    private val ROUTING_MODE_PROXY_ALL = "proxy_all"
     private val ROUTING_MODE_PROXY_SELECTED = "proxy_selected"
+    private val ROUTING_MODE_BYPASS_SELECTED = "bypass_selected"
     private val DEFAULT_MTU = 1500
     private val IPV6_ADDRESS = "fd00:fd00:fd00::1"
+
+    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    private var trafficJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -47,9 +57,24 @@ class MihomoVpnService : VpnService() {
 
         VpnStateManager.onVpnStarting()
         VpnStateManager.broadcastState(this, VpnStateManager.VpnState.STARTING)
-        startForeground(NOTIFICATION_ID, createNotification())
+        startForeground(NOTIFICATION_ID, createNotification(getString(R.string.notification_starting)))
         establishVpn()
+        startTrafficMonitoring()
         return START_STICKY
+    }
+
+    private fun startTrafficMonitoring() {
+        trafficJob?.cancel()
+        trafficJob = serviceScope.launch {
+            while (true) {
+                delay(2000)
+                if (vpnInterface != null) {
+                    val notification = createNotification(getString(R.string.notification_active))
+                    val notificationManager = getSystemService(NotificationManager::class.java)
+                    notificationManager.notify(NOTIFICATION_ID, notification)
+                }
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -60,7 +85,7 @@ class MihomoVpnService : VpnService() {
     private fun establishVpn() {
         if (vpnInterface != null) {
             Log.w(TAG, "VPN already running")
-            VpnStateManager.onVpnStarted()
+            VpnStateManager.onVpnStarted(this)
             VpnStateManager.broadcastState(this, VpnStateManager.VpnState.RUNNING)
             return
         }
@@ -81,8 +106,6 @@ class MihomoVpnService : VpnService() {
                     builder.addAddress(IPV6_ADDRESS, 126)
                     builder.addRoute("::", 0)
                 }
-            } else if (strictRoute) {
-                Log.i(TAG, "strict-route enabled without auto-route; routing is limited")
             }
 
             val dnsServers = filterDnsServers(settings?.dnsServers ?: emptyList())
@@ -96,48 +119,49 @@ class MihomoVpnService : VpnService() {
                 }
             }
 
-            // On Android 10+, we might want to set a metered status or HTTP proxy
-            // builder.setMetered(false)
-
             builder.setSession("MusicFrog Infiltrator")
 
             // Apply Per-App Routing
             val prefs = getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-            val routingMode = prefs.getString(PREF_ROUTING_MODE, null)
+            val routingMode = prefs.getString(PREF_ROUTING_MODE, ROUTING_MODE_PROXY_ALL)
             val selectedPackages = prefs.getStringSet(PREF_SELECTED_PACKAGES, emptySet()) ?: emptySet()
 
-            if (routingMode == ROUTING_MODE_PROXY_SELECTED) {
-                if (selectedPackages.isNotEmpty()) {
-                    Log.i(TAG, "Applying VPN rules for ${selectedPackages.size} apps")
-                    for (pkg in selectedPackages) {
-                        try {
-                            builder.addAllowedApplication(pkg)
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Failed to allow app: $pkg", e)
+            Log.i(TAG, "Routing mode: ${'$'}routingMode, apps: ${'$'}{selectedPackages.size}")
+
+            when (routingMode) {
+                ROUTING_MODE_PROXY_SELECTED -> {
+                    if (selectedPackages.isNotEmpty()) {
+                        for (pkg in selectedPackages) {
+                            try {
+                                builder.addAllowedApplication(pkg)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Failed to allow app: ${'$'}pkg", e)
+                            }
                         }
                     }
-                } else {
-                    Log.i(TAG, "Proxy selected enabled but no apps selected, fallback to proxy all")
                 }
-            } else {
-                Log.i(TAG, "Proxy all mode enabled")
+                ROUTING_MODE_BYPASS_SELECTED -> {
+                    if (selectedPackages.isNotEmpty()) {
+                        for (pkg in selectedPackages) {
+                            try {
+                                builder.addDisallowedApplication(pkg)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Failed to disallow app: ${'$'}pkg", e)
+                            }
+                        }
+                    }
+                }
+                else -> Log.i(TAG, "Proxy All mode active")
             }
             
-            // Create the interface
             vpnInterface = builder.establish()
 
             if (vpnInterface != null) {
                 val fd = vpnInterface!!.fd
-                Log.i(TAG, "VPN established, FD: $fd. Passing to Rust...")
-                
-                // Pass the File Descriptor to Rust
-                // Rust will take it from here (or just log it for now)
                 startVpn(fd)
-                
-                VpnStateManager.onVpnStarted()
+                VpnStateManager.onVpnStarted(this)
                 VpnStateManager.broadcastState(this, VpnStateManager.VpnState.RUNNING)
             } else {
-                Log.e(TAG, "Failed to establish VPN interface (null result)")
                 VpnStateManager.onVpnError("Failed to establish VPN interface")
                 VpnStateManager.broadcastState(this, VpnStateManager.VpnState.ERROR, "Failed to establish VPN interface")
                 stopSelf()
@@ -151,6 +175,7 @@ class MihomoVpnService : VpnService() {
     }
 
     private fun stopVpn() {
+        trafficJob?.cancel()
         try {
             val status = stopTun2Proxy()
             if (status.code != FfiErrorCode.OK) {
@@ -159,9 +184,8 @@ class MihomoVpnService : VpnService() {
             vpnInterface?.close()
             vpnInterface = null
             stopForeground(STOP_FOREGROUND_REMOVE)
-            Log.i(TAG, "VPN stopped")
             
-            VpnStateManager.onVpnStopped()
+            VpnStateManager.onVpnStopped(this)
             VpnStateManager.broadcastState(this, VpnStateManager.VpnState.STOPPED)
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping VPN", e)
@@ -176,12 +200,10 @@ class MihomoVpnService : VpnService() {
                 if (result.status.code == FfiErrorCode.OK) {
                     result.settings
                 } else {
-                    Log.w(TAG, "load tun settings failed: ${result.status.message}")
                     null
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "load tun settings failed", e)
             null
         }
     }
@@ -206,56 +228,48 @@ class MihomoVpnService : VpnService() {
 
     private fun isIpv4(value: String): Boolean {
         val parts = value.split(".")
-        if (parts.size != 4) {
-            return false
-        }
-        for (part in parts) {
-            val octet = part.toIntOrNull() ?: return false
-            if (octet < 0 || octet > 255) {
-                return false
-            }
-        }
-        return true
+        if (parts.size != 4) return false
+        return parts.all { it.toIntOrNull() in 0..255 }
     }
 
     private fun isIpv6(value: String): Boolean {
-        if (!value.contains(":")) {
-            return false
-        }
-        for (ch in value) {
-            val ok = ch == ':' || (ch in '0'..'9') || (ch in 'a'..'f') || (ch in 'A'..'F')
-            if (!ok) {
-                return false
-            }
-        }
-        return true
+        if (!value.contains(":")) return false
+        return value.all { it == ':' || it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
-                "VPN Service",
-                NotificationManager.IMPORTANCE_DEFAULT
+                getString(R.string.notification_channel_name),
+                NotificationManager.IMPORTANCE_LOW // Low priority to avoid annoying sounds
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(serviceChannel)
         }
     }
 
-    private fun createNotification(): Notification {
-        val stopIntent = Intent(this, MihomoVpnService::class.java)
-        stopIntent.action = ACTION_STOP
+    private fun createNotification(statusText: String): Notification {
+        val stopIntent = Intent(this, MihomoVpnService::class.java).apply {
+            action = ACTION_STOP
+        }
         val pendingStopIntent = PendingIntent.getService(
             this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE
         )
 
+        val mainIntent = Intent(this, MainActivity::class.java)
+        val pendingMainIntent = PendingIntent.getActivity(
+            this, 0, mainIntent, PendingIntent.FLAG_IMMUTABLE
+        )
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Infiltrator VPN Running")
-            .setContentText("Traffic is being protected")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", pendingStopIntent)
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(statusText)
+            .setSmallIcon(R.drawable.ic_app_icon)
+            .setContentIntent(pendingMainIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.action_stop), pendingStopIntent)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .build()
     }
 
@@ -264,38 +278,35 @@ class MihomoVpnService : VpnService() {
         const val ACTION_STOP = "com.musicfrog.despicableinfiltrator.STOP_VPN"
 
         fun start(context: android.content.Context): Boolean {
-            val intent = Intent(context, MihomoVpnService::class.java)
-            intent.action = ACTION_START
+            val intent = Intent(context, MihomoVpnService::class.java).apply {
+                action = ACTION_START
+            }
             try {
                 VpnStateManager.onVpnStarting()
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)
                 } else {
                     context.startService(intent)
                 }
                 return true
             } catch (e: Exception) {
-                android.util.Log.e("MihomoVpnService", "Failed to start VPN service", e)
-                VpnStateManager.onVpnError(e.message ?: "Failed to start VPN service")
+                VpnStateManager.onVpnError(e.message ?: "Failed to start VPN")
                 return false
             }
         }
 
         fun stop(context: android.content.Context): Boolean {
-            val intent = Intent(context, MihomoVpnService::class.java)
-            intent.action = ACTION_STOP
+            val intent = Intent(context, MihomoVpnService::class.java).apply {
+                action = ACTION_STOP
+            }
             try {
                 VpnStateManager.onVpnStopping()
                 context.startService(intent)
                 return true
             } catch (e: Exception) {
-                VpnStateManager.onVpnError(e.message ?: "Failed to stop VPN service")
+                VpnStateManager.onVpnError(e.message ?: "Failed to stop VPN")
                 return false
             }
-        }
-
-        fun isRunning(): Boolean {
-            return VpnStateManager.vpnState.value == VpnStateManager.VpnState.RUNNING
         }
     }
 }

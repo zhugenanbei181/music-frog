@@ -109,3 +109,61 @@ fn refresh_internet_settings() {
         log::warn!("刷新系统代理设置失败: {err}");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_system_proxy_state_default() {
+        let state = SystemProxyState::default();
+        assert!(!state.enabled);
+        assert_eq!(state.endpoint, None);
+    }
+
+    #[test]
+    fn test_system_proxy_state_with_values() {
+        let state = SystemProxyState {
+            enabled: true,
+            endpoint: Some("127.0.0.1:7890".to_string()),
+        };
+        assert!(state.enabled);
+        assert_eq!(state.endpoint, Some("127.0.0.1:7890".to_string()));
+    }
+
+    #[test]
+    fn test_system_proxy_state_clone() {
+        let state = SystemProxyState {
+            enabled: true,
+            endpoint: Some("127.0.0.1:7890".to_string()),
+        };
+        let cloned = state.clone();
+        assert_eq!(cloned.enabled, state.enabled);
+        assert_eq!(cloned.endpoint, state.endpoint);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_apply_system_proxy_none_non_windows() {
+        let result = apply_system_proxy(None);
+        assert!(result.is_ok());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_apply_system_proxy_some_non_windows() {
+        let result = apply_system_proxy(Some("127.0.0.1:7890"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("仅支持 Windows"));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_read_system_proxy_state_non_windows() {
+        let result = read_system_proxy_state();
+        assert!(result.is_ok());
+        let state = result.unwrap();
+        assert_eq!(state.enabled, false);
+        assert_eq!(state.endpoint, None);
+    }
+}

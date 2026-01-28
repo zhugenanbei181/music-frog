@@ -82,3 +82,80 @@ impl ProxyManager {
         self.client.get_proxies().await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    use mockito::Server;
+
+    #[test]
+    fn test_proxy_manager_new() {
+        let client = MihomoClient::new("http://127.0.0.1:9090", None).unwrap();
+        let _ = ProxyManager::new(client);
+    }
+
+    #[tokio::test]
+    async fn test_list_proxies() {
+        let mut server = Server::new_async().await;
+        let body = serde_json::json!({
+            "proxies": {
+                "DIRECT": {
+                    "type": "Direct",
+                    "udp": true,
+                    "history": []
+                },
+                "Proxy-A": {
+                    "type": "Shadowsocks",
+                    "udp": true,
+                    "history": [{"time": "2024-01-01T00:00:00Z", "delay": 100}]
+                }
+            }
+        });
+        
+        let mock = server.mock("GET", "/proxies")
+            .with_status(200)
+            .with_body(serde_json::to_string(&body).unwrap())
+            .create_async().await;
+
+        let client = MihomoClient::new(&server.url(), None).unwrap();
+        let manager = ProxyManager::new(client);
+        let proxies = manager.list_proxies().await.unwrap();
+
+        mock.assert_async().await;
+        assert_eq!(proxies.len(), 1); // Only Proxy-A, DIRECT is considered a group-like here or filtered
+        assert_eq!(proxies[0].name, "Proxy-A");
+        assert_eq!(proxies[0].delay, Some(100));
+        assert!(proxies[0].alive);
+    }
+
+    #[tokio::test]
+    async fn test_list_groups() {
+        let mut server = Server::new_async().await;
+        let body = serde_json::json!({
+            "proxies": {
+                "GLOBAL": {
+                    "type": "Selector",
+                    "now": "Proxy-A",
+                    "all": ["Proxy-A", "Proxy-B"],
+                    "history": []
+                }
+            }
+        });
+        
+        let mock = server.mock("GET", "/proxies")
+            .with_status(200)
+            .with_body(serde_json::to_string(&body).unwrap())
+            .create_async().await;
+
+        let client = MihomoClient::new(&server.url(), None).unwrap();
+        let manager = ProxyManager::new(client);
+        let groups = manager.list_groups().await.unwrap();
+
+        mock.assert_async().await;
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].name, "GLOBAL");
+        assert_eq!(groups[0].now, "Proxy-A");
+        assert_eq!(groups[0].all.len(), 2);
+    }
+}

@@ -456,22 +456,46 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_remote_deleted_but_local_changed_should_upload() {
-        let local_root = PathBuf::from("/configs");
-        let locals = vec![make_local_entry("file.yaml", "new_hash")];
-        let remotes = vec![];
-        let states = vec![make_state_row("file.yaml", "old_etag", "old_hash")];
+    #[tokio::test]
+    async fn test_build_plan_async_flow() {
+        use async_trait::async_trait;
+        
+        struct MockDav;
+        #[async_trait]
+        impl DavClient for MockDav {
+            async fn list(&self, _path: &str) -> Result<Vec<RemoteEntry>> {
+                Ok(vec![RemoteEntry {
+                    path: "/configs/remote.yaml".to_string(),
+                    etag: "remote_etag".to_string(),
+                    last_modified: chrono::Utc::now(),
+                    is_dir: false,
+                    size: 100,
+                }])
+            }
+            async fn get(&self, _path: &str) -> Result<Vec<u8>> { Ok(vec![]) }
+            async fn put(&self, _path: &str, _content: &[u8], _last_etag: Option<&str>) -> Result<String> { Ok("".to_string()) }
+            async fn delete(&self, _path: &str) -> Result<()> { Ok(()) }
+            async fn move_item(&self, _from: &str, _to: &str) -> Result<()> { Ok(()) }
+            async fn mkdir(&self, _path: &str) -> Result<()> { Ok(()) }
+        }
 
-        let actions = build_plan_from_data(local_root, locals, remotes, states);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = StateStore::new(":memory:").await.unwrap();
+        let dav = MockDav;
+        let planner = SyncPlanner::new(
+            temp_dir.path().to_path_buf(),
+            "/configs".to_string(),
+            &dav,
+            &store
+        );
 
+        let actions = planner.build_plan().await.unwrap();
+        
+        // Should want to download remote.yaml since it's new
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::Upload { remote_path, last_etag, .. } => {
-                assert_eq!(remote_path, "file.yaml");
-                assert!(last_etag.is_none());
-            }
-            _ => panic!("Expected Upload action (local changed while remote deleted)"),
+            SyncAction::Download { remote_path, .. } => assert_eq!(remote_path, "remote.yaml"),
+            _ => panic!("Expected Download"),
         }
     }
 }

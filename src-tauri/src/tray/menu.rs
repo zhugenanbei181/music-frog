@@ -13,6 +13,7 @@ use tauri::{
     tray::{TrayIconBuilder},
     AppHandle, Wry,
 };
+use tokio::time::Duration;
 
 use crate::{
     app_state::{AppState, TrayInfoItems},
@@ -433,8 +434,8 @@ async fn build_profile_switch_items(
     )?;
     items.push(Box::new(update_all_item));
 
-    if let Some(active) = active_profile {
-        if active.subscription_url.is_some() {
+    if let Some(active) = active_profile
+        && active.subscription_url.is_some() {
             let auto_update_item = CheckMenuItem::with_id(
                 app,
                 format!("profile-auto-update-{}", active.name),
@@ -445,7 +446,6 @@ async fn build_profile_switch_items(
             )?;
             items.push(Box::new(auto_update_item));
         }
-    }
 
     Ok(items)
 }
@@ -706,7 +706,7 @@ fn build_proxy_group_submenu(
     Submenu::with_items(app, group_name, true, item_refs.as_slice())
 }
 
-fn build_proxy_node_label(
+pub(crate) fn build_proxy_node_label(
     proxies: &std::collections::HashMap<String, ProxyInfo>,
     node: &str,
 ) -> String {
@@ -720,7 +720,7 @@ fn build_proxy_node_label(
     }
 }
 
-fn is_selectable_group(info: &ProxyInfo) -> bool {
+pub(crate) fn is_selectable_group(info: &ProxyInfo) -> bool {
     matches!(
         info.proxy_type.as_str(),
         "Selector" | "URLTest" | "Fallback" | "LoadBalance"
@@ -757,7 +757,7 @@ async fn build_tun_menu_item(
     )
 }
 
-fn is_script_enabled(script: Option<&serde_json::Value>) -> bool {
+pub(crate) fn is_script_enabled(script: Option<&serde_json::Value>) -> bool {
     match script {
         Some(value) => value
             .get("enable")
@@ -767,14 +767,14 @@ fn is_script_enabled(script: Option<&serde_json::Value>) -> bool {
     }
 }
 
-fn build_menu_id(prefix: &str, key: &str) -> String {
+pub(crate) fn build_menu_id(prefix: &str, key: &str) -> String {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     key.hash(&mut hasher);
     let hash = hasher.finish();
     format!("{prefix}-{hash:016x}")
 }
 
-fn insert_profile_menu_id(
+pub(crate) fn insert_profile_menu_id(
     profile_map: &mut HashMap<String, String>,
     profile_name: &str,
 ) -> String {
@@ -789,7 +789,7 @@ fn insert_profile_menu_id(
     menu_id
 }
 
-fn insert_proxy_menu_id(
+pub(crate) fn insert_proxy_menu_id(
     proxy_map: &mut HashMap<String, (String, String)>,
     group_name: &str,
     node_name: &str,
@@ -808,7 +808,7 @@ fn insert_proxy_menu_id(
     menu_id
 }
 
-fn truncate_label(value: &str, max_chars: usize) -> String {
+pub(crate) fn truncate_label(value: &str, max_chars: usize) -> String {
     if max_chars == 0 {
         return String::new();
     }
@@ -824,6 +824,10 @@ fn truncate_label(value: &str, max_chars: usize) -> String {
     truncated.push_str("...");
     truncated
 }
+
+#[cfg(test)]
+#[path = "menu_test.rs"]
+mod menu_test;
 
 fn build_advanced_submenu(
     app: &AppHandle,
@@ -907,18 +911,53 @@ pub(crate) async fn refresh_profile_switch_submenu(
     state: &AppState,
 ) -> anyhow::Result<()> {
     let Some(items) = state.tray_info_items().await else {
+        warn!("tray info items not available for profile switch submenu refresh");
         return Ok(());
     };
+
     let lang_code = state.get_lang_code().await;
     let lang = Lang(lang_code.as_str());
     let mut profile_map = HashMap::new();
-    {
-        let menu_items = build_profile_switch_items(app, &mut profile_map, &lang).await?;
-        clear_submenu_items(&items.profile_switch)?;
-        append_items_to_submenu(&items.profile_switch, &menu_items)?;
+
+    // Add retry logic with exponential backoff
+    let max_attempts = 3;
+    let mut attempt = 0;
+    let mut delay = Duration::from_millis(100);
+
+    loop {
+        attempt += 1;
+
+        let result = async {
+            let menu_items = build_profile_switch_items(app, &mut profile_map, &lang).await?;
+            clear_submenu_items(&items.profile_switch)?;
+            append_items_to_submenu(&items.profile_switch, &menu_items)?;
+            Ok::<(), anyhow::Error>(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                state.set_tray_profile_map(profile_map).await;
+                log::info!("profile switch submenu refreshed successfully (attempt {})", attempt);
+                return Ok(());
+            }
+            Err(err) => {
+                if attempt >= max_attempts {
+                    warn!(
+                        "failed to refresh profile switch submenu after {} attempts: {:#}",
+                        max_attempts, err
+                    );
+                    return Err(err);
+                }
+                warn!(
+                    "profile switch submenu refresh failed (attempt {}/{}), retrying in {:?}: {:#}",
+                    attempt, max_attempts, delay, err
+                );
+                tokio::time::sleep(delay).await;
+                delay = delay.saturating_mul(2).min(Duration::from_secs(2));
+            }
+        }
     }
-    state.set_tray_profile_map(profile_map).await;
-    Ok(())
 }
 
 pub(crate) async fn refresh_proxy_groups_submenu(

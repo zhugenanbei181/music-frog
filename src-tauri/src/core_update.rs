@@ -115,11 +115,10 @@ pub(crate) async fn update_mihomo_core(app: &tauri::AppHandle, state: &AppState)
         .await;
     let installed_after = vm.list_installed().await?;
     for version in installed_after {
-        if version.version != latest {
-            if let Err(err) = vm.uninstall(&version.version).await {
+        if version.version != latest
+            && let Err(err) = vm.uninstall(&version.version).await {
                 log::warn!("failed to remove old version {}: {err}", version.version);
             }
-        }
     }
 
     state

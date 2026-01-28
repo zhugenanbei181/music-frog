@@ -49,3 +49,121 @@ impl Profile {
         Ok(backup_path)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::NamedTempFile;
+    use std::io::Write;
+
+    #[tokio::test]
+    async fn test_profile_new() {
+        let profile = Profile::new(
+            "test-profile".to_string(),
+            PathBuf::from("/tmp/test.yaml"),
+            true,
+        );
+
+        assert_eq!(profile.name, "test-profile");
+        assert_eq!(profile.path, PathBuf::from("/tmp/test.yaml"));
+        assert!(profile.active);
+        assert_eq!(profile.subscription_url, None);
+        assert!(!profile.auto_update_enabled);
+        assert_eq!(profile.update_interval_hours, None);
+        assert_eq!(profile.last_updated, None);
+        assert_eq!(profile.next_update, None);
+    }
+
+    #[tokio::test]
+    async fn test_profile_validate_success() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, "port: 7890").unwrap();
+        writeln!(temp_file, "socks-port: 7891").unwrap();
+        writeln!(temp_file, "mode: rule").unwrap();
+
+        let profile = Profile::new(
+            "test".to_string(),
+            temp_file.path().to_path_buf(),
+            false,
+        );
+
+        let result = profile.validate().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_profile_validate_nonexistent_file() {
+        let profile = Profile::new(
+            "test".to_string(),
+            PathBuf::from("/nonexistent/path.yaml"),
+            false,
+        );
+
+        let result = profile.validate().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("does not exist"));
+    }
+
+    #[tokio::test]
+    async fn test_profile_validate_invalid_yaml() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, "invalid: yaml: content: [").unwrap();
+
+        let profile = Profile::new(
+            "test".to_string(),
+            temp_file.path().to_path_buf(),
+            false,
+        );
+
+        let result = profile.validate().await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_profile_backup() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, "port: 7890").unwrap();
+
+        let profile = Profile::new(
+            "test".to_string(),
+            temp_file.path().to_path_buf(),
+            false,
+        );
+
+        let result = profile.backup().await;
+        assert!(result.is_ok());
+
+        let backup_path = result.unwrap();
+        assert!(backup_path.exists());
+        assert!(backup_path.to_str().unwrap().ends_with(".yaml.bak"));
+
+        // Clean up backup
+        std::fs::remove_file(backup_path).unwrap();
+    }
+
+    #[test]
+    fn test_profile_clone() {
+        let profile = Profile::new(
+            "test".to_string(),
+            PathBuf::from("/tmp/test.yaml"),
+            true,
+        );
+
+        let cloned = profile.clone();
+        assert_eq!(cloned.name, profile.name);
+        assert_eq!(cloned.path, profile.path);
+        assert_eq!(cloned.active, profile.active);
+    }
+
+    #[test]
+    fn test_profile_debug() {
+        let profile = Profile::new(
+            "test".to_string(),
+            PathBuf::from("/tmp/test.yaml"),
+            false,
+        );
+
+        let debug_str = format!("{:?}", profile);
+        assert!(debug_str.contains("test"));
+    }
+}

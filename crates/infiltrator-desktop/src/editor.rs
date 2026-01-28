@@ -26,14 +26,13 @@ pub async fn open_profile_in_editor(
     let mut final_args = args;
     final_args.push(profile_path.clone());
     if let Err(err) = open_in_editor(&editor, &final_args) {
-        if auto_detect {
-            if let Some((fallback, mut fallback_args)) = fallback_editor_command(&editor) {
+        if auto_detect
+            && let Some((fallback, mut fallback_args)) = fallback_editor_command(&editor) {
                 fallback_args.push(profile_path);
                 if open_in_editor(&fallback, &fallback_args).is_ok() {
                     return Ok(());
                 }
             }
-        }
         return Err(err);
     }
     Ok(())
@@ -368,4 +367,48 @@ fn is_path_like(value: &str) -> bool {
     let bytes = trimmed.as_bytes();
     let has_drive = bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic();
     trimmed.starts_with("\\\\") || trimmed.contains(['\\', '/']) || has_drive
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_path_like() {
+        assert!(is_path_like("C:\\Windows\\notepad.exe"));
+        assert!(is_path_like("/usr/bin/vim"));
+        assert!(is_path_like("./editor"));
+        assert!(!is_path_like("notepad"));
+        assert!(!is_path_like(""));
+    }
+
+    #[test]
+    fn test_parse_command_line_simple() {
+        let (cmd, args) = parse_command_line("notepad.exe");
+        assert_eq!(cmd, "notepad.exe");
+        assert!(args.is_empty());
+    }
+
+    #[test]
+    fn test_parse_command_line_with_args() {
+        let (cmd, args) = parse_command_line("code --wait");
+        assert_eq!(cmd, "code");
+        assert_eq!(args, vec!["--wait"]);
+    }
+
+    #[test]
+    fn test_split_quoted_command() {
+        let (cmd, args) = split_quoted_command("\"C:\\Program Files\\Editor.exe\" --file \"my file.txt\"");
+        assert_eq!(cmd, "C:\\Program Files\\Editor.exe");
+        assert_eq!(args, vec!["--file", "my file.txt"]);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_expand_env_vars() {
+        unsafe { env::set_var("TEST_VAR", "value") };
+        assert_eq!(expand_env_vars("%TEST_VAR%"), "value");
+        assert_eq!(expand_env_vars("prefix-%TEST_VAR%-suffix"), "prefix-value-suffix");
+        assert_eq!(expand_env_vars("%%"), "%");
+    }
 }

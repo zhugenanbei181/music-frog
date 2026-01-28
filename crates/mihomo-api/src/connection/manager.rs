@@ -152,4 +152,113 @@ mod tests {
         assert_eq!(conn.upload, 1024);
         assert_eq!(conn.download, 2048);
     }
+
+    #[tokio::test]
+    async fn test_filter_by_host() {
+        let mut server = mockito::Server::new_async().await;
+        let conns = vec![
+            create_test_connection("1", "google.com", "", ""),
+            create_test_connection("2", "example.com", "", ""),
+        ];
+        let body = serde_json::json!({
+            "connections": conns,
+            "downloadTotal": 0,
+            "uploadTotal": 0
+        });
+
+        let mock = server.mock("GET", "/connections")
+            .with_status(200)
+            .with_body(serde_json::to_string(&body).unwrap())
+            .create_async().await;
+
+        let client = MihomoClient::new(&server.url(), None).unwrap();
+        let manager = ConnectionManager::new(client);
+        
+        let filtered = manager.filter_by_host("google").await.unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].id, "1");
+        
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_filter_by_process() {
+        let mut server = mockito::Server::new_async().await;
+        let conns = vec![
+            create_test_connection("1", "", "/usr/bin/chrome", ""),
+            create_test_connection("2", "", "/usr/bin/curl", ""),
+        ];
+        let body = serde_json::json!({
+            "connections": conns,
+            "downloadTotal": 0,
+            "uploadTotal": 0
+        });
+
+        let _mock = server.mock("GET", "/connections")
+            .with_status(200)
+            .with_body(serde_json::to_string(&body).unwrap())
+            .create_async().await;
+
+        let client = MihomoClient::new(&server.url(), None).unwrap();
+        let manager = ConnectionManager::new(client);
+        
+        let filtered = manager.filter_by_process("chrome").await.unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].id, "1");
+    }
+
+    #[tokio::test]
+    async fn test_close_connection() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server.mock("DELETE", "/connections/test-id")
+            .with_status(204)
+            .create_async().await;
+
+        let client = MihomoClient::new(&server.url(), None).unwrap();
+        let manager = ConnectionManager::new(client);
+        
+        manager.close("test-id").await.unwrap();
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_filtering_edge_cases() {
+        let mut server = mockito::Server::new_async().await;
+        let conns = vec![
+            create_test_connection("1", "google.com", "/bin/chrome", "DIRECT"),
+            create_test_connection("2", "github.com", "/bin/git", "PROXY"),
+        ];
+        let body = serde_json::json!({
+            "connections": conns,
+            "downloadTotal": 100,
+            "uploadTotal": 200
+        });
+
+        let _m = server.mock("GET", "/connections")
+            .with_status(200)
+            .with_body(serde_json::to_string(&body).unwrap())
+            .create_async().await;
+
+        let client = MihomoClient::new(&server.url(), None).unwrap();
+        let manager = ConnectionManager::new(client);
+        
+        // 1. Match all
+        let all = manager.filter_by_host("").await.unwrap();
+        assert_eq!(all.len(), 2);
+
+        // 2. Match none
+        let none = manager.filter_by_host("non-existent").await.unwrap();
+        assert_eq!(none.len(), 0);
+
+        // 3. Filter by rule
+        let rule_matches = manager.filter_by_rule("PROXY").await.unwrap();
+        assert_eq!(rule_matches.len(), 1);
+        assert_eq!(rule_matches[0].id, "2");
+
+        // 4. Statistics
+        let (down, up, count) = manager.get_statistics().await.unwrap();
+        assert_eq!(down, 100);
+        assert_eq!(up, 200);
+        assert_eq!(count, 2);
+    }
 }

@@ -1,3 +1,148 @@
 <resources>
     <string name="app_name">Despicable Infiltrator</string>
+
+    <!-- Navigation -->
+    <string name="nav_overview">Overview</string>
+    <string name="nav_profiles">Profiles</string>
+    <string name="nav_proxies">Proxies</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_sync">Sync</string>
+
+    <!-- Overview -->
+    <string name="status_tun_service">TUN Service</string>
+    <string name="status_core_runtime">Core Runtime</string>
+    <string name="status_permission_required">Permission required</string>
+    <string name="status_starting">Starting...</string>
+    <string name="status_stopping">Stopping...</string>
+    <string name="status_running">Running</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="status_active">Active</string>
+    <string name="status_idle">Idle</string>
+    <string name="action_grant_permission">Grant permission</string>
+    <string name="action_start">Start</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_restart">Restart</string>
+    
+    <string name="status_proxy_mode">Proxy Mode</string>
+    <string name="action_change_mode">Change Mode</string>
+    <string name="mode_rule">Rule</string>
+    <string name="mode_global">Global</string>
+    <string name="mode_direct">Direct</string>
+
+    <string name="card_traffic">Traffic</string>
+    <string name="label_upload">Upload</string>
+    <string name="label_download">Download</string>
+    <string name="label_total">Total: %1$s ↑ / %2$s ↓</string>
+    <string name="label_connections">%1$s conn</string>
+
+    <string name="card_recent_logs">Recent Logs</string>
+    <string name="text_no_logs">No logs yet</string>
+    <string name="text_loading">Loading...</string>
+
+    <!-- Profiles -->
+    <string name="title_add_profile">Add Profile</string>
+    <string name="label_name">Name</string>
+    <string name="label_url">URL</string>
+    <string name="action_add">Add</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="text_updated_at">Updated: %1$s</string>
+    <string name="error_load_profiles">Failed to load profiles</string>
+
+    <!-- Proxies -->
+    <string name="text_proxy_group_none">None</string>
+    <string name="text_empty_proxies">No proxy groups found</string>
+
+    <!-- Settings Main -->
+    <string name="setting_language_title">Language</string>
+    <string name="setting_language_system">Follow System</string>
+    <string name="setting_language_en">English</string>
+    <string name="setting_language_zh_cn">中文 (简体)</string>
+    <string name="setting_language_zh_tw">中文 (繁體)</string>
+    
+    <string name="setting_routing_title">App Routing</string>
+    <string name="setting_routing_desc">Select which apps use the VPN</string>
+    <string name="setting_tun_title">TUN</string>
+    <string name="setting_tun_desc">Configure MTU, routes, and DNS for VPN</string>
+    <string name="setting_dns_title">DNS</string>
+    <string name="setting_dns_desc">Configure DNS servers and policies</string>
+    <string name="setting_fakeip_title">Fake-IP</string>
+    <string name="setting_fakeip_desc">Manage Fake-IP pool and filters</string>
+    <string name="setting_rules_title">Rule Sets</string>
+    <string name="setting_rules_desc">Manage rule providers and priorities</string>
+    <string name="setting_logs_title">Logs</string>
+    <string name="setting_logs_desc">View core runtime logs</string>
+
+    <!-- App Routing -->
+    <string name="routing_mode_label">Routing Mode</string>
+    <string name="routing_mode_proxy_all">Proxy All Apps</string>
+    <string name="routing_mode_proxy_selected">Proxy Selected (Allowlist)</string>
+    <string name="routing_mode_bypass_selected">Bypass Selected (Blocklist)</string>
+    <string name="search_apps_hint">Search Apps</string>
+    <string name="tab_user_apps">User Apps</string>
+    <string name="tab_system_apps">System Apps</string>
+    <string name="text_no_apps">No apps found</string>
+
+    <!-- TUN Settings -->
+    <string name="tun_settings_title">TUN Settings</string>
+    <string name="label_mtu">MTU</string>
+    <string name="tun_auto_route">Auto Route</string>
+    <string name="tun_auto_route_desc">Automatically route traffic through TUN</string>
+    <string name="tun_strict_route">Strict Route</string>
+    <string name="tun_strict_route_desc">Strictly enforce routing rules</string>
+    <string name="label_ipv6">IPv6</string>
+    <string name="tun_ipv6_desc">Enable IPv6 support</string>
+    <string name="label_dns_servers">DNS Servers</string>
+    <string name="desc_one_per_line">One server per line</string>
+    <string name="action_save">Save</string>
+    <string name="action_reload">Reload</string>
+    <string name="text_saved">Settings Saved</string>
+
+    <!-- DNS Settings -->
+    <string name="dns_settings_title">DNS Settings</string>
+    <string name="dns_enable">Enable DNS</string>
+    <string name="dns_enable_desc">Enable internal DNS server</string>
+    <string name="label_enhanced_mode">Enhanced Mode</string>
+    <string name="desc_enhanced_mode">fake-ip / redir-host</string>
+    <string name="label_nameserver">Nameserver</string>
+    <string name="label_default_nameserver">Default Nameserver</string>
+    <string name="label_fallback">Fallback</string>
+
+    <!-- Fake-IP Settings -->
+    <string name="fakeip_settings_title">Fake-IP Settings</string>
+    <string name="fakeip_store">Store Fake-IP</string>
+    <string name="fakeip_store_desc">Persist Fake-IP pool to disk</string>
+    <string name="label_fakeip_range">Fake-IP Range</string>
+    <string name="desc_cidr">CIDR notation (e.g., 198.18.0.1/16)</string>
+    <string name="label_fakeip_filter">Fake-IP Filter</string>
+    <string name="desc_fakeip_filter">Domains to exclude from Fake-IP (one per line)</string>
+    <string name="action_clear_cache">Clear Fake-IP Cache</string>
+
+    <!-- Rules Settings -->
+    <string name="rules_settings_title">Rules</string>
+    <string name="section_add_rule">Add Rule</string>
+    <string name="label_new_rule">Rule (e.g., DOMAIN-SUFFIX,google.com,Proxy)</string>
+    <string name="section_active_rules">Active Rules</string>
+    <string name="text_no_rules">No rules configured</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_save_rules">Save Rules</string>
+    <string name="section_providers">Rule Providers</string>
+    <string name="label_providers_json">Providers Configuration (JSON)</string>
+    <string name="action_save_providers">Save Providers</string>
+    <string name="action_reload_all">Reload All</string>
+    <string name="text_providers_saved">Providers saved</string>
+
+    <!-- Logs -->
+    <string name="logs_title">Logs</string>
+    <string name="logs_streaming">Streaming • %1$d entries</string>
+    <string name="logs_paused">Paused • %1$d entries</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_clear">Clear</string>
+    <string name="toast_logs_copied">Logs copied to clipboard</string>
+    <string name="toast_logs_cleared">Logs cleared</string>
+
+    <!-- Service -->
+    <string name="notification_channel_name">VPN Service</string>
+    <string name="notification_title">Infiltrator VPN</string>
+    <string name="notification_starting">Starting...</string>
+    <string name="notification_active">Protection Active</string>
 </resources>

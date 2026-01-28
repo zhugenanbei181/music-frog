@@ -97,7 +97,7 @@ fn apply_rule_providers(doc: &mut Value, providers: &RuleProviders) -> Result<()
         .as_mapping_mut()
         .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
     if providers.is_empty() {
-        map.remove(&Value::String("rule-providers".to_string()));
+        map.remove(Value::String("rule-providers".to_string()));
         return Ok(());
     }
 
@@ -135,7 +135,7 @@ fn apply_rules(doc: &mut Value, rules: &[RuleEntry]) -> Result<()> {
         .as_mapping_mut()
         .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
     if rules.is_empty() {
-        map.remove(&Value::String("rules".to_string()));
+        map.remove(Value::String("rules".to_string()));
         return Ok(());
     }
     let entries: Vec<Value> = rules
@@ -211,7 +211,7 @@ mod tests {
         apply_rule_providers(&mut doc, &providers).expect("apply providers");
         let map = doc.as_mapping().expect("mapping");
         assert!(map
-            .get(&Value::String("rule-providers".to_string()))
+            .get(Value::String("rule-providers".to_string()))
             .is_none());
     }
 
@@ -220,6 +220,6 @@ mod tests {
         let mut doc: Value = serde_yaml::from_str("rules:\n  - DIRECT\n").expect("yaml");
         apply_rules(&mut doc, &[]).expect("apply rules");
         let map = doc.as_mapping().expect("mapping");
-        assert!(map.get(&Value::String("rules".to_string())).is_none());
+        assert!(map.get(Value::String("rules".to_string())).is_none());
     }
 }

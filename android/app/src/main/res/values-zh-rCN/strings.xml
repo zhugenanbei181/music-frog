@@ -1,0 +1,148 @@
+<resources>
+    <string name="app_name">卑鄙渗透者</string>
+
+    <!-- Navigation -->
+    <string name="nav_overview">概览</string>
+    <string name="nav_profiles">配置</string>
+    <string name="nav_proxies">代理</string>
+    <string name="nav_settings">设置</string>
+    <string name="nav_sync">同步</string>
+
+    <!-- Overview -->
+    <string name="status_tun_service">TUN 服务</string>
+    <string name="status_core_runtime">核心运行时</string>
+    <string name="status_permission_required">需要权限</string>
+    <string name="status_starting">正在启动...</string>
+    <string name="status_stopping">正在停止...</string>
+    <string name="status_running">运行中</string>
+    <string name="status_stopped">已停止</string>
+    <string name="status_active">已激活</string>
+    <string name="status_idle">未运行</string>
+    <string name="action_grant_permission">授予权限</string>
+    <string name="action_start">启动</string>
+    <string name="action_stop">停止</string>
+    <string name="action_restart">重启</string>
+    
+    <string name="status_proxy_mode">代理模式</string>
+    <string name="action_change_mode">切换模式</string>
+    <string name="mode_rule">规则</string>
+    <string name="mode_global">全局</string>
+    <string name="mode_direct">直连</string>
+
+    <string name="card_traffic">流量统计</string>
+    <string name="label_upload">上传</string>
+    <string name="label_download">下载</string>
+    <string name="label_total">总量: %1$s ↑ / %2$s ↓</string>
+    <string name="label_connections">%1$s 连接</string>
+
+    <string name="card_recent_logs">最近日志</string>
+    <string name="text_no_logs">暂无日志</string>
+    <string name="text_loading">加载中...</string>
+
+    <!-- Profiles -->
+    <string name="title_add_profile">添加配置</string>
+    <string name="label_name">名称</string>
+    <string name="label_url">订阅链接 (URL)</string>
+    <string name="action_add">添加</string>
+    <string name="action_cancel">取消</string>
+    <string name="text_updated_at">更新于: %1$s</string>
+    <string name="error_load_profiles">加载配置失败</string>
+
+    <!-- Proxies -->
+    <string name="text_proxy_group_none">无</string>
+    <string name="text_empty_proxies">未找到代理组</string>
+
+    <!-- Settings Main -->
+    <string name="setting_language_title">语言 / Language</string>
+    <string name="setting_language_system">跟随系统</string>
+    <string name="setting_language_en">English</string>
+    <string name="setting_language_zh_cn">中文 (简体)</string>
+    <string name="setting_language_zh_tw">中文 (繁體)</string>
+
+    <string name="setting_routing_title">App 路由</string>
+    <string name="setting_routing_desc">选择哪些应用使用 VPN</string>
+    <string name="setting_tun_title">TUN 设置</string>
+    <string name="setting_tun_desc">配置 MTU、路由表和 DNS</string>
+    <string name="setting_dns_title">DNS 设置</string>
+    <string name="setting_dns_desc">配置名称服务器和策略</string>
+    <string name="setting_fakeip_title">Fake-IP</string>
+    <string name="setting_fakeip_desc">管理 Fake-IP 池和过滤器</string>
+    <string name="setting_rules_title">规则集</string>
+    <string name="setting_rules_desc">管理规则提供者和优先级</string>
+    <string name="setting_logs_title">运行日志</string>
+    <string name="setting_logs_desc">查看内核运行日志</string>
+
+    <!-- App Routing -->
+    <string name="routing_mode_label">路由模式</string>
+    <string name="routing_mode_proxy_all">代理所有应用</string>
+    <string name="routing_mode_proxy_selected">仅代理选中 (白名单)</string>
+    <string name="routing_mode_bypass_selected">仅绕过选中 (黑名单)</string>
+    <string name="search_apps_hint">搜索应用</string>
+    <string name="tab_user_apps">用户应用</string>
+    <string name="tab_system_apps">系统应用</string>
+    <string name="text_no_apps">未找到应用</string>
+
+    <!-- TUN Settings -->
+    <string name="tun_settings_title">TUN 设置</string>
+    <string name="label_mtu">MTU</string>
+    <string name="tun_auto_route">自动路由</string>
+    <string name="tun_auto_route_desc">自动配置系统路由表</string>
+    <string name="tun_strict_route">严格路由</string>
+    <string name="tun_strict_route_desc">严格执行路由规则</string>
+    <string name="label_ipv6">IPv6</string>
+    <string name="tun_ipv6_desc">启用 IPv6 支持</string>
+    <string name="label_dns_servers">DNS 服务器</string>
+    <string name="desc_one_per_line">每行一个服务器地址</string>
+    <string name="action_save">保存</string>
+    <string name="action_reload">重载</string>
+    <string name="text_saved">设置已保存</string>
+
+    <!-- DNS Settings -->
+    <string name="dns_settings_title">DNS 设置</string>
+    <string name="dns_enable">启用 DNS</string>
+    <string name="dns_enable_desc">启用内部 DNS 服务器</string>
+    <string name="label_enhanced_mode">增强模式</string>
+    <string name="desc_enhanced_mode">fake-ip / redir-host</string>
+    <string name="label_nameserver">Nameserver</string>
+    <string name="label_default_nameserver">Default Nameserver</string>
+    <string name="label_fallback">Fallback</string>
+
+    <!-- Fake-IP Settings -->
+    <string name="fakeip_settings_title">Fake-IP 设置</string>
+    <string name="fakeip_store">持久化 Fake-IP</string>
+    <string name="fakeip_store_desc">将映射表保存到磁盘</string>
+    <string name="label_fakeip_range">Fake-IP 网段</string>
+    <string name="desc_cidr">CIDR 格式 (如 198.18.0.1/16)</string>
+    <string name="label_fakeip_filter">Fake-IP 过滤</string>
+    <string name="desc_fakeip_filter">排除的域名 (每行一个)</string>
+    <string name="action_clear_cache">清除缓存</string>
+
+    <!-- Rules Settings -->
+    <string name="rules_settings_title">规则管理</string>
+    <string name="section_add_rule">添加规则</string>
+    <string name="label_new_rule">规则 (如 DOMAIN-SUFFIX,google.com,Proxy)</string>
+    <string name="section_active_rules">当前规则</string>
+    <string name="text_no_rules">暂无规则</string>
+    <string name="action_remove">移除</string>
+    <string name="action_save_rules">保存规则</string>
+    <string name="section_providers">规则提供者</string>
+    <string name="label_providers_json">提供者配置 (JSON)</string>
+    <string name="action_save_providers">保存配置</string>
+    <string name="action_reload_all">全部重载</string>
+    <string name="text_providers_saved">配置已保存</string>
+
+    <!-- Logs -->
+    <string name="logs_title">日志</string>
+    <string name="logs_streaming">实时 • %1$d 条</string>
+    <string name="logs_paused">暂停 • %1$d 条</string>
+    <string name="action_copy">复制</string>
+    <string name="action_clear">清空</string>
+    <string name="toast_logs_copied">日志已复制到剪贴板</string>
+    <string name="toast_logs_cleared">日志已清空</string>
+
+    <!-- Service -->
+    <string name="notification_channel_name">VPN 服务</string>
+    <string name="notification_title">Infiltrator VPN</string>
+    <string name="notification_starting">正在启动...</string>
+    <string name="notification_active">保护已开启</string>
+</resources>

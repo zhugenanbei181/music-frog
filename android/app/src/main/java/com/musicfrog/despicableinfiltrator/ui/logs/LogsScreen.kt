@@ -1,6 +1,5 @@
 package com.musicfrog.despicableinfiltrator.ui.logs
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,12 +20,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.PlayArrow
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,10 +39,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.musicfrog.despicableinfiltrator.R
 import com.musicfrog.despicableinfiltrator.ui.common.showToast
 import infiltrator_android.FfiErrorCode
 import infiltrator_android.LogEntry
@@ -90,13 +89,17 @@ fun LogsScreen() {
         }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Header with actions
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
+    Scaffold { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header with actions
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier
@@ -107,18 +110,20 @@ fun LogsScreen() {
             ) {
                 Column {
                     Text(
-                        text = "Logs",
+                        text = stringResource(R.string.logs_title),
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = if (isStreaming) "Streaming • ${logs.size} entries" else "${logs.size} entries",
+                        text = if (isStreaming) 
+                            stringResource(R.string.logs_streaming, logs.size) 
+                            else stringResource(R.string.logs_paused, logs.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (!isStreaming) {
-                        FilledTonalButton(
+                        IconButton(
                             onClick = {
                                 scope.launch {
                                     logsStartStreaming()
@@ -126,65 +131,65 @@ fun LogsScreen() {
                                 }
                             }
                         ) {
-                            Icon(Icons.Outlined.PlayArrow, null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Start")
+                            Icon(Icons.Outlined.PlayArrow, contentDescription = stringResource(R.string.action_start))
                         }
-                    }
+                    } 
+                    
                     IconButton(onClick = {
                         val text = logs.joinToString("\n") { entry ->
                             "[${formatLogLevel(entry.level)}] ${entry.message}"
                         }
                         clipboardManager.setText(AnnotatedString(text))
-                        showToast(context, "Logs copied to clipboard")
+                        showToast(context, context.getString(R.string.toast_logs_copied))
                     }) {
-                        Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy")
+                        Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.action_copy))
                     }
                     IconButton(onClick = {
                         scope.launch {
                             logsClear()
                             logs = emptyList()
-                            showToast(context, "Logs cleared")
+                            showToast(context, context.getString(R.string.toast_logs_cleared))
                         }
                     }) {
-                        Icon(Icons.Outlined.Delete, contentDescription = "Clear")
+                        Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.action_clear))
                     }
                 }
             }
         }
 
-        // Log list
-        if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Loading logs...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else if (logs.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No logs yet",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(logs.reversed()) { entry ->
-                    LogEntryItem(entry)
+            // Log list
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.text_loading),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else if (logs.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.text_no_logs),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(logs.reversed()) { entry ->
+                        LogEntryItem(entry)
+                    }
                 }
             }
         }
@@ -197,7 +202,7 @@ private fun LogEntryItem(entry: LogEntry) {
         LogLevel.ERROR -> MaterialTheme.colorScheme.error
         LogLevel.WARNING -> Color(0xFFFF9800)
         LogLevel.INFO -> MaterialTheme.colorScheme.primary
-        LogLevel.DEBUG -> MaterialTheme.colorScheme.onSurfaceVariant
+        LogLevel.DEBUG -> MaterialTheme.colorScheme.tertiary
         LogLevel.SILENT -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
@@ -208,28 +213,30 @@ private fun LogEntryItem(entry: LogEntry) {
         verticalAlignment = Alignment.Top
     ) {
         // Level indicator
-        Box(
-            modifier = Modifier
-                .padding(top = 6.dp)
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(levelColor)
+        Text(
+            text = formatLogLevel(entry.level),
+            style = MaterialTheme.typography.labelSmall,
+            color = levelColor,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.width(32.dp).padding(top=2.dp)
         )
+        
         Spacer(modifier = Modifier.width(8.dp))
         
         // Time and message
         Column(modifier = Modifier.weight(1f)) {
             Text(
+                text = entry.message,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
                 text = formatTimestamp(entry.timestamp),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 10.sp
-            )
-            Text(
-                text = entry.message,
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp
             )
         }
     }

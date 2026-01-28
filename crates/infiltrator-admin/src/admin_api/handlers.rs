@@ -773,3 +773,7 @@ fn parse_version(version: &str) -> Option<(u64, u64, u64)> {
     let patch = parts.next().unwrap_or(Some(0))?;
     Some((major, minor, patch))
 }
+
+#[cfg(test)]
+#[path = "handlers_test.rs"]
+mod handlers_test;

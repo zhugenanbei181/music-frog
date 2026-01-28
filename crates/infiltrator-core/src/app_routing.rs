@@ -177,4 +177,29 @@ mod tests {
         let allowed = config.get_allowed_packages().unwrap();
         assert!(allowed.contains(&"com.example.app".to_string()));
     }
+
+    #[test]
+    fn test_get_disallowed_packages() {
+        let mut config = AppRoutingConfig::default();
+        config.mode = AppRoutingMode::BypassSelected;
+        config.packages.insert("com.example.app".to_string());
+        
+        let disallowed = config.get_disallowed_packages().unwrap();
+        assert_eq!(disallowed.len(), 1);
+        assert_eq!(disallowed[0], "com.example.app");
+
+        config.mode = AppRoutingMode::ProxyAll;
+        assert!(config.get_disallowed_packages().is_none());
+    }
+
+    #[test]
+    fn test_app_routing_serialization() {
+        let mut config = AppRoutingConfig::default();
+        config.mode = AppRoutingMode::ProxySelected;
+        config.packages.insert("com.test".to_string());
+
+        let toml_str = toml::to_string(&config).unwrap();
+        assert!(toml_str.contains("proxy_selected"));
+        assert!(toml_str.contains("com.test"));
+    }
 }

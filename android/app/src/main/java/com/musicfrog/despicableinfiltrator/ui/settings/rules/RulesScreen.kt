@@ -1,190 +1,206 @@
 package com.musicfrog.despicableinfiltrator.ui.settings.rules
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.musicfrog.despicableinfiltrator.R
 import com.musicfrog.despicableinfiltrator.ui.common.ErrorDialog
+import com.musicfrog.despicableinfiltrator.ui.common.StandardListItem
 
 @Composable
-fun RulesScreen() {
-    val viewModel = remember { RulesViewModel() }
+fun RulesScreen(viewModel: RulesViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
-    val scrollState = rememberScrollState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(text = "Rules", style = MaterialTheme.typography.titleLarge)
-
-        if (state.isLoading) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(modifier = Modifier.height(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Loading...")
+    Scaffold(
+        bottomBar = {
+            if (state.rulesSaved || state.providersSaved) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(if (state.rulesSaved) R.string.text_saved else R.string.text_providers_saved),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
             }
         }
-
-        if (state.error != null) {
-            ErrorDialog(
-                message = state.error ?: "",
-                onDismiss = { viewModel.clearError() }
-            )
-        }
-
-        OutlinedTextField(
-            value = state.newRule,
-            onValueChange = { viewModel.updateNewRule(it) },
-            label = { Text("New Rule") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !state.isLoading
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Button(
-                onClick = { viewModel.addRule() },
-                enabled = !state.isLoading
-            ) {
-                Text(text = "Add Rule")
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            if (state.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
-            TextButton(
-                onClick = { viewModel.load() },
-                enabled = !state.isLoading
-            ) {
-                Text(text = "Reload")
-            }
-        }
 
-        if (state.rules.isEmpty() && !state.isLoading) {
-            Text(
-                text = "No rules configured",
-                style = MaterialTheme.typography.bodyMedium
-            )
-        } else {
-            state.rules.forEachIndexed { index, rule ->
-                RuleRow(
-                    rule = rule.rule,
-                    enabled = rule.enabled,
-                    onToggle = { viewModel.toggleRule(index, it) },
-                    onRemove = { viewModel.removeRule(index) },
-                    enabledUi = !state.isLoading
+            if (state.error != null) {
+                ErrorDialog(
+                    message = state.error ?: "",
+                    onDismiss = { viewModel.clearError() }
                 )
             }
-        }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Button(
-                onClick = { viewModel.saveRules() },
-                enabled = !state.isLoading
-            ) {
-                Text(text = "Save Rules")
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                item {
+                    Text(
+                        text = stringResource(R.string.section_add_rule),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 8.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                item {
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = state.newRule,
+                            onValueChange = { viewModel.updateNewRule(it) },
+                            label = { Text(stringResource(R.string.label_new_rule)) },
+                            modifier = Modifier.weight(1f),
+                            enabled = !state.isLoading,
+                            singleLine = true
+                        )
+                        Button(
+                            onClick = { viewModel.addRule() },
+                            enabled = !state.isLoading
+                        ) {
+                            Text(stringResource(R.string.action_add))
+                        }
+                    }
+                }
+
+                item {
+                    Text(
+                        text = stringResource(R.string.section_active_rules),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(16.dp, 24.dp, 16.dp, 8.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                if (state.rules.isEmpty() && !state.isLoading) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.text_no_rules),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                itemsIndexed(state.rules) { index, rule ->
+                    StandardListItem(
+                        headline = rule.rule,
+                        leadingContent = {
+                            Switch(
+                                checked = rule.enabled,
+                                onCheckedChange = { viewModel.toggleRule(index, it) },
+                                enabled = !state.isLoading
+                            )
+                        },
+                        trailingContent = {
+                            IconButton(
+                                onClick = { viewModel.removeRule(index) },
+                                enabled = !state.isLoading
+                            ) {
+                                Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.action_remove))
+                            }
+                        },
+                        onClick = { if (!state.isLoading) viewModel.toggleRule(index, !rule.enabled) }
+                    )
+                    HorizontalDivider()
+                }
+
+                item {
+                    Button(
+                        onClick = { viewModel.saveRules() },
+                        enabled = !state.isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(stringResource(R.string.action_save_rules))
+                    }
+                }
+
+                item {
+                    Text(
+                        text = stringResource(R.string.section_providers),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(16.dp, 24.dp, 16.dp, 8.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                item {
+                    OutlinedTextField(
+                        value = state.providersJson,
+                        onValueChange = { viewModel.updateProvidersJson(it) },
+                        label = { Text(stringResource(R.string.label_providers_json)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        enabled = !state.isLoading,
+                        minLines = 5,
+                        maxLines = 15
+                    )
+                }
+
+                item {
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.saveProviders() },
+                            enabled = !state.isLoading,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(stringResource(R.string.action_save_providers))
+                        }
+                        TextButton(
+                            onClick = { viewModel.load() },
+                            enabled = !state.isLoading
+                        ) {
+                            Text(stringResource(R.string.action_reload_all))
+                        }
+                    }
+                }
             }
-        }
-
-        if (state.rulesSaved) {
-            Text(
-                text = "Rules saved",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(text = "Rule Providers (JSON)", style = MaterialTheme.typography.titleMedium)
-
-        OutlinedTextField(
-            value = state.providersJson,
-            onValueChange = { viewModel.updateProvidersJson(it) },
-            label = { Text("Providers JSON") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp),
-            enabled = !state.isLoading,
-            maxLines = 10
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Button(
-                onClick = { viewModel.saveProviders() },
-                enabled = !state.isLoading
-            ) {
-                Text(text = "Save Providers")
-            }
-        }
-
-        if (state.providersSaved) {
-            Text(
-                text = "Providers saved",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-    }
-}
-
-@Composable
-private fun RuleRow(
-    rule: String,
-    enabled: Boolean,
-    onToggle: (Boolean) -> Unit,
-    onRemove: () -> Unit,
-    enabledUi: Boolean
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Switch(
-            checked = enabled,
-            onCheckedChange = onToggle,
-            enabled = enabledUi
-        )
-        Text(
-            text = rule,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 8.dp),
-            style = MaterialTheme.typography.bodyMedium
-        )
-        TextButton(
-            onClick = onRemove,
-            enabled = enabledUi
-        ) {
-            Text(text = "Remove")
         }
     }
 }

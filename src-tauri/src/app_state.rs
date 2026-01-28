@@ -233,11 +233,10 @@ impl AppState {
     }
 
     pub(crate) async fn update_tun_checked(&self, enabled: bool) {
-        if let Some(items) = self.tray_info.read().await.as_ref() {
-            if let Err(err) = items.tun_mode.set_checked(enabled) {
+        if let Some(items) = self.tray_info.read().await.as_ref()
+            && let Err(err) = items.tun_mode.set_checked(enabled) {
                 warn!("failed to update tun menu item: {err}");
             }
-        }
     }
 
     pub(crate) async fn set_tray_profile_map(&self, map: HashMap<String, String>) {
@@ -290,27 +289,24 @@ impl AppState {
     }
 
     pub(crate) async fn update_static_info_text(&self, text: impl Into<String>) {
-        if let Some(items) = self.tray_info.read().await.as_ref() {
-            if let Err(err) = items.static_host.set_text(text.into()) {
+        if let Some(items) = self.tray_info.read().await.as_ref()
+            && let Err(err) = items.static_host.set_text(text.into()) {
                 warn!("failed to update static host info menu item: {err}");
             }
-        }
     }
 
     pub(crate) async fn update_controller_info_text(&self, text: impl Into<String>) {
-        if let Some(items) = self.tray_info.read().await.as_ref() {
-            if let Err(err) = items.controller.set_text(text.into()) {
+        if let Some(items) = self.tray_info.read().await.as_ref()
+            && let Err(err) = items.controller.set_text(text.into()) {
                 warn!("failed to update controller info menu item: {err}");
             }
-        }
     }
 
     pub(crate) async fn update_admin_info_text(&self, text: impl Into<String>) {
-        if let Some(items) = self.tray_info.read().await.as_ref() {
-            if let Err(err) = items.admin_host.set_text(text.into()) {
+        if let Some(items) = self.tray_info.read().await.as_ref()
+            && let Err(err) = items.admin_host.set_text(text.into()) {
                 warn!("failed to update admin info menu item: {err}");
             }
-        }
     }
 
     pub(crate) async fn update_system_proxy_text(&self, enabled: bool, endpoint: Option<&str>) {
@@ -354,43 +350,38 @@ impl AppState {
     }
 
     pub(crate) async fn update_core_version_text(&self, text: impl Into<String>) {
-        if let Some(items) = self.tray_info.read().await.as_ref() {
-            if let Err(err) = items.core_version.set_text(text.into()) {
+        if let Some(items) = self.tray_info.read().await.as_ref()
+            && let Err(err) = items.core_version.set_text(text.into()) {
                 warn!("failed to update core version menu item: {err}");
             }
-        }
     }
 
     pub(crate) async fn update_core_installed_text(&self, text: impl Into<String>) {
-        if let Some(items) = self.tray_info.read().await.as_ref() {
-            if let Err(err) = items.core_installed.set_text(text.into()) {
+        if let Some(items) = self.tray_info.read().await.as_ref()
+            && let Err(err) = items.core_installed.set_text(text.into()) {
                 warn!("failed to update core installed menu item: {err}");
             }
-        }
     }
 
     pub(crate) async fn update_core_status_text(&self, text: impl Into<String>) {
-        if let Some(items) = self.tray_info.read().await.as_ref() {
-            if let Err(err) = items.core_status.set_text(text.into()) {
+        if let Some(items) = self.tray_info.read().await.as_ref()
+            && let Err(err) = items.core_status.set_text(text.into()) {
                 warn!("failed to update core status menu item: {err}");
             }
-        }
     }
 
     pub(crate) async fn update_core_network_text(&self, text: impl Into<String>) {
-        if let Some(items) = self.tray_info.read().await.as_ref() {
-            if let Err(err) = items.core_network.set_text(text.into()) {
+        if let Some(items) = self.tray_info.read().await.as_ref()
+            && let Err(err) = items.core_network.set_text(text.into()) {
                 warn!("failed to update core network menu item: {err}");
             }
-        }
     }
 
     pub(crate) async fn set_core_update_enabled(&self, enabled: bool) {
-        if let Some(items) = self.tray_info.read().await.as_ref() {
-            if let Err(err) = items.core_update.set_enabled(enabled) {
+        if let Some(items) = self.tray_info.read().await.as_ref()
+            && let Err(err) = items.core_update.set_enabled(enabled) {
                 warn!("failed to update core update menu item: {err}");
             }
-        }
     }
 
     pub(crate) async fn refresh_core_version_info(&self) {
@@ -418,11 +409,10 @@ impl AppState {
                 self.update_core_network_text(format!("{}: {}", lang.tr("network_check"), lang.tr("not_set")))
                     .await;
                 self.set_core_update_enabled(true).await;
-                if let Some(items) = self.tray_info.read().await.as_ref() {
-                    if let Err(err) = items.core_default.set_checked(use_bundled) {
+                if let Some(items) = self.tray_info.read().await.as_ref()
+                    && let Err(err) = items.core_default.set_checked(use_bundled) {
                         warn!("failed to update core default menu item: {err}");
                     }
-                }
             }
             Err(err) => {
                 warn!("failed to read core version info: {err:#}");
@@ -497,14 +487,13 @@ impl AppState {
             return Err(err);
         }
         // If language changed, refresh tray immediately
-        if let Some(app_handle) = self.app_handle.read().await.as_ref() {
-            if let Err(err) = crate::tray::refresh_tray_menu(
+        if let Some(app_handle) = self.app_handle.read().await.as_ref()
+            && let Err(err) = crate::tray::refresh_tray_menu(
                 app_handle,
                 self,
             ).await {
                 warn!("failed to refresh tray menu after settings change: {err}");
             }
-        }
         Ok(())
     }
 
@@ -519,11 +508,10 @@ impl AppState {
     }
 
     pub(crate) async fn set_open_webui_checked(&self, enabled: bool) {
-        if let Some(items) = self.tray_info.read().await.as_ref() {
-            if let Err(err) = items.open_webui.set_checked(enabled) {
+        if let Some(items) = self.tray_info.read().await.as_ref()
+            && let Err(err) = items.open_webui.set_checked(enabled) {
                 warn!("failed to update open webui menu item: {err}");
             }
-        }
     }
 
     pub(crate) async fn open_webui_on_startup(&self) -> bool {
@@ -555,11 +543,10 @@ impl AppState {
     }
 
     pub(crate) async fn set_autostart_checked(&self, enabled: bool) {
-        if let Some(items) = self.tray_info.read().await.as_ref() {
-            if let Err(err) = items.autostart.set_checked(enabled) {
+        if let Some(items) = self.tray_info.read().await.as_ref()
+            && let Err(err) = items.autostart.set_checked(enabled) {
                 warn!("failed to update autostart menu item: {err}");
             }
-        }
     }
 
     pub(crate) async fn use_bundled_core(&self) -> bool {
@@ -636,8 +623,8 @@ impl AppState {
 
     async fn show_notification(&self, title: &str, body: &str) {
         let app_handle = self.app_handle.read().await.clone();
-        if let Some(handle) = app_handle {
-            if let Err(err) = handle
+        if let Some(handle) = app_handle
+            && let Err(err) = handle
                 .notification()
                 .builder()
                 .title(title)
@@ -646,7 +633,6 @@ impl AppState {
             {
                 warn!("failed to show notification: {err}");
             }
-        }
     }
 }
 

@@ -200,11 +200,9 @@ impl MihomoClient {
                     match msg {
                         Ok(Message::Text(text)) => {
                             if let Ok(traffic) = serde_json::from_str::<TrafficData>(text.as_ref())
-                            {
-                                if tx.send(traffic).is_err() {
+                                && tx.send(traffic).is_err() {
                                     break;
                                 }
-                            }
                         }
                         Ok(Message::Close(_)) => break,
                         Err(_) => break,
@@ -280,11 +278,9 @@ impl MihomoClient {
                         Ok(Message::Text(text)) => {
                             if let Ok(snapshot) =
                                 serde_json::from_str::<ConnectionSnapshot>(text.as_ref())
-                            {
-                                if tx.send(snapshot).is_err() {
+                                && tx.send(snapshot).is_err() {
                                     break;
                                 }
-                            }
                         }
                         Ok(Message::Close(_)) => break,
                         Err(_) => break,

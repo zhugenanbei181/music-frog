@@ -57,7 +57,23 @@ object VpnStateManager {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private const val PREFS_NAME = "vpn_persistence"
+    private const val KEY_SHOULD_BE_RUNNING = "should_be_running"
+
     private var receiver: VpnStateReceiver? = null
+
+    /**
+     * Check if VPN was running before shutdown
+     */
+    fun shouldBeRunning(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_SHOULD_BE_RUNNING, false)
+    }
+
+    private fun setShouldBeRunning(context: Context, running: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_SHOULD_BE_RUNNING, running).apply()
+    }
 
     /**
      * Check and update VPN permission state
@@ -94,9 +110,10 @@ object VpnStateManager {
     /**
      * Called when VPN service has started successfully
      */
-    fun onVpnStarted() {
+    fun onVpnStarted(context: Context? = null) {
         _vpnState.value = VpnState.RUNNING
         _errorMessage.value = null
+        context?.let { setShouldBeRunning(it, true) }
     }
 
     /**
@@ -109,8 +126,9 @@ object VpnStateManager {
     /**
      * Called when VPN service has stopped
      */
-    fun onVpnStopped() {
+    fun onVpnStopped(context: Context? = null) {
         _vpnState.value = VpnState.STOPPED
+        context?.let { setShouldBeRunning(it, false) }
     }
 
     /**
@@ -192,9 +210,9 @@ object VpnStateManager {
             
             when (state) {
                 VpnState.STARTING -> onVpnStarting()
-                VpnState.RUNNING -> onVpnStarted()
+                VpnState.RUNNING -> onVpnStarted(context)
                 VpnState.STOPPING -> onVpnStopping()
-                VpnState.STOPPED -> onVpnStopped()
+                VpnState.STOPPED -> onVpnStopped(context)
                 VpnState.ERROR -> {
                     val error = intent.getStringExtra(EXTRA_ERROR_MESSAGE) ?: "Unknown error"
                     onVpnError(error)

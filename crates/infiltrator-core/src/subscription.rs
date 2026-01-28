@@ -209,4 +209,67 @@ mod tests {
         assert!(!looks_like_gzip(&[0x00, 0x00, 0x00]));
         assert!(!looks_like_gzip(&[]));
     }
+
+    #[test]
+    fn test_decode_gzip() {
+        use std::io::Write;
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(b"hello world").unwrap();
+        let compressed = encoder.finish().unwrap();
+        let decoded = decode_gzip(&compressed).unwrap();
+        assert_eq!(decoded, b"hello world");
+    }
+
+    #[test]
+    fn test_decode_deflate() {
+        use std::io::Write;
+        let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(b"hello world").unwrap();
+        let compressed = encoder.finish().unwrap();
+        let decoded = decode_deflate(&compressed).unwrap();
+        assert_eq!(decoded, b"hello world");
+    }
+
+    #[test]
+    fn test_decode_brotli() {
+        use std::io::Write;
+        let mut writer = brotli::CompressorWriter::new(Vec::new(), 4096, 3, 20);
+        writer.write_all(b"hello world").unwrap();
+        let compressed = writer.into_inner();
+        let decoded = decode_brotli(&compressed).unwrap();
+        assert_eq!(decoded, b"hello world");
+    }
+
+    #[test]
+    fn test_decode_utf8_text() {
+        assert_eq!(decode_utf8_text(b"hello").unwrap(), "hello");
+        
+        // Invalid UTF-8 should fallback to lossy
+        let invalid = b"\xff\xfe\xfd";
+        let decoded = decode_utf8_text(invalid).unwrap();
+        assert!(decoded.contains('\u{FFFD}'));
+    }
+
+    #[test]
+    fn test_decode_subscription_bytes_auto_gzip() {
+        use std::io::Write;
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(b"hello world").unwrap();
+        let compressed = encoder.finish().unwrap();
+        
+        // Auto-detect gzip by header
+        let decoded = decode_subscription_bytes(compressed, None).unwrap();
+        assert_eq!(decoded, b"hello world");
+    }
+
+    #[test]
+    fn test_decode_subscription_bytes_explicit() {
+        use std::io::Write;
+        let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(b"hello world").unwrap();
+        let compressed = encoder.finish().unwrap();
+        
+        let decoded = decode_subscription_bytes(compressed, Some("deflate")).unwrap();
+        assert_eq!(decoded, b"hello world");
+    }
 }

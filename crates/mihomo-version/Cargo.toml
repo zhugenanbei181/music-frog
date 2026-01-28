@@ -29,3 +29,4 @@ reqwest = { workspace = true, default-features = false, features = ["native-tls"
 [dev-dependencies]
 mockito = "1.7"
 tokio = { workspace = true }
+tempfile = "3"

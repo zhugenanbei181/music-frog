@@ -1,146 +1,165 @@
 package com.musicfrog.despicableinfiltrator.ui.settings.tun
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.musicfrog.despicableinfiltrator.R
 import com.musicfrog.despicableinfiltrator.ui.common.ErrorDialog
+import com.musicfrog.despicableinfiltrator.ui.common.StandardListItem
 
 @Composable
-fun TunScreen() {
-    val viewModel = remember { TunViewModel() }
+fun TunScreen(viewModel: TunViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(text = "TUN Settings", style = MaterialTheme.typography.titleLarge)
-
-        if (state.isLoading) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(modifier = Modifier.height(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Loading...")
+    Scaffold(
+        bottomBar = {
+            if (state.saved) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.text_saved),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
             }
         }
-
-        if (state.error != null) {
-            ErrorDialog(
-                message = state.error ?: "",
-                onDismiss = { viewModel.clearError() }
-            )
-        }
-
-        OutlinedTextField(
-            value = state.mtu,
-            onValueChange = { viewModel.updateMtu(it) },
-            label = { Text("MTU") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !state.isLoading
-        )
-
-        ToggleRow(
-            title = "Auto Route",
-            checked = state.autoRoute,
-            onCheckedChange = { viewModel.updateAutoRoute(it) },
-            enabled = !state.isLoading
-        )
-
-        ToggleRow(
-            title = "Strict Route",
-            checked = state.strictRoute,
-            onCheckedChange = { viewModel.updateStrictRoute(it) },
-            enabled = !state.isLoading
-        )
-
-        ToggleRow(
-            title = "IPv6",
-            checked = state.ipv6,
-            onCheckedChange = { viewModel.updateIpv6(it) },
-            enabled = !state.isLoading
-        )
-
-        OutlinedTextField(
-            value = state.dnsServers,
-            onValueChange = { viewModel.updateDnsServers(it) },
-            label = { Text("DNS Servers (one per line)") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp),
-            enabled = !state.isLoading,
-            maxLines = 6
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Button(
-                onClick = { viewModel.save() },
-                enabled = !state.isLoading
-            ) {
-                Text(text = "Save")
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            if (state.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
-            TextButton(
-                onClick = { viewModel.load() },
-                enabled = !state.isLoading
-            ) {
-                Text(text = "Reload")
+
+            if (state.error != null) {
+                ErrorDialog(
+                    message = state.error ?: "",
+                    onDismiss = { viewModel.clearError() }
+                )
+            }
+
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                item {
+                    OutlinedTextField(
+                        value = state.mtu,
+                        onValueChange = { viewModel.updateMtu(it) },
+                        label = { Text(stringResource(R.string.label_mtu)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        enabled = !state.isLoading,
+                        singleLine = true
+                    )
+                }
+
+                item {
+                    StandardListItem(
+                        headline = stringResource(R.string.tun_auto_route),
+                        supporting = stringResource(R.string.tun_auto_route_desc),
+                        trailingContent = {
+                            Switch(
+                                checked = state.autoRoute,
+                                onCheckedChange = { viewModel.updateAutoRoute(it) },
+                                enabled = !state.isLoading
+                            )
+                        },
+                        onClick = { if (!state.isLoading) viewModel.updateAutoRoute(!state.autoRoute) }
+                    )
+                    HorizontalDivider()
+                }
+
+                item {
+                    StandardListItem(
+                        headline = stringResource(R.string.tun_strict_route),
+                        supporting = stringResource(R.string.tun_strict_route_desc),
+                        trailingContent = {
+                            Switch(
+                                checked = state.strictRoute,
+                                onCheckedChange = { viewModel.updateStrictRoute(it) },
+                                enabled = !state.isLoading
+                            )
+                        },
+                        onClick = { if (!state.isLoading) viewModel.updateStrictRoute(!state.strictRoute) }
+                    )
+                    HorizontalDivider()
+                }
+
+                item {
+                    StandardListItem(
+                        headline = stringResource(R.string.label_ipv6),
+                        supporting = stringResource(R.string.tun_ipv6_desc),
+                        trailingContent = {
+                            Switch(
+                                checked = state.ipv6,
+                                onCheckedChange = { viewModel.updateIpv6(it) },
+                                enabled = !state.isLoading
+                            )
+                        },
+                        onClick = { if (!state.isLoading) viewModel.updateIpv6(!state.ipv6) }
+                    )
+                    HorizontalDivider()
+                }
+
+                item {
+                    OutlinedTextField(
+                        value = state.dnsServers,
+                        onValueChange = { viewModel.updateDnsServers(it) },
+                        label = { Text(stringResource(R.string.label_dns_servers)) },
+                        supportingText = { Text(stringResource(R.string.desc_one_per_line)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        enabled = !state.isLoading,
+                        minLines = 3,
+                        maxLines = 6
+                    )
+                }
+
+                item {
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.save() },
+                            enabled = !state.isLoading,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(stringResource(R.string.action_save))
+                        }
+                        TextButton(
+                            onClick = { viewModel.load() },
+                            enabled = !state.isLoading
+                        ) {
+                            Text(stringResource(R.string.action_reload))
+                        }
+                    }
+                }
             }
         }
-
-        if (state.saved) {
-            Text(
-                text = "Saved",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-    }
-}
-
-@Composable
-private fun ToggleRow(
-    title: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    enabled: Boolean
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = title,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            enabled = enabled
-        )
     }
 }

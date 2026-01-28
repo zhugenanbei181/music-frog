@@ -108,7 +108,7 @@ fn apply_tun_config(doc: &mut Value, config: &TunConfig) -> Result<()> {
         .as_mapping_mut()
         .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
     if config.is_empty() {
-        map.remove(&Value::String("tun".to_string()));
+        map.remove(Value::String("tun".to_string()));
         return Ok(());
     }
     let tun_value = serde_yaml::to_value(config).context("encode tun config")?;
@@ -130,11 +130,10 @@ fn validate_tun_config(config: &TunConfig) -> Result<()> {
             }
         }
     }
-    if let Some(mtu) = config.mtu {
-        if mtu == 0 {
+    if let Some(mtu) = config.mtu
+        && mtu == 0 {
             return Err(anyhow!("mtu must be greater than 0"));
         }
-    }
     Ok(())
 }
 
@@ -164,6 +163,36 @@ mod tests {
         let config = TunConfig::default();
         apply_tun_config(&mut doc, &config).expect("apply tun");
         let map = doc.as_mapping().expect("mapping");
-        assert!(map.get(&Value::String("tun".to_string())).is_none());
+        assert!(map.get(Value::String("tun".to_string())).is_none());
+    }
+
+    #[test]
+    fn test_apply_patch() {
+        let mut config = TunConfig::default();
+        let patch = TunConfigPatch {
+            enable: Some(true),
+            stack: Some("gvisor".to_string()),
+            mtu: Some(1500),
+            ..TunConfigPatch::default()
+        };
+        config.apply_patch(patch);
+        assert_eq!(config.enable, Some(true));
+        assert_eq!(config.stack, Some("gvisor".to_string()));
+        assert_eq!(config.mtu, Some(1500));
+    }
+
+    #[test]
+    fn test_validate_tun_config_errors() {
+        // Invalid stack
+        let config = TunConfig { stack: Some("lwip".to_string()), ..TunConfig::default() };
+        assert!(validate_tun_config(&config).is_err());
+
+        // Zero MTU
+        let config = TunConfig { mtu: Some(0), ..TunConfig::default() };
+        assert!(validate_tun_config(&config).is_err());
+
+        // Empty dns_hijack
+        let config = TunConfig { dns_hijack: Some(vec![" ".to_string()]), ..TunConfig::default() };
+        assert!(validate_tun_config(&config).is_err());
     }
 }
