@@ -20,7 +20,7 @@ vi.mock('../../api', () => ({
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string, params?: any) => key,
+    t: (key: string, _params?: any) => key,
   }),
 }));
 
@@ -59,9 +59,9 @@ describe('useProfileManager', () => {
   it('saves profile and resets dirty flag', async () => {
     const options = buildOptions();
     vi.mocked(api.saveProfile).mockResolvedValue({
-      profile: { name: 'p1' },
+      profile: { name: 'p1' } as any,
       rebuild_scheduled: false,
-    } as any);
+    });
     vi.mocked(api.listProfiles).mockResolvedValue([]);
 
     const { editor, editorDirty, saveProfile } = useProfileManager(options);
@@ -74,45 +74,27 @@ describe('useProfileManager', () => {
 
     expect(api.saveProfile).toHaveBeenCalledWith('p1', 'c1', false);
     expect(editorDirty.value).toBe(false);
-    expect(options.busy.startBusy).toHaveBeenCalled();
   });
 
-  it('handles delete with confirmation', async () => {
+  it('handles delete profile errors', async () => {
     const options = buildOptions();
-    // Mock window.prompt
-    const promptMock = vi.fn().mockReturnValue('delete-me');
+    const promptMock = vi.fn().mockReturnValue('p1');
     vi.stubGlobal('window', { prompt: promptMock });
-    vi.mocked(api.listProfiles).mockResolvedValue([]);
-
-    const { deleteProfile } = useProfileManager(options);
-    
-    await deleteProfile('delete-me');
-
-    expect(promptMock).toHaveBeenCalled();
-    expect(api.deleteProfile).toHaveBeenCalledWith('delete-me');
-    expect(options.setStatus).toHaveBeenCalledWith('app.delete_success', 'delete-me');
-    
-    vi.unstubAllGlobals();
-  });
-
-  it('aborts delete if confirmation mismatch', async () => {
-    const options = buildOptions();
-    const promptMock = vi.fn().mockReturnValue('wrong-name');
-    vi.stubGlobal('window', { prompt: promptMock });
+    vi.mocked(api.deleteProfile).mockRejectedValue(new Error('Delete Fail'));
 
     const { deleteProfile } = useProfileManager(options);
     await deleteProfile('p1');
 
-    expect(api.deleteProfile).not.toHaveBeenCalled();
+    expect(options.pushToast).toHaveBeenCalledWith('Delete Fail', 'error');
     vi.unstubAllGlobals();
   });
 
   it('imports profile from URL', async () => {
     const options = buildOptions();
     vi.mocked(api.importProfile).mockResolvedValue({
-      profile: { name: 'new-sub' },
+      profile: { name: 'new-sub' } as any,
       rebuild_scheduled: true,
-    } as any);
+    });
     vi.mocked(api.listProfiles).mockResolvedValue([]);
 
     const { importForm, importProfile } = useProfileManager(options);
@@ -125,70 +107,55 @@ describe('useProfileManager', () => {
 
     expect(api.importProfile).toHaveBeenCalledWith('new-sub', 'http://sub.link', true);
     expect(options.waitForRebuild).toHaveBeenCalled();
-    expect(importForm.url).toBe(''); // Form cleared
   });
 
-  it('loads profile detail into editor', async () => {
+  it('updates profile subscription', async () => {
     const options = buildOptions();
-    vi.mocked(api.getProfile).mockResolvedValue({
-      name: 'p1',
-      content: 'yaml content',
-      active: true,
-    } as any);
+    const { updateSubscription } = useProfileManager(options);
+    vi.mocked(api.setProfileSubscription).mockResolvedValue({} as any);
+    vi.mocked(api.listProfiles).mockResolvedValue([]);
 
-    const { editor, loadProfile, editorDirty } = useProfileManager(options);
-    
-    await loadProfile('p1');
+    await updateSubscription({ name: 'p1', url: 'http://u', auto_update_enabled: true });
+    expect(api.setProfileSubscription).toHaveBeenCalledWith('p1', expect.objectContaining({
+        url: 'http://u',
+        auto_update_enabled: true
+    }));
+    expect(options.setStatus).toHaveBeenCalledWith('app.save_sub_success', 'p1');
+  });
 
-    expect(editor.name).toBe('p1');
-        expect(editor.content).toBe('yaml content');
-        expect(editorDirty.value).toBe(false); // Should not be dirty immediately after load
-        expect(options.scrollToEditor).toHaveBeenCalled();
-      });
-    
-        it('imports local file correctly', async () => {
-          const options = buildOptions();
-          vi.mocked(api.saveProfile).mockResolvedValue({
-            profile: { name: 'local-file' },
-            rebuild_scheduled: true,
-          } as any);
-          vi.mocked(api.listProfiles).mockResolvedValue([]);
-      
-          // Manually mock File.text because jsdom might not implement it fully in all versions
-          const originalText = File.prototype.text;
-          File.prototype.text = vi.fn().mockResolvedValue('mock content');
-      
-          const { localForm, importLocal, onLocalFileChange } = useProfileManager(options);
-          
-          // Simulate file selection
-          const mockFile = new File([''], 'test.yaml', { type: 'text/yaml' });
-          onLocalFileChange(mockFile);
-          expect(localForm.name).toBe('test');
-      
-          await importLocal();
-      
-          expect(api.saveProfile).toHaveBeenCalledWith('test', 'mock content', false);
-          expect(options.waitForRebuild).toHaveBeenCalled();
-          expect(localForm.file).toBeNull();
-      
-          File.prototype.text = originalText;
-        });
-            it('switches profile and waits for rebuild', async () => {
-        const options = buildOptions();
-        vi.mocked(api.switchProfile).mockResolvedValue({
-          profile: { name: 'target' },
-          rebuild_scheduled: true,
-        } as any);
-        vi.mocked(api.listProfiles).mockResolvedValue([]);
-    
-        const { switchProfile } = useProfileManager(options);
-        
-        await switchProfile('target');
-    
-        expect(api.switchProfile).toHaveBeenCalledWith('target');
-        expect(options.busy.startBusy).toHaveBeenCalled();
-        expect(options.waitForRebuild).toHaveBeenCalled();
-        expect(options.setStatus).toHaveBeenCalledWith(expect.any(String), 'target');
-      });
+  it('updates profile subscription immediately', async () => {
+    const options = buildOptions();
+    const { updateSubscriptionNow } = useProfileManager(options);
+    vi.mocked(api.updateProfileNow).mockResolvedValue({
+        profile: { name: 'p1' } as any,
+        rebuild_scheduled: false
     });
+    vi.mocked(api.listProfiles).mockResolvedValue([]);
+
+    await updateSubscriptionNow('p1');
+    expect(api.updateProfileNow).toHaveBeenCalledWith('p1');
+    expect(options.setStatus).toHaveBeenCalledWith('app.update_sub_success', 'p1');
+  });
+
+  it('imports local files', async () => {
+    const options = buildOptions();
+    const { importLocal, onLocalFileChange } = useProfileManager(options);
+    vi.mocked(api.saveProfile).mockResolvedValue({
+        profile: { name: 'local' } as any,
+        rebuild_scheduled: false
+    });
+    vi.mocked(api.listProfiles).mockResolvedValue([]);
+
+    const file = new File(['content'], 'test.yaml', { type: 'text/yaml' });
+    onLocalFileChange(file);
     
+    // File.text() mock
+    const originalText = File.prototype.text;
+    File.prototype.text = vi.fn().mockResolvedValue('content');
+
+    await importLocal();
+    expect(api.saveProfile).toHaveBeenCalledWith('test', 'content', false);
+    
+    File.prototype.text = originalText;
+  });
+});

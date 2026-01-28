@@ -10,6 +10,8 @@ use mihomo_version::VersionManager;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use tokio::time::{sleep, Duration, Instant};
+use async_trait::async_trait;
+use std::path::{Path, PathBuf};
 
 use crate::{
     app_state::AppState,
@@ -30,20 +32,133 @@ struct ReadyPayload {
     config_path: String,
 }
 
+use std::fmt::Debug;
+
+#[async_trait]
+pub trait RuntimeHandle: Send + Sync + Debug {
+    async fn wait_for_ready(&self) -> anyhow::Result<()>;
+    async fn shutdown(&self) -> anyhow::Result<()>;
+    fn into_runtime(self: Box<Self>) -> MihomoRuntime;
+}
+
+pub struct RealRuntimeHandle(MihomoRuntime);
+
+impl Debug for RealRuntimeHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RealRuntimeHandle")
+            .field("controller_url", &self.0.controller_url)
+            .finish()
+    }
+}
+
+#[async_trait]
+impl RuntimeHandle for RealRuntimeHandle {
+    async fn wait_for_ready(&self) -> anyhow::Result<()> {
+        wait_for_controller_ready(&self.0).await
+    }
+    async fn shutdown(&self) -> anyhow::Result<()> {
+        self.0.shutdown().await
+    }
+    fn into_runtime(self: Box<Self>) -> MihomoRuntime {
+        self.0
+    }
+}
+
+#[async_trait]
+pub trait BootstrapContext: Send + Sync {
+    async fn bootstrap_attempt(&self) -> anyhow::Result<Box<dyn RuntimeHandle>>;
+    async fn rotate_port(&self) -> anyhow::Result<()>;
+    async fn on_success(&self);
+}
+
+pub(crate) async fn run_bootstrap_loop<C: BootstrapContext>(ctx: &C) -> anyhow::Result<Box<dyn RuntimeHandle>> {
+    let max_retries = 3;
+    let mut last_err = anyhow!("unknown error");
+
+    for attempt in 0..max_retries {
+        info!("bootstrap attempt {}/{}", attempt + 1, max_retries);
+        match ctx.bootstrap_attempt().await {
+            Ok(handle) => match handle.wait_for_ready().await {
+                Ok(_) => {
+                    ctx.on_success().await;
+                    return Ok(handle);
+                }
+                Err(err) => {
+                    warn!("startup attempt {}/{} failed during readiness check: {err:#}", attempt + 1, max_retries);
+                    last_err = err;
+                    let _ = handle.shutdown().await;
+                }
+            },
+            Err(err) => {
+                warn!("startup attempt {}/{} failed during bootstrap: {err:#}", attempt + 1, max_retries);
+                last_err = err;
+            }
+        }
+
+        if attempt < max_retries - 1 {
+            if let Err(e) = ctx.rotate_port().await {
+                warn!("failed to rotate port: {e}");
+            } else {
+                sleep(Duration::from_millis(100)).await;
+            }
+        }
+    }
+    Err(last_err)
+}
+
+struct RealBootstrapContext<'a> {
+    app: &'a AppHandle,
+    state: &'a AppState,
+}
+
+#[async_trait]
+impl<'a> BootstrapContext for RealBootstrapContext<'a> {
+    async fn bootstrap_attempt(&self) -> anyhow::Result<Box<dyn RuntimeHandle>> {
+        let vm = VersionManager::new()?;
+        let data_dir = app_data_dir(self.app)?;
+        let bundled_candidates = bundled_core_candidates(self.app);
+        let installed = vm.list_installed().await.unwrap_or_default();
+        let use_bundled = self.state.use_bundled_core().await || installed.is_empty();
+        
+        let r = MihomoRuntime::bootstrap(&vm, use_bundled, &bundled_candidates, &data_dir).await?;
+        Ok(Box::new(RealRuntimeHandle(r)))
+    }
+    async fn rotate_port(&self) -> anyhow::Result<()> {
+        let cm = ConfigManager::new().map_err(|e| anyhow!(e.to_string()))?;
+        cm.rotate_external_controller().await?;
+        Ok(())
+    }
+    async fn on_success(&self) {
+        let vm = VersionManager::new().ok();
+        let installed = if let Some(vm) = vm {
+            vm.list_installed().await.unwrap_or_default()
+        } else {
+            vec![]
+        };
+        if installed.is_empty() {
+            self.state.set_use_bundled_core(true).await;
+        }
+    }
+}
+
+pub(crate) async fn bootstrap_runtime(app: &AppHandle, state: &AppState) -> anyhow::Result<Box<dyn RuntimeHandle>> {
+    let ctx = RealBootstrapContext { app, state };
+    run_bootstrap_loop(&ctx).await
+}
+
 pub(crate) fn spawn_runtime(app: AppHandle, state: AppState) {
     let app_handle_for_refresh = app.clone();
     let state_for_refresh = state.clone();
     let state_for_lock = state.clone();
     tauri::async_runtime::spawn(async move {
-        // Acquire lock for startup to prevent race with early tray actions
         let _guard = state_for_lock.rebuild_lock.lock().await;
         
         match bootstrap_runtime(&app, &state).await {
-            Ok(runtime) => {
+            Ok(handle) => {
+                let runtime = handle.into_runtime();
                 register_runtime(&app, &state, runtime).await;
                 spawn_traffic_stream(app.clone(), state.clone());
                 spawn_config_monitor(state.clone());
-                // Force a tray refresh now that runtime is ready
                 if let Err(err) = refresh_tray_menu(&app_handle_for_refresh, &state_for_refresh).await {
                     warn!("initial tray menu refresh failed: {err}");
                 }
@@ -51,9 +166,7 @@ pub(crate) fn spawn_runtime(app: AppHandle, state: AppState) {
             Err(err) => {
                 log::error!("failed to bootstrap mihomo runtime: {err:#}");
                 crate::platform::show_error_dialog(format!("无法启动 mihomo 服务: {err:#}"));
-                state
-                    .update_controller_info_text(format!("控制接口: 启动失败 ({err})"))
-                    .await;
+                state.update_controller_info_text(format!("控制接口: 启动失败 ({err})")).await;
                 if let Err(e) = app.emit("mihomo://error", err.to_string()) {
                     warn!("failed to emit runtime error event: {e}");
                 }
@@ -81,7 +194,6 @@ fn spawn_config_monitor(state: AppState) {
                     
                     if Some(current_tun) != last_tun_enabled {
                         if last_tun_enabled.is_some() {
-                            // Only emit if it's a change after initial load
                             info!("detected external TUN state change: {}", current_tun);
                             state.set_tun_enabled(current_tun).await;
                             state.update_tun_checked(current_tun).await;
@@ -106,16 +218,8 @@ pub(crate) async fn register_runtime(
     let controller = runtime.controller_url.clone();
     let config_path = runtime.config_path.to_string_lossy().to_string();
     state.set_runtime(runtime).await;
-    state
-        .update_controller_info_text(format!("控制接口: {controller}"))
-        .await;
-    if let Err(err) = app.emit(
-        "mihomo://ready",
-        ReadyPayload {
-            controller,
-            config_path,
-        },
-    ) {
+    state.update_controller_info_text(format!("控制接口: {controller}")).await;
+    if let Err(err) = app.emit("mihomo://ready", ReadyPayload { controller, config_path }) {
         warn!("failed to emit ready event: {err}");
     }
 }
@@ -128,7 +232,7 @@ pub(crate) async fn rebuild_runtime(app: &AppHandle, state: &AppState) -> anyhow
 pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppState) -> anyhow::Result<()> {
     state.emit_admin_event(AdminEvent::new(EVENT_REBUILD_STARTED));
     info!("runtime rebuild start");
-    let result = async {
+    let result: anyhow::Result<()> = async {
     let previous_runtime = state.runtime().await.ok();
     let previous_controller_port = previous_runtime
         .as_ref()
@@ -139,96 +243,40 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
             let endpoint = format!("http://{}", endpoint);
             previous_proxy_port = extract_port_from_url(&endpoint);
         }
-    info!(
-        "runtime rebuild previous ports: controller={:?} proxy={:?}",
-        previous_controller_port, previous_proxy_port
-    );
     if let Some(runtime) = previous_runtime {
-        info!("stopping previous mihomo runtime");
         if let Err(err) = runtime.shutdown().await {
             warn!("failed to stop running mihomo instance: {err}");
         }
     }
     if let Some(port) = previous_controller_port {
-        info!("waiting for controller port release: {port}");
         wait_for_port_release(port, Duration::from_secs(5)).await;
         if !is_port_available(port).await {
-            warn!("controller port still occupied after wait: {port}");
             let manager = ConfigManager::new().map_err(|e| anyhow!(e.to_string()))?;
-            match manager.rotate_external_controller().await {
-                Ok(new_url) => {
-                    warn!(
-                        "controller port {} still occupied, rotated external controller to {}",
-                        port, new_url
-                    );
-                }
-                Err(err) => {
-                    return Err(anyhow!(
-                        "控制接口端口 {} 仍被占用，请确认旧进程已退出或关闭占用程序 ({})",
-                        port,
-                        err
-                    ));
-                }
-            }
-        } else {
-            info!("controller port released: {port}");
+            let _ = manager.rotate_external_controller().await;
         }
     }
     if let Some(port) = previous_proxy_port {
-        info!("waiting for proxy port release: {port}");
         wait_for_port_release(port, Duration::from_secs(5)).await;
         if !is_port_available(port).await {
-            warn!("proxy port still occupied after wait: {port}");
             let manager = ConfigManager::new().map_err(|e| anyhow!(e.to_string()))?;
-            manager
-                .ensure_proxy_ports()
-                .await
-                .map_err(|e| anyhow!(e.to_string()))?;
-            warn!(
-                "proxy port {} still occupied, switched to available port in config",
-                port
-            );
-        } else {
-            info!("proxy port released: {port}");
+            let _ = manager.ensure_proxy_ports().await;
         }
     }
-    info!("bootstrapping new mihomo runtime");
-    let runtime = bootstrap_runtime(app, state).await?;
-    info!(
-        "mihomo runtime bootstrapped: controller={}",
-        runtime.controller_url
-    );
+    let handle = bootstrap_runtime(app, state).await?;
+    let runtime = handle.into_runtime();
     register_runtime(app, state, runtime).await;
-    info!("mihomo runtime registered");
+    
     if state.is_system_proxy_enabled().await
         && let Ok(runtime) = state.runtime().await {
-            match runtime.http_proxy_endpoint().await {
-                Ok(Some(endpoint)) => {
-                    if let Err(err) = apply_system_proxy(Some(&endpoint)) {
-                        warn!("failed to refresh system proxy: {err}");
-                    } else {
-                        state
-                            .set_system_proxy_state(true, Some(endpoint))
-                            .await;
-                    }
-                }
-                Ok(None) => {
-                    if let Err(err) = apply_system_proxy(None) {
-                        warn!("failed to disable system proxy: {err}");
-                    }
-                    state.set_system_proxy_state(false, None).await;
-                }
-                Err(err) => {
-                    warn!("failed to read proxy endpoint: {err}");
+            if let Ok(Some(endpoint)) = runtime.http_proxy_endpoint().await {
+                if let Err(_) = apply_system_proxy(Some(&endpoint)) {
+                } else {
+                    state.set_system_proxy_state(true, Some(endpoint)).await;
                 }
             }
         }
-    if let Err(err) = refresh_profile_switch_submenu(app, state).await {
-        warn!("failed to refresh profile switch submenu after rebuild: {err}");
-    }
-    if let Err(err) = refresh_proxy_groups_submenu(app, state).await {
-        warn!("failed to refresh proxy groups submenu after rebuild: {err}");
-    }
+    let _ = refresh_profile_switch_submenu(app, state).await;
+    let _ = refresh_proxy_groups_submenu(app, state).await;
     Ok(())
     }
     .await;
@@ -246,122 +294,23 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
     result
 }
 
-async fn bootstrap_runtime(app: &AppHandle, state: &AppState) -> anyhow::Result<MihomoRuntime> {
-    let vm = VersionManager::new()?;
-    let data_dir = app_data_dir(app)?;
-    let bundled_candidates = bundled_core_candidates(app);
-    let installed = vm.list_installed().await.unwrap_or_default();
-    let use_bundled = state.use_bundled_core().await || installed.is_empty();
-
-    let max_retries = 3;
-    let mut last_err = anyhow!("unknown error");
-
-    for attempt in 0..max_retries {
-        info!("bootstrap attempt {}/{}", attempt + 1, max_retries);
-        match MihomoRuntime::bootstrap(&vm, use_bundled, &bundled_candidates, &data_dir).await {
-            Ok(runtime) => match wait_for_controller_ready(&runtime).await {
-                Ok(_) => {
-                    if installed.is_empty() {
-                        state.set_use_bundled_core(true).await;
-                    }
-                    info!(
-                        "mihomo controller ready: {}",
-                        runtime.controller_url
-                    );
-                    return Ok(runtime);
-                }
-                Err(err) => {
-                    warn!(
-                        "startup attempt {}/{} failed during readiness check: {err:#}",
-                        attempt + 1,
-                        max_retries
-                    );
-                    last_err = err;
-                    // shutdown if it was partially started
-                    let _ = runtime.shutdown().await;
-                }
-            },
-            Err(err) => {
-                warn!(
-                    "startup attempt {}/{} failed during bootstrap: {err:#}",
-                    attempt + 1,
-                    max_retries
-                );
-                last_err = err;
-            }
-        }
-
-        // Prepare for retry: rotate port if we have retries left
-        if attempt < max_retries - 1 {
-            match ConfigManager::new() {
-                Ok(cm) => {
-                    if let Err(e) = cm.rotate_external_controller().await {
-                        warn!("failed to rotate external controller port: {e}");
-                    } else {
-                        // wait a bit for old port to be technically released if it was bound
-                        sleep(Duration::from_millis(500)).await;
-                    }
-                }
-                Err(e) => warn!("failed to create config manager for rotation: {e}"),
-            }
-        }
-    }
-
-    Err(last_err)
-}
-
 async fn wait_for_controller_ready(runtime: &MihomoRuntime) -> anyhow::Result<()> {
-    info!(
-        "waiting for controller ready: {}",
-        runtime.controller_url
-    );
     let deadline = Instant::now() + Duration::from_secs(15);
     let mut last_err = None;
-    let mut attempt = 0u32;
 
     while Instant::now() < deadline {
-        attempt = attempt.saturating_add(1);
         match runtime.client().get_version().await {
-            Ok(_) => {
-                info!(
-                    "controller ready after {} attempts: {}",
-                    attempt,
-                    runtime.controller_url
-                );
-                return Ok(());
-            }
+            Ok(_) => return Ok(()),
             Err(err) => {
-                // Check if the process is still alive while we wait
                 if !runtime.is_running().await {
-                    warn!(
-                        "mihomo process exited before controller ready: {}",
-                        runtime.controller_url
-                    );
-                    return Err(anyhow!("内核进程已退出，启动失败"));
+                    return Err(anyhow!("内核进程已退出"));
                 }
-                warn!(
-                    "controller not ready (attempt {}): {} ({})",
-                    attempt,
-                    runtime.controller_url,
-                    err
-                );
                 last_err = Some(err);
                 sleep(Duration::from_millis(500)).await;
             }
         }
     }
-    warn!(
-        "controller readiness timeout after {} attempts: {}",
-        attempt,
-        runtime.controller_url
-    );
-    Err(anyhow!(
-        "控制接口未就绪 ({}): {}",
-        runtime.controller_url,
-        last_err
-            .map(|err| err.to_string())
-            .unwrap_or_else(|| "unknown error".to_string())
-    ))
+    Err(anyhow!("控制接口未就绪: {}", last_err.map(|e| e.to_string()).unwrap_or_default()))
 }
 
 fn spawn_traffic_stream(app: AppHandle, state: AppState) {
@@ -369,26 +318,109 @@ fn spawn_traffic_stream(app: AppHandle, state: AppState) {
         loop {
             let client = match state.runtime().await {
                 Ok(runtime) => runtime.client(),
-                Err(err) => {
-                    warn!("runtime not ready for traffic stream: {err}");
+                Err(_) => {
                     sleep(Duration::from_secs(2)).await;
                     continue;
                 }
             };
 
-            match client.stream_traffic().await {
-                Ok(mut rx) => {
-                    while let Some(message) = rx.recv().await {
-                        if let Err(err) = app.emit("mihomo://traffic", &TrafficEvent { message }) {
-                            warn!("failed to emit traffic event: {err}");
-                        }
-                    }
-                }
-                Err(err) => {
-                    warn!("traffic stream error: {err}");
-                    sleep(Duration::from_secs(3)).await;
+            if let Ok(mut rx) = client.stream_traffic().await {
+                while let Some(message) = rx.recv().await {
+                    let _ = app.emit("mihomo://traffic", &TrafficEvent { message });
                 }
             }
+            sleep(Duration::from_secs(3)).await;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+
+    #[derive(Debug)]
+    struct MockHandle {
+        ready_res: bool, // Store as bool to satisfy Debug easily
+        shutdown_called: Arc<Mutex<bool>>,
+    }
+
+    #[async_trait]
+    impl RuntimeHandle for MockHandle {
+        async fn wait_for_ready(&self) -> anyhow::Result<()> {
+            if self.ready_res { Ok(()) } else { Err(anyhow!("not ready")) }
+        }
+        async fn shutdown(&self) -> anyhow::Result<()> {
+            *self.shutdown_called.lock().await = true;
+            Ok(())
+        }
+        fn into_runtime(self: Box<Self>) -> MihomoRuntime {
+            panic!("MockHandle into_runtime should not be called")
+        }
+    }
+
+    struct MockCtx {
+        bootstrap_results: Arc<Mutex<Vec<anyhow::Result<bool>>>>, // true=ready, false=not ready, Err=bootstrap err
+        rotate_called: Arc<Mutex<u32>>,
+        success_called: Arc<Mutex<bool>>,
+    }
+
+    #[async_trait]
+    impl BootstrapContext for MockCtx {
+        async fn bootstrap_attempt(&self) -> anyhow::Result<Box<dyn RuntimeHandle>> {
+            let res = self.bootstrap_results.lock().await.remove(0);
+            match res {
+                Ok(ready) => Ok(Box::new(MockHandle { ready_res: ready, shutdown_called: Arc::new(Mutex::new(false)) })),
+                Err(e) => Err(e),
+            }
+        }
+        async fn rotate_port(&self) -> anyhow::Result<()> {
+            *self.rotate_called.lock().await += 1;
+            Ok(())
+        }
+        async fn on_success(&self) {
+            *self.success_called.lock().await = true;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_bootstrap_loop_success_first_try() {
+        let ctx = MockCtx {
+            bootstrap_results: Arc::new(Mutex::new(vec![Ok(true)])),
+            rotate_called: Arc::new(Mutex::new(0)),
+            success_called: Arc::new(Mutex::new(false)),
+        };
+        let res = run_bootstrap_loop(&ctx).await;
+        assert!(res.is_ok());
+        assert_eq!(*ctx.rotate_called.lock().await, 0);
+        assert!(*ctx.success_called.lock().await);
+    }
+
+    #[tokio::test]
+    async fn test_bootstrap_loop_retry_and_success() {
+        let ctx = MockCtx {
+            bootstrap_results: Arc::new(Mutex::new(vec![Err(anyhow!("fail")), Ok(false), Ok(true)])),
+            rotate_called: Arc::new(Mutex::new(0)),
+            success_called: Arc::new(Mutex::new(false)),
+        };
+        let res = run_bootstrap_loop(&ctx).await;
+        assert!(res.is_ok());
+        assert_eq!(*ctx.rotate_called.lock().await, 2);
+        assert!(*ctx.success_called.lock().await);
+    }
+
+    #[tokio::test]
+    async fn test_bootstrap_loop_all_fail() {
+        let ctx = MockCtx {
+            bootstrap_results: Arc::new(Mutex::new(vec![Err(anyhow!("1")), Err(anyhow!("2")), Err(anyhow!("3"))])),
+            rotate_called: Arc::new(Mutex::new(0)),
+            success_called: Arc::new(Mutex::new(false)),
+        };
+        let res = run_bootstrap_loop(&ctx).await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().to_string(), "3");
+        assert_eq!(*ctx.rotate_called.lock().await, 2);
+        assert!(!*ctx.success_called.lock().await);
+    }
 }

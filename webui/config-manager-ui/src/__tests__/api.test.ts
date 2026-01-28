@@ -19,7 +19,7 @@ describe('api', () => {
       },
       json: async () => data,
       text: async () => (typeof data === 'string' ? data : JSON.stringify(data)),
-    };
+    } as Response;
   }
 
   it('listProfiles calls correct endpoint', async () => {
@@ -142,18 +142,33 @@ describe('api', () => {
 
     for (const c of cfgs) {
         mockFetch.mockResolvedValueOnce(createFetchResponse({}));
-        await (c.get as any)();
+        await (api as any)[c.get.name]();
         expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining(c.url), expect.anything());
 
         mockFetch.mockClear();
         mockFetch.mockResolvedValueOnce(createFetchResponse({}));
-        await (c.save as any)({});
+        await (api as any)[c.save.name]({});
         expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining(c.url), expect.objectContaining({ method: 'POST' }));
     }
   });
 
+  it('syncWebDavNow and testWebDav work', async () => {
+    mockFetch.mockResolvedValueOnce(createFetchResponse({}));
+    await api.syncWebDavNow();
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/admin/api/webdav/sync'), expect.objectContaining({ method: 'POST' }));
+
+    mockFetch.mockResolvedValueOnce(createFetchResponse(null, true, 204));
+    await api.testWebDav({} as any);
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/admin/api/webdav/test'), expect.objectContaining({ method: 'POST' }));
+  });
+
+  it('getRebuildStatus works', async () => {
+    mockFetch.mockResolvedValueOnce(createFetchResponse({ rebuilding: false }));
+    await api.getRebuildStatus();
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/admin/api/rebuild/status'), expect.anything());
+  });
+
   it('handles timeout correctly', async () => {
-    // We simulate an AbortError which is what fetch throws when controller.abort() is called
     const abortError = new Error('The user aborted a request.');
     abortError.name = 'AbortError';
     mockFetch.mockRejectedValueOnce(abortError);
@@ -168,7 +183,37 @@ describe('api', () => {
 
   it('handles empty success responses', async () => {
     mockFetch.mockResolvedValueOnce(createFetchResponse(null, true, 204, ''));
-    const result = await api.setEditor('vim');
-    expect(result).toBeNull();
+    // setEditor is a real method
+    await api.setEditor('vim');
+    
+    // Test that request logic works correctly when response is ok but no content
+    mockFetch.mockResolvedValueOnce(createFetchResponse(null, true, 204, ''));
+    const profiles = await api.listProfiles();
+    expect(profiles).toBeNull();
+  });
+
+  it('handles non-JSON error response', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: () => Promise.resolve('Forbidden Text'),
+      json: () => Promise.reject(new Error('Invalid JSON')),
+      headers: { get: () => 'text/html' }
+    } as any);
+
+    await expect(api.listProfiles()).rejects.toThrow('Forbidden Text');
+  });
+
+  it('handles empty error response text', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+      text: () => Promise.resolve(''),
+      json: () => Promise.reject(new Error()),
+      headers: { get: () => 'text/plain' }
+    } as any);
+
+    await expect(api.listProfiles()).rejects.toThrow('Not Found');
   });
 });

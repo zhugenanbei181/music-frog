@@ -104,4 +104,27 @@ describe('useAdvancedSettings', () => {
     await saveRuleProviders();
     expect(pushToast).toHaveBeenCalledWith('rules.invalid_provider_items', 'error');
   });
+
+  it('handles refresh errors with toast', async () => {
+    const pushToast = vi.fn();
+    const busy = buildBusy();
+    vi.mocked(api.getDnsConfig).mockRejectedValue(new Error('Fetch DNS Fail'));
+
+    const { refreshDnsConfig } = useAdvancedSettings(pushToast, busy);
+    await refreshDnsConfig();
+
+    expect(pushToast).toHaveBeenCalledWith('Fetch DNS Fail', 'error');
+  });
+
+  it('flushes fake ip cache', async () => {
+    const pushToast = vi.fn();
+    const busy = buildBusy();
+    vi.mocked(api.flushFakeIpCache).mockResolvedValue({ removed: true });
+
+    const { flushFakeIpCache } = useAdvancedSettings(pushToast, busy);
+    await flushFakeIpCache();
+
+    expect(api.flushFakeIpCache).toHaveBeenCalled();
+    expect(pushToast).toHaveBeenCalledWith('fake_ip.flush_done');
+  });
 });

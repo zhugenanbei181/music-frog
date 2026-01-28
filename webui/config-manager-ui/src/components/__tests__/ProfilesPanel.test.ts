@@ -16,7 +16,23 @@ const i18n = createI18n({
         set_active: 'Set Active',
         active: 'Active',
         delete: 'Delete',
+        edit: 'Edit',
+        external_edit: 'External Edit',
+        update_now: 'Update Now',
+        refresh: 'Refresh',
+        clear: 'Clear',
         time_not_set: 'Not set',
+        settings: 'Settings',
+        save_settings: 'Save Settings',
+        enable_auto_update: 'Auto Update',
+        hours_48: '48 Hours',
+        sub_url: '{url}',
+        collapse: 'Collapse',
+        hours_12: '12h',
+        hours_24: '24h',
+        days_7: '7d',
+        subscription: 'Sub',
+        next_update: 'Next: {time}'
       }
     }
   }
@@ -53,7 +69,7 @@ describe('ProfilesPanel', () => {
 
     expect(wrapper.text()).toContain('profile1');
     expect(wrapper.text()).toContain('profile2');
-    expect(wrapper.text()).toContain('Current'); // badge for active
+    expect(wrapper.text()).toContain('Current');
   });
 
   it('filters profiles based on filter prop', () => {
@@ -81,13 +97,14 @@ describe('ProfilesPanel', () => {
     });
 
     const setVisibleBtn = wrapper.findAll('button').find(b => b.text() === 'Set Active');
+    expect(setVisibleBtn).toBeDefined();
     await setVisibleBtn?.trigger('click');
 
     expect(wrapper.emitted('switch')).toBeTruthy();
     expect(wrapper.emitted('switch')![0]).toEqual(['profile2']);
   });
 
-  it('opens subscription settings when clicked', async () => {
+  it('emits delete, load, open-external, update-now events', async () => {
     const wrapper = mount(ProfilesPanel, {
       global: { plugins: [i18n] },
       props: {
@@ -97,7 +114,80 @@ describe('ProfilesPanel', () => {
       },
     });
 
-    // Profile 1 is active and has sub url, should show 'Settings' (mapped from $t('profiles.settings'))
-    // Note: Our mock i18n is minimal, let's look for text or use a better mock
+    // delete profile2
+    const deleteBtn = wrapper.findAll('button').find(b => b.text() === 'Delete');
+    expect(deleteBtn).toBeDefined();
+    await deleteBtn?.trigger('click');
+    expect(wrapper.emitted('delete')![0]).toEqual(['profile2']);
+
+    // edit profile1
+    const editBtn = wrapper.findAll('button').find(b => b.text() === 'Edit');
+    expect(editBtn).toBeDefined();
+    await editBtn?.trigger('click');
+    expect(wrapper.emitted('load')![0]).toEqual(['profile1']);
+
+    // external edit
+    const extBtn = wrapper.findAll('button').find(b => b.text() === 'External Edit');
+    expect(extBtn).toBeDefined();
+    await extBtn?.trigger('click');
+    expect(wrapper.emitted('open-external')![0]).toEqual(['profile1']);
+
+    // update now
+    const updateBtn = wrapper.findAll('button').find(b => b.text() === 'Update Now');
+    expect(updateBtn).toBeDefined();
+    await updateBtn?.trigger('click');
+    expect(wrapper.emitted('update-now')![0]).toEqual(['profile1']);
+  });
+
+  it('emits global refresh and clear events', async () => {
+    const wrapper = mount(ProfilesPanel, {
+      global: { plugins: [i18n] },
+      props: { profiles: [], activeCount: 0, filter: '' },
+    });
+
+    const refreshBtn = wrapper.findAll('button').find(b => b.text() === 'Refresh');
+    expect(refreshBtn).toBeDefined();
+    await refreshBtn?.trigger('click');
+    expect(wrapper.emitted('refresh')).toBeTruthy();
+
+    const clearBtn = wrapper.findAll('button').find(b => b.text() === 'Clear');
+    expect(clearBtn).toBeDefined();
+    await clearBtn?.trigger('click');
+    expect(wrapper.emitted('clear')).toBeTruthy();
+  });
+
+  it('interacts with subscription settings', async () => {
+    const wrapper = mount(ProfilesPanel, {
+      global: { plugins: [i18n] },
+      props: {
+        profiles: mockProfiles,
+        activeCount: 1,
+        filter: '',
+      },
+    });
+
+    // Toggle settings open
+    const settingsBtn = wrapper.findAll('button').find(b => b.text() === 'Settings');
+    expect(settingsBtn).toBeDefined();
+    await settingsBtn?.trigger('click');
+    
+    // Auto update is true initially from mock
+    expect(wrapper.find('select').exists()).toBe(true);
+    
+    // Select interval
+    const select = wrapper.find('select');
+    await select.setValue('48');
+
+    // Save
+    const saveBtn = wrapper.findAll('button').find(b => b.text() === 'Save Settings');
+    expect(saveBtn).toBeDefined();
+    await saveBtn?.trigger('click');
+
+    expect(wrapper.emitted('update-subscription')).toBeTruthy();
+    expect(wrapper.emitted('update-subscription')![0][0]).toMatchObject({
+        name: 'profile1',
+        auto_update_enabled: true,
+        update_interval_hours: 48
+    });
   });
 });
