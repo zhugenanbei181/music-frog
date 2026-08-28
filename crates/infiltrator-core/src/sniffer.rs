@@ -1,10 +1,10 @@
 use anyhow::{Context, Result, anyhow};
 use mihomo_config::ConfigManager;
-use serde_yaml::{Mapping, Value};
+use serde_yml::{Mapping, Value};
 
 pub async fn load_sniffer_config() -> Result<serde_json::Value> {
     let doc = load_profile_doc().await?;
-    extract_sniffer_config(&doc)
+    extract_sniffer_config_from_doc(&doc)
 }
 
 pub async fn save_sniffer_config(config: serde_json::Value) -> Result<serde_json::Value> {
@@ -18,11 +18,11 @@ pub async fn save_sniffer_config(config: serde_json::Value) -> Result<serde_json
         .load(&profile)
         .await
         .context("read profile config")?;
-    let mut doc: Value = serde_yaml::from_str(&content).context("parse profile yaml")?;
+    let mut doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
 
     apply_sniffer_config(&mut doc, &config)?;
 
-    let updated = serde_yaml::to_string(&doc).context("serialize profile yaml")?;
+    let updated = serde_yml::to_string(&doc).context("serialize profile yaml")?;
     manager
         .save(&profile, &updated)
         .await
@@ -40,7 +40,7 @@ async fn load_profile_doc() -> Result<Value> {
         .load(&profile)
         .await
         .context("read profile config")?;
-    serde_yaml::from_str(&content).context("parse profile yaml")
+    serde_yml::from_str(&content).context("parse profile yaml")
 }
 
 fn validate_sniffer_config(config: &serde_json::Value) -> Result<()> {
@@ -50,7 +50,7 @@ fn validate_sniffer_config(config: &serde_json::Value) -> Result<()> {
     Ok(())
 }
 
-fn extract_sniffer_config(doc: &Value) -> Result<serde_json::Value> {
+pub fn extract_sniffer_config_from_doc(doc: &Value) -> Result<serde_json::Value> {
     let value = doc
         .get("sniffer")
         .cloned()
@@ -74,7 +74,7 @@ fn apply_sniffer_config(doc: &mut Value, config: &serde_json::Value) -> Result<(
         return Ok(());
     }
 
-    let yaml_value = serde_yaml::to_value(config).context("decode sniffer config")?;
+    let yaml_value = serde_yml::to_value(config).context("decode sniffer config")?;
     map.insert(Value::String("sniffer".to_string()), yaml_value);
     Ok(())
 }
@@ -85,14 +85,14 @@ mod tests {
 
     #[test]
     fn test_extract_sniffer_default() {
-        let doc: Value = serde_yaml::from_str("port: 7890\n").expect("yaml");
-        let config = extract_sniffer_config(&doc).expect("extract");
+        let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
+        let config = extract_sniffer_config_from_doc(&doc).expect("extract");
         assert_eq!(config, serde_json::json!({}));
     }
 
     #[test]
     fn test_apply_sniffer_empty_removes_key() {
-        let mut doc: Value = serde_yaml::from_str(
+        let mut doc: Value = serde_yml::from_str(
             r#"
 sniffer:
   enable: true
@@ -107,7 +107,7 @@ sniffer:
 
     #[test]
     fn test_apply_sniffer_writes_mapping() {
-        let mut doc: Value = serde_yaml::from_str("port: 7890\n").expect("yaml");
+        let mut doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
         let config = serde_json::json!({
             "enable": true,
             "sniff": {

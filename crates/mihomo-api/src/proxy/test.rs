@@ -1,4 +1,4 @@
-use crate::{MihomoClient, Result};
+use crate::{MihomoClient, Proxy, Result};
 use std::collections::HashMap;
 
 pub async fn test_delay(
@@ -19,8 +19,8 @@ pub async fn test_all_delays(
     let mut results = HashMap::new();
 
     for (name, info) in proxies {
-        if info.proxy_type != "Selector"
-            && info.proxy_type != "URLTest"
+        let info: Proxy = info;
+        if !info.is_group()
             && let Ok(delay) = client.test_delay(&name, test_url, timeout).await
         {
             results.insert(name, delay);

@@ -1,9 +1,41 @@
 @import "@fontsource/manrope/400.css";
 @import "@fontsource/manrope/600.css";
 @import "@fontsource/manrope/700.css";
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Manrope", sans-serif;
+
+  --color-ink-900: var(--color-ink-900);
+  --color-ink-700: var(--color-ink-700);
+  --color-ink-500: var(--color-ink-500);
+
+  --color-accent-500: var(--color-accent-500);
+  --color-accent-400: var(--color-accent-400);
+  --color-accent-200: var(--color-accent-200);
+  --color-accent-100: var(--color-accent-100);
+  --color-accent-50: var(--color-accent-50);
+
+  --color-sand-200: var(--color-sand-200);
+  --color-sand-100: var(--color-sand-100);
+  --color-sand-50: var(--color-sand-50);
+
+  --color-sun-500: var(--color-sun-500);
+  --color-sun-400: var(--color-sun-400);
+
+  --color-primary-500: var(--color-accent-500);
+  --color-primary-200: var(--color-accent-200);
+  --color-primary-50: var(--color-accent-50);
+
+  --shadow-panel: var(--shadow-panel);
+
+  --animate-pulse-soft: pulseSoft 1.6s ease-in-out infinite;
+
+  @keyframes pulseSoft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+}
 
 :root {
   color-scheme: light;
@@ -36,7 +68,6 @@
   --color-sun-400-rgb: 251 191 36;
   --shadow-panel: 0 24px 60px -40px rgba(15, 23, 42, 0.35);
   --animate-float-in: floatIn 0.5s ease-out;
-  --animate-pulse-soft: pulseSoft 1.6s ease-in-out infinite;
   --panel-border: rgba(15, 23, 42, 0.08);
   --panel-bg: rgba(255, 255, 255, 0.85);
   --input-bg: #ffffff;
@@ -80,16 +111,6 @@
   100% {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@keyframes pulseSoft {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
   }
 }
 

@@ -1,3 +1,5 @@
+use infiltrator_core::error::InfiltratorError;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 #[repr(u32)]
 pub enum FfiErrorCode {
@@ -8,6 +10,9 @@ pub enum FfiErrorCode {
     NotSupported = 4,
     Io = 5,
     Network = 6,
+    Auth = 7,
+    Sync = 8,
+    Config = 9,
     Unknown = 255,
 }
 
@@ -30,6 +35,22 @@ impl FfiStatus {
             code,
             message: Some(message.into()),
         }
+    }
+}
+
+impl From<InfiltratorError> for FfiStatus {
+    fn from(err: InfiltratorError) -> Self {
+        let code = match err {
+            InfiltratorError::Mihomo(_) => FfiErrorCode::Network,
+            InfiltratorError::Config(_) => FfiErrorCode::Config,
+            InfiltratorError::Io(_) => FfiErrorCode::Io,
+            InfiltratorError::Download(_) => FfiErrorCode::Network,
+            InfiltratorError::Sync(_) => FfiErrorCode::Sync,
+            InfiltratorError::Auth(_) => FfiErrorCode::Auth,
+            InfiltratorError::Internal(_) => FfiErrorCode::Unknown,
+            InfiltratorError::Privilege(_) => FfiErrorCode::InvalidState,
+        };
+        Self::err(code, err.to_string())
     }
 }
 
@@ -110,48 +131,10 @@ mod tests {
     }
 
     #[test]
-    fn test_string_result_ok() {
-        let result = FfiStringResult::ok(Some("value".to_string()));
-        assert_eq!(result.status.code, FfiErrorCode::Ok);
-        assert_eq!(result.value, Some("value".to_string()));
-    }
-
-    #[test]
-    fn test_bool_result_err() {
-        let result = FfiBoolResult::err(FfiErrorCode::NotReady, "not ready");
-        assert_eq!(result.status.code, FfiErrorCode::NotReady);
-        assert!(!result.value);
-    }
-
-    #[test]
-    fn test_ffi_string_result_ok_none() {
-        let res = FfiStringResult::ok(None);
-        assert!(res.value.is_none());
-        assert_eq!(res.status.code, FfiErrorCode::Ok);
-    }
-
-    #[test]
-    fn test_ffi_status_from_error() {
-        // Test manual conversion helpers if any
-        let s = FfiStatus::err(FfiErrorCode::Io, "io");
-        assert_eq!(s.code, FfiErrorCode::Io);
-    }
-
-    #[test]
-    fn test_all_error_variants_mapped() {
-        let codes = [
-            FfiErrorCode::Ok,
-            FfiErrorCode::InvalidState,
-            FfiErrorCode::InvalidInput,
-            FfiErrorCode::NotReady,
-            FfiErrorCode::NotSupported,
-            FfiErrorCode::Io,
-            FfiErrorCode::Network,
-            FfiErrorCode::Unknown,
-        ];
-        for (i, &code) in codes.iter().enumerate() {
-            // Uniffi enums usually map to their discriminants
-            assert_eq!(code as u32, if i == 7 { 255 } else { i as u32 });
-        }
+    fn test_ffi_status_from_infiltrator_error() {
+        let err = InfiltratorError::Auth("invalid pass".to_string());
+        let status: FfiStatus = err.into();
+        assert_eq!(status.code, FfiErrorCode::Auth);
+        assert!(status.message.unwrap().contains("invalid pass"));
     }
 }

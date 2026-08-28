@@ -28,6 +28,30 @@ impl Default for WebDavConfig {
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
+pub struct RuntimePanelConfig {
+    pub auto_refresh: bool,
+    pub delay_sort: String,
+    pub delay_test_url: String,
+    pub delay_timeout_ms: u32,
+    pub connection_filter: String,
+    pub connection_sort: String,
+}
+
+impl Default for RuntimePanelConfig {
+    fn default() -> Self {
+        Self {
+            auto_refresh: true,
+            delay_sort: "delay_asc".to_string(),
+            delay_test_url: "http://www.gstatic.com/generate_204".to_string(),
+            delay_timeout_ms: 5000,
+            connection_filter: String::new(),
+            connection_sort: "download_desc".to_string(),
+        }
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(default)]
 pub struct AppSettings {
     pub open_webui_on_startup: bool,
     pub editor_path: Option<String>,
@@ -35,6 +59,7 @@ pub struct AppSettings {
     pub language: String,
     pub theme: String,
     pub webdav: WebDavConfig,
+    pub runtime_panel: RuntimePanelConfig,
 }
 
 impl Default for AppSettings {
@@ -46,6 +71,7 @@ impl Default for AppSettings {
             language: "zh-CN".to_string(),
             theme: "system".to_string(),
             webdav: WebDavConfig::default(),
+            runtime_panel: RuntimePanelConfig::default(),
         }
     }
 }
@@ -98,6 +124,14 @@ mod tests {
         assert!(settings.use_bundled_core);
         assert_eq!(settings.language, "zh-CN");
         assert_eq!(settings.theme, "system");
+        assert!(settings.runtime_panel.auto_refresh);
+        assert_eq!(settings.runtime_panel.delay_sort, "delay_asc");
+        assert_eq!(
+            settings.runtime_panel.delay_test_url,
+            "http://www.gstatic.com/generate_204"
+        );
+        assert_eq!(settings.runtime_panel.delay_timeout_ms, 5000);
+        assert_eq!(settings.runtime_panel.connection_sort, "download_desc");
     }
 
     #[test]
@@ -126,5 +160,6 @@ mod tests {
         let loaded = load_settings(&settings_file).await.unwrap();
         assert_eq!(loaded.language, "en-US");
         assert!(loaded.webdav.enabled);
+        assert!(loaded.runtime_panel.auto_refresh);
     }
 }

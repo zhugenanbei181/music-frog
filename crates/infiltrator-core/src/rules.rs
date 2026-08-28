@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use anyhow::{Context, Result, anyhow};
 use mihomo_config::ConfigManager;
 use serde::{Deserialize, Serialize};
-use serde_yaml::{Mapping, Value};
+use serde_yml::{Mapping, Value};
 
 pub type RuleProviders = BTreeMap<String, serde_json::Value>;
 
@@ -25,7 +25,7 @@ pub struct RulesPayload {
 
 pub async fn load_rule_providers() -> Result<RuleProviders> {
     let doc = load_profile_doc().await?;
-    extract_rule_providers(&doc)
+    extract_rule_providers_from_doc(&doc)
 }
 
 pub async fn save_rule_providers(providers: RuleProviders) -> Result<RuleProviders> {
@@ -38,11 +38,11 @@ pub async fn save_rule_providers(providers: RuleProviders) -> Result<RuleProvide
         .load(&profile)
         .await
         .context("read profile config")?;
-    let mut doc: Value = serde_yaml::from_str(&content).context("parse profile yaml")?;
+    let mut doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
 
     apply_rule_providers(&mut doc, &providers)?;
 
-    let updated = serde_yaml::to_string(&doc).context("serialize profile yaml")?;
+    let updated = serde_yml::to_string(&doc).context("serialize profile yaml")?;
     manager
         .save(&profile, &updated)
         .await
@@ -52,7 +52,7 @@ pub async fn save_rule_providers(providers: RuleProviders) -> Result<RuleProvide
 
 pub async fn load_rules() -> Result<Vec<RuleEntry>> {
     let doc = load_profile_doc().await?;
-    extract_rules(&doc)
+    extract_rules_from_doc(&doc)
 }
 
 pub async fn save_rules(rules: Vec<RuleEntry>) -> Result<Vec<RuleEntry>> {
@@ -66,11 +66,11 @@ pub async fn save_rules(rules: Vec<RuleEntry>) -> Result<Vec<RuleEntry>> {
         .load(&profile)
         .await
         .context("read profile config")?;
-    let mut doc: Value = serde_yaml::from_str(&content).context("parse profile yaml")?;
+    let mut doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
 
     apply_rules(&mut doc, &rules)?;
 
-    let updated = serde_yaml::to_string(&doc).context("serialize profile yaml")?;
+    let updated = serde_yml::to_string(&doc).context("serialize profile yaml")?;
     manager
         .save(&profile, &updated)
         .await
@@ -88,10 +88,10 @@ async fn load_profile_doc() -> Result<Value> {
         .load(&profile)
         .await
         .context("read profile config")?;
-    serde_yaml::from_str(&content).context("parse profile yaml")
+    serde_yml::from_str(&content).context("parse profile yaml")
 }
 
-fn extract_rule_providers(doc: &Value) -> Result<RuleProviders> {
+pub fn extract_rule_providers_from_doc(doc: &Value) -> Result<RuleProviders> {
     let value = doc
         .get("rule-providers")
         .cloned()
@@ -121,7 +121,7 @@ fn apply_rule_providers(doc: &mut Value, providers: &RuleProviders) -> Result<()
 
     let mut yaml_map = Mapping::new();
     for (name, value) in providers {
-        let yaml_value = serde_yaml::to_value(value).context("decode rule provider")?;
+        let yaml_value = serde_yml::to_value(value).context("decode rule provider")?;
         yaml_map.insert(Value::String(name.to_string()), yaml_value);
     }
     map.insert(
@@ -131,7 +131,7 @@ fn apply_rule_providers(doc: &mut Value, providers: &RuleProviders) -> Result<()
     Ok(())
 }
 
-fn extract_rules(doc: &Value) -> Result<Vec<RuleEntry>> {
+pub fn extract_rules_from_doc(doc: &Value) -> Result<Vec<RuleEntry>> {
     let value = match doc.get("rules") {
         Some(v) => v.clone(),
         None => return Ok(Vec::new()),
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_apply_rules_preserves_order() {
-        let mut doc: Value = serde_yaml::from_str("rules:\n  - OLD\n").expect("yaml");
+        let mut doc: Value = serde_yml::from_str("rules:\n  - OLD\n").expect("yaml");
         let rules = vec![
             RuleEntry {
                 rule: "FIRST".into(),
@@ -256,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_apply_rule_providers_empty_removes() {
-        let mut doc: Value = serde_yaml::from_str("port: 7890\n").expect("yaml");
+        let mut doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
         let providers = RuleProviders::new();
         apply_rule_providers(&mut doc, &providers).expect("apply providers");
         let map = doc.as_mapping().expect("mapping");
@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn test_apply_rules_empty_removes() {
-        let mut doc: Value = serde_yaml::from_str("rules:\n  - DIRECT\n").expect("yaml");
+        let mut doc: Value = serde_yml::from_str("rules:\n  - DIRECT\n").expect("yaml");
         apply_rules(&mut doc, &[]).expect("apply rules");
         let map = doc.as_mapping().expect("mapping");
         assert!(map.get(Value::String("rules".to_string())).is_none());

@@ -45,6 +45,10 @@ pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
             "/admin/api/settings",
             get(get_app_settings_http::<C>).post(save_app_settings_http::<C>),
         )
+        .route("/admin/api/capabilities", get(get_capabilities_http::<C>))
+        .route("/admin/api/proxies", get(get_proxies_http::<C>))
+        .route("/admin/api/proxy/mode", post(set_proxy_mode_http::<C>))
+        .route("/admin/api/proxy/select", post(select_proxy_http::<C>))
         .route(
             "/admin/api/dns",
             get(get_dns_config_http::<C>).post(save_dns_config_http::<C>),
@@ -88,6 +92,9 @@ pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
             "/admin/api/runtime/connections",
             get(list_runtime_connections_http::<C>).delete(close_all_runtime_connections_http::<C>),
         )
+        .route("/admin/api/runtime/start", post(start_runtime_http::<C>))
+        .route("/admin/api/runtime/stop", post(stop_runtime_http::<C>))
+        .route("/admin/api/runtime/status", get(get_runtime_status_http::<C>))
         .route(
             "/admin/api/runtime/connections/{id}",
             delete(close_runtime_connection_http::<C>),

@@ -1,5 +1,15 @@
-use crate::{MihomoClient, ProxyGroup, ProxyInfo, ProxyNode, Result};
-use std::collections::HashMap;
+use crate::proxy::{Proxies, Proxy, ProxyGroup, ProxyHistory};
+use crate::{MihomoClient, Result};
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default)]
+pub struct ProxyNode {
+    pub name: String,
+    pub proxy_type: String,
+    pub udp: bool,
+    pub history: Vec<ProxyHistory>,
+    pub delay: Option<u32>,
+    pub alive: bool,
+}
 
 pub struct ProxyManager {
     client: MihomoClient,
@@ -11,31 +21,21 @@ impl ProxyManager {
     }
 
     pub async fn list_proxies(&self) -> Result<Vec<ProxyNode>> {
-        let proxies = self.client.get_proxies().await?;
+        let proxies: Proxies = self.client.get_proxies().await?;
         let mut nodes = vec![];
 
         for (name, info) in proxies {
-            let is_group = matches!(
-                info.proxy_type.as_str(),
-                "Selector"
-                    | "URLTest"
-                    | "Fallback"
-                    | "LoadBalance"
-                    | "Relay"
-                    | "Direct"
-                    | "Reject"
-                    | "Pass"
-                    | "Compatible"
-                    | "RejectDrop"
-            );
-
-            if !is_group {
-                let delay = info.history.first().map(|h| h.delay);
+            let info: Proxy = info;
+            if !info.is_group() {
+                let history = info.history().to_vec();
+                let delay = info.delay();
                 nodes.push(ProxyNode {
                     name,
-                    proxy_type: info.proxy_type,
+                    proxy_type: info.proxy_type().to_string(),
+                    udp: info.udp(),
+                    history,
                     delay,
-                    alive: delay.is_some(),
+                    alive: info.alive(),
                 });
             }
         }
@@ -46,21 +46,17 @@ impl ProxyManager {
     }
 
     pub async fn list_groups(&self) -> Result<Vec<ProxyGroup>> {
-        let proxies = self.client.get_proxies().await?;
+        let proxies: Proxies = self.client.get_proxies().await?;
         let mut groups = vec![];
 
         for (name, info) in proxies {
-            let is_group = matches!(
-                info.proxy_type.as_str(),
-                "Selector" | "URLTest" | "Fallback" | "LoadBalance" | "Relay"
-            );
-
-            if is_group {
+            let info: Proxy = info;
+            if info.is_group() {
                 groups.push(ProxyGroup {
                     name,
-                    group_type: info.proxy_type,
-                    now: info.now.unwrap_or_default(),
-                    all: info.all.unwrap_or_default(),
+                    now: info.now().unwrap_or_default().to_string(),
+                    all: info.all().unwrap_or_default().to_vec(),
+                    history: info.history().to_vec(),
                 });
             }
         }
@@ -74,11 +70,11 @@ impl ProxyManager {
     }
 
     pub async fn get_current(&self, group: &str) -> Result<String> {
-        let info = self.client.get_proxy(group).await?;
-        Ok(info.now.unwrap_or_default())
+        let info: Proxy = self.client.get_proxy(group).await?;
+        Ok(info.now().unwrap_or_default().to_string())
     }
 
-    pub async fn get_all_proxies(&self) -> Result<HashMap<String, ProxyInfo>> {
+    pub async fn get_all_proxies(&self) -> Result<Proxies> {
         self.client.get_proxies().await
     }
 }
@@ -86,7 +82,6 @@ impl ProxyManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use mockito::Server;
 
     #[test]
@@ -102,13 +97,21 @@ mod tests {
             "proxies": {
                 "DIRECT": {
                     "type": "Direct",
+                    "name": "DIRECT",
                     "udp": true,
-                    "history": []
+                    "history": [],
+                    "alive": true
                 },
                 "Proxy-A": {
                     "type": "Shadowsocks",
+                    "name": "Proxy-A",
                     "udp": true,
-                    "history": [{"time": "2024-01-01T00:00:00Z", "delay": 100}]
+                    "history": [{"time": "2024-01-01T00:00:00Z", "delay": 100}],
+                    "alive": true,
+                    "delay": 100,
+                    "server": "1.2.3.4",
+                    "port": 443,
+                    "cipher": "aes-256-gcm"
                 }
             }
         });
@@ -125,10 +128,11 @@ mod tests {
         let proxies = manager.list_proxies().await.unwrap();
 
         mock.assert_async().await;
-        assert_eq!(proxies.len(), 1); // Only Proxy-A, DIRECT is considered a group-like here or filtered
-        assert_eq!(proxies[0].name, "Proxy-A");
-        assert_eq!(proxies[0].delay, Some(100));
-        assert!(proxies[0].alive);
+        // DIRECT is now considered a node (not a group in is_group)
+        assert_eq!(proxies.len(), 2);
+        let proxy_a = proxies.iter().find(|p| p.name == "Proxy-A").unwrap();
+        assert_eq!(proxy_a.delay, Some(100));
+        assert!(proxy_a.alive);
     }
 
     #[tokio::test]
@@ -138,6 +142,7 @@ mod tests {
             "proxies": {
                 "GLOBAL": {
                     "type": "Selector",
+                    "name": "GLOBAL",
                     "now": "Proxy-A",
                     "all": ["Proxy-A", "Proxy-B"],
                     "history": []

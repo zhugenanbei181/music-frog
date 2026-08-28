@@ -37,9 +37,9 @@ use mihomo_version::VersionManager;
 
 use super::events::{
     AdminEvent, EVENT_CORE_CHANGED, EVENT_DNS_CHANGED, EVENT_FAKE_IP_CHANGED,
-    EVENT_PROFILES_CHANGED, EVENT_PROXY_PROVIDERS_CHANGED, EVENT_RULE_PROVIDERS_CHANGED,
-    EVENT_RULES_CHANGED, EVENT_SETTINGS_CHANGED, EVENT_SNIFFER_CHANGED, EVENT_TUN_CHANGED,
-    EVENT_WEBDAV_SYNCED,
+    EVENT_PROFILES_CHANGED, EVENT_PROXY_CHANGED, EVENT_PROXY_PROVIDERS_CHANGED,
+    EVENT_RULE_PROVIDERS_CHANGED, EVENT_RULES_CHANGED, EVENT_RUNTIME_CHANGED,
+    EVENT_SETTINGS_CHANGED, EVENT_SNIFFER_CHANGED, EVENT_TUN_CHANGED, EVENT_WEBDAV_SYNCED,
 };
 use super::models::*;
 use super::state::{AdminApiContext, AdminApiState, RebuildStatus};
@@ -71,6 +71,144 @@ pub async fn get_rebuild_status_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
 ) -> Result<Json<RebuildStatusResponse>, ApiError> {
     Ok(Json(state.rebuild_status.snapshot()))
+}
+
+pub async fn get_capabilities_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<AdminCapabilities>, ApiError> {
+    Ok(Json(AdminCapabilities {
+        schema_version: 1,
+        platform: std::env::consts::OS.to_string(),
+        runtime: RuntimeCapabilitySet {
+            status: true,
+            lifecycle: true,
+        },
+        proxy: ProxyCapabilitySet {
+            list: true,
+            mode_switch: true,
+            select: true,
+        },
+        settings: SettingsCapabilitySet {
+            autostart: state.ctx.supports_autostart_control(),
+            system_proxy: state.ctx.supports_system_proxy_control(),
+        },
+    }))
+}
+
+pub async fn get_runtime_status_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<RuntimeStatusResponse>, ApiError> {
+    let status = runtime_status_snapshot(&state.ctx).await;
+    Ok(Json(status))
+}
+
+pub async fn start_runtime_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<RuntimeStatusResponse>, ApiError> {
+    state
+        .ctx
+        .rebuild_runtime()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    state.events.publish(AdminEvent::new(EVENT_RUNTIME_CHANGED));
+    let status = runtime_status_snapshot(&state.ctx).await;
+    Ok(Json(status))
+}
+
+pub async fn stop_runtime_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<RuntimeStatusResponse>, ApiError> {
+    state
+        .ctx
+        .stop_runtime()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    state.events.publish(AdminEvent::new(EVENT_RUNTIME_CHANGED));
+    let status = runtime_status_snapshot(&state.ctx).await;
+    Ok(Json(status))
+}
+
+pub async fn get_proxies_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<RuntimeProxiesResponse>, ApiError> {
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let config = client
+        .get_config()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let proxies = client
+        .get_proxies()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    let mut groups: Vec<RuntimeProxyGroupEntry> = proxies
+        .into_iter()
+        .filter_map(|(name, info)| {
+            if !info.is_group() {
+                return None;
+            }
+            Some(RuntimeProxyGroupEntry {
+                name,
+                proxy_type: info.proxy_type().to_string(),
+                current: info.now().map(|item| item.to_string()),
+                all: info.all().map(|items| items.to_vec()).unwrap_or_default(),
+            })
+        })
+        .collect();
+    groups.sort_by(|left, right| left.name.cmp(&right.name));
+
+    Ok(Json(RuntimeProxiesResponse {
+        mode: normalize_proxy_mode(&config.mode),
+        groups,
+    }))
+}
+
+pub async fn set_proxy_mode_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<ProxyModePayload>,
+) -> Result<StatusCode, ApiError> {
+    let mode = normalize_proxy_mode_candidate(&payload.mode)?;
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    client
+        .patch_config(serde_json::json!({ "mode": mode }))
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    state.events.publish(AdminEvent::new(EVENT_PROXY_CHANGED));
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn select_proxy_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<ProxySelectPayload>,
+) -> Result<StatusCode, ApiError> {
+    let group = payload.group.trim();
+    if group.is_empty() {
+        return Err(ApiError::bad_request("策略组不能为空"));
+    }
+    let name = payload.name.trim();
+    if name.is_empty() {
+        return Err(ApiError::bad_request("代理节点不能为空"));
+    }
+
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    client
+        .switch_proxy(group, name)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    state.events.publish(AdminEvent::new(EVENT_PROXY_CHANGED));
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn stream_admin_events_http<C: AdminApiContext>(
@@ -773,6 +911,17 @@ pub async fn get_app_settings_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
 ) -> Result<Json<AppSettingsPayload>, ApiError> {
     let settings = state.ctx.get_app_settings().await;
+    let autostart_enabled = if state.ctx.supports_autostart_control() {
+        Some(state.ctx.autostart_enabled().await)
+    } else {
+        None
+    };
+    let system_proxy_enabled = if state.ctx.supports_system_proxy_control() {
+        Some(state.ctx.system_proxy_enabled().await)
+    } else {
+        None
+    };
+    let runtime_running = Some(state.ctx.runtime_running().await);
     Ok(Json(AppSettingsPayload {
         open_webui_on_startup: Some(settings.open_webui_on_startup),
         editor_path: settings.editor_path,
@@ -780,6 +929,9 @@ pub async fn get_app_settings_http<C: AdminApiContext>(
         language: Some(settings.language),
         theme: Some(settings.theme),
         webdav: Some(settings.webdav),
+        autostart_enabled,
+        system_proxy_enabled,
+        runtime_running,
     }))
 }
 
@@ -818,6 +970,29 @@ pub async fn save_app_settings_http<C: AdminApiContext>(
         .save_app_settings(settings)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    if let Some(enabled) = payload.autostart_enabled {
+        if !state.ctx.supports_autostart_control() {
+            return Err(ApiError::bad_request("当前平台不支持开机自启控制"));
+        }
+        state
+            .ctx
+            .set_autostart_enabled(enabled)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    }
+
+    if let Some(enabled) = payload.system_proxy_enabled {
+        if !state.ctx.supports_system_proxy_control() {
+            return Err(ApiError::bad_request("当前平台不支持系统代理控制"));
+        }
+        state
+            .ctx
+            .set_system_proxy_enabled(enabled)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    }
+
     state
         .events
         .publish(AdminEvent::new(EVENT_SETTINGS_CHANGED));
@@ -994,6 +1169,50 @@ pub async fn test_webdav_conn_http<C: AdminApiContext>(
     Ok(StatusCode::OK)
 }
 
+async fn runtime_status_snapshot<C: AdminApiContext>(ctx: &C) -> RuntimeStatusResponse {
+    let running = ctx.runtime_running().await;
+    let controller = ctx.runtime_controller_url().await;
+    let mode = if running {
+        match ctx.runtime_client().await {
+            Ok(client) => client
+                .get_config()
+                .await
+                .ok()
+                .map(|cfg| normalize_proxy_mode(&cfg.mode)),
+            Err(_) => None,
+        }
+    } else {
+        None
+    };
+    RuntimeStatusResponse {
+        running,
+        controller,
+        mode,
+    }
+}
+
+fn normalize_proxy_mode(mode: &str) -> String {
+    let trimmed = mode.trim().to_ascii_lowercase();
+    if trimmed.is_empty() {
+        "rule".to_string()
+    } else {
+        trimmed
+    }
+}
+
+fn normalize_proxy_mode_candidate(mode: &str) -> Result<String, ApiError> {
+    let normalized = normalize_proxy_mode(mode);
+    if !matches!(
+        normalized.as_str(),
+        "rule" | "global" | "direct" | "script"
+    ) {
+        return Err(ApiError::bad_request(
+            "代理模式仅支持 rule/global/direct/script",
+        ));
+    }
+    Ok(normalized)
+}
+
 fn normalize_log_level(level: Option<&str>) -> Result<Option<String>, ApiError> {
     let Some(level) = level else {
         return Ok(None);
@@ -1033,35 +1252,19 @@ fn normalize_delay_timeout_ms(timeout_ms: Option<u32>) -> u32 {
         .clamp(MIN_DELAY_TIMEOUT_MS, MAX_DELAY_TIMEOUT_MS)
 }
 
-fn is_proxy_group_type(proxy_type: &str) -> bool {
-    matches!(
-        proxy_type,
-        "Selector"
-            | "URLTest"
-            | "Fallback"
-            | "LoadBalance"
-            | "Relay"
-            | "Direct"
-            | "Reject"
-            | "Pass"
-            | "Compatible"
-            | "RejectDrop"
-    )
-}
-
 fn build_runtime_proxy_delay_nodes(
-    proxies: std::collections::HashMap<String, mihomo_api::ProxyInfo>,
+    proxies: std::collections::HashMap<String, mihomo_api::Proxy>,
 ) -> Vec<RuntimeProxyDelayNode> {
     let mut nodes: Vec<RuntimeProxyDelayNode> = proxies
         .into_iter()
         .filter_map(|(name, info)| {
-            if is_proxy_group_type(&info.proxy_type) {
+            if info.is_group() {
                 return None;
             }
-            let latest = info.history.last();
+            let latest = info.history().last();
             Some(RuntimeProxyDelayNode {
                 name,
-                proxy_type: info.proxy_type,
+                proxy_type: info.proxy_type().to_string(),
                 delay_ms: latest.map(|item| item.delay),
                 tested_at: latest.map(|item| item.time.clone()),
             })
@@ -1073,7 +1276,7 @@ fn build_runtime_proxy_delay_nodes(
 
 fn collect_delay_test_candidates(
     requested: Option<&[String]>,
-    proxies: &std::collections::HashMap<String, mihomo_api::ProxyInfo>,
+    proxies: &std::collections::HashMap<String, mihomo_api::Proxy>,
     results: &mut Vec<RuntimeDelayBatchResult>,
 ) -> Vec<String> {
     match requested {
@@ -1098,7 +1301,7 @@ fn collect_delay_test_candidates(
                     });
                     continue;
                 };
-                if is_proxy_group_type(&info.proxy_type) {
+                if info.is_group() {
                     results.push(RuntimeDelayBatchResult {
                         proxy: name,
                         delay_ms: None,
@@ -1115,7 +1318,7 @@ fn collect_delay_test_candidates(
             let mut candidates: Vec<String> = proxies
                 .iter()
                 .filter_map(|(name, info)| {
-                    if is_proxy_group_type(&info.proxy_type) {
+                    if info.is_group() {
                         return None;
                     }
                     Some(name.clone())

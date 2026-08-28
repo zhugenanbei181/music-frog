@@ -5,7 +5,7 @@ use std::{
 
 use infiltrator_core::profiles as core_profiles;
 use log::warn;
-use mihomo_api::ProxyInfo;
+use mihomo_api::Proxy;
 use mihomo_version::{VersionManager, manager::VersionInfo};
 use tauri::{
     AppHandle, Wry, include_image,
@@ -737,7 +737,7 @@ async fn build_proxy_groups_items(
         }
     };
 
-    let mut groups: Vec<(String, ProxyInfo)> = proxies
+    let mut groups: Vec<(String, Proxy)> = proxies
         .iter()
         .filter(|(_, info)| is_selectable_group(info))
         .map(|(name, info)| (name.clone(), info.clone()))
@@ -781,13 +781,13 @@ async fn build_proxy_groups_items(
 
 fn build_proxy_group_submenu(
     app: &AppHandle,
-    proxies: &std::collections::HashMap<String, ProxyInfo>,
+    proxies: &std::collections::HashMap<String, Proxy>,
     group_name: &str,
-    group_info: &ProxyInfo,
+    group_info: &Proxy,
     proxy_map: &mut HashMap<String, (String, String)>,
     lang: &Lang<'_>,
 ) -> tauri::Result<Submenu<Wry>> {
-    let nodes = group_info.all.clone().unwrap_or_default();
+    let nodes = group_info.all().map(|all| all.to_vec()).unwrap_or_default();
     if nodes.is_empty() {
         let empty_item = MenuItem::with_id(
             app,
@@ -799,7 +799,7 @@ fn build_proxy_group_submenu(
         return Submenu::with_items(app, group_name, true, &[&empty_item]);
     }
 
-    let current = group_info.now.as_deref().unwrap_or("");
+    let current = group_info.now().unwrap_or("");
     let max_nodes = 20usize;
 
     let mut node_items: Vec<CheckMenuItem<Wry>> = Vec::new();
@@ -841,12 +841,12 @@ fn build_proxy_group_submenu(
 }
 
 pub(crate) fn build_proxy_node_label(
-    proxies: &std::collections::HashMap<String, ProxyInfo>,
+    proxies: &std::collections::HashMap<String, Proxy>,
     node: &str,
 ) -> String {
     if let Some(delay) = proxies
         .get(node)
-        .and_then(|info| info.history.last().map(|entry| entry.delay))
+        .and_then(|info| info.history().last().map(|entry| entry.delay))
     {
         format!("{node} ({delay}ms)")
     } else {
@@ -854,11 +854,8 @@ pub(crate) fn build_proxy_node_label(
     }
 }
 
-pub(crate) fn is_selectable_group(info: &ProxyInfo) -> bool {
-    matches!(
-        info.proxy_type.as_str(),
-        "Selector" | "URLTest" | "Fallback" | "LoadBalance"
-    )
+pub(crate) fn is_selectable_group(info: &Proxy) -> bool {
+    info.is_group()
 }
 
 async fn build_tun_menu_item(

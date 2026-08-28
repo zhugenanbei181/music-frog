@@ -19,7 +19,7 @@ infiltrator-core = { path = "../infiltrator-core", default-features = false }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_yaml = { workspace = true }
+serde_yml = { workspace = true }
 chrono = { workspace = true }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
 sync-engine = { path = "../mihomo-dav-sync/sync-engine" }

@@ -79,6 +79,33 @@ export interface AppSettings {
   language: string;
   theme?: string;
   webdav: WebDavConfig;
+  autostart_enabled?: boolean | null;
+  system_proxy_enabled?: boolean | null;
+  runtime_running?: boolean | null;
+}
+
+export interface RuntimeCapabilitySet {
+  status: boolean;
+  lifecycle: boolean;
+}
+
+export interface ProxyCapabilitySet {
+  list: boolean;
+  mode_switch: boolean;
+  select: boolean;
+}
+
+export interface SettingsCapabilitySet {
+  autostart: boolean;
+  system_proxy: boolean;
+}
+
+export interface AdminCapabilities {
+  schema_version: number;
+  platform: string;
+  runtime: RuntimeCapabilitySet;
+  proxy: ProxyCapabilitySet;
+  settings: SettingsCapabilitySet;
 }
 
 export interface DnsFallbackFilter {
@@ -262,4 +289,22 @@ export interface RuntimeDelayBatchResponse {
   failed_count: number;
   test_url: string;
   timeout_ms: number;
+}
+
+export interface RuntimeProxyGroupEntry {
+  name: string;
+  proxy_type: string;
+  current?: string | null;
+  all: string[];
+}
+
+export interface RuntimeProxiesResponse {
+  mode: string;
+  groups: RuntimeProxyGroupEntry[];
+}
+
+export interface RuntimeStatusResponse {
+  running: boolean;
+  controller?: string | null;
+  mode?: string | null;
 }

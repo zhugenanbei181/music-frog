@@ -32,7 +32,16 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn open_profile_in_editor(&self, profile_name: &str) -> anyhow::Result<()>;
     async fn get_app_settings(&self) -> AppSettings;
     async fn save_app_settings(&self, settings: AppSettings) -> anyhow::Result<()>;
+    async fn runtime_running(&self) -> bool;
+    async fn runtime_controller_url(&self) -> Option<String>;
+    async fn stop_runtime(&self) -> anyhow::Result<()>;
     async fn runtime_client(&self) -> anyhow::Result<MihomoClient>;
+    async fn system_proxy_enabled(&self) -> bool;
+    async fn set_system_proxy_enabled(&self, enabled: bool) -> anyhow::Result<()>;
+    async fn autostart_enabled(&self) -> bool;
+    async fn set_autostart_enabled(&self, enabled: bool) -> anyhow::Result<()>;
+    fn supports_system_proxy_control(&self) -> bool;
+    fn supports_autostart_control(&self) -> bool;
 }
 
 #[derive(Default)]

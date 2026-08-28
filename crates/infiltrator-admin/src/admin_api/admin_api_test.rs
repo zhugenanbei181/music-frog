@@ -52,12 +52,39 @@ mod tests {
         async fn save_app_settings(&self, _s: AppSettings) -> anyhow::Result<()> {
             Ok(())
         }
+        async fn runtime_running(&self) -> bool {
+            self.runtime_url.is_some()
+        }
+        async fn runtime_controller_url(&self) -> Option<String> {
+            self.runtime_url.clone()
+        }
+        async fn stop_runtime(&self) -> anyhow::Result<()> {
+            Ok(())
+        }
         async fn runtime_client(&self) -> anyhow::Result<MihomoClient> {
             let runtime_url = self
                 .runtime_url
                 .as_deref()
                 .ok_or_else(|| anyhow!("runtime url is not configured"))?;
             MihomoClient::new(runtime_url, None).map_err(|e| anyhow!(e.to_string()))
+        }
+        async fn system_proxy_enabled(&self) -> bool {
+            false
+        }
+        async fn set_system_proxy_enabled(&self, _enabled: bool) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn autostart_enabled(&self) -> bool {
+            false
+        }
+        async fn set_autostart_enabled(&self, _enabled: bool) -> anyhow::Result<()> {
+            Ok(())
+        }
+        fn supports_system_proxy_control(&self) -> bool {
+            false
+        }
+        fn supports_autostart_control(&self) -> bool {
+            false
         }
     }
 
@@ -122,6 +149,53 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         mihomo_platform::clear_home_dir_override();
+    }
+
+    #[tokio::test]
+    async fn test_get_capabilities_route() {
+        let _guard = TEST_LOCK.lock().await;
+        let app = setup_app();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/capabilities")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 2048)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["schema_version"], 1);
+        assert!(json["runtime"]["status"].as_bool().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_get_runtime_status_route_when_stopped() {
+        let _guard = TEST_LOCK.lock().await;
+        let app = setup_app();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/runtime/status")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 2048)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["running"], false);
     }
 
     #[tokio::test]
@@ -683,7 +757,15 @@ mod tests {
                 r#"{
                     "downloadTotal": 1000,
                     "uploadTotal": 2000,
-                    "connections": [{"id":"c1"}]
+                    "connections": [{
+                        "id":"c1",
+                        "metadata": {"network":"tcp", "type":"socks5", "sourceIP":"127.0.0.1", "destinationIP":"8.8.8.8", "sourcePort":"1234", "destinationPort":"443", "host":"", "dnsMode":"normal", "processPath":""},
+                        "uploadTotal": 100,
+                        "downloadTotal": 200,
+                        "start": "2024-01-01T00:00:00Z",
+                        "rule": "Match",
+                        "rulePayload": ""
+                    }]
                 }"#,
             )
             .create_async()
@@ -764,7 +846,26 @@ mod tests {
                 r#"{
                     "downloadTotal": 3000,
                     "uploadTotal": 4000,
-                    "connections": [{"id":"c1"},{"id":"c2"}]
+                    "connections": [
+                        {
+                            "id":"c1",
+                            "metadata": {"network":"tcp", "type":"socks5", "sourceIP":"127.0.0.1", "destinationIP":"8.8.8.8", "sourcePort":"1234", "destinationPort":"443", "host":"", "dnsMode":"normal", "processPath":""},
+                            "uploadTotal": 100,
+                            "downloadTotal": 200,
+                            "start": "2024-01-01T00:00:00Z",
+                            "rule": "Match",
+                            "rulePayload": ""
+                        },
+                        {
+                            "id":"c2",
+                            "metadata": {"network":"tcp", "type":"socks5", "sourceIP":"127.0.0.1", "destinationIP":"8.8.8.8", "sourcePort":"1234", "destinationPort":"443", "host":"", "dnsMode":"normal", "processPath":""},
+                            "uploadTotal": 100,
+                            "downloadTotal": 200,
+                            "start": "2024-01-01T00:00:00Z",
+                            "rule": "Match",
+                            "rulePayload": ""
+                        }
+                    ]
                 }"#,
             )
             .create_async()
@@ -815,9 +916,9 @@ mod tests {
             .with_body(
                 r#"{
                     "proxies": {
-                        "GLOBAL": {"type":"Selector","now":"Proxy-A","all":["Proxy-A","Proxy-B"],"history":[]},
-                        "Proxy-A": {"type":"Shadowsocks","history":[{"time":"2026-02-06T00:00:00Z","delay":120}]},
-                        "Proxy-B": {"type":"Shadowsocks","history":[]}
+                        "GLOBAL": {"type":"Selector","name":"GLOBAL","now":"Proxy-A","all":["Proxy-A","Proxy-B"],"history":[]},
+                        "Proxy-A": {"type":"Shadowsocks","name":"Proxy-A","udp":true,"history":[{"time":"2026-02-06T00:00:00Z","delay":120}],"alive":true,"server":"1.1.1.1","port":443,"cipher":"aes-256-gcm"},
+                        "Proxy-B": {"type":"Shadowsocks","name":"Proxy-B","udp":true,"history":[],"alive":true,"server":"1.1.1.1","port":443,"cipher":"aes-256-gcm"}
                     }
                 }"#,
             )
@@ -895,9 +996,9 @@ mod tests {
             .with_body(
                 r#"{
                     "proxies": {
-                        "GLOBAL": {"type":"Selector","now":"Proxy-A","all":["Proxy-A","Proxy-B"],"history":[]},
-                        "Proxy-A": {"type":"Shadowsocks","history":[]},
-                        "Proxy-B": {"type":"Shadowsocks","history":[]}
+                        "GLOBAL": {"type":"Selector","name":"GLOBAL","now":"Proxy-A","all":["Proxy-A","Proxy-B"],"history":[]},
+                        "Proxy-A": {"type":"Shadowsocks","name":"Proxy-A","udp":true,"history":[],"alive":true,"server":"1.1.1.1","port":443,"cipher":"aes-256-gcm"},
+                        "Proxy-B": {"type":"Shadowsocks","name":"Proxy-B","udp":true,"history":[],"alive":true,"server":"1.1.1.1","port":443,"cipher":"aes-256-gcm"}
                     }
                 }"#,
             )

@@ -20,7 +20,6 @@ use infiltrator_core::profiles::{
     load_profile_detail, sanitize_profile_name, select_profile as core_select_profile,
     update_profile as core_update_profile,
 };
-use infiltrator_core::{config as core_config, profiles as core_profiles};
 use infiltrator_core::rules::{
     RuleEntry as CoreRuleEntry, RuleProviders as CoreRuleProviders, load_rule_providers,
     load_rules, save_rule_providers, save_rules,
@@ -32,13 +31,14 @@ use infiltrator_core::tun::{
     TunConfig as CoreTunConfig, TunConfigPatch as CoreTunConfigPatch, load_tun_config,
     save_tun_config,
 };
+use infiltrator_core::{config as core_config, profiles as core_profiles};
 use mihomo_api::{Connection as MihomoConnection, MihomoClient, MihomoError};
 use mihomo_config::ConfigManager;
 use mihomo_platform::{clear_android_bridge, get_android_bridge, get_home_dir};
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 #[cfg(target_os = "android")]
-use serde_yaml::Value;
+use serde_yml::Value;
 use state_store::StateStore;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -1379,11 +1379,11 @@ async fn proxies_groups_internal() -> Result<Vec<ProxyGroupSummary>, FfiStatus> 
     let mut groups: Vec<ProxyGroupSummary> = proxies
         .into_iter()
         .filter_map(|(name, info)| {
-            info.all.map(|all| ProxyGroupSummary {
+            info.all().map(|all| ProxyGroupSummary {
                 name,
-                group_type: info.proxy_type,
-                current: info.now,
-                all,
+                group_type: info.proxy_type().to_string(),
+                current: Some(info.now().unwrap_or("").to_string()),
+                all: all.to_vec(),
             })
         })
         .collect();
@@ -1431,7 +1431,7 @@ fn resolve_proxy_url() -> Option<String> {
             let manager = ConfigManager::new().map_err(map_mihomo_error)?;
             let profile = manager.get_current().await.map_err(map_mihomo_error)?;
             let content = manager.load(&profile).await.map_err(map_mihomo_error)?;
-            let doc: Value = serde_yaml::from_str(&content)
+            let doc: Value = serde_yml::from_str(&content)
                 .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?;
             Ok::<Option<String>, FfiStatus>(build_proxy_url(&doc))
         })
@@ -1577,7 +1577,9 @@ fn build_dns_settings(config: CoreDnsConfig) -> DnsSettings {
         nameserver: config.nameserver.unwrap_or_default(),
         default_nameserver: config.default_nameserver.unwrap_or_default(),
         fallback: config.fallback.unwrap_or_default(),
-        fallback_filter: config.fallback_filter.map(core_dns_fallback_filter_to_record),
+        fallback_filter: config
+            .fallback_filter
+            .map(core_dns_fallback_filter_to_record),
     }
 }
 
@@ -2193,7 +2195,11 @@ mod tests {
         let loaded_again = app_routing_load();
         assert_eq!(loaded_again.status.code, FfiErrorCode::Ok);
         let config_again = loaded_again.config.expect("config should be present");
-        assert!(!config_again.packages.contains(&"com.example.app".to_string()));
+        assert!(
+            !config_again
+                .packages
+                .contains(&"com.example.app".to_string())
+        );
 
         let _ = fs::remove_dir_all(home);
     }
@@ -2274,7 +2280,9 @@ mod tests {
             Some(vec!["https://dns.example/dns-query".to_string()])
         );
 
-        let filter = core_patch.fallback_filter.expect("fallback_filter should exist");
+        let filter = core_patch
+            .fallback_filter
+            .expect("fallback_filter should exist");
         assert_eq!(filter.geoip, Some(true));
         assert_eq!(filter.geoip_code, Some("CN".to_string()));
         assert_eq!(filter.ipcidr, Some(vec!["240.0.0.0/4".to_string()]));

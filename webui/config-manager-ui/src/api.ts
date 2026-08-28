@@ -1,4 +1,5 @@
 import type {
+  AdminCapabilities,
   AppSettings,
   CacheFlushResponse,
   CoreDownloadResponse,
@@ -21,6 +22,8 @@ import type {
   RuntimeLogLevel,
   RuntimeMemoryData,
   RuntimeProxyDelayNodesResponse,
+  RuntimeProxiesResponse,
+  RuntimeStatusResponse,
   RuntimeTrafficSnapshot,
   RuleProvidersPayload,
   RulesPayload,
@@ -86,9 +89,15 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 }
 
 export const api = {
+  getCapabilities: () => request<AdminCapabilities>('capabilities'),
   getAppSettings: () => request<AppSettings>('settings'),
   saveAppSettings: (settings: Partial<AppSettings>) =>
     request<void>('settings', { method: 'POST', body: settings }),
+  getProxies: () => request<RuntimeProxiesResponse>('proxies'),
+  setProxyMode: (mode: string) =>
+    request<void>('proxy/mode', { method: 'POST', body: { mode } }),
+  selectProxy: (group: string, name: string) =>
+    request<void>('proxy/select', { method: 'POST', body: { group, name } }),
   syncWebDavNow: () => request<SyncResult>('webdav/sync', { method: 'POST' }),
   testWebDav: (config: WebDavConfig) =>
     request<void>('webdav/test', { method: 'POST', body: config }),
@@ -148,6 +157,9 @@ export const api = {
   activateCoreVersion: (version: string) =>
     request<void>('core/activate', { method: 'POST', body: { version } }),
   getRebuildStatus: () => request<RebuildStatusResponse>('rebuild/status', { timeoutMs: 10000 }),
+  startRuntime: () => request<RuntimeStatusResponse>('runtime/start', { method: 'POST' }),
+  stopRuntime: () => request<RuntimeStatusResponse>('runtime/stop', { method: 'POST' }),
+  getRuntimeStatus: () => request<RuntimeStatusResponse>('runtime/status'),
   listRuntimeConnections: () => request<RuntimeConnectionsResponse>('runtime/connections'),
   closeAllRuntimeConnections: () =>
     request<void>('runtime/connections', { method: 'DELETE' }),

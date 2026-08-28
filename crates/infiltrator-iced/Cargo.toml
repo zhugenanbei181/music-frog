@@ -1,0 +1,45 @@
+[package]
+name = "infiltrator-iced"
+version = "0.14.0"
+edition = "2024"
+
+[dependencies]
+iced = { version = "0.14", default-features = false, features = ["tokio", "advanced", "wgpu-bare", "canvas", "image"] }
+wgpu = { version = "27.0", default-features = false, features = ["std", "wgsl", "vulkan", "gles"] }
+tokio = { workspace = true }
+infiltrator-core = { path = "../infiltrator-core" }
+infiltrator-desktop = { path = "../infiltrator-desktop" }
+mihomo-version = { path = "../mihomo-version" }
+mihomo-api = { path = "../mihomo-api" }
+mihomo-config = { path = "../mihomo-config" }
+mihomo-platform = { path = "../mihomo-platform" }
+dav-client = { path = "../mihomo-dav-sync/dav-client" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yml = { workspace = true }
+muda = { workspace = true }
+tray-icon = { workspace = true }
+is_elevated = "0.1"
+anyhow = { workspace = true }
+reqwest = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+single-instance = "0.3"
+sys-locale = "0.3"
+image = "0.25"
+rfd = "0.17"
+
+[package.metadata.packager]
+product-name = "MusicFrog Infiltrator"
+identifier = "com.musicfrog.infiltrator"
+version = "0.14.0"
+authors = ["MusicFrog"]
+description = "A native high-performance proxy client."
+icons = ["../../src-tauri/icons/icon.png"]
+resources = [
+    "../../src-tauri/icons/icon.png",
+    "../../vendor/mihomo.exe"
+]
+
+[package.metadata.packager.wix]
+languages = ["zh-CN"]

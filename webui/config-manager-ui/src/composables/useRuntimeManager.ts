@@ -2,10 +2,12 @@ import { computed, onBeforeUnmount, ref, watch, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api, runtimeLogsUrl } from '../api';
 import type {
+  AdminCapabilities,
   RuntimeConnection,
   RuntimeIpCheckResponse,
   RuntimeLogLevel,
   RuntimeMemoryData,
+  RuntimeProxyGroupEntry,
   RuntimeProxyDelayNode,
   RuntimeTrafficSnapshot,
 } from '../types';
@@ -13,6 +15,7 @@ import type { ToastTone } from './useToasts';
 
 type RuntimeManagerOptions = {
   activeSection: Ref<string>;
+  capabilities: Ref<AdminCapabilities | null>;
   pushToast: (message: string, tone?: ToastTone) => void;
 };
 
@@ -30,6 +33,14 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
   const connections = ref<RuntimeConnection[]>([]);
   const uploadTotal = ref(0);
   const downloadTotal = ref(0);
+  const runtimeRunning = ref(false);
+  const runtimeController = ref('');
+  const runtimeMode = ref('rule');
+  const runtimeGroups = ref<RuntimeProxyGroupEntry[]>([]);
+  const selectedGroup = ref('');
+  const selectedProxy = ref('');
+  const systemProxyEnabled = ref(false);
+  const autostartEnabled = ref(false);
 
   const traffic = ref<RuntimeTrafficSnapshot | null>(null);
   const memory = ref<RuntimeMemoryData | null>(null);
@@ -47,6 +58,11 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
   const loadingConnections = ref(false);
   const loadingOverview = ref(false);
   const loadingDelayNodes = ref(false);
+  const loadingRuntimeStatus = ref(false);
+  const loadingRuntimeGroups = ref(false);
+  const runtimeActionPending = ref(false);
+  const settingSystemProxy = ref(false);
+  const settingAutostart = ref(false);
   const closingConnectionId = ref('');
   const closingAll = ref(false);
   const testingDelayProxy = ref('');
@@ -91,6 +107,60 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
     return nodes;
   });
 
+  const runtimeLifecycleEnabled = computed(
+    () => Boolean(options.capabilities.value?.runtime?.lifecycle),
+  );
+  const proxyControlEnabled = computed(
+    () =>
+      Boolean(options.capabilities.value?.proxy?.list) &&
+      Boolean(options.capabilities.value?.proxy?.mode_switch) &&
+      Boolean(options.capabilities.value?.proxy?.select),
+  );
+  const systemProxyControlEnabled = computed(
+    () => Boolean(options.capabilities.value?.settings?.system_proxy),
+  );
+  const autostartControlEnabled = computed(
+    () => Boolean(options.capabilities.value?.settings?.autostart),
+  );
+
+  const selectedProxyOptions = computed(() => {
+    const group = runtimeGroups.value.find((item) => item.name === selectedGroup.value);
+    if (!group || !Array.isArray(group.all)) {
+      return [] as string[];
+    }
+    return group.all;
+  });
+
+  function resetRuntimeSnapshots() {
+    connections.value = [];
+    uploadTotal.value = 0;
+    downloadTotal.value = 0;
+    traffic.value = null;
+    memory.value = null;
+    ipInfo.value = null;
+    delayNodes.value = [];
+    runtimeGroups.value = [];
+    selectedGroup.value = '';
+    selectedProxy.value = '';
+    closeLogStream();
+  }
+
+  function syncProxySelection() {
+    const groups = runtimeGroups.value;
+    if (groups.length === 0) {
+      selectedGroup.value = '';
+      selectedProxy.value = '';
+      return;
+    }
+
+    const group = groups.find((item) => item.name === selectedGroup.value) || groups[0];
+    selectedGroup.value = group.name;
+
+    if (!group.all.includes(selectedProxy.value)) {
+      selectedProxy.value = group.current || group.all[0] || '';
+    }
+  }
+
   function appendLog(message: string) {
     logs.value.push(message);
     if (logs.value.length > MAX_LOG_LINES) {
@@ -112,7 +182,7 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
 
   function openLogStream() {
     closeLogStream();
-    if (options.activeSection.value !== 'runtime') {
+    if (options.activeSection.value !== 'runtime' || !runtimeRunning.value) {
       return;
     }
     const source = new EventSource(runtimeLogsUrl(logLevel.value));
@@ -144,7 +214,76 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
     }
   }
 
+  async function refreshRuntimeStatus(silent = false) {
+    loadingRuntimeStatus.value = true;
+    try {
+      const status = await api.getRuntimeStatus();
+      runtimeRunning.value = Boolean(status.running);
+      runtimeController.value = status.controller || '';
+      runtimeMode.value = (status.mode || 'rule').trim().toLowerCase() || 'rule';
+      if (!runtimeRunning.value) {
+        resetRuntimeSnapshots();
+      }
+    } catch (err) {
+      runtimeRunning.value = false;
+      runtimeController.value = '';
+      if (!silent) {
+        options.pushToast((err as Error).message || String(err), 'error');
+      }
+    } finally {
+      loadingRuntimeStatus.value = false;
+    }
+  }
+
+  async function refreshRuntimeSettings(silent = false) {
+    try {
+      const data = await api.getAppSettings();
+      if (typeof data.system_proxy_enabled === 'boolean') {
+        systemProxyEnabled.value = data.system_proxy_enabled;
+      }
+      if (typeof data.autostart_enabled === 'boolean') {
+        autostartEnabled.value = data.autostart_enabled;
+      }
+      if (typeof data.runtime_running === 'boolean') {
+        runtimeRunning.value = data.runtime_running;
+      }
+    } catch (err) {
+      if (!silent) {
+        options.pushToast((err as Error).message || String(err), 'error');
+      }
+    }
+  }
+
+  async function refreshProxyGroups(silent = false) {
+    if (!runtimeRunning.value || !proxyControlEnabled.value) {
+      runtimeGroups.value = [];
+      selectedGroup.value = '';
+      selectedProxy.value = '';
+      return;
+    }
+
+    loadingRuntimeGroups.value = true;
+    try {
+      const data = await api.getProxies();
+      runtimeMode.value = data.mode || runtimeMode.value;
+      runtimeGroups.value = Array.isArray(data.groups) ? data.groups : [];
+      syncProxySelection();
+    } catch (err) {
+      if (!silent) {
+        options.pushToast((err as Error).message || String(err), 'error');
+      }
+    } finally {
+      loadingRuntimeGroups.value = false;
+    }
+  }
+
   async function refreshConnections(silent = false) {
+    if (!runtimeRunning.value) {
+      connections.value = [];
+      uploadTotal.value = 0;
+      downloadTotal.value = 0;
+      return;
+    }
     loadingConnections.value = true;
     try {
       const data = await api.listRuntimeConnections();
@@ -161,6 +300,10 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
   }
 
   async function refreshTraffic(silent = false) {
+    if (!runtimeRunning.value) {
+      traffic.value = null;
+      return;
+    }
     try {
       traffic.value = await api.getRuntimeTraffic();
     } catch (err) {
@@ -171,6 +314,10 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
   }
 
   async function refreshMemory(silent = false) {
+    if (!runtimeRunning.value) {
+      memory.value = null;
+      return;
+    }
     try {
       memory.value = await api.getRuntimeMemory();
     } catch (err) {
@@ -181,6 +328,10 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
   }
 
   async function refreshIp(silent = false) {
+    if (!runtimeRunning.value) {
+      ipInfo.value = null;
+      return;
+    }
     try {
       ipInfo.value = await api.getRuntimeIp();
     } catch (err) {
@@ -191,6 +342,12 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
   }
 
   async function refreshOverview(silent = false) {
+    if (!runtimeRunning.value) {
+      traffic.value = null;
+      memory.value = null;
+      ipInfo.value = null;
+      return;
+    }
     loadingOverview.value = true;
     try {
       await Promise.all([
@@ -204,6 +361,11 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
   }
 
   async function refreshProxyDelays(silent = false) {
+    if (!runtimeRunning.value) {
+      delayNodes.value = [];
+      return;
+    }
+
     loadingDelayNodes.value = true;
     try {
       const data = await api.listRuntimeProxyDelayNodes();
@@ -227,18 +389,28 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
   }
 
   async function refreshRuntimeData(silent = false) {
+    await refreshRuntimeStatus(silent);
+    await refreshRuntimeSettings(silent);
+    if (!runtimeRunning.value) {
+      return;
+    }
     await Promise.all([
       refreshConnections(silent),
       refreshOverview(silent),
       refreshProxyDelays(silent),
+      refreshProxyGroups(silent),
     ]);
   }
 
   async function pollRuntimeData() {
+    await refreshRuntimeStatus(true);
+    if (!runtimeRunning.value) {
+      return;
+    }
     pollTick += 1;
     await Promise.all([refreshTraffic(true), refreshMemory(true)]);
     if (pollTick % 2 === 0) {
-      await refreshConnections(true);
+      await Promise.all([refreshConnections(true), refreshProxyGroups(true)]);
     }
   }
 
@@ -247,6 +419,119 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
     pollTimer = window.setInterval(() => {
       void pollRuntimeData();
     }, POLL_INTERVAL_MS);
+  }
+
+  async function startRuntime() {
+    if (runtimeActionPending.value || !runtimeLifecycleEnabled.value) {
+      return;
+    }
+    runtimeActionPending.value = true;
+    try {
+      const status = await api.startRuntime();
+      runtimeRunning.value = status.running;
+      runtimeController.value = status.controller || '';
+      runtimeMode.value = status.mode || runtimeMode.value;
+      await refreshRuntimeData(true);
+      openLogStream();
+      options.pushToast(t('runtime.runtime_started'));
+    } catch (err) {
+      options.pushToast((err as Error).message || String(err), 'error');
+    } finally {
+      runtimeActionPending.value = false;
+    }
+  }
+
+  async function stopRuntime() {
+    if (runtimeActionPending.value || !runtimeLifecycleEnabled.value) {
+      return;
+    }
+    runtimeActionPending.value = true;
+    try {
+      const status = await api.stopRuntime();
+      runtimeRunning.value = status.running;
+      runtimeController.value = status.controller || '';
+      runtimeMode.value = status.mode || runtimeMode.value;
+      resetRuntimeSnapshots();
+      options.pushToast(t('runtime.runtime_stopped'));
+    } catch (err) {
+      options.pushToast((err as Error).message || String(err), 'error');
+    } finally {
+      runtimeActionPending.value = false;
+    }
+  }
+
+  async function applyProxyMode(mode: string) {
+    const normalized = mode.trim().toLowerCase();
+    if (!normalized || runtimeActionPending.value || !proxyControlEnabled.value) {
+      return;
+    }
+    runtimeActionPending.value = true;
+    try {
+      await api.setProxyMode(normalized);
+      runtimeMode.value = normalized;
+      await refreshProxyGroups(true);
+      options.pushToast(t('runtime.mode_switched', { mode: normalized }));
+    } catch (err) {
+      options.pushToast((err as Error).message || String(err), 'error');
+    } finally {
+      runtimeActionPending.value = false;
+    }
+  }
+
+  async function applySelectedProxy() {
+    if (!proxyControlEnabled.value || runtimeActionPending.value) {
+      return;
+    }
+    const group = selectedGroup.value.trim();
+    const proxy = selectedProxy.value.trim();
+    if (!group || !proxy) {
+      return;
+    }
+
+    runtimeActionPending.value = true;
+    try {
+      await api.selectProxy(group, proxy);
+      await refreshProxyGroups(true);
+      options.pushToast(t('runtime.proxy_switched', { group, proxy }));
+    } catch (err) {
+      options.pushToast((err as Error).message || String(err), 'error');
+    } finally {
+      runtimeActionPending.value = false;
+    }
+  }
+
+  async function updateSystemProxy(enabled: boolean) {
+    if (!systemProxyControlEnabled.value || settingSystemProxy.value) {
+      return;
+    }
+    settingSystemProxy.value = true;
+    try {
+      await api.saveAppSettings({ system_proxy_enabled: enabled });
+      systemProxyEnabled.value = enabled;
+      options.pushToast(
+        enabled ? t('runtime.system_proxy_enabled') : t('runtime.system_proxy_disabled'),
+      );
+    } catch (err) {
+      options.pushToast((err as Error).message || String(err), 'error');
+    } finally {
+      settingSystemProxy.value = false;
+    }
+  }
+
+  async function updateAutostart(enabled: boolean) {
+    if (!autostartControlEnabled.value || settingAutostart.value) {
+      return;
+    }
+    settingAutostart.value = true;
+    try {
+      await api.saveAppSettings({ autostart_enabled: enabled });
+      autostartEnabled.value = enabled;
+      options.pushToast(enabled ? t('runtime.autostart_enabled') : t('runtime.autostart_disabled'));
+    } catch (err) {
+      options.pushToast((err as Error).message || String(err), 'error');
+    } finally {
+      settingAutostart.value = false;
+    }
   }
 
   async function closeConnection(id: string) {
@@ -360,6 +645,37 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
     }
   });
 
+  watch(selectedGroup, (group) => {
+    const match = runtimeGroups.value.find((item) => item.name === group);
+    if (!match) {
+      selectedProxy.value = '';
+      return;
+    }
+    if (!match.all.includes(selectedProxy.value)) {
+      selectedProxy.value = match.current || match.all[0] || '';
+    }
+  });
+
+  watch(runtimeRunning, (running) => {
+    if (!running) {
+      closeLogStream();
+      return;
+    }
+    if (options.activeSection.value === 'runtime') {
+      openLogStream();
+    }
+  });
+
+  watch(
+    () => options.capabilities.value,
+    () => {
+      if (options.activeSection.value === 'runtime') {
+        void refreshRuntimeData(true);
+      }
+    },
+    { deep: true },
+  );
+
   watch(
     () => [options.activeSection.value, autoRefresh.value],
     ([section, enabled]) => {
@@ -386,6 +702,24 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
 
   return {
     autoRefresh,
+    runtimeRunning,
+    runtimeController,
+    runtimeMode,
+    runtimeGroups,
+    selectedGroup,
+    selectedProxy,
+    selectedProxyOptions,
+    runtimeLifecycleEnabled,
+    proxyControlEnabled,
+    systemProxyControlEnabled,
+    autostartControlEnabled,
+    runtimeActionPending,
+    loadingRuntimeStatus,
+    loadingRuntimeGroups,
+    systemProxyEnabled,
+    autostartEnabled,
+    settingSystemProxy,
+    settingAutostart,
     delayNodes,
     delaySort,
     delayTestUrl,
@@ -409,8 +743,17 @@ export function useRuntimeManager(options: RuntimeManagerOptions) {
     refreshConnections,
     refreshIp,
     refreshOverview,
+    refreshRuntimeStatus,
+    refreshProxyGroups,
+    refreshRuntimeSettings,
     refreshProxyDelays,
     refreshRuntimeData,
+    startRuntime,
+    stopRuntime,
+    applyProxyMode,
+    applySelectedProxy,
+    updateSystemProxy,
+    updateAutostart,
     clearLogs,
     closeAllConnections,
     closeConnection,

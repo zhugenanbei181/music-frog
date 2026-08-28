@@ -3,6 +3,7 @@ defineProps<{
   modelValue: boolean;
   label?: string;
   description?: string;
+  disabled?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -11,20 +12,24 @@ const emit = defineEmits<{
 
 const toggle = (event: Event) => {
   const target = event.target as HTMLInputElement;
+  if (target.disabled) {
+    return;
+  }
   emit('update:modelValue', target.checked);
 };
 </script>
 
 <template>
-  <label class="inline-flex items-center gap-3 cursor-pointer group">
+  <label class="inline-flex items-center gap-3 group" :class="disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
     <div
-      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus-within:ring-2 focus-within:ring-accent-200 focus-within:ring-offset-2"
+      class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out focus-within:ring-2 focus-within:ring-accent-200 focus-within:ring-offset-2"
       :class="modelValue ? 'bg-accent-500' : 'bg-ink-500/20'"
     >
       <input
         type="checkbox"
         class="sr-only"
         :checked="modelValue"
+        :disabled="disabled"
         @change="toggle"
       />
       <span

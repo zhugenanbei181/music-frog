@@ -203,12 +203,7 @@ fn spawn_config_monitor(state: AppState) {
 
             match runtime.client().get_config().await {
                 Ok(config) => {
-                    let current_tun = config
-                        .tun
-                        .as_ref()
-                        .and_then(|t| t.get("enable"))
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
+                    let current_tun = config.tun.as_ref().map(|t| t.enable).unwrap_or(false);
 
                     if Some(current_tun) != last_tun_enabled {
                         if last_tun_enabled.is_some() {

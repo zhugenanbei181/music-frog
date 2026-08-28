@@ -1,9 +1,10 @@
 pub mod app_routing;
 pub mod config;
 pub mod dns;
+pub mod error;
 pub mod fake_ip;
-pub mod proxy_providers;
 pub mod profiles;
+pub mod proxy_providers;
 pub mod rules;
 pub mod settings;
 pub mod sniffer;

@@ -14,7 +14,92 @@
       </template>
     </PanelHeader>
 
-    <div class="grid gap-3 md:grid-cols-3">
+    <div class="mt-4 rounded-xl border border-ink-500/10 bg-white/70 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="label">{{ $t('runtime.runtime_status') }}</p>
+          <p class="help-text">{{ runtimeStatusText }}</p>
+          <p v-if="runtimeController" class="help-text">{{ runtimeController }}</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge" :class="runtimeRunning ? 'badge-active' : 'badge-idle'">
+            {{ runtimeRunning ? $t('runtime.running') : $t('runtime.stopped') }}
+          </span>
+          <button
+            v-if="runtimeLifecycleEnabled && runtimeRunning"
+            class="btn btn-secondary btn-xs"
+            :disabled="runtimeActionPending || loadingRuntimeStatus"
+            @click="$emit('stop-runtime')"
+          >
+            {{ $t('runtime.stop_runtime') }}
+          </button>
+          <button
+            v-else-if="runtimeLifecycleEnabled"
+            class="btn btn-secondary btn-xs"
+            :disabled="runtimeActionPending || loadingRuntimeStatus"
+            @click="$emit('start-runtime')"
+          >
+            {{ $t('runtime.start_runtime') }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="proxyControlEnabled" class="mt-4 grid gap-3 md:grid-cols-3">
+        <div>
+          <p class="help-text mb-1">{{ $t('runtime.mode') }}</p>
+          <select
+            :value="runtimeMode"
+            class="select w-full"
+            :disabled="runtimeActionPending || loadingRuntimeGroups || !runtimeRunning"
+            @change="$emit('switch-mode', ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="rule">{{ $t('runtime.mode_rule') }}</option>
+            <option value="global">{{ $t('runtime.mode_global') }}</option>
+            <option value="direct">{{ $t('runtime.mode_direct') }}</option>
+            <option value="script">{{ $t('runtime.mode_script') }}</option>
+          </select>
+        </div>
+
+        <div>
+          <p class="help-text mb-1">{{ $t('runtime.proxy_group') }}</p>
+          <select
+            :value="selectedGroup"
+            class="select w-full"
+            :disabled="runtimeActionPending || loadingRuntimeGroups || !runtimeRunning"
+            @change="$emit('update:selectedGroup', ($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="group in runtimeGroups" :key="group.name" :value="group.name">
+              {{ group.name }}
+            </option>
+          </select>
+        </div>
+
+        <div>
+          <p class="help-text mb-1">{{ $t('runtime.proxy_node') }}</p>
+          <div class="flex items-center gap-2">
+            <select
+              :value="selectedProxy"
+              class="select w-full"
+              :disabled="runtimeActionPending || loadingRuntimeGroups || !runtimeRunning"
+              @change="$emit('update:selectedProxy', ($event.target as HTMLSelectElement).value)"
+            >
+              <option v-for="proxy in selectedProxyOptions" :key="proxy" :value="proxy">
+                {{ proxy }}
+              </option>
+            </select>
+            <button
+              class="btn btn-primary btn-xs"
+              :disabled="runtimeActionPending || loadingRuntimeGroups || !runtimeRunning || !selectedProxy"
+              @click="$emit('apply-proxy-selection')"
+            >
+              {{ $t('runtime.apply_proxy') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-3 md:grid-cols-3">
       <div class="rounded-xl border border-ink-500/10 bg-white/70 p-3">
         <p class="help-text">{{ $t('runtime.traffic_up_rate') }}</p>
         <p class="text-sm font-semibold text-ink-900">{{ formatRate(traffic?.up_rate) }}</p>
@@ -232,12 +317,30 @@
     </div>
 
     <PanelFooter>
-      <FormSwitch
-        :model-value="autoRefresh"
-        :label="$t('runtime.auto_refresh')"
-        :description="$t('runtime.auto_refresh_desc')"
-        @update:model-value="$emit('update:autoRefresh', $event)"
-      />
+      <div class="grid gap-3 md:grid-cols-3">
+        <FormSwitch
+          :model-value="autoRefresh"
+          :label="$t('runtime.auto_refresh')"
+          :description="$t('runtime.auto_refresh_desc')"
+          @update:model-value="$emit('update:autoRefresh', $event)"
+        />
+        <FormSwitch
+          v-if="systemProxyControlEnabled"
+          :model-value="systemProxyEnabled"
+          :label="$t('runtime.system_proxy')"
+          :description="$t('runtime.system_proxy_desc')"
+          :disabled="settingSystemProxy"
+          @update:model-value="$emit('toggle-system-proxy', $event)"
+        />
+        <FormSwitch
+          v-if="autostartControlEnabled"
+          :model-value="autostartEnabled"
+          :label="$t('runtime.autostart')"
+          :description="$t('runtime.autostart_desc')"
+          :disabled="settingAutostart"
+          @update:model-value="$emit('toggle-autostart', $event)"
+        />
+      </div>
     </PanelFooter>
   </PanelCard>
 </template>
@@ -251,6 +354,7 @@ import type {
   RuntimeLogLevel,
   RuntimeMemoryData,
   RuntimeProxyDelayNode,
+  RuntimeProxyGroupEntry,
   RuntimeTrafficSnapshot,
 } from '../types';
 import FormSwitch from './FormSwitch.vue';
@@ -263,6 +367,8 @@ type DelaySortKey = 'delay_asc' | 'delay_desc' | 'name_asc' | 'name_desc';
 
 const props = defineProps<{
   autoRefresh: boolean;
+  autostartControlEnabled: boolean;
+  autostartEnabled: boolean;
   closingAll: boolean;
   closingConnectionId: string;
   connectionFilter: string;
@@ -277,10 +383,26 @@ const props = defineProps<{
   loadingConnections: boolean;
   loadingDelays: boolean;
   loadingOverview: boolean;
+  loadingRuntimeGroups: boolean;
+  loadingRuntimeStatus: boolean;
   logLevel: RuntimeLogLevel;
   logs: string[];
   memory: RuntimeMemoryData | null;
+  proxyControlEnabled: boolean;
+  runtimeActionPending: boolean;
+  runtimeController: string;
+  runtimeGroups: RuntimeProxyGroupEntry[];
+  runtimeLifecycleEnabled: boolean;
+  runtimeMode: string;
+  runtimeRunning: boolean;
+  selectedGroup: string;
+  selectedProxy: string;
+  selectedProxyOptions: string[];
+  settingAutostart: boolean;
+  settingSystemProxy: boolean;
   streamConnected: boolean;
+  systemProxyControlEnabled: boolean;
+  systemProxyEnabled: boolean;
   testingAllDelays: boolean;
   testingDelayProxy: string;
   traffic: RuntimeTrafficSnapshot | null;
@@ -292,7 +414,15 @@ defineEmits<{
   (e: 'update:connectionFilter', value: string): void;
   (e: 'update:delaySort', value: DelaySortKey): void;
   (e: 'update:logLevel', value: RuntimeLogLevel): void;
+  (e: 'update:selectedGroup', value: string): void;
+  (e: 'update:selectedProxy', value: string): void;
   (e: 'clear-logs'): void;
+  (e: 'start-runtime'): void;
+  (e: 'stop-runtime'): void;
+  (e: 'switch-mode', mode: string): void;
+  (e: 'apply-proxy-selection'): void;
+  (e: 'toggle-system-proxy', enabled: boolean): void;
+  (e: 'toggle-autostart', enabled: boolean): void;
   (e: 'close-all'): void;
   (e: 'close-one', id: string): void;
   (e: 'refresh'): void;
@@ -328,6 +458,13 @@ const ipDisplay = computed(() => {
     .filter((value) => value && value.trim())
     .join(' / ');
   return location ? `${props.ipInfo.ip} (${location})` : props.ipInfo.ip;
+});
+
+const runtimeStatusText = computed(() => {
+  if (props.loadingRuntimeStatus) {
+    return t('runtime.status_loading');
+  }
+  return props.runtimeRunning ? t('runtime.status_running') : t('runtime.status_stopped');
 });
 
 function formatBytes(value?: number | null) {

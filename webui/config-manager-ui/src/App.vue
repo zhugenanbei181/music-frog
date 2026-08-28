@@ -125,6 +125,8 @@
           <section v-else-if="activeSection === 'runtime'" class="grid gap-6">
             <RuntimePanel
               :auto-refresh="runtimeAutoRefresh"
+              :autostart-control-enabled="autostartControlEnabled"
+              :autostart-enabled="autostartEnabled"
               :closing-all="closingAllConnections"
               :closing-connection-id="closingConnectionId"
               :connection-filter="runtimeConnectionFilter"
@@ -139,10 +141,26 @@
               :loading-connections="runtimeLoadingConnections"
               :loading-delays="runtimeLoadingDelayNodes"
               :loading-overview="runtimeLoadingOverview"
+              :loading-runtime-groups="loadingRuntimeGroups"
+              :loading-runtime-status="loadingRuntimeStatus"
               :log-level="runtimeLogLevel"
               :logs="runtimeLogs"
               :memory="runtimeMemory"
+              :proxy-control-enabled="proxyControlEnabled"
+              :runtime-action-pending="runtimeActionPending"
+              :runtime-controller="runtimeController"
+              :runtime-groups="runtimeGroups"
+              :runtime-lifecycle-enabled="runtimeLifecycleEnabled"
+              :runtime-mode="runtimeMode"
+              :runtime-running="runtimeRunning"
+              :selected-group="runtimeSelectedGroup"
+              :selected-proxy="runtimeSelectedProxy"
+              :selected-proxy-options="runtimeSelectedProxyOptions"
+              :setting-autostart="settingAutostart"
+              :setting-system-proxy="settingSystemProxy"
               :stream-connected="runtimeStreamConnected"
+              :system-proxy-control-enabled="systemProxyControlEnabled"
+              :system-proxy-enabled="systemProxyEnabled"
               :testing-all-delays="runtimeTestingAllDelays"
               :testing-delay-proxy="runtimeTestingDelayProxy"
               :traffic="runtimeTraffic"
@@ -151,11 +169,19 @@
               @update:connection-filter="runtimeConnectionFilter = $event"
               @update:delay-sort="runtimeDelaySort = $event"
               @update:log-level="runtimeLogLevel = $event"
+              @update:selected-group="runtimeSelectedGroup = $event"
+              @update:selected-proxy="runtimeSelectedProxy = $event"
               @clear-logs="clearRuntimeLogs"
               @refresh="refreshRuntimeData"
               @refresh-connections="refreshRuntimeConnections"
               @refresh-delays="refreshRuntimeProxyDelays"
               @refresh-ip="refreshRuntimeIp"
+              @start-runtime="startRuntime"
+              @stop-runtime="stopRuntime"
+              @switch-mode="applyProxyMode"
+              @apply-proxy-selection="applySelectedProxy"
+              @toggle-system-proxy="updateSystemProxy"
+              @toggle-autostart="updateAutostart"
               @close-all="closeAllRuntimeConnections"
               @close-one="closeRuntimeConnection"
               @test-all-delays="testAllRuntimeProxyDelays"
@@ -191,6 +217,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api } from './api';
+import type { AdminCapabilities } from './types';
 import { useAdvancedSettings } from './composables/useAdvancedSettings';
 import { useBusyState } from './composables/useBusyState';
 import { useCoreManager } from './composables/useCoreManager';
@@ -244,6 +271,7 @@ const fakeIpSection = ref<HTMLElement | null>(null);
 const rulesSection = ref<HTMLElement | null>(null);
 const tunSection = ref<HTMLElement | null>(null);
 const activeSection = ref('profiles');
+const capabilities = ref<AdminCapabilities | null>(null);
 
 const navItems = computed(() => [
   { id: 'profiles', label: t('nav.profiles') },
@@ -389,8 +417,26 @@ const {
   endBusy,
 });
 
-  const {
+const {
   autoRefresh: runtimeAutoRefresh,
+  runtimeRunning,
+  runtimeController,
+  runtimeMode,
+  runtimeGroups,
+  selectedGroup: runtimeSelectedGroup,
+  selectedProxy: runtimeSelectedProxy,
+  selectedProxyOptions: runtimeSelectedProxyOptions,
+  runtimeLifecycleEnabled,
+  proxyControlEnabled,
+  systemProxyControlEnabled,
+  autostartControlEnabled,
+  runtimeActionPending,
+  loadingRuntimeStatus,
+  loadingRuntimeGroups,
+  systemProxyEnabled,
+  autostartEnabled,
+  settingSystemProxy,
+  settingAutostart,
   delaySort: runtimeDelaySort,
   delayTestUrl: runtimeDelayTestUrl,
   delayTimeoutMs: runtimeDelayTimeoutMs,
@@ -414,6 +460,12 @@ const {
   refreshIp: refreshRuntimeIp,
   refreshProxyDelays: refreshRuntimeProxyDelays,
   refreshRuntimeData,
+  startRuntime,
+  stopRuntime,
+  applyProxyMode,
+  applySelectedProxy,
+  updateSystemProxy,
+  updateAutostart,
   clearLogs: clearRuntimeLogs,
   closeAllConnections: closeAllRuntimeConnections,
   closeConnection: closeRuntimeConnection,
@@ -424,8 +476,19 @@ const {
   uploadTotal: runtimeUploadTotal,
 } = useRuntimeManager({
   activeSection,
+  capabilities,
   pushToast,
 });
+
+async function refreshCapabilities(silent = false) {
+  try {
+    capabilities.value = await api.getCapabilities();
+  } catch (err) {
+    if (!silent) {
+      pushToast((err as Error).message || String(err), 'error');
+    }
+  }
+}
 
 function setStatus(message: string, detail = '') {
   status.message = message;
@@ -486,6 +549,7 @@ async function updateThemeSetting(value: string) {
 
 async function refreshAll(silent = false) {
   await Promise.all([
+    refreshCapabilities(silent),
     refreshProfiles(silent),
     refreshCoreVersions(silent),
     refreshSettings(),

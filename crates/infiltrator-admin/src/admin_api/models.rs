@@ -208,6 +208,69 @@ pub struct AppSettingsPayload {
     pub language: Option<String>,
     pub theme: Option<String>,
     pub webdav: Option<WebDavConfig>,
+    pub autostart_enabled: Option<bool>,
+    pub system_proxy_enabled: Option<bool>,
+    pub runtime_running: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AdminCapabilities {
+    pub schema_version: u32,
+    pub platform: String,
+    pub runtime: RuntimeCapabilitySet,
+    pub proxy: ProxyCapabilitySet,
+    pub settings: SettingsCapabilitySet,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeCapabilitySet {
+    pub status: bool,
+    pub lifecycle: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProxyCapabilitySet {
+    pub list: bool,
+    pub mode_switch: bool,
+    pub select: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SettingsCapabilitySet {
+    pub autostart: bool,
+    pub system_proxy: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeProxyGroupEntry {
+    pub name: String,
+    pub proxy_type: String,
+    pub current: Option<String>,
+    pub all: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeProxiesResponse {
+    pub mode: String,
+    pub groups: Vec<RuntimeProxyGroupEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProxyModePayload {
+    pub mode: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProxySelectPayload {
+    pub group: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeStatusResponse {
+    pub running: bool,
+    pub controller: Option<String>,
+    pub mode: Option<String>,
 }
 
 pub struct ApiError {

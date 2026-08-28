@@ -44,8 +44,35 @@ mod tests {
         async fn save_app_settings(&self, _settings: AppSettings) -> anyhow::Result<()> {
             Ok(())
         }
+        async fn runtime_running(&self) -> bool {
+            false
+        }
+        async fn runtime_controller_url(&self) -> Option<String> {
+            None
+        }
+        async fn stop_runtime(&self) -> anyhow::Result<()> {
+            Ok(())
+        }
         async fn runtime_client(&self) -> anyhow::Result<MihomoClient> {
             Err(anyhow!("runtime client is not available in sync tests"))
+        }
+        async fn system_proxy_enabled(&self) -> bool {
+            false
+        }
+        async fn set_system_proxy_enabled(&self, _enabled: bool) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn autostart_enabled(&self) -> bool {
+            false
+        }
+        async fn set_autostart_enabled(&self, _enabled: bool) -> anyhow::Result<()> {
+            Ok(())
+        }
+        fn supports_system_proxy_control(&self) -> bool {
+            false
+        }
+        fn supports_autostart_control(&self) -> bool {
+            false
         }
     }
 
