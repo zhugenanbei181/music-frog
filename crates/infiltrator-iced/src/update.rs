@@ -8,6 +8,57 @@ use iced::Task;
 
 impl AppState {
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        // demo-mode: every message that would reach the network, spawn a
+        // process/server, write a settings/profile/rules file, touch the
+        // system proxy / autostart / registry or open an external app is a
+        // no-op. Read-only local UI state changes keep flowing so all pages
+        // stay interactive (most runtime actions already no-op naturally
+        // because the demo keeps `AppState::runtime` unset).
+        if self.demo {
+            match message {
+                Message::StartProxy
+                | Message::StopProxy
+                | Message::FetchIpInfo
+                | Message::SetSystemProxy(_)
+                | Message::SetAutostart(_)
+                | Message::SetAdminEnabled(_)
+                | Message::ApplyAdminSettings
+                | Message::TickSubUpdate
+                | Message::TickWebDavSync
+                | Message::SaveAppSettings
+                | Message::SaveSubscriptionSettings
+                | Message::UpdateSubscriptionNow
+                | Message::ImportProfile
+                | Message::ImportLocalProfile
+                | Message::BrowseLocalImportFile
+                | Message::DeleteProfile(_)
+                | Message::SetActiveProfile(_)
+                | Message::ClearProfiles
+                | Message::SaveProfile
+                | Message::SaveRules
+                | Message::AddCustomRule
+                | Message::SaveDns
+                | Message::SaveFakeIpConfig
+                | Message::SaveTunConfig
+                | Message::SaveRuleProvidersJson
+                | Message::SaveProxyProvidersJson
+                | Message::SaveSnifferJson
+                | Message::SyncUpload
+                | Message::SyncDownload
+                | Message::LoadKernels
+                | Message::CheckCoreUpdate
+                | Message::DownloadCore(_)
+                | Message::DeleteKernel(_)
+                | Message::SetDefaultKernel(_)
+                | Message::FactoryReset
+                | Message::OpenConfigDir
+                | Message::OpenWebAdmin
+                | Message::RequestAdminPrivilege
+                | Message::FlushFakeIpCache => return Task::none(),
+                _ => {}
+            }
+        }
+
         match message {
             // UI & Navigation
             Message::Navigate(_)
@@ -17,6 +68,7 @@ impl AppState {
             | Message::HideWindow
             | Message::ShowWindow
             | Message::Exit
+            | Message::TrayEvent(_)
             | Message::ShowToast(_, _)
             | Message::RemoveToast(_)
             | Message::SetSystemProxy(_)
@@ -67,6 +119,12 @@ impl AppState {
             | Message::UpdateEditorPathSetting(_)
             | Message::SaveAppSettings
             | Message::AppSettingsSaved(_)
+            | Message::SetAdminEnabled(_)
+            | Message::UpdateAdminPort(_)
+            | Message::ApplyAdminSettings
+            | Message::AdminSettingsSaved(_)
+            | Message::AdminServerStarted(_)
+            | Message::OpenWebAdmin
             | Message::SyncUpload
             | Message::SyncDownload
             | Message::SyncFinished(_)
@@ -74,6 +132,24 @@ impl AppState {
             | Message::TickWebDavSync => self.update_profile(message),
 
             // Core & Network
+            Message::ToggleProxyGroupExpanded(group) => {
+                // ui-wave2-p：None 表示初始状态（默认展开第一组）；首次交互时以当前
+                // 过滤结果的第一组为基线，之后完全由用户点击决定展开集合。
+                let mut ids = self.proxy_groups_expanded.take().unwrap_or_else(|| {
+                    self.filtered_groups
+                        .first()
+                        .map(|(name, _)| vec![name.clone()])
+                        .unwrap_or_default()
+                });
+                match ids.iter().position(|g| g == &group) {
+                    Some(index) => {
+                        ids.remove(index);
+                    }
+                    None => ids.push(group),
+                }
+                self.proxy_groups_expanded = Some(ids);
+                Task::none()
+            }
             _ => self.update_core(message),
         }
     }

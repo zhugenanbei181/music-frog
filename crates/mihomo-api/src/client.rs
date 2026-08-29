@@ -1,4 +1,4 @@
-use crate::Proxy;
+use crate::proxy::Proxy;
 use crate::error::{MihomoError, Result};
 use crate::types::*;
 use futures_util::StreamExt;
@@ -39,6 +39,28 @@ impl MihomoClient {
     fn build_url_with_query(&self, path: &str, query: &[(&str, String)]) -> Result<Url> {
         let mut url = self.build_url(path)?;
         url.query_pairs_mut().extend_pairs(query);
+        Ok(url)
+    }
+
+    /// Joins `segments` onto the base URL, percent-encoding each one as a
+    /// single opaque path segment.
+    ///
+    /// Unlike [`Self::build_url`] on a `format!`-ed path — where characters
+    /// such as `?`, `#`, or `/` inside a proxy/provider/group name would be
+    /// parsed as query/fragment/segment delimiters — this goes through
+    /// `Url::path_segments_mut`, so a name like `"My Group #1"` is sent
+    /// verbatim as one encoded segment (`My%20Group%20%231`).
+    fn build_url_with_segments(&self, segments: &[&str]) -> Result<Url> {
+        let mut url = self.base_url.clone();
+        {
+            let mut path = url.path_segments_mut().map_err(|()| {
+                MihomoError::Config("base URL cannot be a base".to_string())
+            })?;
+            path.clear();
+            for segment in segments {
+                path.push(segment);
+            }
+        }
         Ok(url)
     }
 
@@ -325,6 +347,80 @@ impl MihomoClient {
         req.send().await?;
         Ok(())
     }
+
+    /// Restarts the mihomo core (`POST /restart`, empty body): mihomo
+    /// reloads its in-process configuration and then restarts itself.
+    ///
+    /// The endpoint answers with an empty 204 or a JSON body depending on
+    /// version, so — following the fire-and-forget style of the other
+    /// command methods here — any success response is treated as `Ok(())`
+    /// without inspecting the body.
+    ///
+    /// Note: `POST /upgrade` (core self-upgrade) is intentionally NOT
+    /// wrapped by this client; see the `MihomoApi` trait docs in
+    /// `crate::api` for the UP-001 rationale.
+    pub async fn restart_core(&self) -> Result<()> {
+        let url = self.build_url("/restart")?;
+        let req = self.client.post(url);
+        let req = self.add_auth(req);
+        req.send().await?;
+        Ok(())
+    }
+
+    /// Triggers an on-demand health check for one proxy provider
+    /// (`GET /providers/proxies/{provider}/healthcheck`).
+    ///
+    /// The provider name is percent-encoded as a single path segment, so
+    /// names containing spaces, `?`, `#`, `/`, or other reserved characters
+    /// reach mihomo verbatim instead of being split into extra path/query
+    /// parts.
+    pub async fn provider_healthcheck(&self, provider: &str) -> Result<()> {
+        let url =
+            self.build_url_with_segments(&["providers", "proxies", provider, "healthcheck"])?;
+        let req = self.client.get(url);
+        let req = self.add_auth(req);
+        req.send().await?;
+        Ok(())
+    }
+
+    /// Returns the current FakeIP cache table (`GET /cache/fakeip`).
+    ///
+    /// mihomo answers with a JSON object whose keys are the dynamically
+    /// cached domain names, so the payload is returned as a raw
+    /// [`serde_json::Value`] to preserve its original shape instead of
+    /// guessing a fixed struct.
+    pub async fn fakeip_cache(&self) -> Result<Value> {
+        let url = self.build_url("/cache/fakeip")?;
+        let req = self.client.get(url);
+        let req = self.add_auth(req);
+        let resp = req.send().await?;
+        Ok(resp.json().await?)
+    }
+
+    /// Runs a delay test against every proxy in a group
+    /// (`GET /group/{group}/delay?url={url}&timeout={timeout_ms}`).
+    ///
+    /// The response maps proxy names to their measured delay in
+    /// milliseconds, but a proxy that failed the test yields an error
+    /// string (e.g. `"An error occurred in the delay test"`) instead of a
+    /// number, so values are kept as [`serde_json::Value`]; callers must
+    /// handle both `Value::Number` and `Value::String`.
+    pub async fn group_delay(
+        &self,
+        group: &str,
+        url: &str,
+        timeout_ms: u32,
+    ) -> Result<HashMap<String, Value>> {
+        let mut endpoint = self.build_url_with_segments(&["group", group, "delay"])?;
+        endpoint
+            .query_pairs_mut()
+            .append_pair("url", url)
+            .append_pair("timeout", &timeout_ms.to_string());
+        let req = self.client.get(endpoint);
+        let req = self.add_auth(req);
+        let resp = req.send().await?;
+        Ok(resp.json().await?)
+    }
 }
 
 #[cfg(test)]
@@ -424,18 +520,18 @@ mod tests {
 
         tokio::spawn(async move {
             use futures_util::SinkExt;
-            if let Ok((stream, _)) = server.accept().await {
-                if let Ok(mut ws_stream) = tokio_tungstenite::accept_async(stream).await {
-                    let traffic = json!({
-                        "up": 1024,
-                        "down": 2048
-                    });
-                    let _ = ws_stream
-                        .send(Message::Text(
-                            serde_json::to_string(&traffic).unwrap().into(),
-                        ))
-                        .await;
-                }
+            if let Ok((stream, _)) = server.accept().await
+                && let Ok(mut ws_stream) = tokio_tungstenite::accept_async(stream).await
+            {
+                let traffic = json!({
+                    "up": 1024,
+                    "down": 2048
+                });
+                let _ = ws_stream
+                    .send(Message::Text(
+                        serde_json::to_string(&traffic).unwrap().into(),
+                    ))
+                    .await;
             }
         });
 
@@ -458,19 +554,19 @@ mod tests {
 
         tokio::spawn(async move {
             use futures_util::SinkExt;
-            if let Ok((stream, _)) = server.accept().await {
-                if let Ok(mut ws_stream) = tokio_tungstenite::accept_async(stream).await {
-                    let snapshot = json!({
-                        "downloadTotal": 1000,
-                        "uploadTotal": 2000,
-                        "connections": []
-                    });
-                    let _ = ws_stream
-                        .send(Message::Text(
-                            serde_json::to_string(&snapshot).unwrap().into(),
-                        ))
-                        .await;
-                }
+            if let Ok((stream, _)) = server.accept().await
+                && let Ok(mut ws_stream) = tokio_tungstenite::accept_async(stream).await
+            {
+                let snapshot = json!({
+                    "downloadTotal": 1000,
+                    "uploadTotal": 2000,
+                    "connections": []
+                });
+                let _ = ws_stream
+                    .send(Message::Text(
+                        serde_json::to_string(&snapshot).unwrap().into(),
+                    ))
+                    .await;
             }
         });
 
@@ -481,5 +577,161 @@ mod tests {
             .await
             .unwrap();
         assert!(data.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_restart_core() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/restart")
+            .match_header("authorization", "Bearer test-secret")
+            .with_status(204)
+            .create_async()
+            .await;
+
+        let client = MihomoClient::new(&server.url(), Some("test-secret".to_string())).unwrap();
+        let result = client.restart_core().await;
+
+        mock.assert_async().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_restart_core_accepts_json_response() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/restart")
+            .with_status(200)
+            .with_body(json!({ "message": "restarting" }).to_string())
+            .create_async()
+            .await;
+
+        let client = MihomoClient::new(&server.url(), None).unwrap();
+        let result = client.restart_core().await;
+
+        mock.assert_async().await;
+        assert!(result.is_ok(), "a JSON success body must also be Ok(())");
+    }
+
+    #[tokio::test]
+    async fn test_provider_healthcheck() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("GET", "/providers/proxies/My%20Provider/healthcheck")
+            .match_header("authorization", "Bearer test-secret")
+            .with_status(204)
+            .create_async()
+            .await;
+
+        let client = MihomoClient::new(&server.url(), Some("test-secret".to_string())).unwrap();
+        let result = client.provider_healthcheck("My Provider").await;
+
+        mock.assert_async().await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_provider_name_is_percent_encoded_as_path_segment() {
+        let client = MihomoClient::new("http://127.0.0.1:9090", None).unwrap();
+        let url = client
+            .build_url_with_segments(&["providers", "proxies", "My Provider #1?", "healthcheck"])
+            .unwrap();
+        assert_eq!(
+            url.as_str(),
+            "http://127.0.0.1:9090/providers/proxies/My%20Provider%20%231%3F/healthcheck",
+            "space/#/? must be encoded inside the provider segment, not split off"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_flush_fakeip_cache() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/cache/fakeip/flush")
+            .match_header("authorization", "Bearer test-secret")
+            .with_status(204)
+            .create_async()
+            .await;
+
+        let client = MihomoClient::new(&server.url(), Some("test-secret".to_string())).unwrap();
+        let result = client.flush_fakeip_cache().await;
+
+        mock.assert_async().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_fakeip_cache() {
+        let mut server = Server::new_async().await;
+        let body = json!({
+            "music.example.org": "198.18.0.5",
+            "cdn.example.net": "198.18.0.7"
+        });
+        let mock = server
+            .mock("GET", "/cache/fakeip")
+            .match_header("authorization", "Bearer test-secret")
+            .with_status(200)
+            .with_body(serde_json::to_string(&body).unwrap())
+            .create_async()
+            .await;
+
+        let client = MihomoClient::new(&server.url(), Some("test-secret".to_string())).unwrap();
+        let cache = client.fakeip_cache().await.unwrap();
+
+        mock.assert_async().await;
+        // Keys are dynamic domain names; Value keeps the original shape.
+        assert_eq!(
+            cache.get("music.example.org").and_then(|v| v.as_str()),
+            Some("198.18.0.5")
+        );
+        assert!(cache.is_object());
+    }
+
+    #[tokio::test]
+    async fn test_group_delay() {
+        let mut server = Server::new_async().await;
+        let body = json!({
+            "Proxy-A": 123,
+            "Proxy-B": "An error occurred in the delay test"
+        });
+        let mock = server
+            .mock("GET", "/group/My%20Group/delay")
+            .match_query("url=https%3A%2F%2Fexample.com%2Fclash&timeout=5000")
+            .match_header("authorization", "Bearer test-secret")
+            .with_status(200)
+            .with_body(serde_json::to_string(&body).unwrap())
+            .create_async()
+            .await;
+
+        let client = MihomoClient::new(&server.url(), Some("test-secret".to_string())).unwrap();
+        let delays = client
+            .group_delay("My Group", "https://example.com/clash", 5000)
+            .await
+            .unwrap();
+
+        mock.assert_async().await;
+        // Numeric delay for a reachable node...
+        assert_eq!(delays.get("Proxy-A").and_then(|v| v.as_u64()), Some(123));
+        // ...and an error string for one that failed the test.
+        assert_eq!(
+            delays.get("Proxy-B").and_then(|v| v.as_str()),
+            Some("An error occurred in the delay test")
+        );
+    }
+
+    #[test]
+    fn test_group_name_is_percent_encoded_in_delay_url() {
+        let client = MihomoClient::new("http://127.0.0.1:9090", None).unwrap();
+        let mut url = client
+            .build_url_with_segments(&["group", "My Group #1", "delay"])
+            .unwrap();
+        url.query_pairs_mut()
+            .append_pair("url", "https://example.com/ping")
+            .append_pair("timeout", "3000");
+        assert_eq!(
+            url.as_str(),
+            "http://127.0.0.1:9090/group/My%20Group%20%231/delay?url=https%3A%2F%2Fexample.com%2Fping&timeout=3000",
+            "group segment must be encoded while query pairs use form encoding"
+        );
     }
 }

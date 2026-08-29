@@ -1,276 +1,568 @@
+//! Proxies page (代理组与节点) — Clash-Party-style proxy-group cards with
+//! expandable node grids.
+//!
+//! ui-wave2-p: presentation-only restyle over the Wave 1 design tokens and
+//! shared components. Filtering, sorting, delay testing and node switching
+//! still flow through the exact same `Message`s as before.
+
 use crate::locales::{Lang, Localizer};
-use crate::view::components::{card, modern_scrollable};
-use crate::view::icons;
+use crate::view::components::{
+    badge, card_surface, chip, empty_state, icon_button, latency_badge, modern_scrollable,
+    section_header, BadgeKind,
+};
+use crate::view::svg_icons::{self, Icon};
+use crate::view::theme::{self, tokens};
 use crate::{AppState, Message};
-use iced::widget::{Space, button, column, container, row, text, text_input};
+use iced::widget::{button, column, container, row, text, text_input, Space};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+
+/// Node cards per row inside an expanded group (the reference layout uses a
+/// 2-column grid; chunked with fillers like the previous 3-column layout).
+const NODE_GRID_COLUMNS: usize = 2;
+
+/// Sort options already understood by `Message::UpdateProxyDelaySort`.
+const SORT_KEYS: [&str; 4] = ["delay_asc", "delay_desc", "name_asc", "name_desc"];
+const SORT_LABEL_KEYS: [&str; 4] = [
+    "runtime_delay_sort_delay_asc",
+    "runtime_delay_sort_delay_desc",
+    "runtime_delay_sort_name_asc",
+    "runtime_delay_sort_name_desc",
+];
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.lang);
-    let bold_font = iced::Font {
-        weight: iced::font::Weight::Bold,
-        ..Default::default()
-    };
 
-    let search_bar = row![
-        text_input(
-            lang.tr("rules_filter_placeholder").as_ref(),
-            &state.proxy_filter
-        )
-        .on_input(Message::FilterProxies)
-        .padding(10)
-        .size(14)
-        .width(Length::Fixed(240.0)),
-        if !state.proxy_filter.is_empty() {
-            button(text(icons::CLOSE).size(12))
-                .on_press(Message::FilterProxies(String::new()))
-                .padding([10, 14])
-                .style(button::secondary)
-        } else {
-            button(text(" ").size(12))
-                .padding([10, 14])
-                .style(button::secondary)
-        }
-    ]
-    .spacing(5)
-    .align_y(Alignment::Center);
-
-    let header = row![
-        text(lang.tr("proxies_title")).size(28).font(bold_font),
-        Space::new().width(30),
-        search_bar,
-        Space::new().width(Length::Fill),
-    ]
-    .align_y(Alignment::Center);
-
-    let sort_delay_asc_btn = if state.proxy_delay_sort == "delay_asc" {
-        button(text(lang.tr("runtime_delay_sort_delay_asc")).size(11))
-            .padding([6, 10])
-            .style(button::primary)
-    } else {
-        button(text(lang.tr("runtime_delay_sort_delay_asc")).size(11))
-            .on_press(Message::UpdateProxyDelaySort("delay_asc".to_string()))
-            .padding([6, 10])
-            .style(button::secondary)
-    };
-    let sort_delay_desc_btn = if state.proxy_delay_sort == "delay_desc" {
-        button(text(lang.tr("runtime_delay_sort_delay_desc")).size(11))
-            .padding([6, 10])
-            .style(button::primary)
-    } else {
-        button(text(lang.tr("runtime_delay_sort_delay_desc")).size(11))
-            .on_press(Message::UpdateProxyDelaySort("delay_desc".to_string()))
-            .padding([6, 10])
-            .style(button::secondary)
-    };
-    let sort_name_asc_btn = if state.proxy_delay_sort == "name_asc" {
-        button(text(lang.tr("runtime_delay_sort_name_asc")).size(11))
-            .padding([6, 10])
-            .style(button::primary)
-    } else {
-        button(text(lang.tr("runtime_delay_sort_name_asc")).size(11))
-            .on_press(Message::UpdateProxyDelaySort("name_asc".to_string()))
-            .padding([6, 10])
-            .style(button::secondary)
-    };
-    let sort_name_desc_btn = if state.proxy_delay_sort == "name_desc" {
-        button(text(lang.tr("runtime_delay_sort_name_desc")).size(11))
-            .padding([6, 10])
-            .style(button::primary)
-    } else {
-        button(text(lang.tr("runtime_delay_sort_name_desc")).size(11))
-            .on_press(Message::UpdateProxyDelaySort("name_desc".to_string()))
-            .padding([6, 10])
-            .style(button::secondary)
-    };
-
+    // ------------------------------------------------------------------
+    // Header: section title with trailing ghost actions (test all /
+    // refresh) — same `Message`s as the previous control row.
+    // ------------------------------------------------------------------
     let test_all_btn: Element<'_, Message> = if state.runtime_testing_all_delays {
-        button(text(lang.tr("runtime_delay_testing_all")).size(12))
-            .padding([8, 14])
-            .style(button::secondary)
-            .into()
+        container(
+            text(lang.tr("runtime_delay_testing_all"))
+                .size(12)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
+        )
+        .padding([7, 12])
+        .style(pill_surface)
+        .into()
     } else {
         button(
             row![
-                text(icons::SPEED).size(12),
-                text(lang.tr("runtime_delay_test_all")).size(12),
+                svg_icons::icon_themed(Icon::Zap, 13.0, |t: &Theme| tokens(t).text_secondary),
+                text(lang.tr("runtime_delay_test_all"))
+                    .size(12)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary),
+                    }),
             ]
-            .spacing(8),
+            .spacing(6)
+            .align_y(Alignment::Center),
         )
+        .padding([7, 12])
+        .style(ghost_pill)
         .on_press(Message::TestAllProxyDelays)
-        .padding([8, 14])
-        .style(button::secondary)
         .into()
     };
 
-    let control_row = row![
-        text(lang.tr("runtime_delay_sort")).size(12),
-        Space::new().width(8),
-        sort_delay_asc_btn,
-        sort_delay_desc_btn,
-        sort_name_asc_btn,
-        sort_name_desc_btn,
-        Space::new().width(Length::Fill),
-        text_input(
-            lang.tr("runtime_delay_test_url_placeholder").as_ref(),
-            &state.runtime_delay_test_url,
-        )
-        .on_input(Message::UpdateDelayTestUrl)
-        .padding([8, 10])
-        .size(12)
-        .width(Length::FillPortion(2)),
-        Space::new().width(8),
-        text_input(
-            lang.tr("runtime_delay_timeout_ms_placeholder").as_ref(),
-            &state.runtime_delay_timeout_ms,
-        )
-        .on_input(Message::UpdateDelayTimeoutMs)
-        .padding([8, 10])
-        .size(12)
-        .width(Length::Fixed(120.0)),
-        Space::new().width(8),
-        button(
+    let header = section_header(
+        lang.tr("proxies_title").as_ref(),
+        Some(
             row![
-                text(icons::REFRESH).size(14),
-                text(lang.tr("refresh")).size(14)
+                test_all_btn,
+                icon_button(Icon::RefreshCw, 15.0, Message::LoadProxies),
             ]
-            .spacing(10)
+            .spacing(theme::SP_SM)
+            .align_y(Alignment::Center)
+            .into(),
+        ),
+    );
+
+    // ------------------------------------------------------------------
+    // Controls: search box (Message::FilterProxies), sort segmented pills
+    // (Message::UpdateProxyDelaySort), delay-test URL / timeout inputs.
+    // ------------------------------------------------------------------
+    let search_box = row![
+        svg_icons::icon_themed(Icon::Search, 15.0, |t: &Theme| tokens(t).text_tertiary),
+        text_input(
+            lang.tr("proxies_search_placeholder").as_ref(),
+            &state.proxy_filter
         )
-        .on_press(Message::LoadProxies)
-        .padding([8, 14])
-        .style(button::secondary),
-        Space::new().width(8),
-        test_all_btn,
+        .on_input(Message::FilterProxies)
+        .size(13)
+        .width(Length::Fixed(190.0)),
+        if state.proxy_filter.is_empty() {
+            Space::new().width(0).into()
+        } else {
+            icon_button(Icon::X, 12.0, Message::FilterProxies(String::new()))
+        },
     ]
+    .spacing(theme::SP_SM)
     .align_y(Alignment::Center);
 
-    if state.runtime.is_none() {
+    let mut sort_segment = row![].spacing(2);
+    for (index, key) in SORT_KEYS.iter().enumerate() {
+        let active = state.proxy_delay_sort == *key;
+        let label = text(lang.tr(SORT_LABEL_KEYS[index]))
+            .size(11)
+            .font(if active {
+                theme::FONT_SEMIBOLD
+            } else {
+                theme::FONT_MEDIUM
+            })
+            .style(move |t: &Theme| text::Style {
+                color: Some(if active {
+                    tokens(t).text_primary
+                } else {
+                    tokens(t).text_secondary
+                }),
+            });
+
+        let mut segment = button(container(label).padding([5, 10]))
+            .padding(0)
+            .style(move |t: &Theme, _status| {
+                if active {
+                    button::Style {
+                        background: Some(tokens(t).card_bg.into()),
+                        border: Border {
+                            radius: border::Radius::from(theme::R_CONTROL),
+                            ..Default::default()
+                        },
+                        shadow: tokens(t).card_shadow,
+                        text_color: tokens(t).text_primary,
+                        ..Default::default()
+                    }
+                } else {
+                    button::Style {
+                        text_color: tokens(t).text_secondary,
+                        ..Default::default()
+                    }
+                }
+            });
+
+        if !active {
+            segment = segment.on_press(Message::UpdateProxyDelaySort((*key).to_string()));
+        }
+
+        sort_segment = sort_segment.push(segment);
+    }
+
+    let sort_segment = container(sort_segment)
+        .padding(2)
+        .style(|t: &Theme| container::Style {
+            background: Some(tokens(t).control_bg.into()),
+            border: Border {
+                radius: border::Radius::from(theme::R_CONTROL),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+    let controls = row![
+        search_box,
+        text(lang.tr("runtime_delay_sort"))
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            }),
+        sort_segment,
+        Space::new().width(Length::Fill),
+        delay_test_group(state, &lang),
+    ]
+    .spacing(theme::SP_SM)
+    .align_y(Alignment::Center)
+    .width(Length::Fill);
+
+    if state.runtime.is_none() && !state.demo {
+        // demo-mode: a demo session has no live runtime but ships fixture
+        // groups, so it falls through to the full group rendering below.
         return column![
             header,
-            Space::new().height(12),
-            control_row,
-            Space::new().height(40),
-            card(text(lang.tr("proxy_not_running")))
+            Space::new().height(theme::SP_MD),
+            controls,
+            Space::new().height(theme::SP_LG),
+            container(empty_state(
+                Icon::Globe,
+                lang.tr("proxy_not_running").as_ref(),
+                "",
+            ))
+            .width(Length::Fill)
+            .padding(theme::SP_LG)
+            .style(card_surface),
         ]
         .into();
     }
 
-    let mut groups_col = column![].spacing(30);
+    // ------------------------------------------------------------------
+    // Group cards: icon tile, name + subtitle, count badge, group delay
+    // test (Message::TestGroupDelay), expand chevron. Expanded groups show
+    // a 2-column grid of node cards (Message::SelectProxy to switch).
+    // ------------------------------------------------------------------
+    let mut groups_col = column![].spacing(theme::SP_MD);
 
-    for (group_name, members) in &state.filtered_groups {
+    if state.filtered_groups.is_empty() {
+        groups_col = groups_col.push(
+            container(empty_state(
+                Icon::Globe,
+                lang.tr("proxy_groups_empty").as_ref(),
+                "",
+            ))
+            .width(Length::Fill)
+            .padding(theme::SP_LG)
+            .style(card_surface),
+        );
+    }
+
+    for (index, (group_name, members)) in state.filtered_groups.iter().enumerate() {
         let Some(group_info) = state.proxies.get(group_name) else {
             continue;
         };
 
-        let group_test_btn: Element<'_, Message> = if state.runtime_testing_all_delays {
-            button(text(icons::SPEED).size(14))
-                .padding([6, 12])
-                .style(button::secondary)
-                .into()
+        // Pristine state (`None`) mirrors the reference layout: the first
+        // group starts expanded. After the user toggles anything, the
+        // explicit id list decides.
+        let is_expanded = match state.proxy_groups_expanded.as_ref() {
+            Some(ids) => ids.iter().any(|id| id == group_name),
+            None => index == 0,
+        };
+
+        let group_type = group_info.proxy_type();
+
+        let icon_tile = container(svg_icons::icon_themed(
+            group_icon(group_type),
+            18.0,
+            |t: &Theme| tokens(t).accent,
+        ))
+        .width(38)
+        .height(38)
+        .align_x(Alignment::Center)
+        .align_y(Alignment::Center)
+        .style(|t: &Theme| container::Style {
+            background: Some(tokens(t).accent_soft.into()),
+            border: Border {
+                radius: border::Radius::from(theme::R_CONTROL),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+        // "Selector · currently-selected-node" style subtitle, from the
+        // group's existing state fields.
+        let subtitle = match group_info.now() {
+            Some(now) if !now.trim().is_empty() => format!("{group_type} · {now}"),
+            _ => group_type.to_string(),
+        };
+
+        let test_group_btn: Element<'_, Message> = if state.runtime_testing_all_delays {
+            container(svg_icons::icon_themed(Icon::Target, 15.0, |t: &Theme| {
+                tokens(t).text_tertiary
+            }))
+            .padding(6)
+            .into()
         } else {
-            button(text(icons::SPEED).size(14))
-                .on_press(Message::TestGroupDelay(group_name.clone()))
-                .padding([6, 12])
-                .style(button::secondary)
-                .into()
+            icon_button(
+                Icon::Target,
+                15.0,
+                Message::TestGroupDelay(group_name.clone()),
+            )
+        };
+
+        let chevron_icon = if is_expanded {
+            Icon::ChevronDown
+        } else {
+            Icon::ChevronRight
         };
 
         let group_header = row![
-            text(group_name).font(bold_font).size(20),
-            Space::new().width(12),
-            container(text(group_info.proxy_type().to_string()).size(10))
-                .padding([2, 8])
-                .style(|_| container::Style {
-                    background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.05).into()),
-                    border: Border {
-                        radius: border::Radius::from(4.0),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                }),
+            icon_tile,
+            column![
+                text(group_name)
+                    .size(15)
+                    .font(theme::FONT_SEMIBOLD)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_primary),
+                    }),
+                text(subtitle)
+                    .size(12)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary),
+                    }),
+            ]
+            .spacing(2),
             Space::new().width(Length::Fill),
-            text(format!("{} nodes", members.len()))
-                .size(12)
-                .style(|_| text::Style {
-                    color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3))
-                }),
-            Space::new().width(15),
-            group_test_btn,
+            badge(members.len().to_string(), BadgeKind::Neutral),
+            test_group_btn,
+            icon_button(
+                chevron_icon,
+                15.0,
+                Message::ToggleProxyGroupExpanded(group_name.clone()),
+            ),
         ]
+        .spacing(theme::SP_MD)
         .align_y(Alignment::Center);
 
-        let mut members_col = column![].spacing(10);
-        let mut members_row = row![].spacing(10);
+        let mut card_body = column![group_header].spacing(theme::SP_MD);
 
-        let mut i = 0;
-        for member_name in members {
-            let is_active = group_info.now() == Some(member_name);
-            let delay = state
-                .proxies
-                .get(member_name)
-                .and_then(|p: &mihomo_api::Proxy| p.history().last().map(|h| h.delay));
-            let m_name = member_name.clone();
-
-            let mut btn = button(
-                row![
-                    text(member_name).size(14).width(Length::Fill),
-                    if let Some(d) = delay {
-                        let color = if d < 200 {
-                            Color::from_rgb(0.4, 0.8, 0.4)
-                        } else if d < 500 {
-                            Color::from_rgb(0.8, 0.8, 0.4)
-                        } else {
-                            Color::from_rgb(0.8, 0.4, 0.4)
-                        };
-                        text(format!("{}ms", d))
-                            .size(11)
-                            .style(move |_: &Theme| text::Style { color: Some(color) })
-                    } else {
-                        text("").size(11)
-                    }
-                ]
-                .align_y(Alignment::Center),
-            )
-            .width(Length::FillPortion(1))
-            .padding(12);
-
-            if is_active {
-                btn = btn.style(button::primary);
-            } else {
-                btn = btn
-                    .style(button::secondary)
-                    .on_press(Message::SelectProxy(group_name.clone(), m_name));
-            }
-
-            members_row = members_row.push(btn);
-            i += 1;
-            if i % 3 == 0 {
-                members_col = members_col.push(members_row);
-                members_row = row![].spacing(10);
-            }
+        if is_expanded {
+            card_body = card_body.push(node_grid(state, group_name, members));
         }
 
-        if i % 3 != 0 {
-            for _ in 0..(3 - (i % 3)) {
-                members_row = members_row.push(Space::new().width(Length::FillPortion(1)));
-            }
-            members_col = members_col.push(members_row);
-        }
-
-        groups_col = groups_col.push(card(column![
-            group_header,
-            Space::new().height(15),
-            members_col
-        ]));
+        groups_col = groups_col.push(
+            container(card_body)
+                .width(Length::Fill)
+                .padding(theme::SP_LG)
+                .style(card_surface),
+        );
     }
 
-    let content = column![
+    column![
         header,
-        Space::new().height(12),
-        control_row,
-        Space::new().height(20),
-        modern_scrollable(groups_col).height(Length::Fill)
-    ];
+        Space::new().height(theme::SP_MD),
+        controls,
+        Space::new().height(theme::SP_LG),
+        modern_scrollable(groups_col).height(Length::Fill),
+    ]
+    .into()
+}
 
-    content.into()
+/// Icon glyph for a proxy-group type tile.
+fn group_icon(proxy_type: &str) -> Icon {
+    match proxy_type {
+        "URLTest" => Icon::Zap,
+        "Fallback" => Icon::Shield,
+        "LoadBalance" => Icon::ListChecks,
+        _ => Icon::Globe,
+    }
+}
+
+/// 2-column grid of node cards for one expanded group, using the same
+/// row-chunking + filler mechanism as the previous members layout.
+fn node_grid<'a>(
+    state: &'a AppState,
+    group_name: &str,
+    members: &'a [String],
+) -> Element<'a, Message> {
+    let is_active = |member: &str| {
+        state
+            .proxies
+            .get(group_name)
+            .and_then(|group| group.now())
+            .is_some_and(|now| now == member)
+    };
+
+    let mut grid = column![].spacing(theme::SP_SM);
+    let mut cells = row![].spacing(theme::SP_SM);
+    let mut laid_out = 0usize;
+
+    for member in members {
+        cells = cells.push(node_card(
+            state,
+            group_name,
+            member,
+            is_active(member.as_str()),
+        ));
+        laid_out += 1;
+        if laid_out % NODE_GRID_COLUMNS == 0 {
+            grid = grid.push(cells);
+            cells = row![].spacing(theme::SP_SM);
+        }
+    }
+
+    if laid_out % NODE_GRID_COLUMNS != 0 {
+        for _ in 0..(NODE_GRID_COLUMNS - laid_out % NODE_GRID_COLUMNS) {
+            cells = cells.push(Space::new().width(Length::FillPortion(1)));
+        }
+        grid = grid.push(cells);
+    }
+
+    grid.into()
+}
+
+/// One node card: name + protocol chips, JetBrains-Mono latency colored by
+/// tier. Selected node gets the accent border + soft tint; clicking any
+/// other node emits the existing switch Message (`Message::SelectProxy`).
+fn node_card<'a>(
+    state: &'a AppState,
+    group_name: &str,
+    member_name: &'a str,
+    is_active: bool,
+) -> Element<'a, Message> {
+    let node = state.proxies.get(member_name);
+    let node_type = node
+        .map(|p: &mihomo_api::proxy::Proxy| p.proxy_type().to_string())
+        .unwrap_or_default();
+    let node_udp = node.map(mihomo_api::proxy::Proxy::udp).unwrap_or(false);
+    let delay = node.and_then(|p: &mihomo_api::proxy::Proxy| p.history().last().map(|h| h.delay));
+
+    let mut chips = row![chip(node_type)].spacing(theme::SP_XS);
+    if node_udp {
+        chips = chips.push(chip("udp"));
+    }
+
+    let body = row![
+        column![
+            text(member_name)
+                .size(13)
+                .font(theme::FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
+            chips,
+        ]
+        .spacing(theme::SP_XS)
+        .width(Length::Fill),
+        latency_badge(delay),
+    ]
+    .spacing(theme::SP_SM)
+    .align_y(Alignment::Center)
+    .width(Length::Fill);
+
+    let mut card_btn = button(container(body).width(Length::Fill).padding([10, 12]))
+        .width(Length::FillPortion(1))
+        .style(move |t: &Theme, status| {
+            let tk = tokens(t);
+            if is_active {
+                button::Style {
+                    background: Some(tk.accent_soft.into()),
+                    border: Border {
+                        radius: border::Radius::from(theme::R_CONTROL),
+                        width: 1.5,
+                        color: tk.accent,
+                    },
+                    ..Default::default()
+                }
+            } else {
+                button::Style {
+                    background: match status {
+                        button::Status::Hovered | button::Status::Pressed => {
+                            Some(tk.control_bg.into())
+                        }
+                        _ => Some(tk.card_bg.into()),
+                    },
+                    border: Border {
+                        radius: border::Radius::from(theme::R_CONTROL),
+                        width: 1.0,
+                        color: tk.card_border,
+                    },
+                    ..Default::default()
+                }
+            }
+        });
+
+    // The currently-selected node is not clickable (same as before); every
+    // other node switches the group through the existing Message.
+    if !is_active {
+        card_btn = card_btn.on_press(Message::SelectProxy(
+            group_name.to_string(),
+            member_name.to_string(),
+        ));
+    }
+
+    card_btn.into()
+}
+
+/// Compact bordered control group for the delay-test endpoint: small
+/// secondary labels in front of tight token-styled inputs. Emits the exact
+/// same `UpdateDelayTestUrl` / `UpdateDelayTimeoutMs` messages as before.
+fn delay_test_group<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
+    let label = |key: &'static str| {
+        text(lang.tr(key))
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            })
+    };
+
+    container(
+        row![
+            label("proxies_delay_test_url_label"),
+            Space::new().width(theme::SP_XS),
+            text_input("", &state.runtime_delay_test_url)
+                .on_input(Message::UpdateDelayTestUrl)
+                .size(12)
+                .padding([5, 9])
+                .width(Length::Fixed(230.0))
+                .style(delay_input_style),
+            Space::new().width(theme::SP_MD),
+            label("proxies_delay_timeout_label"),
+            Space::new().width(theme::SP_XS),
+            text_input("", &state.runtime_delay_timeout_ms)
+                .on_input(Message::UpdateDelayTimeoutMs)
+                .size(12)
+                .font(theme::MONO)
+                .padding([5, 9])
+                .width(Length::Fixed(76.0))
+                .style(delay_input_style),
+        ]
+        .spacing(theme::SP_SM)
+        .align_y(Alignment::Center),
+    )
+    .padding(theme::SP_SM)
+    .style(delay_group_surface)
+    .into()
+}
+
+/// Hairline-bordered control-group surface (tokens, control radius).
+fn delay_group_surface(t: &Theme) -> container::Style {
+    let tk = tokens(t);
+    container::Style {
+        background: Some(tk.control_bg.into()),
+        border: Border {
+            radius: border::Radius::from(theme::R_CONTROL),
+            width: 1.0,
+            color: tk.card_border,
+        },
+        ..Default::default()
+    }
+}
+
+/// Token-driven text-input style matching the runtime page's inputs.
+fn delay_input_style(t: &Theme, status: text_input::Status) -> text_input::Style {
+    let tk = tokens(t);
+    let (border_color, border_width) = match status {
+        text_input::Status::Focused { .. } => (tk.accent, 1.5),
+        _ => (tk.card_border, 1.0),
+    };
+    text_input::Style {
+        background: tk.card_bg.into(),
+        border: Border {
+            radius: border::Radius::from(theme::R_CONTROL),
+            width: border_width,
+            color: border_color,
+        },
+        icon: tk.text_tertiary,
+        placeholder: tk.text_tertiary,
+        value: tk.text_primary,
+        selection: Color { a: 0.25, ..tk.accent },
+    }
+}
+
+/// Neutral pill surface for resting-state labels (e.g. "testing all...").
+fn pill_surface(t: &Theme) -> container::Style {
+    container::Style {
+        background: Some(tokens(t).control_bg.into()),
+        border: Border {
+            radius: border::Radius::from(theme::R_CHIP),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+/// Ghost pill button (transparent until hover) for header actions.
+fn ghost_pill(t: &Theme, status: button::Status) -> button::Style {
+    let tk = tokens(t);
+    button::Style {
+        background: match status {
+            button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
+            _ => None,
+        },
+        border: Border {
+            radius: border::Radius::from(theme::R_CHIP),
+            ..Default::default()
+        },
+        text_color: tk.text_secondary,
+        ..Default::default()
+    }
 }

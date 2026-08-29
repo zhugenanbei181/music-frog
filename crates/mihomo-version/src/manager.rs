@@ -1,7 +1,7 @@
 use super::channel::{Channel, fetch_latest};
 use super::download::{DownloadProgress, Downloader};
-use mihomo_api::{MihomoError, Result};
-use mihomo_platform::get_home_dir;
+use mihomo_api::error::{MihomoError, Result};
+use mihomo_platform::paths::get_home_dir;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::fs;
@@ -52,19 +52,40 @@ impl VersionManager {
             )));
         }
 
+        // Provenance first (UP-001): refuse to download anything when the
+        // release API does not publish a SHA-256 digest for this platform's
+        // archive. The digest is the trusted input for fail-closed
+        // verification inside the download pipeline.
+        let expected_digest = super::channel::fetch_asset_digest(version).await?;
+
         let binary_name = if cfg!(windows) {
             "mihomo.exe"
         } else {
             "mihomo"
         };
 
-        // Download to OS temp directory first
+        // Download to OS temp directory first; the file name is
+        // process-unique so concurrent installs cannot collide.
         let temp_dir = std::env::temp_dir();
-        let temp_path = temp_dir.join(format!("mihomo-{}-{}", version, binary_name));
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        let temp_path = temp_dir.join(format!(
+            "mihomo-{}-{}-{}-{nanos}",
+            version,
+            binary_name,
+            std::process::id()
+        ));
 
         let downloader = Downloader::new();
         if let Err(err) = downloader
-            .download_version_with_progress(version, &temp_path, on_progress)
+            .download_version_with_progress(
+                version,
+                &temp_path,
+                Some(&expected_digest),
+                on_progress,
+            )
             .await
         {
             // Cleanup temp file on download failure
@@ -75,15 +96,23 @@ impl VersionManager {
         }
 
         // Move to final location only after successful download
-        if let Err(err) = async {
+        let install = async {
             fs::create_dir_all(&version_dir).await?;
             let binary_path = version_dir.join(binary_name);
             fs::rename(&temp_path, &binary_path).await?;
+            // Post-install smoke check (CORE-006): a binary that cannot even
+            // print its version must not become installable, let alone the
+            // default. Old versions stay untouched on failure.
+            if let Err(err) = smoke_check_binary(&binary_path).await {
+                let _ = fs::remove_dir_all(&version_dir).await;
+                return Err(err);
+            }
             Ok::<(), MihomoError>(())
         }
-        .await
-        {
-            // Cleanup on filesystem error
+        .await;
+
+        if let Err(err) = install {
+            // Cleanup on filesystem error or failed smoke check
             if version_dir.exists() {
                 let _ = fs::remove_dir_all(&version_dir).await;
             }
@@ -93,6 +122,7 @@ impl VersionManager {
             return Err(err);
         }
 
+        log::info!("installed kernel {version} (digest verified, smoke check passed)");
         Ok(())
     }
 
@@ -135,6 +165,17 @@ impl VersionManager {
                 version
             )));
         }
+
+        // Second health gate (CORE-006): a version cannot become default
+        // unless its binary proves runnable right now — install-time smoke
+        // already passed, but the file may have been corrupted or replaced
+        // since. The previously default version stays untouched on failure.
+        let binary_name = if cfg!(windows) {
+            "mihomo.exe"
+        } else {
+            "mihomo"
+        };
+        smoke_check_binary(&version_dir.join(binary_name)).await?;
 
         if let Some(parent) = self.config_file.parent() {
             fs::create_dir_all(parent).await?;
@@ -208,14 +249,95 @@ impl VersionManager {
     }
 }
 
+/// Post-install health check (CORE-006): the freshly installed binary must
+/// print its version and exit cleanly. This runs before the version can be
+/// selected as default, so a corrupt or wrong-architecture artifact is
+/// rejected while every previously installed version remains usable.
+async fn smoke_check_binary(path: &std::path::Path) -> Result<()> {
+    let output = tokio::process::Command::new(path)
+        .arg("-v")
+        .output()
+        .await
+        .map_err(|e| {
+            MihomoError::Version(format!(
+                "kernel smoke check could not execute {}: {e}",
+                path.display()
+            ))
+        })?;
+
+    if !output.status.success() {
+        return Err(MihomoError::Version(format!(
+            "kernel smoke check failed: `{} -v` exited with {}",
+            path.display(),
+            output.status
+        )));
+    }    let stdout = String::from_utf8_lossy(&output.stdout);
+    if stdout.trim().is_empty() {
+        return Err(MihomoError::Version(format!(
+            "kernel smoke check failed: `{} -v` printed no version output",
+            path.display()
+        )));
+    }
+
+    log::info!("kernel smoke check: {}", stdout.trim());
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
 
+    #[cfg(unix)]
+    fn write_script(dir: &TempDir, name: &str, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let path = dir.path().join(name);
+        std::fs::write(&path, format!("#!/bin/sh\n{body}")).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        path
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn smoke_check_accepts_version_printing_binary() {
+        let dir = TempDir::new().unwrap();
+        let fake = write_script(&dir, "mihomo", "echo \"Mihomo Meta v1.19.18 test\"");
+        assert!(smoke_check_binary(&fake).await.is_ok());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn smoke_check_rejects_failing_binary() {
+        let dir = TempDir::new().unwrap();
+        let fake = write_script(&dir, "mihomo", "exit 3");
+        let err = smoke_check_binary(&fake).await.unwrap_err();
+        assert!(err.to_string().contains("exited"), "{err}");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn smoke_check_rejects_silent_binary() {
+        let dir = TempDir::new().unwrap();
+        let fake = write_script(&dir, "mihomo", "exit 0");
+        let err = smoke_check_binary(&fake).await.unwrap_err();
+        assert!(err.to_string().contains("no version output"), "{err}");
+    }
+
     fn setup_test_manager(temp_dir: &TempDir) -> VersionManager {
         let home = temp_dir.path().to_path_buf();
         VersionManager::with_home(home).unwrap()
+    }
+
+    /// set_default now smoke-checks the candidate binary; tests that merely
+    /// install a fake version must provide a runnable stand-in.
+    #[cfg(unix)]
+    fn plant_runnable_fake_binary(home: &std::path::Path, version: &str) {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = home.join("versions").join(version);
+        std::fs::create_dir_all(&dir).unwrap();
+        let bin = dir.join("mihomo");
+        std::fs::write(&bin, "#!/bin/sh\necho \"Mihomo Meta v1.19.18 test\"\n").unwrap();
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
 
     #[test]
@@ -288,7 +410,10 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir);
 
-        // Create version directory
+        // Create version directory with a binary that passes smoke check
+        #[cfg(unix)]
+        plant_runnable_fake_binary(temp_dir.path(), "v1.19.0");
+        #[cfg(not(unix))]
         tokio::fs::create_dir_all(manager.install_dir.join("v1.19.0"))
             .await
             .unwrap();
@@ -361,6 +486,9 @@ mod tests {
             "mihomo"
         };
         let binary_path = version_dir.join(binary_name);
+        #[cfg(unix)]
+        plant_runnable_fake_binary(temp_dir.path(), "v1.19.0");
+        #[cfg(not(unix))]
         tokio::fs::write(&binary_path, "binary").await.unwrap();
 
         manager.set_default("v1.19.0").await.unwrap();
@@ -431,6 +559,8 @@ mod tests {
 
         let version_dir = manager.install_dir.join("v1.19.0");
         tokio::fs::create_dir_all(&version_dir).await.unwrap();
+        #[cfg(unix)]
+        plant_runnable_fake_binary(temp_dir.path(), "v1.19.0");
 
         manager.set_default("v1.19.0").await.unwrap();
 

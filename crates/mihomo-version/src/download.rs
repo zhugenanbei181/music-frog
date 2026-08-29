@@ -1,8 +1,10 @@
 use futures_util::StreamExt;
-use mihomo_api::{MihomoError, Result};
+use mihomo_api::error::{MihomoError, Result};
 use std::path::Path;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
+
+use crate::verify;
 
 #[derive(Debug, Clone, Copy)]
 pub struct DownloadProgress {
@@ -21,15 +23,17 @@ impl Downloader {
         }
     }
 
-    pub async fn download_version(&self, version: &str, dest: &Path) -> Result<()> {
-        self.download_version_with_progress(version, dest, |_| {})
-            .await
-    }
-
+    /// Download the release archive for `version` and install the contained
+    /// binary at `dest`. The archive bytes are verified against
+    /// `expected_digest` *before* anything touches the filesystem; a `None`
+    /// digest is refused (fail-closed, UP-001). The binary lands via a
+    /// temp-file rename so an interrupted write never leaves a partial
+    /// artifact at `dest`.
     pub async fn download_version_with_progress<F>(
         &self,
         version: &str,
         dest: &Path,
+        expected_digest: Option<&str>,
         mut on_progress: F,
     ) -> Result<()>
     where
@@ -70,28 +74,73 @@ impl Downloader {
             on_progress(DownloadProgress { downloaded, total });
         }
 
-        // Decompress based on file extension
+        Self::install_archive(&bytes, expected_digest, &filename, dest).await
+    }
+
+    /// Verify, decompress, and atomically install an already-downloaded
+    /// release archive. Exposed for tests: the whole pipeline up to (but
+    /// excluding) the HTTP fetch is exercised without network access.
+    pub async fn install_archive(
+        archive: &[u8],
+        expected_digest: Option<&str>,
+        label: &str,
+        dest: &Path,
+    ) -> Result<()> {
+        // Fail-closed gate: no bytes are decompressed or written before the
+        // archive digest matches the release-API digest.
+        verify::verify_bytes(archive, expected_digest, label)?;
+
+        let extension = Self::get_file_extension();
         let decompressed = if extension == "zip" {
-            Self::decompress_zip(&bytes)?
+            Self::decompress_zip(archive)?
         } else {
-            Self::decompress_gz(&bytes)?
+            Self::decompress_gz(archive)?
         };
 
-        let mut file = fs::File::create(dest).await?;
-        file.write_all(&decompressed).await?;
+        // Atomic install: write a temp file next to `dest`, fsync, then
+        // rename. A crash mid-write leaves the previous state untouched.
+        let dir = dest.parent().ok_or_else(|| {
+            MihomoError::Version(format!("install destination has no parent: {}", dest.display()))
+        })?;
+        let file_name = dest
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("mihomo");
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        let tmp = dir.join(format!(".{file_name}.tmp-{}-{nanos}", std::process::id()));
 
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = file.metadata().await?.permissions();
-            perms.set_mode(0o755);
-            fs::set_permissions(dest, perms).await?;
+        let write = async {
+            let mut file = fs::File::create(&tmp).await?;
+            file.write_all(&decompressed).await?;
+            file.sync_all().await?;
+            #[cfg(unix)]
+            {
+                // 0o755: owner-writable only; tamper-hardening for the
+                // installed kernel (CORE-006). Applied before the rename so
+                // the final artifact never exists with weak permissions.
+                use std::os::unix::fs::PermissionsExt;
+                let mut perms = file.metadata().await?.permissions();
+                perms.set_mode(0o755);
+                file.set_permissions(perms).await?;
+            }
+            Ok::<(), MihomoError>(())
         }
-
+        .await;
+        if let Err(err) = write {
+            let _ = fs::remove_file(&tmp).await;
+            return Err(err);
+        }
+        if let Err(err) = fs::rename(&tmp, dest).await {
+            let _ = fs::remove_file(&tmp).await;
+            return Err(MihomoError::Io(err));
+        }
         Ok(())
     }
 
-    fn get_os_name() -> &'static str {
+    pub(crate) fn get_os_name() -> &'static str {
         match std::env::consts::OS {
             "linux" => "linux",
             "macos" => "darwin",
@@ -100,7 +149,7 @@ impl Downloader {
         }
     }
 
-    fn detect_platform() -> String {
+    pub(crate) fn detect_platform() -> String {
         let arch = std::env::consts::ARCH;
         match arch {
             "x86_64" => "amd64",
@@ -111,7 +160,7 @@ impl Downloader {
         .to_string()
     }
 
-    fn get_file_extension() -> &'static str {
+    pub(crate) fn get_file_extension() -> &'static str {
         match std::env::consts::OS {
             "windows" => "zip",
             _ => "gz",
@@ -167,6 +216,70 @@ impl Default for Downloader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::verify::sha256_hex;
+
+    fn gz_archive(content: &[u8]) -> Vec<u8> {
+        use flate2::Compression;
+        use flate2::write::GzEncoder;
+        use std::io::Write;
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(content).unwrap();
+        encoder.finish().unwrap()
+    }
+
+    #[tokio::test]
+    async fn install_archive_verifies_writes_and_cleans_up() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("mihomo");
+        let content = b"fake kernel binary";
+        let archive = gz_archive(content);
+        let digest = format!("sha256:{}", sha256_hex(&archive));
+
+        Downloader::install_archive(&archive, Some(&digest), "test.gz", &dest)
+            .await
+            .unwrap();
+
+        assert_eq!(std::fs::read(&dest).unwrap(), content);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&dest).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o755);
+        }
+        let leftovers: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains(".tmp-"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp files left behind: {leftovers:?}");
+    }
+
+    #[tokio::test]
+    async fn install_archive_rejects_digest_mismatch_without_touching_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("mihomo");
+        let archive = gz_archive(b"evil payload");
+        let digest = format!("sha256:{}", sha256_hex(b"benign payload"));
+
+        let err = Downloader::install_archive(&archive, Some(&digest), "test.gz", &dest)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("SHA-256 mismatch"), "{err}");
+        assert!(!dest.exists());
+    }
+
+    #[tokio::test]
+    async fn install_archive_fails_closed_without_digest() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("mihomo");
+        let archive = gz_archive(b"anything");
+
+        let err = Downloader::install_archive(&archive, None, "test.gz", &dest)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("fail-closed"), "{err}");
+        assert!(!dest.exists());
+    }
 
     #[test]
     fn test_get_os_name() {

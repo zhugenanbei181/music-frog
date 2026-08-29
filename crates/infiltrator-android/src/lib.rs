@@ -8,7 +8,7 @@ mod uniffi_api;
 
 pub use api::AndroidApi;
 pub use ffi::{FfiApi, FfiBoolResult, FfiErrorCode, FfiStatus, FfiStringResult};
-pub use mihomo_platform::{clear_android_bridge, get_android_bridge, set_android_bridge};
+pub use mihomo_platform::android_bridge::{clear_android_bridge, get_android_bridge, set_android_bridge};
 pub use runtime::{AndroidBridge, AndroidBridgeAdapter, AndroidRuntime, android_bridge_adapter};
 pub use uniffi_api::{
     ConnectionRecord, ConnectionsResult, DnsFallbackFilterSettings, DnsSettings, DnsSettingsPatch,

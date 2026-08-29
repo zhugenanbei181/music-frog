@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::handlers::{
+    use crate::admin_api::handlers::{
         compare_versions_desc, ensure_valid_profile_name, parse_version, sort_versions_desc,
     };
 

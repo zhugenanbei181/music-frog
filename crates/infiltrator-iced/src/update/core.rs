@@ -9,8 +9,8 @@ use crate::types::{
 use iced::{Task, stream};
 use infiltrator_core::rules::RuleEntry;
 use infiltrator_core::settings::{AppSettings, RuntimePanelConfig};
-use infiltrator_desktop::MihomoRuntime;
-use mihomo_version::{VersionManager, channel::Channel};
+use infiltrator_desktop::runtime::MihomoRuntime;
+use mihomo_version::{channel::Channel, manager::VersionManager};
 use std::sync::Arc;
 
 const DEFAULT_RUNTIME_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
@@ -36,7 +36,9 @@ impl AppState {
         }
     }
 
-    fn rebuild_rules_render_cache(&mut self) {
+    /// Rebuild the rules render cache from `rules`. pub(crate) so the demo
+    /// constructor can seed the cache for its fixture rules.
+    pub(crate) fn rebuild_rules_render_cache(&mut self) {
         let start = std::time::Instant::now();
         self.rules_render_cache = self
             .rules
@@ -57,7 +59,9 @@ impl AppState {
         self.perf_snapshot.rules_cache_build_ms = start.elapsed().as_millis();
     }
 
-    fn apply_rules_filter(&mut self) {
+    /// Recompute the filtered rules page indices. pub(crate) so the demo
+    /// constructor can apply its empty filter once at boot.
+    pub(crate) fn apply_rules_filter(&mut self) {
         let filter = self.rules_filter.trim().to_ascii_lowercase();
         self.rules_filtered_indices = if filter.is_empty() {
             (0..self.rules_render_cache.len()).collect()
@@ -494,7 +498,7 @@ impl AppState {
 
         Task::perform(
             async move {
-                let base_dir = mihomo_platform::get_home_dir().map_err(InfiltratorError::from)?;
+                let base_dir = mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
                 let settings_path = infiltrator_core::settings::settings_path(&base_dir)
                     .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                 let mut settings = infiltrator_core::settings::load_settings(&settings_path)
@@ -508,6 +512,55 @@ impl AppState {
             },
             Message::RuntimePanelSettingsSaved,
         )
+    }
+
+    /// Mirror a loaded [`AppSettings`] snapshot onto the UI state fields.
+    /// Returns whether the WebDAV sync-on-startup flow should trigger; the
+    /// startup path (`SettingsLoaded`) honors it, the WebUI save path
+    /// (`ExternalSettingsLoaded`) deliberately does not.
+    fn apply_loaded_settings(&mut self, settings: AppSettings) -> bool {
+        if !settings.language.trim().is_empty() {
+            self.lang = settings.language;
+        }
+        let theme = settings.theme.trim().to_ascii_lowercase();
+        if theme == "light" {
+            self.theme = iced::Theme::Light;
+        } else if theme == "dark" {
+            self.theme = iced::Theme::Dark;
+        }
+        self.editor_path = settings.editor_path.clone().map(std::path::PathBuf::from);
+        self.editor_path_setting = settings.editor_path.unwrap_or_default();
+        self.webdav_enabled = settings.webdav.enabled;
+        self.webdav_url = settings.webdav.url;
+        self.webdav_user = settings.webdav.username;
+        self.webdav_pass = settings.webdav.password;
+        self.webdav_sync_interval_mins = settings.webdav.sync_interval_mins.to_string();
+        self.webdav_sync_on_startup = settings.webdav.sync_on_startup;
+        self.runtime_auto_refresh = settings.runtime_panel.auto_refresh;
+        self.proxy_delay_sort =
+            Self::normalize_delay_sort_key(&settings.runtime_panel.delay_sort).to_string();
+        self.proxy_sort_by_delay = self.proxy_delay_sort.starts_with("delay_");
+        self.runtime_delay_test_url = if settings.runtime_panel.delay_test_url.trim().is_empty() {
+            DEFAULT_RUNTIME_DELAY_TEST_URL.to_string()
+        } else {
+            settings.runtime_panel.delay_test_url
+        };
+        let timeout = settings
+            .runtime_panel
+            .delay_timeout_ms
+            .max(MIN_RUNTIME_DELAY_TIMEOUT_MS)
+            .min(MAX_RUNTIME_DELAY_TIMEOUT_MS);
+        self.runtime_delay_timeout_ms = timeout.to_string();
+        self.runtime_connection_filter = settings.runtime_panel.connection_filter;
+        self.runtime_connection_sort =
+            Self::normalize_connection_sort_key(&settings.runtime_panel.connection_sort).to_string();
+        self.admin_enabled = settings.admin.enabled;
+        self.admin_port = settings.admin.port;
+        self.admin_port_input = settings.admin.port.to_string();
+        self.webdav_enabled
+            && self.webdav_sync_on_startup
+            && !self.webdav_url.trim().is_empty()
+            && !self.webdav_user.trim().is_empty()
     }
 
     fn schedule_runtime_refresh(&mut self, follow_auto_refresh: bool) -> Task<Message> {
@@ -536,7 +589,7 @@ impl AppState {
                         .map_err(InfiltratorError::from)
                 },
                 |result| match result {
-                    Ok(snapshot) => Message::ConnectionsReceived(mihomo_api::ConnectionSnapshot {
+                    Ok(snapshot) => Message::ConnectionsReceived(mihomo_api::types::ConnectionSnapshot {
                         download_total: snapshot.download_total,
                         upload_total: snapshot.upload_total,
                         connections: snapshot.connections,
@@ -706,7 +759,7 @@ impl AppState {
 
     fn trigger_runtime_rebuild(&mut self) -> Task<Message> {
         let label = self.active_rebuild_label();
-        let Some(runtime) = self.runtime.take() else {
+        let Some(runtime) = self.take_app_runtime() else {
             return self.finish_without_rebuild(label);
         };
 
@@ -719,7 +772,7 @@ impl AppState {
             async move {
                 let _ = runtime.shutdown().await;
                 let vm = VersionManager::new().map_err(InfiltratorError::from)?;
-                let data_dir = mihomo_platform::get_home_dir().map_err(InfiltratorError::from)?;
+                let data_dir = mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
                 let candidates = vec![];
                 let rebuilt = MihomoRuntime::bootstrap(&vm, true, &candidates, &data_dir)
                     .await
@@ -763,11 +816,11 @@ impl AppState {
                 self.runtime_prev_download_total = None;
                 Task::perform(
                     async {
-                        let vm = VersionManager::new().map_err(|e: mihomo_api::MihomoError| {
+                        let vm = VersionManager::new().map_err(|e: mihomo_api::error::MihomoError| {
                             InfiltratorError::Mihomo(e.to_string())
                         })?;
-                        let data_dir = mihomo_platform::get_home_dir().map_err(
-                            |e: mihomo_api::MihomoError| InfiltratorError::Mihomo(e.to_string()),
+                        let data_dir = mihomo_platform::paths::get_home_dir().map_err(
+                            |e: mihomo_api::error::MihomoError| InfiltratorError::Mihomo(e.to_string()),
                         )?;
                         let candidates = vec![];
                         let r = MihomoRuntime::bootstrap(&vm, true, &candidates, &data_dir)
@@ -780,7 +833,7 @@ impl AppState {
             }
             Message::StopProxy => {
                 self.cancel_all_tasks();
-                let rt = self.runtime.take();
+                let rt = self.take_app_runtime();
                 self.status = RuntimeStatus::Stopped;
                 Task::perform(
                     async move {
@@ -794,7 +847,7 @@ impl AppState {
             Message::ProxyStarted(result) => match result {
                 Ok(runtime) => {
                     self.status = RuntimeStatus::Running;
-                    self.runtime = Some(runtime);
+                    self.sync_runtime_slot(Some(runtime));
                     Task::batch(vec![
                         Task::done(Message::FetchRuntimeConfig),
                         Task::done(Message::LoadProxies),
@@ -828,61 +881,34 @@ impl AppState {
             Message::SettingsLoaded(result) => {
                 match result {
                     Ok(settings) => {
-                        if !settings.language.trim().is_empty() {
-                            self.lang = settings.language;
+                        let sync_on_startup = self.apply_loaded_settings(settings);
+                        let mut tasks = vec![self.apply_admin_server_lifecycle()];
+                        if sync_on_startup {
+                            tasks.push(Task::done(Message::SyncDownload));
                         }
-                        let theme = settings.theme.trim().to_ascii_lowercase();
-                        if theme == "light" {
-                            self.theme = iced::Theme::Light;
-                        } else if theme == "dark" {
-                            self.theme = iced::Theme::Dark;
-                        }
-                        self.editor_path =
-                            settings.editor_path.clone().map(std::path::PathBuf::from);
-                        self.editor_path_setting = settings.editor_path.unwrap_or_default();
-                        self.webdav_enabled = settings.webdav.enabled;
-                        self.webdav_url = settings.webdav.url;
-                        self.webdav_user = settings.webdav.username;
-                        self.webdav_pass = settings.webdav.password;
-                        self.webdav_sync_interval_mins =
-                            settings.webdav.sync_interval_mins.to_string();
-                        self.webdav_sync_on_startup = settings.webdav.sync_on_startup;
-                        self.runtime_auto_refresh = settings.runtime_panel.auto_refresh;
-                        self.proxy_delay_sort =
-                            Self::normalize_delay_sort_key(&settings.runtime_panel.delay_sort)
-                                .to_string();
-                        self.proxy_sort_by_delay = self.proxy_delay_sort.starts_with("delay_");
-                        self.runtime_delay_test_url =
-                            if settings.runtime_panel.delay_test_url.trim().is_empty() {
-                                DEFAULT_RUNTIME_DELAY_TEST_URL.to_string()
-                            } else {
-                                settings.runtime_panel.delay_test_url
-                            };
-                        let timeout = settings
-                            .runtime_panel
-                            .delay_timeout_ms
-                            .max(MIN_RUNTIME_DELAY_TIMEOUT_MS)
-                            .min(MAX_RUNTIME_DELAY_TIMEOUT_MS);
-                        self.runtime_delay_timeout_ms = timeout.to_string();
-                        self.runtime_connection_filter = settings.runtime_panel.connection_filter;
-                        self.runtime_connection_sort = Self::normalize_connection_sort_key(
-                            &settings.runtime_panel.connection_sort,
-                        )
-                        .to_string();
-                        if self.webdav_enabled
-                            && self.webdav_sync_on_startup
-                            && !self.webdav_url.trim().is_empty()
-                            && !self.webdav_user.trim().is_empty()
-                        {
-                            return Task::done(Message::SyncDownload);
-                        }
+                        Task::batch(tasks)
                     }
                     Err(e) => {
                         self.error_msg = Some(e.to_string());
+                        Task::none()
                     }
                 }
-                Task::none()
             }
+            Message::ExternalSettingsLoaded(result) => {
+                // The admin WebUI saved settings; re-apply without the
+                // WebDAV sync-on-startup side effect.
+                match result {
+                    Ok(settings) => {
+                        self.apply_loaded_settings(settings);
+                        self.apply_admin_server_lifecycle()
+                    }
+                    Err(e) => {
+                        self.error_msg = Some(e.to_string());
+                        Task::none()
+                    }
+                }
+            }
+            Message::AdminHostCommand(command) => self.handle_admin_host_command(command),
             Message::LoadProxies => {
                 if let Some(rt) = self.runtime.clone() {
                     self.is_loading_proxies = true;
@@ -903,10 +929,8 @@ impl AppState {
                 self.is_loading_proxies = false;
                 match result {
                     Ok(proxies) => {
-                        if let Some(tm) = &self.tray_manager {
-                            tm.update_groups(&proxies);
-                        }
                         self.proxies = proxies;
+                        self.refresh_tray();
                         self.recompute_filtered_groups();
                         self.sync_runtime_proxy_selection();
                     }
@@ -1034,7 +1058,7 @@ impl AppState {
                 ) {
                     let up_rate = upload_total.saturating_sub(prev_up) / 2;
                     let down_rate = download_total.saturating_sub(prev_down) / 2;
-                    self.traffic = Some(mihomo_api::TrafficData {
+                    self.traffic = Some(mihomo_api::types::TrafficData {
                         up: up_rate,
                         down: down_rate,
                     });
@@ -1182,14 +1206,13 @@ impl AppState {
                     self.tun_auto_route = config.tun_auto_route;
                     self.tun_strict_route = config.tun_strict_route;
                     self.sniffer_enabled = config.sniffer_enabled;
-                    if let Some(tm) = &self.tray_manager {
-                        tm.update_status(self.system_proxy_enabled, config.tun_enabled);
-                    }
+                    self.refresh_tray();
                 }
                 Task::none()
             }
             Message::SetProxyMode(mode) => {
                 self.proxy_mode = Some(mode.clone());
+                self.refresh_tray();
                 if let Some(rt) = self.runtime.clone() {
                     Task::perform(
                         async move {
@@ -1213,6 +1236,7 @@ impl AppState {
             },
             Message::SetTunEnabled(enabled) => {
                 self.tun_enabled = Some(enabled);
+                self.refresh_tray();
                 if let Some(rt) = self.runtime.clone() {
                     Task::perform(
                         async move {
@@ -1449,17 +1473,17 @@ impl AppState {
                 }
                 let mut tasks = vec![Task::perform(
                     async {
-                        let manager = mihomo_config::ConfigManager::new()
-                            .map_err(|e: mihomo_api::MihomoError| InfiltratorError::from(e))?;
+                        let manager = mihomo_config::manager::ConfigManager::new()
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
                         let profile = manager
                             .get_current()
                             .await
-                            .map_err(|e: mihomo_api::MihomoError| InfiltratorError::from(e))?;
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
                         let content = manager
                             .load(&profile)
                             .await
-                            .map_err(|e: mihomo_api::MihomoError| InfiltratorError::from(e))?;
-                        let doc: serde_yml::Value = serde_yml::from_str(&content)
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
+                        let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
                         let rules = infiltrator_core::rules::extract_rules_from_doc(&doc)
@@ -1982,17 +2006,17 @@ impl AppState {
                 }
                 Task::perform(
                     async {
-                        let manager = mihomo_config::ConfigManager::new()
-                            .map_err(|e: mihomo_api::MihomoError| InfiltratorError::from(e))?;
+                        let manager = mihomo_config::manager::ConfigManager::new()
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
                         let profile = manager
                             .get_current()
                             .await
-                            .map_err(|e: mihomo_api::MihomoError| InfiltratorError::from(e))?;
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
                         let content = manager
                             .load(&profile)
                             .await
-                            .map_err(|e: mihomo_api::MihomoError| InfiltratorError::from(e))?;
-                        let doc: serde_yml::Value = serde_yml::from_str(&content)
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
+                        let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
                         let dns = infiltrator_core::dns::extract_dns_config_from_doc(&doc)
@@ -2665,7 +2689,7 @@ impl AppState {
                 self.autostart_enabled = enabled;
                 Task::perform(
                     async move {
-                        autostart::set_autostart_enabled(enabled)
+                        autostart::set_autostart_enabled(crate::AUTOSTART_REG_NAME, enabled)
                             .map_err(|e: anyhow::Error| InfiltratorError::Internal(e.to_string()))
                     },
                     Message::AutostartSet,
@@ -2682,7 +2706,7 @@ impl AppState {
                 let label = self.active_rebuild_label();
                 match result {
                     Ok(runtime) => {
-                        self.runtime = Some(runtime);
+                        self.sync_runtime_slot(Some(runtime));
                         self.status = RuntimeStatus::Running;
                         self.runtime_poll_tick = 0;
                         self.runtime_prev_upload_total = None;

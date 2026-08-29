@@ -5,7 +5,11 @@ use std::path::PathBuf;
 use tokio::{net::TcpListener, sync::oneshot};
 use tower_http::services::{ServeDir, ServeFile};
 
-use crate::admin_api::{self, AdminApiContext, AdminApiState, AdminEventBus};
+use crate::admin_api::{
+    self,
+    events::AdminEventBus,
+    state::{AdminApiContext, AdminApiState},
+};
 
 pub struct StaticServerHandle {
     pub url: String,
@@ -88,6 +92,12 @@ pub async fn start_admin_server<C: AdminApiContext>(
         .fallback(ServeFile::new(admin_dir.join("index.html")));
 
     let api_state = AdminApiState::new(ctx, events);
+    // Seed one periodic auto-update job per already-enabled profile so the
+    // per-profile jobs exist no matter which embedder started the server
+    // (not every embedder drives `SubscriptionScheduler::start` itself).
+    // Runs inside this runtime; duplicate seeds are harmless because a same
+    // name spawn replaces the previous job.
+    crate::scheduler::seed_subscription_jobs(&api_state.ctx).await;
     let router = Router::new()
         .merge(admin_api::router(api_state))
         .nest_service("/admin", admin_static_service)

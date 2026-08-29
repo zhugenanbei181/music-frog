@@ -1,27 +1,28 @@
-# 缺陷与差距清单 (对标主流 mihomo 客户端)
+# 功能差距视图
 
-> 基线时间: 2026-02-06  
-> 评估范围: Desktop (Tauri + WebAdmin) 与 Android (Compose + UniFFI)
+本文件是差距和证据索引，不是执行顺序。执行顺序、owner 和验收条件统一放在本地 `TODO.md`；功能归属见 [docs/FUNCTIONAL_MAP.md](docs/FUNCTIONAL_MAP.md)。
 
-## 缺陷列表
+> 状态依据当前工作树的代码盘点。`已补齐` 只表示入口或主要实现已经出现，不等于完成了跨平台行为、真实 mihomo 和发布验证。
 
-| ID | 严重度 | 缺陷描述 | 影响 | 证据 | 对应 TODO |
-| --- | --- | --- | --- | --- | --- |
-| D-001 | High | WebAdmin 缺少运行态管理 API (连接/日志/内存/IP 等) | 桌面端难以完成运行态排障，体验弱于主流客户端 | `crates/infiltrator-admin/src/admin_api.rs` 仅暴露 profiles/settings/dns/fake-ip/rules/tun/core/webdav | A-001 |
-| D-002 | High | WebAdmin 页面无运行态面板，仅配置管理 | 需依赖外部页面或托盘，管理路径割裂 | `webui/config-manager-ui/src/App.vue` 导航仅 `profiles/webdav/network/core/rules` | A-002 |
-| D-003 | Medium | 代理延迟测速能力未接入可视化流程 | 节点选择缺少量化依据 | `crates/mihomo-api/src/client.rs` 存在 `test_delay`，但 WebAdmin 无对应 API/UI | A-003 |
-| D-004 | Medium | Core 更新能力主要在托盘，WebAdmin 只可切换已安装版本 | 桌面 WebAdmin 无法闭环完成更新与版本治理 | `src-tauri/src/core_update.rs` 有完整更新逻辑；`webui/config-manager-ui/src/components/CorePanel.vue` 仅切换已安装版本 | A-004 |
-| D-005 | Medium | 高级配置项覆盖不全 (如 proxy-providers/sniffer/fallback-filter 等) | 复杂场景需手改 YAML，易错且回归成本高 | `crates/infiltrator-core/src/dns.rs`/`tun.rs`/`rules.rs` 仅覆盖部分字段模型 | A-005 |
-| D-006 | High | Android Profiles 能力不完整 (缺删除/本地导入/编辑/订阅设置) | 常见运维动作需切回桌面或手工处理 | `android/app/src/main/java/com/musicfrog/despicableinfiltrator/ui/profiles/ProfilesViewModel.kt` 仅 `add/select/update` | B-001 |
-| D-007 | High | Android 分应用路由存在双数据源 (SharedPreferences 与 Rust FFI 并存) | 状态可能分叉，维护复杂，故障难定位 | `android/.../AppRoutingViewModel.kt` 使用 prefs；`crates/infiltrator-android/src/uniffi_api.rs` 另有 `app_routing_*` | B-002 |
-| D-008 | Medium | Android 缺少连接管理页面 | 无法按连接维度诊断与主动断开异常连接 | `android/app/src/main/java/com/musicfrog/despicableinfiltrator/ui/App.kt` 无 Connections 页面；`mihomo-api` 已有连接接口 | B-003 |
-| D-009 | Medium | Android 代理模式缺少 `script` | 与桌面模式不一致，策略切换能力不足 | `android/.../OverviewScreen.kt` 下拉仅 `rule/global/direct` | B-004 |
-| D-010 | Medium | Android DNS/TUN 字段覆盖低于桌面 | 高级网络配置无法在 Android 完整配置 | `android/.../DnsViewModel.kt`、`TunViewModel.kt` 与 `crates/infiltrator-core/src/dns.rs`、`tun.rs` 字段不一致 | B-005 |
-| D-011 | Low | Android 未提供独立 IP 诊断入口 | 网络异常排查效率低 | `crates/infiltrator-android/src/uniffi_api.rs` 有 `ip_check`，UI 未接入 | B-006 |
-| D-012 | High | 缺少上述能力的系统化回归矩阵 | 补功能后容易出现回归 | API/UI 回归仅覆盖现有路径，缺少新增差距项的测试基线 | A-006 / B-007 |
+## 差距列表
 
-## 处理原则
+| ID | 严重度 | 当前判断 | 证据 | 后续任务 |
+| --- | --- | --- | --- | --- |
+| D-001 | High | 已补齐入口，待控制平面收敛 | `crates/infiltrator-admin/src/admin_api.rs` 已有 runtime connections/logs/traffic/memory/IP/delay 路由 | CORE-001/003、FUNC-002 |
+| D-002 | High | 已补齐入口，待跨 UI 平价 | `webui/config-manager-ui/src/App.vue` 已挂载 RuntimePanel | FUNC-002、UI-003 |
+| D-003 | Medium | 已补齐入口，待统一结果语义 | `mihomo-api::test_delay`、Admin API runtime delay 路由和 RuntimePanel 均存在 | FUNC-002、QA-001 |
+| D-004 | Medium | 已补齐主要流程，待交付验证 | Admin API 已有 core versions/latest/download/update/activate 路由，Iced 也有 core update state | CORE-006、QA-004 |
+| D-005 | Medium | 部分完成 | `infiltrator-core` 和 UI 已有 DNS/Fake-IP/TUN/rules/providers/sniffer 的结构化/JSON 路径 | FUNC-003、CORE-005 |
+| D-006 | High | 主要入口已补齐，待 shared contract | Android profiles 已有 create/select/save/delete、local import 和 subscription settings 路径 | FUNC-001、UI-004 |
+| D-007 | High | Rust FFI 已成为主要来源，仍需 canonical 审计 | `AppRoutingViewModel` 通过 `appRoutingLoad/SetMode/TogglePackage`，Rust 侧有 `app_routing_*` | PLAT-002、UI-004 |
+| D-008 | Medium | 已补齐入口，待回归 | Android `App.kt` 已路由 Connections，UniFFI 已提供 list/close | FUNC-002、QA-001 |
+| D-009 | Medium | 已补齐入口，待与桌面语义对齐 | Android Overview 已包含 rule/global/direct/script 四种模式 | FUNC-002、UI-004 |
+| D-010 | Medium | 部分完成 | Android 已暴露 `fallback-filter`、`stack`、`auto-detect-interface` 等字段，但完整字段矩阵仍未建立 | FUNC-003、CORE-005 |
+| D-011 | Low | 已补齐入口，待错误/网络策略审计 | Android Overview 已调用 `ipCheck`；Rust 实现仍需纳入统一诊断契约 | FUNC-002、QA-001 |
+| D-012 | High | 持续开放 | 现有单元/API 测试较多，但缺少 core version × platform × UI 的统一矩阵 | QA-001/002/004 |
 
-1. 先做 P0: A-001, A-002, A-006, B-001, B-002, B-007。  
-2. 每完成一项，同步更新 `TODO.md`、`ANDROID.md`、`CHANGELOG.md`。  
-3. 仅在功能可用且回归通过后将状态改为“已完成”。
+## 使用原则
+
+1. 先处理 `CORE-*`、`QA-*` 和会阻塞多端的 `FUNC-*`，不要按旧的 A/B 编号继续扩张。
+2. 差距状态必须由代码、行为测试和适用平台证据共同决定；不能因为页面出现就标记完成。
+3. 新发现先写入对应功能域的 TODO，再在本表增加证据；本表不保存临时实现流水。

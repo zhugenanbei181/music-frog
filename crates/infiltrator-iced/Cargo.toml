@@ -3,12 +3,28 @@ name = "infiltrator-iced"
 version = "0.14.0"
 edition = "2024"
 
+# Lib + thin binary: `src/lib.rs` hosts the module tree and the application
+# bootstrap (`infiltrator_iced::run`), `src/main.rs` is a one-call wrapper.
+# The lib form lets the `tests/` integration harnesses see the crate; the
+# binary target keeps its package name so `target/debug/infiltrator-iced`
+# (used by scripts/capture-iced.sh) is unchanged.
+[lib]
+name = "infiltrator_iced"
+path = "src/lib.rs"
+
+[features]
+# Force the muda/tray-icon backend everywhere (including Linux, where ksni is
+# the default) so both tray backends stay compilable and checkable on this OS.
+native-tray-backend = []
+
 [dependencies]
-iced = { version = "0.14", default-features = false, features = ["tokio", "advanced", "wgpu-bare", "canvas", "image"] }
+iced = { version = "0.14", default-features = false, features = ["tokio", "advanced", "wgpu-bare", "canvas", "image", "svg", "x11", "wayland"] }
 wgpu = { version = "27.0", default-features = false, features = ["std", "wgsl", "vulkan", "gles"] }
 tokio = { workspace = true }
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-desktop = { path = "../infiltrator-desktop" }
+infiltrator-shared = { path = "../infiltrator-shared" }
+infiltrator-admin = { path = "../infiltrator-admin" }
 mihomo-version = { path = "../mihomo-version" }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }
@@ -16,14 +32,19 @@ mihomo-platform = { path = "../mihomo-platform" }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_yml = { workspace = true }
+serde_yaml_ng = { workspace = true }
+# muda's optional libxdo is disabled at the workspace root (Linux accel. dep).
 muda = { workspace = true }
 tray-icon = { workspace = true }
+ksni = { workspace = true }
 is_elevated = "0.1"
 anyhow = { workspace = true }
+async-trait = { workspace = true }
+log = { workspace = true }
 reqwest = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
+webbrowser = "1.0"
 single-instance = "0.3"
 sys-locale = "0.3"
 image = "0.25"
@@ -35,10 +56,11 @@ identifier = "com.musicfrog.infiltrator"
 version = "0.14.0"
 authors = ["MusicFrog"]
 description = "A native high-performance proxy client."
-icons = ["../../src-tauri/icons/icon.png"]
+icons = ["icons/icon.png"]
 resources = [
-    "../../src-tauri/icons/icon.png",
-    "../../vendor/mihomo.exe"
+    "icons/icon.png",
+    "../../vendor/mihomo.exe",
+    "../../webui/config-manager-ui/dist"
 ]
 
 [package.metadata.packager.wix]

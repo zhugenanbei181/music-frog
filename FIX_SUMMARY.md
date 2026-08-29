@@ -347,7 +347,7 @@ To verify fixes:
 
 5. **Run tests**:
    ```bash
-   cargo test --workspace
+   bash scripts/test.sh
    ```
 
 ## Conclusion

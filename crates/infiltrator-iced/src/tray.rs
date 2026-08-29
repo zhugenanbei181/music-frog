@@ -1,122 +1,180 @@
-use muda::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use std::path::Path;
-use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
+//! System tray, platform-split behind one neutral abstraction:
+//!
+//! * [`spec`] — the headlessly-testable seam: [`TraySpec`] (menu with stable
+//!   action ids), [`TrayEvent`], [`TrayController`], [`TrayStartup`].
+//! * ksni backend (Linux default) — pure StatusNotifierItem/D-Bus, no GTK.
+//! * native backend (Windows/macOS, or `native-tray-backend` on Linux) — the
+//!   existing muda/tray-icon implementation wrapped behind the same seam.
+//!
+//! The tray is a pure enhancement: any startup failure degrades to a
+//! window-only app with a warning and never fails or panics the process.
 
-pub struct TrayManager {
-    pub tray_icon: Option<TrayIcon>,
-    pub menu: Menu,
-    pub groups_menu: Submenu,
-    pub system_proxy_item: CheckMenuItem,
-    pub tun_mode_item: CheckMenuItem,
+pub mod spec;
+
+#[cfg(all(unix, not(target_os = "macos"), not(feature = "native-tray-backend")))]
+#[cfg_attr(test, allow(dead_code))] // spawn path never runs under test
+mod ksni_backend;
+#[cfg(any(windows, target_os = "macos", feature = "native-tray-backend"))]
+#[cfg_attr(test, allow(dead_code))] // spawn path never runs under test
+mod native;
+
+#[cfg(test)]
+#[path = "../tests/gui/tray_tests.rs"]
+mod tests;
+
+pub use spec::{
+    GlobalProxyMenu, TRAY_ACTION_MODE_DIRECT, TRAY_ACTION_MODE_GLOBAL, TRAY_ACTION_MODE_RULE,
+    TRAY_ACTION_NO_PROXIES, TRAY_ACTION_OPEN_WEB_ADMIN, TRAY_ACTION_QUIT,
+    TRAY_ACTION_SELECT_GLOBAL_PROXY, TRAY_ACTION_SHOW, TRAY_ACTION_TOGGLE_SYSTEM_PROXY,
+    TRAY_ACTION_TOGGLE_THEME, TRAY_ACTION_TOGGLE_TUN, TRAY_SUBMENU_GLOBAL, TRAY_SUBMENU_MODE,
+    TrayActionId, TrayController, TrayEvent, TrayEventReceiver, TrayIconData, TrayIntent,
+    TrayMenuItem, TrayMenuSpec, TraySpec, TrayStartup, WebAdminMenu, build_tray_spec,
+    load_icon_rgba, resolve_tray_event,
+};
+
+use crate::state::AppState;
+use crate::types::Message;
+use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
+use iced::futures::stream::BoxStream;
+use iced::{Subscription, Task, stream};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+/// Spawn the platform tray with the given spec. Returns the typed startup
+/// result; never panics and never fails the app.
+#[cfg_attr(test, allow(dead_code))] // never called under test by design
+pub(crate) fn spawn(spec: TraySpec) -> TrayStartup {
+    #[cfg(all(unix, not(target_os = "macos"), not(feature = "native-tray-backend")))]
+    return ksni_backend::spawn_ksni(spec);
+
+    #[cfg(any(windows, target_os = "macos", feature = "native-tray-backend"))]
+    return native::spawn_native(spec);
 }
 
-impl TrayManager {
-    pub fn new() -> Self {
-        let icon = load_icon();
+/// Shared receiver side of the tray event channel. The iced subscription
+/// drains it; tests inject their own instance into the app state.
+pub type SharedTrayEventReceiver = Arc<Mutex<TrayEventReceiver>>;
 
-        let menu = Menu::new();
-        let show_item = MenuItem::with_id("show", "显示主界面", true, None);
+/// Drain every pending tray event without blocking.
+pub(crate) fn drain_tray_events(rx: &SharedTrayEventReceiver) -> Vec<TrayEvent> {
+    let rx = rx.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut events = Vec::new();
+    while let Ok(event) = rx.try_recv() {
+        events.push(event);
+    }
+    events
+}
 
-        let mode_menu = Submenu::new("代理模式", true);
-        let mode_rule = MenuItem::with_id("mode_rule", "规则模式", true, None);
-        let mode_global = MenuItem::with_id("mode_global", "全局模式", true, None);
-        let mode_direct = MenuItem::with_id("mode_direct", "直连模式", true, None);
-        let _ = mode_menu.append_items(&[&mode_rule, &mode_global, &mode_direct]);
+/// Subscription recipe over the neutral channel (needed because iced 0.14's
+/// `run`/`run_with` builders cannot capture the shared receiver).
+struct TrayEventsRecipe {
+    receiver: SharedTrayEventReceiver,
+}
 
-        let groups_menu = Submenu::new("快速切换 (GLOBAL)", true);
+impl Recipe for TrayEventsRecipe {
+    type Output = Message;
 
-        let system_proxy_item =
-            CheckMenuItem::with_id("toggle_system_proxy", "系统代理", true, false, None);
-        let tun_mode_item = CheckMenuItem::with_id("toggle_tun", "TUN 模式", true, false, None);
-        let theme_item = MenuItem::with_id("toggle_theme", "切换深/浅色模式", true, None);
-
-        let quit_item = MenuItem::with_id("quit", "退出应用", true, None);
-
-        let _ = menu.append_items(&[
-            &show_item,
-            &PredefinedMenuItem::separator(),
-            &mode_menu,
-            &groups_menu,
-            &PredefinedMenuItem::separator(),
-            &system_proxy_item,
-            &tun_mode_item,
-            &theme_item,
-            &PredefinedMenuItem::separator(),
-            &quit_item,
-        ]);
-
-        let mut builder = TrayIconBuilder::new()
-            .with_menu(Box::new(menu.clone()))
-            .with_tooltip("MusicFrog Infiltrator");
-
-        if let Some(i) = icon {
-            builder = builder.with_icon(i);
-        }
-
-        // 这里的 build() 可能因为系统不支持或资源冲突失败，包装在 Option 中
-        let tray_icon = builder.build().ok();
-
-        Self {
-            tray_icon,
-            menu,
-            groups_menu,
-            system_proxy_item,
-            tun_mode_item,
-        }
+    fn hash(&self, state: &mut Hasher) {
+        use std::hash::Hash;
+        "infiltrator-tray-events".hash(state);
     }
 
-    pub fn update_status(&self, system_proxy: bool, tun: bool) {
-        self.system_proxy_item.set_checked(system_proxy);
-        self.tun_mode_item.set_checked(tun);
+    fn stream(self: Box<Self>, _input: EventStream) -> BoxStream<'static, Message> {
+        let receiver = self.receiver;
+        let channel = stream::channel(
+            100,
+            move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                loop {
+                    for event in drain_tray_events(&receiver) {
+                        let _ = output.try_send(Message::TrayEvent(event));
+                    }
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            },
+        );
+        Box::pin(channel)
     }
+}
 
-    pub fn update_groups(&self, groups: &std::collections::HashMap<String, mihomo_api::Proxy>) {
-        while !self.groups_menu.items().is_empty() {
-            let _ = self.groups_menu.remove_at(0);
-        }
+/// Subscribe to tray activations from whichever backend is compiled in.
+pub(crate) fn tray_events_subscription(
+    receiver: &SharedTrayEventReceiver,
+) -> Subscription<Message> {
+    from_recipe(TrayEventsRecipe {
+        receiver: Arc::clone(receiver),
+    })
+}
 
-        if let Some(global) = groups.get("GLOBAL")
-            && let Some(all) = global.all()
-        {
-            let current = global.now().unwrap_or("");
-            for node in all {
-                let id = format!("proxy_GLOBAL_{}", node);
-                let is_active = node == current;
-                let label = if is_active {
-                    format!("● {}", node)
-                } else {
-                    node.clone()
-                };
-                let item = MenuItem::with_id(id, label, true, None);
-                let _ = self.groups_menu.append(&item);
+impl AppState {
+    /// Map a tray activation onto the exact same actions the old muda menu
+    /// ids drove (mode switch, GLOBAL quick-switch, system proxy/TUN toggle,
+    /// theme, show window, quit). Optimistic state changes are applied here
+    /// so the tray/UI reflect the user's click immediately; the emitted
+    /// follow-up messages run the same handlers as before (and re-set the
+    /// same fields before doing their network work).
+    pub fn handle_tray_event(&mut self, event: TrayEvent) -> Task<Message> {
+        let tun = self.tun_enabled.unwrap_or(false);
+        let intent = resolve_tray_event(&event, self.system_proxy_enabled, tun);
+        match intent {
+            Some(TrayIntent::ShowWindow) => Task::done(Message::ShowWindow),
+            Some(TrayIntent::Exit) => Task::done(Message::Exit),
+            Some(TrayIntent::ToggleTheme) => Task::done(Message::ToggleTheme),
+            Some(TrayIntent::SetMode(mode)) => {
+                self.proxy_mode = Some(mode.clone());
+                self.refresh_tray();
+                Task::done(Message::SetProxyMode(mode))
             }
-        }
-
-        if self.groups_menu.items().is_empty() {
-            let item = MenuItem::with_id("no_proxies", "暂无节点 (请先启动)", false, None);
-            let _ = self.groups_menu.append(&item);
+            Some(TrayIntent::SetSystemProxy(enabled)) => {
+                self.system_proxy_enabled = enabled;
+                self.refresh_tray();
+                Task::done(Message::SetSystemProxy(enabled))
+            }
+            Some(TrayIntent::SetTunEnabled(enabled)) => {
+                self.tun_enabled = Some(enabled);
+                self.refresh_tray();
+                Task::done(Message::SetTunEnabled(enabled))
+            }
+            Some(TrayIntent::SelectGlobalProxy(node)) => {
+                Task::done(Message::SelectProxy("GLOBAL".to_string(), node))
+            }
+            Some(TrayIntent::OpenWebAdmin) => self.open_web_admin(),
+            None => Task::none(),
         }
     }
-}
 
-fn load_icon() -> Option<Icon> {
-    let path = Path::new("src-tauri/icons/icon.ico");
-    if !path.exists() {
-        let path_png = Path::new("src-tauri/icons/icon.png");
-        if !path_png.exists() {
-            return None;
+    /// Rebuild the [`TraySpec`] from current app state and push it to the
+    /// tray backend. No-op when the tray is unavailable.
+    pub fn refresh_tray(&self) {
+        if let Some(controller) = &self.tray_controller {
+            controller.update_spec(self.current_tray_spec());
         }
-        return load_icon_from_path(path_png);
     }
-    load_icon_from_path(path)
-}
 
-fn load_icon_from_path(path: &Path) -> Option<Icon> {
-    let (icon_rgba, icon_width, icon_height) = {
-        let image = image::open(path).ok()?.into_rgba8();
-        let (width, height) = image.dimensions();
-        let rgba = image.into_raw();
-        (rgba, width, height)
-    };
-    Icon::from_rgba(icon_rgba, icon_width, icon_height).ok()
+    /// The spec describing what the tray should show right now.
+    pub fn current_tray_spec(&self) -> TraySpec {
+        let global = self.global_proxy_menu();
+        let web_admin = if self.admin_enabled {
+            Some(crate::tray::WebAdminMenu {
+                running: self.admin_server.is_running(),
+            })
+        } else {
+            None
+        };
+        build_tray_spec(
+            self.proxy_mode.as_deref(),
+            self.system_proxy_enabled,
+            self.tun_enabled.unwrap_or(false),
+            global,
+            web_admin,
+        )
+    }
+
+    fn global_proxy_menu(&self) -> Option<GlobalProxyMenu<'_>> {
+        let global = self.proxies.get("GLOBAL")?;
+        let nodes = global.all()?;
+        Some(GlobalProxyMenu {
+            current: global.now().unwrap_or_default(),
+            nodes,
+        })
+    }
 }

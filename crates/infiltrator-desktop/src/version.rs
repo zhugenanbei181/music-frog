@@ -1,5 +1,6 @@
 use anyhow::anyhow;
-use mihomo_version::{Channel, VersionManager};
+use mihomo_version::channel::Channel;
+use mihomo_version::manager::VersionManager;
 use std::path::{Path, PathBuf};
 
 pub async fn resolve_binary(

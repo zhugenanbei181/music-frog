@@ -8,10 +8,8 @@ use axum::{
     routing::{delete, get, post},
 };
 
-pub use self::events::*;
 use self::handlers::*;
-pub use self::models::*;
-pub use self::state::*;
+use self::state::{AdminApiContext, AdminApiState};
 
 pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
     Router::new()

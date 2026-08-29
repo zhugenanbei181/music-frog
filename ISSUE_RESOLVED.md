@@ -346,7 +346,7 @@ cargo check --workspace                 # ✅ 通过
 
 5. **运行测试**:
    ```bash
-   cargo test --workspace
+   bash scripts/test.sh
    ```
 
 ## 回滚计划

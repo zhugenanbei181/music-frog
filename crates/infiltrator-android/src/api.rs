@@ -1,6 +1,6 @@
 use crate::runtime::{AndroidBridge, AndroidBridgeAdapter};
-use mihomo_api::Result;
-use mihomo_platform::{CoreController, CredentialStore, DataDirProvider};
+use mihomo_api::error::Result;
+use mihomo_platform::traits::{CoreController, CredentialStore, DataDirProvider};
 
 pub struct AndroidApi<B>
 where
@@ -201,7 +201,7 @@ mod tests {
     #[async_trait::async_trait]
     impl AndroidBridge for FailingBridge {
         async fn core_start(&self) -> Result<()> {
-            Err(mihomo_api::MihomoError::Config("fail".into()))
+            Err(mihomo_api::error::MihomoError::Config("fail".into()))
         }
         async fn core_stop(&self) -> Result<()> {
             Ok(())
@@ -228,7 +228,7 @@ mod tests {
             None
         }
         async fn vpn_start(&self) -> Result<bool> {
-            Err(mihomo_api::MihomoError::Service("vpn fail".into()))
+            Err(mihomo_api::error::MihomoError::Service("vpn fail".into()))
         }
         async fn vpn_stop(&self) -> Result<bool> {
             Ok(false)
@@ -379,7 +379,7 @@ mod tests {
                 None
             }
             async fn credential_get(&self, _s: &str, _k: &str) -> Result<Option<String>> {
-                Err(mihomo_api::MihomoError::Config("mock error".into()))
+                Err(mihomo_api::error::MihomoError::Config("mock error".into()))
             }
             async fn credential_set(&self, _s: &str, _k: &str, _v: &str) -> Result<()> {
                 Ok(())

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, anyhow};
-use mihomo_config::ConfigManager;
+use mihomo_config::manager::ConfigManager;
 use serde::{Deserialize, Serialize};
-use serde_yml::{Mapping, Value};
+use serde_yaml_ng::{Mapping, Value};
 use tokio::fs;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -44,7 +44,7 @@ pub async fn load_fake_ip_config() -> Result<FakeIpConfig> {
         .load(&profile)
         .await
         .context("read profile config")?;
-    let doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
+    let doc: Value = serde_yaml_ng::from_str(&content).context("parse profile yaml")?;
     extract_fake_ip_config_from_doc(&doc)
 }
 
@@ -58,14 +58,14 @@ pub async fn save_fake_ip_config(patch: FakeIpConfigPatch) -> Result<FakeIpConfi
         .load(&profile)
         .await
         .context("read profile config")?;
-    let mut doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
+    let mut doc: Value = serde_yaml_ng::from_str(&content).context("parse profile yaml")?;
 
     let mut config = extract_fake_ip_config_from_doc(&doc)?;
     config.apply_patch(patch);
     validate_fake_ip_config(&config)?;
     apply_fake_ip_config(&mut doc, &config)?;
 
-    let updated = serde_yml::to_string(&doc).context("serialize profile yaml")?;
+    let updated = serde_yaml_ng::to_string(&doc).context("serialize profile yaml")?;
     manager
         .save(&profile, &updated)
         .await
@@ -100,7 +100,7 @@ pub fn extract_fake_ip_config_from_doc(doc: &Value) -> Result<FakeIpConfig> {
         .get("dns")
         .cloned()
         .unwrap_or(Value::Mapping(Mapping::new()));
-    let config = serde_yml::from_value(dns_value).context("decode fake-ip config")?;
+    let config = serde_yaml_ng::from_value(dns_value).context("decode fake-ip config")?;
     Ok(config)
 }
 
@@ -122,7 +122,7 @@ fn apply_fake_ip_config(doc: &mut Value, config: &FakeIpConfig) -> Result<()> {
         );
     }
     if let Some(filter) = config.fake_ip_filter.as_ref() {
-        let value = serde_yml::to_value(filter).context("encode fake-ip-filter")?;
+        let value = serde_yaml_ng::to_value(filter).context("encode fake-ip-filter")?;
         dns_map.insert(Value::String("fake-ip-filter".to_string()), value);
     }
     if let Some(store) = config.store_fake_ip {
@@ -156,14 +156,14 @@ mod tests {
 
     #[test]
     fn test_extract_fake_ip_default() {
-        let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
+        let doc: Value = serde_yaml_ng::from_str("port: 7890\n").expect("yaml");
         let config = extract_fake_ip_config_from_doc(&doc).expect("fake ip config");
         assert!(config.fake_ip_range.is_none());
     }
 
     #[test]
     fn test_apply_patch_and_validate() {
-        let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
+        let doc: Value = serde_yaml_ng::from_str("port: 7890\n").expect("yaml");
         let mut config = extract_fake_ip_config_from_doc(&doc).expect("fake ip config");
         let patch = FakeIpConfigPatch {
             fake_ip_range: Some("198.18.0.1/16".to_string()),
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_apply_fake_ip_config_updates_dns() {
-        let mut doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
+        let mut doc: Value = serde_yaml_ng::from_str("port: 7890\n").expect("yaml");
         let config = FakeIpConfig {
             fake_ip_range: Some("198.18.0.1/16".to_string()),
             ..FakeIpConfig::default()
@@ -212,7 +212,7 @@ mod tests {
     #[test]
     fn test_apply_fake_ip_preserves_other_dns_settings() {
         let mut doc: Value =
-            serde_yml::from_str("dns:\n  enable: true\n  nameserver:\n    - 8.8.8.8\n")
+            serde_yaml_ng::from_str("dns:\n  enable: true\n  nameserver:\n    - 8.8.8.8\n")
                 .expect("yaml");
         let config = FakeIpConfig {
             fake_ip_range: Some("198.18.0.1/16".to_string()),

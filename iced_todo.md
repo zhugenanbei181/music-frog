@@ -1,25 +1,14 @@
-# Iced 跨平台原生 UI 改造计划 (Iced Migration Todo)
+# Iced 旧待办兼容索引
 
-... (前九阶段已完成，省略) ...
+Iced 已经从“迁移项目”变成主桌面 surface；本文件不再维护独立路线图，也不再把视觉 polish 排在 mihomo 控制平面之前。
 
-## 阶段十：UI 艺术化与现代质感巅峰 (The Visual Masterpiece) [TODO]
-- [ ] 10.1 **矢量图标系统深度集成 (SVG Iconography)**
-  - [ ] 引入 Lucide/Heroicons 风格的 SVG 资源。
-  - [ ] 全面替换侧边栏、动作按钮及状态栏中的文本符号。
-  - [ ] 实现图标颜色的动态主题适配。
-- [ ] 10.2 **流体动效与转场过渡 (Fluid Motion)**
-  - [ ] 实现页面切换时的淡入淡出 (Fade-in) 效果。
-  - [ ] 为主按钮添加微小的悬停/点击缩放动画。
-  - [ ] 优化流量图表的实时推移平滑度。
-- [ ] 10.3 **视觉层次与深度构建 (Depth & Elevation)**
-  - [ ] 升级 `card` 组件：利用渐变边框或多层嵌套模拟微弱阴影。
-  - [ ] 引入玻璃拟态 (Glassmorphism) 风格的侧边栏背景（通过半透明与色偏实现）。
-  - [ ] 优化配色方案，引入更具“呼吸感”的深色/浅色调色板。
-- [ ] 10.4 **高级组件重塑 (Premium Components)**
-  - [ ] 重新设计 `pick_list` 与 `text_input`，增加聚焦时的发光效果 (Glow)。
-  - [ ] 实现带进度感应的“骨架屏”加载占位符。
-  - [ ] 优化滚动条样式，使其更符合现代 OS 审美。
-- [ ] 10.5 **细节打磨与专业质感 (Final Polish)**
-  - [ ] 引入自定义专业字体 (如 Inter/JetBrains Mono) 优化排版。
-  - [ ] 实现交互后的微型震动反馈或视觉涟漪。
-  - [ ] 确保全分辨率下的像素级对齐与抗锯齿表现。
+原阶段十（视觉现代化）已于本轮落地，事实记录如下：
+
+- 设计系统：`src/view/theme.rs` 令牌（亮/暗双主题、iOS 蓝 accent、间距/圆角/阴影、延迟色阶）；
+- 图标：`src/view/svg_icons.rs` + `assets/icons/*.svg`（28 个 Lucide 风格单色 SVG，主题色染色）；
+- 组件库：`src/view/components.rs`（卡片/徽章/芯片/iOS 开关/分段控件/延迟徽章/统计卡/空状态）；
+- 字体：内嵌 Inter（Regular/Medium/SemiBold）+ JetBrains Mono（OFL，见 THIRD-PARTY-NOTICES）；
+- 页面：sidebar/overview/proxies 按 Clash Party 语言重设计，其余七页完成一致性打磨；
+- 仍开放：骨架屏加载占位、更细粒度的微交互动效（悬停缩放/涟漪）。
+
+Iced 的架构边界、与 Tauri/Web 和 Android 的求同存异规则见 [docs/FRONTENDS.md](docs/FRONTENDS.md)；功能任务按域维护在本地 `TODO.md`。

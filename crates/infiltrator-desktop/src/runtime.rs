@@ -1,22 +1,31 @@
 use anyhow::anyhow;
-use mihomo_api::{MihomoClient, ProxyGroup, ProxyManager};
-use mihomo_config::ConfigManager;
-use mihomo_version::VersionManager;
+use infiltrator_core::apply::{
+    ApplyOutcome, ApplyParams, ApplyStrategy, SessionConfigReloader, apply_current_profile,
+};
+use infiltrator_core::session::{
+    CoreSession, EndpointSource, MihomoVersionProbe, ProfileEndpointSource, READINESS_TIMEOUT,
+};
+use mihomo_api::client::MihomoClient;
+use mihomo_api::proxy::{ProxyGroup, ProxyManager};
+use mihomo_config::manager::ConfigManager;
+use mihomo_version::manager::VersionManager;
 use reqwest::{Client, header::ACCEPT_ENCODING};
 use serde::Serialize;
 use serde_json::json;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use yaml_rust2::{Yaml, YamlLoader};
 
 use crate::service::{ServiceManager, ServiceStatus};
 use crate::version;
 
 pub struct MihomoRuntime {
-    config_manager: ConfigManager,
+    config_manager: Arc<ConfigManager>,
     pub config_path: PathBuf,
     pub controller_url: String,
     client: MihomoClient,
     service_manager: ServiceManager,
+    session: Arc<CoreSession>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -35,7 +44,7 @@ impl MihomoRuntime {
         bundled_candidates: &[PathBuf],
         data_dir: &Path,
     ) -> anyhow::Result<Self> {
-        let cm = ConfigManager::new()?;
+        let cm = Arc::new(ConfigManager::new()?);
 
         cm.ensure_default_config().await?;
         cm.ensure_proxy_ports().await?;
@@ -46,12 +55,39 @@ impl MihomoRuntime {
         ensure_geoip_database(&config_path, &geoip_candidates).await?;
         let service_manager = ServiceManager::new(binary, config_path.clone());
 
-        if !service_manager.is_running().await {
+        let endpoints = Arc::new(ProfileEndpointSource::new(cm.clone()));
+        let session = Arc::new(CoreSession::new(
+            service_manager.controller(),
+            endpoints.clone(),
+            Arc::new(MihomoVersionProbe::new(endpoints.clone())),
+        ));
+
+        // Attach to an already-running instance by proving it answers, or
+        // start a fresh one and wait for the controller — either way this
+        // only returns once the core is actually serving.
+        if service_manager.is_running().await {
+            log::info!("Attaching to running mihomo service");
+            session
+                .wait_for_ready(session.generation(), READINESS_TIMEOUT)
+                .await
+                .map_err(|e| anyhow!("mihomo is running but not ready: {e}"))?;
+        } else {
             log::info!("Starting mihomo service");
-            service_manager.start().await?;
+            let generation = session
+                .start()
+                .await
+                .map_err(|e| anyhow!(e.to_string()))?;
+            session
+                .wait_for_ready(generation, READINESS_TIMEOUT)
+                .await
+                .map_err(|e| anyhow!(e.to_string()))?;
         }
 
-        let client = MihomoClient::new(&controller_url, None)?;
+        let endpoint = endpoints
+            .resolve()
+            .await
+            .map_err(|e| anyhow!(e.to_string()))?;
+        let client = MihomoClient::new(&endpoint.url, endpoint.secret)?;
 
         Ok(Self {
             config_manager: cm,
@@ -59,7 +95,38 @@ impl MihomoRuntime {
             controller_url,
             client,
             service_manager,
+            session,
         })
+    }
+
+    /// The unified core session owning lifecycle state and generations.
+    pub fn session(&self) -> Arc<CoreSession> {
+        self.session.clone()
+    }
+
+    /// Apply the current profile's content to the core through the
+    /// CORE-004 transaction: atomic write, reload-or-restart, readiness,
+    /// rollback on failure.
+    pub async fn apply_current_config(
+        &self,
+        strategy: ApplyStrategy,
+    ) -> anyhow::Result<ApplyOutcome> {
+        let profile = self.config_manager.get_current().await?;
+        let content = self.config_manager.load(&profile).await?;
+        let reloader = SessionConfigReloader::new(self.session.clone());
+        let params = ApplyParams {
+            strategy,
+            ..Default::default()
+        };
+        apply_current_profile(
+            &self.session,
+            &self.config_manager,
+            &reloader,
+            &content,
+            params,
+        )
+        .await
+        .map_err(|e| anyhow!(e.to_string()))
     }
 
     pub fn client(&self) -> MihomoClient {
@@ -123,7 +190,7 @@ impl MihomoRuntime {
     }
 
     pub async fn shutdown(&self) -> anyhow::Result<()> {
-        self.service_manager
+        self.session
             .stop()
             .await
             .map_err(|e| anyhow!(e.to_string()))

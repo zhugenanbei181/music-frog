@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use anyhow::anyhow;
-use mihomo_api::MihomoClient;
-use mihomo_version::{Channel, channel::fetch_latest};
+use mihomo_api::client::MihomoClient;
+use mihomo_version::channel::{Channel, fetch_latest};
 use tauri::{AppHandle, async_runtime};
 
 use crate::{app_state::AppState, platform, runtime::rebuild_runtime};
-use infiltrator_admin::AdminApiContext;
-use infiltrator_core::AppSettings;
+use infiltrator_admin::admin_api::state::AdminApiContext;
+use infiltrator_core::settings::AppSettings;
 use infiltrator_desktop::editor;
 
 #[derive(Clone)]
@@ -120,11 +120,11 @@ impl AdminApiContext for TauriAdminContext {
     }
 
     async fn autostart_enabled(&self) -> bool {
-        crate::autostart::is_autostart_enabled()
+        crate::autostart::is_autostart_enabled(crate::AUTOSTART_REG_NAME)
     }
 
     async fn set_autostart_enabled(&self, enabled: bool) -> anyhow::Result<()> {
-        crate::autostart::set_autostart_enabled(enabled)?;
+        crate::autostart::set_autostart_enabled(crate::AUTOSTART_REG_NAME, enabled)?;
         self.app_state.set_autostart_checked(enabled).await;
         Ok(())
     }

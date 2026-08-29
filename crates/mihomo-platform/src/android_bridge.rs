@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use mihomo_api::Result;
+use mihomo_api::error::Result;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock, RwLock};
 

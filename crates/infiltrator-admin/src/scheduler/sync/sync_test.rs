@@ -2,11 +2,11 @@
 mod tests {
     use super::super::run_sync_tick;
     use crate::TEST_LOCK;
-    use crate::admin_api::AdminApiContext;
+    use crate::admin_api::state::AdminApiContext;
     use anyhow::anyhow;
-    use infiltrator_core::AppSettings;
+    use infiltrator_core::settings::AppSettings;
     use infiltrator_core::settings::WebDavConfig;
-    use mihomo_api::MihomoClient;
+    use mihomo_api::client::MihomoClient;
 
     #[derive(Clone)]
     struct MockContext;
@@ -105,7 +105,7 @@ mod tests {
     async fn test_run_sync_tick_invalid_url() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
         let ctx = MockContext;
         let config = WebDavConfig {
@@ -118,6 +118,6 @@ mod tests {
         // Should fail during client creation or plan building
         assert!(result.is_err());
 
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 }

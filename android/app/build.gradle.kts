@@ -73,7 +73,6 @@ tasks.register<Copy>("prepareMihomoAsset") {
 }
 
 tasks.register<Exec>("cargoBuild") {
-    val scriptPath = rootProject.file("../scripts/android-build.ps1").absolutePath
     val scriptShPath = rootProject.file("../scripts/android-build.sh").absolutePath
 
     // 3. 从 local.properties 或环境读取
@@ -93,14 +92,8 @@ tasks.register<Exec>("cargoBuild") {
     environment("ANDROID_NDK_HOME", ndkDir)
     environment("ANDROID_NDK_ROOT", ndkDir)
 
-    // 4. 关键修复：不依赖 internal API，使用标准 Java 检测 OS
-    val isWindows = System.getProperty("os.name").lowercase().contains("win")
-
-    if (isWindows) {
-        commandLine("powershell", "-ExecutionPolicy", "Bypass", "-File", scriptPath)
-    } else {
-        commandLine("bash", scriptShPath)
-    }
+    // 4. 构建脚本只保留 sh（Windows 走 Git Bash / WSL 的 bash）
+    commandLine("bash", scriptShPath)
 
     standardOutput = System.out
     errorOutput = System.err

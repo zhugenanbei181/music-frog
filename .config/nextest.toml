@@ -1,0 +1,5 @@
+# Repository-wide test policy.
+# The canonical test script also passes these values explicitly so local and CI
+# runs cannot silently fall back to nextest's CPU-count default.
+[profile.default]
+test-threads = 4

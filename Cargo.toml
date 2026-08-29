@@ -11,6 +11,7 @@ members = [
   "crates/infiltrator-admin",
   "crates/infiltrator-desktop",
   "crates/infiltrator-android",
+  "crates/infiltrator-shared",
   "crates/mihomo-dav-sync/dav-client",
   "crates/mihomo-dav-sync/sync-engine",
   "crates/mihomo-dav-sync/state-store",
@@ -28,7 +29,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 
 # Data Handling
 quick-xml = { version = "0.37", features = ["serialize", "async-tokio"] }
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono"] }
+sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite", "chrono"] }
 axum = "0.8"
 brotli = "8.0"
 tower-http = { version = "0.6", features = ["fs"] }
@@ -47,21 +48,32 @@ serde_json = "1.0"
 log = "0.4"
 toml = "0.8"
 yaml-rust2 = "0.11"
-serde_yml = "0.0.12"
-windows-sys = { version = "0.61", features = ["Win32_System_Threading"] }
+serde_yaml_ng = "0.10"
+windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_System_JobObjects", "Win32_Foundation", "Win32_Security"] }
+libc = "0.2"
 keyring = { version = "3.6" }
 winreg = "0.55"
 
 futures-util = "0.3"
-tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 dirs = "6.0"
 flate2 = "1.0"
+sha2 = "0.10"
 zip = "2.2"
-sysinfo = "0.33"
+sysinfo = "0.39"
 jni = "0.21"
 tokio-stream = "0.1"
-uniffi = "0.30"
-uniffi_bindgen = "0.30"
-muda = "0.15"
-tray-icon = "0.19"
+uniffi = "0.32"
+uniffi_bindgen = "0.32"
+# default-features = false drops tray-icon/muda's optional libxdo (X11 menu
+# accelerators, unused) so Linux builds do not require the xdotool system library.
+# Since muda 0.19 / tray-icon 0.24 the Linux gtk backend itself is also a feature
+# and must be requested explicitly.
+muda = { version = "0.19", default-features = false, features = ["gtk"] }
+tray-icon = { version = "0.24", default-features = false, features = ["gtk"] }
+# Linux StatusNotifierItem (D-Bus) tray, GTK-free. ksni requires exactly one
+# executor feature: "tokio" is chosen because this app already runs tokio, so
+# no extra async-io executor stack is pulled in; "blocking" adds the
+# synchronous spawn/handle API the tray backend uses off the async paths.
+ksni = { version = "0.3", default-features = false, features = ["tokio", "blocking"] }
 

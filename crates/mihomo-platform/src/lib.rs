@@ -3,16 +3,11 @@ pub mod android;
 pub mod android_bridge;
 #[cfg(not(target_os = "android"))]
 pub mod desktop;
+pub mod instance_lock;
 pub mod paths;
 pub mod traits;
 
-#[cfg(target_os = "android")]
-pub use android::*;
-pub use android_bridge::*;
-#[cfg(not(target_os = "android"))]
-pub use desktop::*;
-pub use paths::*;
-pub use traits::*;
+use crate::traits::DataDirProvider;
 
 /// Shared test lock for cross-crate synchronization of global state (e.g. HOME_DIR_OVERRIDE).
 /// Using tokio's Mutex to allow holding across .await points.
@@ -27,6 +22,8 @@ pub fn apply_data_dir_override<P: DataDirProvider>(provider: &P) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(target_os = "android"))]
+    use crate::desktop::DesktopDataDirProvider;
     use std::path::PathBuf;
 
     struct MockProvider {

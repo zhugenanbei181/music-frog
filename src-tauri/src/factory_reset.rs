@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use infiltrator_core::profiles;
 use log::warn;
-use mihomo_platform::get_home_dir;
+use mihomo_platform::paths::get_home_dir;
 use tauri::AppHandle;
 use tokio::{fs, time::Duration};
 
@@ -27,8 +27,8 @@ pub(crate) async fn factory_reset(app: &AppHandle, state: &AppState) -> anyhow::
         wait_for_port_release(port, Duration::from_secs(5)).await;
     }
 
-    if is_autostart_enabled() {
-        if let Err(err) = set_autostart_enabled(false) {
+    if is_autostart_enabled(crate::AUTOSTART_REG_NAME) {
+        if let Err(err) = set_autostart_enabled(crate::AUTOSTART_REG_NAME, false) {
             warn!("failed to disable autostart during factory reset: {err}");
         }
         state.set_autostart_checked(false).await;

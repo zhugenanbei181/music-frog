@@ -1,6 +1,5 @@
+pub mod capability;
 pub mod channel;
 pub mod download;
 pub mod manager;
-
-pub use channel::Channel;
-pub use manager::VersionManager;
+pub mod verify;

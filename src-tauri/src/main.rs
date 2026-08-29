@@ -2,11 +2,9 @@
 
 mod admin_context;
 mod app_state;
-mod autostart;
 mod core_update;
 mod factory_reset;
 mod frontend;
-mod locales;
 mod paths;
 mod platform;
 mod runtime;
@@ -15,9 +13,14 @@ mod system_proxy;
 mod tray;
 mod utils;
 
+use infiltrator_shared::{autostart, locales};
 use log::warn;
-use mihomo_platform::set_home_dir_override;
+use mihomo_platform::paths::set_home_dir_override;
 use tauri::{Manager, RunEvent};
+
+/// Registry value name for this app's Windows autostart entry (distinct from
+/// the iced client's entry so both can coexist).
+pub(crate) const AUTOSTART_REG_NAME: &str = "MihomoDespicableInfiltrator";
 
 use crate::{
     admin_context::TauriAdminContext,
@@ -31,7 +34,8 @@ use crate::{
     utils::parse_launch_ports,
 };
 use infiltrator_admin::{
-    EVENT_CORE_CHANGED, EVENT_PROFILES_CHANGED, EVENT_TUN_CHANGED, SubscriptionScheduler,
+    admin_api::events::{EVENT_CORE_CHANGED, EVENT_PROFILES_CHANGED, EVENT_TUN_CHANGED},
+    scheduler::SubscriptionScheduler,
 };
 
 fn main() {

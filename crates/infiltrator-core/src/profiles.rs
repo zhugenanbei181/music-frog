@@ -2,8 +2,10 @@ use crate::{config as core_config, subscription as core_subscription};
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use infiltrator_http::{build_http_client, build_raw_http_client};
-use mihomo_config::{ConfigManager, Profile as MihomoProfile, port::find_available_port};
-use mihomo_platform::get_home_dir;
+use mihomo_config::manager::ConfigManager;
+use mihomo_config::port::find_available_port;
+use mihomo_config::profile::Profile as MihomoProfile;
+use mihomo_platform::paths::get_home_dir;
 use serde::Serialize;
 use tokio::fs;
 
@@ -74,8 +76,9 @@ pub async fn create_profile_from_url(name: &str, url: &str) -> anyhow::Result<Pr
 
     let client = build_http_client();
     let raw_client = build_raw_http_client(&client);
+    let checked_url = core_subscription::CheckedSubscriptionUrl::parse(source_url)?;
     let content =
-        core_subscription::fetch_subscription_text(&client, &raw_client, source_url).await?;
+        core_subscription::fetch_subscription_text(&client, &raw_client, &checked_url).await?;
     let content = core_subscription::strip_utf8_bom(&content);
     if core_config::validate_yaml(content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
@@ -120,7 +123,9 @@ pub async fn update_profile(name: &str) -> anyhow::Result<ProfileInfo> {
 
     let client = build_http_client();
     let raw_client = build_raw_http_client(&client);
-    let content = core_subscription::fetch_subscription_text(&client, &raw_client, url).await?;
+    let checked_url = core_subscription::CheckedSubscriptionUrl::parse(url)?;
+    let content = core_subscription::fetch_subscription_text(&client, &raw_client, &checked_url)
+        .await?;
     let content = core_subscription::strip_utf8_bom(&content);
     if core_config::validate_yaml(content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));

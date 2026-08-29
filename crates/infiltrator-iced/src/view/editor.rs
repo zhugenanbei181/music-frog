@@ -1,16 +1,58 @@
 use crate::locales::{Lang, Localizer};
-use crate::view::icons;
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{self, FONT_SEMIBOLD, MONO, R_CONTROL, tokens};
 use crate::{AppState, Message};
 use iced::widget::{button, column, container, row, text, text_editor};
-use iced::{Alignment, Element, Font, Length};
+use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use std::path::PathBuf;
+
+// ---------------------------------------------------------------------------
+// Token-driven control styles (ui-wave2-r)
+// ---------------------------------------------------------------------------
+
+fn style_accent(t: &Theme, status: button::Status) -> button::Style {
+    let tk = tokens(t);
+    let (bg, fg) = match status {
+        button::Status::Disabled => (tk.accent_soft, tk.accent),
+        button::Status::Hovered | button::Status::Pressed => {
+            (Color { a: 0.85, ..tk.accent }, tk.on_accent)
+        }
+        _ => (tk.accent, tk.on_accent),
+    };
+    button::Style {
+        background: Some(bg.into()),
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
+            ..Default::default()
+        },
+        text_color: fg,
+        ..Default::default()
+    }
+}
+
+fn style_ghost(t: &Theme, status: button::Status) -> button::Style {
+    let tk = tokens(t);
+    button::Style {
+        background: match status {
+            button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
+            _ => None,
+        },
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
+            width: 1.0,
+            color: tk.card_border,
+        },
+        text_color: match status {
+            button::Status::Disabled => tk.text_tertiary,
+            button::Status::Hovered | button::Status::Pressed => tk.text_primary,
+            _ => tk.text_secondary,
+        },
+        ..Default::default()
+    }
+}
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.lang);
-    let bold_font = Font {
-        weight: iced::font::Weight::Bold,
-        ..Default::default()
-    };
 
     let filename = state
         .editor_path
@@ -19,43 +61,82 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .and_then(|n| n.to_str())
         .unwrap_or("Untitled");
 
-    let header = row![
-        text(filename).size(20).font(bold_font),
+    // Toolbar row: filename + save (accent) / cancel (ghost) actions.
+    let toolbar = row![
+        column![
+            text(filename)
+                .size(18)
+                .font(FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
+            text("YAML")
+                .size(11)
+                .font(theme::FONT_MEDIUM)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary),
+                }),
+        ]
+        .spacing(2),
         iced::widget::Space::new().width(Length::Fill),
         button(
-            row![
-                text(icons::SAVE).size(12),
-                text(lang.tr("btn_save")).size(12)
-            ]
-            .spacing(8)
+            text(lang.tr("btn_save").to_string())
+                .size(12)
+                .font(theme::FONT_MEDIUM),
         )
-        .on_press(Message::SaveProfile)
-        .padding([6, 12])
-        .style(button::primary),
-        iced::widget::Space::new().width(10),
+        .padding([7, 14])
+        .style(style_accent)
+        .on_press(Message::SaveProfile),
+        iced::widget::Space::new().width(theme::SP_MD),
         button(
             row![
-                text(icons::CANCEL).size(12),
-                text(lang.tr("btn_cancel")).size(12)
+                crate::view::svg_icons::icon_themed(Icon::X, 14.0, |t: &Theme| tokens(t)
+                    .text_secondary),
+                text(lang.tr("btn_cancel").to_string())
+                    .size(12)
+                    .font(theme::FONT_MEDIUM),
             ]
-            .spacing(8)
+            .spacing(theme::SP_SM),
         )
-        .on_press(Message::Navigate(crate::types::Route::Profiles))
-        .padding([6, 12])
-        .style(button::secondary),
+        .padding([7, 14])
+        .style(style_ghost)
+        .on_press(Message::Navigate(crate::types::Route::Profiles)),
     ]
     .align_y(Alignment::Center);
 
-    let editor = text_editor(&state.editor_content)
-        .on_action(Message::EditorAction)
-        .padding(10)
-        .height(Length::Fill);
+    // Editor area framed in a card surface, mono typeface for YAML.
+    let editor = container(
+        text_editor(&state.editor_content)
+            .on_action(Message::EditorAction)
+            .font(MONO)
+            .padding(12)
+            .height(Length::Fill),
+    )
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .style(|t: &Theme| {
+        let tk = tokens(t);
+        container::Style {
+            background: Some(tk.card_bg.into()),
+            border: Border {
+                radius: border::Radius::from(theme::R_CARD),
+                width: 1.0,
+                color: tk.card_border,
+            },
+            shadow: tk.card_shadow,
+            ..Default::default()
+        }
+    });
 
-    let content = column![header, iced::widget::Space::new().height(10), editor].spacing(10);
+    let content = column![
+        toolbar,
+        iced::widget::Space::new().height(theme::SP_MD),
+        editor,
+    ]
+    .spacing(theme::SP_SM);
 
     container(content)
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(20)
         .into()
 }

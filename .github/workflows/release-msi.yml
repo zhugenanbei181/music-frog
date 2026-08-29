@@ -39,40 +39,44 @@ jobs:
 
       # 4. 直接安装依赖（setup-node 已处理缓存）
       - name: Install dependencies
-        shell: pwsh
+        shell: bash
         run: pnpm install
 
       - name: Build config-manager UI
-        shell: pwsh
+        shell: bash
         run: |
           pnpm --dir webui/config-manager-ui install
           pnpm --dir webui/config-manager-ui build
 
+      # vendor/mihomo.exe 不再入库，打包前从官方 Release 拉取
+      - name: Fetch mihomo core into vendor/
+        shell: bash
+        run: bash scripts/fetch-mihomo.sh
+
       - name: Build MSI
-        shell: pwsh
+        shell: bash
         env:
           TAURI_BUNDLER: msi
         run: pnpm build
 
       # 5. 上传 Release（gh CLI 在 windows-latest 是预装的，无需安装检查）
       - name: Upload MSI to Release
-        shell: pwsh
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $tag = $env:GITHUB_REF_NAME
-          # 自动寻找生成的 msi 文件
-          $msi = Get-ChildItem target\release\bundle\msi\*.msi | Select-Object -First 1
-          if (-not $msi) {
-            throw "MSI not found in target/release/bundle/msi"
-          }
+          tag="$GITHUB_REF_NAME"
+          msi="$(find target/release/bundle/msi -name '*.msi' -print -quit)"
+          if [ -z "$msi" ]; then
+            echo "MSI not found in target/release/bundle/msi" >&2
+            exit 1
+          fi
 
-          Write-Host "Found MSI: $($msi.FullName)"
+          echo "Found MSI: $msi"
 
           # 检查 Release 是否存在，不存在则创建，存在则上传
-          gh release view $tag 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag $msi.FullName --generate-notes
-          } else {
-            gh release upload $tag $msi.FullName --clobber
-          }
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$msi" --clobber
+          else
+            gh release create "$tag" "$msi" --generate-notes
+          fi

@@ -1,0 +1,5 @@
+scenario	page	skin	requested_window	app_pid	window_id	width	height	bytes	sha256	status
+overview-dark	overview	dark	1180x780	1765512	2	1268	888	88454	b87ce4c67df01da696b13149129bb70a3bc02c82b07d4e4f48ae529550548dca	ok
+proxies-light	proxies	light	1180x780	1765794	3	1268	888	105991	8b1245457102c741ed62d2a7f6e6b8702b2e3bfe5e89f6aa7cb1023f4b7b20b5	ok
+runtime-dark	runtime	dark	1180x780	1766004	4	1268	888	122319	bcff4ed87a54b6eda4670517f575f7f2402c558c25894552f32c5229b5b77cff	ok
+settings-light	settings	light	1180x780	1766293	5	1268	888	88149	f01aa8109ec9c4e4825392e99a7ed1ef6bcf573ffdf0b240c94fba939ed5697e	ok

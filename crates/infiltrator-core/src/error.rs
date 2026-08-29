@@ -24,8 +24,8 @@ impl From<String> for InfiltratorError {
     }
 }
 
-impl From<mihomo_api::MihomoError> for InfiltratorError {
-    fn from(e: mihomo_api::MihomoError) -> Self {
+impl From<mihomo_api::error::MihomoError> for InfiltratorError {
+    fn from(e: mihomo_api::error::MihomoError) -> Self {
         InfiltratorError::Mihomo(e.to_string())
     }
 }

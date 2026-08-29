@@ -7,7 +7,7 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use infiltrator_core::{ProfileInfo, settings::WebDavConfig};
+use infiltrator_core::{profiles::ProfileInfo, settings::WebDavConfig};
 
 #[derive(Serialize, Deserialize)]
 pub struct SwitchProfilePayload {

@@ -1,15 +1,35 @@
 use anyhow::{Result, anyhow};
 use flate2::read::{GzDecoder, ZlibDecoder};
+use infiltrator_http::reqwest::Response;
 use std::io::Read;
+
+/// 订阅本质上是配置文件；上限只为拦截把下载接口当无限代理用的滥用。
+const MAX_SUBSCRIPTION_BYTES: usize = 32 * 1024 * 1024;
+
+/// 已通过安全校验的订阅地址：类型系统保证未经 [`CheckedSubscriptionUrl::parse`]
+/// 的字符串无法进入 [`fetch_subscription_text`]。
+#[derive(Debug, Clone)]
+pub struct CheckedSubscriptionUrl(String);
+
+impl CheckedSubscriptionUrl {
+    pub fn parse(url: &str) -> Result<Self> {
+        validate_subscription_url(url)?;
+        Ok(Self(url.trim().to_string()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
 
 pub async fn fetch_subscription_text(
     client: &infiltrator_http::HttpClient,
     raw_client: &infiltrator_http::HttpClient,
-    url: &str,
+    url: &CheckedSubscriptionUrl,
 ) -> Result<String> {
-    let mut resp = client.get(url).send().await?;
+    let mut resp = client.get(url.as_str()).send().await?;
     if !resp.status().is_success() {
-        resp = raw_client.get(url).send().await?;
+        resp = raw_client.get(url.as_str()).send().await?;
     }
 
     if !resp.status().is_success() {
@@ -30,10 +50,49 @@ pub async fn fetch_subscription_text(
             }
         });
 
-    let bytes = resp.bytes().await?.to_vec();
+    let bytes = read_body_capped(resp).await?;
     let decoded_bytes = decode_subscription_bytes(bytes, encoding)?;
     let text = String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
     Ok(text)
+}
+
+/// 拉取地址来自订阅配置/管理端 API，收紧到 http(s)、有主机、不带内嵌凭据，
+/// 防止 file:// 等协议与凭据泄漏类滥用的入口。
+pub fn validate_subscription_url(url: &str) -> Result<()> {
+    let parsed =
+        infiltrator_http::reqwest::Url::parse(url).map_err(|_| anyhow!("订阅链接格式无效"))?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err(anyhow!("订阅链接仅支持 http/https 协议"));
+    }
+    if parsed.host_str().is_none_or(str::is_empty) {
+        return Err(anyhow!("订阅链接缺少主机名"));
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err(anyhow!("订阅链接不应内嵌用户名/密码"));
+    }
+    Ok(())
+}
+
+/// 分块读取并强制大小上限，避免超 large Content-Length 响应拖垮内存。
+async fn read_body_capped(resp: Response) -> Result<Vec<u8>> {
+    if let Some(len) = resp.content_length()
+        && len as usize > MAX_SUBSCRIPTION_BYTES
+    {
+        return Err(anyhow!(
+            "订阅内容超过大小上限 ({MAX_SUBSCRIPTION_BYTES} 字节)"
+        ));
+    }
+    let mut resp = resp;
+    let mut buffer = Vec::new();
+    while let Some(chunk) = resp.chunk().await? {
+        if buffer.len().saturating_add(chunk.len()) > MAX_SUBSCRIPTION_BYTES {
+            return Err(anyhow!(
+                "订阅内容超过大小上限 ({MAX_SUBSCRIPTION_BYTES} 字节)"
+            ));
+        }
+        buffer.extend_from_slice(&chunk);
+    }
+    Ok(buffer)
 }
 
 pub fn mask_subscription_url(url: &str) -> String {
@@ -140,6 +199,19 @@ mod tests {
         let masked = mask_subscription_url(url);
         assert!(masked.contains("***"));
         assert!(!masked.contains("abcdefg123456"));
+    }
+
+    #[test]
+    fn test_validate_subscription_url() {
+        assert!(validate_subscription_url("https://sub.example.com/token").is_ok());
+        assert!(validate_subscription_url("http://192.168.1.1/sub").is_ok());
+        assert!(validate_subscription_url("file:///etc/passwd").is_err());
+        assert!(validate_subscription_url("ftp://example.com/sub").is_err());
+        assert!(validate_subscription_url("https://user:pass@example.com/sub").is_err());
+        // 特殊 scheme 会容忍多余斜杠（host 变成 "no-host"），真正无主机的是这种：
+        assert!(validate_subscription_url("https://").is_err());
+        assert!(validate_subscription_url("not a url").is_err());
+        assert!(validate_subscription_url("").is_err());
     }
 
     #[test]

@@ -9,4 +9,6 @@ pub mod rules;
 pub mod runtime;
 pub mod settings;
 pub mod sidebar;
+pub mod svg_icons;
 pub mod sync;
+pub mod theme;

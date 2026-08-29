@@ -1,16 +1,14 @@
 use iced::{widget::text_editor, window};
 pub use infiltrator_core::error::InfiltratorError;
 use infiltrator_core::rules::RuleEntry;
-use infiltrator_desktop::MihomoRuntime;
-use mihomo_api::{ConnectionSnapshot, TrafficData};
-use mihomo_config::Profile;
+use infiltrator_desktop::runtime::MihomoRuntime;
+use mihomo_api::types::{ConnectionSnapshot, TrafficData};
+use mihomo_config::profile::Profile;
 use mihomo_version::manager::VersionInfo;
-use muda::MenuEvent;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-use tray_icon::TrayIconEvent;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum Route {
@@ -256,7 +254,7 @@ pub enum Message {
     ClearProfiles,
     ProfilesCleared(Result<(), InfiltratorError>),
     LoadProxies,
-    ProxiesLoaded(Result<HashMap<String, mihomo_api::Proxy>, InfiltratorError>),
+    ProxiesLoaded(Result<HashMap<String, mihomo_api::proxy::Proxy>, InfiltratorError>),
     SelectProxy(String, String),
     FilterProxies(String),
     ToggleProxySort,
@@ -270,7 +268,7 @@ pub enum Message {
     UpdateRuntimeConnectionSort(String),
     RefreshRuntimeNow,
     TrafficReceived(TrafficData),
-    MemoryReceived(mihomo_api::MemoryData),
+    MemoryReceived(mihomo_api::types::MemoryData),
     IpInfoReceived(Result<String, InfiltratorError>, usize),
     ConnectionsReceived(ConnectionSnapshot),
     LogReceived(String),
@@ -309,8 +307,8 @@ pub enum Message {
     ProvidersLoaded(
         Result<
             (
-                Vec<mihomo_api::ProxyProvider>,
-                Vec<mihomo_api::RuleProvider>,
+                Vec<mihomo_api::types::ProxyProvider>,
+                Vec<mihomo_api::types::RuleProvider>,
             ),
             InfiltratorError,
         >,
@@ -382,8 +380,7 @@ pub enum Message {
     TickWebDavSync,
     TickRuntimeRefresh,
     TickFrame(Instant),
-    TrayIconEvent(TrayIconEvent),
-    MenuEvent(MenuEvent),
+    TrayEvent(crate::tray::TrayEvent),
     Exit,
     UpdateDnsServer(usize, String),
     UpdateDnsEnhancedMode(String),
@@ -410,6 +407,16 @@ pub enum Message {
     SaveAppSettings,
     AppSettingsSaved(Result<(), InfiltratorError>),
     UpdateEditorPathSetting(String),
+    SetAdminEnabled(bool),
+    UpdateAdminPort(String),
+    ApplyAdminSettings,
+    AdminSettingsSaved(Result<(), InfiltratorError>),
+    AdminServerStarted(Result<String, InfiltratorError>),
+    OpenWebAdmin,
+    AdminHostCommand(crate::admin_server::AdminHostCommand),
+    ExternalSettingsLoaded(
+        Result<infiltrator_core::settings::AppSettings, InfiltratorError>,
+    ),
     SyncUpload,
     SyncDownload,
     SyncFinished(Result<(), InfiltratorError>),
@@ -449,6 +456,9 @@ pub enum Message {
     RemoveToast(usize),
     TestAllProxyDelays,
     AllProxyDelaysTested(Result<(usize, usize), InfiltratorError>),
+    // ui-wave2-p: proxies page — expand/collapse one proxy-group card
+    // (view-only UI state; flips AppState::proxy_groups_expanded).
+    ToggleProxyGroupExpanded(String),
 }
 
 impl std::fmt::Debug for Message {
@@ -775,8 +785,7 @@ impl std::fmt::Debug for Message {
             Message::TickWebDavSync => write!(f, "TickWebDavSync"),
             Message::TickRuntimeRefresh => write!(f, "TickRuntimeRefresh"),
             Message::TickFrame(now) => write!(f, "TickFrame({:?})", now),
-            Message::TrayIconEvent(_) => write!(f, "TrayIconEvent"),
-            Message::MenuEvent(e) => write!(f, "MenuEvent({:?})", e),
+            Message::TrayEvent(e) => write!(f, "TrayEvent({:?})", e),
             Message::Exit => write!(f, "Exit"),
             Message::UpdateDnsServer(i, s) => write!(f, "UpdateDnsServer({}, {})", i, s),
             Message::UpdateDnsEnhancedMode(m) => write!(f, "UpdateDnsEnhancedMode({})", m),
@@ -814,6 +823,21 @@ impl std::fmt::Debug for Message {
             Message::AppSettingsSaved(Ok(_)) => write!(f, "AppSettingsSaved(Ok)"),
             Message::AppSettingsSaved(Err(e)) => write!(f, "AppSettingsSaved(Err({:?}))", e),
             Message::UpdateEditorPathSetting(s) => write!(f, "UpdateEditorPathSetting({})", s),
+            Message::SetAdminEnabled(b) => write!(f, "SetAdminEnabled({})", b),
+            Message::UpdateAdminPort(s) => write!(f, "UpdateAdminPort({})", s),
+            Message::ApplyAdminSettings => write!(f, "ApplyAdminSettings"),
+            Message::AdminSettingsSaved(Ok(_)) => write!(f, "AdminSettingsSaved(Ok)"),
+            Message::AdminSettingsSaved(Err(e)) => write!(f, "AdminSettingsSaved(Err({:?}))", e),
+            Message::AdminServerStarted(Ok(url)) => write!(f, "AdminServerStarted(Ok({}))", url),
+            Message::AdminServerStarted(Err(e)) => write!(f, "AdminServerStarted(Err({:?}))", e),
+            Message::OpenWebAdmin => write!(f, "OpenWebAdmin"),
+            Message::AdminHostCommand(command) => {
+                write!(f, "AdminHostCommand({:?})", command)
+            }
+            Message::ExternalSettingsLoaded(Ok(_)) => write!(f, "ExternalSettingsLoaded(Ok)"),
+            Message::ExternalSettingsLoaded(Err(e)) => {
+                write!(f, "ExternalSettingsLoaded(Err({:?}))", e)
+            }
             Message::SyncUpload => write!(f, "SyncUpload"),
             Message::SyncDownload => write!(f, "SyncDownload"),
             Message::SyncFinished(Ok(_)) => write!(f, "SyncFinished(Ok)"),
@@ -885,6 +909,10 @@ impl std::fmt::Debug for Message {
             }
             Message::AllProxyDelaysTested(Err(e)) => {
                 write!(f, "AllProxyDelaysTested(Err({:?}))", e)
+            }
+            // ui-wave2-p
+            Message::ToggleProxyGroupExpanded(name) => {
+                write!(f, "ToggleProxyGroupExpanded({})", name)
             }
         }
     }

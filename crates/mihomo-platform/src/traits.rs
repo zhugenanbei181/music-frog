@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::path::PathBuf;
 
-use mihomo_api::Result;
+use mihomo_api::error::Result;
 
 #[async_trait]
 pub trait CoreController: Send + Sync {
@@ -30,13 +30,13 @@ pub trait DataDirProvider: Send + Sync {
 }
 
 #[cfg(not(target_os = "android"))]
-pub type DefaultCredentialStore = super::KeyringCredentialStore;
+pub type DefaultCredentialStore = crate::desktop::KeyringCredentialStore;
 
 #[cfg(target_os = "android")]
-pub type DefaultCredentialStore = super::AndroidCredentialStore;
+pub type DefaultCredentialStore = crate::android::AndroidCredentialStore;
 
 #[cfg(not(target_os = "android"))]
-pub type DefaultDataDirProvider = super::DesktopDataDirProvider;
+pub type DefaultDataDirProvider = crate::desktop::DesktopDataDirProvider;
 
 #[cfg(target_os = "android")]
-pub type DefaultDataDirProvider = super::AndroidDataDirProvider;
+pub type DefaultDataDirProvider = crate::android::AndroidDataDirProvider;

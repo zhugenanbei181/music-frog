@@ -9,6 +9,7 @@ async-trait = { workspace = true }
 infiltrator-admin = { path = "../crates/infiltrator-admin" }
 infiltrator-core = { path = "../crates/infiltrator-core" }
 infiltrator-desktop = { path = "../crates/infiltrator-desktop" }
+infiltrator-shared = { path = "../crates/infiltrator-shared" }
 log = "0.4"
 mihomo-api = { path = "../crates/mihomo-api" }
 mihomo-config = { path = "../crates/mihomo-config" }

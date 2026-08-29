@@ -20,15 +20,17 @@ _tmp_*
 .DS_Store
 Thumbs.db
 
+# Local AI tool cache
+.mimosa/
+
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Bundled core binary (tracked in vendor/)
-mihomo.exe
-!vendor/mihomo.exe
+# Vendored mihomo core binaries (untracked; restore with scripts/fetch-mihomo.sh)
+vendor/
 
 # SQLite databases (runtime generated)
 *.db
@@ -52,11 +54,18 @@ CLEANUP_CHECKLIST.md
 # Build outputs
 *.msi
 *.exe
-!vendor/*.exe
 
-scripts
-!scripts/android-build.ps1
-!scripts/android-build.sh
+# Keep helper scripts tracked (parent contents ignored, individual files re-included)
+/scripts/*
+!/scripts/android-build.sh
+!/scripts/check-test-policy.sh
+!/scripts/fetch-mihomo.sh
+!/scripts/test.sh
+# quality gate scripts live in a subdir: re-include the dir, re-ignore its
+# contents, then re-include the guards individually
+!/scripts/quality/
+/scripts/quality/*
+!/scripts/quality/test-layout-guard.py
 
 # Android build outputs
 android/.gradle/

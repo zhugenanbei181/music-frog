@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use mihomo_api::Result;
-pub use mihomo_platform::AndroidBridge;
-use mihomo_platform::{CoreController, CredentialStore, DataDirProvider};
+use mihomo_api::error::Result;
+pub use mihomo_platform::android_bridge::AndroidBridge;
+use mihomo_platform::traits::{CoreController, CredentialStore, DataDirProvider};
 use std::path::PathBuf;
 
 #[derive(Clone)]

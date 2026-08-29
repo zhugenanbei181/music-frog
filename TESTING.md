@@ -5,9 +5,81 @@
 ## 核心测试指标
 
 本项目致力于维持以下高标准：
-- **核心模块覆盖率**：每个核心子模块（Core, Admin, Sync, Version, Android API）必须具备 **50 个以上** 的高质量单元/集成测试用例。
+- **核心模块覆盖率**：各子模块均维护了与其职责相称的单元/集成测试。以
+  `grep -rE '#\[(tokio::)?test' --include='*.rs' <crate>/src | wc -l` 实测为准：
+
+  | Crate | 测试数 |
+  | :--- | ---: |
+  | mihomo-config | 77 |
+  | infiltrator-core | 57 |
+  | mihomo-api | 49 |
+  | infiltrator-desktop | 49 |
+  | infiltrator-admin | 47 |
+  | mihomo-version | 38 |
+  | mihomo-dav-sync（sync-engine 24 + dav-client 7 + state-store 7） | 38 |
+  | src-tauri | 34 |
+  | infiltrator-iced | 31 |
+  | infiltrator-android | 24 |
+  | mihomo-platform | 8 |
+  | infiltrator-http | 7 |
+
 - **代码洁净度**：全工作空间必须保持 **0 编译警告** (`cargo check --workspace` 无任何输出)。
-- **测试可靠性**：环境敏感型测试必须支持 **100% 成功率** 的串行执行。
+- **测试可靠性**：环境敏感型测试必须在固定 4 个 nextest 测试进程并发下保持
+  **100% 成功率**。
+
+---
+
+## 测试安全策略
+
+为保证测试在任意环境（含 CI 沙箱）下都能可重复运行，本仓库强制执行以下三条红线：
+
+1. **测试绝不启动真实的 mihomo 二进制**：只有生产代码允许调用 `spawn_daemon`；
+   测试一律通过 loopback HTTP mock（mockito）模拟 mihomo 的 REST/WebSocket 接口，
+   或通过 trait seam（如 `mihomo_api::MihomoApi`）注入纯内存实现。
+2. **测试绝不发起外网请求**：所有 HTTP mocking 仅绑定 `127.0.0.1` 回环地址；
+   任何看似“需要真实网络”的行为都应退化为 loopback 验证或纯函数验证。
+3. **CI 强制隔离执行**：`.github/workflows/test.yml` 先在有网环境中
+   `bash scripts/test.sh --no-run` 预编译（此时 mock server 尚未启动），
+   再通过 `sudo unshare -n bash -c 'ip link set lo up && bash scripts/test.sh'`
+   在仅保留 loopback 接口的网络命名空间中运行全部测试；任何意外的外网请求都会
+   直接失败，而不是侥幸通过。
+
+4. **测试运行器强制统一**：仓库内完整 Rust 测试一律通过
+   `bash scripts/test.sh` 运行。该入口固定使用 `cargo nextest`、工作空间全量测试、
+   4 个构建 job 和 4 个测试并发槽位；CI 的 `check-test-policy.sh` 会拒绝重新引入
+   原始 Cargo 测试命令。
+
+---
+
+## GUI 渲染测试（niri 后台捕获，本地运行）
+
+iced 桌面端的测试分三层，全部零 mihomo 启动、零外联：
+
+| 层 | 位置 | 运行方式 | 证明什么 |
+| --- | --- | --- | --- |
+| L1 无头单元/逻辑 | 各 crate `#[cfg(test)]` | `bash scripts/test.sh` | 业务逻辑、状态机、mock API |
+| L2 GUI 逻辑 | `crates/infiltrator-iced/tests/{common,headless,gui}` | 已并入全量运行 | AppState update/view 管线、demo fixture 契约 |
+| L3 GUI 渲染 | `scripts/capture-iced.sh` | 本地运行，CI 不执行 | 真实渲染像素（9 页 × 亮/暗 = 18 场景） |
+
+L3 流程（参照 taskmanager 成熟实践，**全程后台、对操作者桌面零干扰**）：
+
+1. `--demo` 模式启动真实二进制：跳过一切生产副作用（不 spawn mihomo、不改系统代理、
+   不托盘、不写设置），使用 `src/demo.rs` 的 mock mihomo fixture 数据
+   （7 代理组/9 节点/延迟四级/流量波形/40 日志/10 连接/15 规则/3 配置）。
+2. 后台合成器栈：`kwin_wayland --virtual`（私有 XDG_RUNTIME_DIR）作不可见宿主，
+   niri 嵌套其中软件渲染（`LIBGL_ALWAYS_SOFTWARE=1`），与操作者桌面完全隔离；
+   被测窗口按 PID 绑定，就绪判定用标记文件（首帧 `CAPTURE_READY`），零固定 sleep。
+3. 产出 `docs/screenshots/iced/*.png` 与 `manifest.tsv`（尺寸/字节/sha256 收据）；
+   失败语义区分 `BLOCKED (compositor)` 与场景 `FAIL`，部分成功仍保留证据。
+
+```bash
+# 全矩阵（18 场景，约 1-2 分钟）
+bash scripts/capture-iced.sh
+# 单场景
+INFILTRATOR_CAPTURE_SCENARIOS=proxies-dark bash scripts/capture-iced.sh
+# iced 测试布局守卫（tests/{common,headless,gui} 约定）
+python3 scripts/quality/test-layout-guard.py
+```
 
 ---
 
@@ -20,7 +92,7 @@
 - **经验**：
     - 每个测试必须使用 `tempfile` 创建独立的临时目录。
     - 对于涉及全局状态的测试，必须在 Crate 级别引入 `TEST_LOCK`（互斥锁）。
-    - 运行全量测试时建议使用 `cargo test --workspace -- --test-threads=1`，确保环境绝对纯净。
+    - 运行全量测试时使用 `bash scripts/test.sh`，固定 4 个 nextest 测试并发槽位。
 
 ### 2. 原子化操作验证 (Atomic Operations)
 - **挑战**：文件下载、数据库更新等长耗时操作中途失败会导致“脏数据”残留（如空的版本目录或 `.sync-tmp` 临时文件）。
@@ -63,8 +135,11 @@
 ## 如何运行测试
 
 ```bash
-# 推荐的开发环境运行方式（确保 0 竞态）
-cargo test --workspace -- --test-threads=1
+# 首次使用先安装固定版本的 nextest
+cargo install cargo-nextest --locked --version 0.9.138
+
+# 推荐的开发环境运行方式（强制 nextest，固定 4 并发）
+bash scripts/test.sh
 
 # 检查代码质量（必须无输出）
 cargo check --workspace

@@ -1,0 +1,11 @@
+[package]
+name = "infiltrator-shared"
+version = "0.14.0"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true }
+sys-locale = "0.3"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true }

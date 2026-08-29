@@ -1,4 +1,4 @@
-use mihomo_api::{MihomoError, Result};
+use mihomo_api::error::{MihomoError, Result};
 use yaml_rust2::{Yaml, YamlEmitter, YamlLoader};
 
 pub(crate) fn validate(content: &str) -> Result<()> {

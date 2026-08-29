@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result, anyhow};
-use mihomo_config::ConfigManager;
+use mihomo_config::manager::ConfigManager;
 use serde::{Deserialize, Serialize};
-use serde_yml::{Mapping, Value};
+use serde_yaml_ng::{Mapping, Value};
 
 pub type ProxyProviders = BTreeMap<String, serde_json::Value>;
 
@@ -27,11 +27,11 @@ pub async fn save_proxy_providers(providers: ProxyProviders) -> Result<ProxyProv
         .load(&profile)
         .await
         .context("read profile config")?;
-    let mut doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
+    let mut doc: Value = serde_yaml_ng::from_str(&content).context("parse profile yaml")?;
 
     apply_proxy_providers(&mut doc, &providers)?;
 
-    let updated = serde_yml::to_string(&doc).context("serialize profile yaml")?;
+    let updated = serde_yaml_ng::to_string(&doc).context("serialize profile yaml")?;
     manager
         .save(&profile, &updated)
         .await
@@ -49,7 +49,7 @@ async fn load_profile_doc() -> Result<Value> {
         .load(&profile)
         .await
         .context("read profile config")?;
-    serde_yml::from_str(&content).context("parse profile yaml")
+    serde_yaml_ng::from_str(&content).context("parse profile yaml")
 }
 
 pub fn extract_proxy_providers_from_doc(doc: &Value) -> Result<ProxyProviders> {
@@ -82,7 +82,7 @@ fn apply_proxy_providers(doc: &mut Value, providers: &ProxyProviders) -> Result<
 
     let mut yaml_map = Mapping::new();
     for (name, value) in providers {
-        let yaml_value = serde_yml::to_value(value).context("decode proxy provider")?;
+        let yaml_value = serde_yaml_ng::to_value(value).context("decode proxy provider")?;
         yaml_map.insert(Value::String(name.to_string()), yaml_value);
     }
     map.insert(
@@ -98,14 +98,14 @@ mod tests {
 
     #[test]
     fn test_extract_proxy_providers_default() {
-        let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
+        let doc: Value = serde_yaml_ng::from_str("port: 7890\n").expect("yaml");
         let providers = extract_proxy_providers_from_doc(&doc).expect("extract");
         assert!(providers.is_empty());
     }
 
     #[test]
     fn test_extract_proxy_providers_invalid_key() {
-        let doc: Value = serde_yml::from_str(
+        let doc: Value = serde_yaml_ng::from_str(
             r#"
 proxy-providers:
   1:
@@ -118,7 +118,7 @@ proxy-providers:
 
     #[test]
     fn test_apply_proxy_providers_empty_removes() {
-        let mut doc: Value = serde_yml::from_str(
+        let mut doc: Value = serde_yaml_ng::from_str(
             r#"
 proxy-providers:
   test:
@@ -136,7 +136,7 @@ proxy-providers:
 
     #[test]
     fn test_apply_proxy_providers_writes_mapping() {
-        let mut doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
+        let mut doc: Value = serde_yaml_ng::from_str("port: 7890\n").expect("yaml");
         let mut providers = ProxyProviders::new();
         providers.insert(
             "test".to_string(),

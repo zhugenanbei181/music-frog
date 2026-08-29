@@ -1,13 +1,13 @@
 use anyhow::anyhow;
 use async_trait::async_trait;
-use infiltrator_admin::{
+use infiltrator_admin::admin_api::events::{
     AdminEvent, EVENT_REBUILD_FAILED, EVENT_REBUILD_FINISHED, EVENT_REBUILD_STARTED,
 };
-use infiltrator_desktop::MihomoRuntime;
+use infiltrator_desktop::runtime::MihomoRuntime;
 use log::{info, warn};
-use mihomo_api::TrafficData;
-use mihomo_config::ConfigManager;
-use mihomo_version::VersionManager;
+use mihomo_api::types::TrafficData;
+use mihomo_config::manager::ConfigManager;
+use mihomo_version::manager::VersionManager;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use tokio::time::{Duration, Instant, sleep};
@@ -210,8 +210,8 @@ fn spawn_config_monitor(state: AppState) {
                             info!("detected external TUN state change: {}", current_tun);
                             state.set_tun_enabled(current_tun).await;
                             state.update_tun_checked(current_tun).await;
-                            state.emit_admin_event(infiltrator_admin::AdminEvent::new(
-                                infiltrator_admin::EVENT_TUN_CHANGED,
+                            state.emit_admin_event(infiltrator_admin::admin_api::events::AdminEvent::new(
+                                infiltrator_admin::admin_api::events::EVENT_TUN_CHANGED,
                             ));
                         }
                         last_tun_enabled = Some(current_tun);

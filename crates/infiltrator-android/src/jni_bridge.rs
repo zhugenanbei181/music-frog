@@ -6,8 +6,9 @@ use jni::errors::Error as JniError;
 use jni::objects::{GlobalRef, JObject, JString, JValue};
 use jni::sys::{jint, jstring};
 use jni::{JNIEnv, JavaVM};
-use mihomo_api::{MihomoError, Result};
-use mihomo_platform::{AndroidBridge, set_android_bridge, set_home_dir_override};
+use mihomo_api::error::{MihomoError, Result};
+use mihomo_platform::android_bridge::{AndroidBridge, set_android_bridge};
+use mihomo_platform::paths::set_home_dir_override;
 
 use crate::{FfiErrorCode, FfiStatus};
 

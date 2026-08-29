@@ -162,7 +162,7 @@ class OverviewViewModel : ViewModel() {
                 }
                 val result = call.value!!
                 if (result.status.code == FfiErrorCode.OK && result.value != null) {
-                    val value = result.value
+                    val value = result.value ?: return@launch
                     val location = listOfNotNull(
                         value.country?.takeIf { it.isNotBlank() },
                         value.region?.takeIf { it.isNotBlank() },

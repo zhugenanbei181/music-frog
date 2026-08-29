@@ -40,6 +40,9 @@ fun FfiStatus.userMessage(fallback: String): String {
         FfiErrorCode.NOT_SUPPORTED -> "Not supported"
         FfiErrorCode.IO -> "I/O error"
         FfiErrorCode.NETWORK -> "Network error"
+        FfiErrorCode.AUTH -> "Authentication error"
+        FfiErrorCode.SYNC -> "Sync error"
+        FfiErrorCode.CONFIG -> "Config error"
         FfiErrorCode.UNKNOWN -> "Unknown error"
     }
     return if (fallback.isBlank()) codeMessage else "$fallback: $codeMessage"

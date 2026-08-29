@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use mihomo_platform::get_home_dir;
+use mihomo_platform::paths::get_home_dir;
 
 /// Routing mode for per-app proxy
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

@@ -1,4 +1,6 @@
-use crate::{MihomoClient, Proxy, Result};
+use crate::client::MihomoClient;
+use crate::error::Result;
+use crate::proxy::Proxy;
 use std::collections::HashMap;
 
 pub async fn test_delay(

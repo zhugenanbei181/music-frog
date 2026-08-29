@@ -111,7 +111,10 @@ impl AppState {
                 }
             }),
             Message::Exit => {
-                let rt = self.runtime.take();
+                // Release the admin web server and the shared runtime snapshot
+                // before the loop unwinds.
+                self.admin_server.shutdown();
+                let rt = self.take_app_runtime();
                 Task::perform(
                     async move {
                         if let Some(r) = rt {
@@ -145,6 +148,7 @@ impl AppState {
             }
             Message::SetSystemProxy(enabled) => {
                 self.system_proxy_enabled = enabled;
+                self.refresh_tray();
                 Task::perform(
                     async move {
                         let endpoint = if enabled {
@@ -162,6 +166,7 @@ impl AppState {
                 Ok(_) => Task::none(),
                 Err(e) => {
                     self.system_proxy_enabled = !self.system_proxy_enabled;
+                    self.refresh_tray();
                     self.error_msg = Some(e.to_string());
                     Task::none()
                 }
@@ -179,48 +184,19 @@ impl AppState {
                             .spawn();
                         return Task::done(Message::Exit);
                     }
+                    Task::none()
                 }
                 #[cfg(not(target_os = "windows"))]
                 {
                     use crate::locales::{Lang, Localizer};
                     let lang = Lang(&self.lang);
-                    return Task::done(Message::ShowToast(
+                    Task::done(Message::ShowToast(
                         lang.tr("settings_uac_unsupported").to_string(),
                         crate::types::ToastStatus::Warning,
-                    ));
-                }
-                Task::none()
-            }
-            Message::TrayIconEvent(tray_icon::TrayIconEvent::Click { .. }) => {
-                Task::done(Message::ShowWindow)
-            }
-            Message::TrayIconEvent(_) => Task::none(),
-            Message::MenuEvent(event) => {
-                let id = event.id.as_ref();
-                match id {
-                    "show" => Task::done(Message::ShowWindow),
-                    "quit" => Task::done(Message::Exit),
-                    "toggle_theme" => Task::done(Message::ToggleTheme),
-                    "mode_rule" => Task::done(Message::SetProxyMode("rule".to_string())),
-                    "mode_global" => Task::done(Message::SetProxyMode("global".to_string())),
-                    "mode_direct" => Task::done(Message::SetProxyMode("direct".to_string())),
-                    "toggle_system_proxy" => {
-                        Task::done(Message::SetSystemProxy(!self.system_proxy_enabled))
-                    }
-                    "toggle_tun" => {
-                        Task::done(Message::SetTunEnabled(!self.tun_enabled.unwrap_or(false)))
-                    }
-                    _ => {
-                        if let Some(node_name) = id.strip_prefix("proxy_GLOBAL_") {
-                            return Task::done(Message::SelectProxy(
-                                "GLOBAL".to_string(),
-                                node_name.to_string(),
-                            ));
-                        }
-                        Task::none()
-                    }
+                    ))
                 }
             }
+            Message::TrayEvent(event) => return self.handle_tray_event(event),
             _ => Task::none(),
         }
     }

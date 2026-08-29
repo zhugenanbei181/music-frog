@@ -15,7 +15,14 @@ dirs = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 keyring = { workspace = true, features = ["windows-native"] }
-windows-sys = { workspace = true, features = ["Win32_System_Threading"] }
+# JobObjects: kill-on-close Job Object so the core dies with the GUI process.
+# Foundation: HANDLE/CloseHandle. Security: CreateJobObjectW signature.
+windows-sys = { workspace = true, features = [
+  "Win32_System_Threading",
+  "Win32_System_JobObjects",
+  "Win32_Foundation",
+  "Win32_Security",
+] }
 winreg = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -23,6 +30,11 @@ keyring = { workspace = true, features = ["apple-native"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { workspace = true, features = ["linux-native"] }
+
+[target.'cfg(unix)'.dependencies]
+# CORE-002: prctl(PR_SET_PDEATHSIG) so the core is reaped when the GUI dies.
+# CORE-001: flock(LOCK_EX | LOCK_NB) for the single-instance lock.
+libc = { workspace = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { workspace = true }

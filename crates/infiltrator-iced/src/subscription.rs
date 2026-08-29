@@ -1,31 +1,22 @@
 use crate::state::AppState;
+use crate::tray::tray_events_subscription;
 use crate::types::{Message, Route, RuntimeStatus};
 use iced::{Subscription, stream, window};
-use muda::MenuEvent;
 use std::time::Duration;
-use tray_icon::TrayIconEvent;
 
 impl AppState {
     pub fn subscription(&self) -> Subscription<Message> {
         let mut subs = vec![];
 
-        // 1. Tray Events
-        subs.push(Subscription::run(|| {
-            stream::channel(
-                100,
-                |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                    loop {
-                        if let Ok(event) = TrayIconEvent::receiver().try_recv() {
-                            let _ = output.try_send(Message::TrayIconEvent(event));
-                        }
-                        if let Ok(event) = MenuEvent::receiver().try_recv() {
-                            let _ = output.try_send(Message::MenuEvent(event));
-                        }
-                        tokio::time::sleep(Duration::from_millis(20)).await;
-                    }
-                },
-            )
-        }));
+        // 1. Tray Events (neutral channel; only subscribed when a tray is live)
+        if let Some(rx) = &self.tray_events {
+            subs.push(tray_events_subscription(rx));
+        }
+
+        // 1b. Admin host commands (context -> app bridge for the Web UI)
+        if let Some(rx) = &self.admin_commands {
+            subs.push(crate::admin_server::admin_commands_subscription(rx));
+        }
 
         // 2. Scheduled subscription auto-update checks
         subs.push(Subscription::run(|| {

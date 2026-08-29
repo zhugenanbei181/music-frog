@@ -1,4 +1,4 @@
-use mihomo_api::MihomoError;
+use mihomo_api::error::MihomoError;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::LazyLock;

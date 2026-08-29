@@ -20,20 +20,20 @@ use axum::{
 use chrono::Utc;
 use infiltrator_http::{HttpClient, reqwest};
 use log::{info, warn};
-use mihomo_api::{ConnectionsResponse, MemoryData};
+use mihomo_api::types::{ConnectionsResponse, MemoryData};
 use serde::Deserialize;
 use tokio_stream::{
     StreamExt,
     wrappers::{BroadcastStream, UnboundedReceiverStream},
 };
 
+use infiltrator_core::profiles::{self as core_profiles, ProfileDetail, ProfileInfo};
 use infiltrator_core::{
-    ProfileDetail, ProfileInfo, config as core_config, dns, fake_ip, profiles as core_profiles,
-    proxy_providers, rules, settings::WebDavConfig, sniffer, subscription as core_subscription,
-    tun,
+    config as core_config, dns, fake_ip, proxy_providers, rules, settings::WebDavConfig, sniffer,
+    subscription as core_subscription, tun,
 };
-use mihomo_config::ConfigManager;
-use mihomo_version::VersionManager;
+use mihomo_config::manager::ConfigManager;
+use mihomo_version::manager::VersionManager;
 
 use super::events::{
     AdminEvent, EVENT_CORE_CHANGED, EVENT_DNS_CHANGED, EVENT_FAKE_IP_CHANGED,
@@ -606,6 +606,8 @@ pub async fn clear_profiles_http<C: AdminApiContext>(
     let profile = core_profiles::reset_profiles_to_default()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+    // All previous profiles (and their auto-update jobs) are gone.
+    crate::scheduler::cancel_all_profile_jobs();
     let manager = ConfigManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
     let mut info = profile;
     info.controller_url = manager.get_external_controller().await.ok();
@@ -629,6 +631,8 @@ pub async fn delete_profile_http<C: AdminApiContext>(
         .delete_profile(&profile_name)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    // The profile is gone: its periodic update job must not fire again.
+    crate::scheduler::cancel_profile_update_job(&profile_name);
     state
         .events
         .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
@@ -671,6 +675,15 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
         .update_profile_metadata(&profile_name, &metadata)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+    // Keep the per-profile periodic job in lockstep with the new metadata
+    // (spawn on enable / interval change, cancel on disable).
+    crate::scheduler::sync_profile_job(
+        &state.ctx,
+        &profile_name,
+        metadata.auto_update_enabled,
+        metadata.subscription_url.as_deref(),
+        metadata.update_interval_hours,
+    );
     let info = core_profiles::load_profile_info(&profile_name).await?;
     state
         .events
@@ -700,6 +713,8 @@ pub async fn clear_profile_subscription_http<C: AdminApiContext>(
         .update_profile_metadata(&profile_name, &metadata)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+    // Subscription (and auto-update with it) is gone: drop the periodic job.
+    crate::scheduler::sync_profile_job(&state.ctx, &profile_name, false, None, None);
     let info = core_profiles::load_profile_info(&profile_name).await?;
     state
         .events
@@ -725,10 +740,15 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
         .as_deref()
         .ok_or_else(|| ApiError::bad_request("未找到订阅链接"))?;
 
-    let content =
-        core_subscription::fetch_subscription_text(&state.http_client, &state.raw_http_client, url)
-            .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+    let checked_url = core_subscription::CheckedSubscriptionUrl::parse(url)
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let content = core_subscription::fetch_subscription_text(
+        &state.http_client,
+        &state.raw_http_client,
+        &checked_url,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     let content = core_subscription::strip_utf8_bom(&content);
     if core_config::validate_yaml(content).is_err() {
         return Err(ApiError::bad_request("订阅内容不是有效的 YAML"));
@@ -1253,7 +1273,7 @@ fn normalize_delay_timeout_ms(timeout_ms: Option<u32>) -> u32 {
 }
 
 fn build_runtime_proxy_delay_nodes(
-    proxies: std::collections::HashMap<String, mihomo_api::Proxy>,
+    proxies: std::collections::HashMap<String, mihomo_api::proxy::Proxy>,
 ) -> Vec<RuntimeProxyDelayNode> {
     let mut nodes: Vec<RuntimeProxyDelayNode> = proxies
         .into_iter()
@@ -1276,7 +1296,7 @@ fn build_runtime_proxy_delay_nodes(
 
 fn collect_delay_test_candidates(
     requested: Option<&[String]>,
-    proxies: &std::collections::HashMap<String, mihomo_api::Proxy>,
+    proxies: &std::collections::HashMap<String, mihomo_api::proxy::Proxy>,
     results: &mut Vec<RuntimeDelayBatchResult>,
 ) -> Vec<String> {
     match requested {
@@ -1382,7 +1402,9 @@ async fn switch_profile_internal<C: AdminApiContext>(
     let profile_name = core_profiles::sanitize_profile_name(name)?;
     let manager = ConfigManager::new()?;
     manager.set_current(&profile_name).await?;
-    schedule_rebuild(ctx, rebuild_status, "switch-profile");
+    // Config-level change only: the running core just needs a restart, not
+    // a full runtime re-bootstrap (which stays reserved for version swaps).
+    schedule_core_restart(ctx, rebuild_status, "switch-profile");
     core_profiles::load_profile_info(&profile_name).await
 }
 
@@ -1406,8 +1428,9 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
         "admin import profile start: name={} url={}",
         profile_name, masked_url
     );
+    let checked_url = core_subscription::CheckedSubscriptionUrl::parse(source_url)?;
     let content =
-        core_subscription::fetch_subscription_text(client, raw_client, source_url).await?;
+        core_subscription::fetch_subscription_text(client, raw_client, &checked_url).await?;
     if content.trim().is_empty() {
         return Err(anyhow!("订阅返回内容为空"));
     }
@@ -1440,6 +1463,14 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
     manager
         .update_profile_metadata(&profile_name, &metadata)
         .await?;
+    // Re-import may have (re)enabled auto-update on an existing profile.
+    crate::scheduler::sync_profile_job(
+        ctx,
+        &profile_name,
+        metadata.auto_update_enabled,
+        metadata.subscription_url.as_deref(),
+        metadata.update_interval_hours,
+    );
 
     let mut info = core_profiles::load_profile_info(&profile_name).await?;
     if activate {
@@ -1498,6 +1529,30 @@ fn schedule_rebuild<C: AdminApiContext>(
             rebuild_status.mark_error(err.to_string());
         } else {
             info!("runtime rebuild completed ({reason})");
+            rebuild_status.mark_success();
+        }
+    });
+}
+
+/// Config-level rebuild: same status bookkeeping as [`schedule_rebuild`],
+/// but asks the host for a session-level core restart instead of a full
+/// runtime re-bootstrap.
+fn schedule_core_restart<C: AdminApiContext>(
+    ctx: &C,
+    rebuild_status: &Arc<RebuildStatus>,
+    reason: &str,
+) {
+    let ctx = ctx.clone();
+    let reason = reason.to_string();
+    let rebuild_status = Arc::clone(rebuild_status);
+    info!("schedule core restart: {reason}");
+    rebuild_status.mark_start(&reason);
+    tokio::spawn(async move {
+        if let Err(err) = ctx.restart_core().await {
+            warn!("core restart failed ({reason}): {err}");
+            rebuild_status.mark_error(err.to_string());
+        } else {
+            info!("core restart completed ({reason})");
             rebuild_status.mark_success();
         }
     });

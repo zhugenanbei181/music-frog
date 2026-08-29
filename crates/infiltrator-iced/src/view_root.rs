@@ -34,16 +34,8 @@ impl AppState {
         .height(Length::Fill)
         .padding(48)
         .style(move |theme: &Theme| {
-            let is_dark = theme == &Theme::Dark;
             container::Style {
-                background: Some(
-                    if is_dark {
-                        Color::from_rgb(0.02, 0.04, 0.10)
-                    } else {
-                        Color::from_rgb(0.98, 0.98, 1.0)
-                    }
-                    .into(),
-                ),
+                background: Some(crate::view::theme::tokens(theme).canvas.into()),
                 // 仅对文字颜色进行透明度插值，这在 CPU 渲染下极快
                 text_color: Some(Color {
                     a: progress,
@@ -55,47 +47,36 @@ impl AppState {
 
         let main_view = row![sidebar, main_content];
 
-        // FPS 诊断显示 (调试用)
-        let fps_counter = container(
-            row![
-                text(format!("{} FPS", self.fps))
-                    .size(10)
-                    .style(|_| text::Style {
-                        color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.2)),
-                    }),
-                button(text("Perf").size(10))
-                    .padding([2, 8])
-                    .style(button::secondary)
-                    .on_press(Message::TogglePerfPanel)
-            ]
-            .spacing(8),
-        )
-        .padding(10);
-
         let mut layers: Vec<Element<Message>> = vec![main_view.into()];
 
         if !self.toasts.is_empty() {
             let mut toast_column = column![].spacing(10);
             for (content, status) in &self.toasts {
-                let color = match status {
-                    ToastStatus::Info => Color::from_rgb(0.2, 0.5, 0.8),
-                    ToastStatus::Success => Color::from_rgb(0.2, 0.7, 0.2),
-                    ToastStatus::Warning => Color::from_rgb(0.8, 0.5, 0.2),
-                    ToastStatus::Error => Color::from_rgb(0.8, 0.2, 0.2),
+                let color = move |theme: &Theme| {
+                    let tokens = crate::view::theme::tokens(theme);
+                    match status {
+                        ToastStatus::Info => tokens.accent,
+                        ToastStatus::Success => tokens.success,
+                        ToastStatus::Warning => tokens.warning,
+                        ToastStatus::Error => tokens.danger,
+                    }
                 };
 
                 toast_column = toast_column.push(
                     container(text(content.clone()).size(13))
                         .padding([12, 24])
-                        .style(move |_| container::Style {
-                            background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.9).into()),
-                            border: Border {
-                                radius: 12.0.into(),
-                                width: 1.0,
-                                color,
-                            },
-                            text_color: Some(Color::WHITE),
-                            ..Default::default()
+                        .style(move |theme: &Theme| {
+                            let tokens = crate::view::theme::tokens(theme);
+                            container::Style {
+                                background: Some(tokens.overlay.into()),
+                                border: Border {
+                                    radius: 12.0.into(),
+                                    width: 1.0,
+                                    color: color(theme),
+                                },
+                                text_color: Some(tokens.overlay_text),
+                                ..Default::default()
+                            }
                         }),
                 );
             }
@@ -112,24 +93,33 @@ impl AppState {
         }
 
         if !matches!(self.rebuild_flow, RebuildFlowState::Idle) {
-            let (title, detail, color) = match &self.rebuild_flow {
+            let (title, detail, color): (&str, &str, fn(&Theme) -> Color) = match &self.rebuild_flow
+            {
                 RebuildFlowState::Saving { label } => (
                     "Saving configuration",
                     label.as_str(),
-                    Color::from_rgb(0.2, 0.5, 0.8),
+                    |theme: &Theme| crate::view::theme::tokens(theme).accent,
                 ),
                 RebuildFlowState::Rebuilding { label } => (
                     "Rebuilding runtime",
                     label.as_str(),
-                    Color::from_rgb(0.8, 0.6, 0.2),
+                    |theme: &Theme| crate::view::theme::tokens(theme).warning,
                 ),
-                RebuildFlowState::Done { label } => {
-                    ("Completed", label.as_str(), Color::from_rgb(0.2, 0.7, 0.2))
-                }
-                RebuildFlowState::Failed { label, .. } => {
-                    ("Failed", label.as_str(), Color::from_rgb(0.8, 0.2, 0.2))
-                }
-                RebuildFlowState::Idle => ("", "", Color::WHITE),
+                RebuildFlowState::Done { label } => (
+                    "Completed",
+                    label.as_str(),
+                    |theme: &Theme| crate::view::theme::tokens(theme).success,
+                ),
+                RebuildFlowState::Failed { label, .. } => (
+                    "Failed",
+                    label.as_str(),
+                    |theme: &Theme| crate::view::theme::tokens(theme).danger,
+                ),
+                RebuildFlowState::Idle => (
+                    "",
+                    "",
+                    |theme: &Theme| crate::view::theme::tokens(theme).overlay_text,
+                ),
             };
 
             layers.push(
@@ -137,22 +127,27 @@ impl AppState {
                     container(
                         column![
                             text(title).size(14),
-                            text(detail).size(12).style(|_| text::Style {
-                                color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.8))
+                            text(detail).size(12).style(|theme: &Theme| text::Style {
+                                color: Some(
+                                    crate::view::theme::tokens(theme).overlay_text_muted,
+                                )
                             })
                         ]
                         .spacing(4),
                     )
                     .padding([12, 18])
-                    .style(move |_| container::Style {
-                        background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.88).into()),
-                        border: Border {
-                            radius: 10.0.into(),
-                            width: 1.0,
-                            color,
-                        },
-                        text_color: Some(Color::WHITE),
-                        ..Default::default()
+                    .style(move |theme: &Theme| {
+                        let tokens = crate::view::theme::tokens(theme);
+                        container::Style {
+                            background: Some(tokens.overlay.into()),
+                            border: Border {
+                                radius: 10.0.into(),
+                                width: 1.0,
+                                color: color(theme),
+                            },
+                            text_color: Some(tokens.overlay_text),
+                            ..Default::default()
+                        }
                     }),
                 )
                 .width(Length::Fill)
@@ -164,15 +159,35 @@ impl AppState {
             );
         }
 
-        // 叠加 FPS 计数器
-        layers.push(
-            container(fps_counter)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .align_x(Alignment::End)
-                .align_y(Alignment::Start)
-                .into(),
-        );
+        // FPS 诊断 HUD (调试用)。ui-fix: 默认隐藏 —— perf_panel_visible 现在
+        // 同时控制 "0 FPS / Perf" 徽标与性能快照面板（此前徽标无条件渲染，
+        // 出现在每张截图右上角）。Message::TogglePerfPanel 仍负责切换。
+        if self.perf_panel_visible {
+            let fps_counter = container(
+                row![
+                    text(format!("{} FPS", self.fps))
+                        .size(10)
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(crate::view::theme::tokens(theme).text_tertiary),
+                        }),
+                    button(text("Perf").size(10))
+                        .padding([2, 8])
+                        .style(button::secondary)
+                        .on_press(Message::TogglePerfPanel)
+                ]
+                .spacing(8),
+            )
+            .padding(10);
+
+            layers.push(
+                container(fps_counter)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_x(Alignment::End)
+                    .align_y(Alignment::Start)
+                    .into(),
+            );
+        }
 
         if self.perf_panel_visible {
             layers.push(
@@ -209,15 +224,18 @@ impl AppState {
                         .spacing(6),
                     )
                     .padding([10, 12])
-                    .style(|_| container::Style {
-                        background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.86).into()),
-                        border: Border {
-                            radius: 10.0.into(),
-                            width: 1.0,
-                            color: Color::from_rgba(1.0, 1.0, 1.0, 0.2),
-                        },
-                        text_color: Some(Color::WHITE),
-                        ..Default::default()
+                    .style(|theme: &Theme| {
+                        let tokens = crate::view::theme::tokens(theme);
+                        container::Style {
+                            background: Some(tokens.overlay.into()),
+                            border: Border {
+                                radius: 10.0.into(),
+                                width: 1.0,
+                                color: tokens.overlay_border,
+                            },
+                            text_color: Some(tokens.overlay_text),
+                            ..Default::default()
+                        }
                     }),
                 )
                 .width(Length::Fill)
@@ -232,6 +250,12 @@ impl AppState {
                 .align_y(Alignment::Start)
                 .into(),
             );
+        }
+
+        // demo-mode: emit the capture marker only after the first real view
+        // pass for the requested page (write-once; see demo.rs).
+        if self.demo {
+            self.write_capture_marker();
         }
 
         stack(layers).into()

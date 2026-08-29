@@ -5,8 +5,8 @@ use std::{
 
 use infiltrator_core::profiles as core_profiles;
 use log::warn;
-use mihomo_api::Proxy;
-use mihomo_version::{VersionManager, manager::VersionInfo};
+use mihomo_api::proxy::Proxy;
+use mihomo_version::manager::{VersionInfo, VersionManager};
 use tauri::{
     AppHandle, Wry, include_image,
     menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
@@ -221,7 +221,7 @@ pub(crate) async fn build_tray_menu(
     let sep2 = PredefinedMenuItem::separator(app)?;
 
     // Group 5: Settings & Sync
-    let autostart_enabled = is_autostart_enabled();
+    let autostart_enabled = is_autostart_enabled(crate::AUTOSTART_REG_NAME);
     let autostart_supported = cfg!(target_os = "windows");
     let autostart_is_admin = is_running_as_admin();
     let autostart_label = if autostart_supported && !autostart_is_admin {

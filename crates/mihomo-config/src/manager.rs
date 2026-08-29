@@ -1,8 +1,9 @@
 use super::{profile::Profile, yaml};
 use crate::port::{find_available_port, is_port_available, parse_port_from_addr};
 use chrono::{DateTime, Utc};
-use mihomo_api::{MihomoError, Result};
-use mihomo_platform::{CredentialStore, DefaultCredentialStore, get_home_dir};
+use mihomo_api::error::{MihomoError, Result};
+use mihomo_platform::paths::get_home_dir;
+use mihomo_platform::traits::{CredentialStore, DefaultCredentialStore};
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -29,24 +30,14 @@ impl<S: CredentialStore> ConfigManager<S> {
         })
     }
     pub async fn load(&self, profile: &str) -> Result<String> {
-        let path = self.config_dir.join(format!("{}.yaml", profile));
-        if !path.exists() {
-            return Err(MihomoError::NotFound(format!(
-                "Profile '{}' not found",
-                profile
-            )));
-        }
-
+        let path = self.existing_profile_yaml_path(profile).await?;
         let content = fs::read_to_string(&path).await?;
         Ok(content)
     }
 
     pub async fn save(&self, profile: &str, content: &str) -> Result<()> {
-        fs::create_dir_all(&self.config_dir).await?;
-
         yaml::validate(content)?;
-
-        let path = self.config_dir.join(format!("{}.yaml", profile));
+        let path = self.profile_yaml_path(profile).await?;
         fs::write(&path, content).await?;
 
         Ok(())
@@ -91,14 +82,7 @@ impl<S: CredentialStore> ConfigManager<S> {
     }
 
     pub async fn delete_profile(&self, profile: &str) -> Result<()> {
-        let path = self.config_dir.join(format!("{}.yaml", profile));
-        if !path.exists() {
-            return Err(MihomoError::NotFound(format!(
-                "Profile '{}' not found",
-                profile
-            )));
-        }
-
+        let path = self.existing_profile_yaml_path(profile).await?;
         let current = self.get_current().await.ok();
         if current.as_ref() == Some(&profile.to_string()) {
             return Err(MihomoError::Config(
@@ -115,12 +99,13 @@ impl<S: CredentialStore> ConfigManager<S> {
     }
 
     pub async fn get_profile_metadata(&self, profile: &str) -> Result<Profile> {
+        let key = sanitized_profile_key(profile)?;
         let mut profile_info = Profile::new(profile.to_string(), PathBuf::new(), false);
         let settings = self.read_settings_value().await?;
         if let Some(table) = settings
             .get("profiles")
             .and_then(|value| value.as_table())
-            .and_then(|table| table.get(profile))
+            .and_then(|table| table.get(&key))
             .and_then(|value| value.as_table())
         {
             apply_profile_metadata(&self.credential_store, &mut profile_info, table).await;
@@ -129,6 +114,7 @@ impl<S: CredentialStore> ConfigManager<S> {
     }
 
     pub async fn update_profile_metadata(&self, profile: &str, metadata: &Profile) -> Result<()> {
+        let key = sanitized_profile_key(profile)?;
         let mut settings = self.read_settings_value().await?;
         let root_table = ensure_table(&mut settings)?;
         let profiles_value = root_table
@@ -136,14 +122,14 @@ impl<S: CredentialStore> ConfigManager<S> {
             .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
         let profiles_table = ensure_table(profiles_value)?;
         let profile_value = profiles_table
-            .entry(profile.to_string())
+            .entry(key.clone())
             .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
         let profile_table = ensure_table(profile_value)?;
 
         let mut subscription_key = None;
         let subscription_fallback = metadata.subscription_url.clone();
         if let Some(url) = metadata.subscription_url.as_deref() {
-            match store_subscription_url(&self.credential_store, profile, url).await {
+            match store_subscription_url(&self.credential_store, &key, url).await {
                 Ok(key) => {
                     subscription_key = Some(key);
                 }
@@ -151,7 +137,7 @@ impl<S: CredentialStore> ConfigManager<S> {
                     log::warn!("failed to store subscription url securely: {err}");
                 }
             }
-        } else if let Err(err) = delete_subscription_url(&self.credential_store, profile).await {
+        } else if let Err(err) = delete_subscription_url(&self.credential_store, &key).await {
             log::warn!("failed to delete subscription url: {err}");
         }
         set_optional_string(profile_table, "subscription_url_key", subscription_key);
@@ -179,13 +165,7 @@ impl<S: CredentialStore> ConfigManager<S> {
     }
 
     pub async fn set_current(&self, profile: &str) -> Result<()> {
-        let path = self.config_dir.join(format!("{}.yaml", profile));
-        if !path.exists() {
-            return Err(MihomoError::NotFound(format!(
-                "Profile '{}' not found",
-                profile
-            )));
-        }
+        self.existing_profile_yaml_path(profile).await?;
 
         if let Some(parent) = self.settings_file.parent() {
             fs::create_dir_all(parent).await?;
@@ -227,6 +207,7 @@ impl<S: CredentialStore> ConfigManager<S> {
     }
 
     async fn remove_profile_metadata(&self, profile: &str) -> Result<()> {
+        let key = sanitized_profile_key(profile)?;
         if !self.settings_file.exists() {
             return Ok(());
         }
@@ -234,12 +215,52 @@ impl<S: CredentialStore> ConfigManager<S> {
         if let toml::Value::Table(ref mut root) = settings
             && let Some(toml::Value::Table(profiles)) = root.get_mut("profiles")
         {
-            profiles.remove(profile);
+            profiles.remove(&key);
         }
         let content = toml::to_string(&settings)
             .map_err(|e| MihomoError::Config(format!("Failed to serialize config: {}", e)))?;
         fs::write(&self.settings_file, content).await?;
         Ok(())
+    }
+
+    /// 以规范化的 config 目录为根构造 profile 的 yaml 路径：
+    /// 先校验、再做字符级消毒，最后验证结果仍落在规范基目录内。
+    async fn profile_yaml_path(&self, profile: &str) -> Result<PathBuf> {
+        let safe = sanitized_profile_key(profile)?;
+        fs::create_dir_all(&self.config_dir).await?;
+        let base = fs::canonicalize(&self.config_dir)
+            .await
+            .map_err(|err| MihomoError::Config(format!("config dir unavailable: {err}")))?;
+        let path = base.join(format!("{safe}.yaml"));
+        if !path.starts_with(&base) {
+            return Err(MihomoError::Config(
+                "profile path escapes config dir".to_string(),
+            ));
+        }
+        Ok(path)
+    }
+
+    /// 同 [`Self::profile_yaml_path`]，但要求文件已存在并返回其规范化路径。
+    async fn existing_profile_yaml_path(&self, profile: &str) -> Result<PathBuf> {
+        // 目录不存在则任何 profile 都不可能存在，直接走 NotFound 语义。
+        let base = match fs::canonicalize(&self.config_dir).await {
+            Ok(base) => base,
+            Err(_) => {
+                return Err(MihomoError::NotFound(format!(
+                    "Profile '{profile}' not found"
+                )))
+            }
+        };
+        let path = self.profile_yaml_path(profile).await?;
+        let canonical = fs::canonicalize(&path).await.map_err(|_| {
+            MihomoError::NotFound(format!("Profile '{profile}' not found"))
+        })?;
+        if !canonical.starts_with(&base) {
+            return Err(MihomoError::Config(
+                "profile path escapes config dir".to_string(),
+            ));
+        }
+        Ok(canonical)
     }
 
     pub async fn get_current(&self) -> Result<String> {
@@ -511,6 +532,47 @@ fn parse_datetime(value: Option<&toml::Value>) -> Option<DateTime<Utc>> {
 
 const SUBSCRIPTION_SERVICE: &str = "MusicFrog-Despicable-Infiltrator";
 const SUBSCRIPTION_KEY_PREFIX: &str = "subscription";
+
+/// Profile names end up as filesystem paths (`<config_dir>/<name>.yaml`) and
+/// as credential/TOML keys, and can arrive from the admin HTTP API. Reject
+/// anything that could escape `config_dir` or break cross-platform file
+/// semantics before it reaches a path join.
+pub fn validate_profile_name(profile: &str) -> Result<()> {
+    let rejected = |reason: &str| {
+        Err(MihomoError::Config(format!(
+            "Invalid profile name: {reason}"
+        )))
+    };
+    if profile.is_empty() {
+        return rejected("name is empty");
+    }
+    if profile.chars().count() > 128 {
+        return rejected("name exceeds 128 characters");
+    }
+    if profile.trim() != profile {
+        return rejected("leading or trailing whitespace");
+    }
+    if profile == "." || profile == ".." || profile.contains("..") {
+        return rejected("relative path segments are not allowed");
+    }
+    if let Some(ch) = profile
+        .chars()
+        .find(|ch| matches!(ch, '/' | '\\' | ':') || ch.is_control())
+    {
+        return rejected(format!("illegal character {ch:?}").as_str());
+    }
+    if profile.ends_with('.') || profile.ends_with(' ') {
+        return rejected("trailing dot or space (Windows filename semantics)");
+    }
+    Ok(())
+}
+
+/// 校验之后再做一次字符级消毒：即使校验被绕过，分隔符也会被替换为下划线。
+/// 对合法名字这是恒等变换（key 与原名一致）。
+fn sanitized_profile_key(profile: &str) -> Result<String> {
+    validate_profile_name(profile)?;
+    Ok(profile.replace(['/', '\\', ':'], "_"))
+}
 
 fn subscription_key(profile: &str) -> String {
     format!("{SUBSCRIPTION_KEY_PREFIX}:{profile}")
@@ -943,17 +1005,17 @@ external-controller: http://127.0.0.1:9090
 
         #[async_trait]
         impl CredentialStore for MockStore {
-            async fn get(&self, _svc: &str, key: &str) -> mihomo_api::Result<Option<String>> {
+            async fn get(&self, _svc: &str, key: &str) -> mihomo_api::error::Result<Option<String>> {
                 Ok(self.data.lock().unwrap().get(key).cloned())
             }
-            async fn set(&self, _svc: &str, key: &str, val: &str) -> mihomo_api::Result<()> {
+            async fn set(&self, _svc: &str, key: &str, val: &str) -> mihomo_api::error::Result<()> {
                 self.data
                     .lock()
                     .unwrap()
                     .insert(key.to_string(), val.to_string());
                 Ok(())
             }
-            async fn delete(&self, _svc: &str, key: &str) -> mihomo_api::Result<()> {
+            async fn delete(&self, _svc: &str, key: &str) -> mihomo_api::error::Result<()> {
                 self.data.lock().unwrap().remove(key);
                 Ok(())
             }
@@ -986,6 +1048,45 @@ external-controller: http://127.0.0.1:9090
         assert_eq!(
             loaded.subscription_url,
             Some("https://secret.url/sub".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_profile_name_validation_blocks_traversal() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir).await;
+
+        for name in [
+            "../escape",
+            "sub/../../escape",
+            "/absolute/path",
+            "windows\\path",
+            "drive:c:\\x",
+            "..",
+            ".",
+            " padded ",
+            "",
+            "a:b",
+        ] {
+            assert!(
+                manager.save(name, "port: 1\n").await.is_err(),
+                "save should reject: {name:?}"
+            );
+            assert!(
+                manager.load(name).await.is_err(),
+                "load should reject: {name:?}"
+            );
+            assert!(
+                manager.delete_profile(name).await.is_err(),
+                "delete should reject: {name:?}"
+            );
+        }
+
+        // 合法名字不受影响（空格/中文/下划线/连字符）
+        assert!(manager.save("我的 配置-1", "port: 1\n").await.is_ok());
+        assert_eq!(
+            manager.load("我的 配置-1").await.unwrap(),
+            "port: 1\n"
         );
     }
 }

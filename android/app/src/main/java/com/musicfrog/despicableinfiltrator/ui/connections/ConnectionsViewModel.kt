@@ -40,17 +40,29 @@ class ConnectionsViewModel : ViewModel() {
     val processFilter: StateFlow<String> = _processFilter
 
     val uiState: StateFlow<ConnectionsUiState> = combine(
-        allConnections,
-        uploadTotal,
-        downloadTotal,
-        isLoading,
-        error,
-        _hostFilter,
-        _processFilter,
-    ) { connections, up, down, loading, err, hostFilter, processFilter ->
-        val hostQuery = hostFilter.trim().lowercase()
-        val processQuery = processFilter.trim().lowercase()
-        val filtered = connections.filter { connection ->
+        combine(
+            allConnections,
+            uploadTotal,
+            downloadTotal,
+            isLoading,
+            error,
+        ) { connections, up, down, loading, err ->
+            ConnectionsUiState(
+                connections = connections,
+                uploadTotal = up,
+                downloadTotal = down,
+                isLoading = loading,
+                error = err,
+            )
+        },
+        combine(
+            _hostFilter,
+            _processFilter,
+        ) { hostFilter, processFilter ->
+            hostFilter.trim().lowercase() to processFilter.trim().lowercase()
+        },
+    ) { state, (hostQuery, processQuery) ->
+        val filtered = state.connections.filter { connection ->
             val hostMatched = if (hostQuery.isBlank()) {
                 true
             } else {
@@ -63,13 +75,7 @@ class ConnectionsViewModel : ViewModel() {
             }
             hostMatched && processMatched
         }
-        ConnectionsUiState(
-            connections = filtered,
-            uploadTotal = up,
-            downloadTotal = down,
-            isLoading = loading,
-            error = err,
-        )
+        state.copy(connections = filtered)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ConnectionsUiState())
 
     init {

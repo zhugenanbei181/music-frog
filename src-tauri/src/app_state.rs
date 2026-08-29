@@ -2,14 +2,18 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::anyhow;
 use infiltrator_admin::{
-    AdminEvent, AdminEventBus, SubscriptionScheduler,
+    admin_api::events::{AdminEvent, AdminEventBus},
+    scheduler::SubscriptionScheduler,
     servers::{AdminServerHandle, StaticServerHandle},
 };
-use infiltrator_core::AppSettings;
-use infiltrator_desktop::{MihomoRuntime, SystemProxyState};
+use infiltrator_core::settings::AppSettings;
+use infiltrator_desktop::{
+    proxy::SystemProxyState,
+    runtime::MihomoRuntime,
+};
 use log::warn;
-use mihomo_api::Proxy;
-use mihomo_version::VersionManager;
+use mihomo_api::proxy::Proxy;
+use mihomo_version::manager::VersionManager;
 use tauri::{
     AppHandle, Wry,
     menu::{CheckMenuItem, MenuItem, Submenu},
@@ -789,7 +793,7 @@ mod tests {
         let state = AppState::default();
         let bus = state.admin_event_bus();
         let mut rx = bus.subscribe();
-        state.emit_admin_event(infiltrator_admin::AdminEvent::new("test_event"));
+        state.emit_admin_event(infiltrator_admin::admin_api::events::AdminEvent::new("test_event"));
         let received = rx.recv().await.unwrap();
         assert_eq!(received.kind, "test_event");
     }

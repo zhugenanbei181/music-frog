@@ -2,11 +2,11 @@ use anyhow::{Context, Result, anyhow};
 use log::{info, warn};
 
 use dav_client::client::WebDavClient;
-use mihomo_platform::get_home_dir;
+use mihomo_platform::paths::get_home_dir;
 use state_store::StateStore;
 use sync_engine::{SyncPlanner, executor::SyncExecutor};
 
-use crate::admin_api::AdminApiContext;
+use crate::admin_api::state::AdminApiContext;
 use infiltrator_core::settings::WebDavConfig;
 
 /// Sync result summary for notification purposes

@@ -1,162 +1,260 @@
 use crate::locales::{Lang, Localizer};
 use crate::types::{EditorLazyState, RuleBadgeKind, RulesJsonTab, RulesTab};
-use crate::view::components::{card, modern_scrollable};
-use crate::view::icons;
-use crate::{AppState, Message};
-use iced::widget::{
-    Space, button, checkbox, column, container, pick_list, row, text, text_editor, text_input,
+use crate::view::components::{
+    BadgeKind, card, empty_state, icon_button, modern_scrollable, section_header, segmented_control,
+    toggle_switch,
 };
-use iced::{Alignment, Border, Color, Element, Font, Length, Theme, border};
+use crate::view::svg_icons::{self, Icon};
+use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CONTROL, SP_LG, SP_MD, tokens};
+use crate::{AppState, Message};
+use iced::widget::{Space, button, column, container, pick_list, row, text, text_editor, text_input};
+use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 
-fn tab_button<'a>(
-    label: String,
-    active: bool,
-    on_press: Message,
-) -> iced::widget::Button<'a, Message> {
-    button(text(label).size(12))
-        .padding([6, 12])
-        .style(if active {
-            button::primary
-        } else {
-            button::secondary
-        })
-        .on_press(on_press)
-}
+// ---------------------------------------------------------------------------
+// Token-driven control styles (ui-wave2-r)
+// ---------------------------------------------------------------------------
 
-fn save_action<'a>(
-    dirty: bool,
-    saving: bool,
-    icon: &'a str,
-    label: String,
-    on_press: Message,
-) -> Element<'a, Message> {
-    if saving {
-        button(text("Saving...").size(12))
-            .padding([6, 12])
-            .style(button::secondary)
-            .into()
-    } else if dirty {
-        button(row![text(icon).size(12), text(label).size(12)].spacing(8))
-            .padding([6, 12])
-            .style(button::primary)
-            .on_press(on_press)
-            .into()
-    } else {
-        button(text("Saved").size(12))
-            .padding([6, 12])
-            .style(button::secondary)
-            .into()
+fn style_accent(t: &Theme, status: button::Status) -> button::Style {
+    let tk = tokens(t);
+    let (bg, fg) = match status {
+        button::Status::Disabled => (tk.accent_soft, tk.accent),
+        button::Status::Hovered | button::Status::Pressed => {
+            (Color { a: 0.85, ..tk.accent }, tk.on_accent)
+        }
+        _ => (tk.accent, tk.on_accent),
+    };
+    button::Style {
+        background: Some(bg.into()),
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
+            ..Default::default()
+        },
+        text_color: fg,
+        ..Default::default()
     }
 }
 
-fn rule_badge_style(kind: RuleBadgeKind) -> container::Style {
-    let color = match kind {
-        RuleBadgeKind::Domain => Color::from_rgb(0.2, 0.5, 0.8),
-        RuleBadgeKind::Ip => Color::from_rgb(0.8, 0.5, 0.2),
-        RuleBadgeKind::Other => Color::from_rgb(0.5, 0.5, 0.5),
-    };
-    container::Style {
-        background: Some(color.into()),
+fn style_ghost(t: &Theme, status: button::Status) -> button::Style {
+    let tk = tokens(t);
+    button::Style {
+        background: match status {
+            button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
+            _ => None,
+        },
         border: Border {
-            radius: 4.0.into(),
-            ..Default::default()
+            radius: border::Radius::from(R_CONTROL),
+            width: 1.0,
+            color: tk.card_border,
+        },
+        text_color: match status {
+            button::Status::Disabled => tk.text_tertiary,
+            button::Status::Hovered | button::Status::Pressed => tk.text_primary,
+            _ => tk.text_secondary,
         },
         ..Default::default()
     }
 }
 
+/// Text push button: `on_press == None` renders the disabled state.
+fn text_btn<'a>(
+    label: String,
+    style: fn(&Theme, button::Status) -> button::Style,
+    on_press: Option<Message>,
+) -> Element<'a, Message> {
+    button(text(label).size(12).font(FONT_MEDIUM))
+        .padding([7, 14])
+        .style(style)
+        .on_press_maybe(on_press)
+        .into()
+}
+
+fn input_style(t: &Theme, status: text_input::Status) -> text_input::Style {
+    let tk = tokens(t);
+    let (border_color, border_width) = match status {
+        text_input::Status::Focused { .. } => (tk.accent, 1.5),
+        _ => (tk.card_border, 1.0),
+    };
+    text_input::Style {
+        background: tk.control_bg.into(),
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
+            width: border_width,
+            color: border_color,
+        },
+        icon: tk.text_tertiary,
+        placeholder: tk.text_tertiary,
+        value: tk.text_primary,
+        selection: Color { a: 0.25, ..tk.accent },
+    }
+}
+
+fn pick_style(t: &Theme, _status: pick_list::Status) -> pick_list::Style {
+    let tk = tokens(t);
+    pick_list::Style {
+        text_color: tk.text_primary,
+        placeholder_color: tk.text_tertiary,
+        handle_color: tk.text_secondary,
+        background: tk.control_bg.into(),
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
+            width: 1.0,
+            color: tk.card_border,
+        },
+    }
+}
+
+/// Framed surface for embedded text editors (mono code area).
+fn editor_frame(t: &Theme) -> container::Style {
+    let tk = tokens(t);
+    container::Style {
+        background: Some(tk.control_bg.into()),
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
+            width: 1.0,
+            color: tk.card_border,
+        },
+        ..Default::default()
+    }
+}
+
+/// White list-row surface used inside section cards.
+fn row_card(t: &Theme) -> container::Style {
+    let tk = tokens(t);
+    container::Style {
+        background: Some(tk.card_bg.into()),
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
+            width: 1.0,
+            color: tk.card_border,
+        },
+        ..Default::default()
+    }
+}
+
+/// Save / Saving… / Saved action used across rules panels.
+fn save_action(dirty: bool, saving: bool, label: String, on_press: Message) -> Element<'static, Message> {
+    if saving {
+        text_btn("Saving...".to_string(), style_ghost, None)
+    } else if dirty {
+        text_btn(label, style_accent, Some(on_press))
+    } else {
+        text_btn("Saved".to_string(), style_ghost, None)
+    }
+}
+
+/// Map the rule classifier to the shared badge palette:
+/// DOMAIN→Accent, IP→Warning, everything else→Neutral.
+fn badge_kind(kind: RuleBadgeKind) -> BadgeKind {
+    match kind {
+        RuleBadgeKind::Domain => BadgeKind::Accent,
+        RuleBadgeKind::Ip => BadgeKind::Warning,
+        RuleBadgeKind::Other => BadgeKind::Neutral,
+    }
+}
+
+fn field_label(value: String) -> text::Text<'static> {
+    text(value)
+        .size(11)
+        .style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        })
+}
+
 fn editor_lazy_placeholder<'a>(title: String, on_press: Message) -> Element<'a, Message> {
     card(
+        None,
         column![
-            text(title).size(14),
-            text("Editor will load on demand").size(12),
-            button(text("Load Editor").size(12))
-                .padding([6, 12])
-                .style(button::secondary)
-                .on_press(on_press)
+            empty_state(Icon::Code2, title.as_str(), "Editor will load on demand"),
+            Space::new().height(theme::SP_SM),
+            text_btn("Load Editor".to_string(), style_accent, Some(on_press)),
         ]
-        .spacing(10),
+        .align_x(Alignment::Center),
     )
 }
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.lang);
-    let bold_font = Font {
-        weight: iced::font::Weight::Bold,
-        ..Default::default()
-    };
 
     let filtered_count = state.rules_filtered_indices.len();
     let save_rules_action = save_action(
         state.rules_dirty,
         state.is_saving_rules,
-        icons::SAVE,
         lang.tr("rules_save_btn").to_string(),
         Message::SaveRules,
     );
 
     let header = row![
-        text(lang.tr("rules_title")).size(24).font(bold_font),
-        Space::new().width(10),
-        text(format!("({} / {})", filtered_count, state.rules.len()))
-            .size(14)
-            .style(|_| text::Style {
-                color: Some(Color::from_rgb(0.5, 0.5, 0.5))
+        text(lang.tr("rules_title").to_string())
+            .size(24)
+            .font(FONT_SEMIBOLD)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary),
+            }),
+        Space::new().width(theme::SP_MD),
+        text(format!("{} / {}", filtered_count, state.rules.len()))
+            .size(13)
+            .font(MONO)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
             }),
         Space::new().width(Length::Fill),
         if state.is_loading_rules || state.is_loading_providers {
-            Element::from(text("..."))
-        } else {
-            button(
-                row![
-                    text(icons::REFRESH).size(12),
-                    text(lang.tr("refresh")).size(12)
-                ]
-                .spacing(8),
+            Element::from(
+                text("...")
+                    .size(12)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_tertiary),
+                    }),
             )
-            .on_press(Message::LoadRules)
-            .padding([6, 12])
-            .style(button::secondary)
-            .into()
+        } else {
+            icon_button(Icon::RefreshCw, 16.0, Message::LoadRules)
         },
-        Space::new().width(8),
-        save_rules_action
+        Space::new().width(theme::SP_SM),
+        save_rules_action,
     ]
     .align_y(Alignment::Center);
 
-    let tabs = row![
-        tab_button(
-            "Rules List".to_string(),
-            state.rules_tab == RulesTab::RulesList,
-            Message::SetRulesTab(RulesTab::RulesList)
-        ),
-        tab_button(
-            "Providers".to_string(),
-            state.rules_tab == RulesTab::Providers,
-            Message::SetRulesTab(RulesTab::Providers)
-        ),
-        tab_button(
-            "JSON Editors".to_string(),
-            state.rules_tab == RulesTab::JsonEditors,
-            Message::SetRulesTab(RulesTab::JsonEditors)
-        ),
-    ]
-    .spacing(8);
+    let tab_labels: Vec<String> = vec![
+        "Rules List".to_string(),
+        "Providers".to_string(),
+        "JSON Editors".to_string(),
+    ];
+    let tab_index = match state.rules_tab {
+        RulesTab::Providers => 1,
+        RulesTab::JsonEditors => 2,
+        RulesTab::RulesList => 0,
+    };
+    let tabs = segmented_control(&tab_labels, tab_index, |index| {
+        Message::SetRulesTab(match index {
+            1 => RulesTab::Providers,
+            2 => RulesTab::JsonEditors,
+            _ => RulesTab::RulesList,
+        })
+    });
 
     if !state.rules_heavy_ready {
         return column![
             header,
-            Space::new().height(14),
+            Space::new().height(theme::SP_MD),
             tabs,
-            Space::new().height(16),
+            Space::new().height(SP_LG),
             card(
+                None,
                 column![
-                    text("Preparing Rules panels...").font(bold_font),
+                    text("Preparing Rules panels...")
+                        .size(14)
+                        .font(FONT_SEMIBOLD)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).text_primary),
+                        }),
                     text("Heavy widgets mount asynchronously to keep first paint responsive.")
                         .size(12)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).text_secondary),
+                        }),
                 ]
-                .spacing(8)
-            )
+                .spacing(theme::SP_SM)
+            ),
         ]
         .spacing(10)
         .into();
@@ -165,7 +263,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let mut available_targets: Vec<String> = state
         .proxies
         .iter()
-        .filter(|(_, p): &(&String, &mihomo_api::Proxy)| p.is_group())
+        .filter(|(_, p): &(&String, &mihomo_api::proxy::Proxy)| p.is_group())
         .map(|(name, _)| name.clone())
         .collect();
     available_targets.sort();
@@ -186,68 +284,92 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         "MATCH".to_string(),
     ];
 
-    let add_rule_form = card(column![
-        text(lang.tr("rules_add_custom")).font(bold_font),
-        Space::new().height(15),
+    let add_rule_btn_style = if state.is_adding_rule {
+        style_ghost
+    } else {
+        style_accent
+    };
+    let add_rule_form = card(
+        Some(lang.tr("rules_add_custom").to_string()),
         row![
             column![
-                text(lang.tr("rules_type")).size(12),
+                field_label(lang.tr("rules_type").to_string()),
+                Space::new().height(theme::SP_XS),
                 pick_list(
                     rule_types,
                     Some(&state.new_rule_type),
                     Message::UpdateNewRuleType
                 )
-                .width(Length::Fill),
+                .width(Length::Fill)
+                .style(pick_style),
             ]
             .width(Length::FillPortion(1))
-            .spacing(5),
-            Space::new().width(15),
+            .spacing(theme::SP_XS),
+            Space::new().width(theme::SP_LG),
             column![
-                text(lang.tr("rules_payload")).size(12),
+                field_label(lang.tr("rules_payload").to_string()),
+                Space::new().height(theme::SP_XS),
                 text_input("e.g. google.com", &state.new_rule_payload)
                     .on_input(Message::UpdateNewRulePayload)
-                    .padding(8),
+                    .padding([8, 12])
+                    .size(12)
+                    .style(input_style),
             ]
             .width(Length::FillPortion(2))
-            .spacing(5),
-            Space::new().width(15),
+            .spacing(theme::SP_XS),
+            Space::new().width(theme::SP_LG),
             column![
-                text(lang.tr("rules_target")).size(12),
+                field_label(lang.tr("rules_target").to_string()),
+                Space::new().height(theme::SP_XS),
                 pick_list(available_targets, Some(&state.new_rule_target), |t| {
                     Message::UpdateNewRuleTarget(t)
                 })
-                .width(Length::Fill),
+                .width(Length::Fill)
+                .style(pick_style),
             ]
             .width(Length::FillPortion(1))
-            .spacing(5),
-            Space::new().width(15),
+            .spacing(theme::SP_XS),
+            Space::new().width(theme::SP_LG),
             column![
-                text(" ").size(12),
+                Space::new().height(18.0),
                 button(
                     row![
-                        text(icons::ADD).size(12),
-                        text(lang.tr("rules_add_btn")).size(12)
+                        svg_icons::icon_themed(Icon::Plus, 14.0, |t: &Theme| {
+                            if state.is_adding_rule {
+                                tokens(t).text_secondary
+                            } else {
+                                tokens(t).on_accent
+                            }
+                        }),
+                        text(lang.tr("rules_add_btn").to_string()).size(12).font(FONT_MEDIUM),
                     ]
-                    .spacing(8)
+                    .spacing(theme::SP_SM),
                 )
-                .on_press(Message::AddCustomRule)
                 .padding([8, 16])
-                .style(if state.is_adding_rule {
-                    button::secondary
-                } else {
-                    button::primary
-                }),
+                .style(add_rule_btn_style)
+                .on_press(Message::AddCustomRule),
             ]
-            .spacing(5),
+            .spacing(theme::SP_XS),
         ]
-        .align_y(Alignment::Center)
-    ]);
+        .align_y(Alignment::Center),
+    );
 
     let rules_list_view = {
-        let search_bar = text_input(&lang.tr("rules_filter_placeholder"), &state.rules_filter)
+        let search_bar = row![
+            svg_icons::icon_themed(Icon::Search, 14.0, |t: &Theme| tokens(t).text_tertiary),
+            Space::new().width(theme::SP_SM),
+            text_input(
+                lang.tr("rules_filter_placeholder").as_ref(),
+                &state.rules_filter
+            )
             .on_input(Message::FilterRules)
-            .padding(10)
-            .size(16);
+            .padding([8, 12])
+            .size(13)
+            .width(Length::Fill)
+            .style(input_style),
+        ]
+        .align_y(Alignment::Center);
+
         let page_size = state.rules_page_size.max(1);
         let total_pages = if state.rules_filtered_indices.is_empty() {
             1
@@ -259,9 +381,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         let end = (start + page_size).min(state.rules_filtered_indices.len());
         let visible = &state.rules_filtered_indices[start..end];
 
-        let mut rules_list = column![].spacing(6);
+        let mut rules_list = column![].spacing(theme::SP_SM);
         if visible.is_empty() {
-            rules_list = rules_list.push(text(lang.tr("rules_empty")));
+            rules_list = rules_list.push(empty_state(
+                Icon::ListChecks,
+                lang.tr("rules_empty").as_ref(),
+                "",
+            ));
         } else {
             for cache_index in visible {
                 let Some(item) = state.rules_render_cache.get(*cache_index) else {
@@ -271,254 +397,257 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 let Some(entry) = state.rules.get(source_index) else {
                     continue;
                 };
-                let up_button = if source_index > 0 {
-                    button(text("↑").size(12))
-                        .on_press(Message::MoveRuleUp(source_index))
-                        .padding([4, 8])
-                        .style(button::secondary)
-                } else {
-                    button(text("↑").size(12))
-                        .padding([4, 8])
-                        .style(button::secondary)
-                };
-                let down_button = if source_index + 1 < state.rules.len() {
-                    button(text("↓").size(12))
-                        .on_press(Message::MoveRuleDown(source_index))
-                        .padding([4, 8])
-                        .style(button::secondary)
-                } else {
-                    button(text("↓").size(12))
-                        .padding([4, 8])
-                        .style(button::secondary)
-                };
+                let up_button = icon_button(
+                    Icon::ArrowUp,
+                    14.0,
+                    Message::MoveRuleUp(source_index),
+                );
+                let down_button = icon_button(
+                    Icon::ArrowDown,
+                    14.0,
+                    Message::MoveRuleDown(source_index),
+                );
                 rules_list = rules_list.push(
                     container(
                         row![
-                            checkbox(entry.enabled)
-                                .on_toggle(move |_| Message::ToggleRuleEnabled(source_index))
-                                .size(16),
-                            container(text(item.rule_type.clone()).size(10).font(bold_font))
-                                .padding([2, 6])
-                                .style(move |_| rule_badge_style(item.badge)),
-                            Space::new().width(10),
+                            toggle_switch(entry.enabled, move |_| {
+                                Message::ToggleRuleEnabled(source_index)
+                            }),
+                            crate::view::components::badge(
+                                item.rule_type.clone(),
+                                badge_kind(item.badge),
+                            ),
+                            Space::new().width(theme::SP_MD),
                             column![
                                 text(item.payload.clone())
                                     .size(13)
-                                    .style(move |_| text::Style {
+                                    .style(move |t: &Theme| text::Style {
                                         color: Some(if entry.enabled {
-                                            Color::from_rgb(0.9, 0.9, 0.9)
+                                            tokens(t).text_primary
                                         } else {
-                                            Color::from_rgb(0.5, 0.5, 0.5)
-                                        })
+                                            tokens(t).text_tertiary
+                                        }),
                                     }),
                                 text(item.target.clone())
                                     .size(11)
-                                    .style(move |_| text::Style {
+                                    .style(move |t: &Theme| text::Style {
                                         color: Some(if entry.enabled {
-                                            Color::from_rgb(0.4, 0.7, 0.4)
+                                            tokens(t).text_secondary
                                         } else {
-                                            Color::from_rgb(0.4, 0.4, 0.4)
-                                        })
+                                            tokens(t).text_tertiary
+                                        }),
                                     }),
                             ]
                             .width(Length::Fill),
-                            up_button,
-                            Space::new().width(6),
-                            down_button
+                            if source_index > 0 {
+                                up_button
+                            } else {
+                                Space::new().width(28).height(14).into()
+                            },
+                            if source_index + 1 < state.rules.len() {
+                                down_button
+                            } else {
+                                Space::new().width(28).height(14).into()
+                            },
                         ]
                         .align_y(Alignment::Center),
                     )
-                    .padding(8)
-                    .style(|_: &Theme| container::Style {
-                        background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.02).into()),
-                        ..Default::default()
-                    }),
+                    .padding([theme::SP_SM, SP_MD])
+                    .width(Length::Fill)
+                    .style(row_card),
                 );
             }
         }
 
         let pager = row![
-            text(format!("Page {}/{}", current_page + 1, total_pages)).size(12),
+            text(format!("Page {}/{}", current_page + 1, total_pages))
+                .size(12)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
             Space::new().width(Length::Fill),
-            button(text("Prev").size(12))
-                .padding([4, 10])
-                .style(button::secondary)
-                .on_press_maybe((current_page > 0).then_some(Message::RulesPrevPage)),
-            Space::new().width(8),
-            button(text("Next").size(12))
-                .padding([4, 10])
-                .style(button::secondary)
-                .on_press_maybe((current_page + 1 < total_pages).then_some(Message::RulesNextPage)),
+            text_btn(
+                "Prev".to_string(),
+                style_ghost,
+                (current_page > 0).then_some(Message::RulesPrevPage)
+            ),
+            Space::new().width(theme::SP_SM),
+            text_btn(
+                "Next".to_string(),
+                style_ghost,
+                (current_page + 1 < total_pages).then_some(Message::RulesNextPage)
+            ),
         ]
         .align_y(Alignment::Center);
 
         column![
             add_rule_form,
-            Space::new().height(12),
+            Space::new().height(theme::SP_MD),
             search_bar,
-            Space::new().height(8),
+            Space::new().height(theme::SP_SM),
             pager,
-            Space::new().height(8),
-            modern_scrollable(rules_list).height(Length::Fill)
+            Space::new().height(theme::SP_SM),
+            modern_scrollable(rules_list).height(Length::Fill),
         ]
-        .spacing(8)
+        .spacing(theme::SP_SM)
     };
 
     let providers_view = {
         let mut content = column![
-            row![
-                text("Providers").font(bold_font),
-                Space::new().width(Length::Fill),
-                button(
-                    text(if state.rules_providers_expanded {
-                        "Collapse"
-                    } else {
-                        "Expand"
-                    })
-                    .size(12)
-                )
-                .padding([6, 12])
-                .style(button::secondary)
-                .on_press(Message::ToggleRulesProvidersExpanded)
-            ]
-            .align_y(Alignment::Center),
-            text(format!(
-                "Proxy Providers: {} | Rule Providers: {}",
-                state.proxy_providers.len(),
-                state.rule_providers.len()
-            ))
-            .size(12)
+            section_header(
+                "Providers",
+                Some(
+                    row![
+                        crate::view::components::chip(format!(
+                            "Proxy {} | Rule {}",
+                            state.proxy_providers.len(),
+                            state.rule_providers.len()
+                        )),
+                        Space::new().width(theme::SP_SM),
+                        text_btn(
+                            if state.rules_providers_expanded {
+                                "Collapse".to_string()
+                            } else {
+                                "Expand".to_string()
+                            },
+                            style_ghost,
+                            Some(Message::ToggleRulesProvidersExpanded),
+                        ),
+                    ]
+                    .align_y(Alignment::Center)
+                    .into(),
+                ),
+            ),
         ]
-        .spacing(10);
+        .spacing(theme::SP_MD);
 
         if state.rules_providers_expanded {
-            let mut proxy_list = column![
-                text(lang.tr("rules_proxy_providers")).font(bold_font),
-                Space::new().height(8)
-            ]
-            .spacing(8);
+            let mut proxy_list = column![].spacing(theme::SP_SM);
             if state.proxy_providers.is_empty() {
-                proxy_list = proxy_list.push(text(lang.tr("rules_no_providers")).size(12));
+                proxy_list = proxy_list.push(empty_state(
+                    Icon::Server,
+                    lang.tr("rules_no_providers").as_ref(),
+                    "",
+                ));
             } else {
                 for provider in &state.proxy_providers {
                     proxy_list = proxy_list.push(
                         container(
                             row![
                                 column![
-                                    text(&provider.name).size(14).font(bold_font),
+                                    text(&provider.name)
+                                        .size(13)
+                                        .font(FONT_SEMIBOLD)
+                                        .style(|t: &Theme| text::Style {
+                                            color: Some(tokens(t).text_primary),
+                                        }),
                                     text(format!(
                                         "{} - Updated: {}",
                                         provider.vehicle_type, provider.updated_at
                                     ))
-                                    .size(10)
-                                    .style(|_| text::Style {
-                                        color: Some(Color::from_rgb(0.5, 0.5, 0.5))
+                                    .size(11)
+                                    .font(MONO)
+                                    .style(|t: &Theme| text::Style {
+                                        color: Some(tokens(t).text_secondary),
                                     }),
                                 ]
                                 .width(Length::Fill),
-                                button(
-                                    row![
-                                        text(icons::UPDATE).size(10),
-                                        text(lang.tr("btn_update")).size(10)
-                                    ]
-                                    .spacing(6)
-                                )
-                                .on_press(Message::UpdateProxyProvider(provider.name.clone()))
-                                .padding([4, 8])
-                                .style(button::secondary)
+                                text_btn(
+                                    lang.tr("btn_update").to_string(),
+                                    style_ghost,
+                                    Some(Message::UpdateProxyProvider(provider.name.clone())),
+                                ),
                             ]
                             .align_y(Alignment::Center),
                         )
-                        .padding(8)
-                        .style(|_| container::Style {
-                            background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.03).into()),
-                            border: Border {
-                                radius: border::Radius::from(6.0),
-                                ..Default::default()
-                            },
-                            ..Default::default()
-                        }),
+                        .padding([theme::SP_SM, SP_MD])
+                        .width(Length::Fill)
+                        .style(row_card),
                     );
                 }
             }
 
-            let mut rule_list = column![
-                text(lang.tr("rules_rule_providers")).font(bold_font),
-                Space::new().height(8)
-            ]
-            .spacing(8);
+            let mut rule_list = column![].spacing(theme::SP_SM);
             if state.rule_providers.is_empty() {
-                rule_list = rule_list.push(text(lang.tr("rules_no_providers")).size(12));
+                rule_list = rule_list.push(empty_state(
+                    Icon::ListChecks,
+                    lang.tr("rules_no_providers").as_ref(),
+                    "",
+                ));
             } else {
                 for provider in &state.rule_providers {
                     rule_list = rule_list.push(
                         container(
                             row![
                                 column![
-                                    text(&provider.name).size(14).font(bold_font),
+                                    text(&provider.name)
+                                        .size(13)
+                                        .font(FONT_SEMIBOLD)
+                                        .style(|t: &Theme| text::Style {
+                                            color: Some(tokens(t).text_primary),
+                                        }),
                                     text(format!(
                                         "{} rules - Updated: {}",
                                         provider.rule_count, provider.updated_at
                                     ))
-                                    .size(10)
-                                    .style(|_| text::Style {
-                                        color: Some(Color::from_rgb(0.5, 0.5, 0.5))
+                                    .size(11)
+                                    .font(MONO)
+                                    .style(|t: &Theme| text::Style {
+                                        color: Some(tokens(t).text_secondary),
                                     }),
                                 ]
                                 .width(Length::Fill),
-                                button(
-                                    row![
-                                        text(icons::UPDATE).size(10),
-                                        text(lang.tr("btn_update")).size(10)
-                                    ]
-                                    .spacing(6)
-                                )
-                                .on_press(Message::UpdateRuleProvider(provider.name.clone()))
-                                .padding([4, 8])
-                                .style(button::secondary)
+                                text_btn(
+                                    lang.tr("btn_update").to_string(),
+                                    style_ghost,
+                                    Some(Message::UpdateRuleProvider(provider.name.clone())),
+                                ),
                             ]
                             .align_y(Alignment::Center),
                         )
-                        .padding(8)
-                        .style(|_| container::Style {
-                            background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.03).into()),
-                            border: Border {
-                                radius: border::Radius::from(6.0),
-                                ..Default::default()
-                            },
-                            ..Default::default()
-                        }),
+                        .padding([theme::SP_SM, SP_MD])
+                        .width(Length::Fill)
+                        .style(row_card),
                     );
                 }
             }
 
-            content = content.push(row![
-                container(card(proxy_list)).width(Length::FillPortion(1)),
-                Space::new().width(20),
-                container(card(rule_list)).width(Length::FillPortion(1)),
-            ]);
+            content = content.push(
+                column![
+                    card(
+                        Some(lang.tr("rules_proxy_providers").to_string()),
+                        proxy_list
+                    ),
+                    Space::new().height(theme::SP_MD),
+                    card(
+                        Some(lang.tr("rules_rule_providers").to_string()),
+                        rule_list
+                    ),
+                ]
+                .spacing(theme::SP_MD),
+            );
         }
         content
     };
 
-    let json_tab_buttons = row![
-        tab_button(
-            "Rule Providers".to_string(),
-            state.rules_json_tab == RulesJsonTab::RuleProviders,
-            Message::SetRulesJsonTab(RulesJsonTab::RuleProviders)
-        ),
-        tab_button(
-            "Proxy Providers".to_string(),
-            state.rules_json_tab == RulesJsonTab::ProxyProviders,
-            Message::SetRulesJsonTab(RulesJsonTab::ProxyProviders)
-        ),
-        tab_button(
-            "Sniffer".to_string(),
-            state.rules_json_tab == RulesJsonTab::Sniffer,
-            Message::SetRulesJsonTab(RulesJsonTab::Sniffer)
-        ),
-    ]
-    .spacing(8);
+    let json_tab_labels: Vec<String> = vec![
+        "Rule Providers".to_string(),
+        "Proxy Providers".to_string(),
+        "Sniffer".to_string(),
+    ];
+    let json_tab_index = match state.rules_json_tab {
+        RulesJsonTab::ProxyProviders => 1,
+        RulesJsonTab::Sniffer => 2,
+        RulesJsonTab::RuleProviders => 0,
+    };
+    let json_tab_buttons = segmented_control(&json_tab_labels, json_tab_index, |index| {
+        Message::SetRulesJsonTab(match index {
+            1 => RulesJsonTab::ProxyProviders,
+            2 => RulesJsonTab::Sniffer,
+            _ => RulesJsonTab::RuleProviders,
+        })
+    });
 
     let json_view = match state.rules_json_tab {
         RulesJsonTab::RuleProviders => {
@@ -531,23 +660,25 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 let save_btn = save_action(
                     state.rule_providers_json_dirty,
                     state.is_saving_rule_providers_json,
-                    icons::SAVE,
                     lang.tr("rules_save_rule_providers_btn").to_string(),
                     Message::SaveRuleProvidersJson,
                 );
-                card(column![
-                    row![
-                        text(lang.tr("rules_rule_providers_json")).font(bold_font),
-                        Space::new().width(Length::Fill),
-                        save_btn
-                    ]
-                    .align_y(Alignment::Center),
-                    Space::new().height(10),
-                    text_editor(&state.rule_providers_json_content)
-                        .on_action(Message::RuleProvidersEditorAction)
-                        .padding(10)
-                        .height(Length::Fixed(420.0))
-                ])
+                card(
+                    Some(lang.tr("rules_rule_providers_json").to_string()),
+                    column![
+                        section_header("JSON", Some(save_btn)),
+                        Space::new().height(theme::SP_SM),
+                        container(
+                            text_editor(&state.rule_providers_json_content)
+                                .on_action(Message::RuleProvidersEditorAction)
+                                .font(MONO)
+                                .padding(10)
+                                .height(Length::Fixed(420.0))
+                        )
+                        .width(Length::Fill)
+                        .style(editor_frame),
+                    ],
+                )
             }
         }
         RulesJsonTab::ProxyProviders => {
@@ -560,23 +691,25 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 let save_btn = save_action(
                     state.proxy_providers_json_dirty,
                     state.is_saving_proxy_providers_json,
-                    icons::SAVE,
                     "Save Proxy Providers".to_string(),
                     Message::SaveProxyProvidersJson,
                 );
-                card(column![
-                    row![
-                        text("Proxy Providers JSON").font(bold_font),
-                        Space::new().width(Length::Fill),
-                        save_btn
-                    ]
-                    .align_y(Alignment::Center),
-                    Space::new().height(10),
-                    text_editor(&state.proxy_providers_json_content)
-                        .on_action(Message::ProxyProvidersEditorAction)
-                        .padding(10)
-                        .height(Length::Fixed(420.0))
-                ])
+                card(
+                    Some("Proxy Providers JSON".to_string()),
+                    column![
+                        section_header("JSON", Some(save_btn)),
+                        Space::new().height(theme::SP_SM),
+                        container(
+                            text_editor(&state.proxy_providers_json_content)
+                                .on_action(Message::ProxyProvidersEditorAction)
+                                .font(MONO)
+                                .padding(10)
+                                .height(Length::Fixed(420.0))
+                        )
+                        .width(Length::Fill)
+                        .style(editor_frame),
+                    ],
+                )
             }
         }
         RulesJsonTab::Sniffer => {
@@ -589,23 +722,25 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 let save_btn = save_action(
                     state.sniffer_json_dirty,
                     state.is_saving_sniffer_json,
-                    icons::SAVE,
                     lang.tr("rules_save_sniffer_btn").to_string(),
                     Message::SaveSnifferJson,
                 );
-                card(column![
-                    row![
-                        text(lang.tr("rules_sniffer_json")).font(bold_font),
-                        Space::new().width(Length::Fill),
-                        save_btn
-                    ]
-                    .align_y(Alignment::Center),
-                    Space::new().height(10),
-                    text_editor(&state.sniffer_json_content)
-                        .on_action(Message::SnifferEditorAction)
-                        .padding(10)
-                        .height(Length::Fixed(420.0))
-                ])
+                card(
+                    Some(lang.tr("rules_sniffer_json").to_string()),
+                    column![
+                        section_header("JSON", Some(save_btn)),
+                        Space::new().height(theme::SP_SM),
+                        container(
+                            text_editor(&state.sniffer_json_content)
+                                .on_action(Message::SnifferEditorAction)
+                                .font(MONO)
+                                .padding(10)
+                                .height(Length::Fixed(420.0))
+                        )
+                        .width(Length::Fill)
+                        .style(editor_frame),
+                    ],
+                )
             }
         }
     };
@@ -613,18 +748,22 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let tab_content: Element<'_, Message> = match state.rules_tab {
         RulesTab::RulesList => rules_list_view.into(),
         RulesTab::Providers => providers_view.into(),
-        RulesTab::JsonEditors => column![json_tab_buttons, Space::new().height(12), json_view]
-            .spacing(8)
-            .into(),
+        RulesTab::JsonEditors => column![
+            json_tab_buttons,
+            Space::new().height(theme::SP_MD),
+            json_view,
+        ]
+        .spacing(theme::SP_SM)
+        .into(),
     };
 
     column![
         header,
-        Space::new().height(12),
+        Space::new().height(theme::SP_MD),
         tabs,
-        Space::new().height(12),
-        tab_content
+        Space::new().height(theme::SP_MD),
+        tab_content,
     ]
-    .spacing(8)
+    .spacing(SP_LG)
     .into()
 }

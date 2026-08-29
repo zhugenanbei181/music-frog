@@ -5,9 +5,42 @@ use dav_client::{DavClient, client::WebDavClient};
 use iced::Task;
 use iced::widget::text_editor;
 use infiltrator_core::settings::{AppSettings, WebDavConfig};
-use mihomo_config::ConfigManager;
+use infiltrator_shared::locales::Localizer;
+use mihomo_config::manager::ConfigManager;
 
 impl AppState {
+    /// Parse the admin port input; `None` when it is not a usable TCP port.
+    pub fn parse_admin_port(input: &str) -> Option<u16> {
+        input.trim().parse::<u16>().ok().filter(|port| *port > 0)
+    }
+
+    /// Load-modify-save only the admin slice of the settings file, mirroring
+    /// how the runtime-panel settings are persisted from this frontend.
+    fn persist_admin_settings_task(&self) -> Task<Message> {
+        let admin = infiltrator_core::settings::AdminServerConfig {
+            enabled: self.admin_enabled,
+            port: self.admin_port,
+        };
+        Task::perform(
+            async move {
+                let base_dir =
+                    mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
+                let settings_path = infiltrator_core::settings::settings_path(&base_dir)
+                    .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                let mut settings =
+                    infiltrator_core::settings::load_settings(&settings_path)
+                        .await
+                        .unwrap_or_else(|_| AppSettings::default());
+                settings.admin = admin;
+                infiltrator_core::settings::save_settings(&settings_path, &settings)
+                    .await
+                    .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                Ok(())
+            },
+            Message::AdminSettingsSaved,
+        )
+    }
+
     fn sync_subscription_editor(&mut self) {
         if self.profiles.is_empty() {
             self.subscription_profile_name.clear();
@@ -64,10 +97,10 @@ impl AppState {
                 Task::perform(
                     async {
                         let cm = ConfigManager::new()
-                            .map_err(|e: mihomo_api::MihomoError| InfiltratorError::from(e))?;
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
                         cm.list_profiles()
                             .await
-                            .map_err(|e: mihomo_api::MihomoError| InfiltratorError::from(e))
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))
                     },
                     Message::ProfilesLoaded,
                 )
@@ -127,17 +160,36 @@ impl AppState {
             Message::SetActiveProfile(name) => {
                 self.error_msg = None;
                 self.invalidate_rules_dns_views();
+                let runtime = self.runtime.clone();
                 Task::perform(
                     async move {
                         let cm = ConfigManager::new()
-                            .map_err(|e: mihomo_api::MihomoError| InfiltratorError::from(e))?;
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
+                        let previous = cm
+                            .get_current()
+                            .await
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
                         cm.set_current(&name)
                             .await
-                            .map_err(|e: mihomo_api::MihomoError| InfiltratorError::from(e))?;
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
+                        if let Some(rt) = runtime {
+                            // Core is live: run the CORE-004 transaction so
+                            // the switch actually reaches mihomo, with a
+                            // readiness check and rollback on failure.
+                            if let Err(e) = rt
+                                .apply_current_config(infiltrator_core::apply::ApplyStrategy::AlwaysRestart)
+                                .await
+                            {
+                                let _ = cm.set_current(&previous).await;
+                                return Err(InfiltratorError::Mihomo(e.to_string()));
+                            }
+                        }
+                        // No live core: leaving current set is enough — the
+                        // follow-up StartProxy boots with the new profile.
                         Ok(())
                     },
                     |result: Result<(), InfiltratorError>| match result {
-                        Ok(_) => Message::StartProxy,
+                        Ok(()) => Message::StartProxy,
                         Err(e) => Message::ShowToast(e.to_string(), ToastStatus::Error),
                     },
                 )
@@ -668,7 +720,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         let base_dir =
-                            mihomo_platform::get_home_dir().map_err(InfiltratorError::from)?;
+                            mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
                         let settings_path = infiltrator_core::settings::settings_path(&base_dir)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let mut settings =
@@ -707,6 +759,63 @@ impl AppState {
                     }
                 }
             }
+            Message::SetAdminEnabled(enabled) => {
+                self.admin_enabled = enabled;
+                self.refresh_tray();
+                Task::batch(vec![
+                    self.persist_admin_settings_task(),
+                    self.apply_admin_server_lifecycle(),
+                ])
+            }
+            Message::UpdateAdminPort(input) => {
+                self.admin_port_input = input;
+                Task::none()
+            }
+            Message::ApplyAdminSettings => {
+                match Self::parse_admin_port(&self.admin_port_input) {
+                    Some(port) => {
+                        self.admin_port = port;
+                        self.admin_port_input = port.to_string();
+                        self.refresh_tray();
+                        Task::batch(vec![
+                            self.persist_admin_settings_task(),
+                            self.apply_admin_server_lifecycle(),
+                        ])
+                    }
+                    None => {
+                        let lang = crate::locales::Lang(&self.lang);
+                        Task::done(Message::ShowToast(
+                            lang.tr("settings_admin_invalid_port").into_owned(),
+                            ToastStatus::Error,
+                        ))
+                    }
+                }
+            }
+            Message::AdminSettingsSaved(result) => match result {
+                Ok(_) => Task::none(),
+                Err(e) => {
+                    self.error_msg = Some(e.to_string());
+                    Task::done(Message::ShowToast(
+                        format!("Web 管理端设置保存失败: {e}"),
+                        ToastStatus::Error,
+                    ))
+                }
+            },
+            Message::AdminServerStarted(result) => {
+                let lang = crate::locales::Lang(&self.lang);
+                self.refresh_tray();
+                match result {
+                    Ok(url) => Task::done(Message::ShowToast(
+                        format!("{}: {url}", lang.tr("settings_admin_started")),
+                        ToastStatus::Success,
+                    )),
+                    Err(e) => Task::done(Message::ShowToast(
+                        format!("{}: {e}", lang.tr("settings_admin_start_failed")),
+                        ToastStatus::Error,
+                    )),
+                }
+            }
+            Message::OpenWebAdmin => self.open_web_admin(),
             Message::SyncUpload => {
                 let url = self.webdav_url.clone();
                 let user = self.webdav_user.clone();
@@ -717,11 +826,11 @@ impl AppState {
                         let client = WebDavClient::new(&url, &user, &pass)
                             .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
                         let cm = ConfigManager::new()
-                            .map_err(|e: mihomo_api::MihomoError| InfiltratorError::from(e))?;
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
                         let profiles = cm
                             .list_profiles()
                             .await
-                            .map_err(|e: mihomo_api::MihomoError| InfiltratorError::from(e))?;
+                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
 
                         for profile in profiles {
                             let content = tokio::fs::read_to_string(&profile.path)
@@ -757,8 +866,8 @@ impl AppState {
                                     .get(&file.path)
                                     .await
                                     .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
-                                let data_dir = mihomo_platform::get_home_dir().map_err(
-                                    |e: mihomo_api::MihomoError| InfiltratorError::from(e),
+                                let data_dir = mihomo_platform::paths::get_home_dir().map_err(
+                                    |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
                                 )?;
                                 let path = data_dir.join("configs").join(file.path);
                                 tokio::fs::write(path, content)

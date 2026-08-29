@@ -1,4 +1,6 @@
-use crate::{Connection, ConnectionSnapshot, ConnectionsResponse, MihomoClient, Result};
+use crate::client::MihomoClient;
+use crate::error::Result;
+use crate::types::{Connection, ConnectionSnapshot, ConnectionsResponse};
 
 pub struct ConnectionManager {
     client: MihomoClient,
@@ -106,7 +108,7 @@ impl ConnectionManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Connection, ConnectionMetadata};
+    use crate::types::{Connection, ConnectionMetadata};
 
     // Helper function to create test connection
     fn create_test_connection(id: &str, host: &str, process: &str, rule: &str) -> Connection {

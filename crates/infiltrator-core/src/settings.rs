@@ -50,6 +50,26 @@ impl Default for RuntimePanelConfig {
     }
 }
 
+/// Admin Web UI server settings, shared by both desktop frontends.
+///
+/// Defaults mirror the legacy Tauri client, which always serves the admin UI
+/// on loopback starting at port 25210. The server only ever binds 127.0.0.1.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default)]
+pub struct AdminServerConfig {
+    pub enabled: bool,
+    pub port: u16,
+}
+
+impl Default for AdminServerConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            port: 25210,
+        }
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct AppSettings {
@@ -60,6 +80,7 @@ pub struct AppSettings {
     pub theme: String,
     pub webdav: WebDavConfig,
     pub runtime_panel: RuntimePanelConfig,
+    pub admin: AdminServerConfig,
 }
 
 impl Default for AppSettings {
@@ -72,6 +93,7 @@ impl Default for AppSettings {
             theme: "system".to_string(),
             webdav: WebDavConfig::default(),
             runtime_panel: RuntimePanelConfig::default(),
+            admin: AdminServerConfig::default(),
         }
     }
 }
@@ -132,6 +154,41 @@ mod tests {
         );
         assert_eq!(settings.runtime_panel.delay_timeout_ms, 5000);
         assert_eq!(settings.runtime_panel.connection_sort, "download_desc");
+    }
+
+    #[test]
+    fn test_admin_server_config_default_matches_tauri_behavior() {
+        let admin = AdminServerConfig::default();
+        assert!(admin.enabled, "admin server is on by default like src-tauri");
+        assert_eq!(admin.port, 25210);
+    }
+
+    #[tokio::test]
+    async fn test_settings_without_admin_section_get_defaults() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let settings_file = temp_dir.path().join("settings.toml");
+        // A pre-admin settings file: must deserialize with admin defaults
+        // instead of failing, so old installs keep working (serde back-compat).
+        let legacy = "[runtime_panel]\nauto_refresh = true\n";
+        std::fs::write(&settings_file, legacy).unwrap();
+
+        let loaded = load_settings(&settings_file).await.unwrap();
+        assert_eq!(loaded.admin, AdminServerConfig::default());
+    }
+
+    #[tokio::test]
+    async fn test_save_and_load_admin_section() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let settings_file = temp_dir.path().join("settings.toml");
+
+        let mut settings = AppSettings::default();
+        settings.admin.enabled = false;
+        settings.admin.port = 3000;
+
+        save_settings(&settings_file, &settings).await.unwrap();
+        let loaded = load_settings(&settings_file).await.unwrap();
+        assert!(!loaded.admin.enabled);
+        assert_eq!(loaded.admin.port, 3000);
     }
 
     #[test]

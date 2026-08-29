@@ -1,271 +1,330 @@
+//! Overview page in the Clash-Party design language: section header with
+//! quick actions, a runtime status hero card, a real-time traffic chart and
+//! a four-tile stats grid with mono numerals. Everything is backed by
+//! existing [`AppState`] fields — nothing is faked.
+
 use crate::locales::{Lang, Localizer};
-use crate::types::RuntimeStatus;
-use crate::view::components::{WEB_ACCENT, card, modern_scrollable, premium_card, status_dot};
-use crate::view::icons;
+use crate::types::{Route, RuntimeStatus};
+use crate::view::components::{
+    card, card_surface, chip, icon_button, modern_scrollable, premium_card, section_header,
+    status_dot, TrafficChart,
+};
+use crate::view::svg_icons::{icon_themed, Icon};
+use crate::view::theme::{self, FONT_SEMIBOLD, MONO, R_CONTROL};
 use crate::{AppState, Message};
-use iced::widget::{Space, button, column, container, row, text};
-use iced::{Alignment, Border, Color, Element, Font, Length, border};
+use iced::widget::{button, canvas, column, container, row, Space, text};
+use iced::{border, Alignment, Border, Color, Element, Length, Theme};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.lang);
-    let bold_font = Font {
-        weight: iced::font::Weight::Bold,
-        ..Default::default()
-    };
 
-    let header = column![
-        text(lang.tr("nav_overview")).size(32).font(bold_font),
-        text("Dashboard metrics and core control center")
-            .size(14)
-            .style(|_| text::Style {
-                color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.4))
-            }),
-    ]
-    .spacing(4);
-
-    // 1. Top Metrics Row
-    let metrics = row![
-        metric_card(
-            "Status".to_string(),
-            match &state.status {
-                RuntimeStatus::Running => "ACTIVE".to_string(),
-                RuntimeStatus::Starting => "STARTING".to_string(),
-                _ => "STOPPED".to_string(),
-            },
-            WEB_ACCENT
+    let header = section_header(
+        &lang.tr("nav_overview"),
+        Some(
+            row![
+                icon_button(Icon::RefreshCw, 16.0, Message::RefreshRuntimeNow),
+                Space::new().width(theme::SP_SM),
+                icon_button(Icon::Settings, 16.0, Message::Navigate(Route::Settings)),
+            ]
+            .align_y(Alignment::Center)
+            .into(),
         ),
-        Space::new().width(20),
-        metric_card(
-            "Profiles".to_string(),
-            format!("{}", state.profiles.len()),
-            WEB_ACCENT
-        ),
-        Space::new().width(20),
-        metric_card(
-            "Proxies".to_string(),
-            format!("{}", state.proxies.len()),
-            WEB_ACCENT
-        ),
-    ]
-    .width(Length::Fill);
+    );
 
-    // 2. Main Content Grid
-    let active_profile = state.profiles.iter().find(|p| p.active);
+    let hero = hero_card(state, &lang);
+    let traffic_chart = traffic_card(state, &lang);
+    let stats = stats_grid(state, &lang);
 
-    let left_col = column![
-        premium_card(column![
-            text(lang.tr("nav_profiles"))
-                .font(bold_font)
-                .size(14)
-                .style(|_| text::Style {
-                    color: Some(WEB_ACCENT)
-                }),
-            Space::new().height(15),
-            text(active_profile.map(|p| p.name.as_str()).unwrap_or("None"))
-                .size(24)
-                .font(bold_font),
-            text(
-                active_profile
-                    .map(|p| p.path.to_string_lossy().to_string())
-                    .unwrap_or_default()
-            )
-            .size(12)
-            .style(|_| text::Style {
-                color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3))
-            }),
-            Space::new().height(20),
-            button(
-                row![
-                    text(icons::REFRESH).size(14),
-                    text(lang.tr("refresh")).size(14)
-                ]
-                .spacing(10)
-            )
-            .on_press(Message::LoadProfiles)
-            .padding([10, 20])
-            .style(button::secondary)
-        ]),
-        Space::new().height(24),
-        card(column![
-            text(lang.tr("overview_traffic")).font(bold_font).size(14),
-            Space::new().height(20),
-            if let Some(traffic) = &state.traffic {
-                row![
-                    traffic_item("UPLOAD".to_string(), traffic.up, WEB_ACCENT),
-                    Space::new().width(40),
-                    traffic_item(
-                        "DOWNLOAD".to_string(),
-                        traffic.down,
-                        crate::view::components::WEB_SUCCESS
-                    ),
-                ]
-            } else {
-                row![text(lang.tr("waiting_traffic")).style(|_| text::Style {
-                    color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.2))
-                })]
-            }
-        ])
-    ]
-    .width(Length::FillPortion(1));
+    let content = column![header, hero, traffic_chart, stats]
+        .spacing(theme::SP_LG)
+        .max_width(1100);
 
-    let core_status_text = match &state.status {
+    modern_scrollable(content).height(Length::Fill).into()
+}
+
+// ---------------------------------------------------------------------------
+// Runtime status hero
+// ---------------------------------------------------------------------------
+
+/// Accent hero: status dot + localized status, mode / core-version meta row
+/// and the prominent start/stop control.
+fn hero_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
+    let running = matches!(state.status, RuntimeStatus::Running);
+
+    let status_text = match &state.status {
         RuntimeStatus::Starting => lang.tr("status_starting"),
         RuntimeStatus::Running => lang.tr("status_running"),
         RuntimeStatus::Error(_) => lang.tr("status_error"),
         RuntimeStatus::Stopped => lang.tr("status_stopped"),
     };
 
-    let right_col = column![
-        premium_card(column![
-            text(lang.tr("overview_core"))
-                .font(bold_font)
-                .size(14)
-                .style(|_| text::Style {
-                    color: Some(WEB_ACCENT)
-                }),
-            Space::new().height(15),
-            row![
-                status_dot(matches!(state.status, RuntimeStatus::Running)),
-                Space::new().width(12),
-                text(core_status_text.into_owned()).size(24).font(bold_font),
-            ]
-            .align_y(Alignment::Center),
-            text(format!(
-                "Operating Mode: {}",
-                state.proxy_mode.as_deref().unwrap_or("rule").to_uppercase()
-            ))
-            .size(12)
-            .style(|_| text::Style {
-                color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3))
-            }),
-            Space::new().height(25),
-            match state.status {
-                RuntimeStatus::Running => {
-                    button(
-                        row![
-                            text(icons::CLOSE).size(14),
-                            text(lang.tr("stop_proxy")).size(14)
-                        ]
-                        .spacing(10),
-                    )
-                    .on_press(Message::StopProxy)
-                    .padding([12, 24])
-                    .style(button::danger)
-                }
-                _ => {
-                    button(
-                        row![
-                            text(icons::UPDATE).size(14),
-                            text(lang.tr("start_proxy")).size(14)
-                        ]
-                        .spacing(10),
-                    )
-                    .on_press(Message::StartProxy)
-                    .padding([12, 24])
-                    .style(button::primary)
-                }
-            }
-        ]),
-        Space::new().height(24),
-        card(column![
-            text(lang.tr("nav_proxies")).font(bold_font).size(14),
-            Space::new().height(15),
-            text(
-                state
-                    .proxies
-                    .get("GLOBAL")
-                    .and_then(|g: &mihomo_api::Proxy| g.now())
-                    .unwrap_or("Direct")
-            )
-            .size(20)
-            .font(bold_font),
-            text("Currently routed via GLOBAL")
-                .size(12)
-                .style(|_| text::Style {
-                    color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3))
-                }),
-            Space::new().height(20),
-            button(
-                row![
-                    text(icons::PROXY).size(14),
-                    text(lang.tr("btn_switch")).size(14)
-                ]
-                .spacing(10)
-            )
-            .on_press(Message::Navigate(crate::types::Route::Proxies))
-            .padding([10, 20])
-            .style(button::secondary)
-        ])
-    ]
-    .width(Length::FillPortion(1));
+    let control: Element<'a, Message> = if running {
+        button(
+            text(lang.tr("stop_proxy").into_owned())
+                .size(13)
+                .font(FONT_SEMIBOLD),
+        )
+        .padding([10, 20])
+        .style(button::danger)
+        .on_press(Message::StopProxy)
+        .into()
+    } else {
+        button(
+            text(lang.tr("start_proxy").into_owned())
+                .size(13)
+                .font(FONT_SEMIBOLD),
+        )
+        .padding([10, 20])
+        .style(button::primary)
+        .on_press(Message::StartProxy)
+        .into()
+    };
 
-    let main_grid = row![left_col, Space::new().width(24), right_col].width(Length::Fill);
-
-    let content = column![
-        header,
-        Space::new().height(32),
-        metrics,
-        Space::new().height(32),
-        main_grid,
-    ]
-    .max_width(1200)
-    .spacing(10);
-
-    // 核心修复：移除所有 Scrollable 外层的 padding 和 center_x，
-    // 由 view_root 统领布局，确保不因嵌套溢出而“内容失踪”
-    modern_scrollable(content).height(Length::Fill).into()
-}
-
-fn metric_card<'a>(label: String, value: String, color: Color) -> Element<'a, Message> {
-    container(column![
-        text(label.to_uppercase())
-            .size(10)
-            .font(Font {
-                weight: iced::font::Weight::Bold,
-                ..Default::default()
-            })
-            .style(|_| text::Style {
-                color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3))
-            }),
-        Space::new().height(5),
-        text(value)
-            .size(24)
-            .font(Font {
-                weight: iced::font::Weight::Bold,
-                ..Default::default()
-            })
-            .style(move |_| text::Style { color: Some(color) }),
-    ])
-    .padding(20)
-    .width(Length::FillPortion(1))
-    .style(|_| container::Style {
-        background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.02).into()),
-        border: Border {
-            radius: border::Radius::from(12.0),
-            width: 1.0,
-            color: Color::from_rgba(1.0, 1.0, 1.0, 0.05),
-        },
-        ..Default::default()
-    })
-    .into()
-}
-
-fn traffic_item<'a>(label: String, bytes: u64, color: Color) -> Element<'a, Message> {
-    column![
-        text(label).size(10).style(|_| text::Style {
-            color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3))
-        }),
+    premium_card(
         row![
-            text(crate::utils::format_bytes(bytes)).size(24).font(Font {
-                weight: iced::font::Weight::Bold,
-                ..Default::default()
-            }),
-            Space::new().width(8),
-            text("B/s")
-                .size(12)
-                .style(move |_| text::Style { color: Some(color) }),
+            status_dot(running),
+            Space::new().width(theme::SP_MD),
+            column![
+                text(status_text.into_owned())
+                    .size(22)
+                    .font(FONT_SEMIBOLD)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(theme::tokens(t).text_primary),
+                    }),
+                meta_row(state, lang),
+            ]
+            .spacing(theme::SP_XS),
+            Space::new().width(Length::Fill),
+            control,
         ]
-        .align_y(Alignment::End)
+        .align_y(Alignment::Center)
+        .width(Length::Fill),
+    )
+}
+
+/// Mode chip + core version + current GLOBAL exit, all from existing state.
+fn meta_row<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
+    let mut meta = row![].spacing(theme::SP_SM);
+
+    if let Some(mode) = state.proxy_mode.as_deref() {
+        meta = meta.push(chip(mode_label(mode, lang)));
+    }
+
+    if let Some(version) = default_core_version(state) {
+        meta = meta.push(
+            text(format!("mihomo {version}"))
+                .size(12)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(theme::tokens(t).text_secondary),
+                }),
+        );
+    }
+
+    if let Some(exit_node) = state.proxies.get("GLOBAL").and_then(|g| g.now()) {
+        meta = meta.push(
+            text(exit_node.to_string())
+                .size(12)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(theme::tokens(t).text_tertiary),
+                }),
+        );
+    }
+
+    meta.into()
+}
+
+/// Localized label for a mihomo mode identifier (unknown values pass through).
+fn mode_label(mode: &str, lang: &Lang<'_>) -> String {
+    let key = match mode {
+        "rule" => "mode_rule",
+        "global" => "mode_global",
+        "direct" => "mode_direct",
+        _ => return mode.to_string(),
+    };
+    lang.tr(key).into_owned()
+}
+
+/// Version of the installed default kernel, if one is registered.
+fn default_core_version(state: &AppState) -> Option<String> {
+    state
+        .installed_kernels
+        .iter()
+        .find(|kernel| kernel.is_default)
+        .map(|kernel| kernel.version.clone())
+}
+
+// ---------------------------------------------------------------------------
+// Traffic chart
+// ---------------------------------------------------------------------------
+
+fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
+    let speeds: Element<'a, Message> = if let Some(traffic) = &state.traffic {
+        row![
+            speed_text(
+                Icon::ArrowUp,
+                traffic.up,
+                |t: &Theme| theme::tokens(t).success,
+            ),
+            Space::new().width(theme::SP_LG),
+            speed_text(
+                Icon::ArrowDown,
+                traffic.down,
+                |t: &Theme| theme::tokens(t).text_secondary,
+            ),
+        ]
+        .align_y(Alignment::Center)
+        .into()
+    } else {
+        text(lang.tr("waiting_traffic").into_owned())
+            .size(12)
+            .style(|t: &Theme| text::Style {
+                color: Some(theme::tokens(t).text_tertiary),
+            })
+            .into()
+    };
+
+    card(
+        Some(lang.tr("overview_traffic").into_owned()),
+        column![
+            speeds,
+            Space::new().height(theme::SP_MD),
+            canvas::Canvas::new(TrafficChart {
+                history: state.traffic_history.clone(),
+            })
+            .width(Length::Fill)
+            .height(Length::Fixed(120.0)),
+        ],
+    )
+}
+
+fn speed_text<'a>(
+    glyph: Icon,
+    bytes_per_second: u64,
+    color: impl Fn(&Theme) -> Color + Copy + 'a,
+) -> Element<'a, Message> {
+    row![
+        icon_themed(glyph, 14.0, color),
+        Space::new().width(theme::SP_XS),
+        text(format!("{}/s", crate::utils::format_bytes(bytes_per_second)))
+            .size(14)
+            .font(MONO)
+            .style(move |t: &Theme| text::Style { color: Some(color(t)) }),
     ]
+    .align_y(Alignment::Center)
     .into()
+}
+
+// ---------------------------------------------------------------------------
+// Stats grid
+// ---------------------------------------------------------------------------
+
+/// 连接数 / 内存 / 上传 / 下载 tiles with mono numerals.
+fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
+    let connections = state
+        .connections
+        .as_ref()
+        .map(|snapshot| snapshot.connections.len().to_string())
+        .unwrap_or_else(|| "—".to_string());
+    let memory = state
+        .memory
+        .as_ref()
+        .map(|memory| crate::utils::format_bytes(memory.in_use))
+        .unwrap_or_else(|| "—".to_string());
+    let upload = state
+        .traffic
+        .as_ref()
+        .map(|traffic| format!("{}/s", crate::utils::format_bytes(traffic.up)))
+        .unwrap_or_else(|| "—".to_string());
+    let download = state
+        .traffic
+        .as_ref()
+        .map(|traffic| format!("{}/s", crate::utils::format_bytes(traffic.down)))
+        .unwrap_or_else(|| "—".to_string());
+
+    row![
+        metric_tile(
+            Icon::Activity,
+            stat_label(lang, "连接数", "Connections"),
+            connections,
+            |t| theme::tokens(t).accent,
+        ),
+        metric_tile(
+            Icon::Server,
+            stat_label(lang, "内存", "Memory"),
+            memory,
+            |t| theme::tokens(t).accent,
+        ),
+        metric_tile(
+            Icon::ArrowUp,
+            stat_label(lang, "上传", "Upload"),
+            upload,
+            |t| theme::tokens(t).success,
+        ),
+        metric_tile(
+            Icon::ArrowDown,
+            stat_label(lang, "下载", "Download"),
+            download,
+            |t| theme::tokens(t).accent,
+        ),
+    ]
+    .spacing(theme::SP_SM)
+    .width(Length::Fill)
+    .into()
+}
+
+fn metric_tile<'a>(
+    glyph: Icon,
+    label: String,
+    value: String,
+    color: impl Fn(&Theme) -> Color + Copy + 'a,
+) -> Element<'a, Message> {
+    let icon_chip = container(icon_themed(glyph, 18.0, color))
+        .width(36)
+        .height(36)
+        .align_x(Alignment::Center)
+        .align_y(Alignment::Center)
+        .style(|t: &Theme| container::Style {
+            background: Some(theme::tokens(t).accent_soft.into()),
+            border: Border {
+                radius: border::Radius::from(R_CONTROL),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+    container(
+        row![
+            icon_chip,
+            column![
+                text(label).size(11).style(|t: &Theme| text::Style {
+                    color: Some(theme::tokens(t).text_secondary),
+                }),
+                text(value)
+                    .size(16)
+                    .font(MONO)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(theme::tokens(t).text_primary),
+                    }),
+            ]
+            .spacing(2),
+        ]
+        .spacing(theme::SP_MD)
+        .align_y(Alignment::Center),
+    )
+    .width(Length::FillPortion(1))
+    .padding(theme::SP_LG)
+    .style(card_surface)
+    .into()
+}
+
+/// Bilingual fallback for the few stat labels that have no locale key yet
+/// (locales.rs is outside this wave's file ownership).
+fn stat_label(lang: &Lang<'_>, zh: &str, en: &str) -> String {
+    if lang.0.starts_with("en") {
+        en.to_string()
+    } else {
+        zh.to_string()
+    }
 }

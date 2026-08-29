@@ -1,143 +1,250 @@
 use crate::locales::{Lang, Localizer};
 use crate::types::{AdvancedEditMode, DnsTab, EditorLazyState, RebuildFlowState};
-use crate::view::components::{card, modern_scrollable};
-use crate::view::icons;
+use crate::view::components::{
+    BadgeKind, card, empty_state, icon_button, modern_scrollable, section_header, segmented_control,
+};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CONTROL, SP_LG, tokens};
 use crate::{AppState, Message};
 use iced::widget::{
-    Space, button, checkbox, column, container, pick_list, row, text, text_editor, text_input,
+    Space, button, column, container, pick_list, row, text, text_editor, text_input,
 };
-use iced::{Alignment, Color, Element, Font, Length};
+use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 
-fn tab_button<'a>(
-    label: &'a str,
-    active: bool,
-    on_press: Message,
-) -> iced::widget::Button<'a, Message> {
-    button(text(label).size(12))
-        .padding([6, 12])
-        .style(if active {
-            button::primary
-        } else {
-            button::secondary
-        })
-        .on_press(on_press)
+// ---------------------------------------------------------------------------
+// Token-driven control styles (ui-wave2-r)
+// ---------------------------------------------------------------------------
+
+fn style_accent(t: &Theme, status: button::Status) -> button::Style {
+    let tk = tokens(t);
+    let (bg, fg) = match status {
+        button::Status::Disabled => (tk.accent_soft, tk.accent),
+        button::Status::Hovered | button::Status::Pressed => {
+            (Color { a: 0.85, ..tk.accent }, tk.on_accent)
+        }
+        _ => (tk.accent, tk.on_accent),
+    };
+    button::Style {
+        background: Some(bg.into()),
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
+            ..Default::default()
+        },
+        text_color: fg,
+        ..Default::default()
+    }
 }
 
-fn mode_button<'a>(
-    label: &'a str,
-    active: bool,
-    on_press: Message,
-) -> iced::widget::Button<'a, Message> {
-    button(text(label).size(11))
-        .padding([5, 10])
-        .style(if active {
-            button::primary
-        } else {
-            button::secondary
-        })
-        .on_press(on_press)
+fn style_ghost(t: &Theme, status: button::Status) -> button::Style {
+    let tk = tokens(t);
+    button::Style {
+        background: match status {
+            button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
+            _ => None,
+        },
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
+            width: 1.0,
+            color: tk.card_border,
+        },
+        text_color: match status {
+            button::Status::Disabled => tk.text_tertiary,
+            button::Status::Hovered | button::Status::Pressed => tk.text_primary,
+            _ => tk.text_secondary,
+        },
+        ..Default::default()
+    }
 }
 
-fn save_button<'a>(
-    saving: bool,
-    dirty: bool,
-    on_press: Message,
-    label: &'a str,
+/// Text push button: `on_press == None` renders the disabled state.
+fn text_btn<'a>(
+    label: String,
+    style: fn(&Theme, button::Status) -> button::Style,
+    on_press: Option<Message>,
 ) -> Element<'a, Message> {
+    button(text(label).size(12).font(FONT_MEDIUM))
+        .padding([7, 14])
+        .style(style)
+        .on_press_maybe(on_press)
+        .into()
+}
+
+fn input_style(t: &Theme, status: text_input::Status) -> text_input::Style {
+    let tk = tokens(t);
+    let (border_color, border_width) = match status {
+        text_input::Status::Focused { .. } => (tk.accent, 1.5),
+        _ => (tk.card_border, 1.0),
+    };
+    text_input::Style {
+        background: tk.control_bg.into(),
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
+            width: border_width,
+            color: border_color,
+        },
+        icon: tk.text_tertiary,
+        placeholder: tk.text_tertiary,
+        value: tk.text_primary,
+        selection: Color { a: 0.25, ..tk.accent },
+    }
+}
+
+fn pick_style(t: &Theme, _status: pick_list::Status) -> pick_list::Style {
+    let tk = tokens(t);
+    pick_list::Style {
+        text_color: tk.text_primary,
+        placeholder_color: tk.text_tertiary,
+        handle_color: tk.text_secondary,
+        background: tk.control_bg.into(),
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
+            width: 1.0,
+            color: tk.card_border,
+        },
+    }
+}
+
+/// Framed surface for embedded text editors (mono code area).
+fn editor_frame(t: &Theme) -> container::Style {
+    let tk = tokens(t);
+    container::Style {
+        background: Some(tk.control_bg.into()),
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
+            width: 1.0,
+            color: tk.card_border,
+        },
+        ..Default::default()
+    }
+}
+
+/// iOS-style toggle row: label on the left, switch on the right.
+fn toggle_row<'a>(
+    label: String,
+    value: bool,
+    on_change: impl Fn(bool) -> Message + 'a,
+) -> Element<'a, Message> {
+    row![
+        text(label)
+            .size(13)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary),
+            }),
+        Space::new().width(Length::Fill),
+        crate::view::components::toggle_switch(value, on_change),
+    ]
+    .align_y(Alignment::Center)
+    .width(Length::Fill)
+    .into()
+}
+
+/// Save / Saving… / Saved action used across DNS panels.
+fn save_button(dirty: bool, saving: bool, on_press: Message, label: &str) -> Element<'static, Message> {
     if saving {
-        button(text("Saving...").size(12))
-            .padding([6, 12])
-            .style(button::secondary)
-            .into()
+        text_btn("Saving...".to_string(), style_ghost, None)
     } else if dirty {
-        button(row![text(icons::SAVE).size(12), text(label).size(12)].spacing(8))
-            .on_press(on_press)
-            .padding([6, 12])
-            .style(button::primary)
-            .into()
+        text_btn(label.to_string(), style_accent, Some(on_press))
     } else {
-        button(text("Saved").size(12))
-            .padding([6, 12])
-            .style(button::secondary)
-            .into()
+        text_btn("Saved".to_string(), style_ghost, None)
     }
 }
 
-fn rebuild_status_text(
-    state: &RebuildFlowState,
-    label: &str,
-    dirty: bool,
-    loading: bool,
-) -> (String, Color) {
-    if loading {
-        return ("加载中".to_string(), Color::from_rgb(0.6, 0.6, 0.6));
-    }
-    if dirty {
-        return ("已修改".to_string(), Color::from_rgb(0.95, 0.75, 0.25));
-    }
-    match state {
-        RebuildFlowState::Saving { label: current } if current == label => {
-            ("保存中".to_string(), Color::from_rgb(0.25, 0.65, 0.95))
+/// Rebuild/save flow status rendered as a tinted pill.
+fn rebuild_status_badge(state: &RebuildFlowState, label: &str, dirty: bool, loading: bool) -> Element<'static, Message> {
+    let (text, kind): (&str, BadgeKind) = if loading {
+        ("加载中", BadgeKind::Neutral)
+    } else if dirty {
+        ("已修改", BadgeKind::Warning)
+    } else {
+        match state {
+            RebuildFlowState::Saving { label: current } if current == label => ("保存中", BadgeKind::Accent),
+            RebuildFlowState::Rebuilding { label: current } if current == label => ("重建中", BadgeKind::Warning),
+            RebuildFlowState::Done { label: current } if current == label => ("完成", BadgeKind::Success),
+            RebuildFlowState::Failed { label: current, .. } if current == label => ("失败", BadgeKind::Danger),
+            _ => ("已保存", BadgeKind::Success),
         }
-        RebuildFlowState::Rebuilding { label: current } if current == label => {
-            ("重建中".to_string(), Color::from_rgb(0.95, 0.7, 0.25))
-        }
-        RebuildFlowState::Done { label: current } if current == label => {
-            ("完成".to_string(), Color::from_rgb(0.25, 0.8, 0.45))
-        }
-        RebuildFlowState::Failed { label: current, .. } if current == label => {
-            ("失败".to_string(), Color::from_rgb(0.95, 0.3, 0.3))
-        }
-        _ => ("已保存".to_string(), Color::from_rgb(0.35, 0.8, 0.55)),
-    }
+    };
+    crate::view::components::badge(text, kind)
 }
 
-fn form_mode_header<'a>(
-    title: &'a str,
-    status: (String, Color),
+fn validation_error(value: String) -> Element<'static, Message> {
+    container(
+        text(value)
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).danger),
+            }),
+    )
+    .padding([6, 10])
+    .style(|t: &Theme| {
+        let tk = tokens(t);
+        container::Style {
+            background: Some(Color { a: 0.14, ..tk.danger }.into()),
+            border: Border {
+                radius: border::Radius::from(theme::R_CHIP),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    })
+    .into()
+}
+
+fn field_label(value: String) -> text::Text<'static> {
+    text(value)
+        .size(11)
+        .style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        })
+}
+
+/// Refresh (ghost icon) + Save (accent) pair shown in card headers.
+fn header_actions<'a>(
     refresh: Message,
     save: Message,
     saving: bool,
     dirty: bool,
-) -> iced::widget::Column<'a, Message> {
-    column![
-        row![
-            text(title).size(16),
-            Space::new().width(Length::Fill),
-            text(status.0).size(11).style(move |_| text::Style {
-                color: Some(status.1)
-            }),
-            Space::new().width(10),
-            button(row![text(icons::REFRESH).size(12), text("Refresh").size(12)].spacing(8))
-                .on_press(refresh)
-                .padding([6, 12])
-                .style(button::secondary),
-            Space::new().width(8),
-            save_button(saving, dirty, save, "Save")
-        ]
-        .align_y(Alignment::Center)
+) -> iced::widget::Row<'a, Message> {
+    row![
+        icon_button(Icon::RefreshCw, 14.0, refresh),
+        Space::new().width(theme::SP_SM),
+        save_button(dirty, saving, save, "Save"),
     ]
+    .align_y(Alignment::Center)
 }
 
-fn mode_tabs(tab: DnsTab, current: AdvancedEditMode) -> iced::widget::Row<'static, Message> {
-    row![
-        mode_button(
-            "Form",
-            current == AdvancedEditMode::Form,
-            Message::SetAdvancedMode(tab, AdvancedEditMode::Form)
-        ),
-        mode_button(
-            "Raw JSON",
-            current == AdvancedEditMode::Json,
-            Message::SetAdvancedMode(tab, AdvancedEditMode::Json)
-        ),
-    ]
-    .spacing(8)
+fn lazy_editor_placeholder<'a>(title: String, on_press: Message) -> Element<'a, Message> {
+    card(
+        None,
+        column![
+            empty_state(Icon::Code2, title.as_str(), "Editor will load on demand"),
+            Space::new().height(theme::SP_SM),
+            text_btn("Load Editor".to_string(), style_accent, Some(on_press)),
+        ]
+        .align_x(Alignment::Center),
+    )
+}
+
+fn mode_tabs(tab: DnsTab, current: AdvancedEditMode) -> Element<'static, Message> {
+    segmented_control(
+        &["Form".to_string(), "Raw JSON".to_string()],
+        if current == AdvancedEditMode::Json { 1 } else { 0 },
+        move |index| {
+            Message::SetAdvancedMode(
+                tab,
+                if index == 1 {
+                    AdvancedEditMode::Json
+                } else {
+                    AdvancedEditMode::Form
+                },
+            )
+        },
+    )
 }
 
 fn dns_form_panel(state: &AppState) -> Element<'_, Message> {
     let dirty = state.dns_form_dirty || state.dns_json_dirty;
-    let status = rebuild_status_text(
+    let status = rebuild_status_badge(
         &state.rebuild_flow,
         "DNS",
         dirty,
@@ -145,42 +252,46 @@ fn dns_form_panel(state: &AppState) -> Element<'_, Message> {
     );
 
     let mut content = column![
-        form_mode_header(
+        section_header(
             "DNS",
-            status,
-            Message::RefreshDnsOnly,
-            Message::SaveDns,
-            state.is_saving_dns,
-            dirty
+            Some(
+                row![
+                    status,
+                    Space::new().width(theme::SP_SM),
+                    header_actions(
+                        Message::RefreshDnsOnly,
+                        Message::SaveDns,
+                        state.is_saving_dns,
+                        dirty,
+                    ),
+                ]
+                .align_y(Alignment::Center)
+                .into(),
+            ),
         ),
-        Space::new().height(12),
-        checkbox(state.dns_form.enable)
-            .label("enable".to_string())
-            .on_toggle(Message::UpdateDnsFormEnable)
-            .size(14),
-        checkbox(state.dns_form.ipv6)
-            .label("ipv6".to_string())
-            .on_toggle(Message::UpdateDnsFormIpv6)
-            .size(14),
-        checkbox(state.dns_form.cache)
-            .label("cache".to_string())
-            .on_toggle(Message::UpdateDnsFormCache)
-            .size(14),
-        checkbox(state.dns_form.use_hosts)
-            .label("use_hosts".to_string())
-            .on_toggle(Message::UpdateDnsFormUseHosts)
-            .size(14),
-        checkbox(state.dns_form.use_system_hosts)
-            .label("use_system_hosts".to_string())
-            .on_toggle(Message::UpdateDnsFormUseSystemHosts)
-            .size(14),
-        checkbox(state.dns_form.respect_rules)
-            .label("respect_rules".to_string())
-            .on_toggle(Message::UpdateDnsFormRespectRules)
-            .size(14),
-        Space::new().height(6),
+        Space::new().height(theme::SP_MD),
+        toggle_row("enable".to_string(), state.dns_form.enable, Message::UpdateDnsFormEnable),
+        toggle_row("ipv6".to_string(), state.dns_form.ipv6, Message::UpdateDnsFormIpv6),
+        toggle_row("cache".to_string(), state.dns_form.cache, Message::UpdateDnsFormCache),
+        toggle_row("use_hosts".to_string(), state.dns_form.use_hosts, Message::UpdateDnsFormUseHosts),
+        toggle_row(
+            "use_system_hosts".to_string(),
+            state.dns_form.use_system_hosts,
+            Message::UpdateDnsFormUseSystemHosts,
+        ),
+        toggle_row(
+            "respect_rules".to_string(),
+            state.dns_form.respect_rules,
+            Message::UpdateDnsFormRespectRules,
+        ),
+        Space::new().height(theme::SP_SM),
         row![
-            text("enhanced_mode").size(12).width(Length::Fixed(150.0)),
+            text("enhanced_mode")
+                .size(13)
+                .width(Length::Fixed(150.0))
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
             pick_list(
                 &["fake-ip", "redir-host"][..],
                 if state.dns_form.enhanced_mode == "fake-ip"
@@ -193,66 +304,69 @@ fn dns_form_panel(state: &AppState) -> Element<'_, Message> {
                 |v| Message::UpdateDnsFormEnhancedMode(v.to_string())
             )
             .width(Length::Fixed(180.0))
+            .style(pick_style),
         ]
         .align_y(Alignment::Center),
-        Space::new().height(6),
-        text("nameserver (comma/newline separated)").size(11),
+        Space::new().height(theme::SP_SM),
+        field_label("nameserver (comma/newline separated)".to_string()),
         text_input(
             "https://dns.google/dns-query, 1.1.1.1",
             &state.dns_form.nameserver
         )
         .on_input(Message::UpdateDnsFormNameserver)
-        .padding(8)
-        .size(12),
-        text("fallback (comma/newline separated)").size(11),
+        .padding([8, 12])
+        .size(12)
+        .style(input_style),
+        field_label("fallback (comma/newline separated)".to_string()),
         text_input("https://1.0.0.1/dns-query", &state.dns_form.fallback)
             .on_input(Message::UpdateDnsFormFallback)
-            .padding(8)
-            .size(12),
-        text("fake_ip_range").size(11),
+            .padding([8, 12])
+            .size(12)
+            .style(input_style),
+        field_label("fake_ip_range".to_string()),
         text_input("198.18.0.1/16", &state.dns_form.fake_ip_range)
             .on_input(Message::UpdateDnsFormFakeIpRange)
-            .padding(8)
-            .size(12),
-        text("fake_ip_filter (comma/newline separated)").size(11),
+            .padding([8, 12])
+            .size(12)
+            .font(MONO)
+            .style(input_style),
+        field_label("fake_ip_filter (comma/newline separated)".to_string()),
         text_input(
             "*.lan, localhost.ptlogin2.qq.com",
             &state.dns_form.fake_ip_filter
         )
         .on_input(Message::UpdateDnsFormFakeIpFilter)
-        .padding(8)
-        .size(12),
-        text("proxy_server_nameserver (comma/newline separated)").size(11),
+        .padding([8, 12])
+        .size(12)
+        .style(input_style),
+        field_label("proxy_server_nameserver (comma/newline separated)".to_string()),
         text_input(
             "tls://223.5.5.5:853",
             &state.dns_form.proxy_server_nameserver
         )
         .on_input(Message::UpdateDnsFormProxyServerNameserver)
-        .padding(8)
-        .size(12),
-        text("direct_nameserver (comma/newline separated)").size(11),
+        .padding([8, 12])
+        .size(12)
+        .style(input_style),
+        field_label("direct_nameserver (comma/newline separated)".to_string()),
         text_input("system", &state.dns_form.direct_nameserver)
             .on_input(Message::UpdateDnsFormDirectNameserver)
-            .padding(8)
-            .size(12),
+            .padding([8, 12])
+            .size(12)
+            .style(input_style),
     ]
-    .spacing(8);
+    .spacing(theme::SP_SM);
 
     if let Some(error) = &state.advanced_validation.dns {
-        content = content.push(
-            container(text(error).size(11).style(|_| text::Style {
-                color: Some(Color::from_rgb(0.95, 0.35, 0.35)),
-            }))
-            .padding([6, 10]),
-        );
+        content = content.push(validation_error(error.clone()));
     }
 
-    card(content)
+    card(None, content)
 }
 
 fn fake_ip_form_panel(state: &AppState) -> Element<'_, Message> {
     let dirty = state.fake_ip_form_dirty || state.fake_ip_json_dirty;
-    let status = rebuild_status_text(
+    let status = rebuild_status_badge(
         &state.rebuild_flow,
         "Fake-IP",
         dirty,
@@ -260,67 +374,64 @@ fn fake_ip_form_panel(state: &AppState) -> Element<'_, Message> {
     );
 
     let mut content = column![
-        row![
-            text("Fake-IP").size(16),
-            Space::new().width(Length::Fill),
-            text(status.0).size(11).style(move |_| text::Style {
-                color: Some(status.1)
-            }),
-            Space::new().width(10),
-            button(text("Flush fake-ip cache").size(12))
-                .on_press(Message::FlushFakeIpCache)
-                .padding([6, 12])
-                .style(button::secondary),
-            Space::new().width(8),
-            button(row![text(icons::REFRESH).size(12), text("Refresh").size(12)].spacing(8))
-                .on_press(Message::RefreshFakeIpOnly)
-                .padding([6, 12])
-                .style(button::secondary),
-            Space::new().width(8),
-            save_button(
-                state.is_saving_fake_ip,
-                dirty,
-                Message::SaveFakeIpConfig,
-                "Save"
-            )
-        ]
-        .align_y(Alignment::Center),
-        Space::new().height(12),
-        text("fake_ip_range").size(11),
+        section_header(
+            "Fake-IP",
+            Some(
+                row![
+                    status,
+                    Space::new().width(theme::SP_SM),
+                    text_btn(
+                        "Flush fake-ip cache".to_string(),
+                        style_ghost,
+                        Some(Message::FlushFakeIpCache),
+                    ),
+                    Space::new().width(theme::SP_SM),
+                    header_actions(
+                        Message::RefreshFakeIpOnly,
+                        Message::SaveFakeIpConfig,
+                        state.is_saving_fake_ip,
+                        dirty,
+                    ),
+                ]
+                .align_y(Alignment::Center)
+                .into(),
+            ),
+        ),
+        Space::new().height(theme::SP_MD),
+        field_label("fake_ip_range".to_string()),
         text_input("198.18.0.1/16", &state.fake_ip_form.fake_ip_range)
             .on_input(Message::UpdateFakeIpFormRange)
-            .padding(8)
-            .size(12),
-        text("fake_ip_filter (comma/newline separated)").size(11),
+            .padding([8, 12])
+            .size(12)
+            .font(MONO)
+            .style(input_style),
+        field_label("fake_ip_filter (comma/newline separated)".to_string()),
         text_input(
             "*.lan, localhost.ptlogin2.qq.com",
             &state.fake_ip_form.fake_ip_filter
         )
         .on_input(Message::UpdateFakeIpFormFilter)
-        .padding(8)
-        .size(12),
-        checkbox(state.fake_ip_form.store_fake_ip)
-            .label("store_fake_ip".to_string())
-            .on_toggle(Message::UpdateFakeIpFormStore)
-            .size(14),
+        .padding([8, 12])
+        .size(12)
+        .style(input_style),
+        toggle_row(
+            "store_fake_ip".to_string(),
+            state.fake_ip_form.store_fake_ip,
+            Message::UpdateFakeIpFormStore,
+        ),
     ]
-    .spacing(8);
+    .spacing(theme::SP_SM);
 
     if let Some(error) = &state.advanced_validation.fake_ip {
-        content = content.push(
-            container(text(error).size(11).style(|_| text::Style {
-                color: Some(Color::from_rgb(0.95, 0.35, 0.35)),
-            }))
-            .padding([6, 10]),
-        );
+        content = content.push(validation_error(error.clone()));
     }
 
-    card(content)
+    card(None, content)
 }
 
 fn tun_form_panel(state: &AppState) -> Element<'_, Message> {
     let dirty = state.tun_form_dirty || state.tun_json_dirty;
-    let status = rebuild_status_text(
+    let status = rebuild_status_badge(
         &state.rebuild_flow,
         "TUN",
         dirty,
@@ -328,21 +439,32 @@ fn tun_form_panel(state: &AppState) -> Element<'_, Message> {
     );
 
     let mut content = column![
-        form_mode_header(
+        section_header(
             "TUN",
-            status,
-            Message::RefreshTunOnly,
-            Message::SaveTunConfig,
-            state.is_saving_tun,
-            dirty
+            Some(
+                row![
+                    status,
+                    Space::new().width(theme::SP_SM),
+                    header_actions(
+                        Message::RefreshTunOnly,
+                        Message::SaveTunConfig,
+                        state.is_saving_tun,
+                        dirty,
+                    ),
+                ]
+                .align_y(Alignment::Center)
+                .into(),
+            ),
         ),
-        Space::new().height(12),
-        checkbox(state.tun_form.enable)
-            .label("enable".to_string())
-            .on_toggle(Message::UpdateTunFormEnable)
-            .size(14),
+        Space::new().height(theme::SP_MD),
+        toggle_row("enable".to_string(), state.tun_form.enable, Message::UpdateTunFormEnable),
         row![
-            text("stack").size(12).width(Length::Fixed(150.0)),
+            text("stack")
+                .size(13)
+                .width(Length::Fixed(150.0))
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
             pick_list(
                 &["gvisor", "system"][..],
                 if state.tun_form.stack == "gvisor" || state.tun_form.stack == "system" {
@@ -353,254 +475,243 @@ fn tun_form_panel(state: &AppState) -> Element<'_, Message> {
                 |v| Message::UpdateTunFormStack(v.to_string())
             )
             .width(Length::Fixed(180.0))
+            .style(pick_style),
         ]
         .align_y(Alignment::Center),
-        text("mtu").size(11),
+        field_label("mtu".to_string()),
         text_input("1500", &state.tun_form.mtu)
             .on_input(Message::UpdateTunFormMtu)
-            .padding(8)
-            .size(12),
-        text("dns_hijack (comma/newline separated)").size(11),
+            .padding([8, 12])
+            .size(12)
+            .font(MONO)
+            .style(input_style),
+        field_label("dns_hijack (comma/newline separated)".to_string()),
         text_input("any:53", &state.tun_form.dns_hijack)
             .on_input(Message::UpdateTunFormDnsHijack)
-            .padding(8)
-            .size(12),
-        checkbox(state.tun_form.auto_route)
-            .label("auto_route".to_string())
-            .on_toggle(Message::UpdateTunFormAutoRoute)
-            .size(14),
-        checkbox(state.tun_form.auto_detect_interface)
-            .label("auto_detect_interface".to_string())
-            .on_toggle(Message::UpdateTunFormAutoDetectInterface)
-            .size(14),
-        checkbox(state.tun_form.strict_route)
-            .label("strict_route".to_string())
-            .on_toggle(Message::UpdateTunFormStrictRoute)
-            .size(14),
+            .padding([8, 12])
+            .size(12)
+            .style(input_style),
+        toggle_row("auto_route".to_string(), state.tun_form.auto_route, Message::UpdateTunFormAutoRoute),
+        toggle_row(
+            "auto_detect_interface".to_string(),
+            state.tun_form.auto_detect_interface,
+            Message::UpdateTunFormAutoDetectInterface,
+        ),
+        toggle_row("strict_route".to_string(), state.tun_form.strict_route, Message::UpdateTunFormStrictRoute),
     ]
-    .spacing(8);
+    .spacing(theme::SP_SM);
 
     if let Some(error) = &state.advanced_validation.tun {
-        content = content.push(
-            container(text(error).size(11).style(|_| text::Style {
-                color: Some(Color::from_rgb(0.95, 0.35, 0.35)),
-            }))
-            .padding([6, 10]),
-        );
+        content = content.push(validation_error(error.clone()));
     }
 
-    card(content)
+    card(None, content)
 }
 
 fn dns_json_panel(state: &AppState) -> Element<'_, Message> {
     if state.dns_editor_state == EditorLazyState::Unloaded {
-        return card(
-            column![
-                text("DNS Raw JSON").size(16),
-                text("Editor will load on demand").size(12),
-                button(text("Load Editor").size(12))
-                    .padding([6, 12])
-                    .style(button::secondary)
-                    .on_press(Message::EnsureDnsEditorLoaded)
-            ]
-            .spacing(10),
-        );
+        return lazy_editor_placeholder("DNS Raw JSON".to_string(), Message::EnsureDnsEditorLoaded);
     }
     let dirty = state.dns_json_dirty || state.dns_form_dirty;
-    let status = rebuild_status_text(
+    let status = rebuild_status_badge(
         &state.rebuild_flow,
         "DNS",
         dirty,
         !state.advanced_configs_loaded_once,
     );
     let mut content = column![
-        row![
-            text("DNS Raw JSON").size(16),
-            Space::new().width(Length::Fill),
-            text(status.0).size(11).style(move |_| text::Style {
-                color: Some(status.1)
-            }),
-            Space::new().width(10),
-            button(row![text(icons::REFRESH).size(12), text("Refresh").size(12)].spacing(8))
-                .on_press(Message::RefreshDnsOnly)
-                .padding([6, 12])
-                .style(button::secondary),
-            Space::new().width(8),
-            save_button(state.is_saving_dns, dirty, Message::SaveDns, "Save")
-        ]
-        .align_y(Alignment::Center),
-        Space::new().height(10),
-        text_editor(&state.dns_json_content)
-            .on_action(Message::DnsConfigEditorAction)
-            .padding(10)
-            .height(Length::Fixed(520.0))
+        section_header(
+            "DNS Raw JSON",
+            Some(
+                row![
+                    status,
+                    Space::new().width(theme::SP_SM),
+                    header_actions(
+                        Message::RefreshDnsOnly,
+                        Message::SaveDns,
+                        state.is_saving_dns,
+                        dirty,
+                    ),
+                ]
+                .align_y(Alignment::Center)
+                .into(),
+            ),
+        ),
+        Space::new().height(theme::SP_SM),
+        container(
+            text_editor(&state.dns_json_content)
+                .on_action(Message::DnsConfigEditorAction)
+                .font(MONO)
+                .padding(10)
+                .height(Length::Fixed(520.0))
+        )
+        .width(Length::Fill)
+        .style(editor_frame),
     ]
-    .spacing(8);
+    .spacing(theme::SP_SM);
     if let Some(error) = &state.advanced_validation.dns {
-        content = content.push(text(error).size(11).style(|_| text::Style {
-            color: Some(Color::from_rgb(0.95, 0.35, 0.35)),
-        }));
+        content = content.push(validation_error(error.clone()));
     }
-    card(content)
+    card(None, content)
 }
 
 fn fake_ip_json_panel(state: &AppState) -> Element<'_, Message> {
     if state.fake_ip_editor_state == EditorLazyState::Unloaded {
-        return card(
-            column![
-                text("Fake-IP Raw JSON").size(16),
-                text("Editor will load on demand").size(12),
-                button(text("Load Editor").size(12))
-                    .padding([6, 12])
-                    .style(button::secondary)
-                    .on_press(Message::EnsureFakeIpEditorLoaded)
-            ]
-            .spacing(10),
+        return lazy_editor_placeholder(
+            "Fake-IP Raw JSON".to_string(),
+            Message::EnsureFakeIpEditorLoaded,
         );
     }
     let dirty = state.fake_ip_json_dirty || state.fake_ip_form_dirty;
-    let status = rebuild_status_text(
+    let status = rebuild_status_badge(
         &state.rebuild_flow,
         "Fake-IP",
         dirty,
         !state.advanced_configs_loaded_once,
     );
     let mut content = column![
-        row![
-            text("Fake-IP Raw JSON").size(16),
-            Space::new().width(Length::Fill),
-            text(status.0).size(11).style(move |_| text::Style {
-                color: Some(status.1)
-            }),
-            Space::new().width(10),
-            button(text("Flush fake-ip cache").size(12))
-                .on_press(Message::FlushFakeIpCache)
-                .padding([6, 12])
-                .style(button::secondary),
-            Space::new().width(8),
-            button(row![text(icons::REFRESH).size(12), text("Refresh").size(12)].spacing(8))
-                .on_press(Message::RefreshFakeIpOnly)
-                .padding([6, 12])
-                .style(button::secondary),
-            Space::new().width(8),
-            save_button(
-                state.is_saving_fake_ip,
-                dirty,
-                Message::SaveFakeIpConfig,
-                "Save"
-            )
-        ]
-        .align_y(Alignment::Center),
-        Space::new().height(10),
-        text_editor(&state.fake_ip_json_content)
-            .on_action(Message::FakeIpConfigEditorAction)
-            .padding(10)
-            .height(Length::Fixed(520.0))
+        section_header(
+            "Fake-IP Raw JSON",
+            Some(
+                row![
+                    status,
+                    Space::new().width(theme::SP_SM),
+                    text_btn(
+                        "Flush fake-ip cache".to_string(),
+                        style_ghost,
+                        Some(Message::FlushFakeIpCache),
+                    ),
+                    Space::new().width(theme::SP_SM),
+                    header_actions(
+                        Message::RefreshFakeIpOnly,
+                        Message::SaveFakeIpConfig,
+                        state.is_saving_fake_ip,
+                        dirty,
+                    ),
+                ]
+                .align_y(Alignment::Center)
+                .into(),
+            ),
+        ),
+        Space::new().height(theme::SP_SM),
+        container(
+            text_editor(&state.fake_ip_json_content)
+                .on_action(Message::FakeIpConfigEditorAction)
+                .font(MONO)
+                .padding(10)
+                .height(Length::Fixed(520.0))
+        )
+        .width(Length::Fill)
+        .style(editor_frame),
     ]
-    .spacing(8);
+    .spacing(theme::SP_SM);
     if let Some(error) = &state.advanced_validation.fake_ip {
-        content = content.push(text(error).size(11).style(|_| text::Style {
-            color: Some(Color::from_rgb(0.95, 0.35, 0.35)),
-        }));
+        content = content.push(validation_error(error.clone()));
     }
-    card(content)
+    card(None, content)
 }
 
 fn tun_json_panel(state: &AppState) -> Element<'_, Message> {
     if state.tun_editor_state == EditorLazyState::Unloaded {
-        return card(
-            column![
-                text("TUN Raw JSON").size(16),
-                text("Editor will load on demand").size(12),
-                button(text("Load Editor").size(12))
-                    .padding([6, 12])
-                    .style(button::secondary)
-                    .on_press(Message::EnsureTunEditorLoaded)
-            ]
-            .spacing(10),
-        );
+        return lazy_editor_placeholder("TUN Raw JSON".to_string(), Message::EnsureTunEditorLoaded);
     }
     let dirty = state.tun_json_dirty || state.tun_form_dirty;
-    let status = rebuild_status_text(
+    let status = rebuild_status_badge(
         &state.rebuild_flow,
         "TUN",
         dirty,
         !state.advanced_configs_loaded_once,
     );
     let mut content = column![
-        row![
-            text("TUN Raw JSON").size(16),
-            Space::new().width(Length::Fill),
-            text(status.0).size(11).style(move |_| text::Style {
-                color: Some(status.1)
-            }),
-            Space::new().width(10),
-            button(row![text(icons::REFRESH).size(12), text("Refresh").size(12)].spacing(8))
-                .on_press(Message::RefreshTunOnly)
-                .padding([6, 12])
-                .style(button::secondary),
-            Space::new().width(8),
-            save_button(state.is_saving_tun, dirty, Message::SaveTunConfig, "Save")
-        ]
-        .align_y(Alignment::Center),
-        Space::new().height(10),
-        text_editor(&state.tun_json_content)
-            .on_action(Message::TunConfigEditorAction)
-            .padding(10)
-            .height(Length::Fixed(520.0))
+        section_header(
+            "TUN Raw JSON",
+            Some(
+                row![
+                    status,
+                    Space::new().width(theme::SP_SM),
+                    header_actions(
+                        Message::RefreshTunOnly,
+                        Message::SaveTunConfig,
+                        state.is_saving_tun,
+                        dirty,
+                    ),
+                ]
+                .align_y(Alignment::Center)
+                .into(),
+            ),
+        ),
+        Space::new().height(theme::SP_SM),
+        container(
+            text_editor(&state.tun_json_content)
+                .on_action(Message::TunConfigEditorAction)
+                .font(MONO)
+                .padding(10)
+                .height(Length::Fixed(520.0))
+        )
+        .width(Length::Fill)
+        .style(editor_frame),
     ]
-    .spacing(8);
+    .spacing(theme::SP_SM);
     if let Some(error) = &state.advanced_validation.tun {
-        content = content.push(text(error).size(11).style(|_| text::Style {
-            color: Some(Color::from_rgb(0.95, 0.35, 0.35)),
-        }));
+        content = content.push(validation_error(error.clone()));
     }
-    card(content)
+    card(None, content)
 }
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.lang);
-    let bold_font = Font {
-        weight: iced::font::Weight::Bold,
-        ..Default::default()
-    };
 
-    let header =
-        row![text(lang.tr("dns_title")).size(24).font(bold_font)].align_y(Alignment::Center);
-
-    let tabs = row![
-        tab_button(
-            "DNS",
-            state.dns_tab == DnsTab::Dns,
-            Message::SetDnsTab(DnsTab::Dns)
-        ),
-        tab_button(
-            "Fake-IP",
-            state.dns_tab == DnsTab::FakeIp,
-            Message::SetDnsTab(DnsTab::FakeIp)
-        ),
-        tab_button(
-            "TUN",
-            state.dns_tab == DnsTab::Tun,
-            Message::SetDnsTab(DnsTab::Tun)
-        ),
+    let header = row![
+        text(lang.tr("dns_title").to_string())
+            .size(24)
+            .font(FONT_SEMIBOLD)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary),
+            }),
     ]
-    .spacing(8);
+    .align_y(Alignment::Center);
+
+    let tab_index = match state.dns_tab {
+        DnsTab::FakeIp => 1,
+        DnsTab::Tun => 2,
+        DnsTab::Dns => 0,
+    };
+    let tabs = segmented_control(
+        &["DNS".to_string(), "Fake-IP".to_string(), "TUN".to_string()],
+        tab_index,
+        |index| {
+            Message::SetDnsTab(match index {
+                1 => DnsTab::FakeIp,
+                2 => DnsTab::Tun,
+                _ => DnsTab::Dns,
+            })
+        },
+    );
 
     if !state.dns_heavy_ready {
         return modern_scrollable(
             column![
                 header,
-                Space::new().height(12),
+                Space::new().height(theme::SP_MD),
                 tabs,
-                Space::new().height(16),
+                Space::new().height(SP_LG),
                 card(
+                    None,
                     column![
-                        text("Preparing advanced panels...").font(bold_font),
-                        text("Heavy editors are mounted lazily after first paint.").size(12)
+                        text("Preparing advanced panels...")
+                            .size(14)
+                            .font(FONT_SEMIBOLD)
+                            .style(|t: &Theme| text::Style {
+                                color: Some(tokens(t).text_primary),
+                            }),
+                        text("Heavy editors are mounted lazily after first paint.")
+                            .size(12)
+                            .style(|t: &Theme| text::Style {
+                                color: Some(tokens(t).text_secondary),
+                            }),
                     ]
-                    .spacing(8),
-                )
+                    .spacing(theme::SP_SM),
+                ),
             ]
             .spacing(10),
         )
@@ -641,10 +752,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     modern_scrollable(
         column![
             header,
-            Space::new().height(12),
+            Space::new().height(theme::SP_MD),
             tabs,
-            Space::new().height(12),
-            section
+            Space::new().height(theme::SP_MD),
+            section,
         ]
         .spacing(10),
     )

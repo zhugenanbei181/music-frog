@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, anyhow};
-use mihomo_config::ConfigManager;
+use mihomo_config::manager::ConfigManager;
 use serde::{Deserialize, Serialize};
-use serde_yml::{Mapping, Value};
+use serde_yaml_ng::{Mapping, Value};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -137,7 +137,7 @@ pub async fn load_dns_config() -> Result<DnsConfig> {
         .load(&profile)
         .await
         .context("read profile config")?;
-    let doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
+    let doc: Value = serde_yaml_ng::from_str(&content).context("parse profile yaml")?;
     extract_dns_config_from_doc(&doc)
 }
 
@@ -151,14 +151,14 @@ pub async fn save_dns_config(patch: DnsConfigPatch) -> Result<DnsConfig> {
         .load(&profile)
         .await
         .context("read profile config")?;
-    let mut doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
+    let mut doc: Value = serde_yaml_ng::from_str(&content).context("parse profile yaml")?;
 
     let mut config = extract_dns_config_from_doc(&doc)?;
     config.apply_patch(patch);
     validate_dns_config(&config)?;
     apply_dns_config(&mut doc, &config)?;
 
-    let updated = serde_yml::to_string(&doc).context("serialize profile yaml")?;
+    let updated = serde_yaml_ng::to_string(&doc).context("serialize profile yaml")?;
     manager
         .save(&profile, &updated)
         .await
@@ -171,7 +171,7 @@ pub fn extract_dns_config_from_doc(doc: &Value) -> Result<DnsConfig> {
         .get("dns")
         .cloned()
         .unwrap_or(Value::Mapping(Mapping::new()));
-    let config = serde_yml::from_value(dns_value).context("decode dns config")?;
+    let config = serde_yaml_ng::from_value(dns_value).context("decode dns config")?;
     Ok(config)
 }
 
@@ -183,7 +183,7 @@ fn apply_dns_config(doc: &mut Value, config: &DnsConfig) -> Result<()> {
         map.remove(Value::String("dns".to_string()));
         return Ok(());
     }
-    let dns_value = serde_yml::to_value(config).context("encode dns config")?;
+    let dns_value = serde_yaml_ng::to_value(config).context("encode dns config")?;
     map.insert(Value::String("dns".to_string()), dns_value);
     Ok(())
 }
@@ -231,14 +231,14 @@ mod tests {
 
     #[test]
     fn test_extract_dns_default() {
-        let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
+        let doc: Value = serde_yaml_ng::from_str("port: 7890\n").expect("yaml");
         let config = extract_dns_config_from_doc(&doc).expect("dns config");
         assert!(config.enable.is_none());
     }
 
     #[test]
     fn test_apply_patch_and_validate() {
-        let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
+        let doc: Value = serde_yaml_ng::from_str("port: 7890\n").expect("yaml");
         let mut config = extract_dns_config_from_doc(&doc).expect("dns config");
         let patch = DnsConfigPatch {
             nameserver: Some(vec!["https://dns.google/dns-query".to_string()]),
@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_apply_dns_config_removes_when_empty() {
-        let mut doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
+        let mut doc: Value = serde_yaml_ng::from_str("port: 7890\n").expect("yaml");
         let config = DnsConfig::default();
         apply_dns_config(&mut doc, &config).expect("apply dns");
         let map = doc.as_mapping().expect("mapping");
@@ -260,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_apply_dns_config_writes_mapping() {
-        let mut doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
+        let mut doc: Value = serde_yaml_ng::from_str("port: 7890\n").expect("yaml");
         let config = DnsConfig {
             nameserver: Some(vec!["1.1.1.1".to_string()]),
             ..DnsConfig::default()
@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn test_apply_dns_config_preserves_other_sections() {
         let mut doc: Value =
-            serde_yml::from_str("tun:\n  enable: true\nproxies:\n  - name: p1\n").expect("yaml");
+            serde_yaml_ng::from_str("tun:\n  enable: true\nproxies:\n  - name: p1\n").expect("yaml");
         let config = DnsConfig {
             enable: Some(true),
             nameserver: Some(vec!["1.1.1.1".to_string()]),

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 brotli = { workspace = true }
 chrono = { workspace = true }
 flate2 = { workspace = true }
@@ -15,7 +16,8 @@ mihomo-api = { path = "../mihomo-api" }
 infiltrator-http = { path = "../infiltrator-http" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_yml = { workspace = true }
+serde_yaml_ng = { workspace = true }
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 toml = { workspace = true }

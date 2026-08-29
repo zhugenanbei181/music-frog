@@ -2,15 +2,29 @@
 mod tests {
     use crate::TEST_LOCK;
     use crate::admin_api::*;
+    use crate::admin_api::models::{ImportProfilePayload, SaveProfilePayload, SwitchProfilePayload};
+    use crate::admin_api::state::{AdminApiContext, AdminApiState};
     use anyhow::anyhow;
     use axum::{
         body::Body,
         http::{Request, StatusCode},
     };
-    use infiltrator_core::AppSettings;
-    use mihomo_api::MihomoClient;
+    use infiltrator_core::settings::AppSettings;
+    use mihomo_api::client::MihomoClient;
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt; // for `oneshot`, `ready`, and `call`
+
+    /// set_default smoke-checks the candidate binary; these route tests only
+    /// exercise the HTTP plumbing, so a tiny runnable stand-in suffices.
+    #[cfg(unix)]
+    fn plant_runnable_fake_binary(home: &std::path::Path, version: &str) {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = home.join("versions").join(version);
+        std::fs::create_dir_all(&dir).unwrap();
+        let bin = dir.join("mihomo");
+        std::fs::write(&bin, "#!/bin/sh\necho \"Mihomo Meta v1.19.18 test\"\n").unwrap();
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
 
     #[derive(Clone)]
     struct MockContext {
@@ -108,7 +122,7 @@ mod tests {
     async fn test_get_profiles_route() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
         let app = setup_app();
 
@@ -125,14 +139,14 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()["content-type"], "application/json");
 
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
     async fn test_get_settings_route() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
         let app = setup_app();
 
@@ -148,7 +162,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
@@ -212,7 +226,7 @@ mod tests {
             .await;
 
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
         let app = setup_app();
         let payload = ImportProfilePayload {
@@ -250,7 +264,7 @@ mod tests {
         let config_path = temp_dir.path().join("configs").join("test-import.yaml");
         assert!(config_path.exists());
 
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
@@ -276,14 +290,14 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
     async fn test_switch_nonexistent_profile_returns_error() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
         let app = setup_app();
         let payload = SwitchProfilePayload {
@@ -303,16 +317,16 @@ mod tests {
             .unwrap();
 
         assert!(response.status().is_client_error() || response.status().is_server_error());
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
     async fn test_delete_active_profile_rejected() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
-        let manager = mihomo_config::ConfigManager::new().unwrap();
+        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
         manager.save("active", "port: 7890").await.unwrap();
         manager.set_current("active").await.unwrap();
 
@@ -329,7 +343,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
@@ -356,15 +370,15 @@ mod tests {
         .unwrap();
 
         assert_eq!(body["in_progress"], false);
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
     async fn test_get_dns_config_route() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
-        let manager = mihomo_config::ConfigManager::new().unwrap();
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
         manager
             .save("default", "dns:\n  enable: true")
             .await
@@ -381,15 +395,15 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
     async fn test_get_tun_config_route() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
-        let manager = mihomo_config::ConfigManager::new().unwrap();
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
         manager
             .save("default", "tun:\n  enable: true")
             .await
@@ -406,15 +420,15 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
     async fn test_get_rules_route() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
-        let manager = mihomo_config::ConfigManager::new().unwrap();
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
         manager.save("default", "rules:\n  - DIRECT").await.unwrap();
 
         let app = setup_app();
@@ -428,15 +442,15 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
     async fn test_get_proxy_providers_route() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
-        let manager = mihomo_config::ConfigManager::new().unwrap();
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
         manager
             .save(
                 "default",
@@ -456,15 +470,15 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
     async fn test_get_sniffer_route() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
-        let manager = mihomo_config::ConfigManager::new().unwrap();
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
         manager
             .save(
                 "default",
@@ -484,14 +498,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
     async fn test_flush_fake_ip_route() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
         let app = setup_app();
         let response = app
             .oneshot(
@@ -504,7 +518,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
@@ -521,7 +535,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
@@ -529,9 +543,14 @@ mod tests {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         let version = "v1.20.0";
-        let version_dir = temp_dir.path().join("versions").join(version);
-        tokio::fs::create_dir_all(&version_dir).await.unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
+        plant_runnable_fake_binary(temp_dir.path(), version);
+        let planted = temp_dir.path().join("versions/v1.20.0/mihomo");
+        assert!(planted.exists(), "planted binary missing before request");
+        let raw = std::fs::read(&planted).unwrap();
+        println!("planted bytes: {:?}", String::from_utf8_lossy(&raw));
+        let direct = std::process::Command::new(&planted).arg("-v").output().unwrap();
+        println!("direct exec: status={:?} out={:?}", direct.status, String::from_utf8_lossy(&direct.stdout));
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
         let app = setup_app();
         let payload = serde_json::json!({ "version": version });
@@ -555,7 +574,7 @@ mod tests {
         assert_eq!(json["version"], version);
         assert_eq!(json["downloaded"], false);
         assert_eq!(json["already_installed"], true);
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
@@ -585,9 +604,8 @@ mod tests {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         let version = "v1.20.0";
-        let version_dir = temp_dir.path().join("versions").join(version);
-        tokio::fs::create_dir_all(&version_dir).await.unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
+        plant_runnable_fake_binary(temp_dir.path(), version);
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
         let app = setup_app();
         let response = app
@@ -602,10 +620,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
+        let status = response.status();
         let body = axum::body::to_bytes(response.into_body(), 2048)
             .await
             .unwrap();
+        assert_eq!(status, StatusCode::OK, "response body: {}", String::from_utf8_lossy(&body));
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["version"], version);
         assert_eq!(json["downloaded"], false);
@@ -634,7 +653,7 @@ mod tests {
         let config_file = temp_dir.path().join("config.toml");
         let content = tokio::fs::read_to_string(config_file).await.unwrap();
         assert!(content.contains(&format!("version = \"{}\"", version)));
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
@@ -642,9 +661,8 @@ mod tests {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         let version = "v1.19.0";
-        let version_dir = temp_dir.path().join("versions").join(version);
-        tokio::fs::create_dir_all(&version_dir).await.unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
+        plant_runnable_fake_binary(temp_dir.path(), version);
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
         let app = setup_app();
         let payload = serde_json::json!({ "version": version });
@@ -684,16 +702,16 @@ mod tests {
         let config_file = temp_dir.path().join("config.toml");
         let content = tokio::fs::read_to_string(config_file).await.unwrap();
         assert!(content.contains(&format!("version = \"{}\"", version)));
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]
     async fn test_save_rules_route_schedules_rebuild() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
-        let manager = mihomo_config::ConfigManager::new().unwrap();
+        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
         manager.save("default", "rules:\n  - DIRECT").await.unwrap();
 
         let app = setup_app();
@@ -743,7 +761,7 @@ mod tests {
         assert_eq!(status_json["in_progress"], false);
         assert_eq!(status_json["last_error"], serde_json::Value::Null);
         assert_eq!(status_json["last_reason"], "rules-update");
-        mihomo_platform::clear_home_dir_override();
+        mihomo_platform::paths::clear_home_dir_override();
     }
 
     #[tokio::test]

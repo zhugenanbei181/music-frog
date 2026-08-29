@@ -1,0 +1,74 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: nextest (network-isolated, 4 threads)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9.138
+          fallback: none
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify test policy
+        run: bash scripts/check-test-policy.sh
+
+      # 编译工作空间所需的系统依赖：
+      # - tauri: libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
+      # - iced/wayland: libxkbcommon-dev libwayland-dev
+      # - 音频/设备: libasound2-dev libudev-dev
+      # - native-tls: libssl-dev pkg-config
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libasound2-dev \
+            libudev-dev \
+            libssl-dev \
+            pkg-config
+
+      # 第一步：在有网络的环境中预编译全部测试目标（此时仅解析/下载依赖并编译，
+      # mockito 等 mock server 尚未启动，不会有任何真实请求发出）。
+      - name: Pre-compile tests (network allowed)
+        run: bash scripts/test.sh --no-run
+
+      # 第二步：在无外网的命名空间中运行完整测试套件。
+      #
+      # 测试安全策略：
+      # 1. 测试绝不访问外网 —— 所有 HTTP mock（mockito）只绑定 127.0.0.1 回环地址；
+      # 2. 测试绝不启动真实的 mihomo 二进制 —— 只有生产代码允许调用 spawn_daemon；
+      # 3. CI 用 `unshare -n` 强制执行以上策略：网络命名空间内只保留 loopback
+      #    接口（mockito 需要），任何意外的外网请求都会直接失败，而不是侥幸通过。
+      #
+      # 说明：通过 `env` 透传 PATH/HOME，保证 sudo 降层后仍使用同一套
+      # rustup/cargo 安装与缓存（上一步已预编译，此阶段 cargo 无需联网）。
+      - name: Run tests in network-isolated namespace (loopback only)
+        run: |
+          sudo env "PATH=$PATH" "HOME=$HOME" unshare -n bash -c \
+            'ip link set lo up && bash scripts/test.sh'

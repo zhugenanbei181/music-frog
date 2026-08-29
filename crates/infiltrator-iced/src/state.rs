@@ -1,4 +1,4 @@
-use crate::tray::TrayManager;
+use crate::tray::{SharedTrayEventReceiver, TrayController};
 use crate::types::{
     AdvancedEditMode, AdvancedValidationState, DnsFormDraft, DnsTab, EditorLazyState,
     FakeIpFormDraft, PerfSnapshot, RebuildFlowState, Route, RuleRenderItem, RulesJsonTab, RulesTab,
@@ -7,9 +7,9 @@ use crate::types::{
 use iced::Theme;
 use iced::widget::text_editor;
 use infiltrator_core::rules::RuleEntry;
-use infiltrator_desktop::MihomoRuntime;
-use mihomo_api::{ConnectionSnapshot, TrafficData};
-use mihomo_config::Profile;
+use infiltrator_desktop::runtime::MihomoRuntime;
+use mihomo_api::types::{ConnectionSnapshot, TrafficData};
+use mihomo_config::profile::Profile;
 use mihomo_version::manager::VersionInfo;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -24,7 +24,7 @@ pub struct AppState {
     pub profiles: Vec<Profile>,
     pub profiles_filter: String,
     pub is_loading_profiles: bool,
-    pub proxies: HashMap<String, mihomo_api::Proxy>,
+    pub proxies: HashMap<String, mihomo_api::proxy::Proxy>,
     pub is_loading_proxies: bool,
     pub filtered_groups: Vec<(String, Vec<String>)>,
     pub transition: Transition,
@@ -43,7 +43,7 @@ pub struct AppState {
     pub traffic_history: VecDeque<(u64, u64)>,
     pub runtime_prev_upload_total: Option<u64>,
     pub runtime_prev_download_total: Option<u64>,
-    pub memory: Option<mihomo_api::MemoryData>,
+    pub memory: Option<mihomo_api::types::MemoryData>,
     pub public_ip: Option<String>,
     pub connections: Option<ConnectionSnapshot>,
     pub logs: VecDeque<String>,
@@ -115,10 +115,11 @@ pub struct AppState {
     pub new_rule_payload: String,
     pub new_rule_target: String,
     pub is_adding_rule: bool,
-    pub proxy_providers: Vec<mihomo_api::ProxyProvider>,
-    pub rule_providers: Vec<mihomo_api::RuleProvider>,
+    pub proxy_providers: Vec<mihomo_api::types::ProxyProvider>,
+    pub rule_providers: Vec<mihomo_api::types::RuleProvider>,
     pub is_loading_providers: bool,
-    pub tray_manager: Option<TrayManager>,
+    pub tray_controller: Option<Box<dyn TrayController>>,
+    pub tray_events: Option<SharedTrayEventReceiver>,
     pub dns_nameservers: Vec<String>,
     pub dns_fallback_servers: Vec<String>,
     pub dns_enhanced_mode: String,
@@ -147,6 +148,12 @@ pub struct AppState {
     pub webdav_sync_on_startup: bool,
     pub is_syncing: bool,
     pub is_saving_app_settings: bool,
+    pub admin_enabled: bool,
+    pub admin_port: u16,
+    pub admin_port_input: String,
+    pub admin_server: crate::admin_server::AdminServerManager,
+    pub admin_shared: crate::admin_server::AdminSharedRuntime,
+    pub admin_commands: Option<crate::admin_server::SharedAdminCommandReceiver>,
     pub is_admin: bool,
     pub system_proxy_enabled: bool,
     pub autostart_enabled: bool,
@@ -167,4 +174,17 @@ pub struct AppState {
     pub editor_content: text_editor::Content,
     pub editor_path: Option<PathBuf>,
     pub editor_path_setting: String,
+    // ui-wave2-p: proxies page — group ids the user explicitly expanded or
+    // collapsed (view-only UI state). `None` = pristine, so the proxies view
+    // expands the first group by default; `Some(ids)` = the exact expansion
+    // chosen by the user via Message::ToggleProxyGroupExpanded.
+    pub proxy_groups_expanded: Option<Vec<String>>,
+    // demo-mode: true for `--demo` / INFILTRATOR_DEMO sessions. Views may
+    // consult it to render fixture data without a live runtime, and the
+    // update loop uses it to block every system-touching side effect.
+    pub demo: bool,
+    // demo-mode: capture-marker path plus its write-once flag for the
+    // `CAPTURE_READY page=<page> skin=<skin>` contract (see demo.rs).
+    pub capture_marker: Option<PathBuf>,
+    pub capture_marker_written: std::sync::atomic::AtomicBool,
 }

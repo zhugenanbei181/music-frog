@@ -14,14 +14,19 @@ url = { workspace = true }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 log = { workspace = true }
 futures-util = { workspace = true }
-tokio-tungstenite = { workspace = true }
 yaml-rust2 = { workspace = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"] }
+# mihomo-api only uses plaintext (ws://) websockets on Android; connect_async /
+# accept_async need no TLS backend. The workspace tokio-tungstenite enables
+# native-tls, which would drag OpenSSL into the Android NDK build, so Android
+# uses a TLS-free declaration instead.
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect"] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 reqwest = { workspace = true, default-features = false, features = ["native-tls"] }
+tokio-tungstenite = { workspace = true }
 
 [dev-dependencies]
 mockito = "1.7"

@@ -7,16 +7,25 @@ use std::{
 };
 
 use infiltrator_http::{HttpClient, build_http_client, build_raw_http_client};
-use mihomo_api::MihomoClient;
+use mihomo_api::client::MihomoClient;
 
 use super::events::AdminEventBus;
 use super::models::{RebuildStatusResponse, RuntimeTrafficSnapshotResponse};
 
-use infiltrator_core::AppSettings;
+use infiltrator_core::settings::AppSettings;
 
 #[async_trait::async_trait]
 pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn rebuild_runtime(&self) -> anyhow::Result<()>;
+    /// Restart the running core so config-level changes take effect, keeping
+    /// the same runtime object. Defaults to a full [`Self::rebuild_runtime`];
+    /// hosts owning a live `infiltrator_core::session::CoreSession` override
+    /// this with a session restart (generation bump + readiness), which
+    /// skips the re-bootstrap entirely. Core *version* switches must keep
+    /// using [`Self::rebuild_runtime`] since the binary path changes.
+    async fn restart_core(&self) -> anyhow::Result<()> {
+        self.rebuild_runtime().await
+    }
     async fn set_use_bundled_core(&self, enabled: bool);
     async fn refresh_core_version_info(&self);
     async fn latest_stable_core(&self) -> anyhow::Result<(String, String)>;

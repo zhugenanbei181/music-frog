@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use mihomo_api::{MihomoError, Result};
+use mihomo_api::error::{MihomoError, Result};
 use std::path::PathBuf;
 use std::sync::Arc;
 

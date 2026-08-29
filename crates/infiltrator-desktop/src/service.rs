@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
-use mihomo_api::Result;
-use mihomo_platform::{CoreController, ProcessCoreController};
+use mihomo_api::error::Result;
+use mihomo_platform::desktop::ProcessCoreController;
+use mihomo_platform::traits::CoreController;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServiceStatus {
@@ -10,26 +11,43 @@ pub enum ServiceStatus {
 }
 
 pub struct ServiceManager {
-    controller: ProcessCoreController,
+    controller: std::sync::Arc<ProcessCoreController>,
 }
 
 impl ServiceManager {
     pub fn new(binary_path: PathBuf, config_path: PathBuf) -> Self {
         Self {
-            controller: ProcessCoreController::new(binary_path, config_path),
+            controller: std::sync::Arc::new(ProcessCoreController::new(
+                binary_path,
+                config_path,
+            )),
         }
     }
 
     pub fn with_home(binary_path: PathBuf, config_path: PathBuf, home: PathBuf) -> Self {
         Self {
-            controller: ProcessCoreController::with_home(binary_path, config_path, home),
+            controller: std::sync::Arc::new(ProcessCoreController::with_home(
+                binary_path,
+                config_path,
+                home,
+            )),
         }
     }
 
     pub fn with_pid_file(binary_path: PathBuf, config_path: PathBuf, pid_file: PathBuf) -> Self {
         Self {
-            controller: ProcessCoreController::with_pid_file(binary_path, config_path, pid_file),
+            controller: std::sync::Arc::new(ProcessCoreController::with_pid_file(
+                binary_path,
+                config_path,
+                pid_file,
+            )),
         }
+    }
+
+    /// The platform controller as a trait object, for hosting inside a
+    /// shared [`infiltrator_core::session::CoreSession`].
+    pub fn controller(&self) -> std::sync::Arc<dyn CoreController> {
+        self.controller.clone()
     }
 
     pub async fn start(&self) -> Result<()> {

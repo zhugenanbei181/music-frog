@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use chrono::{Duration as ChronoDuration, Utc};
 use infiltrator_core::profiles as core_profiles;
 use log::warn;
-use mihomo_config::ConfigManager;
+use mihomo_config::manager::ConfigManager;
 use tauri::{AppHandle, Manager, menu::MenuEvent};
 use tokio::time::Duration;
 
@@ -18,7 +18,7 @@ use crate::{
     system_proxy::apply_system_proxy,
     utils::wait_for_port_release,
 };
-use infiltrator_admin::{
+use infiltrator_admin::admin_api::events::{
     AdminEvent, EVENT_PROFILES_CHANGED, EVENT_TUN_CHANGED, EVENT_WEBDAV_SYNCED,
 };
 
@@ -389,12 +389,12 @@ async fn handle_system_proxy_toggle(state: AppState) -> anyhow::Result<()> {
 }
 
 async fn handle_autostart_toggle(state: AppState) -> anyhow::Result<()> {
-    let enabled = is_autostart_enabled();
+    let enabled = is_autostart_enabled(crate::AUTOSTART_REG_NAME);
     let new_state = !enabled;
     if new_state && !is_running_as_admin() {
         return Err(anyhow!("开启开机自启需要管理员权限"));
     }
-    set_autostart_enabled(new_state)?;
+    set_autostart_enabled(crate::AUTOSTART_REG_NAME, new_state)?;
     state.set_autostart_checked(new_state).await;
     Ok(())
 }

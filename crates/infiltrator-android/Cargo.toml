@@ -6,6 +6,10 @@ edition = "2024"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
@@ -19,12 +23,12 @@ infiltrator-core = { path = "../infiltrator-core", default-features = false }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_yml = { workspace = true }
+serde_yaml_ng = { workspace = true }
 chrono = { workspace = true }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
 sync-engine = { path = "../mihomo-dav-sync/sync-engine" }
 state-store = { path = "../mihomo-dav-sync/state-store" }
-uniffi = { workspace = true, features = ["tokio"] }
+uniffi = { workspace = true, features = ["tokio", "cli"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { workspace = true }

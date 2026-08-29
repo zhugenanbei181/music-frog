@@ -69,14 +69,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_client_send() {
+        // 测试安全策略：绝不访问外网。mockito 只绑定 127.0.0.1 回环地址，
+        // 客户端“能否发送请求”的行为完全在 loopback 上验证。
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/ping")
+            .with_status(200)
+            .with_body("pong")
+            .create_async()
+            .await;
+
         let client = build_http_client();
+        let url = format!("{}/ping", server.url());
+        let resp = client
+            .get(&url)
+            .send()
+            .await
+            .expect("request to loopback mock server should succeed");
 
-        // Try making a simple request to verify the client works
-        let result = client.get("https://example.com").send().await;
-
-        // We don't care about the actual result, just that it doesn't panic
-        // In a real test environment, this might fail due to network issues
-        let _ = result;
+        assert_eq!(resp.status(), 200);
+        assert_eq!(resp.text().await.unwrap(), "pong");
+        mock.assert_async().await;
     }
 
     #[test]
