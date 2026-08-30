@@ -645,7 +645,7 @@ mod tests {
             ConfigManager::with_home_and_store(home.path().to_path_buf(), MockStore::empty())
                 .expect("config manager"),
         );
-        config.ensure_default_config().await.expect("default config");
+        config.save("default", "mode: rule\n").await.expect("save");
 
         let source = ProfileEndpointSource::new(config);
         let endpoint = source.resolve().await.expect("resolve");

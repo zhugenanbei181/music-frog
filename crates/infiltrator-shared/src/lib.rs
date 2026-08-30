@@ -2,4 +2,12 @@
 //! the legacy Tauri + Vue app.
 
 pub mod autostart;
+pub mod error_codes;
+pub mod i18n_interpolator;
+pub mod intent_registry;
+pub mod latency_chart;
 pub mod locales;
+pub mod metrics_summary;
+pub mod subscription_quota;
+pub mod theme_motion;
+pub mod theme_tokens;

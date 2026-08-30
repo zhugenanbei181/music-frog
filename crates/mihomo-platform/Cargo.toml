@@ -12,9 +12,13 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 sysinfo = { workspace = true }
 dirs = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+regex = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-keyring = { workspace = true, features = ["windows-native"] }
+keyring = { workspace = true, features = ["windows-native-keyring-store"] }
 # JobObjects: kill-on-close Job Object so the core dies with the GUI process.
 # Foundation: HANDLE/CloseHandle. Security: CreateJobObjectW signature.
 windows-sys = { workspace = true, features = [
@@ -26,10 +30,10 @@ windows-sys = { workspace = true, features = [
 winreg = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-keyring = { workspace = true, features = ["apple-native"] }
+keyring = { workspace = true, features = ["apple-native-keyring-store"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-keyring = { workspace = true, features = ["linux-native"] }
+keyring = { workspace = true, features = ["linux-keyutils-keyring-store"] }
 
 [target.'cfg(unix)'.dependencies]
 # CORE-002: prctl(PR_SET_PDEATHSIG) so the core is reaped when the GUI dies.
@@ -40,4 +44,4 @@ libc = { workspace = true }
 jni = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3.10"
+tempfile = { workspace = true }

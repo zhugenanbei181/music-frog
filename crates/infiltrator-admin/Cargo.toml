@@ -11,6 +11,7 @@ chrono = { workspace = true }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-http = { path = "../infiltrator-http" }
+infiltrator-shared = { path = "../infiltrator-shared" }
 log = { workspace = true }
 mihomo-config = { path = "../mihomo-config" }
 mihomo-api = { path = "../mihomo-api" }
@@ -26,5 +27,5 @@ tower-http = { workspace = true, features = ["fs"] }
 tower = { version = "0.5", features = ["util"] }
 
 [dev-dependencies]
-tempfile = "3.10"
-mockito = "1.7"
+tempfile = { workspace = true }
+mockito = { workspace = true }

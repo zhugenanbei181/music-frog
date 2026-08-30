@@ -28,6 +28,6 @@ reqwest = { workspace = true, default-features = false, features = ["rustls-no-p
 reqwest = { workspace = true, default-features = false, features = ["native-tls"] }
 
 [dev-dependencies]
-mockito = "1.7"
+mockito = { workspace = true }
 tokio = { workspace = true }
-tempfile = "3"
+tempfile = { workspace = true }

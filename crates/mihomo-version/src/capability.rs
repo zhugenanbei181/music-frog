@@ -102,6 +102,8 @@ pub struct CapabilitySet {
     pub capabilities: Vec<Capability>,
 }
 
+pub type MihomoCapability = CapabilitySet;
+
 impl CapabilitySet {
     /// Whether this kernel version provides `cap`.
     pub fn supports(&self, cap: Capability) -> bool {

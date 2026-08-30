@@ -10,19 +10,19 @@ infiltrator-admin = { path = "../crates/infiltrator-admin" }
 infiltrator-core = { path = "../crates/infiltrator-core" }
 infiltrator-desktop = { path = "../crates/infiltrator-desktop" }
 infiltrator-shared = { path = "../crates/infiltrator-shared" }
-log = "0.4"
+log = { workspace = true }
 mihomo-api = { path = "../crates/mihomo-api" }
 mihomo-config = { path = "../crates/mihomo-config" }
 mihomo-platform = { path = "../crates/mihomo-platform" }
 mihomo-version = { path = "../crates/mihomo-version" }
 rfd = "0.17"
 serde = { workspace = true }
-serde_json = "1.0"
+serde_json = { workspace = true }
 sys-locale = "0.3"
-tauri = { version = "2.9", features = ["tray-icon"] }
+tauri = { version = "2.11", features = ["tray-icon"] }
 tauri-plugin-notification = "2.3"
-tauri-plugin-log = "2.8"
-tauri-plugin-single-instance = "2.3"
+tauri-plugin-log = "2.9"
+tauri-plugin-single-instance = "2.4"
 tokio = { workspace = true }
 webbrowser = "1.0"
 chrono = { workspace = true }
@@ -39,4 +39,4 @@ is_elevated = "0.1"
 windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
 
 [build-dependencies]
-tauri-build = { version = "2.0.5", features = [] }
+tauri-build = { version = "2.6", features = [] }

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
+pub mod conflict_resolution;
 pub mod executor;
 
 use dav_client::{DavClient, RemoteEntry};

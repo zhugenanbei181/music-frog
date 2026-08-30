@@ -8,4 +8,4 @@ sync-engine = { path = "../sync-engine" }
 dav-client = { path = "../dav-client" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
-clap = { version = "4.5", features = ["derive"] }
+clap = { workspace = true }

@@ -1,10 +1,12 @@
 pub mod api;
+pub mod domain_snapshot;
 pub mod ffi;
 #[cfg(target_os = "android")]
 mod jni_bridge;
 pub mod runtime;
 mod tls;
 mod uniffi_api;
+pub mod vpn_route;
 
 pub use api::AndroidApi;
 pub use ffi::{FfiApi, FfiBoolResult, FfiErrorCode, FfiStatus, FfiStringResult};

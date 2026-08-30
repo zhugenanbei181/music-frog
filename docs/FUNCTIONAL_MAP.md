@@ -12,7 +12,7 @@
 | Rules / Providers / Sniffer | 规则列表、provider 更新、JSON 高级编辑 | `infiltrator-core::{rules,proxy_providers,sniffer}` | Iced、Admin Web、Android Rules | FUNC-005：区分结构化编辑与原始 JSON |
 | WebDAV 同步 | 保存、测试、手动同步、冲突处理 | `mihomo-dav-sync/*` + admin/Android orchestration | Iced、Admin Web、Android | FUNC-004：单一同步生命周期和冲突结果 |
 | Core 版本交付 | 查询、下载、校验、安装、切换、回滚 | `mihomo-version` + `scripts/fetch-mihomo.sh` | Iced、Admin Web、CI/package、Android build | CORE-006 / UP-001：版本 manifest、digest、回滚 |
-| 系统集成 | 系统代理、自启动、托盘、文件选择、权限 | `mihomo-platform`、`infiltrator-desktop`、各宿主 | Iced tray、Tauri tray、Android VPN | PLATFORM-003 / UI-005：native adapter 与业务解耦 |
+| 系统集成 | 系统代理、自启动、托盘、文件选择、权限 | `mihomo-platform`、`infiltrator-desktop`、各宿主 | Iced tray、Tauri tray、Android VPN | PLAT-003 / UI-005：native adapter 与业务解耦 |
 | 多语言与主题 | 语言、主题、错误文案、无障碍提示 | `infiltrator-shared` + 各 UI theme/locales | Iced、Tauri/Web、Android resources | UI-006：文案 key 和失败状态不分叉 |
 
 ## 当前表面的职责

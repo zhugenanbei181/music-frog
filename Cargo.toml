@@ -22,19 +22,19 @@ members = [
 
 [workspace.dependencies]
 # Network & Async
-tokio = { version = "1.49", features = ["full"] }
+tokio = { version = "1.53", features = ["full"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "socks", "stream", "http2"] }
 url = "2.5"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 
 # Data Handling
-quick-xml = { version = "0.37", features = ["serialize", "async-tokio"] }
+quick-xml = { version = "0.42", features = ["serialize", "async-tokio"] }
 sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite", "chrono"] }
 axum = "0.8"
 brotli = "8.0"
-tower-http = { version = "0.6", features = ["fs"] }
+tower-http = { version = "0.7", features = ["fs"] }
 serde = { version = "1.0", features = ["derive"] }
-chrono = { version = "0.4.42", features = ["serde"] }
+chrono = { version = "0.4.45", features = ["serde"] }
 
 # Utility
 tracing = "0.1"
@@ -49,17 +49,18 @@ log = "0.4"
 toml = "0.8"
 yaml-rust2 = "0.11"
 serde_yaml_ng = "0.10"
+serde_yaml = { package = "serde_yaml_ng", version = "0.10" }
 windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_System_JobObjects", "Win32_Foundation", "Win32_Security"] }
 libc = "0.2"
-keyring = { version = "3.6" }
-winreg = "0.55"
+keyring = { version = "4.1" }
+winreg = "0.56"
 
 futures-util = "0.3"
 tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 dirs = "6.0"
-flate2 = "1.0"
-sha2 = "0.10"
-zip = "2.2"
+flate2 = "1.1"
+sha2 = "0.11"
+zip = "8.6"
 sysinfo = "0.39"
 jni = "0.21"
 tokio-stream = "0.1"
@@ -76,4 +77,8 @@ tray-icon = { version = "0.24", default-features = false, features = ["gtk"] }
 # no extra async-io executor stack is pulled in; "blocking" adds the
 # synchronous spawn/handle API the tray backend uses off the async paths.
 ksni = { version = "0.3", default-features = false, features = ["tokio", "blocking"] }
+tempfile = "3.27"
+mockito = "1.7"
+clap = { version = "4.6", features = ["derive"] }
+regex = "1.11"
 

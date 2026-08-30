@@ -12,6 +12,7 @@ pub mod app;
 pub mod demo;
 pub mod state;
 pub mod subscription;
+pub mod toast_state;
 pub mod tray;
 pub mod types;
 pub mod update;

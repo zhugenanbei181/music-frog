@@ -154,38 +154,57 @@ impl Default for KeyringCredentialStore {
 #[async_trait]
 impl CredentialStore for KeyringCredentialStore {
     async fn get(&self, service: &str, key: &str) -> Result<Option<String>> {
-        let entry = match keyring::Entry::new(service, key) {
-            Ok(entry) => entry,
-            Err(err) => {
-                log::warn!("keyring init failed: {err}");
-                return Ok(None);
+        let service = service.to_string();
+        let key = key.to_string();
+        tokio::task::spawn_blocking(move || {
+            let entry = match keyring::Entry::new(&service, &key) {
+                Ok(entry) => entry,
+                Err(err) => {
+                    log::warn!("keyring init failed: {err}");
+                    return Ok(None);
+                }
+            };
+            match entry.get_password() {
+                Ok(value) => Ok(Some(value)),
+                Err(err) => {
+                    log::warn!("keyring get failed: {err}");
+                    Ok(None)
+                }
             }
-        };
-        match entry.get_password() {
-            Ok(value) => Ok(Some(value)),
-            Err(err) => {
-                log::warn!("keyring get failed: {err}");
-                Ok(None)
-            }
-        }
+        })
+        .await
+        .map_err(|e| MihomoError::Config(format!("Keyring task failed: {e}")))?
     }
 
     async fn set(&self, service: &str, key: &str, value: &str) -> Result<()> {
-        let entry = keyring::Entry::new(service, key)
-            .map_err(|err| MihomoError::Config(format!("Keyring init failed: {err}")))?;
-        entry
-            .set_password(value)
-            .map_err(|err| MihomoError::Config(format!("Keyring set failed: {err}")))?;
-        Ok(())
+        let service = service.to_string();
+        let key = key.to_string();
+        let value = value.to_string();
+        tokio::task::spawn_blocking(move || {
+            let entry = keyring::Entry::new(&service, &key)
+                .map_err(|err| MihomoError::Config(format!("Keyring init failed: {err}")))?;
+            entry
+                .set_password(&value)
+                .map_err(|err| MihomoError::Config(format!("Keyring set failed: {err}")))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| MihomoError::Config(format!("Keyring task failed: {e}")))?
     }
 
     async fn delete(&self, service: &str, key: &str) -> Result<()> {
-        let entry = keyring::Entry::new(service, key)
-            .map_err(|err| MihomoError::Config(format!("Keyring init failed: {err}")))?;
-        entry
-            .delete_credential()
-            .map_err(|err| MihomoError::Config(format!("Keyring delete failed: {err}")))?;
-        Ok(())
+        let service = service.to_string();
+        let key = key.to_string();
+        tokio::task::spawn_blocking(move || {
+            let entry = keyring::Entry::new(&service, &key)
+                .map_err(|err| MihomoError::Config(format!("Keyring init failed: {err}")))?;
+            entry
+                .delete_credential()
+                .map_err(|err| MihomoError::Config(format!("Keyring delete failed: {err}")))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| MihomoError::Config(format!("Keyring task failed: {e}")))?
     }
 }
 

@@ -1,5 +1,16 @@
+pub mod autostart;
+pub mod clipboard_helper;
+pub mod deadlock_detector;
+pub mod display_adapter;
 pub mod editor;
+pub mod graceful_reboot;
+pub mod log_formatter;
+pub mod notify;
 pub mod proxy;
 pub mod runtime;
 pub mod service;
+pub mod shortcut_manager;
+pub mod tray_badge;
+pub mod tray_event;
+pub mod tun_service;
 pub mod version;
