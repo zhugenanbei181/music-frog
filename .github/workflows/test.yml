@@ -1,41 +1,78 @@
 name: test
 
+# 默认关闭：普通 push（main/日常分支）与普通 PR 不执行任何测试。
+# 仅两类事件会真正跑 CI：
+#   1. 带版本的推送：v* tag，或 v* / release/v* 版本分支（on.push 已过滤）；
+#   2. 带版本的 PR：标题或源分支名含版本号（如 v1.2.3），由 version-gate 判定。
 on:
   push:
-    branches: [main]
+    branches:
+      - "v*"
+      - "release/v*"
+    tags:
+      - "v*"
   pull_request:
+    types: [opened, synchronize, reopened]
+
+# 同一引用的新提交自动取消旧运行：过时结果尽早退出，不浪费算力。
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
+  # CI 中禁用增量编译：产物更小、缓存更省、全量构建更可复现。
+  CARGO_INCREMENTAL: 0
 
 jobs:
+  version-gate:
+    # 免 checkout 的 10 秒门卫：不带版本号的 PR 在这里即被跳过，不进编译队列。
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - id: decide
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if printf '%s' "$TITLE$HEAD_REF" | grep -Eqi 'v[0-9]+(\.[0-9]+)*'; then
+            echo "run=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "run=false" >>"$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: version-gate
+    if: needs.version-gate.outputs.run == 'true'
     name: nextest (network-isolated, 4 threads)
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
+      # 每次运行都解析为最新 stable 工具链（rust-toolchain.toml channel=stable 同轨）。
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest@0.9.138
-          fallback: none
+          tool: cargo-nextest@latest
 
+      # 缓存 registry/git/ target 三层；key 随 Cargo.lock 自动变化。
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
 
+      # 廉价守卫前置（秒级）：在安装系统依赖与编译之前失败，尽早退出。
       - name: Verify test policy
         run: bash scripts/check-test-policy.sh
 
       - name: Enforce source line budget
         run: python3 scripts/quality/line-guard.py --mode enforce
 
-      # 编译工作空间所需的系统依赖：
+      # 编译工作空间所需的系统依赖（--no-install-recommends 精简安装）：
       # - tauri: libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
       # - iced/wayland: libxkbcommon-dev libwayland-dev
       # - 音频/设备: libasound2-dev libudev-dev
@@ -43,7 +80,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev \
             libgtk-3-dev \
             libayatana-appindicator3-dev \

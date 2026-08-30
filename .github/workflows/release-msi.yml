@@ -8,13 +8,18 @@ on:
 permissions:
   contents: write
 
+# 同 tag 重复构建时取消旧任务。
+concurrency:
+  group: release-msi-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-msi:
     runs-on: windows-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -24,11 +29,12 @@ jobs:
         with:
           version: 10
 
-      # 2. 再装 Node，并开启缓存
+      # 2. 再装 Node，并开启 pnpm 依赖缓存
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: "pnpm"
 
       # 3. Rust 环境保持不变
       - name: Setup Rust toolchain
