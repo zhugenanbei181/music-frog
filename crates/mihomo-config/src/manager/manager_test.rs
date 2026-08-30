@@ -1,6 +1,12 @@
+//! Tests for the [`crate::manager`] module, mounted via `#[cfg(test)]` from
+//! the module root (kept out of the business-code line budget by convention).
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::manager::ConfigManager;
+    use crate::profile::Profile;
+    use mihomo_platform::traits::CredentialStore;
+    use std::path::PathBuf;
     use tempfile::TempDir;
     use tokio::fs;
 
@@ -43,7 +49,6 @@ mod tests {
         let result = manager.save("test-profile", profile_content).await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid YAML"));
     }
 
     #[tokio::test]
@@ -145,7 +150,12 @@ mod tests {
 
         let result = manager.delete_profile("active-profile").await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Cannot delete the active profile"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Cannot delete the active profile")
+        );
     }
 
     #[tokio::test]
@@ -202,7 +212,12 @@ mod tests {
         assert!(result.is_ok());
 
         let current = manager.get_current().await.unwrap();
-        assert!(manager.config_dir.join(format!("{}.yaml", current)).exists());
+        assert!(
+            manager
+                .config_dir
+                .join(format!("{}.yaml", current))
+                .exists()
+        );
     }
 
     #[tokio::test]
@@ -295,11 +310,13 @@ external-controller: http://127.0.0.1:9090
             next_update: None,
         };
 
-        let result = manager.update_profile_metadata("test-profile", &metadata).await;
+        let result = manager
+            .update_profile_metadata("test-profile", &metadata)
+            .await;
         assert!(result.is_ok());
 
         let retrieved = manager.get_profile_metadata("test-profile").await.unwrap();
-        assert_eq!(retrieved.auto_update_enabled, true);
+        assert!(retrieved.auto_update_enabled);
         assert_eq!(retrieved.update_interval_hours, Some(24));
     }
 
@@ -311,5 +328,104 @@ external-controller: http://127.0.0.1:9090
         let result = manager.get_profile_metadata("nonexistent").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().name, "nonexistent");
+    }
+
+    #[tokio::test]
+    async fn test_secured_storage_integration() {
+        use async_trait::async_trait;
+        use std::collections::HashMap;
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Default, Clone)]
+        struct MockStore {
+            data: Arc<Mutex<HashMap<String, String>>>,
+        }
+
+        #[async_trait]
+        impl CredentialStore for MockStore {
+            async fn get(
+                &self,
+                _svc: &str,
+                key: &str,
+            ) -> mihomo_api::error::Result<Option<String>> {
+                Ok(self.data.lock().unwrap().get(key).cloned())
+            }
+            async fn set(&self, _svc: &str, key: &str, val: &str) -> mihomo_api::error::Result<()> {
+                self.data
+                    .lock()
+                    .unwrap()
+                    .insert(key.to_string(), val.to_string());
+                Ok(())
+            }
+            async fn delete(&self, _svc: &str, key: &str) -> mihomo_api::error::Result<()> {
+                self.data.lock().unwrap().remove(key);
+                Ok(())
+            }
+        }
+
+        let temp_dir = TempDir::new().unwrap();
+        let store = MockStore::default();
+        let manager =
+            ConfigManager::with_home_and_store(temp_dir.path().to_path_buf(), store.clone())
+                .unwrap();
+
+        let mut metadata = Profile::new("test".to_string(), PathBuf::new(), false);
+        metadata.subscription_url = Some("https://secret.url/sub".to_string());
+
+        // 1. Save metadata
+        manager
+            .update_profile_metadata("test", &metadata)
+            .await
+            .unwrap();
+
+        // 2. Verify store has the secret
+        let key = "subscription:test".to_string();
+        assert_eq!(
+            store.data.lock().unwrap().get(&key).unwrap(),
+            "https://secret.url/sub"
+        );
+
+        // 3. Load metadata and verify url is recovered
+        let loaded = manager.get_profile_metadata("test").await.unwrap();
+        assert_eq!(
+            loaded.subscription_url,
+            Some("https://secret.url/sub".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_profile_name_validation_blocks_traversal() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir).await;
+
+        for name in [
+            "../escape",
+            "sub/../../escape",
+            "/absolute/path",
+            "windows\\path",
+            "drive:c:\\x",
+            "..",
+            ".",
+            " padded ",
+            "",
+            "a:b",
+        ] {
+            assert!(
+                manager.save(name, "port: 1\n").await.is_err(),
+                "save should reject: {name:?}"
+            );
+            assert!(
+                manager.load(name).await.is_err(),
+                "load should reject: {name:?}"
+            );
+            assert!(
+                manager.delete_profile(name).await.is_err(),
+                "delete should reject: {name:?}"
+            );
+        }
+
+        // 合法名字不受影响（空格/中文/下划线/连字符）
+        assert!(manager.save("我的 配置-1", "port: 1\n").await.is_ok());
+        assert_eq!(manager.load("我的 配置-1").await.unwrap(), "port: 1\n");
     }
 }

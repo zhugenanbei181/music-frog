@@ -130,7 +130,11 @@ impl AppState {
                 .then(|_| iced::exit())
             }
             Message::ShowToast(content, status) => {
-                self.toasts.push((content, status));
+                // Toast text originates from raw error chains (subscription
+                // updates, reqwest failures) that can embed access tokens;
+                // redact here — the one ingestion point for every toast —
+                // before anything reaches the screen (CORE-001).
+                self.toasts.push((crate::utils::sanitize_ui_text(&content), status));
                 let index = self.toasts.len() - 1;
                 Task::perform(
                     async move {
@@ -167,7 +171,7 @@ impl AppState {
                 Err(e) => {
                     self.system_proxy_enabled = !self.system_proxy_enabled;
                     self.refresh_tray();
-                    self.error_msg = Some(e.to_string());
+                    self.set_error(&e);
                     Task::none()
                 }
             },

@@ -41,6 +41,8 @@ require_text "scripts/test.sh" "--test-threads 4"
 require_text ".github/workflows/test.yml" "bash scripts/check-test-policy.sh"
 require_text ".github/workflows/test.yml" "bash scripts/test.sh --no-run"
 require_text ".github/workflows/test.yml" "bash scripts/test.sh"
+require_text ".github/workflows/test.yml" "line-guard.py"
+require_text "TESTING.md" "line-guard.py"
 
 if [[ "$failed" -ne 0 ]]; then
   exit 1

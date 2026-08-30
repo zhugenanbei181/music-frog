@@ -1,0 +1,256 @@
+//! TUN advanced configuration: the form draft and its JSON editor twin,
+//! validation (stack/MTU) and persistence.
+
+use crate::state::AppState;
+use crate::types::{
+    AdvancedEditMode, EditorLazyState, InfiltratorError, Message, RebuildFlowState, ToastStatus,
+    TunFormDraft,
+};
+use iced::Task;
+
+impl AppState {
+    pub(super) fn ensure_tun_editor_loaded(&mut self) {
+        if self.tun_editor_state == EditorLazyState::Loaded
+            && self.tun_json_content.text() == self.tun_json_cache
+        {
+            return;
+        }
+        let start = std::time::Instant::now();
+        self.tun_json_content = iced::widget::text_editor::Content::with_text(&self.tun_json_cache);
+        self.tun_editor_state = EditorLazyState::Loaded;
+        self.perf_snapshot.dns_with_text_apply_ms = start.elapsed().as_millis();
+    }
+
+    pub(super) fn apply_tun_form_from_config(&mut self, config: &infiltrator_core::tun::TunConfig) {
+        self.tun_form = TunFormDraft {
+            enable: config.enable.unwrap_or(false),
+            stack: config.stack.clone().unwrap_or_else(|| "gvisor".to_string()),
+            mtu: config
+                .mtu
+                .map(|value| value.to_string())
+                .unwrap_or_default(),
+            dns_hijack: Self::join_list_field(&config.dns_hijack),
+            auto_route: config.auto_route.unwrap_or(false),
+            auto_detect_interface: config.auto_detect_interface.unwrap_or(false),
+            strict_route: config.strict_route.unwrap_or(false),
+        };
+    }
+
+    fn tun_patch_from_form(
+        &self,
+    ) -> Result<infiltrator_core::tun::TunConfigPatch, InfiltratorError> {
+        let stack = self.tun_form.stack.trim().to_ascii_lowercase();
+        if !stack.is_empty() && stack != "system" && stack != "gvisor" {
+            return Err(InfiltratorError::Config(
+                "stack must be system or gvisor".to_string(),
+            ));
+        }
+
+        let mtu_text = self.tun_form.mtu.trim();
+        let mtu = if mtu_text.is_empty() {
+            None
+        } else {
+            Some(mtu_text.parse::<u32>().map_err(|_| {
+                InfiltratorError::Config("mtu must be a positive integer".to_string())
+            })?)
+        };
+        if matches!(mtu, Some(0)) {
+            return Err(InfiltratorError::Config(
+                "mtu must be greater than 0".to_string(),
+            ));
+        }
+
+        Ok(infiltrator_core::tun::TunConfigPatch {
+            enable: Some(self.tun_form.enable),
+            stack: if stack.is_empty() { None } else { Some(stack) },
+            mtu,
+            dns_hijack: Some(Self::split_list_field(&self.tun_form.dns_hijack)),
+            auto_route: Some(self.tun_form.auto_route),
+            auto_detect_interface: Some(self.tun_form.auto_detect_interface),
+            strict_route: Some(self.tun_form.strict_route),
+        })
+    }
+
+    fn sync_tun_json_from_form(&mut self) -> Result<(), InfiltratorError> {
+        let patch = self.tun_patch_from_form()?;
+        self.tun_json_cache = serde_json::to_string_pretty(&patch)
+            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+        if self.tun_editor_state == EditorLazyState::Loaded && !self.tun_json_dirty {
+            self.ensure_tun_editor_loaded();
+        }
+        Ok(())
+    }
+
+    fn mark_tun_form_dirty_and_sync(&mut self) {
+        self.tun_form_dirty = true;
+        match self.sync_tun_json_from_form() {
+            Ok(_) => self.advanced_validation.tun = None,
+            Err(e) => self.advanced_validation.tun = Some(Self::map_advanced_error_message(&e)),
+        }
+    }
+
+    /// TUN advanced config editing and persistence. Unmatched messages fall
+    /// through to the next domain in the `update_core` chain.
+    pub(super) fn update_core_tun_config(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::RefreshTunOnly => Task::perform(
+                async {
+                    let config = infiltrator_core::tun::load_tun_config()
+                        .await
+                        .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                    serde_json::to_string_pretty(&config)
+                        .map_err(|e| InfiltratorError::Config(e.to_string()))
+                },
+                Message::TunConfigJsonLoaded,
+            ),
+            Message::EnsureTunEditorLoaded => {
+                self.ensure_tun_editor_loaded();
+                Task::none()
+            }
+            Message::TunConfigJsonLoaded(result) => {
+                match result {
+                    Ok(json) => {
+                        match serde_json::from_str::<infiltrator_core::tun::TunConfig>(&json) {
+                            Ok(config) => {
+                                self.advanced_configs_loaded_once = true;
+                                self.tun_json_cache = json;
+                                self.apply_tun_form_from_config(&config);
+                                if self.tun_editor_state == EditorLazyState::Loaded {
+                                    self.ensure_tun_editor_loaded();
+                                }
+                                self.tun_json_dirty = false;
+                                self.tun_form_dirty = false;
+                                self.advanced_validation.tun = None;
+                            }
+                            Err(e) => {
+                                self.set_error(&e);
+                            }
+                        }
+                    }
+                    Err(e) => self.set_error(&e),
+                }
+                Task::none()
+            }
+            Message::UpdateTunFormEnable(value) => {
+                self.tun_form.enable = value;
+                self.mark_tun_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateTunFormStack(value) => {
+                self.tun_form.stack = value;
+                self.mark_tun_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateTunFormMtu(value) => {
+                self.tun_form.mtu = value;
+                self.mark_tun_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateTunFormDnsHijack(value) => {
+                self.tun_form.dns_hijack = value;
+                self.mark_tun_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateTunFormAutoRoute(value) => {
+                self.tun_form.auto_route = value;
+                self.mark_tun_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateTunFormAutoDetectInterface(value) => {
+                self.tun_form.auto_detect_interface = value;
+                self.mark_tun_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateTunFormStrictRoute(value) => {
+                self.tun_form.strict_route = value;
+                self.mark_tun_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::TunConfigEditorAction(action) => {
+                self.ensure_tun_editor_loaded();
+                self.tun_json_content.perform(action);
+                self.tun_json_cache = self.tun_json_content.text();
+                self.tun_json_dirty = true;
+                self.advanced_validation.tun = None;
+                Task::none()
+            }
+            Message::SaveTunConfig => {
+                self.is_saving_tun = true;
+                self.begin_save_phase("TUN");
+                let patch = if self.tun_mode == AdvancedEditMode::Form {
+                    self.tun_patch_from_form()
+                } else {
+                    self.ensure_tun_editor_loaded();
+                    let text = self.tun_json_content.text();
+                    self.tun_json_cache = text.clone();
+                    serde_json::from_str::<infiltrator_core::tun::TunConfigPatch>(&text)
+                        .map_err(|e| InfiltratorError::Config(format!("Invalid TUN JSON: {}", e)))
+                };
+                let patch = match patch {
+                    Ok(value) => value,
+                    Err(error) => {
+                        self.is_saving_tun = false;
+                        let mapped = Self::map_advanced_error_message(&error);
+                        self.advanced_validation.tun = Some(mapped.clone());
+                        self.rebuild_flow = RebuildFlowState::Failed {
+                            label: "TUN".to_string(),
+                            error: mapped.clone(),
+                        };
+                        self.set_error(&mapped);
+                        return Task::batch(vec![
+                            Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
+                            Task::perform(
+                                async {
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                },
+                                |_| Message::ClearRebuildFlow,
+                            ),
+                        ]);
+                    }
+                };
+                Task::perform(
+                    async move {
+                        infiltrator_core::tun::save_tun_config(patch)
+                            .await
+                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        Ok(())
+                    },
+                    Message::TunConfigSaved,
+                )
+            }
+            Message::TunConfigSaved(result) => {
+                self.is_saving_tun = false;
+                match result {
+                    Ok(_) => {
+                        self.tun_form_dirty = false;
+                        self.tun_json_dirty = false;
+                        self.advanced_validation.tun = None;
+                        Task::batch(vec![
+                            Task::done(Message::RefreshTunOnly),
+                            self.trigger_runtime_rebuild(),
+                        ])
+                    }
+                    Err(e) => {
+                        let mapped = Self::map_advanced_error_message(&e);
+                        self.advanced_validation.tun = Some(mapped.clone());
+                        self.rebuild_flow = RebuildFlowState::Failed {
+                            label: "TUN".to_string(),
+                            error: mapped.clone(),
+                        };
+                        self.set_error(&mapped);
+                        Task::batch(vec![
+                            Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
+                            Task::perform(
+                                async {
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                },
+                                |_| Message::ClearRebuildFlow,
+                            ),
+                        ])
+                    }
+                }
+            }
+            other => self.update_core_rebuild(other),
+        }
+    }
+}

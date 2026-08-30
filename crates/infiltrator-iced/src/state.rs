@@ -188,3 +188,12 @@ pub struct AppState {
     pub capture_marker: Option<PathBuf>,
     pub capture_marker_written: std::sync::atomic::AtomicBool,
 }
+
+impl AppState {
+    /// Single choke point for `error_msg`: raw error chains can embed
+    /// subscription query tokens or the controller secret, so the text is
+    /// redacted here before any view can render it (CORE-001).
+    pub fn set_error(&mut self, source: impl std::fmt::Display) {
+        self.error_msg = Some(crate::utils::sanitize_ui_text(&source.to_string()));
+    }
+}

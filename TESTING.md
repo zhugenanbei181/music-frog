@@ -79,7 +79,25 @@ bash scripts/capture-iced.sh
 INFILTRATOR_CAPTURE_SCENARIOS=proxies-dark bash scripts/capture-iced.sh
 # iced 测试布局守卫（tests/{common,headless,gui} 约定）
 python3 scripts/quality/test-layout-guard.py
+# 业务源码行数红线（非注释 ≤800 行/文件；report 模式仅列违规清单）
+python3 scripts/quality/line-guard.py --mode report
 ```
+
+---
+
+## 源码行数红线（line budget）
+
+单个业务 `.rs` 文件的**非注释、非空行**不得超过 800 行。注释与空行不计入——
+"把代码挪进注释"属于违规而非整改。超限说明该文件承载了不止一个业务语义，
+必须按业务域拆分子模块（参照 2026-08-30：`iced update/core.rs` → `update/core/*`）。
+
+- **扫描范围**：`crates/*/src`、`src-tauri/src`；`tests/` 目录与 `*_test(s).rs`
+  挂载测试模块不在红线内（测试规模由评审约束，测试布局由 layout-guard 约束）。
+- **机械检查**：`python3 scripts/quality/line-guard.py --mode enforce`，CI 强制执行；
+  本地先用 `--mode report` 看违规清单。
+- **拆分规范**：按业务语义切子模块（如 lifecycle / proxy / dns / tun），
+  同一类型的 `impl` 块允许分布在多个文件；跨模块可见性用 `pub(crate)`/`pub(super)`
+  表达；**禁止**为拆分新增跨 crate `pub use` 转发层（见 ARCHITECTURE.md 导入规范）。
 
 ---
 

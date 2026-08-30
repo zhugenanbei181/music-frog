@@ -1,0 +1,555 @@
+//! DNS and Fake-IP advanced configuration: the form drafts and their JSON
+//! editor twins, the quick-edit DNS/fallback server lists, persistence and
+//! the Fake-IP cache flush.
+
+use crate::state::AppState;
+use crate::types::{
+    AdvancedEditMode, DnsFormDraft, EditorLazyState, FakeIpFormDraft, InfiltratorError, Message,
+    RebuildFlowState, ToastStatus,
+};
+use iced::Task;
+
+impl AppState {
+    pub(super) fn ensure_dns_editor_loaded(&mut self) {
+        if self.dns_editor_state == EditorLazyState::Loaded
+            && self.dns_json_content.text() == self.dns_json_cache
+        {
+            return;
+        }
+        let start = std::time::Instant::now();
+        self.dns_json_content = iced::widget::text_editor::Content::with_text(&self.dns_json_cache);
+        self.dns_editor_state = EditorLazyState::Loaded;
+        self.perf_snapshot.dns_with_text_apply_ms = start.elapsed().as_millis();
+    }
+
+    pub(super) fn ensure_fake_ip_editor_loaded(&mut self) {
+        if self.fake_ip_editor_state == EditorLazyState::Loaded
+            && self.fake_ip_json_content.text() == self.fake_ip_json_cache
+        {
+            return;
+        }
+        let start = std::time::Instant::now();
+        self.fake_ip_json_content =
+            iced::widget::text_editor::Content::with_text(&self.fake_ip_json_cache);
+        self.fake_ip_editor_state = EditorLazyState::Loaded;
+        self.perf_snapshot.dns_with_text_apply_ms = start.elapsed().as_millis();
+    }
+
+    pub(super) fn apply_dns_form_from_config(
+        &mut self,
+        config: &infiltrator_core::dns::DnsConfig,
+    ) {
+        self.dns_form = DnsFormDraft {
+            enable: config.enable.unwrap_or(false),
+            nameserver: Self::join_list_field(&config.nameserver),
+            fallback: Self::join_list_field(&config.fallback),
+            enhanced_mode: config
+                .enhanced_mode
+                .clone()
+                .unwrap_or_else(|| "fake-ip".to_string()),
+            fake_ip_range: config.fake_ip_range.clone().unwrap_or_default(),
+            fake_ip_filter: Self::join_list_field(&config.fake_ip_filter),
+            ipv6: config.ipv6.unwrap_or(false),
+            cache: config.cache.unwrap_or(false),
+            use_hosts: config.use_hosts.unwrap_or(false),
+            use_system_hosts: config.use_system_hosts.unwrap_or(false),
+            respect_rules: config.respect_rules.unwrap_or(false),
+            proxy_server_nameserver: Self::join_list_field(&config.proxy_server_nameserver),
+            direct_nameserver: Self::join_list_field(&config.direct_nameserver),
+        };
+    }
+
+    pub(super) fn apply_fake_ip_form_from_config(
+        &mut self,
+        config: &infiltrator_core::fake_ip::FakeIpConfig,
+    ) {
+        self.fake_ip_form = FakeIpFormDraft {
+            fake_ip_range: config.fake_ip_range.clone().unwrap_or_default(),
+            fake_ip_filter: Self::join_list_field(&config.fake_ip_filter),
+            store_fake_ip: config.store_fake_ip.unwrap_or(false),
+        };
+    }
+
+    fn dns_patch_from_form(
+        &self,
+    ) -> Result<infiltrator_core::dns::DnsConfigPatch, InfiltratorError> {
+        let enhanced_mode = self.dns_form.enhanced_mode.trim().to_ascii_lowercase();
+        if !enhanced_mode.is_empty() && enhanced_mode != "fake-ip" && enhanced_mode != "redir-host"
+        {
+            return Err(InfiltratorError::Config(
+                "enhanced_mode must be fake-ip or redir-host".to_string(),
+            ));
+        }
+
+        let fake_ip_range = self.dns_form.fake_ip_range.trim();
+        Ok(infiltrator_core::dns::DnsConfigPatch {
+            enable: Some(self.dns_form.enable),
+            nameserver: Some(Self::split_list_field(&self.dns_form.nameserver)),
+            fallback: Some(Self::split_list_field(&self.dns_form.fallback)),
+            enhanced_mode: if enhanced_mode.is_empty() {
+                None
+            } else {
+                Some(enhanced_mode)
+            },
+            fake_ip_range: if fake_ip_range.is_empty() {
+                None
+            } else {
+                Some(fake_ip_range.to_string())
+            },
+            fake_ip_filter: Some(Self::split_list_field(&self.dns_form.fake_ip_filter)),
+            ipv6: Some(self.dns_form.ipv6),
+            cache: Some(self.dns_form.cache),
+            use_hosts: Some(self.dns_form.use_hosts),
+            use_system_hosts: Some(self.dns_form.use_system_hosts),
+            respect_rules: Some(self.dns_form.respect_rules),
+            proxy_server_nameserver: Some(Self::split_list_field(
+                &self.dns_form.proxy_server_nameserver,
+            )),
+            direct_nameserver: Some(Self::split_list_field(&self.dns_form.direct_nameserver)),
+            ..infiltrator_core::dns::DnsConfigPatch::default()
+        })
+    }
+
+    fn fake_ip_patch_from_form(
+        &self,
+    ) -> Result<infiltrator_core::fake_ip::FakeIpConfigPatch, InfiltratorError> {
+        let fake_ip_range = self.fake_ip_form.fake_ip_range.trim();
+        Ok(infiltrator_core::fake_ip::FakeIpConfigPatch {
+            fake_ip_range: if fake_ip_range.is_empty() {
+                None
+            } else {
+                Some(fake_ip_range.to_string())
+            },
+            fake_ip_filter: Some(Self::split_list_field(&self.fake_ip_form.fake_ip_filter)),
+            store_fake_ip: Some(self.fake_ip_form.store_fake_ip),
+        })
+    }
+
+    fn sync_dns_json_from_form(&mut self) -> Result<(), InfiltratorError> {
+        let patch = self.dns_patch_from_form()?;
+        self.dns_json_cache = serde_json::to_string_pretty(&patch)
+            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+        if self.dns_editor_state == EditorLazyState::Loaded && !self.dns_json_dirty {
+            self.ensure_dns_editor_loaded();
+        }
+        Ok(())
+    }
+
+    fn sync_fake_ip_json_from_form(&mut self) -> Result<(), InfiltratorError> {
+        let patch = self.fake_ip_patch_from_form()?;
+        self.fake_ip_json_cache = serde_json::to_string_pretty(&patch)
+            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+        if self.fake_ip_editor_state == EditorLazyState::Loaded && !self.fake_ip_json_dirty {
+            self.ensure_fake_ip_editor_loaded();
+        }
+        Ok(())
+    }
+
+    fn mark_dns_form_dirty_and_sync(&mut self) {
+        self.dns_form_dirty = true;
+        match self.sync_dns_json_from_form() {
+            Ok(_) => self.advanced_validation.dns = None,
+            Err(e) => self.advanced_validation.dns = Some(Self::map_advanced_error_message(&e)),
+        }
+    }
+
+    fn mark_fake_ip_form_dirty_and_sync(&mut self) {
+        self.fake_ip_form_dirty = true;
+        match self.sync_fake_ip_json_from_form() {
+            Ok(_) => self.advanced_validation.fake_ip = None,
+            Err(e) => {
+                self.advanced_validation.fake_ip = Some(Self::map_advanced_error_message(&e))
+            }
+        }
+    }
+
+    /// DNS and Fake-IP advanced config editing and persistence. Unmatched
+    /// messages fall through to the next domain in the `update_core` chain.
+    pub(super) fn update_core_dns_config(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::RefreshDnsOnly => Task::perform(
+                async {
+                    let config = infiltrator_core::dns::load_dns_config()
+                        .await
+                        .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                    serde_json::to_string_pretty(&config)
+                        .map_err(|e| InfiltratorError::Config(e.to_string()))
+                },
+                Message::DnsConfigJsonLoaded,
+            ),
+            Message::RefreshFakeIpOnly => Task::perform(
+                async {
+                    let config = infiltrator_core::fake_ip::load_fake_ip_config()
+                        .await
+                        .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                    serde_json::to_string_pretty(&config)
+                        .map_err(|e| InfiltratorError::Config(e.to_string()))
+                },
+                Message::FakeIpConfigJsonLoaded,
+            ),
+            Message::EnsureDnsEditorLoaded => {
+                self.ensure_dns_editor_loaded();
+                Task::none()
+            }
+            Message::EnsureFakeIpEditorLoaded => {
+                self.ensure_fake_ip_editor_loaded();
+                Task::none()
+            }
+            Message::DnsConfigJsonLoaded(result) => {
+                match result {
+                    Ok(json) => {
+                        match serde_json::from_str::<infiltrator_core::dns::DnsConfig>(&json) {
+                            Ok(config) => {
+                                self.advanced_configs_loaded_once = true;
+                                self.dns_json_cache = json;
+                                self.apply_dns_form_from_config(&config);
+                                if self.dns_editor_state == EditorLazyState::Loaded {
+                                    self.ensure_dns_editor_loaded();
+                                }
+                                self.dns_json_dirty = false;
+                                self.dns_form_dirty = false;
+                                self.advanced_validation.dns = None;
+                            }
+                            Err(e) => {
+                                self.set_error(&e);
+                            }
+                        }
+                    }
+                    Err(e) => self.set_error(&e),
+                }
+                Task::none()
+            }
+            Message::FakeIpConfigJsonLoaded(result) => {
+                match result {
+                    Ok(json) => {
+                        match serde_json::from_str::<infiltrator_core::fake_ip::FakeIpConfig>(&json)
+                        {
+                            Ok(config) => {
+                                self.advanced_configs_loaded_once = true;
+                                self.fake_ip_json_cache = json;
+                                self.apply_fake_ip_form_from_config(&config);
+                                if self.fake_ip_editor_state == EditorLazyState::Loaded {
+                                    self.ensure_fake_ip_editor_loaded();
+                                }
+                                self.fake_ip_json_dirty = false;
+                                self.fake_ip_form_dirty = false;
+                                self.advanced_validation.fake_ip = None;
+                            }
+                            Err(e) => {
+                                self.set_error(&e);
+                            }
+                        }
+                    }
+                    Err(e) => self.set_error(&e),
+                }
+                Task::none()
+            }
+            Message::UpdateDnsFormEnable(value) => {
+                self.dns_form.enable = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormNameserver(value) => {
+                self.dns_form.nameserver = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormFallback(value) => {
+                self.dns_form.fallback = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormEnhancedMode(value) => {
+                self.dns_form.enhanced_mode = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormFakeIpRange(value) => {
+                self.dns_form.fake_ip_range = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormFakeIpFilter(value) => {
+                self.dns_form.fake_ip_filter = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormIpv6(value) => {
+                self.dns_form.ipv6 = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormCache(value) => {
+                self.dns_form.cache = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormUseHosts(value) => {
+                self.dns_form.use_hosts = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormUseSystemHosts(value) => {
+                self.dns_form.use_system_hosts = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormRespectRules(value) => {
+                self.dns_form.respect_rules = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormProxyServerNameserver(value) => {
+                self.dns_form.proxy_server_nameserver = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormDirectNameserver(value) => {
+                self.dns_form.direct_nameserver = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateFakeIpFormRange(value) => {
+                self.fake_ip_form.fake_ip_range = value;
+                self.mark_fake_ip_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateFakeIpFormFilter(value) => {
+                self.fake_ip_form.fake_ip_filter = value;
+                self.mark_fake_ip_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateFakeIpFormStore(value) => {
+                self.fake_ip_form.store_fake_ip = value;
+                self.mark_fake_ip_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::DnsConfigEditorAction(action) => {
+                self.ensure_dns_editor_loaded();
+                self.dns_json_content.perform(action);
+                self.dns_json_cache = self.dns_json_content.text();
+                self.dns_json_dirty = true;
+                self.advanced_validation.dns = None;
+                Task::none()
+            }
+            Message::FakeIpConfigEditorAction(action) => {
+                self.ensure_fake_ip_editor_loaded();
+                self.fake_ip_json_content.perform(action);
+                self.fake_ip_json_cache = self.fake_ip_json_content.text();
+                self.fake_ip_json_dirty = true;
+                self.advanced_validation.fake_ip = None;
+                Task::none()
+            }
+            Message::UpdateDnsServer(index, server) => {
+                if let Some(target) = self.dns_nameservers.get_mut(index) {
+                    *target = server;
+                }
+                Task::none()
+            }
+            Message::UpdateDnsEnhancedMode(mode) => {
+                self.dns_enhanced_mode = mode;
+                Task::none()
+            }
+            Message::AddDnsServer => {
+                self.dns_nameservers.push(String::new());
+                Task::none()
+            }
+            Message::AddDnsServerTemplate(server) => {
+                self.dns_nameservers.push(server);
+                Task::none()
+            }
+            Message::RemoveDnsServer(index) => {
+                if self.dns_nameservers.len() > index {
+                    self.dns_nameservers.remove(index);
+                }
+                Task::none()
+            }
+            Message::UpdateFallbackDnsServer(index, value) => {
+                if let Some(server) = self.dns_fallback_servers.get_mut(index) {
+                    *server = value;
+                }
+                Task::none()
+            }
+            Message::AddFallbackDnsServer => {
+                self.dns_fallback_servers.push(String::new());
+                Task::none()
+            }
+            Message::RemoveFallbackDnsServer(index) => {
+                if self.dns_fallback_servers.len() > index {
+                    self.dns_fallback_servers.remove(index);
+                }
+                Task::none()
+            }
+            Message::SaveDns => {
+                self.is_saving_dns = true;
+                self.begin_save_phase("DNS");
+                let patch = if self.dns_mode == AdvancedEditMode::Form {
+                    self.dns_patch_from_form()
+                } else {
+                    self.ensure_dns_editor_loaded();
+                    let text = self.dns_json_content.text();
+                    self.dns_json_cache = text.clone();
+                    serde_json::from_str::<infiltrator_core::dns::DnsConfigPatch>(&text)
+                        .map_err(|e| InfiltratorError::Config(format!("Invalid DNS JSON: {}", e)))
+                };
+                let patch = match patch {
+                    Ok(value) => value,
+                    Err(error) => {
+                        self.is_saving_dns = false;
+                        let mapped = Self::map_advanced_error_message(&error);
+                        self.advanced_validation.dns = Some(mapped.clone());
+                        self.rebuild_flow = RebuildFlowState::Failed {
+                            label: "DNS".to_string(),
+                            error: mapped.clone(),
+                        };
+                        self.set_error(&mapped);
+                        return Task::batch(vec![
+                            Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
+                            Task::perform(
+                                async {
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                },
+                                |_| Message::ClearRebuildFlow,
+                            ),
+                        ]);
+                    }
+                };
+                Task::perform(
+                    async move {
+                        infiltrator_core::dns::save_dns_config(patch)
+                            .await
+                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        Ok(())
+                    },
+                    Message::DnsSaved,
+                )
+            }
+            Message::DnsSaved(result) => {
+                self.is_saving_dns = false;
+                match result {
+                    Ok(_) => {
+                        self.dns_form_dirty = false;
+                        self.dns_json_dirty = false;
+                        self.advanced_validation.dns = None;
+                        Task::batch(vec![
+                            Task::done(Message::RefreshDnsOnly),
+                            self.trigger_runtime_rebuild(),
+                        ])
+                    }
+                    Err(e) => {
+                        let mapped = Self::map_advanced_error_message(&e);
+                        self.advanced_validation.dns = Some(mapped.clone());
+                        self.rebuild_flow = RebuildFlowState::Failed {
+                            label: "DNS".to_string(),
+                            error: mapped.clone(),
+                        };
+                        self.set_error(&mapped);
+                        Task::batch(vec![
+                            Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
+                            Task::perform(
+                                async {
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                },
+                                |_| Message::ClearRebuildFlow,
+                            ),
+                        ])
+                    }
+                }
+            }
+            Message::SaveFakeIpConfig => {
+                self.is_saving_fake_ip = true;
+                self.begin_save_phase("Fake-IP");
+                let patch = if self.fake_ip_mode == AdvancedEditMode::Form {
+                    self.fake_ip_patch_from_form()
+                } else {
+                    self.ensure_fake_ip_editor_loaded();
+                    let text = self.fake_ip_json_content.text();
+                    self.fake_ip_json_cache = text.clone();
+                    serde_json::from_str::<infiltrator_core::fake_ip::FakeIpConfigPatch>(&text)
+                        .map_err(|e| {
+                            InfiltratorError::Config(format!("Invalid Fake-IP JSON: {}", e))
+                        })
+                };
+                let patch = match patch {
+                    Ok(value) => value,
+                    Err(error) => {
+                        self.is_saving_fake_ip = false;
+                        let mapped = Self::map_advanced_error_message(&error);
+                        self.advanced_validation.fake_ip = Some(mapped.clone());
+                        self.rebuild_flow = RebuildFlowState::Failed {
+                            label: "Fake-IP".to_string(),
+                            error: mapped.clone(),
+                        };
+                        self.set_error(&mapped);
+                        return Task::batch(vec![
+                            Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
+                            Task::perform(
+                                async {
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                },
+                                |_| Message::ClearRebuildFlow,
+                            ),
+                        ]);
+                    }
+                };
+                Task::perform(
+                    async move {
+                        infiltrator_core::fake_ip::save_fake_ip_config(patch)
+                            .await
+                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        Ok(())
+                    },
+                    Message::FakeIpConfigSaved,
+                )
+            }
+            Message::FakeIpConfigSaved(result) => {
+                self.is_saving_fake_ip = false;
+                match result {
+                    Ok(_) => {
+                        self.fake_ip_form_dirty = false;
+                        self.fake_ip_json_dirty = false;
+                        self.advanced_validation.fake_ip = None;
+                        Task::batch(vec![
+                            Task::done(Message::RefreshFakeIpOnly),
+                            self.trigger_runtime_rebuild(),
+                        ])
+                    }
+                    Err(e) => {
+                        let mapped = Self::map_advanced_error_message(&e);
+                        self.advanced_validation.fake_ip = Some(mapped.clone());
+                        self.rebuild_flow = RebuildFlowState::Failed {
+                            label: "Fake-IP".to_string(),
+                            error: mapped.clone(),
+                        };
+                        self.set_error(&mapped);
+                        Task::batch(vec![
+                            Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
+                            Task::perform(
+                                async {
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                },
+                                |_| Message::ClearRebuildFlow,
+                            ),
+                        ])
+                    }
+                }
+            }
+            Message::FlushFakeIpCache => {
+                if let Some(rt) = self.runtime.clone() {
+                    Task::perform(
+                        async move {
+                            rt.client()
+                                .flush_fakeip_cache()
+                                .await
+                                .map_err(InfiltratorError::from)
+                        },
+                        Message::OperationResult,
+                    )
+                } else {
+                    Task::none()
+                }
+            }
+            other => self.update_core_tun_config(other),
+        }
+    }
+}

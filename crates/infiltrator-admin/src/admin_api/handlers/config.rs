@@ -1,0 +1,146 @@
+//! Static config read-write endpoints for the generated mihomo config:
+//! DNS, fake-ip, rule/proxy providers, sniffer, rules, and TUN
+//! (`/admin/api/dns`, `/admin/api/fake-ip`, `/admin/api/*-providers`,
+//! `/admin/api/sniffer`, `/admin/api/rules`, `/admin/api/tun`).
+
+use axum::{Json, extract::State as AxumState};
+use infiltrator_core::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
+
+use crate::admin_api::events::{
+    AdminEvent, EVENT_DNS_CHANGED, EVENT_FAKE_IP_CHANGED, EVENT_PROXY_PROVIDERS_CHANGED,
+    EVENT_RULE_PROVIDERS_CHANGED, EVENT_RULES_CHANGED, EVENT_SNIFFER_CHANGED, EVENT_TUN_CHANGED,
+};
+use crate::admin_api::models::*;
+use crate::admin_api::state::{AdminApiContext, AdminApiState};
+
+use super::schedule_rebuild;
+
+pub async fn get_dns_config_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<dns::DnsConfig>, ApiError> {
+    let config = dns::load_dns_config().await?;
+    Ok(Json(config))
+}
+
+pub async fn save_dns_config_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<dns::DnsConfigPatch>,
+) -> Result<Json<dns::DnsConfig>, ApiError> {
+    let config = dns::save_dns_config(payload).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "dns-update");
+    state.events.publish(AdminEvent::new(EVENT_DNS_CHANGED));
+    Ok(Json(config))
+}
+
+pub async fn get_fake_ip_config_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<fake_ip::FakeIpConfig>, ApiError> {
+    let config = fake_ip::load_fake_ip_config().await?;
+    Ok(Json(config))
+}
+
+pub async fn save_fake_ip_config_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<fake_ip::FakeIpConfigPatch>,
+) -> Result<Json<fake_ip::FakeIpConfig>, ApiError> {
+    let config = fake_ip::save_fake_ip_config(payload).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "fake-ip-update");
+    state.events.publish(AdminEvent::new(EVENT_FAKE_IP_CHANGED));
+    Ok(Json(config))
+}
+
+pub async fn flush_fake_ip_cache_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<CacheFlushResponse>, ApiError> {
+    let removed = fake_ip::clear_fake_ip_cache().await?;
+    Ok(Json(CacheFlushResponse { removed }))
+}
+
+pub async fn get_rule_providers_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<rules::RuleProvidersPayload>, ApiError> {
+    let providers = rules::load_rule_providers().await?;
+    Ok(Json(rules::RuleProvidersPayload { providers }))
+}
+
+pub async fn save_rule_providers_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<rules::RuleProvidersPayload>,
+) -> Result<Json<rules::RuleProvidersPayload>, ApiError> {
+    let providers = rules::save_rule_providers(payload.providers).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "rule-providers-update");
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_RULE_PROVIDERS_CHANGED));
+    Ok(Json(rules::RuleProvidersPayload { providers }))
+}
+
+pub async fn get_proxy_providers_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<proxy_providers::ProxyProvidersPayload>, ApiError> {
+    let providers = proxy_providers::load_proxy_providers().await?;
+    Ok(Json(proxy_providers::ProxyProvidersPayload { providers }))
+}
+
+pub async fn save_proxy_providers_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<proxy_providers::ProxyProvidersPayload>,
+) -> Result<Json<proxy_providers::ProxyProvidersPayload>, ApiError> {
+    let providers = proxy_providers::save_proxy_providers(payload.providers).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "proxy-providers-update");
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_PROXY_PROVIDERS_CHANGED));
+    Ok(Json(proxy_providers::ProxyProvidersPayload { providers }))
+}
+
+pub async fn get_sniffer_config_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let config = sniffer::load_sniffer_config().await?;
+    Ok(Json(config))
+}
+
+pub async fn save_sniffer_config_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let config = sniffer::save_sniffer_config(payload).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "sniffer-update");
+    state.events.publish(AdminEvent::new(EVENT_SNIFFER_CHANGED));
+    Ok(Json(config))
+}
+
+pub async fn get_rules_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<rules::RulesPayload>, ApiError> {
+    let rules_list = rules::load_rules().await?;
+    Ok(Json(rules::RulesPayload { rules: rules_list }))
+}
+
+pub async fn save_rules_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<rules::RulesPayload>,
+) -> Result<Json<rules::RulesPayload>, ApiError> {
+    let rules_list = rules::save_rules(payload.rules).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "rules-update");
+    state.events.publish(AdminEvent::new(EVENT_RULES_CHANGED));
+    Ok(Json(rules::RulesPayload { rules: rules_list }))
+}
+
+pub async fn get_tun_config_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<tun::TunConfig>, ApiError> {
+    let config = tun::load_tun_config().await?;
+    Ok(Json(config))
+}
+
+pub async fn save_tun_config_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<tun::TunConfigPatch>,
+) -> Result<Json<tun::TunConfig>, ApiError> {
+    let config = tun::save_tun_config(payload).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "tun-update");
+    state.events.publish(AdminEvent::new(EVENT_TUN_CHANGED));
+    Ok(Json(config))
+}

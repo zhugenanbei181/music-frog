@@ -303,3 +303,22 @@ fn test_i18n_fallback() {
         "Should fallback to ZH for unsupported locales"
     );
 }
+
+#[test]
+fn test_error_and_toast_redaction() {
+    let (mut state, _) = AppState::new();
+
+    // set_error is the only writer of error_msg and must redact secrets.
+    state.set_error("update failed: https://sub.example.com/d?token=tok1234");
+    let error = state.error_msg.clone().expect("error stored");
+    assert!(error.contains("token=***"), "redacted error: {error}");
+    assert!(!error.contains("tok1234"), "raw token leaked: {error}");
+
+    // Every toast funnels through Message::ShowToast and is redacted there.
+    let _ = state.update(Message::ShowToast(
+        "secret: supersecret42".into(),
+        crate::types::ToastStatus::Error,
+    ));
+    let (content, _) = state.toasts[0].clone();
+    assert_eq!(content, "secret: ***");
+}

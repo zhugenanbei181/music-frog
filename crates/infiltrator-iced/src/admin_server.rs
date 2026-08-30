@@ -795,7 +795,7 @@ impl AppState {
                     self.status = crate::types::RuntimeStatus::Error(InfiltratorError::Config(
                         e.clone(),
                     ));
-                    self.error_msg = Some(InfiltratorError::Config(e).to_string());
+                    self.set_error(InfiltratorError::Config(e));
                     Task::none()
                 }
             },
