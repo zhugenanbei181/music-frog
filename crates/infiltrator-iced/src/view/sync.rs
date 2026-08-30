@@ -1,7 +1,5 @@
 use crate::locales::{Lang, Localizer};
-use crate::view::components::{
-    card, modern_scrollable, section_header, status_dot, toggle_switch,
-};
+use crate::view::components::{card, modern_scrollable, section_header, status_dot, toggle_switch};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, R_CONTROL, SP_LG, tokens};
 use crate::{AppState, Message};
 use iced::widget::{Space, button, column, container, row, text, text_input};
@@ -15,9 +13,13 @@ fn style_accent(t: &Theme, status: button::Status) -> button::Style {
     let tk = tokens(t);
     let (bg, fg) = match status {
         button::Status::Disabled => (tk.accent_soft, tk.accent),
-        button::Status::Hovered | button::Status::Pressed => {
-            (Color { a: 0.85, ..tk.accent }, tk.on_accent)
-        }
+        button::Status::Hovered | button::Status::Pressed => (
+            Color {
+                a: 0.85,
+                ..tk.accent
+            },
+            tk.on_accent,
+        ),
         _ => (tk.accent, tk.on_accent),
     };
     button::Style {
@@ -81,7 +83,10 @@ fn input_style(t: &Theme, status: text_input::Status) -> text_input::Style {
         icon: tk.text_tertiary,
         placeholder: tk.text_tertiary,
         value: tk.text_primary,
-        selection: Color { a: 0.25, ..tk.accent },
+        selection: Color {
+            a: 0.25,
+            ..tk.accent
+        },
     }
 }
 
@@ -100,11 +105,9 @@ fn toggle_row<'a>(
     on_change: impl Fn(bool) -> Message + 'a,
 ) -> Element<'a, Message> {
     row![
-        text(label)
-            .size(13)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
+        text(label).size(13).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary),
+        }),
         Space::new().width(Length::Fill),
         toggle_switch(value, on_change),
     ]
@@ -114,7 +117,7 @@ fn toggle_row<'a>(
 }
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
-    let lang = Lang(&state.lang);
+    let lang = Lang(&state.shell.lang);
 
     let header = text(lang.tr("sync_title").to_string())
         .size(24)
@@ -123,7 +126,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             color: Some(tokens(t).text_primary),
         });
 
-    let save_settings_btn: Element<'_, Message> = if state.is_saving_app_settings {
+    let save_settings_btn: Element<'_, Message> = if state.profile.is_saving_app_settings {
         text_btn("Saving...".to_string(), style_ghost, None)
     } else {
         text_btn(
@@ -137,12 +140,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let status_section = card(
         None,
         row![
-            status_dot(state.is_syncing || state.webdav_enabled),
+            status_dot(state.profile.is_syncing || state.profile.webdav_enabled),
             Space::new().width(theme::SP_MD),
             column![
-                text(if state.is_syncing {
+                text(if state.profile.is_syncing {
                     "Syncing...".to_string()
-                } else if state.webdav_enabled {
+                } else if state.profile.webdav_enabled {
                     "WebDAV auto sync enabled".to_string()
                 } else {
                     "WebDAV auto sync disabled".to_string()
@@ -152,7 +155,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_primary),
                 }),
-                text(if state.webdav_sync_on_startup {
+                text(if state.profile.webdav_sync_on_startup {
                     "Syncs on startup".to_string()
                 } else {
                     "Manual sync only".to_string()
@@ -164,7 +167,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             ]
             .spacing(2),
             Space::new().width(Length::Fill),
-            text(format!("{} min", state.webdav_sync_interval_mins))
+            text(format!("{} min", state.profile.webdav_sync_interval_mins))
                 .size(12)
                 .font(theme::MONO)
                 .style(|t: &Theme| text::Style {
@@ -179,14 +182,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         column![
             toggle_row(
                 "Enable WebDAV auto sync".to_string(),
-                state.webdav_enabled,
+                state.profile.webdav_enabled,
                 Message::UpdateWebDavEnabled,
             ),
             Space::new().height(theme::SP_MD),
             column![
                 field_label(lang.tr("sync_url").to_string()),
                 Space::new().height(theme::SP_XS),
-                text_input("https://dav.example.com", &state.webdav_url)
+                text_input("https://dav.example.com", &state.profile.webdav_url)
                     .on_input(Message::UpdateWebDavUrl)
                     .padding([8, 12])
                     .size(13)
@@ -198,7 +201,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 column![
                     field_label(lang.tr("sync_user").to_string()),
                     Space::new().height(theme::SP_XS),
-                    text_input(lang.tr("sync_user").as_ref(), &state.webdav_user)
+                    text_input(lang.tr("sync_user").as_ref(), &state.profile.webdav_user)
                         .on_input(Message::UpdateWebDavUser)
                         .padding([8, 12])
                         .size(13)
@@ -210,7 +213,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 column![
                     field_label(lang.tr("sync_pass").to_string()),
                     Space::new().height(theme::SP_XS),
-                    text_input(lang.tr("sync_pass").as_ref(), &state.webdav_pass)
+                    text_input(lang.tr("sync_pass").as_ref(), &state.profile.webdav_pass)
                         .on_input(Message::UpdateWebDavPass)
                         .padding([8, 12])
                         .size(13)
@@ -225,7 +228,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 column![
                     field_label("Sync Interval (mins)".to_string()),
                     Space::new().height(theme::SP_XS),
-                    text_input("60", &state.webdav_sync_interval_mins)
+                    text_input("60", &state.profile.webdav_sync_interval_mins)
                         .on_input(Message::UpdateWebDavSyncInterval)
                         .padding([8, 12])
                         .size(13)
@@ -240,7 +243,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     Space::new().height(theme::SP_XS),
                     toggle_row(
                         "Sync on startup".to_string(),
-                        state.webdav_sync_on_startup,
+                        state.profile.webdav_sync_on_startup,
                         Message::UpdateWebDavSyncOnStartup,
                     ),
                 ]

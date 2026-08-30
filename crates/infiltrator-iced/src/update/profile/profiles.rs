@@ -10,11 +10,13 @@ impl AppState {
     pub(super) fn update_profiles(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::LoadProfiles => {
-                self.is_loading_profiles = true;
+                self.profile.is_loading_profiles = true;
                 Task::perform(
                     async {
-                        let cm = ConfigManager::new()
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
+                        let cm =
+                            ConfigManager::new().map_err(|e: mihomo_api::error::MihomoError| {
+                                InfiltratorError::from(e)
+                            })?;
                         cm.list_profiles()
                             .await
                             .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))
@@ -23,10 +25,10 @@ impl AppState {
                 )
             }
             Message::ProfilesLoaded(result) => {
-                self.is_loading_profiles = false;
+                self.profile.is_loading_profiles = false;
                 match result {
                     Ok(profiles) => {
-                        self.profiles = profiles;
+                        self.profile.profiles = profiles;
                         self.sync_subscription_editor();
                         Task::none()
                     }
@@ -37,12 +39,12 @@ impl AppState {
                 }
             }
             Message::UpdateProfilesFilter(filter) => {
-                self.profiles_filter = filter;
+                self.profile.profiles_filter = filter;
                 Task::none()
             }
             Message::ClearProfiles => {
-                self.error_msg = None;
-                self.is_loading_profiles = true;
+                self.shell.error_msg = None;
+                self.profile.is_loading_profiles = true;
                 Task::perform(
                     async {
                         infiltrator_core::profiles::reset_profiles_to_default()
@@ -54,11 +56,11 @@ impl AppState {
                 )
             }
             Message::ProfilesCleared(result) => {
-                self.is_loading_profiles = false;
+                self.profile.is_loading_profiles = false;
                 match result {
                     Ok(_) => {
                         self.invalidate_rules_dns_views();
-                        self.profiles_filter.clear();
+                        self.profile.profiles_filter.clear();
                         Task::batch(vec![
                             Task::done(Message::LoadProfiles),
                             Task::done(Message::StartProxy),
@@ -75,26 +77,29 @@ impl AppState {
                 }
             }
             Message::SetActiveProfile(name) => {
-                self.error_msg = None;
+                self.shell.error_msg = None;
                 self.invalidate_rules_dns_views();
-                let runtime = self.runtime.clone();
+                let runtime = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
-                        let cm = ConfigManager::new()
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
-                        let previous = cm
-                            .get_current()
-                            .await
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
-                        cm.set_current(&name)
-                            .await
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
+                        let cm =
+                            ConfigManager::new().map_err(|e: mihomo_api::error::MihomoError| {
+                                InfiltratorError::from(e)
+                            })?;
+                        let previous = cm.get_current().await.map_err(
+                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                        )?;
+                        cm.set_current(&name).await.map_err(
+                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                        )?;
                         if let Some(rt) = runtime {
                             // Core is live: run the CORE-004 transaction so
                             // the switch actually reaches mihomo, with a
                             // readiness check and rollback on failure.
                             if let Err(e) = rt
-                                .apply_current_config(infiltrator_core::apply::ApplyStrategy::AlwaysRestart)
+                                .apply_current_config(
+                                    infiltrator_core::apply::ApplyStrategy::AlwaysRestart,
+                                )
                                 .await
                             {
                                 let _ = cm.set_current(&previous).await;

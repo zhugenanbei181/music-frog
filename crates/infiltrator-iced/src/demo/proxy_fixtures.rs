@@ -53,11 +53,7 @@ pub(super) fn demo_proxy_tables() -> ProxyTables {
         vec![N_HK1, N_DMIT, N_HK2, N_SG, N_JP, N_US, N_ZGO],
     );
     insert_group(G_DIRECT, "DIRECT", vec!["DIRECT", N_HK1, N_DMIT]);
-    insert_group(
-        G_CAMPUS,
-        "DIRECT",
-        vec!["DIRECT", "REJECT", N_HK2, N_DMIT],
-    );
+    insert_group(G_CAMPUS, "DIRECT", vec!["DIRECT", "REJECT", N_HK2, N_DMIT]);
     insert_group(G_AI, N_US, vec![N_US, N_SG, N_JP, N_DMIT]);
     insert_group(G_GAME, N_JP, vec![N_JP, N_HK1, N_HK2, N_US]);
     insert_group(

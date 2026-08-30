@@ -7,15 +7,15 @@ impl AppState {
     pub fn update_ui(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Navigate(route) => {
-                let route_changed = self.current_route != route;
+                let route_changed = self.shell.current_route != route;
                 if route_changed {
                     // 记录旧页面并启动计时器
-                    self.transition.previous_route = Some(self.current_route);
-                    self.transition.start_time = Some(Instant::now());
-                    self.last_frame_time = Instant::now();
-                    self.perf_nav_started_at = Some(Instant::now());
-                    self.perf_nav_route = Some(route);
-                    self.current_route = route;
+                    self.shell.transition.previous_route = Some(self.shell.current_route);
+                    self.shell.transition.start_time = Some(Instant::now());
+                    self.diag.last_frame_time = Instant::now();
+                    self.diag.perf_nav_started_at = Some(Instant::now());
+                    self.diag.perf_nav_route = Some(route);
+                    self.shell.current_route = route;
                 }
 
                 let mut tasks = vec![];
@@ -28,50 +28,52 @@ impl AppState {
                 if route == Route::Runtime {
                     tasks.push(Task::done(Message::RefreshRuntimeNow));
                 }
-                if route == Route::Rules && !self.rules_loaded_once {
+                if route == Route::Rules && !self.editor.rules_loaded_once {
                     tasks.push(Task::done(Message::LoadRules));
                 }
-                if route == Route::Dns && !self.advanced_configs_loaded_once {
+                if route == Route::Dns && !self.editor.advanced_configs_loaded_once {
                     tasks.push(Task::done(Message::LoadAdvancedConfigs));
                 }
                 if route == Route::Rules && route_changed {
-                    self.rules_heavy_ready = false;
+                    self.editor.rules_heavy_ready = false;
                     tasks.push(Task::done(Message::ActivateRulesHeavyView));
                 }
                 if route == Route::Dns && route_changed {
-                    self.dns_heavy_ready = false;
+                    self.editor.dns_heavy_ready = false;
                     tasks.push(Task::done(Message::ActivateDnsHeavyView));
                 }
                 Task::batch(tasks)
             }
             Message::TickFrame(now) => {
                 let delta = now
-                    .saturating_duration_since(self.last_frame_time)
+                    .saturating_duration_since(self.diag.last_frame_time)
                     .as_secs_f32();
                 if delta > 0.0 && delta <= 0.5 {
-                    self.fps = (1.0 / delta).round().clamp(1.0, 240.0) as u32;
+                    self.diag.fps = (1.0 / delta).round().clamp(1.0, 240.0) as u32;
                 }
-                self.last_frame_time = now;
+                self.diag.last_frame_time = now;
 
-                if let (Some(start), Some(route)) = (self.perf_nav_started_at, self.perf_nav_route)
-                    && route == self.current_route {
-                        self.perf_snapshot.navigate_to_first_paint_ms =
-                            Some(now.saturating_duration_since(start).as_millis());
-                        self.perf_nav_started_at = None;
-                        self.perf_nav_route = None;
-                    }
+                if let (Some(start), Some(route)) =
+                    (self.diag.perf_nav_started_at, self.diag.perf_nav_route)
+                    && route == self.shell.current_route
+                {
+                    self.diag.perf_snapshot.navigate_to_first_paint_ms =
+                        Some(now.saturating_duration_since(start).as_millis());
+                    self.diag.perf_nav_started_at = None;
+                    self.diag.perf_nav_route = None;
+                }
 
-                if let Some(start) = self.transition.start_time {
+                if let Some(start) = self.shell.transition.start_time {
                     // 动画结束清理
-                    if now.duration_since(start) >= self.transition.duration {
-                        self.transition.previous_route = None;
-                        self.transition.start_time = None;
+                    if now.duration_since(start) >= self.shell.transition.duration {
+                        self.shell.transition.previous_route = None;
+                        self.shell.transition.start_time = None;
                     }
                 }
                 Task::none()
             }
             Message::ToggleTheme => {
-                self.theme = if self.theme == Theme::Dark {
+                self.shell.theme = if self.shell.theme == Theme::Dark {
                     Theme::Light
                 } else {
                     Theme::Dark
@@ -79,15 +81,15 @@ impl AppState {
                 Task::none()
             }
             Message::TogglePerfPanel => {
-                self.perf_panel_visible = !self.perf_panel_visible;
+                self.diag.perf_panel_visible = !self.diag.perf_panel_visible;
                 Task::none()
             }
             Message::WindowClosed(id) => {
-                let current_route = self.current_route;
+                let current_route = self.shell.current_route;
                 window::close(id).map(move |_: ()| Message::Navigate(current_route))
             }
             Message::HideWindow => {
-                let current_route = self.current_route;
+                let current_route = self.shell.current_route;
                 window::latest().then(move |id| {
                     if let Some(id) = id {
                         window::close(id).map(move |_: ()| Message::Navigate(current_route))
@@ -111,7 +113,7 @@ impl AppState {
             Message::Exit => {
                 // Release the admin web server and the shared runtime snapshot
                 // before the loop unwinds.
-                self.admin_server.shutdown();
+                self.shell.admin_server.shutdown();
                 let rt = self.take_app_runtime();
                 Task::perform(
                     async move {
@@ -132,8 +134,10 @@ impl AppState {
                 // updates, reqwest failures) that can embed access tokens;
                 // redact here — the one ingestion point for every toast —
                 // before anything reaches the screen (CORE-001).
-                self.toasts.push((crate::utils::sanitize_ui_text(&content), status));
-                let index = self.toasts.len() - 1;
+                self.shell
+                    .toasts
+                    .push((crate::utils::sanitize_ui_text(&content), status));
+                let index = self.shell.toasts.len() - 1;
                 Task::perform(
                     async move {
                         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
@@ -143,13 +147,13 @@ impl AppState {
                 )
             }
             Message::RemoveToast(index) => {
-                if index < self.toasts.len() {
-                    self.toasts.remove(index);
+                if index < self.shell.toasts.len() {
+                    self.shell.toasts.remove(index);
                 }
                 Task::none()
             }
             Message::SetSystemProxy(enabled) => {
-                self.system_proxy_enabled = enabled;
+                self.runtime.system_proxy_enabled = enabled;
                 self.refresh_tray();
                 Task::perform(
                     async move {
@@ -167,7 +171,7 @@ impl AppState {
             Message::SystemProxySet(result) => match result {
                 Ok(_) => Task::none(),
                 Err(e) => {
-                    self.system_proxy_enabled = !self.system_proxy_enabled;
+                    self.runtime.system_proxy_enabled = !self.runtime.system_proxy_enabled;
                     self.refresh_tray();
                     self.set_error(&e);
                     Task::none()
@@ -191,7 +195,7 @@ impl AppState {
                 #[cfg(not(target_os = "windows"))]
                 {
                     use crate::locales::{Lang, Localizer};
-                    let lang = Lang(&self.lang);
+                    let lang = Lang(&self.shell.lang);
                     Task::done(Message::ShowToast(
                         lang.tr("settings_uac_unsupported").to_string(),
                         crate::types::ToastStatus::Warning,

@@ -10,16 +10,16 @@ impl AppState {
         let sidebar = view::sidebar::sidebar(self);
 
         // 声明式动画进度计算
-        let progress = if let Some(start) = self.transition.start_time {
+        let progress = if let Some(start) = self.shell.transition.start_time {
             let elapsed = Instant::now().duration_since(start).as_millis() as f32;
-            let duration = self.transition.duration.as_millis() as f32;
+            let duration = self.shell.transition.duration.as_millis() as f32;
             (elapsed / duration).clamp(0.0, 1.0)
         } else {
             1.0
         };
 
         // 核心性能优化：不再同时渲染两个页面。转场时只渲染新页面并做淡入。
-        let main_content = container(match self.current_route {
+        let main_content = container(match self.shell.current_route {
             Route::Overview => view::overview::view(self),
             Route::Profiles => view::profiles::view(self),
             Route::Proxies => view::proxies::view(self),
@@ -49,9 +49,9 @@ impl AppState {
 
         let mut layers: Vec<Element<Message>> = vec![main_view.into()];
 
-        if !self.toasts.is_empty() {
+        if !self.shell.toasts.is_empty() {
             let mut toast_column = column![].spacing(10);
-            for (content, status) in &self.toasts {
+            for (content, status) in &self.shell.toasts {
                 let color = move |theme: &Theme| {
                     let tokens = crate::view::theme::tokens(theme);
                     match status {
@@ -92,35 +92,33 @@ impl AppState {
             );
         }
 
-        if !matches!(self.rebuild_flow, RebuildFlowState::Idle) {
-            let (title, detail, color): (&str, &str, fn(&Theme) -> Color) = match &self.rebuild_flow
-            {
-                RebuildFlowState::Saving { label } => (
-                    "Saving configuration",
-                    label.as_str(),
-                    |theme: &Theme| crate::view::theme::tokens(theme).accent,
-                ),
-                RebuildFlowState::Rebuilding { label } => (
-                    "Rebuilding runtime",
-                    label.as_str(),
-                    |theme: &Theme| crate::view::theme::tokens(theme).warning,
-                ),
-                RebuildFlowState::Done { label } => (
-                    "Completed",
-                    label.as_str(),
-                    |theme: &Theme| crate::view::theme::tokens(theme).success,
-                ),
-                RebuildFlowState::Failed { label, .. } => (
-                    "Failed",
-                    label.as_str(),
-                    |theme: &Theme| crate::view::theme::tokens(theme).danger,
-                ),
-                RebuildFlowState::Idle => (
-                    "",
-                    "",
-                    |theme: &Theme| crate::view::theme::tokens(theme).overlay_text,
-                ),
-            };
+        if !matches!(self.runtime.rebuild_flow, RebuildFlowState::Idle) {
+            let (title, detail, color): (&str, &str, fn(&Theme) -> Color) =
+                match &self.runtime.rebuild_flow {
+                    RebuildFlowState::Saving { label } => {
+                        ("Saving configuration", label.as_str(), |theme: &Theme| {
+                            crate::view::theme::tokens(theme).accent
+                        })
+                    }
+                    RebuildFlowState::Rebuilding { label } => {
+                        ("Rebuilding runtime", label.as_str(), |theme: &Theme| {
+                            crate::view::theme::tokens(theme).warning
+                        })
+                    }
+                    RebuildFlowState::Done { label } => {
+                        ("Completed", label.as_str(), |theme: &Theme| {
+                            crate::view::theme::tokens(theme).success
+                        })
+                    }
+                    RebuildFlowState::Failed { label, .. } => {
+                        ("Failed", label.as_str(), |theme: &Theme| {
+                            crate::view::theme::tokens(theme).danger
+                        })
+                    }
+                    RebuildFlowState::Idle => ("", "", |theme: &Theme| {
+                        crate::view::theme::tokens(theme).overlay_text
+                    }),
+                };
 
             layers.push(
                 container(
@@ -128,9 +126,7 @@ impl AppState {
                         column![
                             text(title).size(14),
                             text(detail).size(12).style(|theme: &Theme| text::Style {
-                                color: Some(
-                                    crate::view::theme::tokens(theme).overlay_text_muted,
-                                )
+                                color: Some(crate::view::theme::tokens(theme).overlay_text_muted,)
                             })
                         ]
                         .spacing(4),
@@ -162,10 +158,10 @@ impl AppState {
         // FPS 诊断 HUD (调试用)。ui-fix: 默认隐藏 —— perf_panel_visible 现在
         // 同时控制 "0 FPS / Perf" 徽标与性能快照面板（此前徽标无条件渲染，
         // 出现在每张截图右上角）。Message::TogglePerfPanel 仍负责切换。
-        if self.perf_panel_visible {
+        if self.diag.perf_panel_visible {
             let fps_counter = container(
                 row![
-                    text(format!("{} FPS", self.fps))
+                    text(format!("{} FPS", self.diag.fps))
                         .size(10)
                         .style(|theme: &Theme| text::Style {
                             color: Some(crate::view::theme::tokens(theme).text_tertiary),
@@ -189,7 +185,7 @@ impl AppState {
             );
         }
 
-        if self.perf_panel_visible {
+        if self.diag.perf_panel_visible {
             layers.push(
                 container(
                     container(
@@ -197,27 +193,27 @@ impl AppState {
                             text("Performance Snapshot").size(13),
                             text(format!(
                                 "Navigate->FirstPaint: {:?}",
-                                self.perf_snapshot.navigate_to_first_paint_ms
+                                self.diag.perf_snapshot.navigate_to_first_paint_ms
                             ))
                             .size(11),
                             text(format!(
                                 "Rules cache build: {} ms",
-                                self.perf_snapshot.rules_cache_build_ms
+                                self.diag.perf_snapshot.rules_cache_build_ms
                             ))
                             .size(11),
                             text(format!(
                                 "Rules editor apply: {} ms",
-                                self.perf_snapshot.rules_with_text_apply_ms
+                                self.diag.perf_snapshot.rules_with_text_apply_ms
                             ))
                             .size(11),
                             text(format!(
                                 "DNS editor apply: {} ms",
-                                self.perf_snapshot.dns_with_text_apply_ms
+                                self.diag.perf_snapshot.dns_with_text_apply_ms
                             ))
                             .size(11),
                             text(format!(
                                 "Rules visible rows: {}",
-                                self.perf_snapshot.rules_visible_rows
+                                self.diag.perf_snapshot.rules_visible_rows
                             ))
                             .size(11),
                         ]
@@ -254,7 +250,7 @@ impl AppState {
 
         // demo-mode: emit the capture marker only after the first real view
         // pass for the requested page (write-once; see demo.rs).
-        if self.demo {
+        if self.shell.demo {
             self.write_capture_marker();
         }
 

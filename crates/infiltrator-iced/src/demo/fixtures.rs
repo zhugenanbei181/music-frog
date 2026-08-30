@@ -84,46 +84,142 @@ pub(super) fn demo_connections() -> ConnectionSnapshot {
         u64,
     );
     let rows: [DemoRow; 10] = [
-        ("www.google.com", "443", "DomainSuffix", "google.com", "节点选择", "香港 IEPL-01", 48_234_112, 2_097_152),
-        ("api.openai.com", "443", "DomainSuffix", "openai.com", "AI 服务", "美国 CN2", 12_884_901, 6_291_456),
-        ("www.youtube.com", "443", "DomainKeyword", "youtube", "节点选择", "香港 IEPL-01", 335_544_320, 15_728_640),
-        ("github.com", "443", "DomainSuffix", "github.com", "节点选择", "DMIT", 22_020_096, 4_194_304),
-        ("cdn.jsdelivr.net", "443", "DomainSuffix", "jsdelivr.net", "节点选择", "香港 IEPL-02", 8_388_608, 1_572_864),
-        ("mail.qq.com", "443", "DomainSuffix", "qq.com", "全球直连", "DIRECT", 6_291_456, 2_621_440),
-        ("www.bilibili.com", "443", "GeoIP", "CN", "全球直连", "DIRECT", 18_874_368, 3_355_443),
-        ("store.steampowered.com", "443", "DomainSuffix", "steamcontent.com", "游戏平台", "日本 NTT", 96_468_992, 8_388_608),
-        ("chat.openai.com", "443", "DomainSuffix", "openai.com", "AI 服务", "新加坡 BGP", 5_242_880, 1_048_576),
-        ("v2ex.com", "443", "Match", "漏网之鱼", "节点选择", "香港 IEPL-01", 3_145_728, 786_432),
+        (
+            "www.google.com",
+            "443",
+            "DomainSuffix",
+            "google.com",
+            "节点选择",
+            "香港 IEPL-01",
+            48_234_112,
+            2_097_152,
+        ),
+        (
+            "api.openai.com",
+            "443",
+            "DomainSuffix",
+            "openai.com",
+            "AI 服务",
+            "美国 CN2",
+            12_884_901,
+            6_291_456,
+        ),
+        (
+            "www.youtube.com",
+            "443",
+            "DomainKeyword",
+            "youtube",
+            "节点选择",
+            "香港 IEPL-01",
+            335_544_320,
+            15_728_640,
+        ),
+        (
+            "github.com",
+            "443",
+            "DomainSuffix",
+            "github.com",
+            "节点选择",
+            "DMIT",
+            22_020_096,
+            4_194_304,
+        ),
+        (
+            "cdn.jsdelivr.net",
+            "443",
+            "DomainSuffix",
+            "jsdelivr.net",
+            "节点选择",
+            "香港 IEPL-02",
+            8_388_608,
+            1_572_864,
+        ),
+        (
+            "mail.qq.com",
+            "443",
+            "DomainSuffix",
+            "qq.com",
+            "全球直连",
+            "DIRECT",
+            6_291_456,
+            2_621_440,
+        ),
+        (
+            "www.bilibili.com",
+            "443",
+            "GeoIP",
+            "CN",
+            "全球直连",
+            "DIRECT",
+            18_874_368,
+            3_355_443,
+        ),
+        (
+            "store.steampowered.com",
+            "443",
+            "DomainSuffix",
+            "steamcontent.com",
+            "游戏平台",
+            "日本 NTT",
+            96_468_992,
+            8_388_608,
+        ),
+        (
+            "chat.openai.com",
+            "443",
+            "DomainSuffix",
+            "openai.com",
+            "AI 服务",
+            "新加坡 BGP",
+            5_242_880,
+            1_048_576,
+        ),
+        (
+            "v2ex.com",
+            "443",
+            "Match",
+            "漏网之鱼",
+            "节点选择",
+            "香港 IEPL-01",
+            3_145_728,
+            786_432,
+        ),
     ];
 
     let connections = rows
         .iter()
         .enumerate()
-        .map(|(i, (host, port, rule, payload, chain, node, download, upload))| Connection {
-            id: format!("demo-conn-{i:03}"),
-            metadata: ConnectionMetadata {
-                network: if i % 4 == 3 { "udp" } else { "tcp" }.to_string(),
-                connection_type: if i % 4 == 3 { "UDP" } else { "TLS" }.to_string(),
-                source_ip: "192.168.1.23".to_string(),
-                destination_ip: format!("203.0.113.{}", 10 + i),
-                source_port: format!("{}", 52_100 + i * 7),
-                destination_port: port.to_string(),
-                host: host.to_string(),
-                dns_mode: "fake-ip".to_string(),
-                process_path: if i % 3 == 0 {
-                    "/usr/bin/chromium".to_string()
-                } else {
-                    String::new()
+        .map(
+            |(i, (host, port, rule, payload, chain, node, download, upload))| Connection {
+                id: format!("demo-conn-{i:03}"),
+                metadata: ConnectionMetadata {
+                    network: if i % 4 == 3 { "udp" } else { "tcp" }.to_string(),
+                    connection_type: if i % 4 == 3 { "UDP" } else { "TLS" }.to_string(),
+                    source_ip: "192.168.1.23".to_string(),
+                    destination_ip: format!("203.0.113.{}", 10 + i),
+                    source_port: format!("{}", 52_100 + i * 7),
+                    destination_port: port.to_string(),
+                    host: host.to_string(),
+                    dns_mode: "fake-ip".to_string(),
+                    process_path: if i % 3 == 0 {
+                        "/usr/bin/chromium".to_string()
+                    } else {
+                        String::new()
+                    },
+                    special_proxy: String::new(),
                 },
-                special_proxy: String::new(),
+                upload: *upload,
+                download: *download,
+                start: format!(
+                    "2026-08-29T15:{:02}:{:02}.000000+08:00",
+                    20 + i,
+                    (i * 7) % 60
+                ),
+                rule: rule.to_string(),
+                rule_payload: payload.to_string(),
+                chains: vec![node.to_string(), chain.to_string()],
             },
-            upload: *upload,
-            download: *download,
-            start: format!("2026-08-29T15:{:02}:{:02}.000000+08:00", 20 + i, (i * 7) % 60),
-            rule: rule.to_string(),
-            rule_payload: payload.to_string(),
-            chains: vec![node.to_string(), chain.to_string()],
-        })
+        )
         .collect();
 
     ConnectionSnapshot {

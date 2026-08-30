@@ -10,14 +10,14 @@
 use crate::locales::{Lang, Localizer};
 use crate::types::Route;
 use crate::view::components::{
-    badge, card_surface, icon_button, nav_button, segmented_control, stat_card, toggle_switch,
-    BadgeKind,
+    BadgeKind, badge, card_surface, icon_button, nav_button, segmented_control, stat_card,
+    toggle_switch,
 };
-use crate::view::svg_icons::{icon_themed, Icon};
+use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CARD, R_CONTROL};
 use crate::{AppState, Message};
-use iced::widget::{button, column, container, row, Space, text};
-use iced::{border, Alignment, Border, Color, Element, Length, Theme};
+use iced::widget::{Space, button, column, container, row, text};
+use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 
 /// Sidebar width (~260–280 band) so every card wraps gracefully.
 const SIDEBAR_WIDTH: f32 = 272.0;
@@ -26,7 +26,7 @@ const SIDEBAR_WIDTH: f32 = 272.0;
 const MODE_IDS: [&str; 3] = ["rule", "global", "direct"];
 
 pub fn sidebar(state: &AppState) -> Element<'_, Message> {
-    let lang = Lang(&state.lang);
+    let lang = Lang(&state.shell.lang);
 
     let content = column![
         header(state),
@@ -40,17 +40,17 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
         nav_button(
             lang.tr("nav_overview").into_owned(),
             Route::Overview,
-            &state.current_route
+            &state.shell.current_route
         ),
         nav_button(
             lang.tr("nav_sync").into_owned(),
             Route::Sync,
-            &state.current_route
+            &state.shell.current_route
         ),
         nav_button(
             lang.tr("nav_settings").into_owned(),
             Route::Settings,
-            &state.current_route
+            &state.shell.current_route
         ),
         Space::new().height(Length::Fill),
         version_footer(),
@@ -74,27 +74,32 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
 
 /// Logo mark in an accent tile + app name, with the settings gear at right.
 fn header(_state: &AppState) -> Element<'_, Message> {
-    let logo_tile = container(icon_themed(Icon::Server, 20.0, |t| theme::tokens(t).on_accent))
-        .width(36)
-        .height(36)
-        .align_x(Alignment::Center)
-        .align_y(Alignment::Center)
-        .style(|t: &Theme| container::Style {
-            background: Some(theme::tokens(t).accent.into()),
-            border: Border {
-                radius: border::Radius::from(R_CONTROL),
-                ..Default::default()
-            },
+    let logo_tile = container(icon_themed(Icon::Server, 20.0, |t| {
+        theme::tokens(t).on_accent
+    }))
+    .width(36)
+    .height(36)
+    .align_x(Alignment::Center)
+    .align_y(Alignment::Center)
+    .style(|t: &Theme| container::Style {
+        background: Some(theme::tokens(t).accent.into()),
+        border: Border {
+            radius: border::Radius::from(R_CONTROL),
             ..Default::default()
-        });
+        },
+        ..Default::default()
+    });
 
     row![
         logo_tile,
         Space::new().width(theme::SP_MD),
         column![
-            text("MusicFrog").size(15).font(FONT_SEMIBOLD).style(
-                |t: &Theme| text::Style { color: Some(theme::tokens(t).text_primary) }
-            ),
+            text("MusicFrog")
+                .size(15)
+                .font(FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(theme::tokens(t).text_primary)
+                }),
             text("Infiltrator").size(10).style(|t: &Theme| text::Style {
                 color: Some(theme::tokens(t).text_tertiary),
             }),
@@ -117,6 +122,7 @@ fn mode_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let labels: Vec<String> = keys.iter().map(|k| lang.tr(k).into_owned()).collect();
 
     let selected = state
+        .runtime
         .proxy_mode
         .as_deref()
         .and_then(|mode| MODE_IDS.iter().position(|id| *id == mode))
@@ -141,13 +147,13 @@ fn toggles<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let system_proxy = toggle_card(
         Icon::Wifi,
         short_label(&lang.tr("system_proxy")),
-        state.system_proxy_enabled,
+        state.runtime.system_proxy_enabled,
         Message::SetSystemProxy,
     );
     let tun = toggle_card(
         Icon::Zap,
         short_label(&lang.tr("tun_mode")),
-        state.tun_enabled.unwrap_or(false),
+        state.runtime.tun_enabled.unwrap_or(false),
         Message::SetTunEnabled,
     );
 
@@ -183,7 +189,9 @@ fn toggle_card<'a>(
             .width(Length::Fill),
             Space::new().height(theme::SP_SM),
             text(label).size(11).font(FONT_MEDIUM).style(|t: &Theme| {
-                text::Style { color: Some(theme::tokens(t).text_secondary) }
+                text::Style {
+                    color: Some(theme::tokens(t).text_secondary),
+                }
             }),
         ]
         .spacing(theme::SP_XS),
@@ -207,7 +215,7 @@ fn short_label(value: &str) -> String {
 /// Active profile name + optional 订阅 badge (only when the profile metadata
 /// carries a subscription URL — local profiles show no badge).
 fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let active = state.profiles.iter().find(|p| p.active);
+    let active = state.profile.profiles.iter().find(|p| p.active);
     let (name, is_subscription) = match active {
         Some(profile) => (profile.name.clone(), profile.subscription_url.is_some()),
         None => (lang.tr("no_profiles").into_owned(), false),
@@ -218,7 +226,9 @@ fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
             icon_themed(Icon::FileText, 16.0, |t| theme::tokens(t).accent),
             Space::new().width(theme::SP_SM),
             text(name).size(13).font(FONT_SEMIBOLD).style(|t: &Theme| {
-                text::Style { color: Some(theme::tokens(t).text_primary) }
+                text::Style {
+                    color: Some(theme::tokens(t).text_primary),
+                }
             }),
             Space::new().width(Length::Fill),
             icon_themed(Icon::ChevronRight, 14.0, |t| theme::tokens(t).text_tertiary),
@@ -244,8 +254,13 @@ fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
 
 /// 代理组 / 规则 shortcut cards (accent-outlined when their page is active).
 fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let tokens = theme::tokens(&state.theme);
-    let groups = state.proxies.values().filter(|p| p.is_group()).count();
+    let tokens = theme::tokens(&state.shell.theme);
+    let groups = state
+        .runtime
+        .proxies
+        .values()
+        .filter(|p| p.is_group())
+        .count();
 
     let proxies = wrap_clickable(
         stat_card(
@@ -253,7 +268,7 @@ fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
             &lang.tr("proxy_groups"),
             &groups.to_string(),
             tokens.accent,
-            state.current_route == Route::Proxies,
+            state.shell.current_route == Route::Proxies,
         ),
         Message::Navigate(Route::Proxies),
     );
@@ -261,9 +276,9 @@ fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         stat_card(
             Icon::Shield,
             &lang.tr("nav_rules"),
-            &state.rules.len().to_string(),
+            &state.editor.rules.len().to_string(),
             tokens.accent,
-            state.current_route == Route::Rules,
+            state.shell.current_route == Route::Rules,
         ),
         Message::Navigate(Route::Rules),
     );
@@ -277,17 +292,18 @@ fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
 /// 连接 (runtime) and DNS compact cards — the two destinations not already
 /// offered by the cards above.
 fn compact_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let tokens = theme::tokens(&state.theme);
+    let tokens = theme::tokens(&state.shell.theme);
 
     let connections = state
+        .diag
         .connections
         .as_ref()
         .map(|snapshot| snapshot.connections.len().to_string())
         .unwrap_or_else(|| "—".to_string());
-    let nameservers = if state.dns_nameservers.is_empty() {
+    let nameservers = if state.editor.dns_nameservers.is_empty() {
         "—".to_string()
     } else {
-        state.dns_nameservers.len().to_string()
+        state.editor.dns_nameservers.len().to_string()
     };
 
     let runtime = wrap_clickable(
@@ -296,7 +312,7 @@ fn compact_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
             &lang.tr("nav_runtime"),
             &connections,
             tokens.accent,
-            state.current_route == Route::Runtime,
+            state.shell.current_route == Route::Runtime,
         ),
         Message::Navigate(Route::Runtime),
     );
@@ -306,7 +322,7 @@ fn compact_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
             &lang.tr("nav_dns"),
             &nameservers,
             tokens.accent,
-            state.current_route == Route::Dns,
+            state.shell.current_route == Route::Dns,
         ),
         Message::Navigate(Route::Dns),
     );
@@ -342,7 +358,7 @@ fn wrap_clickable<'a>(
 
 /// Live up/down rates from the existing traffic state, mono numerals.
 fn speed_footer<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let body: Element<'a, Message> = if let Some(traffic) = &state.traffic {
+    let body: Element<'a, Message> = if let Some(traffic) = &state.diag.traffic {
         row![
             speed_leg(Icon::ArrowUp, traffic.up, |t| theme::tokens(t).success),
             speed_leg(Icon::ArrowDown, traffic.down, |t| {
@@ -376,10 +392,15 @@ fn speed_leg<'a>(
     row![
         icon_themed(glyph, 12.0, color),
         Space::new().width(theme::SP_XS),
-        text(format!("{}/s", crate::utils::format_bytes(bytes_per_second)))
-            .size(12)
-            .font(MONO)
-            .style(move |t: &Theme| text::Style { color: Some(color(t)) }),
+        text(format!(
+            "{}/s",
+            crate::utils::format_bytes(bytes_per_second)
+        ))
+        .size(12)
+        .font(MONO)
+        .style(move |t: &Theme| text::Style {
+            color: Some(color(t))
+        }),
     ]
     .align_y(Alignment::Center)
     .width(Length::FillPortion(1))

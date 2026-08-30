@@ -136,9 +136,7 @@ pub fn icon<'a, Message>(name: Icon, size: f32, color: Color) -> Element<'a, Mes
     svg(icon_handle(name))
         .width(size)
         .height(size)
-        .style(move |_theme, _status| svg::Style {
-            color: Some(color),
-        })
+        .style(move |_theme, _status| svg::Style { color: Some(color) })
         .into()
 }
 

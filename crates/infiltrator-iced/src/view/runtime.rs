@@ -10,9 +10,7 @@ mod traffic;
 
 use crate::locales::{Lang, Localizer};
 use crate::types::RuntimeStatus;
-use crate::view::components::{
-    card, empty_state, icon_button, modern_scrollable, toggle_switch,
-};
+use crate::view::components::{card, empty_state, icon_button, modern_scrollable, toggle_switch};
 use crate::view::runtime::styles::{pick_style, style_accent, style_danger, style_ghost, text_btn};
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{self, FONT_SEMIBOLD, SP_LG, SP_MD, tokens};
@@ -35,10 +33,10 @@ impl std::fmt::Display for ModeOption {
 }
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
-    let lang = Lang(&state.lang);
+    let lang = Lang(&state.shell.lang);
 
     if !matches!(
-        state.status,
+        state.runtime.status,
         RuntimeStatus::Running | RuntimeStatus::Starting
     ) {
         return container(card(
@@ -81,9 +79,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ];
     let selected_mode = mode_options
         .iter()
-        .find(|option| Some(option.value) == state.proxy_mode.as_deref())
+        .find(|option| Some(option.value) == state.runtime.proxy_mode.as_deref())
         .cloned();
     let mut runtime_group_options: Vec<String> = state
+        .runtime
         .proxies
         .iter()
         .filter_map(|(name, proxy)| {
@@ -102,27 +101,28 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         let global = runtime_group_options.remove(index);
         runtime_group_options.insert(0, global);
     }
-    let selected_runtime_group = if state.runtime_selected_group.trim().is_empty() {
+    let selected_runtime_group = if state.runtime.runtime_selected_group.trim().is_empty() {
         None
     } else {
-        Some(&state.runtime_selected_group)
+        Some(&state.runtime.runtime_selected_group)
     };
     let runtime_proxy_options: Vec<String> = state
+        .runtime
         .proxies
-        .get(&state.runtime_selected_group)
+        .get(&state.runtime.runtime_selected_group)
         .and_then(|proxy| proxy.all())
         .map(|all| all.to_vec())
         .unwrap_or_default();
-    let selected_runtime_proxy = if state.runtime_selected_proxy.trim().is_empty() {
+    let selected_runtime_proxy = if state.runtime.runtime_selected_proxy.trim().is_empty() {
         None
     } else {
-        Some(&state.runtime_selected_proxy)
+        Some(&state.runtime.runtime_selected_proxy)
     };
 
     let runtime_action_btn: Element<'_, Message> =
-        if matches!(state.status, RuntimeStatus::Starting) {
+        if matches!(state.runtime.status, RuntimeStatus::Starting) {
             text_btn(lang.tr("status_starting").to_string(), style_ghost, None)
-        } else if matches!(state.status, RuntimeStatus::Running) {
+        } else if matches!(state.runtime.status, RuntimeStatus::Running) {
             text_btn(
                 lang.tr("stop_proxy").to_string(),
                 style_danger,
@@ -144,9 +144,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 color: Some(tokens(t).text_primary),
             }),
         Space::new().width(Length::Fill),
-        text(lang.tr("proxy_mode").to_string()).size(12).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
-        }),
+        text(lang.tr("proxy_mode").to_string())
+            .size(12)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
         Space::new().width(theme::SP_SM),
         pick_list(mode_options, selected_mode, |mode: ModeOption| {
             Message::SetProxyMode(mode.value.to_string())
@@ -155,11 +157,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .width(Length::Fixed(110.0))
         .style(pick_style),
         Space::new().width(theme::SP_LG),
-        text(lang.tr("runtime_auto_refresh").to_string()).size(12).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
-        }),
+        text(lang.tr("runtime_auto_refresh").to_string())
+            .size(12)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
         Space::new().width(theme::SP_SM),
-        toggle_switch(state.runtime_auto_refresh, Message::UpdateRuntimeAutoRefresh),
+        toggle_switch(
+            state.runtime.runtime_auto_refresh,
+            Message::UpdateRuntimeAutoRefresh
+        ),
         Space::new().width(theme::SP_SM),
         icon_button(Icon::RefreshCw, 16.0, Message::RefreshRuntimeNow),
         Space::new().width(theme::SP_SM),
@@ -167,8 +174,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .align_y(Alignment::Center);
 
-    let apply_proxy_enabled = !state.runtime_selected_group.trim().is_empty()
-        && !state.runtime_selected_proxy.trim().is_empty();
+    let apply_proxy_enabled = !state.runtime.runtime_selected_group.trim().is_empty()
+        && !state.runtime.runtime_selected_proxy.trim().is_empty();
     let apply_proxy_btn = text_btn(
         lang.tr("runtime_apply_proxy").to_string(),
         if apply_proxy_enabled {
@@ -183,9 +190,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         None,
         row![
             column![
-                text(lang.tr("runtime_proxy_group").to_string()).size(11).style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+                text(lang.tr("runtime_proxy_group").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary),
+                    }),
                 Space::new().height(theme::SP_XS),
                 pick_list(
                     runtime_group_options,
@@ -198,9 +207,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             ],
             Space::new().width(theme::SP_XL),
             column![
-                text(lang.tr("runtime_proxy_node").to_string()).size(11).style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+                text(lang.tr("runtime_proxy_node").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary),
+                    }),
                 Space::new().height(theme::SP_XS),
                 pick_list(
                     runtime_proxy_options,
@@ -220,10 +231,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let content = column![
         header,
         runtime_proxy_selector,
-        traffic::traffic_section(state, Lang(&state.lang)),
-        card(None, connections::connections_section(state, Lang(&state.lang))),
-        card(None, delay::delay_section(state, Lang(&state.lang))),
-        card(None, logs::logs_section(state, Lang(&state.lang))),
+        traffic::traffic_section(state, Lang(&state.shell.lang)),
+        card(
+            None,
+            connections::connections_section(state, Lang(&state.shell.lang))
+        ),
+        card(None, delay::delay_section(state, Lang(&state.shell.lang))),
+        card(None, logs::logs_section(state, Lang(&state.shell.lang))),
     ]
     .spacing(SP_LG);
 

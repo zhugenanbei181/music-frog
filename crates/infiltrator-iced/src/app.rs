@@ -15,11 +15,11 @@ use std::sync::{Arc, Mutex};
 
 impl AppState {
     pub fn title(&self) -> String {
-        Lang(&self.lang).tr("app_title").to_string()
+        Lang(&self.shell.lang).tr("app_title").to_string()
     }
 
     pub fn theme(&self) -> iced::Theme {
-        self.theme.clone()
+        self.shell.theme.clone()
     }
 
     /// Production defaults with no fixture data — the shared base for the
@@ -38,193 +38,203 @@ impl AppState {
         );
 
         Self {
-            current_route: Route::Overview,
-            runtime: None,
-            status: RuntimeStatus::Stopped,
-            error_msg: None,
-            profiles: Vec::new(),
-            profiles_filter: String::new(),
-            is_loading_profiles: false,
-            proxies: std::collections::HashMap::new(),
-            is_loading_proxies: false,
-            filtered_groups: Vec::new(),
-            transition: crate::types::Transition::default(),
-            proxy_filter: String::new(),
-            proxy_sort_by_delay: false,
-            proxy_delay_sort: "delay_asc".to_string(),
-            runtime_delay_test_url: "http://www.gstatic.com/generate_204".to_string(),
-            runtime_delay_timeout_ms: "5000".to_string(),
-            runtime_testing_delay_proxy: String::new(),
-            runtime_testing_all_delays: false,
-            runtime_selected_group: String::new(),
-            runtime_selected_proxy: String::new(),
-            runtime_connection_filter: String::new(),
-            runtime_connection_sort: "download_desc".to_string(),
-            traffic: None,
-            traffic_history: std::collections::VecDeque::new(),
-            runtime_prev_upload_total: None,
-            runtime_prev_download_total: None,
-            memory: None,
-            public_ip: None,
-            connections: None,
-            logs: std::collections::VecDeque::new(),
-            log_level: "info".to_string(),
-            runtime_auto_refresh: true,
-            runtime_poll_tick: 0,
-            lang: get_system_language(),
-            proxy_mode: None,
-            tun_enabled: None,
-            tun_stack: "gvisor".to_string(),
-            tun_auto_route: false,
-            tun_strict_route: false,
-            sniffer_enabled: false,
-            rules: Vec::new(),
-            rules_filter: String::new(),
-            is_loading_rules: false,
-            rules_loaded_once: false,
-            is_saving_rules: false,
-            rules_dirty: false,
-            rules_tab: RulesTab::RulesList,
-            rules_json_tab: RulesJsonTab::RuleProviders,
-            rules_page: 0,
-            rules_page_size: 200,
-            rules_providers_expanded: false,
-            rules_render_cache: Vec::new(),
-            rules_filtered_indices: Vec::new(),
-            rules_heavy_ready: true,
-            rule_providers_json_content: iced::widget::text_editor::Content::new(),
-            proxy_providers_json_content: iced::widget::text_editor::Content::new(),
-            sniffer_json_content: iced::widget::text_editor::Content::new(),
-            rule_providers_json_cache: "{}".to_string(),
-            proxy_providers_json_cache: "{}".to_string(),
-            sniffer_json_cache: "{}".to_string(),
-            rule_providers_editor_state: EditorLazyState::Unloaded,
-            proxy_providers_editor_state: EditorLazyState::Unloaded,
-            sniffer_editor_state: EditorLazyState::Unloaded,
-            rule_providers_json_dirty: false,
-            proxy_providers_json_dirty: false,
-            sniffer_json_dirty: false,
-            is_saving_rule_providers_json: false,
-            is_saving_proxy_providers_json: false,
-            is_saving_sniffer_json: false,
-            dns_json_content: iced::widget::text_editor::Content::new(),
-            fake_ip_json_content: iced::widget::text_editor::Content::new(),
-            tun_json_content: iced::widget::text_editor::Content::new(),
-            dns_json_cache: "{}".to_string(),
-            fake_ip_json_cache: "{}".to_string(),
-            tun_json_cache: "{}".to_string(),
-            dns_editor_state: EditorLazyState::Unloaded,
-            fake_ip_editor_state: EditorLazyState::Unloaded,
-            tun_editor_state: EditorLazyState::Unloaded,
-            dns_tab: DnsTab::Dns,
-            dns_mode: AdvancedEditMode::Form,
-            fake_ip_mode: AdvancedEditMode::Form,
-            tun_mode: AdvancedEditMode::Form,
-            dns_heavy_ready: true,
-            advanced_configs_loaded_once: false,
-            dns_json_dirty: false,
-            fake_ip_json_dirty: false,
-            tun_json_dirty: false,
-            dns_form: DnsFormDraft {
-                enhanced_mode: "fake-ip".to_string(),
-                ..DnsFormDraft::default()
+            runtime: crate::state::RuntimeState {
+                runtime: None,
+                status: RuntimeStatus::Stopped,
+                proxy_mode: None,
+                tun_enabled: None,
+                system_proxy_enabled: infiltrator_desktop::proxy::read_system_proxy_state()
+                    .map(|s| s.enabled)
+                    .unwrap_or(false),
+                autostart_enabled: autostart::is_autostart_enabled(crate::AUTOSTART_REG_NAME),
+                installed_kernels: Vec::new(),
+                latest_core_version: None,
+                download_progress: 0.0,
+                is_checking_update: false,
+                rebuild_flow: RebuildFlowState::Idle,
+                runtime_delay_test_url: "http://www.gstatic.com/generate_204".to_string(),
+                runtime_delay_timeout_ms: "5000".to_string(),
+                runtime_testing_delay_proxy: String::new(),
+                runtime_testing_all_delays: false,
+                runtime_selected_group: String::new(),
+                runtime_selected_proxy: String::new(),
+                runtime_connection_filter: String::new(),
+                runtime_connection_sort: "download_desc".to_string(),
+                runtime_auto_refresh: true,
+                runtime_poll_tick: 0,
+                runtime_prev_upload_total: None,
+                runtime_prev_download_total: None,
+                proxies: std::collections::HashMap::new(),
+                is_loading_proxies: false,
+                filtered_groups: Vec::new(),
+                proxy_filter: String::new(),
+                proxy_sort_by_delay: false,
+                proxy_delay_sort: "delay_asc".to_string(),
+                // ui-wave2-p: proxies page expand/collapse state starts pristine
+                // (None = view expands the first group by default).
+                proxy_groups_expanded: None,
             },
-            fake_ip_form: FakeIpFormDraft::default(),
-            tun_form: TunFormDraft {
-                stack: "gvisor".to_string(),
-                ..TunFormDraft::default()
+            profile: crate::state::ProfileState {
+                profiles: Vec::new(),
+                profiles_filter: String::new(),
+                is_loading_profiles: false,
+                import_url: String::new(),
+                import_name: String::new(),
+                import_activate: false,
+                is_importing: false,
+                local_import_path: String::new(),
+                local_import_name: String::new(),
+                local_import_activate: false,
+                is_importing_local: false,
+                subscription_profile_name: String::new(),
+                subscription_url: String::new(),
+                subscription_auto_update_enabled: false,
+                subscription_update_interval_hours: String::new(),
+                is_saving_subscription: false,
+                is_updating_subscription_now: false,
+                webdav_url: String::new(),
+                webdav_user: String::new(),
+                webdav_pass: String::new(),
+                webdav_enabled: false,
+                webdav_sync_interval_mins: "60".to_string(),
+                webdav_sync_on_startup: false,
+                is_syncing: false,
+                is_saving_app_settings: false,
             },
-            dns_form_dirty: false,
-            fake_ip_form_dirty: false,
-            tun_form_dirty: false,
-            advanced_validation: crate::types::AdvancedValidationState::default(),
-            new_rule_type: "DOMAIN".to_string(),
-            new_rule_payload: String::new(),
-            new_rule_target: "DIRECT".to_string(),
-            is_adding_rule: false,
-            proxy_providers: Vec::new(),
-            rule_providers: Vec::new(),
-            is_loading_providers: false,
-            tray_controller: None,
-            tray_events: None,
-            dns_nameservers: Vec::new(),
-            dns_fallback_servers: Vec::new(),
-            dns_enhanced_mode: "fake-ip".to_string(),
-            is_saving_dns: false,
-            is_saving_fake_ip: false,
-            is_saving_tun: false,
-            import_url: String::new(),
-            import_name: String::new(),
-            import_activate: false,
-            is_importing: false,
-            local_import_path: String::new(),
-            local_import_name: String::new(),
-            local_import_activate: false,
-            is_importing_local: false,
-            subscription_profile_name: String::new(),
-            subscription_url: String::new(),
-            subscription_auto_update_enabled: false,
-            subscription_update_interval_hours: String::new(),
-            is_saving_subscription: false,
-            is_updating_subscription_now: false,
-            webdav_url: String::new(),
-            webdav_user: String::new(),
-            webdav_pass: String::new(),
-            webdav_enabled: false,
-            webdav_sync_interval_mins: "60".to_string(),
-            webdav_sync_on_startup: false,
-            is_syncing: false,
-            is_saving_app_settings: false,
-            // Admin defaults mirror src-tauri (server on, port 25210); the
-            // real values are applied from settings in `SettingsLoaded`.
-            admin_enabled: true,
-            admin_port: crate::admin_server::ADMIN_DEFAULT_PORT,
-            admin_port_input: crate::admin_server::ADMIN_DEFAULT_PORT.to_string(),
-            admin_server: admin_server_manager,
-            admin_shared,
-            admin_commands: Some(Arc::new(Mutex::new(admin_command_rx))),
-            is_admin: {
-                #[cfg(windows)]
-                {
-                    is_elevated::is_elevated()
-                }
-                #[cfg(not(windows))]
-                {
-                    false
-                }
+            editor: crate::state::ConfigEditorState {
+                rules: Vec::new(),
+                rules_filter: String::new(),
+                is_loading_rules: false,
+                rules_loaded_once: false,
+                is_saving_rules: false,
+                rules_dirty: false,
+                rules_tab: RulesTab::RulesList,
+                rules_json_tab: RulesJsonTab::RuleProviders,
+                rules_page: 0,
+                rules_page_size: 200,
+                rules_providers_expanded: false,
+                rules_render_cache: Vec::new(),
+                rules_filtered_indices: Vec::new(),
+                rules_heavy_ready: true,
+                rule_providers_json_content: iced::widget::text_editor::Content::new(),
+                proxy_providers_json_content: iced::widget::text_editor::Content::new(),
+                sniffer_json_content: iced::widget::text_editor::Content::new(),
+                rule_providers_json_cache: "{}".to_string(),
+                proxy_providers_json_cache: "{}".to_string(),
+                sniffer_json_cache: "{}".to_string(),
+                rule_providers_editor_state: EditorLazyState::Unloaded,
+                proxy_providers_editor_state: EditorLazyState::Unloaded,
+                sniffer_editor_state: EditorLazyState::Unloaded,
+                rule_providers_json_dirty: false,
+                proxy_providers_json_dirty: false,
+                sniffer_json_dirty: false,
+                is_saving_rule_providers_json: false,
+                is_saving_proxy_providers_json: false,
+                is_saving_sniffer_json: false,
+                dns_json_content: iced::widget::text_editor::Content::new(),
+                fake_ip_json_content: iced::widget::text_editor::Content::new(),
+                tun_json_content: iced::widget::text_editor::Content::new(),
+                dns_json_cache: "{}".to_string(),
+                fake_ip_json_cache: "{}".to_string(),
+                tun_json_cache: "{}".to_string(),
+                dns_editor_state: EditorLazyState::Unloaded,
+                fake_ip_editor_state: EditorLazyState::Unloaded,
+                tun_editor_state: EditorLazyState::Unloaded,
+                dns_tab: DnsTab::Dns,
+                dns_mode: AdvancedEditMode::Form,
+                fake_ip_mode: AdvancedEditMode::Form,
+                tun_mode: AdvancedEditMode::Form,
+                dns_heavy_ready: true,
+                advanced_configs_loaded_once: false,
+                dns_json_dirty: false,
+                fake_ip_json_dirty: false,
+                tun_json_dirty: false,
+                dns_form: DnsFormDraft {
+                    enhanced_mode: "fake-ip".to_string(),
+                    ..DnsFormDraft::default()
+                },
+                fake_ip_form: FakeIpFormDraft::default(),
+                tun_form: TunFormDraft {
+                    stack: "gvisor".to_string(),
+                    ..TunFormDraft::default()
+                },
+                dns_form_dirty: false,
+                fake_ip_form_dirty: false,
+                tun_form_dirty: false,
+                advanced_validation: crate::types::AdvancedValidationState::default(),
+                new_rule_type: "DOMAIN".to_string(),
+                new_rule_payload: String::new(),
+                new_rule_target: "DIRECT".to_string(),
+                is_adding_rule: false,
+                proxy_providers: Vec::new(),
+                rule_providers: Vec::new(),
+                is_loading_providers: false,
+                dns_nameservers: Vec::new(),
+                dns_fallback_servers: Vec::new(),
+                dns_enhanced_mode: "fake-ip".to_string(),
+                is_saving_dns: false,
+                is_saving_fake_ip: false,
+                is_saving_tun: false,
+                tun_stack: "gvisor".to_string(),
+                tun_auto_route: false,
+                tun_strict_route: false,
+                sniffer_enabled: false,
+                editor_content: iced::widget::text_editor::Content::new(),
+                editor_path: None,
+                editor_path_setting: String::new(),
             },
-            system_proxy_enabled: infiltrator_desktop::proxy::read_system_proxy_state()
-                .map(|s| s.enabled)
-                .unwrap_or(false),
-            autostart_enabled: autostart::is_autostart_enabled(crate::AUTOSTART_REG_NAME),
-            installed_kernels: Vec::new(),
-            latest_core_version: None,
-            download_progress: 0.0,
-            is_checking_update: false,
-            last_task_id: 0,
-            toasts: Vec::new(),
-            rebuild_flow: RebuildFlowState::Idle,
-            theme: iced::Theme::Dark,
-            fps: 0,
-            last_frame_time: std::time::Instant::now(),
-            perf_snapshot: crate::types::PerfSnapshot::default(),
-            // ui-fix: the debug perf HUD (FPS badge + snapshot panel, rendered
-            // by view_root) starts hidden in production AND demo sessions;
-            // Message::TogglePerfPanel flips it back on.
-            perf_panel_visible: false,
-            perf_nav_started_at: None,
-            perf_nav_route: None,
-            editor_content: iced::widget::text_editor::Content::new(),
-            editor_path: None,
-            editor_path_setting: String::new(),
-            // ui-wave2-p: proxies page expand/collapse state starts pristine
-            // (None = view expands the first group by default).
-            proxy_groups_expanded: None,
-            // demo-mode: production default is a non-demo session with no
-            // capture marker (see demo.rs for the demo boot path).
-            demo: false,
-            capture_marker: None,
-            capture_marker_written: std::sync::atomic::AtomicBool::new(false),
+            diag: crate::state::DiagnosticsState {
+                traffic: None,
+                traffic_history: std::collections::VecDeque::new(),
+                memory: None,
+                public_ip: None,
+                connections: None,
+                logs: std::collections::VecDeque::new(),
+                log_level: "info".to_string(),
+                fps: 0,
+                last_frame_time: std::time::Instant::now(),
+                perf_snapshot: crate::types::PerfSnapshot::default(),
+                // ui-fix: the debug perf HUD (FPS badge + snapshot panel, rendered
+                // by view_root) starts hidden in production AND demo sessions;
+                // Message::TogglePerfPanel flips it back on.
+                perf_panel_visible: false,
+                perf_nav_started_at: None,
+                perf_nav_route: None,
+            },
+            shell: crate::state::ShellState {
+                current_route: Route::Overview,
+                transition: crate::types::Transition::default(),
+                error_msg: None,
+                lang: get_system_language(),
+                toasts: Vec::new(),
+                theme: iced::Theme::Dark,
+                tray_controller: None,
+                tray_events: None,
+                // Admin defaults mirror src-tauri (server on, port 25210); the
+                // real values are applied from settings in `SettingsLoaded`.
+                admin_enabled: true,
+                admin_port: crate::admin_server::ADMIN_DEFAULT_PORT,
+                admin_port_input: crate::admin_server::ADMIN_DEFAULT_PORT.to_string(),
+                admin_server: admin_server_manager,
+                admin_shared,
+                admin_commands: Some(Arc::new(Mutex::new(admin_command_rx))),
+                is_admin: {
+                    #[cfg(windows)]
+                    {
+                        is_elevated::is_elevated()
+                    }
+                    #[cfg(not(windows))]
+                    {
+                        false
+                    }
+                },
+                last_task_id: 0,
+                // demo-mode: production default is a non-demo session with no
+                // capture marker (see demo.rs for the demo boot path).
+                demo: false,
+                capture_marker: None,
+                capture_marker_written: std::sync::atomic::AtomicBool::new(false),
+            },
         }
     }
 
@@ -239,8 +249,8 @@ impl AppState {
         #[cfg(not(test))]
         match spawn_tray(state.current_tray_spec()) {
             TrayStartup::Ready { controller, events } => {
-                state.tray_controller = Some(controller);
-                state.tray_events = Some(Arc::new(Mutex::new(events)));
+                state.shell.tray_controller = Some(controller);
+                state.shell.tray_events = Some(Arc::new(Mutex::new(events)));
             }
             TrayStartup::Unavailable { reason } => {
                 eprintln!("system tray unavailable, continuing window-only: {reason}");

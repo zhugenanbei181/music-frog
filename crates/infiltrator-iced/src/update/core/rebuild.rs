@@ -4,14 +4,14 @@
 
 use crate::state::AppState;
 use crate::types::{InfiltratorError, Message, RebuildFlowState, RuntimeStatus, ToastStatus};
+use iced::Task;
 use infiltrator_desktop::runtime::MihomoRuntime;
 use mihomo_version::manager::VersionManager;
 use std::sync::Arc;
-use iced::Task;
 
 impl AppState {
     fn active_rebuild_label(&self) -> String {
-        match &self.rebuild_flow {
+        match &self.runtime.rebuild_flow {
             RebuildFlowState::Saving { label }
             | RebuildFlowState::Rebuilding { label }
             | RebuildFlowState::Done { label }
@@ -21,13 +21,13 @@ impl AppState {
     }
 
     pub(super) fn begin_save_phase(&mut self, label: &str) {
-        self.rebuild_flow = RebuildFlowState::Saving {
+        self.runtime.rebuild_flow = RebuildFlowState::Saving {
             label: label.to_string(),
         };
     }
 
     fn finish_without_rebuild(&mut self, label: String) -> Task<Message> {
-        self.rebuild_flow = RebuildFlowState::Done {
+        self.runtime.rebuild_flow = RebuildFlowState::Done {
             label: label.clone(),
         };
         Task::batch(vec![
@@ -50,16 +50,17 @@ impl AppState {
             return self.finish_without_rebuild(label);
         };
 
-        self.rebuild_flow = RebuildFlowState::Rebuilding {
+        self.runtime.rebuild_flow = RebuildFlowState::Rebuilding {
             label: label.clone(),
         };
-        self.status = RuntimeStatus::Starting;
+        self.runtime.status = RuntimeStatus::Starting;
 
         Task::perform(
             async move {
                 let _ = runtime.shutdown().await;
                 let vm = VersionManager::new().map_err(InfiltratorError::from)?;
-                let data_dir = mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
+                let data_dir =
+                    mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
                 let candidates = vec![];
                 let rebuilt = MihomoRuntime::bootstrap(&vm, true, &candidates, &data_dir)
                     .await
@@ -79,11 +80,11 @@ impl AppState {
                 match result {
                     Ok(runtime) => {
                         self.sync_runtime_slot(Some(runtime));
-                        self.status = RuntimeStatus::Running;
-                        self.runtime_poll_tick = 0;
-                        self.runtime_prev_upload_total = None;
-                        self.runtime_prev_download_total = None;
-                        self.rebuild_flow = RebuildFlowState::Done {
+                        self.runtime.status = RuntimeStatus::Running;
+                        self.runtime.runtime_poll_tick = 0;
+                        self.runtime.runtime_prev_upload_total = None;
+                        self.runtime.runtime_prev_download_total = None;
+                        self.runtime.rebuild_flow = RebuildFlowState::Done {
                             label: label.clone(),
                         };
                         Task::batch(vec![
@@ -103,9 +104,9 @@ impl AppState {
                         ])
                     }
                     Err(e) => {
-                        self.status = RuntimeStatus::Error(e.clone());
+                        self.runtime.status = RuntimeStatus::Error(e.clone());
                         self.set_error(&e);
-                        self.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
                             label,
                             error: e.to_string(),
                         };
@@ -125,7 +126,7 @@ impl AppState {
                 }
             }
             Message::ClearRebuildFlow => {
-                self.rebuild_flow = RebuildFlowState::Idle;
+                self.runtime.rebuild_flow = RebuildFlowState::Idle;
                 Task::none()
             }
             other => self.update_core_kernels(other),

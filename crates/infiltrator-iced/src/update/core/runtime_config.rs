@@ -11,7 +11,7 @@ impl AppState {
     pub(super) fn update_core_runtime_config(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::FetchRuntimeConfig => {
-                if let Some(rt) = self.runtime.clone() {
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             let config = rt
@@ -55,23 +55,23 @@ impl AppState {
             }
             Message::RuntimeConfigFetched(result) => {
                 if let Ok(config) = result {
-                    self.proxy_mode = Some(config.mode);
-                    self.tun_enabled = Some(config.tun_enabled);
-                    self.dns_nameservers = config.dns_nameservers;
-                    self.dns_fallback_servers = config.dns_fallback;
-                    self.dns_enhanced_mode = config.dns_enhanced_mode;
-                    self.tun_stack = config.tun_stack;
-                    self.tun_auto_route = config.tun_auto_route;
-                    self.tun_strict_route = config.tun_strict_route;
-                    self.sniffer_enabled = config.sniffer_enabled;
+                    self.runtime.proxy_mode = Some(config.mode);
+                    self.runtime.tun_enabled = Some(config.tun_enabled);
+                    self.editor.dns_nameservers = config.dns_nameservers;
+                    self.editor.dns_fallback_servers = config.dns_fallback;
+                    self.editor.dns_enhanced_mode = config.dns_enhanced_mode;
+                    self.editor.tun_stack = config.tun_stack;
+                    self.editor.tun_auto_route = config.tun_auto_route;
+                    self.editor.tun_strict_route = config.tun_strict_route;
+                    self.editor.sniffer_enabled = config.sniffer_enabled;
                     self.refresh_tray();
                 }
                 Task::none()
             }
             Message::SetProxyMode(mode) => {
-                self.proxy_mode = Some(mode.clone());
+                self.runtime.proxy_mode = Some(mode.clone());
                 self.refresh_tray();
-                if let Some(rt) = self.runtime.clone() {
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()
@@ -93,9 +93,9 @@ impl AppState {
                 }
             },
             Message::SetTunEnabled(enabled) => {
-                self.tun_enabled = Some(enabled);
+                self.runtime.tun_enabled = Some(enabled);
                 self.refresh_tray();
-                if let Some(rt) = self.runtime.clone() {
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()
@@ -110,8 +110,8 @@ impl AppState {
                 }
             }
             Message::SetTunStack(stack) => {
-                self.tun_stack = stack.clone();
-                if let Some(rt) = self.runtime.clone() {
+                self.editor.tun_stack = stack.clone();
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()
@@ -126,8 +126,8 @@ impl AppState {
                 }
             }
             Message::SetTunAutoRoute(enabled) => {
-                self.tun_auto_route = enabled;
-                if let Some(rt) = self.runtime.clone() {
+                self.editor.tun_auto_route = enabled;
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()
@@ -144,8 +144,8 @@ impl AppState {
                 }
             }
             Message::SetTunStrictRoute(enabled) => {
-                self.tun_strict_route = enabled;
-                if let Some(rt) = self.runtime.clone() {
+                self.editor.tun_strict_route = enabled;
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()
@@ -162,8 +162,8 @@ impl AppState {
                 }
             }
             Message::SetSnifferEnabled(enabled) => {
-                self.sniffer_enabled = enabled;
-                if let Some(rt) = self.runtime.clone() {
+                self.editor.sniffer_enabled = enabled;
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()

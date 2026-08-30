@@ -2,7 +2,7 @@
 //! `infiltrator_iced` API (integration harness, external-crate view).
 //! test-intent: behavior
 
-use crate::test_support::{demo_state, DEFAULT_WINDOW};
+use crate::test_support::{DEFAULT_WINDOW, demo_state};
 use infiltrator_iced::{Message, Route, RuntimeStatus};
 
 #[test]
@@ -10,23 +10,35 @@ fn demo_fixture_inventory_matches_the_demo_contract() {
     let state = demo_state();
 
     // Demo gate: fixture state, never a live runtime.
-    assert!(state.demo, "demo flag must be set");
-    assert!(state.runtime.is_none(), "demo mode must not own a runtime");
+    assert!(state.shell.demo, "demo flag must be set");
+    assert!(
+        state.runtime.runtime.is_none(),
+        "demo mode must not own a runtime"
+    );
 
     // Proxy inventory: at least one selectable group.
-    let groups = state.proxies.values().filter(|p| p.is_group()).count();
-    assert!(groups > 0, "expected non-empty group inventory, got {groups}");
+    let groups = state
+        .runtime
+        .proxies
+        .values()
+        .filter(|p| p.is_group())
+        .count();
+    assert!(
+        groups > 0,
+        "expected non-empty group inventory, got {groups}"
+    );
 
     // Profiles: the demo subscription shelf carries three entries.
     assert!(
-        state.profiles.len() >= 3,
+        state.profile.profiles.len() >= 3,
         "expected >= 3 demo profiles, got {}",
-        state.profiles.len()
+        state.profile.profiles.len()
     );
-    assert!(state.profiles.iter().any(|p| p.active));
+    assert!(state.profile.profiles.iter().any(|p| p.active));
 
     // Connections: the runtime page ships a full snapshot.
     let snapshot = state
+        .diag
         .connections
         .as_ref()
         .expect("demo seeds a connection snapshot");
@@ -37,7 +49,7 @@ fn demo_fixture_inventory_matches_the_demo_contract() {
     );
 
     // Locale: demo boots in Chinese.
-    assert_eq!(state.lang, "zh-CN");
+    assert_eq!(state.shell.lang, "zh-CN");
 }
 
 #[test]
@@ -51,11 +63,17 @@ fn navigate_messages_retarget_current_route_without_touching_runtime() {
         Route::Settings,
     ] {
         let _ = state.update(Message::Navigate(route));
-        assert_eq!(state.current_route, route, "Navigate must retarget route");
+        assert_eq!(
+            state.shell.current_route, route,
+            "Navigate must retarget route"
+        );
         // Demo gate: navigation stays pure state — no runtime is ever
         // created, status keeps reporting the fixture's running demo.
-        assert!(state.runtime.is_none(), "demo gate: no live runtime");
-        assert!(matches!(state.status, RuntimeStatus::Running));
+        assert!(
+            state.runtime.runtime.is_none(),
+            "demo gate: no live runtime"
+        );
+        assert!(matches!(state.runtime.status, RuntimeStatus::Running));
     }
 }
 

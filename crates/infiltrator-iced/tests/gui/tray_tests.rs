@@ -12,10 +12,10 @@ use std::sync::mpsc;
 /// exactly the window-only degradation a failed tray startup produces).
 fn state_with_fake_receiver() -> (AppState, mpsc::Sender<TrayEvent>) {
     let (mut state, _) = AppState::new();
-    assert!(state.tray_controller.is_none());
-    assert!(state.tray_events.is_none());
+    assert!(state.shell.tray_controller.is_none());
+    assert!(state.shell.tray_events.is_none());
     let (tx, rx) = mpsc::channel();
-    state.tray_events = Some(Arc::new(Mutex::new(rx)));
+    state.shell.tray_events = Some(Arc::new(Mutex::new(rx)));
     (state, tx)
 }
 
@@ -272,7 +272,13 @@ fn web_admin_entry_is_rendered_exactly_when_the_feature_is_enabled() {
     );
 
     // Enabled + running: second entry, right under 显示主界面, clickable.
-    let spec = build_tray_spec(None, false, false, None, Some(WebAdminMenu { running: true }));
+    let spec = build_tray_spec(
+        None,
+        false,
+        false,
+        None,
+        Some(WebAdminMenu { running: true }),
+    );
     assert_eq!(spec.menu.items.len(), 11);
     assert_eq!(
         spec.menu.items[1],
@@ -296,9 +302,18 @@ fn web_admin_entry_is_rendered_exactly_when_the_feature_is_enabled() {
     );
 
     // Enabled but not started yet: visible but greyed out.
-    let spec = build_tray_spec(None, false, false, None, Some(WebAdminMenu { running: false }));
+    let spec = build_tray_spec(
+        None,
+        false,
+        false,
+        None,
+        Some(WebAdminMenu { running: false }),
+    );
     assert_eq!(spec.menu.items.len(), 11);
-    assert_eq!(spec.menu.items[1].action_id(), Some(TRAY_ACTION_OPEN_WEB_ADMIN));
+    assert_eq!(
+        spec.menu.items[1].action_id(),
+        Some(TRAY_ACTION_OPEN_WEB_ADMIN)
+    );
     match &spec.menu.items[1] {
         TrayMenuItem::Action { enabled, .. } => assert!(!enabled),
         other => panic!("expected an action entry, got {other:?}"),
@@ -314,29 +329,29 @@ fn tray_menu_activation_drives_update_handlers() {
         payload: None,
     })
     .expect("fake receiver is live");
-    let events = drain_tray_events(state.tray_events.as_ref().expect("injected"));
+    let events = drain_tray_events(state.shell.tray_events.as_ref().expect("injected"));
     assert_eq!(events.len(), 1);
     for event in events {
         let _ = state.update(Message::TrayEvent(event));
     }
-    assert_eq!(state.proxy_mode.as_deref(), Some("global"));
+    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("global"));
 }
 
 #[test]
 fn tray_tun_toggle_resolves_against_current_state() {
     let (mut state, tx) = state_with_fake_receiver();
-    state.tun_enabled = Some(false);
+    state.runtime.tun_enabled = Some(false);
 
     tx.send(TrayEvent::MenuActivated {
         id: TRAY_ACTION_TOGGLE_TUN,
         payload: None,
     })
     .expect("fake receiver is live");
-    let events = drain_tray_events(state.tray_events.as_ref().expect("injected"));
+    let events = drain_tray_events(state.shell.tray_events.as_ref().expect("injected"));
     for event in events {
         let _ = state.update(Message::TrayEvent(event));
     }
-    assert_eq!(state.tun_enabled, Some(true));
+    assert_eq!(state.runtime.tun_enabled, Some(true));
 }
 
 #[test]
@@ -348,25 +363,25 @@ fn tray_global_proxy_selection_targets_the_global_group() {
         payload: Some("Proxy-B".to_string()),
     })
     .expect("fake receiver is live");
-    let events = drain_tray_events(state.tray_events.as_ref().expect("injected"));
+    let events = drain_tray_events(state.shell.tray_events.as_ref().expect("injected"));
     for event in events {
         let _ = state.update(Message::TrayEvent(event));
     }
     // With no runtime the request is a no-op task, but the handler must have
     // routed it (no panic) and the state stays untouched.
-    assert!(state.runtime.is_none());
+    assert!(state.runtime.runtime.is_none());
 }
 
 #[test]
 fn tray_unavailable_startup_degrades_to_a_functional_window_only_app() {
     // AppState::new() in tests never spawns a tray — the Unavailable path.
     let (mut state, _) = AppState::new();
-    assert!(state.tray_controller.is_none());
-    assert!(state.tray_events.is_none());
+    assert!(state.shell.tray_controller.is_none());
+    assert!(state.shell.tray_events.is_none());
 
     // The app stays fully functional window-only.
     let _ = state.update(Message::Navigate(Route::Settings));
-    assert_eq!(state.current_route, Route::Settings);
+    assert_eq!(state.shell.current_route, Route::Settings);
 
     // refresh_tray is a safe no-op without a controller.
     state.refresh_tray();

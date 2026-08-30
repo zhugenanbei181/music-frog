@@ -12,32 +12,38 @@ impl AppState {
     /// (falls back to the active or first profile when the selection is
     /// empty or stale).
     pub(super) fn sync_subscription_editor(&mut self) {
-        if self.profiles.is_empty() {
-            self.subscription_profile_name.clear();
-            self.subscription_url.clear();
-            self.subscription_auto_update_enabled = false;
-            self.subscription_update_interval_hours.clear();
+        if self.profile.profiles.is_empty() {
+            self.profile.subscription_profile_name.clear();
+            self.profile.subscription_url.clear();
+            self.profile.subscription_auto_update_enabled = false;
+            self.profile.subscription_update_interval_hours.clear();
             return;
         }
 
-        let selected_name = if !self.subscription_profile_name.is_empty()
+        let selected_name = if !self.profile.subscription_profile_name.is_empty()
             && self
+                .profile
                 .profiles
                 .iter()
-                .any(|p| p.name == self.subscription_profile_name)
+                .any(|p| p.name == self.profile.subscription_profile_name)
         {
-            self.subscription_profile_name.clone()
-        } else if let Some(active) = self.profiles.iter().find(|p| p.active) {
+            self.profile.subscription_profile_name.clone()
+        } else if let Some(active) = self.profile.profiles.iter().find(|p| p.active) {
             active.name.clone()
         } else {
-            self.profiles[0].name.clone()
+            self.profile.profiles[0].name.clone()
         };
 
-        self.subscription_profile_name = selected_name.clone();
-        if let Some(profile) = self.profiles.iter().find(|p| p.name == selected_name) {
-            self.subscription_url = profile.subscription_url.clone().unwrap_or_default();
-            self.subscription_auto_update_enabled = profile.auto_update_enabled;
-            self.subscription_update_interval_hours = profile
+        self.profile.subscription_profile_name = selected_name.clone();
+        if let Some(profile) = self
+            .profile
+            .profiles
+            .iter()
+            .find(|p| p.name == selected_name)
+        {
+            self.profile.subscription_url = profile.subscription_url.clone().unwrap_or_default();
+            self.profile.subscription_auto_update_enabled = profile.auto_update_enabled;
+            self.profile.subscription_update_interval_hours = profile
                 .update_interval_hours
                 .map(|hours| hours.to_string())
                 .unwrap_or_else(|| "24".to_string());
@@ -47,27 +53,31 @@ impl AppState {
     pub(super) fn update_subscription(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::SelectSubscriptionProfile(name) => {
-                self.subscription_profile_name = name;
+                self.profile.subscription_profile_name = name;
                 self.sync_subscription_editor();
                 Task::none()
             }
             Message::UpdateSubscriptionUrl(url) => {
-                self.subscription_url = url;
+                self.profile.subscription_url = url;
                 Task::none()
             }
             Message::UpdateSubscriptionAutoUpdate(enabled) => {
-                self.subscription_auto_update_enabled = enabled;
+                self.profile.subscription_auto_update_enabled = enabled;
                 Task::none()
             }
             Message::UpdateSubscriptionInterval(interval) => {
-                self.subscription_update_interval_hours = interval;
+                self.profile.subscription_update_interval_hours = interval;
                 Task::none()
             }
             Message::SaveSubscriptionSettings => {
-                let profile_name = self.subscription_profile_name.clone();
-                let url = self.subscription_url.trim().to_string();
-                let auto_update = self.subscription_auto_update_enabled;
-                let interval_raw = self.subscription_update_interval_hours.trim().to_string();
+                let profile_name = self.profile.subscription_profile_name.clone();
+                let url = self.profile.subscription_url.trim().to_string();
+                let auto_update = self.profile.subscription_auto_update_enabled;
+                let interval_raw = self
+                    .profile
+                    .subscription_update_interval_hours
+                    .trim()
+                    .to_string();
 
                 if profile_name.is_empty() {
                     return Task::done(Message::ShowToast(
@@ -100,7 +110,7 @@ impl AppState {
                     None
                 };
 
-                self.is_saving_subscription = true;
+                self.profile.is_saving_subscription = true;
                 Task::perform(
                     async move {
                         let cm = ConfigManager::new().map_err(InfiltratorError::from)?;
@@ -131,7 +141,7 @@ impl AppState {
                 )
             }
             Message::SubscriptionSettingsSaved(result) => {
-                self.is_saving_subscription = false;
+                self.profile.is_saving_subscription = false;
                 match result {
                     Ok(_) => Task::batch(vec![
                         Task::done(Message::LoadProfiles),
@@ -147,14 +157,14 @@ impl AppState {
                 }
             }
             Message::UpdateSubscriptionNow => {
-                let profile_name = self.subscription_profile_name.clone();
+                let profile_name = self.profile.subscription_profile_name.clone();
                 if profile_name.is_empty() {
                     return Task::done(Message::ShowToast(
                         "Please select a profile".to_string(),
                         ToastStatus::Error,
                     ));
                 }
-                self.is_updating_subscription_now = true;
+                self.profile.is_updating_subscription_now = true;
                 Task::perform(
                     async move {
                         infiltrator_core::profiles::update_profile(&profile_name)
@@ -166,7 +176,7 @@ impl AppState {
                 )
             }
             Message::SubscriptionUpdatedNow(result) => {
-                self.is_updating_subscription_now = false;
+                self.profile.is_updating_subscription_now = false;
                 match result {
                     Ok(_) => Task::batch(vec![
                         Task::done(Message::LoadProfiles),

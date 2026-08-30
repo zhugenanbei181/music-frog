@@ -7,13 +7,13 @@
 
 use crate::locales::{Lang, Localizer};
 use crate::view::components::{
-    badge, card_surface, chip, empty_state, icon_button, latency_badge, modern_scrollable,
-    section_header, BadgeKind,
+    BadgeKind, badge, card_surface, chip, empty_state, icon_button, latency_badge,
+    modern_scrollable, section_header,
 };
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, tokens};
 use crate::{AppState, Message};
-use iced::widget::{button, column, container, row, text, text_input, Space};
+use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 
 /// Node cards per row inside an expanded group (the reference layout uses a
@@ -30,13 +30,13 @@ const SORT_LABEL_KEYS: [&str; 4] = [
 ];
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
-    let lang = Lang(&state.lang);
+    let lang = Lang(&state.shell.lang);
 
     // ------------------------------------------------------------------
     // Header: section title with trailing ghost actions (test all /
     // refresh) — same `Message`s as the previous control row.
     // ------------------------------------------------------------------
-    let test_all_btn: Element<'_, Message> = if state.runtime_testing_all_delays {
+    let test_all_btn: Element<'_, Message> = if state.runtime.runtime_testing_all_delays {
         container(
             text(lang.tr("runtime_delay_testing_all"))
                 .size(12)
@@ -87,12 +87,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         svg_icons::icon_themed(Icon::Search, 15.0, |t: &Theme| tokens(t).text_tertiary),
         text_input(
             lang.tr("proxies_search_placeholder").as_ref(),
-            &state.proxy_filter
+            &state.runtime.proxy_filter
         )
         .on_input(Message::FilterProxies)
         .size(13)
         .width(Length::Fixed(190.0)),
-        if state.proxy_filter.is_empty() {
+        if state.runtime.proxy_filter.is_empty() {
             Space::new().width(0).into()
         } else {
             icon_button(Icon::X, 12.0, Message::FilterProxies(String::new()))
@@ -103,7 +103,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let mut sort_segment = row![].spacing(2);
     for (index, key) in SORT_KEYS.iter().enumerate() {
-        let active = state.proxy_delay_sort == *key;
+        let active = state.runtime.proxy_delay_sort == *key;
         let label = text(lang.tr(SORT_LABEL_KEYS[index]))
             .size(11)
             .font(if active {
@@ -119,9 +119,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 }),
             });
 
-        let mut segment = button(container(label).padding([5, 10]))
-            .padding(0)
-            .style(move |t: &Theme, _status| {
+        let mut segment = button(container(label).padding([5, 10])).padding(0).style(
+            move |t: &Theme, _status| {
                 if active {
                     button::Style {
                         background: Some(tokens(t).card_bg.into()),
@@ -139,7 +138,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         ..Default::default()
                     }
                 }
-            });
+            },
+        );
 
         if !active {
             segment = segment.on_press(Message::UpdateProxyDelaySort((*key).to_string()));
@@ -174,7 +174,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .align_y(Alignment::Center)
     .width(Length::Fill);
 
-    if state.runtime.is_none() && !state.demo {
+    if state.runtime.runtime.is_none() && !state.shell.demo {
         // demo-mode: a demo session has no live runtime but ships fixture
         // groups, so it falls through to the full group rendering below.
         return column![
@@ -201,7 +201,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // ------------------------------------------------------------------
     let mut groups_col = column![].spacing(theme::SP_MD);
 
-    if state.filtered_groups.is_empty() {
+    if state.runtime.filtered_groups.is_empty() {
         groups_col = groups_col.push(
             container(empty_state(
                 Icon::Globe,
@@ -214,15 +214,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         );
     }
 
-    for (index, (group_name, members)) in state.filtered_groups.iter().enumerate() {
-        let Some(group_info) = state.proxies.get(group_name) else {
+    for (index, (group_name, members)) in state.runtime.filtered_groups.iter().enumerate() {
+        let Some(group_info) = state.runtime.proxies.get(group_name) else {
             continue;
         };
 
         // Pristine state (`None`) mirrors the reference layout: the first
         // group starts expanded. After the user toggles anything, the
         // explicit id list decides.
-        let is_expanded = match state.proxy_groups_expanded.as_ref() {
+        let is_expanded = match state.runtime.proxy_groups_expanded.as_ref() {
             Some(ids) => ids.iter().any(|id| id == group_name),
             None => index == 0,
         };
@@ -254,7 +254,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             _ => group_type.to_string(),
         };
 
-        let test_group_btn: Element<'_, Message> = if state.runtime_testing_all_delays {
+        let test_group_btn: Element<'_, Message> = if state.runtime.runtime_testing_all_delays {
             container(svg_icons::icon_themed(Icon::Target, 15.0, |t: &Theme| {
                 tokens(t).text_tertiary
             }))
@@ -283,11 +283,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_primary),
                     }),
-                text(subtitle)
-                    .size(12)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary),
-                    }),
+                text(subtitle).size(12).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
             ]
             .spacing(2),
             Space::new().width(Length::Fill),
@@ -345,6 +343,7 @@ fn node_grid<'a>(
 ) -> Element<'a, Message> {
     let is_active = |member: &str| {
         state
+            .runtime
             .proxies
             .get(group_name)
             .and_then(|group| group.now())
@@ -388,7 +387,7 @@ fn node_card<'a>(
     member_name: &'a str,
     is_active: bool,
 ) -> Element<'a, Message> {
-    let node = state.proxies.get(member_name);
+    let node = state.runtime.proxies.get(member_name);
     let node_type = node
         .map(|p: &mihomo_api::proxy::Proxy| p.proxy_type().to_string())
         .unwrap_or_default();
@@ -467,18 +466,16 @@ fn node_card<'a>(
 /// same `UpdateDelayTestUrl` / `UpdateDelayTimeoutMs` messages as before.
 fn delay_test_group<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let label = |key: &'static str| {
-        text(lang.tr(key))
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            })
+        text(lang.tr(key)).size(11).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        })
     };
 
     container(
         row![
             label("proxies_delay_test_url_label"),
             Space::new().width(theme::SP_XS),
-            text_input("", &state.runtime_delay_test_url)
+            text_input("", &state.runtime.runtime_delay_test_url)
                 .on_input(Message::UpdateDelayTestUrl)
                 .size(12)
                 .padding([5, 9])
@@ -487,7 +484,7 @@ fn delay_test_group<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
             Space::new().width(theme::SP_MD),
             label("proxies_delay_timeout_label"),
             Space::new().width(theme::SP_XS),
-            text_input("", &state.runtime_delay_timeout_ms)
+            text_input("", &state.runtime.runtime_delay_timeout_ms)
                 .on_input(Message::UpdateDelayTimeoutMs)
                 .size(12)
                 .font(theme::MONO)
@@ -534,7 +531,10 @@ fn delay_input_style(t: &Theme, status: text_input::Status) -> text_input::Style
         icon: tk.text_tertiary,
         placeholder: tk.text_tertiary,
         value: tk.text_primary,
-        selection: Color { a: 0.25, ..tk.accent },
+        selection: Color {
+            a: 0.25,
+            ..tk.accent
+        },
     }
 }
 

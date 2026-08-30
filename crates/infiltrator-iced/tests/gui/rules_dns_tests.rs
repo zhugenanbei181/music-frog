@@ -27,13 +27,13 @@ fn test_rules_render_cache_and_filter() {
         },
     ])));
 
-    assert_eq!(state.rules_render_cache.len(), 3);
-    assert_eq!(state.rules_filtered_indices.len(), 3);
-    assert_eq!(state.rules_render_cache[0].payload, "example.com");
+    assert_eq!(state.editor.rules_render_cache.len(), 3);
+    assert_eq!(state.editor.rules_filtered_indices.len(), 3);
+    assert_eq!(state.editor.rules_render_cache[0].payload, "example.com");
 
     let _ = state.update(Message::FilterRules("example.net".into()));
-    assert_eq!(state.rules_page, 0);
-    assert_eq!(state.rules_filtered_indices.len(), 1);
+    assert_eq!(state.editor.rules_page, 0);
+    assert_eq!(state.editor.rules_filtered_indices.len(), 1);
 }
 
 #[test]
@@ -46,35 +46,41 @@ fn test_rules_pagination_bounds() {
         })
         .collect();
     let _ = state.update(Message::RulesLoaded(Ok(rules)));
-    assert_eq!(state.rules_page_size, 200);
+    assert_eq!(state.editor.rules_page_size, 200);
 
     let _ = state.update(Message::RulesNextPage);
     let _ = state.update(Message::RulesNextPage);
     let _ = state.update(Message::RulesNextPage); // should clamp to last
-    assert_eq!(state.rules_page, 2);
+    assert_eq!(state.editor.rules_page, 2);
 
     let _ = state.update(Message::RulesPrevPage);
-    assert_eq!(state.rules_page, 1);
+    assert_eq!(state.editor.rules_page, 1);
 
     let _ = state.update(Message::RulesSetPage(99));
-    assert_eq!(state.rules_page, 2);
+    assert_eq!(state.editor.rules_page, 2);
 }
 
 #[test]
 fn test_rules_dns_lazy_editor_state() {
     let (mut state, _) = AppState::new();
 
-    assert_eq!(state.rule_providers_editor_state, EditorLazyState::Unloaded);
-    state.rule_providers_json_cache = "{\"a\":1}".into();
+    assert_eq!(
+        state.editor.rule_providers_editor_state,
+        EditorLazyState::Unloaded
+    );
+    state.editor.rule_providers_json_cache = "{\"a\":1}".into();
     let _ = state.update(Message::EnsureRuleProvidersEditorLoaded);
-    assert_eq!(state.rule_providers_editor_state, EditorLazyState::Loaded);
-    assert_eq!(state.rule_providers_json_content.text(), "{\"a\":1}");
+    assert_eq!(
+        state.editor.rule_providers_editor_state,
+        EditorLazyState::Loaded
+    );
+    assert_eq!(state.editor.rule_providers_json_content.text(), "{\"a\":1}");
 
-    assert_eq!(state.dns_editor_state, EditorLazyState::Unloaded);
-    state.dns_json_cache = "{\"enable\":true}".into();
+    assert_eq!(state.editor.dns_editor_state, EditorLazyState::Unloaded);
+    state.editor.dns_json_cache = "{\"enable\":true}".into();
     let _ = state.update(Message::EnsureDnsEditorLoaded);
-    assert_eq!(state.dns_editor_state, EditorLazyState::Loaded);
-    assert_eq!(state.dns_json_content.text(), "{\"enable\":true}");
+    assert_eq!(state.editor.dns_editor_state, EditorLazyState::Loaded);
+    assert_eq!(state.editor.dns_json_content.text(), "{\"enable\":true}");
 }
 
 #[test]
@@ -87,18 +93,18 @@ fn test_rules_dns_large_sample_smoke() {
         })
         .collect();
     let _ = state.update(Message::RulesLoaded(Ok(rules)));
-    assert_eq!(state.rules_render_cache.len(), 3200);
+    assert_eq!(state.editor.rules_render_cache.len(), 3200);
 
     let large_json = "a".repeat(1024 * 1024);
-    state.dns_json_cache = format!("{{\"dns\":\"{}\"}}", large_json);
-    state.fake_ip_json_cache = format!("{{\"fake\":\"{}\"}}", large_json);
-    state.tun_json_cache = format!("{{\"tun\":\"{}\"}}", large_json);
+    state.editor.dns_json_cache = format!("{{\"dns\":\"{}\"}}", large_json);
+    state.editor.fake_ip_json_cache = format!("{{\"fake\":\"{}\"}}", large_json);
+    state.editor.tun_json_cache = format!("{{\"tun\":\"{}\"}}", large_json);
     let _ = state.update(Message::EnsureDnsEditorLoaded);
     let _ = state.update(Message::EnsureFakeIpEditorLoaded);
     let _ = state.update(Message::EnsureTunEditorLoaded);
-    assert_eq!(state.dns_editor_state, EditorLazyState::Loaded);
-    assert_eq!(state.fake_ip_editor_state, EditorLazyState::Loaded);
-    assert_eq!(state.tun_editor_state, EditorLazyState::Loaded);
+    assert_eq!(state.editor.dns_editor_state, EditorLazyState::Loaded);
+    assert_eq!(state.editor.fake_ip_editor_state, EditorLazyState::Loaded);
+    assert_eq!(state.editor.tun_editor_state, EditorLazyState::Loaded);
 }
 
 #[test]
@@ -107,9 +113,9 @@ fn test_dns_form_dirty_and_json_sync() {
     let _ = state.update(Message::UpdateDnsFormNameserver(
         "1.1.1.1, 8.8.8.8".to_string(),
     ));
-    assert!(state.dns_form_dirty);
+    assert!(state.editor.dns_form_dirty);
     let patch: infiltrator_core::dns::DnsConfigPatch =
-        serde_json::from_str(&state.dns_json_cache).expect("dns patch json");
+        serde_json::from_str(&state.editor.dns_json_cache).expect("dns patch json");
     assert_eq!(
         patch.nameserver,
         Some(vec!["1.1.1.1".to_string(), "8.8.8.8".to_string()])
@@ -123,7 +129,7 @@ fn test_set_advanced_mode_updates_state() {
         DnsTab::Dns,
         AdvancedEditMode::Json,
     ));
-    assert_eq!(state.dns_mode, AdvancedEditMode::Json);
+    assert_eq!(state.editor.dns_mode, AdvancedEditMode::Json);
 }
 
 #[test]
@@ -131,13 +137,14 @@ fn test_tun_form_invalid_mtu_blocks_save() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::UpdateTunFormMtu("abc".to_string()));
     let _ = state.update(Message::SaveTunConfig);
-    assert!(!state.is_saving_tun);
+    assert!(!state.editor.is_saving_tun);
     assert!(matches!(
-        state.rebuild_flow,
+        state.runtime.rebuild_flow,
         RebuildFlowState::Failed { .. }
     ));
     assert!(
         state
+            .editor
             .advanced_validation
             .tun
             .as_ref()
@@ -171,17 +178,17 @@ fn test_advanced_bundle_load_applies_form_drafts() {
         },
     };
     let _ = state.update(Message::AdvancedConfigsBundleLoaded(Ok(Box::new(bundle))));
-    assert!(state.dns_form.enable);
+    assert!(state.editor.dns_form.enable);
     assert_eq!(
-        state.dns_form.nameserver,
+        state.editor.dns_form.nameserver,
         "https://dns.google/dns-query".to_string()
     );
     assert_eq!(
-        state.fake_ip_form.fake_ip_range,
+        state.editor.fake_ip_form.fake_ip_range,
         "198.18.0.1/16".to_string()
     );
-    assert!(state.fake_ip_form.store_fake_ip);
-    assert!(state.tun_form.enable);
-    assert_eq!(state.tun_form.stack, "gvisor".to_string());
-    assert_eq!(state.tun_form.mtu, "1500".to_string());
+    assert!(state.editor.fake_ip_form.store_fake_ip);
+    assert!(state.editor.tun_form.enable);
+    assert_eq!(state.editor.tun_form.stack, "gvisor".to_string());
+    assert_eq!(state.editor.tun_form.mtu, "1500".to_string());
 }

@@ -6,17 +6,17 @@
 use crate::locales::{Lang, Localizer};
 use crate::types::{Route, RuntimeStatus};
 use crate::view::components::{
-    card, card_surface, chip, icon_button, modern_scrollable, premium_card, section_header,
-    status_dot, TrafficChart,
+    TrafficChart, card, card_surface, chip, icon_button, modern_scrollable, premium_card,
+    section_header, status_dot,
 };
-use crate::view::svg_icons::{icon_themed, Icon};
+use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, R_CONTROL};
 use crate::{AppState, Message};
-use iced::widget::{button, canvas, column, container, row, Space, text};
-use iced::{border, Alignment, Border, Color, Element, Length, Theme};
+use iced::widget::{Space, button, canvas, column, container, row, text};
+use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
-    let lang = Lang(&state.lang);
+    let lang = Lang(&state.shell.lang);
 
     let header = section_header(
         &lang.tr("nav_overview"),
@@ -49,9 +49,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 /// Accent hero: status dot + localized status, mode / core-version meta row
 /// and the prominent start/stop control.
 fn hero_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let running = matches!(state.status, RuntimeStatus::Running);
+    let running = matches!(state.runtime.status, RuntimeStatus::Running);
 
-    let status_text = match &state.status {
+    let status_text = match &state.runtime.status {
         RuntimeStatus::Starting => lang.tr("status_starting"),
         RuntimeStatus::Running => lang.tr("status_running"),
         RuntimeStatus::Error(_) => lang.tr("status_error"),
@@ -106,22 +106,19 @@ fn hero_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
 fn meta_row<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let mut meta = row![].spacing(theme::SP_SM);
 
-    if let Some(mode) = state.proxy_mode.as_deref() {
+    if let Some(mode) = state.runtime.proxy_mode.as_deref() {
         meta = meta.push(chip(mode_label(mode, lang)));
     }
 
     if let Some(version) = default_core_version(state) {
-        meta = meta.push(
-            text(format!("mihomo {version}"))
-                .size(12)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(theme::tokens(t).text_secondary),
-                }),
-        );
+        meta = meta.push(text(format!("mihomo {version}")).size(12).font(MONO).style(
+            |t: &Theme| text::Style {
+                color: Some(theme::tokens(t).text_secondary),
+            },
+        ));
     }
 
-    if let Some(exit_node) = state.proxies.get("GLOBAL").and_then(|g| g.now()) {
+    if let Some(exit_node) = state.runtime.proxies.get("GLOBAL").and_then(|g| g.now()) {
         meta = meta.push(
             text(exit_node.to_string())
                 .size(12)
@@ -149,6 +146,7 @@ fn mode_label(mode: &str, lang: &Lang<'_>) -> String {
 /// Version of the installed default kernel, if one is registered.
 fn default_core_version(state: &AppState) -> Option<String> {
     state
+        .runtime
         .installed_kernels
         .iter()
         .find(|kernel| kernel.is_default)
@@ -160,19 +158,13 @@ fn default_core_version(state: &AppState) -> Option<String> {
 // ---------------------------------------------------------------------------
 
 fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let speeds: Element<'a, Message> = if let Some(traffic) = &state.traffic {
+    let speeds: Element<'a, Message> = if let Some(traffic) = &state.diag.traffic {
         row![
-            speed_text(
-                Icon::ArrowUp,
-                traffic.up,
-                |t: &Theme| theme::tokens(t).success,
-            ),
+            speed_text(Icon::ArrowUp, traffic.up, |t: &Theme| theme::tokens(t)
+                .success,),
             Space::new().width(theme::SP_LG),
-            speed_text(
-                Icon::ArrowDown,
-                traffic.down,
-                |t: &Theme| theme::tokens(t).text_secondary,
-            ),
+            speed_text(Icon::ArrowDown, traffic.down, |t: &Theme| theme::tokens(t)
+                .text_secondary,),
         ]
         .align_y(Alignment::Center)
         .into()
@@ -191,7 +183,7 @@ fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
             speeds,
             Space::new().height(theme::SP_MD),
             canvas::Canvas::new(TrafficChart {
-                history: state.traffic_history.clone(),
+                history: state.diag.traffic_history.clone(),
             })
             .width(Length::Fill)
             .height(Length::Fixed(120.0)),
@@ -207,10 +199,15 @@ fn speed_text<'a>(
     row![
         icon_themed(glyph, 14.0, color),
         Space::new().width(theme::SP_XS),
-        text(format!("{}/s", crate::utils::format_bytes(bytes_per_second)))
-            .size(14)
-            .font(MONO)
-            .style(move |t: &Theme| text::Style { color: Some(color(t)) }),
+        text(format!(
+            "{}/s",
+            crate::utils::format_bytes(bytes_per_second)
+        ))
+        .size(14)
+        .font(MONO)
+        .style(move |t: &Theme| text::Style {
+            color: Some(color(t))
+        }),
     ]
     .align_y(Alignment::Center)
     .into()
@@ -223,21 +220,25 @@ fn speed_text<'a>(
 /// 连接数 / 内存 / 上传 / 下载 tiles with mono numerals.
 fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let connections = state
+        .diag
         .connections
         .as_ref()
         .map(|snapshot| snapshot.connections.len().to_string())
         .unwrap_or_else(|| "—".to_string());
     let memory = state
+        .diag
         .memory
         .as_ref()
         .map(|memory| crate::utils::format_bytes(memory.in_use))
         .unwrap_or_else(|| "—".to_string());
     let upload = state
+        .diag
         .traffic
         .as_ref()
         .map(|traffic| format!("{}/s", crate::utils::format_bytes(traffic.up)))
         .unwrap_or_else(|| "—".to_string());
     let download = state
+        .diag
         .traffic
         .as_ref()
         .map(|traffic| format!("{}/s", crate::utils::format_bytes(traffic.down)))

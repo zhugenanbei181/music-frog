@@ -1,7 +1,10 @@
 //! The application-wide [`Message`] bus plus its compact `Debug`
 //! implementation used by tracing and tests.
 
-use super::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab, InfiltratorError, Route, RulesJsonTab, RulesLoadBundle, RulesTab, RuntimeConfig, ToastStatus};
+use super::{
+    AdvancedConfigsBundle, AdvancedEditMode, DnsTab, InfiltratorError, Route, RulesJsonTab,
+    RulesLoadBundle, RulesTab, RuntimeConfig, ToastStatus,
+};
 use iced::{widget::text_editor, window};
 use infiltrator_core::rules::RuleEntry;
 use infiltrator_desktop::runtime::MihomoRuntime;
@@ -212,9 +215,7 @@ pub enum Message {
     AdminServerStarted(Result<String, InfiltratorError>),
     OpenWebAdmin,
     AdminHostCommand(crate::admin_server::AdminHostCommand),
-    ExternalSettingsLoaded(
-        Result<infiltrator_core::settings::AppSettings, InfiltratorError>,
-    ),
+    ExternalSettingsLoaded(Result<infiltrator_core::settings::AppSettings, InfiltratorError>),
     SyncUpload,
     SyncDownload,
     SyncFinished(Result<(), InfiltratorError>),

@@ -113,24 +113,24 @@ impl AppState {
     /// follow-up messages run the same handlers as before (and re-set the
     /// same fields before doing their network work).
     pub fn handle_tray_event(&mut self, event: TrayEvent) -> Task<Message> {
-        let tun = self.tun_enabled.unwrap_or(false);
-        let intent = resolve_tray_event(&event, self.system_proxy_enabled, tun);
+        let tun = self.runtime.tun_enabled.unwrap_or(false);
+        let intent = resolve_tray_event(&event, self.runtime.system_proxy_enabled, tun);
         match intent {
             Some(TrayIntent::ShowWindow) => Task::done(Message::ShowWindow),
             Some(TrayIntent::Exit) => Task::done(Message::Exit),
             Some(TrayIntent::ToggleTheme) => Task::done(Message::ToggleTheme),
             Some(TrayIntent::SetMode(mode)) => {
-                self.proxy_mode = Some(mode.clone());
+                self.runtime.proxy_mode = Some(mode.clone());
                 self.refresh_tray();
                 Task::done(Message::SetProxyMode(mode))
             }
             Some(TrayIntent::SetSystemProxy(enabled)) => {
-                self.system_proxy_enabled = enabled;
+                self.runtime.system_proxy_enabled = enabled;
                 self.refresh_tray();
                 Task::done(Message::SetSystemProxy(enabled))
             }
             Some(TrayIntent::SetTunEnabled(enabled)) => {
-                self.tun_enabled = Some(enabled);
+                self.runtime.tun_enabled = Some(enabled);
                 self.refresh_tray();
                 Task::done(Message::SetTunEnabled(enabled))
             }
@@ -145,7 +145,7 @@ impl AppState {
     /// Rebuild the [`TraySpec`] from current app state and push it to the
     /// tray backend. No-op when the tray is unavailable.
     pub fn refresh_tray(&self) {
-        if let Some(controller) = &self.tray_controller {
+        if let Some(controller) = &self.shell.tray_controller {
             controller.update_spec(self.current_tray_spec());
         }
     }
@@ -153,24 +153,24 @@ impl AppState {
     /// The spec describing what the tray should show right now.
     pub fn current_tray_spec(&self) -> TraySpec {
         let global = self.global_proxy_menu();
-        let web_admin = if self.admin_enabled {
+        let web_admin = if self.shell.admin_enabled {
             Some(crate::tray::WebAdminMenu {
-                running: self.admin_server.is_running(),
+                running: self.shell.admin_server.is_running(),
             })
         } else {
             None
         };
         build_tray_spec(
-            self.proxy_mode.as_deref(),
-            self.system_proxy_enabled,
-            self.tun_enabled.unwrap_or(false),
+            self.runtime.proxy_mode.as_deref(),
+            self.runtime.system_proxy_enabled,
+            self.runtime.tun_enabled.unwrap_or(false),
             global,
             web_admin,
         )
     }
 
     fn global_proxy_menu(&self) -> Option<GlobalProxyMenu<'_>> {
-        let global = self.proxies.get("GLOBAL")?;
+        let global = self.runtime.proxies.get("GLOBAL")?;
         let nodes = global.all()?;
         Some(GlobalProxyMenu {
             current: global.now().unwrap_or_default(),

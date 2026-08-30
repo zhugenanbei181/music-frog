@@ -17,8 +17,8 @@ impl AppState {
     /// how the runtime-panel settings are persisted from this frontend.
     fn persist_admin_settings_task(&self) -> Task<Message> {
         let admin = infiltrator_core::settings::AdminServerConfig {
-            enabled: self.admin_enabled,
-            port: self.admin_port,
+            enabled: self.shell.admin_enabled,
+            port: self.shell.admin_port,
         };
         Task::perform(
             async move {
@@ -26,10 +26,9 @@ impl AppState {
                     mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
                 let settings_path = infiltrator_core::settings::settings_path(&base_dir)
                     .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                let mut settings =
-                    infiltrator_core::settings::load_settings(&settings_path)
-                        .await
-                        .unwrap_or_else(|_| AppSettings::default());
+                let mut settings = infiltrator_core::settings::load_settings(&settings_path)
+                    .await
+                    .unwrap_or_else(|_| AppSettings::default());
                 settings.admin = admin;
                 infiltrator_core::settings::save_settings(&settings_path, &settings)
                     .await
@@ -43,7 +42,7 @@ impl AppState {
     pub(super) fn update_admin(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::SetAdminEnabled(enabled) => {
-                self.admin_enabled = enabled;
+                self.shell.admin_enabled = enabled;
                 self.refresh_tray();
                 Task::batch(vec![
                     self.persist_admin_settings_task(),
@@ -51,14 +50,14 @@ impl AppState {
                 ])
             }
             Message::UpdateAdminPort(input) => {
-                self.admin_port_input = input;
+                self.shell.admin_port_input = input;
                 Task::none()
             }
             Message::ApplyAdminSettings => {
-                match Self::parse_admin_port(&self.admin_port_input) {
+                match Self::parse_admin_port(&self.shell.admin_port_input) {
                     Some(port) => {
-                        self.admin_port = port;
-                        self.admin_port_input = port.to_string();
+                        self.shell.admin_port = port;
+                        self.shell.admin_port_input = port.to_string();
                         self.refresh_tray();
                         Task::batch(vec![
                             self.persist_admin_settings_task(),
@@ -66,7 +65,7 @@ impl AppState {
                         ])
                     }
                     None => {
-                        let lang = crate::locales::Lang(&self.lang);
+                        let lang = crate::locales::Lang(&self.shell.lang);
                         Task::done(Message::ShowToast(
                             lang.tr("settings_admin_invalid_port").into_owned(),
                             ToastStatus::Error,
@@ -85,7 +84,7 @@ impl AppState {
                 }
             },
             Message::AdminServerStarted(result) => {
-                let lang = crate::locales::Lang(&self.lang);
+                let lang = crate::locales::Lang(&self.shell.lang);
                 self.refresh_tray();
                 match result {
                     Ok(url) => Task::done(Message::ShowToast(

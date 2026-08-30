@@ -11,20 +11,21 @@ impl AppState {
     pub(super) fn update_sync(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::SyncUpload => {
-                let url = self.webdav_url.clone();
-                let user = self.webdav_user.clone();
-                let pass = self.webdav_pass.clone();
-                self.is_syncing = true;
+                let url = self.profile.webdav_url.clone();
+                let user = self.profile.webdav_user.clone();
+                let pass = self.profile.webdav_pass.clone();
+                self.profile.is_syncing = true;
                 Task::perform(
                     async move {
                         let client = WebDavClient::new(&url, &user, &pass)
                             .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
-                        let cm = ConfigManager::new()
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
-                        let profiles = cm
-                            .list_profiles()
-                            .await
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
+                        let cm =
+                            ConfigManager::new().map_err(|e: mihomo_api::error::MihomoError| {
+                                InfiltratorError::from(e)
+                            })?;
+                        let profiles = cm.list_profiles().await.map_err(
+                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                        )?;
 
                         for profile in profiles {
                             let content = tokio::fs::read_to_string(&profile.path)
@@ -41,10 +42,10 @@ impl AppState {
                 )
             }
             Message::SyncDownload => {
-                let url = self.webdav_url.clone();
-                let user = self.webdav_user.clone();
-                let pass = self.webdav_pass.clone();
-                self.is_syncing = true;
+                let url = self.profile.webdav_url.clone();
+                let user = self.profile.webdav_user.clone();
+                let pass = self.profile.webdav_pass.clone();
+                self.profile.is_syncing = true;
                 Task::perform(
                     async move {
                         let client = WebDavClient::new(&url, &user, &pass)
@@ -75,7 +76,7 @@ impl AppState {
                 )
             }
             Message::SyncFinished(result) => {
-                self.is_syncing = false;
+                self.profile.is_syncing = false;
                 match result {
                     Ok(_) => Task::done(Message::ShowToast(
                         "Sync completed".to_string(),
@@ -88,9 +89,9 @@ impl AppState {
                 }
             }
             Message::TickWebDavSync => {
-                if self.webdav_enabled
-                    && !self.webdav_url.is_empty()
-                    && !self.webdav_user.is_empty()
+                if self.profile.webdav_enabled
+                    && !self.profile.webdav_url.is_empty()
+                    && !self.profile.webdav_user.is_empty()
                 {
                     return Task::done(Message::SyncUpload);
                 }

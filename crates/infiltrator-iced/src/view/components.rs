@@ -7,7 +7,8 @@
 use crate::{Message, Route};
 use iced::widget::{Space, button, canvas, column, container, row, scrollable, text};
 use iced::{
-    Border, Color, Element, Length, Point, Rectangle, Renderer, Shadow, Size, Theme, Vector, border, mouse,
+    Border, Color, Element, Length, Point, Rectangle, Renderer, Shadow, Size, Theme, Vector,
+    border, mouse,
 };
 use std::collections::VecDeque;
 
@@ -108,7 +109,10 @@ pub fn premium_card<'a, Message: 'a>(
                 border: Border {
                     radius: border::Radius::from(theme::R_CARD),
                     width: 1.0,
-                    color: Color { a: 0.25, ..t.accent },
+                    color: Color {
+                        a: 0.25,
+                        ..t.accent
+                    },
                 },
                 shadow: t.card_shadow,
                 ..Default::default()
@@ -125,23 +129,19 @@ pub fn stat_card<'a, Message: 'a>(
     accent: Color,
     selected: bool,
 ) -> Element<'a, Message> {
-    let icon_chip = container(svg_icons::icon(
-        icon,
-        20.0,
-        Color { a: 0.9, ..accent },
-    ))
-    .width(40)
-    .height(40)
-    .align_x(iced::Alignment::Center)
-    .align_y(iced::Alignment::Center)
-    .style(move |_theme: &Theme| container::Style {
-        background: Some(Color { a: 0.14, ..accent }.into()),
-        border: Border {
-            radius: border::Radius::from(theme::R_CONTROL),
+    let icon_chip = container(svg_icons::icon(icon, 20.0, Color { a: 0.9, ..accent }))
+        .width(40)
+        .height(40)
+        .align_x(iced::Alignment::Center)
+        .align_y(iced::Alignment::Center)
+        .style(move |_theme: &Theme| container::Style {
+            background: Some(Color { a: 0.14, ..accent }.into()),
+            border: Border {
+                radius: border::Radius::from(theme::R_CONTROL),
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        ..Default::default()
-    });
+        });
 
     let texts = column![
         text(label.to_string())
@@ -173,11 +173,7 @@ pub fn stat_card<'a, Message: 'a>(
                 border: Border {
                     radius: border::Radius::from(theme::R_CARD),
                     width: if selected { 1.5 } else { 1.0 },
-                    color: if selected {
-                        accent
-                    } else {
-                        t.card_border
-                    },
+                    color: if selected { accent } else { t.card_border },
                 },
                 shadow: t.card_shadow,
                 ..Default::default()
@@ -316,11 +312,7 @@ pub fn latency_badge<'a, Message: 'a>(ms: Option<u32>) -> Element<'a, Message> {
 pub fn status_dot<'a>(active: bool) -> Element<'a, Message> {
     let color = move |t: &Theme| {
         let t = theme::tokens(t);
-        if active {
-            t.success
-        } else {
-            t.danger
-        }
+        if active { t.success } else { t.danger }
     };
     container(Space::new().width(10).height(10))
         .style(move |t: &Theme| container::Style {
@@ -390,11 +382,7 @@ impl<Message> canvas::Program<Message> for Switch {
         let radius = height / 2.0;
         let track_size = Size::new(bounds.width.min(44.0), height);
 
-        let track = if self.value {
-            t.accent
-        } else {
-            t.switch_track
-        };
+        let track = if self.value { t.accent } else { t.switch_track };
         frame.fill(
             &canvas::Path::rounded_rectangle(
                 Point::ORIGIN,
@@ -417,7 +405,10 @@ impl<Message> canvas::Program<Message> for Switch {
         // Soft knob shadow.
         frame.fill(
             &canvas::Path::circle(Point::new(knob_x, knob_y + 0.5), knob_radius),
-            Color { a: 0.20, ..Color::BLACK },
+            Color {
+                a: 0.20,
+                ..Color::BLACK
+            },
         );
         frame.fill(
             &canvas::Path::circle(Point::new(knob_x, knob_y), knob_radius),
@@ -477,37 +468,36 @@ pub fn segmented_control<'a, Message: 'a + Clone>(
                     }),
                 });
 
-            button(
-                container(label)
-                    .padding([5, 14])
-                    .style(move |t: &Theme| {
-                        let t = theme::tokens(t);
-                        container::Style {
-                            // Active: solid accent pill. Inactive: transparent
-                            // so the control_bg track shows through.
-                            background: if is_active {
-                                Some(t.accent.into())
-                            } else {
-                                None
+            button(container(label).padding([5, 14]).style(move |t: &Theme| {
+                let t = theme::tokens(t);
+                container::Style {
+                    // Active: solid accent pill. Inactive: transparent
+                    // so the control_bg track shows through.
+                    background: if is_active {
+                        Some(t.accent.into())
+                    } else {
+                        None
+                    },
+                    border: Border {
+                        radius: border::Radius::from(theme::R_CONTROL),
+                        ..Default::default()
+                    },
+                    shadow: if is_active {
+                        Shadow {
+                            color: Color {
+                                a: 0.18,
+                                ..t.accent
                             },
-                            border: Border {
-                                radius: border::Radius::from(theme::R_CONTROL),
-                                ..Default::default()
-                            },
-                            shadow: if is_active {
-                                Shadow {
-                                    color: Color { a: 0.18, ..t.accent },
-                                    offset: Vector::new(0.0, 1.0),
-                                    blur_radius: 3.0,
-                                }
-                            } else {
-                                Shadow::default()
-                            },
-                            text_color: None,
-                            snap: false,
+                            offset: Vector::new(0.0, 1.0),
+                            blur_radius: 3.0,
                         }
-                    }),
-            )
+                    } else {
+                        Shadow::default()
+                    },
+                    text_color: None,
+                    snap: false,
+                }
+            }))
             .padding(0)
             .style(move |t: &Theme, status| {
                 // Cheap hover feedback for inactive segments only — the
@@ -519,10 +509,9 @@ pub fn segmented_control<'a, Message: 'a + Clone>(
                     },
                     ..Default::default()
                 };
-                if !is_active
-                    && let button::Status::Hovered | button::Status::Pressed = status {
-                        style.background = Some(theme::tokens(t).chip_bg.into());
-                    }
+                if !is_active && let button::Status::Hovered | button::Status::Pressed = status {
+                    style.background = Some(theme::tokens(t).chip_bg.into());
+                }
                 style
             })
             .on_press(on_change(index))
@@ -564,8 +553,8 @@ pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Ele
         Route::Editor => Icon::Code2,
     };
 
-    let indicator = container(Space::new().width(4).height(18))
-        .style(move |t: &Theme| container::Style {
+    let indicator =
+        container(Space::new().width(4).height(18)).style(move |t: &Theme| container::Style {
             background: if is_active {
                 Some(theme::tokens(t).accent.into())
             } else {
@@ -588,13 +577,11 @@ pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Ele
         }
     });
 
-    let label_text = text(label)
-        .size(14)
-        .font(if is_active {
-            theme::FONT_SEMIBOLD
-        } else {
-            theme::FONT_MEDIUM
-        });
+    let label_text = text(label).size(14).font(if is_active {
+        theme::FONT_SEMIBOLD
+    } else {
+        theme::FONT_MEDIUM
+    });
 
     let content = container(
         row![indicator, glyph, label_text]
@@ -718,7 +705,9 @@ impl<Message> canvas::Program<Message> for TrafficChart {
         });
         frame.stroke(
             &up_line,
-            canvas::Stroke::default().with_color(success).with_width(2.0),
+            canvas::Stroke::default()
+                .with_color(success)
+                .with_width(2.0),
         );
         vec![frame.into_geometry()]
     }

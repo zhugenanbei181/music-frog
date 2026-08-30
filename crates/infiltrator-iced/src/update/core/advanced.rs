@@ -12,9 +12,9 @@ use iced::Task;
 
 impl AppState {
     pub(super) fn reset_dns_lazy_state(&mut self) {
-        self.dns_editor_state = EditorLazyState::Unloaded;
-        self.fake_ip_editor_state = EditorLazyState::Unloaded;
-        self.tun_editor_state = EditorLazyState::Unloaded;
+        self.editor.dns_editor_state = EditorLazyState::Unloaded;
+        self.editor.fake_ip_editor_state = EditorLazyState::Unloaded;
+        self.editor.tun_editor_state = EditorLazyState::Unloaded;
     }
 
     pub(super) fn split_list_field(raw: &str) -> Vec<String> {
@@ -51,9 +51,9 @@ impl AppState {
 
     fn active_advanced_mode(&self, tab: DnsTab) -> AdvancedEditMode {
         match tab {
-            DnsTab::Dns => self.dns_mode,
-            DnsTab::FakeIp => self.fake_ip_mode,
-            DnsTab::Tun => self.tun_mode,
+            DnsTab::Dns => self.editor.dns_mode,
+            DnsTab::FakeIp => self.editor.fake_ip_mode,
+            DnsTab::Tun => self.editor.tun_mode,
         }
     }
 
@@ -63,7 +63,7 @@ impl AppState {
     pub(super) fn update_core_advanced(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::SetDnsTab(tab) => {
-                self.dns_tab = tab;
+                self.editor.dns_tab = tab;
                 if self.active_advanced_mode(tab) == AdvancedEditMode::Json {
                     Task::done(match tab {
                         DnsTab::Dns => Message::EnsureDnsEditorLoaded,
@@ -76,9 +76,9 @@ impl AppState {
             }
             Message::SetAdvancedMode(tab, mode) => {
                 match tab {
-                    DnsTab::Dns => self.dns_mode = mode,
-                    DnsTab::FakeIp => self.fake_ip_mode = mode,
-                    DnsTab::Tun => self.tun_mode = mode,
+                    DnsTab::Dns => self.editor.dns_mode = mode,
+                    DnsTab::FakeIp => self.editor.fake_ip_mode = mode,
+                    DnsTab::Tun => self.editor.tun_mode = mode,
                 }
                 if mode == AdvancedEditMode::Json {
                     Task::done(match tab {
@@ -91,9 +91,9 @@ impl AppState {
                 }
             }
             Message::ActivateDnsHeavyView => {
-                self.dns_heavy_ready = true;
-                if self.active_advanced_mode(self.dns_tab) == AdvancedEditMode::Json {
-                    Task::done(match self.dns_tab {
+                self.editor.dns_heavy_ready = true;
+                if self.active_advanced_mode(self.editor.dns_tab) == AdvancedEditMode::Json {
+                    Task::done(match self.editor.dns_tab {
                         DnsTab::Dns => Message::EnsureDnsEditorLoaded,
                         DnsTab::FakeIp => Message::EnsureFakeIpEditorLoaded,
                         DnsTab::Tun => Message::EnsureTunEditorLoaded,
@@ -103,21 +103,20 @@ impl AppState {
                 }
             }
             Message::LoadAdvancedConfigs => {
-                if !self.advanced_configs_loaded_once {
+                if !self.editor.advanced_configs_loaded_once {
                     self.reset_dns_lazy_state();
                 }
                 Task::perform(
                     async {
-                        let manager = mihomo_config::manager::ConfigManager::new()
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
-                        let profile = manager
-                            .get_current()
-                            .await
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
-                        let content = manager
-                            .load(&profile)
-                            .await
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
+                        let manager = mihomo_config::manager::ConfigManager::new().map_err(
+                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                        )?;
+                        let profile = manager.get_current().await.map_err(
+                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                        )?;
+                        let content = manager.load(&profile).await.map_err(
+                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                        )?;
                         let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
@@ -144,42 +143,43 @@ impl AppState {
                     Message::AdvancedConfigsBundleLoaded,
                 )
             }
-            Message::AdvancedConfigsBundleLoaded(result) => {                match result {
+            Message::AdvancedConfigsBundleLoaded(result) => {
+                match result {
                     Ok(bundle) => {
-                        self.advanced_configs_loaded_once = true;
-                        if !self.dns_json_dirty && !self.dns_form_dirty {
-                            self.dns_json_cache = bundle.dns_json;
+                        self.editor.advanced_configs_loaded_once = true;
+                        if !self.editor.dns_json_dirty && !self.editor.dns_form_dirty {
+                            self.editor.dns_json_cache = bundle.dns_json;
                             self.apply_dns_form_from_config(&bundle.dns);
-                            if self.dns_editor_state == EditorLazyState::Loaded {
+                            if self.editor.dns_editor_state == EditorLazyState::Loaded {
                                 self.ensure_dns_editor_loaded();
                             }
-                            self.dns_json_dirty = false;
-                            self.dns_form_dirty = false;
-                            self.advanced_validation.dns = None;
+                            self.editor.dns_json_dirty = false;
+                            self.editor.dns_form_dirty = false;
+                            self.editor.advanced_validation.dns = None;
                         }
-                        if !self.fake_ip_json_dirty && !self.fake_ip_form_dirty {
-                            self.fake_ip_json_cache = bundle.fake_ip_json;
+                        if !self.editor.fake_ip_json_dirty && !self.editor.fake_ip_form_dirty {
+                            self.editor.fake_ip_json_cache = bundle.fake_ip_json;
                             self.apply_fake_ip_form_from_config(&bundle.fake_ip);
-                            if self.fake_ip_editor_state == EditorLazyState::Loaded {
+                            if self.editor.fake_ip_editor_state == EditorLazyState::Loaded {
                                 self.ensure_fake_ip_editor_loaded();
                             }
-                            self.fake_ip_json_dirty = false;
-                            self.fake_ip_form_dirty = false;
-                            self.advanced_validation.fake_ip = None;
+                            self.editor.fake_ip_json_dirty = false;
+                            self.editor.fake_ip_form_dirty = false;
+                            self.editor.advanced_validation.fake_ip = None;
                         }
-                        if !self.tun_json_dirty && !self.tun_form_dirty {
-                            self.tun_json_cache = bundle.tun_json;
+                        if !self.editor.tun_json_dirty && !self.editor.tun_form_dirty {
+                            self.editor.tun_json_cache = bundle.tun_json;
                             self.apply_tun_form_from_config(&bundle.tun);
-                            if self.tun_editor_state == EditorLazyState::Loaded {
+                            if self.editor.tun_editor_state == EditorLazyState::Loaded {
                                 self.ensure_tun_editor_loaded();
                             }
-                            self.tun_json_dirty = false;
-                            self.tun_form_dirty = false;
-                            self.advanced_validation.tun = None;
+                            self.editor.tun_json_dirty = false;
+                            self.editor.tun_form_dirty = false;
+                            self.editor.advanced_validation.tun = None;
                         }
                     }
                     Err(e) => {
-                        self.advanced_configs_loaded_once = false;
+                        self.editor.advanced_configs_loaded_once = false;
                         self.set_error(&e);
                     }
                 }

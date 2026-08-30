@@ -10,9 +10,13 @@ pub(super) fn style_accent(t: &Theme, status: button::Status) -> button::Style {
     let tk = tokens(t);
     let (bg, fg) = match status {
         button::Status::Disabled => (tk.accent_soft, tk.accent),
-        button::Status::Hovered | button::Status::Pressed => {
-            (Color { a: 0.85, ..tk.accent }, tk.on_accent)
-        }
+        button::Status::Hovered | button::Status::Pressed => (
+            Color {
+                a: 0.85,
+                ..tk.accent
+            },
+            tk.on_accent,
+        ),
         _ => (tk.accent, tk.on_accent),
     };
     button::Style {
@@ -51,10 +55,20 @@ pub(super) fn style_danger(t: &Theme, status: button::Status) -> button::Style {
     let tk = tokens(t);
     let (bg, fg) = match status {
         button::Status::Disabled => (tk.accent_soft, tk.text_tertiary),
-        button::Status::Hovered | button::Status::Pressed => {
-            (Color { a: 0.24, ..tk.danger }, tk.on_accent)
-        }
-        _ => (Color { a: 0.14, ..tk.danger }, tk.danger),
+        button::Status::Hovered | button::Status::Pressed => (
+            Color {
+                a: 0.24,
+                ..tk.danger
+            },
+            tk.on_accent,
+        ),
+        _ => (
+            Color {
+                a: 0.14,
+                ..tk.danger
+            },
+            tk.danger,
+        ),
     };
     button::Style {
         background: Some(bg.into()),
@@ -96,7 +110,10 @@ pub(super) fn input_style(t: &Theme, status: text_input::Status) -> text_input::
         icon: tk.text_tertiary,
         placeholder: tk.text_tertiary,
         value: tk.text_primary,
-        selection: Color { a: 0.25, ..tk.accent },
+        selection: Color {
+            a: 0.25,
+            ..tk.accent
+        },
     }
 }
 

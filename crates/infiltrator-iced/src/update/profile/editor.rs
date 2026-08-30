@@ -23,8 +23,8 @@ impl AppState {
             }
             Message::ProfileContentLoaded(result) => match result {
                 Ok((path, content)) => {
-                    self.editor_path = Some(path);
-                    self.editor_content = text_editor::Content::with_text(&content);
+                    self.editor.editor_path = Some(path);
+                    self.editor.editor_content = text_editor::Content::with_text(&content);
                     Task::done(Message::Navigate(crate::types::Route::Editor))
                 }
                 Err(e) => {
@@ -33,12 +33,12 @@ impl AppState {
                 }
             },
             Message::EditorAction(action) => {
-                self.editor_content.perform(action);
+                self.editor.editor_content.perform(action);
                 Task::none()
             }
             Message::SaveProfile => {
-                if let Some(path) = self.editor_path.clone() {
-                    let content = self.editor_content.text();
+                if let Some(path) = self.editor.editor_path.clone() {
+                    let content = self.editor.editor_content.text();
                     Task::perform(
                         async move {
                             tokio::fs::write(&path, content)

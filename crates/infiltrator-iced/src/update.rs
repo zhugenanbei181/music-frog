@@ -14,7 +14,7 @@ impl AppState {
         // no-op. Read-only local UI state changes keep flowing so all pages
         // stay interactive (most runtime actions already no-op naturally
         // because the demo keeps `AppState::runtime` unset).
-        if self.demo {
+        if self.shell.demo {
             match message {
                 Message::StartProxy
                 | Message::StopProxy
@@ -135,19 +135,24 @@ impl AppState {
             Message::ToggleProxyGroupExpanded(group) => {
                 // ui-wave2-p：None 表示初始状态（默认展开第一组）；首次交互时以当前
                 // 过滤结果的第一组为基线，之后完全由用户点击决定展开集合。
-                let mut ids = self.proxy_groups_expanded.take().unwrap_or_else(|| {
-                    self.filtered_groups
-                        .first()
-                        .map(|(name, _)| vec![name.clone()])
-                        .unwrap_or_default()
-                });
+                let mut ids = self
+                    .runtime
+                    .proxy_groups_expanded
+                    .take()
+                    .unwrap_or_else(|| {
+                        self.runtime
+                            .filtered_groups
+                            .first()
+                            .map(|(name, _)| vec![name.clone()])
+                            .unwrap_or_default()
+                    });
                 match ids.iter().position(|g| g == &group) {
                     Some(index) => {
                         ids.remove(index);
                     }
                     None => ids.push(group),
                 }
-                self.proxy_groups_expanded = Some(ids);
+                self.runtime.proxy_groups_expanded = Some(ids);
                 Task::none()
             }
             _ => self.update_core(message),

@@ -15,7 +15,7 @@ impl AppState {
     pub(super) fn update_core_kernels(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::CheckCoreUpdate => {
-                self.is_checking_update = true;
+                self.runtime.is_checking_update = true;
                 Task::perform(
                     async {
                         let vm = VersionManager::new().map_err(InfiltratorError::from)?;
@@ -27,10 +27,10 @@ impl AppState {
                 )
             }
             Message::CoreUpdateInfo(result) => {
-                self.is_checking_update = false;
+                self.runtime.is_checking_update = false;
                 match result {
                     Ok(version) => {
-                        self.latest_core_version = Some(version);
+                        self.runtime.latest_core_version = Some(version);
                         Task::none()
                     }
                     Err(e) => {
@@ -68,11 +68,11 @@ impl AppState {
                 Task::run(stream, |m| m)
             }
             Message::CoreDownloadProgress(progress) => {
-                self.download_progress = progress;
+                self.runtime.download_progress = progress;
                 Task::none()
             }
             Message::CoreDownloadFinished(result) => {
-                self.download_progress = 0.0;
+                self.runtime.download_progress = 0.0;
                 match result {
                     Ok(_) => Task::done(Message::LoadKernels),
                     Err(e) => {
@@ -90,7 +90,7 @@ impl AppState {
             ),
             Message::KernelsLoaded(result) => {
                 match result {
-                    Ok(versions) => self.installed_kernels = versions,
+                    Ok(versions) => self.runtime.installed_kernels = versions,
                     Err(e) => self.set_error(&e),
                 }
                 Task::none()

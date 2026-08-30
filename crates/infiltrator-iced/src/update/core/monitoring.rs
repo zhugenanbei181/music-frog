@@ -9,18 +9,18 @@ impl AppState {
     /// Kick one polling round: connections + memory always, proxies every
     /// other tick, runtime config every 6th and IP info every 15th.
     pub(super) fn schedule_runtime_refresh(&mut self, follow_auto_refresh: bool) -> Task<Message> {
-        if follow_auto_refresh && !self.runtime_auto_refresh {
+        if follow_auto_refresh && !self.runtime.runtime_auto_refresh {
             return Task::none();
         }
-        if !matches!(self.status, RuntimeStatus::Running) {
+        if !matches!(self.runtime.status, RuntimeStatus::Running) {
             return Task::none();
         }
-        let Some(rt) = self.runtime.clone() else {
+        let Some(rt) = self.runtime.runtime.clone() else {
             return Task::none();
         };
 
-        self.runtime_poll_tick = self.runtime_poll_tick.saturating_add(1);
-        let poll_tick = self.runtime_poll_tick;
+        self.runtime.runtime_poll_tick = self.runtime.runtime_poll_tick.saturating_add(1);
+        let poll_tick = self.runtime.runtime_poll_tick;
 
         let rt_for_connections = rt.clone();
         let rt_for_memory = rt.clone();
@@ -34,11 +34,13 @@ impl AppState {
                         .map_err(InfiltratorError::from)
                 },
                 |result| match result {
-                    Ok(snapshot) => Message::ConnectionsReceived(mihomo_api::types::ConnectionSnapshot {
-                        download_total: snapshot.download_total,
-                        upload_total: snapshot.upload_total,
-                        connections: snapshot.connections,
-                    }),
+                    Ok(snapshot) => {
+                        Message::ConnectionsReceived(mihomo_api::types::ConnectionSnapshot {
+                            download_total: snapshot.download_total,
+                            upload_total: snapshot.upload_total,
+                            connections: snapshot.connections,
+                        })
+                    }
                     Err(_) => Message::Noop,
                 },
             ),
@@ -77,7 +79,7 @@ impl AppState {
         match message {
             Message::FetchIpInfo => {
                 self.cancel_all_tasks();
-                let task_id = self.last_task_id;
+                let task_id = self.shell.last_task_id;
                 Task::perform(
                     async move {
                         let client = reqwest::Client::builder()
@@ -100,9 +102,9 @@ impl AppState {
             Message::RefreshRuntimeNow => self.schedule_runtime_refresh(false),
             Message::TickRuntimeRefresh => self.schedule_runtime_refresh(true),
             Message::UpdateRuntimeAutoRefresh(enabled) => {
-                self.runtime_auto_refresh = enabled;
+                self.runtime.runtime_auto_refresh = enabled;
                 if !enabled {
-                    self.runtime_poll_tick = 0;
+                    self.runtime.runtime_poll_tick = 0;
                     return self.persist_runtime_panel_settings_task();
                 }
                 Task::batch(vec![
@@ -111,21 +113,21 @@ impl AppState {
                 ])
             }
             Message::TrafficReceived(data) => {
-                self.traffic = Some(data.clone());
-                self.traffic_history.push_back((data.up, data.down));
-                if self.traffic_history.len() > 60 {
-                    self.traffic_history.pop_front();
+                self.diag.traffic = Some(data.clone());
+                self.diag.traffic_history.push_back((data.up, data.down));
+                if self.diag.traffic_history.len() > 60 {
+                    self.diag.traffic_history.pop_front();
                 }
                 Task::none()
             }
             Message::MemoryReceived(data) => {
-                self.memory = Some(data);
+                self.diag.memory = Some(data);
                 Task::none()
             }
             Message::IpInfoReceived(result, task_id) => {
-                if task_id == self.last_task_id {
+                if task_id == self.shell.last_task_id {
                     match result {
-                        Ok(ip) => self.public_ip = Some(ip),
+                        Ok(ip) => self.diag.public_ip = Some(ip),
                         Err(e) => self.set_error(&e),
                     }
                 }
@@ -136,30 +138,30 @@ impl AppState {
                 let download_total = data.download_total;
 
                 if let (Some(prev_up), Some(prev_down)) = (
-                    self.runtime_prev_upload_total,
-                    self.runtime_prev_download_total,
+                    self.runtime.runtime_prev_upload_total,
+                    self.runtime.runtime_prev_download_total,
                 ) {
                     let up_rate = upload_total.saturating_sub(prev_up) / 2;
                     let down_rate = download_total.saturating_sub(prev_down) / 2;
-                    self.traffic = Some(mihomo_api::types::TrafficData {
+                    self.diag.traffic = Some(mihomo_api::types::TrafficData {
                         up: up_rate,
                         down: down_rate,
                     });
-                    self.traffic_history.push_back((up_rate, down_rate));
-                    if self.traffic_history.len() > 60 {
-                        self.traffic_history.pop_front();
+                    self.diag.traffic_history.push_back((up_rate, down_rate));
+                    if self.diag.traffic_history.len() > 60 {
+                        self.diag.traffic_history.pop_front();
                     }
                 }
 
-                self.runtime_prev_upload_total = Some(upload_total);
-                self.runtime_prev_download_total = Some(download_total);
-                self.connections = Some(data);
+                self.runtime.runtime_prev_upload_total = Some(upload_total);
+                self.runtime.runtime_prev_download_total = Some(download_total);
+                self.diag.connections = Some(data);
                 Task::none()
             }
             Message::LogReceived(log) => {
-                self.logs.push_back(log);
-                if self.logs.len() > 500 {
-                    self.logs.pop_front();
+                self.diag.logs.push_back(log);
+                if self.diag.logs.len() > 500 {
+                    self.diag.logs.pop_front();
                 }
                 iced::widget::operation::snap_to(
                     iced::widget::Id::new("log_scroller"),
@@ -167,12 +169,12 @@ impl AppState {
                 )
             }
             Message::ClearRuntimeLogs => {
-                self.logs.clear();
+                self.diag.logs.clear();
                 Task::none()
             }
             Message::SetLogLevel(level) => {
-                self.log_level = level.clone();
-                if let Some(rt) = self.runtime.clone() {
+                self.diag.log_level = level.clone();
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()
@@ -187,7 +189,7 @@ impl AppState {
                 }
             }
             Message::CloseConnection(id) => {
-                if let Some(rt) = self.runtime.clone() {
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()
@@ -202,7 +204,7 @@ impl AppState {
                 }
             }
             Message::CloseAllConnections => {
-                if let Some(rt) = self.runtime.clone() {
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()

@@ -10,21 +10,21 @@ impl AppState {
     pub(super) fn update_import(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::UpdateImportUrl(url) => {
-                self.import_url = url;
+                self.profile.import_url = url;
                 Task::none()
             }
             Message::UpdateImportName(name) => {
-                self.import_name = name;
+                self.profile.import_name = name;
                 Task::none()
             }
             Message::UpdateImportActivate(enabled) => {
-                self.import_activate = enabled;
+                self.profile.import_activate = enabled;
                 Task::none()
             }
             Message::ImportProfile => {
-                let url = self.import_url.trim().to_string();
-                let name = self.import_name.trim().to_string();
-                let activate = self.import_activate;
+                let url = self.profile.import_url.trim().to_string();
+                let name = self.profile.import_name.trim().to_string();
+                let activate = self.profile.import_activate;
                 if name.is_empty() || url.is_empty() {
                     return Task::done(Message::ShowToast(
                         "Name and subscription URL are required".to_string(),
@@ -32,7 +32,7 @@ impl AppState {
                     ));
                 }
 
-                self.is_importing = true;
+                self.profile.is_importing = true;
                 Task::perform(
                     async move {
                         let profile_name = infiltrator_core::profiles::sanitize_profile_name(&name)
@@ -53,14 +53,14 @@ impl AppState {
                 )
             }
             Message::ProfileImported(result) => {
-                self.is_importing = false;
+                self.profile.is_importing = false;
                 match result {
                     Ok(_) => {
                         self.invalidate_rules_dns_views();
-                        let activate = self.import_activate;
-                        self.import_url.clear();
-                        self.import_name.clear();
-                        self.import_activate = false;
+                        let activate = self.profile.import_activate;
+                        self.profile.import_url.clear();
+                        self.profile.import_name.clear();
+                        self.profile.import_activate = false;
                         let mut tasks = vec![
                             Task::done(Message::LoadProfiles),
                             Task::done(Message::ShowToast(
@@ -94,38 +94,38 @@ impl AppState {
             ),
             Message::LocalImportFilePicked(path) => {
                 if let Some(path) = path {
-                    self.local_import_path = path.to_string_lossy().to_string();
-                    if self.local_import_name.trim().is_empty()
+                    self.profile.local_import_path = path.to_string_lossy().to_string();
+                    if self.profile.local_import_name.trim().is_empty()
                         && let Some(stem) = path.file_stem().and_then(|s| s.to_str())
                     {
-                        self.local_import_name = stem.to_string();
+                        self.profile.local_import_name = stem.to_string();
                     }
                 }
                 Task::none()
             }
             Message::UpdateLocalImportPath(path) => {
-                self.local_import_path = path;
-                if self.local_import_name.trim().is_empty()
-                    && let Some(stem) = std::path::Path::new(&self.local_import_path)
+                self.profile.local_import_path = path;
+                if self.profile.local_import_name.trim().is_empty()
+                    && let Some(stem) = std::path::Path::new(&self.profile.local_import_path)
                         .file_stem()
                         .and_then(|s| s.to_str())
                 {
-                    self.local_import_name = stem.to_string();
+                    self.profile.local_import_name = stem.to_string();
                 }
                 Task::none()
             }
             Message::UpdateLocalImportName(name) => {
-                self.local_import_name = name;
+                self.profile.local_import_name = name;
                 Task::none()
             }
             Message::UpdateLocalImportActivate(enabled) => {
-                self.local_import_activate = enabled;
+                self.profile.local_import_activate = enabled;
                 Task::none()
             }
             Message::ImportLocalProfile => {
-                let path = self.local_import_path.trim().to_string();
-                let name = self.local_import_name.trim().to_string();
-                let activate = self.local_import_activate;
+                let path = self.profile.local_import_path.trim().to_string();
+                let name = self.profile.local_import_name.trim().to_string();
+                let activate = self.profile.local_import_activate;
                 if path.is_empty() || name.is_empty() {
                     return Task::done(Message::ShowToast(
                         "Local path and profile name are required".to_string(),
@@ -133,7 +133,7 @@ impl AppState {
                     ));
                 }
 
-                self.is_importing_local = true;
+                self.profile.is_importing_local = true;
                 Task::perform(
                     async move {
                         let profile_name = infiltrator_core::profiles::sanitize_profile_name(&name)
@@ -159,14 +159,14 @@ impl AppState {
                 )
             }
             Message::LocalProfileImported(result) => {
-                self.is_importing_local = false;
+                self.profile.is_importing_local = false;
                 match result {
                     Ok(_) => {
                         self.invalidate_rules_dns_views();
-                        let activate = self.local_import_activate;
-                        self.local_import_path.clear();
-                        self.local_import_name.clear();
-                        self.local_import_activate = false;
+                        let activate = self.profile.local_import_activate;
+                        self.profile.local_import_path.clear();
+                        self.profile.local_import_name.clear();
+                        self.profile.local_import_activate = false;
                         let mut tasks = vec![
                             Task::done(Message::LoadProfiles),
                             Task::done(Message::ShowToast(

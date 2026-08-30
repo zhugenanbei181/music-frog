@@ -14,9 +14,13 @@ fn style_accent(t: &Theme, status: button::Status) -> button::Style {
     let tk = tokens(t);
     let (bg, fg) = match status {
         button::Status::Disabled => (tk.accent_soft, tk.accent),
-        button::Status::Hovered | button::Status::Pressed => {
-            (Color { a: 0.85, ..tk.accent }, tk.on_accent)
-        }
+        button::Status::Hovered | button::Status::Pressed => (
+            Color {
+                a: 0.85,
+                ..tk.accent
+            },
+            tk.on_accent,
+        ),
         _ => (tk.accent, tk.on_accent),
     };
     button::Style {
@@ -52,9 +56,10 @@ fn style_ghost(t: &Theme, status: button::Status) -> button::Style {
 }
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
-    let lang = Lang(&state.lang);
+    let lang = Lang(&state.shell.lang);
 
     let filename = state
+        .editor
         .editor_path
         .as_ref()
         .and_then(|p: &PathBuf| p.file_name())
@@ -106,7 +111,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     // Editor area framed in a card surface, mono typeface for YAML.
     let editor = container(
-        text_editor(&state.editor_content)
+        text_editor(&state.editor.editor_content)
             .on_action(Message::EditorAction)
             .font(MONO)
             .padding(12)

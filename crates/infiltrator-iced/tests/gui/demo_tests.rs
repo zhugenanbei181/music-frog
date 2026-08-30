@@ -21,54 +21,69 @@ fn demo_fixture_inventory_covers_all_pages() {
     let (state, _task) = AppState::demo(&demo_env(Route::Overview));
 
     // demo flag + no live runtime (all runtime guards no-op naturally)
-    assert!(state.demo);
-    assert!(state.runtime.is_none());
+    assert!(state.shell.demo);
+    assert!(state.runtime.runtime.is_none());
 
     // runtime status
-    assert!(matches!(state.status, RuntimeStatus::Running));
-    assert_eq!(state.proxy_mode.as_deref(), Some("rule"));
-    assert!(state.system_proxy_enabled);
-    assert_eq!(state.tun_enabled, Some(false));
+    assert!(matches!(state.runtime.status, RuntimeStatus::Running));
+    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("rule"));
+    assert!(state.runtime.system_proxy_enabled);
+    assert_eq!(state.runtime.tun_enabled, Some(false));
 
     // proxies: >0 groups & profiles (hard requirement)
-    assert!(state.proxies.values().filter(|p| p.is_group()).count() >= 6);
-    assert!(!state.filtered_groups.is_empty());
-    assert!(!state.proxies.is_empty());
-    assert!(state.profiles.len() >= 2);
-    assert!(state.profiles.iter().any(|p| p.active));
+    assert!(
+        state
+            .runtime
+            .proxies
+            .values()
+            .filter(|p| p.is_group())
+            .count()
+            >= 6
+    );
+    assert!(!state.runtime.filtered_groups.is_empty());
+    assert!(!state.runtime.proxies.is_empty());
+    assert!(state.profile.profiles.len() >= 2);
+    assert!(state.profile.profiles.iter().any(|p| p.active));
 
     // traffic / memory / connections / logs
-    assert_eq!(state.traffic_history.len(), 60);
-    assert!(state.traffic.is_some());
-    assert!(state.memory.is_some());
+    assert_eq!(state.diag.traffic_history.len(), 60);
+    assert!(state.diag.traffic.is_some());
+    assert!(state.diag.memory.is_some());
     assert_eq!(
-        state.connections.as_ref().map(|c| c.connections.len()),
+        state.diag.connections.as_ref().map(|c| c.connections.len()),
         Some(10)
     );
-    assert!(state.logs.len() >= 40);
+    assert!(state.diag.logs.len() >= 40);
 
     // rules / dns / misc
-    assert_eq!(state.rules.len(), 15);
-    assert!(!state.rules_render_cache.is_empty());
-    assert!(!state.rules_filtered_indices.is_empty());
-    assert!(!state.dns_nameservers.is_empty());
-    assert!(state.dns_form.enable);
-    assert!(state.fake_ip_form.store_fake_ip);
-    assert!(!state.tun_form.stack.is_empty());
-    assert!(state.installed_kernels.iter().any(|k| k.is_default));
-    assert_eq!(state.admin_port, crate::admin_server::ADMIN_DEFAULT_PORT);
-    assert!(state.toasts.is_empty());
-    assert_eq!(state.lang, "zh-CN");
+    assert_eq!(state.editor.rules.len(), 15);
+    assert!(!state.editor.rules_render_cache.is_empty());
+    assert!(!state.editor.rules_filtered_indices.is_empty());
+    assert!(!state.editor.dns_nameservers.is_empty());
+    assert!(state.editor.dns_form.enable);
+    assert!(state.editor.fake_ip_form.store_fake_ip);
+    assert!(!state.editor.tun_form.stack.is_empty());
+    assert!(state.runtime.installed_kernels.iter().any(|k| k.is_default));
+    assert_eq!(
+        state.shell.admin_port,
+        crate::admin_server::ADMIN_DEFAULT_PORT
+    );
+    assert!(state.shell.toasts.is_empty());
+    assert_eq!(state.shell.lang, "zh-CN");
 }
 
 #[test]
 fn demo_connections_populate_every_field_the_runtime_view_renders() {
-    // The runtime view reads exactly `state.connections` (same field the
+    // The runtime view reads exactly `state.diag.connections` (same field the
     // live update path fills via `Message::ConnectionsReceived`). Every
     // per-row field it renders must be populated, otherwise rows paint as
     // blank cards even though the snapshot is `Some`.
     let (state, _task) = AppState::demo(&demo_env(Route::Runtime));
-    let snapshot = state.connections.as_ref().expect("demo seeds connections");
+    let snapshot = state
+        .diag
+        .connections
+        .as_ref()
+        .expect("demo seeds connections");
     assert!(snapshot.connections.len() >= 10);
 
     for conn in &snapshot.connections {
@@ -105,8 +120,8 @@ fn demo_state_reflects_requested_page_and_skin() {
         let mut env = demo_env(page);
         env.skin = iced::Theme::Light;
         let (state, _) = AppState::demo(&env);
-        assert_eq!(state.current_route, page);
-        assert_eq!(state.theme, iced::Theme::Light);
+        assert_eq!(state.shell.current_route, page);
+        assert_eq!(state.shell.theme, iced::Theme::Light);
     }
 }
 
@@ -140,7 +155,7 @@ fn capture_marker_without_path_is_a_noop() {
     let (state, _) = AppState::demo(&demo_env(Route::Overview));
     // Must not panic and must consume the once-flag without a path.
     state.write_capture_marker();
-    assert!(state.capture_marker.is_none());
+    assert!(state.shell.capture_marker.is_none());
 }
 
 #[test]

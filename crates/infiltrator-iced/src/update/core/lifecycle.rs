@@ -4,14 +4,14 @@
 use crate::autostart;
 use crate::state::AppState;
 use crate::types::{InfiltratorError, Message, RuntimeStatus};
+use iced::Task;
 use infiltrator_desktop::runtime::MihomoRuntime;
 use mihomo_version::manager::VersionManager;
 use std::sync::Arc;
-use iced::Task;
 
 impl AppState {
     pub fn cancel_all_tasks(&mut self) {
-        self.last_task_id += 1;
+        self.shell.last_task_id += 1;
     }
 
     /// Runtime start/stop plus autostart toggles. Unmatched messages fall
@@ -20,11 +20,11 @@ impl AppState {
         match message {
             Message::StartProxy => {
                 self.cancel_all_tasks();
-                self.status = RuntimeStatus::Starting;
-                self.error_msg = None;
-                self.runtime_poll_tick = 0;
-                self.runtime_prev_upload_total = None;
-                self.runtime_prev_download_total = None;
+                self.runtime.status = RuntimeStatus::Starting;
+                self.shell.error_msg = None;
+                self.runtime.runtime_poll_tick = 0;
+                self.runtime.runtime_prev_upload_total = None;
+                self.runtime.runtime_prev_download_total = None;
                 Task::perform(
                     async {
                         let vm = VersionManager::new().map_err(
@@ -40,9 +40,7 @@ impl AppState {
                         let candidates = vec![];
                         let r = MihomoRuntime::bootstrap(&vm, true, &candidates, &data_dir)
                             .await
-                            .map_err(|e: anyhow::Error| {
-                                InfiltratorError::Mihomo(e.to_string())
-                            })?;
+                            .map_err(|e: anyhow::Error| InfiltratorError::Mihomo(e.to_string()))?;
                         Ok(Arc::new(r))
                     },
                     Message::ProxyStarted,
@@ -51,7 +49,7 @@ impl AppState {
             Message::StopProxy => {
                 self.cancel_all_tasks();
                 let rt = self.take_app_runtime();
-                self.status = RuntimeStatus::Stopped;
+                self.runtime.status = RuntimeStatus::Stopped;
                 Task::perform(
                     async move {
                         if let Some(r) = rt {
@@ -63,7 +61,7 @@ impl AppState {
             }
             Message::ProxyStarted(result) => match result {
                 Ok(runtime) => {
-                    self.status = RuntimeStatus::Running;
+                    self.runtime.status = RuntimeStatus::Running;
                     self.sync_runtime_slot(Some(runtime));
                     Task::batch(vec![
                         Task::done(Message::FetchRuntimeConfig),
@@ -73,30 +71,30 @@ impl AppState {
                     ])
                 }
                 Err(e) => {
-                    self.status = RuntimeStatus::Error(e.clone());
+                    self.runtime.status = RuntimeStatus::Error(e.clone());
                     self.set_error(&e);
                     Task::none()
                 }
             },
             Message::ProxyStopped => {
-                self.traffic = None;
-                self.traffic_history.clear();
-                self.connections = None;
-                self.memory = None;
-                self.public_ip = None;
-                self.runtime_selected_group.clear();
-                self.runtime_selected_proxy.clear();
-                self.runtime_prev_upload_total = None;
-                self.runtime_prev_download_total = None;
-                self.runtime_poll_tick = 0;
-                self.logs.clear();
-                self.proxy_mode = None;
-                self.tun_enabled = None;
-                self.status = RuntimeStatus::Stopped;
+                self.diag.traffic = None;
+                self.diag.traffic_history.clear();
+                self.diag.connections = None;
+                self.diag.memory = None;
+                self.diag.public_ip = None;
+                self.runtime.runtime_selected_group.clear();
+                self.runtime.runtime_selected_proxy.clear();
+                self.runtime.runtime_prev_upload_total = None;
+                self.runtime.runtime_prev_download_total = None;
+                self.runtime.runtime_poll_tick = 0;
+                self.diag.logs.clear();
+                self.runtime.proxy_mode = None;
+                self.runtime.tun_enabled = None;
+                self.runtime.status = RuntimeStatus::Stopped;
                 Task::none()
             }
             Message::SetAutostart(enabled) => {
-                self.autostart_enabled = enabled;
+                self.runtime.autostart_enabled = enabled;
                 Task::perform(
                     async move {
                         autostart::set_autostart_enabled(crate::AUTOSTART_REG_NAME, enabled)
@@ -107,7 +105,7 @@ impl AppState {
             }
             Message::AutostartSet(result) => {
                 if let Err(e) = result {
-                    self.autostart_enabled = !self.autostart_enabled;
+                    self.runtime.autostart_enabled = !self.runtime.autostart_enabled;
                     self.set_error(&e);
                 }
                 Task::none()

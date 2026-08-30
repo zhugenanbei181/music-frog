@@ -70,22 +70,22 @@ fn test_proxy_filtering_and_sorting() {
         }),
     );
 
-    state.proxies = proxies;
+    state.runtime.proxies = proxies;
 
     // Test Search
     let _ = state.update(Message::FilterProxies("special".into()));
-    assert_eq!(state.proxy_filter, "special");
+    assert_eq!(state.runtime.proxy_filter, "special");
 
     // Test Sort Toggle
     let _ = state.update(Message::ToggleProxySort);
-    assert!(state.proxy_sort_by_delay);
+    assert!(state.runtime.proxy_sort_by_delay);
 
     // Verification of logic (manual check of sorting logic used in view)
-    let global = state.proxies.get("GLOBAL").unwrap();
+    let global = state.runtime.proxies.get("GLOBAL").unwrap();
     let mut members = global.all().unwrap().to_vec();
 
     // Apply filter
-    let filter = state.proxy_filter.to_lowercase();
+    let filter = state.runtime.proxy_filter.to_lowercase();
     members.retain(|m| m.to_lowercase().contains(&filter));
     assert_eq!(members.len(), 1);
     assert_eq!(members[0], "Special");
@@ -94,6 +94,7 @@ fn test_proxy_filtering_and_sorting() {
     let mut all_members = global.all().unwrap().to_vec();
     all_members.sort_by_key(|m| {
         state
+            .runtime
             .proxies
             .get(m)
             .and_then(|p| p.history().last().map(|h| h.delay))
@@ -108,25 +109,25 @@ fn test_proxy_filtering_and_sorting() {
 #[test]
 fn test_runtime_auto_refresh_toggle() {
     let (mut state, _) = AppState::new();
-    assert!(state.runtime_auto_refresh);
+    assert!(state.runtime.runtime_auto_refresh);
 
     let _ = state.update(Message::UpdateRuntimeAutoRefresh(false));
-    assert!(!state.runtime_auto_refresh);
+    assert!(!state.runtime.runtime_auto_refresh);
 
     let _ = state.update(Message::UpdateRuntimeAutoRefresh(true));
-    assert!(state.runtime_auto_refresh);
+    assert!(state.runtime.runtime_auto_refresh);
 }
 
 #[test]
 fn test_runtime_connection_sort_mode_switch() {
     let (mut state, _) = AppState::new();
-    assert_eq!(state.runtime_connection_sort, "download_desc");
+    assert_eq!(state.runtime.runtime_connection_sort, "download_desc");
 
     let _ = state.update(Message::UpdateRuntimeConnectionSort("upload_desc".into()));
-    assert_eq!(state.runtime_connection_sort, "upload_desc");
+    assert_eq!(state.runtime.runtime_connection_sort, "upload_desc");
 
     let _ = state.update(Message::UpdateRuntimeConnectionSort("invalid_key".into()));
-    assert_eq!(state.runtime_connection_sort, "download_desc");
+    assert_eq!(state.runtime.runtime_connection_sort, "download_desc");
 }
 
 #[test]
@@ -134,26 +135,26 @@ fn test_proxy_delay_sort_mode_switch() {
     let (mut state, _) = AppState::new();
 
     let _ = state.update(Message::UpdateProxyDelaySort("name_desc".into()));
-    assert_eq!(state.proxy_delay_sort, "name_desc");
-    assert!(!state.proxy_sort_by_delay);
+    assert_eq!(state.runtime.proxy_delay_sort, "name_desc");
+    assert!(!state.runtime.proxy_sort_by_delay);
 
     let _ = state.update(Message::UpdateProxyDelaySort("delay_desc".into()));
-    assert_eq!(state.proxy_delay_sort, "delay_desc");
-    assert!(state.proxy_sort_by_delay);
+    assert_eq!(state.runtime.proxy_delay_sort, "delay_desc");
+    assert!(state.runtime.proxy_sort_by_delay);
 }
 
 #[test]
 fn test_profiles_filter_state() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::UpdateProfilesFilter("default".into()));
-    assert_eq!(state.profiles_filter, "default");
+    assert_eq!(state.profile.profiles_filter, "default");
 }
 
 #[test]
 fn test_runtime_connection_filter_state() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::UpdateRuntimeConnectionFilter("api".into()));
-    assert_eq!(state.runtime_connection_filter, "api");
+    assert_eq!(state.runtime.runtime_connection_filter, "api");
 }
 
 #[test]
@@ -192,11 +193,11 @@ fn test_runtime_proxy_selector_sync_and_apply() {
     );
 
     let _ = state.update(Message::ProxiesLoaded(Ok(proxies)));
-    assert_eq!(state.runtime_selected_group, "GLOBAL");
-    assert_eq!(state.runtime_selected_proxy, "Proxy-A");
+    assert_eq!(state.runtime.runtime_selected_group, "GLOBAL");
+    assert_eq!(state.runtime.runtime_selected_proxy, "Proxy-A");
 
     let _ = state.update(Message::UpdateRuntimeSelectedProxy("Proxy-B".into()));
-    assert_eq!(state.runtime_selected_proxy, "Proxy-B");
+    assert_eq!(state.runtime.runtime_selected_proxy, "Proxy-B");
 
     let _ = state.update(Message::ApplyRuntimeSelectedProxy);
 }

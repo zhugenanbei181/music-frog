@@ -10,74 +10,75 @@ impl AppState {
     pub(super) fn update_settings(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::UpdateWebDavUrl(url) => {
-                self.webdav_url = url;
+                self.profile.webdav_url = url;
                 Task::none()
             }
             Message::UpdateWebDavUser(user) => {
-                self.webdav_user = user;
+                self.profile.webdav_user = user;
                 Task::none()
             }
             Message::UpdateWebDavPass(pass) => {
-                self.webdav_pass = pass;
+                self.profile.webdav_pass = pass;
                 Task::none()
             }
             Message::UpdateWebDavEnabled(enabled) => {
-                self.webdav_enabled = enabled;
+                self.profile.webdav_enabled = enabled;
                 Task::none()
             }
             Message::UpdateWebDavSyncInterval(v) => {
-                self.webdav_sync_interval_mins = v;
+                self.profile.webdav_sync_interval_mins = v;
                 Task::none()
             }
             Message::UpdateWebDavSyncOnStartup(enabled) => {
-                self.webdav_sync_on_startup = enabled;
+                self.profile.webdav_sync_on_startup = enabled;
                 Task::none()
             }
             Message::UpdateEditorPathSetting(path) => {
-                self.editor_path_setting = path;
+                self.editor.editor_path_setting = path;
                 Task::none()
             }
             Message::SaveAppSettings => {
-                let interval =
-                    if !self.webdav_enabled && self.webdav_sync_interval_mins.trim().is_empty() {
-                        60
-                    } else {
-                        match self.webdav_sync_interval_mins.trim().parse::<u32>() {
-                            Ok(v) if v > 0 => v,
-                            _ => {
-                                return Task::done(Message::ShowToast(
-                                    "WebDAV sync interval must be a positive integer".to_string(),
-                                    ToastStatus::Error,
-                                ));
-                            }
+                let interval = if !self.profile.webdav_enabled
+                    && self.profile.webdav_sync_interval_mins.trim().is_empty()
+                {
+                    60
+                } else {
+                    match self.profile.webdav_sync_interval_mins.trim().parse::<u32>() {
+                        Ok(v) if v > 0 => v,
+                        _ => {
+                            return Task::done(Message::ShowToast(
+                                "WebDAV sync interval must be a positive integer".to_string(),
+                                ToastStatus::Error,
+                            ));
                         }
-                    };
+                    }
+                };
 
-                self.is_saving_app_settings = true;
-                let language = self.lang.clone();
-                let theme = if self.theme == iced::Theme::Light {
+                self.profile.is_saving_app_settings = true;
+                let language = self.shell.lang.clone();
+                let theme = if self.shell.theme == iced::Theme::Light {
                     "light".to_string()
                 } else {
                     "dark".to_string()
                 };
-                let editor_path = if self.editor_path_setting.trim().is_empty() {
+                let editor_path = if self.editor.editor_path_setting.trim().is_empty() {
                     None
                 } else {
-                    Some(self.editor_path_setting.trim().to_string())
+                    Some(self.editor.editor_path_setting.trim().to_string())
                 };
                 let webdav = WebDavConfig {
-                    enabled: self.webdav_enabled,
-                    url: self.webdav_url.clone(),
-                    username: self.webdav_user.clone(),
-                    password: self.webdav_pass.clone(),
+                    enabled: self.profile.webdav_enabled,
+                    url: self.profile.webdav_url.clone(),
+                    username: self.profile.webdav_user.clone(),
+                    password: self.profile.webdav_pass.clone(),
                     sync_interval_mins: interval,
-                    sync_on_startup: self.webdav_sync_on_startup,
+                    sync_on_startup: self.profile.webdav_sync_on_startup,
                 };
 
                 Task::perform(
                     async move {
-                        let base_dir =
-                            mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
+                        let base_dir = mihomo_platform::paths::get_home_dir()
+                            .map_err(InfiltratorError::from)?;
                         let settings_path = infiltrator_core::settings::settings_path(&base_dir)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let mut settings =
@@ -97,14 +98,17 @@ impl AppState {
                 )
             }
             Message::AppSettingsSaved(result) => {
-                self.is_saving_app_settings = false;
+                self.profile.is_saving_app_settings = false;
                 match result {
                     Ok(_) => {
-                        self.editor_path = if self.editor_path_setting.trim().is_empty() {
-                            None
-                        } else {
-                            Some(std::path::PathBuf::from(self.editor_path_setting.trim()))
-                        };
+                        self.editor.editor_path =
+                            if self.editor.editor_path_setting.trim().is_empty() {
+                                None
+                            } else {
+                                Some(std::path::PathBuf::from(
+                                    self.editor.editor_path_setting.trim(),
+                                ))
+                            };
                         Task::done(Message::ShowToast(
                             "App settings saved".to_string(),
                             ToastStatus::Success,

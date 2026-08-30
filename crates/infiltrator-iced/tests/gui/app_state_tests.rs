@@ -4,9 +4,7 @@
 //! test-intent: behavior
 
 use crate::locales::{Lang, Localizer};
-use crate::types::{
-    DnsTab, RebuildFlowState, RulesJsonTab, RulesTab, RuntimeConfig,
-};
+use crate::types::{DnsTab, RebuildFlowState, RulesJsonTab, RulesTab, RuntimeConfig};
 use crate::{AppState, InfiltratorError, Message, Route, RuntimeStatus};
 use iced::widget::text_editor;
 use infiltrator_core::rules::RuleEntry;
@@ -17,13 +15,13 @@ use std::path::PathBuf;
 #[test]
 fn test_route_navigation() {
     let (mut state, _) = AppState::new();
-    assert_eq!(state.current_route, Route::Overview);
+    assert_eq!(state.shell.current_route, Route::Overview);
 
     let _ = state.update(Message::Navigate(Route::Runtime));
-    assert_eq!(state.current_route, Route::Runtime);
+    assert_eq!(state.shell.current_route, Route::Runtime);
 
     let _ = state.update(Message::Navigate(Route::Settings));
-    assert_eq!(state.current_route, Route::Settings);
+    assert_eq!(state.shell.current_route, Route::Settings);
 }
 
 #[test]
@@ -43,9 +41,9 @@ fn test_runtime_config_sync() {
         sniffer_enabled: true,
     })));
 
-    assert_eq!(state.proxy_mode.as_ref().unwrap(), "global");
-    assert!(state.tun_enabled.unwrap());
-    assert_eq!(state.dns_nameservers[0], "1.1.1.1");
+    assert_eq!(state.runtime.proxy_mode.as_ref().unwrap(), "global");
+    assert!(state.runtime.tun_enabled.unwrap());
+    assert_eq!(state.editor.dns_nameservers[0], "1.1.1.1");
 }
 
 #[test]
@@ -54,14 +52,14 @@ fn test_mode_set_interactions() {
 
     // Success path (should trigger a re-fetch)
     let _task = state.update(Message::ModeSetResult(Ok(())));
-    assert!(state.error_msg.is_none());
+    assert!(state.shell.error_msg.is_none());
 
     // Failure path
     let _ = state.update(Message::ModeSetResult(Err(InfiltratorError::Mihomo(
         "API Error".into(),
     ))));
     assert_eq!(
-        state.error_msg.as_ref().unwrap(),
+        state.shell.error_msg.as_ref().unwrap(),
         "Mihomo API error: API Error"
     );
 }
@@ -73,53 +71,53 @@ fn test_traffic_throttling_logic() {
         up: 1000,
         down: 1000,
     }));
-    assert_eq!(state.traffic.as_ref().unwrap().up, 1000);
+    assert_eq!(state.diag.traffic.as_ref().unwrap().up, 1000);
 
     // No throttling currently implemented
     let _ = state.update(Message::TrafficReceived(TrafficData {
         up: 1500,
         down: 1500,
     }));
-    assert_eq!(state.traffic.as_ref().unwrap().up, 1500);
+    assert_eq!(state.diag.traffic.as_ref().unwrap().up, 1500);
 
     // Updated
     let _ = state.update(Message::TrafficReceived(TrafficData {
         up: 3000,
         down: 3000,
     }));
-    assert_eq!(state.traffic.as_ref().unwrap().up, 3000);
+    assert_eq!(state.diag.traffic.as_ref().unwrap().up, 3000);
 }
 
 #[test]
 fn test_dns_server_list_manipulation() {
     let (mut state, _) = AppState::new();
-    state.dns_nameservers = vec!["old".into()];
+    state.editor.dns_nameservers = vec!["old".into()];
 
     let _ = state.update(Message::UpdateDnsServer(0, "new".into()));
-    assert_eq!(state.dns_nameservers[0], "new");
+    assert_eq!(state.editor.dns_nameservers[0], "new");
 
     let _ = state.update(Message::AddDnsServer);
-    assert_eq!(state.dns_nameservers.len(), 2);
+    assert_eq!(state.editor.dns_nameservers.len(), 2);
 
     let _ = state.update(Message::AddDnsServerTemplate(
         "https://1.1.1.1/dns-query".into(),
     ));
-    assert_eq!(state.dns_nameservers.len(), 3);
-    assert_eq!(state.dns_nameservers[2], "https://1.1.1.1/dns-query");
+    assert_eq!(state.editor.dns_nameservers.len(), 3);
+    assert_eq!(state.editor.dns_nameservers[2], "https://1.1.1.1/dns-query");
 
     let _ = state.update(Message::RemoveDnsServer(0));
-    assert_eq!(state.dns_nameservers.len(), 2);
-    assert_eq!(state.dns_nameservers[0], "");
+    assert_eq!(state.editor.dns_nameservers.len(), 2);
+    assert_eq!(state.editor.dns_nameservers[0], "");
 
     // Fallbacks
     let _ = state.update(Message::AddFallbackDnsServer);
-    assert_eq!(state.dns_fallback_servers.len(), 1);
+    assert_eq!(state.editor.dns_fallback_servers.len(), 1);
 
     let _ = state.update(Message::UpdateFallbackDnsServer(0, "8.8.8.8".into()));
-    assert_eq!(state.dns_fallback_servers[0], "8.8.8.8");
+    assert_eq!(state.editor.dns_fallback_servers[0], "8.8.8.8");
 
     let _ = state.update(Message::RemoveFallbackDnsServer(0));
-    assert_eq!(state.dns_fallback_servers.len(), 0);
+    assert_eq!(state.editor.dns_fallback_servers.len(), 0);
 }
 
 #[test]
@@ -127,30 +125,33 @@ fn test_system_integration_states() {
     let (mut state, _) = AppState::new();
 
     // System Proxy
-    state.system_proxy_enabled = false;
+    state.runtime.system_proxy_enabled = false;
     let _ = state.update(Message::SetSystemProxy(true));
-    assert!(state.system_proxy_enabled);
+    assert!(state.runtime.system_proxy_enabled);
 
     // Rollback on error
     let _ = state.update(Message::SystemProxySet(Err(InfiltratorError::Privilege(
         "Access denied".into(),
     ))));
-    assert!(!state.system_proxy_enabled, "Should rollback on failure");
+    assert!(
+        !state.runtime.system_proxy_enabled,
+        "Should rollback on failure"
+    );
     assert_eq!(
-        state.error_msg.as_ref().unwrap(),
+        state.shell.error_msg.as_ref().unwrap(),
         "Privilege error: Access denied"
     );
 
     // Autostart
-    state.autostart_enabled = false;
+    state.runtime.autostart_enabled = false;
     let _ = state.update(Message::SetAutostart(true));
-    assert!(state.autostart_enabled);
+    assert!(state.runtime.autostart_enabled);
 
     let _ = state.update(Message::AutostartSet(Err(InfiltratorError::Internal(
         "Registry lock".into(),
     ))));
     assert!(
-        !state.autostart_enabled,
+        !state.runtime.autostart_enabled,
         "Should rollback autostart on failure"
     );
 }
@@ -165,15 +166,15 @@ fn test_profiles_and_rules_loading() {
         PathBuf::from("test.yaml"),
         true,
     )])));
-    assert_eq!(state.profiles.len(), 1);
-    assert!(!state.is_loading_profiles);
+    assert_eq!(state.profile.profiles.len(), 1);
+    assert!(!state.profile.is_loading_profiles);
 
     // Rules loaded
     let _ = state.update(Message::RulesLoaded(Ok(vec![RuleEntry {
         rule: "DOMAIN,example.com,DIRECT".into(),
         enabled: true,
     }])));
-    assert_eq!(state.rules.len(), 1);
+    assert_eq!(state.editor.rules.len(), 1);
 }
 
 #[test]
@@ -181,23 +182,23 @@ fn test_proxy_lifecycle_messages() {
     let (mut state, _) = AppState::new();
 
     let _ = state.update(Message::StartProxy);
-    assert_eq!(state.status, RuntimeStatus::Starting);
+    assert_eq!(state.runtime.status, RuntimeStatus::Starting);
 
     let _ = state.update(Message::ProxyStopped);
-    assert!(state.traffic.is_none());
+    assert!(state.diag.traffic.is_none());
 }
 
 #[test]
 fn test_rebuild_flow_state_transitions() {
     let (mut state, _) = AppState::new();
-    state.rules = vec![RuleEntry {
+    state.editor.rules = vec![RuleEntry {
         rule: "MATCH,DIRECT".into(),
         enabled: true,
     }];
 
     let _ = state.update(Message::SaveRules);
     assert!(matches!(
-        state.rebuild_flow,
+        state.runtime.rebuild_flow,
         RebuildFlowState::Saving { .. }
     ));
 
@@ -205,12 +206,12 @@ fn test_rebuild_flow_state_transitions() {
         InfiltratorError::Mihomo("boom".into()),
     )));
     assert!(matches!(
-        state.rebuild_flow,
+        state.runtime.rebuild_flow,
         RebuildFlowState::Failed { .. }
     ));
 
     let _ = state.update(Message::ClearRebuildFlow);
-    assert!(matches!(state.rebuild_flow, RebuildFlowState::Idle));
+    assert!(matches!(state.runtime.rebuild_flow, RebuildFlowState::Idle));
 }
 
 #[test]
@@ -221,9 +222,9 @@ fn test_log_buffer_limit_and_queue() {
         let _ = state.update(Message::LogReceived(format!("log {}", i)));
     }
 
-    assert_eq!(state.logs.len(), 500);
-    assert_eq!(state.logs.front().unwrap(), "log 150");
-    assert_eq!(state.logs.back().unwrap(), "log 649");
+    assert_eq!(state.diag.logs.len(), 500);
+    assert_eq!(state.diag.logs.front().unwrap(), "log 150");
+    assert_eq!(state.diag.logs.back().unwrap(), "log 649");
 }
 
 #[test]
@@ -236,21 +237,21 @@ fn test_editor_actions() {
         "proxies: []".into(),
     ))));
     assert_eq!(
-        state.editor_path.as_ref().unwrap().to_str().unwrap(),
+        state.editor.editor_path.as_ref().unwrap().to_str().unwrap(),
         "config.yaml"
     );
-    assert_eq!(state.editor_content.text(), "proxies: []");
+    assert_eq!(state.editor.editor_content.text(), "proxies: []");
 
     // Editor action (simulating typing)
     let _ = state.update(Message::EditorAction(text_editor::Action::Edit(
         text_editor::Edit::Insert('a'),
     )));
-    assert_ne!(state.editor_content.text(), "proxies: []");
+    assert_ne!(state.editor.editor_content.text(), "proxies: []");
 
     // Save success
-    state.current_route = Route::Editor;
+    state.shell.current_route = Route::Editor;
     let _ = state.update(Message::ProfileSaved(Ok(())));
-    assert_eq!(state.current_route, Route::Editor);
+    assert_eq!(state.shell.current_route, Route::Editor);
 }
 
 #[test]
@@ -282,16 +283,16 @@ fn test_tray_and_exit() {
 #[test]
 fn test_tab_state_switches() {
     let (mut state, _) = AppState::new();
-    state.rules_page = 3;
+    state.editor.rules_page = 3;
     let _ = state.update(Message::SetRulesTab(RulesTab::JsonEditors));
-    assert_eq!(state.rules_tab, RulesTab::JsonEditors);
-    assert_eq!(state.rules_page, 0);
+    assert_eq!(state.editor.rules_tab, RulesTab::JsonEditors);
+    assert_eq!(state.editor.rules_page, 0);
 
     let _ = state.update(Message::SetRulesJsonTab(RulesJsonTab::Sniffer));
-    assert_eq!(state.rules_json_tab, RulesJsonTab::Sniffer);
+    assert_eq!(state.editor.rules_json_tab, RulesJsonTab::Sniffer);
 
     let _ = state.update(Message::SetDnsTab(DnsTab::Tun));
-    assert_eq!(state.dns_tab, DnsTab::Tun);
+    assert_eq!(state.editor.dns_tab, DnsTab::Tun);
 }
 
 #[test]
@@ -310,7 +311,7 @@ fn test_error_and_toast_redaction() {
 
     // set_error is the only writer of error_msg and must redact secrets.
     state.set_error("update failed: https://sub.example.com/d?token=tok1234");
-    let error = state.error_msg.clone().expect("error stored");
+    let error = state.shell.error_msg.clone().expect("error stored");
     assert!(error.contains("token=***"), "redacted error: {error}");
     assert!(!error.contains("tok1234"), "raw token leaked: {error}");
 
@@ -319,6 +320,6 @@ fn test_error_and_toast_redaction() {
         "secret: supersecret42".into(),
         crate::types::ToastStatus::Error,
     ));
-    let (content, _) = state.toasts[0].clone();
+    let (content, _) = state.shell.toasts[0].clone();
     assert_eq!(content, "secret: ***");
 }

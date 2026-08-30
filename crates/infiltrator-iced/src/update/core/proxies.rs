@@ -4,11 +4,10 @@
 
 use crate::state::AppState;
 use crate::types::{InfiltratorError, Message, ToastStatus};
-use infiltrator_core::settings::{AppSettings, RuntimePanelConfig};
 use iced::Task;
+use infiltrator_core::settings::{AppSettings, RuntimePanelConfig};
 
-pub(super) const DEFAULT_RUNTIME_DELAY_TEST_URL: &str =
-    "http://www.gstatic.com/generate_204";
+pub(super) const DEFAULT_RUNTIME_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
 pub(super) const DEFAULT_RUNTIME_DELAY_TIMEOUT_MS: u32 = 5000;
 pub(super) const MIN_RUNTIME_DELAY_TIMEOUT_MS: u32 = 100;
 pub(super) const MAX_RUNTIME_DELAY_TIMEOUT_MS: u32 = 60_000;
@@ -36,7 +35,8 @@ impl AppState {
     }
 
     fn delay_sortable_value(&self, name: &str) -> Option<u32> {
-        self.proxies
+        self.runtime
+            .proxies
             .get(name)
             .and_then(|proxy| proxy.history().last().map(|item| item.delay))
             .filter(|delay| *delay > 0)
@@ -60,7 +60,7 @@ impl AppState {
             }
         };
 
-        match self.proxy_delay_sort.as_str() {
+        match self.runtime.proxy_delay_sort.as_str() {
             "name_asc" => left.cmp(right),
             "name_desc" => right.cmp(left),
             "delay_desc" => compare_delay(true),
@@ -69,7 +69,7 @@ impl AppState {
     }
 
     fn normalized_delay_test_url(&self) -> String {
-        let trimmed = self.runtime_delay_test_url.trim();
+        let trimmed = self.runtime.runtime_delay_test_url.trim();
         if trimmed.is_empty() {
             DEFAULT_RUNTIME_DELAY_TEST_URL.to_string()
         } else {
@@ -78,7 +78,8 @@ impl AppState {
     }
 
     fn normalized_delay_timeout_ms(&self) -> u32 {
-        self.runtime_delay_timeout_ms
+        self.runtime
+            .runtime_delay_timeout_ms
             .trim()
             .parse::<u32>()
             .ok()
@@ -89,18 +90,21 @@ impl AppState {
 
     pub(super) fn persist_runtime_panel_settings_task(&self) -> Task<Message> {
         let runtime_panel = RuntimePanelConfig {
-            auto_refresh: self.runtime_auto_refresh,
-            delay_sort: Self::normalize_delay_sort_key(&self.proxy_delay_sort).to_string(),
+            auto_refresh: self.runtime.runtime_auto_refresh,
+            delay_sort: Self::normalize_delay_sort_key(&self.runtime.proxy_delay_sort).to_string(),
             delay_test_url: self.normalized_delay_test_url(),
             delay_timeout_ms: self.normalized_delay_timeout_ms(),
-            connection_filter: self.runtime_connection_filter.clone(),
-            connection_sort: Self::normalize_connection_sort_key(&self.runtime_connection_sort)
-                .to_string(),
+            connection_filter: self.runtime.runtime_connection_filter.clone(),
+            connection_sort: Self::normalize_connection_sort_key(
+                &self.runtime.runtime_connection_sort,
+            )
+            .to_string(),
         };
 
         Task::perform(
             async move {
-                let base_dir = mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
+                let base_dir =
+                    mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
                 let settings_path = infiltrator_core::settings::settings_path(&base_dir)
                     .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                 let mut settings = infiltrator_core::settings::load_settings(&settings_path)
@@ -117,7 +121,12 @@ impl AppState {
     }
 
     pub fn recompute_filtered_groups(&mut self) {
-        let mut groups: Vec<_> = self.proxies.iter().filter(|(_, p)| p.is_group()).collect();
+        let mut groups: Vec<_> = self
+            .runtime
+            .proxies
+            .iter()
+            .filter(|(_, p)| p.is_group())
+            .collect();
 
         // Sort groups: GLOBAL first, then by type
         groups.sort_by(|(na, pa), (nb, pb)| {
@@ -136,12 +145,12 @@ impl AppState {
                 group_info.all().map(|all| all.to_vec()).unwrap_or_default();
 
             // 1. Filter
-            if !self.proxy_filter.is_empty() {
-                let filter = self.proxy_filter.to_lowercase();
+            if !self.runtime.proxy_filter.is_empty() {
+                let filter = self.runtime.proxy_filter.to_lowercase();
                 members.retain(|m| m.to_lowercase().contains(&filter));
             }
 
-            if members.is_empty() && !self.proxy_filter.is_empty() {
+            if members.is_empty() && !self.runtime.proxy_filter.is_empty() {
                 continue;
             }
 
@@ -149,11 +158,12 @@ impl AppState {
 
             result.push((group_name.clone(), members));
         }
-        self.filtered_groups = result;
+        self.runtime.filtered_groups = result;
     }
 
     fn sync_runtime_proxy_selection(&mut self) {
         let mut groups: Vec<String> = self
+            .runtime
             .proxies
             .iter()
             .filter_map(|(name, proxy)| {
@@ -166,8 +176,8 @@ impl AppState {
             .collect();
 
         if groups.is_empty() {
-            self.runtime_selected_group.clear();
-            self.runtime_selected_proxy.clear();
+            self.runtime.runtime_selected_group.clear();
+            self.runtime.runtime_selected_proxy.clear();
             return;
         }
 
@@ -179,32 +189,34 @@ impl AppState {
 
         if !groups
             .iter()
-            .any(|name| name == &self.runtime_selected_group)
+            .any(|name| name == &self.runtime.runtime_selected_group)
         {
-            self.runtime_selected_group = groups[0].clone();
+            self.runtime.runtime_selected_group = groups[0].clone();
         }
 
         let members: Vec<String> = self
+            .runtime
             .proxies
-            .get(&self.runtime_selected_group)
+            .get(&self.runtime.runtime_selected_group)
             .and_then(|proxy| proxy.all())
             .map(|all| all.to_vec())
             .unwrap_or_default();
         if members.is_empty() {
-            self.runtime_selected_proxy.clear();
+            self.runtime.runtime_selected_proxy.clear();
             return;
         }
 
         if !members
             .iter()
-            .any(|name| name == &self.runtime_selected_proxy)
+            .any(|name| name == &self.runtime.runtime_selected_proxy)
         {
             let current = self
+                .runtime
                 .proxies
-                .get(&self.runtime_selected_group)
+                .get(&self.runtime.runtime_selected_group)
                 .and_then(|proxy| proxy.now())
                 .map(|name| name.to_string());
-            self.runtime_selected_proxy = current
+            self.runtime.runtime_selected_proxy = current
                 .filter(|name| members.iter().any(|member| member == name))
                 .unwrap_or_else(|| members[0].clone());
         }
@@ -216,8 +228,8 @@ impl AppState {
     pub(super) fn update_core_proxies(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::LoadProxies => {
-                if let Some(rt) = self.runtime.clone() {
-                    self.is_loading_proxies = true;
+                if let Some(rt) = self.runtime.runtime.clone() {
+                    self.runtime.is_loading_proxies = true;
                     Task::perform(
                         async move {
                             rt.client()
@@ -232,10 +244,10 @@ impl AppState {
                 }
             }
             Message::ProxiesLoaded(result) => {
-                self.is_loading_proxies = false;
+                self.runtime.is_loading_proxies = false;
                 match result {
                     Ok(proxies) => {
-                        self.proxies = proxies;
+                        self.runtime.proxies = proxies;
                         self.refresh_tray();
                         self.recompute_filtered_groups();
                         self.sync_runtime_proxy_selection();
@@ -245,7 +257,7 @@ impl AppState {
                 Task::none()
             }
             Message::SelectProxy(group, name) => {
-                if let Some(rt) = self.runtime.clone() {
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()
@@ -260,12 +272,12 @@ impl AppState {
                 }
             }
             Message::FilterProxies(filter) => {
-                self.proxy_filter = filter;
+                self.runtime.proxy_filter = filter;
                 Task::done(Message::UpdateFilteredGroups)
             }
             Message::ToggleProxySort => {
-                self.proxy_sort_by_delay = !self.proxy_sort_by_delay;
-                self.proxy_delay_sort = if self.proxy_sort_by_delay {
+                self.runtime.proxy_sort_by_delay = !self.runtime.proxy_sort_by_delay;
+                self.runtime.proxy_delay_sort = if self.runtime.proxy_sort_by_delay {
                     "delay_asc".to_string()
                 } else {
                     "name_asc".to_string()
@@ -274,44 +286,44 @@ impl AppState {
             }
             Message::UpdateProxyDelaySort(sort_key) => {
                 let normalized = Self::normalize_delay_sort_key(&sort_key).to_string();
-                self.proxy_delay_sort = normalized.clone();
-                self.proxy_sort_by_delay = normalized.starts_with("delay_");
+                self.runtime.proxy_delay_sort = normalized.clone();
+                self.runtime.proxy_sort_by_delay = normalized.starts_with("delay_");
                 Task::batch(vec![
                     Task::done(Message::UpdateFilteredGroups),
                     self.persist_runtime_panel_settings_task(),
                 ])
             }
             Message::UpdateDelayTestUrl(url) => {
-                self.runtime_delay_test_url = url;
+                self.runtime.runtime_delay_test_url = url;
                 self.persist_runtime_panel_settings_task()
             }
             Message::UpdateDelayTimeoutMs(timeout) => {
-                self.runtime_delay_timeout_ms = timeout;
+                self.runtime.runtime_delay_timeout_ms = timeout;
                 self.persist_runtime_panel_settings_task()
             }
             Message::UpdateRuntimeSelectedGroup(group) => {
-                self.runtime_selected_group = group;
+                self.runtime.runtime_selected_group = group;
                 self.sync_runtime_proxy_selection();
                 Task::none()
             }
             Message::UpdateRuntimeSelectedProxy(proxy) => {
-                self.runtime_selected_proxy = proxy;
+                self.runtime.runtime_selected_proxy = proxy;
                 Task::none()
             }
             Message::ApplyRuntimeSelectedProxy => {
-                let group = self.runtime_selected_group.trim().to_string();
-                let proxy = self.runtime_selected_proxy.trim().to_string();
+                let group = self.runtime.runtime_selected_group.trim().to_string();
+                let proxy = self.runtime.runtime_selected_proxy.trim().to_string();
                 if group.is_empty() || proxy.is_empty() {
                     return Task::none();
                 }
                 Task::done(Message::SelectProxy(group, proxy))
             }
             Message::UpdateRuntimeConnectionFilter(filter) => {
-                self.runtime_connection_filter = filter;
+                self.runtime.runtime_connection_filter = filter;
                 self.persist_runtime_panel_settings_task()
             }
             Message::UpdateRuntimeConnectionSort(sort_key) => {
-                self.runtime_connection_sort =
+                self.runtime.runtime_connection_sort =
                     Self::normalize_connection_sort_key(&sort_key).to_string();
                 self.persist_runtime_panel_settings_task()
             }
@@ -321,7 +333,7 @@ impl AppState {
                 Task::none()
             }
             Message::AllProxyDelaysTested(result) => {
-                self.runtime_testing_all_delays = false;
+                self.runtime.runtime_testing_all_delays = false;
                 match result {
                     Ok((success, failed)) => Task::batch(vec![
                         Task::done(Message::LoadProxies),
@@ -340,11 +352,11 @@ impl AppState {
                 }
             }
             Message::TestProxyDelay(name) => {
-                if let Some(rt) = self.runtime.clone() {
+                if let Some(rt) = self.runtime.runtime.clone() {
                     let n = name.clone();
                     let test_url = self.normalized_delay_test_url();
                     let timeout_ms = self.normalized_delay_timeout_ms();
-                    self.runtime_testing_delay_proxy = name.clone();
+                    self.runtime.runtime_testing_delay_proxy = name.clone();
                     Task::perform(
                         async move {
                             rt.client()
@@ -360,7 +372,7 @@ impl AppState {
                 }
             }
             Message::ProxyTested(name, result) => {
-                self.runtime_testing_delay_proxy.clear();
+                self.runtime.runtime_testing_delay_proxy.clear();
                 match result {
                     Ok(delay) => Task::batch(vec![
                         Task::done(Message::LoadProxies),
@@ -376,11 +388,11 @@ impl AppState {
                 }
             }
             Message::TestGroupDelay(name) => {
-                if let Some(rt) = self.runtime.clone() {
-                    let proxies = self.proxies.clone();
+                if let Some(rt) = self.runtime.runtime.clone() {
+                    let proxies = self.runtime.proxies.clone();
                     let test_url = self.normalized_delay_test_url();
                     let timeout_ms = self.normalized_delay_timeout_ms();
-                    self.runtime_testing_all_delays = true;
+                    self.runtime.runtime_testing_all_delays = true;
                     Task::perform(
                         async move {
                             let members = proxies
@@ -405,15 +417,16 @@ impl AppState {
                 }
             }
             Message::TestAllProxyDelays => {
-                if let Some(rt) = self.runtime.clone() {
-                    if self.runtime_testing_all_delays
-                        || !self.runtime_testing_delay_proxy.is_empty()
+                if let Some(rt) = self.runtime.runtime.clone() {
+                    if self.runtime.runtime_testing_all_delays
+                        || !self.runtime.runtime_testing_delay_proxy.is_empty()
                     {
                         return Task::none();
                     }
                     let test_url = self.normalized_delay_test_url();
                     let timeout_ms = self.normalized_delay_timeout_ms();
                     let candidates: Vec<String> = self
+                        .runtime
                         .proxies
                         .iter()
                         .filter_map(|(name, info)| {
@@ -424,7 +437,7 @@ impl AppState {
                             }
                         })
                         .collect();
-                    self.runtime_testing_all_delays = true;
+                    self.runtime.runtime_testing_all_delays = true;
                     Task::perform(
                         async move {
                             let mut success = 0usize;

@@ -9,12 +9,12 @@ impl AppState {
         let mut subs = vec![];
 
         // 1. Tray Events (neutral channel; only subscribed when a tray is live)
-        if let Some(rx) = &self.tray_events {
+        if let Some(rx) = &self.shell.tray_events {
             subs.push(tray_events_subscription(rx));
         }
 
         // 1b. Admin host commands (context -> app bridge for the Web UI)
-        if let Some(rx) = &self.admin_commands {
+        if let Some(rx) = &self.shell.admin_commands {
             subs.push(crate::admin_server::admin_commands_subscription(rx));
         }
 
@@ -33,7 +33,7 @@ impl AppState {
         }));
 
         // 3. Runtime-related background tasks
-        if self.runtime.is_some() {
+        if self.runtime.runtime.is_some() {
             subs.push(Subscription::run(|| {
                 stream::channel(
                     100,
@@ -48,10 +48,10 @@ impl AppState {
                 )
             }));
         }
-        if self.runtime.is_some()
-            && self.current_route == Route::Runtime
-            && self.runtime_auto_refresh
-            && matches!(self.status, RuntimeStatus::Running)
+        if self.runtime.runtime.is_some()
+            && self.shell.current_route == Route::Runtime
+            && self.runtime.runtime_auto_refresh
+            && matches!(self.runtime.status, RuntimeStatus::Running)
         {
             subs.push(Subscription::run(|| {
                 stream::channel(
@@ -69,7 +69,7 @@ impl AppState {
         }
 
         // 4. 高性能动画订阅：只有正在转场时才开启帧回调
-        if self.transition.start_time.is_some() {
+        if self.shell.transition.start_time.is_some() {
             subs.push(window::frames().map(Message::TickFrame));
         }
 

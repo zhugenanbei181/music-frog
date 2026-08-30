@@ -19,28 +19,24 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
         lang.tr("runtime_delay_sort_name_asc").to_string(),
         lang.tr("runtime_delay_sort_name_desc").to_string(),
     ];
-    let delay_sort_index = match state.proxy_delay_sort.as_str() {
+    let delay_sort_index = match state.runtime.proxy_delay_sort.as_str() {
         "delay_desc" => 1,
         "name_asc" => 2,
         "name_desc" => 3,
         _ => 0,
     };
-    let delay_sort_control = segmented_control(
-        &delay_sort_labels,
-        delay_sort_index,
-        |index| {
-            let key = match index {
-                1 => "delay_desc",
-                2 => "name_asc",
-                3 => "name_desc",
-                _ => "delay_asc",
-            };
-            Message::UpdateProxyDelaySort(key.to_string())
-        },
-    );
+    let delay_sort_control = segmented_control(&delay_sort_labels, delay_sort_index, |index| {
+        let key = match index {
+            1 => "delay_desc",
+            2 => "name_asc",
+            3 => "name_desc",
+            _ => "delay_asc",
+        };
+        Message::UpdateProxyDelaySort(key.to_string())
+    });
 
-    let delay_testing = state.runtime_testing_all_delays
-        || !state.runtime_testing_delay_proxy.is_empty();
+    let delay_testing = state.runtime.runtime_testing_all_delays
+        || !state.runtime.runtime_testing_delay_proxy.is_empty();
     let delay_test_all_btn = text_btn(
         if delay_testing {
             lang.tr("runtime_delay_testing_all").to_string()
@@ -52,6 +48,7 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
     );
 
     let mut delay_nodes: Vec<(String, String, Option<u32>)> = state
+        .runtime
         .proxies
         .iter()
         .filter_map(|(name, proxy)| {
@@ -88,7 +85,7 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
                 }
             }
         };
-        match state.proxy_delay_sort.as_str() {
+        match state.runtime.proxy_delay_sort.as_str() {
             "name_asc" => left_name.cmp(right_name),
             "name_desc" => right_name.cmp(left_name),
             "delay_desc" => compare_delay(true),
@@ -105,8 +102,8 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
         ));
     } else {
         for (name, proxy_type, delay) in delay_nodes {
-            let is_testing =
-                state.runtime_testing_all_delays || state.runtime_testing_delay_proxy == name;
+            let is_testing = state.runtime.runtime_testing_all_delays
+                || state.runtime.runtime_testing_delay_proxy == name;
             let test_button = text_btn(
                 if is_testing {
                     lang.tr("runtime_delay_testing_one").to_string()
@@ -121,12 +118,11 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
                 container(
                     row![
                         column![
-                            text(name)
-                                .size(12)
-                                .font(FONT_SEMIBOLD)
-                                .style(|t: &Theme| text::Style {
+                            text(name).size(12).font(FONT_SEMIBOLD).style(|t: &Theme| {
+                                text::Style {
                                     color: Some(tokens(t).text_primary),
-                                }),
+                                }
+                            }),
                             chip(proxy_type),
                         ]
                         .spacing(2)
@@ -163,7 +159,7 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
         row![
             text_input(
                 lang.tr("runtime_delay_test_url_placeholder").as_ref(),
-                &state.runtime_delay_test_url
+                &state.runtime.runtime_delay_test_url
             )
             .on_input(Message::UpdateDelayTestUrl)
             .padding([8, 12])
@@ -173,7 +169,7 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
             Space::new().width(theme::SP_SM),
             text_input(
                 lang.tr("runtime_delay_timeout_ms_placeholder").as_ref(),
-                &state.runtime_delay_timeout_ms
+                &state.runtime.runtime_delay_timeout_ms
             )
             .on_input(Message::UpdateDelayTimeoutMs)
             .padding([8, 12])

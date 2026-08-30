@@ -2,7 +2,7 @@
 //! scrollable, badge-annotated log line list.
 
 use crate::locales::{Lang, Localizer};
-use crate::view::components::{BadgeKind, section_header, icon_button};
+use crate::view::components::{BadgeKind, icon_button, section_header};
 use crate::view::runtime::styles::pick_style;
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{self, MONO, R_CONTROL, tokens};
@@ -17,7 +17,7 @@ pub(super) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
     let logs_trailing = row![
         pick_list(
             &["debug", "info", "warning", "error"][..],
-            Some(state.log_level.as_str()),
+            Some(state.diag.log_level.as_str()),
             |l| Message::SetLogLevel(l.to_string())
         )
         .text_size(12)
@@ -28,6 +28,7 @@ pub(super) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
     .align_y(Alignment::Center);
 
     let log_lines: Vec<Element<'_, Message>> = state
+        .diag
         .logs
         .iter()
         .map(|l| {
@@ -50,17 +51,18 @@ pub(super) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
         .collect();
 
     column![
-        section_header(lang.tr("runtime_system_logs").as_ref(), Some(logs_trailing.into())),
+        section_header(
+            lang.tr("runtime_system_logs").as_ref(),
+            Some(logs_trailing.into())
+        ),
         Space::new().height(theme::SP_MD),
         container(
-            Scrollable::new(
-                column(log_lines).spacing(2).padding(iced::Padding {
-                    top: theme::SP_SM,
-                    right: SCROLL_PAD,
-                    bottom: theme::SP_SM,
-                    left: theme::SP_SM,
-                })
-            )
+            Scrollable::new(column(log_lines).spacing(2).padding(iced::Padding {
+                top: theme::SP_SM,
+                right: SCROLL_PAD,
+                bottom: theme::SP_SM,
+                left: theme::SP_SM,
+            }))
             .id(iced::widget::Id::new("log_scroller"))
             // Definite height: `snap_to("log_scroller", ...)` in the update
             // path needs a real scrolling viewport, and a Fill height would

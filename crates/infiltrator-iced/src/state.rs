@@ -1,3 +1,12 @@
+//! AppState 域拆分(UI-002):原先 161 个平铺字段收敛为五个语义域结构体。
+//!
+//! 域边界(与 `TODO.md` UI-002 对应):
+//! - [`RuntimeState`] 内核与运行控制;[`ProfileState`] 订阅/档案/同步;
+//! - [`ConfigEditorState`] 全部配置编辑器;[`DiagnosticsState`] 运行态诊断与性能;
+//! - [`ShellState`] 导航/语言/主题/托盘/Admin/demo 等外壳关注点。
+//!
+//! 视图层只读这些域做纯渲染投影;update 层按域定位字段。
+
 use crate::tray::{SharedTrayEventReceiver, TrayController};
 use crate::types::{
     AdvancedEditMode, AdvancedValidationState, DnsFormDraft, DnsTab, EditorLazyState,
@@ -15,19 +24,14 @@ use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-
-pub struct AppState {
-    pub current_route: Route,
+/// 内核运行时域:内核进程句柄、生命周期状态、代理模式/系统代理/自启、
+/// 节点与分组运行控制、批量测速与内核版本管理(UI-002)。
+pub struct RuntimeState {
     pub runtime: Option<Arc<MihomoRuntime>>,
     pub status: RuntimeStatus,
-    pub error_msg: Option<String>,
-    pub profiles: Vec<Profile>,
-    pub profiles_filter: String,
-    pub is_loading_profiles: bool,
     pub proxies: HashMap<String, mihomo_api::proxy::Proxy>,
     pub is_loading_proxies: bool,
     pub filtered_groups: Vec<(String, Vec<String>)>,
-    pub transition: Transition,
     pub proxy_filter: String,
     pub proxy_sort_by_delay: bool,
     pub proxy_delay_sort: String,
@@ -39,20 +43,54 @@ pub struct AppState {
     pub runtime_selected_proxy: String,
     pub runtime_connection_filter: String,
     pub runtime_connection_sort: String,
-    pub traffic: Option<TrafficData>,
-    pub traffic_history: VecDeque<(u64, u64)>,
     pub runtime_prev_upload_total: Option<u64>,
     pub runtime_prev_download_total: Option<u64>,
-    pub memory: Option<mihomo_api::types::MemoryData>,
-    pub public_ip: Option<String>,
-    pub connections: Option<ConnectionSnapshot>,
-    pub logs: VecDeque<String>,
-    pub log_level: String,
     pub runtime_auto_refresh: bool,
     pub runtime_poll_tick: u64,
-    pub lang: String,
     pub proxy_mode: Option<String>,
     pub tun_enabled: Option<bool>,
+    pub system_proxy_enabled: bool,
+    pub autostart_enabled: bool,
+    pub installed_kernels: Vec<VersionInfo>,
+    pub latest_core_version: Option<String>,
+    pub download_progress: f32,
+    pub is_checking_update: bool,
+    pub rebuild_flow: RebuildFlowState,
+    pub proxy_groups_expanded: Option<Vec<String>>,
+}
+
+/// 订阅与档案域:Profile 列表、订阅导入/更新、WebDAV 同步与应用设置保存(UI-002)。
+pub struct ProfileState {
+    pub profiles: Vec<Profile>,
+    pub profiles_filter: String,
+    pub is_loading_profiles: bool,
+    pub import_url: String,
+    pub import_name: String,
+    pub import_activate: bool,
+    pub is_importing: bool,
+    pub local_import_path: String,
+    pub local_import_name: String,
+    pub local_import_activate: bool,
+    pub is_importing_local: bool,
+    pub subscription_profile_name: String,
+    pub subscription_url: String,
+    pub subscription_auto_update_enabled: bool,
+    pub subscription_update_interval_hours: String,
+    pub is_saving_subscription: bool,
+    pub is_updating_subscription_now: bool,
+    pub webdav_url: String,
+    pub webdav_user: String,
+    pub webdav_pass: String,
+    pub webdav_enabled: bool,
+    pub webdav_sync_interval_mins: String,
+    pub webdav_sync_on_startup: bool,
+    pub is_syncing: bool,
+    pub is_saving_app_settings: bool,
+}
+
+/// 配置编辑器域:Rules / Providers / Sniffer / DNS / Fake-IP / TUN 的 JSON 与
+/// 表单双模式编辑状态、脏标记、懒加载与校验(UI-002)。
+pub struct ConfigEditorState {
     pub tun_stack: String,
     pub tun_auto_route: bool,
     pub tun_strict_route: bool,
@@ -118,36 +156,43 @@ pub struct AppState {
     pub proxy_providers: Vec<mihomo_api::types::ProxyProvider>,
     pub rule_providers: Vec<mihomo_api::types::RuleProvider>,
     pub is_loading_providers: bool,
-    pub tray_controller: Option<Box<dyn TrayController>>,
-    pub tray_events: Option<SharedTrayEventReceiver>,
     pub dns_nameservers: Vec<String>,
     pub dns_fallback_servers: Vec<String>,
     pub dns_enhanced_mode: String,
     pub is_saving_dns: bool,
     pub is_saving_fake_ip: bool,
     pub is_saving_tun: bool,
-    pub import_url: String,
-    pub import_name: String,
-    pub import_activate: bool,
-    pub is_importing: bool,
-    pub local_import_path: String,
-    pub local_import_name: String,
-    pub local_import_activate: bool,
-    pub is_importing_local: bool,
-    pub subscription_profile_name: String,
-    pub subscription_url: String,
-    pub subscription_auto_update_enabled: bool,
-    pub subscription_update_interval_hours: String,
-    pub is_saving_subscription: bool,
-    pub is_updating_subscription_now: bool,
-    pub webdav_url: String,
-    pub webdav_user: String,
-    pub webdav_pass: String,
-    pub webdav_enabled: bool,
-    pub webdav_sync_interval_mins: String,
-    pub webdav_sync_on_startup: bool,
-    pub is_syncing: bool,
-    pub is_saving_app_settings: bool,
+    pub editor_content: text_editor::Content,
+    pub editor_path: Option<PathBuf>,
+    pub editor_path_setting: String,
+}
+
+/// 诊断域:流量/内存/连接/日志运行态快照与性能 HUD 测量(UI-002)。
+pub struct DiagnosticsState {
+    pub traffic: Option<TrafficData>,
+    pub traffic_history: VecDeque<(u64, u64)>,
+    pub memory: Option<mihomo_api::types::MemoryData>,
+    pub public_ip: Option<String>,
+    pub connections: Option<ConnectionSnapshot>,
+    pub logs: VecDeque<String>,
+    pub log_level: String,
+    pub fps: u32,
+    pub last_frame_time: Instant,
+    pub perf_snapshot: PerfSnapshot,
+    pub perf_panel_visible: bool,
+    pub perf_nav_started_at: Option<Instant>,
+    pub perf_nav_route: Option<Route>,
+}
+
+/// 外壳域:导航路由、语言/主题、全局错误与 Toast、托盘、Admin 管理端、
+/// 任务计数与 demo 捕获标记(UI-002)。
+pub struct ShellState {
+    pub current_route: Route,
+    pub error_msg: Option<String>,
+    pub transition: Transition,
+    pub lang: String,
+    pub tray_controller: Option<Box<dyn TrayController>>,
+    pub tray_events: Option<SharedTrayEventReceiver>,
     pub admin_enabled: bool,
     pub admin_port: u16,
     pub admin_port_input: String,
@@ -155,38 +200,20 @@ pub struct AppState {
     pub admin_shared: crate::admin_server::AdminSharedRuntime,
     pub admin_commands: Option<crate::admin_server::SharedAdminCommandReceiver>,
     pub is_admin: bool,
-    pub system_proxy_enabled: bool,
-    pub autostart_enabled: bool,
-    pub installed_kernels: Vec<VersionInfo>,
-    pub latest_core_version: Option<String>,
-    pub download_progress: f32,
-    pub is_checking_update: bool,
     pub last_task_id: usize,
     pub toasts: Vec<(String, ToastStatus)>,
-    pub rebuild_flow: RebuildFlowState,
     pub theme: Theme,
-    pub fps: u32,
-    pub last_frame_time: Instant,
-    pub perf_snapshot: PerfSnapshot,
-    pub perf_panel_visible: bool,
-    pub perf_nav_started_at: Option<Instant>,
-    pub perf_nav_route: Option<Route>,
-    pub editor_content: text_editor::Content,
-    pub editor_path: Option<PathBuf>,
-    pub editor_path_setting: String,
-    // ui-wave2-p: proxies page — group ids the user explicitly expanded or
-    // collapsed (view-only UI state). `None` = pristine, so the proxies view
-    // expands the first group by default; `Some(ids)` = the exact expansion
-    // chosen by the user via Message::ToggleProxyGroupExpanded.
-    pub proxy_groups_expanded: Option<Vec<String>>,
-    // demo-mode: true for `--demo` / INFILTRATOR_DEMO sessions. Views may
-    // consult it to render fixture data without a live runtime, and the
-    // update loop uses it to block every system-touching side effect.
     pub demo: bool,
-    // demo-mode: capture-marker path plus its write-once flag for the
-    // `CAPTURE_READY page=<page> skin=<skin>` contract (see demo.rs).
     pub capture_marker: Option<PathBuf>,
     pub capture_marker_written: std::sync::atomic::AtomicBool,
+}
+
+pub struct AppState {
+    pub runtime: RuntimeState,
+    pub profile: ProfileState,
+    pub editor: ConfigEditorState,
+    pub diag: DiagnosticsState,
+    pub shell: ShellState,
 }
 
 impl AppState {
@@ -194,6 +221,6 @@ impl AppState {
     /// subscription query tokens or the controller secret, so the text is
     /// redacted here before any view can render it (CORE-001).
     pub fn set_error(&mut self, source: impl std::fmt::Display) {
-        self.error_msg = Some(crate::utils::sanitize_ui_text(&source.to_string()));
+        self.shell.error_msg = Some(crate::utils::sanitize_ui_text(&source.to_string()));
     }
 }

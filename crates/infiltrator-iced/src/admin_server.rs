@@ -22,12 +22,12 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use anyhow::anyhow;
-use infiltrator_admin::admin_api::state::AdminApiContext;
-use infiltrator_admin::servers::AdminServerHandle;
-use infiltrator_core::settings::AdminServerConfig;
 use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
+use infiltrator_admin::admin_api::state::AdminApiContext;
+use infiltrator_admin::servers::AdminServerHandle;
+use infiltrator_core::settings::AdminServerConfig;
 use mihomo_api::client::MihomoClient;
 use mihomo_version::manager::VersionManager;
 
@@ -50,8 +50,7 @@ pub const ADMIN_DIR_ENV: &str = "METACUBEXD_ADMIN_DIR";
 /// 3. packaged resources next to the executable.
 pub fn resolve_admin_dir() -> anyhow::Result<PathBuf> {
     // The crate lives one level deeper than src-tauri, hence `../..`.
-    let dev_admin =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../webui/config-manager-ui");
+    let dev_admin = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../webui/config-manager-ui");
     let dev_admin_dist = dev_admin.join("dist");
 
     if let Ok(custom) = std::env::var(ADMIN_DIR_ENV) {
@@ -161,11 +160,9 @@ impl std::fmt::Debug for AdminHostCommand {
                 .field(&result.is_ok())
                 .finish(),
             Self::RuntimeStopped => f.write_str("RuntimeStopped"),
-            Self::Toast(content, status) => f
-                .debug_tuple("Toast")
-                .field(content)
-                .field(status)
-                .finish(),
+            Self::Toast(content, status) => {
+                f.debug_tuple("Toast").field(content).field(status).finish()
+            }
             Self::SettingsSavedExternally => f.write_str("SettingsSavedExternally"),
             Self::CoreVersionsChanged => f.write_str("CoreVersionsChanged"),
             Self::PickEditorPath(_) => f.debug_tuple("PickEditorPath").field(&"reply").finish(),
@@ -405,9 +402,7 @@ impl IcedAdminContext {
     }
 
     async fn load_settings(&self) -> infiltrator_core::settings::AppSettings {
-        load_settings_from_disk()
-            .await
-            .unwrap_or_default()
+        load_settings_from_disk().await.unwrap_or_default()
     }
 
     async fn update_settings(
@@ -421,8 +416,7 @@ impl IcedAdminContext {
     }
 }
 
-async fn load_settings_from_disk()
--> anyhow::Result<infiltrator_core::settings::AppSettings> {
+async fn load_settings_from_disk() -> anyhow::Result<infiltrator_core::settings::AppSettings> {
     let base_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
     let path = infiltrator_core::settings::settings_path(&base_dir)?;
     infiltrator_core::settings::load_settings(&path).await
@@ -433,8 +427,7 @@ async fn save_settings_to_disk(
 ) -> anyhow::Result<()> {
     let base_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
     let path = infiltrator_core::settings::settings_path(&base_dir)?;
-    infiltrator_core::settings::save_settings(&path, settings)
-            .await
+    infiltrator_core::settings::save_settings(&path, settings).await
 }
 
 #[async_trait::async_trait]
@@ -444,12 +437,15 @@ impl AdminApiContext for IcedAdminContext {
             let _ = runtime.shutdown().await;
         }
         let vm = VersionManager::new().map_err(|e| anyhow!(e.to_string()))?;
-        let data_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
+        let data_dir =
+            mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
         let rebuilt = Arc::new(
-            infiltrator_desktop::runtime::MihomoRuntime::bootstrap(&vm, true, &[], &data_dir).await?,
+            infiltrator_desktop::runtime::MihomoRuntime::bootstrap(&vm, true, &[], &data_dir)
+                .await?,
         );
         self.shared.set_runtime(Some(rebuilt.clone()));
-        self.shared.send(AdminHostCommand::RuntimeResynced(Ok(rebuilt)));
+        self.shared
+            .send(AdminHostCommand::RuntimeResynced(Ok(rebuilt)));
         Ok(())
     }
 
@@ -461,12 +457,16 @@ impl AdminApiContext for IcedAdminContext {
             return self.rebuild_runtime().await;
         };
         let session = runtime.session();
-        let generation = session.restart().await.map_err(|e| anyhow!(e.to_string()))?;
+        let generation = session
+            .restart()
+            .await
+            .map_err(|e| anyhow!(e.to_string()))?;
         session
             .wait_for_ready(generation, infiltrator_core::session::READINESS_TIMEOUT)
             .await
             .map_err(|e| anyhow!("core restart did not become ready: {e}"))?;
-        self.shared.send(AdminHostCommand::RuntimeResynced(Ok(runtime)));
+        self.shared
+            .send(AdminHostCommand::RuntimeResynced(Ok(runtime)));
         Ok(())
     }
 
@@ -522,7 +522,8 @@ impl AdminApiContext for IcedAdminContext {
 
     async fn pick_editor_path(&self) -> Option<String> {
         let (tx, rx) = tokio::sync::oneshot::channel();
-        self.shared.send(AdminHostCommand::PickEditorPath(Arc::new(tx)));
+        self.shared
+            .send(AdminHostCommand::PickEditorPath(Arc::new(tx)));
         // The dialog runs on the main thread; give the user ample time.
         tokio::time::timeout(std::time::Duration::from_secs(300), rx)
             .await
@@ -642,8 +643,8 @@ fn spawn_admin_server_start(
     Task::perform(
         async move {
             let attempt = async {
-                let dir = resolve_admin_dir()
-                    .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                let dir =
+                    resolve_admin_dir().map_err(|e| InfiltratorError::Config(e.to_string()))?;
                 // preferred_port=None mirrors src-tauri: scan upward from the
                 // configured port when it is occupied instead of failing hard.
                 let handle = infiltrator_admin::servers::start_admin_server(
@@ -731,16 +732,18 @@ impl AppState {
         &mut self,
         runtime: Option<std::sync::Arc<infiltrator_desktop::runtime::MihomoRuntime>>,
     ) {
-        self.runtime = runtime;
-        self.admin_shared.set_runtime(self.runtime.clone());
+        self.runtime.runtime = runtime;
+        self.shell
+            .admin_shared
+            .set_runtime(self.runtime.runtime.clone());
     }
 
     /// Take the runtime for shutdown/teardown, clearing the shared snapshot.
     pub(crate) fn take_app_runtime(
         &mut self,
     ) -> Option<std::sync::Arc<infiltrator_desktop::runtime::MihomoRuntime>> {
-        let taken = self.runtime.take();
-        self.admin_shared.set_runtime(None);
+        let taken = self.runtime.runtime.take();
+        self.shell.admin_shared.set_runtime(None);
         taken
     }
 
@@ -749,10 +752,10 @@ impl AppState {
     /// change. Inert under `cfg(test)` (tests never start a real server).
     pub fn apply_admin_server_lifecycle(&mut self) -> Task<Message> {
         let desired = AdminServerConfig {
-            enabled: self.admin_enabled,
-            port: self.admin_port,
+            enabled: self.shell.admin_enabled,
+            port: self.shell.admin_port,
         };
-        match self.admin_server.begin_transition(desired.clone()) {
+        match self.shell.admin_server.begin_transition(desired.clone()) {
             AdminServerIntent::None => Task::none(),
             AdminServerIntent::Stop => {
                 self.refresh_tray();
@@ -767,8 +770,8 @@ impl AppState {
                 #[cfg(not(test))]
                 {
                     self.refresh_tray();
-                    let ctx = IcedAdminContext::new(self.admin_shared.clone());
-                    spawn_admin_server_start(self.admin_server.clone(), ctx, desired)
+                    let ctx = IcedAdminContext::new(self.shell.admin_shared.clone());
+                    spawn_admin_server_start(self.shell.admin_server.clone(), ctx, desired)
                 }
             }
         }
@@ -780,7 +783,7 @@ impl AppState {
         match command {
             AdminHostCommand::RuntimeResynced(result) => match result {
                 Ok(runtime) => {
-                    self.status = crate::types::RuntimeStatus::Running;
+                    self.runtime.status = crate::types::RuntimeStatus::Running;
                     self.sync_runtime_slot(Some(runtime));
                     self.refresh_tray();
                     Task::batch(vec![
@@ -790,9 +793,8 @@ impl AppState {
                     ])
                 }
                 Err(e) => {
-                    self.status = crate::types::RuntimeStatus::Error(InfiltratorError::Config(
-                        e.clone(),
-                    ));
+                    self.runtime.status =
+                        crate::types::RuntimeStatus::Error(InfiltratorError::Config(e.clone()));
                     self.set_error(InfiltratorError::Config(e));
                     Task::none()
                 }
@@ -819,12 +821,10 @@ impl AppState {
             AdminHostCommand::CoreVersionsChanged => Task::done(Message::LoadKernels),
             AdminHostCommand::PickEditorPath(tx) => Task::perform(
                 async {
-                    tokio::task::spawn_blocking(|| {
-                        rfd::FileDialog::new().pick_file()
-                    })
-                    .await
-                    .ok()
-                    .flatten()
+                    tokio::task::spawn_blocking(|| rfd::FileDialog::new().pick_file())
+                        .await
+                        .ok()
+                        .flatten()
                 },
                 move |path: Option<PathBuf>| {
                     // Exactly one clone of the command is ever handled; the
@@ -842,7 +842,7 @@ impl AppState {
     /// Open the admin WebUI in the system browser (tray entry / settings
     /// button). Graceful failure when the server is off.
     pub fn open_web_admin(&self) -> Task<Message> {
-        match self.admin_server.url() {
+        match self.shell.admin_server.url() {
             Some(url) => Task::perform(
                 async move {
                     tokio::task::spawn_blocking(move || webbrowser::open(&url))
@@ -856,7 +856,9 @@ impl AppState {
                 },
             ),
             None => Task::done(Message::ShowToast(
-                crate::locales::Lang(&self.lang).tr("settings_admin_not_running").into_owned(),
+                crate::locales::Lang(&self.shell.lang)
+                    .tr("settings_admin_not_running")
+                    .into_owned(),
                 ToastStatus::Warning,
             )),
         }

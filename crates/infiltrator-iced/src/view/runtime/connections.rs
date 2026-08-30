@@ -13,42 +13,35 @@ use crate::{AppState, Message};
 use iced::widget::{Space, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 
-pub(super) fn connections_section<'a>(
-    state: &'a AppState,
-    lang: Lang<'a>,
-) -> Element<'a, Message> {
+pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
     let sort_labels: Vec<String> = vec![
         lang.tr("runtime_conn_sort_download_desc").to_string(),
         lang.tr("runtime_conn_sort_upload_desc").to_string(),
         lang.tr("runtime_conn_sort_latest_desc").to_string(),
         lang.tr("runtime_conn_sort_host_asc").to_string(),
     ];
-    let sort_index = match state.runtime_connection_sort.as_str() {
+    let sort_index = match state.runtime.runtime_connection_sort.as_str() {
         "upload_desc" => 1,
         "latest_desc" => 2,
         "host_asc" => 3,
         _ => 0,
     };
-    let conn_sort_control = segmented_control(
-        &sort_labels,
-        sort_index,
-        |index| {
-            let key = match index {
-                1 => "upload_desc",
-                2 => "latest_desc",
-                3 => "host_asc",
-                _ => "download_desc",
-            };
-            Message::UpdateRuntimeConnectionSort(key.to_string())
-        },
-    );
+    let conn_sort_control = segmented_control(&sort_labels, sort_index, |index| {
+        let key = match index {
+            1 => "upload_desc",
+            2 => "latest_desc",
+            3 => "host_asc",
+            _ => "download_desc",
+        };
+        Message::UpdateRuntimeConnectionSort(key.to_string())
+    });
 
     let filter_row = row![
         svg_icons::icon_themed(Icon::Search, 14.0, |t: &Theme| tokens(t).text_tertiary),
         Space::new().width(theme::SP_SM),
         text_input(
             lang.tr("runtime_conn_filter_placeholder").as_ref(),
-            &state.runtime_connection_filter
+            &state.runtime.runtime_connection_filter
         )
         .on_input(Message::UpdateRuntimeConnectionFilter)
         .padding([8, 12])
@@ -57,7 +50,7 @@ pub(super) fn connections_section<'a>(
         .width(Length::Fixed(260.0))
         .style(input_style),
         Space::new().width(theme::SP_SM),
-        if state.runtime_connection_filter.is_empty() {
+        if state.runtime.runtime_connection_filter.is_empty() {
             Space::new().width(0).into()
         } else {
             icon_button(
@@ -94,11 +87,15 @@ pub(super) fn connections_section<'a>(
         Space::new().height(theme::SP_SM),
     ];
 
-    if let Some(c) = &state.connections {
+    if let Some(c) = &state.diag.connections {
         let mut conn_list = column![].spacing(theme::SP_SM);
 
         let mut sorted_conns = c.connections.clone();
-        let connection_filter = state.runtime_connection_filter.trim().to_lowercase();
+        let connection_filter = state
+            .runtime
+            .runtime_connection_filter
+            .trim()
+            .to_lowercase();
         if !connection_filter.is_empty() {
             sorted_conns.retain(|conn| {
                 let metadata = &conn.metadata;
@@ -117,7 +114,7 @@ pub(super) fn connections_section<'a>(
             });
         }
         sorted_conns.sort_by(|a, b| {
-            let ordering = match state.runtime_connection_sort.as_str() {
+            let ordering = match state.runtime.runtime_connection_sort.as_str() {
                 "upload_desc" => b.upload.cmp(&a.upload),
                 "latest_desc" => b.start.cmp(&a.start),
                 "host_asc" => {
@@ -194,11 +191,9 @@ pub(super) fn connections_section<'a>(
                 .align_y(Alignment::Center),
                 Space::new().height(theme::SP_XS),
                 row![
-                    text(rule_str)
-                        .size(11)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).accent),
-                        }),
+                    text(rule_str).size(11).style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).accent),
+                    }),
                     Space::new().width(theme::SP_MD),
                     text(payload_str)
                         .size(11)

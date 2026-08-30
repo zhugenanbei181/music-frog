@@ -282,13 +282,11 @@ pub fn build_tray_spec(
         }],
     };
 
-    let web_admin_item = web_admin.map(|info| {
-        TrayMenuItem::Action {
-            id: TRAY_ACTION_OPEN_WEB_ADMIN,
-            label: "打开 Web 管理端".to_string(),
-            enabled: info.running,
-            payload: None,
-        }
+    let web_admin_item = web_admin.map(|info| TrayMenuItem::Action {
+        id: TRAY_ACTION_OPEN_WEB_ADMIN,
+        label: "打开 Web 管理端".to_string(),
+        enabled: info.running,
+        payload: None,
     });
 
     let mut items = vec![TrayMenuItem::action(TRAY_ACTION_SHOW, "显示主界面")];

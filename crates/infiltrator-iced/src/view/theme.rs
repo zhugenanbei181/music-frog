@@ -92,67 +92,145 @@ pub struct Tokens {
 
 /// iOS system colors, light appearance.
 pub const LIGHT: Tokens = Tokens {
-    canvas: Color::from_rgb(0.949, 0.949, 0.969),      // #F2F2F7
-    sidebar: Color::from_rgb(0.965, 0.965, 0.980),     // #F6F6FA
+    canvas: Color::from_rgb(0.949, 0.949, 0.969),  // #F2F2F7
+    sidebar: Color::from_rgb(0.965, 0.965, 0.980), // #F6F6FA
     card_bg: Color::WHITE,
-    card_border: Color { a: 0.10, ..Color::BLACK },
+    card_border: Color {
+        a: 0.10,
+        ..Color::BLACK
+    },
     card_shadow: Shadow {
-        color: Color { a: 0.06, ..Color::from_rgb(0.06, 0.09, 0.16) },
+        color: Color {
+            a: 0.06,
+            ..Color::from_rgb(0.06, 0.09, 0.16)
+        },
         offset: Vector::new(0.0, 1.0),
         blur_radius: 3.0,
     },
-    accent: Color::from_rgb(0.0, 0.478, 1.0),          // #007AFF iOS blue
-    accent_soft: Color { a: 0.12, ..Color::from_rgb(0.0, 0.478, 1.0) },
+    accent: Color::from_rgb(0.0, 0.478, 1.0), // #007AFF iOS blue
+    accent_soft: Color {
+        a: 0.12,
+        ..Color::from_rgb(0.0, 0.478, 1.0)
+    },
     on_accent: Color::WHITE,
     text_primary: Color::from_rgb(0.110, 0.110, 0.118), // #1C1C1E
-    text_secondary: Color { a: 0.60, ..Color::from_rgb(0.235, 0.235, 0.263) }, // #3C3C43 @60%
-    text_tertiary: Color { a: 0.30, ..Color::from_rgb(0.235, 0.235, 0.263) },
-    success: Color::from_rgb(0.204, 0.780, 0.349),     // #34C759
-    warning: Color::from_rgb(1.0, 0.584, 0.0),         // #FF9500
-    danger: Color::from_rgb(1.0, 0.231, 0.188),        // #FF3B30
-    chip_bg: Color { a: 0.06, ..Color::BLACK },
-    divider: Color { a: 0.08, ..Color::BLACK },
+    text_secondary: Color {
+        a: 0.60,
+        ..Color::from_rgb(0.235, 0.235, 0.263)
+    }, // #3C3C43 @60%
+    text_tertiary: Color {
+        a: 0.30,
+        ..Color::from_rgb(0.235, 0.235, 0.263)
+    },
+    success: Color::from_rgb(0.204, 0.780, 0.349), // #34C759
+    warning: Color::from_rgb(1.0, 0.584, 0.0),     // #FF9500
+    danger: Color::from_rgb(1.0, 0.231, 0.188),    // #FF3B30
+    chip_bg: Color {
+        a: 0.06,
+        ..Color::BLACK
+    },
+    divider: Color {
+        a: 0.08,
+        ..Color::BLACK
+    },
     sidebar_text: Color::from_rgb(0.110, 0.110, 0.118),
-    sidebar_text_muted: Color { a: 0.55, ..Color::from_rgb(0.235, 0.235, 0.263) },
-    control_bg: Color { a: 0.05, ..Color::BLACK },
-    overlay: Color { a: 0.90, ..Color::BLACK },
+    sidebar_text_muted: Color {
+        a: 0.55,
+        ..Color::from_rgb(0.235, 0.235, 0.263)
+    },
+    control_bg: Color {
+        a: 0.05,
+        ..Color::BLACK
+    },
+    overlay: Color {
+        a: 0.90,
+        ..Color::BLACK
+    },
     overlay_text: Color::WHITE,
-    overlay_text_muted: Color { a: 0.75, ..Color::WHITE },
-    overlay_border: Color { a: 0.25, ..Color::WHITE },
-    switch_track: Color { a: 0.32, ..Color::from_rgb(0.47, 0.47, 0.50) }, // iOS gray
+    overlay_text_muted: Color {
+        a: 0.75,
+        ..Color::WHITE
+    },
+    overlay_border: Color {
+        a: 0.25,
+        ..Color::WHITE
+    },
+    switch_track: Color {
+        a: 0.32,
+        ..Color::from_rgb(0.47, 0.47, 0.50)
+    }, // iOS gray
     switch_knob: Color::WHITE,
 };
 
 /// iOS system colors, dark appearance.
 pub const DARK: Tokens = Tokens {
-    canvas: Color::from_rgb(0.055, 0.063, 0.078),      // #0E1014
-    sidebar: Color::from_rgb(0.086, 0.094, 0.110),     // #16181C
-    card_bg: Color::from_rgb(0.129, 0.141, 0.161),     // #212429
-    card_border: Color { a: 0.08, ..Color::WHITE },
+    canvas: Color::from_rgb(0.055, 0.063, 0.078),  // #0E1014
+    sidebar: Color::from_rgb(0.086, 0.094, 0.110), // #16181C
+    card_bg: Color::from_rgb(0.129, 0.141, 0.161), // #212429
+    card_border: Color {
+        a: 0.08,
+        ..Color::WHITE
+    },
     card_shadow: Shadow {
-        color: Color { a: 0.35, ..Color::BLACK },
+        color: Color {
+            a: 0.35,
+            ..Color::BLACK
+        },
         offset: Vector::new(0.0, 1.0),
         blur_radius: 3.0,
     },
-    accent: Color::from_rgb(0.039, 0.518, 1.0),        // #0A84FF iOS blue (dark)
-    accent_soft: Color { a: 0.16, ..Color::from_rgb(0.039, 0.518, 1.0) },
+    accent: Color::from_rgb(0.039, 0.518, 1.0), // #0A84FF iOS blue (dark)
+    accent_soft: Color {
+        a: 0.16,
+        ..Color::from_rgb(0.039, 0.518, 1.0)
+    },
     on_accent: Color::WHITE,
     text_primary: Color::WHITE,
-    text_secondary: Color { a: 0.60, ..Color::from_rgb(0.922, 0.922, 0.961) }, // #EBEBF5 @60%
-    text_tertiary: Color { a: 0.30, ..Color::from_rgb(0.922, 0.922, 0.961) },
-    success: Color::from_rgb(0.188, 0.820, 0.345),     // #30D158
-    warning: Color::from_rgb(1.0, 0.624, 0.039),       // #FF9F0A
-    danger: Color::from_rgb(1.0, 0.271, 0.227),        // #FF453A
-    chip_bg: Color { a: 0.10, ..Color::WHITE },
-    divider: Color { a: 0.10, ..Color::WHITE },
+    text_secondary: Color {
+        a: 0.60,
+        ..Color::from_rgb(0.922, 0.922, 0.961)
+    }, // #EBEBF5 @60%
+    text_tertiary: Color {
+        a: 0.30,
+        ..Color::from_rgb(0.922, 0.922, 0.961)
+    },
+    success: Color::from_rgb(0.188, 0.820, 0.345), // #30D158
+    warning: Color::from_rgb(1.0, 0.624, 0.039),   // #FF9F0A
+    danger: Color::from_rgb(1.0, 0.271, 0.227),    // #FF453A
+    chip_bg: Color {
+        a: 0.10,
+        ..Color::WHITE
+    },
+    divider: Color {
+        a: 0.10,
+        ..Color::WHITE
+    },
     sidebar_text: Color::WHITE,
-    sidebar_text_muted: Color { a: 0.45, ..Color::WHITE },
-    control_bg: Color { a: 0.07, ..Color::WHITE },
-    overlay: Color { a: 0.92, ..Color::from_rgb(0.11, 0.11, 0.12) }, // #1C1C1E
+    sidebar_text_muted: Color {
+        a: 0.45,
+        ..Color::WHITE
+    },
+    control_bg: Color {
+        a: 0.07,
+        ..Color::WHITE
+    },
+    overlay: Color {
+        a: 0.92,
+        ..Color::from_rgb(0.11, 0.11, 0.12)
+    }, // #1C1C1E
     overlay_text: Color::WHITE,
-    overlay_text_muted: Color { a: 0.75, ..Color::WHITE },
-    overlay_border: Color { a: 0.20, ..Color::WHITE },
-    switch_track: Color { a: 0.32, ..Color::from_rgb(0.47, 0.47, 0.50) }, // iOS gray
+    overlay_text_muted: Color {
+        a: 0.75,
+        ..Color::WHITE
+    },
+    overlay_border: Color {
+        a: 0.20,
+        ..Color::WHITE
+    },
+    switch_track: Color {
+        a: 0.32,
+        ..Color::from_rgb(0.47, 0.47, 0.50)
+    }, // iOS gray
     switch_knob: Color::WHITE,
 };
 

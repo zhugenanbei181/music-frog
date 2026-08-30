@@ -7,8 +7,8 @@ use crate::types::{
     EditorLazyState, InfiltratorError, Message, RebuildFlowState, RuleBadgeKind, RuleRenderItem,
     RulesJsonTab, RulesLoadBundle, RulesTab, ToastStatus,
 };
-use infiltrator_core::rules::RuleEntry;
 use iced::Task;
+use infiltrator_core::rules::RuleEntry;
 
 impl AppState {
     fn split_rule_parts(rule: &str) -> (String, String, String) {
@@ -31,7 +31,8 @@ impl AppState {
     /// constructor can seed the cache for its fixture rules.
     pub(crate) fn rebuild_rules_render_cache(&mut self) {
         let start = std::time::Instant::now();
-        self.rules_render_cache = self
+        self.editor.rules_render_cache = self
+            .editor
             .rules
             .iter()
             .enumerate()
@@ -47,17 +48,18 @@ impl AppState {
                 }
             })
             .collect();
-        self.perf_snapshot.rules_cache_build_ms = start.elapsed().as_millis();
+        self.diag.perf_snapshot.rules_cache_build_ms = start.elapsed().as_millis();
     }
 
     /// Recompute the filtered rules page indices. pub(crate) so the demo
     /// constructor can apply its empty filter once at boot.
     pub(crate) fn apply_rules_filter(&mut self) {
-        let filter = self.rules_filter.trim().to_ascii_lowercase();
-        self.rules_filtered_indices = if filter.is_empty() {
-            (0..self.rules_render_cache.len()).collect()
+        let filter = self.editor.rules_filter.trim().to_ascii_lowercase();
+        self.editor.rules_filtered_indices = if filter.is_empty() {
+            (0..self.editor.rules_render_cache.len()).collect()
         } else {
-            self.rules_render_cache
+            self.editor
+                .rules_render_cache
                 .iter()
                 .enumerate()
                 .filter_map(|(cache_index, item)| {
@@ -69,68 +71,74 @@ impl AppState {
                 })
                 .collect()
         };
-        if self.rules_page_size == 0 {
-            self.rules_page_size = 200;
+        if self.editor.rules_page_size == 0 {
+            self.editor.rules_page_size = 200;
         }
-        let total_pages = if self.rules_filtered_indices.is_empty() {
+        let total_pages = if self.editor.rules_filtered_indices.is_empty() {
             1
         } else {
-            (self.rules_filtered_indices.len() - 1) / self.rules_page_size + 1
+            (self.editor.rules_filtered_indices.len() - 1) / self.editor.rules_page_size + 1
         };
-        if self.rules_page >= total_pages {
-            self.rules_page = total_pages.saturating_sub(1);
+        if self.editor.rules_page >= total_pages {
+            self.editor.rules_page = total_pages.saturating_sub(1);
         }
-        let start = self.rules_page.saturating_mul(self.rules_page_size);
-        self.perf_snapshot.rules_visible_rows = self
+        let start = self
+            .editor
+            .rules_page
+            .saturating_mul(self.editor.rules_page_size);
+        self.diag.perf_snapshot.rules_visible_rows = self
+            .editor
             .rules_filtered_indices
             .len()
             .saturating_sub(start)
-            .min(self.rules_page_size);
+            .min(self.editor.rules_page_size);
     }
 
     fn reset_rules_lazy_state(&mut self) {
-        self.rule_providers_editor_state = EditorLazyState::Unloaded;
-        self.proxy_providers_editor_state = EditorLazyState::Unloaded;
-        self.sniffer_editor_state = EditorLazyState::Unloaded;
+        self.editor.rule_providers_editor_state = EditorLazyState::Unloaded;
+        self.editor.proxy_providers_editor_state = EditorLazyState::Unloaded;
+        self.editor.sniffer_editor_state = EditorLazyState::Unloaded;
     }
 
     fn ensure_rule_providers_editor_loaded(&mut self) {
-        if self.rule_providers_editor_state == EditorLazyState::Loaded
-            && self.rule_providers_json_content.text() == self.rule_providers_json_cache
+        if self.editor.rule_providers_editor_state == EditorLazyState::Loaded
+            && self.editor.rule_providers_json_content.text()
+                == self.editor.rule_providers_json_cache
         {
             return;
         }
         let start = std::time::Instant::now();
-        self.rule_providers_json_content =
-            iced::widget::text_editor::Content::with_text(&self.rule_providers_json_cache);
-        self.rule_providers_editor_state = EditorLazyState::Loaded;
-        self.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
+        self.editor.rule_providers_json_content =
+            iced::widget::text_editor::Content::with_text(&self.editor.rule_providers_json_cache);
+        self.editor.rule_providers_editor_state = EditorLazyState::Loaded;
+        self.diag.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
     }
 
     fn ensure_proxy_providers_editor_loaded(&mut self) {
-        if self.proxy_providers_editor_state == EditorLazyState::Loaded
-            && self.proxy_providers_json_content.text() == self.proxy_providers_json_cache
+        if self.editor.proxy_providers_editor_state == EditorLazyState::Loaded
+            && self.editor.proxy_providers_json_content.text()
+                == self.editor.proxy_providers_json_cache
         {
             return;
         }
         let start = std::time::Instant::now();
-        self.proxy_providers_json_content =
-            iced::widget::text_editor::Content::with_text(&self.proxy_providers_json_cache);
-        self.proxy_providers_editor_state = EditorLazyState::Loaded;
-        self.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
+        self.editor.proxy_providers_json_content =
+            iced::widget::text_editor::Content::with_text(&self.editor.proxy_providers_json_cache);
+        self.editor.proxy_providers_editor_state = EditorLazyState::Loaded;
+        self.diag.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
     }
 
     fn ensure_sniffer_editor_loaded(&mut self) {
-        if self.sniffer_editor_state == EditorLazyState::Loaded
-            && self.sniffer_json_content.text() == self.sniffer_json_cache
+        if self.editor.sniffer_editor_state == EditorLazyState::Loaded
+            && self.editor.sniffer_json_content.text() == self.editor.sniffer_json_cache
         {
             return;
         }
         let start = std::time::Instant::now();
-        self.sniffer_json_content =
-            iced::widget::text_editor::Content::with_text(&self.sniffer_json_cache);
-        self.sniffer_editor_state = EditorLazyState::Loaded;
-        self.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
+        self.editor.sniffer_json_content =
+            iced::widget::text_editor::Content::with_text(&self.editor.sniffer_json_cache);
+        self.editor.sniffer_editor_state = EditorLazyState::Loaded;
+        self.diag.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
     }
 
     /// Custom rules list plus rule/proxy provider and sniffer JSON editors.
@@ -139,25 +147,25 @@ impl AppState {
     pub(super) fn update_core_rules(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::FilterRules(filter) => {
-                self.rules_filter = filter;
-                self.rules_page = 0;
+                self.editor.rules_filter = filter;
+                self.editor.rules_page = 0;
                 self.apply_rules_filter();
                 Task::none()
             }
             Message::UpdateNewRuleType(t) => {
-                self.new_rule_type = t;
+                self.editor.new_rule_type = t;
                 Task::none()
             }
             Message::UpdateNewRulePayload(p) => {
-                self.new_rule_payload = p;
+                self.editor.new_rule_payload = p;
                 Task::none()
             }
             Message::UpdateNewRuleTarget(t) => {
-                self.new_rule_target = t;
+                self.editor.new_rule_target = t;
                 Task::none()
             }
             Message::AddCustomRule => {
-                let payload = self.new_rule_payload.trim().to_string();
+                let payload = self.editor.new_rule_payload.trim().to_string();
                 if payload.is_empty() {
                     return Task::done(Message::ShowToast(
                         "Payload cannot be empty".to_string(),
@@ -168,13 +176,13 @@ impl AppState {
                 let entry = RuleEntry {
                     rule: format!(
                         "{},{},{}",
-                        self.new_rule_type.clone(),
+                        self.editor.new_rule_type.clone(),
                         payload,
-                        self.new_rule_target.clone()
+                        self.editor.new_rule_target.clone()
                     ),
                     enabled: true,
                 };
-                self.is_adding_rule = true;
+                self.editor.is_adding_rule = true;
                 Task::perform(
                     async move {
                         let mut rules = infiltrator_core::rules::load_rules()
@@ -190,10 +198,10 @@ impl AppState {
                 )
             }
             Message::RuleAdded(result) => {
-                self.is_adding_rule = false;
+                self.editor.is_adding_rule = false;
                 match result {
                     Ok(_) => {
-                        self.new_rule_payload.clear();
+                        self.editor.new_rule_payload.clear();
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
                             Task::done(Message::ShowToast(
@@ -209,10 +217,10 @@ impl AppState {
                 }
             }
             Message::SetRulesTab(tab) => {
-                self.rules_tab = tab;
-                self.rules_page = 0;
+                self.editor.rules_tab = tab;
+                self.editor.rules_page = 0;
                 match tab {
-                    RulesTab::JsonEditors => Task::done(match self.rules_json_tab {
+                    RulesTab::JsonEditors => Task::done(match self.editor.rules_json_tab {
                         RulesJsonTab::RuleProviders => Message::EnsureRuleProvidersEditorLoaded,
                         RulesJsonTab::ProxyProviders => Message::EnsureProxyProvidersEditorLoaded,
                         RulesJsonTab::Sniffer => Message::EnsureSnifferEditorLoaded,
@@ -221,7 +229,7 @@ impl AppState {
                 }
             }
             Message::SetRulesJsonTab(tab) => {
-                self.rules_json_tab = tab;
+                self.editor.rules_json_tab = tab;
                 Task::done(match tab {
                     RulesJsonTab::RuleProviders => Message::EnsureRuleProvidersEditorLoaded,
                     RulesJsonTab::ProxyProviders => Message::EnsureProxyProvidersEditorLoaded,
@@ -229,26 +237,26 @@ impl AppState {
                 })
             }
             Message::ToggleRulesProvidersExpanded => {
-                self.rules_providers_expanded = !self.rules_providers_expanded;
+                self.editor.rules_providers_expanded = !self.editor.rules_providers_expanded;
                 Task::none()
             }
             Message::RulesPrevPage => {
-                self.rules_page = self.rules_page.saturating_sub(1);
+                self.editor.rules_page = self.editor.rules_page.saturating_sub(1);
                 Task::none()
             }
             Message::RulesNextPage => {
-                let total_pages = if self.rules_filtered_indices.is_empty() {
+                let total_pages = if self.editor.rules_filtered_indices.is_empty() {
                     1
                 } else {
-                    (self.rules_filtered_indices.len() - 1) / self.rules_page_size + 1
+                    (self.editor.rules_filtered_indices.len() - 1) / self.editor.rules_page_size + 1
                 };
-                if self.rules_page + 1 < total_pages {
-                    self.rules_page += 1;
+                if self.editor.rules_page + 1 < total_pages {
+                    self.editor.rules_page += 1;
                 }
                 Task::none()
             }
             Message::RulesSetPage(page) => {
-                self.rules_page = page;
+                self.editor.rules_page = page;
                 self.apply_rules_filter();
                 Task::none()
             }
@@ -265,9 +273,9 @@ impl AppState {
                 Task::none()
             }
             Message::ActivateRulesHeavyView => {
-                self.rules_heavy_ready = true;
-                if self.rules_tab == RulesTab::JsonEditors {
-                    Task::done(match self.rules_json_tab {
+                self.editor.rules_heavy_ready = true;
+                if self.editor.rules_tab == RulesTab::JsonEditors {
+                    Task::done(match self.editor.rules_json_tab {
                         RulesJsonTab::RuleProviders => Message::EnsureRuleProvidersEditorLoaded,
                         RulesJsonTab::ProxyProviders => Message::EnsureProxyProvidersEditorLoaded,
                         RulesJsonTab::Sniffer => Message::EnsureSnifferEditorLoaded,
@@ -277,22 +285,21 @@ impl AppState {
                 }
             }
             Message::LoadRules => {
-                self.is_loading_rules = true;
-                if !self.rules_loaded_once {
+                self.editor.is_loading_rules = true;
+                if !self.editor.rules_loaded_once {
                     self.reset_rules_lazy_state();
                 }
                 let mut tasks = vec![Task::perform(
                     async {
-                        let manager = mihomo_config::manager::ConfigManager::new()
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
-                        let profile = manager
-                            .get_current()
-                            .await
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
-                        let content = manager
-                            .load(&profile)
-                            .await
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))?;
+                        let manager = mihomo_config::manager::ConfigManager::new().map_err(
+                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                        )?;
+                        let profile = manager.get_current().await.map_err(
+                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                        )?;
+                        let content = manager.load(&profile).await.map_err(
+                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                        )?;
                         let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
@@ -327,8 +334,8 @@ impl AppState {
                     },
                     Message::RulesBundleLoaded,
                 )];
-                if let Some(rt) = self.runtime.clone() {
-                    self.is_loading_providers = true;
+                if let Some(rt) = self.runtime.runtime.clone() {
+                    self.editor.is_loading_providers = true;
                     tasks.push(Task::perform(
                         async move {
                             let proxies = rt
@@ -349,68 +356,69 @@ impl AppState {
                         Message::ProvidersLoaded,
                     ));
                 } else {
-                    self.is_loading_providers = false;
+                    self.editor.is_loading_providers = false;
                 }
                 Task::batch(tasks)
             }
             Message::RulesBundleLoaded(result) => {
-                self.is_loading_rules = false;
+                self.editor.is_loading_rules = false;
                 match result {
                     Ok(bundle) => {
-                        self.rules_loaded_once = true;
-                        self.rules = bundle.rules;
-                        self.rules_dirty = false;
+                        self.editor.rules_loaded_once = true;
+                        self.editor.rules = bundle.rules;
+                        self.editor.rules_dirty = false;
                         self.rebuild_rules_render_cache();
                         self.apply_rules_filter();
 
-                        self.rule_providers_json_cache = bundle.rule_providers_json;
-                        if !self.rule_providers_json_dirty
-                            && self.rule_providers_editor_state == EditorLazyState::Loaded
-                            && self.rule_providers_json_content.text()
-                                != self.rule_providers_json_cache
+                        self.editor.rule_providers_json_cache = bundle.rule_providers_json;
+                        if !self.editor.rule_providers_json_dirty
+                            && self.editor.rule_providers_editor_state == EditorLazyState::Loaded
+                            && self.editor.rule_providers_json_content.text()
+                                != self.editor.rule_providers_json_cache
                         {
                             self.ensure_rule_providers_editor_loaded();
-                            self.rule_providers_json_dirty = false;
+                            self.editor.rule_providers_json_dirty = false;
                         }
 
-                        self.proxy_providers_json_cache = bundle.proxy_providers_json;
-                        if !self.proxy_providers_json_dirty
-                            && self.proxy_providers_editor_state == EditorLazyState::Loaded
-                            && self.proxy_providers_json_content.text()
-                                != self.proxy_providers_json_cache
+                        self.editor.proxy_providers_json_cache = bundle.proxy_providers_json;
+                        if !self.editor.proxy_providers_json_dirty
+                            && self.editor.proxy_providers_editor_state == EditorLazyState::Loaded
+                            && self.editor.proxy_providers_json_content.text()
+                                != self.editor.proxy_providers_json_cache
                         {
                             self.ensure_proxy_providers_editor_loaded();
-                            self.proxy_providers_json_dirty = false;
+                            self.editor.proxy_providers_json_dirty = false;
                         }
 
-                        self.sniffer_json_cache = bundle.sniffer_json;
-                        if !self.sniffer_json_dirty
-                            && self.sniffer_editor_state == EditorLazyState::Loaded
-                            && self.sniffer_json_content.text() != self.sniffer_json_cache
+                        self.editor.sniffer_json_cache = bundle.sniffer_json;
+                        if !self.editor.sniffer_json_dirty
+                            && self.editor.sniffer_editor_state == EditorLazyState::Loaded
+                            && self.editor.sniffer_json_content.text()
+                                != self.editor.sniffer_json_cache
                         {
                             self.ensure_sniffer_editor_loaded();
-                            self.sniffer_json_dirty = false;
+                            self.editor.sniffer_json_dirty = false;
                         }
                     }
                     Err(e) => {
-                        self.rules_loaded_once = false;
+                        self.editor.rules_loaded_once = false;
                         self.set_error(&e);
                     }
                 }
                 Task::none()
             }
             Message::RulesLoaded(result) => {
-                self.is_loading_rules = false;
+                self.editor.is_loading_rules = false;
                 match result {
                     Ok(rules) => {
-                        self.rules_loaded_once = true;
-                        self.rules = rules;
-                        self.rules_dirty = false;
+                        self.editor.rules_loaded_once = true;
+                        self.editor.rules = rules;
+                        self.editor.rules_dirty = false;
                         self.rebuild_rules_render_cache();
                         self.apply_rules_filter();
                     }
                     Err(e) => {
-                        self.rules_loaded_once = false;
+                        self.editor.rules_loaded_once = false;
                         self.set_error(&e);
                     }
                 }
@@ -419,11 +427,11 @@ impl AppState {
             Message::RuleProvidersJsonLoaded(result) => {
                 match result {
                     Ok(json) => {
-                        self.rule_providers_json_cache = json;
-                        if self.rule_providers_editor_state == EditorLazyState::Loaded {
+                        self.editor.rule_providers_json_cache = json;
+                        if self.editor.rule_providers_editor_state == EditorLazyState::Loaded {
                             self.ensure_rule_providers_editor_loaded();
                         }
-                        self.rule_providers_json_dirty = false;
+                        self.editor.rule_providers_json_dirty = false;
                     }
                     Err(e) => self.set_error(&e),
                 }
@@ -432,11 +440,11 @@ impl AppState {
             Message::ProxyProvidersJsonLoaded(result) => {
                 match result {
                     Ok(json) => {
-                        self.proxy_providers_json_cache = json;
-                        if self.proxy_providers_editor_state == EditorLazyState::Loaded {
+                        self.editor.proxy_providers_json_cache = json;
+                        if self.editor.proxy_providers_editor_state == EditorLazyState::Loaded {
                             self.ensure_proxy_providers_editor_loaded();
                         }
-                        self.proxy_providers_json_dirty = false;
+                        self.editor.proxy_providers_json_dirty = false;
                     }
                     Err(e) => self.set_error(&e),
                 }
@@ -445,46 +453,46 @@ impl AppState {
             Message::SnifferJsonLoaded(result) => {
                 match result {
                     Ok(json) => {
-                        self.sniffer_json_cache = json;
-                        if self.sniffer_editor_state == EditorLazyState::Loaded {
+                        self.editor.sniffer_json_cache = json;
+                        if self.editor.sniffer_editor_state == EditorLazyState::Loaded {
                             self.ensure_sniffer_editor_loaded();
                         }
-                        self.sniffer_json_dirty = false;
+                        self.editor.sniffer_json_dirty = false;
                     }
                     Err(e) => self.set_error(&e),
                 }
                 Task::none()
             }
             Message::ToggleRuleEnabled(index) => {
-                if let Some(entry) = self.rules.get_mut(index) {
+                if let Some(entry) = self.editor.rules.get_mut(index) {
                     entry.enabled = !entry.enabled;
-                    self.rules_dirty = true;
+                    self.editor.rules_dirty = true;
                     self.rebuild_rules_render_cache();
                     self.apply_rules_filter();
                 }
                 Task::none()
             }
             Message::MoveRuleUp(index) => {
-                if index > 0 && index < self.rules.len() {
-                    self.rules.swap(index, index - 1);
-                    self.rules_dirty = true;
+                if index > 0 && index < self.editor.rules.len() {
+                    self.editor.rules.swap(index, index - 1);
+                    self.editor.rules_dirty = true;
                     self.rebuild_rules_render_cache();
                     self.apply_rules_filter();
                 }
                 Task::none()
             }
             Message::MoveRuleDown(index) => {
-                if index + 1 < self.rules.len() {
-                    self.rules.swap(index, index + 1);
-                    self.rules_dirty = true;
+                if index + 1 < self.editor.rules.len() {
+                    self.editor.rules.swap(index, index + 1);
+                    self.editor.rules_dirty = true;
                     self.rebuild_rules_render_cache();
                     self.apply_rules_filter();
                 }
                 Task::none()
             }
             Message::SaveRules => {
-                let rules = self.rules.clone();
-                self.is_saving_rules = true;
+                let rules = self.editor.rules.clone();
+                self.editor.is_saving_rules = true;
                 self.begin_save_phase("Rules");
                 Task::perform(
                     async move {
@@ -497,17 +505,17 @@ impl AppState {
                 )
             }
             Message::RulesSaved(result) => {
-                self.is_saving_rules = false;
+                self.editor.is_saving_rules = false;
                 match result {
                     Ok(_) => {
-                        self.rules_dirty = false;
+                        self.editor.rules_dirty = false;
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
                             self.trigger_runtime_rebuild(),
                         ])
                     }
                     Err(e) => {
-                        self.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
                             label: "Rules".to_string(),
                             error: e.to_string(),
                         };
@@ -526,14 +534,14 @@ impl AppState {
             }
             Message::RuleProvidersEditorAction(action) => {
                 self.ensure_rule_providers_editor_loaded();
-                self.rule_providers_json_content.perform(action);
-                self.rule_providers_json_dirty = true;
+                self.editor.rule_providers_json_content.perform(action);
+                self.editor.rule_providers_json_dirty = true;
                 Task::none()
             }
             Message::SaveRuleProvidersJson => {
                 self.ensure_rule_providers_editor_loaded();
-                let text = self.rule_providers_json_content.text();
-                self.is_saving_rule_providers_json = true;
+                let text = self.editor.rule_providers_json_content.text();
+                self.editor.is_saving_rule_providers_json = true;
                 self.begin_save_phase("Rule Providers");
                 Task::perform(
                     async move {
@@ -552,17 +560,17 @@ impl AppState {
                 )
             }
             Message::RuleProvidersJsonSaved(result) => {
-                self.is_saving_rule_providers_json = false;
+                self.editor.is_saving_rule_providers_json = false;
                 match result {
                     Ok(_) => {
-                        self.rule_providers_json_dirty = false;
+                        self.editor.rule_providers_json_dirty = false;
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
                             self.trigger_runtime_rebuild(),
                         ])
                     }
                     Err(e) => {
-                        self.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
                             label: "Rule Providers".to_string(),
                             error: e.to_string(),
                         };
@@ -581,14 +589,14 @@ impl AppState {
             }
             Message::ProxyProvidersEditorAction(action) => {
                 self.ensure_proxy_providers_editor_loaded();
-                self.proxy_providers_json_content.perform(action);
-                self.proxy_providers_json_dirty = true;
+                self.editor.proxy_providers_json_content.perform(action);
+                self.editor.proxy_providers_json_dirty = true;
                 Task::none()
             }
             Message::SaveProxyProvidersJson => {
                 self.ensure_proxy_providers_editor_loaded();
-                let text = self.proxy_providers_json_content.text();
-                self.is_saving_proxy_providers_json = true;
+                let text = self.editor.proxy_providers_json_content.text();
+                self.editor.is_saving_proxy_providers_json = true;
                 self.begin_save_phase("Proxy Providers");
                 Task::perform(
                     async move {
@@ -607,17 +615,17 @@ impl AppState {
                 )
             }
             Message::ProxyProvidersJsonSaved(result) => {
-                self.is_saving_proxy_providers_json = false;
+                self.editor.is_saving_proxy_providers_json = false;
                 match result {
                     Ok(_) => {
-                        self.proxy_providers_json_dirty = false;
+                        self.editor.proxy_providers_json_dirty = false;
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
                             self.trigger_runtime_rebuild(),
                         ])
                     }
                     Err(e) => {
-                        self.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
                             label: "Proxy Providers".to_string(),
                             error: e.to_string(),
                         };
@@ -636,14 +644,14 @@ impl AppState {
             }
             Message::SnifferEditorAction(action) => {
                 self.ensure_sniffer_editor_loaded();
-                self.sniffer_json_content.perform(action);
-                self.sniffer_json_dirty = true;
+                self.editor.sniffer_json_content.perform(action);
+                self.editor.sniffer_json_dirty = true;
                 Task::none()
             }
             Message::SaveSnifferJson => {
                 self.ensure_sniffer_editor_loaded();
-                let text = self.sniffer_json_content.text();
-                self.is_saving_sniffer_json = true;
+                let text = self.editor.sniffer_json_content.text();
+                self.editor.is_saving_sniffer_json = true;
                 self.begin_save_phase("Sniffer");
                 Task::perform(
                     async move {
@@ -660,17 +668,17 @@ impl AppState {
                 )
             }
             Message::SnifferJsonSaved(result) => {
-                self.is_saving_sniffer_json = false;
+                self.editor.is_saving_sniffer_json = false;
                 match result {
                     Ok(_) => {
-                        self.sniffer_json_dirty = false;
+                        self.editor.sniffer_json_dirty = false;
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
                             self.trigger_runtime_rebuild(),
                         ])
                     }
                     Err(e) => {
-                        self.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
                             label: "Sniffer".to_string(),
                             error: e.to_string(),
                         };
@@ -688,18 +696,18 @@ impl AppState {
                 }
             }
             Message::ProvidersLoaded(result) => {
-                self.is_loading_providers = false;
+                self.editor.is_loading_providers = false;
                 match result {
                     Ok((proxies, rules)) => {
-                        self.proxy_providers = proxies;
-                        self.rule_providers = rules;
+                        self.editor.proxy_providers = proxies;
+                        self.editor.rule_providers = rules;
                     }
                     Err(e) => self.set_error(&e),
                 }
                 Task::none()
             }
             Message::UpdateProxyProvider(name) => {
-                if let Some(rt) = self.runtime.clone() {
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()
@@ -714,7 +722,7 @@ impl AppState {
                 }
             }
             Message::UpdateRuleProvider(name) => {
-                if let Some(rt) = self.runtime.clone() {
+                if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()

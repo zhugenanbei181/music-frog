@@ -20,19 +20,19 @@ impl AppState {
     /// those pages re-reads from disk (profiles, rules and editor writes all
     /// funnel through here).
     fn invalidate_rules_dns_views(&mut self) {
-        self.rules_loaded_once = false;
-        self.advanced_configs_loaded_once = false;
-        self.rules_render_cache.clear();
-        self.rules_filtered_indices.clear();
-        self.rules_page = 0;
-        self.rules_heavy_ready = false;
-        self.dns_heavy_ready = false;
-        self.rule_providers_editor_state = crate::types::EditorLazyState::Unloaded;
-        self.proxy_providers_editor_state = crate::types::EditorLazyState::Unloaded;
-        self.sniffer_editor_state = crate::types::EditorLazyState::Unloaded;
-        self.dns_editor_state = crate::types::EditorLazyState::Unloaded;
-        self.fake_ip_editor_state = crate::types::EditorLazyState::Unloaded;
-        self.tun_editor_state = crate::types::EditorLazyState::Unloaded;
+        self.editor.rules_loaded_once = false;
+        self.editor.advanced_configs_loaded_once = false;
+        self.editor.rules_render_cache.clear();
+        self.editor.rules_filtered_indices.clear();
+        self.editor.rules_page = 0;
+        self.editor.rules_heavy_ready = false;
+        self.editor.dns_heavy_ready = false;
+        self.editor.rule_providers_editor_state = crate::types::EditorLazyState::Unloaded;
+        self.editor.proxy_providers_editor_state = crate::types::EditorLazyState::Unloaded;
+        self.editor.sniffer_editor_state = crate::types::EditorLazyState::Unloaded;
+        self.editor.dns_editor_state = crate::types::EditorLazyState::Unloaded;
+        self.editor.fake_ip_editor_state = crate::types::EditorLazyState::Unloaded;
+        self.editor.tun_editor_state = crate::types::EditorLazyState::Unloaded;
     }
 
     pub fn update_profile(&mut self, message: Message) -> Task<Message> {
