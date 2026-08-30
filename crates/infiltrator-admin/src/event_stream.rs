@@ -27,10 +27,7 @@ impl AdminEventBroadcaster {
     /// Broadcasts an event to all subscribed clients.
     /// Returns the number of receivers that received the message.
     pub fn broadcast(&self, event: StreamEventType) -> usize {
-        match self.sender.send(event) {
-            Ok(count) => count,
-            Err(_) => 0,
-        }
+        self.sender.send(event).unwrap_or_default()
     }
 
     /// Subscribes to the broadcast channel.

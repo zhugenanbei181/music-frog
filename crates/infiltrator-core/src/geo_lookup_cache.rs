@@ -97,12 +97,11 @@ impl GeoLookupCache {
     fn evict_if_needed(&mut self) {
         while self.map.len() > self.capacity {
             while let Some((ip, access_id)) = self.order.pop_front() {
-                if let Some((_, _, current_id)) = self.map.get(&ip) {
-                    if *current_id == access_id {
+                if let Some((_, _, current_id)) = self.map.get(&ip)
+                    && *current_id == access_id {
                         self.map.remove(&ip);
                         break;
                     }
-                }
             }
         }
     }
@@ -110,11 +109,10 @@ impl GeoLookupCache {
     fn compact_order(&mut self) {
         let mut new_order = VecDeque::with_capacity(self.capacity);
         for (ip, access_id) in &self.order {
-            if let Some((_, _, current_id)) = self.map.get(ip) {
-                if *current_id == *access_id {
+            if let Some((_, _, current_id)) = self.map.get(ip)
+                && *current_id == *access_id {
                     new_order.push_back((ip.clone(), *access_id));
                 }
-            }
         }
         self.order = new_order;
     }

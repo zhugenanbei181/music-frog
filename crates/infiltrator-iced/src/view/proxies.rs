@@ -363,13 +363,13 @@ fn node_grid<'a>(
             is_active(member.as_str()),
         ));
         laid_out += 1;
-        if laid_out % NODE_GRID_COLUMNS == 0 {
+        if laid_out.is_multiple_of(NODE_GRID_COLUMNS) {
             grid = grid.push(cells);
             cells = row![].spacing(theme::SP_SM);
         }
     }
 
-    if laid_out % NODE_GRID_COLUMNS != 0 {
+    if !laid_out.is_multiple_of(NODE_GRID_COLUMNS) {
         for _ in 0..(NODE_GRID_COLUMNS - laid_out % NODE_GRID_COLUMNS) {
             cells = cells.push(Space::new().width(Length::FillPortion(1)));
         }

@@ -136,10 +136,9 @@ impl SelfHealingController {
 
                             let probe = (self.probe_fn)();
                             
-                            let probe_success = match time::timeout(self.probe_timeout, probe).await {
-                                Ok(res) => res,
-                                Err(_) => false, // Timeout
-                            };
+                            // Timeout maps to `false` (probe failed).
+                            let probe_success =
+                                time::timeout(self.probe_timeout, probe).await.unwrap_or_default();
 
                             if !probe_success {
                                 (self.recovery_fn)().await;
@@ -193,7 +192,7 @@ mod tests {
         let recovery_called_clone = recovery_called.clone();
         let recovery_fn: RecoveryFn = Arc::new(move || {
             recovery_called_clone.fetch_add(1, Ordering::SeqCst);
-            Box::pin(async { () })
+            Box::pin(async {  })
         });
 
         let controller = SelfHealingController::new(probe_fn, recovery_fn);
@@ -232,7 +231,7 @@ mod tests {
         let recovery_called_clone = recovery_called.clone();
         let recovery_fn: RecoveryFn = Arc::new(move || {
             recovery_called_clone.fetch_add(1, Ordering::SeqCst);
-            Box::pin(async { () })
+            Box::pin(async {  })
         });
 
         let controller = SelfHealingController::new(probe_fn, recovery_fn);
@@ -274,7 +273,7 @@ mod tests {
         let recovery_called_clone = recovery_called.clone();
         let recovery_fn: RecoveryFn = Arc::new(move || {
             recovery_called_clone.fetch_add(1, Ordering::SeqCst);
-            Box::pin(async { () })
+            Box::pin(async {  })
         });
 
         let controller = SelfHealingController::new_with_timeout(
@@ -316,7 +315,7 @@ mod tests {
         let recovery_called_clone = recovery_called.clone();
         let recovery_fn: RecoveryFn = Arc::new(move || {
             recovery_called_clone.fetch_add(1, Ordering::SeqCst);
-            Box::pin(async { () })
+            Box::pin(async {  })
         });
 
         let controller = SelfHealingController::new(probe_fn, recovery_fn);

@@ -170,12 +170,11 @@ pub fn parse_logical_rule(rule_str: &str) -> Result<LogicalRule> {
     let mut parts = split_comma_outside_parens(inner);
     let mut no_resolve = false;
     
-    if let Some(last) = parts.last() {
-        if last.trim().eq_ignore_ascii_case("no-resolve") {
+    if let Some(last) = parts.last()
+        && last.trim().eq_ignore_ascii_case("no-resolve") {
             no_resolve = true;
             parts.pop();
         }
-    }
 
     if parts.is_empty() {
         return Err(anyhow!("Missing target in logical rule"));
@@ -255,7 +254,7 @@ mod tests {
         let rule = "AND((DOMAIN,example.com),(IP-CIDR,1.2.3.4/24), Proxy)";
         let parsed = parse_logical_rule(rule).unwrap();
         assert_eq!(parsed.target, "Proxy");
-        assert_eq!(parsed.no_resolve, false);
+        assert!(!parsed.no_resolve);
         
         let expected_ast = LogicalRuleAst::And(vec![
             LogicalRuleAst::Leaf(RulePayload("DOMAIN,example.com".into())),
@@ -269,7 +268,7 @@ mod tests {
         let rule = "OR((AND((DOMAIN,example.com),(IP-CIDR,1.2.3.4/24))),(DOMAIN-SUFFIX,google.com), Direct,no-resolve)";
         let parsed = parse_logical_rule(rule).unwrap();
         assert_eq!(parsed.target, "Direct");
-        assert_eq!(parsed.no_resolve, true);
+        assert!(parsed.no_resolve);
         
         let formatted = format_logical_rule(&parsed);
         assert_eq!(formatted, "OR((AND(DOMAIN,example.com,IP-CIDR,1.2.3.4/24)),DOMAIN-SUFFIX,google.com,Direct,no-resolve)");

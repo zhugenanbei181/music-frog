@@ -75,7 +75,8 @@ impl HostsEngine {
             let suffix = entry.domain_pattern.trim_start_matches("*.").to_string();
             self.wildcard_matches.push((suffix, entry.target_ip));
             // Sort by descending suffix length for most specific match first
-            self.wildcard_matches.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+            self.wildcard_matches
+                .sort_by_key(|(suffix, _)| std::cmp::Reverse(suffix.len()));
         } else {
             self.exact_matches.insert(entry.domain_pattern, entry.target_ip);
         }

@@ -4,7 +4,9 @@ use serde_yaml_ng::Value;
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default)]
 pub enum DeduplicationStrategy {
+    #[default]
     Disabled,
     KeepFirst,
     KeepLast,
@@ -26,11 +28,6 @@ pub struct FilterRule {
     pub deduplication: DeduplicationStrategy,
 }
 
-impl Default for DeduplicationStrategy {
-    fn default() -> Self {
-        DeduplicationStrategy::Disabled
-    }
-}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FilterReport {
@@ -57,8 +54,8 @@ impl SubscriptionFilterPipeline {
         let mut doc: Value = serde_yaml_ng::from_str(yaml_str).context("Failed to parse YAML")?;
         let mut report = FilterReport::default();
 
-        if let Some(proxies) = doc.get_mut("proxies") {
-            if let Some(proxies_seq) = proxies.as_sequence_mut() {
+        if let Some(proxies) = doc.get_mut("proxies")
+            && let Some(proxies_seq) = proxies.as_sequence_mut() {
                 report.total_input = proxies_seq.len();
 
                 let mut new_proxies = Vec::new();
@@ -69,11 +66,11 @@ impl SubscriptionFilterPipeline {
                     let mut proxy = proxy.clone();
                     
                     let (name, proxy_type) = if let Some(map) = proxy.as_mapping() {
-                        let name = map.get(&Value::String("name".to_string()))
+                        let name = map.get(Value::String("name".to_string()))
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string();
-                        let proxy_type = map.get(&Value::String("type".to_string()))
+                        let proxy_type = map.get(Value::String("type".to_string()))
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string();
@@ -173,15 +170,16 @@ impl SubscriptionFilterPipeline {
                 report.passed = new_proxies.len();
                 *proxies_seq = new_proxies;
             }
-        }
 
         let out = serde_yaml_ng::to_string(&doc).context("Failed to serialize YAML")?;
         Ok((out, report))
     }
 
     pub fn filter_proxy_names(&self, names: &[String]) -> (Vec<String>, FilterReport) {
-        let mut report = FilterReport::default();
-        report.total_input = names.len();
+        let mut report = FilterReport {
+            total_input: names.len(),
+            ..FilterReport::default()
+        };
 
         let mut out_names = Vec::new();
         let mut seen_names = HashSet::new();

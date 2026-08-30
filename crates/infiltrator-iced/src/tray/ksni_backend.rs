@@ -149,7 +149,7 @@ pub(super) fn map_items(
 /// pixel right by one byte to get `[a, r, g, b]`).
 pub(super) fn to_ksni_icon(icon: &TrayIconData) -> Icon {
     let mut data = icon.rgba.clone();
-    for pixel in data.chunks_exact_mut(4) {
+    for pixel in data.as_chunks_mut::<4>().0 {
         pixel.rotate_right(1);
     }
     Icon {

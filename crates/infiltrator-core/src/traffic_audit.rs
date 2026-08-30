@@ -88,7 +88,7 @@ impl TrafficAuditAggregator {
     pub fn top_processes_by_traffic(&self, limit: usize) -> Vec<AppTrafficRecord> {
         let mut sorted_records: Vec<_> = self.records.values().cloned().collect();
         // Sort in descending order
-        sorted_records.sort_by(|a, b| b.total_bytes().cmp(&a.total_bytes()));
+        sorted_records.sort_by_key(|record| std::cmp::Reverse(record.total_bytes()));
         sorted_records.into_iter().take(limit).collect()
     }
 

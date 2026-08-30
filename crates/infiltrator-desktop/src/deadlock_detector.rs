@@ -54,11 +54,10 @@ impl DeadlockDetector {
             if event.wait_duration_ms > max_wait_ms {
                 max_wait_ms = event.wait_duration_ms;
             }
-            if event.wait_duration_ms > self.contention_threshold_ms * 2 || !event.acquired {
-                if !suspected_deadlocks.contains(&event.lock_name) {
+            if (event.wait_duration_ms > self.contention_threshold_ms * 2 || !event.acquired)
+                && !suspected_deadlocks.contains(&event.lock_name) {
                     suspected_deadlocks.push(event.lock_name.clone());
                 }
-            }
         }
 
         DeadlockReport {

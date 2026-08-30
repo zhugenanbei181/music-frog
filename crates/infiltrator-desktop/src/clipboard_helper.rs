@@ -35,7 +35,7 @@ impl ClipboardHelper {
         // Base64 check: typically base64 encoded strings for node lists
         let no_space: String = clean_text.chars().filter(|c| !c.is_whitespace()).collect();
         let is_base64_chars = no_space.chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '=');
-        let has_padding_or_valid_len = no_space.len() % 4 == 0 && no_space.len() >= 4;
+        let has_padding_or_valid_len = no_space.len().is_multiple_of(4) && no_space.len() >= 4;
         
         if is_base64_chars && has_padding_or_valid_len && no_space.len() > 16 && !no_space.contains('{') && !no_space.contains(':') {
             return ClipboardContentType::Base64Profile(clean_text);
@@ -75,12 +75,11 @@ impl ClipboardHelper {
             if b == b'%' {
                 if let (Some(h1), Some(h2)) = (bytes.next(), bytes.next()) {
                     let hex_bytes = [h1, h2];
-                    if let Ok(hex_str) = std::str::from_utf8(&hex_bytes) {
-                        if let Ok(byte) = u8::from_str_radix(hex_str, 16) {
+                    if let Ok(hex_str) = std::str::from_utf8(&hex_bytes)
+                        && let Ok(byte) = u8::from_str_radix(hex_str, 16) {
                             utf8_buffer.push(byte);
                             continue;
                         }
-                    }
                     // Invalid hex, push the accumulated buffer and the literal chars
                     if !utf8_buffer.is_empty() {
                         res.push_str(&String::from_utf8_lossy(&utf8_buffer));

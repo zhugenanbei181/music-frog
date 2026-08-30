@@ -51,8 +51,8 @@ impl SingleInstanceIpcServer {
             let t = tx.clone();
             tokio::spawn(async move {
                 while r.load(Ordering::Relaxed) {
-                    if let Ok(result) = timeout(Duration::from_millis(100), listener.accept()).await {
-                        if let Ok((mut stream, _)) = result {
+                    if let Ok(result) = timeout(Duration::from_millis(100), listener.accept()).await
+                        && let Ok((mut stream, _)) = result {
                             let t = t.clone();
                             tokio::spawn(async move {
                                 let (reader, mut writer) = stream.split();
@@ -79,7 +79,6 @@ impl SingleInstanceIpcServer {
                                 }
                             });
                         }
-                    }
                 }
             });
             (Self { running, socket_path }, tx)

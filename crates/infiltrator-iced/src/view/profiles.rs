@@ -455,7 +455,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                             "{} {}",
                             lang.tr("profiles_last_updated"),
                             format_datetime(
-                                profile.last_updated.clone(),
+                                profile.last_updated,
                                 lang.tr("profiles_never").as_ref()
                             )
                         ))
@@ -469,7 +469,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                             "{} {}",
                             lang.tr("profiles_next_update"),
                             format_datetime(
-                                profile.next_update.clone(),
+                                profile.next_update,
                                 lang.tr("profiles_not_scheduled").as_ref()
                             )
                         ))
@@ -607,7 +607,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                                         "{} {}",
                                         lang.tr("profiles_last_updated"),
                                         format_datetime(
-                                            profile.last_updated.clone(),
+                                            profile.last_updated,
                                             lang.tr("profiles_never").as_ref()
                                         )
                                     ))

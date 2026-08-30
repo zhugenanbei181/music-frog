@@ -135,7 +135,7 @@ pub enum Message {
     SaveSnifferJson,
     SnifferJsonSaved(Result<(), InfiltratorError>),
     LoadAdvancedConfigs,
-    AdvancedConfigsBundleLoaded(Result<AdvancedConfigsBundle, InfiltratorError>),
+    AdvancedConfigsBundleLoaded(Result<Box<AdvancedConfigsBundle>, InfiltratorError>),
     SetDnsTab(DnsTab),
     SetAdvancedMode(DnsTab, AdvancedEditMode),
     RefreshDnsOnly,

@@ -24,9 +24,12 @@ const N_US: &str = "美国 CN2";
 const N_DMIT: &str = "DMIT";
 const N_ZGO: &str = "ZGO";
 
+/// Proxy table plus deterministic `filtered_groups` ordering.
+pub(super) type ProxyTables = (HashMap<String, Proxy>, Vec<(String, Vec<String>)>);
+
 /// Build the demo proxy map plus a deterministic `filtered_groups` ordering
 /// (GLOBAL last so the capture always sees the business groups first).
-pub(super) fn demo_proxy_tables() -> (HashMap<String, Proxy>, Vec<(String, Vec<String>)>) {
+pub(super) fn demo_proxy_tables() -> ProxyTables {
     let mut proxies: HashMap<String, Proxy> = HashMap::new();
 
     let mut insert_group = |name: &str, now: &str, all: Vec<&str>| {

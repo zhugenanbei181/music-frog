@@ -54,14 +54,12 @@ impl AppState {
                 self.last_frame_time = now;
 
                 if let (Some(start), Some(route)) = (self.perf_nav_started_at, self.perf_nav_route)
-                {
-                    if route == self.current_route {
+                    && route == self.current_route {
                         self.perf_snapshot.navigate_to_first_paint_ms =
                             Some(now.saturating_duration_since(start).as_millis());
                         self.perf_nav_started_at = None;
                         self.perf_nav_route = None;
                     }
-                }
 
                 if let Some(start) = self.transition.start_time {
                     // 动画结束清理
@@ -200,7 +198,7 @@ impl AppState {
                     ))
                 }
             }
-            Message::TrayEvent(event) => return self.handle_tray_event(event),
+            Message::TrayEvent(event) => self.handle_tray_event(event),
             _ => Task::none(),
         }
     }

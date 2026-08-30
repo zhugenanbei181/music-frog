@@ -22,12 +22,17 @@ pub struct ConnectionRateTracker {
     peak_down_speed: u64,
 }
 
+impl Default for ConnectionRateTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConnectionRateTracker {
     /// Creates a new `ConnectionRateTracker`.
     pub fn new() -> Self {
         Self::new_with_time(Instant::now())
     }
-
     /// Creates a new `ConnectionRateTracker` with a specific start time.
     pub fn new_with_time(now: Instant) -> Self {
         Self {

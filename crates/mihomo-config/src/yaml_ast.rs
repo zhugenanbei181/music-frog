@@ -67,13 +67,12 @@ fn apply_patch(yaml: &str, path: &[&str], new_value: &str) -> Result<String> {
                 break;
             }
 
-            if path.starts_with(&current_path_strs) {
-                if current_path_strs.len() > deepest_match_len {
+            if path.starts_with(&current_path_strs)
+                && current_path_strs.len() > deepest_match_len {
                     deepest_match_len = current_path_strs.len();
                     deepest_match_idx = Some(i);
                     deepest_match_indent = indent;
                 }
-            }
         }
     }
 
@@ -107,36 +106,28 @@ fn apply_patch(yaml: &str, path: &[&str], new_value: &str) -> Result<String> {
 
         let before_comment_trimmed = before_comment.trim();
         let mut anchor = "";
-        if before_comment_trimmed.starts_with('&') {
-            if let Some(space_idx) = before_comment_trimmed.find(' ') {
-                anchor = &before_comment_trimmed[..space_idx];
-            } else {
-                anchor = before_comment_trimmed;
-            }
-        } else if before_comment_trimmed.starts_with('*') {
-            if let Some(space_idx) = before_comment_trimmed.find(' ') {
-                anchor = &before_comment_trimmed[..space_idx];
-            } else {
-                anchor = before_comment_trimmed;
-            }
+        if before_comment_trimmed.starts_with(['&', '*']) {
+            anchor = match before_comment_trimmed.find(' ') {
+                Some(space_idx) => &before_comment_trimmed[..space_idx],
+                None => before_comment_trimmed,
+            };
         }
 
         let mut new_line = format!("{:indent$}{}:", "", key_part, indent = indent);
         if !anchor.is_empty() {
-            new_line.push_str(" ");
+            new_line.push(' ');
             new_line.push_str(anchor);
         }
-        new_line.push_str(" ");
+        new_line.push(' ');
         new_line.push_str(new_value);
         if !comment.is_empty() {
-            new_line.push_str(" ");
+            new_line.push(' ');
             new_line.push_str(comment);
         }
         lines[idx] = new_line;
 
         let mut has_child_block = false;
-        for i in idx + 1 .. lines.len() {
-            let ln = &lines[i];
+        for ln in &lines[idx + 1 ..] {
             let t = ln.trim_start();
             if t.is_empty() || t.starts_with('#') { continue; }
             let child_indent = ln.len() - t.len();
@@ -148,8 +139,7 @@ fn apply_patch(yaml: &str, path: &[&str], new_value: &str) -> Result<String> {
 
         if has_child_block {
             let mut end_idx = idx + 1;
-            for i in idx + 1 .. lines.len() {
-                let ln = &lines[i];
+            for (i, ln) in lines.iter().enumerate().skip(idx + 1) {
                 let t = ln.trim_start();
                 if t.is_empty() || t.starts_with('#') {
                     end_idx = i + 1;
@@ -181,8 +171,7 @@ fn apply_patch(yaml: &str, path: &[&str], new_value: &str) -> Result<String> {
             if lines.last().map(|s| s.is_empty()).unwrap_or(false) {
                 insert_idx = insert_idx.saturating_sub(1);
             }
-            for i in parent_idx + 1 .. lines.len() {
-                let line = &lines[i];
+            for (i, line) in lines.iter().enumerate().skip(parent_idx + 1) {
                 let trimmed = line.trim_start();
                 if trimmed.is_empty() || trimmed.starts_with('#') {
                     continue;

@@ -1,4 +1,4 @@
-/// Target Matrix & ABI Artifact Inventory for mihomo-platform.
+//! Target Matrix & ABI Artifact Inventory for mihomo-platform.
 
 /// Represents the CPU architecture of a target platform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

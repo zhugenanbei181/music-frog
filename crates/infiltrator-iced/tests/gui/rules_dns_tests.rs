@@ -170,7 +170,7 @@ fn test_advanced_bundle_load_applies_form_drafts() {
             ..Default::default()
         },
     };
-    let _ = state.update(Message::AdvancedConfigsBundleLoaded(Ok(bundle)));
+    let _ = state.update(Message::AdvancedConfigsBundleLoaded(Ok(Box::new(bundle))));
     assert!(state.dns_form.enable);
     assert_eq!(
         state.dns_form.nameserver,

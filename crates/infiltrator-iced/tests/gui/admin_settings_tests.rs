@@ -139,10 +139,12 @@ fn test_settings_loaded_applies_admin_config() {
 
     // Custom admin config flows through the same path (and restarts because
     // the desired config changed).
-    let mut settings = AppSettings::default();
-    settings.admin = AdminServerConfig {
-        enabled: true,
-        port: 26000,
+    let settings = AppSettings {
+        admin: AdminServerConfig {
+            enabled: true,
+            port: 26000,
+        },
+        ..AppSettings::default()
     };
     let _ = state.update(Message::SettingsLoaded(Ok(settings)));
     assert_eq!(state.admin_port, 26000);
@@ -166,10 +168,12 @@ fn test_settings_loaded_applies_admin_config() {
 #[test]
 fn test_external_settings_loaded_resyncs_admin_lifecycle() {
     let (mut state, _) = AppState::new();
-    let mut settings = AppSettings::default();
-    settings.admin = AdminServerConfig {
-        enabled: true,
-        port: 27000,
+    let settings = AppSettings {
+        admin: AdminServerConfig {
+            enabled: true,
+            port: 27000,
+        },
+        ..AppSettings::default()
     };
     // The WebUI save path reloads settings without the WebDAV startup sync.
     let _ = state.update(Message::ExternalSettingsLoaded(Ok(settings)));

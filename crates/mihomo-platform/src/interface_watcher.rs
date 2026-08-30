@@ -75,11 +75,10 @@ impl InterfaceDiffDetector {
 
         // Check for removed interfaces
         for prev_iface in before {
-            if !after.iter().any(|i| i.name == prev_iface.name) {
-                if prev_iface.is_up {
+            if !after.iter().any(|i| i.name == prev_iface.name)
+                && prev_iface.is_up {
                     events.push(InterfaceChangeEvent::InterfaceDown(prev_iface.name.clone()));
                 }
-            }
         }
 
         events

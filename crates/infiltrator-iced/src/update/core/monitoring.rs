@@ -57,13 +57,13 @@ impl AppState {
             ),
         ];
 
-        if poll_tick % 2 == 0 {
+        if poll_tick.is_multiple_of(2) {
             tasks.push(Task::done(Message::LoadProxies));
         }
-        if poll_tick % 6 == 0 {
+        if poll_tick.is_multiple_of(6) {
             tasks.push(Task::done(Message::FetchRuntimeConfig));
         }
-        if poll_tick % 15 == 0 {
+        if poll_tick.is_multiple_of(15) {
             tasks.push(Task::done(Message::FetchIpInfo));
         }
 

@@ -89,11 +89,10 @@ impl ExponentialBackoff {
     /// Bounds the delay by `max_interval_ms`, applies jitter, increments attempts,
     /// and returns `None` if `max_retries` is exceeded.
     pub fn next_delay_ms(&mut self) -> Option<u64> {
-        if let Some(max_retries) = self.config.max_retries {
-            if self.current_attempt >= max_retries {
+        if let Some(max_retries) = self.config.max_retries
+            && self.current_attempt >= max_retries {
                 return None;
             }
-        }
 
         let mut delay = self.current_interval_ms as u64;
         if delay > self.config.max_interval_ms {

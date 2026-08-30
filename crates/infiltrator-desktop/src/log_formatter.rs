@@ -77,8 +77,8 @@ impl LogFormatter {
         }
 
         // Check if it's bracket format e.g., [INFO] [DNS] Resolved example.com
-        if trimmed.starts_with('[') {
-            if let Some(level_end) = trimmed.find(']') {
+        if trimmed.starts_with('[')
+            && let Some(level_end) = trimmed.find(']') {
                 let level_str = &trimmed[1..level_end];
                 let level = LogLevel::from_str_case_insensitive(level_str);
                 
@@ -86,12 +86,11 @@ impl LogFormatter {
                 let mut tag = None;
                 let mut message = remainder.to_string();
 
-                if remainder.starts_with('[') {
-                    if let Some(tag_end) = remainder.find(']') {
+                if remainder.starts_with('[')
+                    && let Some(tag_end) = remainder.find(']') {
                         tag = Some(remainder[1..tag_end].to_string());
                         message = remainder[tag_end + 1..].trim().to_string();
                     }
-                }
 
                 let ansi_styled = Self::format_ansi(level.clone(), &message);
 
@@ -103,7 +102,6 @@ impl LogFormatter {
                     ansi_styled,
                 };
             }
-        }
 
         // Fallback
         let ansi_styled = Self::format_ansi(LogLevel::Info, trimmed);

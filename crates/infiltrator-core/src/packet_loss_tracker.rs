@@ -95,11 +95,10 @@ impl PacketLossTracker {
         score -= loss_rate_percent * 2.0;
         
         // Deduct points for average latency (e.g. 1 point per 10ms over 50ms)
-        if let Some(avg) = avg_rtt_ms {
-            if avg > 50.0 {
+        if let Some(avg) = avg_rtt_ms
+            && avg > 50.0 {
                 score -= (avg - 50.0) / 10.0;
             }
-        }
         
         // Deduct points for jitter (e.g. 1 point per 5ms)
         if let Some(j) = jitter_ms {

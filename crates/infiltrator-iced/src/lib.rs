@@ -60,7 +60,7 @@ pub fn run() -> iced::Result {
     let instance = match SingleInstance::new("com.musicfrog.infiltrator") {
         Ok(i) => i,
         Err(e) => {
-            if let Ok(mut file) = File::create(&log_dir.join("startup_critical.log")) {
+            if let Ok(mut file) = File::create(log_dir.join("startup_critical.log")) {
                 let _ = file.write_all(format!("Mutex failure: {}\n", e).as_bytes());
             }
             return Ok(());

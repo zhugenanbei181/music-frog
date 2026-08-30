@@ -41,11 +41,10 @@ impl DnsTester {
     ) -> DnsTestResult {
         let mut is_hijacked = false;
 
-        if let Some(prefix) = expected_ip_prefix {
-            if !resolved_ips.is_empty() {
+        if let Some(prefix) = expected_ip_prefix
+            && !resolved_ips.is_empty() {
                 is_hijacked = !resolved_ips.iter().all(|ip| ip.starts_with(prefix));
             }
-        }
 
         DnsTestResult {
             target: target.clone(),

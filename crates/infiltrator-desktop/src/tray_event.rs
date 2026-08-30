@@ -182,7 +182,7 @@ mod tests {
         }
 
         let mut count = 0;
-        while let Ok(_) = receiver.try_recv() {
+        while receiver.try_recv().is_ok() {
             count += 1;
         }
         assert_eq!(count, 10, "Should have received 10 messages from threads");

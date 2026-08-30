@@ -69,11 +69,10 @@ impl SubscriptionQuota {
     }
 
     pub fn evaluate_warning_level(status: &QuotaStatus, now_secs: u64) -> QuotaWarningLevel {
-        if let Some(exp) = status.expire_timestamp_secs {
-            if now_secs >= exp {
+        if let Some(exp) = status.expire_timestamp_secs
+            && now_secs >= exp {
                 return QuotaWarningLevel::Expired;
             }
-        }
 
         let remaining = Self::calculate_remaining_bytes(status);
         if remaining == 0 {

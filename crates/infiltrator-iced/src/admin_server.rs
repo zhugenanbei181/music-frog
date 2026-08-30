@@ -425,7 +425,7 @@ async fn load_settings_from_disk()
 -> anyhow::Result<infiltrator_core::settings::AppSettings> {
     let base_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
     let path = infiltrator_core::settings::settings_path(&base_dir)?;
-    Ok(infiltrator_core::settings::load_settings(&path).await?)
+    infiltrator_core::settings::load_settings(&path).await
 }
 
 async fn save_settings_to_disk(
@@ -433,10 +433,8 @@ async fn save_settings_to_disk(
 ) -> anyhow::Result<()> {
     let base_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
     let path = infiltrator_core::settings::settings_path(&base_dir)?;
-    Ok(
-        infiltrator_core::settings::save_settings(&path, settings)
-            .await?,
-    )
+    infiltrator_core::settings::save_settings(&path, settings)
+            .await
 }
 
 #[async_trait::async_trait]

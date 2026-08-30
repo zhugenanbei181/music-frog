@@ -18,7 +18,7 @@ impl AppState {
     }
 
     pub(super) fn split_list_field(raw: &str) -> Vec<String> {
-        raw.split(|ch| ch == ',' || ch == '\n' || ch == '\r')
+        raw.split([',', '\n', '\r'])
             .map(str::trim)
             .filter(|item| !item.is_empty())
             .map(str::to_string)
@@ -129,7 +129,7 @@ impl AppState {
                         let tun = infiltrator_core::tun::extract_tun_config_from_doc(&doc)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
-                        Ok(AdvancedConfigsBundle {
+                        Ok(Box::new(AdvancedConfigsBundle {
                             dns_json: serde_json::to_string_pretty(&dns)
                                 .map_err(|e| InfiltratorError::Config(e.to_string()))?,
                             fake_ip_json: serde_json::to_string_pretty(&fake_ip)
@@ -139,13 +139,12 @@ impl AppState {
                             dns,
                             fake_ip,
                             tun,
-                        })
+                        }))
                     },
                     Message::AdvancedConfigsBundleLoaded,
                 )
             }
-            Message::AdvancedConfigsBundleLoaded(result) => {
-                match result {
+            Message::AdvancedConfigsBundleLoaded(result) => {                match result {
                     Ok(bundle) => {
                         self.advanced_configs_loaded_once = true;
                         if !self.dns_json_dirty && !self.dns_form_dirty {

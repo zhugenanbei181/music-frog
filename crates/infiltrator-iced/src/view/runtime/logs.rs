@@ -55,10 +55,10 @@ pub(super) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
         container(
             Scrollable::new(
                 column(log_lines).spacing(2).padding(iced::Padding {
-                    top: theme::SP_SM as f32,
+                    top: theme::SP_SM,
                     right: SCROLL_PAD,
-                    bottom: theme::SP_SM as f32,
-                    left: theme::SP_SM as f32,
+                    bottom: theme::SP_SM,
+                    left: theme::SP_SM,
                 })
             )
             .id(iced::widget::Id::new("log_scroller"))
@@ -89,9 +89,11 @@ fn log_kind(line: &str) -> Option<BadgeKind> {
         Some(BadgeKind::Danger)
     } else if upper.contains("WARN") {
         Some(BadgeKind::Warning)
-    } else if upper.contains("INFO") || upper.contains("INF") {
-        Some(BadgeKind::Neutral)
-    } else if upper.contains("DEBUG") || upper.contains("DBG") {
+    } else if upper.contains("INFO")
+        || upper.contains("INF")
+        || upper.contains("DEBUG")
+        || upper.contains("DBG")
+    {
         Some(BadgeKind::Neutral)
     } else {
         None

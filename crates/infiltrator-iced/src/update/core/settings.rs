@@ -44,8 +44,10 @@ impl AppState {
         let timeout = settings
             .runtime_panel
             .delay_timeout_ms
-            .max(MIN_RUNTIME_DELAY_TIMEOUT_MS)
-            .min(MAX_RUNTIME_DELAY_TIMEOUT_MS);
+            .clamp(
+                MIN_RUNTIME_DELAY_TIMEOUT_MS,
+                MAX_RUNTIME_DELAY_TIMEOUT_MS,
+            );
         self.runtime_delay_timeout_ms = timeout.to_string();
         self.runtime_connection_filter = settings.runtime_panel.connection_filter;
         self.runtime_connection_sort =

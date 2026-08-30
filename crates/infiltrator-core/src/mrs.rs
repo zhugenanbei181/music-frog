@@ -80,7 +80,7 @@ pub fn validate_mrs_bytes(bytes: &[u8]) -> Result<MrsValidationReport> {
     let desc_len = u16::from_le_bytes(bytes[14..16].try_into().unwrap()) as usize;
     if bytes.len() < 16 + desc_len {
         errors.push("Incomplete description".to_string());
-    } else if let Err(_) = std::str::from_utf8(&bytes[16..16 + desc_len]) {
+    } else if std::str::from_utf8(&bytes[16..16 + desc_len]).is_err() {
         errors.push("Invalid UTF-8 in description".to_string());
     }
 

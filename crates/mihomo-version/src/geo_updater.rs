@@ -44,15 +44,14 @@ impl GeoDatabaseUpdater {
             computed_hash.push_str(&format!("{:02x}", byte));
         }
 
-        if let Some(expected) = expected_sha256 {
-            if !expected.eq_ignore_ascii_case(&computed_hash) {
+        if let Some(expected) = expected_sha256
+            && !expected.eq_ignore_ascii_case(&computed_hash) {
                 return Err(anyhow!(
                     "SHA256 mismatch. Expected: {}, Computed: {}",
                     expected,
                     computed_hash
                 ));
             }
-        }
 
         Ok(computed_hash)
     }

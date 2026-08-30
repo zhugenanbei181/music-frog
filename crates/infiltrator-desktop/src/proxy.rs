@@ -62,9 +62,9 @@ pub fn read_system_proxy_state() -> anyhow::Result<SystemProxyState> {
 }
 
 fn parse_endpoint(endpoint: &str) -> Option<(&str, u16)> {
-    let mut parts = endpoint.rsplitn(2, ':');
-    let port_str = parts.next()?;
-    let host = parts.next()?;
+    let (host, port_str) = endpoint.rsplit_once(':')?;
+    
+    
     let port = port_str.parse::<u16>().ok()?;
     Some((host, port))
 }
@@ -204,20 +204,18 @@ fn read_linux_system_proxy_state() -> anyhow::Result<SystemProxyState> {
     let enabled = mode.contains("'manual'");
     
     let mut endpoint = None;
-    if enabled {
-        if let Ok(host) = run_gsettings(&["get", "org.gnome.system.proxy.http", "host"]) {
-            if let Ok(port) = run_gsettings(&["get", "org.gnome.system.proxy.http", "port"]) {
+    if enabled
+        && let Ok(host) = run_gsettings(&["get", "org.gnome.system.proxy.http", "host"])
+            && let Ok(port) = run_gsettings(&["get", "org.gnome.system.proxy.http", "port"]) {
                 let h = host.trim_matches('\'');
                 if !h.is_empty() {
                     endpoint = Some(format!("{}:{}", h, port));
                 }
             }
-        }
-    }
     
     let mut bypass = None;
-    if let Ok(hosts) = run_gsettings(&["get", "org.gnome.system.proxy", "ignore-hosts"]) {
-        if hosts != "@as []" && hosts != "[]" {
+    if let Ok(hosts) = run_gsettings(&["get", "org.gnome.system.proxy", "ignore-hosts"])
+        && hosts != "@as []" && hosts != "[]" {
             let hosts = hosts.trim_matches('[').trim_matches(']');
             let parts: Vec<String> = hosts.split(',')
                 .map(|s| s.trim().trim_matches('\'').to_string())
@@ -227,7 +225,6 @@ fn read_linux_system_proxy_state() -> anyhow::Result<SystemProxyState> {
                 bypass = Some(parts.join(";"));
             }
         }
-    }
 
     Ok(SystemProxyState { enabled, endpoint, bypass })
 }

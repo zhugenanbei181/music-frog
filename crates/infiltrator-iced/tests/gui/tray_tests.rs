@@ -49,7 +49,7 @@ fn spec_layout_mirrors_the_menu_the_native_backend_built() {
             assert_eq!(mode_items.len(), 3);
             assert_eq!(mode_items[0].action_id(), Some(TRAY_ACTION_MODE_RULE));
             // Active mode carries the same `● ` marker convention as GLOBAL.
-            assert_eq!(mode_items[1].action_label().as_deref(), Some("● 全局模式"));
+            assert_eq!(mode_items[1].action_label(), Some("● 全局模式"));
         }
         other => panic!("expected mode submenu, got {other:?}"),
     }
@@ -97,7 +97,7 @@ fn spec_layout_mirrors_the_menu_the_native_backend_built() {
     let icon = spec.icon.expect("spec embeds the shared RGBA icon");
     assert_eq!(icon.width, icon.height);
     assert_eq!(icon.rgba.len(), (icon.width * icon.height * 4) as usize);
-    assert!(icon.rgba.chunks_exact(4).any(|px| px[3] != 0));
+    assert!(icon.rgba.as_chunks::<4>().0.iter().any(|px| px[3] != 0));
 }
 
 #[test]
@@ -127,8 +127,8 @@ fn spec_encodes_global_quick_switch_entries_and_active_marker() {
             payload: Some("A".to_string()),
         }
     );
-    assert_eq!(items[1].action_label().as_deref(), Some("● B"));
-    assert_eq!(items[1].action_payload().as_deref(), Some("B"));
+    assert_eq!(items[1].action_label(), Some("● B"));
+    assert_eq!(items[1].action_payload(), Some("B"));
 }
 
 #[test]

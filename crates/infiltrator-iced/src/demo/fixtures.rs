@@ -73,7 +73,17 @@ pub(super) fn demo_logs() -> VecDeque<String> {
 /// 10 mixed connection rows (hosts / ports / rules / chains / traffic).
 pub(super) fn demo_connections() -> ConnectionSnapshot {
     // (host, port, rule type, rule payload, chain group, exit node, down, up)
-    let rows: [(&str, &str, &str, &str, &str, &str, u64, u64); 10] = [
+    type DemoRow = (
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        u64,
+        u64,
+    );
+    let rows: [DemoRow; 10] = [
         ("www.google.com", "443", "DomainSuffix", "google.com", "节点选择", "香港 IEPL-01", 48_234_112, 2_097_152),
         ("api.openai.com", "443", "DomainSuffix", "openai.com", "AI 服务", "美国 CN2", 12_884_901, 6_291_456),
         ("www.youtube.com", "443", "DomainKeyword", "youtube", "节点选择", "香港 IEPL-01", 335_544_320, 15_728_640),

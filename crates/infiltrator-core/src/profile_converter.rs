@@ -260,7 +260,7 @@ proxies:
         assert_eq!(nodes[0].node_type, "ss");
         assert_eq!(nodes[1].name, "vmess-node");
         assert_eq!(nodes[1].node_type, "vmess");
-        assert_eq!(nodes[1].tls, true);
+        assert!(nodes[1].tls);
     }
 
     #[test]
@@ -276,7 +276,7 @@ proxies:
             tls: true,
         };
         
-        let json = ProfileConverter::export_nodes(&[node.clone()], ProfileFormat::RawJson).unwrap();
+        let json = ProfileConverter::export_nodes(std::slice::from_ref(&node), ProfileFormat::RawJson).unwrap();
         let parsed = ProfileConverter::parse_nodes(&json, ProfileFormat::RawJson).unwrap();
         
         assert_eq!(parsed.len(), 1);
@@ -296,7 +296,7 @@ proxies:
             tls: true,
         };
         
-        let b64 = ProfileConverter::export_nodes(&[node.clone()], ProfileFormat::Base64Subscription).unwrap();
+        let b64 = ProfileConverter::export_nodes(std::slice::from_ref(&node), ProfileFormat::Base64Subscription).unwrap();
         let parsed = ProfileConverter::parse_nodes(&b64, ProfileFormat::Base64Subscription).unwrap();
         
         assert_eq!(parsed.len(), 1);

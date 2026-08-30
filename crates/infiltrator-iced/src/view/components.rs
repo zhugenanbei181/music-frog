@@ -512,16 +512,17 @@ pub fn segmented_control<'a, Message: 'a + Clone>(
             .style(move |t: &Theme, status| {
                 // Cheap hover feedback for inactive segments only — the
                 // active pill is already fully saturated.
-                let mut style = button::Style::default();
-                style.border = Border {
-                    radius: border::Radius::from(theme::R_CONTROL),
+                let mut style = button::Style {
+                    border: Border {
+                        radius: border::Radius::from(theme::R_CONTROL),
+                        ..Default::default()
+                    },
                     ..Default::default()
                 };
-                if !is_active {
-                    if let button::Status::Hovered | button::Status::Pressed = status {
+                if !is_active
+                    && let button::Status::Hovered | button::Status::Pressed = status {
                         style.background = Some(theme::tokens(t).chip_bg.into());
                     }
-                }
                 style
             })
             .on_press(on_change(index))
@@ -607,9 +608,11 @@ pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Ele
         .width(Length::Fill)
         .style(move |t, status| {
             let tokens = theme::tokens(t);
-            let mut style = button::Style::default();
-            style.border = Border {
-                radius: border::Radius::from(theme::R_CONTROL),
+            let mut style = button::Style {
+                border: Border {
+                    radius: border::Radius::from(theme::R_CONTROL),
+                    ..Default::default()
+                },
                 ..Default::default()
             };
 

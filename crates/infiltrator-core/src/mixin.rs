@@ -69,8 +69,8 @@ pub fn merge_profile_with_config(base_yaml: &str, config: &MixinConfig) -> anyho
     let mut mixin_val = serde_yaml_ng::to_value(config)?;
 
     if let Value::Mapping(ref mut m) = mixin_val {
-        m.remove(&Value::String("rules".into()));
-        m.remove(&Value::String("custom-yaml".into()));
+        m.remove(Value::String("rules".into()));
+        m.remove(Value::String("custom-yaml".into()));
     }
 
     deep_merge(&mut base_val, mixin_val);
@@ -79,11 +79,10 @@ pub fn merge_profile_with_config(base_yaml: &str, config: &MixinConfig) -> anyho
         merge_rules(&mut base_val, rules);
     }
 
-    if let Some(custom_yaml) = &config.custom_yaml {
-        if let Ok(custom_val) = serde_yaml_ng::from_str::<Value>(custom_yaml) {
+    if let Some(custom_yaml) = &config.custom_yaml
+        && let Ok(custom_val) = serde_yaml_ng::from_str::<Value>(custom_yaml) {
             deep_merge(&mut base_val, custom_val);
         }
-    }
 
     let out = serde_yaml_ng::to_string(&base_val)?;
     Ok(out)
@@ -113,7 +112,7 @@ fn merge_rules(base: &mut Value, rule_mixin: &RuleMixin) {
     
     let base_rules = match base.as_mapping_mut() {
         Some(m) => {
-            if let Some(Value::Sequence(seq)) = m.get_mut(&Value::String("rules".into())) {
+            if let Some(Value::Sequence(seq)) = m.get_mut(Value::String("rules".into())) {
                 std::mem::take(seq)
             } else {
                 Vec::new()
@@ -148,7 +147,7 @@ mod tests {
         let out_val: Value = serde_yaml_ng::from_str(&out).unwrap();
         
         assert_eq!(out_val.get("mode").unwrap().as_str().unwrap(), "global");
-        assert_eq!(out_val.get("ipv6").unwrap().as_bool().unwrap(), false);
+        assert!(!out_val.get("ipv6").unwrap().as_bool().unwrap());
         assert_eq!(out_val.get("mixed-port").unwrap().as_u64().unwrap(), 7891);
     }
 
@@ -176,11 +175,11 @@ tun:
         let out_val: Value = serde_yaml_ng::from_str(&out).unwrap();
         
         let dns = out_val.get("dns").unwrap();
-        assert_eq!(dns.get("enable").unwrap().as_bool().unwrap(), true);
+        assert!(dns.get("enable").unwrap().as_bool().unwrap());
         assert_eq!(dns.get("listen").unwrap().as_str().unwrap(), "127.0.0.1:5353");
         
         let tun = out_val.get("tun").unwrap();
-        assert_eq!(tun.get("enable").unwrap().as_bool().unwrap(), true);
+        assert!(tun.get("enable").unwrap().as_bool().unwrap());
         assert_eq!(tun.get("stack").unwrap().as_str().unwrap(), "gvisor");
     }
 
