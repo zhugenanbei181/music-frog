@@ -1,5 +1,5 @@
-use crate::proxy::Proxy;
 use crate::error::{MihomoError, Result};
+use crate::proxy::types::Proxy;
 use crate::types::*;
 use futures_util::StreamExt;
 use reqwest::Client;
@@ -11,6 +11,19 @@ use tokio_tungstenite::{
     tungstenite::{Message, client::IntoClientRequest},
 };
 use url::Url;
+
+/// Lifecycle-aware item emitted by a controller WebSocket stream. The
+/// existing `stream_*` methods keep returning data-only receivers for API
+/// compatibility; surfaces that need an honest connection badge use the
+/// `stream_*_events` variants.
+#[derive(Debug)]
+pub enum StreamEvent<T> {
+    Connecting,
+    Connected,
+    Item(T),
+    Reconnecting(String),
+    Failed(String),
+}
 
 #[derive(Clone)]
 pub struct MihomoClient {
@@ -53,9 +66,9 @@ impl MihomoClient {
     fn build_url_with_segments(&self, segments: &[&str]) -> Result<Url> {
         let mut url = self.base_url.clone();
         {
-            let mut path = url.path_segments_mut().map_err(|()| {
-                MihomoError::Config("base URL cannot be a base".to_string())
-            })?;
+            let mut path = url
+                .path_segments_mut()
+                .map_err(|()| MihomoError::Config("base URL cannot be a base".to_string()))?;
             path.clear();
             for segment in segments {
                 path.push(segment);
@@ -215,12 +228,12 @@ impl MihomoClient {
         Ok(resp.json().await?)
     }
 
-    async fn spawn_reconnecting_stream<T, F>(
+    async fn spawn_reconnecting_stream_events<T, F>(
         &self,
         endpoint: &str,
         query: Option<String>,
         parse: F,
-    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<T>>
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<StreamEvent<T>>>
     where
         T: Send + 'static,
         F: Fn(&str) -> Option<T> + Send + Sync + 'static,
@@ -249,9 +262,14 @@ impl MihomoClient {
                     break;
                 }
 
+                let _ = tx.send(StreamEvent::Connecting);
+
                 let mut request = match ws_url_str.as_str().into_client_request() {
                     Ok(req) => req,
-                    Err(_) => break,
+                    Err(error) => {
+                        let _ = tx.send(StreamEvent::Failed(error.to_string()));
+                        break;
+                    }
                 };
                 if let Some(s) = &secret {
                     request
@@ -259,30 +277,108 @@ impl MihomoClient {
                         .insert("Authorization", format!("Bearer {}", s).parse().unwrap());
                 }
 
-                if let Ok((ws_stream, _)) = connect_async(request).await {
-                    backoff = Duration::from_secs(1);
-                    let (_, mut read) = ws_stream.split();
-                    while let Some(msg) = read.next().await {
-                        match msg {
-                            Ok(Message::Text(text)) => {
-                                if let Some(item) = parse(text.as_ref())
-                                    && tx.send(item).is_err()
-                                {
-                                    return;
-                                }
+                let reconnect_reason = match connect_async(request).await {
+                    Ok((ws_stream, _)) => {
+                        backoff = Duration::from_secs(1);
+                        let _ = tx.send(StreamEvent::Connected);
+                        let (_, mut read) = ws_stream.split();
+                        let mut reason = "controller stream closed".to_string();
+                        loop {
+                            tokio::select! {
+                                message = read.next() => match message {
+                                    Some(Ok(Message::Text(text))) => {
+                                        if let Some(item) = parse(text.as_ref())
+                                            && tx.send(StreamEvent::Item(item)).is_err()
+                                        {
+                                            return;
+                                        }
+                                    }
+                                    Some(Ok(Message::Close(_))) | None => break,
+                                    Some(Err(error)) => {
+                                        reason = error.to_string();
+                                        break;
+                                    }
+                                    Some(Ok(_)) => {}
+                                },
+                                _ = tx.closed() => return,
                             }
-                            Ok(Message::Close(_)) | Err(_) => break,
-                            _ => {}
                         }
+                        reason
                     }
-                }
+                    Err(error) => error.to_string(),
+                };
 
+                if tx
+                    .send(StreamEvent::Reconnecting(reconnect_reason))
+                    .is_err()
+                {
+                    return;
+                }
+                if tx.is_closed() {
+                    break;
+                }
                 tokio::time::sleep(backoff).await;
                 backoff = std::cmp::min(backoff * 2, Duration::from_secs(30));
             }
         });
 
         Ok(rx)
+    }
+
+    async fn spawn_reconnecting_stream<T, F>(
+        &self,
+        endpoint: &str,
+        query: Option<String>,
+        parse: F,
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<T>>
+    where
+        T: Send + 'static,
+        F: Fn(&str) -> Option<T> + Send + Sync + 'static,
+    {
+        let mut events = self
+            .spawn_reconnecting_stream_events(endpoint, query, parse)
+            .await?;
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            while let Some(event) = events.recv().await {
+                if let StreamEvent::Item(item) = event
+                    && tx.send(item).is_err()
+                {
+                    break;
+                }
+            }
+        });
+        Ok(rx)
+    }
+
+    pub async fn stream_logs_events(
+        &self,
+        level: Option<&str>,
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<StreamEvent<String>>> {
+        self.spawn_reconnecting_stream_events(
+            "/logs",
+            level.map(|l| format!("level={}", l)),
+            |text| Some(text.to_string()),
+        )
+        .await
+    }
+
+    pub async fn stream_traffic_events(
+        &self,
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<StreamEvent<TrafficData>>> {
+        self.spawn_reconnecting_stream_events("/traffic", None, |text| {
+            serde_json::from_str::<TrafficData>(text).ok()
+        })
+        .await
+    }
+
+    pub async fn stream_connections_events(
+        &self,
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<StreamEvent<ConnectionSnapshot>>> {
+        self.spawn_reconnecting_stream_events("/connections", None, |text| {
+            serde_json::from_str::<ConnectionSnapshot>(text).ok()
+        })
+        .await
     }
 
     pub async fn stream_logs(
@@ -577,6 +673,51 @@ mod tests {
             .await
             .unwrap();
         assert!(data.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_stream_events_expose_lifecycle_and_data() {
+        let server = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = server.local_addr().unwrap();
+        tokio::spawn(async move {
+            use futures_util::SinkExt;
+            if let Ok((stream, _)) = server.accept().await
+                && let Ok(mut ws_stream) = tokio_tungstenite::accept_async(stream).await
+            {
+                let traffic = TrafficData { up: 11, down: 22 };
+                let _ = ws_stream
+                    .send(Message::Text(
+                        serde_json::to_string(&traffic).unwrap().into(),
+                    ))
+                    .await;
+                let _ = ws_stream.close(None).await;
+            }
+        });
+
+        let client = MihomoClient::new(&format!("http://{addr}"), None).unwrap();
+        let mut rx = client.stream_traffic_events().await.unwrap();
+        let mut saw_connecting = false;
+        let mut saw_connected = false;
+        let mut saw_item = false;
+        for _ in 0..6 {
+            let event = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
+                .await
+                .unwrap();
+            let Some(event) = event else { break };
+            match event {
+                StreamEvent::Connecting => saw_connecting = true,
+                StreamEvent::Connected => saw_connected = true,
+                StreamEvent::Item(data) => {
+                    assert_eq!(data.down, 22);
+                    saw_item = true;
+                    break;
+                }
+                StreamEvent::Reconnecting(_) | StreamEvent::Failed(_) => {}
+            }
+        }
+        assert!(saw_connecting);
+        assert!(saw_connected);
+        assert!(saw_item);
     }
 
     #[tokio::test]

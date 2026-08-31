@@ -5,9 +5,10 @@ use super::proxies::{
     DEFAULT_RUNTIME_DELAY_TEST_URL, MAX_RUNTIME_DELAY_TIMEOUT_MS, MIN_RUNTIME_DELAY_TIMEOUT_MS,
 };
 use crate::state::AppState;
-use crate::types::Message;
+use crate::types::message::Message;
 use iced::Task;
 use infiltrator_core::settings::AppSettings;
+use std::str::FromStr;
 
 impl AppState {
     /// Mirror a loaded [`AppSettings`] snapshot onto the UI state fields.
@@ -33,6 +34,10 @@ impl AppState {
         self.profile.webdav_sync_interval_mins = settings.webdav.sync_interval_mins.to_string();
         self.profile.webdav_sync_on_startup = settings.webdav.sync_on_startup;
         self.runtime.runtime_auto_refresh = settings.runtime_panel.auto_refresh;
+        self.runtime.core_channel =
+            mihomo_version::channel::Channel::from_str(&settings.core_channel)
+                .map(|channel| channel.as_str().to_string())
+                .unwrap_or_else(|_| "stable".to_string());
         self.runtime.proxy_delay_sort =
             Self::normalize_delay_sort_key(&settings.runtime_panel.delay_sort).to_string();
         self.runtime.proxy_sort_by_delay = self.runtime.proxy_delay_sort.starts_with("delay_");
@@ -54,6 +59,8 @@ impl AppState {
         self.shell.admin_enabled = settings.admin.enabled;
         self.shell.admin_port = settings.admin.port;
         self.shell.admin_port_input = settings.admin.port.to_string();
+        // 0.20 OS 系统通知开关镜像（notify.rs 的 system_notify 读它短路）。
+        self.shell.notifications_enabled = settings.notifications_enabled;
         self.profile.webdav_enabled
             && self.profile.webdav_sync_on_startup
             && !self.profile.webdav_url.trim().is_empty()
@@ -71,6 +78,7 @@ impl AppState {
                     if sync_on_startup {
                         tasks.push(Task::done(Message::SyncDownload));
                     }
+                    self.refresh_tray();
                     Task::batch(tasks)
                 }
                 Err(e) => {

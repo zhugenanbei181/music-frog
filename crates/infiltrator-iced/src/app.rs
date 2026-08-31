@@ -1,16 +1,20 @@
-use crate::autostart;
-use crate::locales::{Lang, Localizer, get_system_language};
 use crate::state::AppState;
+use infiltrator_shared::autostart;
+use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
 // Only the non-test build spawns a real system tray (ksni/muda must never run
 // in unit tests), so the import is test-gated.
 #[cfg(not(test))]
-use crate::tray::{TrayStartup, spawn as spawn_tray};
-use crate::types::{
-    AdvancedEditMode, DnsFormDraft, DnsTab, EditorLazyState, FakeIpFormDraft, InfiltratorError,
-    Message, RebuildFlowState, Route, RulesJsonTab, RulesTab, RuntimeStatus, TunFormDraft,
-};
+use crate::tray;
+#[cfg(not(test))]
+use crate::tray::spec::TrayStartup;
+use crate::types::app::Route;
+use crate::types::dns::{AdvancedEditMode, DnsFormDraft, DnsTab, FakeIpFormDraft, TunFormDraft};
+use crate::types::editor::EditorLazyState;
+use crate::types::message::Message;
+use crate::types::rules::{RulesJsonTab, RulesTab};
+use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
 use iced::Task;
-use mihomo_config::manager::ConfigManager;
+use infiltrator_core::error::InfiltratorError;
 use std::sync::{Arc, Mutex};
 
 impl AppState {
@@ -40,16 +44,27 @@ impl AppState {
         Self {
             runtime: crate::state::RuntimeState {
                 runtime: None,
+                runtime_generation: 0,
+                lifecycle_token: 0,
                 status: RuntimeStatus::Stopped,
                 proxy_mode: None,
+                script_block_present: false,
                 tun_enabled: None,
+                tun_service_status: None,
+                is_installing_tun_service: false,
                 system_proxy_enabled: infiltrator_desktop::proxy::read_system_proxy_state()
                     .map(|s| s.enabled)
                     .unwrap_or(false),
+                system_proxy_pending: false,
                 autostart_enabled: autostart::is_autostart_enabled(crate::AUTOSTART_REG_NAME),
                 installed_kernels: Vec::new(),
                 latest_core_version: None,
+                core_channel: "stable".to_string(),
                 download_progress: 0.0,
+                download_stats: None,
+                core_download_token: 0,
+                core_download_cancel: None,
+                is_downloading_core: false,
                 is_checking_update: false,
                 rebuild_flow: RebuildFlowState::Idle,
                 runtime_delay_test_url: "http://www.gstatic.com/generate_204".to_string(),
@@ -64,6 +79,9 @@ impl AppState {
                 runtime_poll_tick: 0,
                 runtime_prev_upload_total: None,
                 runtime_prev_download_total: None,
+                runtime_prev_snapshot_at: None,
+                pending_runtime_patch: None,
+                runtime_patch_token: 0,
                 proxies: std::collections::HashMap::new(),
                 is_loading_proxies: false,
                 filtered_groups: Vec::new(),
@@ -99,7 +117,17 @@ impl AppState {
                 webdav_sync_interval_mins: "60".to_string(),
                 webdav_sync_on_startup: false,
                 is_syncing: false,
+                sync_progress: None,
+                sync_conflicts: Vec::new(),
+                is_testing_webdav: false,
+                sync_cancel: None,
+                sync_from_tick: false,
                 is_saving_app_settings: false,
+                is_saving_profile: false,
+                restart_after_profile_reset: false,
+                sync_diff: None,
+                is_loading_sync_diff: false,
+                is_applying_sync_diff: false,
             },
             editor: crate::state::ConfigEditorState {
                 rules: Vec::new(),
@@ -112,7 +140,7 @@ impl AppState {
                 rules_json_tab: RulesJsonTab::RuleProviders,
                 rules_page: 0,
                 rules_page_size: 200,
-                rules_providers_expanded: false,
+                rules_providers_expanded: true,
                 rules_render_cache: Vec::new(),
                 rules_filtered_indices: Vec::new(),
                 rules_heavy_ready: true,
@@ -161,7 +189,7 @@ impl AppState {
                 dns_form_dirty: false,
                 fake_ip_form_dirty: false,
                 tun_form_dirty: false,
-                advanced_validation: crate::types::AdvancedValidationState::default(),
+                advanced_validation: crate::types::dns::AdvancedValidationState::default(),
                 new_rule_type: "DOMAIN".to_string(),
                 new_rule_payload: String::new(),
                 new_rule_target: "DIRECT".to_string(),
@@ -182,35 +210,55 @@ impl AppState {
                 editor_content: iced::widget::text_editor::Content::new(),
                 editor_path: None,
                 editor_path_setting: String::new(),
+                profile_snapshots: Vec::new(),
+                is_loading_snapshots: false,
+                is_restoring_snapshot: false,
+                editor_pane: crate::types::options::EditorPane::default(),
+                mixin_content: iced::widget::text_editor::Content::new(),
+                mixin_loaded_for: None,
+                is_saving_mixin: false,
+                filter_draft: crate::types::options::FilterDraft::default(),
+                filter_loaded_for: None,
+                is_saving_filter: false,
+                mrs_details: Vec::new(),
+                is_scanning_mrs: false,
             },
             diag: crate::state::DiagnosticsState {
                 traffic: None,
                 traffic_history: std::collections::VecDeque::new(),
                 memory: None,
                 public_ip: None,
+                public_ip_provider: None,
+                public_ip_checked_at: None,
+                public_ip_error: None,
                 connections: None,
                 logs: std::collections::VecDeque::new(),
                 log_level: "info".to_string(),
                 fps: 0,
                 last_frame_time: std::time::Instant::now(),
-                perf_snapshot: crate::types::PerfSnapshot::default(),
+                perf_snapshot: crate::types::perf::PerfSnapshot::default(),
                 // ui-fix: the debug perf HUD (FPS badge + snapshot panel, rendered
                 // by view_root) starts hidden in production AND demo sessions;
                 // Message::TogglePerfPanel flips it back on.
                 perf_panel_visible: false,
                 perf_nav_started_at: None,
                 perf_nav_route: None,
+                logs_stream_state: crate::types::runtime::RuntimeStreamState::Idle,
+                traffic_stream_state: crate::types::runtime::RuntimeStreamState::Idle,
+                connections_stream_state: crate::types::runtime::RuntimeStreamState::Idle,
+                doctor: crate::types::doctor::DoctorPanelState::default(),
             },
             shell: crate::state::ShellState {
                 current_route: Route::Overview,
-                transition: crate::types::Transition::default(),
+                transition: crate::types::app::Transition::default(),
                 error_msg: None,
                 lang: get_system_language(),
                 toasts: Vec::new(),
                 theme: iced::Theme::Dark,
                 tray_controller: None,
                 tray_events: None,
-                // Admin defaults mirror src-tauri (server on, port 25210); the
+                // Admin defaults: embedded server on at port 25210 (API-only
+                // since the 0.20 WebUI retirement); the
                 // real values are applied from settings in `SettingsLoaded`.
                 admin_enabled: true,
                 admin_port: crate::admin_server::ADMIN_DEFAULT_PORT,
@@ -228,10 +276,14 @@ impl AppState {
                         false
                     }
                 },
+                notifications_enabled: true,
                 last_task_id: 0,
+                tray_refresh_cooldown: None,
                 // demo-mode: production default is a non-demo session with no
                 // capture marker (see demo.rs for the demo boot path).
                 demo: false,
+                confirmation: None,
+                is_factory_resetting: false,
                 capture_marker: None,
                 capture_marker_written: std::sync::atomic::AtomicBool::new(false),
             },
@@ -247,7 +299,7 @@ impl AppState {
         // Startup: try the system tray; on Unavailable continue window-only
         // with a warning. Never spawn a real tray in unit tests.
         #[cfg(not(test))]
-        match spawn_tray(state.current_tray_spec()) {
+        match tray::spawn(state.current_tray_spec()) {
             TrayStartup::Ready { controller, events } => {
                 state.shell.tray_controller = Some(controller);
                 state.shell.tray_events = Some(Arc::new(Mutex::new(events)));
@@ -273,7 +325,7 @@ impl AppState {
                 ),
                 Task::perform(
                     async {
-                        let cm = ConfigManager::new().map_err(InfiltratorError::from)?;
+                        let cm = crate::configs_dir::config_manager().await?;
                         cm.list_profiles().await.map_err(InfiltratorError::from)
                     },
                     Message::ProfilesLoaded,

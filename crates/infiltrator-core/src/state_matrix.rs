@@ -34,56 +34,69 @@ impl CoreStateMachine {
             (CoreState::Idle, CoreEvent::StartRequested) => {
                 (CoreState::Starting { generation: 1 }, None)
             }
-            (CoreState::Failed { generation, .. }, CoreEvent::StartRequested) => {
-                (CoreState::Starting { generation: generation + 1 }, None)
-            }
+            (CoreState::Failed { generation, .. }, CoreEvent::StartRequested) => (
+                CoreState::Starting {
+                    generation: generation + 1,
+                },
+                None,
+            ),
 
             // Readiness
-            (CoreState::Starting { generation }, CoreEvent::ReadinessSuccess(ep)) => {
-                (CoreState::Running { generation: *generation, endpoint: ep }, None)
-            }
-            (CoreState::Starting { generation }, CoreEvent::ReadinessTimeout) => {
-                (CoreState::Failed {
+            (CoreState::Starting { generation }, CoreEvent::ReadinessSuccess(ep)) => (
+                CoreState::Running {
+                    generation: *generation,
+                    endpoint: ep,
+                },
+                None,
+            ),
+            (CoreState::Starting { generation }, CoreEvent::ReadinessTimeout) => (
+                CoreState::Failed {
                     generation: *generation,
                     error: "Readiness probe timed out".to_string(),
-                }, None)
-            }
+                },
+                None,
+            ),
 
             // ReloadRequested
-            (CoreState::Running { generation, .. }, CoreEvent::ReloadRequested) => {
-                (CoreState::Reloading { generation: *generation }, None)
-            }
+            (CoreState::Running { generation, .. }, CoreEvent::ReloadRequested) => (
+                CoreState::Reloading {
+                    generation: *generation,
+                },
+                None,
+            ),
 
             // Reload outcomes
-            (CoreState::Reloading { generation }, CoreEvent::ReloadSuccess) => {
-                (CoreState::Running {
+            (CoreState::Reloading { generation }, CoreEvent::ReloadSuccess) => (
+                CoreState::Running {
                     generation: *generation,
                     endpoint: "reloaded_endpoint".to_string(),
-                }, None)
-            }
-            (CoreState::Reloading { generation }, CoreEvent::ReloadFailed(err)) => {
-                (CoreState::Running {
+                },
+                None,
+            ),
+            (CoreState::Reloading { generation }, CoreEvent::ReloadFailed(err)) => (
+                CoreState::Running {
                     generation: *generation,
                     endpoint: "retained_endpoint".to_string(),
-                }, Some(err))
-            }
+                },
+                Some(err),
+            ),
 
             // Unexpected exit
-            (CoreState::Running { generation, .. }, CoreEvent::ProcessExitedUnexpectedly(err)) => {
-                (CoreState::Failed { generation: *generation, error: err }, None)
-            }
+            (CoreState::Running { generation, .. }, CoreEvent::ProcessExitedUnexpectedly(err)) => (
+                CoreState::Failed {
+                    generation: *generation,
+                    error: err,
+                },
+                None,
+            ),
 
             // Stop transitions
-            (CoreState::Starting { .. }, CoreEvent::StopRequested) |
-            (CoreState::Running { .. }, CoreEvent::StopRequested) |
-            (CoreState::Reloading { .. }, CoreEvent::StopRequested) |
-            (CoreState::Failed { .. }, CoreEvent::StopRequested) => {
-                (CoreState::Stopping, None)
-            }
+            (CoreState::Starting { .. }, CoreEvent::StopRequested)
+            | (CoreState::Running { .. }, CoreEvent::StopRequested)
+            | (CoreState::Reloading { .. }, CoreEvent::StopRequested)
+            | (CoreState::Failed { .. }, CoreEvent::StopRequested) => (CoreState::Stopping, None),
 
-            (CoreState::Stopping, CoreEvent::StopCompleted) => {
-                (CoreState::Idle, None)
-            }
+            (CoreState::Stopping, CoreEvent::StopCompleted) => (CoreState::Idle, None),
 
             // Ignore unexpected transitions (no-op)
             (current_state, _) => (current_state.clone(), None),
@@ -95,10 +108,10 @@ impl CoreStateMachine {
     pub fn verify_invariants(state: &CoreState) -> bool {
         match state {
             CoreState::Idle | CoreState::Stopping => true,
-            CoreState::Starting { generation } |
-            CoreState::Running { generation, .. } |
-            CoreState::Reloading { generation } |
-            CoreState::Failed { generation, .. } => *generation > 0,
+            CoreState::Starting { generation }
+            | CoreState::Running { generation, .. }
+            | CoreState::Reloading { generation }
+            | CoreState::Failed { generation, .. } => *generation > 0,
         }
     }
 }
@@ -121,8 +134,15 @@ mod tests {
 
         // Readiness success
         let ep = "http://127.0.0.1:8080".to_string();
-        let (new_state, effect) = CoreStateMachine::step(&state, CoreEvent::ReadinessSuccess(ep.clone()));
-        assert_eq!(new_state, CoreState::Running { generation: 1, endpoint: ep });
+        let (new_state, effect) =
+            CoreStateMachine::step(&state, CoreEvent::ReadinessSuccess(ep.clone()));
+        assert_eq!(
+            new_state,
+            CoreState::Running {
+                generation: 1,
+                endpoint: ep
+            }
+        );
         assert_eq!(effect, None);
         state = new_state;
 
@@ -134,7 +154,13 @@ mod tests {
 
         // Reload success
         let (new_state, effect) = CoreStateMachine::step(&state, CoreEvent::ReloadSuccess);
-        assert_eq!(new_state, CoreState::Running { generation: 1, endpoint: "reloaded_endpoint".to_string() });
+        assert_eq!(
+            new_state,
+            CoreState::Running {
+                generation: 1,
+                endpoint: "reloaded_endpoint".to_string()
+            }
+        );
         assert_eq!(effect, None);
         state = new_state;
 
@@ -154,10 +180,16 @@ mod tests {
     #[test]
     fn test_failure_and_retry_generation() {
         let state = CoreState::Starting { generation: 1 };
-        
+
         // Readiness timeout
         let (state, effect) = CoreStateMachine::step(&state, CoreEvent::ReadinessTimeout);
-        assert_eq!(state, CoreState::Failed { generation: 1, error: "Readiness probe timed out".to_string() });
+        assert_eq!(
+            state,
+            CoreState::Failed {
+                generation: 1,
+                error: "Readiness probe timed out".to_string()
+            }
+        );
         assert_eq!(effect, None);
 
         // Restart
@@ -167,12 +199,28 @@ mod tests {
         assert!(CoreStateMachine::verify_invariants(&state));
 
         // Start success
-        let (state, _) = CoreStateMachine::step(&state, CoreEvent::ReadinessSuccess("ep".to_string()));
-        assert_eq!(state, CoreState::Running { generation: 2, endpoint: "ep".to_string() });
+        let (state, _) =
+            CoreStateMachine::step(&state, CoreEvent::ReadinessSuccess("ep".to_string()));
+        assert_eq!(
+            state,
+            CoreState::Running {
+                generation: 2,
+                endpoint: "ep".to_string()
+            }
+        );
 
         // Process exit
-        let (state, effect) = CoreStateMachine::step(&state, CoreEvent::ProcessExitedUnexpectedly("segfault".to_string()));
-        assert_eq!(state, CoreState::Failed { generation: 2, error: "segfault".to_string() });
+        let (state, effect) = CoreStateMachine::step(
+            &state,
+            CoreEvent::ProcessExitedUnexpectedly("segfault".to_string()),
+        );
+        assert_eq!(
+            state,
+            CoreState::Failed {
+                generation: 2,
+                error: "segfault".to_string()
+            }
+        );
         assert_eq!(effect, None);
 
         // Restart again
@@ -184,8 +232,15 @@ mod tests {
     #[test]
     fn test_reload_failure() {
         let state = CoreState::Reloading { generation: 5 };
-        let (state, effect) = CoreStateMachine::step(&state, CoreEvent::ReloadFailed("config error".to_string()));
-        assert_eq!(state, CoreState::Running { generation: 5, endpoint: "retained_endpoint".to_string() });
+        let (state, effect) =
+            CoreStateMachine::step(&state, CoreEvent::ReloadFailed("config error".to_string()));
+        assert_eq!(
+            state,
+            CoreState::Running {
+                generation: 5,
+                endpoint: "retained_endpoint".to_string()
+            }
+        );
         assert_eq!(effect, Some("config error".to_string()));
     }
 
@@ -197,10 +252,19 @@ mod tests {
         assert_eq!(new_state, CoreState::Idle);
         assert_eq!(effect, None);
 
-        let state = CoreState::Running { generation: 2, endpoint: "ep".to_string() };
+        let state = CoreState::Running {
+            generation: 2,
+            endpoint: "ep".to_string(),
+        };
         // Sending StartRequested to Running should be a no-op
         let (new_state, effect) = CoreStateMachine::step(&state, CoreEvent::StartRequested);
-        assert_eq!(new_state, CoreState::Running { generation: 2, endpoint: "ep".to_string() });
+        assert_eq!(
+            new_state,
+            CoreState::Running {
+                generation: 2,
+                endpoint: "ep".to_string()
+            }
+        );
         assert_eq!(effect, None);
     }
 }

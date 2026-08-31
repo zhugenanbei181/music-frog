@@ -132,12 +132,6 @@ fn manager_shutdown_is_idempotent() {
     assert!(manager.url().is_none());
 }
 
-#[tokio::test]
-async fn resolve_admin_dir_finds_dev_checkout() {
-    let dir = resolve_admin_dir().expect("dev checkout ships webui/config-manager-ui");
-    assert!(dir.exists(), "resolved dir must exist: {}", dir.display());
-}
-
 #[test]
 fn admin_enabled_reads_config_flag() {
     assert!(admin_enabled(&AdminServerConfig::default()));

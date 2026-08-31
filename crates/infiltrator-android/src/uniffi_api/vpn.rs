@@ -3,21 +3,17 @@
 //! (MTU/routes/stack plus DNS servers patched into the DNS config).
 
 #[cfg(target_os = "android")]
-use mihomo_config::manager::ConfigManager;
-#[cfg(target_os = "android")]
 use serde_yaml_ng::Value;
 
 use mihomo_platform::android_bridge::get_android_bridge;
 
-use infiltrator_core::dns::{
-    DnsConfig as CoreDnsConfig, DnsConfigPatch as CoreDnsConfigPatch, load_dns_config,
-    save_dns_config,
-};
-use infiltrator_core::tun::{
-    TunConfig as CoreTunConfig, TunConfigPatch as CoreTunConfigPatch, load_tun_config,
-    save_tun_config,
-};
+use infiltrator_core::dns::{ load_dns_config,
+    save_dns_config};
+use infiltrator_core::tun::{ load_tun_config,
+    save_tun_config};
 
+#[cfg(target_os = "android")]
+use super::support::build_config_manager;
 use super::support::{get_runtime, map_anyhow_error, map_mihomo_error, normalize_optional_string};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
@@ -194,7 +190,7 @@ async fn tun_status_internal() -> Result<bool, FfiStatus> {
 fn resolve_proxy_url() -> Option<String> {
     get_runtime()
         .block_on(async {
-            let manager = ConfigManager::new().map_err(map_mihomo_error)?;
+            let manager = build_config_manager().await?;
             let profile = manager.get_current().await.map_err(map_mihomo_error)?;
             let content = manager.load(&profile).await.map_err(map_mihomo_error)?;
             let doc: Value = serde_yaml_ng::from_str(&content)
@@ -265,7 +261,7 @@ async fn save_vpn_tun_settings(patch: VpnTunSettingsPatch) -> Result<VpnTunSetti
     Ok(build_vpn_tun_settings(tun_config, dns_config))
 }
 
-fn build_vpn_tun_settings(tun_config: CoreTunConfig, dns_config: CoreDnsConfig) -> VpnTunSettings {
+fn build_vpn_tun_settings(tun_config: infiltrator_core::tun::TunConfig, dns_config: infiltrator_core::dns::DnsConfig) -> VpnTunSettings {
     let dns_servers = dns_config
         .nameserver
         .or(dns_config.default_nameserver)
@@ -281,8 +277,8 @@ fn build_vpn_tun_settings(tun_config: CoreTunConfig, dns_config: CoreDnsConfig) 
     }
 }
 
-pub(super) fn build_tun_patch(patch: &VpnTunSettingsPatch) -> (CoreTunConfigPatch, bool) {
-    let mut core_patch = CoreTunConfigPatch::default();
+pub(super) fn build_tun_patch(patch: &VpnTunSettingsPatch) -> (infiltrator_core::tun::TunConfigPatch, bool) {
+    let mut core_patch = infiltrator_core::tun::TunConfigPatch::default();
     let mut has_patch = false;
     if let Some(value) = patch.mtu {
         core_patch.mtu = Some(value);
@@ -307,8 +303,8 @@ pub(super) fn build_tun_patch(patch: &VpnTunSettingsPatch) -> (CoreTunConfigPatc
     (core_patch, has_patch)
 }
 
-fn build_dns_patch(patch: &VpnTunSettingsPatch, current: &CoreDnsConfig) -> CoreDnsConfigPatch {
-    let mut core_patch = CoreDnsConfigPatch::default();
+fn build_dns_patch(patch: &VpnTunSettingsPatch, current: &infiltrator_core::dns::DnsConfig) -> infiltrator_core::dns::DnsConfigPatch {
+    let mut core_patch = infiltrator_core::dns::DnsConfigPatch::default();
     if let Some(value) = patch.ipv6 {
         core_patch.ipv6 = Some(value);
     }

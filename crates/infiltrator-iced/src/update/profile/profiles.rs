@@ -2,9 +2,10 @@
 //! activation and deletion.
 
 use crate::state::AppState;
-use crate::types::{InfiltratorError, Message, ToastStatus};
+use crate::types::app::ToastStatus;
+use crate::types::message::Message;
 use iced::Task;
-use mihomo_config::manager::ConfigManager;
+use infiltrator_core::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn update_profiles(&mut self, message: Message) -> Task<Message> {
@@ -13,10 +14,7 @@ impl AppState {
                 self.profile.is_loading_profiles = true;
                 Task::perform(
                     async {
-                        let cm =
-                            ConfigManager::new().map_err(|e: mihomo_api::error::MihomoError| {
-                                InfiltratorError::from(e)
-                            })?;
+                        let cm = crate::configs_dir::config_manager().await?;
                         cm.list_profiles()
                             .await
                             .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))
@@ -26,6 +24,7 @@ impl AppState {
             }
             Message::ProfilesLoaded(result) => {
                 self.profile.is_loading_profiles = false;
+                self.refresh_tray();
                 match result {
                     Ok(profiles) => {
                         self.profile.profiles = profiles;
@@ -44,9 +43,18 @@ impl AppState {
             }
             Message::ClearProfiles => {
                 self.shell.error_msg = None;
+                let runtime = self.take_app_runtime();
+                self.profile.restart_after_profile_reset = runtime.is_some();
+                self.runtime.status = crate::types::runtime::RuntimeStatus::Stopped;
                 self.profile.is_loading_profiles = true;
                 Task::perform(
-                    async {
+                    async move {
+                        if let Some(runtime) = runtime {
+                            runtime
+                                .shutdown()
+                                .await
+                                .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
+                        }
                         infiltrator_core::profiles::reset_profiles_to_default()
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
@@ -59,18 +67,24 @@ impl AppState {
                 self.profile.is_loading_profiles = false;
                 match result {
                     Ok(_) => {
+                        let restart = self.profile.restart_after_profile_reset;
+                        self.profile.restart_after_profile_reset = false;
                         self.invalidate_rules_dns_views();
                         self.profile.profiles_filter.clear();
-                        Task::batch(vec![
+                        let mut tasks = vec![
                             Task::done(Message::LoadProfiles),
-                            Task::done(Message::StartProxy),
                             Task::done(Message::ShowToast(
                                 "Profiles reset to default".to_string(),
                                 ToastStatus::Success,
                             )),
-                        ])
+                        ];
+                        if restart {
+                            tasks.push(Task::done(Message::StartProxy));
+                        }
+                        Task::batch(tasks)
                     }
                     Err(e) => {
+                        self.profile.restart_after_profile_reset = false;
                         self.set_error(&e);
                         Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
                     }
@@ -82,46 +96,48 @@ impl AppState {
                 let runtime = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
-                        let cm =
-                            ConfigManager::new().map_err(|e: mihomo_api::error::MihomoError| {
-                                InfiltratorError::from(e)
-                            })?;
-                        let previous = cm.get_current().await.map_err(
-                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
-                        )?;
-                        cm.set_current(&name).await.map_err(
-                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
-                        )?;
-                        if let Some(rt) = runtime {
-                            // Core is live: run the CORE-004 transaction so
-                            // the switch actually reaches mihomo, with a
-                            // readiness check and rollback on failure.
-                            if let Err(e) = rt
-                                .apply_current_config(
-                                    infiltrator_core::apply::ApplyStrategy::AlwaysRestart,
-                                )
-                                .await
-                            {
-                                let _ = cm.set_current(&previous).await;
-                                return Err(InfiltratorError::Mihomo(e.to_string()));
-                            }
-                        }
-                        // No live core: leaving current set is enough — the
-                        // follow-up StartProxy boots with the new profile.
-                        Ok(())
+                        crate::update::core::profile_apply::activate_profile(runtime, &name).await
                     },
-                    |result: Result<(), InfiltratorError>| match result {
-                        Ok(()) => Message::StartProxy,
-                        Err(e) => Message::ShowToast(e.to_string(), ToastStatus::Error),
+                    |result: Result<bool, InfiltratorError>| match result {
+                        Ok(was_running) => Message::ProfileActivationFinished(Ok(was_running)),
+                        Err(e) => Message::ProfileActivationFinished(Err(e)),
                     },
                 )
             }
+            Message::ProfileActivationFinished(result) => match result {
+                Ok(true) => {
+                    if let Some(runtime) = self.runtime.runtime.clone() {
+                        self.sync_runtime_slot(Some(runtime));
+                    }
+                    self.refresh_tray();
+                    Task::batch(vec![
+                        Task::done(Message::LoadProfiles),
+                        Task::done(Message::ShowToast(
+                            "Profile activated".to_string(),
+                            ToastStatus::Success,
+                        )),
+                    ])
+                }
+                Ok(false) => Task::batch(vec![
+                    Task::done(Message::LoadProfiles),
+                    Task::done(Message::StartProxy),
+                ]),
+                Err(error) => {
+                    self.set_error(&error);
+                    Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
+                }
+            },
             Message::DeleteProfile(name) => Task::perform(
                 async move {
-                    let cm = ConfigManager::new().map_err(InfiltratorError::from)?;
+                    let cm = crate::configs_dir::config_manager().await?;
                     cm.delete_profile(&name)
                         .await
                         .map_err(InfiltratorError::from)?;
+                    // Best-effort: a stale sidecar would silently re-apply its
+                    // filter/mixin to a future profile of the same name.
+                    if let Ok(dir) = crate::configs_dir::configs_dir().await {
+                        infiltrator_core::profile_options::delete_options(&dir, &name).await;
+                    }
                     Ok(())
                 },
                 Message::ProfileDeleted,

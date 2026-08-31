@@ -1,7 +1,7 @@
 //! Token-driven control styles and shared widget builders for the runtime
 //! page (ui-wave2-r). Section modules build their rows from these helpers.
 
-use crate::Message;
+use crate::types::message::Message;
 use crate::view::theme::{FONT_MEDIUM, R_CONTROL, tokens};
 use iced::widget::{button, container, pick_list, text, text_input};
 use iced::{Border, Color, Element, Theme, border};

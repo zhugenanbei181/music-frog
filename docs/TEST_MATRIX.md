@@ -36,7 +36,7 @@
 每个 intent 至少维护四列：
 
 ```text
-intent → Rust command/result → Iced decision → Tauri/Web decision → Android decision
+intent → Rust command/result → Iced decision → Android decision（0.30 起加 Bevy UI decision）
 ```
 
 三端必须一致的字段：命令含义、目标身份、成功/失败/取消/超时/不支持、revision/generation、用户可见反馈。可以不同的字段：布局、手势、导航、窗口、动画、密度和平台权限流程。
@@ -46,7 +46,6 @@ intent → Rust command/result → Iced decision → Tauri/Web decision → Andr
 ## 4. 执行入口
 
 - Rust 基础测试：`bash scripts/test.sh`；
-- Web Admin：`pnpm --dir webui/config-manager-ui test`；
 - Android 编译/UniFFI：`bash scripts/android-build.sh`，再执行 Gradle 对应 variant；
 - 真实 core smoke：单独的 release/compatibility stage，不能混入普通单元测试；
 - 平台/打包：按 [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md) 逐平台记录，不用另一平台的结果代替。

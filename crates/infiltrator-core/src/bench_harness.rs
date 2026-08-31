@@ -129,7 +129,8 @@ mod tests {
     async fn test_async_bench() {
         let res = BenchHarness::bench_async_op("test_async", 100, || async {
             let _ = 1 + 1;
-        }).await;
+        })
+        .await;
         assert_eq!(res.name, "test_async");
         assert_eq!(res.iterations, 100);
         assert!(res.ops_per_sec > 0.0);

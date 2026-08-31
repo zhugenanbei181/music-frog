@@ -6,13 +6,15 @@
 mod admin;
 mod editor;
 mod import;
+mod options;
 mod profiles;
 mod settings;
 mod subscription;
 mod sync;
+mod sync_diff;
 
 use crate::state::AppState;
-use crate::types::Message;
+use crate::types::message::Message;
 use iced::Task;
 
 impl AppState {
@@ -27,12 +29,12 @@ impl AppState {
         self.editor.rules_page = 0;
         self.editor.rules_heavy_ready = false;
         self.editor.dns_heavy_ready = false;
-        self.editor.rule_providers_editor_state = crate::types::EditorLazyState::Unloaded;
-        self.editor.proxy_providers_editor_state = crate::types::EditorLazyState::Unloaded;
-        self.editor.sniffer_editor_state = crate::types::EditorLazyState::Unloaded;
-        self.editor.dns_editor_state = crate::types::EditorLazyState::Unloaded;
-        self.editor.fake_ip_editor_state = crate::types::EditorLazyState::Unloaded;
-        self.editor.tun_editor_state = crate::types::EditorLazyState::Unloaded;
+        self.editor.rule_providers_editor_state = crate::types::editor::EditorLazyState::Unloaded;
+        self.editor.proxy_providers_editor_state = crate::types::editor::EditorLazyState::Unloaded;
+        self.editor.sniffer_editor_state = crate::types::editor::EditorLazyState::Unloaded;
+        self.editor.dns_editor_state = crate::types::editor::EditorLazyState::Unloaded;
+        self.editor.fake_ip_editor_state = crate::types::editor::EditorLazyState::Unloaded;
+        self.editor.tun_editor_state = crate::types::editor::EditorLazyState::Unloaded;
     }
 
     pub fn update_profile(&mut self, message: Message) -> Task<Message> {
@@ -44,6 +46,7 @@ impl AppState {
             | Message::ClearProfiles
             | Message::ProfilesCleared(_)
             | Message::SetActiveProfile(_)
+            | Message::ProfileActivationFinished(_)
             | Message::DeleteProfile(_)
             | Message::ProfileDeleted(_) => self.update_profiles(message),
 
@@ -76,9 +79,29 @@ impl AppState {
             // Profile YAML editor.
             Message::EditProfile(_)
             | Message::ProfileContentLoaded(_)
+            | Message::LoadProfileSnapshots
+            | Message::ProfileSnapshotsLoaded(_)
+            | Message::RestoreProfileSnapshot(_)
+            | Message::ProfileSnapshotRestored(_)
             | Message::EditorAction(_)
             | Message::SaveProfile
             | Message::ProfileSaved(_) => self.update_editor(message),
+
+            // Profile options: mixin overlay editor + subscription filter.
+            Message::SetEditorPane(_)
+            | Message::MixinEditorAction(_)
+            | Message::MixinLoaded(_)
+            | Message::SaveMixin
+            | Message::MixinSaved(_)
+            | Message::LoadProfileFilter
+            | Message::ProfileFilterLoaded(_)
+            | Message::UpdateFilterInclude(_)
+            | Message::UpdateFilterExclude(_)
+            | Message::UpdateFilterExcludeTypes(_)
+            | Message::UpdateFilterRenames(_)
+            | Message::UpdateFilterDedup(_)
+            | Message::SaveProfileFilter
+            | Message::ProfileFilterSaved(_) => self.update_options(message),
 
             // App settings: WebDAV account, editor path, language/theme.
             Message::UpdateWebDavUrl(_)
@@ -88,6 +111,8 @@ impl AppState {
             | Message::UpdateWebDavSyncInterval(_)
             | Message::UpdateWebDavSyncOnStartup(_)
             | Message::UpdateEditorPathSetting(_)
+            | Message::UpdateNotificationsEnabled(_)
+            | Message::SetLanguage(_)
             | Message::SaveAppSettings
             | Message::AppSettingsSaved(_) => self.update_settings(message),
 
@@ -97,12 +122,27 @@ impl AppState {
             | Message::ApplyAdminSettings
             | Message::AdminSettingsSaved(_)
             | Message::AdminServerStarted(_)
-            | Message::OpenWebAdmin => self.update_admin(message),
+            => self.update_admin(message),
 
             // WebDAV sync.
             Message::SyncUpload
             | Message::SyncDownload
             | Message::SyncFinished(_)
+            | Message::SyncProgress(_)
+            | Message::ResolveSyncConflict(_)
+            | Message::DismissSyncConflict(_)
+            | Message::SyncConflictResolved(_)
+            | Message::SyncConflictDismissed(_)
+            | Message::LoadSyncDiff(_)
+            | Message::SyncDiffLoaded(_)
+            | Message::PickSyncDiffKey(_, _)
+            | Message::SetSyncDiffPicks(_)
+            | Message::ApplySyncDiffMerge
+            | Message::SyncDiffMerged(_)
+            | Message::CloseSyncDiff
+            | Message::CancelWebDavSync
+            | Message::TestWebDavConnection
+            | Message::WebDavConnectionTested(_)
             | Message::TickWebDavSync => self.update_sync(message),
 
             _ => Task::none(),

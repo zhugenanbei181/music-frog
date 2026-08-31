@@ -1,7 +1,7 @@
-use std::path::Path;
-use std::process::Command;
 use anyhow::{Context, Result};
 use std::fmt;
+use std::path::Path;
+use std::process::Command;
 
 /// Represents the status of the TUN service or privilege mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,13 +34,24 @@ impl TunServiceManager {
 
     /// Checks the current status of the service mode.
     pub fn check_status() -> ServiceModeStatus {
+        let exe = match std::env::current_exe() {
+            Ok(path) => path,
+            Err(_) => return ServiceModeStatus::MissingPrivilege,
+        };
+        Self::check_status_for(&exe)
+    }
+
+    /// Checks the service/capability state for the actual mihomo binary.
+    /// This is different from [`Self::check_status`] in packaged desktops:
+    /// the GUI executable and the core executable are separate files.
+    pub fn check_status_for(binary_path: &Path) -> ServiceModeStatus {
         #[cfg(target_os = "windows")]
         {
             Self::check_status_windows()
         }
         #[cfg(target_os = "linux")]
         {
-            Self::check_status_linux()
+            Self::check_status_linux(binary_path)
         }
         #[cfg(target_os = "macos")]
         {
@@ -48,6 +59,7 @@ impl TunServiceManager {
         }
         #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         {
+            let _ = binary_path;
             ServiceModeStatus::Unsupported
         }
     }
@@ -153,7 +165,7 @@ impl TunServiceManager {
             } else if stdout.contains("STOPPED") {
                 return ServiceModeStatus::InstalledStopped;
             } else if !out.status.success() {
-                return ServiceModeStatus::MissingPrivilege; 
+                return ServiceModeStatus::MissingPrivilege;
             }
         }
         ServiceModeStatus::MissingPrivilege
@@ -164,9 +176,16 @@ impl TunServiceManager {
         let path_str = bin_path.to_str().context("Invalid binary path")?;
         let bin_path_arg = format!("\"{}\"", path_str);
         let status = Command::new("sc.exe")
-            .args(["create", Self::SERVICE_NAME, "binPath=", &bin_path_arg, "start=", "auto"])
+            .args([
+                "create",
+                Self::SERVICE_NAME,
+                "binPath=",
+                &bin_path_arg,
+                "start=",
+                "auto",
+            ])
             .status()?;
-        
+
         if !status.success() {
             anyhow::bail!("Failed to create Windows service. Requires Administrator privileges.");
         }
@@ -179,7 +198,7 @@ impl TunServiceManager {
         let status = Command::new("sc.exe")
             .args(["delete", Self::SERVICE_NAME])
             .status()?;
-        
+
         if !status.success() {
             anyhow::bail!("Failed to delete Windows service. Requires Administrator privileges.");
         }
@@ -191,7 +210,7 @@ impl TunServiceManager {
         let status = Command::new("sc.exe")
             .args(["start", Self::SERVICE_NAME])
             .status()?;
-        
+
         if !status.success() {
             anyhow::bail!("Failed to start Windows service. Requires Administrator privileges.");
         }
@@ -203,7 +222,7 @@ impl TunServiceManager {
         let status = Command::new("sc.exe")
             .args(["stop", Self::SERVICE_NAME])
             .status()?;
-        
+
         if !status.success() {
             anyhow::bail!("Failed to stop Windows service.");
         }
@@ -215,18 +234,14 @@ impl TunServiceManager {
     // =========================================================================
 
     #[cfg(target_os = "linux")]
-    fn check_status_linux() -> ServiceModeStatus {
-        let exe = match std::env::current_exe() {
-            Ok(p) => p,
-            Err(_) => return ServiceModeStatus::NotInstalled,
+    fn check_status_linux(exe: &Path) -> ServiceModeStatus {
+        let output = match Command::new("getcap").arg(exe).output() {
+            Ok(output) => output,
+            Err(_) => return ServiceModeStatus::MissingPrivilege,
         };
 
-        let output = Command::new("getcap")
-            .arg(&exe)
-            .output();
-
-        if let Ok(out) = output {
-            let stdout = String::from_utf8_lossy(&out.stdout);
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
             if stdout.contains("cap_net_admin") && stdout.contains("cap_net_bind_service") {
                 return ServiceModeStatus::InstalledAndRunning;
             }
@@ -236,15 +251,15 @@ impl TunServiceManager {
 
     #[cfg(target_os = "linux")]
     fn install_service_linux(bin_path: &Path) -> Result<()> {
-        let path_str = bin_path.to_str().context("Invalid binary path")?;
-        
-        let cmd = format!("setcap cap_net_admin,cap_net_bind_service+ep '{}'", path_str);
+        // Do not invoke a shell here. The binary path is user/package
+        // controlled and `pkexec setcap ... <path>` preserves spaces and
+        // punctuation without introducing shell-quoting hazards.
         let status = Command::new("pkexec")
-            .arg("sh")
-            .arg("-c")
-            .arg(&cmd)
+            .arg("setcap")
+            .arg("cap_net_admin,cap_net_bind_service+ep")
+            .arg(bin_path)
             .status()?;
-            
+
         if !status.success() {
             anyhow::bail!("Failed to grant capabilities via pkexec.");
         }
@@ -254,15 +269,12 @@ impl TunServiceManager {
     #[cfg(target_os = "linux")]
     fn uninstall_service_linux() -> Result<()> {
         let exe = std::env::current_exe().context("Failed to get current executable path")?;
-        let path_str = exe.to_str().context("Invalid path")?;
-        let cmd = format!("setcap -r '{}'", path_str);
-        
         let status = Command::new("pkexec")
-            .arg("sh")
-            .arg("-c")
-            .arg(&cmd)
+            .arg("setcap")
+            .arg("-r")
+            .arg(exe)
             .status()?;
-            
+
         if !status.success() {
             anyhow::bail!("Failed to remove capabilities via pkexec.");
         }
@@ -292,7 +304,7 @@ impl TunServiceManager {
             let output = Command::new("launchctl")
                 .args(["list", "com.musicfrog.infiltrator"])
                 .output();
-                
+
             if let Ok(out) = output {
                 if out.status.success() {
                     return ServiceModeStatus::InstalledAndRunning;
@@ -343,10 +355,19 @@ mod tests {
 
     #[test]
     fn test_status_display() {
-        assert_eq!(ServiceModeStatus::InstalledAndRunning.to_string(), "Installed and Running");
-        assert_eq!(ServiceModeStatus::InstalledStopped.to_string(), "Installed but Stopped");
+        assert_eq!(
+            ServiceModeStatus::InstalledAndRunning.to_string(),
+            "Installed and Running"
+        );
+        assert_eq!(
+            ServiceModeStatus::InstalledStopped.to_string(),
+            "Installed but Stopped"
+        );
         assert_eq!(ServiceModeStatus::NotInstalled.to_string(), "Not Installed");
-        assert_eq!(ServiceModeStatus::MissingPrivilege.to_string(), "Missing Privilege");
+        assert_eq!(
+            ServiceModeStatus::MissingPrivilege.to_string(),
+            "Missing Privilege"
+        );
         assert_eq!(ServiceModeStatus::Unsupported.to_string(), "Unsupported OS");
     }
 
@@ -357,17 +378,17 @@ mod tests {
         status = ServiceModeStatus::InstalledAndRunning;
         assert_eq!(status, ServiceModeStatus::InstalledAndRunning);
     }
-    
+
     #[test]
     fn test_service_manager_dummy_check() {
         let status = TunServiceManager::check_status();
         assert!(matches!(
             status,
-            ServiceModeStatus::InstalledAndRunning |
-            ServiceModeStatus::InstalledStopped |
-            ServiceModeStatus::NotInstalled |
-            ServiceModeStatus::MissingPrivilege |
-            ServiceModeStatus::Unsupported
+            ServiceModeStatus::InstalledAndRunning
+                | ServiceModeStatus::InstalledStopped
+                | ServiceModeStatus::NotInstalled
+                | ServiceModeStatus::MissingPrivilege
+                | ServiceModeStatus::Unsupported
         ));
     }
 }

@@ -1,4 +1,4 @@
-use crate::proxy::{Proxies, Proxy, ProxyGroup, ProxyHistory};
+use crate::proxy::types::{Proxies, Proxy, ProxyGroup, ProxyHistory};
 use crate::client::MihomoClient;
 use crate::error::Result;
 

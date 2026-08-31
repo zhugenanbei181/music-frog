@@ -3,10 +3,11 @@
 //! Mounted via `src/test_mounts.rs` (crate root).
 //! test-intent: behavior
 
-use crate::types::{
-    AdvancedConfigsBundle, AdvancedEditMode, DnsTab, EditorLazyState, RebuildFlowState,
-};
-use crate::{AppState, Message};
+use crate::types::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
+use crate::types::editor::EditorLazyState;
+use crate::types::runtime::RebuildFlowState;
+use crate::state::AppState;
+use crate::types::message::Message;
 use infiltrator_core::rules::RuleEntry;
 
 #[test]

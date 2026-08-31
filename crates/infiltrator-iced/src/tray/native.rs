@@ -1,8 +1,8 @@
 //! Windows/macOS tray backend: the existing muda + tray-icon implementation,
-//! wrapped behind the neutral [`TrayController`]/[`TraySpec`] seam. The menu
-//! structure built in [`TrayManager::new`] is unchanged; what the spec drives
-//! is the dynamic content (checkmarks + GLOBAL quick-switch entries) and the
-//! translation of muda/tray-icon events into neutral [`TrayEvent`]s.
+//! wrapped behind the neutral [`TrayController`]/[`TraySpec`] seam. Since 0.20
+//! the menu is fully generic: every [`update_spec`] push clears the root menu
+//! and re-renders the whole [`TrayMenuItem`] tree from the spec (same source
+//! of truth as the ksni backend), and the tooltip is refreshed too.
 //!
 //! Compiles on Linux too (muda/tray-icon keep the gtk feature at the
 //! workspace root), which is how this backend stays checkable on this OS.
@@ -12,91 +12,20 @@ use std::sync::mpsc::Sender;
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 use super::spec::{
-    TRAY_ACTION_MODE_DIRECT, TRAY_ACTION_MODE_GLOBAL, TRAY_ACTION_MODE_RULE,
-    TRAY_ACTION_NO_PROXIES, TRAY_ACTION_QUIT, TRAY_ACTION_SELECT_GLOBAL_PROXY, TRAY_ACTION_SHOW,
-    TRAY_ACTION_TOGGLE_SYSTEM_PROXY, TRAY_ACTION_TOGGLE_THEME, TRAY_ACTION_TOGGLE_TUN,
-    TRAY_SUBMENU_GLOBAL, TRAY_SUBMENU_MODE, TrayActionId, TrayController, TrayEvent, TrayIconData,
-    TrayMenuItem, TraySpec, TrayStartup,
+    TRAY_ACTION_NO_PROXIES, TrayActionId, TrayController, TrayEvent, TrayIconData, TrayMenuItem,
+    TraySpec, TrayStartup,
 };
 
 pub(super) struct TrayManager {
     tray_icon: Option<TrayIcon>,
-    mode_menu: Submenu,
-    groups_menu: Submenu,
-    system_proxy_item: CheckMenuItem,
-    tun_mode_item: CheckMenuItem,
+    menu: Menu,
 }
 
 impl TrayManager {
     pub fn new(icon: Option<&TrayIconData>) -> Self {
+        // The menu content is driven entirely by apply_spec; spawn starts
+        // with an empty menu so there is exactly one renderer of state.
         let menu = Menu::new();
-        let show_item = MenuItem::with_id(
-            muda_id_for(TRAY_ACTION_SHOW, None),
-            "显示主界面",
-            true,
-            None,
-        );
-
-        let mode_menu = Submenu::new("代理模式", true);
-        let mode_rule = MenuItem::with_id(
-            muda_id_for(TRAY_ACTION_MODE_RULE, None),
-            "规则模式",
-            true,
-            None,
-        );
-        let mode_global = MenuItem::with_id(
-            muda_id_for(TRAY_ACTION_MODE_GLOBAL, None),
-            "全局模式",
-            true,
-            None,
-        );
-        let mode_direct = MenuItem::with_id(
-            muda_id_for(TRAY_ACTION_MODE_DIRECT, None),
-            "直连模式",
-            true,
-            None,
-        );
-        let _ = mode_menu.append_items(&[&mode_rule, &mode_global, &mode_direct]);
-
-        let groups_menu = Submenu::new("快速切换 (GLOBAL)", true);
-
-        let system_proxy_item = CheckMenuItem::with_id(
-            muda_id_for(TRAY_ACTION_TOGGLE_SYSTEM_PROXY, None),
-            "系统代理",
-            true,
-            false,
-            None,
-        );
-        let tun_mode_item = CheckMenuItem::with_id(
-            muda_id_for(TRAY_ACTION_TOGGLE_TUN, None),
-            "TUN 模式",
-            true,
-            false,
-            None,
-        );
-        let theme_item = MenuItem::with_id(
-            muda_id_for(TRAY_ACTION_TOGGLE_THEME, None),
-            "切换深/浅色模式",
-            true,
-            None,
-        );
-
-        let quit_item =
-            MenuItem::with_id(muda_id_for(TRAY_ACTION_QUIT, None), "退出应用", true, None);
-
-        let _ = menu.append_items(&[
-            &show_item,
-            &PredefinedMenuItem::separator(),
-            &mode_menu,
-            &groups_menu,
-            &PredefinedMenuItem::separator(),
-            &system_proxy_item,
-            &tun_mode_item,
-            &theme_item,
-            &PredefinedMenuItem::separator(),
-            &quit_item,
-        ]);
-
         let mut builder = TrayIconBuilder::new()
             .with_menu(Box::new(menu.clone()))
             .with_tooltip("MusicFrog Infiltrator");
@@ -111,108 +40,136 @@ impl TrayManager {
         // 这里的 build() 可能因为系统不支持或资源冲突失败，包装在 Option 中
         let tray_icon = builder.build().ok();
 
-        Self {
-            tray_icon,
-            mode_menu,
-            groups_menu,
-            system_proxy_item,
-            tun_mode_item,
-        }
+        Self { tray_icon, menu }
     }
 
-    /// Translate the neutral spec onto the imperative muda items: checkmark
-    /// states land on the stored `CheckMenuItem`s, the mode and GLOBAL
-    /// quick-switch submenus are re-rendered from the spec entries.
+    /// Re-render the imperative muda menu from the neutral spec tree and
+    /// refresh the tooltip. The spec is the single source of truth: labels
+    /// (including `● ` markers and disabled placeholders), checkmark states,
+    /// enabled flags and payloads all come straight from the spec builder.
     pub fn apply_spec(&self, spec: &TraySpec) {
+        while self.menu.remove_at(0).is_some() {}
         for item in &spec.menu.items {
-            match item {
-                TrayMenuItem::Checkmark {
-                    id,
-                    checked,
-                    enabled: _,
-                    label: _,
-                } => match *id {
-                    TRAY_ACTION_TOGGLE_SYSTEM_PROXY => {
-                        let _ = self.system_proxy_item.set_checked(*checked);
-                    }
-                    TRAY_ACTION_TOGGLE_TUN => {
-                        let _ = self.tun_mode_item.set_checked(*checked);
-                    }
-                    _ => {}
-                },
-                TrayMenuItem::Submenu {
-                    id: TRAY_SUBMENU_MODE,
-                    items,
-                    ..
-                } => self.apply_menu_entries(&self.mode_menu, items),
-                TrayMenuItem::Submenu {
-                    id: TRAY_SUBMENU_GLOBAL,
-                    items,
-                    ..
-                } => self.apply_menu_entries(&self.groups_menu, items),
-                _ => {}
+            if let Some(entry) = build_entry(item) {
+                let _ = append_entry_to_menu(&self.menu, &entry);
             }
         }
-    }
-
-    /// Render spec action entries into a muda submenu. Entry labels
-    /// (including the `● ` active markers and the disabled placeholder) come
-    /// straight from the spec builder.
-    fn apply_menu_entries(&self, target: &Submenu, entries: &[TrayMenuItem]) {
-        while !target.items().is_empty() {
-            let _ = target.remove_at(0);
-        }
-
-        for entry in entries {
-            let TrayMenuItem::Action {
-                id,
-                label,
-                enabled,
-                payload,
-            } = entry
-            else {
-                continue;
-            };
-            let item =
-                MenuItem::with_id(muda_id_for(*id, payload.as_deref()), label, *enabled, None);
-            let _ = target.append(&item);
+        if let Some(icon) = &self.tray_icon {
+            let _ = icon.set_tooltip(Some(spec.tooltip.as_str()));
         }
     }
 }
 
-/// muda menu ids are strings. Proxy entries keep their historical
-/// `proxy_GLOBAL_<node>` form, the disabled placeholder keeps `no_proxies`,
-/// and every fixed action uses its numeric [`TrayActionId`] so the event
-/// translator can map ids back without a lookup table.
+/// A concrete muda widget built from one neutral spec entry. Kept as an enum
+/// because `Menu` and `Submenu` share no append-capable trait.
+enum MudaEntry {
+    Command(MenuItem),
+    Check(CheckMenuItem),
+    Submenu(Submenu),
+    Separator(PredefinedMenuItem),
+}
+
+fn build_entry(item: &TrayMenuItem) -> Option<MudaEntry> {
+    match item {
+        TrayMenuItem::Action {
+            id,
+            label,
+            enabled,
+            payload,
+        } => Some(MudaEntry::Command(MenuItem::with_id(
+            muda_id_for(*id, payload.as_deref()),
+            label,
+            *enabled,
+            None,
+        ))),
+        TrayMenuItem::Checkmark {
+            id,
+            label,
+            checked,
+            enabled,
+            payload,
+        } => Some(MudaEntry::Check(CheckMenuItem::with_id(
+            muda_id_for(*id, payload.as_deref()),
+            label,
+            *checked,
+            *enabled,
+            None,
+        ))),
+        TrayMenuItem::Submenu {
+            id,
+            label,
+            enabled,
+            items,
+        } => {
+            let submenu = Submenu::with_id(muda_id_for(*id, None), label, *enabled);
+            append_entries(&submenu, items);
+            Some(MudaEntry::Submenu(submenu))
+        }
+        TrayMenuItem::Separator => Some(MudaEntry::Separator(PredefinedMenuItem::separator())),
+    }
+}
+
+fn append_entries(target: &Submenu, items: &[TrayMenuItem]) {
+    for item in items {
+        if let Some(entry) = build_entry(item) {
+            let _ = append_entry_to_submenu(target, &entry);
+        }
+    }
+}
+
+fn append_entry_to_menu(target: &Menu, entry: &MudaEntry) -> muda::Result<()> {
+    match entry {
+        MudaEntry::Command(item) => target.append(item),
+        MudaEntry::Check(item) => target.append(item),
+        MudaEntry::Submenu(item) => target.append(item),
+        MudaEntry::Separator(item) => target.append(item),
+    }
+}
+
+fn append_entry_to_submenu(target: &Submenu, entry: &MudaEntry) -> muda::Result<()> {
+    match entry {
+        MudaEntry::Command(item) => target.append(item),
+        MudaEntry::Check(item) => target.append(item),
+        MudaEntry::Submenu(item) => target.append(item),
+        MudaEntry::Separator(item) => target.append(item),
+    }
+}
+
+/// muda menu ids are strings. The wire format mirrors the neutral id/payload
+/// pair: `tray-action-<id>` for payload-less entries and
+/// `tray-action-<id>:<payload>` otherwise (payloads may themselves contain
+/// `:`, only the first separator splits). Submenu ids use the same encoding
+/// for traceability; they are never emitted as activations.
 fn muda_id_for(id: TrayActionId, payload: Option<&str>) -> String {
-    match id {
-        TRAY_ACTION_SELECT_GLOBAL_PROXY => {
-            format!("proxy_GLOBAL_{}", payload.unwrap_or_default())
-        }
-        TRAY_ACTION_NO_PROXIES => "no_proxies".to_string(),
-        other => format!("tray-action-{other}"),
+    match payload {
+        Some(payload) => format!("tray-action-{id}:{payload}"),
+        None => format!("tray-action-{id}"),
     }
 }
 
-/// Translate a muda menu id back into the neutral event.
+/// Translate a muda menu id back into the neutral event. Unparseable ids
+/// (foreign entries, races with menu teardown) fall back to the disabled
+/// placeholder id, which resolves to no intent.
 fn translate_menu_id(id: &str) -> TrayEvent {
-    if let Some(node) = id.strip_prefix("proxy_GLOBAL_") {
-        TrayEvent::MenuActivated {
-            id: TRAY_ACTION_SELECT_GLOBAL_PROXY,
-            payload: Some(node.to_string()),
-        }
-    } else if let Some(rest) = id.strip_prefix("tray-action-")
-        && let Ok(action) = rest.parse::<TrayActionId>()
-    {
-        TrayEvent::MenuActivated {
+    let parsed = id.strip_prefix("tray-action-").and_then(|rest| {
+        let (action, payload) = match rest.split_once(':') {
+            Some((action, payload)) => (action, Some(payload.to_string())),
+            None => (rest, None),
+        };
+        action
+            .parse::<TrayActionId>()
+            .ok()
+            .map(|action| (action, payload))
+    });
+    match parsed {
+        Some((action, payload)) => TrayEvent::MenuActivated {
             id: action,
-            payload: None,
-        }
-    } else {
-        TrayEvent::MenuActivated {
+            payload,
+        },
+        None => TrayEvent::MenuActivated {
             id: TRAY_ACTION_NO_PROXIES,
             payload: None,
-        }
+        },
     }
 }
 
@@ -263,5 +220,46 @@ pub(super) fn spawn_native(spec: TraySpec) -> TrayStartup {
     TrayStartup::Ready {
         controller: Box::new(NativeTrayController { manager }),
         events: receiver,
+    }
+}
+
+#[cfg(test)]
+mod id_codec {
+    use super::*;
+
+    #[test]
+    fn muda_id_round_trips_action_and_payload() {
+        // Payload-less actions round-trip bare.
+        assert_eq!(muda_id_for(7, None), "tray-action-7");
+        let TrayEvent::MenuActivated { id, payload } = translate_menu_id("tray-action-7") else {
+            panic!("must parse into a menu activation");
+        };
+        assert_eq!((id, payload.as_deref()), (7, None));
+
+        // Payload-carrying actions keep the payload verbatim, including
+        // `:` and the `\u{1}` pair separator.
+        let payload = format!("GLOBAL\u{1}node:1");
+        let wire = muda_id_for(31, Some(&payload));
+        assert_eq!(wire, format!("tray-action-31:{payload}"));
+        let TrayEvent::MenuActivated { id, payload: back } = translate_menu_id(&wire) else {
+            panic!("must parse into a menu activation");
+        };
+        assert_eq!(id, 31);
+        assert_eq!(back.as_deref(), Some(payload.as_str()));
+    }
+
+    #[test]
+    fn translate_menu_id_rejects_foreign_ids_via_placeholder() {
+        let TrayEvent::MenuActivated { id, payload } = translate_menu_id("not-ours") else {
+            panic!("fallback must still be a menu activation");
+        };
+        assert_eq!(id, TRAY_ACTION_NO_PROXIES);
+        assert!(payload.is_none());
+
+        // Numeric-looking garbage with a bad action part also falls back.
+        let TrayEvent::MenuActivated { id, .. } = translate_menu_id("tray-action-99999:big") else {
+            panic!("fallback must still be a menu activation");
+        };
+        assert_eq!(id, TRAY_ACTION_NO_PROXIES);
     }
 }

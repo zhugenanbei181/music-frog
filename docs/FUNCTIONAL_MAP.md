@@ -15,6 +15,15 @@
 | 系统集成 | 系统代理、自启动、托盘、文件选择、权限 | `mihomo-platform`、`infiltrator-desktop`、各宿主 | Iced tray、Tauri tray、Android VPN | PLAT-003 / UI-005：native adapter 与业务解耦 |
 | 多语言与主题 | 语言、主题、错误文案、无障碍提示 | `infiltrator-shared` + 各 UI theme/locales | Iced、Tauri/Web、Android resources | UI-006：文案 key 和失败状态不分叉 |
 
+## Iced P0 复核入口（2026-08-30）
+
+Iced 主桌面的可达面、真实缺口、代码证据和验收状态统一记录在
+[`TODO.md` 的 ICED-P0 清单](../TODO.md)。本轮已接入统一确认层、可见错误投影、
+运行态 WebSocket 消费、动态代理出口探测、TUN capability/service 入口、原子
+profile apply、WebDAV 测试/取消/进度/冲突处理、内核下载进度/取消，以及稳定/
+Beta/Nightly 通道和语言选择。未完成项仍保留在清单中；代码编译或单元测试不能
+替代真实 mihomo、桌面环境和打包产物验收。
+
 ## 当前表面的职责
 
 | Surface | 定位 | 应该做 | 不应该做 |
@@ -22,6 +31,7 @@
 | Iced | 主桌面客户端 | 完整桌面流程、托盘、运行态、内核管理 | 直接决定 mihomo API/配置语义 |
 | Tauri + Config Manager | 兼容/次级桌面入口 | 管理 Web、深度配置编辑、已有功能兼容 | 新建一套与 Iced 不同的 use-case |
 | Android Compose | 移动伴侣 | VPN/TUN、移动导航、权限和后台生命周期 | 直接复制桌面文件/进程模型 |
+| Bevy UI | 战略统一 surface（桌面+移动上限） | 经 `infiltrator-bevy-widgets` 控件层与共享 contract seam 消费同一批功能域；decision 按 FRONTENDS 矩阵登记（章程：[BEVY_UI_FRONTEND.md](BEVY_UI_FRONTEND.md)） | 复制 Iced 的 AppState；contract seam 落地前直连业务 crate；抢 mihomo P0 优先级 |
 | mihomo dashboard dist | 外部运行态面板 | 消费 mihomo controller 提供的既有能力 | 参与 MusicFrog profile/config ownership |
 
 ## 一条功能的完成定义

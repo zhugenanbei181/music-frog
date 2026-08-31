@@ -7,12 +7,13 @@
 //!   sniffer, rules, tun)
 //! - [`settings`]: app settings, editor integration, WebDAV sync
 //! - [`kernel`]: mihomo core version management
+//! - [`doctor`]: self-diagnostics, auto-repair, one-shot bootstrap
 //! - [`system`]: capabilities, rebuild status, admin event stream
 //!
 //! This file is the module root: submodules plus the shared rebuild /
 //! logging glue. The router in `super` consumes every handler through the
-//! re-exports below, so route paths, methods, and handler names are
-//! unchanged.
+//! submodule paths below (`handlers::config::get_dns_config_http`, ...), so
+//! route paths, methods, and handler names are unchanged.
 
 use std::sync::Arc;
 
@@ -21,21 +22,14 @@ use log::{info, warn};
 
 use crate::admin_api::state::{AdminApiContext, RebuildStatus};
 
-mod config;
-mod kernel;
-mod profiles;
-mod proxies;
-mod runtime;
-mod settings;
-mod system;
-
-pub use config::*;
-pub use kernel::*;
-pub use profiles::*;
-pub use proxies::*;
-pub use runtime::*;
-pub use settings::*;
-pub use system::*;
+pub mod config;
+pub mod doctor;
+pub mod kernel;
+pub mod profiles;
+pub mod proxies;
+pub mod runtime;
+pub mod settings;
+pub mod system;
 
 pub async fn log_admin_request(req: Request<Body>, next: Next) -> Response {
     let method = req.method().clone();

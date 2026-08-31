@@ -21,3 +21,9 @@ mod rules_dns_tests;
 
 #[path = "../tests/gui/admin_settings_tests.rs"]
 mod admin_settings_tests;
+
+#[path = "../tests/gui/options_flow_tests.rs"]
+mod options_flow_tests;
+
+#[path = "../tests/gui/doctor_flow_tests.rs"]
+mod doctor_flow_tests;

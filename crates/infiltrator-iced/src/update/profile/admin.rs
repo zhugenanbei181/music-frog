@@ -2,8 +2,10 @@
 //! settings slice, server lifecycle results and opening the web admin.
 
 use crate::state::AppState;
-use crate::types::{InfiltratorError, Message, ToastStatus};
+use crate::types::app::ToastStatus;
+use crate::types::message::Message;
 use iced::Task;
+use infiltrator_core::error::InfiltratorError;
 use infiltrator_core::settings::AppSettings;
 use infiltrator_shared::locales::Localizer;
 
@@ -65,7 +67,7 @@ impl AppState {
                         ])
                     }
                     None => {
-                        let lang = crate::locales::Lang(&self.shell.lang);
+                        let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
                         Task::done(Message::ShowToast(
                             lang.tr("settings_admin_invalid_port").into_owned(),
                             ToastStatus::Error,
@@ -84,7 +86,7 @@ impl AppState {
                 }
             },
             Message::AdminServerStarted(result) => {
-                let lang = crate::locales::Lang(&self.shell.lang);
+                let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
                 self.refresh_tray();
                 match result {
                     Ok(url) => Task::done(Message::ShowToast(
@@ -97,7 +99,6 @@ impl AppState {
                     )),
                 }
             }
-            Message::OpenWebAdmin => self.open_web_admin(),
             _ => Task::none(),
         }
     }

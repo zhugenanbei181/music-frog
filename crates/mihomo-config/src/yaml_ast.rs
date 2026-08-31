@@ -25,10 +25,10 @@ fn apply_patch(yaml: &str, path: &[&str], new_value: &str) -> Result<String> {
     }
 
     let mut lines: Vec<String> = yaml.split('\n').map(|s| s.to_string()).collect();
-    
+
     let mut current_path = Vec::new();
     let mut target_line_idx = None;
-    
+
     let mut deepest_match_idx = None;
     let mut deepest_match_len = 0;
     let mut deepest_match_indent = 0;
@@ -57,22 +57,22 @@ fn apply_patch(yaml: &str, path: &[&str], new_value: &str) -> Result<String> {
         if let Some(colon_idx) = trimmed.find(':') {
             let key_part = trimmed[..colon_idx].trim_end();
             let key = key_part.trim_matches(|c| c == '"' || c == '\'');
-            
+
             current_path.push((indent, key.to_string()));
 
-            let current_path_strs: Vec<&str> = current_path.iter().map(|(_, k)| k.as_str()).collect();
-            
+            let current_path_strs: Vec<&str> =
+                current_path.iter().map(|(_, k)| k.as_str()).collect();
+
             if current_path_strs == path {
                 target_line_idx = Some(i);
                 break;
             }
 
-            if path.starts_with(&current_path_strs)
-                && current_path_strs.len() > deepest_match_len {
-                    deepest_match_len = current_path_strs.len();
-                    deepest_match_idx = Some(i);
-                    deepest_match_indent = indent;
-                }
+            if path.starts_with(&current_path_strs) && current_path_strs.len() > deepest_match_len {
+                deepest_match_len = current_path_strs.len();
+                deepest_match_idx = Some(i);
+                deepest_match_indent = indent;
+            }
         }
     }
 
@@ -82,15 +82,19 @@ fn apply_patch(yaml: &str, path: &[&str], new_value: &str) -> Result<String> {
         let indent = line.len() - trimmed.len();
         let colon_idx = trimmed.find(':').unwrap();
         let key_part = trimmed[..colon_idx].trim_end();
-        
+
         let after_colon = &trimmed[colon_idx + 1..];
-        
+
         let mut hash_pos = None;
         let mut in_single = false;
         let mut in_double = false;
         for (pos, c) in after_colon.char_indices() {
-            if c == '\'' && !in_double { in_single = !in_single; }
-            if c == '"' && !in_single { in_double = !in_double; }
+            if c == '\'' && !in_double {
+                in_single = !in_single;
+            }
+            if c == '"' && !in_single {
+                in_double = !in_double;
+            }
             if c == '#' && !in_single && !in_double {
                 hash_pos = Some(pos);
                 break;
@@ -127,9 +131,11 @@ fn apply_patch(yaml: &str, path: &[&str], new_value: &str) -> Result<String> {
         lines[idx] = new_line;
 
         let mut has_child_block = false;
-        for ln in &lines[idx + 1 ..] {
+        for ln in &lines[idx + 1..] {
             let t = ln.trim_start();
-            if t.is_empty() || t.starts_with('#') { continue; }
+            if t.is_empty() || t.starts_with('#') {
+                continue;
+            }
             let child_indent = ln.len() - t.len();
             if child_indent > indent {
                 has_child_block = true;
@@ -153,20 +159,19 @@ fn apply_patch(yaml: &str, path: &[&str], new_value: &str) -> Result<String> {
                     end_idx = i + 1;
                 }
             }
-            lines.drain(idx + 1 .. end_idx);
+            lines.drain(idx + 1..end_idx);
         }
-
     } else {
         // Insert new field
         let mut insert_idx = lines.len();
         if lines.last().map(|s| s.is_empty()).unwrap_or(false) {
             insert_idx = insert_idx.saturating_sub(1);
         }
-        
+
         let mut base_indent = 0;
-        
+
         if let Some(parent_idx) = deepest_match_idx {
-            base_indent = deepest_match_indent + 2; 
+            base_indent = deepest_match_indent + 2;
             insert_idx = lines.len();
             if lines.last().map(|s| s.is_empty()).unwrap_or(false) {
                 insert_idx = insert_idx.saturating_sub(1);
@@ -183,18 +188,29 @@ fn apply_patch(yaml: &str, path: &[&str], new_value: &str) -> Result<String> {
                 }
             }
         }
-        
+
         let mut to_insert = Vec::new();
         let mut current_indent = base_indent;
-        for i in deepest_match_len .. path.len() {
+        for i in deepest_match_len..path.len() {
             if i == path.len() - 1 {
-                to_insert.push(format!("{:indent$}{}: {}", "", path[i], new_value, indent = current_indent));
+                to_insert.push(format!(
+                    "{:indent$}{}: {}",
+                    "",
+                    path[i],
+                    new_value,
+                    indent = current_indent
+                ));
             } else {
-                to_insert.push(format!("{:indent$}{}:", "", path[i], indent = current_indent));
+                to_insert.push(format!(
+                    "{:indent$}{}:",
+                    "",
+                    path[i],
+                    indent = current_indent
+                ));
                 current_indent += 2;
             }
         }
-        
+
         lines.splice(insert_idx..insert_idx, to_insert);
     }
 
@@ -260,7 +276,7 @@ ipv6: false
             (&["dns", "enable"], "true"),
             (&["ipv6"], "true"),
         ];
-        
+
         let expected = "\
 mode: global
 dns:

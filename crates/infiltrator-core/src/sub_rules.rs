@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RulePayload(pub String);
@@ -55,7 +55,7 @@ fn split_comma_outside_parens(s: &str) -> Vec<String> {
             }
         }
     }
-    
+
     if !current.trim().is_empty() {
         parts.push(current.trim().to_string());
     }
@@ -67,7 +67,9 @@ fn parse_ast(s: &str) -> Result<LogicalRuleAst, RuleSyntaxError> {
     let s = s.trim();
 
     if let Some(inner) = s.strip_prefix("AND(") {
-        let inner = inner.strip_suffix(")").ok_or(RuleSyntaxError::UnclosedParenthesis)?;
+        let inner = inner
+            .strip_suffix(")")
+            .ok_or(RuleSyntaxError::UnclosedParenthesis)?;
         let parts = split_comma_outside_parens(inner);
         let mut asts = Vec::new();
         for p in parts {
@@ -79,7 +81,9 @@ fn parse_ast(s: &str) -> Result<LogicalRuleAst, RuleSyntaxError> {
         }
         Ok(LogicalRuleAst::And(asts))
     } else if let Some(inner) = s.strip_prefix("OR(") {
-        let inner = inner.strip_suffix(")").ok_or(RuleSyntaxError::UnclosedParenthesis)?;
+        let inner = inner
+            .strip_suffix(")")
+            .ok_or(RuleSyntaxError::UnclosedParenthesis)?;
         let parts = split_comma_outside_parens(inner);
         let mut asts = Vec::new();
         for p in parts {
@@ -91,10 +95,14 @@ fn parse_ast(s: &str) -> Result<LogicalRuleAst, RuleSyntaxError> {
         }
         Ok(LogicalRuleAst::Or(asts))
     } else if let Some(inner) = s.strip_prefix("NOT(") {
-        let inner = inner.strip_suffix(")").ok_or(RuleSyntaxError::UnclosedParenthesis)?;
+        let inner = inner
+            .strip_suffix(")")
+            .ok_or(RuleSyntaxError::UnclosedParenthesis)?;
         let parts = split_comma_outside_parens(inner);
         if parts.len() != 1 {
-            return Err(RuleSyntaxError::ParseError("NOT must have exactly one rule".into()));
+            return Err(RuleSyntaxError::ParseError(
+                "NOT must have exactly one rule".into(),
+            ));
         }
         let p = &parts[0];
         let ast = if p.starts_with('(') && p.ends_with(')') {
@@ -104,7 +112,9 @@ fn parse_ast(s: &str) -> Result<LogicalRuleAst, RuleSyntaxError> {
         };
         Ok(LogicalRuleAst::Not(Box::new(ast)))
     } else if let Some(inner) = s.strip_prefix("SUB-RULE(") {
-        let inner = inner.strip_suffix(")").ok_or(RuleSyntaxError::UnclosedParenthesis)?;
+        let inner = inner
+            .strip_suffix(")")
+            .ok_or(RuleSyntaxError::UnclosedParenthesis)?;
         let parts = split_comma_outside_parens(inner);
         let mut asts = Vec::new();
         for p in parts {
@@ -123,7 +133,7 @@ fn parse_ast(s: &str) -> Result<LogicalRuleAst, RuleSyntaxError> {
 pub fn validate_logical_rule_syntax(rule_str: &str) -> Result<(), RuleSyntaxError> {
     // If it's a wrapper TYPE((...), TARGET)
     let rule_str = rule_str.trim();
-    
+
     // basic check for unclosed parenthesis globally
     let mut depth = 0;
     for c in rule_str.chars() {
@@ -139,7 +149,7 @@ pub fn validate_logical_rule_syntax(rule_str: &str) -> Result<(), RuleSyntaxErro
     if depth != 0 {
         return Err(RuleSyntaxError::UnclosedParenthesis);
     }
-    
+
     // We expect TYPE((rules...), TARGET)
     if let Some(pos) = rule_str.find('(') {
         let t = &rule_str[..pos];
@@ -148,7 +158,7 @@ pub fn validate_logical_rule_syntax(rule_str: &str) -> Result<(), RuleSyntaxErro
         }
         let inner = &rule_str[pos + 1..rule_str.len() - 1]; // stripping last ')'
         let parts = split_comma_outside_parens(inner);
-        
+
         if parts.len() < 2 {
             return Err(RuleSyntaxError::MissingTarget);
         }
@@ -166,15 +176,16 @@ pub fn parse_logical_rule(rule_str: &str) -> Result<LogicalRule> {
     let pos = rule_str.find('(').unwrap();
     let t = &rule_str[..pos];
     let inner = &rule_str[pos + 1..rule_str.len() - 1];
-    
+
     let mut parts = split_comma_outside_parens(inner);
     let mut no_resolve = false;
-    
+
     if let Some(last) = parts.last()
-        && last.trim().eq_ignore_ascii_case("no-resolve") {
-            no_resolve = true;
-            parts.pop();
-        }
+        && last.trim().eq_ignore_ascii_case("no-resolve")
+    {
+        no_resolve = true;
+        parts.pop();
+    }
 
     if parts.is_empty() {
         return Err(anyhow!("Missing target in logical rule"));
@@ -183,7 +194,7 @@ pub fn parse_logical_rule(rule_str: &str) -> Result<LogicalRule> {
     let target = parts.pop().unwrap().trim().to_string();
     let payload_str = parts.join(",");
     let wrapped_payload_str = format!("{}({})", t, payload_str);
-    
+
     let payload = parse_ast(&wrapped_payload_str).map_err(|e| anyhow!("{e}"))?;
 
     Ok(LogicalRule {
@@ -195,7 +206,7 @@ pub fn parse_logical_rule(rule_str: &str) -> Result<LogicalRule> {
 
 pub fn format_logical_rule(rule: &LogicalRule) -> String {
     let ast_str = format_ast(&rule.payload);
-    
+
     // Extract TYPE and inner payload from ast_str
     let pos = ast_str.find('(').unwrap_or(0);
     let t = &ast_str[..pos];
@@ -209,21 +220,25 @@ fn format_ast(ast: &LogicalRuleAst) -> String {
     match ast {
         LogicalRuleAst::Leaf(payload) => payload.0.clone(),
         LogicalRuleAst::And(asts) => {
-            let inner = asts.iter().map(|a| {
-                match a {
+            let inner = asts
+                .iter()
+                .map(|a| match a {
                     LogicalRuleAst::Leaf(_) => format_ast(a),
                     _ => format!("({})", format_ast(a)),
-                }
-            }).collect::<Vec<_>>().join(",");
+                })
+                .collect::<Vec<_>>()
+                .join(",");
             format!("AND({})", inner)
         }
         LogicalRuleAst::Or(asts) => {
-            let inner = asts.iter().map(|a| {
-                match a {
+            let inner = asts
+                .iter()
+                .map(|a| match a {
                     LogicalRuleAst::Leaf(_) => format_ast(a),
                     _ => format!("({})", format_ast(a)),
-                }
-            }).collect::<Vec<_>>().join(",");
+                })
+                .collect::<Vec<_>>()
+                .join(",");
             format!("OR({})", inner)
         }
         LogicalRuleAst::Not(ast) => {
@@ -234,12 +249,14 @@ fn format_ast(ast: &LogicalRuleAst) -> String {
             format!("NOT({})", inner)
         }
         LogicalRuleAst::SubRule(asts) => {
-            let inner = asts.iter().map(|a| {
-                match a {
+            let inner = asts
+                .iter()
+                .map(|a| match a {
                     LogicalRuleAst::Leaf(_) => format_ast(a),
                     _ => format!("({})", format_ast(a)),
-                }
-            }).collect::<Vec<_>>().join(",");
+                })
+                .collect::<Vec<_>>()
+                .join(",");
             format!("SUB-RULE({})", inner)
         }
     }
@@ -255,7 +272,7 @@ mod tests {
         let parsed = parse_logical_rule(rule).unwrap();
         assert_eq!(parsed.target, "Proxy");
         assert!(!parsed.no_resolve);
-        
+
         let expected_ast = LogicalRuleAst::And(vec![
             LogicalRuleAst::Leaf(RulePayload("DOMAIN,example.com".into())),
             LogicalRuleAst::Leaf(RulePayload("IP-CIDR,1.2.3.4/24".into())),
@@ -269,15 +286,27 @@ mod tests {
         let parsed = parse_logical_rule(rule).unwrap();
         assert_eq!(parsed.target, "Direct");
         assert!(parsed.no_resolve);
-        
+
         let formatted = format_logical_rule(&parsed);
-        assert_eq!(formatted, "OR((AND(DOMAIN,example.com,IP-CIDR,1.2.3.4/24)),DOMAIN-SUFFIX,google.com,Direct,no-resolve)");
+        assert_eq!(
+            formatted,
+            "OR((AND(DOMAIN,example.com,IP-CIDR,1.2.3.4/24)),DOMAIN-SUFFIX,google.com,Direct,no-resolve)"
+        );
     }
 
     #[test]
     fn test_syntax_errors() {
-        assert_eq!(validate_logical_rule_syntax("AND((DOMAIN,example.com), Proxy"), Err(RuleSyntaxError::UnclosedParenthesis));
-        assert_eq!(validate_logical_rule_syntax("AND((DOMAIN,example.com))"), Err(RuleSyntaxError::MissingTarget));
-        assert_eq!(validate_logical_rule_syntax("XYZ((DOMAIN,example.com), Proxy)"), Err(RuleSyntaxError::InvalidSubRuleType));
+        assert_eq!(
+            validate_logical_rule_syntax("AND((DOMAIN,example.com), Proxy"),
+            Err(RuleSyntaxError::UnclosedParenthesis)
+        );
+        assert_eq!(
+            validate_logical_rule_syntax("AND((DOMAIN,example.com))"),
+            Err(RuleSyntaxError::MissingTarget)
+        );
+        assert_eq!(
+            validate_logical_rule_syntax("XYZ((DOMAIN,example.com), Proxy)"),
+            Err(RuleSyntaxError::InvalidSubRuleType)
+        );
     }
 }

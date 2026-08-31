@@ -1,12 +1,14 @@
 //! Runtime page system-logs section: log-level picker, clear button and the
 //! scrollable, badge-annotated log line list.
 
-use crate::locales::{Lang, Localizer};
+use infiltrator_shared::locales::{Lang, Localizer};
 use crate::view::components::{BadgeKind, icon_button, section_header};
 use crate::view::runtime::styles::pick_style;
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{self, MONO, R_CONTROL, tokens};
-use crate::{AppState, Message};
+use crate::state::AppState;
+use crate::types::message::Message;
+use crate::types::runtime::RuntimeStreamState;
 use iced::widget::{Scrollable, Space, column, container, pick_list, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 
@@ -15,6 +17,8 @@ const SCROLL_PAD: f32 = 16.0;
 
 pub(super) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
     let logs_trailing = row![
+        stream_badge(&state.diag.logs_stream_state),
+        Space::new().width(theme::SP_SM),
         pick_list(
             &["debug", "info", "warning", "error"][..],
             Some(state.diag.log_level.as_str()),
@@ -81,6 +85,17 @@ pub(super) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
         .height(Length::Fill),
     ]
     .into()
+}
+
+fn stream_badge(state: &RuntimeStreamState) -> Element<'static, Message> {
+    let (label, kind) = match state {
+        RuntimeStreamState::Idle => ("未连接", BadgeKind::Neutral),
+        RuntimeStreamState::Connecting => ("连接中", BadgeKind::Neutral),
+        RuntimeStreamState::Connected => ("实时", BadgeKind::Success),
+        RuntimeStreamState::Reconnecting => ("重连中", BadgeKind::Warning),
+        RuntimeStreamState::Failed(_) => ("不可用", BadgeKind::Danger),
+    };
+    crate::view::components::badge(label, kind)
 }
 
 /// Classify a raw log line into a badge kind (info→Neutral, warn→Warning,

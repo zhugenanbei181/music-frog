@@ -29,7 +29,11 @@ pub struct IdleConnectionSweeper {
 
 impl IdleConnectionSweeper {
     /// Creates a new `IdleConnectionSweeper` with the given timeouts and capacity limits.
-    pub fn new(tcp_idle_timeout_secs: u64, udp_idle_timeout_secs: u64, max_connections: usize) -> Self {
+    pub fn new(
+        tcp_idle_timeout_secs: u64,
+        udp_idle_timeout_secs: u64,
+        max_connections: usize,
+    ) -> Self {
         Self {
             tcp_idle_timeout_secs,
             udp_idle_timeout_secs,
@@ -68,7 +72,7 @@ impl IdleConnectionSweeper {
                 TransportProtocol::Tcp => tcp_timeout,
                 TransportProtocol::Udp => udp_timeout,
             };
-            
+
             let idle_duration = now_secs.saturating_sub(session.last_activity_secs);
             if idle_duration > timeout {
                 evicted.push(*id);
@@ -77,7 +81,7 @@ impl IdleConnectionSweeper {
                 true
             }
         });
-        
+
         evicted
     }
 
@@ -99,7 +103,7 @@ mod tests {
     #[test]
     fn test_register_and_capacity() {
         let mut sweeper = IdleConnectionSweeper::new(60, 30, 2);
-        
+
         let s1 = TrackedSession {
             id: 1,
             protocol: TransportProtocol::Tcp,
@@ -134,7 +138,7 @@ mod tests {
             last_activity_secs: 100,
             bytes_transferred: 50,
         };
-        
+
         sweeper.register_session(s).unwrap();
         sweeper.touch_session(42, 150, 1024);
 
@@ -146,7 +150,7 @@ mod tests {
     #[test]
     fn test_sweep_idle_differentiated_timeouts() {
         let mut sweeper = IdleConnectionSweeper::new(60, 30, 10);
-        
+
         let s_tcp = TrackedSession {
             id: 1,
             protocol: TransportProtocol::Tcp,
@@ -163,7 +167,7 @@ mod tests {
             last_activity_secs: 100,
             bytes_transferred: 0,
         };
-        
+
         sweeper.register_session(s_tcp).unwrap();
         sweeper.register_session(s_udp).unwrap();
 
@@ -198,11 +202,11 @@ mod tests {
         };
         sweeper.register_session(s.clone()).unwrap();
         assert_eq!(sweeper.active_connection_count(), 1);
-        
+
         let removed = sweeper.remove_session(99).unwrap();
         assert_eq!(removed.id, 99);
         assert_eq!(sweeper.active_connection_count(), 0);
-        
+
         // Remove again should return None
         assert!(sweeper.remove_session(99).is_none());
     }

@@ -18,6 +18,7 @@
 //! | `INFILTRATOR_DEMO=1`        | enable demo mode (`--demo` argv also works)    |
 //! | `INFILTRATOR_PAGE`          | initial route: overview\|proxies\|runtime\|rules\|dns\|profiles\|sync\|editor\|settings |
 //! | `INFILTRATOR_SKIN`          | `light` or `dark` (default dark)               |
+//! | `INFILTRATOR_LANG`          | `zh-CN` (default) or `en-US`                   |
 //! | `INFILTRATOR_WINDOW_SIZE`   | `WxH` (default 1180x780)                       |
 //! | `INFILTRATOR_CAPTURE_MARKER`| file getting `CAPTURE_READY page=<p> skin=<s>` appended after the first rendered frame |
 //!
@@ -31,11 +32,8 @@ mod proxy_fixtures;
 mod state;
 
 use crate::state::AppState;
-use crate::types::Route;
-// Test-only re-export so the path-mounted demo tests can glob `super::*`
-// for the status type they assert on.
-#[cfg(test)]
-pub(crate) use crate::types::RuntimeStatus;
+use crate::types::app::Route;
+use crate::types::options::EditorPane;
 use iced::{application, window};
 use std::path::PathBuf;
 
@@ -47,6 +45,9 @@ const DEFAULT_WINDOW: (f32, f32) = (1180.0, 780.0);
 pub struct DemoEnv {
     pub enabled: bool,
     pub page: Route,
+    pub pane: EditorPane,
+    pub providers_tab: bool,
+    pub lang: String,
     pub skin: iced::Theme,
     pub window_size: (f32, f32),
     pub capture_marker: Option<PathBuf>,
@@ -64,6 +65,22 @@ impl DemoEnv {
                 .ok()
                 .and_then(|v| parse_page(&v))
                 .unwrap_or(Route::Overview),
+            pane: std::env::var("INFILTRATOR_PAGE")
+                .ok()
+                .and_then(|v| match v.trim().to_ascii_lowercase().as_str() {
+                    "mixin" => Some(EditorPane::Mixin),
+                    "filter" => Some(EditorPane::Filter),
+                    _ => None,
+                })
+                .unwrap_or(EditorPane::Profile),
+            providers_tab: std::env::var("INFILTRATOR_PAGE")
+                .ok()
+                .is_some_and(|v| v.trim().eq_ignore_ascii_case("rules-providers")),
+            lang: std::env::var("INFILTRATOR_LANG")
+                .ok()
+                .filter(|v| v.trim().eq_ignore_ascii_case("en-US"))
+                .map(|_| "en-US".to_string())
+                .unwrap_or_else(|| "zh-CN".to_string()),
             skin: std::env::var("INFILTRATOR_SKIN")
                 .ok()
                 .map(|v| parse_skin(&v))
@@ -80,18 +97,21 @@ impl DemoEnv {
     }
 }
 
-/// `overview|proxies|runtime|rules|dns|profiles|sync|editor|settings` -> Route.
-/// Unknown values yield `None` (callers fall back to [`Route::Overview`]).
+/// `overview|proxies|runtime|rules|rules-providers|dns|profiles|sync|editor|mixin|filter|settings`
+/// -> Route. `mixin` maps to the Editor route with the Mixin pane active,
+/// `rules-providers` to the Rules route with the Providers tab active; the
+/// other values yield the plain route. Unknown values yield `None`
+/// (callers fall back to [`Route::Overview`]).
 pub fn parse_page(value: &str) -> Option<Route> {
     match value.trim().to_ascii_lowercase().as_str() {
         "overview" => Some(Route::Overview),
         "proxies" => Some(Route::Proxies),
         "runtime" => Some(Route::Runtime),
-        "rules" => Some(Route::Rules),
         "dns" => Some(Route::Dns),
         "profiles" => Some(Route::Profiles),
         "sync" => Some(Route::Sync),
-        "editor" => Some(Route::Editor),
+        "editor" | "mixin" | "filter" => Some(Route::Editor),
+        "rules" | "rules-providers" => Some(Route::Rules),
         "settings" => Some(Route::Settings),
         _ => None,
     }

@@ -101,6 +101,26 @@ python3 scripts/quality/line-guard.py --mode report
 
 ---
 
+## Bevy UI `bsn!` 场景法守卫（BEVY-004）
+
+两个 bevy crate（`infiltrator-bevy-widgets`、`infiltrator-bevy-ui`）的生产代码
+执行 100% `bsn!` 场景法：UI 树只能在 `bsn! { … }` 场景内声明并经 `spawn_scene`
+挂载（crate law 见 `docs/BEVY_UI_FRONTEND.md`）；ECS 观察者原地盖章组件不受限。
+
+- **扫描范围**：两个 bevy crate 的 `src/` 生产代码；`tests/` 目录与 `*_test(s).rs`
+  挂载测试模块不在红线内。注释与字符串/字符字面量剥离后再扫。
+- **违规项**：`bsn!` 之外出现 `Node {` / `Children [` / `Text(…)` 及遗留 UI
+  bundle（`NodeBundle` 等）；`with_children`/`push_children`/`add_child(ren)`
+  手工接线；任何 `.spawn(` / `.spawn_batch(` 直建实体树；`bsn!` 花括号不平衡。
+- **豁免**：`spawn_scene`（唯一挂载缝）、`spawn(Camera2d)` 与
+  `spawn(Observer::new(…))`（相机/观察者基础设施，非 UI 树）——按首个实参文本
+  前缀机械判定，无逐文件白名单。
+- **机械检查**：`python3 scripts/quality/bevy_bsn_guard.py --mode enforce`，
+  CI 强制执行；本地先用 `--mode report` 看违规清单，`--self-test` 内嵌正反用例
+  并复扫真实生产树。
+
+---
+
 ## 卓越工程实践经验
 
 在达成“卓越水平”测试覆盖的过程中，我们总结了以下核心经验：

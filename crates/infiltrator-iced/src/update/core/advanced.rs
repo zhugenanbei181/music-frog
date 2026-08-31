@@ -5,10 +5,11 @@
 //! [`super::tun_config`].
 
 use crate::state::AppState;
-use crate::types::{
-    AdvancedConfigsBundle, AdvancedEditMode, DnsTab, EditorLazyState, InfiltratorError, Message,
-};
+use crate::types::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
+use crate::types::editor::EditorLazyState;
+use crate::types::message::Message;
 use iced::Task;
+use infiltrator_core::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn reset_dns_lazy_state(&mut self) {
@@ -108,9 +109,7 @@ impl AppState {
                 }
                 Task::perform(
                     async {
-                        let manager = mihomo_config::manager::ConfigManager::new().map_err(
-                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
-                        )?;
+                        let manager = crate::configs_dir::config_manager().await?;
                         let profile = manager.get_current().await.map_err(
                             |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
                         )?;

@@ -47,22 +47,13 @@
 //! * [`Reserved`] keeps both wire shapes — the `[1, 2, 3]` list form and the
 //!   base64 string form — exactly as written.
 //!
-//! Layout (semantic submodules, public paths unchanged via re-exports):
+//! Layout (semantic submodules):
 //! * `model` — typed node/field structs and their accessors
 //! * `profile_yaml` — profile YAML document <-> node list conversion
 //! * `validate` — advisory per-protocol validation rules
 
-mod model;
-mod profile_yaml;
+pub mod model;
+pub mod profile_yaml;
 #[cfg(test)]
 mod proxy_nodes_test;
-mod validate;
-
-pub use model::{
-    Bandwidth, CommonFields, Hysteria2Node, Hysteria2Type, OtherNode, ProxyNode, RawNode,
-    RealityOpts, Reserved, TuicNode, TuicType, VlessNode, VlessType, WireGuardNode, WireGuardType,
-};
-pub use profile_yaml::{
-    extract_nodes_from_doc, nodes_to_profile_yaml, parse_profile_yaml, replace_proxies_in_profile,
-};
-pub use validate::validate;
+pub mod validate;

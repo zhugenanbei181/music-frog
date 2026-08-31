@@ -4,11 +4,15 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::types::runtime::RuntimeStatus;
 
 fn demo_env(page: Route) -> DemoEnv {
     DemoEnv {
         enabled: true,
         page,
+        pane: crate::types::options::EditorPane::Profile,
+        providers_tab: false,
+        lang: "zh-CN".to_string(),
         skin: iced::Theme::Dark,
         window_size: DEFAULT_WINDOW,
         capture_marker: None,
@@ -169,15 +173,50 @@ fn env_page_mapping_is_exhaustive() {
         ("profiles", Route::Profiles),
         ("sync", Route::Sync),
         ("editor", Route::Editor),
+        ("mixin", Route::Editor),
         ("settings", Route::Settings),
     ];
     for (name, route) in cases {
         assert_eq!(parse_page(name), Some(route));
         assert_eq!(parse_page(&name.to_uppercase()), Some(route));
-        assert_eq!(route_env_name(route), name);
+        if name != "mixin" {
+            assert_eq!(route_env_name(route), name);
+        }
     }
     assert_eq!(parse_page("nope"), None);
     assert_eq!(parse_page(""), None);
+}
+
+#[test]
+fn demo_filter_page_activates_the_filter_pane_with_seeded_draft() {
+    let mut env = demo_env(Route::Editor);
+    env.pane = crate::types::options::EditorPane::Filter;
+    let (state, _) = AppState::demo(&env);
+    assert_eq!(
+        state.editor.editor_pane,
+        crate::types::options::EditorPane::Filter
+    );
+    assert_eq!(state.editor.filter_loaded_for.as_deref(), Some("机场订阅"));
+    assert!(!state.editor.filter_draft.include.is_empty());
+    // Subscription fixture carries userinfo traffic for the usage bar.
+    let active = state
+        .profile
+        .profiles
+        .iter()
+        .find(|p| p.active)
+        .expect("demo has an active profile");
+    assert!(active.traffic_total.unwrap_or(0) > active.traffic_upload.unwrap_or(0));
+}
+
+#[test]
+fn demo_mixin_page_activates_the_mixin_pane_with_fixture_document() {
+    let mut env = demo_env(Route::Editor);
+    env.pane = crate::types::options::EditorPane::Mixin;
+    let (state, _) = AppState::demo(&env);
+    assert_eq!(state.editor.editor_pane, crate::types::options::EditorPane::Mixin);
+    assert_eq!(state.editor.mixin_loaded_for.as_deref(), Some("机场订阅"));
+    assert!(state.editor.mixin_content.text().contains("rules:"));
+    assert!(state.editor.mixin_content.text().contains("prepend:"));
 }
 
 #[test]

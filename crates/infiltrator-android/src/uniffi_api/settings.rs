@@ -2,14 +2,9 @@
 //! (servers, enhanced mode, fallback filter) and Fake-IP configuration
 //! (range, filter list, cache store) plus cache clearing.
 
-use infiltrator_core::dns::{
-    DnsConfig as CoreDnsConfig, DnsConfigPatch as CoreDnsConfigPatch,
-    DnsFallbackFilter as CoreDnsFallbackFilter, load_dns_config, save_dns_config,
-};
+use infiltrator_core::dns::{load_dns_config, save_dns_config};
 use infiltrator_core::fake_ip::{
-    FakeIpConfig as CoreFakeIpConfig, FakeIpConfigPatch as CoreFakeIpConfigPatch,
-    clear_fake_ip_cache, load_fake_ip_config, save_fake_ip_config,
-};
+    clear_fake_ip_cache, load_fake_ip_config, save_fake_ip_config};
 
 use super::support::{get_runtime, map_anyhow_error, normalize_optional_string, sanitize_list};
 use crate::ffi::{FfiBoolResult, FfiErrorCode, FfiStatus};
@@ -194,7 +189,7 @@ async fn save_dns_settings(patch: DnsSettingsPatch) -> Result<DnsSettings, FfiSt
     Ok(build_dns_settings(config))
 }
 
-fn build_dns_settings(config: CoreDnsConfig) -> DnsSettings {
+fn build_dns_settings(config: infiltrator_core::dns::DnsConfig) -> DnsSettings {
     DnsSettings {
         enable: config.enable,
         ipv6: config.ipv6,
@@ -208,8 +203,8 @@ fn build_dns_settings(config: CoreDnsConfig) -> DnsSettings {
     }
 }
 
-pub(super) fn build_dns_settings_patch(patch: DnsSettingsPatch) -> CoreDnsConfigPatch {
-    CoreDnsConfigPatch {
+pub(super) fn build_dns_settings_patch(patch: DnsSettingsPatch) -> infiltrator_core::dns::DnsConfigPatch {
+    infiltrator_core::dns::DnsConfigPatch {
         enable: patch.enable,
         ipv6: patch.ipv6,
         enhanced_mode: normalize_optional_string(patch.enhanced_mode),
@@ -219,12 +214,12 @@ pub(super) fn build_dns_settings_patch(patch: DnsSettingsPatch) -> CoreDnsConfig
         fallback_filter: patch
             .fallback_filter
             .map(record_to_core_dns_fallback_filter),
-        ..CoreDnsConfigPatch::default()
+        ..infiltrator_core::dns::DnsConfigPatch::default()
     }
 }
 
 pub(super) fn core_dns_fallback_filter_to_record(
-    filter: CoreDnsFallbackFilter,
+    filter: infiltrator_core::dns::DnsFallbackFilter,
 ) -> DnsFallbackFilterSettings {
     DnsFallbackFilterSettings {
         geoip: filter.geoip,
@@ -237,8 +232,8 @@ pub(super) fn core_dns_fallback_filter_to_record(
 
 pub(super) fn record_to_core_dns_fallback_filter(
     filter: DnsFallbackFilterSettings,
-) -> CoreDnsFallbackFilter {
-    CoreDnsFallbackFilter {
+) -> infiltrator_core::dns::DnsFallbackFilter {
+    infiltrator_core::dns::DnsFallbackFilter {
         geoip: filter.geoip,
         geoip_code: normalize_optional_string(filter.geoip_code),
         ipcidr: sanitize_list(Some(filter.ipcidr)),
@@ -260,7 +255,7 @@ async fn save_fake_ip_settings(patch: FakeIpSettingsPatch) -> Result<FakeIpSetti
     Ok(build_fake_ip_settings(config))
 }
 
-fn build_fake_ip_settings(config: CoreFakeIpConfig) -> FakeIpSettings {
+fn build_fake_ip_settings(config: infiltrator_core::fake_ip::FakeIpConfig) -> FakeIpSettings {
     FakeIpSettings {
         fake_ip_range: config.fake_ip_range,
         fake_ip_filter: config.fake_ip_filter.unwrap_or_default(),
@@ -268,8 +263,8 @@ fn build_fake_ip_settings(config: CoreFakeIpConfig) -> FakeIpSettings {
     }
 }
 
-fn build_fake_ip_settings_patch(patch: FakeIpSettingsPatch) -> CoreFakeIpConfigPatch {
-    CoreFakeIpConfigPatch {
+fn build_fake_ip_settings_patch(patch: FakeIpSettingsPatch) -> infiltrator_core::fake_ip::FakeIpConfigPatch {
+    infiltrator_core::fake_ip::FakeIpConfigPatch {
         fake_ip_range: normalize_optional_string(patch.fake_ip_range),
         fake_ip_filter: sanitize_list(patch.fake_ip_filter),
         store_fake_ip: patch.store_fake_ip,

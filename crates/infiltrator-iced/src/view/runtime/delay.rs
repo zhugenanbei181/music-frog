@@ -1,14 +1,15 @@
 //! Runtime page delay-test section: sort control, test URL/timeout inputs
 //! and the per-node delay list with individual test buttons.
 
-use crate::locales::{Lang, Localizer};
+use infiltrator_shared::locales::{Lang, Localizer};
 use crate::view::components::{
     chip, empty_state, icon_button, latency_badge, section_header, segmented_control,
 };
 use crate::view::runtime::styles::{input_style, row_card, style_ghost, text_btn};
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, SP_MD, tokens};
-use crate::{AppState, Message};
+use crate::state::AppState;
+use crate::types::message::Message;
 use iced::widget::{Space, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 

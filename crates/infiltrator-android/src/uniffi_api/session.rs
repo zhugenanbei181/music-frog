@@ -12,6 +12,7 @@ use infiltrator_core::session::{
     CoreSession, CoreStatus, MihomoVersionProbe, ProfileEndpointSource, READINESS_TIMEOUT,
     SessionError,
 };
+#[cfg(not(target_os = "android"))]
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::android_bridge::get_android_bridge;
@@ -20,7 +21,7 @@ use mihomo_platform::traits::{CoreController, CredentialStore, DefaultCredential
 #[cfg(target_os = "android")]
 use mihomo_platform::android::AndroidCoreController;
 
-use super::support::map_mihomo_error;
+use super::support::{build_config_manager, map_mihomo_error};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
 /// Shared frontend wiring for the mihomo core: the unified [`CoreSession`]
@@ -95,14 +96,23 @@ async fn platform_core_is_running() -> bool {
     }
 }
 
-pub(super) fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
+pub(super) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
     static SHARED_CORE: OnceLock<Mutex<Option<Arc<SharedCore>>>> = OnceLock::new();
     let slot = SHARED_CORE.get_or_init(|| Mutex::new(None));
+    let cached = {
+        let guard = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        guard.as_ref().cloned()
+    };
+    if let Some(core) = cached {
+        return Ok(core);
+    }
+    // Init path only: the configs-dir redirect resolution (settings load)
+    // stays off the hot path; a concurrent winner's manager is reused below.
+    let config = Arc::new(build_config_manager().await?);
     let mut guard = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     if let Some(core) = guard.as_ref() {
         return Ok(Arc::clone(core));
     }
-    let config = Arc::new(ConfigManager::new().map_err(map_mihomo_error)?);
     let endpoints = Arc::new(ProfileEndpointSource::new(Arc::clone(&config)));
     let probe = Arc::new(MihomoVersionProbe::new(Arc::clone(&endpoints)));
     let session = Arc::new(CoreSession::new(
@@ -142,7 +152,7 @@ async fn adopt_running_core(session: &CoreSession) -> Result<(), FfiStatus> {
 /// generation, then block on controller readiness. Falls back to the legacy
 /// bridge restart when the session cannot be constructed.
 async fn restart_with_readiness() -> Result<(), FfiStatus> {
-    let core = match shared_core() {
+    let core = match shared_core().await {
         Ok(core) => core,
         Err(_) => {
             legacy_bridge_restart().await;
@@ -194,7 +204,7 @@ async fn restore_current_profile<S: CredentialStore>(
 /// When the shared session cannot be constructed, falls back to the legacy
 /// bridge restart so the pre-session behavior is kept.
 pub(super) async fn apply_current_profile_status(previous: Option<String>) -> FfiStatus {
-    let core = match shared_core() {
+    let core = match shared_core().await {
         Ok(core) => core,
         Err(_) => {
             restart_runtime_if_running().await;

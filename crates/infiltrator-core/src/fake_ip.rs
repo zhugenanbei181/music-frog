@@ -1,5 +1,5 @@
+use crate::settings::app_config_manager;
 use anyhow::{Context, Result, anyhow};
-use mihomo_config::manager::ConfigManager;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 use tokio::fs;
@@ -35,7 +35,7 @@ impl FakeIpConfig {
 }
 
 pub async fn load_fake_ip_config() -> Result<FakeIpConfig> {
-    let manager = ConfigManager::new().context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile = manager
         .get_current()
         .await
@@ -49,7 +49,7 @@ pub async fn load_fake_ip_config() -> Result<FakeIpConfig> {
 }
 
 pub async fn save_fake_ip_config(patch: FakeIpConfigPatch) -> Result<FakeIpConfig> {
-    let manager = ConfigManager::new().context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile = manager
         .get_current()
         .await
@@ -73,8 +73,19 @@ pub async fn save_fake_ip_config(patch: FakeIpConfigPatch) -> Result<FakeIpConfi
     Ok(config)
 }
 
+/// Apply a Fake-IP patch to an in-memory profile document for the shared
+/// atomic Apply transaction.
+pub fn apply_fake_ip_patch_to_yaml(content: &str, patch: FakeIpConfigPatch) -> Result<String> {
+    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+    let mut config = extract_fake_ip_config_from_doc(&doc)?;
+    config.apply_patch(patch);
+    validate_fake_ip_config(&config)?;
+    apply_fake_ip_config(&mut doc, &config)?;
+    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+}
+
 pub async fn clear_fake_ip_cache() -> Result<bool> {
-    let manager = ConfigManager::new().context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile_path = manager
         .get_current_path()
         .await

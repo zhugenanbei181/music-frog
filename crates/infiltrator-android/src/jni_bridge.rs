@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::ptr;
 use std::sync::Arc;
 
-use jni::errors::Error as JniError;
+
 use jni::objects::{GlobalRef, JObject, JString, JValue};
 use jni::sys::{jint, jstring};
 use jni::{JNIEnv, JavaVM};
@@ -327,6 +327,6 @@ fn read_java_string(
         })
 }
 
-fn map_jni_error(context: &str, err: JniError) -> MihomoError {
+fn map_jni_error(context: &str, err: jni::errors::Error) -> MihomoError {
     MihomoError::Service(format!("jni {context} failed: {err}"))
 }

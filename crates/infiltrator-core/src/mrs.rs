@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::convert::TryInto;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,7 +36,7 @@ pub fn parse_mrs_header(bytes: &[u8]) -> Result<MrsMetadata> {
     }
 
     let version = bytes[4];
-    
+
     let behavior = match bytes[5] {
         0 => Behavior::Domain,
         1 => Behavior::IpCidr,
@@ -66,15 +66,21 @@ pub fn parse_mrs_header(bytes: &[u8]) -> Result<MrsMetadata> {
 
 pub fn validate_mrs_bytes(bytes: &[u8]) -> Result<MrsValidationReport> {
     let mut errors = Vec::new();
-    
+
     if bytes.len() < 4 || &bytes[0..4] != MAGIC_HEADER {
         errors.push("Invalid magic header".to_string());
-        return Ok(MrsValidationReport { is_valid: false, errors });
+        return Ok(MrsValidationReport {
+            is_valid: false,
+            errors,
+        });
     }
 
     if bytes.len() < 16 {
         errors.push("Header too short".to_string());
-        return Ok(MrsValidationReport { is_valid: false, errors });
+        return Ok(MrsValidationReport {
+            is_valid: false,
+            errors,
+        });
     }
 
     let desc_len = u16::from_le_bytes(bytes[14..16].try_into().unwrap()) as usize;
@@ -99,7 +105,7 @@ mod tests {
         bytes.push(0); // Behavior (Domain)
         bytes.extend_from_slice(&100u32.to_le_bytes()); // Rule count
         bytes.extend_from_slice(&2048u32.to_le_bytes()); // Payload size
-        
+
         let desc_bytes = desc.as_bytes();
         bytes.extend_from_slice(&(desc_bytes.len() as u16).to_le_bytes());
         bytes.extend_from_slice(desc_bytes);

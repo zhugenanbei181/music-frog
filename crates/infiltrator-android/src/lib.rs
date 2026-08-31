@@ -10,10 +10,14 @@ pub mod vpn_route;
 
 pub use api::AndroidApi;
 pub use ffi::{FfiApi, FfiBoolResult, FfiErrorCode, FfiStatus, FfiStringResult};
-pub use mihomo_platform::android_bridge::{clear_android_bridge, get_android_bridge, set_android_bridge};
-pub use runtime::{AndroidBridge, AndroidBridgeAdapter, AndroidRuntime, android_bridge_adapter};
+pub use mihomo_platform::android_bridge::{
+    AndroidBridge, clear_android_bridge, get_android_bridge, set_android_bridge,
+};
+pub use runtime::{AndroidBridgeAdapter, AndroidRuntime, android_bridge_adapter};
 pub use uniffi_api::{
-    ConnectionRecord, ConnectionsResult, DnsFallbackFilterSettings, DnsSettings, DnsSettingsPatch,
+    BootstrapResult, BootstrapStepRecord, ConnectionRecord, ConnectionsResult,
+    DoctorCheckMetaRecord, DoctorCheckMetaResult, DoctorCheckResultRecord, DoctorFixActionRecord,
+    DoctorFixResult, DoctorReportRecord, DnsFallbackFilterSettings, DnsSettings, DnsSettingsPatch,
     DnsSettingsResult, FakeIpSettings, FakeIpSettingsPatch, FakeIpSettingsResult, IpCheckResult,
     IpResult, ProfileSummary, ProfilesResult, ProxyGroupSummary, ProxyGroupsResult,
     RuleEntryRecord, RuleProvidersResult, RulesResult, TrafficResult, TrafficSnapshot,

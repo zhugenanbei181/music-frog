@@ -7,23 +7,32 @@
 //! entries under a hairline divider. Every color comes from
 //! [`crate::view::theme::tokens`] so light and dark are equally first-class.
 
-use crate::locales::{Lang, Localizer};
-use crate::types::Route;
+use infiltrator_shared::locales::{Lang, Localizer};
+use crate::types::app::Route;
 use crate::view::components::{
     BadgeKind, badge, card_surface, icon_button, nav_button, segmented_control, stat_card,
     toggle_switch,
 };
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CARD, R_CONTROL};
-use crate::{AppState, Message};
-use iced::widget::{Space, button, column, container, row, text};
+use crate::state::AppState;
+use crate::types::message::Message;
+use iced::widget::{progress_bar, Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 
 /// Sidebar width (~260–280 band) so every card wraps gracefully.
 const SIDEBAR_WIDTH: f32 = 272.0;
 
 /// Canonical mihomo proxy-mode identifiers, in segmented-control order.
-const MODE_IDS: [&str; 3] = ["rule", "global", "direct"];
+/// The Script segment only appears when the running core reports a
+/// top-level `script:` block (see `RuntimeState::script_block_present`).
+fn mode_ids(state: &AppState) -> Vec<&'static str> {
+    if state.runtime.script_block_present {
+        vec!["rule", "global", "direct", "script"]
+    } else {
+        vec!["rule", "global", "direct"]
+    }
+}
 
 pub fn sidebar(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
@@ -118,19 +127,40 @@ fn header(_state: &AppState) -> Element<'_, Message> {
 // ---------------------------------------------------------------------------
 
 fn mode_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let keys = ["mode_rule", "mode_global", "mode_direct"];
-    let labels: Vec<String> = keys.iter().map(|k| lang.tr(k).into_owned()).collect();
+    let ids = mode_ids(state);
+    // The sidebar segment is narrow (~60px per segment), so the control uses
+    // the short `proxy_mode_*` labels (规则/全局/直连/脚本); the full
+    // `mode_*` names live on the overview meta and the runtime pick list.
+    let keys = [
+        "proxy_mode_rule",
+        "proxy_mode_global",
+        "proxy_mode_direct",
+        "proxy_mode_script",
+    ];
+    let labels: Vec<String> = ids
+        .iter()
+        .map(|id| {
+            let key = match *id {
+                "rule" => keys[0],
+                "global" => keys[1],
+                "direct" => keys[2],
+                _ => keys[3],
+            };
+            lang.tr(key).into_owned()
+        })
+        .collect();
 
     let selected = state
         .runtime
         .proxy_mode
         .as_deref()
-        .and_then(|mode| MODE_IDS.iter().position(|id| *id == mode))
+        .and_then(|mode| ids.iter().position(|id| *id == mode))
         // Unknown / unset mode: no segment rendered as active.
         .unwrap_or(usize::MAX);
 
-    let control = segmented_control(&labels, selected, |index| {
-        let mode = MODE_IDS.get(index).copied().unwrap_or(MODE_IDS[0]);
+    let ids_for_callback = ids.clone();
+    let control = segmented_control(&labels, selected, move |index| {
+        let mode = ids_for_callback.get(index).copied().unwrap_or(ids_for_callback[0]);
         Message::SetProxyMode(mode.to_string())
     });
 
@@ -220,6 +250,11 @@ fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         Some(profile) => (profile.name.clone(), profile.subscription_url.is_some()),
         None => (lang.tr("no_profiles").into_owned(), false),
     };
+    let traffic = active.and_then(|profile| {
+        let total = profile.traffic_total?;
+        let used = profile.traffic_upload.unwrap_or(0) + profile.traffic_download.unwrap_or(0);
+        Some((total, used))
+    });
 
     let mut body = column![
         row![
@@ -245,7 +280,37 @@ fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         ));
     }
 
+    // Miniature usage indicator when the provider advertises traffic info.
+    if let Some((total, used)) = traffic {
+        let fraction = if total > 0 {
+            (used as f32 / total as f32).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        body = body.push(
+            column![
+                progress_bar(0.0..=1.0, fraction).length(Length::Fill),
+                text(format!("{} / {}", format_gb(used), format_gb(total)))
+                    .size(10)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(theme::tokens(t).text_tertiary),
+                    }),
+            ]
+            .spacing(2),
+        );
+    }
+
     clickable_card(body, Message::Navigate(Route::Profiles))
+}
+
+/// Compact GB display for the sidebar usage line (falls back to MB below 1 GB).
+fn format_gb(value: u64) -> String {
+    let mib = value as f64 / (1024.0 * 1024.0);
+    if mib >= 1024.0 {
+        format!("{:.2} GB", mib / 1024.0)
+    } else {
+        format!("{:.0} MB", mib)
+    }
 }
 
 // ---------------------------------------------------------------------------

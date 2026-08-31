@@ -3,8 +3,10 @@
 //! delay test URL/timeout, connection filter/sort).
 
 use crate::state::AppState;
-use crate::types::{InfiltratorError, Message, ToastStatus};
+use crate::types::app::ToastStatus;
+use crate::types::message::Message;
 use iced::Task;
+use infiltrator_core::error::InfiltratorError;
 use infiltrator_core::settings::{AppSettings, RuntimePanelConfig};
 
 pub(super) const DEFAULT_RUNTIME_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";

@@ -2,9 +2,12 @@
 //! the load-modify-save of the settings file.
 
 use crate::state::AppState;
-use crate::types::{InfiltratorError, Message, ToastStatus};
+use crate::types::app::ToastStatus;
+use crate::types::message::Message;
 use iced::Task;
+use infiltrator_core::error::InfiltratorError;
 use infiltrator_core::settings::{AppSettings, WebDavConfig};
+use std::str::FromStr;
 
 impl AppState {
     pub(super) fn update_settings(&mut self, message: Message) -> Task<Message> {
@@ -37,6 +40,17 @@ impl AppState {
                 self.editor.editor_path_setting = path;
                 Task::none()
             }
+            Message::UpdateNotificationsEnabled(enabled) => {
+                self.shell.notifications_enabled = enabled;
+                Task::none()
+            }
+            Message::SetLanguage(language) => {
+                self.shell.lang = match language.as_str() {
+                    "en-US" | "en" => "en-US".to_string(),
+                    _ => "zh-CN".to_string(),
+                };
+                Task::none()
+            }
             Message::SaveAppSettings => {
                 let interval = if !self.profile.webdav_enabled
                     && self.profile.webdav_sync_interval_mins.trim().is_empty()
@@ -56,6 +70,7 @@ impl AppState {
 
                 self.profile.is_saving_app_settings = true;
                 let language = self.shell.lang.clone();
+                let core_channel = self.profile_core_channel();
                 let theme = if self.shell.theme == iced::Theme::Light {
                     "light".to_string()
                 } else {
@@ -74,6 +89,7 @@ impl AppState {
                     sync_interval_mins: interval,
                     sync_on_startup: self.profile.webdav_sync_on_startup,
                 };
+                let notifications_enabled = self.shell.notifications_enabled;
 
                 Task::perform(
                     async move {
@@ -86,9 +102,11 @@ impl AppState {
                                 .await
                                 .unwrap_or_else(|_| AppSettings::default());
                         settings.language = language;
+                        settings.core_channel = core_channel;
                         settings.theme = theme;
                         settings.editor_path = editor_path;
                         settings.webdav = webdav;
+                        settings.notifications_enabled = notifications_enabled;
                         infiltrator_core::settings::save_settings(&settings_path, &settings)
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
@@ -122,5 +140,11 @@ impl AppState {
             }
             _ => Task::none(),
         }
+    }
+
+    fn profile_core_channel(&self) -> String {
+        mihomo_version::channel::Channel::from_str(&self.runtime.core_channel)
+            .map(|channel| channel.as_str().to_string())
+            .unwrap_or_else(|_| "stable".to_string())
     }
 }

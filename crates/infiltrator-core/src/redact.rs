@@ -225,7 +225,11 @@ fn match_key_value_at(line: &str, start: usize) -> Option<(usize, String)> {
     }
 
     let value = &line[value_start..value_end];
-    let end = if quote.is_some() { value_end + 1 } else { value_end };
+    let end = if quote.is_some() {
+        value_end + 1
+    } else {
+        value_end
+    };
     let mut replacement = String::with_capacity(end - start);
     replacement.push_str(&line[start..value_start]);
     replacement.push_str(&mask_value(value));
@@ -384,10 +388,7 @@ fn match_query_param(line: &str, at: usize) -> Option<(usize, usize)> {
                 let value_end = line[value_start..]
                     .char_indices()
                     .find(|(_, ch)| {
-                        matches!(
-                            ch,
-                            '&' | ';' | '#' | ' ' | '\t' | '\n' | '\r' | '"' | '\''
-                        )
+                        matches!(ch, '&' | ';' | '#' | ' ' | '\t' | '\n' | '\r' | '"' | '\'')
                     })
                     .map(|(p, _)| value_start + p)
                     .unwrap_or(line.len());
@@ -412,7 +413,10 @@ mod tests {
     fn explicit_controller_secret_is_masked() {
         let line = "controller handshake using secret hunter2 at 127.0.0.1:9090";
         let out = redact_line(line, &secrets(&["hunter2"]));
-        assert_eq!(out, "controller handshake using secret *** at 127.0.0.1:9090");
+        assert_eq!(
+            out,
+            "controller handshake using secret *** at 127.0.0.1:9090"
+        );
     }
 
     #[test]
@@ -509,7 +513,10 @@ mod tests {
 
     #[test]
     fn query_token_and_key_values_are_masked() {
-        let out = redact_line("GET https://sub.example.com/d?token=tok1234&key=ky99&x=1", &[]);
+        let out = redact_line(
+            "GET https://sub.example.com/d?token=tok1234&key=ky99&x=1",
+            &[],
+        );
         assert_eq!(out, "GET https://sub.example.com/d?token=***&key=***&x=1");
     }
 

@@ -1,5 +1,5 @@
+use crate::settings::app_config_manager;
 use anyhow::{Context, Result, anyhow};
-use mihomo_config::manager::ConfigManager;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 
@@ -128,7 +128,7 @@ impl DnsConfig {
 }
 
 pub async fn load_dns_config() -> Result<DnsConfig> {
-    let manager = ConfigManager::new().context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile = manager
         .get_current()
         .await
@@ -142,7 +142,7 @@ pub async fn load_dns_config() -> Result<DnsConfig> {
 }
 
 pub async fn save_dns_config(patch: DnsConfigPatch) -> Result<DnsConfig> {
-    let manager = ConfigManager::new().context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile = manager
         .get_current()
         .await
@@ -164,6 +164,18 @@ pub async fn save_dns_config(patch: DnsConfigPatch) -> Result<DnsConfig> {
         .await
         .context("save profile config")?;
     Ok(config)
+}
+
+/// Apply a DNS patch to an in-memory profile document. This keeps parsing,
+/// validation and serialization in the core while letting the caller choose
+/// the shared atomic/reload transaction.
+pub fn apply_dns_patch_to_yaml(content: &str, patch: DnsConfigPatch) -> Result<String> {
+    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+    let mut config = extract_dns_config_from_doc(&doc)?;
+    config.apply_patch(patch);
+    validate_dns_config(&config)?;
+    apply_dns_config(&mut doc, &config)?;
+    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
 }
 
 pub fn extract_dns_config_from_doc(doc: &Value) -> Result<DnsConfig> {
@@ -323,7 +335,8 @@ mod tests {
     #[test]
     fn test_apply_dns_config_preserves_other_sections() {
         let mut doc: Value =
-            serde_yaml_ng::from_str("tun:\n  enable: true\nproxies:\n  - name: p1\n").expect("yaml");
+            serde_yaml_ng::from_str("tun:\n  enable: true\nproxies:\n  - name: p1\n")
+                .expect("yaml");
         let config = DnsConfig {
             enable: Some(true),
             nameserver: Some(vec!["1.1.1.1".to_string()]),

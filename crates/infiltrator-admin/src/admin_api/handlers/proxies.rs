@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use axum::{Json, extract::State as AxumState, http::StatusCode};
+use axum::{Json, http::StatusCode};
 use chrono::Utc;
 
 use crate::admin_api::events::{AdminEvent, EVENT_PROXY_CHANGED};
@@ -17,7 +17,7 @@ const MIN_DELAY_TIMEOUT_MS: u32 = 100;
 const MAX_DELAY_TIMEOUT_MS: u32 = 60_000;
 
 pub async fn get_proxies_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuntimeProxiesResponse>, ApiError> {
     let client = state
         .ctx
@@ -56,7 +56,7 @@ pub async fn get_proxies_http<C: AdminApiContext>(
 }
 
 pub async fn set_proxy_mode_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<ProxyModePayload>,
 ) -> Result<StatusCode, ApiError> {
     let mode = normalize_proxy_mode_candidate(&payload.mode)?;
@@ -74,7 +74,7 @@ pub async fn set_proxy_mode_http<C: AdminApiContext>(
 }
 
 pub async fn select_proxy_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<ProxySelectPayload>,
 ) -> Result<StatusCode, ApiError> {
     let group = payload.group.trim();
@@ -100,7 +100,7 @@ pub async fn select_proxy_http<C: AdminApiContext>(
 }
 
 pub async fn list_runtime_proxy_delays_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuntimeProxyDelayNodesResponse>, ApiError> {
     let client = state
         .ctx
@@ -121,7 +121,7 @@ pub async fn list_runtime_proxy_delays_http<C: AdminApiContext>(
 }
 
 pub async fn test_runtime_proxy_delay_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<RuntimeDelayTestPayload>,
 ) -> Result<Json<RuntimeDelayTestResponse>, ApiError> {
     let proxy = payload.proxy.trim();
@@ -151,7 +151,7 @@ pub async fn test_runtime_proxy_delay_http<C: AdminApiContext>(
 }
 
 pub async fn test_all_runtime_proxy_delays_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<RuntimeDelayBatchPayload>,
 ) -> Result<Json<RuntimeDelayBatchResponse>, ApiError> {
     let test_url = normalize_delay_test_url(payload.test_url.as_deref())?;
@@ -236,7 +236,7 @@ fn normalize_delay_timeout_ms(timeout_ms: Option<u32>) -> u32 {
 }
 
 fn build_runtime_proxy_delay_nodes(
-    proxies: std::collections::HashMap<String, mihomo_api::proxy::Proxy>,
+    proxies: std::collections::HashMap<String, mihomo_api::proxy::types::Proxy>,
 ) -> Vec<RuntimeProxyDelayNode> {
     let mut nodes: Vec<RuntimeProxyDelayNode> = proxies
         .into_iter()
@@ -259,7 +259,7 @@ fn build_runtime_proxy_delay_nodes(
 
 fn collect_delay_test_candidates(
     requested: Option<&[String]>,
-    proxies: &std::collections::HashMap<String, mihomo_api::proxy::Proxy>,
+    proxies: &std::collections::HashMap<String, mihomo_api::proxy::types::Proxy>,
     results: &mut Vec<RuntimeDelayBatchResult>,
 ) -> Vec<String> {
     match requested {

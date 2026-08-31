@@ -1,16 +1,18 @@
-use crate::locales::{Lang, Localizer};
-use crate::types::{EditorLazyState, RuleBadgeKind, RulesJsonTab, RulesTab};
+use crate::state::AppState;
+use crate::types::editor::EditorLazyState;
+use crate::types::message::Message;
+use crate::types::rules::{RuleBadgeKind, RulesJsonTab, RulesTab};
 use crate::view::components::{
     BadgeKind, card, empty_state, icon_button, modern_scrollable, section_header,
     segmented_control, toggle_switch,
 };
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CONTROL, SP_LG, SP_MD, tokens};
-use crate::{AppState, Message};
 use iced::widget::{
     Space, button, column, container, pick_list, row, text, text_editor, text_input,
 };
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 // ---------------------------------------------------------------------------
 // Token-driven control styles (ui-wave2-r)
@@ -145,6 +147,7 @@ fn save_action(
     dirty: bool,
     saving: bool,
     label: String,
+    saved: String,
     on_press: Message,
 ) -> Element<'static, Message> {
     if saving {
@@ -152,7 +155,7 @@ fn save_action(
     } else if dirty {
         text_btn(label, style_accent, Some(on_press))
     } else {
-        text_btn("Saved".to_string(), style_ghost, None)
+        text_btn(saved, style_ghost, None)
     }
 }
 
@@ -192,6 +195,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         state.editor.rules_dirty,
         state.editor.is_saving_rules,
         lang.tr("rules_save_btn").to_string(),
+        lang.tr("rules_saved").to_string(),
         Message::SaveRules,
     );
 
@@ -223,9 +227,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .align_y(Alignment::Center);
 
     let tab_labels: Vec<String> = vec![
-        "Rules List".to_string(),
-        "Providers".to_string(),
-        "JSON Editors".to_string(),
+        lang.tr("rules_tab_list").to_string(),
+        lang.tr("rules_tab_providers").to_string(),
+        lang.tr("rules_tab_json").to_string(),
     ];
     let tab_index = match state.editor.rules_tab {
         RulesTab::Providers => 1,
@@ -272,7 +276,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .runtime
         .proxies
         .iter()
-        .filter(|(_, p): &(&String, &mihomo_api::proxy::Proxy)| p.is_group())
+        .filter(|(_, p): &(&String, &mihomo_api::proxy::types::Proxy)| p.is_group())
         .map(|(name, _)| name.clone())
         .collect();
     available_targets.sort();
@@ -291,6 +295,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         "IP-CIDR6".to_string(),
         "GEOIP".to_string(),
         "MATCH".to_string(),
+        "AND".to_string(),
+        "OR".to_string(),
+        "NOT".to_string(),
+        "SUB-RULE".to_string(),
     ];
 
     let add_rule_btn_style = if state.editor.is_adding_rule {
@@ -512,9 +520,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     Space::new().width(theme::SP_SM),
                     text_btn(
                         if state.editor.rules_providers_expanded {
-                            "Collapse".to_string()
+                            lang.tr("rules_collapse").to_string()
                         } else {
-                            "Expand".to_string()
+                            lang.tr("rules_expand").to_string()
                         },
                         style_ghost,
                         Some(Message::ToggleRulesProvidersExpanded),
@@ -630,6 +638,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 ]
                 .spacing(theme::SP_MD),
             );
+            if let Some(mrs_panel) = crate::view::mrs_panel::mrs_card(state) {
+                content = content
+                    .push(Space::new().height(theme::SP_MD))
+                    .push(mrs_panel);
+            }
         }
         content
     };
@@ -664,6 +677,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     state.editor.rule_providers_json_dirty,
                     state.editor.is_saving_rule_providers_json,
                     lang.tr("rules_save_rule_providers_btn").to_string(),
+                    lang.tr("rules_saved").to_string(),
                     Message::SaveRuleProvidersJson,
                 );
                 card(
@@ -694,7 +708,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 let save_btn = save_action(
                     state.editor.proxy_providers_json_dirty,
                     state.editor.is_saving_proxy_providers_json,
-                    "Save Proxy Providers".to_string(),
+                    lang.tr("rules_save_proxy_providers_btn").to_string(),
+                    lang.tr("rules_saved").to_string(),
                     Message::SaveProxyProvidersJson,
                 );
                 card(
@@ -726,6 +741,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     state.editor.sniffer_json_dirty,
                     state.editor.is_saving_sniffer_json,
                     lang.tr("rules_save_sniffer_btn").to_string(),
+                    lang.tr("rules_saved").to_string(),
                     Message::SaveSnifferJson,
                 );
                 card(

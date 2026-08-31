@@ -3,11 +3,9 @@
 
 use std::collections::BTreeMap;
 
-use infiltrator_core::rules::{
-    RuleEntry as CoreRuleEntry, RuleProviders as CoreRuleProviders, load_rule_providers,
-    load_rules, save_rule_providers, save_rules,
-};
-use serde_json::Value as JsonValue;
+use infiltrator_core::rules::{ load_rule_providers,
+    load_rules, save_rule_providers, save_rules};
+
 
 use super::support::{get_runtime, map_anyhow_error};
 use crate::ffi::{FfiErrorCode, FfiStatus};
@@ -58,7 +56,7 @@ pub async fn rules_list() -> RulesResult {
 pub async fn rules_save(rules: Vec<RuleEntryRecord>) -> RulesResult {
     get_runtime()
         .spawn(async move {
-            let core_rules: Vec<CoreRuleEntry> = rules.iter().map(record_to_core_rule).collect();
+            let core_rules: Vec<infiltrator_core::rules::RuleEntry> = rules.iter().map(record_to_core_rule).collect();
             match save_rules(core_rules).await.map_err(map_anyhow_error) {
                 Ok(rules) => RulesResult {
                     status: FfiStatus::ok(),
@@ -133,22 +131,22 @@ pub async fn rule_providers_save(json: String) -> RuleProvidersResult {
         })
 }
 
-fn core_rule_to_record(entry: CoreRuleEntry) -> RuleEntryRecord {
+fn core_rule_to_record(entry: infiltrator_core::rules::RuleEntry) -> RuleEntryRecord {
     RuleEntryRecord {
         rule: entry.rule,
         enabled: entry.enabled,
     }
 }
 
-fn record_to_core_rule(entry: &RuleEntryRecord) -> CoreRuleEntry {
-    CoreRuleEntry {
+fn record_to_core_rule(entry: &RuleEntryRecord) -> infiltrator_core::rules::RuleEntry {
+    infiltrator_core::rules::RuleEntry {
         rule: entry.rule.trim().to_string(),
         enabled: entry.enabled,
     }
 }
 
-fn rule_providers_to_json(providers: &CoreRuleProviders) -> String {
-    let value = JsonValue::Object(
+fn rule_providers_to_json(providers: &infiltrator_core::rules::RuleProviders) -> String {
+    let value = serde_json::Value::Object(
         providers
             .iter()
             .map(|(key, value)| (key.clone(), value.clone()))
@@ -157,8 +155,8 @@ fn rule_providers_to_json(providers: &CoreRuleProviders) -> String {
     serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string())
 }
 
-fn parse_rule_providers_json(value: &str) -> Result<CoreRuleProviders, FfiStatus> {
-    let parsed: JsonValue = serde_json::from_str(value).map_err(|err| {
+fn parse_rule_providers_json(value: &str) -> Result<infiltrator_core::rules::RuleProviders, FfiStatus> {
+    let parsed: serde_json::Value = serde_json::from_str(value).map_err(|err| {
         FfiStatus::err(FfiErrorCode::InvalidInput, format!("invalid JSON: {err}"))
     })?;
     let object = parsed.as_object().ok_or_else(|| {
@@ -167,7 +165,7 @@ fn parse_rule_providers_json(value: &str) -> Result<CoreRuleProviders, FfiStatus
             "rule providers JSON must be an object",
         )
     })?;
-    let mut providers: BTreeMap<String, JsonValue> = BTreeMap::new();
+    let mut providers: BTreeMap<String, serde_json::Value> = BTreeMap::new();
     for (key, value) in object {
         providers.insert(key.clone(), value.clone());
     }

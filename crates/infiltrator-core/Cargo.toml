@@ -13,11 +13,13 @@ log = { workspace = true }
 mihomo-config = { path = "../mihomo-config" }
 mihomo-platform = { path = "../mihomo-platform" }
 mihomo-api = { path = "../mihomo-api" }
+mihomo-version = { path = "../mihomo-version" }
 infiltrator-http = { path = "../infiltrator-http" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
 sha2 = { workspace = true }
+sysinfo = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 toml = { workspace = true }
@@ -28,4 +30,5 @@ url = { workspace = true }
 urlencoding = "2.1"
 
 [dev-dependencies]
+mockito = { workspace = true }
 tempfile = { workspace = true }

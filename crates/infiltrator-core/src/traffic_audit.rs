@@ -78,11 +78,7 @@ impl TrafficAuditAggregator {
         let direct = self.total_direct_bytes() as f64;
         let proxied = self.total_proxied_bytes() as f64;
         let total = direct + proxied;
-        if total == 0.0 {
-            0.0
-        } else {
-            direct / total
-        }
+        if total == 0.0 { 0.0 } else { direct / total }
     }
 
     pub fn top_processes_by_traffic(&self, limit: usize) -> Vec<AppTrafficRecord> {

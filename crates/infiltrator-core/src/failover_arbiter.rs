@@ -32,46 +32,66 @@ impl FailoverArbiter {
     }
 
     pub fn report_success(&mut self, node_name: &str, latency_ms: u32) {
-        let entry = self.nodes.entry(node_name.to_string()).or_insert_with(|| NodeHealthStatus {
-            node_name: node_name.to_string(),
-            state: NodeHealthState::Healthy,
-            latency_ms: None,
-        });
-        
+        let entry = self
+            .nodes
+            .entry(node_name.to_string())
+            .or_insert_with(|| NodeHealthStatus {
+                node_name: node_name.to_string(),
+                state: NodeHealthState::Healthy,
+                latency_ms: None,
+            });
+
         entry.state = NodeHealthState::Healthy;
         entry.latency_ms = Some(latency_ms);
     }
 
     pub fn report_failure(&mut self, node_name: &str, now_secs: u64) {
-        let entry = self.nodes.entry(node_name.to_string()).or_insert_with(|| NodeHealthStatus {
-            node_name: node_name.to_string(),
-            state: NodeHealthState::Healthy,
-            latency_ms: None,
-        });
+        let entry = self
+            .nodes
+            .entry(node_name.to_string())
+            .or_insert_with(|| NodeHealthStatus {
+                node_name: node_name.to_string(),
+                state: NodeHealthState::Healthy,
+                latency_ms: None,
+            });
 
         match entry.state {
             NodeHealthState::Healthy | NodeHealthState::Recovering => {
                 if self.failure_threshold <= 1 {
-                    entry.state = NodeHealthState::Failed { failed_at_secs: now_secs };
+                    entry.state = NodeHealthState::Failed {
+                        failed_at_secs: now_secs,
+                    };
                 } else {
-                    entry.state = NodeHealthState::Degraded { consecutive_fails: 1 };
+                    entry.state = NodeHealthState::Degraded {
+                        consecutive_fails: 1,
+                    };
                 }
             }
             NodeHealthState::Degraded { consecutive_fails } => {
                 let next_fails = consecutive_fails + 1;
                 if next_fails >= self.failure_threshold {
-                    entry.state = NodeHealthState::Failed { failed_at_secs: now_secs };
+                    entry.state = NodeHealthState::Failed {
+                        failed_at_secs: now_secs,
+                    };
                 } else {
-                    entry.state = NodeHealthState::Degraded { consecutive_fails: next_fails };
+                    entry.state = NodeHealthState::Degraded {
+                        consecutive_fails: next_fails,
+                    };
                 }
             }
             NodeHealthState::Failed { .. } => {
-                entry.state = NodeHealthState::Failed { failed_at_secs: now_secs };
+                entry.state = NodeHealthState::Failed {
+                    failed_at_secs: now_secs,
+                };
             }
         }
     }
 
-    pub fn elect_active_node<'a>(&self, candidates: &'a [String], now_secs: u64) -> Option<&'a str> {
+    pub fn elect_active_node<'a>(
+        &self,
+        candidates: &'a [String],
+        now_secs: u64,
+    ) -> Option<&'a str> {
         let mut healthy_candidates: Vec<(&'a str, u32)> = Vec::new();
         let mut recovering_candidates: Vec<&'a str> = Vec::new();
 
@@ -79,7 +99,8 @@ impl FailoverArbiter {
             if let Some(status) = self.nodes.get(candidate) {
                 match status.state {
                     NodeHealthState::Healthy => {
-                        healthy_candidates.push((candidate.as_str(), status.latency_ms.unwrap_or(u32::MAX)));
+                        healthy_candidates
+                            .push((candidate.as_str(), status.latency_ms.unwrap_or(u32::MAX)));
                     }
                     NodeHealthState::Degraded { .. } => {
                         // Only prioritize explicitly Healthy over Degraded? Requirements didn't specify Degraded priority, but implied Healthy.
@@ -129,27 +150,42 @@ mod tests {
     #[test]
     fn test_consecutive_failures_degrade_and_fail() {
         let mut arbiter = FailoverArbiter::new(3, 10);
-        
+
         arbiter.report_failure("node1", 100);
-        assert_eq!(arbiter.nodes.get("node1").unwrap().state, NodeHealthState::Degraded { consecutive_fails: 1 });
+        assert_eq!(
+            arbiter.nodes.get("node1").unwrap().state,
+            NodeHealthState::Degraded {
+                consecutive_fails: 1
+            }
+        );
 
         arbiter.report_failure("node1", 101);
-        assert_eq!(arbiter.nodes.get("node1").unwrap().state, NodeHealthState::Degraded { consecutive_fails: 2 });
+        assert_eq!(
+            arbiter.nodes.get("node1").unwrap().state,
+            NodeHealthState::Degraded {
+                consecutive_fails: 2
+            }
+        );
 
         arbiter.report_failure("node1", 102);
-        assert_eq!(arbiter.nodes.get("node1").unwrap().state, NodeHealthState::Failed { failed_at_secs: 102 });
+        assert_eq!(
+            arbiter.nodes.get("node1").unwrap().state,
+            NodeHealthState::Failed {
+                failed_at_secs: 102
+            }
+        );
     }
 
     #[test]
     fn test_cooldown_enables_recovering_election() {
         let mut arbiter = FailoverArbiter::new(1, 10);
         arbiter.report_failure("node1", 100);
-        
+
         let candidates = vec!["node1".to_string()];
-        
+
         // Before cooldown
         assert_eq!(arbiter.elect_active_node(&candidates, 105), None);
-        
+
         // After cooldown
         assert_eq!(arbiter.elect_active_node(&candidates, 110), Some("node1"));
     }
@@ -160,10 +196,14 @@ mod tests {
         arbiter.report_success("node1", 100);
         arbiter.report_success("node2", 50); // Lowest latency
         arbiter.report_failure("node3", 100); // Failed
-        arbiter.report_failure("node3", 100); 
+        arbiter.report_failure("node3", 100);
         arbiter.report_failure("node3", 100);
 
-        let candidates = vec!["node1".to_string(), "node2".to_string(), "node3".to_string()];
+        let candidates = vec![
+            "node1".to_string(),
+            "node2".to_string(),
+            "node3".to_string(),
+        ];
         assert_eq!(arbiter.elect_active_node(&candidates, 105), Some("node2"));
     }
 }

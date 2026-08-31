@@ -1,11 +1,9 @@
-use crate::{config as core_config, subscription as core_subscription};
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use infiltrator_http::{build_http_client, build_raw_http_client};
-use mihomo_config::manager::ConfigManager;
 use mihomo_config::port::find_available_port;
-use mihomo_config::profile::Profile as MihomoProfile;
-use mihomo_platform::paths::get_home_dir;
+
+use crate::settings::app_config_manager;
 use serde::Serialize;
 use tokio::fs;
 
@@ -21,6 +19,10 @@ pub struct ProfileInfo {
     pub update_interval_hours: Option<u32>,
     pub last_updated: Option<DateTime<Utc>>,
     pub next_update: Option<DateTime<Utc>>,
+    pub traffic_upload: Option<u64>,
+    pub traffic_download: Option<u64>,
+    pub traffic_total: Option<u64>,
+    pub expire_at: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -34,9 +36,13 @@ pub struct ProfileDetail {
     pub update_interval_hours: Option<u32>,
     pub last_updated: Option<DateTime<Utc>>,
     pub next_update: Option<DateTime<Utc>>,
+    pub traffic_upload: Option<u64>,
+    pub traffic_download: Option<u64>,
+    pub traffic_total: Option<u64>,
+    pub expire_at: Option<i64>,
 }
 
-pub fn profile_to_info(profile: MihomoProfile) -> ProfileInfo {
+pub fn profile_to_info(profile: mihomo_config::profile::Profile) -> ProfileInfo {
     ProfileInfo {
         name: profile.name,
         active: profile.active,
@@ -48,11 +54,15 @@ pub fn profile_to_info(profile: MihomoProfile) -> ProfileInfo {
         update_interval_hours: profile.update_interval_hours,
         last_updated: profile.last_updated,
         next_update: profile.next_update,
+        traffic_upload: profile.traffic_upload,
+        traffic_download: profile.traffic_download,
+        traffic_total: profile.traffic_total,
+        expire_at: profile.expire_at,
     }
 }
 
 pub async fn load_profile_info(name: &str) -> anyhow::Result<ProfileInfo> {
-    let cm = ConfigManager::new()?;
+    let cm = app_config_manager().await?;
     let profiles = cm.list_profiles().await?;
     profiles
         .into_iter()
@@ -62,7 +72,7 @@ pub async fn load_profile_info(name: &str) -> anyhow::Result<ProfileInfo> {
 }
 
 pub async fn list_profile_infos() -> anyhow::Result<Vec<ProfileInfo>> {
-    let cm = ConfigManager::new()?;
+    let cm = app_config_manager().await?;
     let profiles = cm.list_profiles().await?;
     Ok(profiles.into_iter().map(profile_to_info).collect())
 }
@@ -76,16 +86,18 @@ pub async fn create_profile_from_url(name: &str, url: &str) -> anyhow::Result<Pr
 
     let client = build_http_client();
     let raw_client = build_raw_http_client(&client);
-    let checked_url = core_subscription::CheckedSubscriptionUrl::parse(source_url)?;
+    let checked_url = crate::subscription::CheckedSubscriptionUrl::parse(source_url)?;
     let content =
-        core_subscription::fetch_subscription_text(&client, &raw_client, &checked_url).await?;
-    let content = core_subscription::strip_utf8_bom(&content);
-    if core_config::validate_yaml(content).is_err() {
+        crate::subscription::fetch_subscription_text(&client, &raw_client, &checked_url).await?;
+    let content = crate::subscription::strip_utf8_bom(&content);
+    let (content, _report) =
+        crate::profile_options::apply_saved_options_for(&profile_name, content).await?;
+    if crate::config::validate_yaml(&content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
     }
 
-    let manager = ConfigManager::new()?;
-    manager.save(&profile_name, content).await?;
+    let manager = app_config_manager().await?;
+    manager.save(&profile_name, &content).await?;
 
     let now = Utc::now();
     let mut metadata = manager.get_profile_metadata(&profile_name).await?;
@@ -107,14 +119,14 @@ pub async fn create_profile_from_url(name: &str, url: &str) -> anyhow::Result<Pr
 
 pub async fn select_profile(name: &str) -> anyhow::Result<ProfileInfo> {
     let profile_name = sanitize_profile_name(name)?;
-    let manager = ConfigManager::new()?;
+    let manager = app_config_manager().await?;
     manager.set_current(&profile_name).await?;
     load_profile_info(&profile_name).await
 }
 
 pub async fn update_profile(name: &str) -> anyhow::Result<ProfileInfo> {
     let profile_name = sanitize_profile_name(name)?;
-    let manager = ConfigManager::new()?;
+    let manager = app_config_manager().await?;
     let mut metadata = manager.get_profile_metadata(&profile_name).await?;
     let url = metadata
         .subscription_url
@@ -123,16 +135,25 @@ pub async fn update_profile(name: &str) -> anyhow::Result<ProfileInfo> {
 
     let client = build_http_client();
     let raw_client = build_raw_http_client(&client);
-    let checked_url = core_subscription::CheckedSubscriptionUrl::parse(url)?;
-    let content = core_subscription::fetch_subscription_text(&client, &raw_client, &checked_url)
-        .await?;
-    let content = core_subscription::strip_utf8_bom(&content);
-    if core_config::validate_yaml(content).is_err() {
+    let checked_url = crate::subscription::CheckedSubscriptionUrl::parse(url)?;
+    let (content, userinfo) =
+        crate::subscription::fetch_subscription_with_info(&client, &raw_client, &checked_url)
+            .await?;
+    let content = crate::subscription::strip_utf8_bom(&content);
+    let (content, _report) =
+        crate::profile_options::apply_saved_options_for(&profile_name, content).await?;
+    if crate::config::validate_yaml(&content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
     }
-    manager.save(&profile_name, content).await?;
+    manager.save(&profile_name, &content).await?;
 
     let now = Utc::now();
+    if let Some(info) = userinfo {
+        metadata.traffic_upload = info.upload;
+        metadata.traffic_download = info.download;
+        metadata.traffic_total = info.total;
+        metadata.expire_at = info.expire;
+    }
     metadata.last_updated = Some(now);
     metadata.next_update = if metadata.auto_update_enabled {
         metadata
@@ -150,7 +171,7 @@ pub async fn update_profile(name: &str) -> anyhow::Result<ProfileInfo> {
 
 pub async fn load_profile_detail(name: &str) -> anyhow::Result<ProfileDetail> {
     let profile = load_profile_info(name).await?;
-    let manager = ConfigManager::new()?;
+    let manager = app_config_manager().await?;
     let content = manager.load(&profile.name).await?;
     Ok(ProfileDetail {
         name: profile.name,
@@ -162,6 +183,10 @@ pub async fn load_profile_detail(name: &str) -> anyhow::Result<ProfileDetail> {
         update_interval_hours: profile.update_interval_hours,
         last_updated: profile.last_updated,
         next_update: profile.next_update,
+        traffic_upload: profile.traffic_upload,
+        traffic_download: profile.traffic_download,
+        traffic_total: profile.traffic_total,
+        expire_at: profile.expire_at,
     })
 }
 
@@ -180,13 +205,14 @@ pub fn sanitize_profile_name(name: &str) -> anyhow::Result<String> {
 }
 
 pub async fn reset_profiles_to_default() -> anyhow::Result<ProfileInfo> {
-    let home = get_home_dir()?;
-    let config_dir = home.join("configs");
+    let manager = app_config_manager().await?;
+    // 清空并重建的是解析后的 configs 目录（可能已被云同步重定向），
+    // 而不是固定的 `<home>/configs`。
+    let config_dir = manager.config_dir().to_path_buf();
     if config_dir.exists() {
         fs::remove_dir_all(&config_dir).await?;
     }
 
-    let manager = ConfigManager::with_home(home)?;
     let default_config = build_default_config()?;
     manager.save("default", &default_config).await?;
     manager.set_current("default").await?;
@@ -229,5 +255,37 @@ mod tests {
         assert!(sanitize_profile_name("invalid/name").is_err());
         assert!(sanitize_profile_name("invalid\\name").is_err());
         assert!(sanitize_profile_name("invalid:name").is_err());
+    }
+
+    /// 门面（create/list/detail/select）必须全部落在 settings `configs_dir`
+    /// 重定向后的目录；字段清空后回落默认目录，与旧行为一致。
+    #[tokio::test]
+    async fn test_profile_facades_follow_configs_dir_redirect() {
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().to_path_buf();
+        let cloud = home.join("cloud-sync").join("profiles");
+        std::fs::create_dir_all(&cloud).unwrap();
+        let guard = crate::settings::test_support::RedirectGuard::acquire(home.clone()).await;
+        guard
+            .set_configs_dir(&home, Some(cloud.to_str().unwrap()))
+            .await;
+
+        // create：默认配置建到重定向目录。
+        let created = reset_profiles_to_default().await.unwrap();
+        assert!(std::path::Path::new(&created.path).starts_with(&cloud));
+        assert!(!home.join("configs").exists());
+
+        // list / detail / select 全部从重定向目录读取。
+        let infos = list_profile_infos().await.unwrap();
+        assert_eq!(infos.len(), 1);
+        assert!(std::path::Path::new(&infos[0].path).starts_with(&cloud));
+        let detail = load_profile_detail("default").await.unwrap();
+        assert!(detail.content.contains("external-controller"));
+        let selected = select_profile("default").await.unwrap();
+        assert!(std::path::Path::new(&selected.path).starts_with(&cloud));
+
+        // 字段清空：回落 `<home>/configs`，云端 profile 不可见。
+        guard.set_configs_dir(&home, None).await;
+        assert!(list_profile_infos().await.unwrap().is_empty());
     }
 }

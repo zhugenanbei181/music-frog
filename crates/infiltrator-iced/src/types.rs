@@ -1,25 +1,15 @@
 //! Application types, grouped by business domain.
 //!
-//! Each submodule owns one domain's state/DTO types; every item is
-//! re-exported here so existing `crate::types::X` paths stay stable.
+//! Each submodule owns one domain's state/DTO types and is their single
+//! authoritative path (`crate::types::message::Message`,
+//! `crate::types::app::Route`, ...). No forwarding layer is allowed here.
 
-pub use infiltrator_core::error::InfiltratorError;
-
-mod app;
-mod dns;
-mod editor;
-mod message;
-mod perf;
-mod rules;
-mod runtime;
-
-pub use app::{Route, ToastStatus, Transition};
-pub use dns::{
-    AdvancedConfigsBundle, AdvancedEditMode, AdvancedValidationState, DnsFormDraft, DnsTab,
-    FakeIpFormDraft, TunFormDraft,
-};
-pub use editor::EditorLazyState;
-pub use message::Message;
-pub use perf::PerfSnapshot;
-pub use rules::{RuleBadgeKind, RuleRenderItem, RulesJsonTab, RulesLoadBundle, RulesTab};
-pub use runtime::{RebuildFlowState, RuntimeConfig, RuntimeStatus};
+pub mod app;
+pub mod dns;
+pub mod doctor;
+pub mod editor;
+pub mod message;
+pub mod options;
+pub mod perf;
+pub mod rules;
+pub mod runtime;

@@ -1,7 +1,7 @@
 //! Mihomo kernel (core binary) version management endpoints
 //! (`/admin/api/core/*`).
 
-use axum::{Json, extract::State as AxumState, http::StatusCode};
+use axum::{Json, http::StatusCode};
 use mihomo_version::manager::VersionManager;
 
 use crate::admin_api::events::{AdminEvent, EVENT_CORE_CHANGED};
@@ -11,7 +11,7 @@ use crate::admin_api::state::{AdminApiContext, AdminApiState};
 use super::schedule_rebuild;
 
 pub async fn list_core_versions_http<C: AdminApiContext>(
-    AxumState(_state): AxumState<AdminApiState<C>>,
+    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<CoreVersionsResponse>, ApiError> {
     let vm = VersionManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
     let versions = vm
@@ -28,7 +28,7 @@ pub async fn list_core_versions_http<C: AdminApiContext>(
 }
 
 pub async fn get_latest_stable_core_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<CoreLatestStableResponse>, ApiError> {
     let (version, release_date) = state
         .ctx
@@ -42,7 +42,7 @@ pub async fn get_latest_stable_core_http<C: AdminApiContext>(
 }
 
 pub async fn download_core_version_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<CoreDownloadPayload>,
 ) -> Result<Json<CoreDownloadResponse>, ApiError> {
     let version = payload.version.trim().to_string();
@@ -60,7 +60,7 @@ pub async fn download_core_version_http<C: AdminApiContext>(
 }
 
 pub async fn update_stable_core_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<CoreUpdateStableResponse>, ApiError> {
     let (version, _release_date) = state
         .ctx
@@ -87,7 +87,7 @@ pub async fn update_stable_core_http<C: AdminApiContext>(
 }
 
 pub async fn activate_core_version_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<CoreActivatePayload>,
 ) -> Result<StatusCode, ApiError> {
     let version = payload.version.trim();

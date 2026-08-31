@@ -1,11 +1,14 @@
-use crate::locales::{Lang, Localizer};
-use crate::types::{AdvancedEditMode, DnsTab, EditorLazyState, RebuildFlowState};
+use infiltrator_shared::locales::{Lang, Localizer};
+use crate::types::dns::{AdvancedEditMode, DnsTab};
+use crate::types::editor::EditorLazyState;
+use crate::types::runtime::RebuildFlowState;
 use crate::view::components::{
     BadgeKind, card, empty_state, icon_button, modern_scrollable, section_header, segmented_control,
 };
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CONTROL, SP_LG, tokens};
-use crate::{AppState, Message};
+use crate::state::AppState;
+use crate::types::message::Message;
 use iced::widget::{
     Space, button, column, container, pick_list, row, text, text_editor, text_input,
 };

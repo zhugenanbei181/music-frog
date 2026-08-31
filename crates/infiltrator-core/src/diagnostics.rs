@@ -63,15 +63,17 @@ impl ConnectionRateTracker {
 
     /// Takes a snapshot of the current rates and updates internal state using the provided time.
     pub fn snapshot_with_time(&mut self, now: Instant) -> ConnectionRateSnapshot {
-        let elapsed = now.saturating_duration_since(self.last_snapshot_time).as_secs_f64();
-        
+        let elapsed = now
+            .saturating_duration_since(self.last_snapshot_time)
+            .as_secs_f64();
+
         let mut up_speed = 0;
         let mut down_speed = 0;
-        
+
         if elapsed > 0.0 {
             let up_diff = self.total_up.saturating_sub(self.last_snapshot_up);
             let down_diff = self.total_down.saturating_sub(self.last_snapshot_down);
-            
+
             up_speed = (up_diff as f64 / elapsed) as u64;
             down_speed = (down_diff as f64 / elapsed) as u64;
         }
@@ -171,7 +173,12 @@ impl JitterCalculator {
 
         let mut std_dev_ms = 0.0;
         if sample_count > 1 {
-            let variance = self.latencies.iter().map(|&x| (x - mean_latency_ms).powi(2)).sum::<f64>() / (sample_count - 1) as f64;
+            let variance = self
+                .latencies
+                .iter()
+                .map(|&x| (x - mean_latency_ms).powi(2))
+                .sum::<f64>()
+                / (sample_count - 1) as f64;
             std_dev_ms = variance.sqrt();
         }
 
@@ -257,13 +264,13 @@ mod tests {
     fn test_connection_rate_tracker() {
         let start = Instant::now();
         let mut tracker = ConnectionRateTracker::new_with_time(start);
-        
+
         tracker.add_up(1000);
         tracker.add_down(2000);
-        
+
         let t1 = start + Duration::from_secs(1);
         let snap1 = tracker.snapshot_with_time(t1);
-        
+
         assert_eq!(snap1.total_up, 1000);
         assert_eq!(snap1.total_down, 2000);
         assert_eq!(snap1.up_speed, 1000);
@@ -276,7 +283,7 @@ mod tests {
 
         let t2 = t1 + Duration::from_secs_f64(0.5);
         let snap2 = tracker.snapshot_with_time(t2);
-        
+
         assert_eq!(snap2.total_up, 1500);
         assert_eq!(snap2.total_down, 6000);
         assert_eq!(snap2.up_speed, 1000); // 500 / 0.5
@@ -293,17 +300,17 @@ mod tests {
         calc.record_success(110.0);
         calc.record_success(105.0);
         calc.record_success(120.0);
-        
+
         let stats = calc.calculate();
-        
+
         assert_eq!(stats.sample_count, 4);
         assert_eq!(stats.loss_rate_percent, 0.0);
         assert_eq!(stats.mean_latency_ms, 108.75); // (100+110+105+120)/4
-        
+
         // differences: |110-100|=10, |105-110|=5, |120-105|=15
         // MAD jitter: (10 + 5 + 15) / 3 = 10
         assert_eq!(stats.jitter_ms, 10.0);
-        
+
         // Variance:
         // (100-108.75)^2 = 76.5625
         // (110-108.75)^2 = 1.5625
@@ -322,7 +329,7 @@ mod tests {
         calc.record_success(60.0);
         calc.record_failure();
         calc.record_failure();
-        
+
         let stats = calc.calculate();
         assert_eq!(stats.sample_count, 5);
         assert_eq!(stats.loss_rate_percent, 60.0); // 3 failures / 5 total attempts
@@ -334,12 +341,12 @@ mod tests {
     fn test_dns_metrics_tracker() {
         let mut tracker = DnsMetricsTracker::new(1000);
         assert_eq!(tracker.fake_ip_capacity(), 1000);
-        
+
         tracker.record_query(true, 10.0);
         tracker.record_query(false, 50.0);
         tracker.record_query(true, 5.0);
         tracker.record_query(false, 35.0);
-        
+
         assert_eq!(tracker.hit_ratio(), 0.5); // 2 hits out of 4
         assert_eq!(tracker.average_response_time_ms(), 25.0); // (10+50+5+35)/4 = 100/4
     }

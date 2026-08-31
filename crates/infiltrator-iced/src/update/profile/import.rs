@@ -2,9 +2,11 @@
 //! import (file picker, metadata fields, activation).
 
 use crate::state::AppState;
-use crate::types::{InfiltratorError, Message, ToastStatus};
+use crate::types::app::ToastStatus;
+use crate::types::message::Message;
 use iced::Task;
-use mihomo_config::manager::ConfigManager;
+use infiltrator_core::apply::ApplyStrategy;
+use infiltrator_core::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn update_import(&mut self, message: Message) -> Task<Message> {
@@ -25,6 +27,7 @@ impl AppState {
                 let url = self.profile.import_url.trim().to_string();
                 let name = self.profile.import_name.trim().to_string();
                 let activate = self.profile.import_activate;
+                let runtime = self.runtime.runtime.clone();
                 if name.is_empty() || url.is_empty() {
                     return Task::done(Message::ShowToast(
                         "Name and subscription URL are required".to_string(),
@@ -37,17 +40,27 @@ impl AppState {
                     async move {
                         let profile_name = infiltrator_core::profiles::sanitize_profile_name(&name)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        let cm = crate::configs_dir::config_manager().await?;
+                        let current = cm.get_current().await.map_err(InfiltratorError::from)?;
+                        if runtime.is_some() && current == profile_name {
+                            return Err(InfiltratorError::Config(
+                                "内核运行时不能直接覆盖当前配置，请先停止内核后再导入".to_string(),
+                            ));
+                        }
                         infiltrator_core::profiles::create_profile_from_url(&profile_name, &url)
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
-                        if activate {
-                            let cm = ConfigManager::new().map_err(InfiltratorError::from)?;
-                            cm.set_current(&profile_name)
-                                .await
-                                .map_err(InfiltratorError::from)?;
-                        }
-                        Ok(())
+                        let reloaded = if activate {
+                            crate::update::core::profile_apply::activate_profile(
+                                runtime,
+                                &profile_name,
+                            )
+                            .await?
+                        } else {
+                            false
+                        };
+                        Ok(reloaded)
                     },
                     Message::ProfileImported,
                 )
@@ -55,7 +68,7 @@ impl AppState {
             Message::ProfileImported(result) => {
                 self.profile.is_importing = false;
                 match result {
-                    Ok(_) => {
+                    Ok(reloaded) => {
                         self.invalidate_rules_dns_views();
                         let activate = self.profile.import_activate;
                         self.profile.import_url.clear();
@@ -68,8 +81,10 @@ impl AppState {
                                 ToastStatus::Success,
                             )),
                         ];
-                        if activate {
+                        if activate && !reloaded {
                             tasks.push(Task::done(Message::StartProxy));
+                        } else if reloaded && let Some(runtime) = self.runtime.runtime.clone() {
+                            self.sync_runtime_slot(Some(runtime));
                         }
                         Task::batch(tasks)
                     }
@@ -126,6 +141,7 @@ impl AppState {
                 let path = self.profile.local_import_path.trim().to_string();
                 let name = self.profile.local_import_name.trim().to_string();
                 let activate = self.profile.local_import_activate;
+                let runtime = self.runtime.runtime.clone();
                 if path.is_empty() || name.is_empty() {
                     return Task::done(Message::ShowToast(
                         "Local path and profile name are required".to_string(),
@@ -144,16 +160,38 @@ impl AppState {
                         infiltrator_core::config::validate_yaml(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
-                        let cm = ConfigManager::new().map_err(InfiltratorError::from)?;
-                        cm.save(&profile_name, &content)
-                            .await
-                            .map_err(InfiltratorError::from)?;
-                        if activate {
-                            cm.set_current(&profile_name)
-                                .await
-                                .map_err(InfiltratorError::from)?;
-                        }
-                        Ok(())
+                        let cm = crate::configs_dir::config_manager().await?;
+                        let current = cm.get_current().await.map_err(InfiltratorError::from)?;
+                        let reloaded = match (runtime, current == profile_name) {
+                            (Some(runtime), true) => {
+                                runtime
+                                    .apply_profile_content(&content, ApplyStrategy::AlwaysRestart)
+                                    .await
+                                    .map_err(|error| InfiltratorError::Config(error.to_string()))?;
+                                true
+                            }
+                            (runtime, false) => {
+                                cm.save(&profile_name, &content)
+                                    .await
+                                    .map_err(InfiltratorError::from)?;
+                                if activate {
+                                    crate::update::core::profile_apply::activate_profile(
+                                        runtime,
+                                        &profile_name,
+                                    )
+                                    .await?
+                                } else {
+                                    false
+                                }
+                            }
+                            (None, true) => {
+                                cm.save(&profile_name, &content)
+                                    .await
+                                    .map_err(InfiltratorError::from)?;
+                                false
+                            }
+                        };
+                        Ok(reloaded)
                     },
                     Message::LocalProfileImported,
                 )
@@ -161,7 +199,7 @@ impl AppState {
             Message::LocalProfileImported(result) => {
                 self.profile.is_importing_local = false;
                 match result {
-                    Ok(_) => {
+                    Ok(reloaded) => {
                         self.invalidate_rules_dns_views();
                         let activate = self.profile.local_import_activate;
                         self.profile.local_import_path.clear();
@@ -174,8 +212,10 @@ impl AppState {
                                 ToastStatus::Success,
                             )),
                         ];
-                        if activate {
+                        if activate && !reloaded {
                             tasks.push(Task::done(Message::StartProxy));
+                        } else if reloaded && let Some(runtime) = self.runtime.runtime.clone() {
+                            self.sync_runtime_slot(Some(runtime));
                         }
                         Task::batch(tasks)
                     }

@@ -30,12 +30,12 @@ use std::time::Duration;
 use infiltrator_core::scheduler::JobScheduler;
 use infiltrator_http::{HttpClient, build_http_client, build_raw_http_client};
 use log::warn;
-use mihomo_config::manager::ConfigManager;
 use tokio::sync::watch;
 use tokio::time::{Instant, interval};
 
 use self::sync::run_sync_tick;
 use crate::admin_api::state::AdminApiContext;
+use crate::support::app_config_manager;
 
 pub mod subscription;
 pub mod sync;
@@ -145,7 +145,7 @@ pub(crate) fn cancel_all_profile_jobs() {
 /// Runs at admin server startup so profiles configured before this boot keep
 /// updating; later metadata changes flow through [`sync_profile_job`].
 pub(crate) async fn seed_subscription_jobs<C: AdminApiContext>(ctx: &C) {
-    let manager = match ConfigManager::new() {
+    let manager = match app_config_manager().await {
         Ok(manager) => manager,
         Err(err) => {
             warn!("subscription job seed failed to open config manager: {err}");
@@ -219,7 +219,13 @@ impl SubscriptionScheduler {
                         if settings.webdav.enabled {
                             let interval = Duration::from_secs(settings.webdav.sync_interval_mins as u64 * 60);
                             if force_sync_update || last_sync_update.elapsed() >= interval {
-                                match run_sync_tick(&ctx_clone, &settings.webdav).await {
+                                match run_sync_tick(
+                                    &ctx_clone,
+                                    &settings.webdav,
+                                    settings.configs_dir.as_deref(),
+                                )
+                                .await
+                                {
                                     Ok(summary) => {
                                         if summary.total_actions > 0 {
                                             log::info!("webdav sync: {} success, {} failed", summary.success_count, summary.failed_count);

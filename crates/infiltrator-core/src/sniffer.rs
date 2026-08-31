@@ -1,5 +1,5 @@
+use crate::settings::app_config_manager;
 use anyhow::{Context, Result, anyhow};
-use mihomo_config::manager::ConfigManager;
 use serde_yaml_ng::{Mapping, Value};
 
 pub async fn load_sniffer_config() -> Result<serde_json::Value> {
@@ -9,7 +9,7 @@ pub async fn load_sniffer_config() -> Result<serde_json::Value> {
 
 pub async fn save_sniffer_config(config: serde_json::Value) -> Result<serde_json::Value> {
     validate_sniffer_config(&config)?;
-    let manager = ConfigManager::new().context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile = manager
         .get_current()
         .await
@@ -30,8 +30,16 @@ pub async fn save_sniffer_config(config: serde_json::Value) -> Result<serde_json
     Ok(config)
 }
 
+/// Apply sniffer changes to an in-memory profile document for the shared
+/// atomic Apply path.
+pub fn apply_sniffer_to_yaml(content: &str, config: &serde_json::Value) -> Result<String> {
+    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+    apply_sniffer_config(&mut doc, config)?;
+    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+}
+
 async fn load_profile_doc() -> Result<Value> {
-    let manager = ConfigManager::new().context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile = manager
         .get_current()
         .await
@@ -126,5 +134,33 @@ sniffer:
         assert!(validate_sniffer_config(&serde_json::json!([])).is_err());
         assert!(validate_sniffer_config(&serde_json::json!(null)).is_err());
         assert!(validate_sniffer_config(&serde_json::json!("text")).is_err());
+    }
+
+    /// sniffer 读写必须落在 settings `configs_dir` 重定向后的目录：
+    /// 重定向态下读回成功即证明写入落点正确，`<home>/configs` 保持未创建。
+    #[tokio::test]
+    async fn test_sniffer_io_follows_configs_dir_redirect() {
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().to_path_buf();
+        let cloud = home.join("cloud-sync").join("profiles");
+        std::fs::create_dir_all(&cloud).unwrap();
+        let guard = crate::settings::test_support::RedirectGuard::acquire(home.clone()).await;
+        guard
+            .set_configs_dir(&home, Some(cloud.to_str().unwrap()))
+            .await;
+
+        let seed = crate::settings::app_config_manager().await.unwrap();
+        seed.save("main", "port: 7890\n").await.unwrap();
+        seed.set_current("main").await.unwrap();
+
+        let saved = save_sniffer_config(serde_json::json!({"enable": true}))
+            .await
+            .unwrap();
+        assert_eq!(saved, serde_json::json!({"enable": true}));
+
+        let loaded = load_sniffer_config().await.unwrap();
+        assert_eq!(loaded, serde_json::json!({"enable": true}));
+        assert!(cloud.join("main.yaml").is_file());
+        assert!(!home.join("configs").exists());
     }
 }

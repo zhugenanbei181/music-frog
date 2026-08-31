@@ -1,12 +1,16 @@
 //! TUN advanced configuration: the form draft and its JSON editor twin,
 //! validation (stack/MTU) and persistence.
 
+use super::profile_apply::save_task_with_strategy;
 use crate::state::AppState;
-use crate::types::{
-    AdvancedEditMode, EditorLazyState, InfiltratorError, Message, RebuildFlowState, ToastStatus,
-    TunFormDraft,
-};
+use crate::types::app::ToastStatus;
+use crate::types::dns::{AdvancedEditMode, TunFormDraft};
+use crate::types::editor::EditorLazyState;
+use crate::types::message::Message;
+use crate::types::runtime::RebuildFlowState;
 use iced::Task;
+use infiltrator_core::apply::ApplyStrategy;
+use infiltrator_core::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn ensure_tun_editor_loaded(&mut self) {
@@ -211,13 +215,10 @@ impl AppState {
                         ]);
                     }
                 };
-                Task::perform(
-                    async move {
-                        infiltrator_core::tun::save_tun_config(patch)
-                            .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        Ok(())
-                    },
+                save_task_with_strategy(
+                    self.runtime.runtime.clone(),
+                    ApplyStrategy::AlwaysRestart,
+                    move |content| infiltrator_core::tun::apply_tun_patch_to_yaml(content, patch),
                     Message::TunConfigSaved,
                 )
             }
@@ -230,7 +231,7 @@ impl AppState {
                         self.editor.advanced_validation.tun = None;
                         Task::batch(vec![
                             Task::done(Message::RefreshTunOnly),
-                            self.trigger_runtime_rebuild(),
+                            self.finish_without_rebuild("TUN".to_string()),
                         ])
                     }
                     Err(e) => {

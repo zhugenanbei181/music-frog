@@ -7,9 +7,8 @@
 #
 # Run this ONCE after a fresh clone. The vendor/ binaries are no longer git-
 # tracked, but packaging (cargo-packager resources in
-# crates/infiltrator-iced/Cargo.toml, tauri bundle resources in
-# src-tauri/tauri.conf.json), the dev-fallback paths in
-# src-tauri/src/paths.rs, and the Android build (android/app/build.gradle.kts)
+# crates/infiltrator-iced/Cargo.toml), the vendored-kernel lookup paths in
+# infiltrator-desktop, and the Android build (android/app/build.gradle.kts)
 # all expect the files in vendor/ to exist.
 #
 # Downloads the three binaries from the official MetaCubeX/mihomo releases:

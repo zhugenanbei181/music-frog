@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Result};
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+use anyhow::{Result, anyhow};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -79,11 +79,11 @@ impl ProfileConverter {
                 let profile = ClashProfile {
                     proxies: nodes.to_vec(),
                 };
-                serde_yaml_ng::to_string(&profile).map_err(|e| anyhow!("Failed to export YAML: {}", e))
+                serde_yaml_ng::to_string(&profile)
+                    .map_err(|e| anyhow!("Failed to export YAML: {}", e))
             }
-            ProfileFormat::RawJson => {
-                serde_json::to_string_pretty(nodes).map_err(|e| anyhow!("Failed to export JSON: {}", e))
-            }
+            ProfileFormat::RawJson => serde_json::to_string_pretty(nodes)
+                .map_err(|e| anyhow!("Failed to export JSON: {}", e)),
             ProfileFormat::ShadowrocketUriList => {
                 let mut out = String::new();
                 for node in nodes {
@@ -107,7 +107,7 @@ impl ProfileConverter {
     fn parse_uri(uri: &str) -> Result<ProxyNodeItem> {
         let parsed = Url::parse(uri)?;
         let scheme = parsed.scheme();
-        
+
         match scheme {
             "ss" => {
                 let username = parsed.username();
@@ -133,7 +133,11 @@ impl ProfileConverter {
                 let port = parsed.port().unwrap_or(80);
 
                 Ok(ProxyNodeItem {
-                    name: if name.is_empty() { "ss-node".to_string() } else { urlencoding::decode(&name).unwrap_or_default().to_string() },
+                    name: if name.is_empty() {
+                        "ss-node".to_string()
+                    } else {
+                        urlencoding::decode(&name).unwrap_or_default().to_string()
+                    },
                     server,
                     port,
                     node_type: "ss".to_string(),
@@ -145,9 +149,12 @@ impl ProfileConverter {
             }
             "vmess" => {
                 let host = parsed.host_str().unwrap_or("");
-                let decoded = STANDARD.decode(host).map_err(|e| anyhow!("Invalid vmess base64: {}", e))?;
-                let json_str = String::from_utf8(decoded).map_err(|e| anyhow!("Invalid vmess utf8: {}", e))?;
-                
+                let decoded = STANDARD
+                    .decode(host)
+                    .map_err(|e| anyhow!("Invalid vmess base64: {}", e))?;
+                let json_str =
+                    String::from_utf8(decoded).map_err(|e| anyhow!("Invalid vmess utf8: {}", e))?;
+
                 #[derive(Deserialize)]
                 struct VmessNode {
                     #[serde(default)]
@@ -161,7 +168,7 @@ impl ProfileConverter {
                     #[serde(default)]
                     tls: String,
                 }
-                
+
                 let vnode: VmessNode = serde_json::from_str(&json_str)?;
                 Ok(ProxyNodeItem {
                     name: vnode.ps,
@@ -175,13 +182,21 @@ impl ProfileConverter {
                 })
             }
             "trojan" => {
-                let password = Some(urlencoding::decode(parsed.username()).unwrap_or_default().to_string());
+                let password = Some(
+                    urlencoding::decode(parsed.username())
+                        .unwrap_or_default()
+                        .to_string(),
+                );
                 let server = parsed.host_str().unwrap_or("").to_string();
                 let port = parsed.port().unwrap_or(443);
                 let name = parsed.fragment().unwrap_or("").to_string();
 
                 Ok(ProxyNodeItem {
-                    name: if name.is_empty() { "trojan-node".to_string() } else { urlencoding::decode(&name).unwrap_or_default().to_string() },
+                    name: if name.is_empty() {
+                        "trojan-node".to_string()
+                    } else {
+                        urlencoding::decode(&name).unwrap_or_default().to_string()
+                    },
                     server,
                     port,
                     node_type: "trojan".to_string(),
@@ -198,9 +213,19 @@ impl ProfileConverter {
     fn export_uri(node: &ProxyNodeItem) -> Result<String> {
         match node.node_type.as_str() {
             "ss" => {
-                let user_pass = format!("{}:{}", node.cipher.as_deref().unwrap_or("none"), node.password.as_deref().unwrap_or(""));
+                let user_pass = format!(
+                    "{}:{}",
+                    node.cipher.as_deref().unwrap_or("none"),
+                    node.password.as_deref().unwrap_or("")
+                );
                 let encoded_user = STANDARD.encode(user_pass);
-                Ok(format!("ss://{}@{}:{}#{}", encoded_user, node.server, node.port, urlencoding::encode(&node.name)))
+                Ok(format!(
+                    "ss://{}@{}:{}#{}",
+                    encoded_user,
+                    node.server,
+                    node.port,
+                    urlencoding::encode(&node.name)
+                ))
             }
             "vmess" => {
                 #[derive(Serialize)]
@@ -218,7 +243,11 @@ impl ProfileConverter {
                     add: node.server.clone(),
                     port: node.port,
                     id: node.uuid.clone().unwrap_or_default(),
-                    tls: if node.tls { "tls".to_string() } else { "".to_string() },
+                    tls: if node.tls {
+                        "tls".to_string()
+                    } else {
+                        "".to_string()
+                    },
                 };
                 let json_str = serde_json::to_string(&vnode)?;
                 let encoded = STANDARD.encode(json_str);
@@ -226,9 +255,18 @@ impl ProfileConverter {
             }
             "trojan" => {
                 let pwd = urlencoding::encode(node.password.as_deref().unwrap_or(""));
-                Ok(format!("trojan://{}@{}:{}#{}", pwd, node.server, node.port, urlencoding::encode(&node.name)))
+                Ok(format!(
+                    "trojan://{}@{}:{}#{}",
+                    pwd,
+                    node.server,
+                    node.port,
+                    urlencoding::encode(&node.name)
+                ))
             }
-            _ => Err(anyhow!("Unsupported node type for URI export: {}", node.node_type)),
+            _ => Err(anyhow!(
+                "Unsupported node type for URI export: {}",
+                node.node_type
+            )),
         }
     }
 }
@@ -275,10 +313,12 @@ proxies:
             cipher: None,
             tls: true,
         };
-        
-        let json = ProfileConverter::export_nodes(std::slice::from_ref(&node), ProfileFormat::RawJson).unwrap();
+
+        let json =
+            ProfileConverter::export_nodes(std::slice::from_ref(&node), ProfileFormat::RawJson)
+                .unwrap();
         let parsed = ProfileConverter::parse_nodes(&json, ProfileFormat::RawJson).unwrap();
-        
+
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0], node);
     }
@@ -295,10 +335,15 @@ proxies:
             cipher: None,
             tls: true,
         };
-        
-        let b64 = ProfileConverter::export_nodes(std::slice::from_ref(&node), ProfileFormat::Base64Subscription).unwrap();
-        let parsed = ProfileConverter::parse_nodes(&b64, ProfileFormat::Base64Subscription).unwrap();
-        
+
+        let b64 = ProfileConverter::export_nodes(
+            std::slice::from_ref(&node),
+            ProfileFormat::Base64Subscription,
+        )
+        .unwrap();
+        let parsed =
+            ProfileConverter::parse_nodes(&b64, ProfileFormat::Base64Subscription).unwrap();
+
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0], node);
     }
@@ -314,10 +359,12 @@ proxies:
     cipher: dummy
     password: pass
 "#;
-        let json = ProfileConverter::convert(yaml, ProfileFormat::ClashYaml, ProfileFormat::RawJson).unwrap();
+        let json =
+            ProfileConverter::convert(yaml, ProfileFormat::ClashYaml, ProfileFormat::RawJson)
+                .unwrap();
         assert!(json.contains("ss1"));
         assert!(json.contains("1.1.1.1"));
-        
+
         let nodes = ProfileConverter::parse_nodes(&json, ProfileFormat::RawJson).unwrap();
         assert_eq!(nodes.len(), 1);
         assert_eq!(nodes[0].name, "ss1");

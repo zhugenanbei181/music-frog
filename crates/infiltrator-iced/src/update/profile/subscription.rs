@@ -2,10 +2,12 @@
 //! scheduled (tick) updates, plus the subscription-editor sync helper.
 
 use crate::state::AppState;
-use crate::types::{InfiltratorError, Message, ToastStatus};
+use crate::types::app::ToastStatus;
+use crate::types::message::Message;
 use chrono::Utc;
+use infiltrator_shared::locales::Localizer;
 use iced::Task;
-use mihomo_config::manager::ConfigManager;
+use infiltrator_core::error::InfiltratorError;
 
 impl AppState {
     /// Keep the subscription editor fields in sync with the selected profile
@@ -55,7 +57,8 @@ impl AppState {
             Message::SelectSubscriptionProfile(name) => {
                 self.profile.subscription_profile_name = name;
                 self.sync_subscription_editor();
-                Task::none()
+                // Prefill the per-profile filter editor for the new selection.
+                Task::done(Message::LoadProfileFilter)
             }
             Message::UpdateSubscriptionUrl(url) => {
                 self.profile.subscription_url = url;
@@ -113,7 +116,7 @@ impl AppState {
                 self.profile.is_saving_subscription = true;
                 Task::perform(
                     async move {
-                        let cm = ConfigManager::new().map_err(InfiltratorError::from)?;
+                        let cm = crate::configs_dir::config_manager().await?;
                         let mut metadata = cm
                             .get_profile_metadata(&profile_name)
                             .await
@@ -165,97 +168,321 @@ impl AppState {
                     ));
                 }
                 self.profile.is_updating_subscription_now = true;
+                let runtime = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
                         infiltrator_core::profiles::update_profile(&profile_name)
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        Ok(())
+                        let cm = crate::configs_dir::config_manager().await?;
+                        let current = cm.get_current().await.map_err(InfiltratorError::from)?;
+                        if let Some(runtime) = runtime
+                            && current == profile_name
+                        {
+                            runtime
+                                .apply_current_config(
+                                    infiltrator_core::apply::ApplyStrategy::AlwaysRestart,
+                                )
+                                .await
+                                .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
+                            Ok(true)
+                        } else {
+                            cm.clear_backup(&profile_name)
+                                .await
+                                .map_err(InfiltratorError::from)?;
+                            Ok(false)
+                        }
                     },
                     Message::SubscriptionUpdatedNow,
                 )
             }
             Message::SubscriptionUpdatedNow(result) => {
                 self.profile.is_updating_subscription_now = false;
+                self.refresh_tray();
                 match result {
-                    Ok(_) => Task::batch(vec![
-                        Task::done(Message::LoadProfiles),
-                        Task::done(Message::ShowToast(
-                            "Subscription updated".to_string(),
-                            ToastStatus::Success,
-                        )),
-                    ]),
+                    Ok(reloaded) => {
+                        if reloaded && let Some(runtime) = self.runtime.runtime.clone() {
+                            self.sync_runtime_slot(Some(runtime));
+                        }
+                        Task::batch(vec![
+                            Task::done(Message::LoadProfiles),
+                            Task::done(Message::ShowToast(
+                                "Subscription updated".to_string(),
+                                ToastStatus::Success,
+                            )),
+                        ])
+                    }
                     Err(e) => {
                         self.set_error(&e);
                         Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
                     }
                 }
             }
-            Message::TickSubUpdate => Task::perform(
-                async move {
-                    let manager = ConfigManager::new().map_err(InfiltratorError::from)?;
-                    let profiles = manager
-                        .list_profiles()
-                        .await
-                        .map_err(InfiltratorError::from)?;
-                    let now = Utc::now();
-                    let mut updated_names = Vec::new();
-                    let mut active_updated = false;
-
-                    for profile in profiles {
-                        if !profile.auto_update_enabled {
-                            continue;
-                        }
-                        let Some(url) = profile.subscription_url.as_deref() else {
-                            continue;
-                        };
-                        if url.trim().is_empty() {
-                            continue;
-                        }
-
-                        let due = profile.next_update.is_none_or(|next| next <= now);
-                        if !due {
-                            continue;
-                        }
-
-                        infiltrator_core::profiles::update_profile(&profile.name)
+            Message::TickSubUpdate => {
+                let runtime = self.runtime.runtime.clone();
+                Task::perform(
+                    async move {
+                        let manager = crate::configs_dir::config_manager().await?;
+                        let profiles = manager
+                            .list_profiles()
                             .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        if profile.active {
-                            active_updated = true;
-                        }
-                        updated_names.push(profile.name);
-                    }
+                            .map_err(InfiltratorError::from)?;
+                        let now = Utc::now();
+                        let mut updated_names = Vec::new();
+                        let mut active_updated = false;
 
-                    Ok((updated_names, active_updated))
-                },
-                Message::SubscriptionAutoUpdated,
-            ),
+                        for profile in profiles {
+                            if !profile.auto_update_enabled {
+                                continue;
+                            }
+                            let Some(url) = profile.subscription_url.as_deref() else {
+                                continue;
+                            };
+                            if url.trim().is_empty() {
+                                continue;
+                            }
+
+                            let due = profile.next_update.is_none_or(|next| next <= now);
+                            if !due {
+                                continue;
+                            }
+
+                            infiltrator_core::profiles::update_profile(&profile.name)
+                                .await
+                                .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                            if profile.active {
+                                active_updated = true;
+                                if let Some(runtime) = runtime.as_ref() {
+                                    runtime
+                                        .apply_current_config(
+                                            infiltrator_core::apply::ApplyStrategy::AlwaysRestart,
+                                        )
+                                        .await
+                                        .map_err(|error| {
+                                            InfiltratorError::Mihomo(error.to_string())
+                                        })?;
+                                } else {
+                                    manager
+                                        .clear_backup(&profile.name)
+                                        .await
+                                        .map_err(InfiltratorError::from)?;
+                                }
+                            } else {
+                                manager
+                                    .clear_backup(&profile.name)
+                                    .await
+                                    .map_err(InfiltratorError::from)?;
+                            }
+                            updated_names.push(profile.name);
+                        }
+
+                        Ok((updated_names, active_updated))
+                    },
+                    Message::SubscriptionAutoUpdated,
+                )
+            }
             Message::SubscriptionAutoUpdated(result) => match result {
                 Ok((updated_profiles, active_updated)) => {
                     if updated_profiles.is_empty() {
                         return Task::none();
                     }
-                    let mut tasks = vec![
+                    self.refresh_tray();
+                    // 0.20: 自动更新可能发生在窗口不可见时，同时发系统通知
+                    // （正文=更新的 profile 名列表，urgency Low）。
+                    let tasks = vec![
                         Task::done(Message::LoadProfiles),
                         Task::done(Message::ShowToast(
                             format!("Auto-updated: {}", updated_profiles.join(", ")),
                             ToastStatus::Success,
                         )),
+                        self.system_notify(
+                            "notify_sub_auto_updated",
+                            &updated_profiles.join(", "),
+                            crate::notify::NotifyUrgency::Low,
+                        ),
                     ];
-                    if active_updated {
-                        tasks.push(Task::done(Message::StartProxy));
+                    if active_updated && let Some(runtime) = self.runtime.runtime.clone() {
+                        self.sync_runtime_slot(Some(runtime));
                     }
                     Task::batch(tasks)
                 }
                 Err(e) => {
                     self.set_error(&e);
-                    Task::done(Message::ShowToast(
-                        format!("Auto update failed: {}", e),
-                        ToastStatus::Warning,
-                    ))
+                    Task::batch(vec![
+                        Task::done(Message::ShowToast(
+                            format!("Auto update failed: {}", e),
+                            ToastStatus::Warning,
+                        )),
+                        // 0.20: 失败走 Critical 系统通知（正文=错误串，先脱敏）。
+                        self.system_notify(
+                            "notify_sub_update_failed",
+                            &e.to_string(),
+                            crate::notify::NotifyUrgency::Critical,
+                        ),
+                    ])
                 }
             },
+            Message::UpdateAllSubscriptionsNow => {
+                // Tray "update all" entry: refresh every profile carrying a
+                // subscription URL right away, regardless of its schedule.
+                if self.profile.is_updating_subscription_now {
+                    return Task::none();
+                }
+                self.profile.is_updating_subscription_now = true;
+                let runtime = self.runtime.runtime.clone();
+                Task::perform(
+                    async move {
+                        let manager = crate::configs_dir::config_manager().await?;
+                        let profiles = manager
+                            .list_profiles()
+                            .await
+                            .map_err(InfiltratorError::from)?;
+                        let mut outcomes = Vec::new();
+
+                        for profile in profiles {
+                            let Some(url) = profile.subscription_url.as_deref() else {
+                                continue;
+                            };
+                            if url.trim().is_empty() {
+                                continue;
+                            }
+                            let outcome = async {
+                                infiltrator_core::profiles::update_profile(&profile.name)
+                                    .await
+                                    .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                                if profile.active {
+                                    if let Some(runtime) = runtime.as_ref() {
+                                        runtime
+                                            .apply_current_config(
+                                                infiltrator_core::apply::ApplyStrategy::AlwaysRestart,
+                                            )
+                                            .await
+                                            .map_err(|error| {
+                                                InfiltratorError::Mihomo(error.to_string())
+                                            })?;
+                                    } else {
+                                        manager
+                                            .clear_backup(&profile.name)
+                                            .await
+                                            .map_err(InfiltratorError::from)?;
+                                    }
+                                } else {
+                                    manager
+                                        .clear_backup(&profile.name)
+                                        .await
+                                        .map_err(InfiltratorError::from)?;
+                                }
+                                Ok(())
+                            }
+                            .await;
+                            outcomes.push(
+                                (profile.name, outcome.map_err(|e: InfiltratorError| e.to_string())),
+                            );
+                        }
+
+                        Ok(outcomes)
+                    },
+                    Message::AllSubscriptionsUpdated,
+                )
+            }
+            Message::AllSubscriptionsUpdated(result) => {
+                self.profile.is_updating_subscription_now = false;
+                let toast_none = infiltrator_shared::locales::Lang(&self.shell.lang)
+                    .tr("update_all_none")
+                    .into_owned();
+                let toast_done = infiltrator_shared::locales::Lang(&self.shell.lang)
+                    .tr("sub_update_done")
+                    .into_owned();
+                match result {
+                    Ok(outcomes) => {
+                        if outcomes.iter().any(|(name, r)| {
+                            r.is_ok()
+                                && self
+                                    .profile
+                                    .profiles
+                                    .iter()
+                                    .any(|p| p.active && p.name == *name)
+                        }) && let Some(runtime) = self.runtime.runtime.clone()
+                        {
+                            self.sync_runtime_slot(Some(runtime));
+                        }
+                        self.refresh_tray();
+                        let failed = outcomes.iter().filter(|(_, r)| r.is_err()).count();
+                        let (toast, status) = if outcomes.is_empty() {
+                            (toast_none, ToastStatus::Info)
+                        } else if failed == 0 {
+                            (toast_done, ToastStatus::Success)
+                        } else {
+                            (
+                                format!("{} (✓{} ✗{})", toast_done, outcomes.len() - failed, failed),
+                                ToastStatus::Warning,
+                            )
+                        };
+                        Task::batch(vec![
+                            Task::done(Message::LoadProfiles),
+                            Task::done(Message::ShowToast(toast, status)),
+                        ])
+                    }
+                    Err(e) => {
+                        self.set_error(&e);
+                        Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
+                    }
+                }
+            }
+            Message::SetProfileAutoUpdate { name, enabled } => {
+                // Tray checkmark entry: flip one profile's auto-update flag
+                // directly, without routing through the editor form state.
+                if enabled {
+                    let has_url = self
+                        .profile
+                        .profiles
+                        .iter()
+                        .find(|p| p.name == name)
+                        .and_then(|p| p.subscription_url.as_deref())
+                        .is_some_and(|url| !url.trim().is_empty());
+                    if !has_url {
+                        let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                        return Task::done(Message::ShowToast(
+                            lang.tr("tray_auto_update_no_url").into_owned(),
+                            ToastStatus::Error,
+                        ));
+                    }
+                }
+                Task::perform(
+                    async move {
+                        let cm = crate::configs_dir::config_manager().await?;
+                        let mut metadata = cm
+                            .get_profile_metadata(&name)
+                            .await
+                            .map_err(InfiltratorError::from)?;
+                        metadata.auto_update_enabled = enabled;
+                        cm.update_profile_metadata(&name, &metadata)
+                            .await
+                            .map_err(InfiltratorError::from)?;
+                        Ok(name)
+                    },
+                    Message::ProfileAutoUpdateSet,
+                )
+            }
+            Message::ProfileAutoUpdateSet(result) => {
+                self.refresh_tray();
+                match result {
+                    Ok(_) => {
+                        let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                        Task::batch(vec![
+                            Task::done(Message::LoadProfiles),
+                            Task::done(Message::ShowToast(
+                                lang.tr("tray_auto_update_toggled").into_owned(),
+                                ToastStatus::Success,
+                            )),
+                        ])
+                    }
+                    Err(e) => {
+                        self.set_error(&e);
+                        Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
+                    }
+                }
+            }
             _ => Task::none(),
         }
     }

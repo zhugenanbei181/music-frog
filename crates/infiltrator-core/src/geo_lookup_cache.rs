@@ -80,9 +80,8 @@ impl GeoLookupCache {
 
     pub fn purge_expired(&mut self, now_secs: u64) -> usize {
         let initial_len = self.map.len();
-        self.map.retain(|_, (_, timestamp, _)| {
-            now_secs.saturating_sub(*timestamp) <= self.ttl_secs
-        });
+        self.map
+            .retain(|_, (_, timestamp, _)| now_secs.saturating_sub(*timestamp) <= self.ttl_secs);
         initial_len - self.map.len()
     }
 
@@ -98,10 +97,11 @@ impl GeoLookupCache {
         while self.map.len() > self.capacity {
             while let Some((ip, access_id)) = self.order.pop_front() {
                 if let Some((_, _, current_id)) = self.map.get(&ip)
-                    && *current_id == access_id {
-                        self.map.remove(&ip);
-                        break;
-                    }
+                    && *current_id == access_id
+                {
+                    self.map.remove(&ip);
+                    break;
+                }
             }
         }
     }
@@ -110,9 +110,10 @@ impl GeoLookupCache {
         let mut new_order = VecDeque::with_capacity(self.capacity);
         for (ip, access_id) in &self.order {
             if let Some((_, _, current_id)) = self.map.get(ip)
-                && *current_id == *access_id {
-                    new_order.push_back((ip.clone(), *access_id));
-                }
+                && *current_id == *access_id
+            {
+                new_order.push_back((ip.clone(), *access_id));
+            }
         }
         self.order = new_order;
     }

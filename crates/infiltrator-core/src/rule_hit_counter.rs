@@ -29,12 +29,15 @@ impl RuleHitCounter {
     /// Records a hit for a specific rule, accumulating its payload bytes and updating the last hit timestamp.
     pub fn record_hit(&mut self, rule_raw: &str, payload_bytes: u64, timestamp_secs: u64) {
         self.total_hits += 1;
-        let record = self.records.entry(rule_raw.to_string()).or_insert_with(|| RuleHitRecord {
-            rule_raw: rule_raw.to_string(),
-            hit_count: 0,
-            last_hit_secs: 0,
-            total_payload_bytes: 0,
-        });
+        let record = self
+            .records
+            .entry(rule_raw.to_string())
+            .or_insert_with(|| RuleHitRecord {
+                rule_raw: rule_raw.to_string(),
+                hit_count: 0,
+                last_hit_secs: 0,
+                total_payload_bytes: 0,
+            });
 
         record.hit_count += 1;
         record.total_payload_bytes += payload_bytes;
@@ -47,7 +50,11 @@ impl RuleHitCounter {
     /// If hit counts are equal, sorts alphabetically by rule_raw.
     pub fn top_rules_by_hits(&self, limit: usize) -> Vec<RuleHitRecord> {
         let mut sorted_records: Vec<_> = self.records.values().cloned().collect();
-        sorted_records.sort_by(|a, b| b.hit_count.cmp(&a.hit_count).then_with(|| a.rule_raw.cmp(&b.rule_raw)));
+        sorted_records.sort_by(|a, b| {
+            b.hit_count
+                .cmp(&a.hit_count)
+                .then_with(|| a.rule_raw.cmp(&b.rule_raw))
+        });
         sorted_records.into_iter().take(limit).collect()
     }
 
@@ -55,7 +62,11 @@ impl RuleHitCounter {
     /// If traffic amounts are equal, sorts alphabetically by rule_raw.
     pub fn top_rules_by_traffic(&self, limit: usize) -> Vec<RuleHitRecord> {
         let mut sorted_records: Vec<_> = self.records.values().cloned().collect();
-        sorted_records.sort_by(|a, b| b.total_payload_bytes.cmp(&a.total_payload_bytes).then_with(|| a.rule_raw.cmp(&b.rule_raw)));
+        sorted_records.sort_by(|a, b| {
+            b.total_payload_bytes
+                .cmp(&a.total_payload_bytes)
+                .then_with(|| a.rule_raw.cmp(&b.rule_raw))
+        });
         sorted_records.into_iter().take(limit).collect()
     }
 
@@ -136,7 +147,7 @@ mod tests {
         let mut counter = RuleHitCounter::new();
         counter.record_hit("rule1", 100, 10);
         assert_eq!(counter.total_hits(), 1);
-        
+
         counter.clear();
         assert_eq!(counter.total_hits(), 0);
         assert_eq!(counter.top_rules_by_hits(10).len(), 0);

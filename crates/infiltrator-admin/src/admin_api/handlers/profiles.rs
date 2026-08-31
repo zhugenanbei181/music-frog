@@ -3,45 +3,40 @@
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use axum::{
-    Json,
-    extract::{Path as AxumPath, State as AxumState},
-    http::StatusCode,
-};
+use axum::{Json, http::StatusCode};
 use chrono::Utc;
-use infiltrator_core::profiles::{self as core_profiles, ProfileDetail, ProfileInfo};
-use infiltrator_core::{config as core_config, subscription as core_subscription};
+use infiltrator_core::profiles::{ProfileDetail, ProfileInfo};
 use infiltrator_http::HttpClient;
 use log::info;
-use mihomo_config::manager::ConfigManager;
 
 use crate::admin_api::events::{AdminEvent, EVENT_PROFILES_CHANGED};
 use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState, RebuildStatus};
+use crate::support::app_config_manager;
 
 use super::{schedule_core_restart, schedule_rebuild};
 
 pub async fn list_profiles_http<C: AdminApiContext>(
-    AxumState(_state): AxumState<AdminApiState<C>>,
+    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<Vec<ProfileInfo>>, ApiError> {
-    let profiles = core_profiles::list_profile_infos()
+    let profiles = infiltrator_core::profiles::list_profile_infos()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(profiles))
 }
 
 pub async fn get_profile_http<C: AdminApiContext>(
-    AxumState(_state): AxumState<AdminApiState<C>>,
-    AxumPath(name): AxumPath<String>,
+    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<Json<ProfileDetail>, ApiError> {
-    let profile = core_profiles::load_profile_detail(&name)
+    let profile = infiltrator_core::profiles::load_profile_detail(&name)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
     Ok(Json(profile))
 }
 
 pub async fn switch_profile_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<SwitchProfilePayload>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let name = ensure_valid_profile_name(&payload.name)?;
@@ -56,7 +51,7 @@ pub async fn switch_profile_http<C: AdminApiContext>(
 }
 
 pub async fn import_profile_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<ImportProfilePayload>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let profile_name = ensure_valid_profile_name(&payload.name)?;
@@ -83,15 +78,17 @@ pub async fn import_profile_http<C: AdminApiContext>(
 }
 
 pub async fn save_profile_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<SaveProfilePayload>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let name = ensure_valid_profile_name(&payload.name)?;
-    if let Err(err) = core_config::validate_yaml(&payload.content) {
+    if let Err(err) = infiltrator_core::config::validate_yaml(&payload.content) {
         return Err(ApiError::bad_request(err.to_string()));
     }
 
-    let manager = ConfigManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
+    let manager = app_config_manager()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let current_before = manager.get_current().await.ok();
     let is_current = current_before.as_deref() == Some(&name);
     let controller_before = if is_current || payload.activate.unwrap_or(false) {
@@ -126,7 +123,7 @@ pub async fn save_profile_http<C: AdminApiContext>(
         controller_changed = Some(controller_before != controller_url);
     }
 
-    let mut info = core_profiles::load_profile_info(&name).await?;
+    let mut info = infiltrator_core::profiles::load_profile_info(&name).await?;
     info.controller_url = controller_url;
     info.controller_changed = controller_changed;
     state
@@ -139,14 +136,16 @@ pub async fn save_profile_http<C: AdminApiContext>(
 }
 
 pub async fn clear_profiles_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
-    let profile = core_profiles::reset_profiles_to_default()
+    let profile = infiltrator_core::profiles::reset_profiles_to_default()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     // All previous profiles (and their auto-update jobs) are gone.
     crate::scheduler::cancel_all_profile_jobs();
-    let manager = ConfigManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
+    let manager = app_config_manager()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut info = profile;
     info.controller_url = manager.get_external_controller().await.ok();
     schedule_rebuild(&state.ctx, &state.rebuild_status, "profiles-clear");
@@ -160,17 +159,25 @@ pub async fn clear_profiles_http<C: AdminApiContext>(
 }
 
 pub async fn delete_profile_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
-    AxumPath(name): AxumPath<String>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let profile_name = ensure_valid_profile_name(&name)?;
-    let manager = ConfigManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
+    let manager = app_config_manager()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     manager
         .delete_profile(&profile_name)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
     // The profile is gone: its periodic update job must not fire again.
     crate::scheduler::cancel_profile_update_job(&profile_name);
+    // Best-effort sidecar cleanup so a recreated profile of the same name
+    // does not inherit the deleted one's filter/mixin. The sidecar lives in
+    // the (possibly redirected) configs dir, not under home.
+    if let Ok(configs_dir) = crate::support::app_configs_dir().await {
+        infiltrator_core::profile_options::delete_options(&configs_dir, &profile_name).await;
+    }
     state
         .events
         .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
@@ -178,8 +185,8 @@ pub async fn delete_profile_http<C: AdminApiContext>(
 }
 
 pub async fn set_profile_subscription_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
-    AxumPath(name): AxumPath<String>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::Path(name): axum::extract::Path<String>,
     Json(payload): Json<SubscriptionConfigPayload>,
 ) -> Result<Json<ProfileInfo>, ApiError> {
     let profile_name = ensure_valid_profile_name(&name)?;
@@ -191,10 +198,12 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
         return Err(ApiError::bad_request("更新间隔不能为空"));
     }
 
-    core_profiles::load_profile_info(&profile_name)
+    infiltrator_core::profiles::load_profile_info(&profile_name)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
-    let manager = ConfigManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
+    let manager = app_config_manager()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut metadata = manager
         .get_profile_metadata(&profile_name)
         .await
@@ -222,7 +231,7 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
         metadata.subscription_url.as_deref(),
         metadata.update_interval_hours,
     );
-    let info = core_profiles::load_profile_info(&profile_name).await?;
+    let info = infiltrator_core::profiles::load_profile_info(&profile_name).await?;
     state
         .events
         .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
@@ -230,14 +239,16 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
 }
 
 pub async fn clear_profile_subscription_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
-    AxumPath(name): AxumPath<String>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<Json<ProfileInfo>, ApiError> {
     let profile_name = ensure_valid_profile_name(&name)?;
-    core_profiles::load_profile_info(&profile_name)
+    infiltrator_core::profiles::load_profile_info(&profile_name)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
-    let manager = ConfigManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
+    let manager = app_config_manager()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut metadata = manager
         .get_profile_metadata(&profile_name)
         .await
@@ -253,7 +264,7 @@ pub async fn clear_profile_subscription_http<C: AdminApiContext>(
         .map_err(|e| ApiError::internal(e.to_string()))?;
     // Subscription (and auto-update with it) is gone: drop the periodic job.
     crate::scheduler::sync_profile_job(&state.ctx, &profile_name, false, None, None);
-    let info = core_profiles::load_profile_info(&profile_name).await?;
+    let info = infiltrator_core::profiles::load_profile_info(&profile_name).await?;
     state
         .events
         .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
@@ -261,14 +272,16 @@ pub async fn clear_profile_subscription_http<C: AdminApiContext>(
 }
 
 pub async fn update_profile_now_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
-    AxumPath(name): AxumPath<String>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let profile_name = ensure_valid_profile_name(&name)?;
-    core_profiles::load_profile_info(&profile_name)
+    infiltrator_core::profiles::load_profile_info(&profile_name)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
-    let manager = ConfigManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
+    let manager = app_config_manager()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut metadata = manager
         .get_profile_metadata(&profile_name)
         .await
@@ -278,25 +291,35 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
         .as_deref()
         .ok_or_else(|| ApiError::bad_request("未找到订阅链接"))?;
 
-    let checked_url = core_subscription::CheckedSubscriptionUrl::parse(url)
+    let checked_url = infiltrator_core::subscription::CheckedSubscriptionUrl::parse(url)
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
-    let content = core_subscription::fetch_subscription_text(
+    let (content, userinfo) = infiltrator_core::subscription::fetch_subscription_with_info(
         &state.http_client,
         &state.raw_http_client,
         &checked_url,
     )
     .await
     .map_err(|e| ApiError::internal(e.to_string()))?;
-    let content = core_subscription::strip_utf8_bom(&content);
-    if core_config::validate_yaml(content).is_err() {
+    let content = infiltrator_core::subscription::strip_utf8_bom(&content);
+    let (content, _report) =
+        infiltrator_core::profile_options::apply_saved_options_for(&profile_name, content)
+            .await
+            .map_err(|e| ApiError::bad_request(format!("应用配置选项失败: {e}")))?;
+    if infiltrator_core::config::validate_yaml(&content).is_err() {
         return Err(ApiError::bad_request("订阅内容不是有效的 YAML"));
     }
     manager
-        .save(&profile_name, content)
+        .save(&profile_name, &content)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
 
     let now = Utc::now();
+    if let Some(info) = userinfo {
+        metadata.traffic_upload = info.upload;
+        metadata.traffic_download = info.download;
+        metadata.traffic_total = info.total;
+        metadata.expire_at = info.expire;
+    }
     metadata.last_updated = Some(now);
     metadata.next_update = if metadata.auto_update_enabled {
         metadata
@@ -314,7 +337,7 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
     if rebuild_scheduled {
         schedule_rebuild(&state.ctx, &state.rebuild_status, "subscription-update-now");
     }
-    let profile = core_profiles::load_profile_info(&profile_name).await?;
+    let profile = infiltrator_core::profiles::load_profile_info(&profile_name).await?;
     state
         .events
         .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
@@ -325,7 +348,7 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
 }
 
 pub(super) fn ensure_valid_profile_name(name: &str) -> Result<String, ApiError> {
-    core_profiles::sanitize_profile_name(name).map_err(|e| ApiError::bad_request(e.to_string()))
+    infiltrator_core::profiles::sanitize_profile_name(name).map_err(|e| ApiError::bad_request(e.to_string()))
 }
 
 async fn switch_profile_internal<C: AdminApiContext>(
@@ -333,13 +356,13 @@ async fn switch_profile_internal<C: AdminApiContext>(
     rebuild_status: &Arc<RebuildStatus>,
     name: &str,
 ) -> anyhow::Result<ProfileInfo> {
-    let profile_name = core_profiles::sanitize_profile_name(name)?;
-    let manager = ConfigManager::new()?;
+    let profile_name = infiltrator_core::profiles::sanitize_profile_name(name)?;
+    let manager = app_config_manager().await?;
     manager.set_current(&profile_name).await?;
     // Config-level change only: the running core just needs a restart, not
     // a full runtime re-bootstrap (which stays reserved for version swaps).
     schedule_core_restart(ctx, rebuild_status, "switch-profile");
-    core_profiles::load_profile_info(&profile_name).await
+    infiltrator_core::profiles::load_profile_info(&profile_name).await
 }
 
 async fn import_profile_from_url_internal<C: AdminApiContext>(
@@ -351,30 +374,35 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
     url: &str,
     activate: bool,
 ) -> anyhow::Result<(ProfileInfo, bool)> {
-    let profile_name = core_profiles::sanitize_profile_name(name)?;
+    let profile_name = infiltrator_core::profiles::sanitize_profile_name(name)?;
     let source_url = url.trim();
     if source_url.is_empty() {
         return Err(anyhow!("订阅链接不能为空"));
     }
 
-    let masked_url = core_subscription::mask_subscription_url(source_url);
+    let masked_url = infiltrator_core::subscription::mask_subscription_url(source_url);
     info!(
         "admin import profile start: name={} url={}",
         profile_name, masked_url
     );
-    let checked_url = core_subscription::CheckedSubscriptionUrl::parse(source_url)?;
-    let content =
-        core_subscription::fetch_subscription_text(client, raw_client, &checked_url).await?;
+    let checked_url = infiltrator_core::subscription::CheckedSubscriptionUrl::parse(source_url)?;
+    let (content, userinfo) =
+        infiltrator_core::subscription::fetch_subscription_with_info(client, raw_client, &checked_url)
+            .await?;
     if content.trim().is_empty() {
         return Err(anyhow!("订阅返回内容为空"));
     }
-    let content = core_subscription::strip_utf8_bom(&content);
-    if core_config::validate_yaml(content).is_err() {
+    let content = infiltrator_core::subscription::strip_utf8_bom(&content);
+    let (content, _report) =
+        infiltrator_core::profile_options::apply_saved_options_for(&profile_name, content)
+            .await
+            .map_err(|e| anyhow!("应用配置选项失败: {e}"))?;
+    if infiltrator_core::config::validate_yaml(&content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
     }
 
-    let manager = ConfigManager::new()?;
-    manager.save(&profile_name, content).await?;
+    let manager = app_config_manager().await?;
+    manager.save(&profile_name, &content).await?;
 
     let mut rebuild_scheduled = false;
     if activate {
@@ -386,6 +414,12 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
     let now = Utc::now();
     let mut metadata = manager.get_profile_metadata(&profile_name).await?;
     metadata.subscription_url = Some(source_url.to_string());
+    if let Some(info) = userinfo {
+        metadata.traffic_upload = info.upload;
+        metadata.traffic_download = info.download;
+        metadata.traffic_total = info.total;
+        metadata.expire_at = info.expire;
+    }
     metadata.last_updated = Some(now);
     metadata.next_update = if metadata.auto_update_enabled {
         metadata
@@ -406,7 +440,7 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
         metadata.update_interval_hours,
     );
 
-    let mut info = core_profiles::load_profile_info(&profile_name).await?;
+    let mut info = infiltrator_core::profiles::load_profile_info(&profile_name).await?;
     if activate {
         info.controller_url = manager.get_external_controller().await.ok();
     }

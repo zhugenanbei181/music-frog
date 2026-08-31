@@ -3,13 +3,14 @@
 //! Mounted via `src/test_mounts.rs` (crate root).
 //! test-intent: behavior
 
-use crate::{AppState, Message};
+use crate::state::AppState;
+use crate::types::message::Message;
 use infiltrator_core::settings::{AdminServerConfig, AppSettings, RuntimePanelConfig};
 
 #[test]
 fn test_admin_settings_toggle_drives_lifecycle_bookkeeping() {
     let (mut state, _) = AppState::new();
-    // Startup defaults mirror src-tauri: the feature starts enabled.
+    // Startup defaults: the embedded admin server starts enabled (API-only).
     assert!(state.shell.admin_enabled);
     assert_eq!(
         state.shell.admin_port,

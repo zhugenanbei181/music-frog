@@ -3,15 +3,17 @@
 //! a four-tile stats grid with mono numerals. Everything is backed by
 //! existing [`AppState`] fields — nothing is faked.
 
-use crate::locales::{Lang, Localizer};
-use crate::types::{Route, RuntimeStatus};
+use infiltrator_shared::locales::{Lang, Localizer};
+use crate::types::app::Route;
+use crate::types::runtime::RuntimeStatus;
 use crate::view::components::{
     TrafficChart, card, card_surface, chip, icon_button, modern_scrollable, premium_card,
     section_header, status_dot,
 };
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, R_CONTROL};
-use crate::{AppState, Message};
+use crate::state::AppState;
+use crate::types::message::Message;
 use iced::widget::{Space, button, canvas, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 
@@ -138,6 +140,7 @@ fn mode_label(mode: &str, lang: &Lang<'_>) -> String {
         "rule" => "mode_rule",
         "global" => "mode_global",
         "direct" => "mode_direct",
+        "script" => "mode_script",
         _ => return mode.to_string(),
     };
     lang.tr(key).into_owned()

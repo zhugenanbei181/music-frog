@@ -4,7 +4,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::proxy_nodes::*;
+    use crate::proxy_nodes::{model::*, profile_yaml::*, validate::*};
     use serde_yaml_ng::Value;
 
     const VLESS_YAML: &str = r#"

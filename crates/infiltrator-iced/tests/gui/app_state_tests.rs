@@ -3,11 +3,19 @@
 //! Mounted via `src/test_mounts.rs` (crate root).
 //! test-intent: behavior
 
-use crate::locales::{Lang, Localizer};
-use crate::types::{DnsTab, RebuildFlowState, RulesJsonTab, RulesTab, RuntimeConfig};
-use crate::{AppState, InfiltratorError, Message, Route, RuntimeStatus};
+use crate::state::AppState;
+use crate::types::app::{ConfirmAction, CoreDownloadProgress, Route, SyncProgress};
+use crate::types::dns::DnsTab;
+use crate::types::message::Message;
+use crate::types::rules::{RulesJsonTab, RulesTab};
+use crate::types::runtime::{
+    IpProbeResult, RuntimePatchSnapshot, RuntimeStatus, RuntimeStreamKind, RuntimeStreamState,
+};
+use crate::types::runtime::{RebuildFlowState, RuntimeConfig};
 use iced::widget::text_editor;
+use infiltrator_core::error::InfiltratorError;
 use infiltrator_core::rules::RuleEntry;
+use infiltrator_shared::locales::{Lang, Localizer};
 use mihomo_api::types::TrafficData;
 use mihomo_config::profile::Profile;
 use std::path::PathBuf;
@@ -27,19 +35,24 @@ fn test_route_navigation() {
 #[test]
 fn test_runtime_config_sync() {
     let (mut state, _) = AppState::new();
+    let generation = state.runtime.runtime_generation;
 
     // Simulate config fetch
-    let _ = state.update(Message::RuntimeConfigFetched(Ok(RuntimeConfig {
-        mode: "global".into(),
-        tun_enabled: true,
-        dns_nameservers: vec!["1.1.1.1".into()],
-        dns_fallback: vec!["8.8.8.8".into()],
-        dns_enhanced_mode: "fake-ip".into(),
-        tun_stack: "gvisor".into(),
-        tun_auto_route: true,
-        tun_strict_route: false,
-        sniffer_enabled: true,
-    })));
+    let _ = state.update(Message::RuntimeConfigFetched(
+        Ok(RuntimeConfig {
+            mode: "global".into(),
+            script_block_present: true,
+            tun_enabled: true,
+            dns_nameservers: vec!["1.1.1.1".into()],
+            dns_fallback: vec!["8.8.8.8".into()],
+            dns_enhanced_mode: "fake-ip".into(),
+            tun_stack: "gvisor".into(),
+            tun_auto_route: true,
+            tun_strict_route: false,
+            sniffer_enabled: true,
+        }),
+        generation,
+    ));
 
     assert_eq!(state.runtime.proxy_mode.as_ref().unwrap(), "global");
     assert!(state.runtime.tun_enabled.unwrap());
@@ -260,22 +273,26 @@ fn test_tray_and_exit() {
 
     // Tray events shouldn't crash and must map onto the same actions as the
     // old muda menu ids: icon click shows the window, quit requests exit.
-    let _ = state.update(Message::TrayEvent(crate::tray::TrayEvent::IconActivated));
+    let _ = state.update(Message::TrayEvent(
+        crate::tray::spec::TrayEvent::IconActivated,
+    ));
     assert_eq!(
-        crate::tray::resolve_tray_event(
-            &crate::tray::TrayEvent::MenuActivated {
-                id: crate::tray::TRAY_ACTION_QUIT,
+        crate::tray::spec::resolve_tray_event(
+            &crate::tray::spec::TrayEvent::MenuActivated {
+                id: crate::tray::spec::TRAY_ACTION_QUIT,
                 payload: None,
             },
             false,
             false,
         ),
-        Some(crate::tray::TrayIntent::Exit)
+        Some(crate::tray::spec::TrayIntent::Exit)
     );
-    let _ = state.update(Message::TrayEvent(crate::tray::TrayEvent::MenuActivated {
-        id: crate::tray::TRAY_ACTION_QUIT,
-        payload: None,
-    }));
+    let _ = state.update(Message::TrayEvent(
+        crate::tray::spec::TrayEvent::MenuActivated {
+            id: crate::tray::spec::TRAY_ACTION_QUIT,
+            payload: None,
+        },
+    ));
 
     let _ = state.update(Message::Exit);
 }
@@ -318,8 +335,154 @@ fn test_error_and_toast_redaction() {
     // Every toast funnels through Message::ShowToast and is redacted there.
     let _ = state.update(Message::ShowToast(
         "secret: supersecret42".into(),
-        crate::types::ToastStatus::Error,
+        crate::types::app::ToastStatus::Error,
     ));
     let (content, _) = state.shell.toasts[0].clone();
     assert_eq!(content, "secret: ***");
+}
+
+#[test]
+fn test_p0_confirmation_is_staged_and_cancellable() {
+    let (mut state, _) = AppState::new();
+
+    let _ = state.update(Message::RequestConfirmation(ConfirmAction::DeleteProfile(
+        "unused".to_string(),
+    )));
+    assert_eq!(
+        state.shell.confirmation,
+        Some(ConfirmAction::DeleteProfile("unused".to_string()))
+    );
+    let _ = state.update(Message::CancelConfirmation);
+    assert!(state.shell.confirmation.is_none());
+
+    let _ = state.update(Message::RequestConfirmation(
+        ConfirmAction::CloseAllConnections,
+    ));
+    let _ = state.update(Message::ConfirmAction);
+    assert!(state.shell.confirmation.is_none());
+    assert!(state.shell.error_msg.is_none());
+}
+
+#[test]
+fn test_p0_runtime_stream_generation_and_failure_projection() {
+    let (mut state, _) = AppState::new();
+    state.runtime.runtime_generation = 7;
+
+    let _ = state.update(Message::RuntimeStreamLogReceived(6, "stale".to_string()));
+    assert!(state.diag.logs.is_empty());
+    let _ = state.update(Message::RuntimeStreamLogReceived(7, "current".to_string()));
+    assert_eq!(state.diag.logs.back().map(String::as_str), Some("current"));
+
+    let _ = state.update(Message::RuntimeStreamStateChanged {
+        kind: RuntimeStreamKind::Traffic,
+        generation: 7,
+        state: RuntimeStreamState::Failed("socket closed".to_string()),
+    });
+    assert!(matches!(
+        state.diag.traffic_stream_state,
+        RuntimeStreamState::Failed(_)
+    ));
+    assert!(state.shell.error_msg.is_some());
+}
+
+#[test]
+fn test_p0_ip_probe_metadata_and_explicit_language() {
+    let (mut state, _) = AppState::new();
+    let task_id = state.shell.last_task_id;
+    let _ = state.update(Message::IpInfoReceived(
+        Ok(IpProbeResult {
+            ip: "203.0.113.10".to_string(),
+            provider: "test-provider".to_string(),
+            checked_at: "2026-08-30 12:00:00".to_string(),
+        }),
+        task_id,
+    ));
+    assert_eq!(state.diag.public_ip.as_deref(), Some("203.0.113.10"));
+    assert_eq!(
+        state.diag.public_ip_provider.as_deref(),
+        Some("test-provider")
+    );
+    assert_eq!(
+        state.diag.public_ip_checked_at.as_deref(),
+        Some("2026-08-30 12:00:00")
+    );
+
+    let _ = state.update(Message::SetLanguage("en-US".to_string()));
+    assert_eq!(state.shell.lang, "en-US");
+}
+
+#[test]
+fn test_p0_download_progress_token_and_sync_progress() {
+    let (mut state, _) = AppState::new();
+    state.runtime.core_download_token = 9;
+    state.runtime.is_downloading_core = true;
+    let stale = CoreDownloadProgress {
+        downloaded: 100,
+        total: Some(200),
+        speed_bytes: 10,
+    };
+    let _ = state.update(Message::CoreDownloadProgress(stale, 8));
+    assert!(state.runtime.download_stats.is_none());
+
+    let current = CoreDownloadProgress {
+        downloaded: 100,
+        total: Some(200),
+        speed_bytes: 10,
+    };
+    let _ = state.update(Message::CoreDownloadProgress(current, 9));
+    assert_eq!(state.runtime.download_progress, 0.5);
+    assert!(state.runtime.download_stats.is_some());
+
+    let _ = state.update(Message::SyncProgress(SyncProgress {
+        phase: "上传配置".to_string(),
+        current: 2,
+        total: 4,
+    }));
+    assert_eq!(
+        state.profile.sync_progress.as_ref().map(|p| p.current),
+        Some(2)
+    );
+}
+
+#[test]
+fn test_p0_stale_proxy_start_is_ignored() {
+    let (mut state, _) = AppState::new();
+    state.runtime.lifecycle_token = 4;
+    let _ = state.update(Message::ProxyStarted(
+        Err(InfiltratorError::Mihomo("late start".to_string())),
+        3,
+    ));
+    assert_eq!(state.runtime.status, RuntimeStatus::Stopped);
+    assert!(state.shell.error_msg.is_none());
+}
+
+#[test]
+fn test_p0_runtime_patch_failure_restores_the_previous_snapshot() {
+    let (mut state, _) = AppState::new();
+    state.runtime.proxy_mode = Some("rule".to_string());
+    state.runtime.pending_runtime_patch = Some(RuntimePatchSnapshot {
+        proxy_mode: Some("rule".to_string()),
+        tun_enabled: Some(false),
+        tun_stack: "gvisor".to_string(),
+        tun_auto_route: true,
+        tun_strict_route: false,
+        sniffer_enabled: true,
+    });
+    state.runtime.runtime_patch_token = 11;
+    state.runtime.proxy_mode = Some("global".to_string());
+    let generation = state.runtime.runtime_generation;
+
+    let _ = state.update(Message::RuntimePatchResult(
+        Err(InfiltratorError::Mihomo("controller rejected".to_string())),
+        11,
+        generation,
+    ));
+    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("rule"));
+    assert!(state.runtime.pending_runtime_patch.is_none());
+    assert!(state.shell.error_msg.is_some());
+
+    state.runtime.proxy_mode = Some("direct".to_string());
+    let generation = state.runtime.runtime_generation;
+    let _ = state.update(Message::RuntimePatchResult(Ok(()), 10, generation));
+    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("direct"));
 }

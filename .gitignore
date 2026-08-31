@@ -1,19 +1,12 @@
 # Node / pnpm artifacts
 node_modules/
 
-# Vite artifacts
-webui/config-manager-ui/.vite/
-webui/config-manager-ui/dist/
-
-# Rust / Tauri build artifacts
+# Rust build artifacts
 target/
-src-tauri/target/
-src-tauri/.cargo/
 crates/mihomo-dav-sync/target/
 
 # Misc
 dist/
-!webui/mihomo-manager-ui/dist/
 *.log
 *.tmp
 _tmp_*
@@ -54,7 +47,6 @@ CLEANUP_CHECKLIST.md
 # Build outputs
 *.msi
 *.exe
-
 # Keep helper scripts tracked (parent contents ignored, individual files re-included)
 /scripts/*
 !/scripts/android-build.sh
@@ -84,6 +76,3 @@ android/app/src/main/assets/mihomo/mihomo-android-arm64-v8
 android/app/src/main/java/infiltrator_android/
 android/android/
 android/Medium-Phone-*
-
-# Tauri generated schemas
-src-tauri/gen/

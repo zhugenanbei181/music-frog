@@ -6,7 +6,7 @@ MusicFrog Infiltrator 的桌面宿主集成与系统特权层，负责系统原�
 ## 2. Boundary (依赖边界与禁止耦合)
 - 依赖上游: `infiltrator-core`, `mihomo-platform`, `infiltrator-shared`
 - 禁止反向依赖: 作为桌面支撑层，禁止被 `infiltrator-core` 或 `infiltrator-android` 依赖。
-- 零跨 crate re-export 原则: 必须通过规范路径导入，禁止任意 glob 转发。
+- 零转发导入原则: 禁止一切 re-export（`pub use` / `pub(crate) use` 转发层，含 glob），禁止 `use ... as 别名`（`as _` 匿名 trait 导入除外）；一切导入走定义模块的规范路径。由 `scripts/quality/import-guard.py` 在 CI 强制。
 
 ## 3. Contract (核心公开类型与对外契约)
 - `SystemProxy`: 跨平台系统代理设置与 `ProxyOverride` 旁路列表。

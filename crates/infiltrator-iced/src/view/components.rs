@@ -4,7 +4,8 @@
 //! are both first-class. Page views should compose these primitives instead
 //! of hand-rolling containers with hardcoded colors.
 
-use crate::{Message, Route};
+use crate::types::app::Route;
+use crate::types::message::Message;
 use iced::widget::{Space, button, canvas, column, container, row, scrollable, text};
 use iced::{
     Border, Color, Element, Length, Point, Rectangle, Renderer, Shadow, Size, Theme, Vector,

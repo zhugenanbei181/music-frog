@@ -13,6 +13,14 @@ pub struct Profile {
     pub update_interval_hours: Option<u32>,
     pub last_updated: Option<DateTime<Utc>>,
     pub next_update: Option<DateTime<Utc>>,
+    /// Uploaded bytes advertised via `subscription-userinfo`.
+    pub traffic_upload: Option<u64>,
+    /// Downloaded bytes advertised via `subscription-userinfo`.
+    pub traffic_download: Option<u64>,
+    /// Total quota bytes advertised via `subscription-userinfo`.
+    pub traffic_total: Option<u64>,
+    /// Plan expiry as a unix timestamp (seconds).
+    pub expire_at: Option<i64>,
 }
 
 impl Profile {
@@ -26,6 +34,10 @@ impl Profile {
             update_interval_hours: None,
             last_updated: None,
             next_update: None,
+            traffic_upload: None,
+            traffic_download: None,
+            traffic_total: None,
+            expire_at: None,
         }
     }
 

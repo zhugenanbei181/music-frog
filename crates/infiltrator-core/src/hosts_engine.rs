@@ -78,7 +78,8 @@ impl HostsEngine {
             self.wildcard_matches
                 .sort_by_key(|(suffix, _)| std::cmp::Reverse(suffix.len()));
         } else {
-            self.exact_matches.insert(entry.domain_pattern, entry.target_ip);
+            self.exact_matches
+                .insert(entry.domain_pattern, entry.target_ip);
         }
     }
 
@@ -93,7 +94,10 @@ impl HostsEngine {
             if domain == suffix {
                 return Some(ip.as_str());
             }
-            if domain.ends_with(suffix) && domain.len() > suffix.len() && domain.as_bytes()[domain.len() - suffix.len() - 1] == b'.' {
+            if domain.ends_with(suffix)
+                && domain.len() > suffix.len()
+                && domain.as_bytes()[domain.len() - suffix.len() - 1] == b'.'
+            {
                 return Some(ip.as_str());
             }
         }
@@ -131,24 +135,33 @@ mod tests {
 ";
         let entries = HostsEngine::parse_hosts_file(content);
         assert_eq!(entries.len(), 3);
-        
-        assert_eq!(entries[0], HostsEntry {
-            domain_pattern: "localhost".to_string(),
-            target_ip: "127.0.0.1".to_string(),
-            is_wildcard: false,
-        });
-        
-        assert_eq!(entries[1], HostsEntry {
-            domain_pattern: "router.lan".to_string(),
-            target_ip: "192.168.1.1".to_string(),
-            is_wildcard: false,
-        });
-        
-        assert_eq!(entries[2], HostsEntry {
-            domain_pattern: "*.router.lan".to_string(),
-            target_ip: "192.168.1.1".to_string(),
-            is_wildcard: true,
-        });
+
+        assert_eq!(
+            entries[0],
+            HostsEntry {
+                domain_pattern: "localhost".to_string(),
+                target_ip: "127.0.0.1".to_string(),
+                is_wildcard: false,
+            }
+        );
+
+        assert_eq!(
+            entries[1],
+            HostsEntry {
+                domain_pattern: "router.lan".to_string(),
+                target_ip: "192.168.1.1".to_string(),
+                is_wildcard: false,
+            }
+        );
+
+        assert_eq!(
+            entries[2],
+            HostsEntry {
+                domain_pattern: "*.router.lan".to_string(),
+                target_ip: "192.168.1.1".to_string(),
+                is_wildcard: true,
+            }
+        );
     }
 
     #[test]
@@ -159,7 +172,7 @@ mod tests {
             target_ip: "10.0.0.1".to_string(),
             is_wildcard: false,
         });
-        
+
         assert_eq!(engine.resolve("example.com"), Some("10.0.0.1"));
         assert_eq!(engine.resolve("www.example.com"), None);
         assert_eq!(engine.resolve("other.com"), None);
@@ -173,7 +186,7 @@ mod tests {
             target_ip: "10.0.0.2".to_string(),
             is_wildcard: true,
         });
-        
+
         assert_eq!(engine.resolve("test.example.com"), Some("10.0.0.2"));
         assert_eq!(engine.resolve("a.b.example.com"), Some("10.0.0.2"));
         assert_eq!(engine.resolve("example.com"), Some("10.0.0.2"));
@@ -193,13 +206,13 @@ mod tests {
             target_ip: "192.168.0.5".to_string(),
             is_wildcard: false,
         });
-        
+
         let mut domains = engine.reverse_lookup("192.168.0.5");
         domains.sort();
-        
+
         assert_eq!(domains.len(), 2);
         assert_eq!(domains, vec!["host1.local", "host2.local"]);
-        
+
         assert!(engine.reverse_lookup("192.168.0.6").is_empty());
     }
 
@@ -211,7 +224,7 @@ mod tests {
             target_ip: "127.0.0.1".to_string(),
             is_wildcard: false,
         });
-        
+
         assert_eq!(engine.resolve("localhost"), Some("127.0.0.1"));
         engine.clear();
         assert_eq!(engine.resolve("localhost"), None);

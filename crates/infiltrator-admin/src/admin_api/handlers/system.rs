@@ -6,9 +6,7 @@ use std::{convert::Infallible, time::Duration};
 
 use axum::{
     Json,
-    extract::State as AxumState,
-    response::sse::{Event, KeepAlive, Sse},
-};
+    response::sse::{Event, KeepAlive, Sse}};
 use log::warn;
 use tokio_stream::{StreamExt, wrappers::BroadcastStream};
 
@@ -16,7 +14,7 @@ use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
 
 pub async fn get_capabilities_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<AdminCapabilities>, ApiError> {
     Ok(Json(AdminCapabilities {
         schema_version: 1,
@@ -38,13 +36,13 @@ pub async fn get_capabilities_http<C: AdminApiContext>(
 }
 
 pub async fn get_rebuild_status_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<RebuildStatusResponse>, ApiError> {
     Ok(Json(state.rebuild_status.snapshot()))
 }
 
 pub async fn stream_admin_events_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
     let stream = BroadcastStream::new(state.events.subscribe()).filter_map(|event| {
         let payload = match event {

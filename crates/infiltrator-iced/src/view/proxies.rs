@@ -5,14 +5,15 @@
 //! shared components. Filtering, sorting, delay testing and node switching
 //! still flow through the exact same `Message`s as before.
 
-use crate::locales::{Lang, Localizer};
+use infiltrator_shared::locales::{Lang, Localizer};
 use crate::view::components::{
     BadgeKind, badge, card_surface, chip, empty_state, icon_button, latency_badge,
     modern_scrollable, section_header,
 };
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, tokens};
-use crate::{AppState, Message};
+use crate::state::AppState;
+use crate::types::message::Message;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 
@@ -389,10 +390,10 @@ fn node_card<'a>(
 ) -> Element<'a, Message> {
     let node = state.runtime.proxies.get(member_name);
     let node_type = node
-        .map(|p: &mihomo_api::proxy::Proxy| p.proxy_type().to_string())
+        .map(|p: &mihomo_api::proxy::types::Proxy| p.proxy_type().to_string())
         .unwrap_or_default();
-    let node_udp = node.map(mihomo_api::proxy::Proxy::udp).unwrap_or(false);
-    let delay = node.and_then(|p: &mihomo_api::proxy::Proxy| p.history().last().map(|h| h.delay));
+    let node_udp = node.map(mihomo_api::proxy::types::Proxy::udp).unwrap_or(false);
+    let delay = node.and_then(|p: &mihomo_api::proxy::types::Proxy| p.history().last().map(|h| h.delay));
 
     let mut chips = row![chip(node_type)].spacing(theme::SP_XS);
     if node_udp {

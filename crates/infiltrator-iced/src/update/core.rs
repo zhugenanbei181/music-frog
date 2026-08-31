@@ -5,13 +5,16 @@
 //! (`crate::update::core`) are stable. Each domain submodule owns one slice
 //! of the original message match and forwards unmatched messages to the
 //! next domain in the chain:
-//! lifecycle → settings → monitoring → proxies → runtime_config → rules →
-//! advanced → dns_config → tun_config → rebuild → kernels (fallback).
+//! lifecycle → settings → monitoring → doctor → proxies → runtime_config →
+//! rules → advanced → dns_config → tun_config → rebuild → kernels (fallback).
 mod advanced;
 mod dns_config;
+mod doctor;
 mod kernels;
 mod lifecycle;
 mod monitoring;
+mod mrs;
+pub(crate) mod profile_apply;
 mod proxies;
 mod rebuild;
 mod rules;
@@ -20,7 +23,7 @@ mod settings;
 mod tun_config;
 
 use crate::state::AppState;
-use crate::types::Message;
+use crate::types::message::Message;
 use iced::Task;
 
 impl AppState {

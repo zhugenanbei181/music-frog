@@ -1,4 +1,4 @@
-use crate::proxy::Proxy;
+use crate::proxy::types::Proxy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

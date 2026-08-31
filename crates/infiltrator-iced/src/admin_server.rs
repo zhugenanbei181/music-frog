@@ -3,7 +3,7 @@
 //! The server itself lives in `infiltrator-admin` ([`infiltrator_admin::start_admin_server`])
 //! and always binds `127.0.0.1`. This module owns the iced-side glue:
 //!
-//! * [`resolve_admin_dir`] — WebUI asset path resolution (env override, dev
+//! * (0.20) WebUI static hosting retired; the server is API-only — former
 //!   checkout fallback, exe-relative packaged candidates).
 //! * [`plan_admin_server_action`] — the pure start/stop/restart state machine,
 //!   unit-tested headlessly.
@@ -31,61 +31,13 @@ use infiltrator_core::settings::AdminServerConfig;
 use mihomo_api::client::MihomoClient;
 use mihomo_version::manager::VersionManager;
 
-use crate::locales::Localizer;
 use crate::state::AppState;
-use crate::types::{InfiltratorError, Message, ToastStatus};
+use crate::types::app::ToastStatus;
+use crate::types::message::Message;
+use infiltrator_core::error::InfiltratorError;
 
 /// Same default the legacy Tauri client passes to `start_admin_server`.
 pub const ADMIN_DEFAULT_PORT: u16 = 25210;
-
-/// Env override shared with the Tauri client so dev workflows stay identical.
-pub const ADMIN_DIR_ENV: &str = "METACUBEXD_ADMIN_DIR";
-
-/// Resolve the config-manager-ui static assets directory.
-///
-/// Order mirrors `src-tauri/src/paths.rs::resolve_admin_dir`:
-/// 1. `METACUBEXD_ADMIN_DIR` env override,
-/// 2. development checkout `webui/config-manager-ui/dist` (then the root, for
-///    un-built checkouts),
-/// 3. packaged resources next to the executable.
-pub fn resolve_admin_dir() -> anyhow::Result<PathBuf> {
-    // The crate lives one level deeper than src-tauri, hence `../..`.
-    let dev_admin = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../webui/config-manager-ui");
-    let dev_admin_dist = dev_admin.join("dist");
-
-    if let Ok(custom) = std::env::var(ADMIN_DIR_ENV) {
-        let path = PathBuf::from(custom);
-        if path.exists() {
-            return Ok(path);
-        }
-    }
-    if dev_admin_dist.exists() {
-        return Ok(dev_admin_dist);
-    }
-    if dev_admin.exists() {
-        return Ok(dev_admin);
-    }
-
-    // Packaged layout: cargo-packager copies the resource entry (basename kept)
-    // next to the binary; probe the plausible spellings.
-    if let Ok(exe) = std::env::current_exe()
-        && let Some(dir) = exe.parent()
-    {
-        for candidate in [
-            dir.join("config-manager-ui").join("dist"),
-            dir.join("config-manager-ui"),
-            dir.join("dist"),
-        ] {
-            if candidate.exists() {
-                return Ok(candidate);
-            }
-        }
-    }
-
-    Err(anyhow!(
-        "未找到配置管理静态资源，请构建 webui/config-manager-ui/ 目录"
-    ))
-}
 
 /// Whether the web admin feature is switched on in the settings snapshot.
 pub fn admin_enabled(config: &AdminServerConfig) -> bool {
@@ -144,6 +96,15 @@ pub enum AdminHostCommand {
     RuntimeStopped,
     /// Surface a toast (e.g. subscription update notifications).
     Toast(String, ToastStatus),
+    /// Surface an OS system notification (0.20): the scheduler can fire while
+    /// the window is hidden, so toasts alone are not enough. `title` carries a
+    /// `notify_*` locale key (the consumer resolves it via `Lang::tr`, which
+    /// passes unknown keys through unchanged).
+    SystemNotify {
+        title: String,
+        body: String,
+        urgency: crate::notify::NotifyUrgency,
+    },
     /// The WebUI saved settings; reload them from disk.
     SettingsSavedExternally,
     /// Core version data changed; refresh the kernel list.
@@ -163,6 +124,16 @@ impl std::fmt::Debug for AdminHostCommand {
             Self::Toast(content, status) => {
                 f.debug_tuple("Toast").field(content).field(status).finish()
             }
+            Self::SystemNotify {
+                title,
+                body,
+                urgency,
+            } => f
+                .debug_struct("SystemNotify")
+                .field("title", title)
+                .field("body", body)
+                .field("urgency", urgency)
+                .finish(),
             Self::SettingsSavedExternally => f.write_str("SettingsSavedExternally"),
             Self::CoreVersionsChanged => f.write_str("CoreVersionsChanged"),
             Self::PickEditorPath(_) => f.debug_tuple("PickEditorPath").field(&"reply").finish(),
@@ -504,7 +475,23 @@ impl AdminApiContext for IcedAdminContext {
             Some(detail) => format!("订阅更新 {profile}: {detail}"),
             None => format!("订阅更新 {profile}"),
         };
-        self.shared.send(AdminHostCommand::Toast(text, status));
+        self.shared.send(AdminHostCommand::Toast(text.clone(), status));
+        // 0.20: mirror the toast as an OS notification — the scheduler fires
+        // while the window may be hidden (success Low / failure Critical).
+        // `title` is a locale key resolved on the consumer side.
+        self.shared.send(AdminHostCommand::SystemNotify {
+            title: if success {
+                "notify_sub_auto_updated".to_string()
+            } else {
+                "notify_sub_update_failed".to_string()
+            },
+            body: text,
+            urgency: if success {
+                crate::notify::NotifyUrgency::Low
+            } else {
+                crate::notify::NotifyUrgency::Critical
+            },
+        });
     }
 
     async fn editor_path(&self) -> Option<String> {
@@ -613,11 +600,11 @@ impl AdminApiContext for IcedAdminContext {
     }
 
     async fn autostart_enabled(&self) -> bool {
-        crate::autostart::is_autostart_enabled(crate::AUTOSTART_REG_NAME)
+        infiltrator_shared::autostart::is_autostart_enabled(crate::AUTOSTART_REG_NAME)
     }
 
     async fn set_autostart_enabled(&self, enabled: bool) -> anyhow::Result<()> {
-        Ok(crate::autostart::set_autostart_enabled(
+        Ok(infiltrator_shared::autostart::set_autostart_enabled(
             crate::AUTOSTART_REG_NAME,
             enabled,
         )?)
@@ -643,10 +630,11 @@ fn spawn_admin_server_start(
     Task::perform(
         async move {
             let attempt = async {
-                let dir =
-                    resolve_admin_dir().map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                // preferred_port=None mirrors src-tauri: scan upward from the
-                // configured port when it is occupied instead of failing hard.
+                // WebUI retired in 0.20: the embedded admin server runs
+                // API-only (Doctor loopback client + future embedders).
+                let dir = None;
+                // preferred_port=None: scan upward from the configured port
+                // when it is occupied instead of failing hard.
                 let handle = infiltrator_admin::servers::start_admin_server(
                     dir,
                     ctx,
@@ -732,6 +720,25 @@ impl AppState {
         &mut self,
         runtime: Option<std::sync::Arc<infiltrator_desktop::runtime::MihomoRuntime>>,
     ) {
+        let runtime_changed = match (&self.runtime.runtime, &runtime) {
+            (Some(previous), Some(next)) => !std::sync::Arc::ptr_eq(previous, next),
+            (None, None) => false,
+            _ => true,
+        };
+        if runtime_changed {
+            // Invalidate every response started against the previous core;
+            // this also protects RuntimePatchResult from a late controller
+            // response after stop/restart.
+            self.runtime.runtime_patch_token = self.runtime.runtime_patch_token.wrapping_add(1);
+            self.runtime.pending_runtime_patch = None;
+            self.runtime.system_proxy_pending = false;
+        }
+        self.runtime.runtime_generation = runtime
+            .as_ref()
+            .map(|runtime| runtime.session().generation())
+            .unwrap_or_else(|| self.runtime.runtime_generation.saturating_add(1));
+        self.runtime.tun_service_status =
+            runtime.as_ref().map(|runtime| runtime.tun_service_status());
         self.runtime.runtime = runtime;
         self.shell
             .admin_shared
@@ -743,6 +750,12 @@ impl AppState {
         &mut self,
     ) -> Option<std::sync::Arc<infiltrator_desktop::runtime::MihomoRuntime>> {
         let taken = self.runtime.runtime.take();
+        self.runtime.runtime_generation = self.runtime.runtime_generation.saturating_add(1);
+        self.runtime.runtime_patch_token = self.runtime.runtime_patch_token.wrapping_add(1);
+        self.runtime.pending_runtime_patch = None;
+        self.runtime.system_proxy_pending = false;
+        self.runtime.tun_service_status = None;
+        self.runtime.is_installing_tun_service = false;
         self.shell.admin_shared.set_runtime(None);
         taken
     }
@@ -783,7 +796,7 @@ impl AppState {
         match command {
             AdminHostCommand::RuntimeResynced(result) => match result {
                 Ok(runtime) => {
-                    self.runtime.status = crate::types::RuntimeStatus::Running;
+                    self.runtime.status = crate::types::runtime::RuntimeStatus::Running;
                     self.sync_runtime_slot(Some(runtime));
                     self.refresh_tray();
                     Task::batch(vec![
@@ -793,10 +806,13 @@ impl AppState {
                     ])
                 }
                 Err(e) => {
-                    self.runtime.status =
-                        crate::types::RuntimeStatus::Error(InfiltratorError::Config(e.clone()));
-                    self.set_error(InfiltratorError::Config(e));
-                    Task::none()
+                    self.runtime.status = crate::types::runtime::RuntimeStatus::Error(
+                        InfiltratorError::Config(e.clone()),
+                    );
+                    self.set_error(InfiltratorError::Config(e.clone()));
+                    // 0.20: a failed resync can happen with the window hidden
+                    // (admin WebUI trigger); mirror it as a system notification.
+                    self.system_notify("notify_kernel_error", &e, crate::notify::NotifyUrgency::Critical)
                 }
             },
             AdminHostCommand::RuntimeStopped => {
@@ -805,6 +821,16 @@ impl AppState {
             }
             AdminHostCommand::Toast(content, status) => {
                 Task::done(Message::ShowToast(content, status))
+            }
+            AdminHostCommand::SystemNotify {
+                title,
+                body,
+                urgency,
+            } => {
+                // `title` carries a `notify_*` locale key (see
+                // `IcedAdminContext::notify_subscription_update`); `Lang::tr`
+                // passes unknown keys through unchanged.
+                self.system_notify(&title, &body, urgency)
             }
             AdminHostCommand::SettingsSavedExternally => {
                 // Reload from disk and re-apply, but skip the WebDAV
@@ -836,31 +862,6 @@ impl AppState {
                     Message::Noop
                 },
             ),
-        }
-    }
-
-    /// Open the admin WebUI in the system browser (tray entry / settings
-    /// button). Graceful failure when the server is off.
-    pub fn open_web_admin(&self) -> Task<Message> {
-        match self.shell.admin_server.url() {
-            Some(url) => Task::perform(
-                async move {
-                    tokio::task::spawn_blocking(move || webbrowser::open(&url))
-                        .await
-                        .map_err(|e| InfiltratorError::Internal(e.to_string()))?
-                        .map_err(|e| InfiltratorError::Internal(e.to_string()))
-                },
-                |result| match result {
-                    Ok(()) => Message::Noop,
-                    Err(e) => Message::ShowToast(e.to_string(), ToastStatus::Error),
-                },
-            ),
-            None => Task::done(Message::ShowToast(
-                crate::locales::Lang(&self.shell.lang)
-                    .tr("settings_admin_not_running")
-                    .into_owned(),
-                ToastStatus::Warning,
-            )),
         }
     }
 }

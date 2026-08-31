@@ -2,12 +2,15 @@
 //! editor twins, the quick-edit DNS/fallback server lists, persistence and
 //! the Fake-IP cache flush.
 
+use super::profile_apply::save_task;
 use crate::state::AppState;
-use crate::types::{
-    AdvancedEditMode, DnsFormDraft, EditorLazyState, FakeIpFormDraft, InfiltratorError, Message,
-    RebuildFlowState, ToastStatus,
-};
+use crate::types::app::ToastStatus;
+use crate::types::dns::{AdvancedEditMode, DnsFormDraft, FakeIpFormDraft};
+use crate::types::editor::EditorLazyState;
+use crate::types::message::Message;
+use crate::types::runtime::RebuildFlowState;
 use iced::Task;
+use infiltrator_core::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn ensure_dns_editor_loaded(&mut self) {
@@ -425,13 +428,9 @@ impl AppState {
                         ]);
                     }
                 };
-                Task::perform(
-                    async move {
-                        infiltrator_core::dns::save_dns_config(patch)
-                            .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        Ok(())
-                    },
+                save_task(
+                    self.runtime.runtime.clone(),
+                    move |content| infiltrator_core::dns::apply_dns_patch_to_yaml(content, patch),
                     Message::DnsSaved,
                 )
             }
@@ -444,7 +443,7 @@ impl AppState {
                         self.editor.advanced_validation.dns = None;
                         Task::batch(vec![
                             Task::done(Message::RefreshDnsOnly),
-                            self.trigger_runtime_rebuild(),
+                            self.finish_without_rebuild("DNS".to_string()),
                         ])
                     }
                     Err(e) => {
@@ -503,12 +502,10 @@ impl AppState {
                         ]);
                     }
                 };
-                Task::perform(
-                    async move {
-                        infiltrator_core::fake_ip::save_fake_ip_config(patch)
-                            .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        Ok(())
+                save_task(
+                    self.runtime.runtime.clone(),
+                    move |content| {
+                        infiltrator_core::fake_ip::apply_fake_ip_patch_to_yaml(content, patch)
                     },
                     Message::FakeIpConfigSaved,
                 )
@@ -522,7 +519,7 @@ impl AppState {
                         self.editor.advanced_validation.fake_ip = None;
                         Task::batch(vec![
                             Task::done(Message::RefreshFakeIpOnly),
-                            self.trigger_runtime_rebuild(),
+                            self.finish_without_rebuild("Fake-IP".to_string()),
                         ])
                     }
                     Err(e) => {

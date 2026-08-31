@@ -1,4 +1,6 @@
-use crate::locales::{Lang, Localizer};
+use crate::state::AppState;
+use crate::types::app::ConfirmAction;
+use crate::types::message::Message;
 use crate::view::components::{
     BadgeKind, card, chip, empty_state, icon_button, modern_scrollable, section_header,
     segmented_control,
@@ -7,10 +9,12 @@ use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{
     self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CARD, R_CONTROL, SP_MD, tokens,
 };
-use crate::{AppState, Message};
 use chrono::{DateTime, Local, Utc};
-use iced::widget::{Space, button, column, container, pick_list, row, text, text_input};
+use iced::widget::{
+    Space, button, column, container, pick_list, progress_bar, row, text, text_input,
+};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 // ---------------------------------------------------------------------------
 // Token-driven control styles (ui-wave2-r)
@@ -166,6 +170,63 @@ fn field_label(value: String) -> text::Text<'static> {
     })
 }
 
+/// Human-readable byte size (B / KB / MB / GB / TB), one decimal above 1 KB.
+fn format_bytes(value: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut size = value as f64;
+    let mut unit = 0usize;
+    while size >= 1024.0 && unit < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{value} {}", UNITS[0])
+    } else {
+        format!("{size:.2} {}", UNITS[unit])
+    }
+}
+
+/// Traffic usage row for subscription profiles that advertise
+/// `subscription-userinfo`: usage progress bar + total + expiry date.
+fn traffic_row(profile: &mihomo_config::profile::Profile) -> Option<Element<'_, Message>> {
+    let total = profile.traffic_total?;
+    let used = profile.traffic_upload? + profile.traffic_download?;
+    let fraction = if total > 0 {
+        (used as f32 / total as f32).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let expire_suffix = profile
+        .expire_at
+        .and_then(|seconds| chrono::DateTime::from_timestamp(seconds, 0))
+        .map(|expires| {
+            expires
+                .with_timezone(&Local)
+                .format(" %Y-%m-%d 到期")
+                .to_string()
+        })
+        .unwrap_or_default();
+    Some(
+        column![
+            progress_bar(0.0..=1.0, fraction).length(Length::Fill),
+            Space::new().height(2.0),
+            text(format!(
+                "{} / {}{}",
+                format_bytes(used),
+                format_bytes(total),
+                expire_suffix
+            ))
+            .size(11)
+            .font(MONO)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
+        ]
+        .spacing(2)
+        .into(),
+    )
+}
+
 fn format_datetime(value: Option<DateTime<Utc>>, fallback: &str) -> String {
     value
         .map(|ts| {
@@ -186,7 +247,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         text_btn(
             lang.tr("profiles_clear_all").to_string(),
             style_danger,
-            Some(Message::ClearProfiles),
+            Some(Message::RequestConfirmation(ConfirmAction::ClearProfiles)),
         )
     };
 
@@ -312,50 +373,58 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let local_import_section = card(
         Some(lang.tr("profiles_local_import_title").to_string()),
-        row![
-            column![
-                field_label(lang.tr("profiles_local_path_placeholder").to_string()),
-                Space::new().height(theme::SP_XS),
-                text_input(
-                    lang.tr("profiles_local_path_placeholder").as_ref(),
-                    &state.profile.local_import_path
-                )
-                .on_input(Message::UpdateLocalImportPath)
-                .padding([8, 12])
-                .size(13)
-                .style(input_style),
+        column![
+            row![
+                column![
+                    field_label(lang.tr("profiles_local_path_placeholder").to_string()),
+                    Space::new().height(theme::SP_XS),
+                    text_input(
+                        lang.tr("profiles_local_path_placeholder").as_ref(),
+                        &state.profile.local_import_path
+                    )
+                    .on_input(Message::UpdateLocalImportPath)
+                    .padding([8, 12])
+                    .size(13)
+                    .style(input_style),
+                ]
+                .width(Length::FillPortion(2))
+                .spacing(theme::SP_XS),
+                Space::new().width(theme::SP_MD),
+                column![
+                    Space::new().height(18.0),
+                    text_btn(
+                        lang.tr("profiles_browse_btn").to_string(),
+                        style_ghost,
+                        Some(Message::BrowseLocalImportFile),
+                    ),
+                ]
+                .spacing(theme::SP_XS),
+                Space::new().width(theme::SP_MD),
+                column![
+                    field_label(lang.tr("profiles_local_name_placeholder").to_string()),
+                    Space::new().height(theme::SP_XS),
+                    text_input(
+                        lang.tr("profiles_local_name_placeholder").as_ref(),
+                        &state.profile.local_import_name
+                    )
+                    .on_input(Message::UpdateLocalImportName)
+                    .padding([8, 12])
+                    .size(13)
+                    .style(input_style),
+                ]
+                .width(Length::FillPortion(1))
+                .spacing(theme::SP_XS),
+                Space::new().width(theme::SP_MD),
+                column![Space::new().height(18.0), local_import_action,].spacing(theme::SP_XS),
             ]
-            .width(Length::FillPortion(2))
-            .spacing(theme::SP_XS),
-            Space::new().width(theme::SP_MD),
-            column![
-                Space::new().height(18.0),
-                text_btn(
-                    lang.tr("profiles_browse_btn").to_string(),
-                    style_ghost,
-                    Some(Message::BrowseLocalImportFile),
-                ),
-            ]
-            .spacing(theme::SP_XS),
-            Space::new().width(theme::SP_MD),
-            column![
-                field_label(lang.tr("profiles_local_name_placeholder").to_string()),
-                Space::new().height(theme::SP_XS),
-                text_input(
-                    lang.tr("profiles_local_name_placeholder").as_ref(),
-                    &state.profile.local_import_name
-                )
-                .on_input(Message::UpdateLocalImportName)
-                .padding([8, 12])
-                .size(13)
-                .style(input_style),
-            ]
-            .width(Length::FillPortion(1))
-            .spacing(theme::SP_XS),
-            Space::new().width(theme::SP_MD),
-            column![Space::new().height(18.0), local_import_action,].spacing(theme::SP_XS),
-        ]
-        .align_y(Alignment::Center),
+            .align_y(Alignment::Center),
+            Space::new().height(theme::SP_MD),
+            toggle_row(
+                lang.tr("profiles_import_activate").to_string(),
+                state.profile.local_import_activate,
+                Message::UpdateLocalImportActivate,
+            ),
+        ],
     );
 
     let profile_options: Vec<String> = state
@@ -526,6 +595,20 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 subscription_save_action,
                 Space::new().width(theme::SP_MD),
                 subscription_update_now_action,
+                Space::new().width(theme::SP_MD),
+                // One-click 覆写 entry: opens the profile in the Editor with
+                // the Mixin pane preselected (Filter pane one switch away).
+                text_btn(
+                    lang.tr("profiles_open_overlay").to_string(),
+                    style_ghost,
+                    selected_profile_meta.and_then(|profile| {
+                        (!profile.path.as_os_str().is_empty())
+                            .then_some(Message::EditProfileAs(
+                                profile.path.clone(),
+                                crate::types::options::EditorPane::Mixin,
+                            ))
+                    }),
+                ),
             ]
             .align_y(Alignment::Center),
         ]
@@ -592,11 +675,21 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 14.0,
                 Message::EditProfile(profile.path.clone()),
             ));
+            actions = actions.push(icon_button(
+                Icon::Code2,
+                14.0,
+                Message::EditProfileAs(
+                    profile.path.clone(),
+                    crate::types::options::EditorPane::Mixin,
+                ),
+            ));
             if !is_active {
                 actions = actions.push(icon_button(
                     Icon::Trash2,
                     14.0,
-                    Message::DeleteProfile(profile.name.clone()),
+                    Message::RequestConfirmation(ConfirmAction::DeleteProfile(
+                        profile.name.clone(),
+                    )),
                 ));
             }
 
@@ -641,24 +734,30 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         .align_y(Alignment::Center),
                         if is_subscription {
                             Element::from(
-                                row![
-                                    text(format!(
-                                        "{} {}",
-                                        lang.tr("profiles_last_updated"),
-                                        format_datetime(
-                                            profile.last_updated,
-                                            lang.tr("profiles_never").as_ref()
-                                        )
-                                    ))
-                                    .size(11)
-                                    .font(MONO)
-                                    .style(|t: &Theme| {
-                                        text::Style {
-                                            color: Some(tokens(t).text_secondary),
-                                        }
+                                column![
+                                    row![
+                                        text(format!(
+                                            "{} {}",
+                                            lang.tr("profiles_last_updated"),
+                                            format_datetime(
+                                                profile.last_updated,
+                                                lang.tr("profiles_never").as_ref()
+                                            )
+                                        ))
+                                        .size(11)
+                                        .font(MONO)
+                                        .style(|t: &Theme| {
+                                            text::Style {
+                                                color: Some(tokens(t).text_secondary),
+                                            }
+                                        }),
+                                    ]
+                                    .align_y(Alignment::Center),
+                                    traffic_row(profile).unwrap_or_else(|| {
+                                        Space::new().width(0).height(0).into()
                                     }),
                                 ]
-                                .align_y(Alignment::Center),
+                                .spacing(theme::SP_XS),
                             )
                         } else {
                             Element::from(Space::new().width(0).height(0))

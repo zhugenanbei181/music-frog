@@ -42,9 +42,10 @@ impl DnsTester {
         let mut is_hijacked = false;
 
         if let Some(prefix) = expected_ip_prefix
-            && !resolved_ips.is_empty() {
-                is_hijacked = !resolved_ips.iter().all(|ip| ip.starts_with(prefix));
-            }
+            && !resolved_ips.is_empty()
+        {
+            is_hijacked = !resolved_ips.iter().all(|ip| ip.starts_with(prefix));
+        }
 
         DnsTestResult {
             target: target.clone(),
@@ -113,20 +114,38 @@ mod tests {
     #[test]
     fn test_fake_ip_range() {
         // Matches exact prefix
-        assert!(DnsTester::check_fake_ip_range("198.18.0.5", "198.18.0.0/16"));
-        assert!(DnsTester::check_fake_ip_range("198.18.255.255", "198.18.0.0/16"));
-        
+        assert!(DnsTester::check_fake_ip_range(
+            "198.18.0.5",
+            "198.18.0.0/16"
+        ));
+        assert!(DnsTester::check_fake_ip_range(
+            "198.18.255.255",
+            "198.18.0.0/16"
+        ));
+
         // Out of range
-        assert!(!DnsTester::check_fake_ip_range("198.19.0.1", "198.18.0.0/16"));
-        
+        assert!(!DnsTester::check_fake_ip_range(
+            "198.19.0.1",
+            "198.18.0.0/16"
+        ));
+
         // Matches wider prefix
-        assert!(DnsTester::check_fake_ip_range("198.19.0.1", "198.18.0.0/15"));
-        assert!(!DnsTester::check_fake_ip_range("198.20.0.1", "198.18.0.0/15"));
+        assert!(DnsTester::check_fake_ip_range(
+            "198.19.0.1",
+            "198.18.0.0/15"
+        ));
+        assert!(!DnsTester::check_fake_ip_range(
+            "198.20.0.1",
+            "198.18.0.0/15"
+        ));
 
         // Invalid inputs
         assert!(!DnsTester::check_fake_ip_range("invalid", "198.18.0.0/16"));
         assert!(!DnsTester::check_fake_ip_range("198.18.0.1", "invalid/16"));
-        assert!(!DnsTester::check_fake_ip_range("198.18.0.1", "198.18.0.0/33"));
+        assert!(!DnsTester::check_fake_ip_range(
+            "198.18.0.1",
+            "198.18.0.0/33"
+        ));
     }
 
     #[test]
@@ -139,34 +158,45 @@ mod tests {
         // Healthy evaluation (no expected prefix)
         let res_no_prefix = DnsTester::evaluate_dns_health(&target, &["1.2.3.4".to_string()], None);
         assert!(!res_no_prefix.is_hijacked);
-        
+
         // Healthy evaluation (matches prefix)
-        let res_healthy = DnsTester::evaluate_dns_health(&target, &["104.18.2.1".to_string()], Some("104.18"));
+        let res_healthy =
+            DnsTester::evaluate_dns_health(&target, &["104.18.2.1".to_string()], Some("104.18"));
         assert!(!res_healthy.is_hijacked);
 
         // Hijacked evaluation (doesn't match prefix)
-        let res_hijacked = DnsTester::evaluate_dns_health(&target, &["192.168.1.1".to_string()], Some("104.18"));
+        let res_hijacked =
+            DnsTester::evaluate_dns_health(&target, &["192.168.1.1".to_string()], Some("104.18"));
         assert!(res_hijacked.is_hijacked);
     }
 
     #[test]
     fn test_rank_fastest_dns() {
         let t1 = DnsTestResult {
-            target: DnsTestTarget { endpoint: "A".into(), protocol: DnsProtocol::Udp },
+            target: DnsTestTarget {
+                endpoint: "A".into(),
+                protocol: DnsProtocol::Udp,
+            },
             latency_ms: Some(100),
             resolved_ips: vec![],
             is_hijacked: false,
             error: None,
         };
         let t2 = DnsTestResult {
-            target: DnsTestTarget { endpoint: "B".into(), protocol: DnsProtocol::Tcp },
+            target: DnsTestTarget {
+                endpoint: "B".into(),
+                protocol: DnsProtocol::Tcp,
+            },
             latency_ms: Some(50),
             resolved_ips: vec![],
             is_hijacked: false,
             error: None,
         };
         let t3 = DnsTestResult {
-            target: DnsTestTarget { endpoint: "C".into(), protocol: DnsProtocol::DoH },
+            target: DnsTestTarget {
+                endpoint: "C".into(),
+                protocol: DnsProtocol::DoH,
+            },
             latency_ms: None,
             resolved_ips: vec![],
             is_hijacked: false,
@@ -175,7 +205,7 @@ mod tests {
 
         let results = vec![t1, t2, t3];
         let ranked = DnsTester::rank_fastest_dns(&results);
-        
+
         assert_eq!(ranked.len(), 2);
         assert_eq!(ranked[0].target.endpoint, "B");
         assert_eq!(ranked[1].target.endpoint, "A");

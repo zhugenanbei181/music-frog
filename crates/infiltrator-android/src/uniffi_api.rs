@@ -5,6 +5,7 @@
 
 mod app_routing;
 mod controller;
+mod doctor;
 mod logs;
 mod profiles;
 mod rules;
@@ -18,6 +19,10 @@ mod webdav;
 pub use controller::{
     ConnectionRecord, ConnectionsResult, IpCheckResult, IpResult, ProxyGroupSummary,
     ProxyGroupsResult, TrafficResult, TrafficSnapshot,
+};
+pub use doctor::{
+    BootstrapResult, BootstrapStepRecord, DoctorCheckMetaRecord, DoctorCheckMetaResult,
+    DoctorCheckResultRecord, DoctorFixActionRecord, DoctorFixResult, DoctorReportRecord,
 };
 pub use profiles::{ProfileSummary, ProfilesResult};
 pub use rules::{RuleEntryRecord, RuleProvidersResult, RulesResult};
@@ -65,7 +70,7 @@ pub fn bridge_shutdown() -> FfiStatus {
 mod tests {
     use super::*;
     use crate::ffi::FfiErrorCode;
-    use infiltrator_core::dns::DnsFallbackFilter as CoreDnsFallbackFilter;
+
     use mihomo_platform::paths::set_home_dir_override;
     use std::fs;
     use std::path::PathBuf;
@@ -230,7 +235,7 @@ mod tests {
 
     #[test]
     fn test_dns_fallback_filter_roundtrip_record_conversion() {
-        let core = CoreDnsFallbackFilter {
+        let core = infiltrator_core::dns::DnsFallbackFilter {
             geoip: Some(false),
             geoip_code: Some("US".to_string()),
             ipcidr: Some(vec!["198.18.0.0/16".to_string()]),

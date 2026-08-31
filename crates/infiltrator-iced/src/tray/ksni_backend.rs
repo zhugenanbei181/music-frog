@@ -26,11 +26,16 @@ const TRAY_TITLE: &str = "MusicFrog Infiltrator";
 /// spec on every read, so the app-side state stays the single source of truth.
 pub(super) struct KsniTray {
     pub(super) spec: TraySpec,
-    /// Checkmark overrides applied at click time (some shell toggle their own
-    /// checkbox and the new spec only arrives one event-loop round later).
-    pub(super) checked_overrides: HashMap<TrayActionId, bool>,
+    /// Checkmark overrides applied at click time (some shells toggle their
+    /// own checkbox and the new spec only arrives one event-loop round
+    /// later). Keyed by action id *and* payload, so per-item checkmarks that
+    /// share one id (e.g. one auto-update toggle per profile) never crosstalk.
+    pub(super) checked_overrides: HashMap<CheckedOverrideKey, bool>,
     pub(super) events: Sender<TrayEvent>,
 }
+
+/// Composite checkmark-override key: (action id, payload echo).
+pub(super) type CheckedOverrideKey = (TrayActionId, Option<String>);
 
 impl KsniTray {
     fn send(&self, event: TrayEvent) {
@@ -78,7 +83,7 @@ impl ksni::Tray for KsniTray {
 /// cloned channel sender; unit-tested headlessly.
 pub(super) fn map_items(
     items: &[TrayMenuItem],
-    overrides: &HashMap<TrayActionId, bool>,
+    overrides: &HashMap<CheckedOverrideKey, bool>,
     events: &Sender<TrayEvent>,
 ) -> Vec<MenuItem<KsniTray>> {
     items
@@ -112,18 +117,30 @@ pub(super) fn map_items(
                 label,
                 checked,
                 enabled,
+                payload,
             } => {
                 let initial = *checked;
                 let events = events.clone();
                 let id = *id;
+                let payload = payload.clone();
+                let key = (id, payload.clone());
                 CheckmarkItem {
                     label: label.clone(),
-                    checked: overrides.get(&id).copied().unwrap_or(initial),
+                    checked: overrides.get(&key).copied().unwrap_or(initial),
                     enabled: *enabled,
                     activate: Box::new(move |tray: &mut KsniTray| {
-                        let current = tray.checked_overrides.get(&id).copied().unwrap_or(initial);
-                        tray.checked_overrides.insert(id, !current);
-                        let _ = events.send(TrayEvent::MenuActivated { id, payload: None });
+                        let lookup = (id, payload.clone());
+                        let current = tray
+                            .checked_overrides
+                            .get(&lookup)
+                            .copied()
+                            .unwrap_or(initial);
+                        tray.checked_overrides
+                            .insert((id, payload.clone()), !current);
+                        let _ = events.send(TrayEvent::MenuActivated {
+                            id,
+                            payload: payload.clone(),
+                        });
                     }),
                     ..Default::default()
                 }

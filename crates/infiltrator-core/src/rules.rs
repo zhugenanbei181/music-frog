@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
+use crate::settings::app_config_manager;
 use anyhow::{Context, Result, anyhow};
-use mihomo_config::manager::ConfigManager;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 
@@ -29,7 +29,7 @@ pub async fn load_rule_providers() -> Result<RuleProviders> {
 }
 
 pub async fn save_rule_providers(providers: RuleProviders) -> Result<RuleProviders> {
-    let manager = ConfigManager::new().context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile = manager
         .get_current()
         .await
@@ -50,14 +50,29 @@ pub async fn save_rule_providers(providers: RuleProviders) -> Result<RuleProvide
     Ok(providers)
 }
 
+/// Apply rule-provider changes to an in-memory profile document. Frontends use
+/// this pure transform before handing the complete YAML to the atomic Apply
+/// transaction.
+pub fn apply_rule_providers_to_yaml(content: &str, providers: &RuleProviders) -> Result<String> {
+    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+    apply_rule_providers(&mut doc, providers)?;
+    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+}
+
 pub async fn load_rules() -> Result<Vec<RuleEntry>> {
     let doc = load_profile_doc().await?;
     extract_rules_from_doc(&doc)
 }
 
+/// Extract the rule list from an already-loaded profile document.
+pub fn load_rules_from_yaml(content: &str) -> Result<Vec<RuleEntry>> {
+    let doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+    extract_rules_from_doc(&doc)
+}
+
 pub async fn save_rules(rules: Vec<RuleEntry>) -> Result<Vec<RuleEntry>> {
     validate_rules(&rules)?;
-    let manager = ConfigManager::new().context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile = manager
         .get_current()
         .await
@@ -78,8 +93,16 @@ pub async fn save_rules(rules: Vec<RuleEntry>) -> Result<Vec<RuleEntry>> {
     Ok(rules)
 }
 
+/// Apply a complete rule list to an in-memory profile document.
+pub fn apply_rules_to_yaml(content: &str, rules: &[RuleEntry]) -> Result<String> {
+    validate_rules(rules)?;
+    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+    apply_rules(&mut doc, rules)?;
+    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+}
+
 async fn load_profile_doc() -> Result<Value> {
-    let manager = ConfigManager::new().context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile = manager
         .get_current()
         .await
@@ -272,5 +295,41 @@ mod tests {
         apply_rules(&mut doc, &[]).expect("apply rules");
         let map = doc.as_mapping().expect("mapping");
         assert!(map.get(Value::String("rules".to_string())).is_none());
+    }
+
+    /// rules 读写必须落在 settings `configs_dir` 重定向后的目录；
+    /// 读回成功 + `<home>/configs` 未创建双重验证落点。
+    #[tokio::test]
+    async fn test_rules_io_follows_configs_dir_redirect() {
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().to_path_buf();
+        let cloud = home.join("cloud-sync").join("profiles");
+        std::fs::create_dir_all(&cloud).unwrap();
+        let guard = crate::settings::test_support::RedirectGuard::acquire(home.clone()).await;
+        guard
+            .set_configs_dir(&home, Some(cloud.to_str().unwrap()))
+            .await;
+
+        let seed = crate::settings::app_config_manager().await.unwrap();
+        seed.save("main", "port: 7890\nrules:\n  - OLD,DIRECT\n")
+            .await
+            .unwrap();
+        seed.set_current("main").await.unwrap();
+
+        save_rules(vec![RuleEntry {
+            rule: "MATCH,DIRECT".to_string(),
+            enabled: true,
+        }])
+        .await
+        .unwrap();
+
+        let rules = load_rules().await.unwrap();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].rule, "MATCH,DIRECT");
+        assert!(rules[0].enabled);
+
+        let raw = std::fs::read_to_string(cloud.join("main.yaml")).unwrap();
+        assert!(raw.contains("MATCH,DIRECT"));
+        assert!(!home.join("configs").exists());
     }
 }

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::TEST_LOCK;
+    use mihomo_platform::TEST_LOCK;
     use crate::admin_api::*;
     use crate::admin_api::models::{ImportProfilePayload, SaveProfilePayload, SwitchProfilePayload};
     use crate::admin_api::state::{AdminApiContext, AdminApiState};
@@ -32,6 +32,7 @@ mod tests {
         runtime_url: Option<String>,
         latest_stable_version: String,
         latest_stable_date: String,
+        settings: Arc<Mutex<AppSettings>>,
     }
 
     #[async_trait::async_trait]
@@ -61,9 +62,13 @@ mod tests {
             Ok(())
         }
         async fn get_app_settings(&self) -> AppSettings {
-            AppSettings::default()
+            self.settings
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone()
         }
-        async fn save_app_settings(&self, _s: AppSettings) -> anyhow::Result<()> {
+        async fn save_app_settings(&self, s: AppSettings) -> anyhow::Result<()> {
+            *self.settings.lock().unwrap_or_else(|e| e.into_inner()) = s;
             Ok(())
         }
         async fn runtime_running(&self) -> bool {
@@ -112,6 +117,7 @@ mod tests {
             runtime_url,
             latest_stable_version: "v1.20.0".to_string(),
             latest_stable_date: "2026-01-01T00:00:00Z".to_string(),
+            settings: Arc::new(Mutex::new(AppSettings::default())),
         };
         let bus = events::AdminEventBus::new();
         let state = AdminApiState::new(ctx, bus);
@@ -1061,5 +1067,461 @@ mod tests {
         assert_eq!(json["success_count"], 1);
         assert_eq!(json["failed_count"], 1);
         assert_eq!(json["results"].as_array().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_doctor_checks_list_route() {
+        let _guard = TEST_LOCK.lock().await;
+        let app = setup_app();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/doctor/checks")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 64 * 1024)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        let checks = json.as_array().expect("checks must be a JSON array");
+        assert!(!checks.is_empty(), "expected the full check metadata list");
+        assert!(
+            checks
+                .iter()
+                .any(|check| check["id"] == "config.settings_parse"),
+            "known check id missing from metadata list"
+        );
+        for check in checks {
+            assert!(check["id"].is_string());
+            assert!(check["category"].is_string());
+            assert!(check["summary"].is_string());
+            assert!(check["fixable"].is_boolean());
+            assert!(check["default_enabled"].is_boolean());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_doctor_check_detail_route() {
+        let _guard = TEST_LOCK.lock().await;
+        let app = setup_app();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/doctor/checks/config.settings_parse")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(json["id"], "config.settings_parse");
+        assert_eq!(json["category"], "config");
+        assert!(json["why"].is_string());
+        assert!(json["fail_means"].is_string());
+        assert!(json["hint"].is_string());
+    }
+
+    #[tokio::test]
+    async fn test_doctor_check_detail_unknown_id_returns_404() {
+        let _guard = TEST_LOCK.lock().await;
+        let app = setup_app();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/doctor/checks/nope.nothing")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 2048)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(json["error"].is_string());
+    }
+
+    #[tokio::test]
+    async fn test_doctor_run_route_shape_and_filter() {
+        let _guard = TEST_LOCK.lock().await;
+        let temp_dir = tempfile::tempdir().unwrap();
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+
+        let app = setup_app();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/doctor")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 64 * 1024)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(json["started_at"].is_u64());
+        assert!(json["finished_at"].is_u64());
+        assert!(json["exit_code"].is_i64());
+        assert!(json["exit_code"].as_i64().unwrap() >= 0);
+        let checks = json["checks"].as_array().expect("checks array");
+        assert!(!checks.is_empty(), "unfiltered run must execute checks");
+        for check in checks {
+            assert!(check["id"].is_string());
+            assert!(check["status"].is_string());
+        }
+
+        let app = setup_app();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/doctor?only=config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 64 * 1024)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        let checks = json["checks"].as_array().expect("filtered checks array");
+        assert!(!checks.is_empty(), "config filter must select checks");
+        assert!(
+            checks.iter().all(|check| check["category"] == "config"),
+            "filter must narrow the report to the config category"
+        );
+
+        mihomo_platform::paths::clear_home_dir_override();
+    }
+
+    #[tokio::test]
+    async fn test_doctor_fix_route_is_idempotent() {
+        let _guard = TEST_LOCK.lock().await;
+        let temp_dir = tempfile::tempdir().unwrap();
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+
+        let app = setup_app();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/doctor/fix")
+                    .header("content-type", "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let first: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 64 * 1024)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(first["actions"].is_array());
+
+        // Every conservative repair is a no-op once its artifact exists.
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/doctor/fix")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let second: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 64 * 1024)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(
+            second["actions"]
+                .as_array()
+                .expect("actions array")
+                .is_empty(),
+            "second fix run must change nothing, got: {second}"
+        );
+
+        mihomo_platform::paths::clear_home_dir_override();
+    }
+
+    #[tokio::test]
+    async fn test_bootstrap_route_is_idempotent() {
+        let _guard = TEST_LOCK.lock().await;
+        let temp_dir = tempfile::tempdir().unwrap();
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+
+        let app = setup_app();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/bootstrap")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 64 * 1024)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        let steps = json["steps"].as_array().expect("steps array");
+        assert!(!steps.is_empty(), "bootstrap must report its steps");
+        assert!(steps.iter().any(|step| step["id"] == "configs_dir"));
+        assert!(steps.iter().any(|step| step["id"] == "default_config"));
+        assert!(temp_dir.path().join("configs").is_dir());
+
+        // Second run on the initialized home must skip every step.
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/bootstrap")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 64 * 1024)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        for step in json["steps"].as_array().expect("steps array") {
+            assert_eq!(step["executed"], false, "step must be skipped: {step}");
+        }
+
+        mihomo_platform::paths::clear_home_dir_override();
+    }
+
+    #[tokio::test]
+    async fn test_settings_configs_dir_roundtrip() {
+        let _guard = TEST_LOCK.lock().await;
+        let app = setup_app();
+
+        let payload = serde_json::json!({ "configs_dir": "/custom/configs" });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/settings")
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/settings")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(json["configs_dir"], "/custom/configs");
+
+        // A blank override means "unset" and must round-trip to null.
+        let payload = serde_json::json!({ "configs_dir": "   " });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/settings")
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        // An absent key must leave the stored value untouched.
+        let payload = serde_json::json!({ "language": "en-US" });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/settings")
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/settings")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(json["configs_dir"], serde_json::Value::Null);
+        assert_eq!(json["language"], "en-US");
+    }
+
+    /// 0.20 OS 系统通知开关：POST 持久化 + GET 回填，且缺省键不动存量值。
+    #[tokio::test]
+    async fn test_settings_notifications_enabled_roundtrip() {
+        let _guard = TEST_LOCK.lock().await;
+        let app = setup_app();
+
+        // 缺省开启。
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/settings")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(json["notifications_enabled"], true);
+
+        // 显式关闭并回读。
+        let payload = serde_json::json!({ "notifications_enabled": false });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/settings")
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/settings")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(json["notifications_enabled"], false);
+
+        // 不携带该键的保存不得改动已持久化的关闭状态。
+        let payload = serde_json::json!({ "language": "en-US" });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/settings")
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/settings")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let json: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(json["notifications_enabled"], false);
+        assert_eq!(json["language"], "en-US");
     }
 }

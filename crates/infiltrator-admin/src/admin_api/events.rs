@@ -18,6 +18,7 @@ pub const EVENT_TUN_CHANGED: &str = "tun-changed";
 pub const EVENT_WEBDAV_SYNCED: &str = "webdav-synced";
 pub const EVENT_PROXY_CHANGED: &str = "proxy-changed";
 pub const EVENT_RUNTIME_CHANGED: &str = "runtime-changed";
+pub const EVENT_DOCTOR_FIX: &str = "doctor-fix";
 
 const EVENT_CHANNEL_SIZE: usize = 64;
 

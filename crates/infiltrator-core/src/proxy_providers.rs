@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
+use crate::settings::app_config_manager;
 use anyhow::{Context, Result, anyhow};
-use mihomo_config::manager::ConfigManager;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 
@@ -18,7 +18,7 @@ pub async fn load_proxy_providers() -> Result<ProxyProviders> {
 }
 
 pub async fn save_proxy_providers(providers: ProxyProviders) -> Result<ProxyProviders> {
-    let manager = ConfigManager::new().context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile = manager
         .get_current()
         .await
@@ -39,8 +39,16 @@ pub async fn save_proxy_providers(providers: ProxyProviders) -> Result<ProxyProv
     Ok(providers)
 }
 
+/// Apply proxy-provider changes to an in-memory profile document so a
+/// frontend can use the shared atomic Apply transaction.
+pub fn apply_proxy_providers_to_yaml(content: &str, providers: &ProxyProviders) -> Result<String> {
+    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+    apply_proxy_providers(&mut doc, providers)?;
+    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+}
+
 async fn load_profile_doc() -> Result<Value> {
-    let manager = ConfigManager::new().context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile = manager
         .get_current()
         .await

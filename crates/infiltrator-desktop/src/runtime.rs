@@ -6,7 +6,7 @@ use infiltrator_core::session::{
     CoreSession, EndpointSource, MihomoVersionProbe, ProfileEndpointSource, READINESS_TIMEOUT,
 };
 use mihomo_api::client::MihomoClient;
-use mihomo_api::proxy::{ProxyGroup, ProxyManager};
+use mihomo_api::proxy::{manager::ProxyManager, types::ProxyGroup};
 use mihomo_config::manager::ConfigManager;
 use mihomo_version::manager::VersionManager;
 use reqwest::{Client, header::ACCEPT_ENCODING};
@@ -22,10 +22,12 @@ use crate::version;
 pub struct MihomoRuntime {
     config_manager: Arc<ConfigManager>,
     pub config_path: PathBuf,
+    pub binary_path: PathBuf,
     pub controller_url: String,
     client: MihomoClient,
     service_manager: ServiceManager,
     session: Arc<CoreSession>,
+    apply_guard: Arc<tokio::sync::Mutex<()>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -38,13 +40,25 @@ pub struct MihomoSummary {
 }
 
 impl MihomoRuntime {
+    /// settings `configs_dir` 覆盖；env（`INFILTRATOR_CONFIGS_DIR`）的更高
+    /// 优先级在 `ConfigManager::with_configs_dir` 内部保持不变。settings
+    /// 读不到（无 home / 文件缺失或损坏）按未设置处理，行为与
+    /// `ConfigManager::new()` 完全一致。
+    async fn settings_configs_dir() -> Option<String> {
+        let home = mihomo_platform::paths::get_home_dir().ok()?;
+        let path = infiltrator_core::settings::settings_path(&home).ok()?;
+        let settings = infiltrator_core::settings::load_settings(&path).await.ok()?;
+        settings.configs_dir
+    }
+
     pub async fn bootstrap(
         vm: &VersionManager,
         use_bundled: bool,
         bundled_candidates: &[PathBuf],
         data_dir: &Path,
     ) -> anyhow::Result<Self> {
-        let cm = Arc::new(ConfigManager::new()?);
+        let configs_dir = Self::settings_configs_dir().await;
+        let cm = Arc::new(ConfigManager::with_configs_dir(configs_dir.as_deref())?);
 
         cm.ensure_default_config().await?;
         cm.ensure_proxy_ports().await?;
@@ -53,7 +67,7 @@ impl MihomoRuntime {
         let binary = version::resolve_binary(vm, use_bundled, bundled_candidates, data_dir).await?;
         let geoip_candidates = collect_geoip_candidates(&binary, bundled_candidates);
         ensure_geoip_database(&config_path, &geoip_candidates).await?;
-        let service_manager = ServiceManager::new(binary, config_path.clone());
+        let service_manager = ServiceManager::new(binary.clone(), config_path.clone());
 
         let endpoints = Arc::new(ProfileEndpointSource::new(cm.clone()));
         let session = Arc::new(CoreSession::new(
@@ -73,10 +87,7 @@ impl MihomoRuntime {
                 .map_err(|e| anyhow!("mihomo is running but not ready: {e}"))?;
         } else {
             log::info!("Starting mihomo service");
-            let generation = session
-                .start()
-                .await
-                .map_err(|e| anyhow!(e.to_string()))?;
+            let generation = session.start().await.map_err(|e| anyhow!(e.to_string()))?;
             session
                 .wait_for_ready(generation, READINESS_TIMEOUT)
                 .await
@@ -92,16 +103,26 @@ impl MihomoRuntime {
         Ok(Self {
             config_manager: cm,
             config_path,
+            binary_path: binary,
             controller_url,
             client,
             service_manager,
             session,
+            apply_guard: Arc::new(tokio::sync::Mutex::new(())),
         })
     }
 
     /// The unified core session owning lifecycle state and generations.
     pub fn session(&self) -> Arc<CoreSession> {
         self.session.clone()
+    }
+
+    pub fn core_binary_path(&self) -> &std::path::Path {
+        &self.binary_path
+    }
+
+    pub fn tun_service_status(&self) -> crate::tun_service::ServiceModeStatus {
+        crate::tun_service::TunServiceManager::check_status_for(&self.binary_path)
     }
 
     /// Apply the current profile's content to the core through the
@@ -111,8 +132,43 @@ impl MihomoRuntime {
         &self,
         strategy: ApplyStrategy,
     ) -> anyhow::Result<ApplyOutcome> {
+        let _guard = self.apply_guard.lock().await;
         let profile = self.config_manager.get_current().await?;
         let content = self.config_manager.load(&profile).await?;
+        let reloader = SessionConfigReloader::new(self.session.clone());
+        let params = ApplyParams {
+            strategy,
+            ..Default::default()
+        };
+        let outcome = apply_current_profile(
+            &self.session,
+            &self.config_manager,
+            &reloader,
+            &content,
+            params,
+        )
+        .await
+        .map_err(|e| anyhow!(e.to_string()))?;
+        if let Err(error) = self.config_manager.clear_backup(&profile).await {
+            // The core is already healthy and the transaction has committed;
+            // a stale transient backup must not turn that success into a
+            // false failure (it will be overwritten by the next save).
+            log::warn!("failed to clear profile apply backup: {error}");
+        }
+        Ok(outcome)
+    }
+
+    /// Apply caller-provided content through the same atomic write,
+    /// readiness and rollback transaction used by the current profile flow.
+    /// This is used by desktop editors so a running core never observes a
+    /// directly-written file that has not been validated and applied.
+    pub async fn apply_profile_content(
+        &self,
+        new_content: &str,
+        strategy: ApplyStrategy,
+    ) -> anyhow::Result<ApplyOutcome> {
+        let _guard = self.apply_guard.lock().await;
+        let profile = self.config_manager.get_current().await?;
         let reloader = SessionConfigReloader::new(self.session.clone());
         let params = ApplyParams {
             strategy,
@@ -122,11 +178,11 @@ impl MihomoRuntime {
             &self.session,
             &self.config_manager,
             &reloader,
-            &content,
+            new_content,
             params,
         )
         .await
-        .map_err(|e| anyhow!(e.to_string()))
+        .map_err(|error| anyhow!("profile {profile}: {error}"))
     }
 
     pub fn client(&self) -> MihomoClient {
@@ -202,10 +258,16 @@ impl MihomoRuntime {
 
     pub async fn http_proxy_endpoint(&self) -> anyhow::Result<Option<String>> {
         let content = tokio::fs::read_to_string(&self.config_path).await?;
-        let doc = parse_yaml_doc(&content)?;
-        let port = get_yaml_u16(&doc, "mixed-port").or_else(|| get_yaml_u16(&doc, "port"));
-        Ok(port.map(|p| format!("127.0.0.1:{p}")))
+        proxy_endpoint_from_config(&content)
     }
+}
+
+fn proxy_endpoint_from_config(content: &str) -> anyhow::Result<Option<String>> {
+    let doc = parse_yaml_doc(content)?;
+    let port = get_yaml_u16(&doc, "mixed-port").or_else(|| get_yaml_u16(&doc, "port"));
+    Ok(port
+        .filter(|port| *port != 0)
+        .map(|p| format!("127.0.0.1:{p}")))
 }
 
 fn normalize_mode(mode: &str) -> String {
@@ -493,6 +555,19 @@ mode: rule
         let doc = parse_yaml_doc(yaml).unwrap();
         let result = get_yaml_u16(&doc, "port");
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_proxy_endpoint_uses_configured_non_default_port() {
+        assert_eq!(
+            proxy_endpoint_from_config("mixed-port: 18080\nport: 7890\n").unwrap(),
+            Some("127.0.0.1:18080".to_string())
+        );
+        assert_eq!(
+            proxy_endpoint_from_config("port: 19090\n").unwrap(),
+            Some("127.0.0.1:19090".to_string())
+        );
+        assert_eq!(proxy_endpoint_from_config("mixed-port: 0\n").unwrap(), None);
     }
 
     #[test]

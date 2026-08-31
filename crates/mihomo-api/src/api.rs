@@ -13,7 +13,7 @@
 use crate::client::MihomoClient;
 use crate::error::Result;
 use crate::types::*;
-use crate::proxy::Proxy;
+use crate::proxy::types::Proxy;
 use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::HashMap;

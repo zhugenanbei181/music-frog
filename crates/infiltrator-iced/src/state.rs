@@ -7,29 +7,39 @@
 //!
 //! 视图层只读这些域做纯渲染投影;update 层按域定位字段。
 
-use crate::tray::{SharedTrayEventReceiver, TrayController};
-use crate::types::{
-    AdvancedEditMode, AdvancedValidationState, DnsFormDraft, DnsTab, EditorLazyState,
-    FakeIpFormDraft, PerfSnapshot, RebuildFlowState, Route, RuleRenderItem, RulesJsonTab, RulesTab,
-    RuntimeStatus, ToastStatus, Transition, TunFormDraft,
+use crate::tray::SharedTrayEventReceiver;
+use crate::tray::spec::TrayController;
+use crate::types::app::{ConfirmAction, Route, ToastStatus, Transition};
+use crate::types::dns::{
+    AdvancedEditMode, AdvancedValidationState, DnsFormDraft, DnsTab, FakeIpFormDraft, TunFormDraft,
+};
+use crate::types::editor::EditorLazyState;
+use crate::types::perf::PerfSnapshot;
+use crate::types::rules::{RuleRenderItem, RulesJsonTab, RulesTab};
+use crate::types::runtime::{
+    RebuildFlowState, RuntimePatchSnapshot, RuntimeStatus, RuntimeStreamState,
 };
 use iced::Theme;
 use iced::widget::text_editor;
 use infiltrator_core::rules::RuleEntry;
 use infiltrator_desktop::runtime::MihomoRuntime;
+use infiltrator_desktop::tun_service::ServiceModeStatus;
 use mihomo_api::types::{ConnectionSnapshot, TrafficData};
 use mihomo_config::profile::Profile;
 use mihomo_version::manager::VersionInfo;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 /// 内核运行时域:内核进程句柄、生命周期状态、代理模式/系统代理/自启、
 /// 节点与分组运行控制、批量测速与内核版本管理(UI-002)。
 pub struct RuntimeState {
     pub runtime: Option<Arc<MihomoRuntime>>,
+    pub runtime_generation: u64,
+    pub lifecycle_token: u64,
     pub status: RuntimeStatus,
-    pub proxies: HashMap<String, mihomo_api::proxy::Proxy>,
+    pub proxies: HashMap<String, mihomo_api::proxy::types::Proxy>,
     pub is_loading_proxies: bool,
     pub filtered_groups: Vec<(String, Vec<String>)>,
     pub proxy_filter: String,
@@ -45,15 +55,29 @@ pub struct RuntimeState {
     pub runtime_connection_sort: String,
     pub runtime_prev_upload_total: Option<u64>,
     pub runtime_prev_download_total: Option<u64>,
+    pub runtime_prev_snapshot_at: Option<Instant>,
+    pub pending_runtime_patch: Option<RuntimePatchSnapshot>,
+    pub runtime_patch_token: u64,
     pub runtime_auto_refresh: bool,
     pub runtime_poll_tick: u64,
     pub proxy_mode: Option<String>,
+    /// Whether the running core reports a top-level `script:` block
+    /// (`GET /configs` → `script`). Gates the Script mode entry points.
+    pub script_block_present: bool,
     pub tun_enabled: Option<bool>,
+    pub tun_service_status: Option<ServiceModeStatus>,
+    pub is_installing_tun_service: bool,
     pub system_proxy_enabled: bool,
+    pub system_proxy_pending: bool,
     pub autostart_enabled: bool,
     pub installed_kernels: Vec<VersionInfo>,
     pub latest_core_version: Option<String>,
+    pub core_channel: String,
     pub download_progress: f32,
+    pub download_stats: Option<crate::types::app::CoreDownloadProgress>,
+    pub core_download_token: u64,
+    pub core_download_cancel: Option<Arc<AtomicBool>>,
+    pub is_downloading_core: bool,
     pub is_checking_update: bool,
     pub rebuild_flow: RebuildFlowState,
     pub proxy_groups_expanded: Option<Vec<String>>,
@@ -85,7 +109,19 @@ pub struct ProfileState {
     pub webdav_sync_interval_mins: String,
     pub webdav_sync_on_startup: bool,
     pub is_syncing: bool,
+    pub sync_progress: Option<crate::types::app::SyncProgress>,
+    pub sync_conflicts: Vec<crate::types::app::SyncConflict>,
+    pub is_testing_webdav: bool,
+    pub sync_cancel: Option<Arc<AtomicBool>>,
+    /// 0.20: 周期同步标记 —— 只有 `TickWebDavSync` 发起的同步链才发系统通知
+    /// （手动上传/下载不发）。TickWebDavSync 置位，SyncFinished 处理后清除。
+    pub sync_from_tick: bool,
     pub is_saving_app_settings: bool,
+    pub is_saving_profile: bool,
+    pub restart_after_profile_reset: bool,
+    pub sync_diff: Option<crate::types::options::SyncDiffState>,
+    pub is_loading_sync_diff: bool,
+    pub is_applying_sync_diff: bool,
 }
 
 /// 配置编辑器域:Rules / Providers / Sniffer / DNS / Fake-IP / TUN 的 JSON 与
@@ -165,6 +201,18 @@ pub struct ConfigEditorState {
     pub editor_content: text_editor::Content,
     pub editor_path: Option<PathBuf>,
     pub editor_path_setting: String,
+    pub profile_snapshots: Vec<infiltrator_core::history::SnapshotMeta>,
+    pub is_loading_snapshots: bool,
+    pub is_restoring_snapshot: bool,
+    pub editor_pane: crate::types::options::EditorPane,
+    pub mixin_content: text_editor::Content,
+    pub mixin_loaded_for: Option<String>,
+    pub is_saving_mixin: bool,
+    pub filter_draft: crate::types::options::FilterDraft,
+    pub filter_loaded_for: Option<String>,
+    pub is_saving_filter: bool,
+    pub mrs_details: Vec<crate::types::options::MrsProviderDetail>,
+    pub is_scanning_mrs: bool,
 }
 
 /// 诊断域:流量/内存/连接/日志运行态快照与性能 HUD 测量(UI-002)。
@@ -173,6 +221,9 @@ pub struct DiagnosticsState {
     pub traffic_history: VecDeque<(u64, u64)>,
     pub memory: Option<mihomo_api::types::MemoryData>,
     pub public_ip: Option<String>,
+    pub public_ip_provider: Option<String>,
+    pub public_ip_checked_at: Option<String>,
+    pub public_ip_error: Option<String>,
     pub connections: Option<ConnectionSnapshot>,
     pub logs: VecDeque<String>,
     pub log_level: String,
@@ -182,6 +233,10 @@ pub struct DiagnosticsState {
     pub perf_panel_visible: bool,
     pub perf_nav_started_at: Option<Instant>,
     pub perf_nav_route: Option<Route>,
+    pub logs_stream_state: RuntimeStreamState,
+    pub traffic_stream_state: RuntimeStreamState,
+    pub connections_stream_state: RuntimeStreamState,
+    pub doctor: crate::types::doctor::DoctorPanelState,
 }
 
 /// 外壳域:导航路由、语言/主题、全局错误与 Toast、托盘、Admin 管理端、
@@ -200,8 +255,17 @@ pub struct ShellState {
     pub admin_shared: crate::admin_server::AdminSharedRuntime,
     pub admin_commands: Option<crate::admin_server::SharedAdminCommandReceiver>,
     pub is_admin: bool,
+    /// 0.20 OS 系统通知总开关（订阅自动更新 / WebDAV 周期同步 / 内核错误），
+    /// 镜像 `AppSettings.notifications_enabled`；关闭时
+    /// [`crate::notify`] 零开销短路。
+    pub notifications_enabled: bool,
     pub last_task_id: usize,
+    /// Cooldown for stream-driven tray refreshes (download/sync progress)
+    /// so the D-Bus menu is rebuilt at most once per second.
+    pub tray_refresh_cooldown: Option<std::time::Instant>,
     pub toasts: Vec<(String, ToastStatus)>,
+    pub confirmation: Option<ConfirmAction>,
+    pub is_factory_resetting: bool,
     pub theme: Theme,
     pub demo: bool,
     pub capture_marker: Option<PathBuf>,

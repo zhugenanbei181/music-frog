@@ -3,7 +3,7 @@ pub mod profile;
 pub mod ui;
 
 use crate::state::AppState;
-use crate::types::Message;
+use crate::types::message::Message;
 use iced::Task;
 
 impl AppState {
@@ -20,6 +20,12 @@ impl AppState {
                 | Message::StopProxy
                 | Message::FetchIpInfo
                 | Message::SetSystemProxy(_)
+                | Message::SetProxyMode(_)
+                | Message::SetTunEnabled(_)
+                | Message::SetTunStack(_)
+                | Message::SetTunAutoRoute(_)
+                | Message::SetTunStrictRoute(_)
+                | Message::SetSnifferEnabled(_)
                 | Message::SetAutostart(_)
                 | Message::SetAdminEnabled(_)
                 | Message::ApplyAdminSettings
@@ -35,6 +41,13 @@ impl AppState {
                 | Message::SetActiveProfile(_)
                 | Message::ClearProfiles
                 | Message::SaveProfile
+                | Message::RestoreProfileSnapshot(_)
+                | Message::SaveMixin
+                | Message::LoadSyncDiff(_)
+                | Message::ApplySyncDiffMerge
+                | Message::SaveProfileFilter
+                | Message::LoadProfileFilter
+                | Message::ScanMrsProviders
                 | Message::SaveRules
                 | Message::AddCustomRule
                 | Message::SaveDns
@@ -45,16 +58,23 @@ impl AppState {
                 | Message::SaveSnifferJson
                 | Message::SyncUpload
                 | Message::SyncDownload
+                | Message::TestWebDavConnection
                 | Message::LoadKernels
                 | Message::CheckCoreUpdate
                 | Message::DownloadCore(_)
+                | Message::CancelCoreDownload
                 | Message::DeleteKernel(_)
                 | Message::SetDefaultKernel(_)
                 | Message::FactoryReset
                 | Message::OpenConfigDir
-                | Message::OpenWebAdmin
                 | Message::RequestAdminPrivilege
-                | Message::FlushFakeIpCache => return Task::none(),
+                | Message::InstallTunService
+                | Message::RefreshTunServiceStatus
+                | Message::FlushFakeIpCache
+                // Doctor 面板走 loopback HTTP；demo 会话没有内嵌 admin server。
+                | Message::RunDoctor
+                | Message::RunDoctorFix
+                | Message::RunBootstrap => return Task::none(),
                 _ => {}
             }
         }
@@ -73,12 +93,19 @@ impl AppState {
             | Message::RemoveToast(_)
             | Message::SetSystemProxy(_)
             | Message::SystemProxySet(_)
-            | Message::TogglePerfPanel => self.update_ui(message),
+            | Message::TogglePerfPanel
+            | Message::RequestConfirmation(_)
+            | Message::ConfirmAction
+            | Message::CancelConfirmation
+            | Message::ClearError
+            | Message::OpenConfigDir
+            | Message::OpenConfigDirFinished(_) => self.update_ui(message),
 
             // Profiles & Sync
             Message::LoadProfiles
             | Message::ProfilesLoaded(_)
             | Message::SetActiveProfile(_)
+            | Message::ProfileActivationFinished(_)
             | Message::UpdateImportUrl(_)
             | Message::UpdateImportName(_)
             | Message::UpdateImportActivate(_)
@@ -107,9 +134,27 @@ impl AppState {
             | Message::ProfilesCleared(_)
             | Message::EditProfile(_)
             | Message::ProfileContentLoaded(_)
+            | Message::LoadProfileSnapshots
+            | Message::ProfileSnapshotsLoaded(_)
+            | Message::RestoreProfileSnapshot(_)
+            | Message::ProfileSnapshotRestored(_)
             | Message::EditorAction(_)
             | Message::SaveProfile
             | Message::ProfileSaved(_)
+            | Message::SetEditorPane(_)
+            | Message::MixinEditorAction(_)
+            | Message::MixinLoaded(_)
+            | Message::SaveMixin
+            | Message::MixinSaved(_)
+            | Message::LoadProfileFilter
+            | Message::ProfileFilterLoaded(_)
+            | Message::UpdateFilterInclude(_)
+            | Message::UpdateFilterExclude(_)
+            | Message::UpdateFilterExcludeTypes(_)
+            | Message::UpdateFilterRenames(_)
+            | Message::UpdateFilterDedup(_)
+            | Message::SaveProfileFilter
+            | Message::ProfileFilterSaved(_)
             | Message::UpdateWebDavUrl(_)
             | Message::UpdateWebDavUser(_)
             | Message::UpdateWebDavPass(_)
@@ -117,6 +162,7 @@ impl AppState {
             | Message::UpdateWebDavSyncInterval(_)
             | Message::UpdateWebDavSyncOnStartup(_)
             | Message::UpdateEditorPathSetting(_)
+            | Message::SetLanguage(_)
             | Message::SaveAppSettings
             | Message::AppSettingsSaved(_)
             | Message::SetAdminEnabled(_)
@@ -124,10 +170,24 @@ impl AppState {
             | Message::ApplyAdminSettings
             | Message::AdminSettingsSaved(_)
             | Message::AdminServerStarted(_)
-            | Message::OpenWebAdmin
             | Message::SyncUpload
             | Message::SyncDownload
             | Message::SyncFinished(_)
+            | Message::SyncProgress(_)
+            | Message::ResolveSyncConflict(_)
+            | Message::DismissSyncConflict(_)
+            | Message::SyncConflictResolved(_)
+            | Message::SyncConflictDismissed(_)
+            | Message::LoadSyncDiff(_)
+            | Message::SyncDiffLoaded(_)
+            | Message::PickSyncDiffKey(_, _)
+            | Message::SetSyncDiffPicks(_)
+            | Message::ApplySyncDiffMerge
+            | Message::SyncDiffMerged(_)
+            | Message::CloseSyncDiff
+            | Message::CancelWebDavSync
+            | Message::TestWebDavConnection
+            | Message::WebDavConnectionTested(_)
             | Message::TickSubUpdate
             | Message::TickWebDavSync => self.update_profile(message),
 

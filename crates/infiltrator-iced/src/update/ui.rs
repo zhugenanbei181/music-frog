@@ -1,6 +1,9 @@
 use crate::state::AppState;
-use crate::types::{InfiltratorError, Message, Route};
+use crate::types::app::{ConfirmAction, Route, ToastStatus};
+use crate::types::message::Message;
 use iced::{Task, Theme, window};
+use infiltrator_core::error::InfiltratorError;
+use std::path::Path;
 use std::time::Instant;
 
 impl AppState {
@@ -21,9 +24,6 @@ impl AppState {
                 let mut tasks = vec![];
                 if route == Route::Proxies || route == Route::Overview {
                     tasks.push(Task::done(Message::LoadProxies));
-                }
-                if route == Route::Overview || route == Route::Runtime {
-                    tasks.push(Task::done(Message::FetchIpInfo));
                 }
                 if route == Route::Runtime {
                     tasks.push(Task::done(Message::RefreshRuntimeNow));
@@ -84,6 +84,62 @@ impl AppState {
                 self.diag.perf_panel_visible = !self.diag.perf_panel_visible;
                 Task::none()
             }
+            Message::RequestConfirmation(action) => {
+                self.shell.confirmation = Some(action);
+                Task::none()
+            }
+            Message::CancelConfirmation => {
+                self.shell.confirmation = None;
+                Task::none()
+            }
+            Message::ConfirmAction => {
+                let Some(action) = self.shell.confirmation.take() else {
+                    return Task::none();
+                };
+                if self.shell.demo {
+                    return Task::none();
+                }
+                match action {
+                    ConfirmAction::FactoryReset => self.update_core(Message::FactoryReset),
+                    ConfirmAction::ClearProfiles => self.update_profile(Message::ClearProfiles),
+                    ConfirmAction::DeleteProfile(name) => {
+                        self.update_profile(Message::DeleteProfile(name))
+                    }
+                    ConfirmAction::DeleteKernel(version) => {
+                        self.update_core(Message::DeleteKernel(version))
+                    }
+                    ConfirmAction::CloseAllConnections => {
+                        self.update_core(Message::CloseAllConnections)
+                    }
+                }
+            }
+            Message::ClearError => {
+                self.shell.error_msg = None;
+                Task::none()
+            }
+            Message::OpenConfigDir => Task::perform(
+                async {
+                    let directory = crate::configs_dir::configs_dir().await?;
+                    tokio::fs::create_dir_all(&directory)
+                        .await
+                        .map_err(InfiltratorError::from)?;
+                    tokio::task::spawn_blocking(move || open_directory(&directory))
+                        .await
+                        .map_err(|error| InfiltratorError::Internal(error.to_string()))??;
+                    Ok(())
+                },
+                Message::OpenConfigDirFinished,
+            ),
+            Message::OpenConfigDirFinished(result) => match result {
+                Ok(()) => Task::done(Message::ShowToast(
+                    "配置文件夹已打开".to_string(),
+                    ToastStatus::Success,
+                )),
+                Err(error) => {
+                    self.set_error(&error);
+                    Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
+                }
+            },
             Message::WindowClosed(id) => {
                 let current_route = self.shell.current_route;
                 window::close(id).map(move |_: ()| Message::Navigate(current_route))
@@ -153,24 +209,50 @@ impl AppState {
                 Task::none()
             }
             Message::SetSystemProxy(enabled) => {
+                if self.runtime.system_proxy_pending {
+                    return Task::none();
+                }
                 self.runtime.system_proxy_enabled = enabled;
+                self.runtime.system_proxy_pending = true;
                 self.refresh_tray();
+                let runtime = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
                         let endpoint = if enabled {
-                            Some("127.0.0.1:7890")
+                            let runtime = runtime.ok_or_else(|| {
+                                InfiltratorError::Privilege(
+                                    "内核未运行，无法确定系统代理端口".to_string(),
+                                )
+                            })?;
+                            runtime
+                                .http_proxy_endpoint()
+                                .await
+                                .map_err(|error| InfiltratorError::Privilege(error.to_string()))?
+                                .ok_or_else(|| {
+                                    InfiltratorError::Privilege(
+                                        "当前配置未提供 port 或 mixed-port".to_string(),
+                                    )
+                                })?
+                        } else {
+                            String::new()
+                        };
+                        infiltrator_desktop::proxy::apply_system_proxy(if enabled {
+                            Some(endpoint.as_str())
                         } else {
                             None
-                        };
-                        infiltrator_desktop::proxy::apply_system_proxy(endpoint)
-                            .map_err(|e: anyhow::Error| InfiltratorError::Privilege(e.to_string()))
+                        })
+                        .map_err(|e: anyhow::Error| InfiltratorError::Privilege(e.to_string()))
                     },
                     Message::SystemProxySet,
                 )
             }
             Message::SystemProxySet(result) => match result {
-                Ok(_) => Task::none(),
+                Ok(_) => {
+                    self.runtime.system_proxy_pending = false;
+                    Task::none()
+                }
                 Err(e) => {
+                    self.runtime.system_proxy_pending = false;
                     self.runtime.system_proxy_enabled = !self.runtime.system_proxy_enabled;
                     self.refresh_tray();
                     self.set_error(&e);
@@ -194,16 +276,29 @@ impl AppState {
                 }
                 #[cfg(not(target_os = "windows"))]
                 {
-                    use crate::locales::{Lang, Localizer};
-                    let lang = Lang(&self.shell.lang);
-                    Task::done(Message::ShowToast(
-                        lang.tr("settings_uac_unsupported").to_string(),
-                        crate::types::ToastStatus::Warning,
-                    ))
+                    Task::done(Message::InstallTunService)
                 }
             }
             Message::TrayEvent(event) => self.handle_tray_event(event),
             _ => Task::none(),
         }
     }
+}
+
+fn open_directory(path: &Path) -> Result<(), InfiltratorError> {
+    #[cfg(target_os = "windows")]
+    let result = std::process::Command::new("explorer").arg(path).spawn();
+    #[cfg(target_os = "macos")]
+    let result = std::process::Command::new("open").arg(path).spawn();
+    #[cfg(target_os = "linux")]
+    let result = std::process::Command::new("xdg-open").arg(path).spawn();
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    let result: std::io::Result<std::process::Child> = Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "opening directories is unsupported on this platform",
+    ));
+
+    result
+        .map(|_| ())
+        .map_err(|error| InfiltratorError::Internal(format!("无法打开配置文件夹: {error}")))
 }

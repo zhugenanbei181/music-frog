@@ -52,7 +52,10 @@ impl MtuOptimizer {
         if (1280..=9000).contains(&mtu) {
             Ok(())
         } else {
-            Err(anyhow::anyhow!("MTU {} is out of valid range [1280, 9000]", mtu))
+            Err(anyhow::anyhow!(
+                "MTU {} is out of valid range [1280, 9000]",
+                mtu
+            ))
         }
     }
 }

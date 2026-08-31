@@ -34,11 +34,39 @@ impl Downloader {
         version: &str,
         dest: &Path,
         expected_digest: Option<&str>,
-        mut on_progress: F,
+        on_progress: F,
     ) -> Result<()>
     where
         F: FnMut(DownloadProgress),
     {
+        self.download_version_with_progress_and_cancel(
+            version,
+            dest,
+            expected_digest,
+            on_progress,
+            || false,
+        )
+        .await
+    }
+
+    /// Cancellation-aware variant used by desktop UI jobs. Cancellation is
+    /// checked between response chunks and before installation, so an
+    /// interrupted download cannot leave a partial destination artifact.
+    pub async fn download_version_with_progress_and_cancel<F, C>(
+        &self,
+        version: &str,
+        dest: &Path,
+        expected_digest: Option<&str>,
+        mut on_progress: F,
+        is_cancelled: C,
+    ) -> Result<()>
+    where
+        F: FnMut(DownloadProgress),
+        C: Fn() -> bool,
+    {
+        if is_cancelled() {
+            return Err(MihomoError::Version("下载已取消".to_string()));
+        }
         let platform = Self::detect_platform();
         let os_name = Self::get_os_name();
         let extension = Self::get_file_extension();
@@ -68,12 +96,18 @@ impl Downloader {
         let mut bytes = Vec::new();
         let mut stream = resp.bytes_stream();
         while let Some(chunk) = stream.next().await {
+            if is_cancelled() {
+                return Err(MihomoError::Version("下载已取消".to_string()));
+            }
             let chunk = chunk?;
             downloaded += chunk.len() as u64;
             bytes.extend_from_slice(&chunk);
             on_progress(DownloadProgress { downloaded, total });
         }
 
+        if is_cancelled() {
+            return Err(MihomoError::Version("下载已取消".to_string()));
+        }
         Self::install_archive(&bytes, expected_digest, &filename, dest).await
     }
 
@@ -100,7 +134,10 @@ impl Downloader {
         // Atomic install: write a temp file next to `dest`, fsync, then
         // rename. A crash mid-write leaves the previous state untouched.
         let dir = dest.parent().ok_or_else(|| {
-            MihomoError::Version(format!("install destination has no parent: {}", dest.display()))
+            MihomoError::Version(format!(
+                "install destination has no parent: {}",
+                dest.display()
+            ))
         })?;
         let file_name = dest
             .file_name()
@@ -251,7 +288,10 @@ mod tests {
             .filter_map(|e| e.ok())
             .filter(|e| e.file_name().to_string_lossy().contains(".tmp-"))
             .collect();
-        assert!(leftovers.is_empty(), "temp files left behind: {leftovers:?}");
+        assert!(
+            leftovers.is_empty(),
+            "temp files left behind: {leftovers:?}"
+        );
     }
 
     #[tokio::test]

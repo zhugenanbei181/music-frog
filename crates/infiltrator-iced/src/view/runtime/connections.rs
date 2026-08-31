@@ -1,7 +1,7 @@
 //! Runtime page connections section: filter/sort controls plus the filtered,
 //! sorted connection row list.
 
-use crate::locales::{Lang, Localizer};
+use infiltrator_shared::locales::{Lang, Localizer};
 use crate::utils::format_bytes;
 use crate::view::components::{
     chip, empty_state, icon_button, section_header, segmented_control, status_dot,
@@ -9,7 +9,10 @@ use crate::view::components::{
 use crate::view::runtime::styles::{input_style, row_card, style_danger, text_btn};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, SP_MD, tokens};
-use crate::{AppState, Message};
+use crate::state::AppState;
+use crate::types::app::ConfirmAction;
+use crate::types::message::Message;
+use crate::types::runtime::RuntimeStreamState;
 use iced::widget::{Space, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 
@@ -68,6 +71,8 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
             lang.tr("runtime_connections_title").as_ref(),
             Some(
                 row![
+                    stream_badge(&state.diag.connections_stream_state),
+                    Space::new().width(theme::SP_SM),
                     conn_sort_control,
                     Space::new().width(theme::SP_SM),
                     icon_button(Icon::RefreshCw, 14.0, Message::RefreshRuntimeNow),
@@ -75,7 +80,9 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                     text_btn(
                         lang.tr("btn_close_all").to_string(),
                         style_danger,
-                        Some(Message::CloseAllConnections)
+                        Some(Message::RequestConfirmation(
+                            ConfirmAction::CloseAllConnections,
+                        ))
                     ),
                 ]
                 .align_y(Alignment::Center)
@@ -234,4 +241,21 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
     }
 
     connections_section.into()
+}
+
+fn stream_badge(state: &RuntimeStreamState) -> Element<'static, Message> {
+    let (label, kind) = match state {
+        RuntimeStreamState::Idle => ("未连接", crate::view::components::BadgeKind::Neutral),
+        RuntimeStreamState::Connecting => {
+            ("连接中", crate::view::components::BadgeKind::Neutral)
+        }
+        RuntimeStreamState::Connected => ("实时", crate::view::components::BadgeKind::Success),
+        RuntimeStreamState::Reconnecting => {
+            ("重连中", crate::view::components::BadgeKind::Warning)
+        }
+        RuntimeStreamState::Failed(_) => {
+            ("不可用", crate::view::components::BadgeKind::Danger)
+        }
+    };
+    crate::view::components::badge(label, kind)
 }

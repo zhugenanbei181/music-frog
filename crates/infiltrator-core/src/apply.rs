@@ -146,8 +146,8 @@ impl ConfigReloader for SessionConfigReloader {
 /// validation is the core's job: if mihomo rejects the file on reload or
 /// boot, the transaction rolls back — that is the safety net, not this check.
 fn validate_config(content: &str) -> Result<(), String> {
-    let docs = YamlLoader::load_from_str(content)
-        .map_err(|err| format!("YAML parse failed: {err}"))?;
+    let docs =
+        YamlLoader::load_from_str(content).map_err(|err| format!("YAML parse failed: {err}"))?;
     match docs.first() {
         Some(Yaml::Hash(_)) => Ok(()),
         Some(_) => Err("top-level YAML document must be a mapping".to_string()),
@@ -159,7 +159,10 @@ fn validate_config(content: &str) -> Result<(), String> {
 /// writes and crashes leave the previous config intact.
 async fn atomic_write(path: &Path, content: &str) -> std::io::Result<()> {
     let dir = path.parent().ok_or_else(|| {
-        std::io::Error::new(std::io::ErrorKind::InvalidInput, "config path has no parent")
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "config path has no parent",
+        )
     })?;
     let file_name = path
         .file_name()
@@ -169,10 +172,7 @@ async fn atomic_write(path: &Path, content: &str) -> std::io::Result<()> {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.subsec_nanos())
         .unwrap_or(0);
-    let tmp = dir.join(format!(
-        ".{file_name}.tmp-{}-{nanos}",
-        std::process::id()
-    ));
+    let tmp = dir.join(format!(".{file_name}.tmp-{}-{nanos}", std::process::id()));
 
     let write = async {
         let mut file = tokio::fs::File::create(&tmp).await?;
@@ -273,15 +273,18 @@ pub async fn apply_current_profile<S: CredentialStore>(
         .get_current()
         .await
         .map_err(|err| ApplyError::Write(err.to_string()))?;
-    let old_content = config.load(&current).await.ok();
+    let old_content = match config.load_backup(&current).await {
+        Ok(Some(backup)) => Some(backup),
+        Ok(None) | Err(_) => config.load(&current).await.ok(),
+    };
     let path = config
         .get_current_path()
         .await
         .map_err(|err| ApplyError::Write(err.to_string()))?;
 
-    atomic_write(&path, new_content).await.map_err(|err| {
-        ApplyError::Write(format!("{}: {err}", path.display()))
-    })?;
+    atomic_write(&path, new_content)
+        .await
+        .map_err(|err| ApplyError::Write(format!("{}: {err}", path.display())))?;
 
     let outcome: Result<ApplyOutcome, String> = if !was_running {
         start_and_check(session, &params).await
@@ -289,7 +292,10 @@ pub async fn apply_current_profile<S: CredentialStore>(
         match reload_and_check(session, reloader, &path, &params).await {
             Ok(outcome) => Ok(outcome),
             Err(cause) => {
-                log::warn!("hot reload of {} failed, restarting instead: {cause}", path.display());
+                log::warn!(
+                    "hot reload of {} failed, restarting instead: {cause}",
+                    path.display()
+                );
                 restart_and_check(session, &params).await
             }
         }
@@ -310,7 +316,13 @@ pub async fn apply_current_profile<S: CredentialStore>(
                 match crate::history::save_snapshot(config_dir, &current, new_content).await {
                     Ok(meta) => {
                         log::info!("config snapshot stored: {}", meta.path.display());
-                        if let Err(err) = crate::history::prune_snapshots(config_dir, &current, crate::history::DEFAULT_KEEP).await {
+                        if let Err(err) = crate::history::prune_snapshots(
+                            config_dir,
+                            &current,
+                            crate::history::DEFAULT_KEEP,
+                        )
+                        .await
+                        {
                             log::warn!("snapshot prune failed: {err}");
                         }
                     }
@@ -325,12 +337,17 @@ pub async fn apply_current_profile<S: CredentialStore>(
     // Rollback: restore the previous file; bring the core back if it had
     // been serving before this transaction.
     if let Some(old) = old_content {
-        atomic_write(&path, &old).await.map_err(|err| ApplyError::RollbackFailed {
-            cause: cause.clone(),
-            rollback: format!("restoring {}: {err}", path.display()),
-        })?;
+        atomic_write(&path, &old)
+            .await
+            .map_err(|err| ApplyError::RollbackFailed {
+                cause: cause.clone(),
+                rollback: format!("restoring {}: {err}", path.display()),
+            })?;
     } else {
-        log::warn!("no previous content for {}; rollback only marks the failure", path.display());
+        log::warn!(
+            "no previous content for {}; rollback only marks the failure",
+            path.display()
+        );
     }
 
     if was_running {
@@ -350,7 +367,7 @@ pub async fn apply_current_profile<S: CredentialStore>(
 mod tests {
     use super::*;
     use crate::session::{ControllerEndpoint, EndpointSource, ReadinessProbe};
-    use mihomo_api::error::Result as ApiResult;
+
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
@@ -365,18 +382,20 @@ mod tests {
 
     #[async_trait]
     impl mihomo_platform::traits::CoreController for MockController {
-        async fn start(&self) -> ApiResult<()> {
+        async fn start(&self) -> mihomo_api::error::Result<()> {
             // load-then-fetch_sub: fetch_sub alone wraps at zero and would
             // turn "fail N times" into "fail forever".
             if self.fail_starts_left.load(Ordering::SeqCst) > 0 {
                 self.fail_starts_left.fetch_sub(1, Ordering::SeqCst);
-                return Err(mihomo_api::error::MihomoError::Service("start rejected".into()));
+                return Err(mihomo_api::error::MihomoError::Service(
+                    "start rejected".into(),
+                ));
             }
             self.running.store(true, Ordering::SeqCst);
             Ok(())
         }
 
-        async fn stop(&self) -> ApiResult<()> {
+        async fn stop(&self) -> mihomo_api::error::Result<()> {
             self.running.store(false, Ordering::SeqCst);
             Ok(())
         }
@@ -440,7 +459,7 @@ mod tests {
 
     #[async_trait]
     impl CredentialStore for MockStore {
-        async fn get(&self, service: &str, key: &str) -> ApiResult<Option<String>> {
+        async fn get(&self, service: &str, key: &str) -> mihomo_api::error::Result<Option<String>> {
             Ok(self
                 .entries
                 .lock()
@@ -449,7 +468,12 @@ mod tests {
                 .cloned())
         }
 
-        async fn set(&self, service: &str, key: &str, value: &str) -> ApiResult<()> {
+        async fn set(
+            &self,
+            service: &str,
+            key: &str,
+            value: &str,
+        ) -> mihomo_api::error::Result<()> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -457,7 +481,7 @@ mod tests {
             Ok(())
         }
 
-        async fn delete(&self, service: &str, key: &str) -> ApiResult<()> {
+        async fn delete(&self, service: &str, key: &str) -> mihomo_api::error::Result<()> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -483,7 +507,10 @@ mod tests {
             },
         )
         .expect("config manager");
-        config.ensure_default_config().await.expect("default config");
+        config
+            .ensure_default_config()
+            .await
+            .expect("default config");
         config.save("main", OLD).await.expect("seed profile");
         config.set_current("main").await.expect("set current");
 
@@ -644,11 +671,15 @@ mod tests {
             .expect("list");
         assert_eq!(snapshots.len(), 1);
         assert_eq!(
-            crate::history::read_snapshot(&snapshots[0].path).await.unwrap(),
+            crate::history::read_snapshot(&snapshots[0].path)
+                .await
+                .unwrap(),
             NEW
         );
         assert_eq!(
-            crate::history::read_snapshot(&snapshots[0].path).await.unwrap(),
+            crate::history::read_snapshot(&snapshots[0].path)
+                .await
+                .unwrap(),
             NEW
         );
     }

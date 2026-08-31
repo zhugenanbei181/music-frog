@@ -7,7 +7,11 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use infiltrator_core::{profiles::ProfileInfo, settings::WebDavConfig};
+use infiltrator_core::{
+    doctor::DoctorReport,
+    profiles::ProfileInfo,
+    settings::WebDavConfig,
+};
 
 #[derive(Serialize, Deserialize)]
 pub struct SwitchProfilePayload {
@@ -202,15 +206,36 @@ pub struct CoreActivatePayload {
 
 #[derive(Serialize, Deserialize)]
 pub struct AppSettingsPayload {
-    pub open_webui_on_startup: Option<bool>,
     pub editor_path: Option<String>,
     pub use_bundled_core: Option<bool>,
     pub language: Option<String>,
     pub theme: Option<String>,
+    /// Mirrors `AppSettings.notifications_enabled` (0.20 OS system
+    /// notifications); omitted values keep the persisted one untouched.
+    pub notifications_enabled: Option<bool>,
     pub webdav: Option<WebDavConfig>,
+    /// Mirrors `AppSettings.configs_dir`; blank values are stored as `None`.
+    pub configs_dir: Option<String>,
     pub autostart_enabled: Option<bool>,
     pub system_proxy_enabled: Option<bool>,
     pub runtime_running: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct DoctorRunQuery {
+    pub only: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct DoctorFixPayload {
+    pub only: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct DoctorRunResponse {
+    #[serde(flatten)]
+    pub report: DoctorReport,
+    pub exit_code: i32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -282,6 +307,13 @@ impl ApiError {
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::BAD_REQUEST,
+            message: message.into(),
+        }
+    }
+
+    pub fn not_found(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::NOT_FOUND,
             message: message.into(),
         }
     }

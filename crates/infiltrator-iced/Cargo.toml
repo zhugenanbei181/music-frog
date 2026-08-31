@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-iced"
-version = "0.14.0"
+version = "0.20.0"
 edition = "2024"
 
 # Lib + thin binary: `src/lib.rs` hosts the module tree and the application
@@ -20,6 +20,15 @@ native-tray-backend = []
 [dependencies]
 iced = { version = "0.14", default-features = false, features = ["tokio", "advanced", "wgpu-bare", "canvas", "image", "svg", "x11", "wayland"] }
 wgpu = { version = "27.0", default-features = false, features = ["std", "wgsl", "vulkan", "gles"] }
+# naga 27 enters this crate's graph via wgpu 27. When the bevy frontend
+# (infiltrator-bevy-*) shares the workspace build graph, its naga_oil turns
+# the shared `codespan-reporting/termcolor` feature ON, which breaks naga
+# 27's no-termcolor diagnostic branches (E0277 `String: WriteColor`).
+# Declaring naga 27 here (renamed; feature-only, nothing imported) unifies
+# naga's own `termcolor` feature in, switching its DiagnosticBuffer to the
+# `NoColor<Vec<u8>>` branch that implements codespan's WriteColor. Remove
+# when iced's wgpu stack bumps past naga 27.
+naga27 = { package = "naga", version = "27", default-features = false, features = ["termcolor"] }
 tokio = { workspace = true }
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-desktop = { path = "../infiltrator-desktop" }
@@ -30,6 +39,7 @@ mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }
 mihomo-platform = { path = "../mihomo-platform" }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
+sync-engine = { path = "../mihomo-dav-sync/sync-engine" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
@@ -50,17 +60,24 @@ sys-locale = "0.3"
 image = "0.25"
 rfd = "0.17"
 
+# 0.20 OS system notifications: Linux/*BSD go through notify-rust's pure-Rust
+# zbus ("z") backend, sharing the zbus 5 tree ksni already pulls in; the C
+# libdbus ("d"/"d_vendored") backend is deliberately avoided. macOS/Windows and
+# other targets use the log-only stub in src/notify.rs, so the dependency is
+# target-gated and never enters their build graphs.
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+notify-rust = { workspace = true }
+
 [package.metadata.packager]
 product-name = "MusicFrog Infiltrator"
 identifier = "com.musicfrog.infiltrator"
-version = "0.14.0"
+version = "0.20.0"
 authors = ["MusicFrog"]
 description = "A native high-performance proxy client."
 icons = ["icons/icon.png"]
 resources = [
     "icons/icon.png",
-    "../../vendor/mihomo.exe",
-    "../../webui/config-manager-ui/dist"
+    "../../vendor/mihomo.exe"
 ]
 
 [package.metadata.packager.wix]

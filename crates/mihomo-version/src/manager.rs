@@ -42,6 +42,26 @@ impl VersionManager {
     where
         F: FnMut(DownloadProgress),
     {
+        self.install_with_progress_and_cancel(version, on_progress, || false)
+            .await
+    }
+
+    /// Cancellation-aware install path. The predicate is checked before
+    /// network/filesystem work and while downloading; all failed/cancelled
+    /// paths clean the temporary archive and version directory.
+    pub async fn install_with_progress_and_cancel<F, C>(
+        &self,
+        version: &str,
+        on_progress: F,
+        is_cancelled: C,
+    ) -> Result<()>
+    where
+        F: FnMut(DownloadProgress),
+        C: Fn() -> bool,
+    {
+        if is_cancelled() {
+            return Err(MihomoError::Version("下载已取消".to_string()));
+        }
         fs::create_dir_all(&self.install_dir).await?;
 
         let version_dir = self.install_dir.join(version);
@@ -52,11 +72,19 @@ impl VersionManager {
             )));
         }
 
+        if is_cancelled() {
+            return Err(MihomoError::Version("下载已取消".to_string()));
+        }
+
         // Provenance first (UP-001): refuse to download anything when the
         // release API does not publish a SHA-256 digest for this platform's
         // archive. The digest is the trusted input for fail-closed
         // verification inside the download pipeline.
         let expected_digest = super::channel::fetch_asset_digest(version).await?;
+
+        if is_cancelled() {
+            return Err(MihomoError::Version("下载已取消".to_string()));
+        }
 
         let binary_name = if cfg!(windows) {
             "mihomo.exe"
@@ -80,11 +108,12 @@ impl VersionManager {
 
         let downloader = Downloader::new();
         if let Err(err) = downloader
-            .download_version_with_progress(
+            .download_version_with_progress_and_cancel(
                 version,
                 &temp_path,
                 Some(&expected_digest),
                 on_progress,
+                &is_cancelled,
             )
             .await
         {
@@ -93,6 +122,11 @@ impl VersionManager {
                 let _ = fs::remove_file(&temp_path).await;
             }
             return Err(err);
+        }
+
+        if is_cancelled() {
+            let _ = fs::remove_file(&temp_path).await;
+            return Err(MihomoError::Version("下载已取消".to_string()));
         }
 
         // Move to final location only after successful download
@@ -271,7 +305,8 @@ async fn smoke_check_binary(path: &std::path::Path) -> Result<()> {
             path.display(),
             output.status
         )));
-    }    let stdout = String::from_utf8_lossy(&output.stdout);
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
     if stdout.trim().is_empty() {
         return Err(MihomoError::Version(format!(
             "kernel smoke check failed: `{} -v` printed no version output",
@@ -326,6 +361,18 @@ mod tests {
     fn setup_test_manager(temp_dir: &TempDir) -> VersionManager {
         let home = temp_dir.path().to_path_buf();
         VersionManager::with_home(home).unwrap()
+    }
+
+    #[tokio::test]
+    async fn cancelled_install_stops_before_network_or_filesystem_work() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+        let error = manager
+            .install_with_progress_and_cancel("v-test", |_| {}, || true)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("下载已取消"), "{error}");
+        assert!(!temp_dir.path().join("versions").exists());
     }
 
     /// set_default now smoke-checks the candidate binary; tests that merely

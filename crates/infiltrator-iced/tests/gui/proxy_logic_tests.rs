@@ -3,8 +3,9 @@
 //! Mounted via `src/test_mounts.rs` (crate root).
 //! test-intent: behavior
 
-use crate::{AppState, Message};
-use mihomo_api::proxy::{Proxy, ProxyBase, ProxyGroup, ProxyHistory};
+use crate::state::AppState;
+use crate::types::message::Message;
+use mihomo_api::proxy::types::{Proxy, ProxyBase, ProxyGroup, ProxyHistory};
 
 #[test]
 fn test_proxy_filtering_and_sorting() {

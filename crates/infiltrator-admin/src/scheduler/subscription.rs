@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use chrono::{Duration as ChronoDuration, Utc};
+use chrono::{ Utc};
 use infiltrator_http::HttpClient;
 use log::{info, warn};
 use mihomo_config::manager::ConfigManager;
@@ -8,14 +8,12 @@ use tokio::task::JoinSet;
 use tokio::time::{Duration, sleep};
 
 use crate::admin_api::state::AdminApiContext;
+use crate::support::app_config_manager;
 use infiltrator_core::{
-    config as core_config,
     redact::redact_line,
     subscription::{
-        fetch_subscription_text, mask_subscription_url, strip_utf8_bom, CheckedSubscriptionUrl,
-    },
-};
-use mihomo_config::manager::validate_profile_name;
+        fetch_subscription_with_info, mask_subscription_url, strip_utf8_bom, CheckedSubscriptionUrl}};
+use mihomo_config::manager::paths::validate_profile_name;
 
 #[derive(Clone, Debug, Default)]
 pub struct SubscriptionUpdateSummary {
@@ -46,7 +44,9 @@ pub(super) async fn run_profile_subscription_tick<C: AdminApiContext>(
     client: &HttpClient,
     raw_client: &HttpClient,
 ) -> Result<(), String> {
-    let manager = ConfigManager::new().map_err(|err| format!("打开配置管理器失败: {err}"))?;
+    let manager = app_config_manager()
+        .await
+        .map_err(|err| format!("打开配置管理器失败: {err}"))?;
     let profile = manager
         .get_profile_metadata(profile_name)
         .await
@@ -120,7 +120,7 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
     client: &HttpClient,
     raw_client: &HttpClient,
 ) -> anyhow::Result<SubscriptionUpdateSummary> {
-    let manager = ConfigManager::new()?;
+    let manager = app_config_manager().await?;
     let profiles = manager.list_profiles().await?;
     let now = Utc::now();
     let mut summary = SubscriptionUpdateSummary {
@@ -206,7 +206,7 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
         join_set.spawn(async move {
             let result = update_profile_subscription_with_retry(
                 ProfileUpdateParams {
-                    manager: &ConfigManager::new()?,
+                    manager: &app_config_manager().await?,
                     profile: &profile_for_task,
                     url: &url,
                     interval_hours: interval_for_task,
@@ -288,27 +288,37 @@ async fn update_profile_subscription(params: ProfileUpdateParams<'_>) -> anyhow:
         params.profile.name,
         mask_subscription_url(params.url)
     );
-    let content =
-        fetch_subscription_text(params.client, params.raw_client, &checked_url).await?;
+    let (content, userinfo) =
+        fetch_subscription_with_info(params.client, params.raw_client, &checked_url).await?;
     let content = strip_utf8_bom(&content);
-    if core_config::validate_yaml(content).is_err() {
+    let (content, _report) =
+        infiltrator_core::profile_options::apply_saved_options_for(&params.profile.name, content)
+            .await
+            .map_err(|err| anyhow!("应用配置选项失败: {err}"))?;
+    if infiltrator_core::config::validate_yaml(&content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
     }
     params
         .manager
-        .save(&params.profile.name, content)
+        .save(&params.profile.name, &content)
         .await
         .map_err(|err| anyhow!(err.to_string()))?;
 
     let next_update = if params.auto_update_enabled {
         params
             .interval_hours
-            .map(|hours| params.now + ChronoDuration::hours(hours as i64))
+            .map(|hours| params.now + chrono::Duration::hours(hours as i64))
     } else {
         None
     };
     let mut updated = params.profile.clone();
     updated.subscription_url = Some(params.url.to_string());
+    if let Some(info) = userinfo {
+        updated.traffic_upload = info.upload;
+        updated.traffic_download = info.download;
+        updated.traffic_total = info.total;
+        updated.expire_at = info.expire;
+    }
     updated.auto_update_enabled = params.auto_update_enabled;
     updated.update_interval_hours = params.interval_hours;
     updated.last_updated = Some(params.now);
@@ -366,7 +376,7 @@ pub(crate) async fn schedule_next_attempt(
     now: chrono::DateTime<Utc>,
 ) -> anyhow::Result<()> {
     validate_profile_name(&profile.name).map_err(|err| anyhow!(err.to_string()))?;
-    let next_update = now + ChronoDuration::hours(interval_hours as i64);
+    let next_update = now + chrono::Duration::hours(interval_hours as i64);
     let mut updated = profile.clone();
     updated.next_update = Some(next_update);
     manager

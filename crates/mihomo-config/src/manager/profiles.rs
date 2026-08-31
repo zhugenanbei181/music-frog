@@ -6,11 +6,12 @@ use std::path::PathBuf;
 use mihomo_api::error::{MihomoError, Result};
 use mihomo_platform::traits::CredentialStore;
 use tokio::fs;
+use tokio::io::AsyncWriteExt;
 
 use super::ConfigManager;
 use super::metadata::{
-    apply_profile_metadata, ensure_table, set_bool, set_optional_datetime, set_optional_string,
-    set_optional_u32,
+    apply_profile_metadata, ensure_table, set_bool, set_optional_datetime, set_optional_i64,
+    set_optional_string, set_optional_u32, set_optional_u64,
 };
 use super::paths::sanitized_profile_key;
 use super::subscription_store::{delete_subscription_url, store_subscription_url};
@@ -24,12 +25,58 @@ impl<S: CredentialStore> ConfigManager<S> {
         Ok(content)
     }
 
+    /// Read the transient pre-save copy, if one exists. Runtime apply flows
+    /// use it to recover the actual previous content after another operation
+    /// has already written a validated profile file.
+    pub async fn load_backup(&self, profile: &str) -> Result<Option<String>> {
+        let path = self.profile_yaml_path(profile).await?;
+        match fs::read_to_string(backup_path(&path)).await {
+            Ok(content) => Ok(Some(content)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+
     pub async fn save(&self, profile: &str, content: &str) -> Result<()> {
         yaml::validate(content)?;
         let path = self.profile_yaml_path(profile).await?;
-        fs::write(&path, content).await?;
+        if fs::try_exists(&path).await? {
+            let previous = fs::read(&path).await?;
+            atomic_write(&backup_path(&path), &previous).await?;
+        } else {
+            let _ = fs::remove_file(backup_path(&path)).await;
+        }
+        atomic_write(&path, content.as_bytes()).await?;
 
         Ok(())
+    }
+
+    /// Restore the last profile content saved through [`Self::save`]. The
+    /// backup is deliberately one-shot and is cleared after the caller has
+    /// successfully applied/rebuilt the new configuration.
+    pub async fn restore_backup(&self, profile: &str) -> Result<bool> {
+        let path = self.profile_yaml_path(profile).await?;
+        let backup = backup_path(&path);
+        if !fs::try_exists(&backup).await? {
+            return Ok(false);
+        }
+        let previous = fs::read(&backup).await?;
+        yaml::validate(std::str::from_utf8(&previous).map_err(|error| {
+            MihomoError::Config(format!("profile backup is not UTF-8: {error}"))
+        })?)?;
+        atomic_write(&path, &previous).await?;
+        Ok(true)
+    }
+
+    /// Remove the transient last-save backup once the new configuration is
+    /// known to be live (or when a save did not require a runtime rebuild).
+    pub async fn clear_backup(&self, profile: &str) -> Result<()> {
+        let path = self.profile_yaml_path(profile).await?;
+        match fs::remove_file(backup_path(&path)).await {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        }
     }
 
     pub async fn list_profiles(&self) -> Result<Vec<Profile>> {
@@ -85,6 +132,14 @@ impl<S: CredentialStore> ConfigManager<S> {
         }
         self.remove_profile_metadata(profile).await?;
         Ok(())
+    }
+
+    /// 只删除单个 profile 在 OS 凭证库中的订阅 URL（恢复出厂清理用）。
+    /// 与 [`Self::delete_profile`] 不同：不删 YAML 文件、不动 settings
+    /// 元数据。名字先做与存储侧一致的消毒，再拼 `subscription:<key>`。
+    pub async fn delete_subscription_credential(&self, profile: &str) -> Result<()> {
+        let key = sanitized_profile_key(profile)?;
+        delete_subscription_url(&self.credential_store, &key).await
     }
 
     pub async fn get_profile_metadata(&self, profile: &str) -> Result<Profile> {
@@ -143,6 +198,10 @@ impl<S: CredentialStore> ConfigManager<S> {
         );
         set_optional_datetime(profile_table, "last_updated", metadata.last_updated);
         set_optional_datetime(profile_table, "next_update", metadata.next_update);
+        set_optional_u64(profile_table, "traffic_upload", metadata.traffic_upload);
+        set_optional_u64(profile_table, "traffic_download", metadata.traffic_download);
+        set_optional_u64(profile_table, "traffic_total", metadata.traffic_total);
+        set_optional_i64(profile_table, "expire_at", metadata.expire_at);
 
         let content = toml::to_string(&settings)
             .map_err(|e| MihomoError::Config(format!("Failed to serialize config: {}", e)))?;
@@ -152,4 +211,54 @@ impl<S: CredentialStore> ConfigManager<S> {
         fs::write(&self.settings_file, content).await?;
         Ok(())
     }
+}
+
+fn backup_path(path: &std::path::Path) -> PathBuf {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("profile.yaml");
+    path.with_file_name(format!("{file_name}.bak"))
+}
+
+async fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
+    let parent = path.parent().ok_or_else(|| {
+        MihomoError::Config(format!("profile path has no parent: {}", path.display()))
+    })?;
+    fs::create_dir_all(parent).await?;
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("profile");
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    let temporary = parent.join(format!(".{file_name}.tmp-{}-{stamp}", std::process::id()));
+
+    let result = async {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .await?;
+        file.write_all(content).await?;
+        file.sync_all().await?;
+        drop(file);
+
+        // `rename` is atomic on Unix. Windows refuses to replace an existing
+        // file, so remove only the exact target as a platform fallback.
+        #[cfg(windows)]
+        if fs::try_exists(path).await? {
+            fs::remove_file(path).await?;
+        }
+        fs::rename(&temporary, path).await?;
+        Ok::<(), std::io::Error>(())
+    }
+    .await;
+
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary).await;
+    }
+    result.map_err(Into::into)
 }

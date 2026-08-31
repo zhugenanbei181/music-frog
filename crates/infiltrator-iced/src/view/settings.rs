@@ -1,12 +1,37 @@
-use crate::locales::{Lang, Localizer};
+use crate::state::AppState;
+use crate::types::app::ConfirmAction;
+use crate::types::message::Message;
 use crate::view::components::{
     BadgeKind, card, icon_button, modern_scrollable, section_header, status_dot, toggle_switch,
 };
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CONTROL, SP_MD, tokens};
-use crate::{AppState, Message};
-use iced::widget::{Space, button, column, container, pick_list, row, text, text_input};
+use iced::widget::{
+    Space, button, column, container, pick_list, progress_bar, row, text, text_input,
+};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_shared::locales::{Lang, Localizer};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct SettingsChoice {
+    value: &'static str,
+}
+
+impl std::fmt::Display for SettingsChoice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.value)
+    }
+}
+
+const LANGUAGE_OPTIONS: &[SettingsChoice] = &[
+    SettingsChoice { value: "zh-CN" },
+    SettingsChoice { value: "en-US" },
+];
+const CORE_CHANNEL_OPTIONS: &[SettingsChoice] = &[
+    SettingsChoice { value: "stable" },
+    SettingsChoice { value: "beta" },
+    SettingsChoice { value: "nightly" },
+];
 
 // ---------------------------------------------------------------------------
 // Token-driven control styles (ui-wave2-r)
@@ -167,6 +192,19 @@ fn secondary_text(value: String) -> Element<'static, Message> {
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
+    let selected_language = LANGUAGE_OPTIONS
+        .iter()
+        .find(|option| option.value == state.shell.lang)
+        .copied();
+    let selected_core_channel = CORE_CHANNEL_OPTIONS
+        .iter()
+        .find(|option| option.value == state.runtime.core_channel)
+        .copied();
+    let tun_service_ready = state.shell.is_admin
+        || matches!(
+            state.runtime.tun_service_status,
+            Some(infiltrator_desktop::tun_service::ServiceModeStatus::InstalledAndRunning)
+        );
 
     let header = text(lang.tr("nav_settings").to_string())
         .size(24)
@@ -176,7 +214,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         });
 
     // 0. UAC Prompt (if not admin)
-    let uac_banner = if !state.shell.is_admin {
+    let uac_banner = if !tun_service_ready {
         let banner_body = card(
             None,
             column![
@@ -192,10 +230,18 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 ]
                 .align_y(Alignment::Center),
                 Space::new().height(theme::SP_SM),
-                secondary_text(lang.tr("settings_uac_desc").to_string()),
+                secondary_text(if cfg!(windows) {
+                    lang.tr("settings_uac_desc").to_string()
+                } else {
+                    "启用 TUN 前需要为 mihomo 配置平台权限；完成后请重新开启 TUN。".to_string()
+                }),
                 Space::new().height(theme::SP_MD),
                 text_btn(
-                    lang.tr("settings_uac_request").to_string(),
+                    if cfg!(windows) {
+                        lang.tr("settings_uac_request").to_string()
+                    } else {
+                        "准备 TUN 权限".to_string()
+                    },
                     style_accent,
                     Some(Message::RequestAdminPrivilege),
                 ),
@@ -241,6 +287,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 state.runtime.system_proxy_enabled,
                 Message::SetSystemProxy,
             ),
+            toggle_row(
+                lang.tr("settings_notifications").to_string(),
+                state.shell.notifications_enabled,
+                Message::UpdateNotificationsEnabled,
+            ),
             Space::new().height(theme::SP_SM),
             row![
                 text(lang.tr("theme").to_string())
@@ -260,11 +311,41 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 ),
             ]
             .align_y(Alignment::Center),
+            row![
+                text("语言 / Language")
+                    .size(13)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_primary),
+                    }),
+                Space::new().width(Length::Fill),
+                pick_list(
+                    LANGUAGE_OPTIONS,
+                    selected_language,
+                    |choice: SettingsChoice| Message::SetLanguage(choice.value.to_string()),
+                )
+                .width(Length::Fixed(120.0))
+                .style(pick_style),
+            ]
+            .align_y(Alignment::Center),
+            text_btn(
+                if state.profile.is_saving_app_settings {
+                    "保存中...".to_string()
+                } else {
+                    "保存设置".to_string()
+                },
+                style_accent,
+                (!state.profile.is_saving_app_settings).then_some(Message::SaveAppSettings),
+            ),
             Space::new().height(theme::SP_MD),
             text_btn(
-                lang.tr("settings_factory_reset").to_string(),
+                if state.shell.is_factory_resetting {
+                    "恢复中...".to_string()
+                } else {
+                    lang.tr("settings_factory_reset").to_string()
+                },
                 style_danger,
-                Some(Message::FactoryReset),
+                (!state.shell.is_factory_resetting)
+                    .then_some(Message::RequestConfirmation(ConfirmAction::FactoryReset)),
             ),
         ]
         .spacing(theme::SP_SM),
@@ -274,6 +355,41 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let tun_section = card(
         Some(lang.tr("tun_mode").to_string()),
         column![
+            row![
+                text("TUN 服务状态")
+                    .size(13)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_primary),
+                    }),
+                Space::new().width(theme::SP_MD),
+                crate::view::components::badge(
+                    state
+                        .runtime
+                        .tun_service_status
+                        .map(|status| format!("{status:?}"))
+                        .unwrap_or_else(|| "未检测".to_string()),
+                    if state.runtime.is_installing_tun_service {
+                        BadgeKind::Warning
+                    } else {
+                        BadgeKind::Neutral
+                    },
+                ),
+                Space::new().width(Length::Fill),
+                icon_button(Icon::RefreshCw, 14.0, Message::RefreshTunServiceStatus),
+                Space::new().width(theme::SP_SM),
+                text_btn(
+                    if state.runtime.is_installing_tun_service {
+                        "准备中...".to_string()
+                    } else {
+                        "准备 TUN 服务".to_string()
+                    },
+                    style_ghost,
+                    (!state.runtime.is_installing_tun_service)
+                        .then_some(Message::InstallTunService),
+                ),
+            ]
+            .align_y(Alignment::Center),
+            Space::new().height(theme::SP_SM),
             row![
                 text(lang.tr("tun_stack").to_string())
                     .size(13)
@@ -406,22 +522,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 }),
                 Space::new().width(theme::SP_MD),
                 if admin_running {
-                    row![
-                        text(state.shell.admin_server.url().unwrap_or_default())
-                            .size(12)
-                            .font(MONO)
-                            .style(|t: &Theme| text::Style {
-                                color: Some(tokens(t).text_secondary),
-                            }),
-                        Space::new().width(theme::SP_MD),
-                        text_btn(
-                            lang.tr("settings_admin_open").to_string(),
-                            style_ghost,
-                            Some(Message::OpenWebAdmin),
-                        ),
-                    ]
-                    .align_y(Alignment::Center)
-                    .into()
+                    text(state.shell.admin_server.url().unwrap_or_default())
+                        .size(12)
+                        .font(MONO)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).text_secondary),
+                        })
+                        .into()
                 } else {
                     Element::from(Space::new().width(Length::Shrink))
                 },
@@ -438,14 +545,52 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         kernel_rows = kernel_rows.push(
             container(
                 row![
-                    text(format!("{} {}", lang.tr("settings_available"), latest))
-                        .size(13)
-                        .width(Length::Fill),
-                    text_btn(
-                        lang.tr("settings_download").to_string(),
-                        style_accent,
-                        Some(Message::DownloadCore(latest.clone())),
-                    ),
+                    text(if state.runtime.is_downloading_core {
+                        format!(
+                            "{} {:.0}%",
+                            lang.tr("settings_downloading"),
+                            state.runtime.download_progress * 100.0
+                        )
+                    } else {
+                        format!("{} {}", lang.tr("settings_available"), latest)
+                    })
+                    .size(13)
+                    .width(Length::Fill),
+                    if state.runtime.is_downloading_core {
+                        Element::from(
+                            row![
+                                column![
+                                    progress_bar(0.0..=1.0, state.runtime.download_progress,)
+                                        .length(Length::Fixed(180.0)),
+                                    secondary_text(format!(
+                                        "速度 {}/s",
+                                        state
+                                            .runtime
+                                            .download_stats
+                                            .as_ref()
+                                            .map(|stats| crate::utils::format_bytes(
+                                                stats.speed_bytes
+                                            ))
+                                            .unwrap_or_else(|| "—".to_string()),
+                                    )),
+                                ]
+                                .spacing(theme::SP_XS),
+                                Space::new().width(theme::SP_SM),
+                                text_btn(
+                                    "取消".to_string(),
+                                    style_ghost,
+                                    Some(Message::CancelCoreDownload)
+                                ),
+                            ]
+                            .align_y(Alignment::Center),
+                        )
+                    } else {
+                        Element::from(text_btn(
+                            lang.tr("settings_download").to_string(),
+                            style_accent,
+                            Some(Message::DownloadCore(latest.clone())),
+                        ))
+                    },
                 ]
                 .align_y(Alignment::Center),
             )
@@ -507,7 +652,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                                     icon_button(
                                         Icon::Trash2,
                                         14.0,
-                                        Message::DeleteKernel(kernel.version.clone()),
+                                        Message::RequestConfirmation(ConfirmAction::DeleteKernel(
+                                            kernel.version.clone(),
+                                        )),
                                     ),
                                 ]
                                 .align_y(Alignment::Center),
@@ -554,21 +701,39 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .push(Space::new().height(10))
         .push(admin_section)
         .push(Space::new().height(10))
+        .push(crate::view::doctor::section(state))
+        .push(Space::new().height(10))
         .push(card(
             None,
             column![
                 section_header(
                     lang.tr("settings_kernel_mgmt").as_ref(),
-                    Some(if state.runtime.is_checking_update {
-                        text(lang.tr("settings_checking").to_string())
-                            .size(12)
-                            .style(|t: &Theme| text::Style {
-                                color: Some(tokens(t).text_tertiary),
-                            })
-                            .into()
-                    } else {
-                        icon_button(Icon::RefreshCw, 14.0, Message::CheckCoreUpdate)
-                    }),
+                    Some(
+                        row![
+                            pick_list(
+                                CORE_CHANNEL_OPTIONS,
+                                selected_core_channel,
+                                |choice: SettingsChoice| {
+                                    Message::SetCoreChannel(choice.value.to_string())
+                                },
+                            )
+                            .width(Length::Fixed(110.0))
+                            .style(pick_style),
+                            Space::new().width(theme::SP_SM),
+                            if state.runtime.is_checking_update {
+                                text(lang.tr("settings_checking").to_string())
+                                    .size(12)
+                                    .style(|t: &Theme| text::Style {
+                                        color: Some(tokens(t).text_tertiary),
+                                    })
+                                    .into()
+                            } else {
+                                icon_button(Icon::RefreshCw, 14.0, Message::CheckCoreUpdate)
+                            },
+                        ]
+                        .align_y(Alignment::Center)
+                        .into(),
+                    ),
                 ),
                 Space::new().height(theme::SP_MD),
                 kernel_rows,

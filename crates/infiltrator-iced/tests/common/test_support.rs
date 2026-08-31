@@ -7,7 +7,8 @@
 //! test-intent: behavior
 
 use infiltrator_iced::demo::{DemoEnv, parse_skin};
-use infiltrator_iced::{AppState, Route};
+use infiltrator_iced::state::AppState;
+use infiltrator_iced::types::app::Route;
 
 /// Production window size, mirroring the production window and the demo
 /// fixture default.
@@ -18,6 +19,9 @@ pub fn demo_env(page: Route) -> DemoEnv {
     DemoEnv {
         enabled: true,
         page,
+        pane: infiltrator_iced::types::options::EditorPane::Profile,
+        providers_tab: false,
+        lang: "zh-CN".to_string(),
         skin: parse_skin("dark"),
         window_size: DEFAULT_WINDOW,
         capture_marker: None,

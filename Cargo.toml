@@ -1,7 +1,10 @@
 [workspace]
 resolver = "2"
+# 0.20 构建面：Android 原生 + Iced 桌面 + 共享栈。
+# - WebUI/Tauri 已退役（台账：docs/TAURI_WEBUI_RETIREMENT_LEDGER.md）。
+# - 0.30 大一统 UI 线：infiltrator-bevy-widgets / infiltrator-bevy-ui 目录保留在
+#   crates/ 下但不出现在 0.20 构建面（当前不可编译，修复归 0.30）。
 members = [
-  "src-tauri",
   "crates/mihomo-api",
   "crates/mihomo-config",
   "crates/mihomo-platform",
@@ -16,9 +19,9 @@ members = [
   "crates/mihomo-dav-sync/sync-engine",
   "crates/mihomo-dav-sync/state-store",
   "crates/mihomo-dav-sync/indexer",
-  "crates/mihomo-dav-sync/cli",
-  "crates/mihomo-dav-sync/platform-android"
-, "crates/infiltrator-iced"]
+  "crates/mihomo-dav-sync/platform-android",
+  "crates/infiltrator-iced",
+  "crates/infiltrator-cli"]
 
 [workspace.dependencies]
 # Network & Async
@@ -77,6 +80,9 @@ tray-icon = { version = "0.24", default-features = false, features = ["gtk"] }
 # no extra async-io executor stack is pulled in; "blocking" adds the
 # synchronous spawn/handle API the tray backend uses off the async paths.
 ksni = { version = "0.3", default-features = false, features = ["tokio", "blocking"] }
+# 0.20 OS 系统通知（Linux/*BSD）：默认特性关闭，"z" 是 zbus 纯 Rust 后端，
+# 与 ksni 共享 zbus 5 依赖树；刻意不启用 d/d_vendored（C libdbus）后端。
+notify-rust = { version = "4.12", default-features = false, features = ["z"] }
 tempfile = "3.27"
 mockito = "1.7"
 clap = { version = "4.6", features = ["derive"] }

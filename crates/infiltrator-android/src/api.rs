@@ -1,4 +1,5 @@
-use crate::runtime::{AndroidBridge, AndroidBridgeAdapter};
+use crate::runtime::AndroidBridgeAdapter;
+use mihomo_platform::android_bridge::AndroidBridge;
 use mihomo_api::error::Result;
 use mihomo_platform::traits::{CoreController, CredentialStore, DataDirProvider};
 
@@ -79,7 +80,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runtime::AndroidBridge;
+    use mihomo_platform::android_bridge::AndroidBridge;
     use std::path::PathBuf;
     use std::sync::Mutex;
 

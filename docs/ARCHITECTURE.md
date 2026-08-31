@@ -33,14 +33,15 @@ and sync          (REST / WebSocket)
 
 - UI 只提交意图、读取不可变结果和能力描述；不直接启动进程、读写 mihomo 配置或拼接 PID 文件。
 - Rust 是所有 mihomo 控制操作的唯一产品边界；外部 mihomo Web UI 只能作为受控的浏览器 surface。
-- 同一个用户意图只能有一个业务语义和一个错误语义；Iced、Tauri/Web、Android 只负责自己的呈现与宿主适配。
+- 同一个用户意图只能有一个业务语义和一个错误语义；Iced、Android（以及 0.30 起的 Bevy UI）只负责自己的呈现与宿主适配。
 - 生命周期、配置应用和版本切换属于有副作用的命令，必须经过 Rust 的串行化协调；运行态观察可以流式化，但必须有界。
 
-### 导入规范：单一权威路径（2026-08-29）
+### 导入规范：单一权威路径（2026-08-29，2026-08-30 全仓强制）
 
-- 所有跨 crate 类型从**定义模块**的规范路径导入，crate 根不设 `pub use` 转发层；一个事实只允许一个 Rust 路径。例如 `mihomo_api::client::MihomoClient`、`mihomo_api::error::MihomoError`、`mihomo_config::manager::ConfigManager`、`mihomo_platform::traits::CoreController`、`mihomo_platform::paths::get_home_dir`、`mihomo_version::manager::VersionManager`、`infiltrator_core::settings::AppSettings`、`infiltrator_desktop::runtime::MihomoRuntime`、`infiltrator_admin::admin_api::state::AdminApiContext`。
-- 两项例外：`infiltrator_http::reqwest` 是依赖版本收敛点（全 workspace 统一 reqwest 版本），不是名字转发；`infiltrator-android/src/lib.rs` 的导出面属 UniFFI FFI 表面，随 FFI 专项另行处理。
-- 新增公开类型时直接在定义模块登记，不得为省事在 crate 根加转发——避免同一类型出现两个可用路径后调用方随机分叉。
+- 全仓（业务代码与测试）**禁止一切 re-export 转发层**：`pub use`、`pub(crate) use`、`pub use x::*`（glob）一律不得出现；crate 根与 crate 内子模块一律 `pub mod` 直接暴露，调用方从**定义模块**的规范路径导入。一个事实只允许一个 Rust 路径。例如 `mihomo_api::client::MihomoClient`、`mihomo_api::error::MihomoError`、`mihomo_config::manager::ConfigManager`、`mihomo_platform::traits::CoreController`、`mihomo_platform::paths::get_home_dir`、`mihomo_version::manager::VersionManager`、`infiltrator_core::settings::AppSettings`、`infiltrator_desktop::runtime::MihomoRuntime`、`infiltrator_admin::admin_api::state::AdminApiContext`。
+- **禁止 `use ... as 别名`**：同名冲突一律用完整路径书写（如 `axum::extract::State`、`mihomo_config::profile::Profile`）。唯一豁免是 `use Trait as _;` 匿名 trait 导入——它不绑定新名字，不算别名。
+- 两项例外（白名单同时登记在 `scripts/quality/import-guard.py`）：`infiltrator_http::reqwest` 是依赖版本收敛点（全 workspace 统一 reqwest 版本），不是名字转发；`infiltrator-android/src/lib.rs` 与其 `uniffi_api.rs` 的导出面属 UniFFI FFI 表面，随 FFI 专项另行处理。
+- 机械化强制：`scripts/quality/import-guard.py --mode enforce`（CI `test.yml` 执行），违规即红；新增公开类型时直接在定义模块登记，不得为省事加转发——避免同一类型出现两个可用路径后调用方随机分叉。
 
 ### 异步与调度模型（2026-08-29 决策）
 
@@ -57,9 +58,9 @@ and sync          (REST / WebSocket)
 | Core lifecycle/platform | `mihomo-platform`、`infiltrator-desktop`、Android `MihomoHost` | 进程/VPN/凭据/目录/平台资源 | 业务页面和第二套配置模型 |
 | Application/admin | `infiltrator-admin`、`infiltrator-http` | use-case 编排、Admin API、调度、事件和重建流程 | 另一套 mihomo client 或 UI 专属状态 |
 | Desktop primary UI | `infiltrator-iced` | Iced 路由、布局、交互、托盘呈现 | OS 进程控制、核心 API 语义 |
-| Desktop secondary/legacy | `src-tauri` + `webui/config-manager-ui` | Tauri 宿主、浏览器 Admin surface、兼容入口 | 与 Iced 分叉的业务规则 |
+| Desktop secondary/legacy | ~~`src-tauri` + `webui/config-manager-ui`~~ | 已于 release/0.20 退役（台账：TAURI_WEBUI_RETIREMENT_LEDGER.md） | — |
 | Android surface | `infiltrator-android` + Compose | UniFFI DTO、Android VPN/权限/生命周期和移动布局 | 直接复制桌面业务实现 |
-| External dashboard | `webui/mihomo-manager-ui/dist` | 上游 dashboard 静态资源边界 | MusicFrog 自己的配置事实 |
+| External dashboard | ~~`webui/mihomo-manager-ui/dist`~~ | 已于 release/0.20 退役 | MusicFrog 自己的配置事实 |
 | Sync | `mihomo-dav-sync/*` | WebDAV 传输、索引、状态、冲突处理 | 页面私有同步协议 |
 
 当前依赖图仍有收敛空间：多个上层 crate 同时依赖 `mihomo-api`、`mihomo-config`、`mihomo-platform`，Iced 还持有较大的 `AppState`。重整不要求立即改名或一次性拆 crate，先用稳定的 use-case/contract seam 收敛依赖，再按实际边界移动代码。
@@ -81,7 +82,7 @@ and sync          (REST / WebSocket)
 - Iced 适合桌面密集操作、托盘和多栏布局；Android 适合 VPN 权限、后台服务和窄屏导航；Web Admin 适合浏览器、深度编辑和远程调试入口。
 - 同一命令可以有不同按钮、手势、导航层级和信息密度；不能因此改变命令结果或失败含义。
 - Android 的核心二进制交付和 VPN 生命周期是平台特化；桌面可以支持下载/切换多个 core，二者不能用伪造的“完全平价”掩盖能力差异。
-- Tauri/Web 是兼容和管理 surface，不与 Iced 争夺新的业务事实；新能力先落 Rust contract，再决定是否补齐该 surface。
+- WebUI/Tauri 已于 0.20 退役；内嵌 admin server 保留 API-only（Doctor 诊断 loopback + 未来 embedder 契约）。
 
 每个差异都必须挂在一个共享用户意图上，并在 [FRONTENDS.md](FRONTENDS.md) 标记为 `accepted difference` 或 typed `unsupported`。没有对应共享意图的 UI 特性属于分叉，不应直接落地。
 
@@ -89,7 +90,7 @@ and sync          (REST / WebSocket)
 
 1. **先定控制平面**：统一 core session、controller URL/secret、readiness、generation 和错误映射。
 2. **再定 use-case**：将 profile、runtime、proxy、network config、sync、core update 暴露为面向意图的 Rust facade；UI 不再逐页拼装底层 client。
-3. **做一条垂直切片**：优先选择“profile 切换 → 配置应用 → core 重启 → 状态回传”，同时接 Iced、Tauri/Web、Android 的最小 surface。
+3. **做一条垂直切片**：优先选择“profile 切换 → 配置应用 → core 重启 → 状态回传”，同时接 Iced、Android 的最小 surface（0.30 起加 Bevy UI）。
 4. **补兼容矩阵**：对 mihomo API 和配置字段建立版本 fixture，锁定旧版本失败语义和新版本能力探测。
 5. **迁移其他功能域**：runtime diagnostics、proxy/delay、DNS/Fake-IP/TUN、rules/providers、WebDAV。
 6. **最后处理 UI 视觉与清理**：在共享语义和回归矩阵稳定后，再做组件、动效、主题和旧路径删除。

@@ -1,9 +1,10 @@
-use crate::locales::{Lang, Localizer};
+use crate::state::AppState;
+use crate::types::message::Message;
 use crate::view::components::{card, modern_scrollable, section_header, status_dot, toggle_switch};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, R_CONTROL, SP_LG, tokens};
-use crate::{AppState, Message};
-use iced::widget::{Space, button, column, container, row, text, text_input};
+use iced::widget::{Space, button, column, container, progress_bar, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 // ---------------------------------------------------------------------------
 // Token-driven control styles (ui-wave2-r)
@@ -136,38 +137,64 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         )
     };
 
+    let sync_status = text(if state.profile.is_syncing {
+        "同步中...".to_string()
+    } else if state.profile.webdav_enabled {
+        lang.tr("sync_auto_enabled").to_string()
+    } else {
+        "WebDAV 自动同步未开启".to_string()
+    })
+    .size(13)
+    .font(FONT_SEMIBOLD)
+    .style(|t: &Theme| text::Style {
+        color: Some(tokens(t).text_primary),
+    });
+    let sync_progress: Element<'_, Message> = if let Some(progress) = &state.profile.sync_progress {
+        let ratio = if progress.total == 0 {
+            0.0
+        } else {
+            (progress.current as f32 / progress.total as f32).clamp(0.0, 1.0)
+        };
+        row![
+            text(format!(
+                "{} {}/{}",
+                progress.phase, progress.current, progress.total
+            ))
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
+            progress_bar(0.0..=1.0, ratio).length(Length::Fixed(140.0)),
+        ]
+        .spacing(theme::SP_SM)
+        .align_y(Alignment::Center)
+        .into()
+    } else {
+        text(if state.profile.webdav_sync_on_startup {
+            "启动时自动同步".to_string()
+        } else {
+            lang.tr("sync_manual_only").to_string()
+        })
+        .size(11)
+        .style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        })
+        .into()
+    };
+
     // Live sync status card: dot reflects WebDAV activity/enablement.
     let status_section = card(
         None,
         row![
             status_dot(state.profile.is_syncing || state.profile.webdav_enabled),
             Space::new().width(theme::SP_MD),
-            column![
-                text(if state.profile.is_syncing {
-                    "Syncing...".to_string()
-                } else if state.profile.webdav_enabled {
-                    "WebDAV auto sync enabled".to_string()
-                } else {
-                    "WebDAV auto sync disabled".to_string()
-                })
-                .size(13)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary),
-                }),
-                text(if state.profile.webdav_sync_on_startup {
-                    "Syncs on startup".to_string()
-                } else {
-                    "Manual sync only".to_string()
-                })
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
-            ]
-            .spacing(2),
+            column![sync_status, sync_progress,].spacing(2),
             Space::new().width(Length::Fill),
-            text(format!("{} min", state.profile.webdav_sync_interval_mins))
+            text(format!(
+                "{} {}",
+                state.profile.webdav_sync_interval_mins,
+                lang.tr("sync_interval_suffix")
+            ))
                 .size(12)
                 .font(theme::MONO)
                 .style(|t: &Theme| text::Style {
@@ -181,7 +208,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         None,
         column![
             toggle_row(
-                "Enable WebDAV auto sync".to_string(),
+                "开启 WebDAV 自动同步".to_string(),
                 state.profile.webdav_enabled,
                 Message::UpdateWebDavEnabled,
             ),
@@ -251,9 +278,33 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .spacing(theme::SP_XS),
             ],
             Space::new().height(theme::SP_LG),
-            save_settings_btn,
+            row![
+                save_settings_btn,
+                Space::new().width(theme::SP_SM),
+                if state.profile.is_syncing {
+                    text_btn(
+                        "取消同步".to_string(),
+                        style_ghost,
+                        Some(Message::CancelWebDavSync),
+                    )
+                } else {
+                    Space::new().width(0).into()
+                },
+            ]
+            .align_y(Alignment::Center),
             Space::new().height(theme::SP_LG),
             row![
+                text_btn(
+                    if state.profile.is_testing_webdav {
+                        "测试中...".to_string()
+                    } else {
+                        "测试连接".to_string()
+                    },
+                    style_ghost,
+                    (!state.profile.is_syncing && !state.profile.is_testing_webdav)
+                        .then_some(Message::TestWebDavConnection),
+                ),
+                Space::new().width(theme::SP_LG),
                 button(
                     container(
                         text(lang.tr("sync_upload").to_string())
@@ -266,7 +317,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 )
                 .width(Length::FillPortion(1))
                 .style(style_ghost)
-                .on_press(Message::SyncUpload),
+                .on_press_maybe(
+                    (!state.profile.is_syncing && !state.profile.is_testing_webdav)
+                        .then_some(Message::SyncUpload),
+                ),
                 Space::new().width(theme::SP_LG),
                 button(
                     container(
@@ -280,21 +334,77 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 )
                 .width(Length::FillPortion(1))
                 .style(style_accent)
-                .on_press(Message::SyncDownload),
+                .on_press_maybe(
+                    (!state.profile.is_syncing && !state.profile.is_testing_webdav)
+                        .then_some(Message::SyncDownload),
+                ),
             ],
         ]
         .spacing(theme::SP_SM),
     );
 
-    let content = column![
+    let conflict_section: Option<Element<'_, Message>> = if state.profile.sync_conflicts.is_empty()
+    {
+        None
+    } else {
+        let lang = Lang(&state.shell.lang);
+        let mut rows = column![
+            text(lang.tr("sync_conflict_hint").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
+        ]
+        .spacing(theme::SP_SM);
+        for conflict in &state.profile.sync_conflicts {
+            rows = rows.push(
+                row![
+                    text(conflict.profile.clone()).size(12),
+                    Space::new().width(Length::Fill),
+                    text_btn(
+                        lang.tr("sync_conflict_merge").to_string(),
+                        style_ghost,
+                        Some(Message::LoadSyncDiff(conflict.profile.clone())),
+                    ),
+                    Space::new().width(theme::SP_SM),
+                    text_btn(
+                        lang.tr("sync_conflict_take_remote").to_string(),
+                        style_accent,
+                        Some(Message::ResolveSyncConflict(conflict.profile.clone())),
+                    ),
+                    Space::new().width(theme::SP_SM),
+                    text_btn(
+                        lang.tr("sync_conflict_keep_local").to_string(),
+                        style_ghost,
+                        Some(Message::DismissSyncConflict(conflict.profile.clone())),
+                    ),
+                ]
+                .align_y(Alignment::Center),
+            );
+        }
+        let mut card_column = column![card(Some(lang.tr("sync_conflict_title").to_string()), rows)]
+            .spacing(SP_LG);
+        if let Some(diff_panel) = crate::view::sync_diff::diff_panel(state) {
+            card_column = card_column.push(diff_panel);
+        }
+        Some(card_column.into())
+    };
+
+    let mut content = column![
         header,
         Space::new().height(theme::SP_LG),
         section_header("WebDAV", None),
         status_section,
         Space::new().height(SP_LG),
-        sync_form,
     ]
     .spacing(theme::SP_MD);
+
+    if let Some(conflict_section) = conflict_section {
+        content = content
+            .push(conflict_section)
+            .push(Space::new().height(SP_LG));
+    }
+    content = content.push(sync_form);
 
     modern_scrollable(content)
         .height(Length::Fill)

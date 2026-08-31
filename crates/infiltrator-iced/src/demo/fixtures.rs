@@ -275,6 +275,11 @@ pub(super) fn demo_profiles() -> Vec<Profile> {
             update_interval_hours: Some(24),
             last_updated: Some(updated),
             next_update: Some(updated + chrono::Duration::hours(24)),
+            // subscription-userinfo fixture: 88.75 GiB of 300 GiB used, expiring 2027-07-17.
+            traffic_upload: Some(1_164_153_320),
+            traffic_download: Some(94_225_183_607),
+            traffic_total: Some(322_122_547_200),
+            expire_at: Some(1_811_395_200),
         },
         Profile {
             name: "本地配置".to_string(),
@@ -285,6 +290,10 @@ pub(super) fn demo_profiles() -> Vec<Profile> {
             update_interval_hours: None,
             last_updated: Some(updated),
             next_update: None,
+            traffic_upload: None,
+            traffic_download: None,
+            traffic_total: None,
+            expire_at: None,
         },
         Profile {
             name: "备用线路".to_string(),
@@ -295,6 +304,10 @@ pub(super) fn demo_profiles() -> Vec<Profile> {
             update_interval_hours: Some(12),
             last_updated: Some(updated),
             next_update: None,
+            traffic_upload: None,
+            traffic_download: None,
+            traffic_total: None,
+            expire_at: None,
         },
     ]
 }

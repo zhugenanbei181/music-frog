@@ -2,7 +2,7 @@
 //! WebDAV backup sync (`/admin/api/editor*`, `/admin/api/settings`,
 //! `/admin/api/profiles/open`, `/admin/api/webdav/*`).
 
-use axum::{Json, extract::State as AxumState, http::StatusCode};
+use axum::{Json, http::StatusCode};
 use infiltrator_core::settings::WebDavConfig;
 
 use crate::admin_api::events::{AdminEvent, EVENT_SETTINGS_CHANGED, EVENT_WEBDAV_SYNCED};
@@ -12,14 +12,14 @@ use crate::admin_api::state::{AdminApiContext, AdminApiState};
 use super::profiles::ensure_valid_profile_name;
 
 pub async fn get_editor_config_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<EditorConfigResponse>, ApiError> {
     let editor = state.ctx.editor_path().await;
     Ok(Json(EditorConfigResponse { editor }))
 }
 
 pub async fn set_editor_config_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<EditorConfigPayload>,
 ) -> Result<StatusCode, ApiError> {
     let editor = payload.editor.and_then(|s| {
@@ -38,14 +38,14 @@ pub async fn set_editor_config_http<C: AdminApiContext>(
 }
 
 pub async fn pick_editor_path_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<EditorConfigResponse>, ApiError> {
     let editor = state.ctx.pick_editor_path().await;
     Ok(Json(EditorConfigResponse { editor }))
 }
 
 pub async fn open_profile_in_editor_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<OpenProfilePayload>,
 ) -> Result<StatusCode, ApiError> {
     let name = ensure_valid_profile_name(&payload.name)?;
@@ -58,7 +58,7 @@ pub async fn open_profile_in_editor_http<C: AdminApiContext>(
 }
 
 pub async fn get_app_settings_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<AppSettingsPayload>, ApiError> {
     let settings = state.ctx.get_app_settings().await;
     let autostart_enabled = if state.ctx.supports_autostart_control() {
@@ -73,12 +73,13 @@ pub async fn get_app_settings_http<C: AdminApiContext>(
     };
     let runtime_running = Some(state.ctx.runtime_running().await);
     Ok(Json(AppSettingsPayload {
-        open_webui_on_startup: Some(settings.open_webui_on_startup),
         editor_path: settings.editor_path,
         use_bundled_core: Some(settings.use_bundled_core),
         language: Some(settings.language),
         theme: Some(settings.theme),
+        notifications_enabled: Some(settings.notifications_enabled),
         webdav: Some(settings.webdav),
+        configs_dir: settings.configs_dir,
         autostart_enabled,
         system_proxy_enabled,
         runtime_running,
@@ -86,14 +87,11 @@ pub async fn get_app_settings_http<C: AdminApiContext>(
 }
 
 pub async fn save_app_settings_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<AppSettingsPayload>,
 ) -> Result<StatusCode, ApiError> {
     let mut settings = state.ctx.get_app_settings().await;
 
-    if let Some(val) = payload.open_webui_on_startup {
-        settings.open_webui_on_startup = val;
-    }
     if let Some(val) = payload.editor_path {
         let trimmed = val.trim().to_string();
         settings.editor_path = if trimmed.is_empty() {
@@ -111,8 +109,19 @@ pub async fn save_app_settings_http<C: AdminApiContext>(
     if let Some(val) = payload.theme {
         settings.theme = val;
     }
+    if let Some(val) = payload.notifications_enabled {
+        settings.notifications_enabled = val;
+    }
     if let Some(val) = payload.webdav {
         settings.webdav = val;
+    }
+    if let Some(val) = payload.configs_dir {
+        let trimmed = val.trim().to_string();
+        settings.configs_dir = if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        };
     }
 
     state
@@ -150,7 +159,7 @@ pub async fn save_app_settings_http<C: AdminApiContext>(
 }
 
 pub async fn sync_webdav_now_http<C: AdminApiContext>(
-    AxumState(state): AxumState<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let settings = state.ctx.get_app_settings().await;
     if !settings.webdav.enabled {
@@ -158,9 +167,13 @@ pub async fn sync_webdav_now_http<C: AdminApiContext>(
     }
 
     // 手动触发同步逻辑
-    let summary = crate::scheduler::sync::run_sync_tick(&state.ctx, &settings.webdav)
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let summary = crate::scheduler::sync::run_sync_tick(
+        &state.ctx,
+        &settings.webdav,
+        settings.configs_dir.as_deref(),
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
 
     state.events.publish(AdminEvent::new(EVENT_WEBDAV_SYNCED));
 
@@ -172,7 +185,7 @@ pub async fn sync_webdav_now_http<C: AdminApiContext>(
 }
 
 pub async fn test_webdav_conn_http<C: AdminApiContext>(
-    AxumState(_state): AxumState<AdminApiState<C>>,
+    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<WebDavConfig>,
 ) -> Result<StatusCode, ApiError> {
     use dav_client::DavClient;

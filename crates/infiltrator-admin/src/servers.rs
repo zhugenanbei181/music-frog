@@ -72,8 +72,13 @@ pub async fn start_static_server(
     })
 }
 
+/// `admin_dir` is optional: `Some(dir)` keeps the legacy static-panel hosting
+/// (`/admin/` serving the directory), `None` runs the server in API-only mode
+/// (the WebUI was retired in 0.20 — see
+/// docs/TAURI_WEBUI_RETIREMENT_LEDGER.md; the REST surface remains for the
+/// Doctor loopback client and future embedders).
 pub async fn start_admin_server<C: AdminApiContext>(
-    admin_dir: PathBuf,
+    admin_dir: Option<PathBuf>,
     ctx: C,
     preferred_port: Option<u16>,
     default_port: u16,
@@ -87,10 +92,6 @@ pub async fn start_admin_server<C: AdminApiContext>(
     let listener = TcpListener::bind(addr).await?;
     let port = listener.local_addr()?.port();
 
-    let admin_static_service = ServeDir::new(admin_dir.clone())
-        .append_index_html_on_directories(true)
-        .fallback(ServeFile::new(admin_dir.join("index.html")));
-
     let api_state = AdminApiState::new(ctx, events);
     // Seed one periodic auto-update job per already-enabled profile so the
     // per-profile jobs exist no matter which embedder started the server
@@ -98,11 +99,18 @@ pub async fn start_admin_server<C: AdminApiContext>(
     // Runs inside this runtime; duplicate seeds are harmless because a same
     // name spawn replaces the previous job.
     crate::scheduler::seed_subscription_jobs(&api_state.ctx).await;
-    let router = Router::new()
-        .merge(admin_api::router(api_state))
-        .nest_service("/admin", admin_static_service)
-        .route("/", get(|| async { Redirect::temporary("/admin/") }))
-        .fallback(|| async { (StatusCode::NOT_FOUND, "请访问 /admin/") });
+    let router = Router::new().merge(admin_api::router(api_state));
+    let router = if let Some(admin_dir) = admin_dir {
+        let admin_static_service = ServeDir::new(admin_dir.clone())
+            .append_index_html_on_directories(true)
+            .fallback(ServeFile::new(admin_dir.join("index.html")));
+        router
+            .nest_service("/admin", admin_static_service)
+            .route("/", get(|| async { Redirect::temporary("/admin/") }))
+            .fallback(|| async { (StatusCode::NOT_FOUND, "请访问 /admin/") })
+    } else {
+        router.fallback(|| async { (StatusCode::NOT_FOUND, "API-only admin server") })
+    };
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     tokio::spawn(async move {

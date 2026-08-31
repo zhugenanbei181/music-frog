@@ -6,7 +6,9 @@ fn pseudo_random_u64(seed_mod: u64) -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos() as u64)
         .unwrap_or(42);
-    nanos.wrapping_mul(6364136223846793005).wrapping_add(seed_mod ^ 1442695040888963407)
+    nanos
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(seed_mod ^ 1442695040888963407)
 }
 
 fn pseudo_random_range(max: u64, seed_mod: u64) -> u64 {
@@ -90,9 +92,10 @@ impl ExponentialBackoff {
     /// and returns `None` if `max_retries` is exceeded.
     pub fn next_delay_ms(&mut self) -> Option<u64> {
         if let Some(max_retries) = self.config.max_retries
-            && self.current_attempt >= max_retries {
-                return None;
-            }
+            && self.current_attempt >= max_retries
+        {
+            return None;
+        }
 
         let mut delay = self.current_interval_ms as u64;
         if delay > self.config.max_interval_ms {
@@ -171,11 +174,11 @@ mod tests {
     fn test_max_retries_exceeded() {
         let mut backoff = ExponentialBackoff::default_fast();
         backoff.config.jitter = JitterMode::None;
-        
+
         for _ in 0..5 {
             assert!(backoff.next_delay_ms().is_some());
         }
-        
+
         assert_eq!(backoff.next_delay_ms(), None);
     }
 
@@ -183,12 +186,12 @@ mod tests {
     fn test_reset() {
         let mut backoff = ExponentialBackoff::default_fast();
         backoff.config.jitter = JitterMode::None;
-        
+
         assert_eq!(backoff.next_delay_ms(), Some(100));
         assert_eq!(backoff.current_retry_count(), 1);
-        
+
         backoff.reset();
-        
+
         assert_eq!(backoff.current_retry_count(), 0);
         assert_eq!(backoff.next_delay_ms(), Some(100));
     }

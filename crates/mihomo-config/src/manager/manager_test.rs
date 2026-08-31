@@ -41,6 +41,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_save_keeps_one_shot_backup_until_apply_clears_it() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir).await;
+        manager.save("current", "port: 7890\n").await.unwrap();
+        manager.save("current", "port: 7891\n").await.unwrap();
+
+        let path = manager.config_dir.join("current.yaml");
+        let backup = manager.config_dir.join("current.yaml.bak");
+        assert_eq!(fs::read_to_string(&path).await.unwrap(), "port: 7891\n");
+        assert_eq!(fs::read_to_string(&backup).await.unwrap(), "port: 7890\n");
+
+        assert!(manager.restore_backup("current").await.unwrap());
+        assert_eq!(fs::read_to_string(&path).await.unwrap(), "port: 7890\n");
+        manager.clear_backup("current").await.unwrap();
+        assert!(!backup.exists());
+    }
+
+    #[tokio::test]
     async fn test_save_invalid_yaml() {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
@@ -308,6 +326,10 @@ external-controller: http://127.0.0.1:9090
             update_interval_hours: Some(24),
             last_updated: None,
             next_update: None,
+            traffic_upload: None,
+            traffic_download: None,
+            traffic_total: None,
+            expire_at: None,
         };
 
         let result = manager

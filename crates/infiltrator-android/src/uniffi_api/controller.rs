@@ -6,7 +6,7 @@
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use mihomo_api::types::Connection as MihomoConnection;
+
 use serde::Deserialize;
 
 use super::support::{build_controller_client, get_runtime, map_mihomo_error};
@@ -343,7 +343,7 @@ async fn traffic_snapshot_internal() -> Result<TrafficSnapshot, FfiStatus> {
     ))
 }
 
-fn connection_to_record(connection: MihomoConnection) -> ConnectionRecord {
+fn connection_to_record(connection: mihomo_api::types::Connection) -> ConnectionRecord {
     ConnectionRecord {
         id: connection.id,
         host: connection.metadata.host,

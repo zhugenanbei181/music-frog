@@ -9,7 +9,9 @@
 
 pub mod admin_server;
 pub mod app;
+pub mod configs_dir;
 pub mod demo;
+mod notify;
 pub mod state;
 pub mod subscription;
 pub mod toast_state;
@@ -20,8 +22,6 @@ pub mod utils;
 pub mod view;
 pub mod view_root;
 
-pub use infiltrator_shared::{autostart, locales};
-
 /// Registry value name for this app's Windows autostart entry (distinct from
 /// the legacy Tauri client's entry so both can coexist).
 pub const AUTOSTART_REG_NAME: &str = "MusicFrogInfiltrator";
@@ -29,9 +29,7 @@ pub const AUTOSTART_REG_NAME: &str = "MusicFrogInfiltrator";
 #[cfg(test)]
 mod test_mounts;
 
-pub use state::AppState;
-pub use types::{InfiltratorError, Message, Route, RuntimeStatus};
-
+use crate::state::AppState;
 use iced::{application, window};
 use single_instance::SingleInstance;
 use std::fs::File;

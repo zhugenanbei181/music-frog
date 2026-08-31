@@ -9,7 +9,7 @@
 #[cfg(test)]
 mod tests {
     use crate::client::MihomoClient;
-use crate::proxy::ProxyManager;
+use crate::proxy::manager::ProxyManager;
     use mockito::Server;
 
     // ──────────────────────────────────────────────

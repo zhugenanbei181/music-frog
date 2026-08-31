@@ -2,18 +2,14 @@
 //! deleting profiles, plus subscription metadata management. Selection and
 //! save go through the session apply transaction in [`super::session`].
 
-use chrono::{Duration as ChronoDuration, Utc};
+use chrono::Utc;
 
 use infiltrator_core::profiles::{
-    ProfileDetail as CoreProfileDetail, ProfileInfo, create_profile_from_url, list_profile_infos,
-    load_profile_detail, sanitize_profile_name, select_profile as core_select_profile,
-    update_profile as core_update_profile,
+    ProfileInfo, create_profile_from_url, list_profile_infos, load_profile_detail,
+    sanitize_profile_name,
 };
-use infiltrator_core::{config as core_config, profiles as core_profiles};
-use mihomo_config::manager::ConfigManager;
-
 use super::session::apply_current_profile_status;
-use super::support::{get_runtime, map_anyhow_error, map_mihomo_error};
+use super::support::{build_config_manager, get_runtime, map_anyhow_error, map_mihomo_error};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
 // --- Profiles API ---
@@ -94,12 +90,12 @@ pub async fn profile_create(name: String, url: String) -> FfiStatus {
 pub async fn profile_select(name: String) -> FfiStatus {
     get_runtime()
         .spawn(async move {
-            let manager = match ConfigManager::new() {
+            let manager = match build_config_manager().await {
                 Ok(manager) => manager,
-                Err(err) => return map_mihomo_error(err),
+                Err(status) => return status,
             };
             let previous = manager.get_current().await.ok();
-            match core_select_profile(&name).await {
+            match infiltrator_core::profiles::select_profile(&name).await {
                 // Apply the newly current profile through the session
                 // transaction; on rollback the switch above is undone.
                 Ok(_) => apply_current_profile_status(previous).await,
@@ -116,12 +112,12 @@ pub async fn profile_select(name: String) -> FfiStatus {
 pub async fn profile_update(name: String) -> FfiStatus {
     get_runtime()
         .spawn(async move {
-            let manager = match ConfigManager::new() {
+            let manager = match build_config_manager().await {
                 Ok(manager) => manager,
-                Err(err) => return map_mihomo_error(err),
+                Err(status) => return status,
             };
             let previous = manager.get_current().await.ok();
-            match core_update_profile(&name).await {
+            match infiltrator_core::profiles::update_profile(&name).await {
                 Ok(profile) => {
                     if profile.active {
                         apply_current_profile_status(previous).await
@@ -168,13 +164,13 @@ pub async fn profile_save(name: String, content: String, activate: bool) -> FfiS
                 Ok(value) => value,
                 Err(err) => return map_anyhow_error(err),
             };
-            if let Err(err) = core_config::validate_yaml(&content) {
+            if let Err(err) = infiltrator_core::config::validate_yaml(&content) {
                 return map_anyhow_error(err);
             }
 
-            let manager = match ConfigManager::new() {
+            let manager = match build_config_manager().await {
                 Ok(value) => value,
-                Err(err) => return map_mihomo_error(err),
+                Err(status) => return status,
             };
             if let Err(err) = manager.save(&profile_name, &content).await {
                 return map_mihomo_error(err);
@@ -207,9 +203,9 @@ pub async fn profile_delete(name: String) -> FfiStatus {
                 Ok(value) => value,
                 Err(err) => return map_anyhow_error(err),
             };
-            let manager = match ConfigManager::new() {
+            let manager = match build_config_manager().await {
                 Ok(value) => value,
-                Err(err) => return map_mihomo_error(err),
+                Err(status) => return status,
             };
             manager
                 .delete_profile(&profile_name)
@@ -232,7 +228,7 @@ pub async fn profile_subscription_save(
 ) -> FfiStatus {
     get_runtime()
         .spawn(async move {
-            let profile_name = match core_profiles::sanitize_profile_name(&name) {
+            let profile_name = match infiltrator_core::profiles::sanitize_profile_name(&name) {
                 Ok(value) => value,
                 Err(err) => return map_anyhow_error(err),
             };
@@ -247,9 +243,9 @@ pub async fn profile_subscription_save(
                 );
             }
 
-            let manager = match ConfigManager::new() {
+            let manager = match build_config_manager().await {
                 Ok(value) => value,
-                Err(err) => return map_mihomo_error(err),
+                Err(status) => return status,
             };
 
             if let Err(err) = manager.load(&profile_name).await {
@@ -266,7 +262,7 @@ pub async fn profile_subscription_save(
             if auto_update_enabled {
                 metadata.next_update = metadata
                     .update_interval_hours
-                    .map(|hours| Utc::now() + ChronoDuration::hours(hours as i64));
+                    .map(|hours| Utc::now() + chrono::Duration::hours(hours as i64));
             } else {
                 metadata.next_update = None;
             }
@@ -286,13 +282,13 @@ pub async fn profile_subscription_save(
 pub async fn profile_subscription_clear(name: String) -> FfiStatus {
     get_runtime()
         .spawn(async move {
-            let profile_name = match core_profiles::sanitize_profile_name(&name) {
+            let profile_name = match infiltrator_core::profiles::sanitize_profile_name(&name) {
                 Ok(value) => value,
                 Err(err) => return map_anyhow_error(err),
             };
-            let manager = match ConfigManager::new() {
+            let manager = match build_config_manager().await {
                 Ok(value) => value,
-                Err(err) => return map_mihomo_error(err),
+                Err(status) => return status,
             };
 
             if let Err(err) = manager.load(&profile_name).await {
@@ -332,7 +328,7 @@ fn profile_to_summary(profile: ProfileInfo) -> ProfileSummary {
     }
 }
 
-fn profile_detail_to_record(profile: CoreProfileDetail) -> ProfileDetail {
+fn profile_detail_to_record(profile: infiltrator_core::profiles::ProfileDetail) -> ProfileDetail {
     ProfileDetail {
         name: profile.name,
         active: profile.active,

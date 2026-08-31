@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::run_sync_tick;
-    use crate::TEST_LOCK;
+    use mihomo_platform::TEST_LOCK;
     use crate::admin_api::state::AdminApiContext;
     use anyhow::anyhow;
     use infiltrator_core::settings::AppSettings;
@@ -81,7 +81,7 @@ mod tests {
         let ctx = MockContext;
         let config = WebDavConfig::default(); // default enabled is false
 
-        let result = run_sync_tick(&ctx, &config).await;
+        let result = run_sync_tick(&ctx, &config, None).await;
         assert!(result.is_ok());
         let summary = result.unwrap();
         assert_eq!(summary.total_actions, 0);
@@ -96,7 +96,7 @@ mod tests {
             ..WebDavConfig::default()
         };
 
-        let result = run_sync_tick(&ctx, &config).await;
+        let result = run_sync_tick(&ctx, &config, None).await;
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().to_string(), "WebDAV URL is empty");
     }
@@ -114,10 +114,73 @@ mod tests {
             ..WebDavConfig::default()
         };
 
-        let result = run_sync_tick(&ctx, &config).await;
+        let result = run_sync_tick(&ctx, &config, None).await;
         // Should fail during client creation or plan building
         assert!(result.is_err());
 
+        mihomo_platform::paths::clear_home_dir_override();
+    }
+
+    /// configs_dir 重定向后 sync 的扫描根（local_root）必须落在重定向目录，
+    /// 默认 `<home>/configs` 不得被创建。远端不可达时 build_plan 必然失败，
+    /// 但 local_root 的创建先于连接发生，可据此断言目录选择。
+    #[tokio::test]
+    async fn test_run_sync_tick_local_root_follows_configs_dir_redirect() {
+        let _guard = TEST_LOCK.lock().await;
+        let temp_dir = tempfile::tempdir().unwrap();
+        mihomo_platform::paths::clear_home_dir_override();
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        let saved_env = crate::support::test_env::clear_configs_dir_env();
+
+        let cloud = temp_dir.path().join("cloud");
+        let ctx = MockContext;
+        let config = WebDavConfig {
+            enabled: true,
+            url: "http://127.0.0.1:9/".to_string(),
+            ..WebDavConfig::default()
+        };
+
+        let result = run_sync_tick(&ctx, &config, Some(cloud.to_str().unwrap())).await;
+        assert!(result.is_err(), "unreachable WebDAV must fail the tick");
+
+        assert!(
+            cloud.exists(),
+            "local_root must be created in the redirect dir"
+        );
+        assert!(
+            !temp_dir.path().join("configs").exists(),
+            "default configs dir must not be created"
+        );
+
+        crate::support::test_env::restore_configs_dir_env(saved_env);
+        mihomo_platform::paths::clear_home_dir_override();
+    }
+
+    /// configs_dir 未设置时扫描根仍是默认 `<home>/configs`（行为不变）。
+    #[tokio::test]
+    async fn test_run_sync_tick_local_root_defaults_to_home_configs() {
+        let _guard = TEST_LOCK.lock().await;
+        let temp_dir = tempfile::tempdir().unwrap();
+        mihomo_platform::paths::clear_home_dir_override();
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        let saved_env = crate::support::test_env::clear_configs_dir_env();
+
+        let ctx = MockContext;
+        let config = WebDavConfig {
+            enabled: true,
+            url: "http://127.0.0.1:9/".to_string(),
+            ..WebDavConfig::default()
+        };
+
+        let result = run_sync_tick(&ctx, &config, None).await;
+        assert!(result.is_err(), "unreachable WebDAV must fail the tick");
+
+        assert!(
+            temp_dir.path().join("configs").exists(),
+            "default local_root must be <home>/configs"
+        );
+
+        crate::support::test_env::restore_configs_dir_env(saved_env);
         mihomo_platform::paths::clear_home_dir_override();
     }
 }

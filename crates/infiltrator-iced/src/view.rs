@@ -1,8 +1,11 @@
 pub mod components;
 pub mod dns;
+pub mod doctor;
 pub mod editor;
 pub mod icons;
+pub mod mrs_panel;
 pub mod overview;
+pub mod profile_filter;
 pub mod profiles;
 pub mod proxies;
 pub mod rules;
@@ -11,4 +14,5 @@ pub mod settings;
 pub mod sidebar;
 pub mod svg_icons;
 pub mod sync;
+pub mod sync_diff;
 pub mod theme;

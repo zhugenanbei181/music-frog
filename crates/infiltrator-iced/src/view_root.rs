@@ -1,8 +1,11 @@
 use crate::state::AppState;
-use crate::types::{Message, RebuildFlowState, Route, ToastStatus};
+use crate::types::app::{ConfirmAction, Route, ToastStatus};
+use crate::types::message::Message;
+use crate::types::runtime::RebuildFlowState;
 use crate::view;
 use iced::widget::{button, column, container, row, stack, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
+use infiltrator_shared::locales::Lang;
 use std::time::Instant;
 
 impl AppState {
@@ -89,6 +92,61 @@ impl AppState {
                     .align_x(Alignment::End)
                     .align_y(Alignment::End)
                     .into(),
+            );
+        }
+
+        if let Some(error) = &self.shell.error_msg {
+            let is_en = self.shell.lang.starts_with("en");
+            let title = if is_en {
+                "Operation failed"
+            } else {
+                "操作失败"
+            };
+            let dismiss = if is_en { "Dismiss" } else { "关闭" };
+            layers.push(
+                container(
+                    container(
+                        row![
+                            column![
+                                text(title).size(13),
+                                text(error.clone())
+                                    .size(12)
+                                    .style(|theme: &Theme| text::Style {
+                                        color: Some(
+                                            crate::view::theme::tokens(theme).overlay_text_muted,
+                                        ),
+                                    })
+                            ]
+                            .spacing(4)
+                            .width(Length::Fill),
+                            button(text(dismiss).size(11))
+                                .padding([5, 9])
+                                .style(button::secondary)
+                                .on_press(Message::ClearError),
+                        ]
+                        .align_y(Alignment::Center),
+                    )
+                    .padding([10, 14])
+                    .style(|theme: &Theme| {
+                        let tokens = crate::view::theme::tokens(theme);
+                        container::Style {
+                            background: Some(tokens.overlay.into()),
+                            border: Border {
+                                radius: 10.0.into(),
+                                width: 1.0,
+                                color: tokens.danger,
+                            },
+                            text_color: Some(tokens.overlay_text),
+                            ..Default::default()
+                        }
+                    }),
+                )
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding([16, 24])
+                .align_x(Alignment::Center)
+                .align_y(Alignment::Start)
+                .into(),
             );
         }
 
@@ -185,6 +243,74 @@ impl AppState {
             );
         }
 
+        if let Some(action) = &self.shell.confirmation {
+            let (title, detail, confirm_label) =
+                confirmation_copy(action, Lang(&self.shell.lang).0.starts_with("en"));
+            let cancel_label = if self.shell.lang.starts_with("en") {
+                "Cancel"
+            } else {
+                "取消"
+            };
+            let dialog = container(
+                column![
+                    text(title).size(17),
+                    text(detail).size(12).style(|theme: &Theme| text::Style {
+                        color: Some(crate::view::theme::tokens(theme).text_secondary),
+                    }),
+                    row![
+                        button(text(cancel_label).size(12))
+                            .padding([8, 14])
+                            .style(button::secondary)
+                            .on_press(Message::CancelConfirmation),
+                        button(text(confirm_label).size(12))
+                            .padding([8, 14])
+                            .style(button::danger)
+                            .on_press(Message::ConfirmAction),
+                    ]
+                    .spacing(10)
+                    .align_y(Alignment::Center),
+                ]
+                .spacing(14),
+            )
+            .width(Length::Fixed(420.0))
+            .padding(24)
+            .style(|theme: &Theme| {
+                let tokens = crate::view::theme::tokens(theme);
+                container::Style {
+                    background: Some(tokens.card_bg.into()),
+                    border: Border {
+                        radius: 14.0.into(),
+                        width: 1.0,
+                        color: tokens.card_border,
+                    },
+                    shadow: tokens.card_shadow,
+                    text_color: Some(tokens.text_primary),
+                    ..Default::default()
+                }
+            });
+
+            layers.push(
+                container(
+                    container(dialog)
+                        .center_x(Length::Fill)
+                        .center_y(Length::Fill),
+                )
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_theme: &Theme| container::Style {
+                    background: Some(
+                        Color {
+                            a: 0.45,
+                            ..Color::BLACK
+                        }
+                        .into(),
+                    ),
+                    ..Default::default()
+                })
+                .into(),
+            );
+        }
+
         if self.diag.perf_panel_visible {
             layers.push(
                 container(
@@ -255,5 +381,66 @@ impl AppState {
         }
 
         stack(layers).into()
+    }
+}
+
+fn confirmation_copy(action: &ConfirmAction, is_en: bool) -> (String, String, String) {
+    if is_en {
+        match action {
+            ConfirmAction::FactoryReset => (
+                "Reset application?".to_string(),
+                "This stops the core and removes local settings, profiles and installed cores."
+                    .to_string(),
+                "Reset".to_string(),
+            ),
+            ConfirmAction::ClearProfiles => (
+                "Reset profiles?".to_string(),
+                "All profiles will be replaced with the default profile.".to_string(),
+                "Reset profiles".to_string(),
+            ),
+            ConfirmAction::DeleteProfile(name) => (
+                "Delete profile?".to_string(),
+                format!("The profile \"{name}\" will be permanently deleted."),
+                "Delete".to_string(),
+            ),
+            ConfirmAction::DeleteKernel(version) => (
+                "Delete core version?".to_string(),
+                format!("The installed core {version} will be removed."),
+                "Delete".to_string(),
+            ),
+            ConfirmAction::CloseAllConnections => (
+                "Close all connections?".to_string(),
+                "Every active connection will be disconnected.".to_string(),
+                "Close all".to_string(),
+            ),
+        }
+    } else {
+        match action {
+            ConfirmAction::FactoryReset => (
+                "恢复出厂设置？".to_string(),
+                "这将停止内核并删除本地设置、配置文件和已安装内核。".to_string(),
+                "恢复出厂".to_string(),
+            ),
+            ConfirmAction::ClearProfiles => (
+                "重置配置？".to_string(),
+                "所有配置将被默认配置替换。".to_string(),
+                "重置配置".to_string(),
+            ),
+            ConfirmAction::DeleteProfile(name) => (
+                "删除配置？".to_string(),
+                format!("配置“{name}”将被永久删除。"),
+                "删除".to_string(),
+            ),
+            ConfirmAction::DeleteKernel(version) => (
+                "删除内核版本？".to_string(),
+                format!("已安装的内核 {version} 将被删除。"),
+                "删除".to_string(),
+            ),
+            ConfirmAction::CloseAllConnections => (
+                "断开全部连接？".to_string(),
+                "所有活动连接都会被断开。".to_string(),
+                "全部断开".to_string(),
+            ),
+        }
     }
 }

@@ -6,8 +6,7 @@ use std::path::PathBuf;
 use dav_client::DavClient;
 use dav_client::client::WebDavClient;
 use infiltrator_core::settings::{
-    AppSettings, WebDavConfig as CoreWebDavConfig, load_settings, save_settings, settings_path,
-};
+    AppSettings, load_settings, save_settings, settings_path};
 use mihomo_platform::paths::get_home_dir;
 use state_store::StateStore;
 use sync_engine::{SyncPlanner, executor::SyncExecutor};
@@ -174,10 +173,17 @@ async fn sync_webdav_now() -> Result<WebDavSyncSummary, FfiStatus> {
     if !settings.webdav.enabled {
         return Err(FfiStatus::err(FfiErrorCode::NotReady, "WebDAV is disabled"));
     }
-    run_webdav_sync(&settings.webdav).await
+    // 本地同步根跟随 configs 目录重定向（env > settings.configs_dir > home/configs）。
+    let local_root =
+        mihomo_config::manager::paths::resolve_configs_dir(settings.configs_dir.as_deref())
+            .map_err(map_mihomo_error)?;
+    run_webdav_sync(&settings.webdav, local_root).await
 }
 
-async fn run_webdav_sync(config: &CoreWebDavConfig) -> Result<WebDavSyncSummary, FfiStatus> {
+async fn run_webdav_sync(
+    config: &infiltrator_core::settings::WebDavConfig,
+    local_root: PathBuf,
+) -> Result<WebDavSyncSummary, FfiStatus> {
     validate_webdav_config(config)?;
     let dav =
         WebDavClient::new(&config.url, &config.username, &config.password).map_err(|err| {
@@ -187,13 +193,12 @@ async fn run_webdav_sync(config: &CoreWebDavConfig) -> Result<WebDavSyncSummary,
             )
         })?;
 
-    let home = get_home_dir().map_err(map_mihomo_error)?;
-    let local_root = home.join("configs");
     if !local_root.exists() {
         tokio::fs::create_dir_all(&local_root)
             .await
             .map_err(|e| FfiStatus::err(FfiErrorCode::Io, e.to_string()))?;
     }
+    let home = get_home_dir().map_err(map_mihomo_error)?;
     let db_path = home.join("sync_state.db").to_string_lossy().to_string();
     let store = StateStore::new(&db_path).await.map_err(map_anyhow_error)?;
 
@@ -230,7 +235,7 @@ async fn load_app_settings() -> Result<(AppSettings, PathBuf), FfiStatus> {
     Ok((settings, path))
 }
 
-fn webdav_settings_from_core(config: &CoreWebDavConfig) -> WebDavSettings {
+fn webdav_settings_from_core(config: &infiltrator_core::settings::WebDavConfig) -> WebDavSettings {
     WebDavSettings {
         enabled: config.enabled,
         url: config.url.clone(),
@@ -241,8 +246,8 @@ fn webdav_settings_from_core(config: &CoreWebDavConfig) -> WebDavSettings {
     }
 }
 
-fn webdav_settings_to_core(settings: WebDavSettings) -> CoreWebDavConfig {
-    CoreWebDavConfig {
+fn webdav_settings_to_core(settings: WebDavSettings) -> infiltrator_core::settings::WebDavConfig {
+    infiltrator_core::settings::WebDavConfig {
         enabled: settings.enabled,
         url: settings.url.trim().to_string(),
         username: settings.username.trim().to_string(),
@@ -252,7 +257,7 @@ fn webdav_settings_to_core(settings: WebDavSettings) -> CoreWebDavConfig {
     }
 }
 
-fn validate_webdav_config(config: &CoreWebDavConfig) -> Result<(), FfiStatus> {
+fn validate_webdav_config(config: &infiltrator_core::settings::WebDavConfig) -> Result<(), FfiStatus> {
     if config.url.trim().is_empty() {
         return Err(FfiStatus::err(
             FfiErrorCode::InvalidInput,

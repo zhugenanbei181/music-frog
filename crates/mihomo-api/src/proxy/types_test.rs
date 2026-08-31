@@ -4,7 +4,7 @@
 /// Mihomo API 返回的所有代理节点必须能被正确识别并分类为代理节点或策略组。
 #[cfg(test)]
 mod tests {
-    use crate::proxy::Proxy;
+    use crate::proxy::types::Proxy;
     use crate::types::ProxiesResponse;
 
     // ──────────────────────────────────────────────

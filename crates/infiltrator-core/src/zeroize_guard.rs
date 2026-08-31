@@ -1,6 +1,6 @@
 use std::fmt;
 use std::ptr;
-use std::sync::atomic::{compiler_fence, Ordering};
+use std::sync::atomic::{Ordering, compiler_fence};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecretType {
@@ -44,7 +44,7 @@ impl ProtectedSecret {
         if len <= 4 {
             return "*".repeat(len);
         }
-        
+
         let first = s.chars().take(3).collect::<String>();
         let last = s.chars().skip(len - 3).collect::<String>();
         format!("{}***{}", first, last)
@@ -129,7 +129,7 @@ mod tests {
         let s1 = ProtectedSecret::new("password", SecretType::ProxyPassword);
         let s2 = s1.clone();
         assert_eq!(s1, s2);
-        
+
         let s3 = ProtectedSecret::new("password1", SecretType::ProxyPassword);
         assert_ne!(s1, s3);
     }

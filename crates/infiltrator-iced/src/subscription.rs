@@ -1,8 +1,184 @@
 use crate::state::AppState;
 use crate::tray::tray_events_subscription;
-use crate::types::{Message, Route, RuntimeStatus};
+use crate::types::app::Route;
+use crate::types::message::Message;
+use crate::types::runtime::{RuntimeStatus, RuntimeStreamKind, RuntimeStreamState};
+use iced::futures::stream::BoxStream;
 use iced::{Subscription, stream, window};
+use infiltrator_desktop::runtime::MihomoRuntime;
+use mihomo_api::client::{MihomoClient, StreamEvent};
+use std::hash::Hash;
+use std::sync::Arc;
 use std::time::Duration;
+
+#[derive(Clone)]
+struct RuntimeStreamInput {
+    identity: usize,
+    generation: u64,
+    client: MihomoClient,
+    log_level: String,
+}
+
+impl Hash for RuntimeStreamInput {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.identity.hash(state);
+        self.generation.hash(state);
+        self.log_level.hash(state);
+    }
+}
+
+/// Start the three controller streams as one declarative subscription. The
+/// identity is tied to the runtime Arc and CoreSession generation, so a
+/// stopped/rebuilt core cancels all old receivers before a new one starts.
+pub(crate) fn runtime_streams_subscription(
+    runtime: &Arc<MihomoRuntime>,
+    log_level: &str,
+) -> Subscription<Message> {
+    let input = RuntimeStreamInput {
+        identity: Arc::as_ptr(runtime) as *const () as usize,
+        generation: runtime.session().generation(),
+        client: runtime.client(),
+        log_level: log_level.to_string(),
+    };
+    Subscription::run_with(input, build_runtime_stream)
+}
+
+fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Message> {
+    let input = input.clone();
+    let channel = stream::channel(
+        256,
+        move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+            loop {
+                let _ = output.try_send(stream_state(
+                    RuntimeStreamKind::Logs,
+                    input.generation,
+                    RuntimeStreamState::Connecting,
+                ));
+                let _ = output.try_send(stream_state(
+                    RuntimeStreamKind::Traffic,
+                    input.generation,
+                    RuntimeStreamState::Connecting,
+                ));
+                let _ = output.try_send(stream_state(
+                    RuntimeStreamKind::Connections,
+                    input.generation,
+                    RuntimeStreamState::Connecting,
+                ));
+
+                let logs = input
+                    .client
+                    .stream_logs_events(Some(input.log_level.as_str()))
+                    .await;
+                let traffic = input.client.stream_traffic_events().await;
+                let connections = input.client.stream_connections_events().await;
+
+                let (mut logs, mut traffic, mut connections) = match (logs, traffic, connections) {
+                    (Ok(logs), Ok(traffic), Ok(connections)) => (logs, traffic, connections),
+                    (logs, traffic, connections) => {
+                        if let Err(error) = logs {
+                            let _ = output.try_send(stream_state(
+                                RuntimeStreamKind::Logs,
+                                input.generation,
+                                RuntimeStreamState::Failed(error.to_string()),
+                            ));
+                        }
+                        if let Err(error) = traffic {
+                            let _ = output.try_send(stream_state(
+                                RuntimeStreamKind::Traffic,
+                                input.generation,
+                                RuntimeStreamState::Failed(error.to_string()),
+                            ));
+                        }
+                        if let Err(error) = connections {
+                            let _ = output.try_send(stream_state(
+                                RuntimeStreamKind::Connections,
+                                input.generation,
+                                RuntimeStreamState::Failed(error.to_string()),
+                            ));
+                        }
+                        tokio::time::sleep(Duration::from_secs(3)).await;
+                        continue;
+                    }
+                };
+
+                loop {
+                    tokio::select! {
+                        item = logs.recv() => match item {
+                            Some(StreamEvent::Item(line)) => {
+                                if output.try_send(Message::RuntimeStreamLogReceived(input.generation, line)).is_err() { return; }
+                            }
+                            Some(StreamEvent::Connecting) => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
+                            }
+                            Some(StreamEvent::Connected) => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
+                            }
+                            Some(StreamEvent::Reconnecting(error)) | Some(StreamEvent::Failed(error)) => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Failed(error))).is_err() { return; }
+                                if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
+                            }
+                            None => break,
+                        },
+                        item = traffic.recv() => match item {
+                            Some(StreamEvent::Item(data)) => {
+                                if output.try_send(Message::RuntimeStreamTrafficReceived(input.generation, data)).is_err() { return; }
+                            }
+                            Some(StreamEvent::Connecting) => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
+                            }
+                            Some(StreamEvent::Connected) => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
+                            }
+                            Some(StreamEvent::Reconnecting(error)) | Some(StreamEvent::Failed(error)) => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Failed(error))).is_err() { return; }
+                                if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
+                            }
+                            None => break,
+                        },
+                        item = connections.recv() => match item {
+                            Some(StreamEvent::Item(snapshot)) => {
+                                if output.try_send(Message::RuntimeStreamConnectionsReceived(input.generation, snapshot)).is_err() { return; }
+                            }
+                            Some(StreamEvent::Connecting) => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
+                            }
+                            Some(StreamEvent::Connected) => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
+                            }
+                            Some(StreamEvent::Reconnecting(error)) | Some(StreamEvent::Failed(error)) => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Failed(error))).is_err() { return; }
+                                if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
+                            }
+                            None => break,
+                        },
+                    }
+                }
+
+                for kind in [
+                    RuntimeStreamKind::Logs,
+                    RuntimeStreamKind::Traffic,
+                    RuntimeStreamKind::Connections,
+                ] {
+                    let _ = output.try_send(stream_state(
+                        kind,
+                        input.generation,
+                        RuntimeStreamState::Reconnecting,
+                    ));
+                }
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        },
+    );
+    Box::pin(channel)
+}
+
+fn stream_state(kind: RuntimeStreamKind, generation: u64, state: RuntimeStreamState) -> Message {
+    Message::RuntimeStreamStateChanged {
+        kind,
+        generation,
+        state,
+    }
+}
 
 impl AppState {
     pub fn subscription(&self) -> Subscription<Message> {
@@ -32,14 +208,26 @@ impl AppState {
             )
         }));
 
-        // 3. Runtime-related background tasks
-        if self.runtime.runtime.is_some() {
-            subs.push(Subscription::run(|| {
+        // 3. WebDAV scheduling is independent of the core lifecycle: profile
+        // files can be synchronized while mihomo is stopped. The persisted
+        // interval is part of the subscription identity, so changing it
+        // replaces the old timer declaratively.
+        if self.profile.webdav_enabled {
+            let interval_secs = self
+                .profile
+                .webdav_sync_interval_mins
+                .trim()
+                .parse::<u64>()
+                .ok()
+                .filter(|minutes| *minutes > 0)
+                .unwrap_or(60)
+                .saturating_mul(60);
+            subs.push(Subscription::run_with(interval_secs, |seconds: &u64| {
+                let interval = Duration::from_secs(*seconds);
                 stream::channel(
                     100,
-                    |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                        let mut sync_interval = tokio::time::interval(Duration::from_secs(3600));
-
+                    move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                        let mut sync_interval = tokio::time::interval(interval);
                         loop {
                             sync_interval.tick().await;
                             let _ = output.try_send(Message::TickWebDavSync);
@@ -47,6 +235,11 @@ impl AppState {
                     },
                 )
             }));
+        }
+        if let Some(runtime) = self.runtime.runtime.as_ref()
+            && matches!(self.runtime.status, RuntimeStatus::Running)
+        {
+            subs.push(runtime_streams_subscription(runtime, &self.diag.log_level));
         }
         if self.runtime.runtime.is_some()
             && self.shell.current_route == Route::Runtime

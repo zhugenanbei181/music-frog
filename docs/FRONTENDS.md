@@ -1,6 +1,8 @@
 # 多 UI 求同存异矩阵
 
-本项目的 UI 不是三份产品逻辑。Iced 是主桌面 surface，Tauri + Vue 是兼容/次级管理 surface，Android Compose 是移动伴侣；三者共享用户意图和 Rust 结果，不共享 toolkit 的状态和布局实现。
+本项目的 UI 不是多份产品逻辑。Iced 是主桌面 surface（0.20 起为唯一桌面 surface，Tauri + Vue 已退役，台账见 [TAURI_WEBUI_RETIREMENT_LEDGER.md](TAURI_WEBUI_RETIREMENT_LEDGER.md)），Android Compose 是移动伴侣，Bevy UI 是战略统一 surface（目标桌面+移动+iOS 大一统，章程见 [BEVY_UI_FRONTEND.md](BEVY_UI_FRONTEND.md)）；三者共享用户意图和 Rust 结果，不共享 toolkit 的状态和布局实现。
+
+> Bevy UI 的定位说明（2026-08-31）：iced 是 winit 桌面方案，没有 Android 故事，移动端上限受限；bevy 0.19 的同一棵 UI 树可运行于 `aarch64-linux-android`。现阶段新产品能力仍以 Iced 优先落地，Bevy 按 M1→M3 里程碑追赶，不抢 mihomo 控制平面（P0）的优先级。本文的功能矩阵对 Bevy 同样适用：每一行在 Bevy 端的 decision 按同一套 shared/local/accepted difference/unsupported 标记登记，不得默默分叉。
 
 ## 1. 决策标记
 
@@ -13,10 +15,10 @@
 
 ## 2. 功能矩阵
 
-| 用户意图 | Iced 主桌面 | Tauri + Vue | Android Compose | 共享规则 |
+| 用户意图 | Iced 主桌面 | Android Compose | 共享规则 |
 | --- | --- | --- | --- | --- |
-| 启动/停止/重启 mihomo | `shared` + desktop tray `local` | `shared` + Tauri tray `local` | `shared` + VPN/background `local` | 同一 lifecycle state、failure、generation |
-| profile 导入/编辑/删除/切换 | `shared` + 桌面编辑器 `local` | `shared` + Web/外部编辑器 `local` | `shared` + 移动表单 `local` | profile identity、revision 和重建结果一致 |
+| 启动/停止/重启 mihomo | `shared` + desktop tray `local` | `shared` + VPN/background `local` | 同一 lifecycle state、failure、generation |
+| profile 导入/编辑/删除/切换 | `shared` + 桌面编辑器 `local` | `shared` + 移动表单 `local` | profile identity、revision 和重建结果一致 |
 | 订阅更新 | `shared` | `shared` | `shared` | scheduler、重试、部分失败和通知语义一致 |
 | 代理模式/代理组/节点 | `shared` | `shared` | `shared` | mode、group、node、delay 的类型和错误一致 |
 | connections/logs/traffic/memory/IP | `shared` | `shared` | `shared` | snapshot/stream 生命周期与不可用状态一致 |

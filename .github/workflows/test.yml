@@ -72,8 +72,18 @@ jobs:
       - name: Enforce source line budget
         run: python3 scripts/quality/line-guard.py --mode enforce
 
+      # 导入卫生守卫：全仓禁止 `use ... as 别名` 与一切 re-export（pub use /
+      # pub(crate) use 转发层）。规则与白名单见 docs/ARCHITECTURE.md 导入规范。
+      - name: Enforce import hygiene (no `as` aliases, no re-exports)
+        run: python3 scripts/quality/import-guard.py --mode enforce
+
+      # Bevy UI bsn! 场景法守卫（BEVY-004）：两个 bevy crate 的生产代码里 UI 树
+      # 只能在 bsn! 场景内声明并经 spawn_scene 挂载；豁免（Camera2d/Observer）
+      # 与规则明细见 scripts/quality/bevy_bsn_guard.py 与 docs/BEVY_UI_FRONTEND.md。
+      - name: Enforce bevy UI bsn!-only scene authoring
+        run: python3 scripts/quality/bevy_bsn_guard.py --mode enforce
+
       # 编译工作空间所需的系统依赖（--no-install-recommends 精简安装）：
-      # - tauri: libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
       # - iced/wayland: libxkbcommon-dev libwayland-dev
       # - 音频/设备: libasound2-dev libudev-dev
       # - native-tls: libssl-dev pkg-config
@@ -81,11 +91,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libxdo-dev \
             libxkbcommon-dev \
             libwayland-dev \
             libasound2-dev \

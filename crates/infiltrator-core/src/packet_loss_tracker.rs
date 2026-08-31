@@ -67,7 +67,11 @@ impl PacketLossTracker {
                 successful_probes += 1;
 
                 if let Some(prev) = prev_rtt {
-                    let diff = if rtt_f64 > prev { rtt_f64 - prev } else { prev - rtt_f64 };
+                    let diff = if rtt_f64 > prev {
+                        rtt_f64 - prev
+                    } else {
+                        prev - rtt_f64
+                    };
                     jitter = jitter + (diff - jitter) / 16.0;
                 }
                 prev_rtt = Some(rtt_f64);
@@ -82,7 +86,7 @@ impl PacketLossTracker {
         } else {
             None
         };
-        
+
         let jitter_ms = if successful_probes > 1 {
             Some(jitter)
         } else {
@@ -93,13 +97,14 @@ impl PacketLossTracker {
         let mut score = 100.0;
         // Deduct points for loss rate (e.g. 2 points per 1% loss)
         score -= loss_rate_percent * 2.0;
-        
+
         // Deduct points for average latency (e.g. 1 point per 10ms over 50ms)
         if let Some(avg) = avg_rtt_ms
-            && avg > 50.0 {
-                score -= (avg - 50.0) / 10.0;
-            }
-        
+            && avg > 50.0
+        {
+            score -= (avg - 50.0) / 10.0;
+        }
+
         // Deduct points for jitter (e.g. 1 point per 5ms)
         if let Some(j) = jitter_ms {
             score -= j / 5.0;
@@ -195,7 +200,7 @@ mod tests {
         let mut tracker = PacketLossTracker::new(5);
         tracker.record_probe(Some(40), 1);
         tracker.record_probe(Some(60), 2);
-        
+
         let report = tracker.compute_report();
         // first diff is |60-40| = 20
         // J = 0 + (20 - 0) / 16 = 1.25

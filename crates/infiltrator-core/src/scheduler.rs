@@ -114,10 +114,7 @@ impl JobScheduler {
         F: Fn() -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<(), String>> + Send + 'static,
     {
-        debug_assert!(
-            interval > Duration::ZERO,
-            "job interval must be non-zero"
-        );
+        debug_assert!(interval > Duration::ZERO, "job interval must be non-zero");
         let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
         let state = Arc::new(Mutex::new(JobState::default()));
         let job_name = name.to_string();
@@ -155,18 +152,14 @@ impl JobScheduler {
             }
         });
 
-        let previous = self
-            .jobs
-            .lock()
-            .expect("scheduler registry lock")
-            .insert(
-                name.to_string(),
-                JobEntry {
-                    shutdown_tx,
-                    handle,
-                    state,
-                },
-            );
+        let previous = self.jobs.lock().expect("scheduler registry lock").insert(
+            name.to_string(),
+            JobEntry {
+                shutdown_tx,
+                handle,
+                state,
+            },
+        );
         let replaced = previous.is_some();
         if let Some(previous) = previous {
             previous.stop();
@@ -179,7 +172,12 @@ impl JobScheduler {
     /// remove it from the registry. Returns whether a job of that name was
     /// registered.
     pub fn cancel(&self, name: &str) -> bool {
-        match self.jobs.lock().expect("scheduler registry lock").remove(name) {
+        match self
+            .jobs
+            .lock()
+            .expect("scheduler registry lock")
+            .remove(name)
+        {
             Some(entry) => {
                 entry.stop();
                 true

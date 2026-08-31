@@ -5,11 +5,18 @@
 //! [`TrayController`] trait pushes spec updates to whichever backend is
 //! compiled in (ksni on Linux by default, muda/tray-icon on Windows/macOS or
 //! with the `native-tray-backend` feature). Neither backend is referenced
-//! here, so the spec, event resolution and the spec builder can all be unit
-//! tested without a display server or a D-Bus session.
+//! here, so the spec, event resolution and the spec builder (see [`build_tray_spec`],
+//! implemented in `super::menu`) can all be unit tested without a display
+//! server or a D-Bus session.
+//!
+//! Red line: everything in this module is pure data plus pure functions —
+//! no app-state access, no I/O, no backend calls.
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
+
+use mihomo_config::profile::Profile;
+use mihomo_version::manager::VersionInfo;
 
 /// Stable menu action id, shared by the spec builder, both backends and the
 /// update handlers. Never reuse a number; the mapping is part of the contract.
@@ -23,17 +30,81 @@ pub const TRAY_ACTION_MODE_GLOBAL: TrayActionId = 5;
 pub const TRAY_ACTION_MODE_DIRECT: TrayActionId = 6;
 pub const TRAY_ACTION_TOGGLE_SYSTEM_PROXY: TrayActionId = 7;
 pub const TRAY_ACTION_TOGGLE_TUN: TrayActionId = 8;
+/// Legacy GLOBAL quick-switch entry (the dedicated submenu was folded into
+/// the per-group 节点切换 submenu in 0.20; the id stays reserved).
 pub const TRAY_ACTION_SELECT_GLOBAL_PROXY: TrayActionId = 9;
-/// Disabled placeholder shown when the GLOBAL group has no nodes yet.
+/// Disabled placeholder shown when no proxy groups are available yet.
 pub const TRAY_ACTION_NO_PROXIES: TrayActionId = 10;
-/// Opens the admin WebUI in the system browser (only rendered when the
-/// admin server feature is enabled in settings).
-pub const TRAY_ACTION_OPEN_WEB_ADMIN: TrayActionId = 11;
+/// Script mode; only enabled when the loaded profile carries a script block.
+pub const TRAY_ACTION_MODE_SCRIPT: TrayActionId = 30;
+/// Generic per-node switch; payload is `group␁node` (see [`encode_pair_payload`]).
+pub const TRAY_ACTION_SELECT_PROXY: TrayActionId = 31;
+/// Disabled placeholder shown when no profiles exist yet.
+pub const TRAY_ACTION_NO_PROFILES: TrayActionId = 32;
+/// Activate one profile; payload is the profile name.
+pub const TRAY_ACTION_ACTIVATE_PROFILE: TrayActionId = 33;
+pub const TRAY_ACTION_UPDATE_ALL_PROFILES: TrayActionId = 34;
+/// Per-profile auto-update toggle; payload is the profile name.
+pub const TRAY_ACTION_SET_PROFILE_AUTO_UPDATE: TrayActionId = 35;
+/// Set the default kernel; payload is the version string.
+pub const TRAY_ACTION_SET_DEFAULT_KERNEL: TrayActionId = 36;
+/// Uninstall one kernel (staged behind a confirmation); payload is the version.
+pub const TRAY_ACTION_UNINSTALL_KERNEL: TrayActionId = 37;
+pub const TRAY_ACTION_CHECK_CORE_UPDATE: TrayActionId = 38;
+pub const TRAY_ACTION_CANCEL_CORE_DOWNLOAD: TrayActionId = 39;
+pub const TRAY_ACTION_FLUSH_FAKEIP: TrayActionId = 40;
+pub const TRAY_ACTION_SYNC_UPLOAD: TrayActionId = 41;
+pub const TRAY_ACTION_SYNC_DOWNLOAD: TrayActionId = 42;
+pub const TRAY_ACTION_CANCEL_SYNC: TrayActionId = 43;
+pub const TRAY_ACTION_NAVIGATE_SYNC: TrayActionId = 44;
+pub const TRAY_ACTION_TOGGLE_AUTOSTART: TrayActionId = 45;
+pub const TRAY_ACTION_FACTORY_RESET: TrayActionId = 46;
 
-/// Submenu identities (used by backends to find what to re-render; the id is
-/// never reported as an activation).
+/// Informational, always-disabled entries. They exist so the reader sees
+/// static state in place; they must never resolve to an intent.
+pub const TRAY_ACTION_INFO_MODE: TrayActionId = 80;
+pub const TRAY_ACTION_INFO_STATUS: TrayActionId = 81;
+pub const TRAY_ACTION_INFO_CONTROLLER: TrayActionId = 82;
+pub const TRAY_ACTION_INFO_ADMIN: TrayActionId = 83;
+pub const TRAY_ACTION_INFO_KERNEL_VERSION: TrayActionId = 84;
+pub const TRAY_ACTION_INFO_SYNC: TrayActionId = 85;
+pub const TRAY_ACTION_INFO_KERNEL_DEFAULT: TrayActionId = 86;
+pub const TRAY_ACTION_INFO_KERNEL_STATUS: TrayActionId = 87;
+pub const TRAY_ACTION_INFO_DOWNLOAD: TrayActionId = 88;
+
+/// Submenu identities (used for tree identity and tests; the id is never
+/// reported as an activation).
 pub const TRAY_SUBMENU_MODE: TrayActionId = 20;
-pub const TRAY_SUBMENU_GLOBAL: TrayActionId = 21;
+pub const TRAY_SUBMENU_PROXIES: TrayActionId = 22;
+pub const TRAY_SUBMENU_PROFILES: TrayActionId = 23;
+pub const TRAY_SUBMENU_KERNEL: TrayActionId = 24;
+pub const TRAY_SUBMENU_SYNC: TrayActionId = 25;
+pub const TRAY_SUBMENU_INFO: TrayActionId = 26;
+/// Per-group submenus under 节点切换: ids 61..=65 (at most 5 groups).
+pub const TRAY_SUBMENU_PROXY_GROUP_BASE: TrayActionId = 61;
+/// Nested "remaining nodes" overflow submenus: ids 66..=70.
+pub const TRAY_SUBMENU_PROXY_MORE_BASE: TrayActionId = 66;
+/// Per-version submenus under 内核: ids 90 and up.
+pub const TRAY_SUBMENU_KERNEL_VERSION_BASE: TrayActionId = 90;
+
+/// Tray proxy switch caps (aligned with the retired Tauri tray ledger §1.1).
+pub const TRAY_MAX_GROUPS: usize = 5;
+pub const TRAY_MAX_NODES_PER_GROUP: usize = 20;
+
+/// Field separator inside a multi-value [`TrayMenuItem::Action`] payload.
+/// `\u{1}` (SOH) cannot appear in proxy group/node names, profile names or
+/// version strings, so the pair encoding is unambiguous.
+pub const PAYLOAD_SEPARATOR: char = '\u{1}';
+
+/// Encode a two-field action payload (`group` + `node`).
+pub fn encode_pair_payload(first: &str, second: &str) -> String {
+    format!("{first}{PAYLOAD_SEPARATOR}{second}")
+}
+
+/// Decode a two-field action payload; `None` when the separator is missing.
+pub fn decode_pair_payload(payload: &str) -> Option<(&str, &str)> {
+    payload.split_once(PAYLOAD_SEPARATOR)
+}
 
 /// One entry of the neutral tray menu tree.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -47,11 +118,14 @@ pub enum TrayMenuItem {
         payload: Option<String>,
     },
     /// Checkable entry; `checked` is the authoritative app-side state.
+    /// `payload` identifies the checked thing (e.g. a profile name) and is
+    /// echoed back in the activation event.
     Checkmark {
         id: TrayActionId,
         label: String,
         checked: bool,
         enabled: bool,
+        payload: Option<String>,
     },
     Separator,
     Submenu {
@@ -73,6 +147,17 @@ impl TrayMenuItem {
         }
     }
 
+    /// Convenience constructor for a disabled, payload-less informational
+    /// action (the tray's read-only state lines).
+    pub fn info(id: TrayActionId, label: impl Into<String>) -> Self {
+        TrayMenuItem::Action {
+            id,
+            label: label.into(),
+            enabled: false,
+            payload: None,
+        }
+    }
+
     /// Convenience constructor for enabled checkmarks.
     pub fn checkmark(id: TrayActionId, label: impl Into<String>, checked: bool) -> Self {
         TrayMenuItem::Checkmark {
@@ -80,6 +165,23 @@ impl TrayMenuItem {
             label: label.into(),
             checked,
             enabled: true,
+            payload: None,
+        }
+    }
+
+    /// Enabled checkmark carrying an identifying payload.
+    pub fn checkmark_with_payload(
+        id: TrayActionId,
+        label: impl Into<String>,
+        checked: bool,
+        payload: impl Into<String>,
+    ) -> Self {
+        TrayMenuItem::Checkmark {
+            id,
+            label: label.into(),
+            checked,
+            enabled: true,
+            payload: Some(payload.into()),
         }
     }
 
@@ -133,8 +235,8 @@ pub struct TraySpec {
 /// A user activation coming from any backend.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TrayEvent {
-    /// A menu entry was activated; `payload` is the [`TrayMenuItem::Action`]
-    /// payload echoed back.
+    /// A menu entry was activated; `payload` is the entry's payload echoed
+    /// back (also set for checkmarks that carry one).
     MenuActivated {
         id: TrayActionId,
         payload: Option<String>,
@@ -156,13 +258,46 @@ pub enum TrayIntent {
     SetMode(String),
     SetSystemProxy(bool),
     SetTunEnabled(bool),
+    /// Legacy GLOBAL quick-switch (id 9, kept for the never-reuse contract);
+    /// live menus route node selection through [`TrayIntent::SelectProxy`].
     SelectGlobalProxy(String),
-    OpenWebAdmin,
+    SelectProxy {
+        group: String,
+        node: String,
+    },
+    ActivateProfile(String),
+    UpdateAllProfilesNow,
+    SetProfileAutoUpdate {
+        name: String,
+        enabled: bool,
+    },
+    SetDefaultKernel(String),
+    /// Stage a kernel uninstall behind the confirmation dialog.
+    UninstallKernel(String),
+    UpdateCoreToLatest,
+    CancelCoreDownload,
+    FlushFakeIp,
+    SetAutostart(bool),
+    SyncUpload,
+    SyncDownload,
+    CancelSync,
+    NavigateSync,
+    RequestFactoryReset,
 }
 
-/// Pure mapping from a neutral event to an intent. `system_proxy`/`tun` are
-/// the current app-side states used to resolve the toggle targets.
-pub fn resolve_tray_event(event: &TrayEvent, system_proxy: bool, tun: bool) -> Option<TrayIntent> {
+/// App-side state snapshot needed to resolve one activation event.
+#[derive(Clone, Copy, Debug)]
+pub struct TrayEventContext<'a> {
+    pub system_proxy: bool,
+    pub tun: bool,
+    pub autostart: bool,
+    pub profiles: &'a [Profile],
+}
+
+/// Pure mapping from a neutral event to an intent. Toggle entries are
+/// resolved against the current app-side states carried in `ctx`
+/// (checkmark targets arrive already flipped).
+pub fn resolve_tray_event_in(event: &TrayEvent, ctx: &TrayEventContext<'_>) -> Option<TrayIntent> {
     let TrayEvent::MenuActivated { id, payload } = event else {
         return Some(TrayIntent::ShowWindow);
     };
@@ -174,13 +309,123 @@ pub fn resolve_tray_event(event: &TrayEvent, system_proxy: bool, tun: bool) -> O
         TRAY_ACTION_MODE_RULE => TrayIntent::SetMode("rule".to_string()),
         TRAY_ACTION_MODE_GLOBAL => TrayIntent::SetMode("global".to_string()),
         TRAY_ACTION_MODE_DIRECT => TrayIntent::SetMode("direct".to_string()),
-        TRAY_ACTION_TOGGLE_SYSTEM_PROXY => TrayIntent::SetSystemProxy(!system_proxy),
-        TRAY_ACTION_TOGGLE_TUN => TrayIntent::SetTunEnabled(!tun),
+        TRAY_ACTION_MODE_SCRIPT => TrayIntent::SetMode("script".to_string()),
+        TRAY_ACTION_TOGGLE_SYSTEM_PROXY => TrayIntent::SetSystemProxy(!ctx.system_proxy),
+        TRAY_ACTION_TOGGLE_TUN => TrayIntent::SetTunEnabled(!ctx.tun),
+        TRAY_ACTION_TOGGLE_AUTOSTART => TrayIntent::SetAutostart(!ctx.autostart),
         TRAY_ACTION_SELECT_GLOBAL_PROXY => TrayIntent::SelectGlobalProxy(payload?.to_string()),
-        TRAY_ACTION_OPEN_WEB_ADMIN => TrayIntent::OpenWebAdmin,
+        TRAY_ACTION_SELECT_PROXY => {
+            let (group, node) = decode_pair_payload(payload?)?;
+            TrayIntent::SelectProxy {
+                group: group.to_string(),
+                node: node.to_string(),
+            }
+        }
+        TRAY_ACTION_ACTIVATE_PROFILE => TrayIntent::ActivateProfile(payload?.to_string()),
+        TRAY_ACTION_UPDATE_ALL_PROFILES => TrayIntent::UpdateAllProfilesNow,
+        TRAY_ACTION_SET_PROFILE_AUTO_UPDATE => {
+            let name = payload?;
+            let current = ctx.profiles.iter().find(|p| p.name == name)?;
+            TrayIntent::SetProfileAutoUpdate {
+                name: name.to_string(),
+                enabled: !current.auto_update_enabled,
+            }
+        }
+        TRAY_ACTION_SET_DEFAULT_KERNEL => TrayIntent::SetDefaultKernel(payload?.to_string()),
+        TRAY_ACTION_UNINSTALL_KERNEL => TrayIntent::UninstallKernel(payload?.to_string()),
+        TRAY_ACTION_CHECK_CORE_UPDATE => TrayIntent::UpdateCoreToLatest,
+        TRAY_ACTION_CANCEL_CORE_DOWNLOAD => TrayIntent::CancelCoreDownload,
+        TRAY_ACTION_FLUSH_FAKEIP => TrayIntent::FlushFakeIp,
+        TRAY_ACTION_SYNC_UPLOAD => TrayIntent::SyncUpload,
+        TRAY_ACTION_SYNC_DOWNLOAD => TrayIntent::SyncDownload,
+        TRAY_ACTION_CANCEL_SYNC => TrayIntent::CancelSync,
+        TRAY_ACTION_NAVIGATE_SYNC => TrayIntent::NavigateSync,
+        TRAY_ACTION_FACTORY_RESET => TrayIntent::RequestFactoryReset,
         _ => return None,
     };
     Some(intent)
+}
+
+/// Backward-compatible three-argument form of [`resolve_tray_event_in`]:
+/// resolves against the system-proxy/TUN states with no autostart and an
+/// empty profile list (entries needing them resolve to `None`).
+pub fn resolve_tray_event(event: &TrayEvent, system_proxy: bool, tun: bool) -> Option<TrayIntent> {
+    resolve_tray_event_in(
+        event,
+        &TrayEventContext {
+            system_proxy,
+            tun,
+            autostart: false,
+            profiles: &[],
+        },
+    )
+}
+
+/// One proxy group snapshot for the 节点切换 submenu (owned: the assembly in
+/// `tray.rs` derives it per refresh from the runtime proxy map).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TrayProxyGroup {
+    pub name: String,
+    pub current: String,
+    pub nodes: Vec<TrayProxyNode>,
+}
+
+/// One switchable node plus its latest measured delay, if any.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TrayProxyNode {
+    pub name: String,
+    pub delay_ms: Option<u32>,
+}
+
+/// Core lifecycle state, mirrored from `RuntimeStatus` without its payload.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TrayCoreStatus {
+    Stopped,
+    Starting,
+    Running,
+    Error,
+}
+
+/// The i18n key describing a [`TrayCoreStatus`].
+pub fn tray_status_key(status: TrayCoreStatus) -> &'static str {
+    match status {
+        TrayCoreStatus::Running => "tray_status_running",
+        TrayCoreStatus::Starting => "tray_status_starting",
+        TrayCoreStatus::Stopped => "tray_status_stopped",
+        TrayCoreStatus::Error => "tray_status_error",
+    }
+}
+
+/// Full snapshot of everything the localized spec builder needs. Assembled
+/// from the five app-state domains by `AppState::current_tray_spec`; the
+/// builder stays a pure function of this snapshot.
+#[derive(Clone, Debug)]
+pub struct TraySpecContext<'a> {
+    pub lang: &'a str,
+    /// Current proxy mode (`rule` / `global` / `direct` / `script`).
+    pub mode: Option<&'a str>,
+    /// Whether the running core reports a top-level `script:` block.
+    pub script_block_present: bool,
+    pub system_proxy: bool,
+    pub tun: bool,
+    /// Proxy group snapshots (at most [`TRAY_MAX_GROUPS`], GLOBAL first).
+    pub groups: &'a [TrayProxyGroup],
+    pub profiles: &'a [Profile],
+    pub kernels: &'a [VersionInfo],
+    pub status: TrayCoreStatus,
+    pub core_checking: bool,
+    pub core_downloading: bool,
+    /// Download progress in whole percent, when the total size is known.
+    pub core_download_percent: Option<u8>,
+    pub webdav_enabled: bool,
+    pub syncing: bool,
+    /// `(current, total)` step counters while a sync is running.
+    pub sync_step: Option<(usize, usize)>,
+    pub autostart: bool,
+    /// External controller URL of the running core (`http://127.0.0.1:9090`).
+    pub controller: Option<&'a str>,
+    pub admin_enabled: bool,
+    pub admin_port: u16,
 }
 
 /// The controller handle handed to the app on a successful tray startup.
@@ -190,8 +435,8 @@ pub fn resolve_tray_event(event: &TrayEvent, system_proxy: bool, tun: bool) -> O
 /// (muda's Linux menu is `Rc`-based and neither `Send` nor `Sync`; the ksni
 /// blocking handle is `Send + Sync` but is confined all the same).
 pub trait TrayController {
-    /// Push a full spec refresh (checkmarks, mode, GLOBAL quick-switch
-    /// entries). Best-effort: errors are swallowed, as they were before.
+    /// Push a full spec refresh (checkmarks, submenus, info lines). Best
+    /// effort: errors are swallowed, as they were before.
     fn update_spec(&self, spec: TraySpec);
 
     /// Best-effort resource release. Dropping the controller also cleans up;
@@ -209,117 +454,6 @@ pub enum TrayStartup {
     Unavailable {
         reason: String,
     },
-}
-
-/// Snapshot of the mihomo GLOBAL group used for the quick-switch submenu.
-#[derive(Clone, Copy, Debug)]
-pub struct GlobalProxyMenu<'a> {
-    pub current: &'a str,
-    pub nodes: &'a [String],
-}
-
-/// Tray presence of the admin WebUI entry. `None` hides the entry entirely
-/// (feature disabled in settings); `running` enables the click.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct WebAdminMenu {
-    pub running: bool,
-}
-
-const TOOLTIP: &str = "MusicFrog Infiltrator";
-
-/// Build the localized tray spec from current app state. Mirrors the menu the
-/// muda backend used to build imperatively: 显示主界面 / 打开 Web 管理端 /
-/// 代理模式 (rule/global/direct, active mode marked with `●`) / 快速切换
-/// (GLOBAL) / 系统代理 + TUN 模式 checkmarks / theme / quit.
-pub fn build_tray_spec(
-    mode: Option<&str>,
-    system_proxy: bool,
-    tun: bool,
-    global: Option<GlobalProxyMenu<'_>>,
-    web_admin: Option<WebAdminMenu>,
-) -> TraySpec {
-    let mode_item = |id: TrayActionId, mode_key: &str, label: &str| {
-        let is_active = mode.is_some_and(|current| current == mode_key);
-        TrayMenuItem::Action {
-            id,
-            label: if is_active {
-                format!("● {label}")
-            } else {
-                label.to_string()
-            },
-            enabled: true,
-            payload: None,
-        }
-    };
-    let mode_items = vec![
-        mode_item(TRAY_ACTION_MODE_RULE, "rule", "规则模式"),
-        mode_item(TRAY_ACTION_MODE_GLOBAL, "global", "全局模式"),
-        mode_item(TRAY_ACTION_MODE_DIRECT, "direct", "直连模式"),
-    ];
-    let global_items = match global {
-        Some(global) if !global.nodes.is_empty() => global
-            .nodes
-            .iter()
-            .map(|node| {
-                let is_active = node == global.current;
-                TrayMenuItem::Action {
-                    id: TRAY_ACTION_SELECT_GLOBAL_PROXY,
-                    label: if is_active {
-                        format!("● {node}")
-                    } else {
-                        node.clone()
-                    },
-                    enabled: true,
-                    payload: Some(node.clone()),
-                }
-            })
-            .collect(),
-        _ => vec![TrayMenuItem::Action {
-            id: TRAY_ACTION_NO_PROXIES,
-            label: "暂无节点 (请先启动)".to_string(),
-            enabled: false,
-            payload: None,
-        }],
-    };
-
-    let web_admin_item = web_admin.map(|info| TrayMenuItem::Action {
-        id: TRAY_ACTION_OPEN_WEB_ADMIN,
-        label: "打开 Web 管理端".to_string(),
-        enabled: info.running,
-        payload: None,
-    });
-
-    let mut items = vec![TrayMenuItem::action(TRAY_ACTION_SHOW, "显示主界面")];
-    if let Some(item) = web_admin_item {
-        items.push(item);
-    }
-    items.push(TrayMenuItem::Separator);
-    items.extend([
-        TrayMenuItem::Submenu {
-            id: TRAY_SUBMENU_MODE,
-            label: "代理模式".to_string(),
-            enabled: true,
-            items: mode_items,
-        },
-        TrayMenuItem::Submenu {
-            id: TRAY_SUBMENU_GLOBAL,
-            label: "快速切换 (GLOBAL)".to_string(),
-            enabled: true,
-            items: global_items,
-        },
-        TrayMenuItem::Separator,
-        TrayMenuItem::checkmark(TRAY_ACTION_TOGGLE_SYSTEM_PROXY, "系统代理", system_proxy),
-        TrayMenuItem::checkmark(TRAY_ACTION_TOGGLE_TUN, "TUN 模式", tun),
-        TrayMenuItem::action(TRAY_ACTION_TOGGLE_THEME, "切换深/浅色模式"),
-        TrayMenuItem::Separator,
-        TrayMenuItem::action(TRAY_ACTION_QUIT, "退出应用"),
-    ]);
-
-    TraySpec {
-        icon: load_icon_rgba(),
-        tooltip: TOOLTIP.to_string(),
-        menu: TrayMenuSpec { items },
-    }
 }
 
 /// Resolve an RGBA icon shared by both backends. Development builds resolve

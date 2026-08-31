@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::traits::{CoreController, CredentialStore};
-use tokio::time::{interval, MissedTickBehavior};
+use tokio::time::{MissedTickBehavior, interval};
 use yaml_rust2::YamlLoader;
 
 use crate::error::InfiltratorError;
@@ -81,9 +81,7 @@ pub enum SessionError {
 impl From<SessionError> for InfiltratorError {
     fn from(err: SessionError) -> Self {
         match err {
-            SessionError::Endpoint(msg) | SessionError::Probe(msg) => {
-                InfiltratorError::Mihomo(msg)
-            }
+            SessionError::Endpoint(msg) | SessionError::Probe(msg) => InfiltratorError::Mihomo(msg),
             other => InfiltratorError::Internal(other.to_string()),
         }
     }
@@ -228,7 +226,11 @@ impl CoreSession {
     }
 
     pub fn status(&self) -> CoreStatus {
-        self.state.read().expect("session state lock").status.clone()
+        self.state
+            .read()
+            .expect("session state lock")
+            .status
+            .clone()
     }
 
     pub fn generation(&self) -> u64 {
@@ -296,11 +298,7 @@ impl CoreSession {
 
     /// Poll until the controller answers, the process dies, or the timeout
     /// elapses. Succeeds once, leaving the session in [`CoreStatus::Ready`].
-    pub async fn wait_for_ready(
-        &self,
-        generation: u64,
-        timeout: Duration,
-    ) -> SessionResult<()> {
+    pub async fn wait_for_ready(&self, generation: u64, timeout: Duration) -> SessionResult<()> {
         let mut ticks = interval(READINESS_POLL_INTERVAL);
         ticks.set_missed_tick_behavior(MissedTickBehavior::Delay);
         let deadline = tokio::time::Instant::now() + timeout;
@@ -377,10 +375,10 @@ impl CoreSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mihomo_api::error::Result as ApiResult;
+
     use std::collections::HashMap;
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
     struct MockController {
         running: AtomicBool,
@@ -398,15 +396,17 @@ mod tests {
 
     #[async_trait]
     impl CoreController for MockController {
-        async fn start(&self) -> ApiResult<()> {
+        async fn start(&self) -> mihomo_api::error::Result<()> {
             if self.fail_start.load(Ordering::SeqCst) {
-                return Err(mihomo_api::error::MihomoError::Service("start rejected".into()));
+                return Err(mihomo_api::error::MihomoError::Service(
+                    "start rejected".into(),
+                ));
             }
             self.running.store(true, Ordering::SeqCst);
             Ok(())
         }
 
-        async fn stop(&self) -> ApiResult<()> {
+        async fn stop(&self) -> mihomo_api::error::Result<()> {
             self.running.store(false, Ordering::SeqCst);
             Ok(())
         }
@@ -478,7 +478,7 @@ mod tests {
 
     #[async_trait]
     impl CredentialStore for MockStore {
-        async fn get(&self, service: &str, key: &str) -> ApiResult<Option<String>> {
+        async fn get(&self, service: &str, key: &str) -> mihomo_api::error::Result<Option<String>> {
             Ok(self
                 .entries
                 .lock()
@@ -487,7 +487,12 @@ mod tests {
                 .cloned())
         }
 
-        async fn set(&self, service: &str, key: &str, value: &str) -> ApiResult<()> {
+        async fn set(
+            &self,
+            service: &str,
+            key: &str,
+            value: &str,
+        ) -> mihomo_api::error::Result<()> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -495,7 +500,7 @@ mod tests {
             Ok(())
         }
 
-        async fn delete(&self, service: &str, key: &str) -> ApiResult<()> {
+        async fn delete(&self, service: &str, key: &str) -> mihomo_api::error::Result<()> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -508,11 +513,7 @@ mod tests {
         controller: Arc<dyn CoreController>,
         probe: Arc<dyn ReadinessProbe>,
     ) -> CoreSession {
-        CoreSession::new(
-            controller,
-            Arc::new(StaticEndpoints),
-            probe,
-        )
+        CoreSession::new(controller, Arc::new(StaticEndpoints), probe)
     }
 
     struct StaticEndpoints;
@@ -530,10 +531,7 @@ mod tests {
     #[tokio::test]
     async fn start_then_ready_with_flaky_probe() {
         let controller = Arc::new(MockController::new());
-        let session = session_with(
-            controller.clone(),
-            Arc::new(MockProbe::failing_n_times(2)),
-        );
+        let session = session_with(controller.clone(), Arc::new(MockProbe::failing_n_times(2)));
 
         let generation = session.start().await.expect("start");
         assert_eq!(session.status(), CoreStatus::Starting);
@@ -552,10 +550,7 @@ mod tests {
     #[tokio::test]
     async fn process_death_fails_wait() {
         let controller = Arc::new(MockController::new());
-        let session = session_with(
-            controller.clone(),
-            Arc::new(MockProbe::never()),
-        );
+        let session = session_with(controller.clone(), Arc::new(MockProbe::never()));
 
         let generation = session.start().await.expect("start");
         controller.running.store(false, Ordering::SeqCst);
@@ -625,11 +620,17 @@ mod tests {
             ConfigManager::with_home_and_store(home.path().to_path_buf(), MockStore::empty())
                 .expect("config manager"),
         );
-        config.ensure_default_config().await.expect("default config");
-        config.save(
-            "main",
-            "port: 7890\nexternal-controller: 127.0.0.1:9091\nsecret: s3cret\n",
-        ).await.expect("save profile");
+        config
+            .ensure_default_config()
+            .await
+            .expect("default config");
+        config
+            .save(
+                "main",
+                "port: 7890\nexternal-controller: 127.0.0.1:9091\nsecret: s3cret\n",
+            )
+            .await
+            .expect("save profile");
         config.set_current("main").await.expect("set current");
 
         let source = ProfileEndpointSource::new(config);

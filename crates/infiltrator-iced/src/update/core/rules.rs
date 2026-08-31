@@ -2,12 +2,15 @@
 //! rule/proxy provider refresh and the lazy JSON editors for rule
 //! providers, proxy providers and the sniffer config.
 
+use super::profile_apply::save_task;
 use crate::state::AppState;
-use crate::types::{
-    EditorLazyState, InfiltratorError, Message, RebuildFlowState, RuleBadgeKind, RuleRenderItem,
-    RulesJsonTab, RulesLoadBundle, RulesTab, ToastStatus,
-};
+use crate::types::app::ToastStatus;
+use crate::types::editor::EditorLazyState;
+use crate::types::message::Message;
+use crate::types::rules::{RuleBadgeKind, RuleRenderItem, RulesJsonTab, RulesLoadBundle, RulesTab};
+use crate::types::runtime::RebuildFlowState;
 use iced::Task;
+use infiltrator_core::error::InfiltratorError;
 use infiltrator_core::rules::RuleEntry;
 
 impl AppState {
@@ -173,26 +176,34 @@ impl AppState {
                     ));
                 }
 
+                let rule_type = self.editor.new_rule_type.clone();
+                let target = self.editor.new_rule_target.clone();
+                let rule = if matches!(rule_type.as_str(), "AND" | "OR" | "NOT" | "SUB-RULE") {
+                    format!("{rule_type}({payload},{target})")
+                } else {
+                    format!("{rule_type},{payload},{target}")
+                };
+                if matches!(rule_type.as_str(), "AND" | "OR" | "NOT" | "SUB-RULE")
+                    && let Err(error) =
+                        infiltrator_core::sub_rules::validate_logical_rule_syntax(&rule)
+                {
+                    return Task::done(Message::ShowToast(
+                        format!("Invalid logical rule: {error}"),
+                        ToastStatus::Error,
+                    ));
+                }
                 let entry = RuleEntry {
-                    rule: format!(
-                        "{},{},{}",
-                        self.editor.new_rule_type.clone(),
-                        payload,
-                        self.editor.new_rule_target.clone()
-                    ),
+                    rule,
                     enabled: true,
                 };
                 self.editor.is_adding_rule = true;
-                Task::perform(
-                    async move {
-                        let mut rules = infiltrator_core::rules::load_rules()
-                            .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                let runtime = self.runtime.runtime.clone();
+                save_task(
+                    runtime,
+                    move |content| {
+                        let mut rules = infiltrator_core::rules::load_rules_from_yaml(content)?;
                         rules.insert(0, entry);
-                        infiltrator_core::rules::save_rules(rules)
-                            .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        Ok(())
+                        infiltrator_core::rules::apply_rules_to_yaml(content, &rules)
                     },
                     Message::RuleAdded,
                 )
@@ -291,9 +302,7 @@ impl AppState {
                 }
                 let mut tasks = vec![Task::perform(
                     async {
-                        let manager = mihomo_config::manager::ConfigManager::new().map_err(
-                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
-                        )?;
+                        let manager = crate::configs_dir::config_manager().await?;
                         let profile = manager.get_current().await.map_err(
                             |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
                         )?;
@@ -494,13 +503,9 @@ impl AppState {
                 let rules = self.editor.rules.clone();
                 self.editor.is_saving_rules = true;
                 self.begin_save_phase("Rules");
-                Task::perform(
-                    async move {
-                        infiltrator_core::rules::save_rules(rules)
-                            .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        Ok(())
-                    },
+                save_task(
+                    self.runtime.runtime.clone(),
+                    move |content| infiltrator_core::rules::apply_rules_to_yaml(content, &rules),
                     Message::RulesSaved,
                 )
             }
@@ -511,7 +516,7 @@ impl AppState {
                         self.editor.rules_dirty = false;
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
-                            self.trigger_runtime_rebuild(),
+                            self.finish_without_rebuild("Rules".to_string()),
                         ])
                     }
                     Err(e) => {
@@ -543,18 +548,13 @@ impl AppState {
                 let text = self.editor.rule_providers_json_content.text();
                 self.editor.is_saving_rule_providers_json = true;
                 self.begin_save_phase("Rule Providers");
-                Task::perform(
-                    async move {
-                        let providers = serde_json::from_str::<
-                            infiltrator_core::rules::RuleProviders,
-                        >(&text)
-                        .map_err(|e| {
-                            InfiltratorError::Config(format!("Invalid rule providers JSON: {}", e))
-                        })?;
-                        infiltrator_core::rules::save_rule_providers(providers)
-                            .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        Ok(())
+                save_task(
+                    self.runtime.runtime.clone(),
+                    move |content| {
+                        let providers =
+                            serde_json::from_str::<infiltrator_core::rules::RuleProviders>(&text)
+                                .map_err(|e| anyhow::anyhow!("Invalid rule providers JSON: {e}"))?;
+                        infiltrator_core::rules::apply_rule_providers_to_yaml(content, &providers)
                     },
                     Message::RuleProvidersJsonSaved,
                 )
@@ -566,7 +566,7 @@ impl AppState {
                         self.editor.rule_providers_json_dirty = false;
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
-                            self.trigger_runtime_rebuild(),
+                            self.finish_without_rebuild("Rule Providers".to_string()),
                         ])
                     }
                     Err(e) => {
@@ -598,18 +598,16 @@ impl AppState {
                 let text = self.editor.proxy_providers_json_content.text();
                 self.editor.is_saving_proxy_providers_json = true;
                 self.begin_save_phase("Proxy Providers");
-                Task::perform(
-                    async move {
+                save_task(
+                    self.runtime.runtime.clone(),
+                    move |content| {
                         let providers = serde_json::from_str::<
                             infiltrator_core::proxy_providers::ProxyProviders,
                         >(&text)
-                        .map_err(|e| {
-                            InfiltratorError::Config(format!("Invalid proxy providers JSON: {}", e))
-                        })?;
-                        infiltrator_core::proxy_providers::save_proxy_providers(providers)
-                            .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        Ok(())
+                        .map_err(|e| anyhow::anyhow!("Invalid proxy providers JSON: {e}"))?;
+                        infiltrator_core::proxy_providers::apply_proxy_providers_to_yaml(
+                            content, &providers,
+                        )
                     },
                     Message::ProxyProvidersJsonSaved,
                 )
@@ -621,7 +619,7 @@ impl AppState {
                         self.editor.proxy_providers_json_dirty = false;
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
-                            self.trigger_runtime_rebuild(),
+                            self.finish_without_rebuild("Proxy Providers".to_string()),
                         ])
                     }
                     Err(e) => {
@@ -653,16 +651,12 @@ impl AppState {
                 let text = self.editor.sniffer_json_content.text();
                 self.editor.is_saving_sniffer_json = true;
                 self.begin_save_phase("Sniffer");
-                Task::perform(
-                    async move {
-                        let config =
-                            serde_json::from_str::<serde_json::Value>(&text).map_err(|e| {
-                                InfiltratorError::Config(format!("Invalid sniffer JSON: {}", e))
-                            })?;
-                        infiltrator_core::sniffer::save_sniffer_config(config)
-                            .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        Ok(())
+                save_task(
+                    self.runtime.runtime.clone(),
+                    move |content| {
+                        let config = serde_json::from_str::<serde_json::Value>(&text)
+                            .map_err(|e| anyhow::anyhow!("Invalid sniffer JSON: {e}"))?;
+                        infiltrator_core::sniffer::apply_sniffer_to_yaml(content, &config)
                     },
                     Message::SnifferJsonSaved,
                 )
@@ -674,7 +668,7 @@ impl AppState {
                         self.editor.sniffer_json_dirty = false;
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
-                            self.trigger_runtime_rebuild(),
+                            self.finish_without_rebuild("Sniffer".to_string()),
                         ])
                     }
                     Err(e) => {
@@ -704,7 +698,8 @@ impl AppState {
                     }
                     Err(e) => self.set_error(&e),
                 }
-                Task::none()
+                // The live provider list feeds the MRS metadata scan names.
+                Task::done(Message::ScanMrsProviders)
             }
             Message::UpdateProxyProvider(name) => {
                 if let Some(rt) = self.runtime.runtime.clone() {
@@ -736,7 +731,7 @@ impl AppState {
                     Task::none()
                 }
             }
-            other => self.update_core_advanced(other),
+            other => self.update_core_mrs(other),
         }
     }
 }

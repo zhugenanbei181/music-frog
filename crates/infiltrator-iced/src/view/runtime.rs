@@ -8,13 +8,14 @@ mod logs;
 mod styles;
 mod traffic;
 
-use crate::locales::{Lang, Localizer};
-use crate::types::RuntimeStatus;
+use infiltrator_shared::locales::{Lang, Localizer};
+use crate::types::runtime::RuntimeStatus;
 use crate::view::components::{card, empty_state, icon_button, modern_scrollable, toggle_switch};
 use crate::view::runtime::styles::{pick_style, style_accent, style_danger, style_ghost, text_btn};
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{self, FONT_SEMIBOLD, SP_LG, SP_MD, tokens};
-use crate::{AppState, Message};
+use crate::state::AppState;
+use crate::types::message::Message;
 use iced::widget::{Space, column, container, pick_list, row, text};
 use iced::{Alignment, Element, Length, Theme};
 

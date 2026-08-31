@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use crate::redact::mask_secret;
+use anyhow::{Result, anyhow};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::redact::mask_secret;
 
 /// Represents the high-level state of the Core Session.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -126,16 +126,16 @@ impl CoreSessionAdapter {
     /// Stop the currently active session.
     pub async fn stop_session(&self) -> Result<()> {
         let mut mgr = self.manager.lock().await;
-        
+
         if mgr.state == SessionState::Starting {
             return Err(anyhow!("Cannot stop while starting"));
         }
-        
+
         if mgr.state != SessionState::Stopped {
             mgr.generation += 1;
             mgr.state = SessionState::Stopped;
         }
-        
+
         Ok(())
     }
 
@@ -182,11 +182,7 @@ impl CoreSessionAdapter {
 fn extract_secret(config: &str) -> String {
     for line in config.lines() {
         if line.trim().starts_with("secret:") {
-            return line
-                .trim()
-                .trim_start_matches("secret:")
-                .trim()
-                .to_string();
+            return line.trim().trim_start_matches("secret:").trim().to_string();
         }
     }
     "".to_string()
@@ -200,7 +196,7 @@ mod tests {
     #[tokio::test]
     async fn test_lifecycle() {
         let adapter = CoreSessionAdapter::new();
-        
+
         let snap = adapter.get_snapshot().await;
         assert_eq!(snap.state, SessionState::Stopped);
 
@@ -227,7 +223,7 @@ mod tests {
 
         adapter.start_with_profile("p1", "").await.unwrap();
         assert!(adapter.verify_generation(1).await);
-        
+
         adapter.restart_with_config("").await.unwrap();
         assert!(adapter.verify_generation(2).await);
 
@@ -242,7 +238,7 @@ mod tests {
             .start_with_profile("p2", "secret: my_super_secret")
             .await
             .unwrap();
-        
+
         let snap = adapter.get_snapshot().await;
         // mask_secret("my_super_secret", "my_super_secret") returns "***"
         assert_eq!(snap.secret_masked.as_deref(), Some("***"));
@@ -251,7 +247,7 @@ mod tests {
         adapter
             .set_failed("Connection failed due to invalid token: my_super_secret".to_string())
             .await;
-        
+
         let snap = adapter.get_snapshot().await;
         if let SessionState::Failed(msg) = snap.state {
             assert!(msg.contains("***"));
@@ -264,7 +260,7 @@ mod tests {
     #[tokio::test]
     async fn test_concurrent_protection() {
         let manager = Arc::new(Mutex::new(SessionManager::new()));
-        
+
         // Force state to Starting
         {
             let mut guard = manager.lock().await;
@@ -272,7 +268,7 @@ mod tests {
         }
 
         let adapter = CoreSessionAdapter::with_manager(manager);
-        
+
         // Start should fail
         let res = adapter.start_with_profile("p3", "").await;
         assert!(res.is_err());

@@ -159,7 +159,10 @@ mod tests {
         let meta = save_snapshot(&config, "main", "port: 42").await.unwrap();
         assert_eq!(meta.sha256.len(), 64);
         let name = meta.path.file_name().unwrap().to_string_lossy();
-        assert!(name.contains(&meta.sha256[..8]), "file name {name} must embed the hash prefix");
+        assert!(
+            name.contains(&meta.sha256[..8]),
+            "file name {name} must embed the hash prefix"
+        );
         // hash8 comes from the file name and matches full content hash
         assert_eq!(meta.sha256, content_hash(b"port: 42"));
     }
@@ -170,14 +173,19 @@ mod tests {
         let meta = save_snapshot(&config, "main", "port: 7890\nsecret: s3cret\n")
             .await
             .unwrap();
-        assert_eq!(read_snapshot(&meta.path).await.unwrap(), "port: 7890\nsecret: s3cret\n");
+        assert_eq!(
+            read_snapshot(&meta.path).await.unwrap(),
+            "port: 7890\nsecret: s3cret\n"
+        );
     }
 
     #[tokio::test]
     async fn prune_keeps_newest_only() {
         let (_dir, config) = config_dir();
         for port in 1..=5 {
-            save_snapshot(&config, "main", &format!("port: {port}")).await.unwrap();
+            save_snapshot(&config, "main", &format!("port: {port}"))
+                .await
+                .unwrap();
             tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         }
         let removed = prune_snapshots(&config, "main", 2).await.unwrap();

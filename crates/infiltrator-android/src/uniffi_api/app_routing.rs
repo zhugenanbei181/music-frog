@@ -2,10 +2,8 @@
 //! via infiltrator-core's app-routing config.
 
 use infiltrator_core::app_routing::{
-    AppRoutingConfig as CoreAppRoutingConfig, AppRoutingMode as CoreAppRoutingMode,
-    load_app_routing, save_app_routing, set_routing_mode as core_set_routing_mode,
-    toggle_package as core_toggle_package,
-};
+    load_app_routing, save_app_routing,
+    };
 
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
@@ -18,22 +16,22 @@ pub enum AppRoutingMode {
     BypassSelected,
 }
 
-impl From<CoreAppRoutingMode> for AppRoutingMode {
-    fn from(mode: CoreAppRoutingMode) -> Self {
+impl From<infiltrator_core::app_routing::AppRoutingMode> for AppRoutingMode {
+    fn from(mode: infiltrator_core::app_routing::AppRoutingMode) -> Self {
         match mode {
-            CoreAppRoutingMode::ProxyAll => AppRoutingMode::ProxyAll,
-            CoreAppRoutingMode::ProxySelected => AppRoutingMode::ProxySelected,
-            CoreAppRoutingMode::BypassSelected => AppRoutingMode::BypassSelected,
+            infiltrator_core::app_routing::AppRoutingMode::ProxyAll => AppRoutingMode::ProxyAll,
+            infiltrator_core::app_routing::AppRoutingMode::ProxySelected => AppRoutingMode::ProxySelected,
+            infiltrator_core::app_routing::AppRoutingMode::BypassSelected => AppRoutingMode::BypassSelected,
         }
     }
 }
 
-impl From<AppRoutingMode> for CoreAppRoutingMode {
+impl From<AppRoutingMode> for infiltrator_core::app_routing::AppRoutingMode {
     fn from(mode: AppRoutingMode) -> Self {
         match mode {
-            AppRoutingMode::ProxyAll => CoreAppRoutingMode::ProxyAll,
-            AppRoutingMode::ProxySelected => CoreAppRoutingMode::ProxySelected,
-            AppRoutingMode::BypassSelected => CoreAppRoutingMode::BypassSelected,
+            AppRoutingMode::ProxyAll => infiltrator_core::app_routing::AppRoutingMode::ProxyAll,
+            AppRoutingMode::ProxySelected => infiltrator_core::app_routing::AppRoutingMode::ProxySelected,
+            AppRoutingMode::BypassSelected => infiltrator_core::app_routing::AppRoutingMode::BypassSelected,
         }
     }
 }
@@ -69,7 +67,7 @@ pub fn app_routing_load() -> AppRoutingResult {
 
 #[uniffi::export]
 pub fn app_routing_save(mode: AppRoutingMode, packages: Vec<String>) -> FfiStatus {
-    let config = CoreAppRoutingConfig {
+    let config = infiltrator_core::app_routing::AppRoutingConfig {
         mode: mode.into(),
         packages: packages.into_iter().collect(),
     };
@@ -81,7 +79,7 @@ pub fn app_routing_save(mode: AppRoutingMode, packages: Vec<String>) -> FfiStatu
 
 #[uniffi::export]
 pub fn app_routing_set_mode(mode: AppRoutingMode) -> FfiStatus {
-    match core_set_routing_mode(mode.into()) {
+    match infiltrator_core::app_routing::set_routing_mode(mode.into()) {
         Ok(_) => FfiStatus::ok(),
         Err(e) => FfiStatus::err(FfiErrorCode::Io, e.to_string()),
     }
@@ -95,7 +93,7 @@ pub struct AppRoutingToggleResult {
 
 #[uniffi::export]
 pub fn app_routing_toggle_package(package: String) -> AppRoutingToggleResult {
-    match core_toggle_package(&package) {
+    match infiltrator_core::app_routing::toggle_package(&package) {
         Ok(is_selected) => AppRoutingToggleResult {
             status: FfiStatus::ok(),
             is_selected,

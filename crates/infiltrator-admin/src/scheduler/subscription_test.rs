@@ -1,17 +1,19 @@
 #[cfg(test)]
 mod tests {
-    use crate::TEST_LOCK;
+    use mihomo_platform::TEST_LOCK;
     use crate::admin_api::state::AdminApiContext;
     use crate::scheduler::subscription::{
-        SubscriptionUpdateSummary, schedule_next_attempt, update_all_subscriptions,
+        SubscriptionUpdateSummary, run_profile_subscription_tick, schedule_next_attempt,
+        update_all_subscriptions,
     };
     use crate::scheduler::{
-        cancel_profile_update_job, schedule_profile_update_job, subscription_job_name,
-        subscription_jobs, sync_profile_job,
+        cancel_profile_update_job, schedule_profile_update_job, seed_subscription_jobs,
+        subscription_job_name, subscription_jobs, sync_profile_job,
     };
+    use crate::support::{app_config_manager, test_env};
     use anyhow::anyhow;
-    use chrono::{Duration as ChronoDuration, Utc};
-    use infiltrator_core::settings::AppSettings;
+    use chrono::{ Utc};
+    use infiltrator_core::settings::{AppSettings, save_settings, settings_path};
     use infiltrator_core::subscription::mask_subscription_url;
     use infiltrator_http::HttpClient;
     use mihomo_api::client::MihomoClient;
@@ -236,10 +238,10 @@ mod tests {
         let updated_profile = manager.get_profile_metadata(&profile_name).await.unwrap();
 
         if let Some(next_update) = updated_profile.next_update {
-            let expected = now + ChronoDuration::hours(interval_hours as i64);
+            let expected = now + chrono::Duration::hours(interval_hours as i64);
             assert!(
-                next_update >= expected - ChronoDuration::seconds(30)
-                    && next_update <= expected + ChronoDuration::seconds(30)
+                next_update >= expected - chrono::Duration::seconds(30)
+                    && next_update <= expected + chrono::Duration::seconds(30)
             );
         } else {
             panic!("next_update should be set for profile: {}", profile_name);
@@ -384,5 +386,200 @@ mod tests {
         // Cleanup: keep the process-wide registry empty for other tests.
         cancel_profile_update_job(&profile_name);
         mihomo_platform::paths::clear_home_dir_override();
+    }
+
+    /// settings `configs_dir` 重定向测试的公共脚手架：home 覆盖、清除
+    /// `INFILTRATOR_CONFIGS_DIR` env、把 settings.toml 的 configs_dir 指向
+    /// `<home>/cloud`。必须持有 TEST_LOCK。
+    struct RedirectGuard {
+        temp: tempfile::TempDir,
+        saved_env: Option<String>,
+    }
+
+    impl RedirectGuard {
+        async fn new(prefix: &str) -> Self {
+            let temp = tempfile::Builder::new().prefix(prefix).tempdir().unwrap();
+            mihomo_platform::paths::clear_home_dir_override();
+            mihomo_platform::paths::set_home_dir_override(temp.path().to_path_buf());
+            let saved_env = test_env::clear_configs_dir_env();
+            let cloud = temp.path().join("cloud");
+            std::fs::create_dir_all(&cloud).unwrap();
+            let settings = AppSettings {
+                configs_dir: Some(cloud.to_string_lossy().into_owned()),
+                ..AppSettings::default()
+            };
+            save_settings(&settings_path(temp.path()).unwrap(), &settings)
+                .await
+                .unwrap();
+            Self { temp, saved_env }
+        }
+
+        fn cloud(&self) -> std::path::PathBuf {
+            self.temp.path().join("cloud")
+        }
+
+        fn home_configs(&self) -> std::path::PathBuf {
+            self.temp.path().join("configs")
+        }
+
+        fn restore(self) {
+            test_env::restore_configs_dir_env(self.saved_env);
+            mihomo_platform::paths::clear_home_dir_override();
+        }
+    }
+
+    /// 在重定向目录预置一个 auto-update 已启用、立即到期的 profile，
+    /// 返回（profile 名, yaml 路径）。
+    async fn seed_due_profile(
+        manager: &ConfigManager,
+        cloud: &std::path::Path,
+        name: &str,
+        url: String,
+    ) -> std::path::PathBuf {
+        let profile_path = cloud.join(format!("{name}.yaml"));
+        std::fs::write(&profile_path, "port: 7890").unwrap();
+        let mut profile = Profile::new(name.to_string(), profile_path.clone(), false);
+        profile.subscription_url = Some(url);
+        profile.auto_update_enabled = true;
+        profile.update_interval_hours = Some(24);
+        profile.next_update = None;
+        manager
+            .update_profile_metadata(name, &profile)
+            .await
+            .unwrap();
+        profile_path
+    }
+
+    /// settings 写入 configs_dir 后，单 profile 更新任务（tick）的读写必须
+    /// 落在重定向目录：yaml 被订阅内容覆盖，默认 `<home>/configs` 不被创建。
+    #[tokio::test]
+    async fn test_subscription_tick_follows_settings_configs_dir_redirect() {
+        let _guard = TEST_LOCK.lock().await;
+        let redirect = RedirectGuard::new("sub-test-tick-redir-").await;
+
+        let mut server = mockito::Server::new_async().await;
+        let _mock = server
+            .mock("GET", "/sub")
+            .with_status(200)
+            .with_body("port: 7891\nmode: rule")
+            .create_async()
+            .await;
+        let subscription_url = format!("{}/sub", server.url());
+
+        let manager = app_config_manager().await.unwrap();
+        let profile_name = "redirect-tick".to_string();
+        let profile_path =
+            seed_due_profile(&manager, &redirect.cloud(), &profile_name, subscription_url).await;
+
+        let ctx = MockContext {
+            notifications: Arc::new(Mutex::new(vec![])),
+        };
+        let client = HttpClient::new();
+        let raw_client = HttpClient::new();
+
+        let result = run_profile_subscription_tick(&ctx, &profile_name, &client, &raw_client).await;
+        assert!(result.is_ok(), "tick failed: {:?}", result.err());
+
+        let updated = std::fs::read_to_string(&profile_path).unwrap();
+        assert!(
+            updated.contains("mode: rule"),
+            "redirected yaml must be overwritten by subscription content"
+        );
+        assert!(
+            !redirect.home_configs().exists(),
+            "default configs dir must not be created"
+        );
+        let metadata = manager.get_profile_metadata(&profile_name).await.unwrap();
+        assert!(metadata.last_updated.is_some());
+        assert_eq!(notification_count(&ctx), 1);
+
+        redirect.restore();
+    }
+
+    /// settings 写入 configs_dir 后，批量更新（含 JoinSet 内每个任务自行
+    /// 构造的 manager）的读写都落在重定向目录。
+    #[tokio::test]
+    async fn test_update_all_subscriptions_follows_settings_configs_dir_redirect() {
+        let _guard = TEST_LOCK.lock().await;
+        let redirect = RedirectGuard::new("sub-test-batch-redir-").await;
+
+        let mut server = mockito::Server::new_async().await;
+        let _mock = server
+            .mock("GET", "/sub")
+            .with_status(200)
+            .with_body("port: 7891\nmode: rule")
+            .create_async()
+            .await;
+        let subscription_url = format!("{}/sub", server.url());
+
+        let manager = app_config_manager().await.unwrap();
+        let profile_name = "redirect-batch".to_string();
+        let profile_path =
+            seed_due_profile(&manager, &redirect.cloud(), &profile_name, subscription_url).await;
+
+        let ctx = MockContext {
+            notifications: Arc::new(Mutex::new(vec![])),
+        };
+        let client = HttpClient::new();
+        let raw_client = HttpClient::new();
+
+        let summary = update_all_subscriptions(&ctx, &client, &raw_client)
+            .await
+            .unwrap();
+        assert_eq!(summary.total, 1);
+        assert_eq!(summary.updated, 1);
+        assert_eq!(summary.failed, 0);
+
+        let updated = std::fs::read_to_string(&profile_path).unwrap();
+        assert!(
+            updated.contains("mode: rule"),
+            "redirected yaml must be overwritten by subscription content"
+        );
+        assert!(
+            !redirect.home_configs().exists(),
+            "default configs dir must not be created"
+        );
+        assert_eq!(notification_count(&ctx), 1);
+
+        redirect.restore();
+    }
+
+    /// settings 写入 configs_dir 后，启动时的 job 播种必须能发现重定向
+    /// 目录中启用了 auto-update 的 profile 并注册对应任务。
+    #[tokio::test]
+    async fn test_seed_subscription_jobs_follows_settings_configs_dir_redirect() {
+        let _guard = TEST_LOCK.lock().await;
+        let redirect = RedirectGuard::new("sub-test-seed-redir-").await;
+
+        let manager = app_config_manager().await.unwrap();
+        let profile_name = "redirect-seed".to_string();
+        let profile_path = redirect.cloud().join(format!("{profile_name}.yaml"));
+        std::fs::write(&profile_path, "port: 7890").unwrap();
+        let mut profile = Profile::new(profile_name.clone(), profile_path, false);
+        profile.subscription_url = Some("http://example.com/subscription/seed".to_string());
+        profile.auto_update_enabled = true;
+        profile.update_interval_hours = Some(24);
+        // Not due yet: the job's immediate first run must stay a no-op.
+        profile.next_update = Some(Utc::now() + chrono::Duration::hours(24));
+        manager
+            .update_profile_metadata(&profile_name, &profile)
+            .await
+            .unwrap();
+
+        let ctx = MockContext {
+            notifications: Arc::new(Mutex::new(vec![])),
+        };
+        seed_subscription_jobs(&ctx).await;
+
+        let job_name = subscription_job_name(&profile_name);
+        assert!(
+            subscription_jobs().is_active(&job_name),
+            "seed must register the job for a profile in the redirect dir"
+        );
+
+        // Cleanup: keep the process-wide registry empty for other tests.
+        cancel_profile_update_job(&profile_name);
+        assert!(!subscription_jobs().is_active(&job_name));
+        redirect.restore();
     }
 }

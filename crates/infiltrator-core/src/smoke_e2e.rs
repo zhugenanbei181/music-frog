@@ -65,18 +65,24 @@ impl CoreE2ETestHarness {
 
         // Stage 1: Config generation
         let _config_yaml = self.generate_minimal_smoke_config();
-        report.stages_completed.push("Config generation".to_string());
+        report
+            .stages_completed
+            .push("Config generation".to_string());
 
         // Stage 2: Startup / Readiness handshake
         let start_ready = Instant::now();
         // Simulate startup delay
         report.ready_duration_ms = start_ready.elapsed().as_millis() as u64;
-        
+
         if !mock_probe_fn() {
-            report.errors.push("Startup / Readiness handshake failed".to_string());
+            report
+                .errors
+                .push("Startup / Readiness handshake failed".to_string());
             return report;
         }
-        report.stages_completed.push("Startup / Readiness handshake".to_string());
+        report
+            .stages_completed
+            .push("Startup / Readiness handshake".to_string());
         report.log_count += 5; // Simulate some logs during startup
 
         // Stage 3: Config Reload / Hot update
@@ -84,10 +90,14 @@ impl CoreE2ETestHarness {
         // Simulate reload delay
         report.reload_duration_ms = start_reload.elapsed().as_millis() as u64;
         if !mock_probe_fn() {
-            report.errors.push("Config Reload / Hot update failed".to_string());
+            report
+                .errors
+                .push("Config Reload / Hot update failed".to_string());
             return report;
         }
-        report.stages_completed.push("Config Reload / Hot update".to_string());
+        report
+            .stages_completed
+            .push("Config Reload / Hot update".to_string());
         report.log_count += 3;
 
         // Stage 4: Delay test probe
@@ -102,15 +112,21 @@ impl CoreE2ETestHarness {
             report.errors.push("Graceful shutdown failed".to_string());
             return report;
         }
-        report.stages_completed.push("Graceful shutdown".to_string());
+        report
+            .stages_completed
+            .push("Graceful shutdown".to_string());
         report.log_count += 2;
 
         // Stage 6: Resource release check
         if !mock_probe_fn() {
-            report.errors.push("Resource release check failed".to_string());
+            report
+                .errors
+                .push("Resource release check failed".to_string());
             return report;
         }
-        report.stages_completed.push("Resource release check".to_string());
+        report
+            .stages_completed
+            .push("Resource release check".to_string());
 
         report.passed = true;
         report
@@ -135,7 +151,7 @@ mod tests {
         let config = create_test_config();
         let harness = CoreE2ETestHarness::new(config);
         let yaml = harness.generate_minimal_smoke_config();
-        
+
         assert!(yaml.contains("mixed-port: 7890"));
         assert!(yaml.contains("external-controller: 127.0.0.1:9090"));
         assert!(yaml.contains("secret: 'supersecret'"));
@@ -146,9 +162,9 @@ mod tests {
     async fn test_mock_smoke_cycle_success() {
         let config = create_test_config();
         let harness = CoreE2ETestHarness::new(config);
-        
+
         let report = harness.run_mock_smoke_cycle(|| true).await;
-        
+
         assert!(report.passed);
         assert!(report.errors.is_empty());
         assert_eq!(report.stages_completed.len(), 6);
@@ -161,9 +177,9 @@ mod tests {
     async fn test_mock_smoke_cycle_failure_on_startup() {
         let config = create_test_config();
         let harness = CoreE2ETestHarness::new(config);
-        
+
         let report = harness.run_mock_smoke_cycle(|| false).await;
-        
+
         assert!(!report.passed);
         assert_eq!(report.errors.len(), 1);
         assert_eq!(report.errors[0], "Startup / Readiness handshake failed");

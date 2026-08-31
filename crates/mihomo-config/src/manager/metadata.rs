@@ -63,6 +63,19 @@ pub(super) async fn apply_profile_metadata<S: CredentialStore>(
         });
     profile.last_updated = parse_datetime(table.get("last_updated"));
     profile.next_update = parse_datetime(table.get("next_update"));
+    profile.traffic_upload = parse_u64(table.get("traffic_upload"));
+    profile.traffic_download = parse_u64(table.get("traffic_download"));
+    profile.traffic_total = parse_u64(table.get("traffic_total"));
+    profile.expire_at = table
+        .get("expire_at")
+        .and_then(|value| value.as_integer())
+        .filter(|value| *value >= 0);
+}
+
+fn parse_u64(value: Option<&toml::Value>) -> Option<u64> {
+    value
+        .and_then(|value| value.as_integer())
+        .and_then(|value| if value >= 0 { Some(value as u64) } else { None })
 }
 
 fn parse_datetime(value: Option<&toml::Value>) -> Option<DateTime<Utc>> {
@@ -95,6 +108,37 @@ pub(super) fn set_optional_u32(
     match value {
         Some(value) => {
             table.insert(key.to_string(), toml::Value::Integer(value as i64));
+        }
+        None => {
+            table.remove(key);
+        }
+    }
+}
+
+pub(super) fn set_optional_u64(
+    table: &mut toml::map::Map<String, toml::Value>,
+    key: &str,
+    value: Option<u64>,
+) {
+    match value {
+        Some(value) => {
+            let value = i64::try_from(value).unwrap_or(i64::MAX);
+            table.insert(key.to_string(), toml::Value::Integer(value));
+        }
+        None => {
+            table.remove(key);
+        }
+    }
+}
+
+pub(super) fn set_optional_i64(
+    table: &mut toml::map::Map<String, toml::Value>,
+    key: &str,
+    value: Option<i64>,
+) {
+    match value {
+        Some(value) => {
+            table.insert(key.to_string(), toml::Value::Integer(value));
         }
         None => {
             table.remove(key);

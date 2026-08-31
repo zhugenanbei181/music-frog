@@ -12,35 +12,39 @@ pub enum ServiceStatus {
 
 pub struct ServiceManager {
     controller: std::sync::Arc<ProcessCoreController>,
+    binary_path: PathBuf,
 }
 
 impl ServiceManager {
     pub fn new(binary_path: PathBuf, config_path: PathBuf) -> Self {
         Self {
             controller: std::sync::Arc::new(ProcessCoreController::new(
-                binary_path,
+                binary_path.clone(),
                 config_path,
             )),
+            binary_path,
         }
     }
 
     pub fn with_home(binary_path: PathBuf, config_path: PathBuf, home: PathBuf) -> Self {
         Self {
             controller: std::sync::Arc::new(ProcessCoreController::with_home(
-                binary_path,
+                binary_path.clone(),
                 config_path,
                 home,
             )),
+            binary_path,
         }
     }
 
     pub fn with_pid_file(binary_path: PathBuf, config_path: PathBuf, pid_file: PathBuf) -> Self {
         Self {
             controller: std::sync::Arc::new(ProcessCoreController::with_pid_file(
-                binary_path,
+                binary_path.clone(),
                 config_path,
                 pid_file,
             )),
+            binary_path,
         }
     }
 
@@ -48,6 +52,10 @@ impl ServiceManager {
     /// shared [`infiltrator_core::session::CoreSession`].
     pub fn controller(&self) -> std::sync::Arc<dyn CoreController> {
         self.controller.clone()
+    }
+
+    pub fn binary_path(&self) -> &std::path::Path {
+        &self.binary_path
     }
 
     pub async fn start(&self) -> Result<()> {

@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, anyhow};
 use log::{info, warn};
+use mihomo_config::manager::paths::resolve_configs_dir;
 
 use dav_client::client::WebDavClient;
 use mihomo_platform::paths::get_home_dir;
@@ -17,9 +18,13 @@ pub struct SyncSummary {
     pub total_actions: usize,
 }
 
+/// `configs_dir` 来自 app settings（调用方从其持有的 settings 透传），
+/// 与 profile 存储共用同一重定向解析：`INFILTRATOR_CONFIGS_DIR` 环境变量 >
+/// settings `configs_dir` > `<home>/configs`。
 pub async fn run_sync_tick<C: AdminApiContext>(
     _ctx: &C,
     config: &WebDavConfig,
+    configs_dir: Option<&str>,
 ) -> Result<SyncSummary> {
     if !config.enabled {
         return Ok(SyncSummary::default());
@@ -35,9 +40,10 @@ pub async fn run_sync_tick<C: AdminApiContext>(
     let dav = WebDavClient::new(&config.url, &config.username, &config.password)
         .context("Failed to create WebDAV client")?;
 
-    // 定位数据目录
+    // 定位数据目录：sync 扫描根必须与 profile 存储目录一致（云同步重定向）。
+    let local_root = resolve_configs_dir(configs_dir)
+        .map_err(|e| anyhow!("Failed to resolve configs directory: {}", e))?;
     let home = get_home_dir().map_err(|e| anyhow!("Failed to get home directory: {}", e))?;
-    let local_root = home.join("configs");
 
     // 确保本地目录存在
     if !local_root.exists() {

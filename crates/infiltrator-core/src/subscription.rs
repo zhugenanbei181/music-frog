@@ -27,6 +27,20 @@ pub async fn fetch_subscription_text(
     raw_client: &infiltrator_http::HttpClient,
     url: &CheckedSubscriptionUrl,
 ) -> Result<String> {
+    fetch_subscription_with_info(client, raw_client, url)
+        .await
+        .map(|(text, _)| text)
+}
+
+/// Fetch the subscription body together with the provider traffic metadata
+/// from the `subscription-userinfo` response header
+/// (`upload=<B>; download=<B>; total=<B>; expire=<unix seconds>`). The
+/// header is optional; providers that omit it yield `None`.
+pub async fn fetch_subscription_with_info(
+    client: &infiltrator_http::HttpClient,
+    raw_client: &infiltrator_http::HttpClient,
+    url: &CheckedSubscriptionUrl,
+) -> Result<(String, Option<SubscriptionUserInfo>)> {
     let mut resp = client.get(url.as_str()).send().await?;
     if !resp.status().is_success() {
         resp = raw_client.get(url.as_str()).send().await?;
@@ -36,9 +50,17 @@ pub async fn fetch_subscription_text(
         return Err(anyhow!("订阅链接请求失败: HTTP {}", resp.status()));
     }
 
-    let encoding = resp
+    let userinfo = resp
         .headers()
         .get("subscription-userinfo")
+        .and_then(|v| v.to_str().ok())
+        .and_then(parse_subscription_userinfo);
+
+    // Content coding lives on `Content-Encoding`; `subscription-userinfo` is
+    // the traffic-metadata header and must never drive decompression.
+    let encoding = resp
+        .headers()
+        .get("content-encoding")
         .and_then(|v| v.to_str().ok())
         .map(|v| {
             if v.contains("gzip") {
@@ -53,7 +75,43 @@ pub async fn fetch_subscription_text(
     let bytes = read_body_capped(resp).await?;
     let decoded_bytes = decode_subscription_bytes(bytes, encoding)?;
     let text = String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
-    Ok(text)
+    Ok((text, userinfo))
+}
+
+/// Provider traffic metadata advertised via `subscription-userinfo`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SubscriptionUserInfo {
+    pub upload: Option<u64>,
+    pub download: Option<u64>,
+    pub total: Option<u64>,
+    /// Unix timestamp (seconds) when the plan expires.
+    pub expire: Option<i64>,
+}
+
+/// Parse the `k=v; k=v` header form. Byte-count values are `u64`, `expire`
+/// is a unix epoch in seconds; unparseable pairs are skipped and an empty
+/// or malformed header yields `None`.
+pub fn parse_subscription_userinfo(raw: &str) -> Option<SubscriptionUserInfo> {
+    let mut info = SubscriptionUserInfo::default();
+    for pair in raw.split(';') {
+        let Some((key, value)) = pair.split_once('=') else {
+            continue;
+        };
+        let key = key.trim().to_ascii_lowercase();
+        let value = value.trim();
+        match key.as_str() {
+            "upload" => info.upload = value.parse().ok(),
+            "download" => info.download = value.parse().ok(),
+            "total" => info.total = value.parse().ok(),
+            "expire" => info.expire = value.parse().ok(),
+            _ => {}
+        }
+    }
+    let empty = info.upload.is_none()
+        && info.download.is_none()
+        && info.total.is_none()
+        && info.expire.is_none();
+    if empty { None } else { Some(info) }
 }
 
 /// 拉取地址来自订阅配置/管理端 API，收紧到 http(s)、有主机、不带内嵌凭据，
@@ -219,6 +277,25 @@ mod tests {
         let text = "\u{feff}config content";
         assert_eq!(strip_utf8_bom(text), "config content");
         assert_eq!(strip_utf8_bom("no bom"), "no bom");
+    }
+
+    #[test]
+    fn test_parse_subscription_userinfo() {
+        let info = parse_subscription_userinfo(
+            "upload=123456; download=88765432100; total=322122547200; expire=1793932800",
+        )
+        .unwrap();
+        assert_eq!(info.upload, Some(123456));
+        assert_eq!(info.download, Some(88_765_432_100));
+        assert_eq!(info.total, Some(322_122_547_200));
+        assert_eq!(info.expire, Some(1_793_932_800));
+
+        // Partial header (expire only) still parses; junk yields None.
+        let expire_only = parse_subscription_userinfo("expire=1793932800").unwrap();
+        assert_eq!(expire_only.expire, Some(1_793_932_800));
+        assert_eq!(expire_only.total, None);
+        assert_eq!(parse_subscription_userinfo(""), None);
+        assert_eq!(parse_subscription_userinfo("nonsense; more junk"), None);
     }
 
     #[test]

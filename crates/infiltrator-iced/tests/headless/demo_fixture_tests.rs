@@ -3,7 +3,9 @@
 //! test-intent: behavior
 
 use crate::test_support::{DEFAULT_WINDOW, demo_state};
-use infiltrator_iced::{Message, Route, RuntimeStatus};
+use infiltrator_iced::types::message::Message;
+use infiltrator_iced::types::app::Route;
+use infiltrator_iced::types::runtime::RuntimeStatus;
 
 #[test]
 fn demo_fixture_inventory_matches_the_demo_contract() {

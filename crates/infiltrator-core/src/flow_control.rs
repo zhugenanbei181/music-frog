@@ -61,7 +61,7 @@ impl<T> BoundedRingBuffer<T> {
     pub fn push(&self, item: T) -> PushResult {
         let mut state = self.buffer.lock().unwrap();
         state.total_pushed += 1;
-        
+
         if state.queue.len() < state.capacity {
             state.queue.push_back(item);
             PushResult::Ok
@@ -198,7 +198,7 @@ impl BatchDelayTester {
                 };
 
                 let test_fut = test_fn(proxy_name.clone(), test_url);
-                
+
                 let result = tokio::select! {
                     _ = cancel_rx.wait_for(|c| *c) => {
                         Err(DelayTestError::Cancelled)
@@ -211,13 +211,10 @@ impl BatchDelayTester {
                         }
                     }
                 };
-                
+
                 drop(permit);
-                
-                ProxyTestOutcome {
-                    proxy_name,
-                    result,
-                }
+
+                ProxyTestOutcome { proxy_name, result }
             });
 
             tasks.push(task);
@@ -229,7 +226,7 @@ impl BatchDelayTester {
                 results.push(outcome);
             }
         }
-        
+
         results
     }
 }
@@ -246,12 +243,12 @@ mod tests {
         assert_eq!(buf.push(2), PushResult::Ok);
         assert_eq!(buf.push(3), PushResult::Ok);
         assert_eq!(buf.push(4), PushResult::EvictedOldest);
-        
+
         let stats = buf.stats();
         assert_eq!(stats.total_pushed, 4);
         assert_eq!(stats.total_dropped, 1);
         assert_eq!(stats.current_len, 3);
-        
+
         assert_eq!(buf.drain_all(), vec![2, 3, 4]);
     }
 
@@ -262,12 +259,12 @@ mod tests {
         assert_eq!(buf.push(2), PushResult::Ok);
         assert_eq!(buf.push(3), PushResult::Ok);
         assert_eq!(buf.push(4), PushResult::Rejected);
-        
+
         let stats = buf.stats();
         assert_eq!(stats.total_pushed, 4);
         assert_eq!(stats.total_dropped, 1);
         assert_eq!(stats.current_len, 3);
-        
+
         assert_eq!(buf.drain_all(), vec![1, 2, 3]);
     }
 
@@ -275,7 +272,7 @@ mod tests {
     fn test_bounded_ring_buffer_concurrent() {
         let buf = BoundedRingBuffer::new(1000, DropPolicy::DropNewest);
         let mut handles = vec![];
-        
+
         for i in 0..10 {
             let b = buf.clone();
             handles.push(std::thread::spawn(move || {
@@ -284,11 +281,11 @@ mod tests {
                 }
             }));
         }
-        
+
         for h in handles {
             h.join().unwrap();
         }
-        
+
         assert_eq!(buf.len(), 1000);
         assert_eq!(buf.stats().total_pushed, 1000);
         assert_eq!(buf.stats().total_dropped, 0);
@@ -296,15 +293,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_delay_tester_success() {
-        let tester = BatchDelayTester::new(2, "http://test.com".to_string(), Duration::from_secs(1));
+        let tester =
+            BatchDelayTester::new(2, "http://test.com".to_string(), Duration::from_secs(1));
         let (_tx, rx) = watch::channel(false);
-        
+
         let proxies = vec!["p1".to_string(), "p2".to_string(), "p3".to_string()];
-        
-        let results = tester.test_proxies(proxies, |_name, _url| async move {
-            Ok(100)
-        }, rx).await;
-        
+
+        let results = tester
+            .test_proxies(proxies, |_name, _url| async move { Ok(100) }, rx)
+            .await;
+
         assert_eq!(results.len(), 3);
         for r in results {
             assert!(r.result.is_ok());
@@ -314,76 +312,102 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_delay_tester_timeout() {
-        let tester = BatchDelayTester::new(2, "http://test.com".to_string(), Duration::from_millis(100));
+        let tester =
+            BatchDelayTester::new(2, "http://test.com".to_string(), Duration::from_millis(100));
         let (_tx, rx) = watch::channel(false);
-        
+
         let proxies = vec!["p1".to_string()];
-        
-        let results = tester.test_proxies(proxies, |_name, _url| async move {
-            tokio::time::sleep(Duration::from_millis(200)).await;
-            Ok(100)
-        }, rx).await;
-        
+
+        let results = tester
+            .test_proxies(
+                proxies,
+                |_name, _url| async move {
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                    Ok(100)
+                },
+                rx,
+            )
+            .await;
+
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].result, Err(DelayTestError::Timeout));
     }
 
     #[tokio::test]
     async fn test_batch_delay_tester_cancel() {
-        let tester = BatchDelayTester::new(2, "http://test.com".to_string(), Duration::from_secs(2));
+        let tester =
+            BatchDelayTester::new(2, "http://test.com".to_string(), Duration::from_secs(2));
         let (tx, rx) = watch::channel(false);
-        
+
         let proxies = vec!["p1".to_string()];
-        
+
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(50)).await;
             let _ = tx.send(true);
         });
-        
-        let results = tester.test_proxies(proxies, |_name, _url| async move {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-            Ok(100)
-        }, rx).await;
-        
+
+        let results = tester
+            .test_proxies(
+                proxies,
+                |_name, _url| async move {
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    Ok(100)
+                },
+                rx,
+            )
+            .await;
+
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].result, Err(DelayTestError::Cancelled));
     }
 
     #[tokio::test]
     async fn test_batch_delay_tester_concurrency() {
-        let tester = BatchDelayTester::new(2, "http://test.com".to_string(), Duration::from_secs(2));
+        let tester =
+            BatchDelayTester::new(2, "http://test.com".to_string(), Duration::from_secs(2));
         let (_tx, rx) = watch::channel(false);
-        
+
         let active = Arc::new(AtomicUsize::new(0));
         let max_active = Arc::new(AtomicUsize::new(0));
-        
+
         let mut proxies = Vec::new();
         for i in 0..5 {
             proxies.push(format!("p{}", i));
         }
-        
+
         let active_clone = active.clone();
         let max_clone = max_active.clone();
-        
-        let results = tester.test_proxies(proxies, move |_name, _url| {
-            let active = active_clone.clone();
-            let max = max_clone.clone();
-            async move {
-                let current = active.fetch_add(1, Ordering::SeqCst) + 1;
-                let mut current_max = max.load(Ordering::SeqCst);
-                while current > current_max {
-                    match max.compare_exchange_weak(current_max, current, Ordering::SeqCst, Ordering::SeqCst) {
-                        Ok(_) => break,
-                        Err(actual) => current_max = actual,
+
+        let results = tester
+            .test_proxies(
+                proxies,
+                move |_name, _url| {
+                    let active = active_clone.clone();
+                    let max = max_clone.clone();
+                    async move {
+                        let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+                        let mut current_max = max.load(Ordering::SeqCst);
+                        while current > current_max {
+                            match max.compare_exchange_weak(
+                                current_max,
+                                current,
+                                Ordering::SeqCst,
+                                Ordering::SeqCst,
+                            ) {
+                                Ok(_) => break,
+                                Err(actual) => current_max = actual,
+                            }
+                        }
+
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        active.fetch_sub(1, Ordering::SeqCst);
+                        Ok(100)
                     }
-                }
-                
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                active.fetch_sub(1, Ordering::SeqCst);
-                Ok(100)
-            }
-        }, rx).await;
-        
+                },
+                rx,
+            )
+            .await;
+
         assert_eq!(results.len(), 5);
         assert_eq!(max_active.load(Ordering::SeqCst), 2);
     }
