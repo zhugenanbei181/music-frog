@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use mihomo_platform::traits::{CredentialStore, DefaultCredentialStore};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -8,6 +9,11 @@ pub struct WebDavConfig {
     pub enabled: bool,
     pub url: String,
     pub username: String,
+    /// WebDAV 密码只在内存与 OS keyring 中流转，永不落盘（serde 只跳过
+    /// 序列化；反序列化仍接受旧 settings.toml 里的明文，交给
+    /// [`load_settings`] 的迁移逻辑搬到 keyring）。keyring 命名空间见
+    /// [`load_webdav_password`] / [`save_webdav_password`]。
+    #[serde(skip_serializing)]
     pub password: String,
     pub sync_interval_mins: u32,
     pub sync_on_startup: bool,
@@ -114,16 +120,94 @@ impl Default for AppSettings {
     }
 }
 
+/// WebDAV 凭据在 keyring 中的 service 名：与 mihomo-config 订阅 URL 的
+/// 既有先例（`subscription:<profile>`）共用同一 service，key 用 `webdav:`
+/// 前缀区分命名空间。
+pub const WEBDAV_CREDENTIAL_SERVICE: &str = "MusicFrog-Despicable-Infiltrator";
+/// keyring key：整个安装只有一份 WebDAV 账号配置。
+pub const WEBDAV_PASSWORD_KEY: &str = "webdav:password";
+
+/// 读取 keyring 中的 WebDAV 密码。空条目与读取失败都归一为 `None`
+/// （失败仅 `log::warn`，不让调用方崩溃）。
+pub async fn load_webdav_password<S: CredentialStore>(store: &S) -> Option<String> {
+    match store.get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY).await {
+        Ok(Some(value)) if !value.is_empty() => Some(value),
+        Ok(_) => None,
+        Err(err) => {
+            log::warn!("webdav password get failed: {err}");
+            None
+        }
+    }
+}
+
+/// 把 WebDAV 密码写入 keyring。失败返回 `Err`，由调用方决定是否中断
+/// （保存路径应当中断，避免「文件已更新而凭据丢失」的不一致）。
+pub async fn save_webdav_password<S: CredentialStore>(
+    store: &S,
+    password: &str,
+) -> anyhow::Result<()> {
+    store
+        .set(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY, password)
+        .await
+        .map_err(|err| anyhow!("webdav password keyring set failed: {err}"))
+}
+
+/// 清除 keyring 中的 WebDAV 密码。条目不存在或删除失败只告警（幂等清空：
+/// 「清除」语义下二次清除与目标本就为空都算成功）。
+pub async fn clear_webdav_password<S: CredentialStore>(store: &S) {
+    if let Err(err) = store.delete(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY).await {
+        log::warn!("webdav password keyring clear failed (ignored): {err}");
+    }
+}
+
+/// 旧版 settings.toml 明文携带 `webdav.password` 的一次性迁移：写入
+/// keyring 后用「不带密码」的序列化重写文件。keyring 写失败时保留内存值
+/// 并跳过重写（下次启动重试），绝不因迁移失败让启动崩溃。
+async fn migrate_webdav_password_to_keyring<S: CredentialStore>(
+    settings: &mut AppSettings,
+    path: &Path,
+    store: &S,
+) {
+    if settings.webdav.password.is_empty() {
+        return;
+    }
+    match save_webdav_password(store, &settings.webdav.password).await {
+        Ok(()) => {
+            settings.webdav.password = String::new();
+            if let Err(err) = save_settings(path, settings).await {
+                // keyring 已有副本；文件重写失败只留下明文等下次迁移。
+                log::warn!("failed to rewrite settings without webdav password: {err:#}");
+            }
+        }
+        Err(err) => {
+            log::warn!(
+                "webdav password keyring migration failed, keeping value in memory only: {err:#}"
+            );
+        }
+    }
+}
+
 pub async fn load_settings(path: &Path) -> anyhow::Result<AppSettings> {
+    load_settings_with_store(path, &DefaultCredentialStore::default()).await
+}
+
+/// 同 [`load_settings`]，但 WebDAV 密码迁移走调用方提供的凭据存储
+/// （测试注入内存实现，避免触碰真实 OS keyring）。
+pub async fn load_settings_with_store<S: CredentialStore>(
+    path: &Path,
+    store: &S,
+) -> anyhow::Result<AppSettings> {
     if path.exists() {
         let content = tokio::fs::read_to_string(path).await?;
-        let settings: AppSettings = toml::from_str(&content)?;
+        let mut settings: AppSettings = toml::from_str(&content)?;
+        migrate_webdav_password_to_keyring(&mut settings, path, store).await;
         Ok(settings)
     } else {
         let legacy_path = path.with_extension("json");
         if legacy_path.exists() {
             let content = tokio::fs::read_to_string(&legacy_path).await?;
-            let settings: AppSettings = serde_json::from_str(&content)?;
+            let mut settings: AppSettings = serde_json::from_str(&content)?;
+            migrate_webdav_password_to_keyring(&mut settings, &legacy_path, store).await;
             if let Err(err) = save_settings(path, &settings).await {
                 log::warn!("failed to migrate settings to toml: {err:#}");
             }
@@ -132,6 +216,27 @@ pub async fn load_settings(path: &Path) -> anyhow::Result<AppSettings> {
             Ok(AppSettings::default())
         }
     }
+}
+
+/// UI 水合专用：[`load_settings`] 之后把 keyring 中的 WebDAV 密码填回
+/// `settings.webdav.password` 内存镜像（iced 的 `webdav_pass` 域、需要完整
+/// 凭据的同步调用方）。password 序列化被跳过，因此水合值不会落盘。
+pub async fn load_settings_hydrated(path: &Path) -> anyhow::Result<AppSettings> {
+    load_settings_hydrated_with_store(path, &DefaultCredentialStore::default()).await
+}
+
+/// 同 [`load_settings_hydrated`]，但 keyring 存取走调用方提供的凭据存储。
+pub async fn load_settings_hydrated_with_store<S: CredentialStore>(
+    path: &Path,
+    store: &S,
+) -> anyhow::Result<AppSettings> {
+    let mut settings = load_settings_with_store(path, store).await?;
+    if settings.webdav.password.is_empty()
+        && let Some(password) = load_webdav_password(store).await
+    {
+        settings.webdav.password = password;
+    }
+    Ok(settings)
 }
 
 pub async fn save_settings(path: &Path, settings: &AppSettings) -> anyhow::Result<()> {
@@ -443,5 +548,192 @@ mod tests {
         guard.set_configs_dir(&home, Some("   ")).await;
         let manager = app_config_manager().await.unwrap();
         assert_eq!(manager.config_dir(), home.join("configs").as_path());
+    }
+
+    /// 内存凭据存储（仿 session.rs / manager_test 的 MockStore 先例），
+    /// `fail_set` 可注入写失败以覆盖迁移的降级路径。
+    struct MemoryStore {
+        entries: std::sync::Mutex<std::collections::HashMap<String, String>>,
+        fail_set: bool,
+    }
+
+    impl MemoryStore {
+        fn working() -> Self {
+            Self {
+                entries: std::sync::Mutex::new(std::collections::HashMap::new()),
+                fail_set: false,
+            }
+        }
+
+        fn failing_set() -> Self {
+            Self {
+                entries: std::sync::Mutex::new(std::collections::HashMap::new()),
+                fail_set: true,
+            }
+        }
+
+        fn get(&self, service: &str, key: &str) -> Option<String> {
+            self.entries
+                .lock()
+                .expect("store lock")
+                .get(&format!("{service}/{key}"))
+                .cloned()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl CredentialStore for MemoryStore {
+        async fn get(
+            &self,
+            service: &str,
+            key: &str,
+        ) -> mihomo_api::error::Result<Option<String>> {
+            Ok(self.get(service, key))
+        }
+
+        async fn set(&self, service: &str, key: &str, value: &str) -> mihomo_api::error::Result<()> {
+            if self.fail_set {
+                return Err(mihomo_api::error::MihomoError::Config(
+                    "injected keyring failure".to_string(),
+                ));
+            }
+            self.entries
+                .lock()
+                .expect("store lock")
+                .insert(format!("{service}/{key}"), value.to_string());
+            Ok(())
+        }
+
+        async fn delete(&self, service: &str, key: &str) -> mihomo_api::error::Result<()> {
+            self.entries
+                .lock()
+                .expect("store lock")
+                .remove(&format!("{service}/{key}"));
+            Ok(())
+        }
+    }
+
+    fn legacy_toml_with_password() -> String {
+        "[webdav]\nenabled = true\nurl = \"https://dav.example.com\"\nusername = \"user\"\npassword = \"s3cret\"\nsync_interval_mins = 30\n"
+            .to_string()
+    }
+
+    /// 密码永不落盘：save_settings 的 TOML 输出不得包含 password 键。
+    #[tokio::test]
+    async fn test_webdav_password_never_serialized() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let settings_file = temp_dir.path().join("settings.toml");
+
+        let mut settings = AppSettings::default();
+        settings.webdav.url = "https://dav.example.com".to_string();
+        settings.webdav.password = "s3cret".to_string();
+        save_settings(&settings_file, &settings).await.unwrap();
+
+        let raw = std::fs::read_to_string(&settings_file).unwrap();
+        assert!(!raw.contains("password"), "plaintext leaked: {raw}");
+        // 反序列化缺省键回到空串，不影响其他字段往返。
+        let loaded = load_settings(&settings_file).await.unwrap();
+        assert_eq!(loaded.webdav.url, "https://dav.example.com");
+    }
+
+    /// 迁移主路径：旧明文 toml 加载后 keyring 有值、内存与重写后的文件
+    /// 均无明文；第二次加载保持干净且 keyring 值不丢。
+    #[tokio::test]
+    async fn test_legacy_plaintext_password_migrates_to_keyring() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let settings_file = temp_dir.path().join("settings.toml");
+        std::fs::write(&settings_file, legacy_toml_with_password()).unwrap();
+
+        let store = MemoryStore::working();
+        let loaded = load_settings_with_store(&settings_file, &store).await.unwrap();
+
+        assert_eq!(
+            store.get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY).as_deref(),
+            Some("s3cret"),
+            "password must land in the credential store"
+        );
+        assert_eq!(loaded.webdav.password, "", "memory mirror must be blanked");
+
+        let raw = std::fs::read_to_string(&settings_file).unwrap();
+        assert!(!raw.contains("password"), "file must be rewritten clean: {raw}");
+        assert!(raw.contains("enabled = true"), "other fields survive: {raw}");
+
+        // 第二次加载：文件已无明文，keyring 值仍在（不重复迁移）。
+        let second = load_settings_with_store(&settings_file, &store).await.unwrap();
+        assert_eq!(second.webdav.password, "");
+        assert_eq!(
+            store.get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY).as_deref(),
+            Some("s3cret")
+        );
+    }
+
+    /// 迁移降级路径：keyring 写失败时保留内存值、不重写文件（下次启动
+    /// 重试），加载本身不得报错。
+    #[tokio::test]
+    async fn test_migration_keeps_plaintext_when_keyring_fails() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let settings_file = temp_dir.path().join("settings.toml");
+        std::fs::write(&settings_file, legacy_toml_with_password()).unwrap();
+
+        let store = MemoryStore::failing_set();
+        let loaded = load_settings_with_store(&settings_file, &store).await.unwrap();
+
+        assert_eq!(
+            loaded.webdav.password, "s3cret",
+            "value must stay in memory so the session keeps working"
+        );
+        let raw = std::fs::read_to_string(&settings_file).unwrap();
+        assert!(
+            raw.contains("s3cret"),
+            "file must be left untouched for retry: {raw}"
+        );
+    }
+
+    /// 水合：干净的 settings 文件 + keyring 有值 → hydrated 加载把密码填回
+    /// 内存镜像；普通加载保持空串。
+    #[tokio::test]
+    async fn test_load_settings_hydrated_fills_password_from_keyring() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let settings_file = temp_dir.path().join("settings.toml");
+        save_settings(&settings_file, &AppSettings::default())
+            .await
+            .unwrap();
+
+        let store = MemoryStore::working();
+        store
+            .set(
+                WEBDAV_CREDENTIAL_SERVICE,
+                WEBDAV_PASSWORD_KEY,
+                "hydrated-pw",
+            )
+            .await
+            .unwrap();
+
+        let plain = load_settings_with_store(&settings_file, &store).await.unwrap();
+        assert_eq!(plain.webdav.password, "");
+
+        let hydrated = load_settings_hydrated_with_store(&settings_file, &store)
+            .await
+            .unwrap();
+        assert_eq!(hydrated.webdav.password, "hydrated-pw");
+
+        // 水合值只是内存镜像：文件依旧干净。
+        let raw = std::fs::read_to_string(&settings_file).unwrap();
+        assert!(!raw.contains("password"));
+    }
+
+    /// 清除是幂等的：空存储上 clear 不得报错，已有条目被移除。
+    #[tokio::test]
+    async fn test_clear_webdav_password_is_idempotent() {
+        let store = MemoryStore::working();
+        clear_webdav_password(&store).await;
+        assert_eq!(store.get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY), None);
+
+        store
+            .set(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY, "pw")
+            .await
+            .unwrap();
+        clear_webdav_password(&store).await;
+        assert_eq!(store.get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY), None);
     }
 }

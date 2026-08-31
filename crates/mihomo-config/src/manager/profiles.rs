@@ -171,11 +171,15 @@ impl<S: CredentialStore> ConfigManager<S> {
         let profile_table = ensure_table(profile_value)?;
 
         let mut subscription_key = None;
-        let subscription_fallback = metadata.subscription_url.clone();
+        // The subscription URL embeds the account token, so it only stays
+        // in the metadata file as a plaintext fallback when the secure
+        // store is unavailable — otherwise it lives in the keyring alone.
+        let mut subscription_fallback = metadata.subscription_url.clone();
         if let Some(url) = metadata.subscription_url.as_deref() {
             match store_subscription_url(&self.credential_store, &key, url).await {
                 Ok(key) => {
                     subscription_key = Some(key);
+                    subscription_fallback = None;
                 }
                 Err(err) => {
                     log::warn!("failed to store subscription url securely: {err}");

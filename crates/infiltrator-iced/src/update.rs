@@ -129,10 +129,15 @@ impl AppState {
             | Message::UpdateSubscriptionNow
             | Message::SubscriptionUpdatedNow(_)
             | Message::SubscriptionAutoUpdated(_)
+            | Message::UpdateAllSubscriptionsNow
+            | Message::AllSubscriptionsUpdated(_)
+            | Message::SetProfileAutoUpdate { .. }
+            | Message::ProfileAutoUpdateSet(_)
             | Message::UpdateProfilesFilter(_)
             | Message::ClearProfiles
             | Message::ProfilesCleared(_)
             | Message::EditProfile(_)
+            | Message::EditProfileAs(_, _)
             | Message::ProfileContentLoaded(_)
             | Message::LoadProfileSnapshots
             | Message::ProfileSnapshotsLoaded(_)

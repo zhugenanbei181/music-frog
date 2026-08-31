@@ -121,7 +121,9 @@ fn tray_menu_activation_drives_update_handlers() {
     for event in events {
         let _ = state.update(Message::TrayEvent(event));
     }
-    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("global"));
+    // Without a runtime the mode is NOT flipped optimistically — the tray
+    // keeps reflecting reality while SetProxyMode reports "unavailable".
+    assert_eq!(state.runtime.proxy_mode.as_deref(), None);
 }
 
 #[test]

@@ -76,3 +76,6 @@ android/app/src/main/assets/mihomo/mihomo-android-arm64-v8
 android/app/src/main/java/infiltrator_android/
 android/android/
 android/Medium-Phone-*
+
+# Bevy 前端截图（0.30 线）：本地渲染证据，暂不入库；恢复跟踪时删除此段
+docs/screenshots/bevy/

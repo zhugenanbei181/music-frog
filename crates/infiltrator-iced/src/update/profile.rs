@@ -74,10 +74,16 @@ impl AppState {
             | Message::UpdateSubscriptionNow
             | Message::SubscriptionUpdatedNow(_)
             | Message::SubscriptionAutoUpdated(_)
+            // Tray bulk entries (update-all / per-profile auto-update).
+            | Message::UpdateAllSubscriptionsNow
+            | Message::AllSubscriptionsUpdated(_)
+            | Message::SetProfileAutoUpdate { .. }
+            | Message::ProfileAutoUpdateSet(_)
             | Message::TickSubUpdate => self.update_subscription(message),
 
             // Profile YAML editor.
             Message::EditProfile(_)
+            | Message::EditProfileAs(_, _)
             | Message::ProfileContentLoaded(_)
             | Message::LoadProfileSnapshots
             | Message::ProfileSnapshotsLoaded(_)

@@ -1,0 +1,11 @@
+/* desktop-smoke tray host style: invisible-enough bar inside the virtual
+   compositor; nothing here may contact the operator's desktop. */
+* {
+    font-family: sans-serif;
+    font-size: 12px;
+    background: transparent;
+    color: #dddddd;
+}
+window#waybar {
+    background: rgba(0, 0, 0, 0.8);
+}

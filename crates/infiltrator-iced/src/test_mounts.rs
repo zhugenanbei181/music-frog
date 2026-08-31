@@ -27,3 +27,6 @@ mod options_flow_tests;
 
 #[path = "../tests/gui/doctor_flow_tests.rs"]
 mod doctor_flow_tests;
+
+#[path = "../tests/gui/business_flow_tests.rs"]
+mod business_flow_tests;

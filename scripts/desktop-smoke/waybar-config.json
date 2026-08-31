@@ -1,0 +1,14 @@
+{
+    "//": "desktop-smoke tray host: waybar running ONLY its tray module (SNI host + StatusNotifierWatcher) inside the private dbus-run-session / virtual compositor rig. Used automatically by scripts/desktop-smoke.sh when waybar is installed; otherwise the harness watcher (sni_watcher.py) provides the Watcher role.",
+    "layer": "top",
+    "position": "top",
+    "height": 24,
+    "modules-left": [],
+    "modules-center": [],
+    "modules-right": ["tray"],
+    "tray": {
+        "icon-size": 16,
+        "spacing": 4,
+        "show-passive-items": true
+    }
+}

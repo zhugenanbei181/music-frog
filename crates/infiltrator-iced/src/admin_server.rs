@@ -393,6 +393,16 @@ async fn load_settings_from_disk() -> anyhow::Result<infiltrator_core::settings:
     infiltrator_core::settings::load_settings(&path).await
 }
 
+/// 同 [`load_settings_from_disk`]，但把 keyring 里的 WebDAV 密码水合进
+/// `webdav.password` 内存镜像，供 UI 域（`webdav_pass`）回填。仅 UI 展示/
+/// 重新应用路径使用；REST 读取路径保持不触碰 keyring。
+async fn load_settings_hydrated_from_disk(
+) -> anyhow::Result<infiltrator_core::settings::AppSettings> {
+    let base_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
+    let path = infiltrator_core::settings::settings_path(&base_dir)?;
+    infiltrator_core::settings::load_settings_hydrated(&path).await
+}
+
 async fn save_settings_to_disk(
     settings: &infiltrator_core::settings::AppSettings,
 ) -> anyhow::Result<()> {
@@ -835,9 +845,10 @@ impl AppState {
             AdminHostCommand::SettingsSavedExternally => {
                 // Reload from disk and re-apply, but skip the WebDAV
                 // sync-on-startup side effect the startup path performs.
+                // Hydrated: re-fill the webdav_pass mirror from the keyring.
                 Task::perform(
                     async {
-                        load_settings_from_disk()
+                        load_settings_hydrated_from_disk()
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))
                     },

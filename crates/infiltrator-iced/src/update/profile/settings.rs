@@ -81,11 +81,14 @@ impl AppState {
                 } else {
                     Some(self.editor.editor_path_setting.trim().to_string())
                 };
+                let webdav_password = self.profile.webdav_pass.clone();
                 let webdav = WebDavConfig {
                     enabled: self.profile.webdav_enabled,
                     url: self.profile.webdav_url.clone(),
                     username: self.profile.webdav_user.clone(),
-                    password: self.profile.webdav_pass.clone(),
+                    // 密码不落盘：真实值只进 OS keyring（见下方任务体），
+                    // settings.toml 的序列化永远跳过该字段。
+                    password: String::new(),
                     sync_interval_mins: interval,
                     sync_on_startup: self.profile.webdav_sync_on_startup,
                 };
@@ -93,6 +96,20 @@ impl AppState {
 
                 Task::perform(
                     async move {
+                        // 密码只进 OS keyring：空串=清除条目，非空=写入；
+                        // 失败则整体不落盘，保持「settings 文件 + keyring」
+                        // 状态一致（避免其他字段更新而凭据悄悄丢失）。
+                        let store = mihomo_platform::traits::DefaultCredentialStore::default();
+                        if webdav_password.is_empty() {
+                            infiltrator_core::settings::clear_webdav_password(&store).await;
+                        } else {
+                            infiltrator_core::settings::save_webdav_password(
+                                &store,
+                                &webdav_password,
+                            )
+                            .await
+                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        }
                         let base_dir = mihomo_platform::paths::get_home_dir()
                             .map_err(InfiltratorError::from)?;
                         let settings_path = infiltrator_core::settings::settings_path(&base_dir)

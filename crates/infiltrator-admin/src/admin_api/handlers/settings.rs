@@ -113,7 +113,17 @@ pub async fn save_app_settings_http<C: AdminApiContext>(
         settings.notifications_enabled = val;
     }
     if let Some(val) = payload.webdav {
+        // 密码永不落盘：只有客户端显式带非空 password 时才路由进 keyring；
+        // 缺省/空 = 保持既有条目不动（GET 不回传明文，普通回传自然为空）。
+        if !val.password.is_empty() {
+            state
+                .ctx
+                .set_webdav_password(&val.password)
+                .await
+                .map_err(|e| ApiError::internal(e.to_string()))?;
+        }
         settings.webdav = val;
+        settings.webdav.password = String::new();
     }
     if let Some(val) = payload.configs_dir {
         let trimmed = val.trim().to_string();
@@ -185,13 +195,21 @@ pub async fn sync_webdav_now_http<C: AdminApiContext>(
 }
 
 pub async fn test_webdav_conn_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<WebDavConfig>,
 ) -> Result<StatusCode, ApiError> {
     use dav_client::DavClient;
     use dav_client::client::WebDavClient;
 
-    let dav = WebDavClient::new(&payload.url, &payload.username, &payload.password)
+    // GET 不再回传明文密码，客户端回传的 password 常为空：此时回退 keyring
+    // 里保存的凭据，保持「测试连接」对已配置账号可用。
+    let password = if payload.password.is_empty() {
+        state.ctx.webdav_password().await.unwrap_or_default()
+    } else {
+        payload.password
+    };
+
+    let dav = WebDavClient::new(&payload.url, &payload.username, &password)
         .map_err(|e| ApiError::bad_request(format!("无效的配置: {e}")))?;
 
     // 尝试 list 根目录来测试连接

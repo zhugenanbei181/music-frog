@@ -124,7 +124,12 @@ impl AppState {
             TrayIntent::Exit => Task::done(Message::Exit),
             TrayIntent::ToggleTheme => Task::done(Message::ToggleTheme),
             TrayIntent::SetMode(mode) => {
-                self.runtime.proxy_mode = Some(mode.clone());
+                // Only flip optimistically when a patch can actually be
+                // issued; without a runtime SetProxyMode fails and the
+                // tray would otherwise show a mode that never took effect.
+                if self.runtime.runtime.is_some() {
+                    self.runtime.proxy_mode = Some(mode.clone());
+                }
                 self.refresh_tray();
                 Task::done(Message::SetProxyMode(mode))
             }
