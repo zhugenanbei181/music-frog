@@ -5,6 +5,8 @@ use std::process::Command;
 use infiltrator_core::profiles;
 
 #[cfg(target_os = "windows")]
+use std::env;
+#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 use std::path::Path;

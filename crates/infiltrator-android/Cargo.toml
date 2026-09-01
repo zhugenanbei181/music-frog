@@ -19,7 +19,7 @@ log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }
 mihomo-platform = { path = "../mihomo-platform" }
-infiltrator-core = { path = "../infiltrator-core", default-features = false }
+infiltrator-core = { path = "../infiltrator-core" }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

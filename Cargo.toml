@@ -3,7 +3,8 @@ resolver = "2"
 # 0.20 构建面：Android 原生 + Iced 桌面 + 共享栈。
 # - WebUI/Tauri 已退役（台账：docs/TAURI_WEBUI_RETIREMENT_LEDGER.md）。
 # - 0.30 大一统 UI 线：infiltrator-bevy-widgets / infiltrator-bevy-ui 目录保留在
-#   crates/ 下但不出现在 0.20 构建面（当前不可编译，修复归 0.30）。
+#   crates/ 下但不出现在 0.20 构建面（二者为独立工作区，自带 Cargo.lock 与
+#   headless 测试，可编译全绿；接入主构建面归 0.30）。
 members = [
   "crates/mihomo-api",
   "crates/mihomo-config",

@@ -1,0 +1,176 @@
+[package]
+name = "infiltrator-bevy-ui"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Bevy UI frontend shell for MusicFrog Infiltrator: the strategic unified desktop+mobile surface (M1: theme switch + embedded fonts + minimal a11y)."
+
+# The Bevy frontend is the strategic surface whose ceiling includes mobile
+# (iced has no Android story; bevy runs the same tree on aarch64-linux-android).
+# Business crates are deliberately NOT dependencies yet: the first product
+# page goes through the shared Rust contract seam (docs/FRONTENDS.md), which
+# is BEVY-M2. The dependency whitelist until then: locked bevy + the widget
+# layer.
+[dependencies]
+infiltrator-bevy-widgets = { path = "../infiltrator-bevy-widgets" }
+
+# AccessKit node/role vocabulary for the shell's semantic nodes. Direct dep
+# because bevy_a11y 0.19 no longer re-exports the crate (its docs: "This
+# crate no longer re-exports `AccessKit`"), and the version must match what
+# the locked bevy stack resolves to — bevy_a11y 0.19.1 and bevy_winit 0.19.1
+# both require accesskit 0.24, and the lock resolves one 0.24.1 across the
+# workspace. A mismatched accesskit would be a *different type*: semantic
+# nodes built from it would not satisfy `AccessibilityNode`.
+accesskit = "0.24.1"
+
+# Base `bevy` declaration with an EMPTY feature set; the per-target tables
+# below own the real closure (bevy derive macros scan this plain table — a
+# target-table-only declaration leaves them unresolved). Keep the closure in
+# lockstep with infiltrator-bevy-widgets: same patch, same law.
+bevy = { version = "=0.19.1", default-features = false }
+
+# The live mihomo controller pump (BEVY-005): the shared contract seam the
+# charter names (docs/FRONTENDS.md consumes mihomo-api directly; the BEVY
+# whitelist ban predates the seam landing). The pump runs on a std thread +
+# current-thread tokio runtime, so only the minimal tokio closure is
+# declared here (feature unification with mihomo-api's graph applies).
+mihomo-api = { path = "../mihomo-api" }
+serde = { version = "1", default-features = false, features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", default-features = false, features = ["rt", "time", "sync"] }
+# Fallback read for the idle-core `/connections` shape: mihomo-api's
+# `ConnectionsResponse` rejects `"connections": null` (see src/controller.rs
+# for the file:line evidence); the pump retries that one endpoint with a
+# null-tolerant local DTO. Same reqwest the seam graph resolves.
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+
+[dev-dependencies]
+mockito = "1.7"
+
+[target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
+# `accesskit_unix` (Linux only): flips the winit AccessKit bridge over to the
+# AT-SPI backend, so the shell's `AccessibilityNode` seeds reach screen
+# readers on the Wayland desktop. The bridge plugin itself (`AccessKitPlugin`,
+# bevy_winit) is only mounted by the windowed `WinitPlugin` inside
+# `DefaultPlugins`; headless `MinimalPlugins` compositions carry the semantic
+# components as inert data, which is what makes them headless-testable.
+bevy = { version = "=0.19.1", default-features = false, features = [
+    "bevy_ui",
+    "bevy_ui_widgets",
+    "bevy_scene",
+    "bevy_ui_render",
+    "bevy_core_pipeline",
+    "bevy_render",
+    "bevy_asset",
+    "bevy_winit",
+    "bevy_text",
+    "ui_picking",
+    "accesskit_unix",
+    "wayland",
+    # system_font_discovery: parley/fontique system-font fallback. Without it
+    # the font db holds only the embedded Latin faces and every zh-CN label
+    # renders as tofu (observed in bevy capture round 1). In lockstep in
+    # every bevy table of both bevy crates.
+    "system_font_discovery",
+] }
+
+# Android (BEVY-006 front half): the strategic mobile target. Same UI closure
+# as the non-Linux fallback below, minus nothing desktop-specific (the shell
+# never carried `wayland`; `accesskit_unix` above is desktop-Linux-only and
+# deliberately absent here), plus `android-native-activity` — bevy 0.19.1's
+# feature for the hard android-activity requirement (`android-activity` 0.6.1
+# compile_error!s without exactly one of `native-activity`/`game-activity`;
+# bevy_internal Cargo.toml.orig:152 "choose one"). bevy's android glue
+# (`bevy_android` / `ANDROID_APP` in bevy_winit) is wired by bevy_internal's
+# `cfg(target_os = "android")` dep automatically. No `android-shared-stdcxx`
+# exists anymore (removed in 0.19 with the oboe audio stack,
+# bevy-0.19.1/_release-content/migration-guides/rodio_0_22.md). In lockstep
+# with infiltrator-bevy-widgets' android table. BEVY-M3 back half: APK
+# packaging, on-device smoke, and Android a11y (bevy 0.19.1 has no
+# accesskit-android feature — only `accesskit_unix` — so TalkBack waits).
+[target.'cfg(target_os = "android")'.dependencies]
+bevy = { version = "=0.19.1", default-features = false, features = [
+    "bevy_ui",
+    "bevy_ui_widgets",
+    "bevy_scene",
+    "bevy_ui_render",
+    "bevy_core_pipeline",
+    "bevy_render",
+    "bevy_asset",
+    "bevy_winit",
+    "bevy_text",
+    "ui_picking",
+    "android-native-activity",
+    "system_font_discovery",
+] }
+# Same blake3 `no_neon` pin as infiltrator-bevy-widgets' android table:
+# bevy_asset's blake3 cc-compiles NEON C on aarch64, which needs an NDK C
+# compiler the check-only environment doesn't have. Portable Rust fallback,
+# identical hash. In lockstep with the widgets crate.
+blake3 = { version = "1.8", default-features = false, features = ["no_neon"] }
+
+# Everything that is neither the Linux desktop nor Android — today macOS and
+# Windows — keeps the windowing-agnostic closure (no wayland, no android
+# activity backend; winit picks its platform backend on its own).
+[target.'cfg(not(any(target_os = "android", all(target_os = "linux", not(target_os = "android")))))'.dependencies]
+bevy = { version = "=0.19.1", default-features = false, features = [
+    "bevy_ui",
+    "bevy_ui_widgets",
+    "bevy_scene",
+    "bevy_ui_render",
+    "bevy_core_pipeline",
+    "bevy_render",
+    "bevy_asset",
+    "bevy_winit",
+    "bevy_text",
+    "ui_picking",
+    "system_font_discovery",
+] }
+
+[lib]
+name = "infiltrator_bevy_ui"
+path = "src/lib.rs"
+
+# Standalone workspace on purpose (empty `[workspace]` table), in lockstep
+# with infiltrator-bevy-widgets: independent lock/target dir so the
+# `aarch64-linux-android` cross-check (BEVY-006) never drags the desktop
+# workspace through bevy.
+[workspace]
+
+# BEVY-006 back half (M3): Android APK packaging metadata for cargo-apk
+# (rust-mobile/cargo-apk 0.10.x). Schema verified against cargo-apk 0.10.0
+# src/manifest.rs `AndroidMetadata` + ndk-build 0.10.0 src/manifest.rs
+# (`AndroidManifest` is serde-flattened into this table, so `package` lives
+# here directly; this cargo-apk version has no `targets` key — the key is
+# `build_targets`, ndk-build 0.10.0 src/target.rs serde renames; SDK fields
+# under `[package.metadata.android.sdk]` map to `Sdk.min/target_sdk_version`).
+#
+# Entry contract this metadata assumes (app-side, src/-owned): android-
+# activity 0.6.1 src/native_activity/glue.rs:663 declares
+# `extern "Rust" { fn android_main(app: AndroidApp) }` — the packaged binary
+# must export it — and bevy_winit 0.19.1 src/lib.rs:123 reads
+# `bevy_android::ANDROID_APP` (`pub static OnceLock<AndroidApp>`), so
+# `android_main` must set it before `DefaultPlugins` runs. Until src/ carries
+# that export, scripts/build-bevy-apk.sh builds a cdylib driver crate under
+# the untracked target/ tree that provides exactly this two-line shim and
+# calls `infiltrator_bevy_ui::run()` — the shape of bevy's own mobile
+# example. Package name: reverse-domain stem of the MusicFrog project.
+[package.metadata.android]
+package = "app.musicfrog.infiltrator_bevy_ui"
+apk_name = "infiltrator-bevy-ui"
+build_targets = ["aarch64-linux-android"]
+
+[package.metadata.android.sdk]
+min_sdk_version = 26
+target_sdk_version = 35
+
+[package.metadata.android.application]
+label = "MusicFrog Infiltrator Bevy"
+# Same theme bevy's official mobile example uses: fullscreen, no bars, so the
+# smoke screenshot is pure shell chrome.
+theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+
+# No env-var channel: android-activity 0.6.1 has no manifest env injection
+# (no `android.app.env_vars` meta-data), so an emulator that lacks Vulkan
+# relies on wgpu's `auto` backend falling back from Vulkan to GLES at
+# runtime — verified live by scripts/verify-bevy-apk.sh.
