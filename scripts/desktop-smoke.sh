@@ -16,13 +16,19 @@
 #                       flip; autostart checkmark 0 -> 1) and the resulting
 #                       autostart .desktop file inside the rig's own
 #                       XDG_CONFIG_HOME.
-#   notify              Private bus + recording org.freedesktop.Notifications
-#                       daemon (mako/dunst when installed). notify-send
-#                       probe is asserted end-to-end. The app itself cannot
-#                       emit in this rig today: demo mode short-circuits
-#                       system_notify (crates/infiltrator-iced/src/notify.rs)
-#                       and non-demo notifications need a running core —
-#                       reported as a gap, no code is changed.
+#   notify              Private bus + org.freedesktop.Notifications daemon
+#                       (mako/dunst when installed, else the harness
+#                       recorder). notify-send transport probe asserted
+#                       end-to-end AND the REAL app (non-demo) is launched
+#                       on a virtual KWin compositor with
+#                       INFILTRATOR_FORCE_NOTIFY=1: the app then emits a
+#                       startup probe notification over its production
+#                       notify-rust D-Bus path
+#                       (crates/infiltrator-iced/src/notify.rs) and the
+#                       daemon must record it. The app-side assertion needs
+#                       machine-readable history, so it runs against the
+#                       harness recorder — when mako/dunst served the
+#                       transport leg, the bus name is handed over first.
 #   proxy-isolation     Inside the rig HOME/XDG: gsettings/dconf write+read
 #                       roundtrip stays in the rig's own dconf db; the bus
 #                       address differs from the host's; no host desktop
@@ -211,7 +217,7 @@ stage_proxy_isolation() {
 }
 
 stage_notify() {
-  require python3 dbus-run-session busctl notify-send
+  require python3 dbus-run-session busctl notify-send kwin_wayland
   say "== stage notify: org.freedesktop.Notifications on the private bus =="
   local rc=0 history="$RUN_DIR/notify-history.jsonl"
 
@@ -288,13 +294,136 @@ print(hit[-1]["urgency"] if hit else "none")' "$history" 2>/dev/null)"
     rc=1
   fi
 
-  say "GAP app_to_daemon: the application itself cannot emit in this rig yet —"
-  say "    demo mode short-circuits system_notify (crates/infiltrator-iced/src/notify.rs:115"
-  say "    'if !self.shell.notifications_enabled || self.shell.demo') and non-demo notifications"
-  say "    require a running core / WebDAV event. Needs an app-side test hook (reported only,"
-  say "    no app code changed). The notify-rust transport used by the app is exactly what"
-  say "    notify-send exercised above."
-  [ "$rc" -eq 0 ] && say "STAGE notify: PASS (transport; app-side gap reported)"
+  # ---- app_to_daemon leg (the real application emits the notification) ----
+  # The probe assertion needs machine-readable history, so it runs against
+  # the harness recorder: a real (headless) implementation of the same
+  # freedesktop protocol the app's notify-rust backend talks to. If a
+  # desktop daemon served the transport leg above, hand the bus name over.
+  if [ "$DAEMON_KIND" != recorder ]; then
+    terminate_owned "$NOTIFY_PID" ""
+    NOTIFY_PID=""
+    python3 "$HELPERS/notify_daemon.py" --history "$history" \
+      >"$RUN_DIR/notify-daemon-app.log" 2>&1 &
+    NOTIFY_PID=$!
+    DAEMON_KIND=recorder
+    local i ready=0
+    for i in $(seq 1 30); do
+      timeout 5s busctl --user call org.freedesktop.DBus /org/freedesktop/DBus \
+        org.freedesktop.DBus GetNameOwner s org.freedesktop.Notifications \
+        >/dev/null 2>&1 && { ready=1; break; }
+      kill -0 "$NOTIFY_PID" 2>/dev/null || break
+      sleep 0.3
+    done
+    if [ "$ready" -ne 1 ]; then
+      fail "recorder never took over org.freedesktop.Notifications for the app leg"
+      return 3
+    fi
+    say "daemon: harness recorder took over for the app-side assertion"
+  fi
+
+  if [ "$DESKTOP_SMOKE_SKIP_BUILD" != "1" ]; then
+    say "build: cargo build -p infiltrator-iced (timeout $BUILD_TIMEOUT)"
+    timeout --kill-after=10s "$BUILD_TIMEOUT" cargo build --quiet -p infiltrator-iced \
+      >"$RUN_DIR/build.log" 2>&1 || die "cargo build failed (see $RUN_DIR/build.log)" 1
+  fi
+  [ -x "$APP" ] || die "app binary missing: $APP" 2
+
+  # Single-instance conflict: an abstract socket from a host instance would
+  # make the rig app exit instantly (same check as the tray stage).
+  if grep -q 'com\.musicfrog\.infiltrator' /proc/net/unix 2>/dev/null; then
+    fail "an infiltrator instance is running on this machine (abstract socket; check pgrep -f infiltrator-iced); stop it or run the rig in its own network namespace"
+    return 3
+  fi
+  if pgrep -f 'target/debug/infiltrator-iced|infiltrator-iced --' >/dev/null 2>&1; then
+    fail "another infiltrator-iced process is running (pgrep -f); stop it first"
+    return 3
+  fi
+
+  # Virtual compositor host (same pattern as the tray stage's outer KWin):
+  # the app window needs a Wayland display; no nested niri is required for a
+  # pure notification assertion, the app runs directly on the virtual KWin.
+  KWIN_RUNTIME="$(mktemp -d /tmp/desktop-smoke-kwin.XXXXXX)"
+  chmod 700 "$KWIN_RUNTIME"
+  local kwin_display="$KWIN_RUNTIME/wayland-outer"
+  XDG_RUNTIME_DIR="$KWIN_RUNTIME" WAYLAND_DISPLAY= DISPLAY= DBUS_SESSION_BUS_ADDRESS= \
+    QT_QPA_PLATFORM=wayland setsid timeout --foreground --kill-after=10s 20m \
+    kwin_wayland --virtual --socket=wayland-outer --width=1280 --height=800 \
+      --scale=1 --no-global-shortcuts --no-lockscreen \
+    >"$RUN_DIR/kwin.log" 2>&1 & KWIN_PID=$!
+  APP_PGID=""
+  local i
+  for i in $(seq 1 40); do KWIN_PGID="$(process_group "$KWIN_PID")"; [ "$KWIN_PGID" = "$KWIN_PID" ] && break; sleep 0.1; done
+  for i in $(seq 1 60); do [ -S "$kwin_display" ] && break; sleep 0.25; done
+  if ! kill -0 "$KWIN_PID" 2>/dev/null || [ ! -S "$kwin_display" ]; then
+    fail "virtual KWin did not start (tail of $RUN_DIR/kwin.log):"
+    tail -15 "$RUN_DIR/kwin.log" >&2
+    return 3
+  fi
+  say "compositor host: kwin_wayland --virtual ($kwin_display)"
+
+  # Language pin: the rig settings say zh-CN while INFILTRATOR_LANG (en-US
+  # by default) must win as a session-level override at startup
+  # (crates/infiltrator-iced/src/app.rs env_lang_override). The probe marker
+  # itself is ASCII and language-independent either way.
+  mkdir -p "$RIG/data/mihomo-rs"
+  printf 'language = "zh-CN"\n' >"$RIG/data/mihomo-rs/settings.toml"
+
+  # The debug binary is huge: page it in first (same rationale as the tray
+  # stage) so app startup does not look like a silent single-instance exit.
+  say "warm: paging $(numfmt --to=iec "$(stat -c%s "$APP" 2>/dev/null || echo 0)")B binary into page cache..."
+  timeout 300 cat "$APP" >/dev/null || true
+
+  # --- the REAL app (non-demo), notify hook armed ---------------------------
+  # INFILTRATOR_FORCE_NOTIFY=1 (crates/infiltrator-iced/src/notify.rs):
+  # startup emits one probe notification over the production notify-rust ->
+  # D-Bus path; the recorder history must show it. No setsid/timeout wrapper
+  # on the app itself (same lifecycle rationale as the tray stage).
+  XDG_RUNTIME_DIR="$KWIN_RUNTIME" WAYLAND_DISPLAY="wayland-outer" DISPLAY= \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    HOME="$RIG/home" \
+    XDG_CONFIG_HOME="$RIG/home/.config" XDG_DATA_HOME="$RIG/home/.local/share" \
+    XDG_STATE_HOME="$RIG/home/.local/state" XDG_CACHE_HOME="$RIG/home/.cache" \
+    MIHOMO_HOME="$RIG/data/mihomo-rs" \
+    INFILTRATOR_LANG="$INFILTRATOR_LANG" \
+    INFILTRATOR_FORCE_NOTIFY=1 \
+    "$APP" >"$RUN_DIR/app.log" 2>&1 & APP_PID=$!
+  for i in $(seq 1 40); do APP_PGID="$(process_group "$APP_PID")"; [ "$APP_PGID" = "$APP_PID" ] && break; sleep 0.1; done
+  say "app: pid=$APP_PID (non-demo, INFILTRATOR_FORCE_NOTIFY=1)"
+
+  local probe=0 probe_urgency="none"
+  for i in $(seq 1 120); do
+    if [ -s "$history" ] && grep -q '"summary": "infiltrator-notify-probe"' "$history" 2>/dev/null; then
+      probe=1
+      probe_urgency="$(python3 -c '
+import json, sys
+rows = [json.loads(line) for line in open(sys.argv[1])]
+hit = [r for r in rows if r.get("kind") == "notify" and r.get("summary") == "infiltrator-notify-probe"]
+print(hit[-1].get("urgency") if hit else "none")' "$history" 2>/dev/null)"
+      break
+    fi
+    kill -0 "$APP_PID" 2>/dev/null || break
+    sleep 0.5
+  done
+  if [ "$probe" -eq 1 ]; then
+    say "PASS app_to_daemon: the app emitted 'infiltrator-notify-probe' over its real notify-rust D-Bus transport and the daemon recorded it (urgency=$probe_urgency, expected 1)"
+  else
+    if kill -0 "$APP_PID" 2>/dev/null; then
+      fail "app-side probe never reached the daemon history ($history)"
+    else
+      fail "app exited during the app-side leg (check single-instance diagnostics above)"
+    fi
+    sed 's/^/    app.log: /' "$RUN_DIR/app.log" 2>/dev/null | head -20
+    rc=1
+  fi
+
+  # Never poison later runs: release the single-instance abstract socket
+  # before this stage returns (same as the tray stage).
+  for i in $(seq 1 20); do
+    grep -q 'com\.musicfrog\.infiltrator' /proc/net/unix 2>/dev/null || break
+    sleep 0.25
+  done
+
+  [ "$rc" -eq 0 ] && say "STAGE notify: PASS (transport + app_to_daemon)"
   return "$rc"
 }
 
@@ -469,12 +598,12 @@ KDL
     say "DIAG app.log bytes: $(wc -c <"$RUN_DIR/app.log" 2>/dev/null)"
   fi
 
-  # Autostart note: the app's Linux backend does not implement autostart
-  # (infiltrator-shared/src/autostart.rs returns Err on non-Windows), so the
-  # "Launch at Login" click correctly produces NO .desktop file; sni_check
-  # asserts the optimistic flip AND the async revert instead. Nothing to
-  # check on the filesystem here by design.
-  say "NOTE autostart_backend: Linux autostart is unimplemented by the app (by design); the click assertions cover optimistic flip + async revert via SNI toggle-state"
+  # Autostart note (0.20 fix): the app's Linux backend now writes a real
+  # XDG autostart entry in the redirected HOME, so sni_check asserts the
+  # optimistic flip AND the persisted toggle state AND the .desktop file on
+  # disk. The mode click asserts the opposite honesty property: without a
+  # running core the mode marker must NOT flip.
+  say "NOTE autostart_backend: Linux autostart writes an XDG entry (0.20 fix); click assertions cover flip + persisted state + .desktop file. NOTE mode_click: without a running core the mode marker must not flip (tray never lies)"
 
   if grep -q 'system tray unavailable' "$RUN_DIR/app.log"; then
     fail "app log reports 'system tray unavailable' (spawn degraded)"
@@ -538,7 +667,7 @@ run_in_rig() {
 usage() {
   say "usage: $0 [tray|notify|proxy-isolation|all]"
   say "  tray             SNI tray + DBusMenu protocol assertions (real app, non-demo)"
-  say "  notify           org.freedesktop.Notifications delivery assertions"
+  say "  notify           notify-send transport + real-app (hooked) notification delivery"
   say "  proxy-isolation  private bus + HOME/XDG/dconf isolation proof"
   say "  all              proxy-isolation -> notify -> tray (default)"
   exit 0

@@ -1,3 +1,13 @@
+//! 系统代理开关的平台实现。
+//!
+//! - Windows：注册表直写 + rundll32 刷新（本仓库开发/CI 环境无法验证，
+//!   保持现状，不做退出码之外的改动）。
+//! - macOS：`networksetup`，所有命令强制检查退出码，非零返回 `Err`
+//!   （附 stderr/stdout 摘要）。
+//! - Linux：仅支持 GNOME 的 gsettings 后端；KDE 及其它桌面环境不受支持
+//!   （刻意不做）。检测不到 `gsettings` 时返回类型化的
+//!   [`UnsupportedDesktopError`]，绝不静默假装成功。
+
 use anyhow::anyhow;
 use std::process::Command;
 
@@ -7,6 +17,32 @@ use std::os::windows::process::CommandExt;
 use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
 
 const DEFAULT_BYPASS: &str = "localhost;127.*;10.*;172.16.*;192.168.*;<local>";
+
+/// Linux 桌面环境不受支持：系统代理只实现了 GNOME/gsettings 后端，KDE
+/// 等其它桌面不做。调用方可经 `anyhow::Error::downcast_ref` 拿回本类型，
+/// 据此给出「当前桌面环境不受支持」的针对性提示。
+#[cfg(target_os = "linux")]
+#[derive(Debug)]
+pub struct UnsupportedDesktopError {
+    /// 缺失的后端可执行文件名（当前固定为 `gsettings`）。
+    pub backend: &'static str,
+}
+
+#[cfg(target_os = "linux")]
+impl std::fmt::Display for UnsupportedDesktopError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "system proxy control requires GNOME ({0} not found); \
+             the current desktop environment is unsupported \
+             (KDE and other backends are not implemented)",
+            self.backend
+        )
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl std::error::Error for UnsupportedDesktopError {}
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct SystemProxyState {
@@ -150,18 +186,38 @@ fn refresh_internet_settings() {
 
 #[cfg(target_os = "linux")]
 fn run_gsettings(args: &[&str]) -> anyhow::Result<String> {
-    let output = Command::new("gsettings").args(args).output()?;
+    let output = Command::new("gsettings")
+        .args(args)
+        .output()
+        .map_err(|e| anyhow!("gsettings {} spawn failed: {e}", args.join(" ")))?;
     if !output.status.success() {
         return Err(anyhow!("gsettings failed: {}", String::from_utf8_lossy(&output.stderr)));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+/// 后端可用性检测：`gsettings` 不存在 → 类型化的
+/// [`UnsupportedDesktopError`]（当前桌面环境不受支持）；存在但自身报错 →
+/// 带 stderr 摘要的普通错误。两种情况都不允许继续假装成功。
+#[cfg(target_os = "linux")]
+fn ensure_gsettings_backend() -> anyhow::Result<()> {
+    match Command::new("gsettings").arg("--version").output() {
+        Ok(output) if output.status.success() => Ok(()),
+        Ok(output) => Err(anyhow!(
+            "gsettings --version failed (exit code {:?}): {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        )),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            Err(anyhow!(UnsupportedDesktopError { backend: "gsettings" }))
+        }
+        Err(err) => Err(anyhow!("gsettings spawn failed: {err}")),
+    }
+}
+
 #[cfg(target_os = "linux")]
 fn set_linux_system_proxy(endpoint: Option<&str>, bypass: Option<&str>) -> anyhow::Result<()> {
-    if Command::new("gsettings").arg("--version").output().is_err() {
-        return Err(anyhow!("gsettings not found, desktop environment unsupported"));
-    }
+    ensure_gsettings_backend()?;
 
     if let Some(ep) = endpoint {
         let (host, port) = parse_endpoint(ep).ok_or_else(|| anyhow!("Invalid endpoint format"))?;
@@ -196,9 +252,7 @@ fn set_linux_system_proxy(endpoint: Option<&str>, bypass: Option<&str>) -> anyho
 
 #[cfg(target_os = "linux")]
 fn read_linux_system_proxy_state() -> anyhow::Result<SystemProxyState> {
-    if Command::new("gsettings").arg("--version").output().is_err() {
-        return Err(anyhow!("gsettings not found"));
-    }
+    ensure_gsettings_backend()?;
 
     let mode = run_gsettings(&["get", "org.gnome.system.proxy", "mode"]).unwrap_or_default();
     let enabled = mode.contains("'manual'");
@@ -230,9 +284,34 @@ fn read_linux_system_proxy_state() -> anyhow::Result<SystemProxyState> {
 }
 
 #[cfg(target_os = "macos")]
+/// 运行 `networksetup` 并强制检查退出码：非零必须返回 `Err`（附
+/// stderr/stdout 摘要），成功时返回修剪后的 stdout。
+fn run_networksetup(args: &[&str]) -> anyhow::Result<String> {
+    let output = Command::new("networksetup")
+        .args(args)
+        .output()
+        .map_err(|e| anyhow!("networksetup {} spawn failed: {e}", args.join(" ")))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let summary = if stderr.trim().is_empty() {
+            stdout.trim()
+        } else {
+            stderr.trim()
+        };
+        return Err(anyhow!(
+            "networksetup {} failed (exit code {:?}): {}",
+            args.join(" "),
+            output.status.code(),
+            summary
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+#[cfg(target_os = "macos")]
 fn get_active_network_service() -> anyhow::Result<String> {
-    let output = Command::new("networksetup").args(["-listnetworkserviceorder"]).output()?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = run_networksetup(&["-listnetworkserviceorder"])?;
     for line in stdout.lines() {
         if line.starts_with("(1)") {
             if let Some(service) = line.split(" Hardware Port: ").next() {
@@ -247,31 +326,25 @@ fn get_active_network_service() -> anyhow::Result<String> {
 #[cfg(target_os = "macos")]
 fn set_macos_system_proxy(endpoint: Option<&str>, bypass: Option<&str>) -> anyhow::Result<()> {
     let service = get_active_network_service()?;
-    
+
     if let Some(ep) = endpoint {
         let (host, port) = parse_endpoint(ep).ok_or_else(|| anyhow!("Invalid endpoint format"))?;
         let port_str = port.to_string();
-        
+
         for proxy_type in &["-setwebproxy", "-setsecurewebproxy", "-setsocksfirewallproxy"] {
-            Command::new("networksetup")
-                .args([proxy_type, &service, host, &port_str])
-                .output()?;
-            Command::new("networksetup")
-                .args([&format!("{}state", proxy_type), &service, "on"])
-                .output()?;
+            run_networksetup(&[proxy_type, &service, host, &port_str])?;
+            run_networksetup(&[&format!("{proxy_type}state"), &service, "on"])?;
         }
-        
+
         if let Some(b) = bypass {
             let parts: Vec<&str> = b.split(';').filter(|s| !s.is_empty()).collect();
             let mut args = vec!["-setproxybypassdomains", &service];
             args.extend(parts);
-            Command::new("networksetup").args(&args).output()?;
+            run_networksetup(&args)?;
         }
     } else {
         for proxy_type in &["-setwebproxystate", "-setsecurewebproxystate", "-setsocksfirewallproxystate"] {
-            Command::new("networksetup")
-                .args([proxy_type, &service, "off"])
-                .output()?;
+            run_networksetup(&[proxy_type, &service, "off"])?;
         }
     }
     Ok(())
@@ -280,10 +353,7 @@ fn set_macos_system_proxy(endpoint: Option<&str>, bypass: Option<&str>) -> anyho
 #[cfg(target_os = "macos")]
 fn read_macos_system_proxy_state() -> anyhow::Result<SystemProxyState> {
     let service = get_active_network_service()?;
-    let output = Command::new("networksetup")
-        .args(["-getwebproxy", &service])
-        .output()?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = run_networksetup(&["-getwebproxy", &service])?;
     
     let mut enabled = false;
     let mut host = String::new();
@@ -306,10 +376,7 @@ fn read_macos_system_proxy_state() -> anyhow::Result<SystemProxyState> {
     };
     
     let mut bypass = None;
-    let bypass_output = Command::new("networksetup")
-        .args(["-getproxybypassdomains", &service])
-        .output()?;
-    let bypass_stdout = String::from_utf8_lossy(&bypass_output.stdout);
+    let bypass_stdout = run_networksetup(&["-getproxybypassdomains", &service])?;
     let parts: Vec<String> = bypass_stdout.lines()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty() && s != "There aren't any bypass domains set on Wi-Fi.")
@@ -344,6 +411,24 @@ mod tests {
     fn test_bypass_default() {
         assert!(DEFAULT_BYPASS.contains("localhost"));
         assert!(DEFAULT_BYPASS.contains("127.*"));
+    }
+
+    /// Linux 检测失败必须给出类型化错误：可经 anyhow 下沉后下cast 回
+    /// [`UnsupportedDesktopError`]，且消息明确「当前桌面环境不受支持」。
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_unsupported_desktop_error_is_typed_and_explicit() {
+        let err = anyhow!(UnsupportedDesktopError { backend: "gsettings" });
+        let typed = err
+            .downcast_ref::<UnsupportedDesktopError>()
+            .expect("typed error survives the anyhow downcast");
+        assert_eq!(typed.backend, "gsettings");
+
+        let message = typed.to_string();
+        assert!(message.contains("unsupported"), "{message}");
+        assert!(message.contains("desktop environment"), "{message}");
+        assert!(message.contains("gsettings"), "{message}");
+        assert!(message.contains("KDE"), "{message}");
     }
 
     // Mocked test cases for non-Windows platforms

@@ -322,11 +322,13 @@ impl AppState {
             }
             Message::UpdateRuntimeConnectionFilter(filter) => {
                 self.runtime.runtime_connection_filter = filter;
+                self.diag.connections_page = 0;
                 self.persist_runtime_panel_settings_task()
             }
             Message::UpdateRuntimeConnectionSort(sort_key) => {
                 self.runtime.runtime_connection_sort =
                     Self::normalize_connection_sort_key(&sort_key).to_string();
+                self.diag.connections_page = 0;
                 self.persist_runtime_panel_settings_task()
             }
             Message::RuntimePanelSettingsSaved(_) => Task::none(),

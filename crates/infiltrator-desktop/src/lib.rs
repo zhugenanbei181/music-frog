@@ -1,4 +1,3 @@
-pub mod autostart;
 pub mod boot;
 pub mod clipboard_helper;
 pub mod deadlock_detector;

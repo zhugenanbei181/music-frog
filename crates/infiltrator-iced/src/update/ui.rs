@@ -262,13 +262,27 @@ impl AppState {
             Message::RequestAdminPrivilege => {
                 #[cfg(target_os = "windows")]
                 {
+                    // UAC 提权重启自身时必须透传原始命令行参数（此前不带
+                    // 参数，重启后 --autostart 等启动配置会丢失）。PowerShell
+                    // 单引号字面量内用双写单引号转义，含空格的参数才能保真。
                     if let Ok(exe) = std::env::current_exe() {
+                        let quote = |value: &str| format!("'{}'", value.replace('\'', "''"));
+                        let mut command = format!(
+                            "Start-Process -FilePath {} -Verb RunAs",
+                            quote(&exe.to_string_lossy())
+                        );
+                        let args: Vec<String> = std::env::args().skip(1).collect();
+                        if !args.is_empty() {
+                            let argument_list = args
+                                .iter()
+                                .map(|arg| quote(arg))
+                                .collect::<Vec<_>>()
+                                .join(",");
+                            command.push_str(&format!(" -ArgumentList {argument_list}"));
+                        }
                         let _ = std::process::Command::new("powershell")
                             .arg("-Command")
-                            .arg(format!(
-                                "Start-Process -FilePath '{}' -Verb RunAs",
-                                exe.to_string_lossy()
-                            ))
+                            .arg(command)
                             .spawn();
                         return Task::done(Message::Exit);
                     }
@@ -276,7 +290,14 @@ impl AppState {
                 }
                 #[cfg(not(target_os = "windows"))]
                 {
-                    Task::done(Message::InstallTunService)
+                    // 非 Windows 没有 UAC 提权重启流程：返回类型化错误提示
+                    // 手动以管理员运行，不得改道 TUN 服务安装（动词混淆）。
+                    let error = InfiltratorError::Privilege(
+                        "当前平台不支持自动提权重启，请手动以管理员（root）权限运行本程序"
+                            .to_string(),
+                    );
+                    self.set_error(&error);
+                    Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
                 }
             }
             Message::TrayEvent(event) => self.handle_tray_event(event),

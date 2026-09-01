@@ -11,6 +11,13 @@
 //! * [`AppState::system_notify`] 是唯一生产入口：尊重
 //!   `shell.notifications_enabled`（关闭时零开销返回 `Task::none()`），
 //!   D-Bus 提交放 `spawn_blocking` 并加 2s 超时护栏，完成后丢弃结果。
+//! * 测试钩子（仅测试用，非产品功能）：环境变量
+//!   `INFILTRATOR_FORCE_NOTIFY=1` 时 demo 模式不再短路
+//!   `system_notify`（`notifications_enabled` 开关语义不变），且应用启动
+//!   时会经真实 `send`/D-Bus 链发一条探针通知（[`startup_probe_task`]），
+//!   供 `scripts/desktop-smoke.sh notify` 在私有总线上验证「应用侧 →
+//!   通知守护进程」全链。设置该变量的会话可能向桌面弹出测试通知，
+//!   不要在生产环境启用。
 //!
 //! 标题本地化：调用方传 locale key（`notify_*`，见 locales_table.rs），
 //! 正文拼数据（profile 名 / 错误串，`send` 内部统一过
@@ -101,6 +108,47 @@ mod backend {
     }
 }
 
+/// desktop-smoke 测试钩子开关（仅测试用）：`INFILTRATOR_FORCE_NOTIFY=1`。
+/// 设置后 demo 模式的 `system_notify` 短路被绕过（`notifications_enabled`
+/// 开关语义保持），且应用启动即发一条探针通知供 smoke 断言。
+pub(crate) fn force_notify_requested() -> bool {
+    std::env::var("INFILTRATOR_FORCE_NOTIFY").is_ok_and(|value| value.trim() == "1")
+}
+
+/// 探针通知的固定 ASCII 标题：desktop-smoke 在守护进程历史里按它断言。
+pub(crate) const SMOKE_PROBE_TITLE: &str = "infiltrator-notify-probe";
+
+/// desktop-smoke 专用启动探针（仅测试用）：`INFILTRATOR_FORCE_NOTIFY=1`
+/// 时返回一个走真实 `send` → notify-rust → D-Bus 链的任务，把一条标题为
+/// [`SMOKE_PROBE_TITLE`] 的通知发给会话通知守护进程；未设置时返回
+/// `Task::none()`（生产启动零开销）。由 `AppState::new` 在启动批次里挂载。
+pub(crate) fn startup_probe_task() -> Task<Message> {
+    if !force_notify_requested() {
+        return Task::none();
+    }
+    let title = SMOKE_PROBE_TITLE.to_string();
+    let body = format!(
+        "app-to-daemon probe {}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_millis())
+            .unwrap_or_default()
+    );
+    Task::perform(
+        async move {
+            let delivered =
+                tokio::task::spawn_blocking(move || send(&title, &body, NotifyUrgency::Normal))
+                    .await
+                    .unwrap_or_else(|join_error| {
+                        warn_throttled(&format!("notify probe task failed: {join_error}"));
+                        false
+                    });
+            log::info!("notify probe delivered={delivered}");
+        },
+        |()| Message::Noop,
+    )
+}
+
 impl AppState {
     /// 唯一生产入口：`shell.notifications_enabled == false` 时零开销返回
     /// `Task::none()`；否则在 `spawn_blocking` 上提交（2s 超时护栏，超时只
@@ -112,7 +160,12 @@ impl AppState {
         body: &str,
         urgency: NotifyUrgency,
     ) -> Task<Message> {
-        if !self.shell.notifications_enabled || self.shell.demo {
+        if !self.shell.notifications_enabled {
+            return Task::none();
+        }
+        // demo 模式默认不触达桌面通知守护进程；INFILTRATOR_FORCE_NOTIFY=1
+        // 时放行（desktop-smoke 全链验证用，见模块文档）。
+        if self.shell.demo && !force_notify_requested() {
             return Task::none();
         }
         let title = Lang(&self.shell.lang).tr(title_key).into_owned();

@@ -31,10 +31,12 @@ mod test_mounts;
 
 use crate::state::AppState;
 use iced::{application, window};
+use mihomo_platform::crash_reporter::CrashReporter;
 use single_instance::SingleInstance;
 use std::fs::File;
 use std::io::Write;
 use std::panic;
+use std::path::Path;
 
 /// Bootstrap and run the iced application.
 ///
@@ -70,10 +72,15 @@ pub fn run() -> iced::Result {
 
     panic::set_hook(Box::new(move |info| {
         let msg = info.to_string();
+        // 1) 既有原始 crash log（先行落盘，行为不变）。
         if let Ok(mut file) = File::create(&crash_log_path) {
             let _ = file.write_all(msg.as_bytes());
         }
         eprintln!("PANIC: {}", msg);
+        // 2) 结构化脱敏上报（平台契约 §7c）：mihomo-platform 的
+        //    CrashReporter 只收集到本地 JSON（模块本身无任何网络路径），
+        //    整体 best-effort——这里任何失败都不允许影响崩溃路径本身。
+        write_sanitized_crash_report(&log_dir, &msg);
     }));
 
     application(AppState::new, AppState::update, AppState::view)
@@ -95,4 +102,76 @@ pub fn run() -> iced::Result {
             ..Default::default()
         })
         .run()
+}
+
+/// Innermost frames kept in the sanitized report's backtrace summary.
+const BACKTRACE_SUMMARY_LINES: usize = 32;
+
+/// Best-effort structured crash report, wired per platform contract §7c:
+/// after the raw crash log above, collect a [`CrashReport`] (timestamp, OS,
+/// version, panic reason, compact backtrace), sanitize it via the shared
+/// [`CrashReporter`] (redacts bearer tokens and unix/Windows home paths) and
+/// write it as JSON next to the raw log. Strictly local — the module exposes
+/// no network paths — and fully best-effort: `catch_unwind` keeps a failure
+/// here (or a panic in the reporting code itself) from disturbing the
+/// in-progress panic, the normal startup path is untouched.
+fn write_sanitized_crash_report(log_dir: &Path, panic_message: &str) {
+    let _ = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        let backtrace = std::backtrace::Backtrace::force_capture().to_string();
+        let mut report = CrashReporter::new_report(
+            panic_message,
+            env!("CARGO_PKG_VERSION"),
+            Some(backtrace_summary(&backtrace).as_str()),
+        );
+        CrashReporter::sanitize_report(&mut report);
+        if let Ok(json) = CrashReporter::serialize_report(&report) {
+            let _ = std::fs::write(log_dir.join("infiltrator_crash_report.json"), json);
+        }
+    }));
+}
+
+/// Cap a captured backtrace to a compact summary; std prints innermost
+/// frames first, so the head carries the useful stack.
+fn backtrace_summary(backtrace: &str) -> String {
+    backtrace
+        .lines()
+        .take(BACKTRACE_SUMMARY_LINES)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[cfg(test)]
+mod crash_report_wiring {
+    use super::*;
+
+    #[test]
+    fn backtrace_summary_keeps_innermost_head() {
+        let lines: Vec<String> = (0..100).map(|i| format!("frame {i}")).collect();
+        let summary = backtrace_summary(&lines.join("\n"));
+        assert_eq!(summary.lines().count(), BACKTRACE_SUMMARY_LINES);
+        assert!(summary.starts_with("frame 0\n"));
+        assert!(!summary.contains("frame 99"));
+    }
+
+    #[test]
+    fn backtrace_summary_handles_short_and_empty_input() {
+        assert_eq!(backtrace_summary(""), "");
+        assert_eq!(backtrace_summary("only frame"), "only frame");
+    }
+
+    #[test]
+    fn sanitized_report_is_collectible_without_network_or_panic() {
+        // Exercise the exact call chain the panic hook uses (minus the file
+        // write): build -> sanitize -> serialize -> parse round-trip.
+        let home = std::env::var("HOME").unwrap_or_default();
+        let message = format!("boom at {home}/secrets with Bearer abcTOKEN123");
+        let mut report = CrashReporter::new_report(&message, env!("CARGO_PKG_VERSION"), None);
+        CrashReporter::sanitize_report(&mut report);
+        assert!(!report.panic_reason.contains("abcTOKEN123"));
+        if !home.is_empty() {
+            assert!(!report.panic_reason.contains(&home));
+        }
+        let json = CrashReporter::serialize_report(&report).unwrap();
+        assert_eq!(CrashReporter::parse_report(&json).unwrap(), report);
+    }
 }

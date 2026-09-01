@@ -71,15 +71,17 @@ mod tests {
     use super::*;
     use crate::ffi::FfiErrorCode;
 
+    use mihomo_platform::TEST_LOCK;
     use mihomo_platform::paths::set_home_dir_override;
     use std::fs;
     use std::path::PathBuf;
-    use std::sync::{Mutex, OnceLock};
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    fn routing_test_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
+    /// 串行化全局 home override：doctor.rs / support.rs 的测试同样切换
+    /// override 并以 TEST_LOCK 互斥，这里保持同一把锁，避免并行测试在
+    /// 「写配置 → 读回」之间被换走 home 目录。
+    async fn test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+        TEST_LOCK.lock().await
     }
 
     fn make_test_home(tag: &str) -> PathBuf {
@@ -93,11 +95,9 @@ mod tests {
         path
     }
 
-    #[test]
-    fn test_app_routing_load_defaults() {
-        let _guard = routing_test_lock()
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+    #[tokio::test]
+    async fn test_app_routing_load_defaults() {
+        let _guard = test_lock().await;
         let home = make_test_home("routing-default");
         set_home_dir_override(home.clone());
 
@@ -110,11 +110,9 @@ mod tests {
         let _ = fs::remove_dir_all(home);
     }
 
-    #[test]
-    fn test_app_routing_set_mode_and_toggle_package() {
-        let _guard = routing_test_lock()
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+    #[tokio::test]
+    async fn test_app_routing_set_mode_and_toggle_package() {
+        let _guard = test_lock().await;
         let home = make_test_home("routing-toggle");
         set_home_dir_override(home.clone());
 
@@ -147,11 +145,9 @@ mod tests {
         let _ = fs::remove_dir_all(home);
     }
 
-    #[test]
-    fn test_app_routing_save_deduplicates_packages() {
-        let _guard = routing_test_lock()
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+    #[tokio::test]
+    async fn test_app_routing_save_deduplicates_packages() {
+        let _guard = test_lock().await;
         let home = make_test_home("routing-save");
         set_home_dir_override(home.clone());
 

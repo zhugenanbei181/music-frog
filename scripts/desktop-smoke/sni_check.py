@@ -24,6 +24,7 @@ import argparse
 import json
 import sys
 import time
+from pathlib import Path
 
 import dbus
 
@@ -270,7 +271,18 @@ def main() -> int:
     detail = (f"'{MARK}Global' observed after real click "
               f"(revision {rev0} -> {rev1}, "
               f"initial marks: {marks or 'none'})")
-    check.record(flipped, "click_global_flip", detail)
+    # 0.20 fix semantics: without a running core the app must NOT flip the
+    # mode optimistically — the tray never shows a mode that never took
+    # effect (SetProxyMode lands in the runtime-unavailable branch).
+    not_flipped, rev1, tree1 = check.wait_for(
+        lambda tree: not any(child["label"] == MARK + "Global"
+                             for child in (Checker.find(tree, "Proxy Mode")
+                                           or {"children": []})["children"]),
+        args.click_timeout)
+    check.record(not_flipped, "click_global_no_optimistic_flip",
+                 "no '● Global' without a running core — the tray never lies "
+                 f"(revision {rev0} -> {rev1}, initial marks: {marks or 'none'})")
+    _ = flipped, detail
 
     # 6. real click: autostart checkmark toggle-state 0 -> 1 ------------------
     root_after_global = tree1
@@ -289,18 +301,29 @@ def main() -> int:
             args.click_timeout)
         check.record(ok and before_state == 0, "click_autostart_toggle",
                      f"Launch at Login toggle-state {before_state} -> 1 (optimistic flip)")
-        # The app then completes the async set_autostart call; on Linux the
-        # backend is unsupported (infiltrator-shared/src/autostart.rs returns
-        # Err) and the handler REVERTS the state with a second refresh_tray —
-        # observing that revert proves the full async round trip reaches the
-        # SNI menu.
-        reverted, _rev3, _tree3 = check.wait_for(
+        # 0.20 fix semantics: the Linux autostart backend now succeeds
+        # (XDG autostart entry in the redirected HOME), so the state must
+        # PERSIST — the toggle stays 1 and the .desktop file really lands.
+        # NOTE: the toggle is optimistically 1 from the click override, so
+        # the file is the only observation that truly synchronizes with the
+        # async backend completing — poll for it.
+        desktop_file = Path.home() / ".config" / "autostart" / "MusicFrogInfiltrator.desktop"
+        deadline = time.time() + args.click_timeout
+        while not desktop_file.is_file() and time.time() < deadline:
+            time.sleep(0.2)
+        file_ok = desktop_file.is_file()
+        check.record(file_ok, "click_autostart_xdg_file",
+                     f"XDG autostart entry written by the async backend: "
+                     f"{desktop_file} ({'exists' if file_ok else 'MISSING after timeout'})")
+        # With the file confirmed, the refreshed spec must also carry the
+        # persisted checked state (optimistic override replaced by truth).
+        persisted, _rev3, _tree3 = check.wait_for(
             lambda tree: (Checker.find(tree, "Launch at Login") or {"toggle_state": None})
-            ["toggle_state"] == 0,
+            ["toggle_state"] == 1,
             args.click_timeout)
-        check.record(reverted, "click_autostart_async_revert",
-                     "async set_autostart completed (unsupported on Linux) and the "
-                     "refresh_tray revert reached the SNI menu (toggle-state 1 -> 0)")
+        check.record(persisted, "click_autostart_state_persists",
+                     "SNI menu still shows Launch at Login checked after the async "
+                     "set_autostart completed on Linux (toggle-state stays 1)")
     else:
         check.record(False, "click_autostart_toggle", "Launch at Login entry not found")
 

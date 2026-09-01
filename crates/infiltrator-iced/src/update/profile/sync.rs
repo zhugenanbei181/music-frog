@@ -30,6 +30,17 @@ impl AppState {
                 let url = self.profile.webdav_url.clone();
                 let user = self.profile.webdav_user.clone();
                 let pass = self.profile.webdav_pass.clone();
+                // 客户端在 spawn 前构造（测试注入点：指向本地桩服务器）。
+                // 构造失败不 spawn worker，直接走 SyncFinished 错误臂 ——
+                // toast/清理/通知语义与原先 worker 内构造失败完全等价。
+                let client = match WebDavClient::new(&url, &user, &pass) {
+                    Ok(client) => client,
+                    Err(e) => {
+                        return Task::done(Message::SyncFinished(Err(InfiltratorError::Sync(
+                            e.to_string(),
+                        ))));
+                    }
+                };
                 let cancel = Arc::new(AtomicBool::new(false));
                 self.profile.sync_cancel = Some(cancel.clone());
                 self.profile.is_syncing = true;
@@ -38,8 +49,6 @@ impl AppState {
                     100,
                     move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
                         let result = async {
-                            let client = WebDavClient::new(&url, &user, &pass)
-                                .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
                             let cm = crate::configs_dir::config_manager().await?;
                             let profiles =
                                 cm.list_profiles().await.map_err(InfiltratorError::from)?;
@@ -90,6 +99,16 @@ impl AppState {
                 let url = self.profile.webdav_url.clone();
                 let user = self.profile.webdav_user.clone();
                 let pass = self.profile.webdav_pass.clone();
+                // 同 SyncUpload：客户端在 spawn 前构造（测试注入点），
+                // 构造失败提前定论并走同一 SyncFinished 错误臂。
+                let client = match WebDavClient::new(&url, &user, &pass) {
+                    Ok(client) => client,
+                    Err(e) => {
+                        return Task::done(Message::SyncFinished(Err(InfiltratorError::Sync(
+                            e.to_string(),
+                        ))));
+                    }
+                };
                 let cancel = Arc::new(AtomicBool::new(false));
                 self.profile.sync_cancel = Some(cancel.clone());
                 self.profile.is_syncing = true;
@@ -99,8 +118,6 @@ impl AppState {
                     100,
                     move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
                         let result = async {
-                            let client = WebDavClient::new(&url, &user, &pass)
-                                .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
                             let files = client
                                 .list("")
                                 .await

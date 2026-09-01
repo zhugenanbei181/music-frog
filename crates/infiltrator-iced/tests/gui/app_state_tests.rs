@@ -486,3 +486,56 @@ fn test_p0_runtime_patch_failure_restores_the_previous_snapshot() {
     let _ = state.update(Message::RuntimePatchResult(Ok(()), 10, generation));
     assert_eq!(state.runtime.proxy_mode.as_deref(), Some("direct"));
 }
+
+#[test]
+fn connections_pagination_windows_and_clamps() {
+    use mihomo_api::types::{Connection, ConnectionMetadata, ConnectionSnapshot};
+
+    let snapshot_with = |count: usize| ConnectionSnapshot {
+        download_total: 0,
+        upload_total: 0,
+        connections: (0..count)
+            .map(|i| Connection {
+                id: i.to_string(),
+                metadata: ConnectionMetadata::default(),
+                upload: 0,
+                download: 0,
+                start: String::new(),
+                rule: String::new(),
+                rule_payload: String::new(),
+                chains: Vec::new(),
+            })
+            .collect(),
+    };
+
+    let (mut state, _) = AppState::new();
+    state.diag.connections_page_size = 100;
+
+    // 250 connections → 3 pages; next from page 0 → 1 → 2, then clamps at 2.
+    let _ = state.update(Message::ConnectionsReceived(snapshot_with(250)));
+    for expected in [1usize, 2, 2] {
+        let _ = state.update(Message::ConnectionsNextPage);
+        assert_eq!(state.diag.connections_page, expected);
+    }
+    let (page, start, end) = state.connections_window(250);
+    assert_eq!((page, start, end), (2, 200, 250));
+
+    // Snapshot shrinks below the current page → clamped back into range.
+    let _ = state.update(Message::ConnectionsReceived(snapshot_with(80)));
+    let (page, start, end) = state.connections_window(80);
+    assert_eq!((page, start, end), (0, 0, 80));
+    assert_eq!(state.diag.connections_page, 0);
+
+    // Prev from page 0 saturates at 0.
+    let _ = state.update(Message::ConnectionsPrevPage);
+    assert_eq!(state.diag.connections_page, 0);
+
+    // Filter/sort changes reset to the first page.
+    let _ = state.update(Message::ConnectionsReceived(snapshot_with(250)));
+    let _ = state.update(Message::ConnectionsNextPage);
+    let _ = state.update(Message::UpdateRuntimeConnectionFilter("x".into()));
+    assert_eq!(state.diag.connections_page, 0);
+    let _ = state.update(Message::ConnectionsNextPage);
+    let _ = state.update(Message::UpdateRuntimeConnectionSort("host_asc".into()));
+    assert_eq!(state.diag.connections_page, 0);
+}

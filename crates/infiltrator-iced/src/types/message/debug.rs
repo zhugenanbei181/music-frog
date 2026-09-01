@@ -184,6 +184,8 @@ impl std::fmt::Debug for Message {
             Message::SetLogLevel(l) => write!(f, "SetLogLevel({})", l),
             Message::CloseConnection(id) => write!(f, "CloseConnection({})", id),
             Message::CloseAllConnections => write!(f, "CloseAllConnections"),
+            Message::ConnectionsPrevPage => write!(f, "ConnectionsPrevPage"),
+            Message::ConnectionsNextPage => write!(f, "ConnectionsNextPage"),
             Message::FetchRuntimeConfig => write!(f, "FetchRuntimeConfig"),
             Message::FetchIpInfo => write!(f, "FetchIpInfo"),
             Message::RuntimeConfigFetched(Ok(config), generation) => {

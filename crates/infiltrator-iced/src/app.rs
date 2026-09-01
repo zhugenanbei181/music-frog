@@ -17,6 +17,21 @@ use iced::Task;
 use infiltrator_core::error::InfiltratorError;
 use std::sync::{Arc, Mutex};
 
+/// `INFILTRATOR_LANG` 会话级语言覆写（非 demo 启动路径；demo 有自己的同名
+/// 契约，见 demo.rs）。只接受 `zh-CN` / `en-US`，其它值忽略。
+///
+/// 语义：**仅会话级** —— 启动时注入内存语言，并在设置加载回灌时剥离
+/// settings.toml 的 `language` 字段让 env 值存活；绝不写盘、绝不修改用户
+/// 的设置文件，用户仍可在会话内用设置页改语言（保存语义不变）。
+fn env_lang_override() -> Option<String> {
+    let value = std::env::var("INFILTRATOR_LANG").ok()?;
+    match value.trim() {
+        "zh-CN" => Some("zh-CN".to_string()),
+        "en-US" => Some("en-US".to_string()),
+        _ => None,
+    }
+}
+
 impl AppState {
     pub fn title(&self) -> String {
         Lang(&self.shell.lang).tr("app_title").to_string()
@@ -232,6 +247,8 @@ impl AppState {
                 public_ip_checked_at: None,
                 public_ip_error: None,
                 connections: None,
+                connections_page: 0,
+                connections_page_size: 100,
                 logs: std::collections::VecDeque::new(),
                 log_level: "info".to_string(),
                 fps: 0,
@@ -309,6 +326,13 @@ impl AppState {
             }
         }
 
+        // INFILTRATOR_LANG 会话级覆写：注入初始语言；SettingsLoaded 回灌时
+        // 再剥离设置文件里的 language 让该值存活（见 env_lang_override）。
+        let lang_override = env_lang_override();
+        if let Some(lang) = lang_override.clone() {
+            state.shell.lang = lang;
+        }
+
         (
             state,
             Task::batch(vec![
@@ -323,7 +347,17 @@ impl AppState {
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))
                     },
-                    Message::SettingsLoaded,
+                    // env 覆写生效时清空回灌快照的 language 字段（仅内存
+                    // 快照），apply_loaded_settings 因此保留 env 注入值；
+                    // 磁盘上的设置文件不动。
+                    move |result| {
+                        Message::SettingsLoaded(result.map(|mut settings| {
+                            if lang_override.is_some() {
+                                settings.language.clear();
+                            }
+                            settings
+                        }))
+                    },
                 ),
                 Task::perform(
                     async {
@@ -333,6 +367,9 @@ impl AppState {
                     Message::ProfilesLoaded,
                 ),
                 Task::done(Message::LoadKernels),
+                // desktop-smoke 钩子（仅测试用）：INFILTRATOR_FORCE_NOTIFY=1
+                // 时启动即发一条探针通知，见 notify.rs 模块文档。
+                crate::notify::startup_probe_task(),
             ]),
         )
     }

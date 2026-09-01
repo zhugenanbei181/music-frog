@@ -65,6 +65,11 @@ pub struct Tokens {
     pub accent_soft: Color,
     /// Color of text/icons drawn on top of `accent`.
     pub on_accent: Color,
+    /// Text color for accent `BadgeKind` pills (11px semibold on a tinted
+    /// accent wash). Light keeps the brand accent; dark needs a lifted blue
+    /// because #0A84FF on a 14-16% accent wash over the dark sidebar fails
+    /// contrast (WCAG) for text that small.
+    pub badge_accent: Color,
     pub text_primary: Color,
     pub text_secondary: Color,
     pub text_tertiary: Color,
@@ -113,6 +118,8 @@ pub const LIGHT: Tokens = Tokens {
         ..Color::from_rgb(0.0, 0.478, 1.0)
     },
     on_accent: Color::WHITE,
+    // Light appearance keeps the brand accent on badges (existing look).
+    badge_accent: Color::from_rgb(0.0, 0.478, 1.0), // #007AFF
     text_primary: Color::from_rgb(0.110, 0.110, 0.118), // #1C1C1E
     text_secondary: Color {
         a: 0.60,
@@ -185,6 +192,10 @@ pub const DARK: Tokens = Tokens {
         ..Color::from_rgb(0.039, 0.518, 1.0)
     },
     on_accent: Color::WHITE,
+    // Dark appearance lifts the badge blue: #0A84FF text on the 14-16%
+    // accent wash over dark surfaces computes to ~3.6-4.2:1 — below the
+    // 4.5:1 WCAG AA bar for 11px text. #6CB0FF on the same wash is >5:1.
+    badge_accent: Color::from_rgb(0.424, 0.690, 1.0), // #6CB0FF
     text_primary: Color::WHITE,
     text_secondary: Color {
         a: 0.60,

@@ -211,6 +211,16 @@ impl AppState {
                 self.runtime.runtime_prev_download_total = Some(download_total);
                 self.runtime.runtime_prev_snapshot_at = Some(now);
                 self.diag.connections = Some(data);
+                self.clamp_connections_page();
+                Task::none()
+            }
+            Message::ConnectionsPrevPage => {
+                self.diag.connections_page = self.diag.connections_page.saturating_sub(1);
+                Task::none()
+            }
+            Message::ConnectionsNextPage => {
+                self.diag.connections_page += 1;
+                self.clamp_connections_page();
                 Task::none()
             }
             Message::LogReceived(log) => {
@@ -320,6 +330,30 @@ impl AppState {
             }
             other => self.update_core_doctor(other),
         }
+    }
+
+    /// Keep the connections page inside the valid range for the current
+    /// snapshot size (snapshots shrink as connections close).
+    pub(crate) fn clamp_connections_page(&mut self) {
+        let total = self
+            .diag
+            .connections
+            .as_ref()
+            .map(|snapshot| snapshot.connections.len())
+            .unwrap_or(0);
+        let size = self.diag.connections_page_size.max(1);
+        let max_page = total.saturating_sub(1) / size;
+        self.diag.connections_page = self.diag.connections_page.min(max_page);
+    }
+
+    /// `(page, start, end)` window into the filtered connection list after
+    /// clamping; the view slices with these bounds.
+    pub(crate) fn connections_window(&self, total: usize) -> (usize, usize, usize) {
+        let size = self.diag.connections_page_size.max(1);
+        let max_page = total.saturating_sub(1) / size;
+        let page = self.diag.connections_page.min(max_page);
+        let start = page * size;
+        (page, start, (start + size).min(total))
     }
 }
 

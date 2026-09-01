@@ -3407,9 +3407,11 @@ version = "0.20.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum",
  "chrono",
  "dav-client",
  "iced",
+ "iced_runtime",
  "image",
  "infiltrator-admin",
  "infiltrator-core",

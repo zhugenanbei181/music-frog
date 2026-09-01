@@ -245,7 +245,10 @@ pub enum BadgeKind {
 impl BadgeKind {
     fn color(self, t: &Tokens) -> Color {
         match self {
-            BadgeKind::Accent => t.accent,
+            // theme-fix: accent badges read `badge_accent` (light: brand
+            // accent unchanged; dark: a lifted blue so 11px text on the
+            // tinted wash passes contrast).
+            BadgeKind::Accent => t.badge_accent,
             BadgeKind::Success => t.success,
             BadgeKind::Warning => t.warning,
             BadgeKind::Danger => t.danger,

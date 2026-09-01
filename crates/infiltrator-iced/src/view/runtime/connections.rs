@@ -6,7 +6,7 @@ use crate::utils::format_bytes;
 use crate::view::components::{
     chip, empty_state, icon_button, section_header, segmented_control, status_dot,
 };
-use crate::view::runtime::styles::{input_style, row_card, style_danger, text_btn};
+use crate::view::runtime::styles::{input_style, row_card, style_danger, style_ghost, text_btn};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, SP_MD, tokens};
 use crate::state::AppState;
@@ -154,7 +154,12 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
             ));
         }
 
-        for conn in sorted_conns {
+        // Windowed rendering: only the current page slice becomes widgets,
+        // mirroring the rules page pagination (multi-thousand-connection
+        // snapshots must not build thousands of rows at once).
+        let total = sorted_conns.len();
+        let (page, start, end) = state.connections_window(total);
+        for conn in &sorted_conns[start..end] {
             let host = if conn.metadata.host.is_empty() {
                 conn.metadata.destination_ip.clone()
             } else {
@@ -232,6 +237,37 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         // connection row renders fully instead of collapsing inside an
         // auto-height card.
         connections_section = connections_section.push(conn_list);
+
+        if total > state.diag.connections_page_size {
+            connections_section = connections_section.push(
+                row![
+                    text_btn(
+                        "‹".to_string(),
+                        style_ghost,
+                        (page > 0).then_some(Message::ConnectionsPrevPage),
+                    ),
+                    Space::new().width(theme::SP_SM),
+                    text(format!(
+                        "{}–{} / {}",
+                        start + 1,
+                        end,
+                        total
+                    ))
+                    .size(11)
+                    .font(MONO)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary),
+                    }),
+                    Space::new().width(theme::SP_SM),
+                    text_btn(
+                        "›".to_string(),
+                        style_ghost,
+                        (end < total).then_some(Message::ConnectionsNextPage),
+                    ),
+                ]
+                .align_y(Alignment::Center),
+            );
+        }
     } else {
         connections_section = connections_section.push(empty_state(
             Icon::Plug,

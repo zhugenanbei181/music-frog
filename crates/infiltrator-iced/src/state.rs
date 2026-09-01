@@ -225,6 +225,11 @@ pub struct DiagnosticsState {
     pub public_ip_checked_at: Option<String>,
     pub public_ip_error: Option<String>,
     pub connections: Option<ConnectionSnapshot>,
+    /// Connections list pagination (mirrors the rules page pattern): the
+    /// view renders only the current window so multi-thousand-connection
+    /// snapshots never build thousands of widgets at once.
+    pub connections_page: usize,
+    pub connections_page_size: usize,
     pub logs: VecDeque<String>,
     pub log_level: String,
     pub fps: u32,

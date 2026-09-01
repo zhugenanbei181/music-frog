@@ -41,4 +41,5 @@ pub mod sub_rules;
 pub mod subscription;
 pub mod traffic_audit;
 pub mod tun;
+pub mod yaml_edit;
 pub mod zeroize_guard;

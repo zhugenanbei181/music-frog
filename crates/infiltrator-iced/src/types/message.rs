@@ -106,6 +106,8 @@ pub enum Message {
     SetLogLevel(String),
     CloseConnection(String),
     CloseAllConnections,
+    ConnectionsPrevPage,
+    ConnectionsNextPage,
     FetchRuntimeConfig,
     FetchIpInfo,
     RuntimeConfigFetched(Result<RuntimeConfig, InfiltratorError>, u64),

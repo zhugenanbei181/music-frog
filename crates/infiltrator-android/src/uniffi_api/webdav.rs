@@ -6,8 +6,10 @@ use std::path::PathBuf;
 use dav_client::DavClient;
 use dav_client::client::WebDavClient;
 use infiltrator_core::settings::{
-    AppSettings, load_settings, save_settings, settings_path};
+    AppSettings, clear_webdav_password, load_settings, load_settings_hydrated_with_store,
+    save_settings, save_webdav_password, settings_path};
 use mihomo_platform::paths::get_home_dir;
+use mihomo_platform::traits::{CredentialStore, DefaultCredentialStore};
 use state_store::StateStore;
 use sync_engine::{SyncPlanner, executor::SyncExecutor};
 
@@ -123,17 +125,54 @@ pub async fn webdav_sync_now() -> WebDavSyncResult {
 }
 
 async fn load_webdav_settings() -> Result<WebDavSettings, FfiStatus> {
-    let (settings, _) = load_app_settings().await?;
+    let home = get_home_dir().map_err(map_mihomo_error)?;
+    load_webdav_settings_in(&home, &DefaultCredentialStore::default()).await
+}
+
+/// 同 [`load_webdav_settings`]，但 home 与 keyring 凭据存储均由调用方注入
+/// （测试注入临时目录 + 内存实现，避免触碰全局 home override 与真实
+/// OS keyring）。
+async fn load_webdav_settings_in<S: CredentialStore>(
+    home: &std::path::Path,
+    store: &S,
+) -> Result<WebDavSettings, FfiStatus> {
+    let settings = load_hydrated_app_settings_in(home, store).await?;
     Ok(webdav_settings_from_core(&settings.webdav))
 }
 
 async fn save_webdav_settings(settings: WebDavSettings) -> Result<WebDavSettings, FfiStatus> {
-    let (mut app_settings, path) = load_app_settings().await?;
-    app_settings.webdav = webdav_settings_to_core(settings);
-    save_settings(&path, &app_settings)
-        .await
-        .map_err(map_anyhow_error)?;
-    Ok(webdav_settings_from_core(&app_settings.webdav))
+    let home = get_home_dir().map_err(map_mihomo_error)?;
+    save_webdav_settings_in(&home, settings, &DefaultCredentialStore::default()).await
+}
+
+/// 同 [`save_webdav_settings`]，但 home 与 keyring 凭据存储由调用方注入。
+/// 密码只进 OS keyring：空串=清除条目，非空=写入；keyring 写失败时整体
+/// 不落盘，保持「settings 文件 + keyring」状态一致（避免其他字段更新而
+/// 凭据悄悄丢失，与 iced 桌面端保存语义一致）。
+async fn save_webdav_settings_in<S: CredentialStore>(
+    home: &std::path::Path,
+    settings: WebDavSettings,
+    store: &S,
+) -> Result<WebDavSettings, FfiStatus> {
+    let mut app_settings = load_app_settings_in(home).await?;
+    if settings.password.is_empty() {
+        clear_webdav_password(store).await;
+    } else {
+        save_webdav_password(store, &settings.password)
+            .await
+            .map_err(map_anyhow_error)?;
+    }
+    let mut core_config = webdav_settings_to_core(settings.clone());
+    // password 的序列化被 core 跳过；这里仍显式清空内存镜像，保证不落盘。
+    core_config.password = String::new();
+    app_settings.webdav = core_config;
+    save_settings(&settings_path(home).map_err(|err| {
+        FfiStatus::err(FfiErrorCode::InvalidState, err.to_string())
+    })?, &app_settings)
+    .await
+    .map_err(map_anyhow_error)?;
+    // 回显完整记录（含密码内存镜像），与迁移前 FFI 行为一致。
+    Ok(settings)
 }
 
 async fn test_webdav_settings(settings: WebDavSettings) -> FfiStatus {
@@ -168,21 +207,34 @@ struct WebDavSyncSummary {
 }
 
 async fn sync_webdav_now() -> Result<WebDavSyncSummary, FfiStatus> {
+    let home = get_home_dir().map_err(map_mihomo_error)?;
+    sync_webdav_now_in(&home, &DefaultCredentialStore::default()).await
+}
+
+/// 同 [`sync_webdav_now`]，但 home 与 keyring 凭据存储由调用方注入。
+/// 密码经水合加载从 OS keyring 取回（settings.toml 已不携带明文）。
+async fn sync_webdav_now_in<S: CredentialStore>(
+    home: &std::path::Path,
+    store: &S,
+) -> Result<WebDavSyncSummary, FfiStatus> {
     crate::tls::ensure_rustls_provider();
-    let (settings, _) = load_app_settings().await?;
+    let settings = load_hydrated_app_settings_in(home, store).await?;
     if !settings.webdav.enabled {
         return Err(FfiStatus::err(FfiErrorCode::NotReady, "WebDAV is disabled"));
     }
     // 本地同步根跟随 configs 目录重定向（env > settings.configs_dir > home/configs）。
-    let local_root =
-        mihomo_config::manager::paths::resolve_configs_dir(settings.configs_dir.as_deref())
-            .map_err(map_mihomo_error)?;
-    run_webdav_sync(&settings.webdav, local_root).await
+    let local_root = mihomo_config::manager::paths::resolve_configs_dir_in(
+        settings.configs_dir.as_deref(),
+        home,
+    )
+    .map_err(map_mihomo_error)?;
+    run_webdav_sync(&settings.webdav, local_root, home).await
 }
 
 async fn run_webdav_sync(
     config: &infiltrator_core::settings::WebDavConfig,
     local_root: PathBuf,
+    home: &std::path::Path,
 ) -> Result<WebDavSyncSummary, FfiStatus> {
     validate_webdav_config(config)?;
     let dav =
@@ -198,7 +250,6 @@ async fn run_webdav_sync(
             .await
             .map_err(|e| FfiStatus::err(FfiErrorCode::Io, e.to_string()))?;
     }
-    let home = get_home_dir().map_err(map_mihomo_error)?;
     let db_path = home.join("sync_state.db").to_string_lossy().to_string();
     let store = StateStore::new(&db_path).await.map_err(map_anyhow_error)?;
 
@@ -227,12 +278,26 @@ async fn run_webdav_sync(
     })
 }
 
-async fn load_app_settings() -> Result<(AppSettings, PathBuf), FfiStatus> {
-    let base = get_home_dir().map_err(map_mihomo_error)?;
-    let path = settings_path(&base)
+/// 无密码加载：settings.toml 本体（不含 keyring 明文）。仅限保存路径等
+/// 不需要完整凭据的调用方。
+async fn load_app_settings_in(home: &std::path::Path) -> Result<AppSettings, FfiStatus> {
+    let path = settings_path(home)
         .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?;
-    let settings = load_settings(&path).await.map_err(map_anyhow_error)?;
-    Ok((settings, path))
+    load_settings(&path).await.map_err(map_anyhow_error)
+}
+
+/// 水合加载：[`load_app_settings_in`] 之后把 OS keyring 中的 WebDAV 密码
+/// （`webdav:password`）填回 `settings.webdav.password` 内存镜像。
+/// password 的序列化被 core 跳过，因此水合值不会落盘。
+async fn load_hydrated_app_settings_in<S: CredentialStore>(
+    home: &std::path::Path,
+    store: &S,
+) -> Result<AppSettings, FfiStatus> {
+    let path = settings_path(home)
+        .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?;
+    load_settings_hydrated_with_store(&path, store)
+        .await
+        .map_err(map_anyhow_error)
 }
 
 fn webdav_settings_from_core(config: &infiltrator_core::settings::WebDavConfig) -> WebDavSettings {
@@ -265,4 +330,155 @@ fn validate_webdav_config(config: &infiltrator_core::settings::WebDavConfig) -> 
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use infiltrator_core::settings::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY};
+    use std::path::PathBuf;
+    use std::sync::Mutex;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    /// 内存凭据存储（仿 core settings.rs 的 MemoryStore 先例），避免测试
+    /// 触碰真实 OS keyring。
+    struct MemoryStore {
+        entries: Mutex<std::collections::HashMap<String, String>>,
+    }
+
+    impl Default for MemoryStore {
+        fn default() -> Self {
+            Self {
+                entries: Mutex::new(std::collections::HashMap::new()),
+            }
+        }
+    }
+
+    impl MemoryStore {
+        fn peek(&self, service: &str, key: &str) -> Option<String> {
+            self.entries
+                .lock()
+                .expect("store lock")
+                .get(&format!("{service}/{key}"))
+                .cloned()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl CredentialStore for MemoryStore {
+        async fn get(
+            &self,
+            service: &str,
+            key: &str,
+        ) -> mihomo_api::error::Result<Option<String>> {
+            Ok(self.peek(service, key))
+        }
+
+        async fn set(&self, service: &str, key: &str, value: &str) -> mihomo_api::error::Result<()> {
+            self.entries
+                .lock()
+                .expect("store lock")
+                .insert(format!("{service}/{key}"), value.to_string());
+            Ok(())
+        }
+
+        async fn delete(&self, service: &str, key: &str) -> mihomo_api::error::Result<()> {
+            self.entries
+                .lock()
+                .expect("store lock")
+                .remove(&format!("{service}/{key}"));
+            Ok(())
+        }
+    }
+
+    /// 独立临时 home（同 crate 内既有测试的先例：手造唯一目录，结束时清理），
+    /// 走 `_in` 通道注入，不触碰全局 home override。
+    fn make_test_home(tag: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("infiltrator-android-webdav-{tag}-{unique}"));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).expect("create test home dir");
+        path
+    }
+
+    fn record(password: &str) -> WebDavSettings {
+        WebDavSettings {
+            enabled: true,
+            url: "https://dav.example.com".to_string(),
+            username: "user".to_string(),
+            password: password.to_string(),
+            sync_interval_mins: 30,
+            sync_on_startup: false,
+        }
+    }
+
+    fn settings_file(home: &std::path::Path) -> PathBuf {
+        settings_path(home).expect("settings path resolves")
+    }
+
+    /// 密码经 helper 往返（保存进 keyring、水合读回内存镜像），settings
+    /// 文件全程无明文；空密码=清除 keyring 条目。走 home 注入的 `_in`
+    /// 内部通道，不触碰全局 home override，也不触碰真实 OS keyring。
+    #[tokio::test]
+    async fn webdav_password_roundtrips_via_helper_and_settings_file_stays_clean() {
+        let home = make_test_home("roundtrip");
+        let store = MemoryStore::default();
+
+        // 保存：密码只进 keyring。
+        let saved = save_webdav_settings_in(&home, record("s3cret"), &store)
+            .await
+            .expect("save succeeds");
+        assert_eq!(saved.password, "s3cret", "record echoes the in-memory value");
+        assert_eq!(
+            store.peek(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY).as_deref(),
+            Some("s3cret"),
+            "password must land in the credential store"
+        );
+
+        // settings 文件无明文。
+        let raw = std::fs::read_to_string(settings_file(&home)).expect("settings file written");
+        assert!(!raw.contains("password"), "plaintext leaked: {raw}");
+        assert!(!raw.contains("s3cret"), "plaintext leaked: {raw}");
+        assert!(raw.contains("enabled = true"), "other fields survive: {raw}");
+
+        // 读取：水合把 keyring 中的密码填回 FFI 记录。
+        let loaded = load_webdav_settings_in(&home, &store)
+            .await
+            .expect("load succeeds");
+        assert_eq!(loaded.password, "s3cret");
+        assert_eq!(loaded.url, "https://dav.example.com");
+
+        // 空密码=清除条目：keyring 为空，后续加载回到空串。
+        let cleared = save_webdav_settings_in(&home, record(""), &store)
+            .await
+            .expect("clear-save succeeds");
+        assert_eq!(cleared.password, "");
+        assert_eq!(store.peek(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY), None);
+        let reloaded = load_webdav_settings_in(&home, &store)
+            .await
+            .expect("reload succeeds");
+        assert_eq!(reloaded.password, "");
+
+        let raw_after = std::fs::read_to_string(settings_file(&home)).expect("settings readable");
+        assert!(!raw_after.contains("s3cret"), "plaintext leaked: {raw_after}");
+        let _ = std::fs::remove_dir_all(home);
+    }
+
+    /// 同步入口的禁用短路：WebDAV 未启用时水合加载照常工作，但同步拒绝
+    /// 执行（NotReady），不创建任何 sync 状态。
+    #[tokio::test]
+    async fn sync_webdav_now_in_rejects_when_disabled() {
+        let home = make_test_home("sync-disabled");
+        let store = MemoryStore::default();
+        // 未保存过任何设置：webdav.enabled 缺省 false。
+        let err = sync_webdav_now_in(&home, &store)
+            .await
+            .expect_err("disabled webdav must fail the sync");
+        assert_eq!(err.code, FfiErrorCode::NotReady);
+        assert!(format!("{:?}", err.message).contains("disabled"));
+        let _ = std::fs::remove_dir_all(home);
+    }
 }

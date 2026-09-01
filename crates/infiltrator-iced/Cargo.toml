@@ -68,6 +68,17 @@ rfd = "0.17"
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 notify-rust = { workspace = true }
 
+# Test-only dependencies (business_flow journeys):
+# - axum: minimal local WebDAV stub (127.0.0.1:0, zero external network) that
+#   lets the real SyncUpload/SyncDownload workers run a full network leg
+#   (tests/gui/business_flow/sync_conflicts.rs).
+# - iced_runtime: `task::into_stream` unwraps an iced Task back into its
+#   stream so journey tests drive the REAL worker chains end to end instead
+#   of re-running task bodies by hand. Same 0.14 tree as the `iced` dep.
+[dev-dependencies]
+axum = { workspace = true }
+iced_runtime = "0.14"
+
 [package.metadata.packager]
 product-name = "MusicFrog Infiltrator"
 identifier = "com.musicfrog.infiltrator"
