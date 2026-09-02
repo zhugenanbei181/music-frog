@@ -12,6 +12,8 @@ dist/
 _tmp_*
 .DS_Store
 Thumbs.db
+__pycache__/
+*.pyc
 
 # Local AI tool cache
 .mimosa/
@@ -47,18 +49,6 @@ CLEANUP_CHECKLIST.md
 # Build outputs
 *.msi
 *.exe
-# Keep helper scripts tracked (parent contents ignored, individual files re-included)
-/scripts/*
-!/scripts/android-build.sh
-!/scripts/check-test-policy.sh
-!/scripts/fetch-mihomo.sh
-!/scripts/test.sh
-# quality gate scripts live in a subdir: re-include the dir, re-ignore its
-# contents, then re-include the guards individually
-!/scripts/quality/
-/scripts/quality/*
-!/scripts/quality/test-layout-guard.py
-
 # Android build outputs
 android/.gradle/
 android/.idea/
