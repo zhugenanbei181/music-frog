@@ -22,14 +22,18 @@ use log::{info, warn};
 
 use crate::admin_api::state::{AdminApiContext, RebuildStatus};
 
+pub mod audit;
+pub mod auth;
 pub mod config;
 pub mod doctor;
 pub mod kernel;
 pub mod profiles;
 pub mod proxies;
 pub mod runtime;
+pub mod scripts;
 pub mod settings;
 pub mod system;
+pub mod webhook;
 
 pub async fn log_admin_request(req: Request<Body>, next: Next) -> Response {
     let method = req.method().clone();

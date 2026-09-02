@@ -178,7 +178,8 @@ pub(crate) async fn seed_subscription_jobs<C: AdminApiContext>(ctx: &C) {
             ),
             None => log::info!(
                 "subscription job `{}` active (runs={})",
-                snapshot.name, snapshot.run_count
+                snapshot.name,
+                snapshot.run_count
             ),
         }
     }
@@ -206,11 +207,11 @@ impl SubscriptionScheduler {
             // Avoid Instant underflow on early boot; force the first tick instead.
             let initial_backfill = Duration::from_secs(3600);
             let now = Instant::now();
-            let (mut last_sync_update, mut force_sync_update) = match now.checked_sub(initial_backfill)
-            {
-                Some(instant) => (instant, false),
-                None => (now, true),
-            };
+            let (mut last_sync_update, mut force_sync_update) =
+                match now.checked_sub(initial_backfill) {
+                    Some(instant) => (instant, false),
+                    None => (now, true),
+                };
 
             loop {
                 tokio::select! {

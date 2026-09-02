@@ -196,9 +196,7 @@ pub(crate) struct AttemptFailure {
 impl AttemptFailure {
     fn new(error: anyhow::Error, controller_url: Option<&str>, retryable: bool) -> Self {
         let controller_url = controller_url.map(str::to_string);
-        let controller_port = controller_url
-            .as_deref()
-            .and_then(controller_port_from_url);
+        let controller_port = controller_url.as_deref().and_then(controller_port_from_url);
         Self {
             error,
             controller_url,
@@ -294,8 +292,7 @@ pub(crate) async fn run_boot_retry<E: BootEngine>(
                         }
                     }
                     if let Some(port) = failure.controller_port {
-                        wait_for_port_release(port, config.port_release_timeout, port_picker)
-                            .await;
+                        wait_for_port_release(port, config.port_release_timeout, port_picker).await;
                     }
                     tokio::time::sleep(config.retry_delay).await;
                 }
@@ -335,7 +332,9 @@ fn controller_port_from_url(url: &str) -> Option<u16> {
         .or_else(|| url.strip_prefix("http://"))
         .unwrap_or(url);
     let host_port = rest.split(['/', '?']).next()?;
-    host_port.rsplit_once(':').and_then(|(_, port)| port.parse().ok())
+    host_port
+        .rsplit_once(':')
+        .and_then(|(_, port)| port.parse().ok())
 }
 
 /// Production picker: `Some(port)` iff the port is bindable on localhost now.
@@ -367,28 +366,34 @@ impl BootEngine for ProductionEngine<'_> {
         cm.ensure_proxy_ports().await.map_err(|error| {
             AttemptFailure::new(anyhow!("prepare proxy ports: {error}"), None, false)
         })?;
-        let controller_url = cm
-            .ensure_external_controller()
-            .await
-            .map_err(|error| {
-                AttemptFailure::new(anyhow!("prepare external controller: {error}"), None, false)
-            })?;
+        let controller_url = cm.ensure_external_controller().await.map_err(|error| {
+            AttemptFailure::new(anyhow!("prepare external controller: {error}"), None, false)
+        })?;
         let config_path = cm.get_current_path().await.map_err(|error| {
-            AttemptFailure::new(anyhow!("resolve current profile path: {error}"), None, false)
+            AttemptFailure::new(
+                anyhow!("resolve current profile path: {error}"),
+                None,
+                false,
+            )
         })?;
         let controller = Some(controller_url.as_str());
 
         // Retryable: a transiently failing core download/install can recover
         // on the next attempt (mirrors runtime.rs:67).
-        let binary = resolve_binary(self.vm, self.use_bundled, self.bundled_candidates, self.data_dir)
-            .await
-            .map_err(|error| {
-                AttemptFailure::new(
-                    anyhow!("resolve mihomo core binary: {error:#}"),
-                    controller,
-                    true,
-                )
-            })?;
+        let binary = resolve_binary(
+            self.vm,
+            self.use_bundled,
+            self.bundled_candidates,
+            self.data_dir,
+        )
+        .await
+        .map_err(|error| {
+            AttemptFailure::new(
+                anyhow!("resolve mihomo core binary: {error:#}"),
+                controller,
+                true,
+            )
+        })?;
 
         // Mirror of runtime.rs:70-77: service + session with a lazily
         // resolving endpoint source, so a rotated port is picked up by every
@@ -495,8 +500,8 @@ mod tests {
     use super::*;
     use std::collections::VecDeque;
     use std::net::TcpListener;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     const TEST_PORT: u16 = 9090;
 
@@ -559,7 +564,11 @@ mod tests {
                     message,
                 }) => {
                     let url = port.map(|p| format!("http://127.0.0.1:{p}"));
-                    Err(AttemptFailure::new(anyhow!("{message}"), url.as_deref(), retryable))
+                    Err(AttemptFailure::new(
+                        anyhow!("{message}"),
+                        url.as_deref(),
+                        retryable,
+                    ))
                 }
             }
         }
@@ -592,7 +601,10 @@ mod tests {
         Some(port)
     }
 
-    async fn run(engine: &MockEngine, max_attempts: u32) -> anyhow::Result<(usize, Vec<BootAttempt>, bool)> {
+    async fn run(
+        engine: &MockEngine,
+        max_attempts: u32,
+    ) -> anyhow::Result<(usize, Vec<BootAttempt>, bool)> {
         run_boot_retry(engine, test_config(max_attempts), &always_free).await
     }
 
@@ -611,7 +623,10 @@ mod tests {
 
         assert_eq!(runtime, 1);
         assert_eq!(attempts.len(), 1);
-        assert_eq!(attempts[0].controller_url.as_deref(), Some("http://127.0.0.1:9090"));
+        assert_eq!(
+            attempts[0].controller_url.as_deref(),
+            Some("http://127.0.0.1:9090")
+        );
         assert!(attempts[0].error.contains("not ready"));
         assert!(rotated);
         assert_eq!(engine.rotations.load(Ordering::SeqCst), 1);
@@ -620,9 +635,21 @@ mod tests {
     #[tokio::test]
     async fn all_attempts_fail_aggregates_boot_error() {
         let engine = MockEngine::new(vec![
-            ScriptedAttempt::Fail { retryable: true, port: Some(9091), message: "timeout a" },
-            ScriptedAttempt::Fail { retryable: true, port: Some(9092), message: "timeout b" },
-            ScriptedAttempt::Fail { retryable: true, port: Some(9093), message: "timeout c" },
+            ScriptedAttempt::Fail {
+                retryable: true,
+                port: Some(9091),
+                message: "timeout a",
+            },
+            ScriptedAttempt::Fail {
+                retryable: true,
+                port: Some(9092),
+                message: "timeout b",
+            },
+            ScriptedAttempt::Fail {
+                retryable: true,
+                port: Some(9093),
+                message: "timeout c",
+            },
         ]);
 
         let error = run(&engine, 3).await.expect_err("all attempts fail");
@@ -662,8 +689,9 @@ mod tests {
         ])
         .with_rotate_error("no available ports found");
 
-        let (runtime, attempts, rotated) =
-            run(&engine, 2).await.expect("retry continues past rotation failure");
+        let (runtime, attempts, rotated) = run(&engine, 2)
+            .await
+            .expect("retry continues past rotation failure");
 
         assert_eq!(runtime, 1);
         assert_eq!(attempts.len(), 1);
@@ -738,10 +766,19 @@ mod tests {
 
     #[test]
     fn controller_port_from_url_parses_normalized_urls() {
-        assert_eq!(controller_port_from_url("http://127.0.0.1:9090"), Some(9090));
-        assert_eq!(controller_port_from_url("https://host.example:8080/"), Some(8080));
+        assert_eq!(
+            controller_port_from_url("http://127.0.0.1:9090"),
+            Some(9090)
+        );
+        assert_eq!(
+            controller_port_from_url("https://host.example:8080/"),
+            Some(8080)
+        );
         assert_eq!(controller_port_from_url("127.0.0.1:9091"), Some(9091));
-        assert_eq!(controller_port_from_url("http://127.0.0.1:9090/extra"), Some(9090));
+        assert_eq!(
+            controller_port_from_url("http://127.0.0.1:9090/extra"),
+            Some(9090)
+        );
         assert_eq!(controller_port_from_url("[::1]:9092"), Some(9092));
         assert_eq!(controller_port_from_url("http://localhost"), None);
         assert_eq!(controller_port_from_url("http://127.0.0.1:notaport"), None);

@@ -127,7 +127,11 @@ mod tests {
         let cloud = temp_dir.path().join("cloud");
         write_settings_with_configs_dir(temp_dir.path(), &cloud).await;
         let saved_env = std::env::var(mihomo_config::manager::paths::CONFIGS_DIR_ENV).ok();
-        let env_dir = temp_dir.path().join("env-dir").to_string_lossy().into_owned();
+        let env_dir = temp_dir
+            .path()
+            .join("env-dir")
+            .to_string_lossy()
+            .into_owned();
         test_env::restore_configs_dir_env(Some(env_dir));
 
         assert_eq!(

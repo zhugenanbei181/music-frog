@@ -102,7 +102,9 @@ impl IntentRegistry {
     pub fn is_intent_supported(&self, intent: &UserIntent, platform: PlatformKind) -> bool {
         matches!(
             self.get_support_status(intent, platform),
-            SupportStatus::Supported | SupportStatus::PlatformSpecific | SupportStatus::Experimental
+            SupportStatus::Supported
+                | SupportStatus::PlatformSpecific
+                | SupportStatus::Experimental
         )
     }
 
@@ -154,11 +156,23 @@ mod tests {
 
     #[test]
     fn test_intent_supported() {
-        assert!(is_intent_supported(&UserIntent::StartProxy, PlatformKind::IcedDesktop));
-        assert!(is_intent_supported(&UserIntent::StartProxy, PlatformKind::AndroidCompose));
-        
-        assert!(!is_intent_supported(&UserIntent::ToggleSystemProxy, PlatformKind::AndroidCompose));
-        assert!(is_intent_supported(&UserIntent::ToggleSystemProxy, PlatformKind::IcedDesktop));
+        assert!(is_intent_supported(
+            &UserIntent::StartProxy,
+            PlatformKind::IcedDesktop
+        ));
+        assert!(is_intent_supported(
+            &UserIntent::StartProxy,
+            PlatformKind::AndroidCompose
+        ));
+
+        assert!(!is_intent_supported(
+            &UserIntent::ToggleSystemProxy,
+            PlatformKind::AndroidCompose
+        ));
+        assert!(is_intent_supported(
+            &UserIntent::ToggleSystemProxy,
+            PlatformKind::IcedDesktop
+        ));
     }
 
     #[test]
@@ -177,11 +191,23 @@ mod tests {
     #[test]
     fn test_list_unsupported_intents() {
         let unsupported_android = list_unsupported_intents(PlatformKind::AndroidCompose);
-        assert!(unsupported_android.iter().any(|(i, _)| i == &UserIntent::ToggleSystemProxy));
-        
+        assert!(
+            unsupported_android
+                .iter()
+                .any(|(i, _)| i == &UserIntent::ToggleSystemProxy)
+        );
+
         let unsupported_web = list_unsupported_intents(PlatformKind::TauriWeb);
-        assert!(unsupported_web.iter().any(|(i, _)| i == &UserIntent::SetAutostart));
-        assert!(!unsupported_web.iter().any(|(i, _)| i == &UserIntent::ToggleSystemProxy));
+        assert!(
+            unsupported_web
+                .iter()
+                .any(|(i, _)| i == &UserIntent::SetAutostart)
+        );
+        assert!(
+            !unsupported_web
+                .iter()
+                .any(|(i, _)| i == &UserIntent::ToggleSystemProxy)
+        );
     }
 
     #[test]

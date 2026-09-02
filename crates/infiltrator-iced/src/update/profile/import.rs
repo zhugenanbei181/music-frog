@@ -98,7 +98,7 @@ impl AppState {
                 async {
                     tokio::task::spawn_blocking(|| {
                         rfd::FileDialog::new()
-                            .add_filter("YAML", &["yaml", "yml"])
+                            .add_filter("Configs & Subscriptions", &["yaml", "yml", "json", "txt"])
                             .pick_file()
                     })
                     .await
@@ -157,6 +157,8 @@ impl AppState {
                         let content = tokio::fs::read_to_string(&path)
                             .await
                             .map_err(|e| InfiltratorError::Io(e.to_string()))?;
+                        let content = infiltrator_core::profile_converter::ProfileConverter::detect_and_convert(&content)
+                            .unwrap_or(content);
                         infiltrator_core::config::validate_yaml(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 

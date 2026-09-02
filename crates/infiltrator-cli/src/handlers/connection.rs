@@ -34,18 +34,17 @@ pub(crate) async fn handle(action: ConnectionAction) -> anyhow::Result<()> {
         }
         ConnectionAction::Stats => stats(&manager).await?,
         ConnectionAction::Stream => stream(&manager).await?,
-        ConnectionAction::Close { id, all, host, process } => {
-            close(&manager, id, all, host, process).await?
-        }
+        ConnectionAction::Close {
+            id,
+            all,
+            host,
+            process,
+        } => close(&manager, id, all, host, process).await?,
     }
     Ok(())
 }
 
-async fn list(
-    manager: &ConnectionManager,
-    filters: ListFilters,
-    json: bool,
-) -> anyhow::Result<()> {
+async fn list(manager: &ConnectionManager, filters: ListFilters, json: bool) -> anyhow::Result<()> {
     let connections = apply_filters(manager.list().await?, &filters);
     if json {
         output::print_json(&connections)?;

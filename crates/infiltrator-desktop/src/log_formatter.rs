@@ -78,30 +78,32 @@ impl LogFormatter {
 
         // Check if it's bracket format e.g., [INFO] [DNS] Resolved example.com
         if trimmed.starts_with('[')
-            && let Some(level_end) = trimmed.find(']') {
-                let level_str = &trimmed[1..level_end];
-                let level = LogLevel::from_str_case_insensitive(level_str);
-                
-                let remainder = trimmed[level_end + 1..].trim();
-                let mut tag = None;
-                let mut message = remainder.to_string();
+            && let Some(level_end) = trimmed.find(']')
+        {
+            let level_str = &trimmed[1..level_end];
+            let level = LogLevel::from_str_case_insensitive(level_str);
 
-                if remainder.starts_with('[')
-                    && let Some(tag_end) = remainder.find(']') {
-                        tag = Some(remainder[1..tag_end].to_string());
-                        message = remainder[tag_end + 1..].trim().to_string();
-                    }
+            let remainder = trimmed[level_end + 1..].trim();
+            let mut tag = None;
+            let mut message = remainder.to_string();
 
-                let ansi_styled = Self::format_ansi(level.clone(), &message);
-
-                return FormattedLog {
-                    level,
-                    timestamp_str: String::new(),
-                    tag,
-                    message,
-                    ansi_styled,
-                };
+            if remainder.starts_with('[')
+                && let Some(tag_end) = remainder.find(']')
+            {
+                tag = Some(remainder[1..tag_end].to_string());
+                message = remainder[tag_end + 1..].trim().to_string();
             }
+
+            let ansi_styled = Self::format_ansi(level.clone(), &message);
+
+            return FormattedLog {
+                level,
+                timestamp_str: String::new(),
+                tag,
+                message,
+                ansi_styled,
+            };
+        }
 
         // Fallback
         let ansi_styled = Self::format_ansi(LogLevel::Info, trimmed);
@@ -133,7 +135,7 @@ impl LogFormatter {
             LogLevel::Debug => "log-debug",
             LogLevel::Silent => "log-silent",
         };
-        
+
         let escaped = message
             .replace('&', "&amp;")
             .replace('<', "&lt;")
@@ -177,6 +179,9 @@ mod tests {
     #[test]
     fn test_format_html() {
         let html = LogFormatter::format_html(LogLevel::Warning, "use of <uninitialized> & 'var'");
-        assert_eq!(html, "<span class=\"log-warning\">use of &lt;uninitialized&gt; &amp; &#39;var&#39;</span>");
+        assert_eq!(
+            html,
+            "<span class=\"log-warning\">use of &lt;uninitialized&gt; &amp; &#39;var&#39;</span>"
+        );
     }
 }

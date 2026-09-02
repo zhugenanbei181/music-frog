@@ -200,7 +200,8 @@ mod tests {
     fn test_json_roundtrip() {
         let original = sample_snapshot();
         let json = serde_json::to_string(&original).expect("Failed to serialize");
-        let deserialized: AppDomainSnapshot = serde_json::from_str(&json).expect("Failed to deserialize");
+        let deserialized: AppDomainSnapshot =
+            serde_json::from_str(&json).expect("Failed to deserialize");
         assert_eq!(original, deserialized);
     }
 

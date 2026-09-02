@@ -64,6 +64,9 @@ impl std::fmt::Debug for Message {
             Message::UpdateSubscriptionInterval(v) => {
                 write!(f, "UpdateSubscriptionInterval({})", v)
             }
+            Message::UpdateSubscriptionUserAgent(v) => {
+                write!(f, "UpdateSubscriptionUserAgent({})", v)
+            }
             Message::SaveSubscriptionSettings => write!(f, "SaveSubscriptionSettings"),
             Message::SubscriptionSettingsSaved(Ok(_)) => {
                 write!(f, "SubscriptionSettingsSaved(Ok)")
@@ -115,6 +118,21 @@ impl std::fmt::Debug for Message {
             Message::ProxiesLoaded(Err(e)) => write!(f, "ProxiesLoaded(Err({:?}))", e),
             Message::SelectProxy(g, n) => write!(f, "SelectProxy({}, {})", g, n),
             Message::FilterProxies(s) => write!(f, "FilterProxies({})", s),
+            Message::ToggleFilterAlive(v) => write!(f, "ToggleFilterAlive({v})"),
+            Message::ToggleFavoriteProxy(p) => write!(f, "ToggleFavoriteProxy({p})"),
+            Message::ToggleProxyCompactView => write!(f, "ToggleProxyCompactView"),
+            Message::InspectProxy(p) => write!(f, "InspectProxy({p:?})"),
+            Message::OpenAddCustomNodeModal(b) => write!(f, "OpenAddCustomNodeModal({b})"),
+            Message::UpdateNewNodeType(s) => write!(f, "UpdateNewNodeType({s})"),
+            Message::UpdateNewNodeName(s) => write!(f, "UpdateNewNodeName({s})"),
+            Message::UpdateNewNodeServer(s) => write!(f, "UpdateNewNodeServer({s})"),
+            Message::UpdateNewNodePort(s) => write!(f, "UpdateNewNodePort({s})"),
+            Message::UpdateNewNodeCredential(s) => write!(f, "UpdateNewNodeCredential({s})"),
+            Message::UpdateNewNodeCipher(s) => write!(f, "UpdateNewNodeCipher({s})"),
+            Message::UpdateNewNodeTls(b) => write!(f, "UpdateNewNodeTls({b})"),
+            Message::SubmitAddCustomNode => write!(f, "SubmitAddCustomNode"),
+            Message::CustomNodeAdded(Ok(_)) => write!(f, "CustomNodeAdded(Ok)"),
+            Message::CustomNodeAdded(Err(e)) => write!(f, "CustomNodeAdded(Err({:?}))", e),
             Message::ToggleProxySort => write!(f, "ToggleProxySort"),
             Message::UpdateProxyDelaySort(s) => write!(f, "UpdateProxyDelaySort({})", s),
             Message::UpdateDelayTestUrl(s) => write!(f, "UpdateDelayTestUrl({})", s),
@@ -295,6 +313,8 @@ impl std::fmt::Debug for Message {
             Message::UpdateProxyProvider(p) => write!(f, "UpdateProxyProvider({})", p),
             Message::UpdateRuleProvider(p) => write!(f, "UpdateRuleProvider({})", p),
             Message::FilterRules(s) => write!(f, "FilterRules({})", s),
+            Message::UpdateRulesTracerInput(s) => write!(f, "UpdateRulesTracerInput({s})"),
+            Message::RunRulesTracer => write!(f, "RunRulesTracer"),
             Message::UpdateFilteredGroups => write!(f, "UpdateFilteredGroups"),
             Message::UpdateNewRuleType(s) => write!(f, "UpdateNewRuleType({})", s),
             Message::UpdateNewRulePayload(s) => write!(f, "UpdateNewRulePayload({})", s),
@@ -306,8 +326,20 @@ impl std::fmt::Debug for Message {
             Message::MoveRuleUp(index) => write!(f, "MoveRuleUp({})", index),
             Message::MoveRuleDown(index) => write!(f, "MoveRuleDown({})", index),
             Message::SaveRules => write!(f, "SaveRules"),
+            Message::ApplyGameRoutingPresets => write!(f, "ApplyGameRoutingPresets"),
+            Message::UpdateGeoDatabases => write!(f, "UpdateGeoDatabases"),
+            Message::GeoDatabasesUpdated(Ok(_)) => write!(f, "GeoDatabasesUpdated(Ok)"),
+            Message::GeoDatabasesUpdated(Err(e)) => write!(f, "GeoDatabasesUpdated(Err({:?}))", e),
             Message::RulesSaved(Ok(_)) => write!(f, "RulesSaved(Ok)"),
             Message::RulesSaved(Err(e)) => write!(f, "RulesSaved(Err({:?}))", e),
+            Message::InspectRuleProviderDiff(opt) => write!(f, "InspectRuleProviderDiff({opt:?})"),
+            Message::UnpackRuleProvider(name) => write!(f, "UnpackRuleProvider({name})"),
+            Message::RuleProviderDiffLoaded(Ok(diff)) => {
+                write!(f, "RuleProviderDiffLoaded(Ok({}))", diff.provider_name)
+            }
+            Message::RuleProviderDiffLoaded(Err(e)) => {
+                write!(f, "RuleProviderDiffLoaded(Err({e:?}))")
+            }
             Message::RuleProvidersEditorAction(_) => write!(f, "RuleProvidersEditorAction"),
             Message::SaveRuleProvidersJson => write!(f, "SaveRuleProvidersJson"),
             Message::RuleProvidersJsonSaved(Ok(_)) => write!(f, "RuleProvidersJsonSaved(Ok)"),
@@ -439,6 +471,7 @@ impl std::fmt::Debug for Message {
             Message::UpdateNotificationsEnabled(b) => {
                 write!(f, "UpdateNotificationsEnabled({})", b)
             }
+            Message::UpdateCloseToTray(b) => write!(f, "UpdateCloseToTray({b})"),
             Message::UpdateWebDavEnabled(b) => write!(f, "UpdateWebDavEnabled({})", b),
             Message::UpdateWebDavUrl(s) => write!(f, "UpdateWebDavUrl({})", s),
             Message::UpdateWebDavUser(s) => write!(f, "UpdateWebDavUser({})", s),
@@ -511,6 +544,7 @@ impl std::fmt::Debug for Message {
                 write!(f, "WebDavConnectionTested(Err({:?}))", error)
             }
             Message::SetSystemProxy(b) => write!(f, "SetSystemProxy({})", b),
+            Message::UpdateSystemProxyBypass(s) => write!(f, "UpdateSystemProxyBypass({s})"),
             Message::SystemProxySet(Ok(_)) => write!(f, "SystemProxySet(Ok)"),
             Message::SystemProxySet(Err(e)) => write!(f, "SystemProxySet(Err({:?}))", e),
             Message::RequestAdminPrivilege => write!(f, "RequestAdminPrivilege"),
@@ -615,6 +649,7 @@ impl std::fmt::Debug for Message {
             Message::ClearRebuildFlow => write!(f, "ClearRebuildFlow"),
             Message::TogglePerfPanel => write!(f, "TogglePerfPanel"),
             Message::ToggleTheme => write!(f, "ToggleTheme"),
+            Message::SetTheme(t) => write!(f, "SetTheme({t})"),
             Message::ShowToast(s, st) => write!(f, "ShowToast({}, {:?})", s, st),
             Message::RemoveToast(i) => write!(f, "RemoveToast({})", i),
             Message::TestAllProxyDelays => write!(f, "TestAllProxyDelays"),

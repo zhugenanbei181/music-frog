@@ -68,7 +68,7 @@ export PATH="$TOOLCHAIN_BIN:$PATH"
 # ---------------------------------------------------------------------------
 build_abi() {
     local abi="$1" target="$2"
-    rustup target add "$target" >/dev/null 2>&1 || true
+    rustup target add "$target" >/dev/null 2>&1
     # .cargo/config.toml pins aarch64-linux-android21-clang; set the linker
     # explicitly for every target so the script works without editing config.
     local linker_var
@@ -76,7 +76,12 @@ build_abi() {
     env "$linker_var=$TOOLCHAIN_BIN/${target}${API_LEVEL}-clang" \
         cargo build -p "$CRATE" --release --target "$target"
     mkdir -p "$JNILIBS_DIR/$abi"
-    cp "target/$target/release/$LIBNAME" "$JNILIBS_DIR/$abi/"
+    local dest="$JNILIBS_DIR/$abi/$LIBNAME"
+    cp "target/$target/release/$LIBNAME" "$dest"
+    if [ -x "$TOOLCHAIN_BIN/llvm-strip" ]; then
+        "$TOOLCHAIN_BIN/llvm-strip" --strip-unneeded "$dest" 2>/dev/null || true
+        echo "stripped symbols: $dest ($(stat -c%s "$dest" 2>/dev/null || stat -f%z "$dest" 2>/dev/null) bytes)"
+    fi
     echo "installed $LIBNAME -> $JNILIBS_DIR/$abi/"
 }
 

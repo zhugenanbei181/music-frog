@@ -92,6 +92,8 @@ impl Plugin for WidgetsPlugin {
         app.add_observer(icon::stamp_icon_plate);
         app.add_message::<menu::MenuNavEvent>();
         app.add_message::<menu::MenuOutcome>();
+        app.add_message::<list::VirtualListScroll>();
+        app.add_message::<list::VirtualListSelect>();
         app.add_systems(
             Update,
             (
@@ -102,6 +104,7 @@ impl Plugin for WidgetsPlugin {
                 slider::sync_slider_visuals,
                 text_input::sync_text_fields,
                 text_input::sync_field_carets,
+                text_input::sync_ime_cursor_areas,
                 icon::sync_icon_tints,
                 icon_tile::sync_icon_tile_visuals,
                 nav::sync_nav_visuals,
@@ -112,10 +115,12 @@ impl Plugin for WidgetsPlugin {
                 (menu::advance_menus, menu::sync_menu_visuals).chain(),
                 popover::sync_popover_visuals,
                 list::sync_list_visuals,
+                list::advance_virtual_lists,
                 // The selection bit must land before the nav repaint reads
                 // it, so a flip paints in the same frame it happens.
                 list::sync_list_selection.before(nav::sync_nav_visuals),
                 chart::sync_charts,
+                scrollarea::focus_avoidance_auto_scroll_system,
             ),
         );
     }

@@ -60,8 +60,8 @@ use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn, template_value};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
+    Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -372,6 +372,7 @@ pub fn overview_page(
             height: percent(100),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(space::S16),
+            overflow: Overflow::scroll_y(),
         }
         PageRoot(Route::Overview)
         OverviewPageRoot
@@ -401,7 +402,10 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
             width: percent(100),
             padding: UiRect::all(Val::Px(space::S16)),
             align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
             column_gap: Val::Px(space::S16),
+            row_gap: Val::Px(space::S8),
+            flex_wrap: FlexWrap::Wrap,
             border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
         }
         BackgroundColor({ card_fill(projection.state, palette) })
@@ -442,6 +446,8 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                         Node {
                             align_items: AlignItems::Center,
                             column_gap: Val::Px(space::S8),
+                            flex_wrap: FlexWrap::Wrap,
+                            row_gap: Val::Px(space::S4),
                         }
                         Children [
                             (
@@ -613,8 +619,11 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
     bsn! {
         Node {
             width: percent(100),
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::Wrap,
             align_items: AlignItems::Center,
             column_gap: Val::Px(space::S12),
+            row_gap: Val::Px(space::S12),
         }
         Children [
             (

@@ -8,7 +8,9 @@ use crate::commands::{
 fn parse(args: &[&str]) -> Commands {
     let mut full: Vec<&str> = vec!["infiltrator"];
     full.extend_from_slice(args);
-    Cli::try_parse_from(full).expect("command should parse").command
+    Cli::try_parse_from(full)
+        .expect("command should parse")
+        .command
 }
 
 #[test]
@@ -129,7 +131,14 @@ fn profile_subcommands_parse_with_flags() {
         _ => panic!("expected profile list"),
     }
 
-    match parse(&["profile", "import", "--name", "work", "--url", "https://sub.example.com"]) {
+    match parse(&[
+        "profile",
+        "import",
+        "--name",
+        "work",
+        "--url",
+        "https://sub.example.com",
+    ]) {
         Commands::Profile {
             action: ProfileAction::Import { name, url },
         } => {
@@ -148,9 +157,10 @@ fn profile_subcommands_parse_with_flags() {
 
     match parse(&["profile", "configs-dir", "set", "/cloud/profiles"]) {
         Commands::Profile {
-            action: ProfileAction::ConfigsDir {
-                action: ConfigsDirAction::Set { path },
-            },
+            action:
+                ProfileAction::ConfigsDir {
+                    action: ConfigsDirAction::Set { path },
+                },
         } => assert_eq!(path, "/cloud/profiles"),
         _ => panic!("expected profile configs-dir set"),
     }
@@ -226,7 +236,15 @@ fn proxy_test_has_sensible_defaults() {
         _ => panic!("expected proxy test"),
     }
 
-    match parse(&["proxy", "test", "HK-01", "--url", "https://x.example", "--timeout-ms", "2500"]) {
+    match parse(&[
+        "proxy",
+        "test",
+        "HK-01",
+        "--url",
+        "https://x.example",
+        "--timeout-ms",
+        "2500",
+    ]) {
         Commands::Proxy {
             action:
                 ProxyAction::Test {
@@ -289,19 +307,19 @@ fn connection_close_requires_exactly_one_selector() {
     let parsed = Cli::try_parse_from(["infiltrator", "connection", "close"]);
     assert!(parsed.is_err(), "a selector is required");
 
-    let parsed = Cli::try_parse_from([
-        "infiltrator",
-        "connection",
-        "close",
-        "--id",
-        "abc",
-        "--all",
-    ]);
+    let parsed =
+        Cli::try_parse_from(["infiltrator", "connection", "close", "--id", "abc", "--all"]);
     assert!(parsed.is_err(), "selectors are mutually exclusive");
 
     match parse(&["connection", "close", "--host", "example"]) {
         Commands::Connection {
-            action: ConnectionAction::Close { id, all, host, process },
+            action:
+                ConnectionAction::Close {
+                    id,
+                    all,
+                    host,
+                    process,
+                },
         } => {
             assert_eq!(id, None);
             assert!(!all);
@@ -336,7 +354,14 @@ fn root_help_lists_all_namespaced_groups() {
     let help = String::from_utf8(buffer).unwrap();
 
     for group in [
-        "doctor", "bootstrap", "kernel", "profile", "service", "proxy", "connection", "sync",
+        "doctor",
+        "bootstrap",
+        "kernel",
+        "profile",
+        "service",
+        "proxy",
+        "connection",
+        "sync",
     ] {
         assert!(help.contains(group), "help is missing '{group}':\n{help}");
     }

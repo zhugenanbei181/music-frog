@@ -10,18 +10,21 @@
 
   | Crate | 测试数 |
   | :--- | ---: |
-  | mihomo-config | 77 |
-  | infiltrator-core | 57 |
-  | mihomo-api | 49 |
-  | infiltrator-desktop | 49 |
-  | infiltrator-admin | 47 |
-  | mihomo-version | 38 |
-  | mihomo-dav-sync（sync-engine 24 + dav-client 7 + state-store 7） | 38 |
-  | src-tauri | 34 |
-  | infiltrator-iced | 31 |
-  | infiltrator-android | 24 |
-  | mihomo-platform | 8 |
+  | infiltrator-core | 318 |
+  | infiltrator-iced | 142 |
+  | infiltrator-desktop | 112 |
+  | mihomo-version | 87 |
+  | mihomo-config | 72 |
+  | infiltrator-admin | 72 |
+  | mihomo-api | 68 |
+  | infiltrator-shared | 52 |
+  | infiltrator-cli | 50 |
+  | infiltrator-android | 46 |
+  | mihomo-platform | 45 |
+  | mihomo-dav-sync (sync-engine 27 + dav-client 7 + state-store 7) | 41 |
   | infiltrator-http | 7 |
+  | infiltrator-bevy-* (widgets 65 + ui 56, 独立工作区) | 121 |
+  | **全仓自动化测试总计** | **1233** |
 
 - **代码洁净度**：全工作空间必须保持 **0 编译警告** (`cargo check --workspace` 无任何输出)。
 - **测试可靠性**：环境敏感型测试必须在固定 4 个 nextest 测试进程并发下保持

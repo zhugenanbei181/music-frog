@@ -137,7 +137,7 @@ mod tests {
         }"#;
         let snapshot: ConnectionSnapshot = serde_json::from_str(json).unwrap();
         assert_eq!(snapshot.download_total, 10_485_760); // 10 MB
-        assert_eq!(snapshot.upload_total, 2_097_152);   // 2 MB
+        assert_eq!(snapshot.upload_total, 2_097_152); // 2 MB
     }
 
     // ──────────────────────────────────────────────
@@ -186,7 +186,7 @@ mod tests {
         // Mihomo 返回 "inuse" 和 "oslimit"，serde rename 必须对应
         let json = r#"{"inuse": 52428800, "oslimit": 4294967296}"#;
         let mem: MemoryData = serde_json::from_str(json).unwrap();
-        assert_eq!(mem.in_use, 52_428_800);   // 50 MB
+        assert_eq!(mem.in_use, 52_428_800); // 50 MB
         assert_eq!(mem.os_limit, 4_294_967_296); // 4 GB
     }
 }

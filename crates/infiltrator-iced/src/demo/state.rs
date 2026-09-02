@@ -214,6 +214,7 @@ impl AppState {
                 }],
                 exclude_types: vec!["trojan".to_string()],
                 deduplication: infiltrator_core::profile_options::FilterDedup::AppendIndex,
+                ..Default::default()
             },
         ));
         state.editor.filter_loaded_for = Some("机场订阅".to_string());
@@ -234,7 +235,9 @@ impl AppState {
         state.profile.sync_diff = Some(crate::types::options::SyncDiffState::new(
             crate::types::options::SyncDiffBundle {
                 profile: "机场订阅".to_string(),
-                remote_path: PathBuf::from("/home/demo/.config/musicfrog-infiltrator/冲突副本.yaml"),
+                remote_path: PathBuf::from(
+                    "/home/demo/.config/musicfrog-infiltrator/冲突副本.yaml",
+                ),
                 added: vec!["dns".to_string()],
                 removed: vec!["tun".to_string()],
                 modified: vec![(

@@ -42,7 +42,10 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     assert!(state.profile.profiles[0].active, "current pointer honoured");
 
     // ---- subscription import: guard + real fast-failing remote leg ----
-    feed(&mut state, Message::UpdateImportUrl("http://127.0.0.1:1/sub".into()));
+    feed(
+        &mut state,
+        Message::UpdateImportUrl("http://127.0.0.1:1/sub".into()),
+    );
     feed(&mut state, Message::UpdateImportName("Bad Sub".into()));
     feed(&mut state, Message::UpdateImportActivate(true));
     let units = feed(&mut state, Message::ImportProfile);
@@ -72,8 +75,14 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     // ---- local import: real read → validate → save through the manager ----
     let source = home.join("downloaded-source.yaml");
     std::fs::write(&source, LOCAL_IMPORT_YAML).unwrap();
-    feed(&mut state, Message::UpdateLocalImportPath(source.to_string_lossy().into()));
-    feed(&mut state, Message::UpdateLocalImportName("Travel Node".into()));
+    feed(
+        &mut state,
+        Message::UpdateLocalImportPath(source.to_string_lossy().into()),
+    );
+    feed(
+        &mut state,
+        Message::UpdateLocalImportName("Travel Node".into()),
+    );
     feed(&mut state, Message::UpdateLocalImportActivate(true));
     let _task = feed(&mut state, Message::ImportLocalProfile);
     assert!(state.profile.is_importing_local);
@@ -97,12 +106,23 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     assert!(units >= 3, "LoadProfiles + toast + StartProxy chained");
 
     // ---- explicit activation of another profile ----
-    feed(&mut state, Message::ProfilesLoaded(Ok(block_on(async {
-        crate::configs_dir::config_manager().await.unwrap().list_profiles().await.unwrap()
-    }))));
+    feed(
+        &mut state,
+        Message::ProfilesLoaded(Ok(block_on(async {
+            crate::configs_dir::config_manager()
+                .await
+                .unwrap()
+                .list_profiles()
+                .await
+                .unwrap()
+        }))),
+    );
     state.shell.error_msg = Some("stale".into());
     let units = feed(&mut state, Message::SetActiveProfile("default".into()));
-    assert!(state.shell.error_msg.is_none(), "activation clears the banner");
+    assert!(
+        state.shell.error_msg.is_none(),
+        "activation clears the banner"
+    );
     assert_eq!(units, 1);
 
     let was_running = block_on(async {
@@ -115,7 +135,12 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
 
     // The current pointer really moved on disk.
     let current = block_on(async {
-        crate::configs_dir::config_manager().await.unwrap().get_current().await.unwrap()
+        crate::configs_dir::config_manager()
+            .await
+            .unwrap()
+            .get_current()
+            .await
+            .unwrap()
     });
     assert_eq!(current, "default");
 
@@ -134,7 +159,10 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
         ),
     );
     assert!(matches!(state.runtime.status, RuntimeStatus::Error(_)));
-    assert!(state.shell.error_msg.is_some(), "boot failure hits the banner");
+    assert!(
+        state.shell.error_msg.is_some(),
+        "boot failure hits the banner"
+    );
     assert!(
         units >= 1,
         "critical system-notification task armed (lazy, never delivered here)"
@@ -162,7 +190,11 @@ fn subscription_settings_save_gates_persists_and_reloads_profiles() {
     state.shell.lang = "zh-CN".into();
     feed(
         &mut state,
-        Message::ProfilesLoaded(Ok(vec![subscribed_profile("Paid", true, Some("https://sub.example.com/token"))])),
+        Message::ProfilesLoaded(Ok(vec![subscribed_profile(
+            "Paid",
+            true,
+            Some("https://sub.example.com/token"),
+        )])),
     );
     // Editor auto-synced from the loaded catalog.
     assert_eq!(state.profile.subscription_profile_name, "Paid");
@@ -186,7 +218,10 @@ fn subscription_settings_save_gates_persists_and_reloads_profiles() {
 
     // Happy path: gates pass, the persistence task spawns (not run here —
     // its URL leg would touch the OS keyring), and the result 回灌 reloads.
-    feed(&mut state, Message::UpdateSubscriptionUrl("https://sub.example.com/token".into()));
+    feed(
+        &mut state,
+        Message::UpdateSubscriptionUrl("https://sub.example.com/token".into()),
+    );
     feed(&mut state, Message::UpdateSubscriptionInterval("12".into()));
     let units = feed(&mut state, Message::SaveSubscriptionSettings);
     assert!(state.profile.is_saving_subscription);
@@ -203,19 +238,38 @@ fn subscription_settings_save_gates_persists_and_reloads_profiles() {
         let mut meta = manager.get_profile_metadata("Paid").await.unwrap();
         meta.auto_update_enabled = false;
         meta.subscription_url = None;
-        manager.update_profile_metadata("Paid", &meta).await.unwrap();
+        manager
+            .update_profile_metadata("Paid", &meta)
+            .await
+            .unwrap();
 
         let reread = manager.get_profile_metadata("Paid").await.unwrap();
         assert!(!reread.auto_update_enabled, "auto-update flag persisted");
         assert!(reread.subscription_url.is_none());
     });
     let listed = block_on(async {
-        crate::configs_dir::config_manager().await.unwrap().list_profiles().await.unwrap()
+        crate::configs_dir::config_manager()
+            .await
+            .unwrap()
+            .list_profiles()
+            .await
+            .unwrap()
     });
     feed(&mut state, Message::ProfilesLoaded(Ok(listed)));
-    let paid = state.profile.profiles.iter().find(|p| p.name == "Paid").unwrap();
-    assert!(!paid.auto_update_enabled, "LoadProfiles回流 reflects the store");
-    assert!(home.join("config.toml").exists(), "metadata store is the temp home");
+    let paid = state
+        .profile
+        .profiles
+        .iter()
+        .find(|p| p.name == "Paid")
+        .unwrap();
+    assert!(
+        !paid.auto_update_enabled,
+        "LoadProfiles回流 reflects the store"
+    );
+    assert!(
+        home.join("config.toml").exists(),
+        "metadata store is the temp home"
+    );
 }
 
 /// Journey 3 — 立即更新（手动版）: no selection → 「请选择」toast;
@@ -229,14 +283,24 @@ fn manual_subscription_update_reports_zero_selection_and_outcomes() {
 
     // 0 订阅 → immediate toast, nothing in flight.
     let units = feed(&mut state, Message::UpdateSubscriptionNow);
-    assert_eq!(units, 1, "guard toast armed (delivered one runtime hop later)");
+    assert_eq!(
+        units, 1,
+        "guard toast armed (delivered one runtime hop later)"
+    );
     assert!(!state.profile.is_updating_subscription_now);
 
     feed(
         &mut state,
-        Message::ProfilesLoaded(Ok(vec![subscribed_profile("Paid", true, Some("https://x"))])),
+        Message::ProfilesLoaded(Ok(vec![subscribed_profile(
+            "Paid",
+            true,
+            Some("https://x"),
+        )])),
     );
-    feed(&mut state, Message::SelectSubscriptionProfile("Paid".into()));
+    feed(
+        &mut state,
+        Message::SelectSubscriptionProfile("Paid".into()),
+    );
     assert_eq!(state.profile.subscription_profile_name, "Paid");
 
     let units = feed(&mut state, Message::UpdateSubscriptionNow);
@@ -256,7 +320,12 @@ fn manual_subscription_update_reports_zero_selection_and_outcomes() {
     );
     assert!(!state.profile.is_updating_subscription_now);
     assert!(
-        state.shell.error_msg.as_deref().unwrap_or("").contains("订阅拉取失败")
+        state
+            .shell
+            .error_msg
+            .as_deref()
+            .unwrap_or("")
+            .contains("订阅拉取失败")
     );
     assert_eq!(units, 1, "error-toast leg armed");
 }
@@ -286,7 +355,12 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
 
     let mut state = fresh_state();
     let listed = block_on(async {
-        crate::configs_dir::config_manager().await.unwrap().list_profiles().await.unwrap()
+        crate::configs_dir::config_manager()
+            .await
+            .unwrap()
+            .list_profiles()
+            .await
+            .unwrap()
     });
     assert_eq!(listed.len(), 2);
     feed(&mut state, Message::ProfilesLoaded(Ok(listed)));
@@ -306,7 +380,10 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
     assert_eq!(units, 2, "LoadProfiles + toast legs");
     assert!(!home.configs().join("Doomed.yaml").exists());
     assert!(!home.configs().join("options/Doomed.yaml").exists());
-    assert!(home.configs().join("Keeper.yaml").exists(), "sibling untouched");
+    assert!(
+        home.configs().join("Keeper.yaml").exists(),
+        "sibling untouched"
+    );
 }
 
 /// Documented product defect (router gap): the tray bulk entries and the
@@ -333,7 +410,10 @@ fn tray_bulk_entry_messages_reach_their_handlers() {
     // checkmark): the click persists through the real metadata path.
     let units = feed(
         &mut state,
-        Message::SetProfileAutoUpdate { name: "Paid".into(), enabled: false },
+        Message::SetProfileAutoUpdate {
+            name: "Paid".into(),
+            enabled: false,
+        },
     );
     assert!(units >= 1, "SetProfileAutoUpdate dispatched");
     let units = feed(&mut state, Message::ProfileAutoUpdateSet(Ok("Paid".into())));
@@ -343,7 +423,10 @@ fn tray_bulk_entry_messages_reach_their_handlers() {
     // (view/profiles.rs): opens the editor with the pane preselected.
     let units = feed(
         &mut state,
-        Message::EditProfileAs(PathBuf::from("/configs/Paid.yaml"), crate::types::options::EditorPane::Mixin),
+        Message::EditProfileAs(
+            PathBuf::from("/configs/Paid.yaml"),
+            crate::types::options::EditorPane::Mixin,
+        ),
     );
     assert!(units >= 1, "EditProfileAs dispatched");
     // The path binds asynchronously (ProfileContentLoaded); the pane is

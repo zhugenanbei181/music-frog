@@ -10,15 +10,11 @@ failed=0
 # test runner. This checker is excluded because it contains the forbidden
 # pattern as the thing it checks for.
 forbidden_pattern='(^|[^[:alnum:]_-])cargo[[:space:]]+(\+[^[:space:]]+[[:space:]]+)?test([[:space:]]|$)'
-if forbidden_matches="$(rg -n -I -i --hidden \
-  --glob '!.git/**' \
-  --glob '!**/target/**' \
-  --glob '!**/node_modules/**' \
-  --glob '!**/dist/**' \
-  --glob '!**/coverage/**' \
-  --glob '!vendor/**' \
-  --glob '!scripts/check-test-policy.sh' \
-  -e "$forbidden_pattern" .)"; then
+if forbidden_matches="$(git grep -n -I -i -E "$forbidden_pattern" -- \
+  . \
+  ':(exclude)scripts/check-test-policy.sh' \
+  ':(exclude)**/scripts/check-test-policy.sh' \
+  ':(exclude).claude/**')"; then
   echo "forbidden raw cargo test command found:" >&2
   echo "$forbidden_matches" >&2
   failed=1

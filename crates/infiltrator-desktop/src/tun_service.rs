@@ -26,23 +26,14 @@ use anyhow::Result;
 use std::fmt;
 use std::path::Path;
 
-#[cfg(target_os = "windows")]
-mod windows;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
 mod other;
-
 #[cfg(target_os = "windows")]
-use windows as platform;
-#[cfg(target_os = "linux")]
-use linux as platform;
-#[cfg(target_os = "macos")]
-use macos as platform;
-#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-use other as platform;
+mod windows;
 
 /// Typed error for platforms where a TUN privilege route is intentionally not
 /// implemented (currently macOS). Callers can downcast to detect "honest
@@ -109,7 +100,22 @@ impl TunServiceManager {
     /// This is different from [`Self::check_status`] in packaged desktops:
     /// the GUI executable and the core executable are separate files.
     pub fn check_status_for(binary_path: &Path) -> ServiceModeStatus {
-        platform::check_status_for(binary_path)
+        #[cfg(target_os = "windows")]
+        {
+            windows::check_status_for(binary_path)
+        }
+        #[cfg(target_os = "linux")]
+        {
+            linux::check_status_for(binary_path)
+        }
+        #[cfg(target_os = "macos")]
+        {
+            macos::check_status_for(binary_path)
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        {
+            other::check_status_for(binary_path)
+        }
     }
 
     /// Installs the background service or grants necessary capabilities.
@@ -118,7 +124,22 @@ impl TunServiceManager {
     /// `service_bin_path` (the mihomo core binary). [`Self::uninstall_service`]
     /// is the exact inverse of this call.
     pub fn install_service(service_bin_path: &Path) -> Result<()> {
-        platform::install_service(service_bin_path)
+        #[cfg(target_os = "windows")]
+        {
+            windows::install_service(service_bin_path)
+        }
+        #[cfg(target_os = "linux")]
+        {
+            linux::install_service(service_bin_path)
+        }
+        #[cfg(target_os = "macos")]
+        {
+            macos::install_service(service_bin_path)
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        {
+            other::install_service(service_bin_path)
+        }
     }
 
     /// Uninstalls the service or removes capabilities.
@@ -128,7 +149,22 @@ impl TunServiceManager {
     /// binary that install granted them to. It must never target the GUI
     /// executable.
     pub fn uninstall_service(service_bin_path: &Path) -> Result<()> {
-        platform::uninstall_service(service_bin_path)
+        #[cfg(target_os = "windows")]
+        {
+            windows::uninstall_service(service_bin_path)
+        }
+        #[cfg(target_os = "linux")]
+        {
+            linux::uninstall_service(service_bin_path)
+        }
+        #[cfg(target_os = "macos")]
+        {
+            macos::uninstall_service(service_bin_path)
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        {
+            other::uninstall_service(service_bin_path)
+        }
     }
 
     /// Starts the installed service.
@@ -136,7 +172,22 @@ impl TunServiceManager {
     /// On Linux the capability model has no daemon, so this is a documented
     /// no-op: granting capabilities is the whole "installation".
     pub fn start_service() -> Result<()> {
-        platform::start_service()
+        #[cfg(target_os = "windows")]
+        {
+            windows::start_service()
+        }
+        #[cfg(target_os = "linux")]
+        {
+            linux::start_service()
+        }
+        #[cfg(target_os = "macos")]
+        {
+            macos::start_service()
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        {
+            other::start_service()
+        }
     }
 
     /// Stops the currently running service.
@@ -144,7 +195,22 @@ impl TunServiceManager {
     /// On Linux the capability model has no daemon, so this is a documented
     /// no-op.
     pub fn stop_service() -> Result<()> {
-        platform::stop_service()
+        #[cfg(target_os = "windows")]
+        {
+            windows::stop_service()
+        }
+        #[cfg(target_os = "linux")]
+        {
+            linux::stop_service()
+        }
+        #[cfg(target_os = "macos")]
+        {
+            macos::stop_service()
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        {
+            other::stop_service()
+        }
     }
 }
 

@@ -195,15 +195,16 @@ mod tests {
 
     #[async_trait::async_trait]
     impl CredentialStore for MemoryStore {
-        async fn get(
-            &self,
-            service: &str,
-            key: &str,
-        ) -> mihomo_api::error::Result<Option<String>> {
+        async fn get(&self, service: &str, key: &str) -> mihomo_api::error::Result<Option<String>> {
             Ok(self.peek(service, key))
         }
 
-        async fn set(&self, service: &str, key: &str, value: &str) -> mihomo_api::error::Result<()> {
+        async fn set(
+            &self,
+            service: &str,
+            key: &str,
+            value: &str,
+        ) -> mihomo_api::error::Result<()> {
             self.entries
                 .lock()
                 .expect("store lock")

@@ -45,6 +45,16 @@ impl AppState {
     }
 
     fn compare_delay_members(&self, left: &str, right: &str) -> std::cmp::Ordering {
+        let left_fav = self.runtime.favorite_proxies.contains(left);
+        let right_fav = self.runtime.favorite_proxies.contains(right);
+        if left_fav != right_fav {
+            return if left_fav {
+                std::cmp::Ordering::Less
+            } else {
+                std::cmp::Ordering::Greater
+            };
+        }
+
         let left_delay = self.delay_sortable_value(left);
         let right_delay = self.delay_sortable_value(right);
 
@@ -146,13 +156,23 @@ impl AppState {
             let mut members: Vec<String> =
                 group_info.all().map(|all| all.to_vec()).unwrap_or_default();
 
-            // 1. Filter
+            // 1. Filter with smart pinyin and ISO region matching (T01-07)
             if !self.runtime.proxy_filter.is_empty() {
-                let filter = self.runtime.proxy_filter.to_lowercase();
-                members.retain(|m| m.to_lowercase().contains(&filter));
+                members.retain(|m| {
+                    infiltrator_shared::fuzzy_search::pinyin_fuzzy_match(
+                        m,
+                        &self.runtime.proxy_filter,
+                    )
+                });
             }
 
-            if members.is_empty() && !self.runtime.proxy_filter.is_empty() {
+            if self.runtime.filter_alive_only {
+                members.retain(|m| self.delay_sortable_value(m).is_some());
+            }
+
+            if members.is_empty()
+                && (!self.runtime.proxy_filter.is_empty() || self.runtime.filter_alive_only)
+            {
                 continue;
             }
 
@@ -276,6 +296,144 @@ impl AppState {
             Message::FilterProxies(filter) => {
                 self.runtime.proxy_filter = filter;
                 Task::done(Message::UpdateFilteredGroups)
+            }
+            Message::ToggleFilterAlive(enabled) => {
+                self.runtime.filter_alive_only = enabled;
+                Task::done(Message::UpdateFilteredGroups)
+            }
+            Message::ToggleFavoriteProxy(proxy) => {
+                if self.runtime.favorite_proxies.contains(&proxy) {
+                    self.runtime.favorite_proxies.remove(&proxy);
+                } else {
+                    self.runtime.favorite_proxies.insert(proxy);
+                }
+                Task::done(Message::UpdateFilteredGroups)
+            }
+            Message::ToggleProxyCompactView => {
+                self.runtime.proxy_compact_view = !self.runtime.proxy_compact_view;
+                Task::none()
+            }
+            Message::OpenAddCustomNodeModal(open) => {
+                self.runtime.is_adding_custom_node = open;
+                Task::none()
+            }
+            Message::UpdateNewNodeType(t) => {
+                self.runtime.new_node_type = t;
+                Task::none()
+            }
+            Message::UpdateNewNodeName(n) => {
+                self.runtime.new_node_name = n;
+                Task::none()
+            }
+            Message::UpdateNewNodeServer(s) => {
+                self.runtime.new_node_server = s;
+                Task::none()
+            }
+            Message::UpdateNewNodePort(p) => {
+                self.runtime.new_node_port = p;
+                Task::none()
+            }
+            Message::UpdateNewNodeCredential(c) => {
+                self.runtime.new_node_credential = c;
+                Task::none()
+            }
+            Message::UpdateNewNodeCipher(c) => {
+                self.runtime.new_node_cipher = c;
+                Task::none()
+            }
+            Message::UpdateNewNodeTls(tls) => {
+                self.runtime.new_node_tls = tls;
+                Task::none()
+            }
+            Message::SubmitAddCustomNode => {
+                let name = self.runtime.new_node_name.trim().to_string();
+                let server = self.runtime.new_node_server.trim().to_string();
+                let port = self
+                    .runtime
+                    .new_node_port
+                    .trim()
+                    .parse::<u16>()
+                    .unwrap_or(443);
+                let node_type = self.runtime.new_node_type.clone();
+                let cred = self.runtime.new_node_credential.trim().to_string();
+                let cipher = self.runtime.new_node_cipher.trim().to_string();
+                let tls = self.runtime.new_node_tls;
+
+                if name.is_empty() || server.is_empty() {
+                    return Task::done(Message::ShowToast(
+                        "Node name and server are required".to_string(),
+                        ToastStatus::Error,
+                    ));
+                }
+
+                let node_item = infiltrator_core::profile_converter::ProxyNodeItem {
+                    name: name.clone(),
+                    server,
+                    port,
+                    node_type: node_type.clone(),
+                    password: if matches!(node_type.as_str(), "ss" | "trojan" | "hysteria2")
+                        && !cred.is_empty()
+                    {
+                        Some(cred.clone())
+                    } else {
+                        None
+                    },
+                    uuid: if matches!(node_type.as_str(), "vmess" | "vless") && !cred.is_empty() {
+                        Some(cred)
+                    } else {
+                        None
+                    },
+                    cipher: if node_type == "ss" && !cipher.is_empty() {
+                        Some(cipher)
+                    } else {
+                        None
+                    },
+                    tls,
+                    ..Default::default()
+                };
+
+                let runtime = self.runtime.runtime.clone();
+                crate::update::core::profile_apply::save_task(
+                    runtime,
+                    move |content| {
+                        let mut nodes =
+                            infiltrator_core::profile_converter::ProfileConverter::parse_nodes(
+                                content,
+                                infiltrator_core::profile_converter::ProfileFormat::ClashYaml,
+                            )
+                            .unwrap_or_default();
+                        nodes.insert(0, node_item);
+                        infiltrator_core::profile_converter::ProfileConverter::export_nodes(
+                            &nodes,
+                            infiltrator_core::profile_converter::ProfileFormat::ClashYaml,
+                        )
+                    },
+                    Message::CustomNodeAdded,
+                )
+            }
+            Message::CustomNodeAdded(result) => {
+                self.runtime.is_adding_custom_node = false;
+                match result {
+                    Ok(_) => {
+                        self.runtime.new_node_name.clear();
+                        self.runtime.new_node_server.clear();
+                        Task::batch(vec![
+                            Task::done(Message::LoadProxies),
+                            Task::done(Message::ShowToast(
+                                "Proxy node added to active profile".to_string(),
+                                ToastStatus::Success,
+                            )),
+                        ])
+                    }
+                    Err(e) => {
+                        self.set_error(&e);
+                        Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
+                    }
+                }
+            }
+            Message::InspectProxy(proxy) => {
+                self.runtime.inspecting_proxy = proxy;
+                Task::none()
             }
             Message::ToggleProxySort => {
                 self.runtime.proxy_sort_by_delay = !self.runtime.proxy_sort_by_delay;
@@ -404,12 +562,36 @@ impl AppState {
                                 .and_then(|p| p.all())
                                 .map(|all| all.to_vec())
                                 .unwrap_or_default();
+                            let tester = infiltrator_core::flow_control::BatchDelayTester::new(
+                                30,
+                                test_url,
+                                std::time::Duration::from_millis(timeout_ms as u64),
+                            );
+                            let (_cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+                            let client_arc = std::sync::Arc::new(rt.client());
+                            let outcomes = tester
+                                .test_proxies(
+                                    members,
+                                    move |proxy, url| {
+                                        let client = client_arc.clone();
+                                        async move {
+                                            client
+                                                .test_delay(&proxy, &url, timeout_ms)
+                                                .await
+                                                .map(|d| d as u64)
+                                                .map_err(|e| e.to_string())
+                                        }
+                                    },
+                                    cancel_rx,
+                                )
+                                .await;
                             let mut success = 0usize;
                             let mut failed = 0usize;
-                            for m in members {
-                                match rt.client().test_delay(&m, &test_url, timeout_ms).await {
-                                    Ok(_) => success += 1,
-                                    Err(_) => failed += 1,
+                            for outcome in outcomes {
+                                if outcome.result.is_ok() {
+                                    success += 1;
+                                } else {
+                                    failed += 1;
                                 }
                             }
                             Ok((success, failed))
@@ -444,12 +626,36 @@ impl AppState {
                     self.runtime.runtime_testing_all_delays = true;
                     Task::perform(
                         async move {
+                            let tester = infiltrator_core::flow_control::BatchDelayTester::new(
+                                30,
+                                test_url,
+                                std::time::Duration::from_millis(timeout_ms as u64),
+                            );
+                            let (_cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+                            let client_arc = std::sync::Arc::new(rt.client());
+                            let outcomes = tester
+                                .test_proxies(
+                                    candidates,
+                                    move |proxy, url| {
+                                        let client = client_arc.clone();
+                                        async move {
+                                            client
+                                                .test_delay(&proxy, &url, timeout_ms)
+                                                .await
+                                                .map(|d| d as u64)
+                                                .map_err(|e| e.to_string())
+                                        }
+                                    },
+                                    cancel_rx,
+                                )
+                                .await;
                             let mut success = 0usize;
                             let mut failed = 0usize;
-                            for proxy in candidates {
-                                match rt.client().test_delay(&proxy, &test_url, timeout_ms).await {
-                                    Ok(_) => success += 1,
-                                    Err(_) => failed += 1,
+                            for outcome in outcomes {
+                                if outcome.result.is_ok() {
+                                    success += 1;
+                                } else {
+                                    failed += 1;
                                 }
                             }
                             Ok((success, failed))

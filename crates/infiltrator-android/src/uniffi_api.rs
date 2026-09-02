@@ -16,6 +16,9 @@ mod vpn;
 mod webdav;
 
 // Public record surface re-exported by the crate root (lib.rs).
+pub use app_routing::{
+    AndroidAppCategory, AndroidAppInfo, AndroidVpnPerAppPlan, MobileCloudProvider,
+};
 pub use controller::{
     ConnectionRecord, ConnectionsResult, IpCheckResult, IpResult, ProxyGroupSummary,
     ProxyGroupsResult, TrafficResult, TrafficSnapshot,
@@ -47,8 +50,8 @@ use settings::{
 #[cfg(test)]
 use vpn::build_tun_patch;
 
-use mihomo_platform::android_bridge::{clear_android_bridge, get_android_bridge};
 use crate::ffi::FfiStatus;
+use mihomo_platform::android_bridge::{clear_android_bridge, get_android_bridge};
 
 #[uniffi::export]
 pub fn ping() -> String {
@@ -237,6 +240,7 @@ mod tests {
             ipcidr: Some(vec!["198.18.0.0/16".to_string()]),
             domain: Some(vec!["example.org".to_string()]),
             domain_suffix: Some(vec!["local".to_string()]),
+            geosite: None,
         };
 
         let record = core_dns_fallback_filter_to_record(core.clone());

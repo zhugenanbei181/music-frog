@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Infiltrator
+Comment=Modern High-Performance Proxy Client
+Exec=infiltrator-iced %U
+Icon=infiltrator
+Terminal=false
+Type=Application
+Categories=Network;Utility;
+MimeType=x-scheme-handler/infiltrator;
+Keywords=proxy;vpn;mihomo;network;
+StartupWMClass=infiltrator-iced

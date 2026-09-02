@@ -23,8 +23,8 @@
 use muda::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::mpsc::Sender;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::Sender;
 use std::sync::{LazyLock, Mutex, Once};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
@@ -173,7 +173,12 @@ fn echo_checkmark(muda_id: &str, checked: bool) {
 }
 
 /// Register one rendered checkmark in both registries.
-fn register_check_entry(muda_id: &str, key: CheckedOverrideKey, checked: bool, item: CheckMenuItem) {
+fn register_check_entry(
+    muda_id: &str,
+    key: CheckedOverrideKey,
+    checked: bool,
+    item: CheckMenuItem,
+) {
     lock(&CHECK_REGISTRY).insert(muda_id.to_string(), CheckEntry { key, checked });
     LIVE_CHECK_ITEMS.with(|items| {
         items.borrow_mut().insert(muda_id.to_string(), item);
@@ -386,7 +391,10 @@ impl TrayController for NativeTrayController {
         // muda-global handler itself stays installed (OnceCell, see module
         // docs); with no sink its events are simply dropped.
         let mut sink = lock(&EVENT_SINK);
-        if sink.as_ref().is_some_and(|s| s.generation == self.generation) {
+        if sink
+            .as_ref()
+            .is_some_and(|s| s.generation == self.generation)
+        {
             *sink = None;
         }
     }
@@ -409,155 +417,22 @@ pub(super) fn spawn_native(spec: TraySpec) -> TrayStartup {
     let generation = NEXT_GENERATION.fetch_add(1, Ordering::Relaxed);
     // Replaces any previous sink; the old sender drops with it, so a
     // respawned tray inherits the stream and nothing accumulates.
-    *lock(&EVENT_SINK) = Some(EventSink { sender: events, generation });
+    *lock(&EVENT_SINK) = Some(EventSink {
+        sender: events,
+        generation,
+    });
 
     manager.apply_spec(&spec);
 
     TrayStartup::Ready {
-        controller: Box::new(NativeTrayController { manager, generation }),
+        controller: Box::new(NativeTrayController {
+            manager,
+            generation,
+        }),
         events: receiver,
     }
 }
 
 #[cfg(test)]
-mod id_codec {
-    use super::*;
-
-    #[test]
-    fn muda_id_round_trips_action_and_payload() {
-        // Payload-less actions round-trip bare.
-        assert_eq!(muda_id_for(7, None), "tray-action-7");
-        let TrayEvent::MenuActivated { id, payload } = translate_menu_id("tray-action-7") else {
-            panic!("must parse into a menu activation");
-        };
-        assert_eq!((id, payload.as_deref()), (7, None));
-
-        // Payload-carrying actions keep the payload verbatim, including
-        // `:` and the `\u{1}` pair separator.
-        let payload = "GLOBAL\u{1}node:1".to_string();
-        let wire = muda_id_for(31, Some(&payload));
-        assert_eq!(wire, format!("tray-action-31:{payload}"));
-        let TrayEvent::MenuActivated { id, payload: back } = translate_menu_id(&wire) else {
-            panic!("must parse into a menu activation");
-        };
-        assert_eq!(id, 31);
-        assert_eq!(back.as_deref(), Some(payload.as_str()));
-    }
-
-    #[test]
-    fn translate_menu_id_rejects_foreign_ids_via_placeholder() {
-        let TrayEvent::MenuActivated { id, payload } = translate_menu_id("not-ours") else {
-            panic!("fallback must still be a menu activation");
-        };
-        assert_eq!(id, TRAY_ACTION_NO_PROXIES);
-        assert!(payload.is_none());
-
-        // Numeric-looking garbage with a bad action part also falls back.
-        let TrayEvent::MenuActivated { id, .. } = translate_menu_id("tray-action-99999:big") else {
-            panic!("fallback must still be a menu activation");
-        };
-        assert_eq!(id, TRAY_ACTION_NO_PROXIES);
-    }
-}
-
-#[cfg(test)]
-mod check_overrides {
-    use super::*;
-
-    fn entry(muda_id: &str, key: CheckedOverrideKey, checked: bool) -> (String, CheckEntry) {
-        (muda_id.to_string(), CheckEntry { key, checked })
-    }
-
-    #[test]
-    fn flip_toggles_display_state_and_records_override() {
-        let mut registry = HashMap::from([entry(
-            "tray-action-7",
-            (7, None),
-            false, // spec said unchecked at render time
-        )]);
-        let mut overrides = HashMap::new();
-
-        // First click flips false -> true and records the override so the
-        // state survives until the next spec push.
-        assert_eq!(
-            flip_checkmark_in(&mut registry, &mut overrides, "tray-action-7"),
-            Some(((7, None), true))
-        );
-        assert_eq!(overrides.get(&(7, None)), Some(&true));
-        assert!(registry["tray-action-7"].checked);
-
-        // A second click (no spec in between) keeps toggling, resolving the
-        // current state from the override first.
-        assert_eq!(
-            flip_checkmark_in(&mut registry, &mut overrides, "tray-action-7"),
-            Some(((7, None), false))
-        );
-        assert_eq!(overrides.get(&(7, None)), Some(&false));
-    }
-
-    #[test]
-    fn flip_resolves_payload_scoped_keys_without_crosstalk() {
-        // Same action id, two payloads (per-profile toggles): overrides must
-        // never leak across the payload boundary.
-        let payload_a = "AUTO_UPDATE\u{1}a".to_string();
-        let payload_b = "AUTO_UPDATE\u{1}b".to_string();
-        let mut registry = HashMap::from([
-            entry(
-                &format!("tray-action-9:{payload_a}"),
-                (9, Some(payload_a.clone())),
-                false,
-            ),
-            entry(
-                &format!("tray-action-9:{payload_b}"),
-                (9, Some(payload_b.clone())),
-                true,
-            ),
-        ]);
-        let mut overrides = HashMap::new();
-
-        assert_eq!(
-            flip_checkmark_in(&mut registry, &mut overrides, &format!("tray-action-9:{payload_a}")),
-            Some(((9, Some(payload_a.clone())), true))
-        );
-        // The other payload-scoped entry keeps its rendered state.
-        assert_eq!(
-            flip_checkmark_in(&mut registry, &mut overrides, &format!("tray-action-9:{payload_b}")),
-            Some(((9, Some(payload_b.clone())), false))
-        );
-        assert_eq!(overrides.len(), 2);
-    }
-
-    #[test]
-    fn flip_ignores_foreign_and_stale_ids_without_mutation() {
-        // Removed items leave stale ids in the handler's view until the next
-        // apply_spec clears the registry; clicking them must be a no-op.
-        let mut registry = HashMap::from([entry("tray-action-3", (3, None), true)]);
-        let mut overrides = HashMap::new();
-
-        assert_eq!(flip_checkmark_in(&mut registry, &mut overrides, "not-ours"), None);
-        assert_eq!(flip_checkmark_in(&mut registry, &mut overrides, "tray-action-99999:x"), None);
-        assert!(overrides.is_empty());
-        assert!(registry["tray-action-3"].checked);
-    }
-
-    #[test]
-    fn clear_overrides_semantics_match_ksni_spec_push() {
-        // apply_spec clears the override store before rendering, so the next
-        // flip must resolve from the freshly rendered state again — never
-        // from a stale override of a previous generation of the menu.
-        let mut overrides: HashMap<CheckedOverrideKey, bool> = HashMap::from([((4, None), true)]);
-        let mut registry = HashMap::from([entry("tray-action-4", (4, None), false)]);
-
-        // Before the spec push the click would resolve `true` from the
-        // stale override and flip to `false`:
-        assert_eq!(flip_checkmark_in(&mut registry, &mut overrides, "tray-action-4"),
-            Some(((4, None), false)));
-
-        // ... but a spec push clears overrides first (apply_spec), so the
-        // same click resolves the authoritative rendered state instead:
-        overrides.clear();
-        registry.get_mut("tray-action-4").unwrap().checked = false; // re-rendered unchecked
-        assert_eq!(flip_checkmark_in(&mut registry, &mut overrides, "tray-action-4"),
-            Some(((4, None), true)));
-    }
-}
+#[path = "../../tests/gui/tray_native_tests.rs"]
+mod tray_native_tests;

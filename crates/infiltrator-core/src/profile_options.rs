@@ -9,18 +9,20 @@
 //! `proxies` sequence), then the mixin overlay deep-merges over the result.
 
 use crate::filter::{
-    DeduplicationStrategy, FilterReport, FilterRule, RenameRule, SubscriptionFilterPipeline,
+    ContentDedupStrategy, DeduplicationStrategy, FilterReport, FilterRule, MultiplierRule,
+    NodeMutatorConfig, NodeSortOrder, RenameRule, SubscriptionFilterPipeline,
 };
 use crate::mixin::MixinConfig;
 use anyhow::{Context, anyhow};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Value;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 /// Serializable mirror of [`FilterRule`]: the regex fields are stored as
 /// strings and compiled on demand by [`FilterSpec::to_rule`].
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case", default)]
 pub struct FilterSpec {
     #[serde(default)]
@@ -33,6 +35,42 @@ pub struct FilterSpec {
     pub exclude_types: Vec<String>,
     #[serde(default)]
     pub deduplication: FilterDedup,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub normalize_country_code: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub remove_emojis: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allowed_ports: Option<Vec<u16>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blocked_ports: Option<Vec<u16>>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub drop_private_ip: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multiplier_rules: Vec<MultiplierSpec>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_mutator: Option<NodeMutatorConfig>,
+    #[serde(default, skip_serializing_if = "is_default_sort_order")]
+    pub sort_by: NodeSortOrder,
+    #[serde(default, skip_serializing_if = "is_default_content_dedup")]
+    pub content_dedup: ContentDedupStrategy,
+}
+
+fn is_default_sort_order(order: &NodeSortOrder) -> bool {
+    *order == NodeSortOrder::Preserve
+}
+
+fn is_default_content_dedup(dedup: &ContentDedupStrategy) -> bool {
+    *dedup == ContentDedupStrategy::Disabled
+}
+
+/// Stored form of a multiplier override rule.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct MultiplierSpec {
+    #[serde(default)]
+    pub pattern: String,
+    #[serde(default)]
+    pub multiplier: f64,
 }
 
 /// Stored form of a rename rule: `pattern` is a regular expression, and
@@ -66,6 +104,15 @@ impl FilterSpec {
             && self.rename_rules.is_empty()
             && self.exclude_types.is_empty()
             && self.deduplication == FilterDedup::Disabled
+            && !self.normalize_country_code
+            && !self.remove_emojis
+            && self.allowed_ports.as_ref().is_none_or(|v| v.is_empty())
+            && self.blocked_ports.as_ref().is_none_or(|v| v.is_empty())
+            && !self.drop_private_ip
+            && self.multiplier_rules.is_empty()
+            && self.node_mutator.is_none()
+            && self.sort_by == NodeSortOrder::Preserve
+            && self.content_dedup == ContentDedupStrategy::Disabled
     }
 
     /// Compile the stored strings into a runtime [`FilterRule`]. Invalid
@@ -95,6 +142,17 @@ impl FilterSpec {
                 replacement: spec.replacement.clone(),
             });
         }
+        let mut multipliers = Vec::new();
+        for spec in &self.multiplier_rules {
+            multipliers.push(MultiplierRule {
+                pattern: Regex::new(&spec.pattern)
+                    .with_context(|| format!("倍率重写规则不是有效的正则: {}", spec.pattern))?,
+                multiplier: spec.multiplier,
+            });
+        }
+        let allowed_ports = self.allowed_ports.as_ref().map(|v| v.iter().copied().collect::<HashSet<_>>());
+        let blocked_ports = self.blocked_ports.as_ref().map(|v| v.iter().copied().collect::<HashSet<_>>());
+
         Ok(FilterRule {
             include_keywords: include,
             exclude_keywords: exclude,
@@ -106,6 +164,15 @@ impl FilterSpec {
                 FilterDedup::KeepLast => DeduplicationStrategy::KeepLast,
                 FilterDedup::AppendIndex => DeduplicationStrategy::AppendIndex,
             },
+            normalize_country_code: self.normalize_country_code,
+            remove_emojis: self.remove_emojis,
+            allowed_ports,
+            blocked_ports,
+            drop_private_ip: self.drop_private_ip,
+            multiplier_rules: multipliers,
+            node_mutator: self.node_mutator.clone(),
+            sort_order: self.sort_by,
+            content_dedup: self.content_dedup,
         })
     }
 }
@@ -249,6 +316,13 @@ pub fn compose_content(
         report = Some(filtered_report);
     }
     if !mixin_is_default(&options.mixin) {
+        if report.is_none()
+            && crate::yaml_edit::mixin_fidelity::can_apply_mixin_via_fidelity(&options.mixin)
+            && let Ok(mut doc) = crate::yaml_edit::SourceDoc::parse(&current)
+            && crate::yaml_edit::mixin_fidelity::apply_mixin_to_doc(&mut doc, &options.mixin).is_ok()
+        {
+            return Ok((doc.render(), None));
+        }
         current = crate::mixin::merge_profile_with_config(&current, &options.mixin)?;
     }
     Ok((current, report))
@@ -263,6 +337,17 @@ pub fn compose_content(
 pub fn strip_rule_lines(content: &str, removals: &[String]) -> String {
     if removals.is_empty() {
         return content.to_string();
+    }
+    if let Ok(mut doc) = crate::yaml_edit::SourceDoc::parse(content) {
+        let mut any_removed = false;
+        for target in removals {
+            while doc.remove_rule(target).is_ok() {
+                any_removed = true;
+            }
+        }
+        if any_removed {
+            return doc.render();
+        }
     }
     let mut doc: Value = match serde_yaml_ng::from_str(content) {
         Ok(doc) => doc,

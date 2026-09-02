@@ -10,22 +10,22 @@ use infiltrator_shared::locales::{Lang, Localizer};
 
 use super::spec::{
     TRAY_ACTION_ACTIVATE_PROFILE, TRAY_ACTION_CANCEL_CORE_DOWNLOAD, TRAY_ACTION_CANCEL_SYNC,
-    TRAY_ACTION_CHECK_CORE_UPDATE, TRAY_ACTION_FLUSH_FAKEIP, TRAY_ACTION_FACTORY_RESET,
+    TRAY_ACTION_CHECK_CORE_UPDATE, TRAY_ACTION_FACTORY_RESET, TRAY_ACTION_FLUSH_FAKEIP,
     TRAY_ACTION_INFO_ADMIN, TRAY_ACTION_INFO_CONTROLLER, TRAY_ACTION_INFO_DOWNLOAD,
     TRAY_ACTION_INFO_KERNEL_DEFAULT, TRAY_ACTION_INFO_KERNEL_STATUS,
     TRAY_ACTION_INFO_KERNEL_VERSION, TRAY_ACTION_INFO_MODE, TRAY_ACTION_INFO_STATUS,
-    TRAY_ACTION_INFO_SYNC, TRAY_ACTION_MODE_DIRECT, TRAY_ACTION_MODE_GLOBAL,
-    TRAY_ACTION_MODE_RULE, TRAY_ACTION_MODE_SCRIPT, TRAY_ACTION_NAVIGATE_SYNC,
-    TRAY_ACTION_NO_PROFILES, TRAY_ACTION_NO_PROXIES, TRAY_ACTION_QUIT, TRAY_ACTION_SELECT_PROXY,
+    TRAY_ACTION_INFO_SYNC, TRAY_ACTION_MODE_DIRECT, TRAY_ACTION_MODE_GLOBAL, TRAY_ACTION_MODE_RULE,
+    TRAY_ACTION_MODE_SCRIPT, TRAY_ACTION_NAVIGATE_SYNC, TRAY_ACTION_NO_PROFILES,
+    TRAY_ACTION_NO_PROXIES, TRAY_ACTION_QUIT, TRAY_ACTION_SELECT_PROXY,
     TRAY_ACTION_SET_DEFAULT_KERNEL, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE, TRAY_ACTION_SHOW,
     TRAY_ACTION_SYNC_DOWNLOAD, TRAY_ACTION_SYNC_UPLOAD, TRAY_ACTION_TOGGLE_AUTOSTART,
     TRAY_ACTION_TOGGLE_SYSTEM_PROXY, TRAY_ACTION_TOGGLE_THEME, TRAY_ACTION_TOGGLE_TUN,
     TRAY_ACTION_UNINSTALL_KERNEL, TRAY_ACTION_UPDATE_ALL_PROFILES, TRAY_MAX_NODES_PER_GROUP,
     TRAY_SUBMENU_INFO, TRAY_SUBMENU_KERNEL, TRAY_SUBMENU_KERNEL_VERSION_BASE, TRAY_SUBMENU_MODE,
     TRAY_SUBMENU_PROFILES, TRAY_SUBMENU_PROXIES, TRAY_SUBMENU_PROXY_GROUP_BASE,
-    TRAY_SUBMENU_PROXY_MORE_BASE, TRAY_SUBMENU_SYNC, TrayActionId, TrayMenuSpec, TrayMenuItem,
-    TrayProxyGroup, TrayProxyNode, TraySpec, TraySpecContext, encode_pair_payload,
-    load_icon_rgba, tray_status_key,
+    TRAY_SUBMENU_PROXY_MORE_BASE, TRAY_SUBMENU_SYNC, TrayActionId, TrayMenuItem, TrayMenuSpec,
+    TrayProxyGroup, TrayProxyNode, TraySpec, TraySpecContext, encode_pair_payload, load_icon_rgba,
+    tray_status_key,
 };
 
 /// Translation closure type shared by the section builders below.
@@ -52,7 +52,11 @@ pub fn build_tray_spec(ctx: &TraySpecContext<'_>) -> TraySpec {
         profiles_submenu(ctx, &tr),
         kernel_submenu(ctx, &tr),
         sync_submenu(ctx, &tr),
-        TrayMenuItem::checkmark(TRAY_ACTION_TOGGLE_AUTOSTART, tr("tray_autostart"), ctx.autostart),
+        TrayMenuItem::checkmark(
+            TRAY_ACTION_TOGGLE_AUTOSTART,
+            tr("tray_autostart"),
+            ctx.autostart,
+        ),
         TrayMenuItem::Separator,
         info_submenu(ctx, &tr),
         TrayMenuItem::Separator,
@@ -108,7 +112,11 @@ fn mode_submenu(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> TrayMenuItem {
         let active = ctx.mode.is_some_and(|current| current == mode_key);
         TrayMenuItem::Action {
             id,
-            label: if active { format!("● {label}") } else { label },
+            label: if active {
+                format!("● {label}")
+            } else {
+                label
+            },
             enabled: true,
             payload: None,
         }
@@ -289,27 +297,30 @@ fn kernel_submenu(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> TrayMenuItem {
         ),
         TrayMenuItem::Separator,
     ];
-    items.extend(ctx.kernels.iter().enumerate().map(|(index, kernel)| {
-        TrayMenuItem::Submenu {
-            id: TRAY_SUBMENU_KERNEL_VERSION_BASE + index as TrayActionId,
-            label: kernel.version.clone(),
-            enabled: true,
-            items: vec![
-                TrayMenuItem::Action {
-                    id: TRAY_ACTION_SET_DEFAULT_KERNEL,
-                    label: tr("tray_kernel_set_default"),
-                    enabled: !kernel.is_default,
-                    payload: Some(kernel.version.clone()),
-                },
-                TrayMenuItem::Action {
-                    id: TRAY_ACTION_UNINSTALL_KERNEL,
-                    label: tr("tray_kernel_uninstall"),
-                    enabled: !kernel.is_default,
-                    payload: Some(kernel.version.clone()),
-                },
-            ],
-        }
-    }));
+    items.extend(
+        ctx.kernels
+            .iter()
+            .enumerate()
+            .map(|(index, kernel)| TrayMenuItem::Submenu {
+                id: TRAY_SUBMENU_KERNEL_VERSION_BASE + index as TrayActionId,
+                label: kernel.version.clone(),
+                enabled: true,
+                items: vec![
+                    TrayMenuItem::Action {
+                        id: TRAY_ACTION_SET_DEFAULT_KERNEL,
+                        label: tr("tray_kernel_set_default"),
+                        enabled: !kernel.is_default,
+                        payload: Some(kernel.version.clone()),
+                    },
+                    TrayMenuItem::Action {
+                        id: TRAY_ACTION_UNINSTALL_KERNEL,
+                        label: tr("tray_kernel_uninstall"),
+                        enabled: !kernel.is_default,
+                        payload: Some(kernel.version.clone()),
+                    },
+                ],
+            }),
+    );
     items.push(TrayMenuItem::Separator);
     if ctx.core_downloading {
         let label = match ctx.core_download_percent {

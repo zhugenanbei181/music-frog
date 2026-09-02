@@ -242,9 +242,9 @@ mod process {
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
     #[cfg(windows)]
     use windows_sys::Win32::System::JobObjects::{
-        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+        SetInformationJobObject,
     };
     #[cfg(windows)]
     use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
@@ -631,7 +631,9 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let pid_file = dir.path().join("mihomo.pid");
 
-        process::write_pid_file(&pid_file, 4242).await.expect("write");
+        process::write_pid_file(&pid_file, 4242)
+            .await
+            .expect("write");
         let pid = process::read_pid_file(&pid_file).await.expect("read");
         assert_eq!(pid, 4242);
         process::remove_pid_file(&pid_file).await.expect("remove");

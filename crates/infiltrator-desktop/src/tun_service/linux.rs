@@ -35,7 +35,9 @@ fn setcap_argv(bin_path: &Path, remove: bool) -> Vec<std::ffi::OsString> {
     if remove {
         argv.push(std::ffi::OsString::from("-r"));
     } else {
-        argv.push(std::ffi::OsString::from("cap_net_admin,cap_net_bind_service+ep"));
+        argv.push(std::ffi::OsString::from(
+            "cap_net_admin,cap_net_bind_service+ep",
+        ));
     }
     argv.push(bin_path.as_os_str().to_os_string());
     argv
@@ -90,4 +92,36 @@ pub(super) fn start_service() -> Result<()> {
 
 pub(super) fn stop_service() -> Result<()> {
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_setcap_argv_install() {
+        let bin_path = PathBuf::from("/opt/musicfrog/mihomo core");
+        let argv = setcap_argv(&bin_path, false);
+        assert_eq!(argv.len(), 3);
+        assert_eq!(argv[0], "setcap");
+        assert_eq!(argv[1], "cap_net_admin,cap_net_bind_service+ep");
+        assert_eq!(argv[2], "/opt/musicfrog/mihomo core");
+    }
+
+    #[test]
+    fn test_setcap_argv_uninstall_exact_inverse() {
+        let bin_path = PathBuf::from("/opt/musicfrog/mihomo core");
+        let argv = setcap_argv(&bin_path, true);
+        assert_eq!(argv.len(), 3);
+        assert_eq!(argv[0], "setcap");
+        assert_eq!(argv[1], "-r");
+        assert_eq!(argv[2], "/opt/musicfrog/mihomo core");
+    }
+
+    #[test]
+    fn test_linux_start_stop_are_noop_ok() {
+        assert!(start_service().is_ok());
+        assert!(stop_service().is_ok());
+    }
 }

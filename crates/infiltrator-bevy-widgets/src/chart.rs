@@ -37,7 +37,7 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::image::Image;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{Node, px};
+use bevy::ui::prelude::{Node, percent, px};
 use bevy::ui::widget::ImageNode;
 
 use crate::palette::UiPalette;
@@ -343,9 +343,10 @@ pub fn chart_scene(
     let height = height_px.round().max(1.0) as u32;
     bsn! {
         Node {
-            width: px(width_px),
+            width: percent(100),
+            max_width: px(width_px),
             height: px(height_px),
-            flex_shrink: 0.0,
+            flex_shrink: 1.0,
         }
         ChartPlate({ ChartSpec::new(up, down, width, height) })
     }

@@ -4,31 +4,22 @@
 //!   保持现状，不做退出码之外的改动）。
 //! - macOS：`networksetup`，所有命令强制检查退出码，非零返回 `Err`
 //!   （附 stderr/stdout 摘要）。
-//! - Linux：仅支持 GNOME 的 gsettings 后端；KDE 及其它桌面环境不受支持
-//!   （刻意不做）。检测不到 `gsettings` 时返回类型化的
-//!   [`UnsupportedDesktopError`]，绝不静默假装成功。
+//! - Linux：动态支持 GNOME（`gsettings` 后端）、KDE Plasma（`kwriteconfig5`/`kwriteconfig6`
+//!   与 `kconfig kioslaverc` 后端）、XFCE 与 Generic 桌面环境（环境变量 fallback 模式：
+//!   `http_proxy` / `https_proxy` / `all_proxy`）。
 //!
 //! 各平台实现位于 `windows`/`linux`/`macos` 子模块（以及面向未列出目标
 //! 的 `other` 兜底）；本文件只保留平台无关的类型、默认旁路列表与公共
 //! 入口。
 
-#[cfg(target_os = "windows")]
-mod windows;
 #[cfg(target_os = "linux")]
-mod linux;
+pub mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
 mod other;
-
 #[cfg(target_os = "windows")]
-use windows as platform;
-#[cfg(target_os = "linux")]
-use linux as platform;
-#[cfg(target_os = "macos")]
-use macos as platform;
-#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-use other as platform;
+mod windows;
 
 const DEFAULT_BYPASS: &str = "localhost;127.*;10.*;172.16.*;192.168.*;<local>";
 
@@ -39,9 +30,6 @@ pub struct SystemProxyState {
     pub bypass: Option<String>,
 }
 
-#[cfg(target_os = "linux")]
-pub use linux::UnsupportedDesktopError;
-
 pub fn apply_system_proxy(endpoint: Option<&str>) -> anyhow::Result<()> {
     apply_system_proxy_with_bypass(endpoint, Some(DEFAULT_BYPASS))
 }
@@ -50,11 +38,41 @@ pub fn apply_system_proxy_with_bypass(
     endpoint: Option<&str>,
     bypass: Option<&str>,
 ) -> anyhow::Result<()> {
-    platform::apply(endpoint, bypass)
+    #[cfg(target_os = "windows")]
+    {
+        windows::apply(endpoint, bypass)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        linux::apply(endpoint, bypass)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::apply(endpoint, bypass)
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        other::apply(endpoint, bypass)
+    }
 }
 
 pub fn read_system_proxy_state() -> anyhow::Result<SystemProxyState> {
-    platform::read_state()
+    #[cfg(target_os = "windows")]
+    {
+        windows::read_state()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        linux::read_state()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::read_state()
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        other::read_state()
+    }
 }
 
 /// 解析 `host:port`。仅 linux/macos 后端使用（windows 直写字符串，

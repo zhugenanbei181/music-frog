@@ -6,7 +6,8 @@ use std::{convert::Infallible, time::Duration};
 
 use axum::{
     Json,
-    response::sse::{Event, KeepAlive, Sse}};
+    response::sse::{Event, KeepAlive, Sse},
+};
 use log::warn;
 use tokio_stream::{StreamExt, wrappers::BroadcastStream};
 

@@ -63,6 +63,23 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
         "proxies_search_placeholder" => "Search groups or nodes…".into(),
         "proxies_delay_test_url_label" => "Test URL".into(),
         "proxies_delay_timeout_label" => "Timeout ms".into(),
+        "proxies_filter_alive" => "Alive Only".into(),
+        "proxies_compact_view" => "Compact View".into(),
+        "proxies_grid_view" => "Grid View".into(),
+        "proxies_inspect_title" => "Node Details".into(),
+        "proxies_inspect_server" => "Server Address".into(),
+        "proxies_inspect_port" => "Port".into(),
+        "proxies_inspect_type" => "Protocol Type".into(),
+        "proxies_inspect_udp" => "UDP Support".into(),
+        "proxies_inspect_latency" => "Latest Latency".into(),
+        "proxies_favorite" => "Favorite / Pin".into(),
+        "proxies_add_node_title" => "Add Single Proxy Node".into(),
+        "proxies_add_node_btn" => "Add Node".into(),
+        "proxies_node_name_ph" => "Node Name (e.g. HK-IEPL-01)".into(),
+        "proxies_server_ph" => "Server Host / IP".into(),
+        "proxies_port_ph" => "Port (e.g. 443)".into(),
+        "proxies_cred_ph" => "Password / UUID".into(),
+        "proxies_cipher_ph" => "Cipher (e.g. aes-256-gcm)".into(),
         // Editor page panes (YAML / Mixin / Filter) and history panel.
         "editor_pane_yaml" => "Profile YAML".into(),
         "editor_pane_mixin" => "Mixin".into(),
@@ -84,6 +101,10 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
         "rules_expand" => "Expand".into(),
         "rules_collapse" => "Collapse".into(),
         "rules_saved" => "Saved".into(),
+        "rules_inject_game_presets" => "Inject Game Presets".into(),
+        "rules_geo_databases_title" => "GeoIP & GeoSite Databases".into(),
+        "rules_update_geo_btn" => "Update Geo Databases".into(),
+        "rules_updating_geo" => "Updating...".into(),
         // Sync page status line.
         "sync_auto_enabled" => "WebDAV auto sync enabled".into(),
         "sync_manual_only" => "Manual sync only".into(),
@@ -207,6 +228,8 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
         "waiting_traffic" => "Waiting for traffic data...".into(),
         "settings_title" => "Settings & Core".into(),
         "settings_system_integration" => "System Integration".into(),
+        "settings_proxy_bypass" => "Proxy Bypass (Domains/IPs)".into(),
+        "settings_close_to_tray" => "Minimize to Tray on Close".into(),
         "settings_sniffer" => "Traffic Sniffer".into(),
         "settings_sniffer_desc" => {
             "Sniff traffic to restore domain names for better routing.".into()
@@ -220,6 +243,9 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
         "settings_uac_request" => "Restart as Administrator".into(),
         "settings_uac_desc" => {
             "TUN mode requires administrative privileges. Click the button below to elevate.".into()
+        }
+        "settings_uac_unsupported" => {
+            "Automatic elevation is only supported on Windows. Please run with sudo or as administrator manually to enable TUN mode.".into()
         }
         "settings_download" => "Download".into(),
         "settings_delete" => "Delete".into(),

@@ -328,9 +328,11 @@ mod tests {
         ids.dedup();
         assert_eq!(ids.len(), id_count, "check ids must be unique");
         assert!(checks.iter().any(|check| check.id == "config.configs_dir"));
-        assert!(checks
-            .iter()
-            .any(|check| check.id == "config.configs_dir" && check.fixable));
+        assert!(
+            checks
+                .iter()
+                .any(|check| check.id == "config.configs_dir" && check.fixable)
+        );
     }
 
     #[test]
@@ -345,10 +347,12 @@ mod tests {
         let unknown = doctor_explain("no.such_check".to_string());
         assert_eq!(unknown.status.code, FfiErrorCode::Unknown);
         assert!(unknown.check.is_none());
-        assert!(unknown
-            .status
-            .message
-            .is_some_and(|message| message.contains("unknown doctor check")));
+        assert!(
+            unknown
+                .status
+                .message
+                .is_some_and(|message| message.contains("unknown doctor check"))
+        );
     }
 
     #[tokio::test]
@@ -383,7 +387,10 @@ mod tests {
         assert_eq!(check_of(&after, "controller.api_reachable").status, "skip");
         assert!(after.started_at > 0);
         assert!(after.finished_at >= after.started_at);
-        assert_eq!(after.has_failures, after.checks.iter().any(|check| check.status == "fail"));
+        assert_eq!(
+            after.has_failures,
+            after.checks.iter().any(|check| check.status == "fail")
+        );
 
         clear_home_dir_override();
         let _ = fs::remove_dir_all(home);
@@ -398,10 +405,12 @@ mod tests {
         let report = doctor_run(Some("config".to_string())).await;
         assert_eq!(report.status.code, FfiErrorCode::Ok);
         assert!(!report.checks.is_empty());
-        assert!(report
-            .checks
-            .iter()
-            .all(|check| check.category == "config" && check.id.starts_with("config.")));
+        assert!(
+            report
+                .checks
+                .iter()
+                .all(|check| check.category == "config" && check.id.starts_with("config."))
+        );
 
         clear_home_dir_override();
         let _ = fs::remove_dir_all(home);

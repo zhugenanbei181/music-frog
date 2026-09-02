@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+
+# Stop any running instances before removal
+killall -q infiltrator-iced || true
+
+exit 0

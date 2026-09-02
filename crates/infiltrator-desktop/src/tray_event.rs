@@ -94,11 +94,11 @@ mod tests {
         let (dispatcher, mut receiver) = TrayEventDispatcher::new(1);
         // First dispatch should succeed
         assert!(dispatcher.dispatch(TrayMenuAction::OpenMainWindow).is_ok());
-        
+
         // Channel is full, second dispatch should error (non-blocking)
         let res = dispatcher.dispatch(TrayMenuAction::QuitApp);
         assert!(res.is_err());
-        
+
         // Ensure the channel still works after being full if space frees up
         receiver.try_recv().unwrap();
         assert!(dispatcher.dispatch(TrayMenuAction::ShowDiagnostics).is_ok());
@@ -118,7 +118,7 @@ mod tests {
             tooltip,
             "Status: Enabled\nMode: Global\nProfile: US-West\nSpeed: 1.2 MB/s"
         );
-        
+
         let snapshot_disabled = TrayStateSnapshot {
             is_proxy_enabled: false,
             ..snapshot

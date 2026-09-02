@@ -1,0 +1,320 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+
+jobs:
+  # The release tag must pass the exact workspace test suite before any
+  # platform build starts. This reusable call prevents a failing test run
+  # from racing ahead of publication and avoids a second tag-triggered run.
+  test-gate:
+    name: Release test gate
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+
+  # ---------------------------------------------------------------------------
+  # 1. Desktop Build Matrix (Windows, macOS, Linux)
+  # ---------------------------------------------------------------------------
+  build-desktop:
+    needs: test-gate
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      # A failed platform must stop the release fan-out; publish-release is
+      # gated on every matrix leg and partial releases are never useful.
+      fail-fast: true
+      matrix:
+        include:
+          # Windows x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary_name: infiltrator-iced.exe
+            pkg_format: nsis
+            artifact_name: Infiltrator-Windows-x86_64
+          # Windows ARM64
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            binary_name: infiltrator-iced.exe
+            pkg_format: zip
+            artifact_name: Infiltrator-Windows-aarch64
+          # macOS Apple Silicon (arm64)
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary_name: infiltrator-iced
+            pkg_format: dmg
+            artifact_name: Infiltrator-macOS-arm64
+          # macOS Intel (x86_64)
+          - os: macos-13
+            target: x86_64-apple-darwin
+            binary_name: infiltrator-iced
+            pkg_format: dmg
+            artifact_name: Infiltrator-macOS-x86_64
+          # Linux x64
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            binary_name: infiltrator-iced
+            pkg_format: linux-all
+            artifact_name: Infiltrator-Linux-x86_64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}-release
+
+      - name: Install NSIS
+        if: runner.os == 'Windows' && matrix.pkg_format == 'nsis'
+        shell: pwsh
+        run: |
+          choco install nsis --no-progress -y
+          $nsis = Join-Path ${env:ProgramFiles(x86)} "NSIS"
+          $nsis | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Linux Build Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libasound2-dev \
+            libudev-dev \
+            libssl-dev \
+            pkg-config \
+            libgtk-3-dev \
+            file \
+            dpkg-dev
+
+      - name: Build Release Binary
+        run: cargo build --release --target ${{ matrix.target }} --bin infiltrator-iced
+
+      - name: Package Windows Artifacts (NSIS & ZIP)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          BIN_PATH="target/${{ matrix.target }}/release/infiltrator-iced.exe"
+          test -s "$BIN_PATH"
+
+          ZIP_NAME="${{ matrix.artifact_name }}.zip"
+          7z a -tzip "dist/${ZIP_NAME}" "$BIN_PATH"
+          test -s "dist/${ZIP_NAME}"
+
+          if [ "${{ matrix.target }}" = "x86_64-pc-windows-msvc" ]; then
+            command -v makensis >/dev/null 2>&1
+            makensis -DVERSION="${GITHUB_REF_NAME#v}" -DARCH="x64" \
+              -DOUTFILE="dist/Infiltrator-Setup-x86_64.exe" \
+              -DBINARY_PATH="${BIN_PATH}" packaging/windows/nsis/infiltrator.nsi
+            test -s "dist/Infiltrator-Setup-x86_64.exe"
+          fi
+
+          find dist -maxdepth 1 -type f -size +0c -print
+
+      - name: Package macOS Artifacts (DMG & Tarball)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          BIN_PATH="target/${{ matrix.target }}/release/infiltrator-iced"
+          test -s "$BIN_PATH"
+          chmod +x "$BIN_PATH"
+
+          APP_DIR="dist/Infiltrator.app"
+          mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+          cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/infiltrator-iced"
+          cp packaging/macos/Info.plist "$APP_DIR/Contents/Info.plist"
+
+          tar -czf "dist/${{ matrix.artifact_name }}.tar.gz" -C dist Infiltrator.app
+          test -s "dist/${{ matrix.artifact_name }}.tar.gz"
+          bash packaging/macos/create-dmg.sh "dist/${{ matrix.artifact_name }}.dmg" "$APP_DIR"
+          test -s "dist/${{ matrix.artifact_name }}.dmg"
+
+      - name: Package Linux Artifacts (AppImage, Deb & Tarball)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          BIN_PATH="target/${{ matrix.target }}/release/infiltrator-iced"
+          test -s "$BIN_PATH"
+          chmod +x "$BIN_PATH"
+
+          tar -czf "dist/${{ matrix.artifact_name }}.tar.gz" \
+            -C "target/${{ matrix.target }}/release" infiltrator-iced
+          test -s "dist/${{ matrix.artifact_name }}.tar.gz"
+
+          bash packaging/linux/deb/build-deb.sh "$BIN_PATH" \
+            "${GITHUB_REF_NAME#v}" "amd64" "dist"
+          test -s "dist/infiltrator_${GITHUB_REF_NAME#v}_amd64.deb"
+
+          bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH" \
+            "dist/Infiltrator-Linux-x86_64.AppImage"
+          test -s "dist/Infiltrator-Linux-x86_64.AppImage"
+
+          find dist -maxdepth 1 -type f -size +0c -print
+
+      - name: Upload Desktop Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/
+
+  # ---------------------------------------------------------------------------
+  # 2. Android APK Build Job
+  # ---------------------------------------------------------------------------
+  build-android:
+    needs: test-gate
+    name: Build Android APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, x86_64-linux-android
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: android-release
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: 29.0.14206865
+
+      - name: Build Android Release APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-android
+          chmod +x android/gradlew
+          ./android/gradlew --no-daemon --stacktrace assembleRelease
+          find android/app/build/outputs/apk -type f -name '*-release.apk' \
+            -exec cp {} dist-android/ \;
+          test -n "$(find dist-android -type f -name '*.apk' -size +0c -print -quit)"
+          find dist-android -type f -name '*.apk' -size +0c -print
+
+      - name: Upload Android Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Infiltrator-Android-APKs
+          path: dist-android/
+
+  # ---------------------------------------------------------------------------
+  # 3. Release Publication & Manifest Generation
+  # ---------------------------------------------------------------------------
+  publish-release:
+    name: Generate Manifest & Publish Release
+    needs: [build-desktop, build-android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts/
+
+      - name: Verify build outputs are present
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk_count="$(find all-artifacts -type f -name '*.apk' -size +0c | wc -l)"
+          desktop_count="$(find all-artifacts -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.tar.gz' -o -name '*.zip' \) -size +0c | wc -l)"
+          test "$apk_count" -ge 1
+          test "$desktop_count" -ge 7
+          find all-artifacts -type f -size +0c -print
+
+      - name: Consolidate & Generate Checksums / Manifests
+        shell: bash
+        run: |
+          mkdir -p release-dist
+          find all-artifacts/ -type f -exec cp {} release-dist/ \;
+          cd release-dist
+
+          # Generate SHA256SUMS.txt
+          sha256sum * > SHA256SUMS.txt 2>/dev/null || shasum -a 256 * > SHA256SUMS.txt
+
+          # Generate release-manifest.json and latest.json
+          python3 ../scripts/generate-release-manifest.py \
+            --version "${GITHUB_REF_NAME#v}" \
+            --repository "$GITHUB_REPOSITORY" \
+            --dist-dir "." \
+            --output-manifest "release-manifest.json" \
+            --output-latest "latest.json"
+
+      - name: Validate release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s release-dist/release-manifest.json
+          test -s release-dist/latest.json
+          test -s release-dist/SHA256SUMS.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("release-dist/release-manifest.json").read_text())
+          latest = json.loads(Path("release-dist/latest.json").read_text())
+          artifacts = manifest.get("artifacts", [])
+          if not artifacts or not latest.get("artifacts") or not latest.get("packages"):
+              raise SystemExit("release manifest contains no downloadable artifacts or packages")
+          if any(not item.get("sha256") or item.get("size_bytes", 0) <= 0 for item in artifacts):
+              raise SystemExit("release manifest contains an invalid artifact record")
+          packages = latest.get("packages", [])
+          if len(packages) != len(artifacts):
+              raise SystemExit(f"packages count ({len(packages)}) does not match artifacts count ({len(artifacts)})")
+          if any(not item.get("sha256") or item.get("size", 0) <= 0 or not item.get("target_triple") for item in packages):
+              raise SystemExit("latest.json packages contains an invalid package record")
+          print(f"validated {len(artifacts)} release artifacts and {len(packages)} updater packages")
+          PY
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release-dist/*

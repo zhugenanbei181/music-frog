@@ -144,14 +144,12 @@ fn windows_try_acquire(lock_path: &Path) -> Result<Option<InstanceLockGuard>> {
     // caller distinguishes the two cases via GetLastError. With
     // bInitialOwner = TRUE the first process owns it immediately, so the
     // mutex being held is equivalent to "another instance is running".
-    let handle =
-        unsafe { Threading::CreateMutexW(std::ptr::null(), TRUE, wide_name.as_ptr()) };
+    let handle = unsafe { Threading::CreateMutexW(std::ptr::null(), TRUE, wide_name.as_ptr()) };
     if handle.is_null() {
         return Err(std::io::Error::last_os_error().into());
     }
 
-    let already_exists =
-        unsafe { Foundation::GetLastError() } == Foundation::ERROR_ALREADY_EXISTS;
+    let already_exists = unsafe { Foundation::GetLastError() } == Foundation::ERROR_ALREADY_EXISTS;
     if already_exists {
         // We never became the owner, so there is nothing to release; just
         // drop our view of the existing mutex.

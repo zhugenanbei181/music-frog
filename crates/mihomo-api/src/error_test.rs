@@ -14,7 +14,10 @@ mod tests {
     #[test]
     fn config_error_display_includes_detail_message() {
         let err = MihomoError::Config("external-controller 端口冲突".to_string());
-        assert_eq!(err.to_string(), "Config error: external-controller 端口冲突");
+        assert_eq!(
+            err.to_string(),
+            "Config error: external-controller 端口冲突"
+        );
     }
 
     #[test]

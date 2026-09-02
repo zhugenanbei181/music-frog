@@ -59,9 +59,9 @@ pub fn extract_asset_digest(
     release: &serde_json::Value,
     asset_name: &str,
 ) -> std::result::Result<String, String> {
-    let assets = release["assets"].as_array().ok_or_else(|| {
-        format!("release payload has no assets array for {asset_name}")
-    })?;
+    let assets = release["assets"]
+        .as_array()
+        .ok_or_else(|| format!("release payload has no assets array for {asset_name}"))?;
     for asset in assets {
         if asset["name"].as_str() == Some(asset_name) {
             let digest = asset["digest"].as_str().ok_or_else(|| {
@@ -85,9 +85,7 @@ pub fn extract_asset_digest(
 /// Fetch the SHA-256 digest of this platform's release archive for `version`
 /// from the GitHub release API. This is the trusted provenance the install
 /// pipeline verifies downloads against (UP-001).
-pub async fn fetch_asset_digest(
-    version: &str,
-) -> mihomo_api::error::Result<String> {
+pub async fn fetch_asset_digest(version: &str) -> mihomo_api::error::Result<String> {
     let asset_name = asset_file_name(version);
     let url = format!("https://api.github.com/repos/MetaCubeX/mihomo/releases/tags/{version}");
     let client = reqwest::Client::new();
@@ -105,8 +103,7 @@ pub async fn fetch_asset_digest(
     }
 
     let release: serde_json::Value = resp.json().await?;
-    extract_asset_digest(&release, &asset_name)
-        .map_err(mihomo_api::error::MihomoError::Version)
+    extract_asset_digest(&release, &asset_name).map_err(mihomo_api::error::MihomoError::Version)
 }
 
 /// Base URL of the GitHub REST API used by the channel resolution helpers.
@@ -351,10 +348,7 @@ mod tests {
 
     #[test]
     fn extract_digest_returns_published_sha256() {
-        let payload = release_payload(
-            &asset_file_name("v1.19.18"),
-            Some("sha256:abc123"),
-        );
+        let payload = release_payload(&asset_file_name("v1.19.18"), Some("sha256:abc123"));
         assert_eq!(
             extract_asset_digest(&payload, &asset_file_name("v1.19.18")).unwrap(),
             "sha256:abc123"
@@ -459,7 +453,10 @@ mod tests {
 
     #[test]
     fn pick_release_stable_takes_first_list_entry() {
-        let releases = vec![list_release("v1.19.18", false), list_release("v1.19.1-beta", true)];
+        let releases = vec![
+            list_release("v1.19.18", false),
+            list_release("v1.19.1-beta", true),
+        ];
         let picked = pick_release(&releases, Channel::Stable).unwrap();
         assert_eq!(picked["tag_name"].as_str(), Some("v1.19.18"));
     }
@@ -498,19 +495,21 @@ mod tests {
         ]))
         .await;
 
-        let info = fetch_latest_from(&server.url(), Channel::Beta).await.unwrap();
+        let info = fetch_latest_from(&server.url(), Channel::Beta)
+            .await
+            .unwrap();
         assert_eq!(info.channel, Channel::Beta);
         assert_eq!(info.version, "v1.19.1-beta");
     }
 
     #[tokio::test]
     async fn fetch_latest_beta_errors_when_only_stable_releases() {
-        let server = mock_releases_server(serde_json::json!([
-            list_release("v1.19.18", false),
-        ]))
-        .await;
+        let server =
+            mock_releases_server(serde_json::json!([list_release("v1.19.18", false),])).await;
 
-        let err = fetch_latest_from(&server.url(), Channel::Beta).await.unwrap_err();
+        let err = fetch_latest_from(&server.url(), Channel::Beta)
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("no suitable release"), "{err}");
     }
 
@@ -546,7 +545,9 @@ mod tests {
             .create_async()
             .await;
 
-        let info = fetch_latest_from(&server.url(), Channel::Stable).await.unwrap();
+        let info = fetch_latest_from(&server.url(), Channel::Stable)
+            .await
+            .unwrap();
         assert_eq!(info.version, "v1.19.18");
         assert_eq!(info.release_date, "2024-06-01T00:00:00Z");
     }
@@ -563,7 +564,9 @@ mod tests {
             .create_async()
             .await;
 
-        let err = fetch_latest_from(&server.url(), Channel::Nightly).await.unwrap_err();
+        let err = fetch_latest_from(&server.url(), Channel::Nightly)
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("503"), "{err}");
     }
 }

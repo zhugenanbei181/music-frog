@@ -11,11 +11,7 @@ pub(crate) async fn handle() -> anyhow::Result<()> {
 }
 
 pub(crate) fn render_step(step: &BootstrapStep) -> String {
-    let state = if step.executed {
-        "executed"
-    } else {
-        "skipped"
-    };
+    let state = if step.executed { "executed" } else { "skipped" };
     format!("{state:>8}  {}: {}", step.id, step.detail)
 }
 

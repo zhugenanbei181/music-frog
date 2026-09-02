@@ -71,11 +71,7 @@ impl AppState {
                 self.profile.is_saving_app_settings = true;
                 let language = self.shell.lang.clone();
                 let core_channel = self.profile_core_channel();
-                let theme = if self.shell.theme == iced::Theme::Light {
-                    "light".to_string()
-                } else {
-                    "dark".to_string()
-                };
+                let theme = crate::view::theme::theme_to_name(&self.shell.theme).to_string();
                 let editor_path = if self.editor.editor_path_setting.trim().is_empty() {
                     None
                 } else {
@@ -93,6 +89,12 @@ impl AppState {
                     sync_on_startup: self.profile.webdav_sync_on_startup,
                 };
                 let notifications_enabled = self.shell.notifications_enabled;
+                let close_to_tray = self.shell.close_to_tray;
+                let system_proxy_bypass = if self.shell.system_proxy_bypass.trim().is_empty() {
+                    None
+                } else {
+                    Some(self.shell.system_proxy_bypass.trim().to_string())
+                };
 
                 Task::perform(
                     async move {
@@ -124,6 +126,8 @@ impl AppState {
                         settings.editor_path = editor_path;
                         settings.webdav = webdav;
                         settings.notifications_enabled = notifications_enabled;
+                        settings.close_to_tray = close_to_tray;
+                        settings.system_proxy_bypass = system_proxy_bypass;
                         infiltrator_core::settings::save_settings(&settings_path, &settings)
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;

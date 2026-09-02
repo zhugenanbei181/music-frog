@@ -1,0 +1,10 @@
+Package: infiltrator
+Version: @VERSION@
+Section: net
+Priority: optional
+Architecture: @ARCH@
+Depends: libc6 (>= 2.31), libssl3 | libssl1.1, libasound2, libxkbcommon0, libwayland-client0
+Maintainer: MusicFrog Team <dev@musicfrog.app>
+Description: High-performance, low-latency cross-platform proxy client
+ Infiltrator provides enterprise-grade traffic management, fine-grained routing
+ rules, WebDAV profile synchronization, and native desktop integration.

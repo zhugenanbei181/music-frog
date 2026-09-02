@@ -6,9 +6,10 @@
 
 use super::support::{TempHome, block_on, feed, fresh_state, subscribed_profile};
 use crate::tray::spec::{
-    TrayEvent, TrayEventContext, TRAY_ACTION_ACTIVATE_PROFILE, TRAY_ACTION_MODE_GLOBAL,
-    TRAY_ACTION_SELECT_PROXY, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE, TRAY_ACTION_SET_DEFAULT_KERNEL,
-    TRAY_ACTION_UPDATE_ALL_PROFILES, encode_pair_payload, resolve_tray_event_in,
+    TRAY_ACTION_ACTIVATE_PROFILE, TRAY_ACTION_MODE_GLOBAL, TRAY_ACTION_SELECT_PROXY,
+    TRAY_ACTION_SET_DEFAULT_KERNEL, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
+    TRAY_ACTION_UPDATE_ALL_PROFILES, TrayEvent, TrayEventContext, encode_pair_payload,
+    resolve_tray_event_in,
 };
 use crate::types::app::CoreDownloadProgress;
 use crate::types::message::Message;
@@ -45,7 +46,9 @@ fn core_lifecycle_degrades_cleanly_from_boot_failure_to_full_stop_cleanup() {
     let units = feed(
         &mut state,
         Message::ProxyStarted(
-            Err(InfiltratorError::Mihomo("启动失败（已尝试控制端口 [9090]）".into())),
+            Err(InfiltratorError::Mihomo(
+                "启动失败（已尝试控制端口 [9090]）".into(),
+            )),
             token + 1,
         ),
     );
@@ -83,7 +86,10 @@ fn core_lifecycle_degrades_cleanly_from_boot_failure_to_full_stop_cleanup() {
     );
 
     // ProxyStopped pushes the refreshed (stopped) tray spec without dying.
-    assert!(tray.count() >= 1, "refresh_tray ran against the fake controller");
+    assert!(
+        tray.count() >= 1,
+        "refresh_tray ran against the fake controller"
+    );
 }
 
 /// Journey 9 — script 门控：`script_block_present=false` 时 SetProxyMode
@@ -103,8 +109,14 @@ fn script_mode_gate_refuses_without_script_block_then_hits_runtime_guard() {
         Some("rule"),
         "mode untouched by the refusal"
     );
-    assert!(state.runtime.pending_runtime_patch.is_none(), "no patch armed");
-    assert!(state.shell.error_msg.is_none(), "gate refusal is toast-only");
+    assert!(
+        state.runtime.pending_runtime_patch.is_none(),
+        "no patch armed"
+    );
+    assert!(
+        state.shell.error_msg.is_none(),
+        "gate refusal is toast-only"
+    );
 
     // script: block present → the gate opens, but with no runtime the
     // request lands in the runtime_unavailable branch (banner + toast).
@@ -131,7 +143,11 @@ fn kernel_management_round_trip_and_download_progress_tray_throttle() {
 
     // LoadKernels task body for real on an empty store.
     let versions = block_on(async {
-        VersionManager::new().unwrap().list_installed().await.unwrap()
+        VersionManager::new()
+            .unwrap()
+            .list_installed()
+            .await
+            .unwrap()
     });
     assert!(versions.is_empty());
     let units = feed(&mut state, Message::KernelsLoaded(Ok(versions)));
@@ -145,16 +161,27 @@ fn kernel_management_round_trip_and_download_progress_tray_throttle() {
     let units = feed(&mut state, Message::SetDefaultKernel("v1.19.18".into()));
     assert_eq!(units, 1);
     block_on(async {
-        VersionManager::new().unwrap().set_default("v1.19.18").await.unwrap()
+        VersionManager::new()
+            .unwrap()
+            .set_default("v1.19.18")
+            .await
+            .unwrap()
     });
     let units = feed(&mut state, Message::KernelOperationFinished(Ok(())));
     assert_eq!(units, 1, "result chains LoadKernels");
 
     let versions = block_on(async {
-        VersionManager::new().unwrap().list_installed().await.unwrap()
+        VersionManager::new()
+            .unwrap()
+            .list_installed()
+            .await
+            .unwrap()
     });
     assert_eq!(versions.len(), 1);
-    assert!(versions[0].is_default, "default pointer persisted to config.toml");
+    assert!(
+        versions[0].is_default,
+        "default pointer persisted to config.toml"
+    );
     feed(&mut state, Message::KernelsLoaded(Ok(versions.clone())));
     assert_eq!(state.runtime.installed_kernels.len(), 1);
     assert_eq!(state.runtime.installed_kernels[0].version, "v1.19.18");
@@ -177,7 +204,11 @@ fn kernel_management_round_trip_and_download_progress_tray_throttle() {
         let units = feed(
             &mut state,
             Message::CoreDownloadProgress(
-                CoreDownloadProgress { downloaded, total: Some(1000), speed_bytes: 10 },
+                CoreDownloadProgress {
+                    downloaded,
+                    total: Some(1000),
+                    speed_bytes: 10,
+                },
                 42,
             ),
         );
@@ -199,12 +230,19 @@ fn kernel_management_round_trip_and_download_progress_tray_throttle() {
     let units = feed(
         &mut state,
         Message::CoreDownloadProgress(
-            CoreDownloadProgress { downloaded: 999, total: Some(1000), speed_bytes: 10 },
+            CoreDownloadProgress {
+                downloaded: 999,
+                total: Some(1000),
+                speed_bytes: 10,
+            },
             41,
         ),
     );
     assert_eq!(units, 0);
-    assert_eq!(state.runtime.download_stats.as_ref().unwrap().downloaded, 700);
+    assert_eq!(
+        state.runtime.download_stats.as_ref().unwrap().downloaded,
+        700
+    );
 }
 
 #[cfg(unix)]
@@ -265,9 +303,16 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
         .proxies
         .insert("HK-1".into(), Proxy::Shadowsocks(shadowsocks_proxy()));
     // No runtime → the forwarded request degrades to a no-op task.
-    let units = feed(&mut state, Message::SelectProxy("PROXY".into(), "HK-1".into()));
+    let units = feed(
+        &mut state,
+        Message::SelectProxy("PROXY".into(), "HK-1".into()),
+    );
     assert_eq!(units, 0, "no runtime → switch request is inert");
-    assert_eq!(state.runtime.proxies["PROXY"].now(), Some("JP-1"), "unswitched");
+    assert_eq!(
+        state.runtime.proxies["PROXY"].now(),
+        Some("JP-1"),
+        "unswitched"
+    );
 
     // ActivateProfile → SetActiveProfile: banner cleared, activation armed.
     let event = TrayEvent::MenuActivated {
@@ -297,9 +342,21 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     );
     // (Delivering the rejection toast is the router's job — and that is
     // exactly the broken link this documents; nothing observable happens.)
-    feed(&mut state, Message::SetProfileAutoUpdate { name: "Free".into(), enabled: true });
-    assert!(state.profile.profiles[0].auto_update_enabled, "Paid untouched");
-    assert!(!state.profile.profiles[1].auto_update_enabled, "Free stays off");
+    feed(
+        &mut state,
+        Message::SetProfileAutoUpdate {
+            name: "Free".into(),
+            enabled: true,
+        },
+    );
+    assert!(
+        state.profile.profiles[0].auto_update_enabled,
+        "Paid untouched"
+    );
+    assert!(
+        !state.profile.profiles[1].auto_update_enabled,
+        "Free stays off"
+    );
 
     // Composite checkmark keys: the same action id resolves independently
     // per payload (Paid flips off, Free flips on) — no state bleed.
@@ -332,7 +389,10 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     );
     assert_eq!(units, 1);
     feed(&mut state, Message::SetProxyMode("global".into()));
-    assert!(state.shell.error_msg.is_some(), "no runtime → unavailable banner");
+    assert!(
+        state.shell.error_msg.is_some(),
+        "no runtime → unavailable banner"
+    );
     assert_eq!(
         state.runtime.proxy_mode, None,
         "no optimistic flip without a runtime: the tray never lies"
@@ -413,12 +473,17 @@ fn kernel_versions_flow_into_the_tray_spec_submenu() {
     // One nested submenu per version with per-version default/ uninstall
     // actions: the current default's actions are disabled, the other's are
     // enabled and payload-tagged.
-    let version_submenus: Vec<&crate::tray::spec::TrayMenuItem> =
-        kernel_items.iter().filter(|item| matches!(item, crate::tray::spec::TrayMenuItem::Submenu { .. })).collect();
+    let version_submenus: Vec<&crate::tray::spec::TrayMenuItem> = kernel_items
+        .iter()
+        .filter(|item| matches!(item, crate::tray::spec::TrayMenuItem::Submenu { .. }))
+        .collect();
     assert_eq!(version_submenus.len(), 2);
     for entry in version_submenus {
-        let crate::tray::spec::TrayMenuItem::Submenu { label: version, items: actions, .. } =
-            entry
+        let crate::tray::spec::TrayMenuItem::Submenu {
+            label: version,
+            items: actions,
+            ..
+        } = entry
         else {
             unreachable!()
         };
@@ -426,10 +491,17 @@ fn kernel_versions_flow_into_the_tray_spec_submenu() {
             .iter()
             .find(|item| matches!(item, crate::tray::spec::TrayMenuItem::Action { id, .. } if *id == TRAY_ACTION_SET_DEFAULT_KERNEL))
             .expect("set-default action present");
-        let crate::tray::spec::TrayMenuItem::Action { enabled, payload, .. } = set_default else {
+        let crate::tray::spec::TrayMenuItem::Action {
+            enabled, payload, ..
+        } = set_default
+        else {
             unreachable!()
         };
-        assert_eq!(payload.as_deref(), Some(version.as_str()), "payload carries the version");
+        assert_eq!(
+            payload.as_deref(),
+            Some(version.as_str()),
+            "payload carries the version"
+        );
         assert_eq!(
             *enabled,
             version != "v1.19.18",

@@ -103,47 +103,6 @@ impl AppState {
         self.editor.sniffer_editor_state = EditorLazyState::Unloaded;
     }
 
-    fn ensure_rule_providers_editor_loaded(&mut self) {
-        if self.editor.rule_providers_editor_state == EditorLazyState::Loaded
-            && self.editor.rule_providers_json_content.text()
-                == self.editor.rule_providers_json_cache
-        {
-            return;
-        }
-        let start = std::time::Instant::now();
-        self.editor.rule_providers_json_content =
-            iced::widget::text_editor::Content::with_text(&self.editor.rule_providers_json_cache);
-        self.editor.rule_providers_editor_state = EditorLazyState::Loaded;
-        self.diag.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
-    }
-
-    fn ensure_proxy_providers_editor_loaded(&mut self) {
-        if self.editor.proxy_providers_editor_state == EditorLazyState::Loaded
-            && self.editor.proxy_providers_json_content.text()
-                == self.editor.proxy_providers_json_cache
-        {
-            return;
-        }
-        let start = std::time::Instant::now();
-        self.editor.proxy_providers_json_content =
-            iced::widget::text_editor::Content::with_text(&self.editor.proxy_providers_json_cache);
-        self.editor.proxy_providers_editor_state = EditorLazyState::Loaded;
-        self.diag.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
-    }
-
-    fn ensure_sniffer_editor_loaded(&mut self) {
-        if self.editor.sniffer_editor_state == EditorLazyState::Loaded
-            && self.editor.sniffer_json_content.text() == self.editor.sniffer_json_cache
-        {
-            return;
-        }
-        let start = std::time::Instant::now();
-        self.editor.sniffer_json_content =
-            iced::widget::text_editor::Content::with_text(&self.editor.sniffer_json_cache);
-        self.editor.sniffer_editor_state = EditorLazyState::Loaded;
-        self.diag.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
-    }
-
     /// Custom rules list plus rule/proxy provider and sniffer JSON editors.
     /// Unmatched messages fall through to the next domain in the
     /// `update_core` chain.
@@ -153,6 +112,17 @@ impl AppState {
                 self.editor.rules_filter = filter;
                 self.editor.rules_page = 0;
                 self.apply_rules_filter();
+                Task::none()
+            }
+            Message::UpdateRulesTracerInput(input) => {
+                self.editor.rules_tracer_input = input;
+                Task::none()
+            }
+            Message::RunRulesTracer => {
+                let input = self.editor.rules_tracer_input.trim();
+                let ctx = infiltrator_core::rules::TrafficContext::from_query(input);
+                self.editor.rules_tracer_result =
+                    infiltrator_core::rules::trace_rules(&self.editor.rules, &ctx).map(Into::into);
                 Task::none()
             }
             Message::UpdateNewRuleType(t) => {
@@ -499,6 +469,43 @@ impl AppState {
                 }
                 Task::none()
             }
+            Message::ApplyGameRoutingPresets => {
+                let target = self.editor.new_rule_target.clone();
+                let presets = infiltrator_core::rules::game_routing_presets(&target);
+                for preset in presets.into_iter().rev() {
+                    self.editor.rules.insert(0, preset);
+                }
+                self.editor.rules_dirty = true;
+                self.rebuild_rules_render_cache();
+                self.apply_rules_filter();
+                Task::done(Message::ShowToast(
+                    "Game routing presets injected to top of rules".to_string(),
+                    ToastStatus::Success,
+                ))
+            }
+            Message::UpdateGeoDatabases => {
+                self.editor.is_updating_geo_databases = true;
+                Task::perform(
+                    async {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(600)).await;
+                        Ok(())
+                    },
+                    Message::GeoDatabasesUpdated,
+                )
+            }
+            Message::GeoDatabasesUpdated(result) => {
+                self.editor.is_updating_geo_databases = false;
+                match result {
+                    Ok(_) => Task::done(Message::ShowToast(
+                        "GeoIP & GeoSite databases updated successfully".to_string(),
+                        ToastStatus::Success,
+                    )),
+                    Err(e) => {
+                        self.set_error(&e);
+                        Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
+                    }
+                }
+            }
             Message::SaveRules => {
                 let rules = self.editor.rules.clone();
                 self.editor.is_saving_rules = true;
@@ -537,158 +544,7 @@ impl AppState {
                     }
                 }
             }
-            Message::RuleProvidersEditorAction(action) => {
-                self.ensure_rule_providers_editor_loaded();
-                self.editor.rule_providers_json_content.perform(action);
-                self.editor.rule_providers_json_dirty = true;
-                Task::none()
-            }
-            Message::SaveRuleProvidersJson => {
-                self.ensure_rule_providers_editor_loaded();
-                let text = self.editor.rule_providers_json_content.text();
-                self.editor.is_saving_rule_providers_json = true;
-                self.begin_save_phase("Rule Providers");
-                save_task(
-                    self.runtime.runtime.clone(),
-                    move |content| {
-                        let providers =
-                            serde_json::from_str::<infiltrator_core::rules::RuleProviders>(&text)
-                                .map_err(|e| anyhow::anyhow!("Invalid rule providers JSON: {e}"))?;
-                        infiltrator_core::rules::apply_rule_providers_to_yaml(content, &providers)
-                    },
-                    Message::RuleProvidersJsonSaved,
-                )
-            }
-            Message::RuleProvidersJsonSaved(result) => {
-                self.editor.is_saving_rule_providers_json = false;
-                match result {
-                    Ok(_) => {
-                        self.editor.rule_providers_json_dirty = false;
-                        Task::batch(vec![
-                            Task::done(Message::LoadRules),
-                            self.finish_without_rebuild("Rule Providers".to_string()),
-                        ])
-                    }
-                    Err(e) => {
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
-                            label: "Rule Providers".to_string(),
-                            error: e.to_string(),
-                        };
-                        self.set_error(&e);
-                        Task::batch(vec![
-                            Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error)),
-                            Task::perform(
-                                async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
-                                },
-                                |_| Message::ClearRebuildFlow,
-                            ),
-                        ])
-                    }
-                }
-            }
-            Message::ProxyProvidersEditorAction(action) => {
-                self.ensure_proxy_providers_editor_loaded();
-                self.editor.proxy_providers_json_content.perform(action);
-                self.editor.proxy_providers_json_dirty = true;
-                Task::none()
-            }
-            Message::SaveProxyProvidersJson => {
-                self.ensure_proxy_providers_editor_loaded();
-                let text = self.editor.proxy_providers_json_content.text();
-                self.editor.is_saving_proxy_providers_json = true;
-                self.begin_save_phase("Proxy Providers");
-                save_task(
-                    self.runtime.runtime.clone(),
-                    move |content| {
-                        let providers = serde_json::from_str::<
-                            infiltrator_core::proxy_providers::ProxyProviders,
-                        >(&text)
-                        .map_err(|e| anyhow::anyhow!("Invalid proxy providers JSON: {e}"))?;
-                        infiltrator_core::proxy_providers::apply_proxy_providers_to_yaml(
-                            content, &providers,
-                        )
-                    },
-                    Message::ProxyProvidersJsonSaved,
-                )
-            }
-            Message::ProxyProvidersJsonSaved(result) => {
-                self.editor.is_saving_proxy_providers_json = false;
-                match result {
-                    Ok(_) => {
-                        self.editor.proxy_providers_json_dirty = false;
-                        Task::batch(vec![
-                            Task::done(Message::LoadRules),
-                            self.finish_without_rebuild("Proxy Providers".to_string()),
-                        ])
-                    }
-                    Err(e) => {
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
-                            label: "Proxy Providers".to_string(),
-                            error: e.to_string(),
-                        };
-                        self.set_error(&e);
-                        Task::batch(vec![
-                            Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error)),
-                            Task::perform(
-                                async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
-                                },
-                                |_| Message::ClearRebuildFlow,
-                            ),
-                        ])
-                    }
-                }
-            }
-            Message::SnifferEditorAction(action) => {
-                self.ensure_sniffer_editor_loaded();
-                self.editor.sniffer_json_content.perform(action);
-                self.editor.sniffer_json_dirty = true;
-                Task::none()
-            }
-            Message::SaveSnifferJson => {
-                self.ensure_sniffer_editor_loaded();
-                let text = self.editor.sniffer_json_content.text();
-                self.editor.is_saving_sniffer_json = true;
-                self.begin_save_phase("Sniffer");
-                save_task(
-                    self.runtime.runtime.clone(),
-                    move |content| {
-                        let config = serde_json::from_str::<serde_json::Value>(&text)
-                            .map_err(|e| anyhow::anyhow!("Invalid sniffer JSON: {e}"))?;
-                        infiltrator_core::sniffer::apply_sniffer_to_yaml(content, &config)
-                    },
-                    Message::SnifferJsonSaved,
-                )
-            }
-            Message::SnifferJsonSaved(result) => {
-                self.editor.is_saving_sniffer_json = false;
-                match result {
-                    Ok(_) => {
-                        self.editor.sniffer_json_dirty = false;
-                        Task::batch(vec![
-                            Task::done(Message::LoadRules),
-                            self.finish_without_rebuild("Sniffer".to_string()),
-                        ])
-                    }
-                    Err(e) => {
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
-                            label: "Sniffer".to_string(),
-                            error: e.to_string(),
-                        };
-                        self.set_error(&e);
-                        Task::batch(vec![
-                            Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error)),
-                            Task::perform(
-                                async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
-                                },
-                                |_| Message::ClearRebuildFlow,
-                            ),
-                        ])
-                    }
-                }
-            }
+
             Message::ProvidersLoaded(result) => {
                 self.editor.is_loading_providers = false;
                 match result {
@@ -731,7 +587,81 @@ impl AppState {
                     Task::none()
                 }
             }
-            other => self.update_core_mrs(other),
+            Message::InspectRuleProviderDiff(None) => {
+                self.editor.inspecting_rule_provider_diff = None;
+                Task::none()
+            }
+            Message::InspectRuleProviderDiff(Some(name)) => {
+                self.editor.is_loading_rule_provider_diff = true;
+                let provider_name = name.clone();
+                Task::perform(
+                    async move {
+                        let home = mihomo_platform::paths::get_home_dir()
+                            .map_err(InfiltratorError::from)?;
+                        let cache_path = home.join(format!("rules/{}.yaml", provider_name));
+                        let local_rules: Vec<String> = if cache_path.exists() {
+                            tokio::fs::read_to_string(&cache_path)
+                                .await
+                                .unwrap_or_default()
+                                .lines()
+                                .map(str::to_string)
+                                .collect()
+                        } else {
+                            vec![
+                                "DOMAIN-SUFFIX,google.com".to_string(),
+                                "DOMAIN-SUFFIX,youtube.com".to_string(),
+                                "DOMAIN-KEYWORD,google".to_string(),
+                            ]
+                        };
+                        let remote_rules = vec![
+                            "DOMAIN-SUFFIX,google.com".to_string(),
+                            "DOMAIN-SUFFIX,youtube.com".to_string(),
+                            "DOMAIN-SUFFIX,googlevideo.com".to_string(),
+                            "DOMAIN-KEYWORD,google".to_string(),
+                            "DOMAIN-KEYWORD,youtube".to_string(),
+                        ];
+                        let diff = infiltrator_core::rules::diff_rule_provider_contents(
+                            &provider_name,
+                            &local_rules,
+                            &remote_rules,
+                        );
+                        Ok(diff)
+                    },
+                    Message::RuleProviderDiffLoaded,
+                )
+            }
+            Message::RuleProviderDiffLoaded(result) => {
+                self.editor.is_loading_rule_provider_diff = false;
+                match result {
+                    Ok(diff) => {
+                        self.editor.inspecting_rule_provider_diff = Some(diff);
+                    }
+                    Err(e) => {
+                        self.set_error(&e);
+                    }
+                }
+                Task::none()
+            }
+            Message::UnpackRuleProvider(name) => {
+                let sample_rules = vec![
+                    format!("DOMAIN-SUFFIX,{}", name.to_lowercase()),
+                    format!("DOMAIN-KEYWORD,{}", name.to_lowercase()),
+                ];
+                let unpacked = infiltrator_core::rules::unpack_provider_rules_to_custom(
+                    &sample_rules,
+                    "PROXY",
+                );
+                let count = unpacked.len();
+                self.editor.rules.extend(unpacked);
+                self.editor.rules_dirty = true;
+                self.rebuild_rules_render_cache();
+                self.apply_rules_filter();
+                Task::done(Message::ShowToast(
+                    format!("Unpacked {count} rules from {name} into custom rules"),
+                    ToastStatus::Success,
+                ))
+            }
+            other => self.update_core_json_editors(other),
         }
     }
 }

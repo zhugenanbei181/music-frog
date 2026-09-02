@@ -94,9 +94,12 @@ async fn import(runtime: &Runtime, name: &str, url: &str) -> anyhow::Result<()> 
             .await?;
     let content = infiltrator_core::subscription::strip_utf8_bom(&content);
     let configs_dir = runtime.configs_dir()?;
-    let (content, _report) =
-        infiltrator_core::profile_options::apply_saved_options(&configs_dir, &profile_name, content)
-            .await?;
+    let (content, _report) = infiltrator_core::profile_options::apply_saved_options(
+        &configs_dir,
+        &profile_name,
+        content,
+    )
+    .await?;
     infiltrator_core::config::validate_yaml(&content)
         .map_err(|err| anyhow!("订阅内容不是有效的 YAML: {err}"))?;
 

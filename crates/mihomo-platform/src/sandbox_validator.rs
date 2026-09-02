@@ -1,3 +1,5 @@
+//! Filesystem sandbox path validation, portable mode detection, and crash recovery mode.
+
 use serde::{Deserialize, Serialize};
 use std::path::{Component, Path, PathBuf};
 
@@ -76,8 +78,6 @@ impl SandboxValidator {
     }
 
     /// Sanitizes a filename by removing dangerous characters.
-    ///
-    /// Removes characters `\`, `/`, `:`, `*`, `?`, `"`, `<`, `>`, `|`, and null bytes `\0`.
     pub fn sanitize_filename(filename: &str) -> String {
         filename
             .chars()
@@ -88,6 +88,61 @@ impl SandboxValidator {
                 )
             })
             .collect()
+    }
+}
+
+/// Portable mode detector: verifies if the client is running in zero-registry portable mode.
+pub struct PortableModeDetector;
+
+impl PortableModeDetector {
+    /// Detects if portable directory (`data/` or `.portable` marker) exists alongside the executable.
+    pub fn detect_portable_dir(exe_dir: &Path) -> Option<PathBuf> {
+        let data_dir = exe_dir.join("data");
+        if data_dir.is_dir() {
+            return Some(data_dir);
+        }
+
+        let marker = exe_dir.join(".portable");
+        if marker.exists() {
+            return Some(exe_dir.join("data"));
+        }
+
+        None
+    }
+}
+
+/// Safe Mode watchdog for consecutive crash detection and automatic recovery.
+pub struct SafeModeRecovery;
+
+impl SafeModeRecovery {
+    const CRASH_COUNTER_FILE: &'static str = ".crash_counter";
+    const THRESHOLD: u32 = 2;
+
+    pub fn is_safe_mode_active(home_dir: &Path) -> bool {
+        let path = home_dir.join(Self::CRASH_COUNTER_FILE);
+        if let Ok(content) = std::fs::read_to_string(&path)
+            && let Ok(count) = content.trim().parse::<u32>()
+        {
+            count >= Self::THRESHOLD
+        } else {
+            false
+        }
+    }
+
+    pub fn record_crash(home_dir: &Path) -> u32 {
+        let path = home_dir.join(Self::CRASH_COUNTER_FILE);
+        let current_count: u32 = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0);
+        let new_count = current_count.saturating_add(1);
+        let _ = std::fs::write(&path, new_count.to_string());
+        new_count
+    }
+
+    pub fn record_clean_exit(home_dir: &Path) {
+        let path = home_dir.join(Self::CRASH_COUNTER_FILE);
+        let _ = std::fs::remove_file(path);
     }
 }
 
@@ -116,12 +171,10 @@ mod tests {
     #[test]
     fn test_denied_traversal() {
         let validator = SandboxValidator::new(PathBuf::from("/var/sandbox"));
-        // Direct relative traversal
         assert_eq!(
             validator.validate_path(Path::new("../external/file.txt")),
             PathValidationResult::DeniedTraversal
         );
-        // Traversal hidden inside
         assert_eq!(
             validator.validate_path(Path::new("subdir/../../file.txt")),
             PathValidationResult::DeniedTraversal
@@ -131,12 +184,10 @@ mod tests {
     #[test]
     fn test_denied_outside_sandbox() {
         let validator = SandboxValidator::new(PathBuf::from("/var/sandbox"));
-        // Completely different absolute path
         assert_eq!(
             validator.validate_path(Path::new("/etc/passwd")),
             PathValidationResult::DeniedOutsideSandbox
         );
-        // Path that shares a prefix but isn't a sub-directory
         assert_eq!(
             validator.validate_path(Path::new("/var/sandbox-extra/file.txt")),
             PathValidationResult::DeniedOutsideSandbox
@@ -148,11 +199,45 @@ mod tests {
         let dirty = "file/with\\bad:chars*?<>\".txt\0";
         let clean = SandboxValidator::sanitize_filename(dirty);
         assert_eq!(clean, "filewithbadchars.txt");
-        
+
         let clean_filename = "normal_file.txt";
         assert_eq!(
             SandboxValidator::sanitize_filename(clean_filename),
             clean_filename
         );
+    }
+
+    #[test]
+    fn test_portable_mode_detector() {
+        let temp = tempfile::tempdir().unwrap();
+        let exe_dir = temp.path();
+
+        assert_eq!(PortableModeDetector::detect_portable_dir(exe_dir), None);
+
+        let data_dir = exe_dir.join("data");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        assert_eq!(
+            PortableModeDetector::detect_portable_dir(exe_dir),
+            Some(data_dir)
+        );
+    }
+
+    #[test]
+    fn test_safe_mode_recovery() {
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path();
+
+        assert!(!SafeModeRecovery::is_safe_mode_active(home));
+
+        let c1 = SafeModeRecovery::record_crash(home);
+        assert_eq!(c1, 1);
+        assert!(!SafeModeRecovery::is_safe_mode_active(home));
+
+        let c2 = SafeModeRecovery::record_crash(home);
+        assert_eq!(c2, 2);
+        assert!(SafeModeRecovery::is_safe_mode_active(home));
+
+        SafeModeRecovery::record_clean_exit(home);
+        assert!(!SafeModeRecovery::is_safe_mode_active(home));
     }
 }

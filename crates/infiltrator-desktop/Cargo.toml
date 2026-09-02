@@ -14,6 +14,8 @@ mihomo-version = { path = "../mihomo-version" }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
+sysinfo = { workspace = true }
 tokio = { workspace = true }
 yaml-rust2 = { workspace = true }
 

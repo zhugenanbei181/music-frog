@@ -5,19 +5,20 @@
 mod connections;
 mod delay;
 mod logs;
-mod styles;
 mod traffic;
 
-use infiltrator_shared::locales::{Lang, Localizer};
-use crate::types::runtime::RuntimeStatus;
-use crate::view::components::{card, empty_state, icon_button, modern_scrollable, toggle_switch};
-use crate::view::runtime::styles::{pick_style, style_accent, style_danger, style_ghost, text_btn};
-use crate::view::svg_icons::Icon;
-use crate::view::theme::{self, FONT_SEMIBOLD, SP_LG, SP_MD, tokens};
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::types::runtime::RuntimeStatus;
+use crate::view::components::{
+    card, empty_state, form_pick_style, icon_button, modern_scrollable, style_accent, style_danger,
+    style_ghost, text_btn, toggle_switch,
+};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{self, FONT_SEMIBOLD, SP_LG, SP_MD, tokens};
 use iced::widget::{Space, column, container, pick_list, row, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Localized proxy-mode pick-list option: renders `label` (via `Display`)
 /// while `Message::SetProxyMode` keeps carrying the raw mihomo `value`.
@@ -156,7 +157,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         })
         .text_size(12)
         .width(Length::Fixed(110.0))
-        .style(pick_style),
+        .style(form_pick_style),
         Space::new().width(theme::SP_LG),
         text(lang.tr("runtime_auto_refresh").to_string())
             .size(12)
@@ -204,7 +205,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 )
                 .width(Length::Fixed(180.0))
                 .text_size(12)
-                .style(pick_style),
+                .style(form_pick_style),
             ],
             Space::new().width(theme::SP_XL),
             column![
@@ -221,7 +222,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 )
                 .width(Length::Fixed(220.0))
                 .text_size(12)
-                .style(pick_style),
+                .style(form_pick_style),
             ],
             Space::new().width(theme::SP_XL),
             container(apply_proxy_btn).align_y(Alignment::Center),

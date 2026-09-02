@@ -56,6 +56,17 @@ impl AppState {
             },
             Message::EditorAction(action) => {
                 self.editor.editor_content.perform(action);
+                let text = self.editor.editor_content.text();
+                match infiltrator_core::config::preflight_yaml_syntax(&text) {
+                    Ok(()) => {
+                        self.editor.syntax_error = None;
+                        self.editor.syntax_error_line = None;
+                    }
+                    Err(diag) => {
+                        self.editor.syntax_error = Some(diag.message);
+                        self.editor.syntax_error_line = Some(diag.line);
+                    }
+                }
                 Task::none()
             }
             Message::LoadProfileSnapshots => {
@@ -160,9 +171,17 @@ impl AppState {
                 if self.profile.is_saving_profile {
                     return Task::none();
                 }
+                let content = self.editor.editor_content.text();
+                if let Err(diag) = infiltrator_core::config::preflight_yaml_syntax(&content) {
+                    self.editor.syntax_error = Some(diag.message.clone());
+                    self.editor.syntax_error_line = Some(diag.line);
+                    return Task::done(Message::ShowToast(
+                        format!("YAML Syntax Error (line {}): {}", diag.line, diag.message),
+                        ToastStatus::Error,
+                    ));
+                }
                 if let Some(path) = self.editor.editor_path.clone() {
                     self.profile.is_saving_profile = true;
-                    let content = self.editor.editor_content.text();
                     let runtime = self.runtime.runtime.clone();
                     Task::perform(
                         async move {

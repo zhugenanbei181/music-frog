@@ -25,7 +25,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::paths::get_home_dir;
 use mihomo_version::manager::VersionManager;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Outcome of a single check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -87,13 +87,13 @@ pub struct DoctorCheckMeta {
 }
 
 /// One executed repair.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DoctorFixAction {
     pub id: String,
     pub summary: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DoctorFixReport {
     /// Only the actions that actually changed something.
     pub actions: Vec<DoctorFixAction>,

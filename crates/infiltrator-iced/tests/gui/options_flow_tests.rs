@@ -8,7 +8,9 @@ use crate::state::AppState;
 use crate::types::app::SyncConflict;
 use crate::types::message::Message;
 use crate::types::options::{EditorPane, FilterDraft, SyncDiffBundle, SyncDiffState};
+use iced::widget::text_editor;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 fn temp_options_dir(tag: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
@@ -78,7 +80,14 @@ fn test_mixin_pane_switch_loads_and_saves_via_options_state() {
     }
     let _ = state.update(Message::SaveMixin);
     assert!(!state.editor.is_saving_mixin);
-    assert!(state.shell.error_msg.as_deref().unwrap_or("").contains("Mixin"));
+    assert!(
+        state
+            .shell
+            .error_msg
+            .as_deref()
+            .unwrap_or("")
+            .contains("Mixin")
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -115,12 +124,7 @@ fn test_filter_draft_updates_and_validation_gate() {
         renames: "没有箭头的规则".into(),
         ..FilterDraft::default()
     };
-    assert!(bad
-        .to_spec()
-        .err()
-        .unwrap()
-        .to_string()
-        .contains("=>"));
+    assert!(bad.to_spec().err().unwrap().to_string().contains("=>"));
 
     // The filter draft loads lazily for the profile open in the editor:
     // switching to the Filter pane after ProfileContentLoaded keys the load
@@ -167,9 +171,7 @@ fn test_mrs_details_projection() {
     };
     let _ = state.update(Message::MrsDetailsReady(Ok(vec![detail])));
     assert_eq!(state.editor.mrs_details.len(), 1);
-    assert!(state.editor.mrs_details[0]
-        .summary()
-        .starts_with("MRS v1"));
+    assert!(state.editor.mrs_details[0].summary().starts_with("MRS v1"));
 
     // Scan errors surface through the error sink instead of silently
     // clearing the previous details.
@@ -217,14 +219,16 @@ fn test_sync_diff_flow_pick_merge_and_cleanup() {
     let _ = state.update(Message::PickSyncDiffKey("port".into(), true));
     assert!(state.profile.sync_diff.as_ref().unwrap().picks["port"]);
     let _ = state.update(Message::SetSyncDiffPicks(true));
-    assert!(state
-        .profile
-        .sync_diff
-        .as_ref()
-        .unwrap()
-        .picks
-        .values()
-        .all(|pick| *pick));
+    assert!(
+        state
+            .profile
+            .sync_diff
+            .as_ref()
+            .unwrap()
+            .picks
+            .values()
+            .all(|pick| *pick)
+    );
 
     // Applying without a live runtime still clears the conflict from the
     // list on success (the manager path writes the merged document).
@@ -246,9 +250,35 @@ fn test_sync_diff_flow_pick_merge_and_cleanup() {
     )));
     assert!(!state.profile.is_applying_sync_diff);
     assert!(state.profile.sync_diff.is_some());
-    assert!(state.shell.error_msg.as_deref().unwrap_or("").contains("合并失败"));
+    assert!(
+        state
+            .shell
+            .error_msg
+            .as_deref()
+            .unwrap_or("")
+            .contains("合并失败")
+    );
 
     // Close discards the session without touching conflicts.
     let _ = state.update(Message::CloseSyncDiff);
     assert!(state.profile.sync_diff.is_none());
+}
+
+#[test]
+fn test_editor_yaml_syntax_preflight() {
+    let (mut state, _) = AppState::new();
+    assert!(state.editor.syntax_error.is_none());
+
+    // Action on valid YAML -> syntax_error is None
+    let _ = state.update(Message::EditorAction(text_editor::Action::Edit(
+        text_editor::Edit::Paste(Arc::new("port: 7890\nmode: rule".to_string())),
+    )));
+    assert!(state.editor.syntax_error.is_none());
+
+    // Action on invalid YAML -> syntax_error is Some
+    let _ = state.update(Message::EditorAction(text_editor::Action::Edit(
+        text_editor::Edit::Paste(Arc::new("\nmode: [invalid".to_string())),
+    )));
+    assert!(state.editor.syntax_error.is_some());
+    assert!(state.editor.syntax_error_line.is_some());
 }

@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
     use super::super::run_sync_tick;
-    use mihomo_platform::TEST_LOCK;
     use crate::admin_api::state::AdminApiContext;
     use anyhow::anyhow;
     use infiltrator_core::settings::AppSettings;
     use infiltrator_core::settings::WebDavConfig;
     use mihomo_api::client::MihomoClient;
+    use mihomo_platform::TEST_LOCK;
 
     #[derive(Clone)]
     struct MockContext;

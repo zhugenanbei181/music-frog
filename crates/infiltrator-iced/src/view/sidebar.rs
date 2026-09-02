@@ -1,24 +1,25 @@
 //! iOS-style control sidebar (Clash Party reference).
 //!
-//! Top-to-bottom: app header (logo tile + settings gear), proxy-mode
-//! segmented control, system-proxy / TUN toggle cards, active profile card,
-//! stat shortcut cards (proxy groups / rules), compact destination cards
-//! (runtime connections / DNS), a live speed footer and the remaining nav
-//! entries under a hairline divider. Every color comes from
-//! [`crate::view::theme::tokens`] so light and dark are equally first-class.
+//! Top-to-bottom: app header (logo tile + version + refresh/settings actions),
+//! proxy-mode segmented control, system-proxy / TUN toggle cards, active profile
+//! card with traffic usage progress, shortcut matrix grid (Proxies, Rules,
+//! Runtime, DNS) with count badges, live speed footer with mini sparkline
+//! waveform, and the main nav entries (Overview, Sync, Settings) separated by
+//! a hairline divider. Every color comes from [`crate::view::theme::tokens`]
+//! so light, dark, forest, and AMOLED themes are equally first-class.
 
-use infiltrator_shared::locales::{Lang, Localizer};
+use crate::state::AppState;
 use crate::types::app::Route;
+use crate::types::message::Message;
 use crate::view::components::{
-    BadgeKind, badge, card_surface, icon_button, nav_button, segmented_control, stat_card,
+    BadgeKind, badge, card_surface, icon_button, mini_waveform, nav_button, segmented_control,
     toggle_switch,
 };
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CARD, R_CONTROL};
-use crate::state::AppState;
-use crate::types::message::Message;
-use iced::widget::{progress_bar, Space, button, column, container, row, text};
+use iced::widget::{Space, button, column, container, progress_bar, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Sidebar width (~260–280 band) so every card wraps gracefully.
 const SIDEBAR_WIDTH: f32 = 272.0;
@@ -42,8 +43,7 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
         mode_control(state, &lang),
         toggles(state, &lang),
         profile_card(state, &lang),
-        stats_grid(state, &lang),
-        compact_grid(state, &lang),
+        shortcut_matrix(state, &lang),
         speed_footer(state, &lang),
         divider(),
         nav_button(
@@ -62,7 +62,6 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
             &state.shell.current_route
         ),
         Space::new().height(Length::Fill),
-        version_footer(),
     ]
     .spacing(theme::SP_SM)
     .padding([theme::SP_LG, theme::SP_LG]);
@@ -81,7 +80,8 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
 // Header
 // ---------------------------------------------------------------------------
 
-/// Logo mark in an accent tile + app name, with the settings gear at right.
+/// Logo mark in an accent tile + app name with version `v0.20.0`,
+/// accompanied by restart/refresh and settings gear action buttons on right.
 fn header(_state: &AppState) -> Element<'_, Message> {
     let logo_tile = container(icon_themed(Icon::Server, 20.0, |t| {
         theme::tokens(t).on_accent
@@ -99,23 +99,34 @@ fn header(_state: &AppState) -> Element<'_, Message> {
         ..Default::default()
     });
 
+    let version_str = format!("v{}", env!("CARGO_PKG_VERSION"));
+
+    let title_col = column![
+        text("MusicFrog")
+            .size(15)
+            .font(FONT_SEMIBOLD)
+            .style(|t: &Theme| text::Style {
+                color: Some(theme::tokens(t).text_primary)
+            }),
+        text(version_str).size(10).font(MONO).style(|t: &Theme| text::Style {
+            color: Some(theme::tokens(t).text_tertiary),
+        }),
+    ]
+    .spacing(1);
+
+    let actions = row![
+        icon_button(Icon::RefreshCw, 16.0, Message::RefreshRuntimeNow),
+        icon_button(Icon::Settings, 16.0, Message::Navigate(Route::Settings)),
+    ]
+    .spacing(theme::SP_XS)
+    .align_y(Alignment::Center);
+
     row![
         logo_tile,
         Space::new().width(theme::SP_MD),
-        column![
-            text("MusicFrog")
-                .size(15)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(theme::tokens(t).text_primary)
-                }),
-            text("Infiltrator").size(10).style(|t: &Theme| text::Style {
-                color: Some(theme::tokens(t).text_tertiary),
-            }),
-        ]
-        .spacing(1),
+        title_col,
         Space::new().width(Length::Fill),
-        icon_button(Icon::Settings, 18.0, Message::Navigate(Route::Settings)),
+        actions,
     ]
     .align_y(Alignment::Center)
     .width(Length::Fill)
@@ -128,9 +139,6 @@ fn header(_state: &AppState) -> Element<'_, Message> {
 
 fn mode_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let ids = mode_ids(state);
-    // The sidebar segment is narrow (~60px per segment), so the control uses
-    // the short `proxy_mode_*` labels (规则/全局/直连/脚本); the full
-    // `mode_*` names live on the overview meta and the runtime pick list.
     let keys = [
         "proxy_mode_rule",
         "proxy_mode_global",
@@ -155,12 +163,14 @@ fn mode_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         .proxy_mode
         .as_deref()
         .and_then(|mode| ids.iter().position(|id| *id == mode))
-        // Unknown / unset mode: no segment rendered as active.
         .unwrap_or(usize::MAX);
 
     let ids_for_callback = ids.clone();
     let control = segmented_control(&labels, selected, move |index| {
-        let mode = ids_for_callback.get(index).copied().unwrap_or(ids_for_callback[0]);
+        let mode = ids_for_callback
+            .get(index)
+            .copied()
+            .unwrap_or(ids_for_callback[0]);
         Message::SetProxyMode(mode.to_string())
     });
 
@@ -242,43 +252,74 @@ fn short_label(value: &str) -> String {
 // Profile card
 // ---------------------------------------------------------------------------
 
-/// Active profile name + optional 订阅 badge (only when the profile metadata
-/// carries a subscription URL — local profiles show no badge).
+/// Active profile name + optional 订阅 badge with traffic usage progress bar
+/// and informative subtitle.
 fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let active = state.profile.profiles.iter().find(|p| p.active);
-    let (name, is_subscription) = match active {
-        Some(profile) => (profile.name.clone(), profile.subscription_url.is_some()),
-        None => (lang.tr("no_profiles").into_owned(), false),
+    let is_zh = state.shell.lang.starts_with("zh");
+
+    let (name, is_subscription, subtitle) = match active {
+        Some(profile) => {
+            let is_sub = profile.subscription_url.is_some();
+            let sub = if is_sub {
+                if is_zh {
+                    "订阅配置".to_string()
+                } else {
+                    "Subscription".to_string()
+                }
+            } else if is_zh {
+                "本地配置".to_string()
+            } else {
+                "Local Profile".to_string()
+            };
+            (profile.name.clone(), is_sub, sub)
+        }
+        None => (
+            lang.tr("no_profiles").into_owned(),
+            false,
+            if is_zh {
+                "点击导入配置".to_string()
+            } else {
+                "Click to import".to_string()
+            },
+        ),
     };
+
     let traffic = active.and_then(|profile| {
         let total = profile.traffic_total?;
         let used = profile.traffic_upload.unwrap_or(0) + profile.traffic_download.unwrap_or(0);
         Some((total, used))
     });
 
-    let mut body = column![
-        row![
-            icon_themed(Icon::FileText, 16.0, |t| theme::tokens(t).accent),
-            Space::new().width(theme::SP_SM),
+    let header_row = row![
+        icon_themed(Icon::FileText, 16.0, |t| theme::tokens(t).accent),
+        Space::new().width(theme::SP_SM),
+        column![
             text(name).size(13).font(FONT_SEMIBOLD).style(|t: &Theme| {
                 text::Style {
                     color: Some(theme::tokens(t).text_primary),
                 }
             }),
-            Space::new().width(Length::Fill),
-            icon_themed(Icon::ChevronRight, 14.0, |t| theme::tokens(t).text_tertiary),
+            text(subtitle).size(10).style(|t: &Theme| {
+                text::Style {
+                    color: Some(theme::tokens(t).text_tertiary),
+                }
+            }),
         ]
-        .align_y(Alignment::Center)
-        .width(Length::Fill),
+        .spacing(1),
+        Space::new().width(Length::Fill),
+        if is_subscription {
+            badge(lang.tr("subscription").into_owned(), BadgeKind::Accent)
+        } else {
+            Space::new().width(0).into()
+        },
+        Space::new().width(theme::SP_XS),
+        icon_themed(Icon::ChevronRight, 14.0, |t| theme::tokens(t).text_tertiary),
     ]
-    .spacing(theme::SP_XS);
+    .align_y(Alignment::Center)
+    .width(Length::Fill);
 
-    if is_subscription {
-        body = body.push(badge(
-            lang.tr("subscription").into_owned(),
-            BadgeKind::Accent,
-        ));
-    }
+    let mut body = column![header_row].spacing(theme::SP_SM);
 
     // Miniature usage indicator when the provider advertises traffic info.
     if let Some((total, used)) = traffic {
@@ -290,13 +331,25 @@ fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         body = body.push(
             column![
                 progress_bar(0.0..=1.0, fraction).length(Length::Fill),
-                text(format!("{} / {}", format_gb(used), format_gb(total)))
-                    .size(10)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(theme::tokens(t).text_tertiary),
-                    }),
+                row![
+                    text(format!("{} / {}", format_gb(used), format_gb(total)))
+                        .size(10)
+                        .font(MONO)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(theme::tokens(t).text_tertiary),
+                        }),
+                    Space::new().width(Length::Fill),
+                    text(format!("{:.0}%", fraction * 100.0))
+                        .size(10)
+                        .font(MONO)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(theme::tokens(t).text_tertiary),
+                        }),
+                ]
+                .align_y(Alignment::Center)
+                .width(Length::Fill),
             ]
-            .spacing(2),
+            .spacing(3),
         );
     }
 
@@ -314,12 +367,12 @@ fn format_gb(value: u64) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Stat + compact destination cards
+// 2x2 Shortcut Matrix & Stat Badges
 // ---------------------------------------------------------------------------
 
-/// 代理组 / 规则 shortcut cards (accent-outlined when their page is active).
-fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let tokens = theme::tokens(&state.shell.theme);
+/// Proxies, Rules, Runtime (Connections), and DNS shortcut tiles organized
+/// in a neat 2x2 grid with count badges.
+fn shortcut_matrix<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let groups = state
         .runtime
         .proxies
@@ -327,122 +380,163 @@ fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         .filter(|p| p.is_group())
         .count();
 
-    let proxies = wrap_clickable(
-        stat_card(
-            Icon::Globe,
-            &lang.tr("proxy_groups"),
-            &groups.to_string(),
-            tokens.accent,
-            state.shell.current_route == Route::Proxies,
-        ),
-        Message::Navigate(Route::Proxies),
-    );
-    let rules = wrap_clickable(
-        stat_card(
-            Icon::Shield,
-            &lang.tr("nav_rules"),
-            &state.editor.rules.len().to_string(),
-            tokens.accent,
-            state.shell.current_route == Route::Rules,
-        ),
-        Message::Navigate(Route::Rules),
-    );
-
-    row![proxies, rules]
-        .spacing(theme::SP_SM)
-        .width(Length::Fill)
-        .into()
-}
-
-/// 连接 (runtime) and DNS compact cards — the two destinations not already
-/// offered by the cards above.
-fn compact_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let tokens = theme::tokens(&state.shell.theme);
-
     let connections = state
         .diag
         .connections
         .as_ref()
-        .map(|snapshot| snapshot.connections.len().to_string())
-        .unwrap_or_else(|| "—".to_string());
-    let nameservers = if state.editor.dns_nameservers.is_empty() {
-        "—".to_string()
-    } else {
-        state.editor.dns_nameservers.len().to_string()
-    };
+        .map(|s| s.connections.len().to_string())
+        .unwrap_or_else(|| "0".to_string());
 
-    let runtime = wrap_clickable(
-        stat_card(
-            Icon::Activity,
-            &lang.tr("nav_runtime"),
-            &connections,
-            tokens.accent,
-            state.shell.current_route == Route::Runtime,
-        ),
-        Message::Navigate(Route::Runtime),
+    let rules_count = state.editor.rules.len().to_string();
+    let dns_count = state.editor.dns_nameservers.len().to_string();
+
+    let proxies_tile = shortcut_tile(
+        Icon::Globe,
+        &lang.tr("nav_proxies"),
+        &groups.to_string(),
+        Route::Proxies,
+        state.shell.current_route == Route::Proxies,
     );
-    let dns = wrap_clickable(
-        stat_card(
-            Icon::Network,
-            &lang.tr("nav_dns"),
-            &nameservers,
-            tokens.accent,
-            state.shell.current_route == Route::Dns,
-        ),
-        Message::Navigate(Route::Dns),
+    let rules_tile = shortcut_tile(
+        Icon::Shield,
+        &lang.tr("nav_rules"),
+        &rules_count,
+        Route::Rules,
+        state.shell.current_route == Route::Rules,
+    );
+    let runtime_tile = shortcut_tile(
+        Icon::Activity,
+        &lang.tr("nav_runtime"),
+        &connections,
+        Route::Runtime,
+        state.shell.current_route == Route::Runtime,
+    );
+    let dns_tile = shortcut_tile(
+        Icon::Network,
+        &lang.tr("nav_dns"),
+        &dns_count,
+        Route::Dns,
+        state.shell.current_route == Route::Dns,
     );
 
-    row![runtime, dns]
-        .spacing(theme::SP_SM)
-        .width(Length::Fill)
-        .into()
+    column![
+        row![proxies_tile, rules_tile]
+            .spacing(theme::SP_SM)
+            .width(Length::Fill),
+        row![runtime_tile, dns_tile]
+            .spacing(theme::SP_SM)
+            .width(Length::Fill),
+    ]
+    .spacing(theme::SP_SM)
+    .width(Length::Fill)
+    .into()
 }
 
-/// Transparent button wrapper that makes an already-styled card clickable.
-fn wrap_clickable<'a>(
-    content: impl Into<Element<'a, Message>>,
-    on_press: Message,
+fn shortcut_tile<'a>(
+    icon: Icon,
+    label: &str,
+    count: &str,
+    route: Route,
+    is_active: bool,
 ) -> Element<'a, Message> {
+    let badge_kind = if is_active {
+        BadgeKind::Accent
+    } else {
+        BadgeKind::Neutral
+    };
+
+    let content = column![
+        row![
+            icon_themed(icon, 16.0, move |t: &Theme| {
+                let tk = theme::tokens(t);
+                if is_active {
+                    tk.accent
+                } else {
+                    tk.text_secondary
+                }
+            }),
+            Space::new().width(Length::Fill),
+            badge(count.to_string(), badge_kind),
+        ]
+        .align_y(Alignment::Center)
+        .width(Length::Fill),
+        Space::new().height(theme::SP_XS),
+        text(label.to_string())
+            .size(11)
+            .font(if is_active { FONT_SEMIBOLD } else { FONT_MEDIUM })
+            .style(move |t: &Theme| text::Style {
+                color: Some(if is_active {
+                    theme::tokens(t).accent
+                } else {
+                    theme::tokens(t).text_secondary
+                }),
+            }),
+    ]
+    .spacing(2);
+
     button(content)
         .width(Length::FillPortion(1))
-        .padding(0)
-        .style(|_t: &Theme, _status| button::Style {
-            border: Border {
-                radius: border::Radius::from(R_CARD),
+        .padding(theme::SP_MD)
+        .style(move |t: &Theme, status| {
+            let tokens = theme::tokens(t);
+            let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+            button::Style {
+                background: Some(tokens.card_bg.into()),
+                border: Border {
+                    radius: border::Radius::from(R_CARD),
+                    width: if is_active { 1.5 } else { 1.0 },
+                    color: if is_active {
+                        tokens.accent
+                    } else if hovered {
+                        tokens.accent
+                    } else {
+                        tokens.card_border
+                    },
+                },
+                shadow: tokens.card_shadow,
                 ..Default::default()
-            },
-            ..Default::default()
+            }
         })
-        .on_press(on_press)
+        .on_press(Message::Navigate(route))
         .into()
 }
 
 // ---------------------------------------------------------------------------
-// Speed footer
+// Speed footer with Mini Sparkline Waveform
 // ---------------------------------------------------------------------------
 
-/// Live up/down rates from the existing traffic state, mono numerals.
-fn speed_footer<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let body: Element<'a, Message> = if let Some(traffic) = &state.diag.traffic {
-        row![
-            speed_leg(Icon::ArrowUp, traffic.up, |t| theme::tokens(t).success),
-            speed_leg(Icon::ArrowDown, traffic.down, |t| {
-                theme::tokens(t).text_secondary
-            }),
-        ]
-        .spacing(theme::SP_SM)
-        .width(Length::Fill)
-        .into()
-    } else {
-        text(lang.tr("waiting_traffic").into_owned())
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(theme::tokens(t).text_tertiary),
-            })
-            .into()
+/// Live up/down rates from the traffic state in mono numerals, accompanied by
+/// the mini sparkline waveform for visual traffic dynamics.
+fn speed_footer<'a>(state: &AppState, _lang: &Lang<'a>) -> Element<'a, Message> {
+    let samples: Vec<u64> = state
+        .diag
+        .traffic_history
+        .iter()
+        .map(|(up, down)| (*up).max(*down))
+        .collect();
+
+    let (up_speed, down_speed) = match &state.diag.traffic {
+        Some(t) => (t.up, t.down),
+        None => (0, 0),
     };
 
-    container(body)
+    let speeds_col = column![
+        speed_leg(Icon::ArrowUp, up_speed, |t| theme::tokens(t).success),
+        speed_leg(Icon::ArrowDown, down_speed, |t| theme::tokens(t).accent),
+    ]
+    .spacing(2);
+
+    let waveform = mini_waveform(&samples);
+
+    let content = row![
+        speeds_col,
+        Space::new().width(Length::Fill),
+        waveform,
+    ]
+    .align_y(Alignment::Center)
+    .width(Length::Fill);
+
+    container(content)
         .width(Length::Fill)
         .padding(theme::SP_MD)
         .style(card_surface)
@@ -461,19 +555,18 @@ fn speed_leg<'a>(
             "{}/s",
             crate::utils::format_bytes(bytes_per_second)
         ))
-        .size(12)
+        .size(11)
         .font(MONO)
         .style(move |t: &Theme| text::Style {
             color: Some(color(t))
         }),
     ]
     .align_y(Alignment::Center)
-    .width(Length::FillPortion(1))
     .into()
 }
 
 // ---------------------------------------------------------------------------
-// Remaining navigation + footer
+// Remaining navigation + hairline divider
 // ---------------------------------------------------------------------------
 
 fn divider() -> Element<'static, Message> {
@@ -484,19 +577,6 @@ fn divider() -> Element<'static, Message> {
             ..Default::default()
         })
         .into()
-}
-
-fn version_footer() -> Element<'static, Message> {
-    container(
-        text(format!("v{}", env!("CARGO_PKG_VERSION")))
-            .size(10)
-            .style(|t: &Theme| text::Style {
-                color: Some(theme::tokens(t).text_tertiary),
-            }),
-    )
-    .width(Length::Fill)
-    .align_x(Alignment::Center)
-    .into()
 }
 
 // ---------------------------------------------------------------------------
@@ -532,4 +612,63 @@ fn clickable_card<'a>(
         })
         .on_press(on_press)
         .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mode_ids() {
+        let (mut state, _) = AppState::new();
+        state.runtime.script_block_present = false;
+        assert_eq!(mode_ids(&state), vec!["rule", "global", "direct"]);
+
+        state.runtime.script_block_present = true;
+        assert_eq!(
+            mode_ids(&state),
+            vec!["rule", "global", "direct", "script"]
+        );
+    }
+
+    #[test]
+    fn test_short_label() {
+        assert_eq!(short_label("系统代理 (System Proxy)"), "系统代理");
+        assert_eq!(short_label("TUN 模式 (TUN Mode)"), "TUN 模式");
+        assert_eq!(short_label("Simple"), "Simple");
+    }
+
+    #[test]
+    fn test_format_gb() {
+        assert_eq!(format_gb(500 * 1024 * 1024), "500 MB");
+        assert_eq!(format_gb(1024 * 1024 * 1024), "1.00 GB");
+        assert_eq!(format_gb(2560 * 1024 * 1024), "2.50 GB");
+    }
+
+    #[test]
+    fn test_sidebar_render_smoke() {
+        let (state, _) = AppState::new();
+        let _elem = sidebar(&state);
+
+        let (mut state2, _) = AppState::new();
+        state2.runtime.script_block_present = true;
+        state2.runtime.system_proxy_enabled = true;
+        state2.runtime.tun_enabled = Some(true);
+        state2.shell.current_route = Route::Proxies;
+        let _elem_active = sidebar(&state2);
+    }
+
+    #[test]
+    fn test_sidebar_render_with_traffic_and_samples() {
+        let (mut state, _) = AppState::new();
+        state.diag.traffic = Some(mihomo_api::types::TrafficData {
+            up: 1024 * 50,
+            down: 1024 * 1024 * 2,
+        });
+        state.diag.traffic_history.push_back((100, 200));
+        state.diag.traffic_history.push_back((300, 800));
+        state.diag.traffic_history.push_back((500, 1200));
+
+        let _elem = sidebar(&state);
+    }
 }

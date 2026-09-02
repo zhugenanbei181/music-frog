@@ -30,7 +30,9 @@ impl MockController {
 impl CoreController for MockController {
     async fn start(&self) -> Result<()> {
         if self.is_running() {
-            return Err(MihomoError::Service("Service is already running".to_string()));
+            return Err(MihomoError::Service(
+                "Service is already running".to_string(),
+            ));
         }
         self.running.store(true, Ordering::SeqCst);
         Ok(())
@@ -73,7 +75,9 @@ async fn start_succeeds_when_stopped_and_fails_when_running() {
 #[tokio::test]
 async fn stop_fails_when_not_running_and_succeeds_after_start() {
     let controller = MockController::new(None);
-    let err = run_lifecycle(Lifecycle::Stop, &controller).await.unwrap_err();
+    let err = run_lifecycle(Lifecycle::Stop, &controller)
+        .await
+        .unwrap_err();
     assert!(err.to_string().contains("not running"), "{err}");
 
     run_lifecycle(Lifecycle::Start, &controller).await.unwrap();
@@ -85,7 +89,9 @@ async fn stop_fails_when_not_running_and_succeeds_after_start() {
 #[tokio::test]
 async fn restart_starts_a_stopped_service_without_stopping_twice() {
     let controller = MockController::new(Some(4242));
-    let message = run_lifecycle(Lifecycle::Restart, &controller).await.unwrap();
+    let message = run_lifecycle(Lifecycle::Restart, &controller)
+        .await
+        .unwrap();
     assert_eq!(message, "Service restarted");
     assert!(controller.is_running());
 }

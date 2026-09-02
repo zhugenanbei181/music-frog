@@ -396,8 +396,8 @@ async fn load_settings_from_disk() -> anyhow::Result<infiltrator_core::settings:
 /// 同 [`load_settings_from_disk`]，但把 keyring 里的 WebDAV 密码水合进
 /// `webdav.password` 内存镜像，供 UI 域（`webdav_pass`）回填。仅 UI 展示/
 /// 重新应用路径使用；REST 读取路径保持不触碰 keyring。
-async fn load_settings_hydrated_from_disk(
-) -> anyhow::Result<infiltrator_core::settings::AppSettings> {
+async fn load_settings_hydrated_from_disk()
+-> anyhow::Result<infiltrator_core::settings::AppSettings> {
     let base_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
     let path = infiltrator_core::settings::settings_path(&base_dir)?;
     infiltrator_core::settings::load_settings_hydrated(&path).await
@@ -485,7 +485,8 @@ impl AdminApiContext for IcedAdminContext {
             Some(detail) => format!("订阅更新 {profile}: {detail}"),
             None => format!("订阅更新 {profile}"),
         };
-        self.shared.send(AdminHostCommand::Toast(text.clone(), status));
+        self.shared
+            .send(AdminHostCommand::Toast(text.clone(), status));
         // 0.20: mirror the toast as an OS notification — the scheduler fires
         // while the window may be hidden (success Low / failure Critical).
         // `title` is a locale key resolved on the consumer side.
@@ -822,7 +823,11 @@ impl AppState {
                     self.set_error(InfiltratorError::Config(e.clone()));
                     // 0.20: a failed resync can happen with the window hidden
                     // (admin WebUI trigger); mirror it as a system notification.
-                    self.system_notify("notify_kernel_error", &e, crate::notify::NotifyUrgency::Critical)
+                    self.system_notify(
+                        "notify_kernel_error",
+                        &e,
+                        crate::notify::NotifyUrgency::Critical,
+                    )
                 }
             },
             AdminHostCommand::RuntimeStopped => {

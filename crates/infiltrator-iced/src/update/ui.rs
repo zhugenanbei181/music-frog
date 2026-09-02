@@ -75,9 +75,15 @@ impl AppState {
             Message::ToggleTheme => {
                 self.shell.theme = if self.shell.theme == Theme::Dark {
                     Theme::Light
+                } else if self.shell.theme == Theme::Light {
+                    crate::view::theme::forest_theme()
                 } else {
                     Theme::Dark
                 };
+                Task::none()
+            }
+            Message::SetTheme(theme_name) => {
+                self.shell.theme = crate::view::theme::theme_from_name(&theme_name);
                 Task::none()
             }
             Message::TogglePerfPanel => {
@@ -140,9 +146,17 @@ impl AppState {
                     Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
                 }
             },
+            Message::UpdateCloseToTray(enabled) => {
+                self.shell.close_to_tray = enabled;
+                Task::none()
+            }
             Message::WindowClosed(id) => {
-                let current_route = self.shell.current_route;
-                window::close(id).map(move |_: ()| Message::Navigate(current_route))
+                if self.shell.close_to_tray {
+                    let current_route = self.shell.current_route;
+                    window::close(id).map(move |_: ()| Message::Navigate(current_route))
+                } else {
+                    Task::done(Message::Exit)
+                }
             }
             Message::HideWindow => {
                 let current_route = self.shell.current_route;
@@ -208,6 +222,10 @@ impl AppState {
                 }
                 Task::none()
             }
+            Message::UpdateSystemProxyBypass(bypass) => {
+                self.shell.system_proxy_bypass = bypass;
+                Task::none()
+            }
             Message::SetSystemProxy(enabled) => {
                 if self.runtime.system_proxy_pending {
                     return Task::none();
@@ -216,6 +234,11 @@ impl AppState {
                 self.runtime.system_proxy_pending = true;
                 self.refresh_tray();
                 let runtime = self.runtime.runtime.clone();
+                let bypass = if self.shell.system_proxy_bypass.trim().is_empty() {
+                    None
+                } else {
+                    Some(self.shell.system_proxy_bypass.trim().to_string())
+                };
                 Task::perform(
                     async move {
                         let endpoint = if enabled {
@@ -236,11 +259,14 @@ impl AppState {
                         } else {
                             String::new()
                         };
-                        infiltrator_desktop::proxy::apply_system_proxy(if enabled {
-                            Some(endpoint.as_str())
-                        } else {
-                            None
-                        })
+                        infiltrator_desktop::proxy::apply_system_proxy_with_bypass(
+                            if enabled {
+                                Some(endpoint.as_str())
+                            } else {
+                                None
+                            },
+                            bypass.as_deref(),
+                        )
                         .map_err(|e: anyhow::Error| InfiltratorError::Privilege(e.to_string()))
                     },
                     Message::SystemProxySet,

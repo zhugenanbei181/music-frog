@@ -95,14 +95,50 @@ bsn 机械守卫（`scripts/quality/bevy_bsn_guard.py`，已接 CI）；`aarch64
 面之外、0.30 大一统线），与 iced 的 naga 27 共存修复（`infiltrator-iced` 的
 `naga27` feature-only 直依赖）在两栈同图构建时仍有效。
 
-## 5. 里程碑
+## 5. 里程碑与演进规划
 
 | 里程碑 | 内容 | 任务 |
 | --- | --- | --- |
 | M0（已完成） | 两 crate 落地、bsn! 壳、无头测试、守卫全绿 | BEVY-001 |
 | M1（已完成） | 主题双模式热切换、字体嵌入、accesskit 最小闭环、控件包装与自研补齐 | BEVY-002 / BEVY-003 |
 | M2（已完成） | bsn 机械守卫；路由+Overview 页面；真实 mihomo 数据泵与模式切换 | BEVY-004 / BEVY-005 |
-| M3（模拟器 L3 达成） | Android APK 打包 + 模拟器真实渲染 smoke；真机 ARM smoke 可选 | BEVY-006（收尾打磨：BEVY-011） |
+| M3（已完成） | Android APK 打包 + 模拟器真实渲染 smoke；真机 ARM smoke 验证 | BEVY-006 / BEVY-011 |
+| M4（0.30 推进中） | 10+ 业务页面大迁移、高性能 Virtual List、移动端响应式断点 (<600px)、Android VpnService 宿主解耦 | BEVY-012 ~ BEVY-026 |
+
+## 5.5 0.30 大一统前端 15 项核心补强方案
+
+为达成 0.30 战略统一 surface，全面对齐桌面（Windows/macOS/Linux）与移动端（Android），确立如下 15 项详细落地实施方案：
+
+1. **BEVY-012 战略统一路由架构与 10+ 业务页面枚举**：
+   扩展 `Route` 为 11 个全量业务页面枚举（`Overview`, `Proxies`, `Profiles`, `Rules`, `Connections`, `Logs`, `Dns`, `Doctor`, `AppRouting`, `Sync`, `Settings`）；统一走 `ContentSlot` 有界子树替换，保证幂等切换与零内存泄漏。
+2. **BEVY-013 高性能无分配 Virtual List 状态机与视口物理回收**：
+   基于纯数学 `visible_window_with_overscan` 与上下虚拟高度垫片（Top/Bottom Spacer Nodes），在海量连接（10,000+）与庞大规则集（50,000+）下仅实例化视口内加缓冲区的固定数量 ECS 实体，彻底消除 GC 与帧率抖动。
+3. **BEVY-014 移动端响应式断点系统 (<600px) 与自适应双模外壳**：
+   设立 `MOBILE_PX = 600.0` 与 `TABLET_PX = 1024.0` 响应式断点；在移动端 (<600px) 自动从桌面 240px 左侧 Rail 切换为「顶部状态栏 + 底部 Tab 导航栏 + 抽屉菜单」，并将触控热区由 36px 自动垫高至 48px 无障碍标准。
+4. **BEVY-015 Android VpnService 宿主无感解耦适配器**：
+   建立 `VpnHostAdapter` 纯 Rust 跨平台抽象 trait；Android 端由 Kotlin VpnService 提供 FD，经 UniFFI/JNI 下发至底层 `tun2proxy`；Bevy UI 前端通过事件泵与适配器交互，严禁在 UI 层直接调用 JNI 原始指针，实现宿主与 UI 的物理隔离。
+5. **BEVY-016 动态图表自适应容器宽度与双曲线共用量程渲染**：
+   废除硬编码 876px 宽度；改造 `ChartSpec` 支持百分比/弹性容器几何测量，并在上下行双曲线中引入统一动态最大量程归一化，解决上传下载量级悬殊时的视觉错位。
+6. **BEVY-017 节点选择器网格/列表双模与低开销延迟着色**：
+   迁移 Proxies 页面；支持 URLTest / Fallback / Selector 策略组折叠展开，支持按延迟高低三色染色（绿 <100ms / 橙 <300ms / 红超时），支持 Filter Alive 与拼音模糊匹配。
+7. **BEVY-018 订阅流水线与配置聚合器页面投影**：
+   迁移 Profiles 页面；展示订阅到期时间、剩余流量胶囊条、多订阅聚合合并开关，集成原子更新进度条与失败智能退避提示。
+8. **BEVY-019 分流规则树与实时命中染色诊断器**：
+   迁移 Rules 页面；展示 DOMAIN-SUFFIX, IP-CIDR, GEOIP, MRS 规则流，集成 Rule Tracer 模拟输入框，按真实规则树实时高亮匹配链路。
+9. **BEVY-020 环形缓冲日志流与低开销正则高亮面板**：
+   迁移 Logs 页面；对接底层的 500 条定长 RingBuffer，提供 DEBUG/INFO/WARN/ERROR 多级标签过滤与低开销关键词正则高亮。
+10. **BEVY-021 实时连接审计与细粒度流阻断控制器**：
+    迁移 Connections 页面；消费 WebSocket 连接快照流，富化 GeoIP/ASN 图标，支持按速率/总流量动态排序，支持单连接一键掐断与全量断开。
+11. **BEVY-022 智能 DNS 解析与 Fake-IP 状态可视化**：
+    迁移 DNS 页面；实时监控 DNS 解析延迟、Fake-IP 池占用率、DoT/DoH 状态，并主动告警 Android Private DNS 严格模式冲突。
+12. **BEVY-023 系统自愈诊断与网络环境探活面板**：
+    迁移 Doctor 页面；一键自检内核健康度、TUN 网卡分配、端口占用、DNS 污染及直连外网探活，提供一键自愈修复按钮。
+13. **BEVY-024 进程级分流与应用代理多端交互卡片**：
+    迁移 AppRouting 页面；桌面端枚举系统活动进程并提取应用图标，Android 端读取已安装 App 列表，以 Checkbox 矩阵精准下发分流白名单。
+14. **BEVY-025 WebDAV 三向合并冲突解决器与同步面板**：
+    迁移 Sync 页面；展示上次同步时间与代数（Generation），在配置冲突时提供 Local / Remote / Base 三栏差异并列比对与逐项合并。
+15. **BEVY-026 全局模态弹窗、Toast 浮层与 AccessKit 语义全链路闭环**：
+    实现基于 Scrim 遮罩的通用 Modal 弹窗系统与非阻塞 Toast 消息栈，确保每个新增控件与弹窗均附带 AccessKit 语义节点，达成移动 TalkBack 与桌面无障碍全绿。
 
 ## 6. 验收命令
 

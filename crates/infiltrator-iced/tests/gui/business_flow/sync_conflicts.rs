@@ -12,9 +12,7 @@
 //!
 //! test-intent: behavior
 
-use super::support::{
-    SAMPLE_PROFILE_YAML, TempHome, block_on, feed, fresh_state, last_toast,
-};
+use super::support::{SAMPLE_PROFILE_YAML, TempHome, block_on, feed, fresh_state, last_toast};
 use crate::types::app::{SyncConflict, SyncSummary, ToastStatus};
 use crate::types::message::Message;
 use crate::types::options::SyncDiffBundle;
@@ -157,7 +155,8 @@ async fn drive_task(
 }
 
 const LOCAL_YAML: &str = "mixed-port: 7890\nmode: rule\nlog-level: info\nproxies: []\nrules: []\n";
-const REMOTE_YAML: &str = "mixed-port: 7890\nmode: global\ntun:\n  enable: true\nproxies: []\nrules: []\n";
+const REMOTE_YAML: &str =
+    "mixed-port: 7890\nmode: global\ntun:\n  enable: true\nproxies: []\nrules: []\n";
 /// Journey 7 的第二个冲突内容（与本地 Resolve 后的 alpha 均不同）。
 const CONFLICT2_YAML: &str = "mixed-port: 7899\nmode: direct\nproxies: []\nrules: []\n";
 
@@ -206,7 +205,10 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
     assert_eq!(units, 0);
     let diff = state.profile.sync_diff.as_ref().unwrap();
     assert_eq!(diff.picks.len(), 3);
-    assert!(diff.picks.values().all(|pick| !pick), "picks start keep-local");
+    assert!(
+        diff.picks.values().all(|pick| !pick),
+        "picks start keep-local"
+    );
 
     // Per-key pick flips only its own key.
     feed(&mut state, Message::PickSyncDiffKey("mode".into(), true));
@@ -215,14 +217,16 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
 
     // Bulk pick overrides everything (including the removal).
     feed(&mut state, Message::SetSyncDiffPicks(true));
-    assert!(state
-        .profile
-        .sync_diff
-        .as_ref()
-        .unwrap()
-        .picks
-        .values()
-        .all(|pick| *pick));
+    assert!(
+        state
+            .profile
+            .sync_diff
+            .as_ref()
+            .unwrap()
+            .picks
+            .values()
+            .all(|pick| *pick)
+    );
 
     // Apply arms the merge task (guards on an open session + the conflict).
     let units = feed(&mut state, Message::ApplySyncDiffMerge);
@@ -277,7 +281,10 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
 
     // Disk truth: mode came from remote, tun was adopted, log-level removed.
     let merged = std::fs::read_to_string(home.configs().join("alpha.yaml")).unwrap();
-    assert!(merged.contains("mode: global"), "remote mode adopted: {merged}");
+    assert!(
+        merged.contains("mode: global"),
+        "remote mode adopted: {merged}"
+    );
     assert!(merged.contains("enable: true"), "added tun adopted");
     assert!(!merged.contains("log-level"), "accepted removal dropped");
     assert!(!remote_path.exists(), "conflict file consumed");
@@ -318,7 +325,9 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
         .into_iter()
         .collect::<Vec<_>>();
         assert!(
-            observed.iter().any(|message| matches!(message, Message::SyncProgress(_))),
+            observed
+                .iter()
+                .any(|message| matches!(message, Message::SyncProgress(_))),
             "upload worker emits progress: {observed:?}"
         );
         let finished = observed.iter().find_map(|message| match message {
@@ -334,12 +343,16 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
             let files = stub.files.lock().unwrap();
             assert_eq!(files.len(), 2, "stub holds exactly the two profiles");
             assert!(
-                files.get("/alpha.yaml").is_some_and(|body| body.contains("mode: rule")),
+                files
+                    .get("/alpha.yaml")
+                    .is_some_and(|body| body.contains("mode: rule")),
                 "alpha uploaded verbatim: {:?}",
                 files.get("/alpha.yaml")
             );
             assert!(
-                files.get("/beta.yaml").is_some_and(|body| body.contains("MATCH,PROXY")),
+                files
+                    .get("/beta.yaml")
+                    .is_some_and(|body| body.contains("MATCH,PROXY")),
                 "beta uploaded verbatim: {:?}",
                 files.get("/beta.yaml")
             );
@@ -402,7 +415,10 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
             .unwrap();
             tokio::fs::remove_file(&conflict_path).await.unwrap();
         }
-        let units = feed(&mut state, Message::SyncConflictResolved(Ok("alpha".into())));
+        let units = feed(
+            &mut state,
+            Message::SyncConflictResolved(Ok("alpha".into())),
+        );
         assert!(state.profile.sync_conflicts.is_empty());
         assert!(units >= 2, "LoadProfiles + success-toast legs");
         assert!(
@@ -474,7 +490,9 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
 
     // With a live core this is where trigger_runtime_rebuild() puts the
     // state; drive the rebuild state machine through its failure leg.
-    state.runtime.rebuild_flow = RebuildFlowState::Rebuilding { label: "配置".into() };
+    state.runtime.rebuild_flow = RebuildFlowState::Rebuilding {
+        label: "配置".into(),
+    };
     state.runtime.status = RuntimeStatus::Running;
     let units = feed(
         &mut state,

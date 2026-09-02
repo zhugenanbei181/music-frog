@@ -24,23 +24,251 @@
 //! `Local`-timed cadence via compare-and-set [`Visibility`]. The input seam
 //! (keyboard / IME events) stays a windowed milestone; everything here is
 //! exercised through state injection.
+//!
+//! **CJK IME & Text Interaction Engine**:
+//! - [`ImeCursorArea`] and [`compute_ime_cursor_area`]: absolute screen coordinate
+//!   calculation for candidate window popup placement and soft keyboard avoidance;
+//! - [`PreeditStateMachine`]: Pinyin / CJK syllable and clause segmentation
+//!   state machine with navigation and conversion states;
+//! - [`TextFieldState::safe_backspace`] / [`TextFieldState::safe_delete`]:
+//!   Unicode extended grapheme cluster safe deletion (never breaks emojis, flags,
+//!   skin tones, or combining marks);
+//! - [`ImeTransaction`]: transaction snapshots with rollback on cancellation and
+//!   atomic commit.
 
 use bevy::camera::visibility::Visibility;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::{With, Without};
-use bevy::ecs::system::{Local, Query, Res};
+use bevy::ecs::system::{Commands, Local, Query, Res};
+use bevy::math::Vec2;
 use bevy::scene::{Scene, bsn};
 use bevy::time::{Time, Virtual};
+use bevy::transform::components::GlobalTransform;
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, BorderRadius, ComputedNode, FlexDirection, Node, UiRect, Val,
+    percent, px,
 };
 use bevy::ui::widget::Text;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::palette::UiPalette;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
+
+mod ime;
+
+/// Classification of a preedit segment in CJK IME composition.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum PreeditClauseState {
+    /// Raw uncommitted input (e.g. latin pinyin syllables).
+    #[default]
+    Raw,
+    /// Currently focused / active candidate clause being selected.
+    Selected,
+    /// Converted clause that is not currently selected.
+    Converted,
+}
+
+/// A segmented clause within an IME preedit composition.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreeditClause {
+    /// Text content of this clause.
+    pub text: String,
+    /// State / classification of this clause.
+    pub state: PreeditClauseState,
+    /// Character range `(start, end)` within the full preedit string.
+    pub range: (usize, usize),
+}
+
+impl PreeditClause {
+    /// Construct a new preedit clause.
+    pub fn new(text: impl Into<String>, state: PreeditClauseState, range: (usize, usize)) -> Self {
+        Self {
+            text: text.into(),
+            state,
+            range,
+        }
+    }
+
+    /// Whether this clause is the active / selected one.
+    pub fn is_selected(&self) -> bool {
+        self.state == PreeditClauseState::Selected
+    }
+}
+
+/// Status of the IME Preedit composition state machine.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum PreeditStatus {
+    /// No active composition.
+    #[default]
+    Idle,
+    /// Active composition in progress.
+    Composing,
+    /// Composition just committed.
+    Committed,
+}
+
+/// State machine for IME preedit composition and CJK syllable/clause segmentation.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PreeditStateMachine {
+    raw_text: String,
+    clauses: Vec<PreeditClause>,
+    cursor: usize,
+    active_clause: Option<usize>,
+    status: PreeditStatus,
+}
+
+/// Snapshot of text field state prior to an IME composition session,
+/// enabling transaction rollback on cancellation (e.g. Escape / Cancel).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ImeTransaction {
+    /// Controlled text when the transaction began.
+    pub original_text: String,
+    /// Caret character position when the transaction began.
+    pub original_cursor: usize,
+    /// Selection anchor when the transaction began.
+    pub original_anchor: Option<usize>,
+}
+
+/// Absolute screen rectangle for the IME cursor / composition area.
+/// Used to position the OS IME candidate window (e.g. on Wayland/Windows/macOS)
+/// and to calculate soft keyboard avoidance on mobile.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct ImeCursorArea {
+    /// Top-left position in window/screen pixel coordinates.
+    pub position: Vec2,
+    /// Dimensions (width, height) of the cursor / composition area in pixels.
+    pub size: Vec2,
+}
+
+impl ImeCursorArea {
+    /// Construct a new cursor area from position and size.
+    pub fn new(position: Vec2, size: Vec2) -> Self {
+        Self { position, size }
+    }
+
+    /// Construct a new cursor area from individual scalar bounds.
+    pub fn from_rect(x: f32, y: f32, width: f32, height: f32) -> Self {
+        Self {
+            position: Vec2::new(x, y),
+            size: Vec2::new(width, height),
+        }
+    }
+
+    /// Top-left X coordinate in screen pixels.
+    pub fn x(&self) -> f32 {
+        self.position.x
+    }
+
+    /// Top-left Y coordinate in screen pixels.
+    pub fn y(&self) -> f32 {
+        self.position.y
+    }
+
+    /// Width of the cursor area in pixels.
+    pub fn width(&self) -> f32 {
+        self.size.x
+    }
+
+    /// Height of the cursor area in pixels.
+    pub fn height(&self) -> f32 {
+        self.size.y
+    }
+
+    /// Top-left point.
+    pub fn min(&self) -> Vec2 {
+        self.position
+    }
+
+    /// Bottom-right point.
+    pub fn max(&self) -> Vec2 {
+        self.position + self.size
+    }
+
+    /// Top edge Y.
+    pub fn top(&self) -> f32 {
+        self.position.y
+    }
+
+    /// Bottom edge Y.
+    pub fn bottom(&self) -> f32 {
+        self.position.y + self.size.y
+    }
+
+    /// Left edge X.
+    pub fn left(&self) -> f32 {
+        self.position.x
+    }
+
+    /// Right edge X.
+    pub fn right(&self) -> f32 {
+        self.position.x + self.size.x
+    }
+}
+
+/// Parameters for calculating the absolute IME cursor area.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ImeCursorAreaParams {
+    /// Absolute top-left position of the text field bounding box on screen.
+    pub field_origin: Vec2,
+    /// Total bounding size of the text field.
+    pub field_size: Vec2,
+    /// Left / top padding of the text container inside the field.
+    pub padding: Vec2,
+    /// Horizontal offset in pixels from the start of the text to the caret.
+    pub caret_offset_x: f32,
+    /// Caret width in pixels (typically 2px).
+    pub caret_width: f32,
+    /// Caret height in pixels (typically line height / control square size).
+    pub caret_height: f32,
+    /// Width of any active preedit string in pixels (0 if no preedit).
+    pub preedit_width: f32,
+}
+
+/// Pure function: compute the absolute screen coordinates for the IME cursor area.
+pub fn compute_ime_cursor_area(params: ImeCursorAreaParams) -> ImeCursorArea {
+    let x = params.field_origin.x + params.padding.x + params.caret_offset_x;
+    let y = params.field_origin.y
+        + params.padding.y
+        + ((params.field_size.y - params.padding.y * 2.0 - params.caret_height).max(0.0) * 0.5);
+    let width = if params.preedit_width > 0.0 {
+        params.preedit_width.max(params.caret_width)
+    } else {
+        params.caret_width
+    };
+    ImeCursorArea {
+        position: Vec2::new(x, y),
+        size: Vec2::new(width, params.caret_height),
+    }
+}
+
+/// Estimate text advance width in pixels based on character classes (CJK/wide vs ASCII).
+pub fn estimate_text_width(text: &str, font_size: f32) -> f32 {
+    let mut width = 0.0;
+    for c in text.chars() {
+        if is_cjk_or_wide(c) {
+            width += font_size;
+        } else {
+            width += font_size * 0.55;
+        }
+    }
+    width
+}
+
+fn is_cjk_or_wide(c: char) -> bool {
+    matches!(c as u32,
+        0x1100..=0x115F | // Hangul Jamo
+        0x2E80..=0xA4CF | // CJK Radicals, Kangxi, Ideographic, Hiragana, Katakana, Bopomofo, CJK Unified Ideographs, Yi
+        0xAC00..=0xD7A3 | // Hangul Syllables
+        0xF900..=0xFAFF | // CJK Compatibility Ideographs
+        0xFE30..=0xFE4F | // CJK Compatibility Forms
+        0xFF00..=0xFF60 | // Fullwidth Forms
+        0xFFE0..=0xFFE6 | // Fullwidth Signs
+        0x1F300..=0x1F9FF // Emojis & Pictographs
+    )
+}
 
 /// One editing operation the host's input seam feeds into
 /// [`TextFieldState::apply`]. Kept minimal: this covers the caret and
@@ -79,10 +307,12 @@ pub struct TextFieldState {
     cursor: usize,
     anchor: Option<usize>,
     /// The active IME composition string, rendered as its own underlined run
-    /// at the caret. It never rides [`Self::apply`] — the host's IME seam
-    /// sets it directly on `Ime::Preedit` and clears it (ideally together
-    /// with the commit's [`TextFieldInput::Insert`]) on `Ime::Commit`.
+    /// at the caret.
     preedit: String,
+    /// The IME preedit state machine managing CJK syllable segmentation.
+    preedit_machine: PreeditStateMachine,
+    /// Snapshot for active IME transaction rollback.
+    ime_transaction: Option<ImeTransaction>,
 }
 
 impl TextFieldState {
@@ -95,6 +325,8 @@ impl TextFieldState {
             cursor,
             anchor: None,
             preedit: String::new(),
+            preedit_machine: PreeditStateMachine::new(),
+            ime_transaction: None,
         }
     }
 
@@ -122,6 +354,16 @@ impl TextFieldState {
         &self.preedit
     }
 
+    /// Access the preedit state machine.
+    pub fn preedit_machine(&self) -> &PreeditStateMachine {
+        &self.preedit_machine
+    }
+
+    /// Access the mutable preedit state machine.
+    pub fn preedit_machine_mut(&mut self) -> &mut PreeditStateMachine {
+        &mut self.preedit_machine
+    }
+
     /// Set the IME composition string (the host's `Ime::Preedit` seam),
     /// reporting whether the field changed.
     pub fn set_preedit(&mut self, preedit: impl Into<String>) -> bool {
@@ -129,27 +371,128 @@ impl TextFieldState {
         if self.preedit == preedit {
             return false;
         }
-        self.preedit = preedit;
+        self.preedit = preedit.clone();
+        self.preedit_machine.update(preedit, None);
         true
     }
 
     /// Clear the IME composition (the host's `Ime::Commit` / `Ime::Cancel`
     /// seam), reporting whether a composition was active.
     pub fn clear_preedit(&mut self) -> bool {
+        self.preedit_machine.cancel();
         self.set_preedit("")
+    }
+
+    /// Begin an IME transaction snapshot if none is currently active.
+    pub fn begin_ime_transaction(&mut self) {
+        if self.ime_transaction.is_none() {
+            self.ime_transaction = Some(ImeTransaction {
+                original_text: self.text.clone(),
+                original_cursor: self.cursor,
+                original_anchor: self.anchor,
+            });
+        }
+    }
+
+    /// Roll back the text field state to the snapshot taken when the IME transaction began.
+    /// Clears preedit and returns true if a transaction was active and rolled back.
+    pub fn rollback_ime_transaction(&mut self) -> bool {
+        self.preedit_machine.cancel();
+        self.preedit.clear();
+        if let Some(tx) = self.ime_transaction.take() {
+            self.text = tx.original_text;
+            self.cursor = tx.original_cursor;
+            self.anchor = tx.original_anchor;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Commit the IME transaction: consumes the snapshot and inserts `committed_text`
+    /// at the transaction's insertion point, clearing preedit.
+    pub fn commit_ime_transaction(&mut self, committed_text: &str) -> bool {
+        self.preedit_machine.commit();
+        self.preedit.clear();
+        if let Some(tx) = self.ime_transaction.take() {
+            self.text = tx.original_text;
+            self.cursor = tx.original_cursor;
+            self.anchor = tx.original_anchor;
+            self.insert(committed_text);
+            true
+        } else {
+            self.insert(committed_text)
+        }
+    }
+
+    /// Whether an IME transaction is currently active.
+    pub fn is_in_ime_transaction(&self) -> bool {
+        self.ime_transaction.is_some()
     }
 
     /// Apply one input, reporting whether the field changed.
     pub fn apply(&mut self, input: TextFieldInput) -> bool {
         match input {
             TextFieldInput::Insert(inserted) => self.insert(&inserted),
-            TextFieldInput::Backspace => self.remove_before_cursor(),
-            TextFieldInput::Delete => self.remove_at_cursor(),
+            TextFieldInput::Backspace => self.safe_backspace(),
+            TextFieldInput::Delete => self.safe_delete(),
             TextFieldInput::Left(extend) => self.move_left(extend),
             TextFieldInput::Right(extend) => self.move_right(extend),
             TextFieldInput::Home => self.move_to(0),
             TextFieldInput::End => self.move_to(self.text.chars().count()),
             TextFieldInput::SelectAll => self.select_all(),
+        }
+    }
+
+    /// Safely remove the Unicode extended grapheme cluster before the cursor,
+    /// or the selected range if one exists.
+    pub fn safe_backspace(&mut self) -> bool {
+        if self.remove_selected() {
+            return true;
+        }
+        if self.cursor == 0 || self.text.is_empty() {
+            return false;
+        }
+
+        let head: String = self.text.chars().take(self.cursor).collect();
+        let tail: String = self.text.chars().skip(self.cursor).collect();
+
+        let mut grapheme_indices: Vec<(usize, &str)> = head.grapheme_indices(true).collect();
+        if let Some((byte_offset, last_grapheme)) = grapheme_indices.pop() {
+            let grapheme_chars = last_grapheme.chars().count();
+            let new_head = &head[..byte_offset];
+            self.text = format!("{new_head}{tail}");
+            self.cursor = self.cursor.saturating_sub(grapheme_chars);
+            self.anchor = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Safely remove the Unicode extended grapheme cluster at/after the cursor,
+    /// or the selected range if one exists.
+    pub fn safe_delete(&mut self) -> bool {
+        if self.remove_selected() {
+            return true;
+        }
+        let total_chars = self.text.chars().count();
+        if self.cursor >= total_chars {
+            return false;
+        }
+
+        let head: String = self.text.chars().take(self.cursor).collect();
+        let tail: String = self.text.chars().skip(self.cursor).collect();
+
+        let mut graphemes = tail.graphemes(true);
+        if let Some(first_grapheme) = graphemes.next() {
+            let grapheme_bytes = first_grapheme.len();
+            let new_tail = &tail[grapheme_bytes..];
+            self.text = format!("{head}{new_tail}");
+            self.anchor = None;
+            true
+        } else {
+            false
         }
     }
 
@@ -166,34 +509,6 @@ impl TextFieldState {
         self.cursor += count;
         self.anchor = None;
         kept || !inserted.is_empty()
-    }
-
-    fn remove_before_cursor(&mut self) -> bool {
-        if self.remove_selected() {
-            return true;
-        }
-        if self.cursor == 0 {
-            return false;
-        }
-        let head = self.text.chars().take(self.cursor - 1).collect::<String>();
-        let tail = self.text.chars().skip(self.cursor).collect::<String>();
-        self.text = head + &tail;
-        self.cursor -= 1;
-        true
-    }
-
-    fn remove_at_cursor(&mut self) -> bool {
-        if self.remove_selected() {
-            return true;
-        }
-        let len = self.text.chars().count();
-        if self.cursor >= len {
-            return false;
-        }
-        let head = self.text.chars().take(self.cursor).collect::<String>();
-        let tail = self.text.chars().skip(self.cursor + 1).collect::<String>();
-        self.text = head + &tail;
-        true
     }
 
     fn move_left(&mut self, extend: bool) -> bool {
@@ -499,8 +814,6 @@ pub fn sync_text_fields(
         let visual = field_visual(&field.0);
         let preedit = field.0.preedit().to_string();
         for child in children.iter() {
-            // Direct text runs (before / after) and fills (caret bars, the
-            // selection wash) live on the field's own children.
             if let Ok((_, mut text)) = befores.get_mut(*child)
                 && text.0 != visual.before
             {
@@ -521,8 +834,6 @@ pub fn sync_text_fields(
             {
                 fill.0 = accent;
             }
-            // The preedit column and the selection node host their text (and
-            // the underline bar) one level down — restamp that subtree too.
             if let Ok(grandchildren) = wrappers.get(*child) {
                 for inner in grandchildren.iter() {
                     if let Ok((_, mut text)) = selecteds.get_mut(*inner)
@@ -542,6 +853,56 @@ pub fn sync_text_fields(
                     }
                 }
             }
+        }
+    }
+}
+
+/// System to compute and update [`ImeCursorArea`] for all text fields with computed layout geometry.
+#[allow(clippy::type_complexity)]
+pub fn sync_ime_cursor_areas(
+    mut commands: Commands,
+    palette: Res<UiPalette>,
+    fields: Query<(
+        bevy::ecs::entity::Entity,
+        &TextField,
+        Option<&GlobalTransform>,
+        Option<&ComputedNode>,
+        Option<&ImeCursorArea>,
+    )>,
+) {
+    for (entity, field, transform, node, existing_area) in &fields {
+        let size = node
+            .map(|n| n.size())
+            .unwrap_or_else(|| Vec2::new(200.0, palette.control_height_px));
+        let origin = transform
+            .map(|t| {
+                let trans = t.translation();
+                Vec2::new(trans.x, trans.y) - size * 0.5
+            })
+            .unwrap_or(Vec2::ZERO);
+        let visual = field_visual(&field.0);
+
+        let font_size = palette.body_font_px;
+        let caret_offset_x = estimate_text_width(&visual.before, font_size);
+        let preedit_width = estimate_text_width(field.0.preedit(), font_size);
+
+        let params = ImeCursorAreaParams {
+            field_origin: origin,
+            field_size: size,
+            padding: Vec2::new(space::S12, 0.0),
+            caret_offset_x,
+            caret_width: palette.caret_width_px,
+            caret_height: palette.control_square_px,
+            preedit_width,
+        };
+
+        let calculated = compute_ime_cursor_area(params);
+        if let Some(existing) = existing_area {
+            if *existing != calculated {
+                commands.entity(entity).insert(calculated);
+            }
+        } else {
+            commands.entity(entity).insert(calculated);
         }
     }
 }

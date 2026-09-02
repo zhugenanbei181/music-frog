@@ -12,17 +12,28 @@ pub struct VersionFixtureGenerator;
 
 impl VersionFixtureGenerator {
     pub fn generate_fixture_for_version(version_tag: &str) -> MihomoCapability {
-        crate::capability::capability_snapshot(version_tag).unwrap_or_else(|_| {
-            panic!("Failed to generate fixture for version: {}", version_tag)
-        })
+        crate::capability::capability_snapshot(version_tag)
+            .unwrap_or_else(|_| panic!("Failed to generate fixture for version: {}", version_tag))
     }
 
     pub fn generate_known_version_fixtures() -> Vec<(String, MihomoCapability)> {
         vec![
-            ("v1.18.0".to_string(), Self::generate_fixture_for_version("v1.18.0")),
-            ("v1.19.0".to_string(), Self::generate_fixture_for_version("v1.19.0")),
-            ("Alpha-v1.19.2".to_string(), Self::generate_fixture_for_version("Alpha-v1.19.2")),
-            ("Nightly".to_string(), Self::generate_fixture_for_version("Nightly")),
+            (
+                "v1.18.0".to_string(),
+                Self::generate_fixture_for_version("v1.18.0"),
+            ),
+            (
+                "v1.19.0".to_string(),
+                Self::generate_fixture_for_version("v1.19.0"),
+            ),
+            (
+                "Alpha-v1.19.2".to_string(),
+                Self::generate_fixture_for_version("Alpha-v1.19.2"),
+            ),
+            (
+                "Nightly".to_string(),
+                Self::generate_fixture_for_version("Nightly"),
+            ),
         ]
     }
 
@@ -77,11 +88,14 @@ mod tests {
         let to = VersionFixtureGenerator::generate_fixture_for_version("v1.19.0");
 
         let diff = VersionFixtureGenerator::diff_capabilities(&from, &to);
-        
+
         assert!(!diff.is_breaking_change);
         assert!(diff.removed_features.is_empty());
         assert!(diff.added_features.contains(&"mrs_rule_set".to_string()));
-        assert!(diff.added_features.contains(&"wire_guard_outbound".to_string()));
+        assert!(
+            diff.added_features
+                .contains(&"wire_guard_outbound".to_string())
+        );
     }
 
     #[test]
@@ -90,11 +104,14 @@ mod tests {
         let to = VersionFixtureGenerator::generate_fixture_for_version("v1.18.0");
 
         let diff = VersionFixtureGenerator::diff_capabilities(&from, &to);
-        
+
         assert!(diff.is_breaking_change);
         assert!(!diff.removed_features.is_empty());
         assert!(diff.added_features.is_empty());
         assert!(diff.removed_features.contains(&"mrs_rule_set".to_string()));
-        assert!(diff.removed_features.contains(&"wire_guard_outbound".to_string()));
+        assert!(
+            diff.removed_features
+                .contains(&"wire_guard_outbound".to_string())
+        );
     }
 }

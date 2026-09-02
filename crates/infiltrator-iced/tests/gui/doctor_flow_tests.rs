@@ -161,7 +161,11 @@ fn test_bootstrap_transitions_and_clears_busy() {
 fn test_doctor_actions_are_noop_in_demo_mode() {
     let (mut state, _) = AppState::new();
     state.shell.demo = true;
-    for message in [Message::RunDoctor, Message::RunDoctorFix, Message::RunBootstrap] {
+    for message in [
+        Message::RunDoctor,
+        Message::RunDoctorFix,
+        Message::RunBootstrap,
+    ] {
         let _ = state.update(message.clone());
     }
     assert!(!state.diag.doctor.is_running);

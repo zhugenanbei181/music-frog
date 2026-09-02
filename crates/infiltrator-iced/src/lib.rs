@@ -71,6 +71,7 @@ pub fn run() -> iced::Result {
     }
 
     panic::set_hook(Box::new(move |info| {
+        let _ = infiltrator_desktop::proxy::apply_system_proxy(None);
         let msg = info.to_string();
         // 1) 既有原始 crash log（先行落盘，行为不变）。
         if let Ok(mut file) = File::create(&crash_log_path) {
@@ -105,7 +106,7 @@ pub fn run() -> iced::Result {
 }
 
 /// Innermost frames kept in the sanitized report's backtrace summary.
-const BACKTRACE_SUMMARY_LINES: usize = 32;
+pub(crate) const BACKTRACE_SUMMARY_LINES: usize = 32;
 
 /// Best-effort structured crash report, wired per platform contract §7c:
 /// after the raw crash log above, collect a [`CrashReport`] (timestamp, OS,
@@ -132,46 +133,10 @@ fn write_sanitized_crash_report(log_dir: &Path, panic_message: &str) {
 
 /// Cap a captured backtrace to a compact summary; std prints innermost
 /// frames first, so the head carries the useful stack.
-fn backtrace_summary(backtrace: &str) -> String {
+pub(crate) fn backtrace_summary(backtrace: &str) -> String {
     backtrace
         .lines()
         .take(BACKTRACE_SUMMARY_LINES)
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-#[cfg(test)]
-mod crash_report_wiring {
-    use super::*;
-
-    #[test]
-    fn backtrace_summary_keeps_innermost_head() {
-        let lines: Vec<String> = (0..100).map(|i| format!("frame {i}")).collect();
-        let summary = backtrace_summary(&lines.join("\n"));
-        assert_eq!(summary.lines().count(), BACKTRACE_SUMMARY_LINES);
-        assert!(summary.starts_with("frame 0\n"));
-        assert!(!summary.contains("frame 99"));
-    }
-
-    #[test]
-    fn backtrace_summary_handles_short_and_empty_input() {
-        assert_eq!(backtrace_summary(""), "");
-        assert_eq!(backtrace_summary("only frame"), "only frame");
-    }
-
-    #[test]
-    fn sanitized_report_is_collectible_without_network_or_panic() {
-        // Exercise the exact call chain the panic hook uses (minus the file
-        // write): build -> sanitize -> serialize -> parse round-trip.
-        let home = std::env::var("HOME").unwrap_or_default();
-        let message = format!("boom at {home}/secrets with Bearer abcTOKEN123");
-        let mut report = CrashReporter::new_report(&message, env!("CARGO_PKG_VERSION"), None);
-        CrashReporter::sanitize_report(&mut report);
-        assert!(!report.panic_reason.contains("abcTOKEN123"));
-        if !home.is_empty() {
-            assert!(!report.panic_reason.contains(&home));
-        }
-        let json = CrashReporter::serialize_report(&report).unwrap();
-        assert_eq!(CrashReporter::parse_report(&json).unwrap(), report);
-    }
 }

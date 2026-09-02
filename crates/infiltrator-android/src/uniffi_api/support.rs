@@ -150,7 +150,9 @@ mod tests {
             ..AppSettings::default()
         };
         let path = infiltrator_core::settings::settings_path(home).expect("settings path resolves");
-        save_settings(&path, &settings).await.expect("save settings");
+        save_settings(&path, &settings)
+            .await
+            .expect("save settings");
     }
 
     fn set_env(value: &str) {

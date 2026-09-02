@@ -1,6 +1,6 @@
 use crate::runtime::AndroidBridgeAdapter;
-use mihomo_platform::android_bridge::AndroidBridge;
 use mihomo_api::error::Result;
+use mihomo_platform::android_bridge::AndroidBridge;
 use mihomo_platform::traits::{CoreController, CredentialStore, DataDirProvider};
 
 pub struct AndroidApi<B>

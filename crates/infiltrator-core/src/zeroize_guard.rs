@@ -1,3 +1,8 @@
+//! Zero-trust cryptographic key encapsulation and volatile memory scrubbing.
+//!
+//! Enforces memory zeroization upon destruction (`Drop`) using volatile writes
+//! and compiler fences, mitigating memory dumps and cold boot attacks.
+
 use std::fmt;
 use std::ptr;
 use std::sync::atomic::{Ordering, compiler_fence};
@@ -36,8 +41,6 @@ impl ProtectedSecret {
     }
 
     /// Returns a masked preview of the secret.
-    /// Short strings (<= 4 chars) are completely masked.
-    /// Longer strings show the first 3 and last 3 characters.
     pub fn masked_preview(&self) -> String {
         let s = self.expose_secret();
         let len = s.chars().count();
@@ -55,7 +58,6 @@ impl Drop for ProtectedSecret {
     fn drop(&mut self) {
         if !self.data.is_empty() {
             unsafe {
-                // Volatile write to zero out memory securely
                 for i in 0..self.data.len() {
                     ptr::write_volatile(self.data.as_mut_ptr().add(i), 0);
                 }
@@ -90,6 +92,102 @@ impl PartialEq for ProtectedSecret {
             result |= a ^ b;
         }
         result == 0 && self.secret_type == other.secret_type
+    }
+}
+
+/// Secure memory buffer for raw binary keys and crypto materials, guaranteed zeroized on drop.
+pub struct SecureMemoryBuffer {
+    bytes: Vec<u8>,
+}
+
+impl SecureMemoryBuffer {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self { bytes }
+    }
+
+    pub fn from_slice(slice: &[u8]) -> Self {
+        Self { bytes: slice.to_vec() }
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+}
+
+impl Drop for SecureMemoryBuffer {
+    fn drop(&mut self) {
+        if !self.bytes.is_empty() {
+            unsafe {
+                for i in 0..self.bytes.len() {
+                    ptr::write_volatile(self.bytes.as_mut_ptr().add(i), 0);
+                }
+            }
+            compiler_fence(Ordering::SeqCst);
+        }
+    }
+}
+
+impl fmt::Debug for SecureMemoryBuffer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SecureMemoryBuffer([{} bytes redacted])", self.bytes.len())
+    }
+}
+
+/// Sensitive token scrubber for telemetry, log export, and diagnostic reports.
+pub struct SensitiveTokenScrubber;
+
+impl SensitiveTokenScrubber {
+    /// Masks bearer tokens, subscription URLs, API secrets, and raw passwords in any string.
+    pub fn scrub_text(input: &str) -> String {
+        let mut result = input.to_string();
+
+        // Scrub Bearer tokens
+        if let Some(pos) = result.find("Bearer ") {
+            let rest = &result[pos + 7..];
+            let token_end = rest.find(|c: char| c.is_whitespace() || c == '"' || c == '\'').unwrap_or(rest.len());
+            if token_end > 0 {
+                let token = &rest[..token_end];
+                result = result.replace(token, "***REDACTED_BEARER***");
+            }
+        }
+
+        // Scrub secret query parameters
+        const REDACTED_VALUE: &str = "***REDACTED***";
+        for param in ["secret=", "token=", "key=", "password="] {
+            let mut search_from = 0;
+            while let Some(relative_pos) = result[search_from..].find(param) {
+                let pos = search_from + relative_pos;
+                let start = pos + param.len();
+                let end = result[start..]
+                    .find(|c: char| c == '&' || c.is_whitespace() || c == '"' || c == '\'')
+                    .unwrap_or(result.len() - start);
+                if end == 0 {
+                    search_from = start;
+                    continue;
+                }
+
+                let value_end = start + end;
+                let value = result[start..value_end].to_owned();
+                if value == REDACTED_VALUE {
+                    search_from = value_end;
+                    continue;
+                }
+
+                let replacement = format!("{param}{REDACTED_VALUE}");
+                result.replace_range(pos..value_end, &replacement);
+                search_from = pos + replacement.len();
+            }
+        }
+
+        result
     }
 }
 
@@ -135,8 +233,38 @@ mod tests {
     }
 
     #[test]
+    fn test_secure_memory_buffer_zeroize() {
+        let buf = SecureMemoryBuffer::from_slice(b"super_secret_crypto_key_32_bytes");
+        assert_eq!(buf.len(), 32);
+        assert!(!buf.is_empty());
+        let debug_str = format!("{:?}", buf);
+        assert!(debug_str.contains("32 bytes redacted"));
+        drop(buf); // Drops and securely zeros memory
+    }
+
+    #[test]
+    fn test_sensitive_token_scrubber() {
+        let text = "GET /sub?token=secret123456&mode=rule HTTP/1.1\nAuthorization: Bearer my_jwt_token_999";
+        let scrubbed = SensitiveTokenScrubber::scrub_text(text);
+        assert!(scrubbed.contains("token=***REDACTED***"));
+        assert!(scrubbed.contains("Bearer ***REDACTED_BEARER***"));
+        assert!(!scrubbed.contains("secret123456"));
+        assert!(!scrubbed.contains("my_jwt_token_999"));
+    }
+
+    #[test]
+    fn test_sensitive_token_scrubber_is_idempotent_and_scrubs_multiple_values() {
+        let text = "token=first-secret&token=***REDACTED***&token=second-secret password=plain-secret";
+        let scrubbed = SensitiveTokenScrubber::scrub_text(text);
+
+        assert_eq!(scrubbed.matches("token=***REDACTED***").count(), 3);
+        assert!(scrubbed.contains("password=***REDACTED***"));
+        assert_eq!(SensitiveTokenScrubber::scrub_text(&scrubbed), scrubbed);
+    }
+
+    #[test]
     fn test_drop() {
         let secret = ProtectedSecret::new("to_be_dropped", SecretType::ApiToken);
-        drop(secret); // Ensure it does not panic during zeroization
+        drop(secret);
     }
 }

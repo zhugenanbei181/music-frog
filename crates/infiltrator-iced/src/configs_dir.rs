@@ -15,7 +15,9 @@ use mihomo_config::manager::ConfigManager;
 async fn settings_configs_dir() -> Option<String> {
     let home = mihomo_platform::paths::get_home_dir().ok()?;
     let path = infiltrator_core::settings::settings_path(&home).ok()?;
-    let settings = infiltrator_core::settings::load_settings(&path).await.ok()?;
+    let settings = infiltrator_core::settings::load_settings(&path)
+        .await
+        .ok()?;
     settings.configs_dir
 }
 

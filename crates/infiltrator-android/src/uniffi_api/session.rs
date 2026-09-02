@@ -233,7 +233,9 @@ pub(super) async fn apply_current_profile_status(previous: Option<String>) -> Ff
             if let Err(restore_err) = restore_current_profile(&core.config, previous).await {
                 return FfiStatus::err(
                     FfiErrorCode::InvalidState,
-                    format!("apply failed ({cause}) and active profile restore failed: {restore_err}"),
+                    format!(
+                        "apply failed ({cause}) and active profile restore failed: {restore_err}"
+                    ),
                 );
             }
             FfiStatus::err(
@@ -248,7 +250,9 @@ pub(super) async fn apply_current_profile_status(previous: Option<String>) -> Ff
             }
             FfiStatus::err(
                 FfiErrorCode::InvalidState,
-                format!("apply failed ({cause}) and rollback failed as well; core is down: {rollback}"),
+                format!(
+                    "apply failed ({cause}) and rollback failed as well; core is down: {rollback}"
+                ),
             )
         }
         Err(err) => map_apply_error(err),

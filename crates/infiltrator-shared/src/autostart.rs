@@ -138,7 +138,6 @@ mod xdg {
         }
         Ok(())
     }
-
 }
 
 /// macOS backend: launchd agent plist (`~/Library/LaunchAgents/<name>.plist`).
@@ -170,7 +169,10 @@ mod launchd {
         if enabled {
             let exe = std::env::current_exe()?;
             let mut program_arguments = String::new();
-            program_arguments.push_str(&format!("        <string>{}</string>\n", exe.to_string_lossy()));
+            program_arguments.push_str(&format!(
+                "        <string>{}</string>\n",
+                exe.to_string_lossy()
+            ));
             program_arguments.push_str("        <string>--autostart</string>\n");
             let content = format!(
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\

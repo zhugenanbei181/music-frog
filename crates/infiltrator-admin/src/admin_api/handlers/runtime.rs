@@ -3,7 +3,11 @@
 
 use std::{convert::Infallible, time::Duration};
 
-use axum::{Json, http::StatusCode, response::sse::{Event, KeepAlive, Sse}};
+use axum::{
+    Json,
+    http::StatusCode,
+    response::sse::{Event, KeepAlive, Sse},
+};
 use infiltrator_http::reqwest;
 use log::warn;
 use mihomo_api::types::{ConnectionsResponse, MemoryData};

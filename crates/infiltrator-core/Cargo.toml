@@ -15,6 +15,7 @@ mihomo-platform = { path = "../mihomo-platform" }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-version = { path = "../mihomo-version" }
 infiltrator-http = { path = "../infiltrator-http" }
+ring = "0.17"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
@@ -28,6 +29,7 @@ regex = { workspace = true }
 base64 = "0.22"
 url = { workspace = true }
 urlencoding = "2.1"
+zip = { workspace = true }
 
 [dev-dependencies]
 mockito = { workspace = true }

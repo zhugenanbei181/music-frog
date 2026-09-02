@@ -15,14 +15,15 @@ pub use mihomo_platform::android_bridge::{
 };
 pub use runtime::{AndroidBridgeAdapter, AndroidRuntime, android_bridge_adapter};
 pub use uniffi_api::{
-    BootstrapResult, BootstrapStepRecord, ConnectionRecord, ConnectionsResult,
-    DoctorCheckMetaRecord, DoctorCheckMetaResult, DoctorCheckResultRecord, DoctorFixActionRecord,
-    DoctorFixResult, DoctorReportRecord, DnsFallbackFilterSettings, DnsSettings, DnsSettingsPatch,
-    DnsSettingsResult, FakeIpSettings, FakeIpSettingsPatch, FakeIpSettingsResult, IpCheckResult,
-    IpResult, ProfileSummary, ProfilesResult, ProxyGroupSummary, ProxyGroupsResult,
-    RuleEntryRecord, RuleProvidersResult, RulesResult, TrafficResult, TrafficSnapshot,
-    TunStatusResult, VpnTunSettings, VpnTunSettingsPatch, VpnTunSettingsResult, WebDavSettings,
-    WebDavSettingsResult, WebDavSyncResult,
+    AndroidAppCategory, AndroidAppInfo, AndroidVpnPerAppPlan, BootstrapResult, BootstrapStepRecord,
+    ConnectionRecord, ConnectionsResult, DnsFallbackFilterSettings, DnsSettings, DnsSettingsPatch,
+    DnsSettingsResult, DoctorCheckMetaRecord, DoctorCheckMetaResult, DoctorCheckResultRecord,
+    DoctorFixActionRecord, DoctorFixResult, DoctorReportRecord, FakeIpSettings, FakeIpSettingsPatch,
+    FakeIpSettingsResult, IpCheckResult, IpResult, MobileCloudProvider, ProfileSummary,
+    ProfilesResult, ProxyGroupSummary, ProxyGroupsResult, RuleEntryRecord, RuleProvidersResult,
+    RulesResult, TrafficResult, TrafficSnapshot, TunStatusResult, VpnTunSettings,
+    VpnTunSettingsPatch, VpnTunSettingsResult, WebDavSettings, WebDavSettingsResult,
+    WebDavSyncResult,
 };
 
 uniffi::setup_scaffolding!("infiltrator_android");

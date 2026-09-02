@@ -23,7 +23,12 @@ mod tests {
     fn test_apply_system_proxy_unsupported() {
         let result = apply_system_proxy(Some("127.0.0.1:7890"));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Unsupported platform"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Unsupported platform")
+        );
 
         let result = apply_system_proxy(None);
         assert!(result.is_ok());

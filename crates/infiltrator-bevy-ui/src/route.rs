@@ -50,19 +50,87 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 
 use crate::app::{ContentSlot, SidebarFoot};
 use crate::history::TrafficHistory;
+use crate::pages::app_routing::{
+    AppRoutingProjection, AppRoutingProjectionUpdated, app_routing_page,
+};
+use crate::pages::connections::{
+    ConnectionsProjection, ConnectionsProjectionUpdated, connections_page,
+};
+use crate::pages::dns::{DnsProjection, DnsProjectionUpdated, dns_page};
+use crate::pages::doctor::{DoctorProjection, DoctorProjectionUpdated, doctor_page};
+use crate::pages::logs::{LogsProjection, LogsProjectionUpdated, logs_page};
 use crate::pages::overview::{
     LastOverviewProjection, OverviewProjectionUpdated, banner_note, overview_page,
     replay_projection_after_theme, reskin_overview_tokens,
 };
+use crate::pages::profiles::{ProfilesProjection, ProfilesProjectionUpdated, profiles_page};
+use crate::pages::proxies::{ProxiesProjection, ProxiesProjectionUpdated, proxies_page};
+use crate::pages::rules::{RulesProjection, RulesProjectionUpdated, rules_page};
+use crate::pages::settings::{SettingsProjection, SettingsProjectionUpdated, settings_page};
+use crate::pages::sync::{SyncProjection, SyncProjectionUpdated, sync_page};
 use crate::projection::{OverviewProjection, OverviewSource, SourceKind};
 
 /// The app's pages. New pages append a variant and an arm in
 /// [`page_scene`] — never a second mount path.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Route {
-    /// The home page: run state, proxy mode, traffic, connections.
+    /// 核心概览 (Home / Overview: run state, proxy mode, traffic, connections).
     #[default]
     Overview,
+    /// 代理策略 (Proxies & Groups: selector, latency, test).
+    Proxies,
+    /// 配置订阅 (Profiles & Subscriptions: list, import, auto-update).
+    Profiles,
+    /// 分流规则 (Rules: ruleset, MRS, rule tracer).
+    Rules,
+    /// 连接审计 (Connections: active connections, bandwidth, disconnect).
+    Connections,
+    /// 运行日志 (Logs: level filter, ring buffer, regex search).
+    Logs,
+    /// 域名解析 (DNS: server table, fake-ip, dot/doh).
+    Dns,
+    /// 自愈诊断 (Doctor: system diagnostics, tun health, port scan).
+    Doctor,
+    /// 应用分流 (App Routing: split tunneling, per-app proxy).
+    AppRouting,
+    /// 数据同步 (Sync: WebDAV, 3-way merge, roaming).
+    Sync,
+    /// 系统设置 (Settings: autostart, system proxy, tun stack, theme).
+    Settings,
+}
+
+impl Route {
+    /// Every route in stable enumeration order.
+    pub const ALL: [Route; 11] = [
+        Route::Overview,
+        Route::Proxies,
+        Route::Profiles,
+        Route::Rules,
+        Route::Connections,
+        Route::Logs,
+        Route::Dns,
+        Route::Doctor,
+        Route::AppRouting,
+        Route::Sync,
+        Route::Settings,
+    ];
+
+    /// The user-facing label for each route.
+    pub const fn label(&self) -> &'static str {
+        match self {
+            Self::Overview => "核心概览",
+            Self::Proxies => "代理策略",
+            Self::Profiles => "配置订阅",
+            Self::Rules => "分流规则",
+            Self::Connections => "连接审计",
+            Self::Logs => "运行日志",
+            Self::Dns => "域名解析",
+            Self::Doctor => "自愈诊断",
+            Self::AppRouting => "应用分流",
+            Self::Sync => "数据同步",
+            Self::Settings => "系统设置",
+        }
+    }
 }
 
 /// A navigation request. Observed by [`sync_route`] (installed by
@@ -181,6 +249,16 @@ fn page_scene(
 ) -> Box<dyn Scene> {
     match route {
         Route::Overview => Box::new(overview_page(projection, history, palette)),
+        Route::Proxies => Box::new(proxies_page(&ProxiesProjection::demo(), palette)),
+        Route::Profiles => Box::new(profiles_page(&ProfilesProjection::demo(), palette)),
+        Route::Rules => Box::new(rules_page(&RulesProjection::demo(), palette)),
+        Route::Connections => Box::new(connections_page(&ConnectionsProjection::demo(), palette)),
+        Route::Logs => Box::new(logs_page(&LogsProjection::demo(), palette)),
+        Route::Dns => Box::new(dns_page(&DnsProjection::demo(), palette)),
+        Route::Doctor => Box::new(doctor_page(&DoctorProjection::demo(), palette)),
+        Route::AppRouting => Box::new(app_routing_page(&AppRoutingProjection::demo(), palette)),
+        Route::Sync => Box::new(sync_page(&SyncProjection::demo(), palette)),
+        Route::Settings => Box::new(settings_page(&SettingsProjection::demo(), palette)),
     }
 }
 
@@ -211,6 +289,40 @@ fn sync_route(
     // First paint: queued after the spawn command, so the page's child
     // lines exist when the freshly bound observer dispatches (the bind
     // hook itself fires at the root insert — before the children do).
-    commands.trigger(OverviewProjectionUpdated(projection));
+    match route {
+        Route::Overview => {
+            commands.trigger(OverviewProjectionUpdated(projection));
+        }
+        Route::Proxies => {
+            commands.trigger(ProxiesProjectionUpdated(ProxiesProjection::demo()));
+        }
+        Route::Profiles => {
+            commands.trigger(ProfilesProjectionUpdated(ProfilesProjection::demo()));
+        }
+        Route::Rules => {
+            commands.trigger(RulesProjectionUpdated(RulesProjection::demo()));
+        }
+        Route::Connections => {
+            commands.trigger(ConnectionsProjectionUpdated(ConnectionsProjection::demo()));
+        }
+        Route::Logs => {
+            commands.trigger(LogsProjectionUpdated(LogsProjection::demo()));
+        }
+        Route::Dns => {
+            commands.trigger(DnsProjectionUpdated(DnsProjection::demo()));
+        }
+        Route::Doctor => {
+            commands.trigger(DoctorProjectionUpdated(DoctorProjection::demo()));
+        }
+        Route::AppRouting => {
+            commands.trigger(AppRoutingProjectionUpdated(AppRoutingProjection::demo()));
+        }
+        Route::Sync => {
+            commands.trigger(SyncProjectionUpdated(SyncProjection::demo()));
+        }
+        Route::Settings => {
+            commands.trigger(SettingsProjectionUpdated(SettingsProjection::demo()));
+        }
+    }
     commands.insert_resource(ActiveRoute(Some(route)));
 }

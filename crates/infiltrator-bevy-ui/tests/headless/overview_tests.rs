@@ -963,3 +963,80 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         .expect("the state line carries semantics");
     assert_eq!(status.label(), Some("已停止"), "the status word follows");
 }
+
+/// Navigating across multiple routes replaces the bounded subtree below ContentSlot
+/// and stamps the corresponding PageRoot marker.
+#[test]
+fn route_switching_mounts_target_page_scene_idempotently() {
+    let mut app = mounted_default();
+    let world = app.world_mut();
+
+    let mut roots = world.query::<&PageRoot>();
+    assert_eq!(
+        roots.iter(world).next().expect("overview page root").0,
+        Route::Overview
+    );
+
+    // Navigate to Proxies route.
+    app.world_mut()
+        .commands()
+        .trigger(RouteChanged(Route::Proxies));
+    app.update();
+
+    let world = app.world_mut();
+    let mut roots = world.query::<&PageRoot>();
+    assert_eq!(
+        roots.iter(world).next().expect("proxies page root").0,
+        Route::Proxies
+    );
+
+    // Navigate to Rules route.
+    app.world_mut()
+        .commands()
+        .trigger(RouteChanged(Route::Rules));
+    app.update();
+
+    let world = app.world_mut();
+    let mut roots = world.query::<&PageRoot>();
+    assert_eq!(
+        roots.iter(world).next().expect("rules page root").0,
+        Route::Rules
+    );
+
+    // Navigate back to Overview.
+    app.world_mut()
+        .commands()
+        .trigger(RouteChanged(Route::Overview));
+    app.update();
+
+    let world = app.world_mut();
+    let mut roots = world.query::<&PageRoot>();
+    assert_eq!(
+        roots.iter(world).next().expect("back to overview").0,
+        Route::Overview
+    );
+}
+
+/// The Overview page uses responsive wrapping for stat chips and scrollable viewport,
+/// ensuring 4 chips wrap into a clean 2x2 grid on compact mobile screens (<600px).
+#[test]
+fn overview_page_chips_and_container_responsive_wrapping() {
+    let mut app = mounted_default();
+    let world = app.world_mut();
+
+    let mut chips = world.query::<(&OverviewChip, &bevy::ui::Node)>();
+    let count = chips.iter(world).count();
+    assert_eq!(count, 4, "exactly four stat chips mounted");
+
+    for (_, node) in chips.iter(world) {
+        assert_eq!(
+            node.flex_grow, 1.0,
+            "chips share width evenly via flex_grow"
+        );
+        assert_eq!(
+            node.flex_basis,
+            bevy::ui::Val::Px(140.0),
+            "chips carry 140px flex_basis for responsive 2x2 wrapping on mobile"
+        );
+    }
+}

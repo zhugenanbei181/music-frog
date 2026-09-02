@@ -1,0 +1,502 @@
+//! The Rules page (分流规则): rule inspection, rule providers (MRS),
+//! rule tracer, and hit statistics.
+//!
+//! **Update seam**: mutable nodes carry typed markers ([`RulesLine`],
+//! [`RuleRowMarker`]). The page self-registers
+//! [`apply_rules_projection`] once per world via [`RulesPageRoot`].
+
+use bevy::a11y::AccessibilityNode;
+use bevy::ecs::component::Component;
+use bevy::ecs::event::Event;
+use bevy::ecs::hierarchy::Children;
+use bevy::ecs::lifecycle::HookContext;
+use bevy::ecs::observer::On;
+use bevy::ecs::query::{With, Without};
+use bevy::ecs::resource::Resource;
+use bevy::ecs::system::{Query, ResMut};
+use bevy::ecs::world::DeferredWorld;
+use bevy::scene::{Scene, bsn, template_value};
+use bevy::ui::prelude::{
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
+    UiRect, Val, percent, px,
+};
+use bevy::ui::widget::Text;
+use bevy::ui_widgets::Button;
+use infiltrator_bevy_widgets::icon::IconId;
+use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::surface::surface_scene;
+use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
+
+use crate::route::{PageRoot, Route};
+
+/// Root marker on the Rules page scene.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+#[component(on_insert = bind_rules_page)]
+pub struct RulesPageRoot;
+
+/// Once-per-world guard preventing duplicate observer registration.
+#[derive(Resource)]
+struct RulesPageBound;
+
+/// Marker for text lines updated by the projection observer.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RulesLine(pub RulesLineKind);
+
+/// Different text lines on the rules page.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RulesLineKind {
+    /// Overview summary: total rules and provider counts.
+    #[default]
+    Summary,
+    /// Default match action.
+    DefaultAction,
+}
+
+/// Marker for a rule item hit count text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RuleHitText(pub usize);
+
+/// Marker for a rule item proxy target text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RuleProxyText(pub usize);
+
+/// A single rule entry.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RuleItem {
+    pub id: usize,
+    pub rule_type: String,
+    pub payload: String,
+    pub proxy: String,
+    pub hit_count: u64,
+}
+
+/// A rule provider (e.g. MRS rule set) entry.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RuleProviderItem {
+    pub name: String,
+    pub rule_count: usize,
+    pub behavior: String,
+    pub updated_at: String,
+}
+
+/// Snapshot of the Rules domain.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RulesProjection {
+    pub total_rules: usize,
+    pub rules: Vec<RuleItem>,
+    pub providers: Vec<RuleProviderItem>,
+    pub default_action: String,
+}
+
+impl RulesProjection {
+    /// Believable demo fixture for the Rules page.
+    pub fn demo() -> Self {
+        Self {
+            total_rules: 2842,
+            default_action: "DIRECT (漏网之鱼直连)".to_owned(),
+            providers: vec![
+                RuleProviderItem {
+                    name: "geosite-geolocation-!cn".to_owned(),
+                    rule_count: 1420,
+                    behavior: "domain".to_owned(),
+                    updated_at: "2026-09-02 06:00".to_owned(),
+                },
+                RuleProviderItem {
+                    name: "geoip-cn".to_owned(),
+                    rule_count: 890,
+                    behavior: "ipcidr".to_owned(),
+                    updated_at: "2026-09-02 06:00".to_owned(),
+                },
+                RuleProviderItem {
+                    name: "custom-direct-list".to_owned(),
+                    rule_count: 532,
+                    behavior: "classical".to_owned(),
+                    updated_at: "2026-09-01 18:30".to_owned(),
+                },
+            ],
+            rules: vec![
+                RuleItem {
+                    id: 1,
+                    rule_type: "DOMAIN-SUFFIX".to_owned(),
+                    payload: "google.com".to_owned(),
+                    proxy: "节点选择".to_owned(),
+                    hit_count: 1420,
+                },
+                RuleItem {
+                    id: 2,
+                    rule_type: "DOMAIN-SUFFIX".to_owned(),
+                    payload: "github.com".to_owned(),
+                    proxy: "节点选择".to_owned(),
+                    hit_count: 856,
+                },
+                RuleItem {
+                    id: 3,
+                    rule_type: "GEOSITE".to_owned(),
+                    payload: "cn".to_owned(),
+                    proxy: "DIRECT".to_owned(),
+                    hit_count: 4210,
+                },
+                RuleItem {
+                    id: 4,
+                    rule_type: "GEOIP".to_owned(),
+                    payload: "CN".to_owned(),
+                    proxy: "DIRECT".to_owned(),
+                    hit_count: 3105,
+                },
+                RuleItem {
+                    id: 5,
+                    rule_type: "IP-CIDR".to_owned(),
+                    payload: "192.168.0.0/16".to_owned(),
+                    proxy: "DIRECT".to_owned(),
+                    hit_count: 120,
+                },
+                RuleItem {
+                    id: 6,
+                    rule_type: "MATCH".to_owned(),
+                    payload: "*".to_owned(),
+                    proxy: "漏网之鱼".to_owned(),
+                    hit_count: 65,
+                },
+            ],
+        }
+    }
+}
+
+/// The typed event dispatched when rules data updates.
+#[derive(Event, Clone, Debug, PartialEq)]
+pub struct RulesProjectionUpdated(pub RulesProjection);
+
+/// Last projection resource for theme replay.
+#[derive(Resource, Clone, Debug, Default, PartialEq)]
+pub struct LastRulesProjection(pub Option<RulesProjection>);
+
+// ---- Scene constructors ---------------------------------------------------
+
+pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Scene + use<> {
+    let summary = format!(
+        "分流规则 · 共 {} 条规则 ({} 个规则集 / 命中统计开启)",
+        projection.total_rules,
+        projection.providers.len()
+    );
+    let default_act = format!("最终匹配目标: {}", projection.default_action);
+
+    let provider_scenes: Vec<Box<dyn Scene>> = projection
+        .providers
+        .iter()
+        .map(|p| Box::new(provider_item_scene(p, palette)) as Box<dyn Scene>)
+        .collect();
+
+    let rule_scenes: Vec<Box<dyn Scene>> = projection
+        .rules
+        .iter()
+        .enumerate()
+        .map(|(idx, r)| Box::new(rule_row_scene(idx, r, palette)) as Box<dyn Scene>)
+        .collect();
+
+    bsn! {
+        Node {
+            width: percent(100),
+            height: percent(100),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(space::S16),
+            overflow: Overflow::scroll_y(),
+        }
+        PageRoot(Route::Rules)
+        RulesPageRoot
+        Children [
+            ( { header_card_scene(summary, default_act, palette) } ),
+            ( { providers_card_scene(provider_scenes, palette) } ),
+            ( { rules_table_card_scene(rule_scenes, palette) } ),
+        ]
+    }
+}
+
+fn header_card_scene(
+    summary: String,
+    default_act: String,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
+    header_a11y.set_label("分流规则概览");
+
+    surface_scene(
+        vec![Box::new(bsn! {
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                column_gap: Val::Px(space::S16),
+            }
+            template_value(AccessibilityNode(header_a11y))
+            Children [
+                (
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S12),
+                    }
+                    Children [
+                        ( { icon_tile_scene(IconId::Activity, 36.0, palette) } ),
+                        (
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S4),
+                            }
+                            Children [
+                                ( Text(summary) RulesLine(RulesLineKind::Summary) TextRole(Role::Heading) ),
+                                ( Text(default_act) RulesLine(RulesLineKind::DefaultAction) TextRole(Role::Caption) ),
+                            ]
+                        ),
+                    ]
+                ),
+                (
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S8),
+                    }
+                    Children [
+                        (
+                            Node {
+                                min_height: px(palette.control_height_px),
+                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            Button
+                            Children [
+                                ( Text({ "刷新规则集".to_owned() }) TextRole(Role::Body) ),
+                            ]
+                        ),
+                    ]
+                ),
+            ]
+        })],
+        palette,
+    )
+}
+
+fn providers_card_scene(
+    provider_scenes: Vec<Box<dyn Scene>>,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    surface_scene(
+        vec![
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    padding: UiRect::bottom(Val::Px(space::S8)),
+                }
+                Children [
+                    ( Text({ "规则集 (Rule Providers / MRS)".to_owned() }) TextRole(Role::BodyStrong) ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(space::S8),
+                }
+                Children [
+                    { provider_scenes },
+                ]
+            }),
+        ],
+        palette,
+    )
+}
+
+fn provider_item_scene(provider: &RuleProviderItem, palette: &UiPalette) -> impl Scene + use<> {
+    let name = provider.name.clone();
+    let count_info = format!("{} 条 ({})", provider.rule_count, provider.behavior);
+    let updated = format!("更新: {}", provider.updated_at);
+
+    bsn! {
+        Node {
+            width: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect::all(Val::Px(space::S8)),
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ palette.surface_elevated })
+        Children [
+            (
+                Node {
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(space::S8),
+                }
+                Children [
+                    ( Text(name) TextRole(Role::Body) ),
+                    ( Text(count_info) TextRole(Role::Caption) ),
+                ]
+            ),
+            ( Text(updated) TextRole(Role::Caption) ),
+        ]
+    }
+}
+
+fn rules_table_card_scene(
+    rule_scenes: Vec<Box<dyn Scene>>,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    surface_scene(
+        vec![
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::SpaceBetween,
+                    padding: UiRect::bottom(Val::Px(space::S8)),
+                }
+                Children [
+                    ( Text({ "核心分流规则表 (Top Rules)".to_owned() }) TextRole(Role::BodyStrong) ),
+                    ( Text({ "按匹配优先级自上而下命中".to_owned() }) TextRole(Role::Caption) ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(space::S4),
+                }
+                Children [
+                    { rule_scenes },
+                ]
+            }),
+        ],
+        palette,
+    )
+}
+
+fn rule_row_scene(idx: usize, rule: &RuleItem, palette: &UiPalette) -> impl Scene + use<> {
+    let idx_str = format!("#{}", rule.id);
+    let type_str = rule.rule_type.clone();
+    let payload = rule.payload.clone();
+    let proxy = rule.proxy.clone();
+    let hit_str = format!("{} 次命中", rule.hit_count);
+
+    bsn! {
+        Node {
+            width: percent(100),
+            min_height: px(palette.control_height_px),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect::horizontal(Val::Px(space::S12)),
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ palette.surface_elevated })
+        Children [
+            (
+                Node {
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(space::S12),
+                }
+                Children [
+                    ( Text(idx_str) TextRole(Role::Caption) ),
+                    ( Text(type_str) TextRole(Role::BodyStrong) ),
+                    ( Text(payload) TextRole(Role::Body) ),
+                ]
+            ),
+            (
+                Node {
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(space::S12),
+                }
+                Children [
+                    ( Text(proxy) RuleProxyText(idx) TextRole(Role::Body) ),
+                    ( Text(hit_str) RuleHitText(idx) TextRole(Role::Mono) ),
+                ]
+            ),
+        ]
+    }
+}
+
+// ---- Observer & Update Hook -----------------------------------------------
+
+fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
+    if world.get_resource::<RulesPageBound>().is_some() {
+        return;
+    }
+    let mut commands = world.commands();
+    commands.insert_resource(RulesPageBound);
+    commands.add_observer(apply_rules_projection);
+}
+
+#[allow(clippy::type_complexity)]
+pub(crate) fn apply_rules_projection(
+    update: On<RulesProjectionUpdated>,
+    mut last: Option<ResMut<LastRulesProjection>>,
+    mut lines: Query<
+        (&mut Text, &RulesLine),
+        (
+            With<RulesLine>,
+            Without<RuleHitText>,
+            Without<RuleProxyText>,
+        ),
+    >,
+    mut hits: Query<
+        (&mut Text, &RuleHitText),
+        (
+            With<RuleHitText>,
+            Without<RulesLine>,
+            Without<RuleProxyText>,
+        ),
+    >,
+    mut proxies: Query<
+        (&mut Text, &RuleProxyText),
+        (
+            With<RuleProxyText>,
+            Without<RulesLine>,
+            Without<RuleHitText>,
+        ),
+    >,
+) {
+    let projection = &update.0;
+
+    for (mut text, line) in &mut lines {
+        match line.0 {
+            RulesLineKind::Summary => {
+                text.0 = format!(
+                    "分流规则 · 共 {} 条规则 ({} 个规则集 / 命中统计开启)",
+                    projection.total_rules,
+                    projection.providers.len()
+                );
+            }
+            RulesLineKind::DefaultAction => {
+                text.0 = format!("最终匹配目标: {}", projection.default_action);
+            }
+        }
+    }
+
+    for (mut text, marker) in &mut hits {
+        if let Some(rule) = projection.rules.get(marker.0) {
+            text.0 = format!("{} 次命中", rule.hit_count);
+        }
+    }
+
+    for (mut text, marker) in &mut proxies {
+        if let Some(rule) = projection.rules.get(marker.0) {
+            text.0 = rule.proxy.clone();
+        }
+    }
+
+    if let Some(ref mut last_proj) = last {
+        last_proj.0 = Some(projection.clone());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn demo_rules_fixture() {
+        let proj = RulesProjection::demo();
+        assert_eq!(proj.total_rules, 2842);
+        assert_eq!(proj.providers.len(), 3);
+        assert_eq!(proj.rules.len(), 6);
+    }
+}

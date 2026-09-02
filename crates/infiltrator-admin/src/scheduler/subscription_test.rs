@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use mihomo_platform::TEST_LOCK;
     use crate::admin_api::state::AdminApiContext;
     use crate::scheduler::subscription::{
         SubscriptionUpdateSummary, run_profile_subscription_tick, schedule_next_attempt,
@@ -12,13 +11,14 @@ mod tests {
     };
     use crate::support::{app_config_manager, test_env};
     use anyhow::anyhow;
-    use chrono::{ Utc};
+    use chrono::Utc;
     use infiltrator_core::settings::{AppSettings, save_settings, settings_path};
     use infiltrator_core::subscription::mask_subscription_url;
     use infiltrator_http::HttpClient;
     use mihomo_api::client::MihomoClient;
     use mihomo_config::manager::ConfigManager;
     use mihomo_config::profile::Profile;
+    use mihomo_platform::TEST_LOCK;
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 

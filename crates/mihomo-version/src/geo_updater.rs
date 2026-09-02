@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -37,7 +37,7 @@ impl GeoDatabaseUpdater {
     pub fn verify_database_bytes(bytes: &[u8], expected_sha256: Option<&str>) -> Result<String> {
         let mut hasher = Sha256::new();
         hasher.update(bytes);
-        
+
         let result = hasher.finalize();
         let mut computed_hash = String::with_capacity(result.len() * 2);
         for byte in result {
@@ -45,13 +45,14 @@ impl GeoDatabaseUpdater {
         }
 
         if let Some(expected) = expected_sha256
-            && !expected.eq_ignore_ascii_case(&computed_hash) {
-                return Err(anyhow!(
-                    "SHA256 mismatch. Expected: {}, Computed: {}",
-                    expected,
-                    computed_hash
-                ));
-            }
+            && !expected.eq_ignore_ascii_case(&computed_hash)
+        {
+            return Err(anyhow!(
+                "SHA256 mismatch. Expected: {}, Computed: {}",
+                expected,
+                computed_hash
+            ));
+        }
 
         Ok(computed_hash)
     }
@@ -96,7 +97,7 @@ mod tests {
         let data = b"hello world";
         // SHA256 of "hello world"
         let expected_hash = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9";
-        
+
         let result = GeoDatabaseUpdater::verify_database_bytes(data, Some(expected_hash));
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), expected_hash);
@@ -106,7 +107,7 @@ mod tests {
     fn test_verify_database_bytes_case_insensitive() {
         let data = b"hello world";
         let expected_hash = "B94D27B9934D3E08A52E52D7DA7DABFAC484EFE37A5380EE9088F7ACE2EFCDE9";
-        
+
         let result = GeoDatabaseUpdater::verify_database_bytes(data, Some(expected_hash));
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), expected_hash.to_lowercase());
@@ -116,7 +117,7 @@ mod tests {
     fn test_verify_database_bytes_mismatch() {
         let data = b"hello world";
         let expected_hash = "deadbeef934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9";
-        
+
         let result = GeoDatabaseUpdater::verify_database_bytes(data, Some(expected_hash));
         assert!(result.is_err());
         assert_eq!(
@@ -142,30 +143,66 @@ mod tests {
 
     #[test]
     fn test_get_default_filename() {
-        assert_eq!(GeoDatabaseUpdater::get_default_filename(GeoAssetType::GeoIp), "geoip.dat");
-        assert_eq!(GeoDatabaseUpdater::get_default_filename(GeoAssetType::GeoSite), "geosite.dat");
-        assert_eq!(GeoDatabaseUpdater::get_default_filename(GeoAssetType::Mmdb), "Country.mmdb");
+        assert_eq!(
+            GeoDatabaseUpdater::get_default_filename(GeoAssetType::GeoIp),
+            "geoip.dat"
+        );
+        assert_eq!(
+            GeoDatabaseUpdater::get_default_filename(GeoAssetType::GeoSite),
+            "geosite.dat"
+        );
+        assert_eq!(
+            GeoDatabaseUpdater::get_default_filename(GeoAssetType::Mmdb),
+            "Country.mmdb"
+        );
     }
 
     #[test]
     fn test_is_valid_database_header() {
         let empty_data: &[u8] = &[];
-        assert!(!GeoDatabaseUpdater::is_valid_database_header(GeoAssetType::GeoIp, empty_data));
-        assert!(!GeoDatabaseUpdater::is_valid_database_header(GeoAssetType::GeoSite, empty_data));
-        assert!(!GeoDatabaseUpdater::is_valid_database_header(GeoAssetType::Mmdb, empty_data));
+        assert!(!GeoDatabaseUpdater::is_valid_database_header(
+            GeoAssetType::GeoIp,
+            empty_data
+        ));
+        assert!(!GeoDatabaseUpdater::is_valid_database_header(
+            GeoAssetType::GeoSite,
+            empty_data
+        ));
+        assert!(!GeoDatabaseUpdater::is_valid_database_header(
+            GeoAssetType::Mmdb,
+            empty_data
+        ));
 
         let small_data = b"small data"; // 10 bytes
-        assert!(!GeoDatabaseUpdater::is_valid_database_header(GeoAssetType::GeoIp, small_data));
-        assert!(!GeoDatabaseUpdater::is_valid_database_header(GeoAssetType::Mmdb, small_data));
+        assert!(!GeoDatabaseUpdater::is_valid_database_header(
+            GeoAssetType::GeoIp,
+            small_data
+        ));
+        assert!(!GeoDatabaseUpdater::is_valid_database_header(
+            GeoAssetType::Mmdb,
+            small_data
+        ));
 
         let valid_geodata = vec![0u8; 20];
-        assert!(GeoDatabaseUpdater::is_valid_database_header(GeoAssetType::GeoIp, &valid_geodata));
-        assert!(GeoDatabaseUpdater::is_valid_database_header(GeoAssetType::GeoSite, &valid_geodata));
+        assert!(GeoDatabaseUpdater::is_valid_database_header(
+            GeoAssetType::GeoIp,
+            &valid_geodata
+        ));
+        assert!(GeoDatabaseUpdater::is_valid_database_header(
+            GeoAssetType::GeoSite,
+            &valid_geodata
+        ));
 
         let invalid_mmdb = vec![0u8; 20];
-        assert!(!GeoDatabaseUpdater::is_valid_database_header(GeoAssetType::Mmdb, &invalid_mmdb));
+        assert!(!GeoDatabaseUpdater::is_valid_database_header(
+            GeoAssetType::Mmdb,
+            &invalid_mmdb
+        ));
 
         let valid_mmdb = vec![0u8; 40];
-        assert!(GeoDatabaseUpdater::is_valid_database_header(GeoAssetType::Mmdb, &valid_mmdb));
+        assert!(GeoDatabaseUpdater::is_valid_database_header(
+            GeoAssetType::Mmdb,
+            &valid_mmdb
+        ));
     }
 }

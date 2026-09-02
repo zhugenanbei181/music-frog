@@ -202,3 +202,177 @@ fn test_runtime_proxy_selector_sync_and_apply() {
 
     let _ = state.update(Message::ApplyRuntimeSelectedProxy);
 }
+
+#[test]
+fn test_filter_alive_and_favorite_pinning() {
+    let (mut state, _) = AppState::new();
+    let mut proxies = std::collections::HashMap::new();
+
+    // Group GLOBAL with 3 nodes
+    proxies.insert(
+        "GLOBAL".to_string(),
+        Proxy::Selector(ProxyGroup {
+            name: "GLOBAL".to_string(),
+            now: "Node-Alive-1".to_string(),
+            all: vec![
+                "Node-Alive-1".into(),
+                "Node-Dead".into(),
+                "Node-Alive-2".into(),
+            ],
+            history: vec![],
+        }),
+    );
+
+    // Node-Alive-1 (120ms)
+    proxies.insert(
+        "Node-Alive-1".to_string(),
+        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+            base: ProxyBase {
+                name: "Node-Alive-1".to_string(),
+                history: vec![ProxyHistory {
+                    time: "".into(),
+                    delay: 120,
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+    );
+
+    // Node-Dead (0ms / no delay)
+    proxies.insert(
+        "Node-Dead".to_string(),
+        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+            base: ProxyBase {
+                name: "Node-Dead".to_string(),
+                history: vec![],
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+    );
+
+    // Node-Alive-2 (50ms)
+    proxies.insert(
+        "Node-Alive-2".to_string(),
+        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+            base: ProxyBase {
+                name: "Node-Alive-2".to_string(),
+                history: vec![ProxyHistory {
+                    time: "".into(),
+                    delay: 50,
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+    );
+
+    state.runtime.proxies = proxies;
+    state.recompute_filtered_groups();
+    assert_eq!(state.runtime.filtered_groups.len(), 1);
+    let members = &state.runtime.filtered_groups[0].1;
+    assert_eq!(members.len(), 3);
+    assert_eq!(members[0], "Node-Alive-2"); // 50ms lowest
+    assert_eq!(members[1], "Node-Alive-1"); // 120ms
+    assert_eq!(members[2], "Node-Dead");
+
+    // Test Filter Alive
+    let _ = state.update(Message::ToggleFilterAlive(true));
+    state.recompute_filtered_groups();
+    assert!(state.runtime.filter_alive_only);
+    let alive_members = &state.runtime.filtered_groups[0].1;
+    assert_eq!(alive_members.len(), 2);
+    assert!(!alive_members.contains(&"Node-Dead".to_string()));
+
+    // Test Favorite Pinning: Favorite Node-Alive-1 (even though it has higher latency than Node-Alive-2)
+    let _ = state.update(Message::ToggleFavoriteProxy("Node-Alive-1".into()));
+    state.recompute_filtered_groups();
+    assert!(state.runtime.favorite_proxies.contains("Node-Alive-1"));
+    let fav_members = &state.runtime.filtered_groups[0].1;
+    assert_eq!(fav_members[0], "Node-Alive-1"); // Pinned to top!
+    assert_eq!(fav_members[1], "Node-Alive-2");
+
+    // Test Inspect Proxy and Compact View
+    let _ = state.update(Message::InspectProxy(Some("Node-Alive-1".into())));
+    assert_eq!(
+        state.runtime.inspecting_proxy.as_deref(),
+        Some("Node-Alive-1")
+    );
+    let _ = state.update(Message::InspectProxy(None));
+    assert!(state.runtime.inspecting_proxy.is_none());
+
+    let _ = state.update(Message::ToggleProxyCompactView);
+    assert!(state.runtime.proxy_compact_view);
+}
+
+#[test]
+fn test_pinyin_fuzzy_filter_in_gui() {
+    let (mut state, _) = AppState::new();
+    let mut proxies = std::collections::HashMap::new();
+
+    proxies.insert(
+        "GLOBAL".to_string(),
+        Proxy::Selector(ProxyGroup {
+            name: "GLOBAL".to_string(),
+            now: "香港 IEPL-01".to_string(),
+            all: vec![
+                "香港 IEPL-01".into(),
+                "日本 Tokyo-01".into(),
+                "美国 GIA-01".into(),
+            ],
+            history: vec![],
+        }),
+    );
+
+    state.runtime.proxies = proxies;
+
+    // Search with pinyin initials "xg" -> should match 香港 IEPL-01
+    let _ = state.update(Message::FilterProxies("xg".into()));
+    state.recompute_filtered_groups();
+    let members = &state.runtime.filtered_groups[0].1;
+    assert_eq!(members.len(), 1);
+    assert_eq!(members[0], "香港 IEPL-01");
+
+    // Search with country code "jp" -> should match 日本 Tokyo-01
+    let _ = state.update(Message::FilterProxies("jp".into()));
+    state.recompute_filtered_groups();
+    let members = &state.runtime.filtered_groups[0].1;
+    assert_eq!(members.len(), 1);
+    assert_eq!(members[0], "日本 Tokyo-01");
+}
+
+#[test]
+fn test_custom_node_modal_interactions() {
+    let (mut state, _) = AppState::new();
+    assert!(!state.runtime.is_adding_custom_node);
+
+    let _ = state.update(Message::OpenAddCustomNodeModal(true));
+    assert!(state.runtime.is_adding_custom_node);
+
+    let _ = state.update(Message::UpdateNewNodeType("vless".into()));
+    assert_eq!(state.runtime.new_node_type, "vless");
+
+    let _ = state.update(Message::UpdateNewNodeName("US-Fast-01".into()));
+    assert_eq!(state.runtime.new_node_name, "US-Fast-01");
+
+    let _ = state.update(Message::UpdateNewNodeServer("1.2.3.4".into()));
+    assert_eq!(state.runtime.new_node_server, "1.2.3.4");
+
+    let _ = state.update(Message::UpdateNewNodePort("443".into()));
+    assert_eq!(state.runtime.new_node_port, "443");
+
+    let _ = state.update(Message::UpdateNewNodeCredential("a1b2c3d4-uuid".into()));
+    assert_eq!(state.runtime.new_node_credential, "a1b2c3d4-uuid");
+
+    let _ = state.update(Message::UpdateNewNodeCipher(
+        "chacha20-ietf-poly1305".into(),
+    ));
+    assert_eq!(state.runtime.new_node_cipher, "chacha20-ietf-poly1305");
+
+    let _ = state.update(Message::UpdateNewNodeTls(true));
+    assert!(state.runtime.new_node_tls);
+
+    let _ = state.update(Message::OpenAddCustomNodeModal(false));
+    assert!(!state.runtime.is_adding_custom_node);
+}

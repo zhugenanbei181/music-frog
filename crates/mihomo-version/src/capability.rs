@@ -163,14 +163,8 @@ fn parse_core_version(version: &str) -> Option<(u64, u64, u64)> {
 
     let mut components = body.split('.');
     let major = leading_number(components.next()?)?;
-    let minor = components
-        .next()
-        .and_then(leading_number)
-        .unwrap_or(0);
-    let patch = components
-        .next()
-        .and_then(leading_number)
-        .unwrap_or(0);
+    let minor = components.next().and_then(leading_number).unwrap_or(0);
+    let patch = components.next().and_then(leading_number).unwrap_or(0);
 
     Some((major, minor, patch))
 }
@@ -208,7 +202,10 @@ mod tests {
         assert_eq!(parse_core_version("1.19.18"), Some((1, 19, 18)));
         assert_eq!(parse_core_version(" v1.19.18 "), Some((1, 19, 18)));
         assert_eq!(parse_core_version("v1.19-beta-xxx"), Some((1, 19, 0)));
-        assert_eq!(parse_core_version("v1.19.3-alpha-cb6ac1e"), Some((1, 19, 3)));
+        assert_eq!(
+            parse_core_version("v1.19.3-alpha-cb6ac1e"),
+            Some((1, 19, 3))
+        );
         assert_eq!(parse_core_version("v2"), Some((2, 0, 0)));
     }
 
@@ -297,10 +294,7 @@ mod tests {
         let json = serde_json::to_value(&set).unwrap();
         assert_eq!(json["version"], "v1.18.6");
         let caps = json["capabilities"].as_array().unwrap();
-        let names: Vec<&str> = caps
-            .iter()
-            .map(|c| c.as_str().unwrap())
-            .collect();
+        let names: Vec<&str> = caps.iter().map(|c| c.as_str().unwrap()).collect();
         // WireGuard sits exactly on its threshold → included; snake_case names.
         assert!(names.contains(&"wire_guard_outbound"));
         assert!(names.contains(&"sniffer"));

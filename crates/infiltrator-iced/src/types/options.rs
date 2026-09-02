@@ -77,12 +77,11 @@ impl FilterDraft {
             let Some((pattern, replacement)) = line.split_once("=>") else {
                 anyhow::bail!("重命名规则格式错误（应为 模式 => 替换）: {line}");
             };
-            spec.rename_rules.push(
-                infiltrator_core::profile_options::RenameSpec {
+            spec.rename_rules
+                .push(infiltrator_core::profile_options::RenameSpec {
                     pattern: pattern.trim().to_string(),
                     replacement: replacement.trim().to_string(),
-                },
-            );
+                });
         }
         spec.deduplication = match self.dedup_index {
             1 => infiltrator_core::profile_options::FilterDedup::KeepFirst,

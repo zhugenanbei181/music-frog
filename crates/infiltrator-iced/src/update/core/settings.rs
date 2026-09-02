@@ -19,11 +19,8 @@ impl AppState {
         if !settings.language.trim().is_empty() {
             self.shell.lang = settings.language;
         }
-        let theme = settings.theme.trim().to_ascii_lowercase();
-        if theme == "light" {
-            self.shell.theme = iced::Theme::Light;
-        } else if theme == "dark" {
-            self.shell.theme = iced::Theme::Dark;
+        if !settings.theme.trim().is_empty() {
+            self.shell.theme = crate::view::theme::theme_from_name(&settings.theme);
         }
         self.editor.editor_path = settings.editor_path.clone().map(std::path::PathBuf::from);
         self.editor.editor_path_setting = settings.editor_path.unwrap_or_default();
@@ -61,6 +58,8 @@ impl AppState {
         self.shell.admin_port_input = settings.admin.port.to_string();
         // 0.20 OS 系统通知开关镜像（notify.rs 的 system_notify 读它短路）。
         self.shell.notifications_enabled = settings.notifications_enabled;
+        self.shell.close_to_tray = settings.close_to_tray;
+        self.shell.system_proxy_bypass = settings.system_proxy_bypass.unwrap_or_default();
         self.profile.webdav_enabled
             && self.profile.webdav_sync_on_startup
             && !self.profile.webdav_url.trim().is_empty()

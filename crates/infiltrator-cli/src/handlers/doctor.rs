@@ -47,10 +47,7 @@ pub(crate) async fn handle(action: DoctorAction) -> anyhow::Result<i32> {
                         ]
                     })
                     .collect();
-                print_table(
-                    &["ID", "Category", "Fixable", "Default", "Summary"],
-                    &rows,
-                );
+                print_table(&["ID", "Category", "Fixable", "Default", "Summary"], &rows);
             }
             Ok(EXIT_OK)
         }

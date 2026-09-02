@@ -7,10 +7,9 @@
 //! tests and the ksni mapping tests.
 
 use super::spec::{
-    TrayEventContext, TrayMenuItem,
     TRAY_ACTION_FACTORY_RESET, TRAY_ACTION_INFO_SYNC, TRAY_ACTION_MODE_GLOBAL,
     TRAY_ACTION_SELECT_GLOBAL_PROXY, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
-    TRAY_ACTION_TOGGLE_AUTOSTART, TRAY_ACTION_TOGGLE_TUN,
+    TRAY_ACTION_TOGGLE_AUTOSTART, TRAY_ACTION_TOGGLE_TUN, TrayEventContext, TrayMenuItem,
 };
 use super::*;
 use crate::state::AppState;
@@ -151,7 +150,10 @@ fn tray_autostart_toggle_flips_state_optimistically() {
     for event in events {
         let _ = state.update(Message::TrayEvent(event));
     }
-    assert!(state.runtime.autostart_enabled, "click flips the checkmark immediately");
+    assert!(
+        state.runtime.autostart_enabled,
+        "click flips the checkmark immediately"
+    );
 }
 
 #[test]
@@ -166,7 +168,10 @@ fn tray_factory_reset_routes_without_panicking() {
         // task is lazy here so the dialog stages when iced runs it.
         let _ = state.update(Message::TrayEvent(event));
     }
-    assert!(state.shell.confirmation.is_none(), "routing only, no direct state");
+    assert!(
+        state.shell.confirmation.is_none(),
+        "routing only, no direct state"
+    );
     assert!(!state.shell.is_factory_resetting);
 }
 
@@ -242,17 +247,28 @@ fn current_tray_spec_assembles_the_five_state_domains() {
         TrayMenuItem::checkmark(TRAY_ACTION_TOGGLE_AUTOSTART, "开机自启", true)
     );
     // 节点切换 picks up the GLOBAL group with its active node and delay tag.
-    let TrayMenuItem::Submenu { items: group_subs, .. } = &items[3] else {
+    let TrayMenuItem::Submenu {
+        items: group_subs, ..
+    } = &items[3]
+    else {
         panic!("entry 3 must be the proxies submenu");
     };
-    let TrayMenuItem::Submenu { label, items: nodes, .. } = &group_subs[0] else {
+    let TrayMenuItem::Submenu {
+        label,
+        items: nodes,
+        ..
+    } = &group_subs[0]
+    else {
         panic!("GLOBAL group must render as a submenu");
     };
     assert_eq!(label, "GLOBAL");
     assert_eq!(nodes[0].action_label(), Some("● A (123 ms)"));
     assert_eq!(nodes[0].action_payload(), Some("GLOBAL\u{1}A"));
     // The sync submenu reflects the profile domain (WebDAV enabled).
-    let TrayMenuItem::Submenu { items: sync_items, .. } = &items[11] else {
+    let TrayMenuItem::Submenu {
+        items: sync_items, ..
+    } = &items[11]
+    else {
         panic!("entry 11 must be the sync submenu");
     };
     assert_eq!(
@@ -284,7 +300,7 @@ fn tray_unavailable_startup_degrades_to_a_functional_window_only_app() {
 mod ksni_mapping {
     use super::*;
     use crate::tray::ksni_backend::{KsniTray, map_items, to_ksni_icon};
-    use crate::tray::spec::{TrayIconData, TRAY_ACTION_TOGGLE_TUN};
+    use crate::tray::spec::{TRAY_ACTION_TOGGLE_TUN, TrayIconData};
     use ksni::MenuItem;
     use ksni::Tray as _;
     use ksni::menu::{CheckmarkItem, StandardItem, SubMenu};
@@ -399,7 +415,10 @@ mod ksni_mapping {
 
     #[test]
     fn ksni_checkmark_overrides_are_keyed_per_payload() {
-        let profiles = vec![test_profile("Paid", true, true), test_profile("Free", false, false)];
+        let profiles = vec![
+            test_profile("Paid", true, true),
+            test_profile("Free", false, false),
+        ];
         let mut ctx = base_ctx();
         ctx.profiles = &profiles;
         let spec = build_tray_spec(&ctx);
@@ -412,7 +431,11 @@ mod ksni_mapping {
 
         // Profiles submenu: [P, P, sep, update-all, sep, check Paid, check Free].
         let menu = tray.menu();
-        let MenuItem::SubMenu(SubMenu { submenu: profile_items, .. }) = &menu[9] else {
+        let MenuItem::SubMenu(SubMenu {
+            submenu: profile_items,
+            ..
+        }) = &menu[9]
+        else {
             panic!("entry 9 must be the profiles submenu");
         };
         let MenuItem::Checkmark(paid) = &profile_items[5] else {
@@ -435,14 +458,20 @@ mod ksni_mapping {
             })
         );
         assert_eq!(
-            tray.checked_overrides
-                .get(&(TRAY_ACTION_SET_PROFILE_AUTO_UPDATE, Some("Paid".to_string()))),
+            tray.checked_overrides.get(&(
+                TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
+                Some("Paid".to_string())
+            )),
             Some(&false),
             "the override key is (id, payload)"
         );
 
         let menu = tray.menu();
-        let MenuItem::SubMenu(SubMenu { submenu: profile_items, .. }) = &menu[9] else {
+        let MenuItem::SubMenu(SubMenu {
+            submenu: profile_items,
+            ..
+        }) = &menu[9]
+        else {
             panic!("entry 9 must be the profiles submenu");
         };
         let MenuItem::Checkmark(paid) = &profile_items[5] else {

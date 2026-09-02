@@ -3,9 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use infiltrator_core::rules::{ load_rule_providers,
-    load_rules, save_rule_providers, save_rules};
-
+use infiltrator_core::rules::{load_rule_providers, load_rules, save_rule_providers, save_rules};
 
 use super::support::{get_runtime, map_anyhow_error};
 use crate::ffi::{FfiErrorCode, FfiStatus};
@@ -56,7 +54,8 @@ pub async fn rules_list() -> RulesResult {
 pub async fn rules_save(rules: Vec<RuleEntryRecord>) -> RulesResult {
     get_runtime()
         .spawn(async move {
-            let core_rules: Vec<infiltrator_core::rules::RuleEntry> = rules.iter().map(record_to_core_rule).collect();
+            let core_rules: Vec<infiltrator_core::rules::RuleEntry> =
+                rules.iter().map(record_to_core_rule).collect();
             match save_rules(core_rules).await.map_err(map_anyhow_error) {
                 Ok(rules) => RulesResult {
                     status: FfiStatus::ok(),
@@ -155,7 +154,9 @@ fn rule_providers_to_json(providers: &infiltrator_core::rules::RuleProviders) ->
     serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string())
 }
 
-fn parse_rule_providers_json(value: &str) -> Result<infiltrator_core::rules::RuleProviders, FfiStatus> {
+fn parse_rule_providers_json(
+    value: &str,
+) -> Result<infiltrator_core::rules::RuleProviders, FfiStatus> {
     let parsed: serde_json::Value = serde_json::from_str(value).map_err(|err| {
         FfiStatus::err(FfiErrorCode::InvalidInput, format!("invalid JSON: {err}"))
     })?;

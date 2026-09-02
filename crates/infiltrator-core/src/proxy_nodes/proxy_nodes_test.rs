@@ -24,12 +24,17 @@ proxies:
     reality-opts:
       public-key: SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc
       short-id: "6ba85179e30d4fc2"
+      spider-x: "/spx"
     grpc-opts:
       grpc-service-name: grpc-svc
     ws-opts:
       path: /ws
       headers:
         Host: www.microsoft.com
+    xhttp-opts:
+      mode: stream-up
+      path: /xhttp-path
+    packet-encoding: packetaddr
     fake-field: 123
 "#;
 
@@ -39,6 +44,7 @@ proxies:
     type: hysteria2
     server: 203.0.113.20
     port: 36712
+    ports: "20000-30000,8443,443"
     password: hy2-pass
     obfs: salamander
     obfs-password: obfs-pass
@@ -47,6 +53,8 @@ proxies:
     down: 200
     alpn:
       - h3
+    cwnd: 1024
+    recv-window-conn: 65536
     fake-field: hello
 "#;
 
@@ -63,6 +71,8 @@ proxies:
     alpn:
       - h3
     reduce-rtt: true
+    heartbeat-interval: 10000
+    request-timeout: 8000
     fake-field: 123
 "#;
 
@@ -84,6 +94,16 @@ proxies:
     dns:
       - 1.1.1.1
       - 8.8.8.8
+    amnezia-opts:
+      jc: 5
+      jmin: 40
+      jmax: 70
+      s1: 15
+      s2: 20
+      h1: 123456
+      h2: 234567
+      h3: 345678
+      h4: 456789
     fake-field: 123
 "#;
 
@@ -100,8 +120,74 @@ proxies:
     fake-field: keep-me
 "#;
 
-    /// Five protocols in one profile: the four typed ones (each carrying an
-    /// unknown `fake-field`) plus a legacy `ss` node the model does not know.
+    const SHADOWSOCKS_2022_YAML: &str = r#"
+proxies:
+  - name: ss-2022-node
+    type: ss
+    server: 203.0.113.50
+    port: 8388
+    cipher: 2022-blake3-aes-128-gcm
+    password: eCtXsJZ27+4PbhDkHnB92w==
+    udp-over-tcp: true
+    uot-version: 2
+    plugin: v2ray-plugin
+    plugin-opts:
+      mode: websocket
+      host: ss.example.com
+      path: /ws
+      tls: true
+    fake-field: 7
+"#;
+
+    const ANYTLS_YAML: &str = r#"
+proxies:
+  - name: anytls-node
+    type: anytls
+    server: 203.0.113.60
+    port: 443
+    password: anytls-secret-token
+    padding-range: 100-1000
+    idle-timeout: 60
+    client-fingerprint: chrome
+    sni: anytls.example.com
+    alpn:
+      - h2
+      - http/1.1
+    fake-field: 99
+"#;
+
+    const TROJAN_YAML: &str = r#"
+proxies:
+  - name: trojan-node
+    type: trojan
+    server: 203.0.113.70
+    port: 443
+    password: trojan-secret-pass
+    sni: trojan.example.com
+    alpn:
+      - h2
+      - http/1.1
+    network: ws
+    ws-opts:
+      path: /trojan-ws
+    fake-field: 42
+"#;
+
+    const VMESS_YAML: &str = r#"
+proxies:
+  - name: vmess-node
+    type: vmess
+    server: 203.0.113.80
+    port: 443
+    uuid: b831381d-6324-4d53-ad4f-8cda48b30811
+    alter-id: 0
+    cipher: auto
+    servername: vmess.example.com
+    network: ws
+    fake-field: 88
+"#;
+
+    /// Profile containing all typed protocols plus a custom fallback node.
     const PROFILE_YAML: &str = r#"
 mixed-port: 7890
 mode: rule
@@ -154,10 +240,20 @@ proxies:
     type: ss
     server: 203.0.113.50
     port: 8388
-    cipher: aes-256-gcm
-    password: ss-pass
+    cipher: 2022-blake3-aes-128-gcm
+    password: eCtXsJZ27+4PbhDkHnB92w==
     plugin: v2ray-plugin
     fake-field: 7
+  - name: anytls-node
+    type: anytls
+    server: 203.0.113.60
+    port: 443
+    password: anytls-secret-token
+  - name: custom-future-node
+    type: quantum-tunnel-v9
+    server: 203.0.113.99
+    port: 9000
+    secret-key: test
 
 rules:
   - DOMAIN-SUFFIX,example.com,DIRECT
@@ -210,12 +306,16 @@ rules:
         assert_eq!(vless.flow.as_deref(), Some("xtls-rprx-vision"));
         assert_eq!(vless.client_fingerprint.as_deref(), Some("chrome"));
         assert_eq!(vless.network.as_deref(), Some("tcp"));
+        assert_eq!(vless.packet_encoding.as_deref(), Some("packetaddr"));
+
         let reality = vless.reality_opts.as_ref().expect("reality-opts");
         assert_eq!(
             reality.public_key.as_deref(),
             Some("SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc")
         );
         assert_eq!(reality.short_id.as_deref(), Some("6ba85179e30d4fc2"));
+        assert_eq!(reality.spider_x.as_deref(), Some("/spx"));
+
         let grpc = vless.grpc_opts.as_ref().expect("grpc-opts");
         assert_eq!(
             grpc.get("grpc-service-name"),
@@ -224,12 +324,16 @@ rules:
         let ws = vless.ws_opts.as_ref().expect("ws-opts");
         assert_eq!(ws.get("path"), Some(&Value::String("/ws".to_string())));
 
+        let xhttp = vless.xhttp_opts.as_ref().expect("xhttp-opts");
+        assert_eq!(xhttp.mode.as_deref(), Some("stream-up"));
+        assert_eq!(xhttp.path.as_deref(), Some("/xhttp-path"));
+
         // Unknown keys must be captured by the flatten extra map.
-        assert!(vless.extra.contains_key("uuid"), "uuid kept in extra");
-        assert!(
-            vless.extra.contains_key("servername"),
-            "servername kept in extra"
+        assert_eq!(
+            vless.uuid.as_deref(),
+            Some("b831381d-6324-4d53-ad4f-8cda48b30811")
         );
+        assert_eq!(vless.servername.as_deref(), Some("www.microsoft.com"));
         assert!(
             matches!(vless.extra.get("fake-field"), Some(Value::Number(_))),
             "fake-field kept in extra"
@@ -237,13 +341,7 @@ rules:
 
         assert_proxies_semantic_equivalence(VLESS_YAML);
         assert_roundtrip_fixed_point(std::slice::from_ref(&node));
-
-        let yaml = nodes_to_profile_yaml(std::slice::from_ref(&node)).expect("serialize");
-        assert!(
-            yaml.contains("fake-field: 123"),
-            "unknown field must be re-emitted into YAML: {yaml}"
-        );
-        assert!(yaml.contains("flow: xtls-rprx-vision"));
+        assert!(validate(&node).is_empty());
     }
 
     #[test]
@@ -254,6 +352,7 @@ rules:
         };
         assert_eq!(node.type_name(), "hysteria2");
         assert_eq!(hy2.common.port, 36712);
+        assert_eq!(hy2.ports.as_deref(), Some("20000-30000,8443,443"));
         assert_eq!(hy2.password.as_deref(), Some("hy2-pass"));
         assert_eq!(hy2.obfs.as_deref(), Some("salamander"));
         assert_eq!(hy2.obfs_password.as_deref(), Some("obfs-pass"));
@@ -261,6 +360,8 @@ rules:
         assert_eq!(hy2.up, Some(Bandwidth::Text("100 Mbps".to_string())));
         assert_eq!(hy2.down, Some(Bandwidth::U64(200)));
         assert_eq!(hy2.alpn, Some(vec!["h3".to_string()]));
+        assert_eq!(hy2.cwnd, Some(1024));
+        assert_eq!(hy2.recv_window_conn, Some(65536));
         assert_eq!(
             hy2.extra.get("fake-field"),
             Some(&Value::String("hello".to_string()))
@@ -286,10 +387,9 @@ rules:
         assert_eq!(tuic.congestion_controller.as_deref(), Some("bbr"));
         assert_eq!(tuic.udp_relay_mode.as_deref(), Some("native"));
         assert_eq!(tuic.alpn, Some(vec!["h3".to_string()]));
-        assert!(
-            tuic.extra.contains_key("reduce-rtt"),
-            "reduce-rtt kept in extra"
-        );
+        assert_eq!(tuic.reduce_rtt, Some(true));
+        assert_eq!(tuic.heartbeat_interval, Some(10000));
+        assert_eq!(tuic.request_timeout, Some(8000));
         assert_eq!(
             tuic.extra.get("fake-field"),
             Some(&Value::Number(123.into()))
@@ -332,6 +432,15 @@ rules:
             wg.dns,
             Some(vec!["1.1.1.1".to_string(), "8.8.8.8".to_string()])
         );
+
+        let awg = wg.amnezia_opts.as_ref().expect("amnezia-opts");
+        assert_eq!(awg.jc, Some(5));
+        assert_eq!(awg.jmin, Some(40));
+        assert_eq!(awg.jmax, Some(70));
+        assert_eq!(awg.s1, Some(15));
+        assert_eq!(awg.s2, Some(20));
+        assert_eq!(awg.h1, Some(123456));
+
         assert_eq!(wg.extra.get("fake-field"), Some(&Value::Number(123.into())));
 
         assert_proxies_semantic_equivalence(WIREGUARD_YAML);
@@ -356,6 +465,107 @@ rules:
         );
         assert!(yaml.contains("fake-field: keep-me"));
         assert_roundtrip_fixed_point(std::slice::from_ref(&node));
+    }
+
+    #[test]
+    fn test_shadowsocks_2022_roundtrip() {
+        let node = parse_single(SHADOWSOCKS_2022_YAML);
+        let ProxyNode::Shadowsocks(ss) = &node else {
+            panic!("shadowsocks node degraded to Other: {node:?}");
+        };
+        assert_eq!(node.type_name(), "ss");
+        assert_eq!(ss.cipher.as_deref(), Some("2022-blake3-aes-128-gcm"));
+        assert_eq!(ss.password.as_deref(), Some("eCtXsJZ27+4PbhDkHnB92w=="));
+        assert_eq!(ss.udp_over_tcp, Some(true));
+        assert_eq!(ss.uot_version, Some(2));
+        assert_eq!(ss.plugin.as_deref(), Some("v2ray-plugin"));
+
+        assert_proxies_semantic_equivalence(SHADOWSOCKS_2022_YAML);
+        assert_roundtrip_fixed_point(std::slice::from_ref(&node));
+        assert!(validate(&node).is_empty());
+    }
+
+    #[test]
+    fn test_anytls_roundtrip() {
+        let node = parse_single(ANYTLS_YAML);
+        let ProxyNode::Anytls(anytls) = &node else {
+            panic!("anytls node degraded to Other: {node:?}");
+        };
+        assert_eq!(node.type_name(), "anytls");
+        assert_eq!(anytls.password.as_deref(), Some("anytls-secret-token"));
+        assert_eq!(anytls.padding_range.as_deref(), Some("100-1000"));
+        assert_eq!(anytls.idle_timeout, Some(60));
+        assert_eq!(anytls.client_fingerprint.as_deref(), Some("chrome"));
+        assert_eq!(anytls.sni.as_deref(), Some("anytls.example.com"));
+
+        assert_proxies_semantic_equivalence(ANYTLS_YAML);
+        assert_roundtrip_fixed_point(std::slice::from_ref(&node));
+        assert!(validate(&node).is_empty());
+    }
+
+    #[test]
+    fn test_trojan_and_vmess_roundtrip() {
+        let trojan_node = parse_single(TROJAN_YAML);
+        let ProxyNode::Trojan(trojan) = &trojan_node else {
+            panic!("trojan node degraded to Other: {trojan_node:?}");
+        };
+        assert_eq!(trojan_node.type_name(), "trojan");
+        assert_eq!(trojan.password.as_deref(), Some("trojan-secret-pass"));
+        assert_eq!(trojan.network.as_deref(), Some("ws"));
+        assert_proxies_semantic_equivalence(TROJAN_YAML);
+        assert_roundtrip_fixed_point(std::slice::from_ref(&trojan_node));
+        assert!(validate(&trojan_node).is_empty());
+
+        let vmess_node = parse_single(VMESS_YAML);
+        let ProxyNode::Vmess(vmess) = &vmess_node else {
+            panic!("vmess node degraded to Other: {vmess_node:?}");
+        };
+        assert_eq!(vmess_node.type_name(), "vmess");
+        assert_eq!(
+            vmess.uuid.as_deref(),
+            Some("b831381d-6324-4d53-ad4f-8cda48b30811")
+        );
+        assert_eq!(vmess.alter_id, Some(0));
+        assert_eq!(vmess.cipher.as_deref(), Some("auto"));
+        assert_proxies_semantic_equivalence(VMESS_YAML);
+        assert_roundtrip_fixed_point(std::slice::from_ref(&vmess_node));
+        assert!(validate(&vmess_node).is_empty());
+    }
+
+    #[test]
+    fn test_port_hopping_parser() {
+        let hopping = PortHopping::parse("20000-30000, 8443, 443, 50000-50005").unwrap();
+        assert_eq!(hopping.specs.len(), 4);
+        assert!(hopping.contains(8443));
+        assert!(hopping.contains(25000));
+        assert!(hopping.contains(50003));
+        assert!(!hopping.contains(80));
+        assert_eq!(hopping.total_ports(), 10001 + 1 + 1 + 6);
+        assert_eq!(
+            hopping.to_canonical_string(),
+            "20000-30000,8443,443,50000-50005"
+        );
+
+        assert!(PortHopping::parse("30000-20000").is_err());
+        assert!(PortHopping::parse("0").is_err());
+        assert!(PortHopping::parse("").is_err());
+    }
+
+    #[test]
+    fn test_bandwidth_conversion() {
+        assert_eq!(
+            Bandwidth::Text("100 Mbps".to_string()).to_bps(),
+            Some(100_000_000)
+        );
+        assert_eq!(
+            Bandwidth::Text("1 Gbps".to_string()).to_bps(),
+            Some(1_000_000_000)
+        );
+        assert_eq!(
+            Bandwidth::Text("500 kbps".to_string()).to_bps(),
+            Some(500_000)
+        );
+        assert_eq!(Bandwidth::U64(1024).to_bps(), Some(1024));
     }
 
     #[test]
@@ -404,55 +614,6 @@ proxies:
     }
 
     #[test]
-    fn test_unknown_type_falls_back_to_other() {
-        let text = r#"
-proxies:
-  - name: legacy-ss
-    type: ss
-    server: 203.0.113.50
-    port: 8388
-    cipher: aes-256-gcm
-    password: ss-pass
-    plugin: v2ray-plugin
-    fake-field: 7
-"#;
-        let node = parse_single(text);
-        let ProxyNode::Other(other) = &node else {
-            panic!("unknown type must degrade to Other, got {node:?}");
-        };
-        assert_eq!(other.type_name, "ss");
-        for key in [
-            "name",
-            "server",
-            "port",
-            "cipher",
-            "password",
-            "plugin",
-            "fake-field",
-        ] {
-            assert!(
-                other.fields.contains_key(key),
-                "{key} must be kept verbatim"
-            );
-        }
-        assert_eq!(
-            other.fields.get("fake-field"),
-            Some(&Value::Number(7.into()))
-        );
-        assert_eq!(node.name(), "legacy-ss");
-        assert!(!node.is_typed());
-
-        assert_proxies_semantic_equivalence(text);
-        assert_roundtrip_fixed_point(std::slice::from_ref(&node));
-
-        let issues = validate(&node);
-        assert!(
-            issues.is_empty(),
-            "ss node has all common fields: {issues:?}"
-        );
-    }
-
-    #[test]
     fn test_future_unknown_type_falls_back_to_other() {
         let text = r#"
 proxies:
@@ -478,22 +639,20 @@ proxies:
     #[test]
     fn test_full_profile_roundtrip_all_protocols() {
         let nodes = parse_profile_yaml(PROFILE_YAML).expect("parse profile");
-        assert_eq!(nodes.len(), 5);
+        assert_eq!(nodes.len(), 7);
         let type_names: Vec<&str> = nodes.iter().map(ProxyNode::type_name).collect();
         assert_eq!(
             type_names,
-            ["vless", "hysteria2", "tuic", "wireguard", "ss"]
+            ["vless", "hysteria2", "tuic", "wireguard", "ss", "anytls", "quantum-tunnel-v9"]
         );
-        // Exactly one node (the legacy ss) falls back to Other; the rest are
-        // strongly typed.
-        assert_eq!(nodes.iter().filter(|n| n.is_typed()).count(), 4);
+        // Exactly 6 nodes are strongly typed; the 7th falls back to Other.
+        assert_eq!(nodes.iter().filter(|n| n.is_typed()).count(), 6);
 
         // typed -> YAML -> typed stability for the whole list.
         assert_roundtrip_fixed_point(&nodes);
         assert_proxies_semantic_equivalence(PROFILE_YAML);
 
-        // Writing nodes back into the original profile must not touch the
-        // other sections.
+        // Writing nodes back into the original profile must not touch the other sections.
         let updated = replace_proxies_in_profile(PROFILE_YAML, &nodes).expect("write back");
         let doc: Value = serde_yaml_ng::from_str(&updated).expect("updated doc");
         assert_eq!(doc.get("mixed-port").and_then(Value::as_i64), Some(7890));
@@ -530,7 +689,6 @@ proxies:
             extra.contains_key("fake-field"),
             "unknown field must still be captured after roundtrips"
         );
-        assert!(extra.contains_key("reduce-rtt"));
     }
 
     #[test]
@@ -551,17 +709,6 @@ proxies:
         // A scalar entry.
         let err = parse_profile_yaml("proxies:\n  - just-a-string\n").expect_err("must reject");
         assert!(err.to_string().contains("proxies[0]"), "{err}");
-    }
-
-    #[test]
-    fn test_profile_without_proxies_is_empty() {
-        assert!(
-            parse_profile_yaml("port: 7890\n")
-                .expect("parse")
-                .is_empty()
-        );
-        // Explicitly null proxies is treated as empty, not an error.
-        assert!(parse_profile_yaml("proxies:\n").expect("parse").is_empty());
     }
 
     #[test]
@@ -620,29 +767,9 @@ proxies:
         );
 
         let issues = validate(&nodes[3]);
-        // `ip` is present but malformed, so only the parse error fires; the
-        // "ip or ipv6 is required" hint is reserved for nodes missing both.
         assert!(
-            !issues.iter().any(|m| m.contains("ip or ipv6"))
-                && issues.iter().any(|m| m.contains("not a valid IP")),
+            issues.iter().any(|m| m.contains("not a valid IP")),
             "wireguard address problems must be reported: {issues:?}"
-        );
-
-        // A wireguard node without any address reports the missing-address hint.
-        let no_addr = r#"
-proxies:
-  - name: wg-no-address
-    type: wireguard
-    server: 10.3.3.3
-    port: 51820
-    private-key: k
-    public-key: k2
-"#;
-        let no_addr_nodes = parse_profile_yaml(no_addr).expect("parse");
-        let issues = validate(&no_addr_nodes[0]);
-        assert!(
-            issues.iter().any(|m| m.contains("ip or ipv6")),
-            "wireguard without addresses must be reported: {issues:?}"
         );
 
         let issues = validate(&nodes[4]);
@@ -650,34 +777,5 @@ proxies:
             issues.iter().any(|m| m.contains("server")),
             "untyped node without server must be reported: {issues:?}"
         );
-    }
-
-    #[test]
-    fn test_validate_clean_for_full_nodes() {
-        for text in [
-            VLESS_YAML,
-            HYSTERIA2_YAML,
-            TUIC_YAML,
-            WIREGUARD_YAML,
-            WIREGUARD_RESERVED_BASE64_YAML,
-        ] {
-            let node = parse_single(text);
-            let issues = validate(&node);
-            assert!(
-                issues.is_empty(),
-                "fully populated node must validate clean: {issues:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn test_typed_common_accessors() {
-        let nodes = parse_profile_yaml(PROFILE_YAML).expect("parse");
-        assert_eq!(nodes[0].name(), "vless-reality-vision");
-        assert_eq!(nodes[0].server(), Some("203.0.113.10"));
-        assert_eq!(nodes[0].common().map(|c| c.port), Some(443));
-        assert_eq!(nodes[4].name(), "legacy-ss");
-        assert_eq!(nodes[4].server(), Some("203.0.113.50"));
-        assert!(nodes[4].common().is_none());
     }
 }

@@ -28,12 +28,7 @@ impl DeadlockDetector {
         }
     }
 
-    pub fn record_acquisition(
-        &mut self,
-        lock_name: &str,
-        thread_id: &str,
-        wait_duration_ms: u64,
-    ) {
+    pub fn record_acquisition(&mut self, lock_name: &str, thread_id: &str, wait_duration_ms: u64) {
         self.events.push(LockContentionEvent {
             lock_name: lock_name.to_string(),
             thread_id: thread_id.to_string(),
@@ -55,9 +50,10 @@ impl DeadlockDetector {
                 max_wait_ms = event.wait_duration_ms;
             }
             if (event.wait_duration_ms > self.contention_threshold_ms * 2 || !event.acquired)
-                && !suspected_deadlocks.contains(&event.lock_name) {
-                    suspected_deadlocks.push(event.lock_name.clone());
-                }
+                && !suspected_deadlocks.contains(&event.lock_name)
+            {
+                suspected_deadlocks.push(event.lock_name.clone());
+            }
         }
 
         DeadlockReport {

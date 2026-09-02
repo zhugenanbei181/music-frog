@@ -4,10 +4,10 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::{RuntimeConfig, RuntimePatchSnapshot};
-use infiltrator_shared::locales::Localizer;
 use iced::Task;
 use infiltrator_core::error::InfiltratorError;
 use infiltrator_desktop::tun_service::{ServiceModeStatus, TunServiceManager};
+use infiltrator_shared::locales::Localizer;
 
 impl AppState {
     fn runtime_unavailable(&mut self, operation: &str) -> Task<Message> {

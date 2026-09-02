@@ -347,8 +347,26 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
     }))
 }
 
-pub(super) fn ensure_valid_profile_name(name: &str) -> Result<String, ApiError> {
-    infiltrator_core::profiles::sanitize_profile_name(name).map_err(|e| ApiError::bad_request(e.to_string()))
+pub async fn update_all_profiles_http<C: AdminApiContext>(
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+) -> Result<Json<ProfilesUpdateAllResponse>, ApiError> {
+    let summary = crate::scheduler::subscription::update_all_subscriptions(
+        &state.ctx,
+        &state.http_client,
+        &state.raw_http_client,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
+    Ok(Json(ProfilesUpdateAllResponse::from(summary)))
+}
+
+pub(crate) fn ensure_valid_profile_name(name: &str) -> Result<String, ApiError> {
+    infiltrator_core::profiles::sanitize_profile_name(name)
+        .map_err(|e| ApiError::bad_request(e.to_string()))
 }
 
 async fn switch_profile_internal<C: AdminApiContext>(
@@ -386,9 +404,12 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
         profile_name, masked_url
     );
     let checked_url = infiltrator_core::subscription::CheckedSubscriptionUrl::parse(source_url)?;
-    let (content, userinfo) =
-        infiltrator_core::subscription::fetch_subscription_with_info(client, raw_client, &checked_url)
-            .await?;
+    let (content, userinfo) = infiltrator_core::subscription::fetch_subscription_with_info(
+        client,
+        raw_client,
+        &checked_url,
+    )
+    .await?;
     if content.trim().is_empty() {
         return Err(anyhow!("订阅返回内容为空"));
     }

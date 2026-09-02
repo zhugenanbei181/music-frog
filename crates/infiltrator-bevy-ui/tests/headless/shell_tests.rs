@@ -17,21 +17,22 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::world::World;
 use bevy::scene::ScenePlugin;
 use bevy::text::{FontSize, TextColor, TextFont};
-use bevy::ui::BackgroundColor;
-use bevy::ui::Node;
 use bevy::ui::widget::Text;
+use bevy::ui::{BackgroundColor, Display, Node};
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_ui::app::{
-    ContentSlot, ShellHeader, ShellPlugin, ShellRoot, SidebarPanel, ThemeMode, ThemeToggle,
+    BottomNavActive, BottomNavBar, BottomNavItem, ContentSlot, LayoutMode, ShellHeader,
+    ShellLayoutState, ShellPlugin, ShellRoot, SidebarPanel, ThemeMode, ThemeToggle,
 };
 use infiltrator_bevy_ui::pages::overview::OverviewModePill;
 use infiltrator_bevy_ui::projection::ProxyMode;
 use infiltrator_bevy_widgets::button::ControlVisual;
+use infiltrator_bevy_widgets::icon::IconTint;
 use infiltrator_bevy_widgets::nav::{NavActive, NavItem};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::{LightDark, Theme};
+use infiltrator_bevy_widgets::theme::{Breakpoint, LightDark, Theme};
 
 #[test]
 fn shell_mounts_camera_content_slot_and_stamped_header() {
@@ -456,5 +457,218 @@ fn activating_the_pill_flips_the_mode_mirror() {
         app.world().resource::<UiPalette>(),
         &dark,
         "palette is Color-exact through the round trip"
+    );
+}
+
+/// Responsive shell mounts both sidebar and bottom nav bar, defaulting to
+/// desktop mode (width >= 600px) with sidebar visible and bottom nav hidden.
+#[test]
+fn responsive_shell_mounts_both_modes_and_defaults_to_sidebar() {
+    let mut app = mounted_shell();
+    let world = app.world_mut();
+
+    let layout = world.resource::<ShellLayoutState>();
+    assert_eq!(layout.breakpoint, Breakpoint::Desktop);
+    assert_eq!(layout.mode, LayoutMode::Sidebar);
+    assert!(layout.width_px >= 600.0);
+
+    let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
+    let (sidebar_node, _) = sidebars.single(world).expect("one sidebar rail");
+    assert_eq!(
+        sidebar_node.display,
+        Display::Flex,
+        "sidebar is visible in desktop mode"
+    );
+
+    let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
+    let (bottom_node, _) = bottom_navs.single(world).expect("one bottom nav bar");
+    assert_eq!(
+        bottom_node.display,
+        Display::None,
+        "bottom nav is collapsed/hidden in desktop mode"
+    );
+}
+
+/// On mobile viewport width (<600px), responsive shell automatically collapses
+/// the sidebar and switches to bottom navigation bar mode.
+#[test]
+fn responsive_shell_switches_to_bottom_nav_on_mobile_width() {
+    let mut app = mounted_shell();
+
+    // Resize viewport to mobile width (375px)
+    app.world_mut()
+        .resource_mut::<ShellLayoutState>()
+        .set_width(375.0);
+    app.update();
+
+    let world = app.world_mut();
+    let layout = world.resource::<ShellLayoutState>();
+    assert_eq!(layout.breakpoint, Breakpoint::Mobile);
+    assert_eq!(layout.mode, LayoutMode::BottomNav);
+    assert!(layout.breakpoint.is_compact());
+
+    let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
+    let (sidebar_node, _) = sidebars.single(world).expect("one sidebar rail");
+    assert_eq!(
+        sidebar_node.display,
+        Display::None,
+        "sidebar is collapsed on mobile"
+    );
+
+    let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
+    let (bottom_node, _) = bottom_navs.single(world).expect("one bottom nav bar");
+    assert_eq!(
+        bottom_node.display,
+        Display::Flex,
+        "bottom nav is visible on mobile"
+    );
+}
+
+/// Transitioning from mobile (<600px) back to desktop (>=600px) restores the sidebar
+/// and hides the bottom navigation bar.
+#[test]
+fn responsive_shell_switches_back_to_sidebar_on_desktop_width() {
+    let mut app = mounted_shell();
+
+    // Switch to mobile
+    app.world_mut()
+        .resource_mut::<ShellLayoutState>()
+        .set_width(400.0);
+    app.update();
+    assert_eq!(
+        app.world().resource::<ShellLayoutState>().mode,
+        LayoutMode::BottomNav
+    );
+
+    // Switch back to desktop
+    app.world_mut()
+        .resource_mut::<ShellLayoutState>()
+        .set_width(1280.0);
+    app.update();
+
+    let world = app.world_mut();
+    let layout = world.resource::<ShellLayoutState>();
+    assert_eq!(layout.breakpoint, Breakpoint::Desktop);
+    assert_eq!(layout.mode, LayoutMode::Sidebar);
+
+    let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
+    let (sidebar_node, _) = sidebars.single(world).expect("one sidebar rail");
+    assert_eq!(sidebar_node.display, Display::Flex);
+
+    let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
+    let (bottom_node, _) = bottom_navs.single(world).expect("one bottom nav bar");
+    assert_eq!(bottom_node.display, Display::None);
+}
+
+/// Responsive layout transitions preserve entity IDs (zero remounts, component restamp in place).
+#[test]
+fn responsive_mode_switch_keeps_entity_identities() {
+    let mut app = mounted_shell();
+    let world = app.world_mut();
+
+    let sidebar_id = world
+        .query::<(Entity, &SidebarPanel)>()
+        .single(world)
+        .expect("sidebar entity")
+        .0;
+    let bottom_nav_id = world
+        .query::<(Entity, &BottomNavBar)>()
+        .single(world)
+        .expect("bottom nav entity")
+        .0;
+
+    // Desktop -> Mobile -> Tablet -> Desktop
+    for w in [390.0, 768.0, 1440.0, 320.0] {
+        app.world_mut()
+            .resource_mut::<ShellLayoutState>()
+            .set_width(w);
+        app.update();
+
+        let world = app.world_mut();
+        assert!(
+            world.get_entity(sidebar_id).is_ok(),
+            "sidebar entity id preserved across width {w}"
+        );
+        assert!(
+            world.get_entity(bottom_nav_id).is_ok(),
+            "bottom nav entity id preserved across width {w}"
+        );
+    }
+}
+
+/// Theme flip repaints the bottom navigation bar and active items in place without respawn.
+#[test]
+fn theme_flip_repaints_bottom_nav_bar_in_place() {
+    let mut app = mounted_shell();
+
+    // Switch to mobile mode
+    app.world_mut()
+        .resource_mut::<ShellLayoutState>()
+        .set_width(375.0);
+    app.update();
+
+    let world = app.world_mut();
+    let bar_id = world
+        .query::<(Entity, &BottomNavBar)>()
+        .single(world)
+        .expect("bottom nav")
+        .0;
+
+    // Flip to light theme
+    app.world_mut()
+        .commands()
+        .trigger(ThemeSwitch(LightDark::Light));
+    app.update();
+
+    let light = UiPalette::new(&Theme::light());
+    let world = app.world_mut();
+    let bar_fill = world
+        .get::<BackgroundColor>(bar_id)
+        .expect("bottom nav fill survives");
+    assert_eq!(
+        bar_fill.0, light.sidebar,
+        "bottom nav bar background matches light sidebar"
+    );
+
+    // Active item icon tint matches light accent
+    let mut items = world.query::<(&BottomNavItem, &BottomNavActive, &Children)>();
+    let mut icons = world.query::<&IconTint>();
+    for (_, active, children) in items.iter(world) {
+        if active.0 {
+            for child in children.iter() {
+                if let Ok(tint) = icons.get(world, *child) {
+                    assert_eq!(
+                        tint.0, light.accent,
+                        "active bottom nav item icon tinted with light accent"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Bottom navigation bar carries accessible semantic nodes for all its items.
+#[test]
+fn bottom_nav_carries_named_button_semantics() {
+    let mut app = mounted_shell();
+    let world = app.world_mut();
+
+    let mut items = world.query::<(&BottomNavItem, &AccessibilityNode)>();
+    let mut labels: Vec<(String, bool)> = Vec::new();
+    for (_, node) in items.iter(world) {
+        assert_eq!(node.role(), accesskit::Role::Button);
+        labels.push((
+            node.label().expect("bottom nav label").to_owned(),
+            node.is_disabled(),
+        ));
+    }
+    assert_eq!(
+        labels,
+        vec![
+            ("核心概览".to_owned(), false),
+            ("数据同步".to_owned(), true),
+            ("系统设置".to_owned(), true),
+        ],
+        "bottom nav carries named button accessibility semantics matching sidebar"
     );
 }

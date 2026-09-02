@@ -3,16 +3,20 @@
 //! `/admin/api/runtime/delay/*`).
 
 use std::collections::HashSet;
+use std::sync::Arc;
+use std::time::Duration;
 
-use axum::{Json, http::StatusCode};
+use axum::{Json, http::StatusCode, response::{IntoResponse, Response}};
 use chrono::Utc;
+use infiltrator_core::flow_control::BatchDelayTester;
+use tokio::sync::watch;
 
 use crate::admin_api::events::{AdminEvent, EVENT_PROXY_CHANGED};
 use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
 
-const DEFAULT_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
-const DEFAULT_DELAY_TIMEOUT_MS: u32 = 5000;
+pub(crate) const DEFAULT_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
+pub(crate) const DEFAULT_DELAY_TIMEOUT_MS: u32 = 5000;
 const MIN_DELAY_TIMEOUT_MS: u32 = 100;
 const MAX_DELAY_TIMEOUT_MS: u32 = 60_000;
 
@@ -170,19 +174,44 @@ pub async fn test_all_runtime_proxy_delays_http<C: AdminApiContext>(
     let candidates =
         collect_delay_test_candidates(payload.proxies.as_deref(), &proxies, &mut results);
 
-    for proxy in candidates {
-        match client.test_delay(&proxy, &test_url, timeout_ms).await {
-            Ok(delay_ms) => results.push(RuntimeDelayBatchResult {
-                proxy,
-                delay_ms: Some(delay_ms),
+    let tester = BatchDelayTester::new(
+        30,
+        test_url.clone(),
+        Duration::from_millis(timeout_ms as u64),
+    );
+    let (_cancel_tx, cancel_rx) = watch::channel(false);
+    let client_arc = Arc::new(client);
+
+    let outcomes = tester
+        .test_proxies(
+            candidates,
+            move |proxy, url| {
+                let client = client_arc.clone();
+                async move {
+                    client
+                        .test_delay(&proxy, &url, timeout_ms)
+                        .await
+                        .map(|d| d as u64)
+                        .map_err(|e| e.to_string())
+                }
+            },
+            cancel_rx,
+        )
+        .await;
+
+    for outcome in outcomes {
+        match outcome.result {
+            Ok(res) => results.push(RuntimeDelayBatchResult {
+                proxy: outcome.proxy_name,
+                delay_ms: Some(res.latency_ms as u32),
                 tested_at: Some(Utc::now().to_rfc3339()),
                 error: None,
             }),
             Err(err) => results.push(RuntimeDelayBatchResult {
-                proxy,
+                proxy: outcome.proxy_name,
                 delay_ms: None,
                 tested_at: None,
-                error: Some(err.to_string()),
+                error: Some(format!("{:?}", err)),
             }),
         }
     }
@@ -202,6 +231,116 @@ pub async fn test_all_runtime_proxy_delays_http<C: AdminApiContext>(
     }))
 }
 
+pub async fn test_proxies_delay_http<C: AdminApiContext>(
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    payload: Option<Json<ProxyDelayPayload>>,
+) -> Result<Response, ApiError> {
+    let payload = payload.map(|Json(p)| p).unwrap_or_default();
+    let test_url = normalize_delay_test_url(payload.test_url.as_deref())?;
+    let timeout_ms = normalize_delay_timeout_ms(payload.timeout_ms);
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    // Check if single proxy test is requested
+    let single_candidate = payload
+        .proxy
+        .as_deref()
+        .map(str::trim)
+        .filter(|p| !p.is_empty() && *p != "all");
+    if let Some(proxy_name) = single_candidate
+        && payload.proxies.is_none()
+        && payload.all != Some(true)
+    {
+        let delay_ms = client
+            .test_delay(proxy_name, &test_url, timeout_ms)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+        return Ok((
+            StatusCode::OK,
+            Json(RuntimeDelayTestResponse {
+                proxy: proxy_name.to_string(),
+                delay_ms,
+                tested_at: Utc::now().to_rfc3339(),
+                test_url,
+                timeout_ms,
+            }),
+        )
+            .into_response());
+    }
+
+    let proxies = client
+        .get_proxies()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    let mut results = Vec::new();
+    let candidates =
+        collect_delay_test_candidates(payload.proxies.as_deref(), &proxies, &mut results);
+
+    let tester = BatchDelayTester::new(
+        30,
+        test_url.clone(),
+        Duration::from_millis(timeout_ms as u64),
+    );
+    let (_cancel_tx, cancel_rx) = watch::channel(false);
+    let client_arc = Arc::new(client);
+
+    let outcomes = tester
+        .test_proxies(
+            candidates,
+            move |proxy, url| {
+                let client = client_arc.clone();
+                async move {
+                    client
+                        .test_delay(&proxy, &url, timeout_ms)
+                        .await
+                        .map(|d| d as u64)
+                        .map_err(|e| e.to_string())
+                }
+            },
+            cancel_rx,
+        )
+        .await;
+
+    for outcome in outcomes {
+        match outcome.result {
+            Ok(res) => results.push(RuntimeDelayBatchResult {
+                proxy: outcome.proxy_name,
+                delay_ms: Some(res.latency_ms as u32),
+                tested_at: Some(Utc::now().to_rfc3339()),
+                error: None,
+            }),
+            Err(err) => results.push(RuntimeDelayBatchResult {
+                proxy: outcome.proxy_name,
+                delay_ms: None,
+                tested_at: None,
+                error: Some(format!("{:?}", err)),
+            }),
+        }
+    }
+
+    let success_count = results
+        .iter()
+        .filter(|item| item.delay_ms.is_some())
+        .count();
+    let failed_count = results.len().saturating_sub(success_count);
+
+    Ok((
+        StatusCode::OK,
+        Json(RuntimeDelayBatchResponse {
+            results,
+            success_count,
+            failed_count,
+            test_url,
+            timeout_ms,
+        }),
+    )
+        .into_response())
+}
+
 pub(super) fn normalize_proxy_mode(mode: &str) -> String {
     let trimmed = mode.trim().to_ascii_lowercase();
     if trimmed.is_empty() {
@@ -211,7 +350,7 @@ pub(super) fn normalize_proxy_mode(mode: &str) -> String {
     }
 }
 
-fn normalize_proxy_mode_candidate(mode: &str) -> Result<String, ApiError> {
+pub(crate) fn normalize_proxy_mode_candidate(mode: &str) -> Result<String, ApiError> {
     let normalized = normalize_proxy_mode(mode);
     if !matches!(normalized.as_str(), "rule" | "global" | "direct" | "script") {
         return Err(ApiError::bad_request(
@@ -257,7 +396,7 @@ fn build_runtime_proxy_delay_nodes(
     nodes
 }
 
-fn collect_delay_test_candidates(
+pub(crate) fn collect_delay_test_candidates(
     requested: Option<&[String]>,
     proxies: &std::collections::HashMap<String, mihomo_api::proxy::types::Proxy>,
     results: &mut Vec<RuntimeDelayBatchResult>,

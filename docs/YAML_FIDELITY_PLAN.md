@@ -23,7 +23,7 @@ rules:
 
 让它走过两条真实写路径（证据由
 `yaml_edit::tests::characterizes_current_pipeline_fidelity_loss` 固化，可
-用 `cargo test -p infiltrator-core yaml_edit -- --nocapture` 复现打印）：
+用 `bash scripts/test.sh` 复现打印）：
 
 **① mixin 标量覆写**（`mixin::merge_profile_with_config`，输入 +
 `mode: global`），实际输出：
@@ -161,6 +161,6 @@ apply 事务（`apply.rs`）的五步——`validate_config`（yaml-rust2 语法
 - 保守拒绝 ≠ 自动降级：调用方（compose 分派器）必须显式决定"中止"还是
   "降级 serde 并提示丢注释"，禁止静默吞错。
 
-**验证门槛**：`cargo test -p infiltrator-core yaml_edit`（16 用例全绿）；
+**验证门槛**：`bash scripts/test.sh`（16 用例全绿）；
 `cargo clippy -p infiltrator-core --all-targets -- -D warnings` 零告警；
 `scripts/quality/line-guard.py`（800 行预算）零违规。

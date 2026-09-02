@@ -1,11 +1,15 @@
+//! View root for the iced desktop client: sidebar + main view routing,
+//! notification toasts, operation errors, rebuild status HUD and modal dialogs.
+
+mod modals;
+
 use crate::state::AppState;
-use crate::types::app::{ConfirmAction, Route, ToastStatus};
+use crate::types::app::{Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use crate::view;
-use iced::widget::{button, column, container, row, stack, text};
+use iced::widget::{Space, button, column, container, row, stack, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
-use infiltrator_shared::locales::Lang;
 use std::time::Instant;
 
 impl AppState {
@@ -36,16 +40,13 @@ impl AppState {
         .width(Length::Fill)
         .height(Length::Fill)
         .padding(48)
-        .style(move |theme: &Theme| {
-            container::Style {
-                background: Some(crate::view::theme::tokens(theme).canvas.into()),
-                // 仅对文字颜色进行透明度插值，这在 CPU 渲染下极快
-                text_color: Some(Color {
-                    a: progress,
-                    ..theme.palette().text
-                }),
-                ..Default::default()
-            }
+        .style(move |theme: &Theme| container::Style {
+            background: Some(crate::view::theme::tokens(theme).canvas.into()),
+            text_color: Some(Color {
+                a: progress,
+                ..theme.palette().text
+            }),
+            ..Default::default()
         });
 
         let main_view = row![sidebar, main_content];
@@ -55,19 +56,40 @@ impl AppState {
         if !self.shell.toasts.is_empty() {
             let mut toast_column = column![].spacing(10);
             for (content, status) in &self.shell.toasts {
-                let color = move |theme: &Theme| {
-                    let tokens = crate::view::theme::tokens(theme);
-                    match status {
-                        ToastStatus::Info => tokens.accent,
-                        ToastStatus::Success => tokens.success,
-                        ToastStatus::Warning => tokens.warning,
-                        ToastStatus::Error => tokens.danger,
-                    }
+                let (icon, color): (
+                    crate::view::svg_icons::Icon,
+                    fn(&Theme) -> Color,
+                ) = match status {
+                    ToastStatus::Info => (
+                        crate::view::svg_icons::Icon::Activity,
+                        |theme: &Theme| crate::view::theme::tokens(theme).accent,
+                    ),
+                    ToastStatus::Success => (
+                        crate::view::svg_icons::Icon::ListChecks,
+                        |theme: &Theme| crate::view::theme::tokens(theme).success,
+                    ),
+                    ToastStatus::Warning => (
+                        crate::view::svg_icons::Icon::Activity,
+                        |theme: &Theme| crate::view::theme::tokens(theme).warning,
+                    ),
+                    ToastStatus::Error => (
+                        crate::view::svg_icons::Icon::Shield,
+                        |theme: &Theme| crate::view::theme::tokens(theme).danger,
+                    ),
                 };
 
+                let toast_row = row![
+                    crate::view::svg_icons::icon_themed(icon, 14.0, color),
+                    text(content.clone()).size(13).style(|theme: &Theme| text::Style {
+                        color: Some(crate::view::theme::tokens(theme).overlay_text),
+                    }),
+                ]
+                .spacing(10)
+                .align_y(Alignment::Center);
+
                 toast_column = toast_column.push(
-                    container(text(content.clone()).size(13))
-                        .padding([12, 24])
+                    container(toast_row)
+                        .padding([10, 18])
                         .style(move |theme: &Theme| {
                             let tokens = crate::view::theme::tokens(theme);
                             container::Style {
@@ -77,6 +99,7 @@ impl AppState {
                                     width: 1.0,
                                     color: color(theme),
                                 },
+                                shadow: tokens.floating_shadow,
                                 text_color: Some(tokens.overlay_text),
                                 ..Default::default()
                             }
@@ -107,35 +130,44 @@ impl AppState {
                 container(
                     container(
                         row![
+                            crate::view::svg_icons::icon_themed(
+                                crate::view::svg_icons::Icon::Shield,
+                                16.0,
+                                |theme: &Theme| crate::view::theme::tokens(theme).danger,
+                            ),
+                            Space::new().width(crate::view::theme::SP_SM),
                             column![
-                                text(title).size(13),
-                                text(error.clone())
+                                text(title)
                                     .size(12)
+                                    .font(crate::view::theme::FONT_SEMIBOLD),
+                                text(error.clone())
+                                    .size(11)
                                     .style(|theme: &Theme| text::Style {
                                         color: Some(
                                             crate::view::theme::tokens(theme).overlay_text_muted,
                                         ),
                                     })
                             ]
-                            .spacing(4)
-                            .width(Length::Fill),
-                            button(text(dismiss).size(11))
-                                .padding([5, 9])
-                                .style(button::secondary)
+                            .spacing(2),
+                            Space::new().width(crate::view::theme::SP_MD),
+                            button(text(dismiss).size(11).font(crate::view::theme::FONT_MEDIUM))
+                                .padding([4, 10])
+                                .style(crate::view::components::style_ghost)
                                 .on_press(Message::ClearError),
                         ]
                         .align_y(Alignment::Center),
                     )
-                    .padding([10, 14])
+                    .padding([8, 16])
                     .style(|theme: &Theme| {
                         let tokens = crate::view::theme::tokens(theme);
                         container::Style {
                             background: Some(tokens.overlay.into()),
                             border: Border {
-                                radius: 10.0.into(),
+                                radius: crate::view::theme::R_CHIP.into(),
                                 width: 1.0,
                                 color: tokens.danger,
                             },
+                            shadow: tokens.floating_shadow,
                             text_color: Some(tokens.overlay_text),
                             ..Default::default()
                         }
@@ -151,58 +183,81 @@ impl AppState {
         }
 
         if !matches!(self.runtime.rebuild_flow, RebuildFlowState::Idle) {
-            let (title, detail, color): (&str, &str, fn(&Theme) -> Color) =
-                match &self.runtime.rebuild_flow {
-                    RebuildFlowState::Saving { label } => {
-                        ("Saving configuration", label.as_str(), |theme: &Theme| {
-                            crate::view::theme::tokens(theme).accent
-                        })
+            let (icon, title, detail, color): (
+                crate::view::svg_icons::Icon,
+                &str,
+                &str,
+                fn(&Theme) -> Color,
+            ) = match &self.runtime.rebuild_flow {
+                RebuildFlowState::Saving { label } => (
+                    crate::view::svg_icons::Icon::RefreshCw,
+                    "Saving configuration",
+                    label.as_str(),
+                    |theme: &Theme| crate::view::theme::tokens(theme).accent,
+                ),
+                RebuildFlowState::Rebuilding { label } => (
+                    crate::view::svg_icons::Icon::Activity,
+                    "Rebuilding runtime",
+                    label.as_str(),
+                    |theme: &Theme| crate::view::theme::tokens(theme).warning,
+                ),
+                RebuildFlowState::Done { label } => (
+                    crate::view::svg_icons::Icon::ListChecks,
+                    "Completed",
+                    label.as_str(),
+                    |theme: &Theme| crate::view::theme::tokens(theme).success,
+                ),
+                RebuildFlowState::Failed { label, .. } => (
+                    crate::view::svg_icons::Icon::Shield,
+                    "Failed",
+                    label.as_str(),
+                    |theme: &Theme| crate::view::theme::tokens(theme).danger,
+                ),
+                RebuildFlowState::Idle => (
+                    crate::view::svg_icons::Icon::Activity,
+                    "",
+                    "",
+                    |theme: &Theme| crate::view::theme::tokens(theme).overlay_text,
+                ),
+            };
+
+            let mut info_col = column![text(title)
+                .size(12)
+                .font(crate::view::theme::FONT_SEMIBOLD)];
+            if !detail.is_empty() {
+                info_col = info_col.push(text(detail).size(11).style(|theme: &Theme| {
+                    text::Style {
+                        color: Some(crate::view::theme::tokens(theme).overlay_text_muted),
                     }
-                    RebuildFlowState::Rebuilding { label } => {
-                        ("Rebuilding runtime", label.as_str(), |theme: &Theme| {
-                            crate::view::theme::tokens(theme).warning
-                        })
-                    }
-                    RebuildFlowState::Done { label } => {
-                        ("Completed", label.as_str(), |theme: &Theme| {
-                            crate::view::theme::tokens(theme).success
-                        })
-                    }
-                    RebuildFlowState::Failed { label, .. } => {
-                        ("Failed", label.as_str(), |theme: &Theme| {
-                            crate::view::theme::tokens(theme).danger
-                        })
-                    }
-                    RebuildFlowState::Idle => ("", "", |theme: &Theme| {
-                        crate::view::theme::tokens(theme).overlay_text
-                    }),
-                };
+                }));
+            }
+            info_col = info_col.spacing(2);
+
+            let content = row![
+                crate::view::svg_icons::icon_themed(icon, 16.0, color),
+                Space::new().width(crate::view::theme::SP_SM),
+                info_col,
+            ]
+            .align_y(Alignment::Center);
 
             layers.push(
                 container(
-                    container(
-                        column![
-                            text(title).size(14),
-                            text(detail).size(12).style(|theme: &Theme| text::Style {
-                                color: Some(crate::view::theme::tokens(theme).overlay_text_muted,)
-                            })
-                        ]
-                        .spacing(4),
-                    )
-                    .padding([12, 18])
-                    .style(move |theme: &Theme| {
-                        let tokens = crate::view::theme::tokens(theme);
-                        container::Style {
-                            background: Some(tokens.overlay.into()),
-                            border: Border {
-                                radius: 10.0.into(),
-                                width: 1.0,
-                                color: color(theme),
-                            },
-                            text_color: Some(tokens.overlay_text),
-                            ..Default::default()
-                        }
-                    }),
+                    container(content)
+                        .padding([8, 18])
+                        .style(move |theme: &Theme| {
+                            let tokens = crate::view::theme::tokens(theme);
+                            container::Style {
+                                background: Some(tokens.overlay.into()),
+                                border: Border {
+                                    radius: crate::view::theme::R_CHIP.into(),
+                                    width: 1.0,
+                                    color: color(theme),
+                                },
+                                shadow: tokens.floating_shadow,
+                                text_color: Some(tokens.overlay_text),
+                                ..Default::default()
+                            }
+                        }),
                 )
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -213,102 +268,20 @@ impl AppState {
             );
         }
 
-        // FPS 诊断 HUD (调试用)。ui-fix: 默认隐藏 —— perf_panel_visible 现在
-        // 同时控制 "0 FPS / Perf" 徽标与性能快照面板（此前徽标无条件渲染，
-        // 出现在每张截图右上角）。Message::TogglePerfPanel 仍负责切换。
-        if self.diag.perf_panel_visible {
-            let fps_counter = container(
-                row![
-                    text(format!("{} FPS", self.diag.fps))
-                        .size(10)
-                        .style(|theme: &Theme| text::Style {
-                            color: Some(crate::view::theme::tokens(theme).text_tertiary),
-                        }),
-                    button(text("Perf").size(10))
-                        .padding([2, 8])
-                        .style(button::secondary)
-                        .on_press(Message::TogglePerfPanel)
-                ]
-                .spacing(8),
-            )
-            .padding(10);
+        if let Some(proxy_name) = &self.runtime.inspecting_proxy {
+            layers.push(modals::inspect_proxy_modal(self, proxy_name));
+        }
 
-            layers.push(
-                container(fps_counter)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .align_x(Alignment::End)
-                    .align_y(Alignment::Start)
-                    .into(),
-            );
+        if self.runtime.is_adding_custom_node {
+            layers.push(modals::custom_node_modal(self));
+        }
+
+        if let Some(diff) = &self.editor.inspecting_rule_provider_diff {
+            layers.push(modals::rule_provider_diff_modal(self, diff));
         }
 
         if let Some(action) = &self.shell.confirmation {
-            let (title, detail, confirm_label) =
-                confirmation_copy(action, Lang(&self.shell.lang).0.starts_with("en"));
-            let cancel_label = if self.shell.lang.starts_with("en") {
-                "Cancel"
-            } else {
-                "取消"
-            };
-            let dialog = container(
-                column![
-                    text(title).size(17),
-                    text(detail).size(12).style(|theme: &Theme| text::Style {
-                        color: Some(crate::view::theme::tokens(theme).text_secondary),
-                    }),
-                    row![
-                        button(text(cancel_label).size(12))
-                            .padding([8, 14])
-                            .style(button::secondary)
-                            .on_press(Message::CancelConfirmation),
-                        button(text(confirm_label).size(12))
-                            .padding([8, 14])
-                            .style(button::danger)
-                            .on_press(Message::ConfirmAction),
-                    ]
-                    .spacing(10)
-                    .align_y(Alignment::Center),
-                ]
-                .spacing(14),
-            )
-            .width(Length::Fixed(420.0))
-            .padding(24)
-            .style(|theme: &Theme| {
-                let tokens = crate::view::theme::tokens(theme);
-                container::Style {
-                    background: Some(tokens.card_bg.into()),
-                    border: Border {
-                        radius: 14.0.into(),
-                        width: 1.0,
-                        color: tokens.card_border,
-                    },
-                    shadow: tokens.card_shadow,
-                    text_color: Some(tokens.text_primary),
-                    ..Default::default()
-                }
-            });
-
-            layers.push(
-                container(
-                    container(dialog)
-                        .center_x(Length::Fill)
-                        .center_y(Length::Fill),
-                )
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .style(|_theme: &Theme| container::Style {
-                    background: Some(
-                        Color {
-                            a: 0.45,
-                            ..Color::BLACK
-                        }
-                        .into(),
-                    ),
-                    ..Default::default()
-                })
-                .into(),
-            );
+            layers.push(modals::confirmation_modal(self, action));
         }
 
         if self.diag.perf_panel_visible {
@@ -316,7 +289,9 @@ impl AppState {
                 container(
                     container(
                         column![
-                            text("Performance Snapshot").size(13),
+                            text("Performance Snapshot")
+                                .size(13)
+                                .font(crate::view::theme::FONT_SEMIBOLD),
                             text(format!(
                                 "Navigate->FirstPaint: {:?}",
                                 self.diag.perf_snapshot.navigate_to_first_paint_ms
@@ -355,6 +330,7 @@ impl AppState {
                                 width: 1.0,
                                 color: tokens.overlay_border,
                             },
+                            shadow: tokens.floating_shadow,
                             text_color: Some(tokens.overlay_text),
                             ..Default::default()
                         }
@@ -374,73 +350,10 @@ impl AppState {
             );
         }
 
-        // demo-mode: emit the capture marker only after the first real view
-        // pass for the requested page (write-once; see demo.rs).
         if self.shell.demo {
             self.write_capture_marker();
         }
 
         stack(layers).into()
-    }
-}
-
-fn confirmation_copy(action: &ConfirmAction, is_en: bool) -> (String, String, String) {
-    if is_en {
-        match action {
-            ConfirmAction::FactoryReset => (
-                "Reset application?".to_string(),
-                "This stops the core and removes local settings, profiles and installed cores."
-                    .to_string(),
-                "Reset".to_string(),
-            ),
-            ConfirmAction::ClearProfiles => (
-                "Reset profiles?".to_string(),
-                "All profiles will be replaced with the default profile.".to_string(),
-                "Reset profiles".to_string(),
-            ),
-            ConfirmAction::DeleteProfile(name) => (
-                "Delete profile?".to_string(),
-                format!("The profile \"{name}\" will be permanently deleted."),
-                "Delete".to_string(),
-            ),
-            ConfirmAction::DeleteKernel(version) => (
-                "Delete core version?".to_string(),
-                format!("The installed core {version} will be removed."),
-                "Delete".to_string(),
-            ),
-            ConfirmAction::CloseAllConnections => (
-                "Close all connections?".to_string(),
-                "Every active connection will be disconnected.".to_string(),
-                "Close all".to_string(),
-            ),
-        }
-    } else {
-        match action {
-            ConfirmAction::FactoryReset => (
-                "恢复出厂设置？".to_string(),
-                "这将停止内核并删除本地设置、配置文件和已安装内核。".to_string(),
-                "恢复出厂".to_string(),
-            ),
-            ConfirmAction::ClearProfiles => (
-                "重置配置？".to_string(),
-                "所有配置将被默认配置替换。".to_string(),
-                "重置配置".to_string(),
-            ),
-            ConfirmAction::DeleteProfile(name) => (
-                "删除配置？".to_string(),
-                format!("配置“{name}”将被永久删除。"),
-                "删除".to_string(),
-            ),
-            ConfirmAction::DeleteKernel(version) => (
-                "删除内核版本？".to_string(),
-                format!("已安装的内核 {version} 将被删除。"),
-                "删除".to_string(),
-            ),
-            ConfirmAction::CloseAllConnections => (
-                "断开全部连接？".to_string(),
-                "所有活动连接都会被断开。".to_string(),
-                "全部断开".to_string(),
-            ),
-        }
     }
 }

@@ -20,7 +20,10 @@ impl EnvGuard {
         // SAFETY: single-threaded mutation of process env, serialized by
         // TEST_LOCK exactly like in mihomo-config's own tests.
         unsafe { std::env::remove_var(key) };
-        Self { _lock: lock, previous }
+        Self {
+            _lock: lock,
+            previous,
+        }
     }
 }
 

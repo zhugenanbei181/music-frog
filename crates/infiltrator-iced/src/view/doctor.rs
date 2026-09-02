@@ -50,15 +50,23 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
     let busy = doctor.is_running || doctor.is_fixing || doctor.is_bootstrapping;
 
     let actions = row![
-        button(text(label(&lang, "一键体检", "Run check")).size(12).font(FONT_MEDIUM))
-            .padding([7, 14])
-            .style(button::primary)
-            .on_press_maybe((!doctor.is_running && !busy).then_some(Message::RunDoctor)),
+        button(
+            text(label(&lang, "一键体检", "Run check"))
+                .size(12)
+                .font(FONT_MEDIUM)
+        )
+        .padding([7, 14])
+        .style(button::primary)
+        .on_press_maybe((!doctor.is_running && !busy).then_some(Message::RunDoctor)),
         Space::new().width(theme::SP_SM),
-        button(text(label(&lang, "一键修复", "Fix")).size(12).font(FONT_MEDIUM))
-            .padding([7, 14])
-            .style(button::secondary)
-            .on_press_maybe((!doctor.is_fixing && !busy).then_some(Message::RunDoctorFix)),
+        button(
+            text(label(&lang, "一键修复", "Fix"))
+                .size(12)
+                .font(FONT_MEDIUM)
+        )
+        .padding([7, 14])
+        .style(button::secondary)
+        .on_press_maybe((!doctor.is_fixing && !busy).then_some(Message::RunDoctorFix)),
         Space::new().width(theme::SP_SM),
         button(
             text(label(&lang, "初始化引导", "Bootstrap"))
@@ -127,7 +135,10 @@ fn summary_row(report: &DoctorReport) -> Element<'static, Message> {
     let mut summary = row![].spacing(theme::SP_SM);
     for (status, zh, en) in counts {
         let count = report.count_by_status(status);
-        summary = summary.push(badge(format!("{en} {zh} {count}"), status_badge_kind(status)));
+        summary = summary.push(badge(
+            format!("{en} {zh} {count}"),
+            status_badge_kind(status),
+        ));
     }
     summary.into()
 }

@@ -3,8 +3,8 @@
 //! test-intent: behavior
 
 use crate::test_support::{DEFAULT_WINDOW, demo_state};
-use infiltrator_iced::types::message::Message;
 use infiltrator_iced::types::app::Route;
+use infiltrator_iced::types::message::Message;
 use infiltrator_iced::types::runtime::RuntimeStatus;
 
 #[test]

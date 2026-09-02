@@ -1,9 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use mihomo_platform::TEST_LOCK;
-    use crate::admin_api::*;
-    use crate::admin_api::models::{ImportProfilePayload, SaveProfilePayload, SwitchProfilePayload};
+    use crate::admin_api::models::{
+        ImportProfilePayload, SaveProfilePayload, SwitchProfilePayload,
+    };
     use crate::admin_api::state::{AdminApiContext, AdminApiState};
+    use crate::admin_api::*;
     use anyhow::anyhow;
     use axum::{
         body::Body,
@@ -11,6 +12,7 @@ mod tests {
     };
     use infiltrator_core::settings::AppSettings;
     use mihomo_api::client::MihomoClient;
+    use mihomo_platform::TEST_LOCK;
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt; // for `oneshot`, `ready`, and `call`
 
@@ -158,6 +160,20 @@ mod tests {
         let bus = events::AdminEventBus::new();
         let state = AdminApiState::new(ctx, bus);
         (router(state), secrets)
+    }
+
+    fn setup_app_with_auth(token: Option<String>) -> axum::Router {
+        let ctx = MockContext {
+            rebuild_count: Arc::new(Mutex::new(0)),
+            runtime_url: None,
+            latest_stable_version: "v1.20.0".to_string(),
+            latest_stable_date: "2026-01-01T00:00:00Z".to_string(),
+            settings: Arc::new(Mutex::new(AppSettings::default())),
+            secrets: Arc::new(Mutex::new(std::collections::HashMap::new())),
+        };
+        let bus = events::AdminEventBus::new();
+        let state = AdminApiState::with_auth_token(ctx, bus, token);
+        router(state)
     }
 
     #[tokio::test]
@@ -590,8 +606,15 @@ mod tests {
         assert!(planted.exists(), "planted binary missing before request");
         let raw = std::fs::read(&planted).unwrap();
         println!("planted bytes: {:?}", String::from_utf8_lossy(&raw));
-        let direct = std::process::Command::new(&planted).arg("-v").output().unwrap();
-        println!("direct exec: status={:?} out={:?}", direct.status, String::from_utf8_lossy(&direct.stdout));
+        let direct = std::process::Command::new(&planted)
+            .arg("-v")
+            .output()
+            .unwrap();
+        println!(
+            "direct exec: status={:?} out={:?}",
+            direct.status,
+            String::from_utf8_lossy(&direct.stdout)
+        );
         mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
         let app = setup_app();
@@ -666,7 +689,12 @@ mod tests {
         let body = axum::body::to_bytes(response.into_body(), 2048)
             .await
             .unwrap();
-        assert_eq!(status, StatusCode::OK, "response body: {}", String::from_utf8_lossy(&body));
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "response body: {}",
+            String::from_utf8_lossy(&body)
+        );
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["version"], version);
         assert_eq!(json["downloaded"], false);
@@ -1674,5 +1702,282 @@ mod tests {
             !String::from_utf8_lossy(&raw).contains("s3cret"),
             "settings snapshot must not leak plaintext"
         );
+    }
+
+    #[tokio::test]
+    async fn test_admin_api_token_auth_isolation() {
+        let _guard = TEST_LOCK.lock().await;
+        let token = "test_super_secret_admin_token_456".to_string();
+        let app = setup_app_with_auth(Some(token.clone()));
+
+        // 1. Request with no token -> 401 Unauthorized
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/capabilities")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        // 2. Request with invalid Bearer token -> 401 Unauthorized
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/capabilities")
+                    .header("Authorization", "Bearer wrong_token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        // 3. Request with valid Bearer token -> 200 OK
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/capabilities")
+                    .header("Authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // 4. Request with valid x-admin-token header -> 200 OK
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/capabilities")
+                    .header("x-admin-token", &token)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // 5. Request with query param token -> 200 OK
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/admin/api/capabilities?token={token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // 6. Request with unconfigured auth_token -> allows access
+        let open_app = setup_app_with_auth(None);
+        let response = open_app
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/capabilities")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_script_endpoints_presets_and_execute() {
+        let _guard = TEST_LOCK.lock().await;
+        let app = setup_app();
+
+        // 1. GET /admin/api/scripts/presets
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/admin/api/scripts/presets")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let presets = json["presets"].as_array().expect("presets array");
+        assert_eq!(presets.len(), 4);
+
+        // 2. POST /admin/api/scripts/validate (valid script)
+        let val_payload = serde_json::json!({
+            "script": "function main(config) { filter_nodes_by_regex(config, 'ad', true); return config; }"
+        });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/scripts/validate")
+                    .header("content-type", "application/json")
+                    .body(Body::from(val_payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["valid"], true);
+        assert_eq!(json["entry_point_found"], true);
+
+        // 3. POST /admin/api/scripts/execute
+        let exec_payload = serde_json::json!({
+            "script": "function main(config) {\n  filter_nodes_by_regex(config, '官网|广告', true);\n  console.log('Filtered ad nodes');\n  return config;\n}",
+            "yaml_content": "proxies:\n  - name: \"🇭🇰 香港 01\"\n    type: ss\n  - name: \"官网-广告节点\"\n    type: ss\n",
+            "stage": "pre_merge",
+            "timeout_ms": 500
+        });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/scripts/execute")
+                    .header("content-type", "application/json")
+                    .body(Body::from(exec_payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["success"], true);
+        assert!(
+            json["transformed_yaml"]
+                .as_str()
+                .unwrap()
+                .contains("🇭🇰 香港 01")
+        );
+        assert!(
+            !json["transformed_yaml"]
+                .as_str()
+                .unwrap()
+                .contains("官网-广告节点")
+        );
+        assert_eq!(json["console_logs"][0], "Filtered ad nodes");
+    }
+
+    #[tokio::test]
+    async fn test_extension_endpoints_package_and_manifest() {
+        let _guard = TEST_LOCK.lock().await;
+        let app = setup_app();
+
+        // 1. POST /admin/api/extensions/package/export
+        let ext_pkg = serde_json::json!({
+            "package": {
+                "name": "Auto Country Router",
+                "version": "1.0.0",
+                "author": "Infiltrator",
+                "description": "Auto groups nodes by country",
+                "stage": "pre_merge",
+                "script_code": "function main(config) { auto_country_groups(config); return config; }",
+                "mixin_yaml": null,
+                "tags": ["country", "auto"]
+            }
+        });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/extensions/package/export")
+                    .header("content-type", "application/json")
+                    .body(Body::from(ext_pkg.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 8192)
+            .await
+            .unwrap();
+        let export_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let exported_json_str = export_json["json"].as_str().unwrap();
+        let checksum = export_json["checksum"].as_str().unwrap();
+        assert!(!checksum.is_empty());
+
+        // 2. POST /admin/api/extensions/package/import
+        let import_payload = serde_json::json!({
+            "json": exported_json_str,
+            "expected_checksum": checksum
+        });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/extensions/package/import")
+                    .header("content-type", "application/json")
+                    .body(Body::from(import_payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 8192)
+            .await
+            .unwrap();
+        let imported_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(imported_json["package"]["name"], "Auto Country Router");
+
+        // 3. POST /admin/api/extensions/manifest/validate
+        let manifest_payload = serde_json::json!({
+            "manifest": {
+                "id": "ext-test",
+                "name": "Extension Test",
+                "version": "1.0.0",
+                "author": "Dev",
+                "description": "Valid test manifest",
+                "permissions": ["network_access", "modify_rules"],
+                "settings_schema": [
+                    {
+                        "key": "enable_auto",
+                        "label": "Enable Auto",
+                        "field_type": "boolean",
+                        "default_value": true
+                    }
+                ]
+            }
+        });
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/admin/api/extensions/manifest/validate")
+                    .header("content-type", "application/json")
+                    .body(Body::from(manifest_payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let res: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(res["valid"], true);
     }
 }

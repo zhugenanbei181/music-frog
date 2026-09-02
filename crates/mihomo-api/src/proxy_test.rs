@@ -9,7 +9,7 @@
 #[cfg(test)]
 mod tests {
     use crate::client::MihomoClient;
-use crate::proxy::manager::ProxyManager;
+    use crate::proxy::manager::ProxyManager;
     use mockito::Server;
 
     // ──────────────────────────────────────────────
@@ -66,7 +66,10 @@ use crate::proxy::manager::ProxyManager;
 
         mock.assert_async().await;
         // GLOBAL（策略组）不出现在结果中
-        assert!(nodes.iter().all(|n| n.name != "GLOBAL"), "策略组不应出现在节点列表中");
+        assert!(
+            nodes.iter().all(|n| n.name != "GLOBAL"),
+            "策略组不应出现在节点列表中"
+        );
         assert_eq!(nodes.len(), 2, "应返回 HK-1 和 HK-2 两个叶节点");
 
         // HK-1 有延迟记录，HK-2 无延迟（未测速或超时）
@@ -156,7 +159,10 @@ use crate::proxy::manager::ProxyManager;
 
         mock.assert_async().await;
         assert_eq!(groups.len(), 2, "GLOBAL 和 HK-Group 应被识别为策略组");
-        assert!(groups.iter().all(|g| g.name != "HK-1"), "叶节点不应出现在组列表中");
+        assert!(
+            groups.iter().all(|g| g.name != "HK-1"),
+            "叶节点不应出现在组列表中"
+        );
 
         let hk_group = groups.iter().find(|g| g.name == "HK-Group").unwrap();
         assert_eq!(hk_group.now, "HK-1");
@@ -211,7 +217,10 @@ use crate::proxy::manager::ProxyManager;
             .await;
 
         let client = MihomoClient::new(&server.url(), None).unwrap();
-        let current = ProxyManager::new(client).get_current("GLOBAL").await.unwrap();
+        let current = ProxyManager::new(client)
+            .get_current("GLOBAL")
+            .await
+            .unwrap();
 
         mock.assert_async().await;
         assert_eq!(current, "HK-1");

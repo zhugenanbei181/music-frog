@@ -7,7 +7,8 @@ use dav_client::DavClient;
 use dav_client::client::WebDavClient;
 use infiltrator_core::settings::{
     AppSettings, clear_webdav_password, load_settings, load_settings_hydrated_with_store,
-    save_settings, save_webdav_password, settings_path};
+    save_settings, save_webdav_password, settings_path,
+};
 use mihomo_platform::paths::get_home_dir;
 use mihomo_platform::traits::{CredentialStore, DefaultCredentialStore};
 use state_store::StateStore;
@@ -166,9 +167,11 @@ async fn save_webdav_settings_in<S: CredentialStore>(
     // password 的序列化被 core 跳过；这里仍显式清空内存镜像，保证不落盘。
     core_config.password = String::new();
     app_settings.webdav = core_config;
-    save_settings(&settings_path(home).map_err(|err| {
-        FfiStatus::err(FfiErrorCode::InvalidState, err.to_string())
-    })?, &app_settings)
+    save_settings(
+        &settings_path(home)
+            .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?,
+        &app_settings,
+    )
     .await
     .map_err(map_anyhow_error)?;
     // 回显完整记录（含密码内存镜像），与迁移前 FFI 行为一致。
@@ -322,7 +325,9 @@ fn webdav_settings_to_core(settings: WebDavSettings) -> infiltrator_core::settin
     }
 }
 
-fn validate_webdav_config(config: &infiltrator_core::settings::WebDavConfig) -> Result<(), FfiStatus> {
+fn validate_webdav_config(
+    config: &infiltrator_core::settings::WebDavConfig,
+) -> Result<(), FfiStatus> {
     if config.url.trim().is_empty() {
         return Err(FfiStatus::err(
             FfiErrorCode::InvalidInput,
@@ -366,15 +371,16 @@ mod tests {
 
     #[async_trait::async_trait]
     impl CredentialStore for MemoryStore {
-        async fn get(
-            &self,
-            service: &str,
-            key: &str,
-        ) -> mihomo_api::error::Result<Option<String>> {
+        async fn get(&self, service: &str, key: &str) -> mihomo_api::error::Result<Option<String>> {
             Ok(self.peek(service, key))
         }
 
-        async fn set(&self, service: &str, key: &str, value: &str) -> mihomo_api::error::Result<()> {
+        async fn set(
+            &self,
+            service: &str,
+            key: &str,
+            value: &str,
+        ) -> mihomo_api::error::Result<()> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -431,9 +437,14 @@ mod tests {
         let saved = save_webdav_settings_in(&home, record("s3cret"), &store)
             .await
             .expect("save succeeds");
-        assert_eq!(saved.password, "s3cret", "record echoes the in-memory value");
         assert_eq!(
-            store.peek(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY).as_deref(),
+            saved.password, "s3cret",
+            "record echoes the in-memory value"
+        );
+        assert_eq!(
+            store
+                .peek(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY)
+                .as_deref(),
             Some("s3cret"),
             "password must land in the credential store"
         );
@@ -442,7 +453,10 @@ mod tests {
         let raw = std::fs::read_to_string(settings_file(&home)).expect("settings file written");
         assert!(!raw.contains("password"), "plaintext leaked: {raw}");
         assert!(!raw.contains("s3cret"), "plaintext leaked: {raw}");
-        assert!(raw.contains("enabled = true"), "other fields survive: {raw}");
+        assert!(
+            raw.contains("enabled = true"),
+            "other fields survive: {raw}"
+        );
 
         // 读取：水合把 keyring 中的密码填回 FFI 记录。
         let loaded = load_webdav_settings_in(&home, &store)
@@ -456,14 +470,20 @@ mod tests {
             .await
             .expect("clear-save succeeds");
         assert_eq!(cleared.password, "");
-        assert_eq!(store.peek(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY), None);
+        assert_eq!(
+            store.peek(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY),
+            None
+        );
         let reloaded = load_webdav_settings_in(&home, &store)
             .await
             .expect("reload succeeds");
         assert_eq!(reloaded.password, "");
 
         let raw_after = std::fs::read_to_string(settings_file(&home)).expect("settings readable");
-        assert!(!raw_after.contains("s3cret"), "plaintext leaked: {raw_after}");
+        assert!(
+            !raw_after.contains("s3cret"),
+            "plaintext leaked: {raw_after}"
+        );
         let _ = std::fs::remove_dir_all(home);
     }
 

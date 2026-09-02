@@ -5,9 +5,9 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use chrono::Utc;
-use infiltrator_shared::locales::Localizer;
 use iced::Task;
 use infiltrator_core::error::InfiltratorError;
+use infiltrator_shared::locales::Localizer;
 
 impl AppState {
     /// Keep the subscription editor fields in sync with the selected profile
@@ -375,9 +375,10 @@ impl AppState {
                                 Ok(())
                             }
                             .await;
-                            outcomes.push(
-                                (profile.name, outcome.map_err(|e: InfiltratorError| e.to_string())),
-                            );
+                            outcomes.push((
+                                profile.name,
+                                outcome.map_err(|e: InfiltratorError| e.to_string()),
+                            ));
                         }
 
                         Ok(outcomes)
@@ -414,7 +415,12 @@ impl AppState {
                             (toast_done, ToastStatus::Success)
                         } else {
                             (
-                                format!("{} (✓{} ✗{})", toast_done, outcomes.len() - failed, failed),
+                                format!(
+                                    "{} (✓{} ✗{})",
+                                    toast_done,
+                                    outcomes.len() - failed,
+                                    failed
+                                ),
                                 ToastStatus::Warning,
                             )
                         };

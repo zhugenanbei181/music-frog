@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use std::ptr;
 use std::sync::Arc;
 
-
 use jni::objects::{GlobalRef, JObject, JString, JValue};
 use jni::sys::{jint, jstring};
 use jni::{JNIEnv, JavaVM};
@@ -218,7 +217,7 @@ impl AndroidBridge for JniBridge {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_musicfrog_despicableinfiltrator_RustBridge_nativePing(
+pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativePing(
     env: JNIEnv,
     _object: JObject,
 ) -> jstring {
@@ -232,7 +231,7 @@ pub extern "system" fn Java_com_musicfrog_despicableinfiltrator_RustBridge_nativ
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_musicfrog_despicableinfiltrator_RustBridge_nativeInit(
+pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeInit(
     mut env: JNIEnv,
     _object: JObject,
     data_dir: JString,
@@ -243,7 +242,7 @@ pub extern "system" fn Java_com_musicfrog_despicableinfiltrator_RustBridge_nativ
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_musicfrog_despicableinfiltrator_RustBridge_nativeRegisterBridge(
+pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeRegisterBridge(
     mut env: JNIEnv,
     _object: JObject,
     host: JObject,

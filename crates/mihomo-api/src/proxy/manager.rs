@@ -1,6 +1,6 @@
-use crate::proxy::types::{Proxies, Proxy, ProxyGroup, ProxyHistory};
 use crate::client::MihomoClient;
 use crate::error::Result;
+use crate::proxy::types::{Proxies, Proxy, ProxyGroup, ProxyHistory};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default)]
 pub struct ProxyNode {

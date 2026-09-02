@@ -8,6 +8,6 @@ pub mod types;
 #[cfg(test)]
 mod error_test;
 #[cfg(test)]
-mod types_test;
-#[cfg(test)]
 mod proxy_test;
+#[cfg(test)]
+mod types_test;

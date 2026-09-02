@@ -70,6 +70,18 @@ pub struct RuntimeState {
     pub system_proxy_enabled: bool,
     pub system_proxy_pending: bool,
     pub autostart_enabled: bool,
+    pub filter_alive_only: bool,
+    pub favorite_proxies: std::collections::HashSet<String>,
+    pub proxy_compact_view: bool,
+    pub inspecting_proxy: Option<String>,
+    pub is_adding_custom_node: bool,
+    pub new_node_type: String,
+    pub new_node_name: String,
+    pub new_node_server: String,
+    pub new_node_port: String,
+    pub new_node_credential: String,
+    pub new_node_cipher: String,
+    pub new_node_tls: bool,
     pub installed_kernels: Vec<VersionInfo>,
     pub latest_core_version: Option<String>,
     pub core_channel: String,
@@ -100,6 +112,7 @@ pub struct ProfileState {
     pub subscription_url: String,
     pub subscription_auto_update_enabled: bool,
     pub subscription_update_interval_hours: String,
+    pub subscription_user_agent: String,
     pub is_saving_subscription: bool,
     pub is_updating_subscription_now: bool,
     pub webdav_url: String,
@@ -141,6 +154,8 @@ pub struct ConfigEditorState {
     pub rules_json_tab: RulesJsonTab,
     pub rules_page: usize,
     pub rules_page_size: usize,
+    pub rules_tracer_input: String,
+    pub rules_tracer_result: Option<(usize, String, String)>,
     pub rules_providers_expanded: bool,
     pub rules_render_cache: Vec<RuleRenderItem>,
     pub rules_filtered_indices: Vec<usize>,
@@ -160,6 +175,7 @@ pub struct ConfigEditorState {
     pub is_saving_rule_providers_json: bool,
     pub is_saving_proxy_providers_json: bool,
     pub is_saving_sniffer_json: bool,
+    pub is_updating_geo_databases: bool,
     pub dns_json_content: text_editor::Content,
     pub fake_ip_json_content: text_editor::Content,
     pub tun_json_content: text_editor::Content,
@@ -213,6 +229,10 @@ pub struct ConfigEditorState {
     pub is_saving_filter: bool,
     pub mrs_details: Vec<crate::types::options::MrsProviderDetail>,
     pub is_scanning_mrs: bool,
+    pub syntax_error: Option<String>,
+    pub syntax_error_line: Option<usize>,
+    pub inspecting_rule_provider_diff: Option<infiltrator_core::rules::RuleProviderDiff>,
+    pub is_loading_rule_provider_diff: bool,
 }
 
 /// 诊断域:流量/内存/连接/日志运行态快照与性能 HUD 测量(UI-002)。
@@ -264,6 +284,8 @@ pub struct ShellState {
     /// 镜像 `AppSettings.notifications_enabled`；关闭时
     /// [`crate::notify`] 零开销短路。
     pub notifications_enabled: bool,
+    pub close_to_tray: bool,
+    pub system_proxy_bypass: String,
     pub last_task_id: usize,
     /// Cooldown for stream-driven tray refreshes (download/sync progress)
     /// so the D-Bus menu is rebuilt at most once per second.

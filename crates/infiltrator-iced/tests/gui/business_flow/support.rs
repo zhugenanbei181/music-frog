@@ -57,7 +57,9 @@ pub struct TempHome {
 
 impl TempHome {
     pub fn acquire(tag: &str) -> Self {
-        let lock = HOME_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let lock = HOME_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let dir = std::env::temp_dir().join(format!(
             "iced-business-{tag}-{}",
             std::time::SystemTime::now()
@@ -170,7 +172,11 @@ pub fn last_toast(state: &AppState) -> Option<(String, ToastStatus)> {
 }
 
 /// Named profile with subscription metadata, for in-memory state domains.
-pub fn subscribed_profile(name: &str, active: bool, url: Option<&str>) -> mihomo_config::profile::Profile {
+pub fn subscribed_profile(
+    name: &str,
+    active: bool,
+    url: Option<&str>,
+) -> mihomo_config::profile::Profile {
     let mut profile = mihomo_config::profile::Profile::new(
         name.to_string(),
         PathBuf::from(format!("/configs/{name}.yaml")),

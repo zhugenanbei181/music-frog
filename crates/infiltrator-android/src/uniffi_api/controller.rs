@@ -6,7 +6,6 @@
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-
 use serde::Deserialize;
 
 use super::support::{build_controller_client, get_runtime, map_mihomo_error};

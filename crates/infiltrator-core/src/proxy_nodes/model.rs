@@ -65,18 +65,206 @@ pub enum WireGuardType {
     WireGuard,
 }
 
-/// VLESS `reality-opts` block. Unknown sub-keys are caught by [`RealityOpts::extra`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Marker proving the `type` key equals `ss` (see [`ShadowsocksNode`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ShadowsocksType {
+    #[serde(rename = "ss")]
+    Shadowsocks,
+}
+
+/// Marker proving the `type` key equals `anytls` (see [`AnytlsNode`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AnytlsType {
+    #[serde(rename = "anytls")]
+    Anytls,
+}
+
+/// Marker proving the `type` key equals `trojan` (see [`TrojanNode`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrojanType {
+    #[serde(rename = "trojan")]
+    Trojan,
+}
+
+/// Marker proving the `type` key equals `vmess` (see [`VmessNode`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum VmessType {
+    #[serde(rename = "vmess")]
+    Vmess,
+}
+
+/// VLESS / AnyTLS `reality-opts` block. Unknown sub-keys are caught by [`RealityOpts::extra`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct RealityOpts {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub short_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spider_x: Option<String>,
     /// Flatten catch-all for sub-keys the model does not know yet; keeps the
     /// roundtrip lossless at every nesting level.
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
+}
+
+/// AmneziaWG (AWG) obfuscation options block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct AmneziaOpts {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jc: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jmin: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jmax: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub s1: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub s2: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub h1: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub h2: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub h3: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub h4: Option<u32>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// Stream multiplexing (`smux`) options block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct SmuxOpts {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub protocol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_connections: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_streams: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_streams: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub padding: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub statistic: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub only_tcp: Option<bool>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// XHTTP / Splithttp transport options block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct XhttpOpts {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<BTreeMap<String, Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_headers: Option<BTreeMap<String, Value>>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// Port-hopping specification item: either a single port or a range `start-end`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PortSpec {
+    Single(u16),
+    Range(u16, u16),
+}
+
+/// Port-hopping range representation for Hysteria 2.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PortHopping {
+    pub specs: Vec<PortSpec>,
+}
+
+impl PortHopping {
+    /// Parse a comma-separated list of ports and ranges, e.g. `"20000-30000,8443"`.
+    pub fn parse(s: &str) -> Result<Self, String> {
+        let trimmed = s.trim();
+        if trimmed.is_empty() {
+            return Err("empty port hopping specification".to_string());
+        }
+        let mut specs = Vec::new();
+        for chunk in trimmed.split(',') {
+            let chunk = chunk.trim();
+            if chunk.is_empty() {
+                continue;
+            }
+            if let Some((start_str, end_str)) = chunk.split_once('-') {
+                let start = start_str
+                    .trim()
+                    .parse::<u16>()
+                    .map_err(|_| format!("invalid start port in range: {chunk}"))?;
+                let end = end_str
+                    .trim()
+                    .parse::<u16>()
+                    .map_err(|_| format!("invalid end port in range: {chunk}"))?;
+                if start == 0 || end == 0 {
+                    return Err(format!("port numbers must be positive: {chunk}"));
+                }
+                if start > end {
+                    return Err(format!("start port must be <= end port: {start}-{end}"));
+                }
+                specs.push(PortSpec::Range(start, end));
+            } else {
+                let port = chunk
+                    .parse::<u16>()
+                    .map_err(|_| format!("invalid port number: {chunk}"))?;
+                if port == 0 {
+                    return Err("port number must be positive: 0".to_string());
+                }
+                specs.push(PortSpec::Single(port));
+            }
+        }
+        if specs.is_empty() {
+            return Err("no valid ports found".to_string());
+        }
+        Ok(Self { specs })
+    }
+
+    /// Check if the given port is covered by this hopping range.
+    pub fn contains(&self, port: u16) -> bool {
+        self.specs.iter().any(|spec| match spec {
+            PortSpec::Single(p) => *p == port,
+            PortSpec::Range(start, end) => port >= *start && port <= *end,
+        })
+    }
+
+    /// Calculate total number of accessible ports.
+    pub fn total_ports(&self) -> usize {
+        self.specs
+            .iter()
+            .map(|spec| match spec {
+                PortSpec::Single(_) => 1,
+                PortSpec::Range(start, end) => (end - start + 1) as usize,
+            })
+            .sum()
+    }
+
+    /// Convert back to canonical comma-separated string representation.
+    pub fn to_canonical_string(&self) -> String {
+        self.specs
+            .iter()
+            .map(|spec| match spec {
+                PortSpec::Single(p) => p.to_string(),
+                PortSpec::Range(start, end) => format!("{start}-{end}"),
+            })
+            .collect::<Vec<_>>()
+            .join(",")
+    }
 }
 
 /// Hysteria2 `up`/`down` bandwidth value: either a Meta-style string such as
@@ -88,6 +276,35 @@ pub enum Bandwidth {
     Text(String),
     U64(u64),
     F64(f64),
+}
+
+impl Bandwidth {
+    /// Convert human-readable bandwidth text or number to approximate bits per second.
+    pub fn to_bps(&self) -> Option<u64> {
+        match self {
+            Bandwidth::U64(v) => Some(*v),
+            Bandwidth::F64(v) => Some(*v as u64),
+            Bandwidth::Text(text) => {
+                let trimmed = text.trim();
+                let lower = trimmed.to_ascii_lowercase();
+                if let Some(num_str) = lower.strip_suffix("gbps") {
+                    num_str.trim().parse::<f64>().ok().map(|n| (n * 1_000_000_000.0) as u64)
+                } else if let Some(num_str) = lower.strip_suffix("mbps") {
+                    num_str.trim().parse::<f64>().ok().map(|n| (n * 1_000_000.0) as u64)
+                } else if let Some(num_str) = lower.strip_suffix("kbps") {
+                    num_str.trim().parse::<f64>().ok().map(|n| (n * 1_000.0) as u64)
+                } else if let Some(num_str) = lower.strip_suffix("bps") {
+                    num_str.trim().parse::<f64>().ok().map(|n| n as u64)
+                } else if let Some(num_str) = lower.strip_suffix("mb/s") {
+                    num_str.trim().parse::<f64>().ok().map(|n| (n * 8_000_000.0) as u64)
+                } else if let Some(num_str) = lower.strip_suffix("kb/s") {
+                    num_str.trim().parse::<f64>().ok().map(|n| (n * 8_000.0) as u64)
+                } else {
+                    trimmed.parse::<u64>().ok()
+                }
+            }
+        }
+    }
 }
 
 /// WireGuard `reserved` field, written by mihomo either as a byte list
@@ -110,6 +327,9 @@ pub struct VlessNode {
     pub node_type: VlessType,
     #[serde(flatten)]
     pub common: CommonFields,
+    /// VLESS user UUID.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uuid: Option<String>,
     /// e.g. `xtls-rprx-vision`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flow: Option<String>,
@@ -118,7 +338,17 @@ pub struct VlessNode {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_fingerprint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub servername: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sni: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alpn: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub packet_encoding: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub network: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xhttp_opts: Option<XhttpOpts>,
     /// `grpc-opts` — intentionally loose (`Value`) so nested vendor options
     /// never block parsing.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -126,9 +356,12 @@ pub struct VlessNode {
     /// `ws-opts` — same loose modeling as [`VlessNode::grpc_opts`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ws_opts: Option<Value>,
-    /// Flatten catch-all: every key the model does not know (e.g. `uuid`,
-    /// `servername`, or a future Meta field) lands here and is re-emitted on
-    /// serialization. This is what makes the roundtrip lossless.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub smux: Option<SmuxOpts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dialer_proxy: Option<String>,
+    /// Flatten catch-all: every key the model does not know lands here and is
+    /// re-emitted on serialization. This is what makes the roundtrip lossless.
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }
@@ -143,6 +376,10 @@ pub struct Hysteria2Node {
     pub common: CommonFields,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ports: Option<String>,
     /// e.g. `salamander`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub obfs: Option<String>,
@@ -156,7 +393,21 @@ pub struct Hysteria2Node {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub down: Option<Bandwidth>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub servername: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sni: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub alpn: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwnd: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recv_window_conn: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recv_window: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fast_open: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dialer_proxy: Option<String>,
     /// Flatten catch-all for unknown keys (see [`VlessNode::extra`]).
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
@@ -174,6 +425,32 @@ pub struct TuicNode {
     pub uuid: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ip: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heartbeat_interval: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_timeout: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_udp_relay_packet_size: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_open_streams: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fast_open: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop_interval: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub send_window: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub receive_window: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_sni: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reduce_rtt: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub udp_over_stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<u8>,
     /// e.g. `bbr` / `cubic` / `new-reno`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub congestion_controller: Option<String>,
@@ -181,7 +458,13 @@ pub struct TuicNode {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub udp_relay_mode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub servername: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sni: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub alpn: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dialer_proxy: Option<String>,
     /// Flatten catch-all for unknown keys (see [`VlessNode::extra`]).
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
@@ -215,14 +498,165 @@ pub struct WireGuardNode {
     pub remote_dns_resolve: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dns: Option<Vec<String>>,
-    /// Flatten catch-all for unknown keys, e.g. `amnezia-wg-config`, `peers`
-    /// (see [`VlessNode::extra`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workers: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub persistent_keepalive: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_ips: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amnezia_opts: Option<AmneziaOpts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dialer_proxy: Option<String>,
+    /// Flatten catch-all for unknown keys (see [`VlessNode::extra`]).
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }
 
-/// Fallback node for unknown `type` values (`ss`, `vmess`, `trojan`, future
-/// Meta protocols, ...) or for known types whose fields failed to type-check.
+/// Shadowsocks node (`type: ss`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ShadowsocksNode {
+    #[serde(rename = "type")]
+    pub node_type: ShadowsocksType,
+    #[serde(flatten)]
+    pub common: CommonFields,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cipher: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_opts: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub udp_over_tcp: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uot: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uot_version: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub smux: Option<SmuxOpts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dialer_proxy: Option<String>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// AnyTLS node (`type: anytls`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct AnytlsNode {
+    #[serde(rename = "type")]
+    pub node_type: AnytlsType,
+    #[serde(flatten)]
+    pub common: CommonFields,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uuid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub idle_timeout: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub padding_range: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub servername: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sni: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alpn: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_fingerprint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reality_opts: Option<RealityOpts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ws_opts: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grpc_opts: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dialer_proxy: Option<String>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// Trojan node (`type: trojan`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct TrojanNode {
+    #[serde(rename = "type")]
+    pub node_type: TrojanType,
+    #[serde(flatten)]
+    pub common: CommonFields,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub servername: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sni: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alpn: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_fingerprint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ws_opts: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grpc_opts: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub smux: Option<SmuxOpts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dialer_proxy: Option<String>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// VMess node (`type: vmess`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct VmessNode {
+    #[serde(rename = "type")]
+    pub node_type: VmessType,
+    #[serde(flatten)]
+    pub common: CommonFields,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uuid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alter_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cipher: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub servername: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sni: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alpn: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_fingerprint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub packet_encoding: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ws_opts: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grpc_opts: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub h2_opts: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http_opts: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub smux: Option<SmuxOpts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dialer_proxy: Option<String>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// Fallback node for unknown `type` values or for known types whose fields
+/// failed to type-check.
 ///
 /// `type_name` keeps the original `type` string and `fields` keeps every
 /// other key verbatim (including `name`/`server`/`port`), so the node can
@@ -244,19 +678,26 @@ pub enum ProxyNode {
     Hysteria2(Hysteria2Node),
     Tuic(TuicNode),
     WireGuard(WireGuardNode),
+    Shadowsocks(ShadowsocksNode),
+    Anytls(AnytlsNode),
+    Trojan(TrojanNode),
+    Vmess(VmessNode),
     /// Lossless fallback; tried last.
     Other(OtherNode),
 }
 
 impl ProxyNode {
-    /// The Meta `type` string of this node (`vless`, `hysteria2`, `tuic`,
-    /// `wireguard`, or whatever an [`OtherNode`] captured).
+    /// The Meta `type` string of this node.
     pub fn type_name(&self) -> &str {
         match self {
             ProxyNode::Vless(_) => "vless",
             ProxyNode::Hysteria2(_) => "hysteria2",
             ProxyNode::Tuic(_) => "tuic",
             ProxyNode::WireGuard(_) => "wireguard",
+            ProxyNode::Shadowsocks(_) => "ss",
+            ProxyNode::Anytls(_) => "anytls",
+            ProxyNode::Trojan(_) => "trojan",
+            ProxyNode::Vmess(_) => "vmess",
             ProxyNode::Other(other) => other.type_name.as_str(),
         }
     }
@@ -268,6 +709,10 @@ impl ProxyNode {
             ProxyNode::Hysteria2(node) => Some(&node.common),
             ProxyNode::Tuic(node) => Some(&node.common),
             ProxyNode::WireGuard(node) => Some(&node.common),
+            ProxyNode::Shadowsocks(node) => Some(&node.common),
+            ProxyNode::Anytls(node) => Some(&node.common),
+            ProxyNode::Trojan(node) => Some(&node.common),
+            ProxyNode::Vmess(node) => Some(&node.common),
             ProxyNode::Other(_) => None,
         }
     }
@@ -279,6 +724,10 @@ impl ProxyNode {
             ProxyNode::Hysteria2(node) => node.common.name.as_str(),
             ProxyNode::Tuic(node) => node.common.name.as_str(),
             ProxyNode::WireGuard(node) => node.common.name.as_str(),
+            ProxyNode::Shadowsocks(node) => node.common.name.as_str(),
+            ProxyNode::Anytls(node) => node.common.name.as_str(),
+            ProxyNode::Trojan(node) => node.common.name.as_str(),
+            ProxyNode::Vmess(node) => node.common.name.as_str(),
             ProxyNode::Other(other) => other
                 .fields
                 .get("name")
@@ -294,6 +743,10 @@ impl ProxyNode {
             ProxyNode::Hysteria2(node) => Some(node.common.server.as_str()),
             ProxyNode::Tuic(node) => Some(node.common.server.as_str()),
             ProxyNode::WireGuard(node) => Some(node.common.server.as_str()),
+            ProxyNode::Shadowsocks(node) => Some(node.common.server.as_str()),
+            ProxyNode::Anytls(node) => Some(node.common.server.as_str()),
+            ProxyNode::Trojan(node) => Some(node.common.server.as_str()),
+            ProxyNode::Vmess(node) => Some(node.common.server.as_str()),
             ProxyNode::Other(other) => other.fields.get("server").and_then(Value::as_str),
         }
     }
@@ -306,6 +759,10 @@ impl ProxyNode {
             ProxyNode::Hysteria2(node) => &node.extra,
             ProxyNode::Tuic(node) => &node.extra,
             ProxyNode::WireGuard(node) => &node.extra,
+            ProxyNode::Shadowsocks(node) => &node.extra,
+            ProxyNode::Anytls(node) => &node.extra,
+            ProxyNode::Trojan(node) => &node.extra,
+            ProxyNode::Vmess(node) => &node.extra,
             ProxyNode::Other(other) => &other.fields,
         }
     }

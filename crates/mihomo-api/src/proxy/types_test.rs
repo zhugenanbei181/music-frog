@@ -105,7 +105,10 @@ mod tests {
             let opts = vm.ws_opts.as_ref().expect("ws-opts 不能为空");
             assert_eq!(opts.path.as_deref(), Some("/v2ray"));
             let headers = opts.headers.as_ref().unwrap();
-            assert_eq!(headers.get("Host").map(|s| s.as_str()), Some("cdn.example.com"));
+            assert_eq!(
+                headers.get("Host").map(|s| s.as_str()),
+                Some("cdn.example.com")
+            );
         } else {
             panic!("Expected Vmess");
         }

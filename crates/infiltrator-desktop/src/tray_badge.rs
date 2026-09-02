@@ -71,19 +71,43 @@ mod tests {
 
     #[test]
     fn test_status_to_color() {
-        assert_eq!(TrayBadgeGenerator::status_to_color(BadgeStatus::Running), BadgeColor::Green);
-        assert_eq!(TrayBadgeGenerator::status_to_color(BadgeStatus::Stopped), BadgeColor::Red);
-        assert_eq!(TrayBadgeGenerator::status_to_color(BadgeStatus::Warning), BadgeColor::Yellow);
-        assert_eq!(TrayBadgeGenerator::status_to_color(BadgeStatus::Reloading), BadgeColor::Blue);
+        assert_eq!(
+            TrayBadgeGenerator::status_to_color(BadgeStatus::Running),
+            BadgeColor::Green
+        );
+        assert_eq!(
+            TrayBadgeGenerator::status_to_color(BadgeStatus::Stopped),
+            BadgeColor::Red
+        );
+        assert_eq!(
+            TrayBadgeGenerator::status_to_color(BadgeStatus::Warning),
+            BadgeColor::Yellow
+        );
+        assert_eq!(
+            TrayBadgeGenerator::status_to_color(BadgeStatus::Reloading),
+            BadgeColor::Blue
+        );
     }
 
     #[test]
     fn test_color_to_hex() {
-        assert_eq!(TrayBadgeGenerator::color_to_hex(BadgeColor::Green), "#4CAF50");
+        assert_eq!(
+            TrayBadgeGenerator::color_to_hex(BadgeColor::Green),
+            "#4CAF50"
+        );
         assert_eq!(TrayBadgeGenerator::color_to_hex(BadgeColor::Red), "#F44336");
-        assert_eq!(TrayBadgeGenerator::color_to_hex(BadgeColor::Yellow), "#FFC107");
-        assert_eq!(TrayBadgeGenerator::color_to_hex(BadgeColor::Blue), "#2196F3");
-        assert_eq!(TrayBadgeGenerator::color_to_hex(BadgeColor::Gray), "#9E9E9E");
+        assert_eq!(
+            TrayBadgeGenerator::color_to_hex(BadgeColor::Yellow),
+            "#FFC107"
+        );
+        assert_eq!(
+            TrayBadgeGenerator::color_to_hex(BadgeColor::Blue),
+            "#2196F3"
+        );
+        assert_eq!(
+            TrayBadgeGenerator::color_to_hex(BadgeColor::Gray),
+            "#9E9E9E"
+        );
     }
 
     #[test]
@@ -96,7 +120,8 @@ mod tests {
 
     #[test]
     fn test_generate_activity_tooltip() {
-        let tooltip = TrayBadgeGenerator::generate_activity_tooltip(BadgeStatus::Running, 1024, 2048);
+        let tooltip =
+            TrayBadgeGenerator::generate_activity_tooltip(BadgeStatus::Running, 1024, 2048);
         assert_eq!(tooltip, "Status: Running\nUp: 1024 bps\nDown: 2048 bps");
     }
 }

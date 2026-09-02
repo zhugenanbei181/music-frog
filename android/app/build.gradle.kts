@@ -1,5 +1,25 @@
 import java.util.Properties
-import java.io.FileInputStream
+
+val defaultVersionName = "0.20.0"
+val defaultVersionCode = 20_000
+
+val resolvedVersionName = providers.gradleProperty("versionName")
+    .orElse(providers.gradleProperty("VERSION_NAME"))
+    .orElse(providers.gradleProperty("APP_VERSION"))
+    .orElse(providers.environmentVariable("VERSION_NAME"))
+    .orElse(providers.environmentVariable("APP_VERSION"))
+    .orElse(defaultVersionName)
+
+val resolvedVersionCode = providers.gradleProperty("versionCode")
+    .orElse(providers.gradleProperty("VERSION_CODE"))
+    .orElse(providers.gradleProperty("APP_VERSION_CODE"))
+    .orElse(providers.environmentVariable("VERSION_CODE"))
+    .orElse(providers.environmentVariable("APP_VERSION_CODE"))
+    .orElse(defaultVersionCode.toString())
+    .map { value ->
+        value.toIntOrNull()
+            ?: error("versionCode must be an integer, got '$value'")
+    }
 
 plugins {
     id("com.android.application")
@@ -7,20 +27,44 @@ plugins {
 }
 
 android {
-    namespace = "com.musicfrog.despicableinfiltrator"
+    namespace = "com.musicfrog.infiltrator"
     compileSdk = 36
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
-        applicationId = "com.musicfrog.despicableinfiltrator"
+        applicationId = "com.musicfrog.infiltrator"
         minSdk = 29
         //noinspection OldTargetApi
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = resolvedVersionCode.get()
+        versionName = resolvedVersionName.get()
         ndk {
             //noinspection ChromeOsAbiSupport
             abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        debug {
+            isMinifyEnabled = false
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = true
         }
     }
 
@@ -34,6 +78,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -84,16 +129,23 @@ tasks.register<Exec>("cargoBuild") {
         }
     }
     
-    val sdkDir = localProperties.getProperty("sdk.dir") ?: ""
-    val ndkDir = localProperties.getProperty("ndk.dir") ?: ""
+    val sdkDir = localProperties.getProperty("sdk.dir")?.takeIf { it.isNotBlank() }
+    val ndkDir = localProperties.getProperty("ndk.dir")?.takeIf { it.isNotBlank() }
 
-    environment("ANDROID_SDK_ROOT", sdkDir)
-    environment("ANDROID_HOME", sdkDir)
-    environment("ANDROID_NDK_HOME", ndkDir)
-    environment("ANDROID_NDK_ROOT", ndkDir)
+    // Keep CI-provided SDK/NDK variables when local.properties is absent; an
+    // empty Gradle environment value would hide setup-android/setup-ndk.
+    if (sdkDir != null) {
+        environment("ANDROID_SDK_ROOT", sdkDir)
+        environment("ANDROID_HOME", sdkDir)
+    }
+    if (ndkDir != null) {
+        environment("ANDROID_NDK_HOME", ndkDir)
+        environment("ANDROID_NDK_ROOT", ndkDir)
+    }
 
-    // 4. 构建脚本只保留 sh（Windows 走 Git Bash / WSL 的 bash）
-    commandLine("bash", scriptShPath)
+    // 4. 构建脚本只保留 sh（Windows 走 Git Bash / WSL 的 bash）；release
+    // APK 必须携带 release 优化的 Rust native libraries。
+    commandLine("bash", scriptShPath, "--release")
 
     standardOutput = System.out
     errorOutput = System.err

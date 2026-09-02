@@ -183,14 +183,27 @@ pub struct AdminApiState<C> {
     pub rebuild_status: Arc<RebuildStatus>,
     pub runtime_traffic: Arc<Mutex<RuntimeTrafficState>>,
     pub events: AdminEventBus,
+    pub auth_token: Option<String>,
 }
 
 impl<C: AdminApiContext> AdminApiState<C> {
     pub fn new(ctx: C, events: AdminEventBus) -> Self {
+        let auth_token = std::env::var("INFILTRATOR_ADMIN_TOKEN")
+            .or_else(|_| std::env::var("INFILTRATOR_AUTH_TOKEN"))
+            .ok()
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty());
+        Self::with_auth_token(ctx, events, auth_token)
+    }
+
+    pub fn with_auth_token(ctx: C, events: AdminEventBus, auth_token: Option<String>) -> Self {
         let http_client = build_http_client();
         let raw_http_client = build_raw_http_client(&http_client);
         let rebuild_status = Arc::new(RebuildStatus::default());
         let runtime_traffic = Arc::new(Mutex::new(RuntimeTrafficState::default()));
+        let auth_token = auth_token
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty());
         Self {
             ctx,
             http_client,
@@ -198,7 +211,14 @@ impl<C: AdminApiContext> AdminApiState<C> {
             rebuild_status,
             runtime_traffic,
             events,
+            auth_token,
         }
+    }
+
+    pub fn set_auth_token(&mut self, token: Option<String>) {
+        self.auth_token = token
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty());
     }
 
     pub fn traffic_snapshot(

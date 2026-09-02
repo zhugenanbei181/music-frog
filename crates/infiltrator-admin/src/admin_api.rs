@@ -8,13 +8,13 @@ use axum::{
     routing::{delete, get, post},
 };
 
-use self::handlers::log_admin_request;
+use self::handlers::audit::get_audit_http;
+use self::handlers::auth::verify_admin_token;
 use self::handlers::config::{
     flush_fake_ip_cache_http, get_dns_config_http, get_fake_ip_config_http,
     get_proxy_providers_http, get_rule_providers_http, get_rules_http, get_sniffer_config_http,
-    get_tun_config_http, save_dns_config_http, save_fake_ip_config_http,
-    save_proxy_providers_http, save_rule_providers_http, save_rules_http,
-    save_sniffer_config_http, save_tun_config_http,
+    get_tun_config_http, save_dns_config_http, save_fake_ip_config_http, save_proxy_providers_http,
+    save_rule_providers_http, save_rules_http, save_sniffer_config_http, save_tun_config_http,
 };
 use self::handlers::doctor::{
     explain_doctor_check_http, fix_doctor_http, list_doctor_checks_http, run_bootstrap_http,
@@ -24,8 +24,9 @@ use self::handlers::kernel::{
     activate_core_version_http, download_core_version_http, get_latest_stable_core_http,
     list_core_versions_http, update_stable_core_http,
 };
+use self::handlers::log_admin_request;
 use self::handlers::profiles::{
-    clear_profiles_http, clear_profile_subscription_http, delete_profile_http, get_profile_http,
+    clear_profile_subscription_http, clear_profiles_http, delete_profile_http, get_profile_http,
     import_profile_http, list_profiles_http, save_profile_http, set_profile_subscription_http,
     switch_profile_http, update_profile_now_http,
 };
@@ -36,15 +37,21 @@ use self::handlers::proxies::{
 use self::handlers::runtime::{
     close_all_runtime_connections_http, close_runtime_connection_http, get_runtime_ip_http,
     get_runtime_memory_http, get_runtime_status_http, get_runtime_traffic_http,
-    list_runtime_connections_http, start_runtime_http, stop_runtime_http,
-    stream_runtime_logs_http,
+    list_runtime_connections_http, start_runtime_http, stop_runtime_http, stream_runtime_logs_http,
+};
+use self::handlers::scripts::{
+    execute_script_http, export_extension_package_http, import_extension_package_http,
+    list_script_presets_http, validate_manifest_http, validate_script_http,
 };
 use self::handlers::settings::{
     get_app_settings_http, get_editor_config_http, open_profile_in_editor_http,
     pick_editor_path_http, save_app_settings_http, set_editor_config_http, sync_webdav_now_http,
     test_webdav_conn_http,
 };
-use self::handlers::system::{get_capabilities_http, get_rebuild_status_http, stream_admin_events_http};
+use self::handlers::system::{
+    get_capabilities_http, get_rebuild_status_http, stream_admin_events_http,
+};
+use self::handlers::webhook::handle_webhook_http;
 use self::state::{AdminApiContext, AdminApiState};
 
 pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
@@ -139,7 +146,10 @@ pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
         )
         .route("/admin/api/runtime/start", post(start_runtime_http::<C>))
         .route("/admin/api/runtime/stop", post(stop_runtime_http::<C>))
-        .route("/admin/api/runtime/status", get(get_runtime_status_http::<C>))
+        .route(
+            "/admin/api/runtime/status",
+            get(get_runtime_status_http::<C>),
+        )
         .route(
             "/admin/api/runtime/connections/{id}",
             delete(close_runtime_connection_http::<C>),
@@ -189,7 +199,28 @@ pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
             "/admin/api/core/activate",
             post(activate_core_version_http::<C>),
         )
-        .with_state(state)
+        .route("/admin/api/audit", get(get_audit_http::<C>))
+        .route("/admin/api/webhook", post(handle_webhook_http::<C>))
+        .route("/admin/api/scripts/presets", get(list_script_presets_http::<C>))
+        .route("/admin/api/scripts/execute", post(execute_script_http::<C>))
+        .route("/admin/api/scripts/validate", post(validate_script_http::<C>))
+        .route(
+            "/admin/api/extensions/package/export",
+            post(export_extension_package_http::<C>),
+        )
+        .route(
+            "/admin/api/extensions/package/import",
+            post(import_extension_package_http::<C>),
+        )
+        .route(
+            "/admin/api/extensions/manifest/validate",
+            post(validate_manifest_http::<C>),
+        )
+        .with_state(state.clone())
+        .layer(middleware::from_fn_with_state(
+            state,
+            verify_admin_token::<C>,
+        ))
         .layer(middleware::from_fn(log_admin_request))
 }
 

@@ -26,6 +26,7 @@ fn test_filter_spec_roundtrip_and_to_rule() {
         }],
         exclude_types: vec!["trojan".to_string()],
         deduplication: FilterDedup::AppendIndex,
+        ..FilterSpec::default()
     };
     let text = serde_yaml_ng::to_string(&spec).unwrap();
     let parsed: FilterSpec = serde_yaml_ng::from_str(&text).unwrap();
@@ -246,4 +247,71 @@ async fn test_options_wrapper_follows_configs_dir_redirect() {
     }
     mihomo_platform::paths::set_home_dir_override(original_home);
     let _ = tokio::fs::remove_dir_all(&home).await;
+}
+
+#[test]
+fn test_advanced_filter_spec_compilation_and_execution() {
+    let spec = FilterSpec {
+        normalize_country_code: true,
+        remove_emojis: true,
+        allowed_ports: Some(vec![443, 8443]),
+        drop_private_ip: true,
+        multiplier_rules: vec![MultiplierSpec {
+            pattern: r"VIP".to_string(),
+            multiplier: 2.0,
+        }],
+        node_mutator: Some(NodeMutatorConfig {
+            force_tls: Some(true),
+            force_udp: Some(true),
+            client_fingerprint: Some("chrome".to_string()),
+            ..Default::default()
+        }),
+        sort_by: NodeSortOrder::CountryCode,
+        content_dedup: ContentDedupStrategy::KeepLowerMultiplier,
+        ..Default::default()
+    };
+
+    let text = serde_yaml_ng::to_string(&spec).unwrap();
+    let parsed: FilterSpec = serde_yaml_ng::from_str(&text).unwrap();
+    assert_eq!(parsed.normalize_country_code, true);
+    assert_eq!(parsed.remove_emojis, true);
+    assert_eq!(parsed.allowed_ports, Some(vec![443, 8443]));
+    assert_eq!(parsed.drop_private_ip, true);
+
+    let rule = parsed.to_rule().unwrap();
+    assert!(rule.normalize_country_code);
+    assert!(rule.remove_emojis);
+    assert_eq!(rule.multiplier_rules.len(), 1);
+
+    let yaml = r#"
+proxies:
+  - name: "🇭🇰 香港 VIP 01"
+    type: ss
+    server: 1.1.1.1
+    port: 443
+  - name: "US Normal"
+    type: ss
+    server: 192.168.1.1
+    port: 443
+  - name: "🇯🇵 Tokyo Fast"
+    type: ss
+    server: 2.2.2.2
+    port: 80
+"#;
+
+    let pipeline = SubscriptionFilterPipeline::new(rule);
+    let (out, rep) = pipeline.apply_to_yaml(yaml).unwrap();
+    let doc: Value = serde_yaml_ng::from_str(&out).unwrap();
+    let proxies = doc.get("proxies").unwrap().as_sequence().unwrap();
+    // 192.168.1.1 dropped by private IP, port 80 dropped by port filter
+    assert_eq!(proxies.len(), 1);
+    assert_eq!(rep.passed, 1);
+    assert_eq!(rep.excluded_by_server, 1);
+    assert_eq!(rep.excluded_by_port, 1);
+    assert_eq!(rep.mutated, 1);
+    let first = proxies[0].as_mapping().unwrap();
+    assert_eq!(first.get("name").unwrap().as_str().unwrap(), "[HK] 香港 VIP 01 [2x]");
+    assert_eq!(first.get("tls").unwrap().as_bool().unwrap(), true);
+    assert_eq!(first.get("udp").unwrap().as_bool().unwrap(), true);
+    assert_eq!(first.get("client-fingerprint").unwrap().as_str().unwrap(), "chrome");
 }

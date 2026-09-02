@@ -91,31 +91,25 @@ mod tests {
     #[tokio::test]
     async fn default_settings_resolve_configs_under_home() {
         let temp = tempfile::tempdir().unwrap();
-        let runtime = Runtime::with_home(temp.path().to_path_buf())
-            .await
-            .unwrap();
+        let runtime = Runtime::with_home(temp.path().to_path_buf()).await.unwrap();
+        assert_eq!(runtime.configs_dir().unwrap(), temp.path().join("configs"));
         assert_eq!(
-            runtime.configs_dir().unwrap(),
-            temp.path().join("configs")
+            runtime.settings_file().unwrap(),
+            temp.path().join("settings.toml")
         );
-        assert_eq!(runtime.settings_file().unwrap(), temp.path().join("settings.toml"));
         assert!(runtime.settings.configs_dir.is_none());
     }
 
     #[tokio::test]
     async fn settings_configs_dir_redirects_the_configs_directory() {
         let temp = tempfile::tempdir().unwrap();
-        let runtime = Runtime::with_home(temp.path().to_path_buf())
-            .await
-            .unwrap();
+        let runtime = Runtime::with_home(temp.path().to_path_buf()).await.unwrap();
         runtime
             .update_settings(|settings| settings.configs_dir = Some("cloud/profiles".to_string()))
             .await
             .unwrap();
 
-        let reloaded = Runtime::with_home(temp.path().to_path_buf())
-            .await
-            .unwrap();
+        let reloaded = Runtime::with_home(temp.path().to_path_buf()).await.unwrap();
         assert_eq!(
             reloaded.settings.configs_dir.as_deref(),
             Some("cloud/profiles")

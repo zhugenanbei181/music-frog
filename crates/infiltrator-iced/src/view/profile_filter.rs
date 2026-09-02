@@ -4,27 +4,11 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::segmented_control;
-use crate::view::theme::{self, R_CONTROL, tokens};
-use iced::widget::{column, row, text, text_input, Space};
-use iced::{Alignment, Element, Length, Theme, border};
+use crate::view::components::{form_input_style, segmented_control};
+use crate::view::theme::{self, tokens};
+use iced::widget::{Space, column, row, text, text_input};
+use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
-
-fn input_style(t: &Theme, _status: text_input::Status) -> text_input::Style {
-    let tk = tokens(t);
-    text_input::Style {
-        background: iced::Background::Color(tk.control_bg),
-        border: border::Border {
-            radius: border::Radius::from(R_CONTROL),
-            width: 1.0,
-            color: tk.card_border,
-        },
-        icon: tk.text_secondary,
-        placeholder: tk.text_tertiary,
-        value: tk.text_primary,
-        selection: tk.accent_soft,
-    }
-}
 
 /// The per-profile subscription filter form, rendered inside the Editor
 /// page's Filter pane. The context profile is the one open in the editor;
@@ -57,7 +41,7 @@ pub fn filter_pane(state: &AppState) -> Element<'_, Message> {
             .padding([8, 12])
             .size(13)
             .width(Length::Fill)
-            .style(input_style)
+            .style(form_input_style)
     };
     let save_row = |context: &str| {
         row![
@@ -75,13 +59,24 @@ pub fn filter_pane(state: &AppState) -> Element<'_, Message> {
         .align_y(Alignment::Center)
     };
 
-
     column![
-        text_field(lang.tr("filter_include_ph").as_ref(), &draft.include, Message::UpdateFilterInclude),
+        text_field(
+            lang.tr("filter_include_ph").as_ref(),
+            &draft.include,
+            Message::UpdateFilterInclude
+        ),
         Space::new().height(theme::SP_SM),
-        text_field(lang.tr("filter_exclude_ph").as_ref(), &draft.exclude, Message::UpdateFilterExclude),
+        text_field(
+            lang.tr("filter_exclude_ph").as_ref(),
+            &draft.exclude,
+            Message::UpdateFilterExclude
+        ),
         Space::new().height(theme::SP_SM),
-        text_field(lang.tr("filter_types_ph").as_ref(), &draft.exclude_types, Message::UpdateFilterExcludeTypes),
+        text_field(
+            lang.tr("filter_types_ph").as_ref(),
+            &draft.exclude_types,
+            Message::UpdateFilterExcludeTypes
+        ),
         Space::new().height(theme::SP_SM),
         text_field(
             lang.tr("filter_renames_ph").as_ref(),

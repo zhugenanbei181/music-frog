@@ -26,12 +26,21 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     assert_eq!(units, 1);
     feed(
         &mut state,
-        Message::ProfileContentLoaded(Ok((profile_path.clone(), super::support::SAMPLE_PROFILE_YAML.into()))),
+        Message::ProfileContentLoaded(Ok((
+            profile_path.clone(),
+            super::support::SAMPLE_PROFILE_YAML.into(),
+        ))),
     );
     // ProfileContentLoaded chains Navigate(Editor) as a lazy done-task; the
     // runtime delivers it on the next hop — replay that hop here.
-    feed(&mut state, Message::Navigate(crate::types::app::Route::Editor));
-    assert_eq!(state.editor.editor_path.as_deref(), Some(profile_path.as_path()));
+    feed(
+        &mut state,
+        Message::Navigate(crate::types::app::Route::Editor),
+    );
+    assert_eq!(
+        state.editor.editor_path.as_deref(),
+        Some(profile_path.as_path())
+    );
     assert_eq!(state.shell.current_route, crate::types::app::Route::Editor);
     assert_eq!(state.editor.editor_pane, EditorPane::Profile);
 
@@ -40,7 +49,10 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     let units = feed(&mut state, Message::SetEditorPane(EditorPane::Mixin));
     assert_eq!(units, 1, "lazy overlay load armed");
     assert_eq!(state.editor.mixin_loaded_for.as_deref(), Some("alpha"));
-    feed(&mut state, Message::MixinLoaded(Ok("log-level: silent\n".into())));
+    feed(
+        &mut state,
+        Message::MixinLoaded(Ok("log-level: silent\n".into())),
+    );
     assert_eq!(state.editor.mixin_content.text(), "log-level: silent\n");
 
     // Typing flows through the editor action; a broken overlay is rejected
@@ -71,7 +83,10 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     );
 
     // Fix the overlay (fresh load 回灌 instead of retyping), then save.
-    feed(&mut state, Message::MixinLoaded(Ok("mode: global\n".into())));
+    feed(
+        &mut state,
+        Message::MixinLoaded(Ok("mode: global\n".into())),
+    );
     let units = feed(&mut state, Message::SaveMixin);
     assert!(state.editor.is_saving_mixin, "gate passed → task in flight");
     assert_eq!(units, 1, "single persistence task armed");
@@ -81,7 +96,9 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     let mixin: MixinConfig = serde_yaml_ng::from_str("mode: global\n").unwrap();
     block_on(async {
         let config_dir = crate::configs_dir::configs_dir().await.unwrap();
-        let old = profile_options::load_options(&config_dir, "alpha").await.unwrap();
+        let old = profile_options::load_options(&config_dir, "alpha")
+            .await
+            .unwrap();
         let manager = crate::configs_dir::config_manager().await.unwrap();
         let content = manager.load("alpha").await.unwrap();
         let removals: Vec<String> = old
@@ -104,7 +121,10 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
         profile_options::save_options(
             &config_dir,
             "alpha",
-            &ProfileOptions { mixin, filter: old.filter },
+            &ProfileOptions {
+                mixin,
+                filter: old.filter,
+            },
         )
         .await
         .unwrap();
@@ -116,10 +136,17 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
 
     // Disk truth: the merged document AND the sidecar round-trip.
     let on_disk = std::fs::read_to_string(home.configs().join("alpha.yaml")).unwrap();
-    assert!(on_disk.contains("mode: global"), "mixin merged into profile: {on_disk}");
+    assert!(
+        on_disk.contains("mode: global"),
+        "mixin merged into profile: {on_disk}"
+    );
     assert!(on_disk.contains("HK-1"), "proxies survive the merge");
     let sidecar = block_on(profile_options::load_options(&home.configs(), "alpha")).unwrap();
-    assert_eq!(sidecar.mixin.mode.as_deref(), Some("global"), "sidecar persisted");
+    assert_eq!(
+        sidecar.mixin.mode.as_deref(),
+        Some("global"),
+        "sidecar persisted"
+    );
 }
 
 /// Journey 5 — Filter pane：LoadProfileFilter → include/exclude 编辑 →
@@ -133,21 +160,30 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
 
     feed(
         &mut state,
-        Message::ProfileContentLoaded(Ok((profile_path, super::support::SAMPLE_PROFILE_YAML.into()))),
+        Message::ProfileContentLoaded(Ok((
+            profile_path,
+            super::support::SAMPLE_PROFILE_YAML.into(),
+        ))),
     );
     let units = feed(&mut state, Message::LoadProfileFilter);
     assert_eq!(units, 1, "lazy filter load armed");
     assert_eq!(state.editor.filter_loaded_for.as_deref(), Some("alpha"));
 
     // Empty store → default draft 回灌.
-    feed(&mut state, Message::ProfileFilterLoaded(Ok(FilterDraft::default())));
+    feed(
+        &mut state,
+        Message::ProfileFilterLoaded(Ok(FilterDraft::default())),
+    );
 
     // User edits the draft.
     feed(&mut state, Message::UpdateFilterInclude("HK".into()));
     feed(&mut state, Message::UpdateFilterExclude("US".into()));
 
     // A malformed rename is caught by the synchronous compile gate.
-    feed(&mut state, Message::UpdateFilterRenames("没有箭头的规则".into()));
+    feed(
+        &mut state,
+        Message::UpdateFilterRenames("没有箭头的规则".into()),
+    );
     let units = feed(&mut state, Message::SaveProfileFilter);
     assert_eq!(units, 1, "compile gate arms only the error toast");
     assert!(!state.editor.is_saving_filter);
@@ -163,10 +199,9 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         let rule = spec.to_rule().unwrap();
         let manager = crate::configs_dir::config_manager().await.unwrap();
         let content = manager.load("alpha").await.unwrap();
-        let (filtered, report) =
-            infiltrator_core::filter::SubscriptionFilterPipeline::new(rule)
-                .apply_to_yaml(&content)
-                .unwrap();
+        let (filtered, report) = infiltrator_core::filter::SubscriptionFilterPipeline::new(rule)
+            .apply_to_yaml(&content)
+            .unwrap();
         infiltrator_core::config::validate_yaml(&filtered).unwrap();
         crate::update::core::profile_apply::save_profile_content(
             None,
@@ -177,18 +212,26 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         .await
         .unwrap();
         let config_dir = crate::configs_dir::configs_dir().await.unwrap();
-        let old = profile_options::load_options(&config_dir, "alpha").await.unwrap();
+        let old = profile_options::load_options(&config_dir, "alpha")
+            .await
+            .unwrap();
         profile_options::save_options(
             &config_dir,
             "alpha",
-            &ProfileOptions { mixin: old.mixin, filter: Some(spec.clone()) },
+            &ProfileOptions {
+                mixin: old.mixin,
+                filter: Some(spec.clone()),
+            },
         )
         .await
         .unwrap();
         report
     });
 
-    assert_eq!(report.total_input, 3, "three seed proxies entered the pipeline");
+    assert_eq!(
+        report.total_input, 3,
+        "three seed proxies entered the pipeline"
+    );
     feed(&mut state, Message::ProfileFilterSaved(Ok(report)));
     assert!(!state.editor.is_saving_filter);
 
@@ -203,12 +246,19 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         .map(|seq| {
             seq.iter()
                 .filter_map(|proxy| {
-                    proxy.get("name").and_then(|name| name.as_str()).map(str::to_string)
+                    proxy
+                        .get("name")
+                        .and_then(|name| name.as_str())
+                        .map(str::to_string)
                 })
                 .collect()
         })
         .unwrap_or_default();
-    assert_eq!(kept_names, vec!["HK-1".to_string()], "whitelist applied: {kept_names:?}");
+    assert_eq!(
+        kept_names,
+        vec!["HK-1".to_string()],
+        "whitelist applied: {kept_names:?}"
+    );
     let sidecar = block_on(profile_options::load_options(&home.configs(), "alpha")).unwrap();
     let stored_spec = sidecar.filter.expect("filter spec persisted");
     assert_eq!(stored_spec.include_keywords, vec!["HK".to_string()]);

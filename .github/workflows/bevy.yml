@@ -1,0 +1,131 @@
+name: bevy-0.30
+
+# Bevy is a strategic 0.30 line, not part of the release/0.20 desktop build.
+# Keep this workflow path-scoped and invoke the two standalone workspaces from
+# their own manifests; never run the root workspace here.
+on:
+  push:
+    branches:
+      - main
+      - "release/**"
+    paths:
+      - ".config/nextest.toml"
+      - ".github/workflows/bevy.yml"
+      - "Cargo.toml"
+      - "crates/infiltrator-bevy-ui/**"
+      - "crates/infiltrator-bevy-widgets/**"
+      - "rust-toolchain.toml"
+      - "scripts/quality/bevy_bsn_guard.py"
+      - "scripts/test-bevy.sh"
+  pull_request:
+    paths:
+      - ".config/nextest.toml"
+      - ".github/workflows/bevy.yml"
+      - "Cargo.toml"
+      - "crates/infiltrator-bevy-ui/**"
+      - "crates/infiltrator-bevy-widgets/**"
+      - "rust-toolchain.toml"
+      - "scripts/quality/bevy_bsn_guard.py"
+      - "scripts/test-bevy.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bevy-0.30-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+
+jobs:
+  standalone:
+    name: Bevy 0.30 standalone workspaces
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup stable Rust with fmt and clippy
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Verify standalone workspace boundaries and Bevy lock pins
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -Eq '^[[:space:]]*"crates/infiltrator-bevy-(widgets|ui)"' Cargo.toml; then
+            echo "::error::Bevy crates must remain outside the release/0.20 root workspace"
+            exit 1
+          fi
+
+          for workspace in \
+            crates/infiltrator-bevy-widgets \
+            crates/infiltrator-bevy-ui; do
+            manifest="$workspace/Cargo.toml"
+            lockfile="$workspace/Cargo.lock"
+            test -f "$manifest"
+            test -f "$lockfile"
+
+            grep -Fq 'bevy = { version = "=0.19.1", default-features = false }' "$manifest"
+            if ! grep -A1 -F 'name = "bevy"' "$lockfile" \
+              | grep -Fq 'version = "0.19.1"'; then
+              echo "::error::$lockfile is not locked to Bevy 0.19.1"
+              exit 1
+            fi
+
+            actual_root="$({
+              cargo metadata \
+                --manifest-path "$manifest" \
+                --locked \
+                --no-deps \
+                --format-version 1
+            } | python3 -c 'import json, sys; print(json.load(sys.stdin)["workspace_root"])')"
+            expected_root="$(realpath "$workspace")"
+            if [[ "$actual_root" != "$expected_root" ]]; then
+              echo "::error::$manifest resolved into $actual_root instead of its standalone workspace"
+              exit 1
+            fi
+          done
+
+      # Keep each standalone target directory in the cache; the root 0.20
+      # target directory is intentionally neither built nor cached here.
+      - name: Rust cache for standalone Bevy workspaces
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: bevy-0.19.1-standalone
+          workspaces: |
+            crates/infiltrator-bevy-widgets -> target
+            crates/infiltrator-bevy-ui -> target
+          cache-on-failure: true
+
+      - name: Install Linux build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libfontconfig1-dev \
+            libudev-dev \
+            libwayland-dev \
+            libxkbcommon-dev \
+            pkg-config
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@latest
+
+      # scripts/test-bevy.sh is the canonical 0.30 entry point. It runs
+      # nextest, clippy -D warnings, fmt --check, and the bsn! guard for both
+      # standalone workspaces; any failure propagates and marks this job red.
+      - name: Run Bevy standalone validation
+        shell: bash
+        run: bash scripts/test-bevy.sh

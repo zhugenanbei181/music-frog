@@ -26,15 +26,15 @@ mod native;
 #[path = "../tests/gui/tray_tests.rs"]
 mod tests;
 
-use crate::state::AppState;
-use crate::types::app::{ConfirmAction, Route};
-use crate::types::message::Message;
-use crate::types::runtime::RuntimeStatus;
 use self::menu::build_tray_spec;
 use self::spec::{
     TRAY_MAX_GROUPS, TrayCoreStatus, TrayEvent, TrayEventReceiver, TrayIntent, TrayProxyGroup,
     TrayProxyNode, TraySpec, TraySpecContext, TrayStartup, resolve_tray_event_in,
 };
+use crate::state::AppState;
+use crate::types::app::{ConfirmAction, Route};
+use crate::types::message::Message;
+use crate::types::runtime::RuntimeStatus;
 use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};

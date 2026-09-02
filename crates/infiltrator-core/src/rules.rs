@@ -1,9 +1,23 @@
-use std::collections::BTreeMap;
+//! Rule management, static analysis, and tracer simulation for Mihomo / Clash.Meta.
+//!
+//! Provides typed access to the `rules:` and `rule-providers:` sections of a
+//! profile document, comprehensive rule parsing, shadow rule detection, and
+//! traffic routing simulation.
 
-use crate::settings::app_config_manager;
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
+use std::collections::{BTreeMap, HashSet};
+
+use crate::settings::app_config_manager;
+
+pub mod analyzer;
+pub mod tracer;
+pub mod types;
+
+#[cfg(test)]
+#[path = "rules_test.rs"]
+mod rules_test;
 
 pub type RuleProviders = BTreeMap<String, serde_json::Value>;
 
@@ -12,7 +26,7 @@ pub struct RuleProvidersPayload {
     pub providers: RuleProviders,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuleEntry {
     pub rule: String,
     pub enabled: bool,
@@ -21,6 +35,134 @@ pub struct RuleEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RulesPayload {
     pub rules: Vec<RuleEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuleProviderDiff {
+    pub provider_name: String,
+    pub local_count: usize,
+    pub remote_count: usize,
+    pub added_rules: Vec<String>,
+    pub removed_rules: Vec<String>,
+    pub unchanged_count: usize,
+}
+
+pub type TrafficContext = tracer::TrafficContext;
+pub type RuleTraceMatch = tracer::RuleTraceMatch;
+
+pub fn trace_rules(
+    rules: &[RuleEntry],
+    context: &tracer::TrafficContext,
+) -> Option<tracer::RuleTraceMatch> {
+    tracer::trace_rules(rules, context)
+}
+
+pub fn diff_rule_provider_contents(
+    provider_name: &str,
+    local: &[String],
+    remote: &[String],
+) -> RuleProviderDiff {
+    let local_set: HashSet<&str> = local
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+    let remote_set: HashSet<&str> = remote
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+    let added_rules: Vec<String> = remote_set
+        .difference(&local_set)
+        .map(|s| s.to_string())
+        .collect();
+    let removed_rules: Vec<String> = local_set
+        .difference(&remote_set)
+        .map(|s| s.to_string())
+        .collect();
+    let unchanged_count = local_set.intersection(&remote_set).count();
+    RuleProviderDiff {
+        provider_name: provider_name.to_string(),
+        local_count: local_set.len(),
+        remote_count: remote_set.len(),
+        added_rules,
+        removed_rules,
+        unchanged_count,
+    }
+}
+
+pub fn unpack_provider_rules_to_custom(rules: &[String], target: &str) -> Vec<RuleEntry> {
+    rules
+        .iter()
+        .map(|r| r.trim())
+        .filter(|r| !r.is_empty() && !r.starts_with('#'))
+        .map(|r| {
+            if r.contains(',') {
+                let parts: Vec<&str> = r.split(',').collect();
+                if parts.len() == 2 {
+                    RuleEntry {
+                        rule: format!("{},{},{}", parts[0], parts[1], target),
+                        enabled: true,
+                    }
+                } else {
+                    RuleEntry {
+                        rule: r.to_string(),
+                        enabled: true,
+                    }
+                }
+            } else {
+                RuleEntry {
+                    rule: format!("DOMAIN-SUFFIX,{},{}", r, target),
+                    enabled: true,
+                }
+            }
+        })
+        .collect()
+}
+
+pub fn game_routing_presets(target: &str) -> Vec<RuleEntry> {
+    vec![
+        RuleEntry {
+            rule: format!("PROCESS-NAME,steam.exe,{}", target),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: format!("PROCESS-NAME,steamwebhelper.exe,{}", target),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: format!("PROCESS-NAME,EpicGamesLauncher.exe,{}", target),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: format!("PROCESS-NAME,RiotClientServices.exe,{}", target),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: format!("PROCESS-NAME,Battle.net.exe,{}", target),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: format!("PROCESS-NAME,Origin.exe,{}", target),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: format!("PROCESS-NAME,EADesktop.exe,{}", target),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: format!("DOMAIN-SUFFIX,steamcommunity.com,{}", target),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: format!("DOMAIN-SUFFIX,steampowered.com,{}", target),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: format!("DOMAIN-SUFFIX,epicgames.com,{}", target),
+            enabled: true,
+        },
+    ]
 }
 
 pub async fn load_rule_providers() -> Result<RuleProviders> {
@@ -50,9 +192,7 @@ pub async fn save_rule_providers(providers: RuleProviders) -> Result<RuleProvide
     Ok(providers)
 }
 
-/// Apply rule-provider changes to an in-memory profile document. Frontends use
-/// this pure transform before handing the complete YAML to the atomic Apply
-/// transaction.
+/// Apply rule-provider changes to an in-memory profile document.
 pub fn apply_rule_providers_to_yaml(content: &str, providers: &RuleProviders) -> Result<String> {
     let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
     apply_rule_providers(&mut doc, providers)?;
@@ -187,7 +327,7 @@ fn apply_rules(doc: &mut Value, rules: &[RuleEntry]) -> Result<()> {
     Ok(())
 }
 
-fn parse_rule_entry(value: &str) -> RuleEntry {
+pub fn parse_rule_entry(value: &str) -> RuleEntry {
     let trimmed = value.trim_start();
     if let Some(rest) = trimmed.strip_prefix('#') {
         RuleEntry {
@@ -202,7 +342,7 @@ fn parse_rule_entry(value: &str) -> RuleEntry {
     }
 }
 
-fn format_rule_entry(entry: &RuleEntry) -> String {
+pub fn format_rule_entry(entry: &RuleEntry) -> String {
     let rule = entry.rule.trim();
     if entry.enabled {
         rule.to_string()
@@ -211,125 +351,11 @@ fn format_rule_entry(entry: &RuleEntry) -> String {
     }
 }
 
-fn validate_rules(rules: &[RuleEntry]) -> Result<()> {
+pub fn validate_rules(rules: &[RuleEntry]) -> Result<()> {
     for entry in rules {
         if entry.rule.trim().is_empty() {
             return Err(anyhow!("rule entry is empty"));
         }
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_rule_entry() {
-        let entry = parse_rule_entry("DOMAIN,example.com");
-        assert!(entry.enabled);
-        assert_eq!(entry.rule, "DOMAIN,example.com");
-
-        let entry = parse_rule_entry("  DOMAIN,example.com  ");
-        assert!(entry.enabled);
-        assert_eq!(entry.rule, "DOMAIN,example.com  ");
-
-        let entry = parse_rule_entry("# DIRECT");
-        assert!(!entry.enabled);
-        assert_eq!(entry.rule, "DIRECT");
-
-        let entry = parse_rule_entry(" #  MATCH,Proxy ");
-        assert!(!entry.enabled);
-        assert_eq!(entry.rule, "MATCH,Proxy ");
-    }
-
-    #[test]
-    fn test_format_rule_entry() {
-        let entry = RuleEntry {
-            rule: "DIRECT".to_string(),
-            enabled: false,
-        };
-        assert_eq!(format_rule_entry(&entry), "# DIRECT");
-
-        let entry = RuleEntry {
-            rule: "DOMAIN,google.com".to_string(),
-            enabled: true,
-        };
-        assert_eq!(format_rule_entry(&entry), "DOMAIN,google.com");
-    }
-
-    #[test]
-    fn test_apply_rules_preserves_order() {
-        let mut doc: Value = serde_yaml_ng::from_str("rules:\n  - OLD\n").expect("yaml");
-        let rules = vec![
-            RuleEntry {
-                rule: "FIRST".into(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "SECOND".into(),
-                enabled: false,
-            },
-        ];
-        apply_rules(&mut doc, &rules).expect("apply");
-        let seq = doc.get("rules").unwrap().as_sequence().unwrap();
-        assert_eq!(seq[0].as_str(), Some("FIRST"));
-        assert_eq!(seq[1].as_str(), Some("# SECOND"));
-    }
-
-    #[test]
-    fn test_apply_rule_providers_empty_removes() {
-        let mut doc: Value = serde_yaml_ng::from_str("port: 7890\n").expect("yaml");
-        let providers = RuleProviders::new();
-        apply_rule_providers(&mut doc, &providers).expect("apply providers");
-        let map = doc.as_mapping().expect("mapping");
-        assert!(
-            map.get(Value::String("rule-providers".to_string()))
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn test_apply_rules_empty_removes() {
-        let mut doc: Value = serde_yaml_ng::from_str("rules:\n  - DIRECT\n").expect("yaml");
-        apply_rules(&mut doc, &[]).expect("apply rules");
-        let map = doc.as_mapping().expect("mapping");
-        assert!(map.get(Value::String("rules".to_string())).is_none());
-    }
-
-    /// rules 读写必须落在 settings `configs_dir` 重定向后的目录；
-    /// 读回成功 + `<home>/configs` 未创建双重验证落点。
-    #[tokio::test]
-    async fn test_rules_io_follows_configs_dir_redirect() {
-        let temp = tempfile::tempdir().unwrap();
-        let home = temp.path().to_path_buf();
-        let cloud = home.join("cloud-sync").join("profiles");
-        std::fs::create_dir_all(&cloud).unwrap();
-        let guard = crate::settings::test_support::RedirectGuard::acquire(home.clone()).await;
-        guard
-            .set_configs_dir(&home, Some(cloud.to_str().unwrap()))
-            .await;
-
-        let seed = crate::settings::app_config_manager().await.unwrap();
-        seed.save("main", "port: 7890\nrules:\n  - OLD,DIRECT\n")
-            .await
-            .unwrap();
-        seed.set_current("main").await.unwrap();
-
-        save_rules(vec![RuleEntry {
-            rule: "MATCH,DIRECT".to_string(),
-            enabled: true,
-        }])
-        .await
-        .unwrap();
-
-        let rules = load_rules().await.unwrap();
-        assert_eq!(rules.len(), 1);
-        assert_eq!(rules[0].rule, "MATCH,DIRECT");
-        assert!(rules[0].enabled);
-
-        let raw = std::fs::read_to_string(cloud.join("main.yaml")).unwrap();
-        assert!(raw.contains("MATCH,DIRECT"));
-        assert!(!home.join("configs").exists());
-    }
 }

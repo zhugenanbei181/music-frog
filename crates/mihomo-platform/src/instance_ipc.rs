@@ -1,9 +1,9 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 #[cfg(not(unix))]
@@ -27,6 +27,12 @@ pub enum IpcResponse {
     Error(String),
 }
 
+fn get_ipc_temp_dir() -> PathBuf {
+    std::env::var("TMPDIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| env::temp_dir())
+}
+
 pub struct SingleInstanceIpcServer {
     running: Arc<AtomicBool>,
     #[cfg(unix)]
@@ -42,52 +48,65 @@ impl SingleInstanceIpcServer {
 
         #[cfg(unix)]
         let (server, _tx) = {
-            let socket_path = env::temp_dir().join(format!("{}.sock", socket_id));
+            let socket_path = get_ipc_temp_dir().join(format!("{}.sock", socket_id));
             if socket_path.exists() {
                 let _ = std::fs::remove_file(&socket_path);
             }
-            let listener = UnixListener::bind(&socket_path).context("Failed to bind Unix socket")?;
+            let listener =
+                UnixListener::bind(&socket_path).context("Failed to bind Unix socket")?;
             let r = running.clone();
             let t = tx.clone();
             tokio::spawn(async move {
                 while r.load(Ordering::Relaxed) {
                     if let Ok(result) = timeout(Duration::from_millis(100), listener.accept()).await
-                        && let Ok((mut stream, _)) = result {
-                            let t = t.clone();
-                            tokio::spawn(async move {
-                                let (reader, mut writer) = stream.split();
-                                let mut reader = BufReader::new(reader);
-                                let mut line = String::new();
-                                if reader.read_line(&mut line).await.is_ok() && !line.is_empty() {
-                                    if let Ok(cmd) = serde_json::from_str::<IpcCommand>(&line) {
-                                        let resp = match cmd {
-                                            IpcCommand::Ping => IpcResponse::Pong,
-                                            _ => {
-                                                let _ = t.send(cmd);
-                                                IpcResponse::Ack
-                                            }
-                                        };
-                                        if let Ok(resp_json) = serde_json::to_string(&resp) {
-                                            let _ = writer.write_all(format!("{}\n", resp_json).as_bytes()).await;
+                        && let Ok((mut stream, _)) = result
+                    {
+                        let t = t.clone();
+                        tokio::spawn(async move {
+                            let (reader, mut writer) = stream.split();
+                            let mut reader = BufReader::new(reader);
+                            let mut line = String::new();
+                            if reader.read_line(&mut line).await.is_ok() && !line.is_empty() {
+                                if let Ok(cmd) = serde_json::from_str::<IpcCommand>(&line) {
+                                    let resp = match cmd {
+                                        IpcCommand::Ping => IpcResponse::Pong,
+                                        _ => {
+                                            let _ = t.send(cmd);
+                                            IpcResponse::Ack
                                         }
-                                    } else {
-                                        let resp = IpcResponse::Error("Invalid command".into());
-                                        if let Ok(resp_json) = serde_json::to_string(&resp) {
-                                            let _ = writer.write_all(format!("{}\n", resp_json).as_bytes()).await;
-                                        }
+                                    };
+                                    if let Ok(resp_json) = serde_json::to_string(&resp) {
+                                        let _ = writer
+                                            .write_all(format!("{}\n", resp_json).as_bytes())
+                                            .await;
+                                    }
+                                } else {
+                                    let resp = IpcResponse::Error("Invalid command".into());
+                                    if let Ok(resp_json) = serde_json::to_string(&resp) {
+                                        let _ = writer
+                                            .write_all(format!("{}\n", resp_json).as_bytes())
+                                            .await;
                                     }
                                 }
-                            });
-                        }
+                            }
+                        });
+                    }
                 }
             });
-            (Self { running, socket_path }, tx)
+            (
+                Self {
+                    running,
+                    socket_path,
+                },
+                tx,
+            )
         };
 
         #[cfg(not(unix))]
         let (server, _tx) = {
-            let port_file = env::temp_dir().join(format!("{}.port", socket_id));
-            let std_listener = std::net::TcpListener::bind("127.0.0.1:0").context("Failed to bind TCP socket")?;
+            let port_file = get_ipc_temp_dir().join(format!("{}.port", socket_id));
+            let std_listener =
+                std::net::TcpListener::bind("127.0.0.1:0").context("Failed to bind TCP socket")?;
             let port = std_listener.local_addr()?.port();
             std::fs::write(&port_file, port.to_string())?;
             std_listener.set_nonblocking(true)?;
@@ -96,7 +115,8 @@ impl SingleInstanceIpcServer {
             let t = tx.clone();
             tokio::spawn(async move {
                 while r.load(Ordering::Relaxed) {
-                    if let Ok(result) = timeout(Duration::from_millis(100), listener.accept()).await {
+                    if let Ok(result) = timeout(Duration::from_millis(100), listener.accept()).await
+                    {
                         if let Ok((mut stream, _)) = result {
                             let t = t.clone();
                             tokio::spawn(async move {
@@ -113,12 +133,16 @@ impl SingleInstanceIpcServer {
                                             }
                                         };
                                         if let Ok(resp_json) = serde_json::to_string(&resp) {
-                                            let _ = writer.write_all(format!("{}\n", resp_json).as_bytes()).await;
+                                            let _ = writer
+                                                .write_all(format!("{}\n", resp_json).as_bytes())
+                                                .await;
                                         }
                                     } else {
                                         let resp = IpcResponse::Error("Invalid command".into());
                                         if let Ok(resp_json) = serde_json::to_string(&resp) {
-                                            let _ = writer.write_all(format!("{}\n", resp_json).as_bytes()).await;
+                                            let _ = writer
+                                                .write_all(format!("{}\n", resp_json).as_bytes())
+                                                .await;
                                         }
                                     }
                                 }
@@ -160,7 +184,7 @@ impl SingleInstanceIpcClient {
 
         #[cfg(unix)]
         let mut stream = {
-            let socket_path = env::temp_dir().join(format!("{}.sock", socket_id));
+            let socket_path = get_ipc_temp_dir().join(format!("{}.sock", socket_id));
             tokio::time::timeout(timeout, UnixStream::connect(&socket_path))
                 .await
                 .context("Connection timeout")?
@@ -169,20 +193,20 @@ impl SingleInstanceIpcClient {
 
         #[cfg(not(unix))]
         let mut stream = {
-            let port_file = env::temp_dir().join(format!("{}.port", socket_id));
-            let port_str = std::fs::read_to_string(&port_file).context("Failed to read port file")?;
+            let port_file = get_ipc_temp_dir().join(format!("{}.port", socket_id));
+            let port_str =
+                std::fs::read_to_string(&port_file).context("Failed to read port file")?;
             let port: u16 = port_str.trim().parse().context("Invalid port number")?;
-            tokio::time::timeout(
-                timeout,
-                TcpStream::connect(format!("127.0.0.1:{}", port)),
-            )
-            .await
-            .context("Connection timeout")?
-            .context("Failed to connect to TCP socket")?
+            tokio::time::timeout(timeout, TcpStream::connect(format!("127.0.0.1:{}", port)))
+                .await
+                .context("Connection timeout")?
+                .context("Failed to connect to TCP socket")?
         };
 
         let (reader, mut writer) = stream.split();
-        writer.write_all(format!("{}\n", req_json).as_bytes()).await?;
+        writer
+            .write_all(format!("{}\n", req_json).as_bytes())
+            .await?;
 
         let mut reader = BufReader::new(reader);
         let mut line = String::new();
@@ -196,7 +220,8 @@ impl SingleInstanceIpcClient {
     }
 
     pub async fn notify_primary_to_focus(socket_id: &str) -> Result<()> {
-        let resp = Self::send_command(socket_id, IpcCommand::FocusWindow, Duration::from_secs(1)).await?;
+        let resp =
+            Self::send_command(socket_id, IpcCommand::FocusWindow, Duration::from_secs(1)).await?;
         if resp != IpcResponse::Ack {
             bail!("Unexpected response: {:?}", resp);
         }

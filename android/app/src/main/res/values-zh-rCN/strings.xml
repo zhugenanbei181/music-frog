@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">卑鄙渗透者</string>
+    <string name="app_name">MusicFrog Infiltrator</string>
 
     <!-- Navigation -->
     <string name="nav_overview">概览</string>
@@ -192,7 +192,7 @@
 
     <!-- Service -->
     <string name="notification_channel_name">VPN 服务</string>
-    <string name="notification_title">Infiltrator VPN</string>
+    <string name="notification_title">MusicFrog Infiltrator VPN</string>
     <string name="notification_starting">正在启动...</string>
     <string name="notification_active">保护已开启</string>
 

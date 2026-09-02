@@ -47,7 +47,9 @@ impl MihomoRuntime {
     async fn settings_configs_dir() -> Option<String> {
         let home = mihomo_platform::paths::get_home_dir().ok()?;
         let path = infiltrator_core::settings::settings_path(&home).ok()?;
-        let settings = infiltrator_core::settings::load_settings(&path).await.ok()?;
+        let settings = infiltrator_core::settings::load_settings(&path)
+            .await
+            .ok()?;
         settings.configs_dir
     }
 
@@ -597,8 +599,11 @@ mode: rule
         assert!(result.contains(&PathBuf::from("/path/to/geoip.metadb")));
     }
 
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn test_build_geoip_url_list_default() {
+        let _guard = ENV_LOCK.lock().unwrap();
         unsafe { std::env::remove_var("MIHOMO_GEOIP_URL") };
         let result = build_geoip_url_list();
         assert_eq!(result.len(), 3);
@@ -608,6 +613,7 @@ mode: rule
 
     #[test]
     fn test_build_geoip_url_list_custom() {
+        let _guard = ENV_LOCK.lock().unwrap();
         unsafe { std::env::set_var("MIHOMO_GEOIP_URL", "https://custom.url/geoip.metadb") };
         let result = build_geoip_url_list();
         assert_eq!(result.len(), 1);
@@ -617,6 +623,7 @@ mode: rule
 
     #[test]
     fn test_build_geoip_url_list_empty_custom() {
+        let _guard = ENV_LOCK.lock().unwrap();
         unsafe { std::env::set_var("MIHOMO_GEOIP_URL", "   ") };
         let result = build_geoip_url_list();
         assert_eq!(result.len(), 3);

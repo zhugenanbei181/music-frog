@@ -213,7 +213,10 @@ fn demo_mixin_page_activates_the_mixin_pane_with_fixture_document() {
     let mut env = demo_env(Route::Editor);
     env.pane = crate::types::options::EditorPane::Mixin;
     let (state, _) = AppState::demo(&env);
-    assert_eq!(state.editor.editor_pane, crate::types::options::EditorPane::Mixin);
+    assert_eq!(
+        state.editor.editor_pane,
+        crate::types::options::EditorPane::Mixin
+    );
     assert_eq!(state.editor.mixin_loaded_for.as_deref(), Some("机场订阅"));
     assert!(state.editor.mixin_content.text().contains("rules:"));
     assert!(state.editor.mixin_content.text().contains("prepend:"));
@@ -225,6 +228,20 @@ fn env_skin_and_window_size_parsers_fall_back_safely() {
     assert_eq!(parse_skin("LIGHT"), iced::Theme::Light);
     assert_eq!(parse_skin("dark"), iced::Theme::Dark);
     assert_eq!(parse_skin("bogus"), iced::Theme::Dark);
+    assert_eq!(parse_skin("forest"), crate::view::theme::forest_theme());
+    assert_eq!(parse_skin("EyeForest"), crate::view::theme::forest_theme());
+    assert_eq!(parse_skin("eye-forest"), crate::view::theme::forest_theme());
+    assert_eq!(
+        crate::view::theme::theme_to_name(&crate::view::theme::forest_theme()),
+        "forest"
+    );
+    assert!(crate::view::theme::is_forest(
+        &crate::view::theme::forest_theme()
+    ));
+    assert_eq!(
+        crate::view::theme::tokens(&crate::view::theme::forest_theme()).accent,
+        crate::view::theme::FOREST.accent
+    );
 
     assert_eq!(parse_window_size("1280x800"), (1280.0, 800.0));
     assert_eq!(parse_window_size("1440X900"), (1440.0, 900.0));

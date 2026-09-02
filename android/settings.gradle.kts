@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "despicable-infiltrator-android"
+rootProject.name = "musicfrog-infiltrator-android"
 include(":app")

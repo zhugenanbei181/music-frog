@@ -1,5 +1,5 @@
-use serde::{Serialize, Deserialize};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum RebootReason {
@@ -50,13 +50,13 @@ impl GracefulRebootCoordinator {
         if plan.binary_path.trim().is_empty() {
             return Err(anyhow!("Binary path cannot be empty"));
         }
-        
+
         for arg in &plan.extra_args {
             if arg.contains('\0') {
                 return Err(anyhow!("Argument contains null byte"));
             }
         }
-        
+
         Ok(())
     }
 }
@@ -72,7 +72,8 @@ mod tests {
             RebootReason::UserRequested,
             "/usr/bin/test",
             args.clone(),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(plan.reason, RebootReason::UserRequested);
         assert_eq!(plan.binary_path, "/usr/bin/test");
@@ -91,11 +92,9 @@ mod tests {
         ];
 
         for reason in reasons {
-            let plan = GracefulRebootCoordinator::prepare_reboot_plan(
-                reason.clone(),
-                "/bin/sh",
-                vec![],
-            ).unwrap();
+            let plan =
+                GracefulRebootCoordinator::prepare_reboot_plan(reason.clone(), "/bin/sh", vec![])
+                    .unwrap();
             assert_eq!(plan.reason, reason);
         }
     }
@@ -140,7 +139,10 @@ mod tests {
 
         let result = GracefulRebootCoordinator::validate_plan(&plan);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "Binary path cannot be empty");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Binary path cannot be empty"
+        );
     }
 
     #[test]
@@ -155,6 +157,9 @@ mod tests {
 
         let result = GracefulRebootCoordinator::validate_plan(&plan);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "Argument contains null byte");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Argument contains null byte"
+        );
     }
 }

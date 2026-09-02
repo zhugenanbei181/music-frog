@@ -3,11 +3,11 @@
 //! Mounted via `src/test_mounts.rs` (crate root).
 //! test-intent: behavior
 
+use crate::state::AppState;
 use crate::types::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
 use crate::types::editor::EditorLazyState;
-use crate::types::runtime::RebuildFlowState;
-use crate::state::AppState;
 use crate::types::message::Message;
+use crate::types::runtime::RebuildFlowState;
 use infiltrator_core::rules::RuleEntry;
 
 #[test]
@@ -192,4 +192,90 @@ fn test_advanced_bundle_load_applies_form_drafts() {
     assert!(state.editor.tun_form.enable);
     assert_eq!(state.editor.tun_form.stack, "gvisor".to_string());
     assert_eq!(state.editor.tun_form.mtu, "1500".to_string());
+}
+
+#[test]
+fn test_rules_tracer_gui_flow() {
+    let (mut state, _) = AppState::new();
+    state.editor.rules = vec![
+        RuleEntry {
+            rule: "DOMAIN,special.com,DIRECT".into(),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: "DOMAIN-SUFFIX,google.com,节点选择".into(),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: "MATCH,漏网之鱼".into(),
+            enabled: true,
+        },
+    ];
+    state.rebuild_rules_render_cache();
+
+    // Input domain and run tracer
+    let _ = state.update(Message::UpdateRulesTracerInput("mail.google.com".into()));
+    assert_eq!(state.editor.rules_tracer_input, "mail.google.com");
+
+    let _ = state.update(Message::RunRulesTracer);
+    assert!(state.editor.rules_tracer_result.is_some());
+    let (idx, matched, target) = state.editor.rules_tracer_result.as_ref().unwrap();
+    assert_eq!(*idx, 1);
+    assert_eq!(matched, "DOMAIN-SUFFIX,google.com");
+    assert_eq!(target, "节点选择");
+}
+
+#[test]
+fn test_rules_game_presets_and_geo_update() {
+    let (mut state, _) = AppState::new();
+    state.editor.rules = vec![RuleEntry {
+        rule: "MATCH,DIRECT".into(),
+        enabled: true,
+    }];
+    state.editor.new_rule_target = "Game-Proxy".into();
+
+    let _ = state.update(Message::ApplyGameRoutingPresets);
+    assert!(state.editor.rules.len() > 5);
+    assert!(state.editor.rules[0].rule.contains("PROCESS-NAME"));
+    assert!(state.editor.rules[0].rule.contains("Game-Proxy"));
+    assert!(state.editor.rules_dirty);
+
+    let _ = state.update(Message::UpdateGeoDatabases);
+    assert!(state.editor.is_updating_geo_databases);
+    let _ = state.update(Message::GeoDatabasesUpdated(Ok(())));
+    assert!(!state.editor.is_updating_geo_databases);
+}
+
+#[test]
+fn test_rule_provider_diff_and_unpack_flow() {
+    let (mut state, _) = AppState::new();
+    assert!(state.editor.inspecting_rule_provider_diff.is_none());
+
+    let diff = infiltrator_core::rules::RuleProviderDiff {
+        provider_name: "GoogleRules".into(),
+        local_count: 5,
+        remote_count: 7,
+        added_rules: vec!["DOMAIN-SUFFIX,googlevideo.com".into()],
+        removed_rules: vec![],
+        unchanged_count: 5,
+    };
+
+    let _ = state.update(Message::RuleProviderDiffLoaded(Ok(diff.clone())));
+    assert_eq!(
+        state
+            .editor
+            .inspecting_rule_provider_diff
+            .as_ref()
+            .unwrap()
+            .provider_name,
+        "GoogleRules"
+    );
+
+    let _ = state.update(Message::InspectRuleProviderDiff(None));
+    assert!(state.editor.inspecting_rule_provider_diff.is_none());
+
+    let prev_len = state.editor.rules.len();
+    let _ = state.update(Message::UnpackRuleProvider("GoogleRules".into()));
+    assert!(state.editor.rules.len() > prev_len);
+    assert!(state.editor.rules_dirty);
 }

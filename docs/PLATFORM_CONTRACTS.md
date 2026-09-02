@@ -310,7 +310,7 @@ Windows：ShellExecuteW("runas")（或保留 PowerShell 方案）+ 参数透传�
 | 凭证/锁/IPC/端口 | 已有单测覆盖（`instance_lock.rs:181-249` 等）；desktop-smoke 可加 keyring roundtrip 可选项 | keyring 真机桌面钥匙环（gnome-keyring/Credential Manager/Keychain） |
 | 崩溃/提权/open | `CrashReport` 脱敏单测（`crash_reporter.rs` 已有基础）；argv 构造单测 | 真实 panic 落盘；UAC/管理员授权流程；文件管理器拉起 |
 
-建议新增 `scripts/quality/desktop_smoke.rs`（或 `cargo test --features desktop-smoke` 套件）：
+建议新增 `scripts/quality/desktop_smoke.rs`（或 `bash scripts/test.sh` 套件）：
 只读探测 + 纯函数断言，输出逐动词 PASS/UNSUPPORTED(reason) 清单，作为 Linux CI 之外的
 Windows/macOS 打包机一键取证入口（对应 TEST_MATRIX L3）。
 

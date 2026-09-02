@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use chrono::{ Utc};
+use chrono::Utc;
 use infiltrator_http::HttpClient;
 use log::{info, warn};
 use mihomo_config::manager::ConfigManager;
@@ -12,7 +12,9 @@ use crate::support::app_config_manager;
 use infiltrator_core::{
     redact::redact_line,
     subscription::{
-        fetch_subscription_with_info, mask_subscription_url, strip_utf8_bom, CheckedSubscriptionUrl}};
+        CheckedSubscriptionUrl, fetch_subscription_with_info, mask_subscription_url, strip_utf8_bom,
+    },
+};
 use mihomo_config::manager::paths::validate_profile_name;
 
 #[derive(Clone, Debug, Default)]
@@ -86,9 +88,7 @@ pub(super) async fn run_profile_subscription_tick<C: AdminApiContext>(
     .await
     {
         Ok(needs_rebuild) => {
-            if needs_rebuild
-                && let Err(err) = ctx.rebuild_runtime().await
-            {
+            if needs_rebuild && let Err(err) = ctx.rebuild_runtime().await {
                 warn!(
                     "subscription rebuild failed: profile={} err={}",
                     profile.name,
@@ -184,7 +184,10 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
                     }
                     Ok(Err(err)) => {
                         // Task failed with an error (not a panic)
-                        warn!("subscription update failed: {}", redact_line(&format!("{err:#}"), &[]));
+                        warn!(
+                            "subscription update failed: {}",
+                            redact_line(&format!("{err:#}"), &[])
+                        );
                         summary.failed += 1;
                     }
                     Err(join_err) => {
@@ -262,7 +265,10 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
     }
 
     if rebuild_needed && let Err(err) = ctx.rebuild_runtime().await {
-        warn!("subscription batch rebuild failed: {}", redact_line(&format!("{err:#}"), &[]));
+        warn!(
+            "subscription batch rebuild failed: {}",
+            redact_line(&format!("{err:#}"), &[])
+        );
     }
 
     Ok(summary)

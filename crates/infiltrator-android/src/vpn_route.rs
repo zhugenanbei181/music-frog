@@ -67,7 +67,7 @@ impl PrivateDnsConflictDetector {
                 return true;
             }
         }
-        
+
         false
     }
 }
@@ -94,7 +94,7 @@ impl VpnRouteConfig {
     /// Builds the `VpnRoutePlan` depending on the configuration.
     pub fn build_plan(&self) -> VpnRoutePlan {
         let mut routes = Vec::new();
-        
+
         if self.bypass_lan || self.bypass_china {
             // When bypassing, we generate complementary inclusion lists.
             // Android prior to API 33 does not natively support `excludeRoute`,
@@ -109,7 +109,8 @@ impl VpnRouteConfig {
             routes.push(CidrRoute::new("::", 0));
         }
 
-        let has_private_dns_warning = PrivateDnsConflictDetector::detect_private_dns_conflict(&self.custom_dns, 53);
+        let has_private_dns_warning =
+            PrivateDnsConflictDetector::detect_private_dns_conflict(&self.custom_dns, 53);
 
         VpnRoutePlan {
             routes,
@@ -142,13 +143,22 @@ mod tests {
     #[test]
     fn test_private_dns_conflict() {
         // Port 853 conflict
-        assert!(PrivateDnsConflictDetector::detect_private_dns_conflict(&[], 853));
-        
+        assert!(PrivateDnsConflictDetector::detect_private_dns_conflict(
+            &[],
+            853
+        ));
+
         // Standard non-conflicting DNS
-        assert!(!PrivateDnsConflictDetector::detect_private_dns_conflict(&["8.8.8.8".to_string()], 53));
-        
+        assert!(!PrivateDnsConflictDetector::detect_private_dns_conflict(
+            &["8.8.8.8".to_string()],
+            53
+        ));
+
         // Conflicting DNS name pattern
-        assert!(PrivateDnsConflictDetector::detect_private_dns_conflict(&["dot.example.com".to_string()], 53));
+        assert!(PrivateDnsConflictDetector::detect_private_dns_conflict(
+            &["dot.example.com".to_string()],
+            53
+        ));
     }
 
     #[test]

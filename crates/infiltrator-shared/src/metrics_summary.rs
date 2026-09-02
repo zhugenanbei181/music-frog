@@ -41,7 +41,7 @@ impl MetricsAggregator {
             self.samples.pop_front();
         }
         self.samples.push_back((upload_bps, download_bps));
-        
+
         self.peak_upload_bps = self.peak_upload_bps.max(upload_bps);
         self.peak_download_bps = self.peak_download_bps.max(download_bps);
     }
@@ -99,7 +99,7 @@ mod tests {
     #[test]
     fn test_rolling_average_window_calculation() {
         let mut agg = MetricsAggregator::new(3);
-        
+
         let stats = agg.compute_stats();
         assert_eq!(stats.avg_upload_bps, 0);
         assert_eq!(stats.avg_download_bps, 0);
@@ -129,10 +129,10 @@ mod tests {
     #[test]
     fn test_peak_speed_retention() {
         let mut agg = MetricsAggregator::new(2);
-        
+
         agg.record_sample(100, 200);
         agg.record_sample(50, 300);
-        
+
         let stats = agg.compute_stats();
         assert_eq!(stats.peak_upload_bps, 100);
         assert_eq!(stats.peak_download_bps, 300);
@@ -148,9 +148,18 @@ mod tests {
         assert_eq!(MetricsAggregator::format_human_bandwidth(500), "500 B/s");
         assert_eq!(MetricsAggregator::format_human_bandwidth(1024), "1.0 KB/s");
         assert_eq!(MetricsAggregator::format_human_bandwidth(1536), "1.5 KB/s");
-        assert_eq!(MetricsAggregator::format_human_bandwidth(1048576), "1.0 MB/s");
-        assert_eq!(MetricsAggregator::format_human_bandwidth(12992276), "12.4 MB/s");
-        assert_eq!(MetricsAggregator::format_human_bandwidth(1073741824), "1.0 GB/s");
+        assert_eq!(
+            MetricsAggregator::format_human_bandwidth(1048576),
+            "1.0 MB/s"
+        );
+        assert_eq!(
+            MetricsAggregator::format_human_bandwidth(12992276),
+            "12.4 MB/s"
+        );
+        assert_eq!(
+            MetricsAggregator::format_human_bandwidth(1073741824),
+            "1.0 GB/s"
+        );
     }
 
     #[test]
@@ -166,7 +175,7 @@ mod tests {
 
         let serialized = serde_json::to_string(&snapshot).unwrap();
         let deserialized: MetricsSnapshot = serde_json::from_str(&serialized).unwrap();
-        
+
         assert_eq!(snapshot, deserialized);
 
         let stats = RollingSpeedStats {

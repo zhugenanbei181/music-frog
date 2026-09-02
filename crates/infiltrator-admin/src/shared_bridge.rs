@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use infiltrator_shared::error_codes::{get_localized_error, InfiltratorErrorCode, StructuredError};
 use infiltrator_core::redact::redact_line;
+use infiltrator_shared::error_codes::{InfiltratorErrorCode, StructuredError, get_localized_error};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BridgeRequest {
@@ -22,18 +22,18 @@ pub struct AdminSharedBridge;
 impl AdminSharedBridge {
     pub fn handle_intent(req: &BridgeRequest, lang: &str) -> BridgeResponse {
         match req.intent.as_str() {
-            "StartProxy" | "StopProxy" | "SwitchProfile" | "CheckUpdates" | "SyncWebDav" | "InspectDiagnostics" => {
-                BridgeResponse {
-                    success: true,
-                    data: Some(serde_json::json!({ "status": "success", "intent": req.intent })),
-                    error: None,
-                }
-            }
+            "StartProxy" | "StopProxy" | "SwitchProfile" | "CheckUpdates" | "SyncWebDav"
+            | "InspectDiagnostics" => BridgeResponse {
+                success: true,
+                data: Some(serde_json::json!({ "status": "success", "intent": req.intent })),
+                error: None,
+            },
             _ => {
-                let code = InfiltratorErrorCode::Internal(format!("Unknown intent: {}", req.intent));
+                let code =
+                    InfiltratorErrorCode::Internal(format!("Unknown intent: {}", req.intent));
                 let mut error = get_localized_error(&code, lang);
                 error.message = redact_line(&error.message, &[]);
-                
+
                 BridgeResponse {
                     success: false,
                     data: None,
@@ -69,7 +69,7 @@ mod tests {
         let resp = AdminSharedBridge::handle_intent(&req, "en-US");
         assert!(!resp.success);
         assert!(resp.data.is_none());
-        
+
         let err = resp.error.unwrap();
         match err.code {
             InfiltratorErrorCode::Internal(msg) => {
@@ -88,7 +88,7 @@ mod tests {
         let resp = AdminSharedBridge::handle_intent(&req, "zh-CN");
         assert!(!resp.success);
         assert!(resp.data.is_none());
-        
+
         let err = resp.error.unwrap();
         match err.code {
             InfiltratorErrorCode::Internal(msg) => {

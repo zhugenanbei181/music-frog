@@ -19,7 +19,10 @@ fn subscription_auto_updated_notification_task_honours_the_master_switch() {
     state.shell.notifications_enabled = true;
 
     // Empty update list → silence (no toast, no notification, no tray work).
-    let units = feed(&mut state, Message::SubscriptionAutoUpdated(Ok((vec![], false))));
+    let units = feed(
+        &mut state,
+        Message::SubscriptionAutoUpdated(Ok((vec![], false))),
+    );
     assert_eq!(units, 0, "nothing updated → nothing emitted");
     assert!(state.shell.toasts.is_empty());
 
@@ -28,7 +31,10 @@ fn subscription_auto_updated_notification_task_honours_the_master_switch() {
         &mut state,
         Message::SubscriptionAutoUpdated(Ok((vec!["Paid".into()], false))),
     );
-    assert_eq!(units, 3, "reload + success-toast + system-notification legs");
+    assert_eq!(
+        units, 3,
+        "reload + success-toast + system-notification legs"
+    );
 
     // Master switch off: the notification leg collapses to Task::none while
     // the in-app feedback stays.
@@ -75,7 +81,10 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
     state.runtime.status = RuntimeStatus::Running;
 
     // Settings page → confirmation staged → confirmed → reset armed.
-    feed(&mut state, Message::RequestConfirmation(ConfirmAction::FactoryReset));
+    feed(
+        &mut state,
+        Message::RequestConfirmation(ConfirmAction::FactoryReset),
+    );
     assert_eq!(state.shell.confirmation, Some(ConfirmAction::FactoryReset));
     let units = feed(&mut state, Message::ConfirmAction);
     assert!(state.shell.confirmation.is_none(), "dialog consumed");
@@ -90,26 +99,46 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
     let report = block_on(async {
         infiltrator_core::factory_reset::execute(&home, Some(&configs_dir)).unwrap()
     });
-    assert!(report.warnings.is_empty(), "clean temp home resets warning-free");
+    assert!(
+        report.warnings.is_empty(),
+        "clean temp home resets warning-free"
+    );
     block_on(infiltrator_core::profiles::reset_profiles_to_default()).unwrap();
 
     // Files are gone / back to factory shape.
     assert!(!home.join("settings.toml").exists(), "AppSettings wiped");
     assert!(!home.join("logs/app-2026-08-31.log").exists(), "logs wiped");
-    assert!(!home.configs().join("Custom.yaml").exists(), "custom profile wiped");
-    assert!(home.configs().join("default.yaml").exists(), "default profile reseeded");
+    assert!(
+        !home.configs().join("Custom.yaml").exists(),
+        "custom profile wiped"
+    );
+    assert!(
+        home.configs().join("default.yaml").exists(),
+        "default profile reseeded"
+    );
 
     // Result 回灌: the whole state machine is replaced with a fresh one.
     let units = feed(&mut state, Message::FactoryResetFinished(Ok(())));
     assert!(!state.shell.is_factory_resetting);
     assert!(state.shell.error_msg.is_none());
-    assert!(state.profile.profiles.is_empty(), "fresh state, catalog empty");
-    assert!(matches!(state.runtime.rebuild_flow, crate::types::runtime::RebuildFlowState::Idle));
+    assert!(
+        state.profile.profiles.is_empty(),
+        "fresh state, catalog empty"
+    );
+    assert!(matches!(
+        state.runtime.rebuild_flow,
+        crate::types::runtime::RebuildFlowState::Idle
+    ));
     assert!(units >= 4, "LoadProfiles + LoadKernels + settings + toast");
 
     // The post-reset LoadProfiles would list the reseeded default only.
     let listed = block_on(async {
-        crate::configs_dir::config_manager().await.unwrap().list_profiles().await.unwrap()
+        crate::configs_dir::config_manager()
+            .await
+            .unwrap()
+            .list_profiles()
+            .await
+            .unwrap()
     });
     feed(&mut state, Message::ProfilesLoaded(Ok(listed)));
     assert_eq!(state.profile.profiles.len(), 1);
@@ -163,7 +192,10 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
     let units = feed(&mut state, Message::AppSettingsSaved(Ok(())));
     assert!(!state.profile.is_saving_app_settings);
     assert_eq!(units, 1, "success toast");
-    assert!(home.join("settings.toml").exists(), "settings persisted in temp home");
+    assert!(
+        home.join("settings.toml").exists(),
+        "settings persisted in temp home"
+    );
 
     // Startup path: the same file comes back through SettingsLoaded and
     // mirrors onto every UI domain field.
@@ -197,7 +229,10 @@ fn toast_lifecycle_redacts_secrets_and_survives_stale_removal() {
 
     let units = feed(
         &mut state,
-        Message::ShowToast("update failed: https://sub.example.com/d?token=tok1234".into(), ToastStatus::Error),
+        Message::ShowToast(
+            "update failed: https://sub.example.com/d?token=tok1234".into(),
+            ToastStatus::Error,
+        ),
     );
     assert_eq!(units, 1, "auto-dismiss task armed");
     let (content, status) = &state.shell.toasts[0];
@@ -218,8 +253,15 @@ fn toast_lifecycle_redacts_secrets_and_survives_stale_removal() {
     // the editor resyncs from the loaded profiles after reload.
     feed(
         &mut state,
-        Message::ProfilesLoaded(Ok(vec![subscribed_profile("Paid", true, Some("https://x"))])),
+        Message::ProfilesLoaded(Ok(vec![subscribed_profile(
+            "Paid",
+            true,
+            Some("https://x"),
+        )])),
     );
-    feed(&mut state, Message::SelectSubscriptionProfile("Paid".into()));
+    feed(
+        &mut state,
+        Message::SelectSubscriptionProfile("Paid".into()),
+    );
     assert_eq!(state.profile.subscription_profile_name, "Paid");
 }

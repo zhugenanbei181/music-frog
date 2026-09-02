@@ -1,5 +1,13 @@
 use anyhow::anyhow;
+use serde::{Deserialize, Serialize};
 use yaml_rust2::YamlLoader;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SyntaxDiagnostic {
+    pub line: usize,
+    pub column: usize,
+    pub message: String,
+}
 
 pub fn validate_yaml(content: &str) -> anyhow::Result<()> {
     if content.trim().is_empty() {
@@ -7,7 +15,26 @@ pub fn validate_yaml(content: &str) -> anyhow::Result<()> {
     }
     YamlLoader::load_from_str(content)
         .map(|_| ())
-        .map_err(|_| anyhow!("配置内容不是有效的 YAML"))
+        .map_err(|e| anyhow!("配置内容不是有效的 YAML: {e}"))
+}
+
+/// Real-time YAML syntax preflight checker returning precise line and column diagnostics.
+pub fn preflight_yaml_syntax(content: &str) -> Result<(), SyntaxDiagnostic> {
+    let trimmed = content.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+    match YamlLoader::load_from_str(content) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            let marker = err.marker();
+            Err(SyntaxDiagnostic {
+                line: marker.line(),
+                column: marker.col(),
+                message: err.to_string(),
+            })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -40,5 +67,20 @@ mod tests {
         assert!(validate_yaml("").is_err());
         assert!(validate_yaml("   ").is_err());
         assert!(validate_yaml("\n\n").is_err());
+    }
+
+    #[test]
+    fn test_preflight_yaml_syntax_valid() {
+        let valid = "port: 7890\nmode: rule";
+        assert_eq!(preflight_yaml_syntax(valid), Ok(()));
+        assert_eq!(preflight_yaml_syntax(""), Ok(()));
+    }
+
+    #[test]
+    fn test_preflight_yaml_syntax_invalid_diagnostic() {
+        let invalid = "port: 7890\nmode: [\nfoo: bar";
+        let diag = preflight_yaml_syntax(invalid).unwrap_err();
+        assert!(diag.line >= 2);
+        assert!(!diag.message.is_empty());
     }
 }

@@ -1,16 +1,16 @@
 name: test
 
 # 默认关闭：普通 push（main/日常分支）与普通 PR 不执行任何测试。
-# 仅两类事件会真正跑 CI：
-#   1. 带版本的推送：v* tag，或 v* / release/v* 版本分支（on.push 已过滤）；
-#   2. 带版本的 PR：标题或源分支名含版本号（如 v1.2.3），由 version-gate 判定。
+# 版本 tag 由 release.yml 通过 workflow_call 进入同一测试 gate；本文件直接
+# 处理 v* / release/v* 版本分支，以及标题或源分支带版本号的 PR。
 on:
+  # Release invokes this workflow as a reusable, blocking test gate. Keeping
+  # tag execution in release.yml avoids running the same suite twice.
+  workflow_call:
   push:
     branches:
       - "v*"
       - "release/v*"
-    tags:
-      - "v*"
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -28,15 +28,21 @@ jobs:
   version-gate:
     # 免 checkout 的 10 秒门卫：不带版本号的 PR 在这里即被跳过，不进编译队列。
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       run: ${{ steps.decide.outputs.run }}
     steps:
       - id: decide
         env:
+          EVENT_NAME: ${{ github.event_name }}
           TITLE: ${{ github.event.pull_request.title }}
           HEAD_REF: ${{ github.head_ref }}
         run: |
-          if printf '%s' "$TITLE$HEAD_REF" | grep -Eqi 'v[0-9]+(\.[0-9]+)*'; then
+          # Version branches are filtered above; release tags arrive through
+          # workflow_call. Only pull requests need the title/source-branch check.
+          if [[ "$EVENT_NAME" == "push" || "$EVENT_NAME" == "workflow_call" ]]; then
+            echo "run=true" >>"$GITHUB_OUTPUT"
+          elif printf '%s' "$TITLE$HEAD_REF" | grep -Eqi 'v[0-9]+(\.[0-9]+)*'; then
             echo "run=true" >>"$GITHUB_OUTPUT"
           else
             echo "run=false" >>"$GITHUB_OUTPUT"
@@ -47,10 +53,11 @@ jobs:
     if: needs.version-gate.outputs.run == 'true'
     name: nextest (network-isolated, 4 threads)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       # 每次运行都解析为最新 stable 工具链（rust-toolchain.toml channel=stable 同轨）。
       - name: Setup Rust toolchain
@@ -82,6 +89,10 @@ jobs:
       # 与规则明细见 scripts/quality/bevy_bsn_guard.py 与 docs/BEVY_UI_FRONTEND.md。
       - name: Enforce bevy UI bsn!-only scene authoring
         run: python3 scripts/quality/bevy_bsn_guard.py --mode enforce
+
+      # 打包模版与发布清单生成器前置守卫：秒级验证全平台打包模版、脚本与清单生成器
+      - name: Verify packaging templates and manifest generator
+        run: python3 scripts/quality/verify-packaging.py
 
       # 编译工作空间所需的系统依赖（--no-install-recommends 精简安装）：
       # - iced/wayland: libxkbcommon-dev libwayland-dev

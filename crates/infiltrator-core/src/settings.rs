@@ -3,7 +3,7 @@ use mihomo_platform::traits::{CredentialStore, DefaultCredentialStore};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default)]
 pub struct WebDavConfig {
     pub enabled: bool,
@@ -32,7 +32,7 @@ impl Default for WebDavConfig {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default)]
 pub struct RuntimePanelConfig {
     pub auto_refresh: bool,
@@ -76,7 +76,7 @@ impl Default for AdminServerConfig {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(default)]
 pub struct AppSettings {
     pub editor_path: Option<String>,
@@ -88,6 +88,8 @@ pub struct AppSettings {
     /// 缺省开启；旧 settings.toml 无此键时按 true 反序列化（向后兼容约定）。
     #[serde(default = "default_notifications_enabled")]
     pub notifications_enabled: bool,
+    #[serde(default = "default_close_to_tray")]
+    pub close_to_tray: bool,
     pub webdav: WebDavConfig,
     pub runtime_panel: RuntimePanelConfig,
     pub admin: AdminServerConfig,
@@ -97,9 +99,21 @@ pub struct AppSettings {
     /// 见 `mihomo_config::manager::paths::resolve_configs_dir`。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub configs_dir: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_proxy_bypass: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window_size: Option<(f32, f32)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window_position: Option<(i32, i32)>,
+    #[serde(default)]
+    pub window_maximized: bool,
 }
 
 fn default_notifications_enabled() -> bool {
+    true
+}
+
+fn default_close_to_tray() -> bool {
     true
 }
 
@@ -112,10 +126,15 @@ impl Default for AppSettings {
             language: "zh-CN".to_string(),
             theme: "system".to_string(),
             notifications_enabled: default_notifications_enabled(),
+            close_to_tray: default_close_to_tray(),
             webdav: WebDavConfig::default(),
             runtime_panel: RuntimePanelConfig::default(),
             admin: AdminServerConfig::default(),
             configs_dir: None,
+            system_proxy_bypass: None,
+            window_size: None,
+            window_position: None,
+            window_maximized: false,
         }
     }
 }
@@ -130,7 +149,10 @@ pub const WEBDAV_PASSWORD_KEY: &str = "webdav:password";
 /// 读取 keyring 中的 WebDAV 密码。空条目与读取失败都归一为 `None`
 /// （失败仅 `log::warn`，不让调用方崩溃）。
 pub async fn load_webdav_password<S: CredentialStore>(store: &S) -> Option<String> {
-    match store.get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY).await {
+    match store
+        .get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY)
+        .await
+    {
         Ok(Some(value)) if !value.is_empty() => Some(value),
         Ok(_) => None,
         Err(err) => {
@@ -155,7 +177,10 @@ pub async fn save_webdav_password<S: CredentialStore>(
 /// 清除 keyring 中的 WebDAV 密码。条目不存在或删除失败只告警（幂等清空：
 /// 「清除」语义下二次清除与目标本就为空都算成功）。
 pub async fn clear_webdav_password<S: CredentialStore>(store: &S) {
-    if let Err(err) = store.delete(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY).await {
+    if let Err(err) = store
+        .delete(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY)
+        .await
+    {
         log::warn!("webdav password keyring clear failed (ignored): {err}");
     }
 }
@@ -583,15 +608,16 @@ mod tests {
 
     #[async_trait::async_trait]
     impl CredentialStore for MemoryStore {
-        async fn get(
-            &self,
-            service: &str,
-            key: &str,
-        ) -> mihomo_api::error::Result<Option<String>> {
+        async fn get(&self, service: &str, key: &str) -> mihomo_api::error::Result<Option<String>> {
             Ok(self.get(service, key))
         }
 
-        async fn set(&self, service: &str, key: &str, value: &str) -> mihomo_api::error::Result<()> {
+        async fn set(
+            &self,
+            service: &str,
+            key: &str,
+            value: &str,
+        ) -> mihomo_api::error::Result<()> {
             if self.fail_set {
                 return Err(mihomo_api::error::MihomoError::Config(
                     "injected keyring failure".to_string(),
@@ -645,24 +671,38 @@ mod tests {
         std::fs::write(&settings_file, legacy_toml_with_password()).unwrap();
 
         let store = MemoryStore::working();
-        let loaded = load_settings_with_store(&settings_file, &store).await.unwrap();
+        let loaded = load_settings_with_store(&settings_file, &store)
+            .await
+            .unwrap();
 
         assert_eq!(
-            store.get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY).as_deref(),
+            store
+                .get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY)
+                .as_deref(),
             Some("s3cret"),
             "password must land in the credential store"
         );
         assert_eq!(loaded.webdav.password, "", "memory mirror must be blanked");
 
         let raw = std::fs::read_to_string(&settings_file).unwrap();
-        assert!(!raw.contains("password"), "file must be rewritten clean: {raw}");
-        assert!(raw.contains("enabled = true"), "other fields survive: {raw}");
+        assert!(
+            !raw.contains("password"),
+            "file must be rewritten clean: {raw}"
+        );
+        assert!(
+            raw.contains("enabled = true"),
+            "other fields survive: {raw}"
+        );
 
         // 第二次加载：文件已无明文，keyring 值仍在（不重复迁移）。
-        let second = load_settings_with_store(&settings_file, &store).await.unwrap();
+        let second = load_settings_with_store(&settings_file, &store)
+            .await
+            .unwrap();
         assert_eq!(second.webdav.password, "");
         assert_eq!(
-            store.get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY).as_deref(),
+            store
+                .get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY)
+                .as_deref(),
             Some("s3cret")
         );
     }
@@ -676,7 +716,9 @@ mod tests {
         std::fs::write(&settings_file, legacy_toml_with_password()).unwrap();
 
         let store = MemoryStore::failing_set();
-        let loaded = load_settings_with_store(&settings_file, &store).await.unwrap();
+        let loaded = load_settings_with_store(&settings_file, &store)
+            .await
+            .unwrap();
 
         assert_eq!(
             loaded.webdav.password, "s3cret",
@@ -709,7 +751,9 @@ mod tests {
             .await
             .unwrap();
 
-        let plain = load_settings_with_store(&settings_file, &store).await.unwrap();
+        let plain = load_settings_with_store(&settings_file, &store)
+            .await
+            .unwrap();
         assert_eq!(plain.webdav.password, "");
 
         let hydrated = load_settings_hydrated_with_store(&settings_file, &store)
@@ -727,13 +771,19 @@ mod tests {
     async fn test_clear_webdav_password_is_idempotent() {
         let store = MemoryStore::working();
         clear_webdav_password(&store).await;
-        assert_eq!(store.get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY), None);
+        assert_eq!(
+            store.get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY),
+            None
+        );
 
         store
             .set(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY, "pw")
             .await
             .unwrap();
         clear_webdav_password(&store).await;
-        assert_eq!(store.get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY), None);
+        assert_eq!(
+            store.get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY),
+            None
+        );
     }
 }

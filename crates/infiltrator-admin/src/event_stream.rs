@@ -63,7 +63,10 @@ mod tests {
 
     #[test]
     fn test_format_sse_traffic_update() {
-        let event = StreamEventType::TrafficUpdate { up_bps: 100, down_bps: 200 };
+        let event = StreamEventType::TrafficUpdate {
+            up_bps: 100,
+            down_bps: 200,
+        };
         let sse = AdminEventBroadcaster::format_sse(&event);
         assert!(sse.starts_with("data: {"));
         assert!(sse.ends_with("}\n\n"));
@@ -109,7 +112,13 @@ mod tests {
         }
 
         // We should then get the remaining two events in order
-        assert_eq!(rx.recv().await.unwrap(), StreamEventType::ConnectionCount(2));
-        assert_eq!(rx.recv().await.unwrap(), StreamEventType::ConnectionCount(3));
+        assert_eq!(
+            rx.recv().await.unwrap(),
+            StreamEventType::ConnectionCount(2)
+        );
+        assert_eq!(
+            rx.recv().await.unwrap(),
+            StreamEventType::ConnectionCount(3)
+        );
     }
 }

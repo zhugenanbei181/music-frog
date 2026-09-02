@@ -5,51 +5,13 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::{SyncDiffKeyKind, SyncDiffState};
-use crate::view::components::{BadgeKind, card, badge, segmented_control};
-use crate::view::theme::{self, MONO, R_CONTROL, tokens};
-use iced::widget::{button, column, row, scrollable, text, Space};
-use iced::{Alignment, Border, Element, Length, Theme, border};
+use crate::view::components::{
+    BadgeKind, badge, card, segmented_control, style_accent, style_ghost,
+};
+use crate::view::theme::{self, MONO, tokens};
+use iced::widget::{Space, button, column, row, scrollable, text};
+use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
-
-fn style_accent(t: &Theme, status: button::Status) -> button::Style {
-    let tk = tokens(t);
-    button::Style {
-        background: Some(Into::into(match status {
-            button::Status::Disabled => tk.accent_soft,
-            _ => tk.accent,
-        })),
-        border: Border {
-            radius: border::Radius::from(R_CONTROL),
-            ..Default::default()
-        },
-        text_color: match status {
-            button::Status::Disabled => tk.accent,
-            _ => tk.on_accent,
-        },
-        ..Default::default()
-    }
-}
-
-fn style_ghost(t: &Theme, status: button::Status) -> button::Style {
-    let tk = tokens(t);
-    button::Style {
-        background: match status {
-            button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
-            _ => None,
-        },
-        border: Border {
-            radius: border::Radius::from(R_CONTROL),
-            width: 1.0,
-            color: tk.card_border,
-        },
-        text_color: match status {
-            button::Status::Disabled => tk.text_tertiary,
-            button::Status::Hovered | button::Status::Pressed => tk.text_primary,
-            _ => tk.text_secondary,
-        },
-        ..Default::default()
-    }
-}
 
 fn kind_badge(lang: &Lang<'_>, kind: SyncDiffKeyKind) -> Element<'static, Message> {
     let badge_kind = match kind {
@@ -62,11 +24,9 @@ fn kind_badge(lang: &Lang<'_>, kind: SyncDiffKeyKind) -> Element<'static, Messag
 
 fn mono_value<'a>(label: String, value: &'a str) -> Element<'a, Message> {
     column![
-        text(label)
-            .size(10)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_tertiary),
-            }),
+        text(label).size(10).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_tertiary),
+        }),
         text(value.to_string())
             .size(10)
             .font(MONO)
@@ -94,17 +54,22 @@ fn key_row<'a>(
         Message::PickSyncDiffKey(key_for_closure.clone(), index == 1)
     });
 
-    let mut body = column![row![
-        text(key.clone()).size(12).font(MONO),
-        Space::new().width(theme::SP_SM),
-        kind_badge(lang, kind),
+    let mut body = column![
+        row![
+            text(key.clone()).size(12).font(MONO),
+            Space::new().width(theme::SP_SM),
+            kind_badge(lang, kind),
+        ]
+        .align_y(Alignment::Center)
     ]
-    .align_y(Alignment::Center)]
     .spacing(theme::SP_XS);
 
     if kind == SyncDiffKeyKind::Modified
-        && let Some((_, local, remote)) =
-            diff.bundle.modified.iter().find(|(name, _, _)| name == &key)
+        && let Some((_, local, remote)) = diff
+            .bundle
+            .modified
+            .iter()
+            .find(|(name, _, _)| name == &key)
     {
         body = body.push(row![
             mono_value(lang.tr("sync_diff_local").to_string(), local),

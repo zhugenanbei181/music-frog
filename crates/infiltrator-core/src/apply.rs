@@ -1,4 +1,4 @@
-//! Config apply transaction (CORE-004).
+//! Config apply transaction (CORE-004) with SourceDoc YAML fidelity track.
 //!
 //! [`apply_current_profile`] replaces the content of the *current* profile
 //! and makes the running core pick it up as one all-or-nothing step:
@@ -9,9 +9,12 @@
 //! state (the bug this transaction exists to fix: switching profiles used to
 //! leave the old config running).
 //!
-//! The transaction operates on the current profile because that is the file
-//! mihomo runs with; switching the active profile (`set_current`) is cheap
-//! metadata and stays with the caller.
+//! [`apply_profile_edit`], [`apply_profile_set_scalar`], [`apply_profile_append_rule`],
+//! [`apply_profile_remove_rule`], [`apply_profile_rewrite_anchors`], and
+//! [`apply_profile_mixin_fidelity`] integrate the [`crate::yaml_edit::SourceDoc`]
+//! fidelity track directly into this transaction so that hand-annotated comments,
+//! anchors (`&anchor`), alias references (`*alias`), and custom formatting are 100%
+//! preserved during configuration edits and profile switches.
 
 use std::path::Path;
 use std::time::Duration;
@@ -24,6 +27,7 @@ use tokio::io::AsyncWriteExt;
 use yaml_rust2::{Yaml, YamlLoader};
 
 use crate::session::{CoreSession, CoreStatus, READINESS_TIMEOUT, SessionError};
+use crate::yaml_edit::SourceDoc;
 
 /// How the running core should pick up the new configuration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -306,9 +310,6 @@ pub async fn apply_current_profile<S: CredentialStore>(
 
     let cause = match outcome {
         Ok(outcome) => {
-            // Success: record the newly live content in the snapshot history
-            // ([缺口13]). A history failure must not fail the apply itself —
-            // the config IS live — so it only logs.
             if params.snapshot_history
                 && let Some(config_dir) = path.parent()
             {
@@ -363,368 +364,166 @@ pub async fn apply_current_profile<S: CredentialStore>(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::session::{ControllerEndpoint, EndpointSource, ReadinessProbe};
+// ---- SourceDoc Fidelity Track Integration ----------------------------------
 
-    use std::collections::HashMap;
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-    use std::sync::{Arc, Mutex};
-
-    const OLD: &str = "port: 7890\n";
-    const NEW: &str = "port: 7891\n";
-
-    struct MockController {
-        running: AtomicBool,
-        fail_starts_left: AtomicU64,
-    }
-
-    #[async_trait]
-    impl mihomo_platform::traits::CoreController for MockController {
-        async fn start(&self) -> mihomo_api::error::Result<()> {
-            // load-then-fetch_sub: fetch_sub alone wraps at zero and would
-            // turn "fail N times" into "fail forever".
-            if self.fail_starts_left.load(Ordering::SeqCst) > 0 {
-                self.fail_starts_left.fetch_sub(1, Ordering::SeqCst);
-                return Err(mihomo_api::error::MihomoError::Service(
-                    "start rejected".into(),
-                ));
-            }
-            self.running.store(true, Ordering::SeqCst);
-            Ok(())
-        }
-
-        async fn stop(&self) -> mihomo_api::error::Result<()> {
-            self.running.store(false, Ordering::SeqCst);
-            Ok(())
-        }
-
-        async fn is_running(&self) -> bool {
-            self.running.load(Ordering::SeqCst)
-        }
-
-        fn controller_url(&self) -> Option<String> {
-            None
-        }
-    }
-
-    struct MockProbe {
-        failures_left: AtomicU64,
-    }
-
-    #[async_trait]
-    impl ReadinessProbe for MockProbe {
-        async fn probe(&self) -> Result<(), SessionError> {
-            if self.failures_left.load(Ordering::SeqCst) > 0 {
-                self.failures_left.fetch_sub(1, Ordering::SeqCst);
-                return Err(SessionError::Probe("not listening yet".into()));
-            }
-            Ok(())
-        }
-    }
-
-    struct StaticEndpoints;
-
-    #[async_trait]
-    impl EndpointSource for StaticEndpoints {
-        async fn resolve(&self) -> Result<ControllerEndpoint, SessionError> {
-            Ok(ControllerEndpoint {
-                url: "http://127.0.0.1:9090".into(),
-                secret: None,
-            })
-        }
-    }
-
-    struct MockReloader {
-        fail: bool,
-        calls: AtomicU64,
-    }
-
-    #[async_trait]
-    impl ConfigReloader for MockReloader {
-        async fn reload(&self, _path: &Path) -> Result<(), String> {
-            self.calls.fetch_add(1, Ordering::SeqCst);
-            if self.fail {
-                Err("reload rejected".into())
-            } else {
-                Ok(())
-            }
-        }
-    }
-
-    struct MockStore {
-        entries: Mutex<HashMap<String, String>>,
-    }
-
-    #[async_trait]
-    impl CredentialStore for MockStore {
-        async fn get(&self, service: &str, key: &str) -> mihomo_api::error::Result<Option<String>> {
-            Ok(self
-                .entries
-                .lock()
-                .expect("store lock")
-                .get(&format!("{service}/{key}"))
-                .cloned())
-        }
-
-        async fn set(
-            &self,
-            service: &str,
-            key: &str,
-            value: &str,
-        ) -> mihomo_api::error::Result<()> {
-            self.entries
-                .lock()
-                .expect("store lock")
-                .insert(format!("{service}/{key}"), value.to_string());
-            Ok(())
-        }
-
-        async fn delete(&self, service: &str, key: &str) -> mihomo_api::error::Result<()> {
-            self.entries
-                .lock()
-                .expect("store lock")
-                .remove(&format!("{service}/{key}"));
-            Ok(())
-        }
-    }
-
-    struct Fixture {
-        _dir: tempfile::TempDir,
-        session: CoreSession,
-        config: ConfigManager<MockStore>,
-        controller: Arc<MockController>,
-        reloader: MockReloader,
-    }
-
-    async fn fixture(probe_failures: u64, reload_fails: bool) -> Fixture {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let config = ConfigManager::with_home_and_store(
-            dir.path().to_path_buf(),
-            MockStore {
-                entries: Mutex::new(HashMap::new()),
-            },
-        )
-        .expect("config manager");
-        config
-            .ensure_default_config()
-            .await
-            .expect("default config");
-        config.save("main", OLD).await.expect("seed profile");
-        config.set_current("main").await.expect("set current");
-
-        let controller = Arc::new(MockController {
-            running: AtomicBool::new(false),
-            fail_starts_left: AtomicU64::new(0),
-        });
-        let session = CoreSession::new(
-            controller.clone(),
-            Arc::new(StaticEndpoints),
-            Arc::new(MockProbe {
-                failures_left: AtomicU64::new(probe_failures),
-            }),
-        );
-        Fixture {
-            _dir: dir,
-            session,
-            config,
-            controller,
-            reloader: MockReloader {
-                fail: reload_fails,
-                calls: AtomicU64::new(0),
-            },
-        }
-    }
-
-    fn params(strategy: ApplyStrategy) -> ApplyParams {
-        ApplyParams {
-            strategy,
-            health_timeout: Duration::from_secs(5),
-            restart_timeout: Duration::from_secs(5),
-            snapshot_history: false,
-        }
-    }
-
-    async fn file_content(config: &ConfigManager<MockStore>) -> String {
-        let current = config.get_current().await.expect("current");
-        config.load(&current).await.expect("profile content")
-    }
-
-    #[tokio::test]
-    async fn hot_reload_success_keeps_generation_and_updates_file() {
-        let f = fixture(0, false).await;
-        let generation = f.session.start().await.expect("start");
-        f.session
-            .wait_for_ready(generation, Duration::from_secs(5))
-            .await
-            .expect("ready");
-
-        let outcome = apply_current_profile(
-            &f.session,
-            &f.config,
-            &f.reloader,
-            NEW,
-            params(ApplyStrategy::PreferReload),
-        )
-        .await
-        .expect("apply");
-
-        assert_eq!(outcome.method, ApplyMethod::HotReload);
-        assert_eq!(outcome.generation, generation);
-        assert_eq!(file_content(&f.config).await, NEW);
-        assert_eq!(f.session.status(), CoreStatus::Ready);
-        assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
-    async fn reload_failure_falls_back_to_restart() {
-        let f = fixture(0, true).await;
-        let generation = f.session.start().await.expect("start");
-        f.session
-            .wait_for_ready(generation, Duration::from_secs(5))
-            .await
-            .expect("ready");
-        let before = f.session.generation();
-
-        let outcome = apply_current_profile(
-            &f.session,
-            &f.config,
-            &f.reloader,
-            NEW,
-            params(ApplyStrategy::PreferReload),
-        )
-        .await
-        .expect("apply via restart");
-
-        assert_eq!(outcome.method, ApplyMethod::Restart);
-        assert!(outcome.generation > before);
-        assert_eq!(file_content(&f.config).await, NEW);
-        assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
-    async fn restart_failure_rolls_back_and_recovers() {
-        let f = fixture(0, true).await;
-        let generation = f.session.start().await.expect("start");
-        f.session
-            .wait_for_ready(generation, Duration::from_secs(5))
-            .await
-            .expect("ready");
-        f.controller.fail_starts_left.store(1, Ordering::SeqCst);
-
-        let err = apply_current_profile(
-            &f.session,
-            &f.config,
-            &f.reloader,
-            NEW,
-            params(ApplyStrategy::AlwaysRestart),
-        )
-        .await
-        .expect_err("restart was sabotaged");
-
-        assert!(matches!(err, ApplyError::RolledBack { .. }));
-        assert_eq!(file_content(&f.config).await, OLD);
-        assert_eq!(f.session.status(), CoreStatus::Ready);
-    }
-
-    #[tokio::test]
-    async fn stopped_core_starts_with_new_config_without_reload() {
-        let f = fixture(0, false).await;
-
-        let outcome = apply_current_profile(
-            &f.session,
-            &f.config,
-            &f.reloader,
-            NEW,
-            params(ApplyStrategy::PreferReload),
-        )
-        .await
-        .expect("apply");
-
-        assert_eq!(outcome.method, ApplyMethod::Restart);
-        assert_eq!(file_content(&f.config).await, NEW);
-        assert_eq!(f.session.status(), CoreStatus::Ready);
-        assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 0);
-    }
-
-    #[tokio::test]
-    async fn successful_apply_stores_snapshot_history() {
-        let f = fixture(0, false).await;
-        let generation = f.session.start().await.expect("start");
-        f.session
-            .wait_for_ready(generation, Duration::from_secs(5))
-            .await
-            .expect("ready");
-        let mut p = params(ApplyStrategy::PreferReload);
-        p.snapshot_history = true;
-
-        apply_current_profile(&f.session, &f.config, &f.reloader, NEW, p)
-            .await
-            .expect("apply");
-
-        // profile files live under <home>/configs, so the snapshot dir is
-        // <home>/configs/snapshots/<profile>.
-        let config_dir = f._dir.path().join("configs");
-        let snapshots = crate::history::list_snapshots(&config_dir, "main")
-            .await
-            .expect("list");
-        assert_eq!(snapshots.len(), 1);
-        assert_eq!(
-            crate::history::read_snapshot(&snapshots[0].path)
-                .await
-                .unwrap(),
-            NEW
-        );
-        assert_eq!(
-            crate::history::read_snapshot(&snapshots[0].path)
-                .await
-                .unwrap(),
-            NEW
-        );
-    }
-
-    #[tokio::test]
-    async fn invalid_content_aborts_before_any_write() {
-        let f = fixture(0, false).await;
-
-        // Top-level sequence: parses fine but is not a mapping.
-        let err = apply_current_profile(
-            &f.session,
-            &f.config,
-            &f.reloader,
-            "- a\n- b\n",
-            params(ApplyStrategy::PreferReload),
-        )
-        .await
-        .expect_err("validation must fail");
-
-        assert!(matches!(err, ApplyError::Validation(_)));
-        assert_eq!(file_content(&f.config).await, OLD);
-        assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 0);
-    }
-
-    #[tokio::test]
-    async fn busy_transition_rejects_apply() {
-        let f = fixture(0, false).await;
-        f.session.start().await.expect("start");
-
-        let err = apply_current_profile(
-            &f.session,
-            &f.config,
-            &f.reloader,
-            NEW,
-            params(ApplyStrategy::PreferReload),
-        )
-        .await
-        .expect_err("Starting must reject apply");
-
-        assert_eq!(
-            err,
-            ApplyError::Busy {
-                status: CoreStatus::Starting
-            }
-        );
-        assert_eq!(file_content(&f.config).await, OLD);
-    }
+/// Apply a [`SourceDoc`] as the current profile through the full CORE-004 transaction.
+pub async fn apply_current_profile_doc<S: CredentialStore>(
+    session: &CoreSession,
+    config: &ConfigManager<S>,
+    reloader: &dyn ConfigReloader,
+    doc: &SourceDoc,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    let content = doc.render();
+    apply_current_profile(session, config, reloader, &content, params).await
 }
+
+/// Apply a text-level [`SourceDoc`] edit closure to the current profile.
+///
+/// Loads the current profile text from `config`, parses it into a [`SourceDoc`],
+/// invokes `edit_fn(&mut doc)`, renders the spliced document, and applies it
+/// through the CORE-004 transaction. Untouched comments, anchors, formatting,
+/// and line endings remain 100% preserved.
+pub async fn apply_profile_edit<S: CredentialStore, F>(
+    session: &CoreSession,
+    config: &ConfigManager<S>,
+    reloader: &dyn ConfigReloader,
+    edit_fn: F,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome>
+where
+    F: FnOnce(&mut SourceDoc) -> Result<(), crate::yaml_edit::YamlEditError>,
+{
+    let current = config
+        .get_current()
+        .await
+        .map_err(|err| ApplyError::Write(err.to_string()))?;
+    let content = match config.load(&current).await {
+        Ok(c) => c,
+        Err(err) => return Err(ApplyError::Write(err.to_string())),
+    };
+    let mut doc = SourceDoc::parse(&content).map_err(|err| {
+        ApplyError::Validation(format!("failed to parse profile for editing: {err}"))
+    })?;
+    edit_fn(&mut doc)
+        .map_err(|err| ApplyError::Validation(format!("YAML edit failed: {err}")))?;
+    let new_content = doc.render();
+    apply_current_profile(session, config, reloader, &new_content, params).await
+}
+
+/// Update a top-level scalar configuration key (`mode`, `log-level`, `mixed-port`, etc.)
+/// in the current profile while preserving 100% of existing comments, anchors, and formatting.
+pub async fn apply_profile_set_scalar<S: CredentialStore>(
+    session: &CoreSession,
+    config: &ConfigManager<S>,
+    reloader: &dyn ConfigReloader,
+    key: &str,
+    value: &str,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    apply_profile_edit(
+        session,
+        config,
+        reloader,
+        |doc| doc.set_top_scalar(key, value),
+        params,
+    )
+    .await
+}
+
+/// Append a rule to the `rules` section of the current profile while preserving
+/// 100% of existing comments, anchors, and formatting.
+pub async fn apply_profile_append_rule<S: CredentialStore>(
+    session: &CoreSession,
+    config: &ConfigManager<S>,
+    reloader: &dyn ConfigReloader,
+    rule: &str,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    apply_profile_edit(
+        session,
+        config,
+        reloader,
+        |doc| doc.append_rule(rule),
+        params,
+    )
+    .await
+}
+
+/// Remove a rule from the `rules` section of the current profile while preserving
+/// 100% of existing comments, anchors, and formatting.
+pub async fn apply_profile_remove_rule<S: CredentialStore>(
+    session: &CoreSession,
+    config: &ConfigManager<S>,
+    reloader: &dyn ConfigReloader,
+    rule: &str,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    apply_profile_edit(
+        session,
+        config,
+        reloader,
+        |doc| doc.remove_rule(rule),
+        params,
+    )
+    .await
+}
+
+/// Rewrite anchor namespaces in the current profile while preserving 100% of
+/// existing comments and formatting.
+pub async fn apply_profile_rewrite_anchors<S: CredentialStore>(
+    session: &CoreSession,
+    config: &ConfigManager<S>,
+    reloader: &dyn ConfigReloader,
+    prefix: &str,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    apply_profile_edit(
+        session,
+        config,
+        reloader,
+        |doc| {
+            doc.rewrite_anchor_namespace(prefix)?;
+            Ok(())
+        },
+        params,
+    )
+    .await
+}
+
+/// Try applying a [`crate::mixin::MixinConfig`] to the current profile using
+/// the [`SourceDoc`] fidelity path (preserving 100% of comments and anchors).
+/// If the mixin contains complex structural edits that require AST merge,
+/// falls back to full merge.
+pub async fn apply_profile_mixin_fidelity<S: CredentialStore>(
+    session: &CoreSession,
+    config: &ConfigManager<S>,
+    reloader: &dyn ConfigReloader,
+    mixin: &crate::mixin::MixinConfig,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    let current = config
+        .get_current()
+        .await
+        .map_err(|err| ApplyError::Write(err.to_string()))?;
+    let content = match config.load(&current).await {
+        Ok(c) => c,
+        Err(err) => return Err(ApplyError::Write(err.to_string())),
+    };
+
+    if crate::yaml_edit::mixin_fidelity::can_apply_mixin_via_fidelity(mixin)
+        && let Ok(mut doc) = SourceDoc::parse(&content)
+        && crate::yaml_edit::mixin_fidelity::apply_mixin_to_doc(&mut doc, mixin).is_ok()
+    {
+        let new_content = doc.render();
+        return apply_current_profile(session, config, reloader, &new_content, params).await;
+    }
+
+    let new_content = crate::mixin::merge_profile_with_config(&content, mixin)
+        .map_err(|err| ApplyError::Validation(format!("mixin merge failed: {err}")))?;
+    apply_current_profile(session, config, reloader, &new_content, params).await
+}
+
+#[cfg(test)]
+#[path = "apply_test.rs"]
+mod apply_test;

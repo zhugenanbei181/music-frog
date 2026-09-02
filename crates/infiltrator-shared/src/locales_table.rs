@@ -66,6 +66,23 @@ pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "proxies_search_placeholder" => "搜索代理组或节点…".into(),
         "proxies_delay_test_url_label" => "测试地址".into(),
         "proxies_delay_timeout_label" => "超时ms".into(),
+        "proxies_filter_alive" => "只看可用".into(),
+        "proxies_compact_view" => "紧凑视图".into(),
+        "proxies_grid_view" => "网格视图".into(),
+        "proxies_inspect_title" => "节点详细信息".into(),
+        "proxies_inspect_server" => "服务器地址".into(),
+        "proxies_inspect_port" => "端口".into(),
+        "proxies_inspect_type" => "协议类型".into(),
+        "proxies_inspect_udp" => "UDP 支持".into(),
+        "proxies_inspect_latency" => "最新延迟".into(),
+        "proxies_favorite" => "收藏置顶".into(),
+        "proxies_add_node_title" => "新建单个代理节点 (Add Node)".into(),
+        "proxies_add_node_btn" => "添加节点".into(),
+        "proxies_node_name_ph" => "节点名称 (如 香港 IEPL-01)".into(),
+        "proxies_server_ph" => "服务器地址 / 域名".into(),
+        "proxies_port_ph" => "端口 (如 443)".into(),
+        "proxies_cred_ph" => "密码 / UUID".into(),
+        "proxies_cipher_ph" => "加密方式 (如 aes-256-gcm / chacha20)".into(),
         // Editor page panes (YAML / Mixin / Filter) and history panel.
         "editor_pane_yaml" => "配置 YAML".into(),
         "editor_pane_mixin" => "覆写 Mixin".into(),
@@ -87,6 +104,10 @@ pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "rules_expand" => "展开".into(),
         "rules_collapse" => "折叠".into(),
         "rules_saved" => "已保存".into(),
+        "rules_inject_game_presets" => "一键注入游戏分流预设".into(),
+        "rules_geo_databases_title" => "GeoIP & GeoSite 规则数据库".into(),
+        "rules_update_geo_btn" => "更新 Geo 数据库".into(),
+        "rules_updating_geo" => "更新中...".into(),
         // Sync page status line.
         "sync_auto_enabled" => "WebDAV 自动同步已开启".into(),
         "sync_manual_only" => "仅手动同步".into(),
@@ -210,6 +231,8 @@ pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "waiting_traffic" => "等待流量数据...".into(),
         "settings_title" => "设置 & 内核".into(),
         "settings_system_integration" => "系统集成".into(),
+        "settings_proxy_bypass" => "系统代理绕过网段 (Proxy Bypass)".into(),
+        "settings_close_to_tray" => "关闭窗口最小化到托盘 (Close to Tray)".into(),
         "settings_sniffer" => "流量嗅探 (Sniffer)".into(),
         "settings_sniffer_desc" => "嗅探流量以还原域名，提升路由精确度。".into(),
         "settings_kernel_mgmt" => "内核管理".into(),
@@ -235,6 +258,7 @@ pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "settings_admin_enable" => "启用 Web 管理服务".into(),
         "settings_admin_port" => "端口".into(),
         "settings_admin_apply" => "应用端口".into(),
+        "settings_admin_open" => "在浏览器中打开".into(),
         "settings_admin_running" => "运行中".into(),
         "settings_admin_stopped" => "未运行".into(),
         "settings_admin_invalid_port" => "端口必须是 1-65535 之间的数字".into(),
@@ -485,5 +509,21 @@ mod tests {
     fn test_lang_alias_en() {
         let lang = Lang("en");
         assert_eq!(lang.tr("settings"), "Settings");
+    }
+
+    #[test]
+    fn test_locales_table_key_parity() {
+        let keys = [
+            "app_title", "nav_overview", "nav_profiles", "nav_proxies", "nav_runtime",
+            "nav_rules", "nav_dns", "nav_sync", "nav_settings", "sync_title",
+            "settings_admin_open", "settings_uac_unsupported", "toast_script_mode_unavailable",
+            "tray_factory_reset", "notify_rebuild_failed", "traffic_expires", "rules_title",
+        ];
+        let zh = Lang("zh-CN");
+        let en = Lang("en-US");
+        for key in keys {
+            assert_ne!(zh.tr(key), key, "zh key {key} must have translation");
+            assert_ne!(en.tr(key), key, "en key {key} must have translation");
+        }
     }
 }

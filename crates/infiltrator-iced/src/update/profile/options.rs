@@ -15,8 +15,8 @@ use iced::widget::text_editor;
 use infiltrator_core::apply::ApplyStrategy;
 use infiltrator_core::error::InfiltratorError;
 use infiltrator_core::filter::SubscriptionFilterPipeline;
-use infiltrator_core::profile_options::FilterSpec;
 use infiltrator_core::mixin::MixinConfig;
+use infiltrator_core::profile_options::FilterSpec;
 use infiltrator_core::profile_options::{self, ProfileOptions};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -33,6 +33,17 @@ impl AppState {
             }
             Message::MixinEditorAction(action) => {
                 self.editor.mixin_content.perform(action);
+                let text = self.editor.mixin_content.text();
+                match infiltrator_core::config::preflight_yaml_syntax(&text) {
+                    Ok(()) => {
+                        self.editor.syntax_error = None;
+                        self.editor.syntax_error_line = None;
+                    }
+                    Err(diag) => {
+                        self.editor.syntax_error = Some(diag.message);
+                        self.editor.syntax_error_line = Some(diag.line);
+                    }
+                }
                 Task::none()
             }
             Message::MixinLoaded(result) => {

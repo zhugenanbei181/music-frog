@@ -62,7 +62,9 @@ async fn scan_mrs_providers(
     if let Ok(current) = manager.get_current().await
         && let Ok(content) = manager.load(&current).await
         && let Ok(doc) = serde_yaml_ng::from_str::<Value>(&content)
-        && let Some(providers) = doc.get("rule-providers").and_then(|value| value.as_mapping())
+        && let Some(providers) = doc
+            .get("rule-providers")
+            .and_then(|value| value.as_mapping())
     {
         for (key, value) in providers {
             let Some(name) = key.as_str().map(str::to_string) else {
@@ -95,8 +97,18 @@ async fn scan_mrs_providers(
             candidates.push(path.clone());
         }
         // mihomo's default cache location for rule providers.
-        candidates.push(config_dir.join("providers").join("rules").join(format!("{name}.mrs")));
-        candidates.push(config_dir.join("providers").join("rules").join(format!("{name}.yaml")));
+        candidates.push(
+            config_dir
+                .join("providers")
+                .join("rules")
+                .join(format!("{name}.mrs")),
+        );
+        candidates.push(
+            config_dir
+                .join("providers")
+                .join("rules")
+                .join(format!("{name}.yaml")),
+        );
 
         let mut detail = MrsProviderDetail {
             behavior: live_behaviors.get(&name).cloned().unwrap_or_default(),
@@ -113,9 +125,7 @@ async fn scan_mrs_providers(
                     match infiltrator_core::mrs::parse_mrs_header(&bytes) {
                         Ok(meta) => detail.metadata = Some(meta),
                         Err(error) => {
-                            detail
-                                .errors
-                                .push(format!("{}: {error}", path.display()));
+                            detail.errors.push(format!("{}: {error}", path.display()));
                         }
                     }
                     found = true;
@@ -134,9 +144,7 @@ async fn scan_mrs_providers(
             }
         }
         if !found && detail.errors.is_empty() {
-            detail
-                .errors
-                .push(lang.tr("mrs_cache_missing").to_string());
+            detail.errors.push(lang.tr("mrs_cache_missing").to_string());
         }
         details.push(detail);
     }

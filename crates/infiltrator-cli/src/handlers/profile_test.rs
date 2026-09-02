@@ -1,11 +1,15 @@
 use mihomo_config::profile::Profile;
 use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
 
-use crate::test_support::EnvGuard;
 use super::{apply_configs_dir_override, profile_json, profile_row};
+use crate::test_support::EnvGuard;
 
 fn sample_profile(name: &str, active: bool) -> Profile {
-    Profile::new(name.to_string(), format!("/x/configs/{name}.yaml").into(), active)
+    Profile::new(
+        name.to_string(),
+        format!("/x/configs/{name}.yaml").into(),
+        active,
+    )
 }
 
 #[test]
@@ -25,10 +29,7 @@ fn profile_json_carries_name_active_and_path() {
     let value = profile_json(&sample_profile("default", true));
     assert_eq!(value["name"], "default");
     assert_eq!(value["active"], true);
-    assert!(value["path"]
-        .as_str()
-        .unwrap()
-        .ends_with("default.yaml"));
+    assert!(value["path"].as_str().unwrap().ends_with("default.yaml"));
 }
 
 /// The settings-backed configs-dir override must survive a save/reload round
@@ -50,10 +51,7 @@ async fn configs_dir_override_round_trips_through_settings() {
             runtime.settings.configs_dir.as_deref(),
             Some("cloud/profiles")
         );
-        assert_eq!(
-            runtime.configs_dir()?,
-            temp.path().join("cloud/profiles")
-        );
+        assert_eq!(runtime.configs_dir()?, temp.path().join("cloud/profiles"));
 
         apply_configs_dir_override(temp.path(), None).await?;
         let runtime = crate::context::Runtime::with_home(temp.path().to_path_buf()).await?;

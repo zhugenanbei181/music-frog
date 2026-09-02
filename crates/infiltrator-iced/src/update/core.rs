@@ -6,10 +6,11 @@
 //! of the original message match and forwards unmatched messages to the
 //! next domain in the chain:
 //! lifecycle → settings → monitoring → doctor → proxies → runtime_config →
-//! rules → advanced → dns_config → tun_config → rebuild → kernels (fallback).
+//! rules → json_editors → mrs → advanced → dns_config → tun_config → rebuild → kernels (fallback).
 mod advanced;
 mod dns_config;
 mod doctor;
+mod json_editors;
 mod kernels;
 mod lifecycle;
 mod monitoring;

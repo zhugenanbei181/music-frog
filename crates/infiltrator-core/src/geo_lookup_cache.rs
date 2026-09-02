@@ -1,199 +1,560 @@
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
+use std::net::IpAddr;
+use std::time::{Duration, Instant};
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct GeoLocationInfo {
-    pub country_code: String,
-    pub country_name: String,
+/// GeoIP and Autonomous System Number (ASN) metadata for an IP address.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
+pub struct GeoInfo {
+    pub country_code: Option<String>,
+    pub city: Option<String>,
     pub asn: Option<u32>,
     pub as_org: Option<String>,
+    pub is_private_ip: bool,
 }
 
+impl GeoInfo {
+    /// Creates a new `GeoInfo` record with the specified fields.
+    pub fn new(
+        country_code: Option<String>,
+        city: Option<String>,
+        asn: Option<u32>,
+        as_org: Option<String>,
+        is_private_ip: bool,
+    ) -> Self {
+        Self {
+            country_code,
+            city,
+            asn,
+            as_org,
+            is_private_ip,
+        }
+    }
+
+    /// Constructs a `GeoInfo` representing a private/loopback/local IP address.
+    pub fn for_private_ip(ip: &IpAddr) -> Self {
+        Self {
+            country_code: Some("PRIVATE".to_string()),
+            city: None,
+            asn: None,
+            as_org: Some("Private Network".to_string()),
+            is_private_ip: is_private_ip(ip),
+        }
+    }
+
+    /// Returns a human-friendly display label (e.g., "US - San Jose (AS15169 GOOGLE)").
+    pub fn display_label(&self) -> String {
+        let mut parts = Vec::new();
+        if let Some(ref cc) = self.country_code {
+            parts.push(cc.clone());
+        }
+        if let Some(ref city) = self.city {
+            parts.push(city.clone());
+        }
+        let mut asn_part = String::new();
+        if let Some(asn) = self.asn {
+            asn_part.push_str(&format!("AS{}", asn));
+        }
+        if let Some(ref org) = self.as_org {
+            if !asn_part.is_empty() {
+                asn_part.push(' ');
+            }
+            asn_part.push_str(org);
+        }
+        if !asn_part.is_empty() {
+            parts.push(format!("({})", asn_part));
+        }
+        if parts.is_empty() {
+            "Unknown".to_string()
+        } else {
+            parts.join(" - ")
+        }
+    }
+}
+
+/// Checks whether an `IpAddr` is private, loopback, link-local, carrier-grade NAT, or reserved.
+pub fn is_private_ip(ip: &IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ipv4) => {
+            let octets = ipv4.octets();
+            ipv4.is_loopback()
+                || ipv4.is_unspecified()
+                || octets[0] == 10
+                || (octets[0] == 172 && (16..=31).contains(&octets[1]))
+                || (octets[0] == 192 && octets[1] == 168)
+                || (octets[0] == 100 && (64..=127).contains(&octets[1]))
+                || (octets[0] == 169 && octets[1] == 254)
+                || (octets[0] == 192 && octets[1] == 0 && octets[2] == 2)
+                || (octets[0] == 198 && octets[1] == 51 && octets[2] == 100)
+                || (octets[0] == 203 && octets[1] == 0 && octets[2] == 113)
+                || (octets[0] == 198 && (octets[1] == 18 || octets[1] == 19))
+                || ipv4.is_broadcast()
+                || ipv4.is_multicast()
+                || octets[0] >= 240
+        }
+        IpAddr::V6(ipv6) => {
+            let segments = ipv6.segments();
+            ipv6.is_loopback()
+                || ipv6.is_unspecified()
+                || ipv6.is_multicast()
+                || (segments[0] & 0xfe00) == 0xfc00
+                || (segments[0] & 0xffc0) == 0xfe80
+                || (segments[0] == 0x2001 && segments[1] == 0x0db8)
+                || segments[0] == 0x0100
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CacheEntry {
+    info: GeoInfo,
+    expires_at: Instant,
+    prev: Option<IpAddr>,
+    next: Option<IpAddr>,
+}
+
+/// An LRU cache with time-to-live (TTL) expiration for IP -> GeoIP/ASN lookups.
 pub struct GeoLookupCache {
     capacity: usize,
-    ttl_secs: u64,
-    map: HashMap<String, (GeoLocationInfo, u64, u64)>, // (info, timestamp_secs, access_id)
-    order: VecDeque<(String, u64)>,                    // (ip, access_id)
-    current_access_id: u64,
+    ttl: Duration,
+    entries: HashMap<IpAddr, CacheEntry>,
+    head: Option<IpAddr>,
+    tail: Option<IpAddr>,
     hits: u64,
     misses: u64,
 }
 
 impl GeoLookupCache {
-    pub fn new(capacity: usize, ttl_secs: u64) -> Self {
+    /// Creates a new `GeoLookupCache` with given maximum capacity and TTL duration.
+    pub fn new(capacity: usize, ttl: Duration) -> Self {
         Self {
             capacity,
-            ttl_secs,
-            map: HashMap::new(),
-            order: VecDeque::new(),
-            current_access_id: 0,
+            ttl,
+            entries: HashMap::with_capacity(capacity),
+            head: None,
+            tail: None,
             hits: 0,
             misses: 0,
         }
     }
 
-    pub fn insert(&mut self, ip: &str, info: GeoLocationInfo, timestamp_secs: u64) {
-        self.current_access_id += 1;
-        self.map.insert(
-            ip.to_string(),
-            (info, timestamp_secs, self.current_access_id),
-        );
-        self.order
-            .push_back((ip.to_string(), self.current_access_id));
-        self.evict_if_needed();
+    /// Creates a new cache using seconds for the TTL.
+    pub fn from_secs(capacity: usize, ttl_secs: u64) -> Self {
+        Self::new(capacity, Duration::from_secs(ttl_secs))
     }
 
-    pub fn get(&mut self, ip: &str, now_secs: u64) -> Option<&GeoLocationInfo> {
-        if let Some((_, timestamp, _)) = self.map.get(ip) {
-            if now_secs.saturating_sub(*timestamp) > self.ttl_secs {
-                self.map.remove(ip);
+    /// Looks up GeoIP information for the given IP address.
+    /// Returns `Some(GeoInfo)` on cache hit if not expired, or `None` on cache miss/expiration.
+    pub fn lookup(&mut self, ip: IpAddr) -> Option<GeoInfo> {
+        self.lookup_at(ip, Instant::now())
+    }
+
+    /// Looks up GeoIP information with an explicit current timestamp (useful for deterministic tests).
+    pub fn lookup_at(&mut self, ip: IpAddr, now: Instant) -> Option<GeoInfo> {
+        if let Some(entry) = self.entries.get(&ip) {
+            if now >= entry.expires_at {
+                self.detach(&ip);
+                self.entries.remove(&ip);
                 self.misses += 1;
-                return None;
+                None
+            } else {
+                self.move_to_head(&ip);
+                self.hits += 1;
+                Some(
+                    self.entries
+                        .get(&ip)
+                        .expect("entry must exist")
+                        .info
+                        .clone(),
+                )
             }
         } else {
             self.misses += 1;
-            return None;
+            None
         }
-
-        self.current_access_id += 1;
-        let entry = self.map.get_mut(ip).unwrap();
-        entry.2 = self.current_access_id;
-        self.order
-            .push_back((ip.to_string(), self.current_access_id));
-        self.hits += 1;
-
-        if self.order.len() > self.capacity.saturating_mul(2) {
-            self.compact_order();
-        }
-
-        self.map.get(ip).map(|(info, _, _)| info)
     }
 
-    pub fn hit_rate_percent(&self) -> f64 {
+    /// Inserts or updates GeoIP information for the given IP address.
+    pub fn insert(&mut self, ip: IpAddr, info: GeoInfo) {
+        self.insert_at(ip, info, Instant::now());
+    }
+
+    /// Inserts or updates GeoIP information with an explicit current timestamp.
+    pub fn insert_at(&mut self, ip: IpAddr, info: GeoInfo, now: Instant) {
+        if self.capacity == 0 {
+            return;
+        }
+
+        let expires_at = now + self.ttl;
+
+        if self.entries.contains_key(&ip) {
+            if let Some(entry) = self.entries.get_mut(&ip) {
+                entry.info = info;
+                entry.expires_at = expires_at;
+            }
+            self.move_to_head(&ip);
+        } else {
+            if self.entries.len() >= self.capacity {
+                self.evict_lru();
+            }
+            let entry = CacheEntry {
+                info,
+                expires_at,
+                prev: None,
+                next: None,
+            };
+            self.entries.insert(ip, entry);
+            self.attach_head(ip);
+        }
+    }
+
+    /// Returns the cache hit rate as a fraction between `0.0` and `1.0`.
+    /// Returns `0.0` if no lookups have been performed.
+    pub fn hit_rate(&self) -> f64 {
         let total = self.hits + self.misses;
         if total == 0 {
             0.0
         } else {
-            (self.hits as f64 / total as f64) * 100.0
+            self.hits as f64 / total as f64
         }
     }
 
-    pub fn purge_expired(&mut self, now_secs: u64) -> usize {
-        let initial_len = self.map.len();
-        self.map
-            .retain(|_, (_, timestamp, _)| now_secs.saturating_sub(*timestamp) <= self.ttl_secs);
-        initial_len - self.map.len()
+    /// Returns the cache hit rate as a percentage between `0.0` and `100.0`.
+    pub fn hit_rate_percent(&self) -> f64 {
+        self.hit_rate() * 100.0
     }
 
-    pub fn len(&self) -> usize {
-        self.map.len()
+    /// Purges all expired entries based on current system time. Returns number of purged entries.
+    pub fn purge_expired(&mut self) -> usize {
+        self.purge_expired_at(Instant::now())
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.map.is_empty()
-    }
-
-    fn evict_if_needed(&mut self) {
-        while self.map.len() > self.capacity {
-            while let Some((ip, access_id)) = self.order.pop_front() {
-                if let Some((_, _, current_id)) = self.map.get(&ip)
-                    && *current_id == access_id
-                {
-                    self.map.remove(&ip);
-                    break;
+    /// Purges all expired entries based on a given timestamp.
+    pub fn purge_expired_at(&mut self, now: Instant) -> usize {
+        let expired_keys: Vec<IpAddr> = self
+            .entries
+            .iter()
+            .filter_map(|(&ip, entry)| {
+                if now >= entry.expires_at {
+                    Some(ip)
+                } else {
+                    None
                 }
-            }
+            })
+            .collect();
+
+        let count = expired_keys.len();
+        for ip in expired_keys {
+            self.detach(&ip);
+            self.entries.remove(&ip);
+        }
+        count
+    }
+
+    /// Returns the number of items currently stored in the cache.
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Returns `true` if the cache contains no items.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Returns the configured capacity of the cache.
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    /// Returns the total number of cache hits recorded.
+    pub fn hits(&self) -> u64 {
+        self.hits
+    }
+
+    /// Returns the total number of cache misses recorded.
+    pub fn misses(&self) -> u64 {
+        self.misses
+    }
+
+    /// Resets hit and miss counters.
+    pub fn reset_stats(&mut self) {
+        self.hits = 0;
+        self.misses = 0;
+    }
+
+    /// Clears all entries from the cache while preserving capacity and stats.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        self.head = None;
+        self.tail = None;
+    }
+
+    /// Helper to look up or lazily compute a `GeoInfo` record.
+    pub fn get_or_insert_with<F>(&mut self, ip: IpAddr, fetcher: F) -> GeoInfo
+    where
+        F: FnOnce(IpAddr) -> GeoInfo,
+    {
+        if let Some(info) = self.lookup(ip) {
+            info
+        } else {
+            let info = fetcher(ip);
+            self.insert(ip, info.clone());
+            info
         }
     }
 
-    fn compact_order(&mut self) {
-        let mut new_order = VecDeque::with_capacity(self.capacity);
-        for (ip, access_id) in &self.order {
-            if let Some((_, _, current_id)) = self.map.get(ip)
-                && *current_id == *access_id
-            {
-                new_order.push_back((ip.clone(), *access_id));
+    // --- Internal LRU Doubly-Linked List helpers ---
+
+    fn detach(&mut self, ip: &IpAddr) {
+        let (prev, next) = match self.entries.get(ip) {
+            Some(e) => (e.prev, e.next),
+            None => return,
+        };
+
+        if let Some(prev_ip) = prev {
+            if let Some(prev_entry) = self.entries.get_mut(&prev_ip) {
+                prev_entry.next = next;
             }
+        } else {
+            self.head = next;
         }
-        self.order = new_order;
+
+        if let Some(next_ip) = next {
+            if let Some(next_entry) = self.entries.get_mut(&next_ip) {
+                next_entry.prev = prev;
+            }
+        } else {
+            self.tail = prev;
+        }
+
+        if let Some(entry) = self.entries.get_mut(ip) {
+            entry.prev = None;
+            entry.next = None;
+        }
+    }
+
+    fn attach_head(&mut self, ip: IpAddr) {
+        let old_head = self.head;
+        if let Some(old_head_ip) = old_head {
+            if let Some(old_head_entry) = self.entries.get_mut(&old_head_ip) {
+                old_head_entry.prev = Some(ip);
+            }
+        } else {
+            self.tail = Some(ip);
+        }
+
+        if let Some(entry) = self.entries.get_mut(&ip) {
+            entry.prev = None;
+            entry.next = old_head;
+        }
+        self.head = Some(ip);
+    }
+
+    fn move_to_head(&mut self, ip: &IpAddr) {
+        if self.head == Some(*ip) {
+            return;
+        }
+        let key = *ip;
+        self.detach(&key);
+        self.attach_head(key);
+    }
+
+    fn evict_lru(&mut self) {
+        if let Some(tail_ip) = self.tail {
+            self.detach(&tail_ip);
+            self.entries.remove(&tail_ip);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::Ipv4Addr;
 
-    fn create_info(country_code: &str) -> GeoLocationInfo {
-        GeoLocationInfo {
-            country_code: country_code.to_string(),
-            country_name: "TestCountry".to_string(),
-            asn: Some(12345),
-            as_org: Some("TestOrg".to_string()),
+    fn test_ip(d: u8) -> IpAddr {
+        IpAddr::V4(Ipv4Addr::new(8, 8, 8, d))
+    }
+
+    fn sample_info(cc: &str, asn: u32) -> GeoInfo {
+        GeoInfo {
+            country_code: Some(cc.to_string()),
+            city: Some("TestCity".to_string()),
+            asn: Some(asn),
+            as_org: Some("TestISP".to_string()),
+            is_private_ip: false,
         }
     }
 
     #[test]
-    fn test_insert_and_get() {
-        let mut cache = GeoLookupCache::new(10, 60);
-        cache.insert("1.1.1.1", create_info("US"), 100);
+    fn test_insert_and_lookup_basic() {
+        let mut cache = GeoLookupCache::from_secs(10, 60);
+        let ip = test_ip(1);
+        let info = sample_info("US", 15169);
 
-        let info = cache.get("1.1.1.1", 110);
-        assert!(info.is_some());
-        assert_eq!(info.unwrap().country_code, "US");
-        assert_eq!(cache.hit_rate_percent(), 100.0);
+        assert!(cache.lookup(ip).is_none());
+        assert_eq!(cache.misses(), 1);
+        assert_eq!(cache.hits(), 0);
+
+        cache.insert(ip, info.clone());
+        assert_eq!(cache.len(), 1);
+        assert!(!cache.is_empty());
+
+        let retrieved = cache.lookup(ip);
+        assert_eq!(retrieved, Some(info));
+        assert_eq!(cache.hits(), 1);
+        assert_eq!(cache.hit_rate(), 0.5);
+        assert_eq!(cache.hit_rate_percent(), 50.0);
     }
 
     #[test]
-    fn test_ttl_expiration() {
-        let mut cache = GeoLookupCache::new(10, 60);
-        cache.insert("1.1.1.1", create_info("US"), 100);
+    fn test_ttl_expiration_with_mock_time() {
+        let mut cache = GeoLookupCache::from_secs(10, 60);
+        let ip = test_ip(1);
+        let info = sample_info("US", 15169);
+        let start = Instant::now();
 
-        let info = cache.get("1.1.1.1", 170); // 170 - 100 = 70 > 60
-        assert!(info.is_none());
-        assert_eq!(cache.hit_rate_percent(), 0.0); // 1 miss
+        cache.insert_at(ip, info.clone(), start);
+
+        // Within TTL (30s elapsed)
+        let active = cache.lookup_at(ip, start + Duration::from_secs(30));
+        assert_eq!(active, Some(info));
+
+        // After TTL (61s elapsed)
+        let expired = cache.lookup_at(ip, start + Duration::from_secs(61));
+        assert!(expired.is_none());
+        assert_eq!(cache.len(), 0);
     }
 
     #[test]
-    fn test_capacity_lru_eviction() {
-        let mut cache = GeoLookupCache::new(2, 60);
-        cache.insert("1.1.1.1", create_info("US"), 100);
-        cache.insert("2.2.2.2", create_info("UK"), 100);
+    fn test_lru_eviction_ordering() {
+        let mut cache = GeoLookupCache::from_secs(3, 300);
+        let ip1 = test_ip(1);
+        let ip2 = test_ip(2);
+        let ip3 = test_ip(3);
+        let ip4 = test_ip(4);
 
-        // Access 1.1.1.1 so 2.2.2.2 becomes LRU
-        cache.get("1.1.1.1", 110);
+        cache.insert(ip1, sample_info("US", 101));
+        cache.insert(ip2, sample_info("DE", 102));
+        cache.insert(ip3, sample_info("JP", 103));
 
-        // Insert 3.3.3.3 which should evict 2.2.2.2
-        cache.insert("3.3.3.3", create_info("FR"), 120);
+        // Access ip1 so ordering becomes: ip1 (MRU), ip3, ip2 (LRU)
+        assert!(cache.lookup(ip1).is_some());
 
-        assert_eq!(cache.len(), 2);
-        assert!(cache.get("2.2.2.2", 120).is_none());
-        assert!(cache.get("1.1.1.1", 120).is_some());
-        assert!(cache.get("3.3.3.3", 120).is_some());
+        // Insert ip4, should evict ip2
+        cache.insert(ip4, sample_info("SG", 104));
+
+        assert_eq!(cache.len(), 3);
+        assert!(cache.lookup(ip2).is_none());
+        assert!(cache.lookup(ip1).is_some());
+        assert!(cache.lookup(ip3).is_some());
+        assert!(cache.lookup(ip4).is_some());
     }
 
     #[test]
     fn test_purge_expired() {
-        let mut cache = GeoLookupCache::new(10, 60);
-        cache.insert("1.1.1.1", create_info("US"), 100);
-        cache.insert("2.2.2.2", create_info("UK"), 120);
+        let mut cache = GeoLookupCache::from_secs(10, 60);
+        let start = Instant::now();
 
-        let purged = cache.purge_expired(170); // 170 - 100 = 70 (expired), 170 - 120 = 50 (valid)
+        cache.insert_at(test_ip(1), sample_info("US", 100), start);
+        cache.insert_at(
+            test_ip(2),
+            sample_info("UK", 200),
+            start + Duration::from_secs(30),
+        );
+
+        // At start + 65s: ip1 is expired (age 65s > 60s), ip2 is valid (age 35s <= 60s)
+        let purged = cache.purge_expired_at(start + Duration::from_secs(65));
         assert_eq!(purged, 1);
         assert_eq!(cache.len(), 1);
-        assert!(cache.get("1.1.1.1", 170).is_none()); // already purged
-        assert!(cache.get("2.2.2.2", 170).is_some());
+        assert!(
+            cache
+                .lookup_at(test_ip(1), start + Duration::from_secs(65))
+                .is_none()
+        );
+        assert!(
+            cache
+                .lookup_at(test_ip(2), start + Duration::from_secs(65))
+                .is_some()
+        );
     }
 
     #[test]
-    fn test_hit_rate() {
-        let mut cache = GeoLookupCache::new(10, 60);
-        assert_eq!(cache.hit_rate_percent(), 0.0);
+    fn test_private_ip_detection() {
+        // IPv4 private/loopback
+        assert!(is_private_ip(&"127.0.0.1".parse().unwrap()));
+        assert!(is_private_ip(&"10.0.0.1".parse().unwrap()));
+        assert!(is_private_ip(&"172.20.10.2".parse().unwrap()));
+        assert!(is_private_ip(&"192.168.1.1".parse().unwrap()));
+        assert!(is_private_ip(&"100.64.0.5".parse().unwrap()));
+        assert!(is_private_ip(&"169.254.1.1".parse().unwrap()));
+        assert!(is_private_ip(&"0.0.0.0".parse().unwrap()));
+        assert!(is_private_ip(&"224.0.0.1".parse().unwrap()));
+        assert!(is_private_ip(&"255.255.255.255".parse().unwrap()));
 
-        cache.insert("1.1.1.1", create_info("US"), 100);
+        // IPv4 public
+        assert!(!is_private_ip(&"8.8.8.8".parse().unwrap()));
+        assert!(!is_private_ip(&"1.1.1.1".parse().unwrap()));
+        assert!(!is_private_ip(&"142.250.190.46".parse().unwrap()));
 
-        cache.get("1.1.1.1", 110); // hit
-        cache.get("2.2.2.2", 110); // miss
+        // IPv6
+        assert!(is_private_ip(&"::1".parse().unwrap()));
+        assert!(is_private_ip(&"::".parse().unwrap()));
+        assert!(is_private_ip(&"fe80::1".parse().unwrap()));
+        assert!(is_private_ip(&"fd00::1".parse().unwrap()));
+        assert!(!is_private_ip(&"2606:4700:4700::1111".parse().unwrap()));
+    }
 
-        assert_eq!(cache.hit_rate_percent(), 50.0);
+    #[test]
+    fn test_display_label_and_private_constructor() {
+        let private_ip = "192.168.1.50".parse().unwrap();
+        let p_info = GeoInfo::for_private_ip(&private_ip);
+        assert!(p_info.is_private_ip);
+        assert_eq!(p_info.display_label(), "PRIVATE - (Private Network)");
+
+        let public_info = GeoInfo::new(
+            Some("JP".to_string()),
+            Some("Tokyo".to_string()),
+            Some(2497),
+            Some("IIJ".to_string()),
+            false,
+        );
+        assert_eq!(public_info.display_label(), "JP - Tokyo - (AS2497 IIJ)");
+    }
+
+    #[test]
+    fn test_get_or_insert_with() {
+        let mut cache = GeoLookupCache::from_secs(10, 60);
+        let ip = test_ip(42);
+        let mut called = 0;
+
+        let info1 = cache.get_or_insert_with(ip, |_| {
+            called += 1;
+            sample_info("HK", 999)
+        });
+        assert_eq!(info1.country_code.as_deref(), Some("HK"));
+        assert_eq!(called, 1);
+
+        // Second call should fetch from cache
+        let info2 = cache.get_or_insert_with(ip, |_| {
+            called += 1;
+            sample_info("FR", 888)
+        });
+        assert_eq!(info2.country_code.as_deref(), Some("HK"));
+        assert_eq!(called, 1);
+    }
+
+    #[test]
+    fn test_zero_capacity_and_clear() {
+        let mut cache = GeoLookupCache::from_secs(0, 60);
+        cache.insert(test_ip(1), sample_info("US", 100));
+        assert_eq!(cache.len(), 0);
+        assert!(cache.lookup(test_ip(1)).is_none());
+
+        let mut normal_cache = GeoLookupCache::from_secs(5, 60);
+        normal_cache.insert(test_ip(1), sample_info("US", 100));
+        normal_cache.clear();
+        assert_eq!(normal_cache.len(), 0);
+        assert!(normal_cache.lookup(test_ip(1)).is_none());
     }
 }

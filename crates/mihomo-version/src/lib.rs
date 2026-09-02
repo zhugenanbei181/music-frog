@@ -1,3 +1,4 @@
+pub mod app_updater;
 pub mod capability;
 pub mod channel;
 pub mod download;

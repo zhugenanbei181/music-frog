@@ -45,26 +45,25 @@ impl AppState {
                         let candidates = vec![];
                         // Boot retry loop: up to 3 attempts with controller
                         // port rotation between attempts (ledger §1.2).
-                        let outcome =
-                            infiltrator_desktop::boot::bootstrap_with_retry(
-                                &vm,
-                                true,
-                                &candidates,
-                                &data_dir,
-                            )
-                            .await
-                            .map_err(|e: anyhow::Error| {
-                                if let Some(boot_error) =
-                                    e.downcast_ref::<infiltrator_desktop::boot::BootError>()
-                                {
-                                    InfiltratorError::Mihomo(format!(
-                                        "启动失败（已尝试控制端口 {:?}）: {}",
-                                        boot_error.tried, boot_error.source
-                                    ))
-                                } else {
-                                    InfiltratorError::Mihomo(e.to_string())
-                                }
-                            })?;
+                        let outcome = infiltrator_desktop::boot::bootstrap_with_retry(
+                            &vm,
+                            true,
+                            &candidates,
+                            &data_dir,
+                        )
+                        .await
+                        .map_err(|e: anyhow::Error| {
+                            if let Some(boot_error) =
+                                e.downcast_ref::<infiltrator_desktop::boot::BootError>()
+                            {
+                                InfiltratorError::Mihomo(format!(
+                                    "启动失败（已尝试控制端口 {:?}）: {}",
+                                    boot_error.tried, boot_error.source
+                                ))
+                            } else {
+                                InfiltratorError::Mihomo(e.to_string())
+                            }
+                        })?;
                         Ok((Arc::new(outcome.runtime), outcome.rotated))
                     },
                     move |result| Message::ProxyStarted(result, lifecycle_token),

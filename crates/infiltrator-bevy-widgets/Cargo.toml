@@ -19,6 +19,7 @@ description = "Business-agnostic Bevy UI widget layer for MusicFrog: bsn! scene 
 # per-target closure below. (Same two-phase shape taskmanager ships.)
 [dependencies]
 bevy = { version = "=0.19.1", default-features = false }
+unicode-segmentation = "1.12"
 
 # Feature closure (minimal for a bevy_ui surface), locked `=0.19.1`:
 # - bevy_ui: the toolkit layer itself (its layout plugin; pulls bevy_text and

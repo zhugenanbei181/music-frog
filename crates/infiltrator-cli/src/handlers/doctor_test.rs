@@ -2,8 +2,8 @@ use infiltrator_core::bootstrap;
 use infiltrator_core::doctor::{self, DoctorEnv, DoctorStatus};
 use mihomo_version::manager::VersionManager;
 
-use crate::test_support::EnvGuard;
 use super::{render_explanation, report_rows, report_summary, status_label};
+use crate::test_support::EnvGuard;
 
 /// Plant a runnable fake kernel (`<home>/versions/<version>/mihomo`) so the
 /// `version.binary_available` check and `set_default`'s smoke check pass.
@@ -63,10 +63,12 @@ async fn doctor_filter_limits_report_to_matching_checks() {
     let env = DoctorEnv::with_home(temp.path().to_path_buf());
     let report = doctor::run_with(&env, Some("service")).await;
     assert!(!report.checks.is_empty());
-    assert!(report
-        .checks
-        .iter()
-        .all(|check| check.id.starts_with("service.")));
+    assert!(
+        report
+            .checks
+            .iter()
+            .all(|check| check.id.starts_with("service."))
+    );
 }
 
 #[test]

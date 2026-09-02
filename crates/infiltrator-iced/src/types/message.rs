@@ -21,8 +21,7 @@ use std::time::Instant;
 
 /// Per-profile outcome list of the tray-driven "update all subscriptions"
 /// entry: `(profile name, update result)` per refreshed subscription.
-pub type SubscriptionUpdateOutcomes =
-    Result<Vec<(String, Result<(), String>)>, InfiltratorError>;
+pub type SubscriptionUpdateOutcomes = Result<Vec<(String, Result<(), String>)>, InfiltratorError>;
 
 #[derive(Clone)]
 pub enum Message {
@@ -57,6 +56,7 @@ pub enum Message {
     UpdateSubscriptionUrl(String),
     UpdateSubscriptionAutoUpdate(bool),
     UpdateSubscriptionInterval(String),
+    UpdateSubscriptionUserAgent(String),
     SaveSubscriptionSettings,
     SubscriptionSettingsSaved(Result<(), InfiltratorError>),
     UpdateSubscriptionNow,
@@ -78,6 +78,20 @@ pub enum Message {
     ProxiesLoaded(Result<HashMap<String, mihomo_api::proxy::types::Proxy>, InfiltratorError>),
     SelectProxy(String, String),
     FilterProxies(String),
+    ToggleFilterAlive(bool),
+    ToggleFavoriteProxy(String),
+    ToggleProxyCompactView,
+    InspectProxy(Option<String>),
+    OpenAddCustomNodeModal(bool),
+    UpdateNewNodeType(String),
+    UpdateNewNodeName(String),
+    UpdateNewNodeServer(String),
+    UpdateNewNodePort(String),
+    UpdateNewNodeCredential(String),
+    UpdateNewNodeCipher(String),
+    UpdateNewNodeTls(bool),
+    SubmitAddCustomNode,
+    CustomNodeAdded(Result<(), InfiltratorError>),
     ToggleProxySort,
     UpdateProxyDelaySort(String),
     UpdateDelayTestUrl(String),
@@ -155,6 +169,8 @@ pub enum Message {
     UpdateProxyProvider(String),
     UpdateRuleProvider(String),
     FilterRules(String),
+    UpdateRulesTracerInput(String),
+    RunRulesTracer,
     UpdateFilteredGroups,
     UpdateNewRuleType(String),
     UpdateNewRulePayload(String),
@@ -165,7 +181,13 @@ pub enum Message {
     MoveRuleUp(usize),
     MoveRuleDown(usize),
     SaveRules,
+    ApplyGameRoutingPresets,
+    UpdateGeoDatabases,
+    GeoDatabasesUpdated(Result<(), InfiltratorError>),
     RulesSaved(Result<(), InfiltratorError>),
+    InspectRuleProviderDiff(Option<String>),
+    UnpackRuleProvider(String),
+    RuleProviderDiffLoaded(Result<infiltrator_core::rules::RuleProviderDiff, InfiltratorError>),
     RuleProvidersEditorAction(text_editor::Action),
     SaveRuleProvidersJson,
     RuleProvidersJsonSaved(Result<(), InfiltratorError>),
@@ -238,6 +260,7 @@ pub enum Message {
     SetAutostart(bool),
     AutostartSet(Result<(), InfiltratorError>),
     UpdateNotificationsEnabled(bool),
+    UpdateCloseToTray(bool),
     UpdateWebDavEnabled(bool),
     UpdateWebDavUrl(String),
     UpdateWebDavUser(String),
@@ -266,6 +289,7 @@ pub enum Message {
     TestWebDavConnection,
     WebDavConnectionTested(Result<(), InfiltratorError>),
     SetSystemProxy(bool),
+    UpdateSystemProxyBypass(String),
     SystemProxySet(Result<(), InfiltratorError>),
     RequestAdminPrivilege,
     RequestConfirmation(ConfirmAction),
@@ -299,14 +323,10 @@ pub enum Message {
     UpdateFilterRenames(String),
     UpdateFilterDedup(usize),
     SaveProfileFilter,
-    ProfileFilterSaved(
-        Result<infiltrator_core::filter::FilterReport, InfiltratorError>,
-    ),
+    ProfileFilterSaved(Result<infiltrator_core::filter::FilterReport, InfiltratorError>),
     // MRS rule-provider detail scan (Rules page providers tab).
     ScanMrsProviders,
-    MrsDetailsReady(
-        Result<Vec<crate::types::options::MrsProviderDetail>, InfiltratorError>,
-    ),
+    MrsDetailsReady(Result<Vec<crate::types::options::MrsProviderDetail>, InfiltratorError>),
     // Sync conflict key-level diff merge (Sync page).
     LoadSyncDiff(String),
     SyncDiffLoaded(Result<crate::types::options::SyncDiffBundle, InfiltratorError>),
@@ -344,6 +364,7 @@ pub enum Message {
     ClearRebuildFlow,
     TogglePerfPanel,
     ToggleTheme,
+    SetTheme(String),
     SetLanguage(String),
     ShowToast(String, ToastStatus),
     RemoveToast(usize),

@@ -162,6 +162,74 @@ pub mod metrics {
     pub const HAIRLINE: f32 = 1.0;
     /// Text-field caret bar width (px) — a 2px slab, the classic hairline-plus.
     pub const CARET_WIDTH: f32 = 2.0;
+    /// Minimum mobile touch target dimension (px) for touch accessibility.
+    pub const MIN_TOUCH_TARGET: f32 = 48.0;
+}
+
+/// Responsive layout breakpoints (px).
+pub mod breakpoint {
+    /// Mobile compact breakpoint: <600px width (smartphones in portrait).
+    pub const MOBILE_PX: f32 = 600.0;
+    /// Tablet medium breakpoint: 600px - 1024px width (tablets, foldables).
+    pub const TABLET_PX: f32 = 1024.0;
+}
+
+/// Responsive layout breakpoint category.
+#[derive(
+    bevy::ecs::resource::Resource, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
+pub enum Breakpoint {
+    /// Mobile compact layout: width < 600px (smartphones in portrait).
+    Mobile,
+    /// Tablet medium layout: 600px <= width < 1024px (tablets, foldables, split screen).
+    Tablet,
+    /// Desktop expanded layout: width >= 1024px (desktop, widescreen).
+    #[default]
+    Desktop,
+}
+
+impl Breakpoint {
+    /// Mobile compact breakpoint boundary (600.0 px).
+    pub const MOBILE_PX: f32 = breakpoint::MOBILE_PX;
+    /// Tablet medium breakpoint boundary (1024.0 px).
+    pub const TABLET_PX: f32 = breakpoint::TABLET_PX;
+
+    /// Classify a window or viewport width in pixels into a [`Breakpoint`].
+    pub fn from_width(width_px: f32) -> Self {
+        if width_px < Self::MOBILE_PX {
+            Breakpoint::Mobile
+        } else if width_px < Self::TABLET_PX {
+            Breakpoint::Tablet
+        } else {
+            Breakpoint::Desktop
+        }
+    }
+
+    /// Whether this breakpoint represents mobile compact layout (<600px).
+    pub fn is_mobile(&self) -> bool {
+        matches!(self, Breakpoint::Mobile)
+    }
+
+    /// Whether this breakpoint represents tablet medium layout (600px..1024px).
+    pub fn is_tablet(&self) -> bool {
+        matches!(self, Breakpoint::Tablet)
+    }
+
+    /// Whether this breakpoint represents desktop expanded layout (>=1024px).
+    pub fn is_desktop(&self) -> bool {
+        matches!(self, Breakpoint::Desktop)
+    }
+
+    /// Whether this breakpoint triggers compact layout mode (sidebar collapsed into bottom nav).
+    pub fn is_compact(&self) -> bool {
+        self.is_mobile()
+    }
+
+    /// Recommended sidebar width in pixels for this breakpoint.
+    /// Returns `None` for mobile compact mode (sidebar collapsed), and `Some(240.0)` for tablet/desktop.
+    pub fn sidebar_width_px(&self) -> Option<f32> {
+        if self.is_mobile() { None } else { Some(240.0) }
+    }
 }
 
 /// Runtime timing tokens (seconds).

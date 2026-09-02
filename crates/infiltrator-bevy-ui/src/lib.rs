@@ -61,7 +61,7 @@ pub fn run() {
         exit_condition: ExitCondition::OnPrimaryClosed,
         ..WindowPlugin::default()
     }));
-    app.add_plugins(app::ShellPlugin::new(skin));
+    app.add_plugins(app::ShellPlugin::new_with_width(skin, width as f32));
     // The route + page bootstrap: without it the content slot stays empty in
     // the windowed run (headless tests add PagesPlugin explicitly, which is
     // why this regression only shows up on screen). The configured

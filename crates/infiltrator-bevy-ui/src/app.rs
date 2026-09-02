@@ -53,28 +53,29 @@ use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::camera::Camera2d;
 use bevy::camera::ClearColor;
+use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::With;
+use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{CommandsSceneExt, Scene, bsn, template_value};
-use bevy::ui::BackgroundColor;
 use bevy::ui::prelude::{
-    AlignItems, FlexDirection, JustifyContent, Node, UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, BorderColor, Display, FlexDirection, JustifyContent, Node, UiRect,
+    Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::button::{pill_caption_scene, pill_scene};
-use infiltrator_bevy_widgets::icon::IconId;
+use infiltrator_bevy_widgets::icon::{IconId, IconTint, icon_scene};
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::nav::nav_item_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::{LightDark, Theme, space};
+use infiltrator_bevy_widgets::theme::{Breakpoint, LightDark, Theme, space};
 
 use crate::controller::FailureDwell;
 use crate::pages::overview::{OverviewModePill, OverviewProjectionUpdated, mode_label};
@@ -85,6 +86,62 @@ use crate::route::OverviewSourceHandle;
 const SIDEBAR_WIDTH_PX: f32 = 240.0;
 /// Identity tile edge (px).
 const IDENTITY_TILE_PX: f32 = 40.0;
+
+/// Shell layout mode corresponding to responsive breakpoints.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum LayoutMode {
+    /// Desktop / tablet layout: left sidebar rail + content area.
+    #[default]
+    Sidebar,
+    /// Mobile compact layout (<600px): collapsed sidebar + bottom navigation bar.
+    BottomNav,
+}
+
+/// Live responsive shell layout state.
+#[derive(Resource, Clone, Copy, Debug, PartialEq)]
+pub struct ShellLayoutState {
+    /// Current viewport or window width in pixels.
+    pub width_px: f32,
+    /// Active breakpoint category.
+    pub breakpoint: Breakpoint,
+    /// Active shell layout mode.
+    pub mode: LayoutMode,
+}
+
+impl ShellLayoutState {
+    /// Construct shell layout state from a viewport / window width in pixels.
+    pub fn from_width(width_px: f32) -> Self {
+        let breakpoint = Breakpoint::from_width(width_px);
+        let mode = if breakpoint.is_compact() {
+            LayoutMode::BottomNav
+        } else {
+            LayoutMode::Sidebar
+        };
+        Self {
+            width_px,
+            breakpoint,
+            mode,
+        }
+    }
+
+    /// Update the viewport width, re-resolving breakpoint and layout mode.
+    /// Returns `true` if breakpoint or layout mode changed.
+    pub fn set_width(&mut self, width_px: f32) -> bool {
+        let next = Self::from_width(width_px);
+        if *self != next {
+            *self = next;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl Default for ShellLayoutState {
+    fn default() -> Self {
+        Self::from_width(1180.0)
+    }
+}
 
 /// Marker for the content region product pages mount into. Page routing
 /// (BEVY-M2) replaces bounded subtrees below this slot.
@@ -109,6 +166,18 @@ pub struct ThemeToggle;
 /// fill from the live palette (compare-and-set).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SidebarPanel;
+
+/// Marker on the bottom navigation bar for mobile compact mode (<600px).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BottomNavBar;
+
+/// Marker on an individual item in the bottom navigation bar.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BottomNavItem;
+
+/// Active state flag for bottom navigation items.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BottomNavActive(pub bool);
 
 /// Marker on the sidebar's foot caption. The text is spawned with the
 /// demo default (the shell mounts before any page source exists);
@@ -317,12 +386,24 @@ fn drain_mode_ack(
 /// semantic nodes as inert components (the honest M1 boundary).
 pub struct ShellPlugin {
     mode: LightDark,
+    initial_width_px: Option<f32>,
 }
 
 impl ShellPlugin {
     /// Cold-start with an explicit appearance (the capture seam's skin).
     pub fn new(mode: LightDark) -> Self {
-        Self { mode }
+        Self {
+            mode,
+            initial_width_px: None,
+        }
+    }
+
+    /// Cold-start with an explicit appearance and viewport width.
+    pub fn new_with_width(mode: LightDark, width_px: f32) -> Self {
+        Self {
+            mode,
+            initial_width_px: Some(width_px),
+        }
     }
 }
 
@@ -336,6 +417,11 @@ impl Plugin for ShellPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(WidgetsPlugin::new(&Theme::for_mode(self.mode)));
         app.insert_resource(ThemeMode(self.mode));
+        let initial_layout = self
+            .initial_width_px
+            .map(ShellLayoutState::from_width)
+            .unwrap_or_default();
+        app.insert_resource(initial_layout);
         app.init_resource::<ModeCommandInFlight>();
         app.init_resource::<PendingModeAck>();
         app.add_observer(on_theme_pill_activated);
@@ -344,7 +430,13 @@ impl Plugin for ShellPlugin {
         app.add_systems(Startup, (spawn_camera, spawn_shell));
         app.add_systems(
             Update,
-            (sync_sidebar_panel, sync_window_clear, drain_mode_ack),
+            (
+                sync_sidebar_panel,
+                sync_bottom_nav_visuals,
+                sync_responsive_shell,
+                sync_window_clear,
+                drain_mode_ack,
+            ),
         );
     }
 }
@@ -371,6 +463,77 @@ fn sync_sidebar_panel(
     }
 }
 
+/// Repaint bottom navigation bar and items from the live palette.
+fn sync_bottom_nav_visuals(
+    palette: Res<UiPalette>,
+    mut bars: Query<(&mut BackgroundColor, &mut BorderColor), With<BottomNavBar>>,
+    mut items: Query<(&BottomNavActive, &Children), With<BottomNavItem>>,
+    mut icons: Query<&mut IconTint>,
+) {
+    let edge = palette.border;
+    for (mut fill, mut border) in &mut bars {
+        if fill.0 != palette.sidebar {
+            fill.0 = palette.sidebar;
+        }
+        if border.top != edge {
+            border.top = edge;
+        }
+    }
+    for (active, children) in &mut items {
+        let target_ink = if active.0 {
+            palette.accent
+        } else {
+            palette.ink_dim
+        };
+        for child in children.iter() {
+            if let Ok(mut tint) = icons.get_mut(*child)
+                && tint.0 != target_ink
+            {
+                tint.0 = target_ink;
+            }
+        }
+    }
+}
+
+/// Update layout mode and toggle sidebar vs bottom navigation bar display based on window width.
+fn sync_responsive_shell(
+    windows: Option<Query<&bevy::window::Window, With<bevy::window::PrimaryWindow>>>,
+    mut layout: ResMut<ShellLayoutState>,
+    mut sidebars: Query<&mut Node, (With<SidebarPanel>, Without<BottomNavBar>)>,
+    mut bottom_navs: Query<&mut Node, (With<BottomNavBar>, Without<SidebarPanel>)>,
+) {
+    if let Some(windows) = windows
+        && let Ok(primary) = windows.single()
+    {
+        let w = primary.width();
+        if (w - layout.width_px).abs() > 0.5 {
+            layout.set_width(w);
+        }
+    }
+
+    let is_compact = layout.mode == LayoutMode::BottomNav;
+    for mut node in &mut sidebars {
+        let target = if is_compact {
+            Display::None
+        } else {
+            Display::Flex
+        };
+        if node.display != target {
+            node.display = target;
+        }
+    }
+    for mut node in &mut bottom_navs {
+        let target = if is_compact {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != target {
+            node.display = target;
+        }
+    }
+}
+
 /// Repaint the window canvas (the camera's global clear color) from the
 /// `window_clear` token. Compare-and-set: unchanged frames cost nothing,
 /// and a theme switch repaints the canvas with no switch-specific hook.
@@ -386,7 +549,9 @@ fn sync_window_clear(palette: Res<UiPalette>, mut clear: Option<ResMut<ClearColo
 }
 
 /// The shell: a full-bleed sidebar (fixed 240px rail) beside the content
-/// column (title row over the content slot product pages mount into).
+/// column (title row over the content slot product pages mount into), with
+/// a responsive bottom navigation bar that automatically activates on
+/// mobile viewports (<600px width).
 /// The theme pill is the widget layer's `pill_scene` re-skinned by one
 /// shell marker and one semantic node — interaction wiring belongs to the
 /// shell.
@@ -397,6 +562,7 @@ pub fn shell_scene(title: String, palette: &UiPalette) -> impl Scene + use<> {
         Node {
             width: percent(100),
             height: percent(100),
+            flex_direction: FlexDirection::Column,
         }
         ShellRoot
         template_value(window_node)
@@ -405,6 +571,7 @@ pub fn shell_scene(title: String, palette: &UiPalette) -> impl Scene + use<> {
                 Node {
                     width: percent(100),
                     height: percent(100),
+                    flex_grow: 1.0,
                     flex_direction: FlexDirection::Row,
                 }
                 Children [
@@ -427,8 +594,87 @@ pub fn shell_scene(title: String, palette: &UiPalette) -> impl Scene + use<> {
                     ),
                 ]
             ),
+            ( { bottom_nav_scene(palette) } ),
         ]
     }
+}
+
+/// The bottom navigation bar: full-width horizontal bar across the bottom
+/// of the viewport for mobile compact mode (<600px). Contains nav buttons
+/// for 核心概览 (active), 数据同步 (disabled/idle), and 系统设置 (disabled/idle).
+pub fn bottom_nav_scene(palette: &UiPalette) -> Box<dyn Scene> {
+    let overview_node = nav_semantic_node("核心概览", false);
+    let sync_node = nav_semantic_node("数据同步", true);
+    let settings_node = nav_semantic_node("系统设置", true);
+    let edge = palette.border;
+
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            height: px(56.0),
+            flex_shrink: 0.0,
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceAround,
+            border: UiRect::top(Val::Px(palette.hairline_px)),
+            display: Display::None,
+        }
+        BackgroundColor({ palette.sidebar })
+        BorderColor {
+            top: edge,
+            right: Color::NONE,
+            bottom: Color::NONE,
+            left: Color::NONE,
+        }
+        BottomNavBar
+        Children [
+            (
+                { bottom_nav_item_scene("核心概览", IconId::Network, true, palette) }
+                template_value(overview_node)
+            ),
+            (
+                { bottom_nav_item_scene("数据同步", IconId::Globe, false, palette) }
+                template_value(sync_node)
+            ),
+            (
+                { bottom_nav_item_scene("系统设置", IconId::Settings, false, palette) }
+                template_value(settings_node)
+            ),
+        ]
+    })
+}
+
+fn bottom_nav_item_scene(
+    label: &str,
+    icon: IconId,
+    active: bool,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let ink = if active {
+        palette.accent
+    } else {
+        palette.ink_dim
+    };
+    let role = if active {
+        Role::BodyStrong
+    } else {
+        Role::Caption
+    };
+    Box::new(bsn! {
+        Node {
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            row_gap: Val::Px(space::S4),
+            padding: UiRect::vertical(Val::Px(space::S4)),
+        }
+        BottomNavItem
+        BottomNavActive({ active })
+        Children [
+            ( { icon_scene(icon, 20.0, ink) } ),
+            ( Text({ label.to_owned() }) TextRole(role) ),
+        ]
+    })
 }
 
 /// The title row: the page-family heading, a flex spacer, then the theme

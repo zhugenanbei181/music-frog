@@ -1,7 +1,7 @@
 //! macOS 实现：`networksetup`，所有命令强制检查退出码，非零返回 `Err`
 //! （附 stderr/stdout 摘要）。
 
-use super::{parse_endpoint, SystemProxyState};
+use super::{SystemProxyState, parse_endpoint};
 use anyhow::anyhow;
 use std::process::Command;
 
@@ -50,7 +50,11 @@ pub(super) fn apply(endpoint: Option<&str>, bypass: Option<&str>) -> anyhow::Res
         let (host, port) = parse_endpoint(ep).ok_or_else(|| anyhow!("Invalid endpoint format"))?;
         let port_str = port.to_string();
 
-        for proxy_type in &["-setwebproxy", "-setsecurewebproxy", "-setsocksfirewallproxy"] {
+        for proxy_type in &[
+            "-setwebproxy",
+            "-setsecurewebproxy",
+            "-setsocksfirewallproxy",
+        ] {
             run_networksetup(&[proxy_type, &service, host, &port_str])?;
             run_networksetup(&[&format!("{proxy_type}state"), &service, "on"])?;
         }
@@ -62,7 +66,11 @@ pub(super) fn apply(endpoint: Option<&str>, bypass: Option<&str>) -> anyhow::Res
             run_networksetup(&args)?;
         }
     } else {
-        for proxy_type in &["-setwebproxystate", "-setsecurewebproxystate", "-setsocksfirewallproxystate"] {
+        for proxy_type in &[
+            "-setwebproxystate",
+            "-setsecurewebproxystate",
+            "-setsocksfirewallproxystate",
+        ] {
             run_networksetup(&[proxy_type, &service, "off"])?;
         }
     }
@@ -95,7 +103,8 @@ pub(super) fn read_state() -> anyhow::Result<SystemProxyState> {
 
     let mut bypass = None;
     let bypass_stdout = run_networksetup(&["-getproxybypassdomains", &service])?;
-    let parts: Vec<String> = bypass_stdout.lines()
+    let parts: Vec<String> = bypass_stdout
+        .lines()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty() && s != "There aren't any bypass domains set on Wi-Fi.")
         .collect();
@@ -103,5 +112,9 @@ pub(super) fn read_state() -> anyhow::Result<SystemProxyState> {
         bypass = Some(parts.join(";"));
     }
 
-    Ok(SystemProxyState { enabled, endpoint, bypass })
+    Ok(SystemProxyState {
+        enabled,
+        endpoint,
+        bypass,
+    })
 }

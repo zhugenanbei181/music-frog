@@ -2,7 +2,7 @@
 //! the palette resource and restamps text and control fills in place — the
 //! same entities before and after, no remount of the scene tree.
 
-use bevy::app::{Startup, Update};
+use bevy::app::Startup;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::CommandsSceneExt;
@@ -46,9 +46,9 @@ fn switch_to_light_rethemes_the_mounted_tree_in_place() {
         .expect("one pill with its fill");
     assert_eq!(pill_fill_before, BackgroundColor(dark.surface_elevated));
 
-    app.add_systems(Update, |mut commands: Commands| {
-        commands.trigger(ThemeSwitch(LightDark::Light));
-    });
+    app.world_mut()
+        .commands()
+        .trigger(ThemeSwitch(LightDark::Light));
     app.update();
 
     // The palette resource now resolves the light token set.
@@ -79,9 +79,9 @@ fn switch_to_light_rethemes_the_mounted_tree_in_place() {
     assert_eq!(pill_fill_after, BackgroundColor(light.surface_elevated));
 
     // A second switch returns everything to the dark tokens.
-    app.add_systems(Update, |mut commands: Commands| {
-        commands.trigger(ThemeSwitch(LightDark::Dark));
-    });
+    app.world_mut()
+        .commands()
+        .trigger(ThemeSwitch(LightDark::Dark));
     app.update();
 
     let world = app.world_mut();

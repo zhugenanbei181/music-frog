@@ -11,7 +11,7 @@ impl I18nInterpolator {
             if c == '{' {
                 let mut key = String::new();
                 let mut found_closing = false;
-                
+
                 while let Some(&next_c) = chars.peek() {
                     chars.next();
                     if next_c == '}' {
@@ -63,7 +63,7 @@ impl I18nInterpolator {
                 return loc;
             }
         }
-        
+
         "en-US"
     }
 

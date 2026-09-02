@@ -8,8 +8,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use infiltrator_core::{
-    doctor::DoctorReport,
+    doctor::{DoctorFixAction, DoctorReport},
     profiles::ProfileInfo,
+    script_engine::{ExtensionPackage, HookStage, PluginManifest, ScriptPreset},
     settings::WebDavConfig,
 };
 
@@ -151,7 +152,16 @@ pub struct RuntimeDelayBatchPayload {
     pub timeout_ms: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct ProxyDelayPayload {
+    pub proxy: Option<String>,
+    pub proxies: Option<Vec<String>>,
+    pub test_url: Option<String>,
+    pub timeout_ms: Option<u32>,
+    pub all: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeDelayTestResponse {
     pub proxy: String,
     pub delay_ms: u32,
@@ -160,7 +170,7 @@ pub struct RuntimeDelayTestResponse {
     pub timeout_ms: u32,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeDelayBatchResult {
     pub proxy: String,
     pub delay_ms: Option<u32>,
@@ -168,7 +178,7 @@ pub struct RuntimeDelayBatchResult {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeDelayBatchResponse {
     pub results: Vec<RuntimeDelayBatchResult>,
     pub success_count: usize,
@@ -197,6 +207,25 @@ pub struct TunConfigPayload {
 pub struct ProfileActionResponse {
     pub profile: ProfileInfo,
     pub rebuild_scheduled: bool,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ProfilesUpdateAllResponse {
+    pub total: usize,
+    pub updated: usize,
+    pub failed: usize,
+    pub skipped: usize,
+}
+
+impl From<crate::scheduler::subscription::SubscriptionUpdateSummary> for ProfilesUpdateAllResponse {
+    fn from(s: crate::scheduler::subscription::SubscriptionUpdateSummary) -> Self {
+        Self {
+            total: s.total,
+            updated: s.updated,
+            failed: s.failed,
+            skipped: s.skipped,
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -229,6 +258,22 @@ pub struct DoctorRunQuery {
 #[derive(Debug, Deserialize, Default)]
 pub struct DoctorFixPayload {
     pub only: Option<String>,
+    pub stream: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct DoctorFixQuery {
+    pub only: Option<String>,
+    pub stream: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DoctorFixProgressEvent {
+    pub stage: String,
+    pub task: Option<String>,
+    pub summary: Option<String>,
+    pub progress_pct: Option<u8>,
+    pub actions: Option<Vec<DoctorFixAction>>,
 }
 
 #[derive(Serialize)]
@@ -280,7 +325,7 @@ pub struct RuntimeProxiesResponse {
     pub groups: Vec<RuntimeProxyGroupEntry>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProxyModePayload {
     pub mode: String,
 }
@@ -298,6 +343,145 @@ pub struct RuntimeStatusResponse {
     pub mode: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrivacyLeakIssue {
+    pub id: String,
+    pub severity: String,
+    pub category: String,
+    pub title: String,
+    pub detail: String,
+    pub affected_target: Option<String>,
+    pub process_name: Option<String>,
+    pub recommendation: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditTrafficSummary {
+    pub upload_total: u64,
+    pub download_total: u64,
+    pub active_connections: usize,
+    pub proxied_bytes: u64,
+    pub direct_bytes: u64,
+    pub direct_bypass_ratio: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditProcessTraffic {
+    pub process_name: String,
+    pub upload_bytes: u64,
+    pub download_bytes: u64,
+    pub total_bytes: u64,
+    pub connections_count: usize,
+    pub direct_bypass_ratio: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditResponse {
+    pub leak_detected: bool,
+    pub leaks: Vec<PrivacyLeakIssue>,
+    pub traffic_summary: AuditTrafficSummary,
+    pub top_processes: Vec<AuditProcessTraffic>,
+    pub audited_connections_count: usize,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct WebhookPayload {
+    pub action: Option<String>,
+    pub intent: Option<String>,
+    pub command: Option<String>,
+    pub mode: Option<String>,
+    pub profile: Option<String>,
+    pub proxy: Option<String>,
+    pub group: Option<String>,
+    pub enabled: Option<bool>,
+    pub test_url: Option<String>,
+    pub timeout_ms: Option<u32>,
+    pub payload: Option<serde_json::Value>,
+    pub params: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookResponse {
+    pub success: bool,
+    pub action: String,
+    pub message: Option<String>,
+    pub data: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScriptExecutePayload {
+    pub script: String,
+    pub yaml_content: String,
+    pub stage: Option<HookStage>,
+    pub timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScriptValidatePayload {
+    pub script: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScriptPresetItem {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub stage: HookStage,
+    pub script_code: String,
+}
+
+impl From<ScriptPreset> for ScriptPresetItem {
+    fn from(p: ScriptPreset) -> Self {
+        Self {
+            id: p.id.to_string(),
+            name: p.name.to_string(),
+            description: p.description.to_string(),
+            stage: p.stage,
+            script_code: p.script_code.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScriptPresetsResponse {
+    pub presets: Vec<ScriptPresetItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtensionExportPayload {
+    pub package: ExtensionPackage,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtensionExportResponse {
+    pub json: String,
+    pub checksum: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtensionImportPayload {
+    pub json: String,
+    pub expected_checksum: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtensionImportResponse {
+    pub package: ExtensionPackage,
+    pub checksum: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtensionManifestValidatePayload {
+    pub manifest: PluginManifest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtensionManifestValidateResponse {
+    pub valid: bool,
+    pub error: Option<String>,
+}
+
 pub struct ApiError {
     status: StatusCode,
     message: String,
@@ -307,6 +491,13 @@ impl ApiError {
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::BAD_REQUEST,
+            message: message.into(),
+        }
+    }
+
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::UNAUTHORIZED,
             message: message.into(),
         }
     }
@@ -323,6 +514,14 @@ impl ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             message: message.into(),
         }
+    }
+
+    pub fn status(&self) -> StatusCode {
+        self.status
+    }
+
+    pub fn message(&self) -> &str {
+        &self.message
     }
 }
 

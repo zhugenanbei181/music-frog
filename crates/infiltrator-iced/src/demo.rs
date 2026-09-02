@@ -132,22 +132,14 @@ pub fn route_env_name(route: Route) -> &'static str {
     }
 }
 
-/// `light|dark` -> iced theme; unknown values fall back to dark.
+/// `light|dark|forest` -> iced theme; unknown values fall back to dark.
 pub fn parse_skin(value: &str) -> iced::Theme {
-    if value.trim().eq_ignore_ascii_case("light") {
-        iced::Theme::Light
-    } else {
-        iced::Theme::Dark
-    }
+    crate::view::theme::theme_from_name(value)
 }
 
-/// Canonical `light` / `dark` name of an iced theme (for the capture marker).
+/// Canonical `light` / `dark` / `forest` name of an iced theme (for the capture marker).
 pub fn skin_name(theme: &iced::Theme) -> &'static str {
-    if matches!(theme, iced::Theme::Light) {
-        "light"
-    } else {
-        "dark"
-    }
+    crate::view::theme::theme_to_name(theme)
 }
 
 /// `WxH` -> `(w, h)`; anything unparsable or non-positive falls back to the

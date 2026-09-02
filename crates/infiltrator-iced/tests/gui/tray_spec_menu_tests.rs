@@ -6,23 +6,22 @@
 use super::*;
 use crate::tray::menu::build_tray_spec;
 use crate::tray::spec::{
-    decode_pair_payload, encode_pair_payload, resolve_tray_event_in,
-    TrayCoreStatus, TrayEvent, TrayEventContext, TrayIntent, TrayMenuItem,
     TRAY_ACTION_ACTIVATE_PROFILE, TRAY_ACTION_CANCEL_CORE_DOWNLOAD, TRAY_ACTION_CANCEL_SYNC,
-    TRAY_ACTION_CHECK_CORE_UPDATE, TRAY_ACTION_FLUSH_FAKEIP, TRAY_ACTION_FACTORY_RESET,
+    TRAY_ACTION_CHECK_CORE_UPDATE, TRAY_ACTION_FACTORY_RESET, TRAY_ACTION_FLUSH_FAKEIP,
     TRAY_ACTION_INFO_ADMIN, TRAY_ACTION_INFO_CONTROLLER, TRAY_ACTION_INFO_DOWNLOAD,
     TRAY_ACTION_INFO_KERNEL_DEFAULT, TRAY_ACTION_INFO_KERNEL_STATUS,
     TRAY_ACTION_INFO_KERNEL_VERSION, TRAY_ACTION_INFO_MODE, TRAY_ACTION_INFO_STATUS,
-    TRAY_ACTION_INFO_SYNC, TRAY_ACTION_MODE_DIRECT, TRAY_ACTION_MODE_GLOBAL,
-    TRAY_ACTION_MODE_RULE, TRAY_ACTION_MODE_SCRIPT, TRAY_ACTION_NAVIGATE_SYNC,
-    TRAY_ACTION_NO_PROFILES, TRAY_ACTION_NO_PROXIES, TRAY_ACTION_QUIT,
-    TRAY_ACTION_SELECT_GLOBAL_PROXY, TRAY_ACTION_SELECT_PROXY, TRAY_ACTION_SET_DEFAULT_KERNEL,
-    TRAY_ACTION_SET_PROFILE_AUTO_UPDATE, TRAY_ACTION_SHOW, TRAY_ACTION_SYNC_DOWNLOAD,
-    TRAY_ACTION_SYNC_UPLOAD, TRAY_ACTION_TOGGLE_AUTOSTART, TRAY_ACTION_TOGGLE_SYSTEM_PROXY,
-    TRAY_ACTION_TOGGLE_THEME, TRAY_ACTION_TOGGLE_TUN, TRAY_ACTION_UNINSTALL_KERNEL,
-    TRAY_ACTION_UPDATE_ALL_PROFILES, TRAY_SUBMENU_INFO, TRAY_SUBMENU_KERNEL,
-    TRAY_SUBMENU_MODE, TRAY_SUBMENU_PROFILES, TRAY_SUBMENU_PROXIES,
-    TRAY_SUBMENU_PROXY_GROUP_BASE, TRAY_SUBMENU_PROXY_MORE_BASE, TRAY_SUBMENU_SYNC,
+    TRAY_ACTION_INFO_SYNC, TRAY_ACTION_MODE_DIRECT, TRAY_ACTION_MODE_GLOBAL, TRAY_ACTION_MODE_RULE,
+    TRAY_ACTION_MODE_SCRIPT, TRAY_ACTION_NAVIGATE_SYNC, TRAY_ACTION_NO_PROFILES,
+    TRAY_ACTION_NO_PROXIES, TRAY_ACTION_QUIT, TRAY_ACTION_SELECT_GLOBAL_PROXY,
+    TRAY_ACTION_SELECT_PROXY, TRAY_ACTION_SET_DEFAULT_KERNEL, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
+    TRAY_ACTION_SHOW, TRAY_ACTION_SYNC_DOWNLOAD, TRAY_ACTION_SYNC_UPLOAD,
+    TRAY_ACTION_TOGGLE_AUTOSTART, TRAY_ACTION_TOGGLE_SYSTEM_PROXY, TRAY_ACTION_TOGGLE_THEME,
+    TRAY_ACTION_TOGGLE_TUN, TRAY_ACTION_UNINSTALL_KERNEL, TRAY_ACTION_UPDATE_ALL_PROFILES,
+    TRAY_SUBMENU_INFO, TRAY_SUBMENU_KERNEL, TRAY_SUBMENU_MODE, TRAY_SUBMENU_PROFILES,
+    TRAY_SUBMENU_PROXIES, TRAY_SUBMENU_PROXY_GROUP_BASE, TRAY_SUBMENU_PROXY_MORE_BASE,
+    TRAY_SUBMENU_SYNC, TrayCoreStatus, TrayEvent, TrayEventContext, TrayIntent, TrayMenuItem,
+    decode_pair_payload, encode_pair_payload, resolve_tray_event_in,
 };
 
 #[test]
@@ -68,20 +67,27 @@ fn spec_layout_mirrors_the_full_feature_menu() {
                 vec!["● 规则模式", "全局模式", "直连模式", "脚本模式"],
                 "active mode carries the `● ` marker; script enabled with a script block"
             );
-            assert!(mode_items.iter().all(
-                |item| matches!(item, TrayMenuItem::Action { enabled: true, .. })
-            ));
+            assert!(
+                mode_items
+                    .iter()
+                    .all(|item| matches!(item, TrayMenuItem::Action { enabled: true, .. }))
+            );
         }
         other => panic!("expected mode submenu, got {other:?}"),
     }
 
     match &items[3] {
-        TrayMenuItem::Submenu { id, label, items, .. } => {
+        TrayMenuItem::Submenu {
+            id, label, items, ..
+        } => {
             assert_eq!(*id, TRAY_SUBMENU_PROXIES);
             assert_eq!(label, "节点切换");
             assert_eq!(
                 items,
-                &vec![TrayMenuItem::info(TRAY_ACTION_NO_PROXIES, "暂无节点 (请先启动)")],
+                &vec![TrayMenuItem::info(
+                    TRAY_ACTION_NO_PROXIES,
+                    "暂无节点 (请先启动)"
+                )],
                 "no groups: the disabled placeholder"
             );
         }
@@ -91,7 +97,11 @@ fn spec_layout_mirrors_the_full_feature_menu() {
     assert_eq!(items[4], TrayMenuItem::Separator);
     assert_eq!(
         items[5],
-        TrayMenuItem::checkmark(TRAY_ACTION_TOGGLE_SYSTEM_PROXY, "系统代理 (System Proxy)", false)
+        TrayMenuItem::checkmark(
+            TRAY_ACTION_TOGGLE_SYSTEM_PROXY,
+            "系统代理 (System Proxy)",
+            false
+        )
     );
     assert_eq!(
         items[6],
@@ -102,21 +112,48 @@ fn spec_layout_mirrors_the_full_feature_menu() {
         TrayMenuItem::action(TRAY_ACTION_TOGGLE_THEME, "切换深/浅色模式")
     );
     assert_eq!(items[8], TrayMenuItem::Separator);
-    assert!(matches!(&items[9], TrayMenuItem::Submenu { id: TRAY_SUBMENU_PROFILES, .. }));
-    assert!(matches!(&items[10], TrayMenuItem::Submenu { id: TRAY_SUBMENU_KERNEL, .. }));
-    assert!(matches!(&items[11], TrayMenuItem::Submenu { id: TRAY_SUBMENU_SYNC, .. }));
+    assert!(matches!(
+        &items[9],
+        TrayMenuItem::Submenu {
+            id: TRAY_SUBMENU_PROFILES,
+            ..
+        }
+    ));
+    assert!(matches!(
+        &items[10],
+        TrayMenuItem::Submenu {
+            id: TRAY_SUBMENU_KERNEL,
+            ..
+        }
+    ));
+    assert!(matches!(
+        &items[11],
+        TrayMenuItem::Submenu {
+            id: TRAY_SUBMENU_SYNC,
+            ..
+        }
+    ));
     assert_eq!(
         items[12],
         TrayMenuItem::checkmark(TRAY_ACTION_TOGGLE_AUTOSTART, "开机自启", false)
     );
     assert_eq!(items[13], TrayMenuItem::Separator);
-    assert!(matches!(&items[14], TrayMenuItem::Submenu { id: TRAY_SUBMENU_INFO, .. }));
+    assert!(matches!(
+        &items[14],
+        TrayMenuItem::Submenu {
+            id: TRAY_SUBMENU_INFO,
+            ..
+        }
+    ));
     assert_eq!(items[15], TrayMenuItem::Separator);
     assert_eq!(
         items[16],
         TrayMenuItem::action(TRAY_ACTION_FACTORY_RESET, "恢复出厂设置…")
     );
-    assert_eq!(items[17], TrayMenuItem::action(TRAY_ACTION_QUIT, "退出应用"));
+    assert_eq!(
+        items[17],
+        TrayMenuItem::action(TRAY_ACTION_QUIT, "退出应用")
+    );
 
     // The icon is resolved from the crate's own icons directory.
     let icon = spec.icon.expect("spec embeds the shared RGBA icon");
@@ -138,7 +175,10 @@ fn spec_script_mode_entry_tracks_script_block_presence() {
     ctx.mode = Some("script");
     let items = &build_tray_spec(&ctx).menu.items;
 
-    let TrayMenuItem::Submenu { items: mode_items, .. } = &items[2] else {
+    let TrayMenuItem::Submenu {
+        items: mode_items, ..
+    } = &items[2]
+    else {
         panic!("entry 2 must be the mode submenu");
     };
     let TrayMenuItem::Action { label, enabled, .. } = &mode_items[3] else {
@@ -149,7 +189,10 @@ fn spec_script_mode_entry_tracks_script_block_presence() {
 
     // With the block present the plain localized label is used instead.
     let items = &build_tray_spec(&base_ctx()).menu.items;
-    let TrayMenuItem::Submenu { items: mode_items, .. } = &items[2] else {
+    let TrayMenuItem::Submenu {
+        items: mode_items, ..
+    } = &items[2]
+    else {
         panic!("entry 2 must be the mode submenu");
     };
     assert_eq!(mode_items[3].action_label(), Some("脚本模式"));
@@ -158,8 +201,10 @@ fn spec_script_mode_entry_tracks_script_block_presence() {
 #[test]
 fn spec_encodes_proxy_groups_nodes_delays_and_overflow() {
     let hk_names: Vec<String> = (0..22).map(|index| format!("HK-{index:02}")).collect();
-    let hk_nodes: Vec<(&str, Option<u32>)> =
-        hk_names.iter().map(|name| (name.as_str(), Some(300))).collect();
+    let hk_nodes: Vec<(&str, Option<u32>)> = hk_names
+        .iter()
+        .map(|name| (name.as_str(), Some(300)))
+        .collect();
     let groups = vec![
         proxy_group("GLOBAL", "B", &[("A", Some(120)), ("B", None)]),
         proxy_group("🇭🇰 HK", "HK-01", &hk_nodes),
@@ -170,20 +215,34 @@ fn spec_encodes_proxy_groups_nodes_delays_and_overflow() {
     let spec = build_tray_spec(&ctx);
     let items = &spec.menu.items;
 
-    let TrayMenuItem::Submenu { items: group_subs, .. } = &items[3] else {
+    let TrayMenuItem::Submenu {
+        items: group_subs, ..
+    } = &items[3]
+    else {
         panic!("entry 3 must be the proxies submenu");
     };
     assert_eq!(group_subs.len(), 2);
     assert!(matches!(
         &group_subs[0],
-        TrayMenuItem::Submenu { id: TRAY_SUBMENU_PROXY_GROUP_BASE, .. }
+        TrayMenuItem::Submenu {
+            id: TRAY_SUBMENU_PROXY_GROUP_BASE,
+            ..
+        }
     ));
-    let TrayMenuItem::Submenu { id: hk_group_id, .. } = &group_subs[1] else {
+    let TrayMenuItem::Submenu {
+        id: hk_group_id, ..
+    } = &group_subs[1]
+    else {
         panic!("group 1 must be a submenu");
     };
     assert_eq!(*hk_group_id, TRAY_SUBMENU_PROXY_GROUP_BASE + 1);
 
-    let TrayMenuItem::Submenu { label, items: nodes, .. } = &group_subs[0] else {
+    let TrayMenuItem::Submenu {
+        label,
+        items: nodes,
+        ..
+    } = &group_subs[0]
+    else {
         panic!("group 0 must be a submenu");
     };
     assert_eq!(label, "GLOBAL");
@@ -208,12 +267,18 @@ fn spec_encodes_proxy_groups_nodes_delays_and_overflow() {
     );
 
     // 22 nodes fold into 20 inline entries plus a nested `… +N` submenu.
-    let TrayMenuItem::Submenu { items: hk_items, .. } = &group_subs[1] else {
+    let TrayMenuItem::Submenu {
+        items: hk_items, ..
+    } = &group_subs[1]
+    else {
         panic!("group 1 must be a submenu");
     };
     assert_eq!(hk_items.len(), 21);
     let TrayMenuItem::Submenu {
-        id, label, items: rest, ..
+        id,
+        label,
+        items: rest,
+        ..
     } = &hk_items[20]
     else {
         panic!("overflow must fold into a nested submenu");
@@ -238,10 +303,18 @@ fn spec_profiles_submenu_marks_active_auto_update_and_empty_state() {
     let spec = build_tray_spec(&ctx);
     let items = &spec.menu.items;
 
-    let TrayMenuItem::Submenu { items: profile_items, .. } = &items[9] else {
+    let TrayMenuItem::Submenu {
+        items: profile_items,
+        ..
+    } = &items[9]
+    else {
         panic!("entry 9 must be the profiles submenu");
     };
-    assert_eq!(profile_items.len(), 7, "2 profiles, sep, update-all, sep, 2 checkmarks");
+    assert_eq!(
+        profile_items.len(),
+        7,
+        "2 profiles, sep, update-all, sep, 2 checkmarks"
+    );
     assert_eq!(
         profile_items[0],
         TrayMenuItem::Action {
@@ -274,7 +347,11 @@ fn spec_profiles_submenu_marks_active_auto_update_and_empty_state() {
 
     // Empty profiles keep the disabled placeholder.
     let spec = build_tray_spec(&base_ctx());
-    let TrayMenuItem::Submenu { items: profile_items, .. } = &spec.menu.items[9] else {
+    let TrayMenuItem::Submenu {
+        items: profile_items,
+        ..
+    } = &spec.menu.items[9]
+    else {
         panic!("entry 9 must be the profiles submenu");
     };
     assert_eq!(
@@ -292,11 +369,20 @@ fn spec_kernel_submenu_states() {
     let spec = build_tray_spec(&ctx);
     let items = &spec.menu.items;
 
-    let TrayMenuItem::Submenu { label, items: kernel_items, .. } = &items[10] else {
+    let TrayMenuItem::Submenu {
+        label,
+        items: kernel_items,
+        ..
+    } = &items[10]
+    else {
         panic!("entry 10 must be the kernel submenu");
     };
     assert_eq!(label, "内核");
-    assert_eq!(kernel_items.len(), 8, "2 info, sep, 2 versions, sep, update, flush");
+    assert_eq!(
+        kernel_items.len(),
+        8,
+        "2 info, sep, 2 versions, sep, update, flush"
+    );
     assert_eq!(
         kernel_items[0],
         TrayMenuItem::info(TRAY_ACTION_INFO_KERNEL_DEFAULT, "内核版本: v1.18.0")
@@ -346,7 +432,11 @@ fn spec_kernel_update_entry_morphs_while_checking_and_downloading() {
     ctx.kernels = &kernels;
     ctx.core_checking = true;
     let items = &build_tray_spec(&ctx).menu.items;
-    let TrayMenuItem::Submenu { items: kernel_items, .. } = &items[10] else {
+    let TrayMenuItem::Submenu {
+        items: kernel_items,
+        ..
+    } = &items[10]
+    else {
         panic!("entry 10 must be the kernel submenu");
     };
     assert_eq!(
@@ -358,7 +448,11 @@ fn spec_kernel_update_entry_morphs_while_checking_and_downloading() {
     ctx.core_downloading = true;
     ctx.core_download_percent = Some(45);
     let items = &build_tray_spec(&ctx).menu.items;
-    let TrayMenuItem::Submenu { items: kernel_items, .. } = &items[10] else {
+    let TrayMenuItem::Submenu {
+        items: kernel_items,
+        ..
+    } = &items[10]
+    else {
         panic!("entry 10 must be the kernel submenu");
     };
     assert_eq!(
@@ -375,42 +469,76 @@ fn spec_kernel_update_entry_morphs_while_checking_and_downloading() {
 fn spec_sync_submenu_states() {
     // Disabled WebDAV: status line plus inert upload/download.
     let items = &build_tray_spec(&base_ctx()).menu.items;
-    let TrayMenuItem::Submenu { items: sync_items, .. } = &items[11] else {
+    let TrayMenuItem::Submenu {
+        items: sync_items, ..
+    } = &items[11]
+    else {
         panic!("entry 11 must be the sync submenu");
     };
-    assert_eq!(sync_items[0], TrayMenuItem::info(TRAY_ACTION_INFO_SYNC, "未启用 WebDAV 同步"));
+    assert_eq!(
+        sync_items[0],
+        TrayMenuItem::info(TRAY_ACTION_INFO_SYNC, "未启用 WebDAV 同步")
+    );
     assert!(matches!(
         &sync_items[2],
-        TrayMenuItem::Action { id: TRAY_ACTION_SYNC_UPLOAD, enabled: false, .. }
+        TrayMenuItem::Action {
+            id: TRAY_ACTION_SYNC_UPLOAD,
+            enabled: false,
+            ..
+        }
     ));
     assert!(matches!(
         &sync_items[3],
-        TrayMenuItem::Action { id: TRAY_ACTION_SYNC_DOWNLOAD, enabled: false, .. }
+        TrayMenuItem::Action {
+            id: TRAY_ACTION_SYNC_DOWNLOAD,
+            enabled: false,
+            ..
+        }
     ));
-    assert_eq!(sync_items[5], TrayMenuItem::action(TRAY_ACTION_NAVIGATE_SYNC, "同步设置…"));
+    assert_eq!(
+        sync_items[5],
+        TrayMenuItem::action(TRAY_ACTION_NAVIGATE_SYNC, "同步设置…")
+    );
 
     // Enabled: upload/download go live.
     let mut ctx = base_ctx();
     ctx.webdav_enabled = true;
     let items = &build_tray_spec(&ctx).menu.items;
-    let TrayMenuItem::Submenu { items: sync_items, .. } = &items[11] else {
+    let TrayMenuItem::Submenu {
+        items: sync_items, ..
+    } = &items[11]
+    else {
         panic!("entry 11 must be the sync submenu");
     };
-    assert_eq!(sync_items[0], TrayMenuItem::info(TRAY_ACTION_INFO_SYNC, "WebDAV 同步已启用"));
+    assert_eq!(
+        sync_items[0],
+        TrayMenuItem::info(TRAY_ACTION_INFO_SYNC, "WebDAV 同步已启用")
+    );
     assert!(matches!(
         &sync_items[2],
-        TrayMenuItem::Action { id: TRAY_ACTION_SYNC_UPLOAD, enabled: true, .. }
+        TrayMenuItem::Action {
+            id: TRAY_ACTION_SYNC_UPLOAD,
+            enabled: true,
+            ..
+        }
     ));
     assert!(matches!(
         &sync_items[3],
-        TrayMenuItem::Action { id: TRAY_ACTION_SYNC_DOWNLOAD, enabled: true, .. }
+        TrayMenuItem::Action {
+            id: TRAY_ACTION_SYNC_DOWNLOAD,
+            enabled: true,
+            ..
+        }
     ));
 
     // Syncing: status line carries the step counters, download becomes cancel.
     ctx.syncing = true;
     ctx.sync_step = Some((2, 5));
     let items = &build_tray_spec(&ctx).menu.items;
-    let TrayMenuItem::Submenu { items: sync_items, .. } = &items[11] else {
+    let TrayMenuItem::Submenu {
+        items: sync_items, ..
+    } = &items[11]
+    else {
         panic!("entry 11 must be the sync submenu");
     };
     assert_eq!(
@@ -419,11 +547,19 @@ fn spec_sync_submenu_states() {
     );
     assert!(matches!(
         &sync_items[2],
-        TrayMenuItem::Action { id: TRAY_ACTION_SYNC_UPLOAD, enabled: false, .. }
+        TrayMenuItem::Action {
+            id: TRAY_ACTION_SYNC_UPLOAD,
+            enabled: false,
+            ..
+        }
     ));
     assert!(matches!(
         &sync_items[3],
-        TrayMenuItem::Action { id: TRAY_ACTION_CANCEL_SYNC, enabled: true, .. }
+        TrayMenuItem::Action {
+            id: TRAY_ACTION_CANCEL_SYNC,
+            enabled: true,
+            ..
+        }
     ));
 }
 
@@ -435,7 +571,12 @@ fn spec_info_lines_are_disabled_and_localized() {
     ctx.mode = Some("global");
     let items = &build_tray_spec(&ctx).menu.items;
 
-    let TrayMenuItem::Submenu { label, items: info_items, .. } = &items[14] else {
+    let TrayMenuItem::Submenu {
+        label,
+        items: info_items,
+        ..
+    } = &items[14]
+    else {
         panic!("entry 14 must be the info submenu");
     };
     assert_eq!(label, "信息");
@@ -444,15 +585,20 @@ fn spec_info_lines_are_disabled_and_localized() {
         &vec![
             TrayMenuItem::info(TRAY_ACTION_INFO_MODE, "运行模式: 全局模式"),
             TrayMenuItem::info(TRAY_ACTION_INFO_STATUS, "运行状态: 异常"),
-            TrayMenuItem::info(TRAY_ACTION_INFO_CONTROLLER, "控制接口: http://127.0.0.1:9090"),
+            TrayMenuItem::info(
+                TRAY_ACTION_INFO_CONTROLLER,
+                "控制接口: http://127.0.0.1:9090"
+            ),
             TrayMenuItem::info(TRAY_ACTION_INFO_ADMIN, "管理端口: 25210"),
             TrayMenuItem::info(TRAY_ACTION_INFO_KERNEL_VERSION, "内核版本: -"),
         ]
     );
     // Informational lines are read-only: disabled and never resolvable.
-    assert!(info_items
-        .iter()
-        .all(|item| matches!(item, TrayMenuItem::Action { enabled: false, .. })));
+    assert!(
+        info_items
+            .iter()
+            .all(|item| matches!(item, TrayMenuItem::Action { enabled: false, .. }))
+    );
 }
 
 #[test]
@@ -504,7 +650,10 @@ fn resolve_tray_event_in_covers_every_menu_action_and_rejects_unknowns() {
     // Node switching decodes the group␁node payload.
     assert_eq!(
         resolve_tray_event_in(
-            &activated(TRAY_ACTION_SELECT_PROXY, Some(&encode_pair_payload("GLOBAL", "X"))),
+            &activated(
+                TRAY_ACTION_SELECT_PROXY,
+                Some(&encode_pair_payload("GLOBAL", "X"))
+            ),
             &ctx
         ),
         Some(TrayIntent::SelectProxy {
@@ -549,7 +698,10 @@ fn resolve_tray_event_in_covers_every_menu_action_and_rejects_unknowns() {
         })
     );
     assert_eq!(
-        resolve_tray_event_in(&activated(TRAY_ACTION_SET_PROFILE_AUTO_UPDATE, Some("Ghost")), &ctx),
+        resolve_tray_event_in(
+            &activated(TRAY_ACTION_SET_PROFILE_AUTO_UPDATE, Some("Ghost")),
+            &ctx
+        ),
         None,
         "stale profile entries resolve to nothing"
     );
@@ -635,7 +787,10 @@ fn every_spec_action_id_resolves_to_an_intent() {
         proxy_group("GLOBAL", "A", &[("A", None), ("B", Some(80))]),
         proxy_group("HK", "HK-1", &[("HK-1", None)]),
     ];
-    let profiles = vec![test_profile("Paid", true, false), test_profile("Free", false, true)];
+    let profiles = vec![
+        test_profile("Paid", true, false),
+        test_profile("Free", false, true),
+    ];
     let kernels = vec![test_kernel("v1.18.0", true), test_kernel("v1.19.0", false)];
     let mut ctx = base_ctx();
     ctx.groups = &groups;
@@ -682,7 +837,10 @@ fn every_spec_action_id_resolves_to_an_intent() {
                         ctx,
                     );
                     if EXPECTED_MISSES.contains(id) {
-                        assert!(resolved.is_none(), "informational entry {id} must not resolve");
+                        assert!(
+                            resolved.is_none(),
+                            "informational entry {id} must not resolve"
+                        );
                         misses.push(*id);
                     } else {
                         assert!(resolved.is_some(), "action {id} must resolve");

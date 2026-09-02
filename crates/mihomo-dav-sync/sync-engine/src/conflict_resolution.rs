@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use serde_yaml::Value;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MergeStrategy {
@@ -30,8 +30,12 @@ pub fn diff_yaml_configs(local_yaml: &str, remote_yaml: &str) -> anyhow::Result<
     let local: Value = serde_yaml::from_str(local_yaml)?;
     let remote: Value = serde_yaml::from_str(remote_yaml)?;
 
-    let local_map = local.as_mapping().ok_or_else(|| anyhow::anyhow!("Local YAML is not a mapping"))?;
-    let remote_map = remote.as_mapping().ok_or_else(|| anyhow::anyhow!("Remote YAML is not a mapping"))?;
+    let local_map = local
+        .as_mapping()
+        .ok_or_else(|| anyhow::anyhow!("Local YAML is not a mapping"))?;
+    let remote_map = remote
+        .as_mapping()
+        .ok_or_else(|| anyhow::anyhow!("Remote YAML is not a mapping"))?;
 
     let mut added_keys = Vec::new();
     let mut removed_keys = Vec::new();
@@ -73,7 +77,8 @@ pub fn resolve_config_conflict(
     remote_yaml: &str,
     strategy: MergeStrategy,
 ) -> anyhow::Result<ConflictResolutionResult> {
-    let base: Value = serde_yaml::from_str(base_yaml).unwrap_or(Value::Mapping(serde_yaml::Mapping::new()));
+    let base: Value =
+        serde_yaml::from_str(base_yaml).unwrap_or(Value::Mapping(serde_yaml::Mapping::new()));
     let local: Value = serde_yaml::from_str(local_yaml)?;
     let remote: Value = serde_yaml::from_str(remote_yaml)?;
 
@@ -86,7 +91,11 @@ pub fn resolve_config_conflict(
     let mut was_clean = true;
 
     let mut all_keys = HashSet::new();
-    for k in base_map.keys().chain(local_map.keys()).chain(remote_map.keys()) {
+    for k in base_map
+        .keys()
+        .chain(local_map.keys())
+        .chain(remote_map.keys())
+    {
         all_keys.insert(k.clone());
     }
 
@@ -121,9 +130,7 @@ pub fn resolve_config_conflict(
                 match strategy {
                     MergeStrategy::PreferLocal => l.cloned(),
                     MergeStrategy::PreferRemote => r.cloned(),
-                    MergeStrategy::ThreeWayMerge | MergeStrategy::KeepBothWithRename => {
-                        l.cloned()
-                    }
+                    MergeStrategy::ThreeWayMerge | MergeStrategy::KeepBothWithRename => l.cloned(),
                 }
             }
         };
@@ -171,7 +178,8 @@ mod tests {
         let local = "port: 7890\nallow-lan: true\n";
         let remote = "port: 8080\nallow-lan: false\n";
 
-        let res = resolve_config_conflict(base, local, remote, MergeStrategy::ThreeWayMerge).unwrap();
+        let res =
+            resolve_config_conflict(base, local, remote, MergeStrategy::ThreeWayMerge).unwrap();
         assert!(res.was_clean);
         assert!(res.merged_content.contains("port: 8080"));
         assert!(res.merged_content.contains("allow-lan: true"));
@@ -183,12 +191,14 @@ mod tests {
         let local = "port: 8080\n";
         let remote = "port: 9090\n";
 
-        let res_local = resolve_config_conflict(base, local, remote, MergeStrategy::PreferLocal).unwrap();
+        let res_local =
+            resolve_config_conflict(base, local, remote, MergeStrategy::PreferLocal).unwrap();
         assert!(!res_local.was_clean);
         assert_eq!(res_local.conflicted_keys, vec!["port"]);
         assert!(res_local.merged_content.contains("port: 8080"));
 
-        let res_remote = resolve_config_conflict(base, local, remote, MergeStrategy::PreferRemote).unwrap();
+        let res_remote =
+            resolve_config_conflict(base, local, remote, MergeStrategy::PreferRemote).unwrap();
         assert!(!res_remote.was_clean);
         assert!(res_remote.merged_content.contains("port: 9090"));
     }

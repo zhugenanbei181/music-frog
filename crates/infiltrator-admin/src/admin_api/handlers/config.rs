@@ -3,7 +3,7 @@
 //! (`/admin/api/dns`, `/admin/api/fake-ip`, `/admin/api/*-providers`,
 //! `/admin/api/sniffer`, `/admin/api/rules`, `/admin/api/tun`).
 
-use axum::{Json};
+use axum::Json;
 use infiltrator_core::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
 
 use crate::admin_api::events::{

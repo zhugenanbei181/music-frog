@@ -132,6 +132,7 @@ impl AppState {
                 &self.editor.fake_ip_form.fake_ip_filter,
             )),
             store_fake_ip: Some(self.editor.fake_ip_form.store_fake_ip),
+            ..Default::default()
         })
     }
 

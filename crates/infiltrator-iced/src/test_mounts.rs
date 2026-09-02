@@ -30,3 +30,6 @@ mod doctor_flow_tests;
 
 #[path = "../tests/gui/business_flow_tests.rs"]
 mod business_flow_tests;
+
+#[path = "../tests/gui/crash_report_tests.rs"]
+mod crash_report_tests;
