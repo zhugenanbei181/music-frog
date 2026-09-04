@@ -19,5 +19,5 @@ pub mod scheduler;
 pub mod settings_io;
 pub mod smoke_e2e;
 pub mod sniffer;
-pub mod subscription;
+pub mod subscription_io;
 pub mod tun_io;

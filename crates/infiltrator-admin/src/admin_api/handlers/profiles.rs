@@ -291,16 +291,16 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
         .as_deref()
         .ok_or_else(|| ApiError::bad_request("未找到订阅链接"))?;
 
-    let checked_url = infiltrator_core::subscription::CheckedSubscriptionUrl::parse(url)
+    let checked_url = infiltrator_domain::subscription::CheckedSubscriptionUrl::parse(url)
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
-    let (content, userinfo) = infiltrator_core::subscription::fetch_subscription_with_info(
+    let (content, userinfo) = infiltrator_core::subscription_io::fetch_subscription_with_info(
         &state.http_client,
         &state.raw_http_client,
         &checked_url,
     )
     .await
     .map_err(|e| ApiError::internal(e.to_string()))?;
-    let content = infiltrator_core::subscription::strip_utf8_bom(&content);
+    let content = infiltrator_domain::subscription::strip_utf8_bom(&content);
     let (content, _report) =
         infiltrator_core::profile_options_io::apply_saved_options_for(&profile_name, content)
             .await
@@ -365,8 +365,7 @@ pub async fn update_all_profiles_http<C: AdminApiContext>(
 }
 
 pub(crate) fn ensure_valid_profile_name(name: &str) -> Result<String, ApiError> {
-    sanitize_profile_name(name)
-        .map_err(|e| ApiError::bad_request(e.to_string()))
+    sanitize_profile_name(name).map_err(|e| ApiError::bad_request(e.to_string()))
 }
 
 async fn switch_profile_internal<C: AdminApiContext>(
@@ -398,13 +397,13 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
         return Err(anyhow!("订阅链接不能为空"));
     }
 
-    let masked_url = infiltrator_core::subscription::mask_subscription_url(source_url);
+    let masked_url = infiltrator_domain::subscription::mask_subscription_url(source_url);
     info!(
         "admin import profile start: name={} url={}",
         profile_name, masked_url
     );
-    let checked_url = infiltrator_core::subscription::CheckedSubscriptionUrl::parse(source_url)?;
-    let (content, userinfo) = infiltrator_core::subscription::fetch_subscription_with_info(
+    let checked_url = infiltrator_domain::subscription::CheckedSubscriptionUrl::parse(source_url)?;
+    let (content, userinfo) = infiltrator_core::subscription_io::fetch_subscription_with_info(
         client,
         raw_client,
         &checked_url,
@@ -413,7 +412,7 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
     if content.trim().is_empty() {
         return Err(anyhow!("订阅返回内容为空"));
     }
-    let content = infiltrator_core::subscription::strip_utf8_bom(&content);
+    let content = infiltrator_domain::subscription::strip_utf8_bom(&content);
     let (content, _report) =
         infiltrator_core::profile_options_io::apply_saved_options_for(&profile_name, content)
             .await

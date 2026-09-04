@@ -127,9 +127,9 @@
 | **P07-01** | **全格式节点 URI 解析与无损双向转换**：支持 `ss`, `vmess`, `vless`, `trojan`, `hysteria2`, `tuic`, `wireguard` 各种方言无损互转。 | P1 | 已落地 | `infiltrator-core::profile_converter` |
 | **P07-02** | **多订阅深度清洗流水线 (Filter Pipeline)**：支持正则替换、倍率重算、前缀后缀、国家代码标准化与协议过滤。 | P1 | 已落地 | `infiltrator-core::filter` |
 | **P07-03** | **多订阅聚合引擎 (Multi-Profile Aggregator)**：勾选多个订阅自动去重合并，按国家/延迟自动生成策略组拓扑。 | P1 | 已落地 | `infiltrator-core::profile_converter` |
-| **P07-04** | **订阅 User-Agent 动态伪装与防屏蔽**：内置 User-Agent 库（Clash.Meta, ClashVerge, Shadowrocket 等）防止机场后端拦截。 | P1 | 已落地 | `infiltrator-core::subscription` |
-| **P07-05** | **订阅套餐用量与到期智能预警**：解析 `subscription-userinfo` 头，在流量超 80%/90% 或临期时推送系统通知。 | P1 | 已落地 | `infiltrator-core::subscription` |
-| **P07-06** | **防 Cloudflare / 5秒盾订阅下载器**：支持自定义 HTTP Headers、Cookie 注入与经现有代理拉取更新。 | P1 | 已落地 | `infiltrator-core::subscription` |
+| **P07-04** | **订阅 User-Agent 动态伪装与防屏蔽**：内置 User-Agent 库（Clash.Meta, ClashVerge, Shadowrocket 等）防止机场后端拦截。 | P1 | 已落地 | `infiltrator-domain::subscription` |
+| **P07-05** | **订阅套餐用量与到期智能预警**：解析 `subscription-userinfo` 头，在流量超 80%/90% 或临期时推送系统通知。 | P1 | 已落地 | `infiltrator-domain::subscription` |
+| **P07-06** | **防 Cloudflare / 5秒盾订阅下载器**：支持自定义 HTTP Headers、Cookie 注入与经现有代理拉取更新。 | P1 | 已落地 | `infiltrator-core::subscription_io` |
 | **P07-07** | **配置 Diff 可视化比对与智能回滚**：更新前后直观呈现节点增删改差异，支持一键回滚历史快照。 | P2 | 已落地 | `infiltrator-core::backup` |
 | **P07-08** | **配置写入原子事务与语法预检**：在应用新配置前调用独立沙箱预检语法语义，失败时零副作用原子回滚。 | P0 | 已落地 | `infiltrator-core::apply` |
 | **P07-09** | **订阅定时轮询调度与并发防重入**：基于 Cron/间隔的调度器，支持断线指数退避与 SingleFlight 并发锁。 | P1 | 已落地 | `infiltrator-core::scheduler` |
@@ -183,7 +183,7 @@
 | **P10-06** | **配置与私钥加密导出备份 (.encpkg)**：打包所有订阅、规则、Mixin 与设置为主密码加密的归档文件。 | P1 | 已落地 | `infiltrator-core::backup` |
 | **P10-07** | **运行时内存脱敏与零化安全 (Zeroize)**：敏感凭据生命周期结束后全面接入 `zeroize` 覆写，防止内存扫描泄露。 | P1 | 已落地 | `infiltrator-core::zeroize_guard` |
 | **P10-08** | **隐私保护与日志脱敏工作流**：导出诊断报告与日志时，自动对所有域名、真实 IP、订阅 Token 进行模糊化。 | P1 | 已落地 | `infiltrator-core::redact` |
-| **P10-09** | **恶意订阅与节点配置注入攻击防御**：静态安全审计订阅下发的危险字段（篡改控制器端口、注入脚本等）并拦截。 | P0 | 已落地 | `infiltrator-core::subscription` |
+| **P10-09** | **恶意订阅与节点配置注入攻击防御**：静态安全审计订阅下发的危险字段（篡改控制器端口、注入脚本等）并拦截。 | P0 | 已落地 | `infiltrator-domain::subscription` |
 | **P10-10** | **零第三方未授权遥测声明**：崩溃日志与诊断完全本地自闭环，零隐式第三方统计代码。 | P0 | 已落地 | `mihomo-platform::crash_reporter` |
 
 ---

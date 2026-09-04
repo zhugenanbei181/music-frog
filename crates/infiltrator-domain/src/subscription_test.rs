@@ -29,8 +29,7 @@ fn test_decode_gzip() {
 #[test]
 fn test_decode_deflate() {
     use std::io::Write;
-    let mut encoder =
-        flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
     encoder.write_all(b"deflated").unwrap();
     let compressed = encoder.finish().unwrap();
     let decoded = decode_subscription_bytes(compressed, Some("deflate")).unwrap();
@@ -112,7 +111,9 @@ fn test_subscription_quota_calculations_and_burn_rate() {
 
     // Projected exhaustion
     let now = 1000000000;
-    let proj = info.projected_exhaustion_unix(&prev_info, 172800, now).unwrap();
+    let proj = info
+        .projected_exhaustion_unix(&prev_info, 172800, now)
+        .unwrap();
     // 15 GB left at 10 GB/day = 1.5 days = 129600 secs
     assert_eq!(proj, now + 129600);
 
@@ -130,10 +131,15 @@ fn test_subscription_security_auditor() {
     assert!(safe_res.is_safe);
     assert!(safe_res.flagged_keys.is_empty());
 
-    let malicious_yaml = "external-controller: 0.0.0.0:9090\nsecret: hacked\nscript:\n  code: run()\n";
+    let malicious_yaml =
+        "external-controller: 0.0.0.0:9090\nsecret: hacked\nscript:\n  code: run()\n";
     let mal_res = SubscriptionSecurityAuditor::audit_subscription_content(malicious_yaml);
     assert!(!mal_res.is_safe);
-    assert!(mal_res.flagged_keys.contains(&"external-controller".to_string()));
+    assert!(
+        mal_res
+            .flagged_keys
+            .contains(&"external-controller".to_string())
+    );
     assert!(mal_res.flagged_keys.contains(&"secret".to_string()));
     assert!(mal_res.flagged_keys.contains(&"script".to_string()));
 }
@@ -151,15 +157,17 @@ fn test_user_agent_catalog() {
 
 #[test]
 fn test_waf_challenge_detector() {
-    let headers = infiltrator_http::reqwest::header::HeaderMap::new();
+    let metadata = WafResponseMetadata::default();
     let cf_html = "<!DOCTYPE html><html><head><title>Just a moment...</title></head><body>Checking your browser</body></html>";
-    let diag = WafChallengeDetector::inspect_response(403, &headers, cf_html);
+    let diag = WafChallengeDetector::inspect_response(403, &metadata, cf_html);
     assert!(diag.is_challenge);
     assert_eq!(diag.challenge_type, ChallengeType::Cloudflare5sShield);
 
     let disguised_html = "<html><body><h1>套餐已过期</h1><p>请续费后获取订阅</p></body></html>";
     assert!(WafChallengeDetector::is_html_disguised(disguised_html));
-    assert!(!WafChallengeDetector::is_html_disguised("proxies:\n  - name: HK-01\n    type: ss\n"));
+    assert!(!WafChallengeDetector::is_html_disguised(
+        "proxies:\n  - name: HK-01\n    type: ss\n"
+    ));
 }
 
 #[test]

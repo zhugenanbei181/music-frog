@@ -14,7 +14,7 @@ mod tests {
     use chrono::Utc;
     use infiltrator_core::settings_io::{save_settings, settings_path};
     use infiltrator_domain::settings::AppSettings;
-    use infiltrator_core::subscription::mask_subscription_url;
+    use infiltrator_domain::subscription::mask_subscription_url;
     use infiltrator_http::HttpClient;
     use mihomo_api::client::MihomoClient;
     use mihomo_config::manager::ConfigManager;

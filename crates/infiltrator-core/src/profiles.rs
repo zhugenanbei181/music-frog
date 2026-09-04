@@ -5,6 +5,7 @@ use mihomo_config::port::find_available_port;
 
 use crate::settings_io::app_config_manager;
 use infiltrator_domain::profiles::{ProfileDetail, ProfileInfo, sanitize_profile_name};
+use infiltrator_domain::subscription::{CheckedSubscriptionUrl, strip_utf8_bom};
 use tokio::fs;
 
 pub fn profile_to_info(profile: mihomo_config::profile::Profile) -> ProfileInfo {
@@ -51,10 +52,10 @@ pub async fn create_profile_from_url(name: &str, url: &str) -> anyhow::Result<Pr
 
     let client = build_http_client();
     let raw_client = build_raw_http_client(&client);
-    let checked_url = crate::subscription::CheckedSubscriptionUrl::parse(source_url)?;
+    let checked_url = CheckedSubscriptionUrl::parse(source_url)?;
     let content =
-        crate::subscription::fetch_subscription_text(&client, &raw_client, &checked_url).await?;
-    let content = crate::subscription::strip_utf8_bom(&content);
+        crate::subscription_io::fetch_subscription_text(&client, &raw_client, &checked_url).await?;
+    let content = strip_utf8_bom(&content);
     let (content, _report) =
         crate::profile_options_io::apply_saved_options_for(&profile_name, content).await?;
     if crate::config::validate_yaml(&content).is_err() {
@@ -100,11 +101,11 @@ pub async fn update_profile(name: &str) -> anyhow::Result<ProfileInfo> {
 
     let client = build_http_client();
     let raw_client = build_raw_http_client(&client);
-    let checked_url = crate::subscription::CheckedSubscriptionUrl::parse(url)?;
+    let checked_url = CheckedSubscriptionUrl::parse(url)?;
     let (content, userinfo) =
-        crate::subscription::fetch_subscription_with_info(&client, &raw_client, &checked_url)
+        crate::subscription_io::fetch_subscription_with_info(&client, &raw_client, &checked_url)
             .await?;
-    let content = crate::subscription::strip_utf8_bom(&content);
+    let content = strip_utf8_bom(&content);
     let (content, _report) =
         crate::profile_options_io::apply_saved_options_for(&profile_name, content).await?;
     if crate::config::validate_yaml(&content).is_err() {

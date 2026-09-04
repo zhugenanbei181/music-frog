@@ -10,10 +10,11 @@ use tokio::time::{Duration, sleep};
 
 use crate::admin_api::state::AdminApiContext;
 use crate::support::app_config_manager;
-use infiltrator_core::subscription::{
-    CheckedSubscriptionUrl, fetch_subscription_with_info, mask_subscription_url, strip_utf8_bom,
-};
+use infiltrator_core::subscription_io::fetch_subscription_with_info;
 use infiltrator_domain::redact::redact_line;
+use infiltrator_domain::subscription::{
+    CheckedSubscriptionUrl, mask_subscription_url, strip_utf8_bom,
+};
 use mihomo_config::manager::paths::validate_profile_name;
 
 #[derive(Clone, Debug, Default)]
@@ -296,10 +297,12 @@ async fn update_profile_subscription(params: ProfileUpdateParams<'_>) -> anyhow:
     let (content, userinfo) =
         fetch_subscription_with_info(params.client, params.raw_client, &checked_url).await?;
     let content = strip_utf8_bom(&content);
-    let (content, _report) =
-        infiltrator_core::profile_options_io::apply_saved_options_for(&params.profile.name, content)
-            .await
-            .map_err(|err| anyhow!("应用配置选项失败: {err}"))?;
+    let (content, _report) = infiltrator_core::profile_options_io::apply_saved_options_for(
+        &params.profile.name,
+        content,
+    )
+    .await
+    .map_err(|err| anyhow!("应用配置选项失败: {err}"))?;
     if infiltrator_core::config::validate_yaml(&content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
     }

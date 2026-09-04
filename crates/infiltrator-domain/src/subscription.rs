@@ -1,16 +1,13 @@
-//! Subscription download, decoding, quota tracking, and security auditing for Mihomo / Clash.Meta.
+//! Subscription values, parsing, decoding, quota tracking, and security
+//! auditing for Mihomo / Clash.Meta.
 
 use anyhow::{Result, anyhow};
 use flate2::read::{GzDecoder, ZlibDecoder};
-use infiltrator_http::reqwest::Response;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 
-/// 订阅本质上是配置文件；上限只为拦截把下载接口当无限代理用的滥用。
-const MAX_SUBSCRIPTION_BYTES: usize = 32 * 1024 * 1024;
-
 /// 已通过安全校验的订阅地址：类型系统保证未经 [`CheckedSubscriptionUrl::parse`]
-/// 的字符串无法进入 [`fetch_subscription_text`]。
+/// 的字符串无法进入订阅 IO 适配器。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedSubscriptionUrl(String);
 
@@ -25,74 +22,6 @@ impl CheckedSubscriptionUrl {
     }
 }
 
-pub async fn fetch_subscription_text(
-    client: &infiltrator_http::HttpClient,
-    raw_client: &infiltrator_http::HttpClient,
-    url: &CheckedSubscriptionUrl,
-) -> Result<String> {
-    fetch_subscription_with_info(client, raw_client, url)
-        .await
-        .map(|(text, _)| text)
-}
-
-/// Fetch the subscription body together with the provider traffic metadata
-/// from the `subscription-userinfo` response header.
-pub async fn fetch_subscription_with_info(
-    client: &infiltrator_http::HttpClient,
-    raw_client: &infiltrator_http::HttpClient,
-    url: &CheckedSubscriptionUrl,
-) -> Result<(String, Option<SubscriptionUserInfo>)> {
-    let mut resp = client.get(url.as_str()).send().await?;
-    if !resp.status().is_success() {
-        resp = raw_client.get(url.as_str()).send().await?;
-    }
-
-    if !resp.status().is_success() {
-        let status = resp.status().as_u16();
-        let diag = WafChallengeDetector::inspect_response(status, resp.headers(), "");
-        if diag.is_challenge {
-            return Err(anyhow!(
-                "订阅请求被拦截 [{}]: {}",
-                status,
-                diag.summary
-            ));
-        }
-        return Err(anyhow!("订阅链接请求失败: HTTP {}", resp.status()));
-    }
-
-    let userinfo = resp
-        .headers()
-        .get("subscription-userinfo")
-        .and_then(|v| v.to_str().ok())
-        .and_then(parse_subscription_userinfo);
-
-    let encoding = resp
-        .headers()
-        .get("content-encoding")
-        .and_then(|v| v.to_str().ok())
-        .map(|v| {
-            if v.contains("gzip") {
-                "gzip"
-            } else if v.contains("deflate") {
-                "deflate"
-            } else {
-                "plain"
-            }
-        });
-
-    let bytes = read_body_capped(resp).await?;
-    let decoded_bytes = decode_subscription_bytes(bytes, encoding)?;
-    let text = String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
-
-    if WafChallengeDetector::is_html_disguised(&text) {
-        return Err(anyhow!(
-            "订阅返回了 HTML 网页内容而非节点配置，可能已被防爬/5秒盾拦截或套餐已过期"
-        ));
-    }
-
-    Ok((text, userinfo))
-}
-
 /// Extended options for subscription fetching with custom User-Agent, headers, cookies, and retry.
 #[derive(Debug, Clone, Default)]
 pub struct SubscriptionFetchOptions {
@@ -102,104 +31,6 @@ pub struct SubscriptionFetchOptions {
     pub cookies: Option<String>,
     pub fallback_mirrors: Vec<CheckedSubscriptionUrl>,
     pub max_retries: usize,
-}
-
-/// Advanced subscription fetcher supporting custom headers, anti-scraping camouflage, and mirror fallbacks.
-pub async fn fetch_subscription_advanced(
-    client: &infiltrator_http::HttpClient,
-    raw_client: &infiltrator_http::HttpClient,
-    url: &CheckedSubscriptionUrl,
-    options: &SubscriptionFetchOptions,
-) -> Result<(String, Option<SubscriptionUserInfo>, Option<WafDiagnostic>)> {
-    let mut candidate_urls = vec![url.clone()];
-    candidate_urls.extend(options.fallback_mirrors.clone());
-
-    let mut last_err = anyhow!("无可用订阅地址");
-
-    for cand_url in candidate_urls {
-        let ua = if let Some(ref custom_ua) = options.user_agent {
-            custom_ua.as_str()
-        } else if let Some(ref preset) = options.user_agent_preset {
-            UserAgentCatalog::find_by_id(preset).map(|p| p.header).unwrap_or_else(|| UserAgentCatalog::default_user_agent())
-        } else {
-            UserAgentCatalog::smart_user_agent_for_url(cand_url.as_str())
-        };
-
-        let mut req = client.get(cand_url.as_str()).header("User-Agent", ua);
-        for (k, v) in &options.custom_headers {
-            req = req.header(k.as_str(), v.as_str());
-        }
-        if let Some(ref cookie_str) = options.cookies {
-            req = req.header("Cookie", cookie_str.as_str());
-        }
-
-        let resp_res = req.send().await;
-        let resp = match resp_res {
-            Ok(r) if r.status().is_success() => r,
-            Ok(r) => {
-                let status = r.status().as_u16();
-                let headers = r.headers().clone();
-                let sample_bytes = read_body_capped(r).await.unwrap_or_default();
-                let sample_text = String::from_utf8_lossy(&sample_bytes);
-                let diag = WafChallengeDetector::inspect_response(status, &headers, &sample_text);
-                last_err = anyhow!("请求失败 HTTP {}: {}", status, diag.summary);
-                continue;
-            }
-            Err(e) => {
-                // Fallback to raw client
-                let mut raw_req = raw_client.get(cand_url.as_str()).header("User-Agent", ua);
-                for (k, v) in &options.custom_headers {
-                    raw_req = raw_req.header(k.as_str(), v.as_str());
-                }
-                match raw_req.send().await {
-                    Ok(r) if r.status().is_success() => r,
-                    Ok(r) => {
-                        let status = r.status().as_u16();
-                        last_err = anyhow!("Raw 请求失败 HTTP {}", status);
-                        continue;
-                    }
-                    Err(raw_e) => {
-                        last_err = anyhow!("网络连接失败: {} / {}", e, raw_e);
-                        continue;
-                    }
-                }
-            }
-        };
-
-        let userinfo = resp
-            .headers()
-            .get("subscription-userinfo")
-            .and_then(|v| v.to_str().ok())
-            .and_then(parse_subscription_userinfo);
-
-        let encoding = resp
-            .headers()
-            .get("content-encoding")
-            .and_then(|v| v.to_str().ok())
-            .map(|v| {
-                if v.contains("gzip") {
-                    "gzip"
-                } else if v.contains("deflate") {
-                    "deflate"
-                } else {
-                    "plain"
-                }
-            });
-
-        let bytes = read_body_capped(resp).await?;
-        let decoded_bytes = decode_subscription_bytes(bytes, encoding)?;
-        let text = String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
-
-        if WafChallengeDetector::is_html_disguised(&text) {
-            let diag = WafChallengeDetector::inspect_response(200, &infiltrator_http::reqwest::header::HeaderMap::new(), &text);
-            last_err = anyhow!("订阅返回了网页 HTML 内容: {}", diag.summary);
-            continue;
-        }
-
-        return Ok((text, userinfo, None));
-    }
-
-    Err(last_err)
 }
 
 /// Provider traffic metadata advertised via `subscription-userinfo`.
@@ -225,7 +56,9 @@ pub enum QuotaStatus {
 
 impl SubscriptionUserInfo {
     pub fn used_bytes(&self) -> u64 {
-        self.upload.unwrap_or(0).saturating_add(self.download.unwrap_or(0))
+        self.upload
+            .unwrap_or(0)
+            .saturating_add(self.download.unwrap_or(0))
     }
 
     pub fn usage_percentage(&self) -> Option<f64> {
@@ -322,11 +155,15 @@ impl SubscriptionUserInfo {
     }
 
     pub fn format_total(&self) -> String {
-        self.total.map(Self::format_bytes).unwrap_or_else(|| "无限".into())
+        self.total
+            .map(Self::format_bytes)
+            .unwrap_or_else(|| "无限".into())
     }
 
     pub fn format_remaining(&self) -> String {
-        self.remaining_bytes().map(Self::format_bytes).unwrap_or_else(|| "未知".into())
+        self.remaining_bytes()
+            .map(Self::format_bytes)
+            .unwrap_or_else(|| "未知".into())
     }
 
     /// Calculates daily consumption burn-rate (in GB/day) based on previous snapshot.
@@ -502,9 +339,15 @@ impl UserAgentCatalog {
 
     pub fn get_browser_headers_for(_preset_id: &str) -> Vec<(&'static str, &'static str)> {
         vec![
-            ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"),
+            (
+                "Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            ),
             ("Accept-Language", "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7"),
-            ("Sec-CH-UA", "\"Chromium\";v=\"128\", \"Not;A=Brand\";v=\"24\", \"Google Chrome\";v=\"128\""),
+            (
+                "Sec-CH-UA",
+                "\"Chromium\";v=\"128\", \"Not;A=Brand\";v=\"24\", \"Google Chrome\";v=\"128\"",
+            ),
             ("Sec-CH-UA-Mobile", "?0"),
             ("Sec-CH-UA-Platform", "\"Windows\""),
             ("Sec-Fetch-Dest", "document"),
@@ -529,6 +372,18 @@ pub enum ChallengeType {
     HtmlDisguisedAsConfig,
 }
 
+/// HTTP metadata needed by the pure WAF classifier.
+///
+/// The HTTP adapter extracts these strings from its response headers. Keeping
+/// the classifier input as ordinary values means the domain crate never needs
+/// to know which HTTP client supplied them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct WafResponseMetadata {
+    pub server_header: Option<String>,
+    pub cf_ray: Option<String>,
+    pub retry_after_secs: Option<u64>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WafDiagnostic {
     pub is_challenge: bool,
@@ -544,26 +399,18 @@ pub struct WafDiagnostic {
 pub struct WafChallengeDetector;
 
 impl WafChallengeDetector {
-    /// Inspects HTTP response status, headers, and body sample for WAF / 5s shield signatures.
+    /// Inspects response metadata and a body sample for WAF / 5s shield
+    /// signatures.
     pub fn inspect_response(
         status_code: u16,
-        headers: &infiltrator_http::reqwest::header::HeaderMap,
+        metadata: &WafResponseMetadata,
         body_sample: &str,
     ) -> WafDiagnostic {
-        let server = headers
-            .get("server")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
-        let cf_ray = headers
-            .get("cf-ray")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
-        let retry_after = headers
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<u64>().ok());
-
-        let is_cf = server.as_deref().is_some_and(|s| s.to_ascii_lowercase().contains("cloudflare")) || cf_ray.is_some();
+        let is_cf = metadata
+            .server_header
+            .as_deref()
+            .is_some_and(|s| s.to_ascii_lowercase().contains("cloudflare"))
+            || metadata.cf_ray.is_some();
         let body_lower = body_sample.to_ascii_lowercase();
 
         let (is_challenge, challenge_type, summary, suggestion) = if status_code == 429 {
@@ -584,7 +431,9 @@ impl WafChallengeDetector {
                 "触发 Cloudflare 5秒盾浏览器验证".into(),
                 "请尝试切换 User-Agent 预设 (如 Shadowrocket 或 Chrome) 或在浏览器中提取 cf_clearance Cookie 注入".into(),
             )
-        } else if body_lower.contains("turnstile") || body_lower.contains("challenges.cloudflare.com") {
+        } else if body_lower.contains("turnstile")
+            || body_lower.contains("challenges.cloudflare.com")
+        {
             (
                 true,
                 ChallengeType::TurnstileCaptcha,
@@ -613,21 +462,16 @@ impl WafChallengeDetector {
                 "请登录机场官网检查套餐是否有效，或更新订阅 Token".into(),
             )
         } else {
-            (
-                false,
-                ChallengeType::None,
-                "正常响应".into(),
-                String::new(),
-            )
+            (false, ChallengeType::None, "正常响应".into(), String::new())
         };
 
         WafDiagnostic {
             is_challenge,
             challenge_type,
             status_code,
-            server_header: server,
-            cf_ray,
-            retry_after_secs: retry_after,
+            server_header: metadata.server_header.clone(),
+            cf_ray: metadata.cf_ray.clone(),
+            retry_after_secs: metadata.retry_after_secs,
             summary,
             suggestion,
         }
@@ -669,12 +513,15 @@ impl SubscriptionSecurityAuditor {
             && let Some(map) = doc.as_mapping()
         {
             // Check external-controller binding
-            if let Some(ec) = map.get(serde_yaml_ng::Value::String("external-controller".to_string()))
-                && let Some(ec_str) = ec.as_str()
+            if let Some(ec) = map.get(serde_yaml_ng::Value::String(
+                "external-controller".to_string(),
+            )) && let Some(ec_str) = ec.as_str()
                 && (ec_str.contains("0.0.0.0") || ec_str.starts_with(':'))
             {
                 flagged_keys.push("external-controller".to_string());
-                warnings.push(format!("Dangerous external-controller public exposure: {ec_str}"));
+                warnings.push(format!(
+                    "Dangerous external-controller public exposure: {ec_str}"
+                ));
             }
 
             // Check secret tampering
@@ -686,27 +533,37 @@ impl SubscriptionSecurityAuditor {
             // Check arbitrary script blocks
             if map.contains_key(serde_yaml_ng::Value::String("script".to_string())) {
                 flagged_keys.push("script".to_string());
-                warnings.push("Subscription contains arbitrary executable script block".to_string());
+                warnings
+                    .push("Subscription contains arbitrary executable script block".to_string());
             }
 
             // Check port collisions
-            for key in ["port", "socks-port", "mixed-port", "redir-port", "tproxy-port"] {
+            for key in [
+                "port",
+                "socks-port",
+                "mixed-port",
+                "redir-port",
+                "tproxy-port",
+            ] {
                 if let Some(val) = map.get(serde_yaml_ng::Value::String(key.to_string()))
                     && let Some(port) = val.as_u64()
                     && (port == 22 || port == 53 || port == 80 || port == 443)
                 {
-                    warnings.push(format!("Port override targeting sensitive port: {key}={port}"));
+                    warnings.push(format!(
+                        "Port override targeting sensitive port: {key}={port}"
+                    ));
                 }
             }
 
             // Check dangerous TUN hijacking
             if let Some(tun) = map.get(serde_yaml_ng::Value::String("tun".to_string()))
                 && let Some(tun_map) = tun.as_mapping()
-                && let Some(auto_route) = tun_map.get(serde_yaml_ng::Value::String("auto-route".to_string()))
-                    && auto_route.as_bool() == Some(true)
-                {
-                    warnings.push("Subscription enables auto-route in TUN section".to_string());
-                }
+                && let Some(auto_route) =
+                    tun_map.get(serde_yaml_ng::Value::String("auto-route".to_string()))
+                && auto_route.as_bool() == Some(true)
+            {
+                warnings.push("Subscription enables auto-route in TUN section".to_string());
+            }
         }
 
         let is_safe = flagged_keys.is_empty();
@@ -719,8 +576,7 @@ impl SubscriptionSecurityAuditor {
 }
 
 pub fn validate_subscription_url(url: &str) -> Result<()> {
-    let parsed =
-        infiltrator_http::reqwest::Url::parse(url).map_err(|_| anyhow!("订阅链接格式无效"))?;
+    let parsed = url::Url::parse(url).map_err(|_| anyhow!("订阅链接格式无效"))?;
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err(anyhow!("订阅链接仅支持 http/https 协议"));
     }
@@ -733,29 +589,8 @@ pub fn validate_subscription_url(url: &str) -> Result<()> {
     Ok(())
 }
 
-async fn read_body_capped(resp: Response) -> Result<Vec<u8>> {
-    if let Some(len) = resp.content_length()
-        && len as usize > MAX_SUBSCRIPTION_BYTES
-    {
-        return Err(anyhow!(
-            "订阅内容超过大小上限 ({MAX_SUBSCRIPTION_BYTES} 字节)"
-        ));
-    }
-    let mut resp = resp;
-    let mut buffer = Vec::new();
-    while let Some(chunk) = resp.chunk().await? {
-        if buffer.len().saturating_add(chunk.len()) > MAX_SUBSCRIPTION_BYTES {
-            return Err(anyhow!(
-                "订阅内容超过大小上限 ({MAX_SUBSCRIPTION_BYTES} 字节)"
-            ));
-        }
-        buffer.extend_from_slice(&chunk);
-    }
-    Ok(buffer)
-}
-
 pub fn mask_subscription_url(url: &str) -> String {
-    if let Ok(mut parsed) = infiltrator_http::reqwest::Url::parse(url) {
+    if let Ok(mut parsed) = url::Url::parse(url) {
         let path = parsed.path().to_string();
         let segments: Vec<&str> = path.split('/').collect();
         if segments.len() > 2 {
@@ -774,7 +609,7 @@ pub fn strip_utf8_bom(text: &str) -> &str {
     text.strip_prefix("\u{feff}").unwrap_or(text)
 }
 
-fn decode_subscription_bytes(bytes: Vec<u8>, encoding: Option<&str>) -> Result<Vec<u8>> {
+pub fn decode_subscription_bytes(bytes: Vec<u8>, encoding: Option<&str>) -> Result<Vec<u8>> {
     if bytes.is_empty() {
         return Ok(Vec::new());
     }
@@ -807,7 +642,7 @@ fn decode_subscription_bytes(bytes: Vec<u8>, encoding: Option<&str>) -> Result<V
     Ok(data)
 }
 
-fn looks_like_gzip(bytes: &[u8]) -> bool {
+pub fn looks_like_gzip(bytes: &[u8]) -> bool {
     bytes.len() >= 10 && bytes[0] == 0x1f && bytes[1] == 0x8b
 }
 

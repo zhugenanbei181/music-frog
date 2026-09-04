@@ -33,6 +33,7 @@ pub mod redact;
 pub mod script_engine;
 pub mod settings;
 pub mod sub_rules;
+pub mod subscription;
 pub mod traffic_audit;
 pub mod tun;
 pub mod vector_clock;

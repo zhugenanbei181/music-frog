@@ -86,13 +86,16 @@ async fn show(runtime: &Runtime, name: Option<String>) -> anyhow::Result<()> {
 /// facade (built on an injected `ConfigManager`) cannot express.
 async fn import(runtime: &Runtime, name: &str, url: &str) -> anyhow::Result<()> {
     let profile_name = infiltrator_domain::profiles::sanitize_profile_name(name)?;
-    let checked_url = infiltrator_core::subscription::CheckedSubscriptionUrl::parse(url)?;
+    let checked_url = infiltrator_domain::subscription::CheckedSubscriptionUrl::parse(url)?;
     let client = infiltrator_http::build_http_client();
     let raw_client = infiltrator_http::build_raw_http_client(&client);
-    let content =
-        infiltrator_core::subscription::fetch_subscription_text(&client, &raw_client, &checked_url)
-            .await?;
-    let content = infiltrator_core::subscription::strip_utf8_bom(&content);
+    let content = infiltrator_core::subscription_io::fetch_subscription_text(
+        &client,
+        &raw_client,
+        &checked_url,
+    )
+    .await?;
+    let content = infiltrator_domain::subscription::strip_utf8_bom(&content);
     let configs_dir = runtime.configs_dir()?;
     let (content, _report) = infiltrator_core::profile_options_io::apply_saved_options(
         &configs_dir,

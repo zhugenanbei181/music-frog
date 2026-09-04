@@ -24,6 +24,7 @@
 - [x] `AppSettings` / WebDAV / runtime-panel schema 已移入 `infiltrator-domain::settings`；keyring、TOML 和 ConfigManager 读写集中在 `settings_io`。
 - [x] `InfiltratorError` 已移入 `infiltrator-contract`；Mihomo/IO 适配通过显式边界转换，不再从 core 暴露 transport error 类型。
 - [x] profile projection (`ProfileInfo` / `ProfileDetail`) 与 profile name 校验已移入 `infiltrator-domain::profiles`。
+- [x] subscription 的 URL 校验、内容解码、userinfo/配额、UA、WAF 分类和安全审计已移入 `infiltrator-domain::subscription`；HTTP 重试、响应体上限和 HeaderMap 转换集中在 `infiltrator-core::subscription_io`。
 - [ ] 其余标准 adapter（配置、版本、Admin、同步）按同一规则下沉到 composition/outbound 组合根。
 - [x] `infiltrator-ios` host crate 已建立端口与保守 capability seam，且 composition root 已有 `IosBridge -> CoreApplication` 入口；Native NetworkExtension bridge 仍待接入。
 - [ ] Iced、Admin、Android FFI 完成同一 application facade 接入。
