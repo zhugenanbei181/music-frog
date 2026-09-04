@@ -175,9 +175,10 @@ def check(repo_root: pathlib.Path) -> list[str]:
 
 
 def self_test() -> int:
-    assert direct_dependencies(REPO_ROOT / "crates/infiltrator-domain/Cargo.toml") == {
-        "serde"
-    }
+    domain_dependencies = direct_dependencies(
+        REPO_ROOT / "crates/infiltrator-domain/Cargo.toml"
+    )
+    assert not domain_dependencies & FORBIDDEN_DIRECT["infiltrator-domain"]
     assert not SOURCE_PATTERNS["infiltrator-domain"].search(
         strip_comments("// tokio::spawn\nuse serde::Serialize;")
     )

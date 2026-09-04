@@ -638,10 +638,10 @@ async fn fidelity_mixin_apply_preserves_comments_and_anchors() {
         .await
         .unwrap();
 
-    let mixin = crate::mixin::MixinConfig {
+    let mixin = infiltrator_domain::mixin::MixinConfig {
         mode: Some("direct".to_string()),
         mixed_port: Some(9999),
-        rules: Some(crate::mixin::RuleMixin {
+        rules: Some(infiltrator_domain::mixin::RuleMixin {
             append: vec!["DOMAIN,custom-mixin.com,DIRECT".to_string()],
             ..Default::default()
         }),

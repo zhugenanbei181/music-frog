@@ -94,7 +94,7 @@ async fn import(runtime: &Runtime, name: &str, url: &str) -> anyhow::Result<()> 
             .await?;
     let content = infiltrator_core::subscription::strip_utf8_bom(&content);
     let configs_dir = runtime.configs_dir()?;
-    let (content, _report) = infiltrator_core::profile_options::apply_saved_options(
+    let (content, _report) = infiltrator_core::profile_options_io::apply_saved_options(
         &configs_dir,
         &profile_name,
         content,

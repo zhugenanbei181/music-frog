@@ -31,8 +31,8 @@ pub struct FilterDraft {
 impl FilterDraft {
     /// Prefill the draft from a stored spec; rename rules render as
     /// `pattern => replacement` lines.
-    pub fn from_spec(spec: Option<&infiltrator_core::profile_options::FilterSpec>) -> Self {
-        use infiltrator_core::profile_options::FilterDedup;
+    pub fn from_spec(spec: Option<&infiltrator_domain::profile_options::FilterSpec>) -> Self {
+        use infiltrator_domain::profile_options::FilterDedup;
         let Some(spec) = spec else {
             return Self::default();
         };
@@ -59,8 +59,8 @@ impl FilterDraft {
     /// Compile the free-text draft into the stored spec. Keywords split on
     /// commas/newlines; rename rules use `pattern => replacement`, one per
     /// line or separated by `;`.
-    pub fn to_spec(&self) -> anyhow::Result<infiltrator_core::profile_options::FilterSpec> {
-        let mut spec = infiltrator_core::profile_options::FilterSpec::default();
+    pub fn to_spec(&self) -> anyhow::Result<infiltrator_domain::profile_options::FilterSpec> {
+        let mut spec = infiltrator_domain::profile_options::FilterSpec::default();
         for value in split_keywords(&self.include) {
             spec.include_keywords.push(value);
         }
@@ -79,16 +79,16 @@ impl FilterDraft {
                 anyhow::bail!("重命名规则格式错误（应为 模式 => 替换）: {line}");
             };
             spec.rename_rules
-                .push(infiltrator_core::profile_options::RenameSpec {
+                .push(infiltrator_domain::profile_options::RenameSpec {
                     pattern: pattern.trim().to_string(),
                     replacement: replacement.trim().to_string(),
                 });
         }
         spec.deduplication = match self.dedup_index {
-            1 => infiltrator_core::profile_options::FilterDedup::KeepFirst,
-            2 => infiltrator_core::profile_options::FilterDedup::KeepLast,
-            3 => infiltrator_core::profile_options::FilterDedup::AppendIndex,
-            _ => infiltrator_core::profile_options::FilterDedup::Disabled,
+            1 => infiltrator_domain::profile_options::FilterDedup::KeepFirst,
+            2 => infiltrator_domain::profile_options::FilterDedup::KeepLast,
+            3 => infiltrator_domain::profile_options::FilterDedup::AppendIndex,
+            _ => infiltrator_domain::profile_options::FilterDedup::Disabled,
         };
         Ok(spec)
     }

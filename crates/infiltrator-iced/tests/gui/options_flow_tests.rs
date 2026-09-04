@@ -38,14 +38,14 @@ fn test_mixin_pane_switch_loads_and_saves_via_options_state() {
     let (mut state, _) = AppState::new();
     // Editor bound to a profile with a stored mixin overlay.
     let dir = temp_options_dir("mixin");
-    let options = infiltrator_core::profile_options::ProfileOptions {
-        mixin: infiltrator_core::mixin::MixinConfig {
+    let options = infiltrator_domain::profile_options::ProfileOptions {
+        mixin: infiltrator_domain::mixin::MixinConfig {
             mode: Some("global".to_string()),
             ..Default::default()
         },
         filter: None,
     };
-    futures_executor_block_on(infiltrator_core::profile_options::save_options(
+    futures_executor_block_on(infiltrator_core::profile_options_io::save_options(
         &dir.join("configs"),
         "alpha",
         &options,
@@ -116,7 +116,7 @@ fn test_filter_draft_updates_and_validation_gate() {
     assert_eq!(spec.rename_rules.len(), 1);
     assert_eq!(
         spec.deduplication,
-        infiltrator_core::profile_options::FilterDedup::AppendIndex
+        infiltrator_domain::profile_options::FilterDedup::AppendIndex
     );
 
     // A malformed rename line fails compilation with an actionable message.
@@ -130,14 +130,14 @@ fn test_filter_draft_updates_and_validation_gate() {
     // switching to the Filter pane after ProfileContentLoaded keys the load
     // on editor_path's stem.
     let dir2 = temp_options_dir("filter");
-    futures_executor_block_on(infiltrator_core::profile_options::save_options(
+    futures_executor_block_on(infiltrator_core::profile_options_io::save_options(
         &dir2.join("configs"),
         "alpha",
-        &infiltrator_core::profile_options::ProfileOptions {
+        &infiltrator_domain::profile_options::ProfileOptions {
             mixin: Default::default(),
-            filter: Some(infiltrator_core::profile_options::FilterSpec {
+            filter: Some(infiltrator_domain::profile_options::FilterSpec {
                 include_keywords: vec!["JP".into()],
-                ..infiltrator_core::profile_options::FilterSpec::default()
+                ..infiltrator_domain::profile_options::FilterSpec::default()
             }),
         },
     ))

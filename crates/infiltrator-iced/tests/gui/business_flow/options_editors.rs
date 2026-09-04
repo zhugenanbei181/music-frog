@@ -8,8 +8,9 @@
 use super::support::{TempHome, block_on, feed, fresh_state, last_toast};
 use crate::types::message::Message;
 use crate::types::options::{EditorPane, FilterDraft};
-use infiltrator_core::mixin::MixinConfig;
-use infiltrator_core::profile_options::{self, ProfileOptions};
+use infiltrator_core::profile_options_io;
+use infiltrator_domain::mixin::MixinConfig;
+use infiltrator_domain::profile_options::{self, ProfileOptions};
 
 /// Journey 4 — Editor 三 pane：打开 profile → Mixin pane 懒加载 → 编辑 →
 /// 非法 YAML 被校验门拒绝 → 修正 → 保存 → mixin 合并落盘 + options sidecar。
@@ -96,7 +97,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     let mixin: MixinConfig = serde_yaml_ng::from_str("mode: global\n").unwrap();
     block_on(async {
         let config_dir = crate::configs_dir::configs_dir().await.unwrap();
-        let old = profile_options::load_options(&config_dir, "alpha")
+        let old = profile_options_io::load_options(&config_dir, "alpha")
             .await
             .unwrap();
         let manager = crate::configs_dir::config_manager().await.unwrap();
@@ -108,7 +109,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
             .flat_map(|rules| rules.prepend.iter().chain(rules.append.iter()).cloned())
             .collect();
         let base = profile_options::strip_rule_lines(&content, &removals);
-        let merged = infiltrator_core::mixin::merge_profile_with_config(&base, &mixin).unwrap();
+        let merged = infiltrator_domain::mixin::merge_profile_with_config(&base, &mixin).unwrap();
         infiltrator_core::config::validate_yaml(&merged).unwrap();
         crate::update::core::profile_apply::save_profile_content(
             None,
@@ -118,7 +119,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
         )
         .await
         .unwrap();
-        profile_options::save_options(
+        profile_options_io::save_options(
             &config_dir,
             "alpha",
             &ProfileOptions {
@@ -141,7 +142,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
         "mixin merged into profile: {on_disk}"
     );
     assert!(on_disk.contains("HK-1"), "proxies survive the merge");
-    let sidecar = block_on(profile_options::load_options(&home.configs(), "alpha")).unwrap();
+    let sidecar = block_on(profile_options_io::load_options(&home.configs(), "alpha")).unwrap();
     assert_eq!(
         sidecar.mixin.mode.as_deref(),
         Some("global"),
@@ -199,7 +200,7 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         let rule = spec.to_rule().unwrap();
         let manager = crate::configs_dir::config_manager().await.unwrap();
         let content = manager.load("alpha").await.unwrap();
-        let (filtered, report) = infiltrator_core::filter::SubscriptionFilterPipeline::new(rule)
+    let (filtered, report) = infiltrator_domain::filter::SubscriptionFilterPipeline::new(rule)
             .apply_to_yaml(&content)
             .unwrap();
         infiltrator_core::config::validate_yaml(&filtered).unwrap();
@@ -212,10 +213,10 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         .await
         .unwrap();
         let config_dir = crate::configs_dir::configs_dir().await.unwrap();
-        let old = profile_options::load_options(&config_dir, "alpha")
+        let old = profile_options_io::load_options(&config_dir, "alpha")
             .await
             .unwrap();
-        profile_options::save_options(
+        profile_options_io::save_options(
             &config_dir,
             "alpha",
             &ProfileOptions {
@@ -259,7 +260,7 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         vec!["HK-1".to_string()],
         "whitelist applied: {kept_names:?}"
     );
-    let sidecar = block_on(profile_options::load_options(&home.configs(), "alpha")).unwrap();
+    let sidecar = block_on(profile_options_io::load_options(&home.configs(), "alpha")).unwrap();
     let stored_spec = sidecar.filter.expect("filter spec persisted");
     assert_eq!(stored_spec.include_keywords, vec!["HK".to_string()]);
 

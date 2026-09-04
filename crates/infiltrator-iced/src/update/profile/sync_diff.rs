@@ -137,7 +137,7 @@ impl AppState {
                         let remote = tokio::fs::read_to_string(&conflict.remote_path)
                             .await
                             .map_err(|error| InfiltratorError::Io(error.to_string()))?;
-                        let merged = infiltrator_core::mixin::merge_yaml_key_picks(
+                        let merged = infiltrator_domain::mixin::merge_yaml_key_picks(
                             &local,
                             &remote,
                             &take_remote,

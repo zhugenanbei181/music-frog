@@ -205,15 +205,15 @@ impl AppState {
         // Per-profile subscription filter editor: prefilled from a fixture
         // spec so the Profiles page card shows a realistic working draft.
         state.editor.filter_draft = crate::types::options::FilterDraft::from_spec(Some(
-            &infiltrator_core::profile_options::FilterSpec {
+            &infiltrator_domain::profile_options::FilterSpec {
                 include_keywords: vec!["香港".to_string(), "日本".to_string()],
                 exclude_keywords: vec!["剩余流量".to_string(), "官网".to_string()],
-                rename_rules: vec![infiltrator_core::profile_options::RenameSpec {
+                rename_rules: vec![infiltrator_domain::profile_options::RenameSpec {
                     pattern: r"🇭🇰 香港-(\d+)".to_string(),
                     replacement: "HK-$1".to_string(),
                 }],
                 exclude_types: vec!["trojan".to_string()],
-                deduplication: infiltrator_core::profile_options::FilterDedup::AppendIndex,
+                deduplication: infiltrator_domain::profile_options::FilterDedup::AppendIndex,
                 ..Default::default()
             },
         ));

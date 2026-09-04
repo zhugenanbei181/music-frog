@@ -1,6 +1,15 @@
 //! Behavior tests for the per-profile option sidecar pipeline.
 
 use super::*;
+use infiltrator_domain::filter::{
+    ContentDedupStrategy, DeduplicationStrategy, NodeMutatorConfig, NodeSortOrder,
+    SubscriptionFilterPipeline,
+};
+use infiltrator_domain::mixin::MixinConfig;
+use infiltrator_domain::profile_options::{
+    FilterDedup, FilterSpec, MultiplierSpec, RenameSpec, strip_rule_lines,
+};
+use serde_yaml_ng::Value;
 use std::path::PathBuf;
 
 fn temp_config_dir(tag: &str) -> PathBuf {

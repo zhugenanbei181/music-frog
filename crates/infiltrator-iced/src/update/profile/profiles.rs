@@ -136,7 +136,7 @@ impl AppState {
                     // Best-effort: a stale sidecar would silently re-apply its
                     // filter/mixin to a future profile of the same name.
                     if let Ok(dir) = crate::configs_dir::configs_dir().await {
-                        infiltrator_core::profile_options::delete_options(&dir, &name).await;
+                        infiltrator_core::profile_options_io::delete_options(&dir, &name).await;
                     }
                     Ok(())
                 },

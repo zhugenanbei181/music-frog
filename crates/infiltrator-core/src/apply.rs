@@ -11,7 +11,7 @@
 //!
 //! [`apply_profile_edit`], [`apply_profile_set_scalar`], [`apply_profile_append_rule`],
 //! [`apply_profile_remove_rule`], [`apply_profile_rewrite_anchors`], and
-//! [`apply_profile_mixin_fidelity`] integrate the [`crate::yaml_edit::SourceDoc`]
+//! [`apply_profile_mixin_fidelity`] integrates the [`infiltrator_domain::yaml_edit::SourceDoc`]
 //! fidelity track directly into this transaction so that hand-annotated comments,
 //! anchors (`&anchor`), alias references (`*alias`), and custom formatting are 100%
 //! preserved during configuration edits and profile switches.
@@ -26,7 +26,7 @@ use mihomo_config::manager::ConfigManager;
 use tokio::io::AsyncWriteExt;
 use yaml_rust2::{Yaml, YamlLoader};
 
-use crate::yaml_edit::SourceDoc;
+use infiltrator_domain::yaml_edit::SourceDoc;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
@@ -406,7 +406,7 @@ pub async fn apply_profile_edit<S: SecureStore, F>(
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome>
 where
-    F: FnOnce(&mut SourceDoc) -> Result<(), crate::yaml_edit::YamlEditError>,
+    F: FnOnce(&mut SourceDoc) -> Result<(), infiltrator_domain::yaml_edit::YamlEditError>,
 {
     let current = config
         .get_current()
@@ -504,7 +504,7 @@ pub async fn apply_profile_rewrite_anchors<S: SecureStore>(
     .await
 }
 
-/// Try applying a [`crate::mixin::MixinConfig`] to the current profile using
+/// Try applying a [`infiltrator_domain::mixin::MixinConfig`] to the current profile using
 /// the [`SourceDoc`] fidelity path (preserving 100% of comments and anchors).
 /// If the mixin contains complex structural edits that require AST merge,
 /// falls back to full merge.
@@ -512,7 +512,7 @@ pub async fn apply_profile_mixin_fidelity<S: SecureStore>(
     session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
-    mixin: &crate::mixin::MixinConfig,
+    mixin: &infiltrator_domain::mixin::MixinConfig,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
     let current = config
@@ -524,15 +524,15 @@ pub async fn apply_profile_mixin_fidelity<S: SecureStore>(
         Err(err) => return Err(ApplyError::Write(err.to_string())),
     };
 
-    if crate::yaml_edit::mixin_fidelity::can_apply_mixin_via_fidelity(mixin)
+    if infiltrator_domain::yaml_edit::mixin_fidelity::can_apply_mixin_via_fidelity(mixin)
         && let Ok(mut doc) = SourceDoc::parse(&content)
-        && crate::yaml_edit::mixin_fidelity::apply_mixin_to_doc(&mut doc, mixin).is_ok()
+        && infiltrator_domain::yaml_edit::mixin_fidelity::apply_mixin_to_doc(&mut doc, mixin).is_ok()
     {
         let new_content = doc.render();
         return apply_current_profile(session, config, reloader, &new_content, params).await;
     }
 
-    let new_content = crate::mixin::merge_profile_with_config(&content, mixin)
+    let new_content = infiltrator_domain::mixin::merge_profile_with_config(&content, mixin)
         .map_err(|err| ApplyError::Validation(format!("mixin merge failed: {err}")))?;
     apply_current_profile(session, config, reloader, &new_content, params).await
 }

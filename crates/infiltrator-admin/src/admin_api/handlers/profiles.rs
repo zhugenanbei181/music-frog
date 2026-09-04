@@ -176,7 +176,7 @@ pub async fn delete_profile_http<C: AdminApiContext>(
     // does not inherit the deleted one's filter/mixin. The sidecar lives in
     // the (possibly redirected) configs dir, not under home.
     if let Ok(configs_dir) = crate::support::app_configs_dir().await {
-        infiltrator_core::profile_options::delete_options(&configs_dir, &profile_name).await;
+        infiltrator_core::profile_options_io::delete_options(&configs_dir, &profile_name).await;
     }
     state
         .events
@@ -302,7 +302,7 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
     .map_err(|e| ApiError::internal(e.to_string()))?;
     let content = infiltrator_core::subscription::strip_utf8_bom(&content);
     let (content, _report) =
-        infiltrator_core::profile_options::apply_saved_options_for(&profile_name, content)
+        infiltrator_core::profile_options_io::apply_saved_options_for(&profile_name, content)
             .await
             .map_err(|e| ApiError::bad_request(format!("应用配置选项失败: {e}")))?;
     if infiltrator_core::config::validate_yaml(&content).is_err() {
@@ -415,7 +415,7 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
     }
     let content = infiltrator_core::subscription::strip_utf8_bom(&content);
     let (content, _report) =
-        infiltrator_core::profile_options::apply_saved_options_for(&profile_name, content)
+        infiltrator_core::profile_options_io::apply_saved_options_for(&profile_name, content)
             .await
             .map_err(|e| anyhow!("应用配置选项失败: {e}"))?;
     if infiltrator_core::config::validate_yaml(&content).is_err() {

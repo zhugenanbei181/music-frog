@@ -14,10 +14,11 @@ use iced::Task;
 use iced::widget::text_editor;
 use infiltrator_core::apply::ApplyStrategy;
 use infiltrator_core::error::InfiltratorError;
-use infiltrator_core::filter::SubscriptionFilterPipeline;
-use infiltrator_core::mixin::MixinConfig;
-use infiltrator_core::profile_options::FilterSpec;
-use infiltrator_core::profile_options::{self, ProfileOptions};
+use infiltrator_core::profile_options_io;
+use infiltrator_domain::filter::SubscriptionFilterPipeline;
+use infiltrator_domain::mixin::MixinConfig;
+use infiltrator_domain::profile_options::FilterSpec;
+use infiltrator_domain::profile_options::{self, ProfileOptions};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 impl AppState {
@@ -174,7 +175,7 @@ impl AppState {
         Task::perform(
             async move {
                 let config_dir = crate::configs_dir::configs_dir().await?;
-                let options = profile_options::load_options(&config_dir, &profile)
+                let options = profile_options_io::load_options(&config_dir, &profile)
                     .await
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 serde_yaml_ng::to_string(&options.mixin)
@@ -204,7 +205,7 @@ impl AppState {
         Task::perform(
             async move {
                 let config_dir = crate::configs_dir::configs_dir().await?;
-                let options = profile_options::load_options(&config_dir, &profile)
+                let options = profile_options_io::load_options(&config_dir, &profile)
                     .await
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 Ok(FilterDraft::from_spec(options.filter.as_ref()))
@@ -246,7 +247,7 @@ impl AppState {
         Task::perform(
             async move {
                 let config_dir = crate::configs_dir::configs_dir().await?;
-                let old = profile_options::load_options(&config_dir, &profile)
+                let old = profile_options_io::load_options(&config_dir, &profile)
                     .await
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 let manager = crate::configs_dir::config_manager().await?;
@@ -261,7 +262,7 @@ impl AppState {
                     .flat_map(|rules| rules.prepend.iter().chain(rules.append.iter()).cloned())
                     .collect();
                 let base = profile_options::strip_rule_lines(&content, &removals);
-                let merged = infiltrator_core::mixin::merge_profile_with_config(&base, &mixin)
+                let merged = infiltrator_domain::mixin::merge_profile_with_config(&base, &mixin)
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 infiltrator_core::config::validate_yaml(&merged)
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
@@ -272,7 +273,7 @@ impl AppState {
                     ApplyStrategy::PreferReload,
                 )
                 .await?;
-                profile_options::save_options(
+                profile_options_io::save_options(
                     &config_dir,
                     &profile,
                     &ProfileOptions {
@@ -336,10 +337,10 @@ impl AppState {
                 )
                 .await?;
                 let config_dir = crate::configs_dir::configs_dir().await?;
-                let old = profile_options::load_options(&config_dir, &profile)
+                let old = profile_options_io::load_options(&config_dir, &profile)
                     .await
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                profile_options::save_options(
+                profile_options_io::save_options(
                     &config_dir,
                     &profile,
                     &ProfileOptions {

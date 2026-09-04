@@ -366,7 +366,7 @@ impl AppState {
                     ));
                 }
 
-                let node_item = infiltrator_core::profile_converter::ProxyNodeItem {
+                let node_item = infiltrator_domain::profile_converter::ProxyNodeItem {
                     name: name.clone(),
                     server,
                     port,
@@ -397,15 +397,15 @@ impl AppState {
                     runtime,
                     move |content| {
                         let mut nodes =
-                            infiltrator_core::profile_converter::ProfileConverter::parse_nodes(
+                            infiltrator_domain::profile_converter::ProfileConverter::parse_nodes(
                                 content,
-                                infiltrator_core::profile_converter::ProfileFormat::ClashYaml,
+                                infiltrator_domain::profile_converter::ProfileFormat::ClashYaml,
                             )
                             .unwrap_or_default();
                         nodes.insert(0, node_item);
-                        infiltrator_core::profile_converter::ProfileConverter::export_nodes(
+                        infiltrator_domain::profile_converter::ProfileConverter::export_nodes(
                             &nodes,
-                            infiltrator_core::profile_converter::ProfileFormat::ClashYaml,
+                            infiltrator_domain::profile_converter::ProfileFormat::ClashYaml,
                         )
                     },
                     Message::CustomNodeAdded,

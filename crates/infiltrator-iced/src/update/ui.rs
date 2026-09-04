@@ -491,7 +491,7 @@ impl AppState {
             }
             Message::ParseAndImportCustomUri => {
                 let uri = self.runtime.custom_node_uri_input.trim();
-                if let Ok(parsed) = infiltrator_core::profile_converter::ProfileConverter::parse_uri(uri) {
+                if let Ok(parsed) = infiltrator_domain::profile_converter::ProfileConverter::parse_uri(uri) {
                     self.runtime.custom_node_name_input = parsed.name.clone();
                     self.runtime.custom_node_server_input = parsed.server.clone();
                     self.runtime.custom_node_port_input = parsed.port.to_string();
@@ -509,7 +509,7 @@ impl AppState {
             }
             Message::ExportNodeAsUri(name) => {
                 if let Some(proxy) = self.runtime.proxies.get(&name) {
-                    let dummy = infiltrator_core::profile_converter::ProxyNodeItem {
+                    let dummy = infiltrator_domain::profile_converter::ProxyNodeItem {
                         name: name.clone(),
                         server: "node.example.com".to_string(),
                         port: 443,
@@ -519,7 +519,7 @@ impl AppState {
                         servername: Some("example.com".to_string()),
                         ..Default::default()
                     };
-                    self.runtime.custom_node_exported_uri = infiltrator_core::profile_converter::ProfileConverter::export_uri(&dummy).ok();
+                    self.runtime.custom_node_exported_uri = infiltrator_domain::profile_converter::ProfileConverter::export_uri(&dummy).ok();
                 }
                 Task::none()
             }

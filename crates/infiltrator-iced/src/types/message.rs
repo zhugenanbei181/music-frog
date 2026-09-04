@@ -325,7 +325,7 @@ pub enum Message {
     UpdateFilterRenames(String),
     UpdateFilterDedup(usize),
     SaveProfileFilter,
-    ProfileFilterSaved(Result<infiltrator_core::filter::FilterReport, InfiltratorError>),
+    ProfileFilterSaved(Result<infiltrator_domain::filter::FilterReport, InfiltratorError>),
     // MRS rule-provider detail scan (Rules page providers tab).
     ScanMrsProviders,
     MrsDetailsReady(Result<Vec<crate::types::options::MrsProviderDetail>, InfiltratorError>),

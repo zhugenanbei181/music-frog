@@ -220,81 +220,6 @@ pub fn options_path(config_dir: &Path, profile: &str) -> PathBuf {
     config_dir.join("options").join(format!("{profile}.yaml"))
 }
 
-/// Load the sidecar. A missing file yields the default (empty) options; a
-/// malformed one is an error so a broken hand-edit cannot silently drop the
-/// user's filter/mixin on the next subscription update.
-pub async fn load_options(config_dir: &Path, profile: &str) -> anyhow::Result<ProfileOptions> {
-    let path = options_path(config_dir, profile);
-    let Ok(text) = tokio::fs::read_to_string(&path).await else {
-        return Ok(ProfileOptions::default());
-    };
-    serde_yaml_ng::from_str(&text)
-        .with_context(|| format!("解析配置选项文件失败: {}", path.display()))
-}
-
-/// Persist the sidecar atomically. Saving empty options removes the file so
-/// stale sidecars cannot resurrect onto a future profile of the same name.
-pub async fn save_options(
-    config_dir: &Path,
-    profile: &str,
-    options: &ProfileOptions,
-) -> anyhow::Result<()> {
-    let path = options_path(config_dir, profile);
-    if options.is_empty() {
-        let _ = tokio::fs::remove_file(&path).await;
-        return Ok(());
-    }
-    if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent).await?;
-    }
-    let text = serde_yaml_ng::to_string(options)?;
-    let temp = path.with_file_name(format!(
-        ".{}.options-tmp",
-        path.file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("profile")
-    ));
-    tokio::fs::write(&temp, text).await?;
-    tokio::fs::rename(&temp, &path).await?;
-    Ok(())
-}
-
-/// Best-effort sidecar removal when a profile is deleted; a leftover file
-/// would otherwise be picked up by a profile recreated with the same name.
-pub async fn delete_options(config_dir: &Path, profile: &str) {
-    let _ = tokio::fs::remove_file(options_path(config_dir, profile)).await;
-}
-
-/// Convenience wrapper resolving the shared config directory through the
-/// same chain as [`mihomo_config::manager::ConfigManager`]: the
-/// `INFILTRATOR_CONFIGS_DIR` override, then the settings `configs_dir`
-/// field, then the default `<home>/configs`.
-pub async fn apply_saved_options_for(
-    profile: &str,
-    content: &str,
-) -> anyhow::Result<(String, Option<FilterReport>)> {
-    let home = mihomo_platform::paths::get_home_dir()?;
-    let settings_file = crate::settings::settings_path(&home)?;
-    let settings = crate::settings::load_settings(&settings_file).await?;
-    let config_dir = mihomo_config::manager::paths::resolve_configs_dir_in(
-        settings.configs_dir.as_deref(),
-        &home,
-    )?;
-    apply_saved_options(&config_dir, profile, content).await
-}
-
-/// Load the sidecar for `profile` and compose it onto freshly fetched
-/// subscription content. Composition failures (bad stored regex, invalid
-/// mixin YAML) abort the update with the cause attached.
-pub async fn apply_saved_options(
-    config_dir: &Path,
-    profile: &str,
-    content: &str,
-) -> anyhow::Result<(String, Option<FilterReport>)> {
-    let options = load_options(config_dir, profile).await?;
-    compose_content(content, &options)
-}
-
 /// Pure composition: filter the subscription's `proxies`, then deep-merge
 /// the mixin overlay. Empty options return the source unchanged (no
 /// re-serialization, so comments in hand-written profiles survive).
@@ -371,7 +296,3 @@ pub fn strip_rule_lines(content: &str, removals: &[String]) -> String {
         Err(_) => content.to_string(),
     }
 }
-
-#[cfg(test)]
-#[path = "profile_options_test.rs"]
-mod profile_options_test;

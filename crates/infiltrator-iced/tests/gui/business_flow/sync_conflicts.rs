@@ -254,7 +254,7 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
         let manager = crate::configs_dir::config_manager().await.unwrap();
         let local = manager.load("alpha").await.unwrap();
         let remote = tokio::fs::read_to_string(&remote_path).await.unwrap();
-        let merged = infiltrator_core::mixin::merge_yaml_key_picks(
+        let merged = infiltrator_domain::mixin::merge_yaml_key_picks(
             &local,
             &remote,
             &take_remote,

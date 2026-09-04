@@ -299,7 +299,7 @@ async fn update_profile_subscription(params: ProfileUpdateParams<'_>) -> anyhow:
         fetch_subscription_with_info(params.client, params.raw_client, &checked_url).await?;
     let content = strip_utf8_bom(&content);
     let (content, _report) =
-        infiltrator_core::profile_options::apply_saved_options_for(&params.profile.name, content)
+        infiltrator_core::profile_options_io::apply_saved_options_for(&params.profile.name, content)
             .await
             .map_err(|err| anyhow!("应用配置选项失败: {err}"))?;
     if infiltrator_core::config::validate_yaml(&content).is_err() {

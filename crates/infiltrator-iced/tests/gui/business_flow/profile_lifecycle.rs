@@ -339,12 +339,12 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
 
     // A stored, non-empty options sidecar exists for the doomed profile
     // (empty options would be treated as "no sidecar" by save_options).
-    block_on(infiltrator_core::profile_options::save_options(
+    block_on(infiltrator_core::profile_options_io::save_options(
         &home.configs(),
         "Doomed",
-        &infiltrator_core::profile_options::ProfileOptions {
+        &infiltrator_domain::profile_options::ProfileOptions {
             mixin: Default::default(),
-            filter: Some(infiltrator_core::profile_options::FilterSpec {
+            filter: Some(infiltrator_domain::profile_options::FilterSpec {
                 include_keywords: vec!["HK".into()],
                 ..Default::default()
             }),
@@ -373,7 +373,7 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
         let manager = crate::configs_dir::config_manager().await.unwrap();
         manager.delete_profile("Doomed").await.unwrap();
         let dir = crate::configs_dir::configs_dir().await.unwrap();
-        infiltrator_core::profile_options::delete_options(&dir, "Doomed").await;
+        infiltrator_core::profile_options_io::delete_options(&dir, "Doomed").await;
     });
 
     let units = feed(&mut state, Message::ProfileDeleted(Ok(())));
