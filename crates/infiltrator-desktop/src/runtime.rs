@@ -8,7 +8,7 @@ use infiltrator_core::session::{
 use mihomo_api::client::MihomoClient;
 use mihomo_api::proxy::{manager::ProxyManager, types::ProxyGroup};
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::traits::DefaultCredentialStore;
+use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_version::manager::VersionManager;
 use reqwest::{Client, header::ACCEPT_ENCODING};
 use serde::Serialize;

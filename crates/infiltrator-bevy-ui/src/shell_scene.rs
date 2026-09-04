@@ -31,8 +31,8 @@ use crate::app::{
     region_semantic_node, toggle_semantic_node, window_semantic_node,
 };
 use crate::pages::overview::{OverviewModePill, mode_label};
-use crate::projection::ProxyMode;
 use crate::route::Route;
+use infiltrator_contract::command::ProxyMode;
 
 /// The root shell scene.
 pub fn shell_scene(title: String, palette: &UiPalette) -> impl Scene + use<> {

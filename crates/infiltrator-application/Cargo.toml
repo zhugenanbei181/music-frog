@@ -6,11 +6,10 @@ publish = false
 description = "Tokio-backed application services over runtime-neutral MusicFrog ports."
 
 [dependencies]
+async-trait = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 log = { workspace = true }
+mihomo-api = { path = "../mihomo-api" }
 tokio = { workspace = true }
-
-[dev-dependencies]
-async-trait = { workspace = true }

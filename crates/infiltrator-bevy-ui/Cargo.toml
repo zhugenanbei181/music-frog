@@ -13,17 +13,16 @@ infiltrator-bevy-widgets = { path = "../infiltrator-bevy-widgets" }
 # AccessKit node/role vocabulary for the shell's semantic nodes. Direct dep
 # because bevy_a11y 0.19 no longer re-exports the crate.
 accesskit = { workspace = true }
+infiltrator-contract = { path = "../infiltrator-contract" }
 
 # Base `bevy` declaration with an EMPTY feature set; the per-target tables
 # below own the real closure (bevy derive macros scan this plain table).
 bevy = { workspace = true }
 
-# The live mihomo controller pump (BEVY-005).
-mihomo-api = { path = "../mihomo-api" }
+# The application-owned controller pump (BEVY-005).
+infiltrator-application = { path = "../infiltrator-application" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true }
-reqwest = { workspace = true }
 
 [dev-dependencies]
 mockito = { workspace = true }

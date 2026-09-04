@@ -1,8 +1,7 @@
 //! Host-selected default adapter types.
 //!
-//! The actual capability interfaces live in `infiltrator-ports`. This module
-//! only keeps target-specific default concrete types during the 0.30
-//! composition migration.
+//! The capability interfaces live in `infiltrator-ports`. These aliases are
+//! only composition conveniences for native binaries.
 
 #[cfg(not(target_os = "android"))]
 pub type DefaultCredentialStore = crate::desktop::KeyringCredentialStore;

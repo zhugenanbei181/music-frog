@@ -43,7 +43,7 @@ async fn fresh_home_bootstrap_creates_dir_config_and_controller() {
 
     let manager = ConfigManager::with_home_and_store(
         dir.path().to_path_buf(),
-        mihomo_platform::traits::DefaultCredentialStore::default(),
+        mihomo_platform::defaults::DefaultCredentialStore::default(),
     )
     .unwrap();
     let profile_path = manager.get_current_path().await.unwrap();
@@ -79,7 +79,7 @@ async fn bootstrap_is_idempotent_on_initialized_home() {
     }
     let manager = ConfigManager::with_home_and_store(
         dir.path().to_path_buf(),
-        mihomo_platform::traits::DefaultCredentialStore::default(),
+        mihomo_platform::defaults::DefaultCredentialStore::default(),
     )
     .unwrap();
     assert!(manager.get_external_controller().await.is_ok());
@@ -94,7 +94,7 @@ async fn bootstrap_repairs_missing_external_controller() {
     // must derive a fresh endpoint and write it back.
     let manager = ConfigManager::with_home_and_store(
         dir.path().to_path_buf(),
-        mihomo_platform::traits::DefaultCredentialStore::default(),
+        mihomo_platform::defaults::DefaultCredentialStore::default(),
     )
     .unwrap();
     manager.save("default", "port: 7890\n").await.unwrap();

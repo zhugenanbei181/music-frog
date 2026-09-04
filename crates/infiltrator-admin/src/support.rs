@@ -4,8 +4,8 @@ use std::path::PathBuf;
 
 use infiltrator_core::settings::{self, AppSettings};
 use mihomo_config::manager::ConfigManager;
+use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
-use mihomo_platform::traits::DefaultCredentialStore;
 
 /// home → settings.toml → load_settings。settings 尚未落盘时返回默认值。
 async fn load_app_settings() -> anyhow::Result<AppSettings> {
@@ -19,8 +19,7 @@ async fn load_app_settings() -> anyhow::Result<AppSettings> {
 /// settings.configs_dir 为 None 时使用 `<home>/configs`；
 /// `INFILTRATOR_CONFIGS_DIR` 环境变量仍优先于 settings 字段
 /// （优先级解析见 `mihomo_config::manager::paths::resolve_configs_dir_in`）。
-pub(crate) async fn app_config_manager(
-) -> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
+pub(crate) async fn app_config_manager() -> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
     let home = get_home_dir()?;
     let settings = load_app_settings().await?;
     Ok(ConfigManager::with_home_configs_dir_and_store(

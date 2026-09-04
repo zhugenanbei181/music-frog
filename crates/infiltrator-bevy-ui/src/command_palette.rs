@@ -29,8 +29,8 @@ use infiltrator_bevy_widgets::theme::{LightDark, space};
 
 use crate::app::ThemeMode;
 use crate::command::{CommandSinkHandle, UiCommand};
-use crate::projection::ProxyMode;
 use crate::route::{ActiveRoute, Route, RouteChanged};
+use infiltrator_contract::command::ProxyMode;
 
 /// Category classification of a command palette action item.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

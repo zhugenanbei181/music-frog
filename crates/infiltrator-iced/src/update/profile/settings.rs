@@ -101,7 +101,7 @@ impl AppState {
                         // 密码只进 OS keyring：空串=清除条目，非空=写入；
                         // 失败则整体不落盘，保持「settings 文件 + keyring」
                         // 状态一致（避免其他字段更新而凭据悄悄丢失）。
-                        let store = mihomo_platform::traits::DefaultCredentialStore::default();
+                        let store = mihomo_platform::defaults::DefaultCredentialStore::default();
                         if webdav_password.is_empty() {
                             infiltrator_core::settings::clear_webdav_password(&store).await;
                         } else {

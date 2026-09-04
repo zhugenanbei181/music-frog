@@ -31,7 +31,7 @@ use infiltrator_bevy_ui::pages::overview_cards::{
 };
 use infiltrator_bevy_ui::projection::{
     DemoOverviewSource, OverviewOrigin, OverviewProjection, OverviewSource, OverviewState,
-    ProxyMode, SourceKind,
+    SourceKind,
 };
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::button::ControlVisual;
@@ -43,6 +43,7 @@ use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{LightDark, Theme};
+use infiltrator_contract::command::ProxyMode;
 
 /// The demo core's unavailability reason (projection.rs fixture).
 const DEMO_REASON: &str = "demo: external controller unreachable (connection refused)";

@@ -18,7 +18,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::android_bridge::get_android_bridge;
-use mihomo_platform::traits::DefaultCredentialStore;
+use mihomo_platform::defaults::DefaultCredentialStore;
 
 #[cfg(target_os = "android")]
 use mihomo_platform::android::AndroidCoreController;

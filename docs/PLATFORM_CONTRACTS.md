@@ -1,6 +1,6 @@
 # 平台交互动词契约（Platform Contracts）
 
-> 0.20 设计文档。目标：**每个 OS 交互动词一个统一 Rust 契约（trait），各平台各给实现；
+> 0.30 迁移文档。目标：**每个 OS 交互动词一个统一 Rust 契约（trait），各平台各给实现；
 > 不支持的组合显式返回 `Unsupported`，而不是 `cfg` 静默消失。**
 >
 > 与 [`PLATFORM_MATRIX.md`](PLATFORM_MATRIX.md) 的关系：那边回答"每个平台要交什么证据"；
@@ -8,15 +8,15 @@
 > 与 [`TAURI_WEBUI_RETIREMENT_LEDGER.md`](TAURI_WEBUI_RETIREMENT_LEDGER.md) 的关系：§1.2 记录了
 > 旧 Tauri 宿主集成能力，本文把其中仍缺的动词（提权重启、is_elevated 三端化）纳入契约。
 
-## 0. 契约设计原则（以 `CredentialStore` 为样板）
+## 0. 契约设计原则（以 `SecureStore` 为样板）
 
-`mihomo-platform/src/traits.rs:19-23` 的 `CredentialStore` 是本仓库**唯一完整达标**的动词契约，
-后续所有动词向它对齐：
+`infiltrator-ports/src/secure_store.rs` 的 `SecureStore` 是本仓库的凭据端口，
+平台实现位于 `mihomo-platform`，后续所有外部能力向它的依赖方向对齐：
 
 1. **中性 trait**：`async fn get/set/delete`，入参全是 `&str`/值类型，不泄漏任何平台类型；
 2. **平台实现隔离**：desktop 走 `keyring` crate（`desktop.rs:146-209`，`spawn_blocking` 包住阻塞
    API），Android 走 UniFFI bridge（`android.rs:38-62`）——调用方一个 `cfg` 都看不到；
-3. **类型别名选默认**：`DefaultCredentialStore`（`traits.rs:32-36`）按 target 选实现，调用方
+3. **类型别名选默认**：`DefaultCredentialStore`（`defaults.rs`）按 target 选实现，调用方
    只依赖 trait；
 4. **错误走 `mihomo_api::Result`**：失败是数据，不是 panic，也不是静默 no-op。
 
@@ -55,8 +55,8 @@
 
 ```
 crates/mihomo-platform/src/
-  traits.rs              # 既有 CoreController/CredentialStore/DataDirProvider + 新契约
-  platform/mod.rs        # pub use 当前平台的 Default* 别名（对齐 traits.rs:32-42 风格）
+  defaults.rs             # 当前平台的 Default* 类型别名
+  platform/mod.rs        # 平台能力实现的组合入口
   platform/linux.rs
   platform/windows.rs
   platform/macos.rs
@@ -109,7 +109,7 @@ log-only stub（`:92-102`）；`send()` 是自由函数返回 `bool`，`AppState
 仅 `infiltrator-desktop/src/lib.rs:9` 挂载，无调用方）——MessageBox 是模态阻塞的，语义就是错的。
 
 ```rust
-// mihomo-platform/src/traits.rs
+// infiltrator-ports/src/secure_store.rs
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NotifyUrgency { Low, Normal, Critical }
 
@@ -153,7 +153,7 @@ pub trait SystemNotifier: Send + Sync {
   `Ok(default)`（`:58-61`）——**读端在撒谎**，违反 Unsupported 原则。
 
 ```rust
-// mihomo-platform/src/traits.rs
+// infiltrator-ports/src/system_proxy.rs
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SystemProxyState { pub enabled: bool, pub endpoint: Option<String>, pub bypass: Option<String> }
 
@@ -185,7 +185,7 @@ pub trait SystemProxyManager: Send + Sync {
   依赖 RunAtLoad 下次登录生效；enable/disable 的"立即生效"语义未定义）。带 tempfile 单测。
 
 ```rust
-// mihomo-platform/src/traits.rs
+// infiltrator-ports/src/autostart.rs
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AutostartState { Enabled, Disabled, Unsupported(&'static str) }
 
@@ -214,7 +214,7 @@ setcap -r（`:270-271`，应针对 mihomo 二进制）；macOS `check` 查 Privi
 `update/core/runtime_config.rs:80-100,234-240`、`view/settings.rs:206,388`。
 
 ```rust
-// mihomo-platform/src/traits.rs
+// infiltrator-ports/src/tun.rs
 pub use /* 现 ServiceModeStatus 平移 */ ServiceModeStatus;
 
 #[async_trait]
@@ -293,7 +293,7 @@ Windows：ShellExecuteW("runas")（或保留 PowerShell 方案）+ 参数透传�
      得到的是静默假状态。
 - **P1**：TUN trait（§2.5，修 uninstall 目标错位与 macOS sudo 假路径）。
 - **P2**：单实例锁双轨收敛、CrashReporter 接线、open-verb 收编、PrivilegeManager（提权重启）、
-  CredentialStore 错误透传小修。
+  SecureStore 错误透传小修。
 
 排序理由：P0 全部是"用户点开关但结果错误/静默无效"的正确性问题；P1 是 macOS 不可用但已有显式
 降级；P2 是健壮性/卫生。
@@ -316,9 +316,9 @@ Windows/macOS 打包机一键取证入口（对应 TEST_MATRIX L3）。
 
 ## 5. 迁移步骤（不破坏现有 Linux 行为）
 
-1. **先立契约不接线**：`PlatformError` + 新 trait 全部进 `mihomo-platform/src/traits.rs`；
+1. **先立契约不接线**：`PortError` + 新 trait 全部进 `infiltrator-ports` 的按能力模块；
    `platform/{linux,windows,macos}.rs` 先由现有函数体平移填充，`platform/unsupported.rs` 提供显式
-   Unsupported 兜底实现；配 `DefaultXxx` 类型别名（照抄 `traits.rs:32-42` 风格）。
+   Unsupported 兜底实现；平台默认实现通过 `mihomo-platform/src/defaults.rs` 暴露。
 2. **逐动词双跑**：新 trait 实现先用"包装旧函数"的方式落地（`proxy.rs` 的函数体直接被
    `platform/linux.rs` 调用），iced 调用点逐个切换到 trait 对象；每动词单独 PR，Linux 行为
    diff 为零（`tests/gui` 全绿 + 手测托盘/代理/自启开关）。

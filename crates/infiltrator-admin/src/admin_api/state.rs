@@ -53,11 +53,11 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     fn supports_autostart_control(&self) -> bool;
 
     /// 读取 OS keyring 中的 WebDAV 密码（`webdav:password`）。宿主默认走
-    /// [`mihomo_platform::traits::DefaultCredentialStore`]，可覆盖注入内存
+    /// [`mihomo_platform::defaults::DefaultCredentialStore`]，可覆盖注入内存
     /// 实现以便测试；读取失败归一为 `None`，调用方无需处理错误。
     async fn webdav_password(&self) -> Option<String> {
         infiltrator_core::settings::load_webdav_password(
-            &mihomo_platform::traits::DefaultCredentialStore::default(),
+            &mihomo_platform::defaults::DefaultCredentialStore::default(),
         )
         .await
     }
@@ -67,7 +67,7 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     /// 测试实现。
     async fn set_webdav_password(&self, password: &str) -> anyhow::Result<()> {
         infiltrator_core::settings::save_webdav_password(
-            &mihomo_platform::traits::DefaultCredentialStore::default(),
+            &mihomo_platform::defaults::DefaultCredentialStore::default(),
             password,
         )
         .await

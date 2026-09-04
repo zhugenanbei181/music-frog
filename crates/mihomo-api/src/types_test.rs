@@ -155,6 +155,34 @@ mod tests {
         let json_premium = r#"{"version": "v1.18.0-Meta", "premium": true}"#;
         let ver_premium: Version = serde_json::from_str(json_premium).unwrap();
         assert!(ver_premium.premium, "Meta 内核应标记 premium=true");
+
+        let json_meta = r#"{"meta": true, "version": "v1.19.18"}"#;
+        let ver_meta: Version = serde_json::from_str(json_meta).unwrap();
+        assert!(!ver_meta.premium, "缺失 premium 时应安全回退为 false");
+    }
+
+    #[test]
+    fn live_meta_config_and_idle_connections_are_lenient() {
+        let config: ConfigResponse = serde_json::from_str(
+            r#"{
+                "port": 0,
+                "socks-port": 0,
+                "redir-port": 0,
+                "tproxy-port": 0,
+                "mixed-port": 0,
+                "mode": "rule",
+                "log-level": "info",
+                "allow-lan": false,
+                "tun": {"enable": true, "stack": "gvisor", "auto-route": true}
+            }"#,
+        )
+        .unwrap();
+        assert!(config.tun.unwrap().strict_route == false);
+
+        let connections: crate::types::ConnectionsResponse =
+            serde_json::from_str(r#"{"downloadTotal": 0, "uploadTotal": 0, "connections": null}"#)
+                .unwrap();
+        assert!(connections.connections.is_empty());
     }
 
     // ──────────────────────────────────────────────

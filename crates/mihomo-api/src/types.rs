@@ -19,6 +19,7 @@ pub struct RuleList {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Version {
     pub version: String,
+    #[serde(default)]
     pub premium: bool,
 }
 
@@ -47,11 +48,13 @@ pub struct DnsConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct TunConfig {
+    #[serde(default)]
     pub enable: bool,
+    #[serde(default)]
     pub stack: String,
-    #[serde(rename = "auto-route")]
+    #[serde(rename = "auto-route", default)]
     pub auto_route: bool,
-    #[serde(rename = "strict-route")]
+    #[serde(rename = "strict-route", default)]
     pub strict_route: bool,
 }
 
@@ -158,10 +161,11 @@ pub struct ConnectionSnapshot {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ConnectionsResponse {
-    #[serde(rename = "downloadTotal")]
+    #[serde(rename = "downloadTotal", default)]
     pub download_total: u64,
-    #[serde(rename = "uploadTotal")]
+    #[serde(rename = "uploadTotal", default)]
     pub upload_total: u64,
+    #[serde(default, deserialize_with = "deserialize_null_as_empty_vec")]
     pub connections: Vec<Connection>,
 }
 

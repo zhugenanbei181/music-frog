@@ -8,8 +8,8 @@ use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::android_bridge::get_android_bridge;
+use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
-use mihomo_platform::traits::DefaultCredentialStore;
 use tokio::runtime::Runtime;
 
 use super::session::shared_core;
@@ -59,8 +59,8 @@ pub(super) async fn configs_dir_override() -> Option<String> {
 /// ConfigManager wired for the configs-dir redirect. The `INFILTRATOR_CONFIGS_DIR`
 /// env keeps priority over the settings field inside `resolve_configs_dir_in`;
 /// with no override anywhere this uses `<home>/configs`.
-pub(super) async fn build_config_manager(
-) -> Result<ConfigManager<DefaultCredentialStore>, FfiStatus> {
+pub(super) async fn build_config_manager()
+-> Result<ConfigManager<DefaultCredentialStore>, FfiStatus> {
     let home = get_home_dir().map_err(map_mihomo_error)?;
     let override_dir = configs_dir_override().await;
     ConfigManager::with_home_configs_dir_and_store(
@@ -79,7 +79,9 @@ pub(super) async fn build_controller_client() -> Result<MihomoClient, FfiStatus>
             Ok(endpoint) => match MihomoClient::new(&endpoint.url, endpoint.secret) {
                 Ok(client) => return Ok(client),
                 Err(err) => {
-                    log::debug!("session endpoint client unavailable, using legacy resolution: {err}");
+                    log::debug!(
+                        "session endpoint client unavailable, using legacy resolution: {err}"
+                    );
                 }
             },
             Err(err) => {
@@ -184,9 +186,7 @@ mod tests {
         }
     }
 
-    async fn configs_parent(
-        manager: &ConfigManager<DefaultCredentialStore>,
-    ) -> PathBuf {
+    async fn configs_parent(manager: &ConfigManager<DefaultCredentialStore>) -> PathBuf {
         manager
             .get_current_path()
             .await

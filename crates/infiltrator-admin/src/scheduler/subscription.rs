@@ -4,7 +4,7 @@ use infiltrator_http::HttpClient;
 use log::{info, warn};
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile::Profile;
-use mihomo_platform::traits::DefaultCredentialStore;
+use mihomo_platform::defaults::DefaultCredentialStore;
 use tokio::task::JoinSet;
 use tokio::time::{Duration, sleep};
 

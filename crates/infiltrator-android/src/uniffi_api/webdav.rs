@@ -10,8 +10,8 @@ use infiltrator_core::settings::{
     save_settings, save_webdav_password, settings_path,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
-use mihomo_platform::traits::DefaultCredentialStore;
 use state_store::StateStore;
 use sync_engine::{SyncPlanner, executor::SyncExecutor};
 

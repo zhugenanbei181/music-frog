@@ -5,8 +5,8 @@ use infiltrator_core::session::{EndpointSource as _, ProfileEndpointSource};
 use infiltrator_core::settings::{AppSettings, load_settings, save_settings, settings_path};
 use mihomo_api::client::MihomoClient;
 use mihomo_config::manager::ConfigManager;
+use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
-use mihomo_platform::traits::DefaultCredentialStore;
 use mihomo_version::manager::VersionManager;
 
 /// Per-invocation runtime context: the resolved home directory plus the

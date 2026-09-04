@@ -58,7 +58,7 @@ Iced / Bevy / Compose / Admin REST / CLI
 | --- | --- | --- |
 | 纯领域层 | `infiltrator-domain` | `infiltrator-core` 中的状态机、规则、配置变换、编解码和纯计算模块 |
 | 跨端契约 | `infiltrator-contract` | `infiltrator-shared` 中的 intent、snapshot、event、capability；主题/本地化另行归类 |
-| 外部端口 | `infiltrator-ports` | `CoreController`、`CredentialStore`、文件/时间/网络/TUN 等 trait |
+| 外部端口 | `infiltrator-ports` | `CoreProcess`、`SecureStore`、文件/时间/网络/TUN 等 trait |
 | 应用层 | `infiltrator-application`（可先保留包名 `infiltrator-core`） | `CoreSession`、use-case、apply transaction、actor、scheduler |
 | Mihomo outbound adapter | `mihomo-api`、`infiltrator-http` | REST/WebSocket 和 HTTP 传输实现 |
 | 配置/版本 outbound adapter | `mihomo-config`、`mihomo-version` | 文件、下载、安装和版本切换实现 |

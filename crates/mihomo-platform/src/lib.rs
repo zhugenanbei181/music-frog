@@ -2,6 +2,7 @@
 pub mod android;
 pub mod android_bridge;
 pub mod crash_reporter;
+pub mod defaults;
 #[cfg(not(target_os = "android"))]
 pub mod desktop;
 pub mod instance_ipc;
@@ -12,7 +13,6 @@ pub mod paths;
 pub mod power;
 pub mod sandbox_validator;
 pub mod target_matrix;
-pub mod traits;
 
 use infiltrator_ports::data_dir::DataDirProvider;
 

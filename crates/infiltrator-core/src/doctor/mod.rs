@@ -259,7 +259,8 @@ impl DoctorEnv {
 
     pub(super) async fn config_manager(
         &self,
-    ) -> mihomo_api::error::Result<ConfigManager<mihomo_platform::traits::DefaultCredentialStore>> {
+    ) -> mihomo_api::error::Result<ConfigManager<mihomo_platform::defaults::DefaultCredentialStore>>
+    {
         // configs 目录解析跟随本 env 的 settings 文件（`configs_dir` 字段）。
         // settings 解析失败时按默认值继续：坏 settings 由 config.settings_parse
         // 专门上报，其余检查不得连带失效。
@@ -269,7 +270,7 @@ impl DoctorEnv {
         ConfigManager::with_home_configs_dir_and_store(
             self.home.clone(),
             settings.configs_dir.as_deref(),
-            mihomo_platform::traits::DefaultCredentialStore::default(),
+            mihomo_platform::defaults::DefaultCredentialStore::default(),
         )
     }
 

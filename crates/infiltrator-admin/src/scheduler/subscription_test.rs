@@ -19,7 +19,7 @@ mod tests {
     use mihomo_config::manager::ConfigManager;
     use mihomo_config::profile::Profile;
     use mihomo_platform::TEST_LOCK;
-    use mihomo_platform::traits::DefaultCredentialStore;
+    use mihomo_platform::defaults::DefaultCredentialStore;
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
@@ -444,7 +444,7 @@ mod tests {
     /// 在重定向目录预置一个 auto-update 已启用、立即到期的 profile，
     /// 返回（profile 名, yaml 路径）。
     async fn seed_due_profile(
-        manager: &ConfigManager<mihomo_platform::traits::DefaultCredentialStore>,
+        manager: &ConfigManager<mihomo_platform::defaults::DefaultCredentialStore>,
         cloud: &std::path::Path,
         name: &str,
         url: String,

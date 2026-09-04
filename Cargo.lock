@@ -4984,6 +4984,7 @@ dependencies = [
  "infiltrator-domain",
  "infiltrator-ports",
  "log",
+ "mihomo-api",
  "tokio",
 ]
 
@@ -4994,13 +4995,12 @@ dependencies = [
  "accesskit",
  "bevy",
  "blake3",
+ "infiltrator-application",
  "infiltrator-bevy-widgets",
- "mihomo-api",
+ "infiltrator-contract",
  "mockito",
- "reqwest",
  "serde",
  "serde_json",
- "tokio",
 ]
 
 [[package]]
@@ -5868,6 +5868,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "futures-util",
+ "infiltrator-contract",
  "infiltrator-ports",
  "log",
  "mockito",

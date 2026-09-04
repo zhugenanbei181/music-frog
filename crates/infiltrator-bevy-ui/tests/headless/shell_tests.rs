@@ -30,7 +30,6 @@ use infiltrator_bevy_ui::app::{
     SidebarTunCard, SidebarTunToggle, ThemeMode, ThemeToggle,
 };
 use infiltrator_bevy_ui::pages::overview::OverviewModePill;
-use infiltrator_bevy_ui::projection::ProxyMode;
 use infiltrator_bevy_ui::route::{ActiveRoute, Route};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::icon::IconTint;
@@ -40,6 +39,7 @@ use infiltrator_bevy_widgets::responsive::{Density, ResponsiveContext};
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Breakpoint, LightDark, Theme};
+use infiltrator_contract::command::ProxyMode;
 
 #[test]
 fn shell_mounts_camera_content_slot_and_stamped_header() {

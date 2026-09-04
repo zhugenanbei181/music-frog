@@ -3,7 +3,7 @@ use dav_client::DavClient as _;
 use dav_client::client::WebDavClient;
 use infiltrator_core::settings::{AppSettings, load_webdav_password};
 use infiltrator_ports::secure_store::SecureStore;
-use mihomo_platform::traits::DefaultCredentialStore;
+use mihomo_platform::defaults::DefaultCredentialStore;
 use state_store::StateStore;
 use sync_engine::SyncPlanner;
 use sync_engine::executor::SyncExecutor;

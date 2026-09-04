@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use infiltrator_ports::secure_store::SecureStore;
-use mihomo_platform::traits::DefaultCredentialStore;
+use mihomo_platform::defaults::DefaultCredentialStore;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -282,8 +282,8 @@ pub fn settings_path(base_dir: &Path) -> anyhow::Result<std::path::PathBuf> {
 /// configs 目录跟随 settings 的 `configs_dir` 字段（解析优先级见
 /// `mihomo_config::manager::paths::resolve_configs_dir_in`）。
 /// 全部业务门面的 ConfigManager 构造都必须经由这里，禁止再自行 `new()`。
-pub async fn app_config_manager(
-) -> anyhow::Result<mihomo_config::manager::ConfigManager<DefaultCredentialStore>> {
+pub async fn app_config_manager()
+-> anyhow::Result<mihomo_config::manager::ConfigManager<DefaultCredentialStore>> {
     let home = mihomo_platform::paths::get_home_dir()?;
     app_config_manager_in(&home).await
 }
@@ -298,7 +298,7 @@ pub async fn app_config_manager_in(
         mihomo_config::manager::ConfigManager::with_home_configs_dir_and_store(
             home.to_path_buf(),
             settings.configs_dir.as_deref(),
-            mihomo_platform::traits::DefaultCredentialStore::default(),
+            mihomo_platform::defaults::DefaultCredentialStore::default(),
         )?,
     )
 }

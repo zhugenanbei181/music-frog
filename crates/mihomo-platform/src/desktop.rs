@@ -203,14 +203,15 @@ impl SecureStore for KeyringCredentialStore {
                 Ok(entry) => entry,
                 Err(err) => {
                     log::warn!("keyring init failed: {err}");
-                    return Ok(None);
+                    return Err(PortError::Failed(format!("Keyring init failed: {err}")));
                 }
             };
             match entry.get_password() {
                 Ok(value) => Ok(Some(value)),
+                Err(keyring::Error::NoEntry) => Ok(None),
                 Err(err) => {
                     log::warn!("keyring get failed: {err}");
-                    Ok(None)
+                    Err(PortError::Failed(format!("Keyring get failed: {err}")))
                 }
             }
         })

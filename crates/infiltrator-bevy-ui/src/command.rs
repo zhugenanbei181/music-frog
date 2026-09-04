@@ -10,7 +10,7 @@ use bevy::ecs::event::Event;
 use bevy::ecs::resource::Resource;
 use std::sync::{Arc, Mutex};
 
-use crate::projection::ProxyMode;
+use infiltrator_contract::command::{CommandIntent, ProxyMode};
 
 /// All user action commands emitted from Bevy UI pages and controls.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -75,6 +75,73 @@ pub enum UiCommand {
     RestartCore,
     /// Request core stop.
     StopCore,
+}
+
+impl UiCommand {
+    /// Convert a business command to the shared application contract. Local
+    /// presentation actions intentionally return `None`.
+    pub fn to_intent(&self) -> Option<CommandIntent> {
+        match self {
+            Self::SetProxyMode(mode) => Some(CommandIntent::SetProxyMode { mode: *mode }),
+            Self::SelectProxyNode { group, node } => Some(CommandIntent::SelectProxyNode {
+                group: group.clone(),
+                node: node.clone(),
+            }),
+            Self::TestAllProxyGroups => Some(CommandIntent::TestDelay { group: None }),
+            Self::TestProxyGroup { group } => Some(CommandIntent::TestDelay {
+                group: Some(group.clone()),
+            }),
+            Self::ToggleProxyGroupExpand { .. } => None,
+            Self::ActivateProfile { id } => Some(CommandIntent::SwitchProfile {
+                profile_id: id.clone(),
+            }),
+            Self::UpdateProfile { id } => Some(CommandIntent::UpdateProfile {
+                profile_id: id.clone(),
+            }),
+            Self::DeleteProfile { id } => Some(CommandIntent::DeleteProfile {
+                profile_id: id.clone(),
+            }),
+            Self::RefreshRuleProviders => Some(CommandIntent::RefreshRuleProviders),
+            Self::CloseConnection { id } => Some(CommandIntent::CloseConnection { id: id.clone() }),
+            Self::CloseAllConnections => Some(CommandIntent::CloseAllConnections),
+            Self::ClearLogs => Some(CommandIntent::ClearLogs),
+            Self::SetLogLevelFilter { level } => Some(CommandIntent::SetLogLevelFilter {
+                level: level.clone(),
+            }),
+            Self::ClearDnsCache => Some(CommandIntent::ClearDnsCache),
+            Self::TestDnsLatency => Some(CommandIntent::TestDnsLatency),
+            Self::RunDoctorDiagnostics => Some(CommandIntent::RunDoctorDiagnostics),
+            Self::RepairDoctorIssue { check_id } => Some(CommandIntent::RepairDoctorIssue {
+                check_id: check_id.clone(),
+            }),
+            Self::RepairAllDoctorIssues => Some(CommandIntent::RepairAllDoctorIssues),
+            Self::ToggleAppRouting { app_id, enabled } => Some(CommandIntent::ToggleAppRouting {
+                app_id: app_id.clone(),
+                enabled: *enabled,
+            }),
+            Self::SetAppRoutingMode { mode } => {
+                Some(CommandIntent::SetAppRoutingMode { mode: mode.clone() })
+            }
+            Self::ToggleIncludeSystemApps { include } => {
+                Some(CommandIntent::ToggleIncludeSystemApps { include: *include })
+            }
+            Self::SetAppRule { app_id, rule } => Some(CommandIntent::SetAppRule {
+                app_id: app_id.clone(),
+                rule: rule.clone(),
+            }),
+            Self::SyncNow => Some(CommandIntent::SyncNow),
+            Self::CreateBackupSnapshot => Some(CommandIntent::CreateBackupSnapshot),
+            Self::ResolveConflictKeepLocal => Some(CommandIntent::ResolveConflictKeepLocal),
+            Self::ResolveConflictTakeRemote => Some(CommandIntent::ResolveConflictTakeRemote),
+            Self::RestoreSnapshot { id } => Some(CommandIntent::RestoreSnapshot { id: id.clone() }),
+            Self::UpdateSetting { key, value } => Some(CommandIntent::UpdateSetting {
+                key: key.clone(),
+                value: value.clone(),
+            }),
+            Self::RestartCore => Some(CommandIntent::RestartCore),
+            Self::StopCore => Some(CommandIntent::StopCore),
+        }
+    }
 }
 
 /// Abstract sink consuming typed UI commands.
@@ -195,5 +262,22 @@ mod tests {
 
         sink.clear();
         assert!(sink.submitted().is_empty());
+    }
+
+    #[test]
+    fn business_commands_map_to_the_shared_contract() {
+        assert_eq!(
+            UiCommand::SetProxyMode(ProxyMode::Global).to_intent(),
+            Some(CommandIntent::SetProxyMode {
+                mode: ProxyMode::Global,
+            })
+        );
+        assert_eq!(
+            UiCommand::ToggleProxyGroupExpand {
+                group: "auto".to_string(),
+            }
+            .to_intent(),
+            None
+        );
     }
 }

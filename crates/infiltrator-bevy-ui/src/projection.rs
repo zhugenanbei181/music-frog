@@ -1,8 +1,8 @@
 //! The Overview data seam: a pure projection of the mihomo core's run
 //! state, plus the source trait the shell reads it through.
 //!
-//! **This module imports nothing.** [`OverviewProjection`] and the
-//! [`OverviewSource`] trait are the frontend's contract seam (BEVY-005,
+//! [`OverviewProjection`] and the [`OverviewSource`] trait are the frontend's
+//! local projection seam (BEVY-005,
 //! first slice): pages render whatever a source hands them, so the UI can
 //! be exercised headless against the demo fixture and, later, against the
 //! real core without a single scene change.
@@ -22,6 +22,7 @@
 //! never fabricates zeros for a core it could not reach — rates and
 //! connection counts are only meaningful in a successful state.
 
+use infiltrator_contract::command::ProxyMode;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::Sender;
@@ -39,63 +40,6 @@ pub enum OverviewState {
     /// The core could not be read at all (unreachable, refused, auth…).
     /// The reason rides [`OverviewProjection::failure`].
     Unavailable,
-}
-
-/// Which proxy mode the core reports.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ProxyMode {
-    /// Mode `rule`: per-rule routing.
-    #[default]
-    Rule,
-    /// Mode `global`: everything through the selected exit.
-    Global,
-    /// Mode `direct`: no proxying.
-    Direct,
-}
-
-impl ProxyMode {
-    /// The wire spelling a mihomo controller speaks (`PATCH /configs`
-    /// body value, `/configs` response value). Pure function.
-    pub fn to_wire(self) -> &'static str {
-        match self {
-            ProxyMode::Rule => "rule",
-            ProxyMode::Global => "global",
-            ProxyMode::Direct => "direct",
-        }
-    }
-
-    /// Parse the wire spelling back. Unknown spellings yield `None` so
-    /// callers can keep their last known mode instead of inventing one.
-    /// Pure function.
-    pub fn from_wire(raw: &str) -> Option<Self> {
-        match raw.trim().to_ascii_lowercase().as_str() {
-            "rule" => Some(ProxyMode::Rule),
-            "global" => Some(ProxyMode::Global),
-            "direct" => Some(ProxyMode::Direct),
-            _ => None,
-        }
-    }
-
-    /// Stable small-integer index — the demo fixture stores its mode in an
-    /// atomic and needs a lossless scalar encoding.
-    pub(crate) fn to_index(self) -> u8 {
-        match self {
-            ProxyMode::Rule => 0,
-            ProxyMode::Global => 1,
-            ProxyMode::Direct => 2,
-        }
-    }
-
-    /// The inverse of [`ProxyMode::to_index`]; out-of-range values fold to
-    /// the default mode (the atomic is only ever written through
-    /// `to_index`, so this branch is unreachable in practice).
-    pub(crate) fn from_index(raw: u8) -> Self {
-        match raw {
-            1 => ProxyMode::Global,
-            2 => ProxyMode::Direct,
-            _ => ProxyMode::Rule,
-        }
-    }
 }
 
 /// Where a projection came from. Typed, not inferred: a page can only stay

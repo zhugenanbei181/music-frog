@@ -24,6 +24,10 @@ pub struct CoreSnapshot {
     pub core_version: Option<String>,
     pub sampled_at_epoch_ms: Option<i64>,
     pub failure: Option<Failure>,
+    pub upload_bps: f64,
+    pub download_bps: f64,
+    pub active_connections: u32,
+    pub memory_bytes: Option<u64>,
 }
 
 /// Bounded, surface-neutral events emitted by the application layer.

@@ -83,7 +83,7 @@ async fn show(runtime: &Runtime, name: Option<String>) -> anyhow::Result<()> {
 /// Import a subscription into a new profile. Mirrors
 /// `infiltrator_core::profiles::create_profile_from_url` but targets the
 /// configs directory resolved from the settings override, which the core
-/// facade (built on `ConfigManager::new`) cannot express.
+/// facade (built on an injected `ConfigManager`) cannot express.
 async fn import(runtime: &Runtime, name: &str, url: &str) -> anyhow::Result<()> {
     let profile_name = infiltrator_core::profiles::sanitize_profile_name(name)?;
     let checked_url = infiltrator_core::subscription::CheckedSubscriptionUrl::parse(url)?;

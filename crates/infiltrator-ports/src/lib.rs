@@ -8,6 +8,7 @@ pub mod core_process;
 pub mod data_dir;
 pub mod data_store;
 pub mod error;
+pub mod overview;
 pub mod secure_store;
 
 #[cfg(test)]

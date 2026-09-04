@@ -68,8 +68,9 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
 use crate::history::{TrafficHistory, chart_series};
-use crate::projection::{OverviewOrigin, OverviewProjection, OverviewState, ProxyMode};
+use crate::projection::{OverviewOrigin, OverviewProjection, OverviewState};
 use crate::route::{PageRoot, Route};
+use infiltrator_contract::command::ProxyMode;
 
 /// The trend chart's raster box (ui-side tokens — the widget's pixel box
 /// is fixed at mount; a resize is a remount, chart.rs). Height ~140px per

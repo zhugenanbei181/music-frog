@@ -8,9 +8,9 @@
 use std::path::PathBuf;
 
 use infiltrator_core::error::InfiltratorError;
-use mihomo_platform::paths::get_home_dir;
-use mihomo_platform::traits::DefaultCredentialStore;
 use mihomo_config::manager::ConfigManager;
+use mihomo_platform::defaults::DefaultCredentialStore;
+use mihomo_platform::paths::get_home_dir;
 
 /// settings 的 `configs_dir` 覆盖；任何读取失败一律回退 `None`。
 async fn settings_configs_dir() -> Option<String> {

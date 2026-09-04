@@ -28,11 +28,11 @@ use infiltrator_bevy_ui::pages::overview::{
 };
 use infiltrator_bevy_ui::projection::{
     DemoOverviewSource, OverviewOrigin, OverviewProjection, OverviewSource, OverviewState,
-    ProxyMode,
 };
 use infiltrator_bevy_ui::route::{OverviewSourceHandle, PagesPlugin};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::chart::ChartPlate;
+use infiltrator_contract::command::ProxyMode;
 use serde_json::json;
 
 /// A short pump interval so tests sample in milliseconds, not seconds.

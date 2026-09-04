@@ -12,8 +12,8 @@ mod tests {
     };
     use infiltrator_core::settings::AppSettings;
     use mihomo_api::client::MihomoClient;
-use mihomo_platform::TEST_LOCK;
-use mihomo_platform::traits::DefaultCredentialStore;
+    use mihomo_platform::TEST_LOCK;
+    use mihomo_platform::defaults::DefaultCredentialStore;
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt; // for `oneshot`, `ready`, and `call`
 
