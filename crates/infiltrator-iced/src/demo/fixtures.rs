@@ -1,7 +1,7 @@
 //! Demo data fixtures: traffic history, mihomo-style logs, connection
 //! snapshots, rules, profiles and the JSON/YAML editor cache contents.
 
-use infiltrator_core::rules::RuleEntry;
+use infiltrator_domain::rules::RuleEntry;
 use mihomo_api::types::{Connection, ConnectionMetadata, ConnectionSnapshot};
 use mihomo_config::profile::Profile;
 use std::collections::VecDeque;

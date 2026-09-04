@@ -79,9 +79,9 @@ impl AppState {
                     self.runtime.runtime.clone(),
                     move |content| {
                         let providers =
-                            serde_json::from_str::<infiltrator_core::rules::RuleProviders>(&text)
+                            serde_json::from_str::<infiltrator_domain::rules::RuleProviders>(&text)
                                 .map_err(|e| anyhow::anyhow!("Invalid rule providers JSON: {e}"))?;
-                        infiltrator_core::rules::apply_rule_providers_to_yaml(content, &providers)
+                        infiltrator_domain::rules::apply_rule_providers_to_yaml(content, &providers)
                     },
                     Message::RuleProvidersJsonSaved,
                 )

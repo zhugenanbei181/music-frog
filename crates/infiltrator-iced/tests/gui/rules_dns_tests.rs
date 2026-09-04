@@ -8,7 +8,7 @@ use crate::types::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
-use infiltrator_core::rules::RuleEntry;
+use infiltrator_domain::rules::RuleEntry;
 
 #[test]
 fn test_rules_render_cache_and_filter() {
@@ -251,7 +251,7 @@ fn test_rule_provider_diff_and_unpack_flow() {
     let (mut state, _) = AppState::new();
     assert!(state.editor.inspecting_rule_provider_diff.is_none());
 
-    let diff = infiltrator_core::rules::RuleProviderDiff {
+    let diff = infiltrator_domain::rules::RuleProviderDiff {
         provider_name: "GoogleRules".into(),
         local_count: 5,
         remote_count: 7,

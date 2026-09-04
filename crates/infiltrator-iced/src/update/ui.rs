@@ -564,7 +564,7 @@ impl AppState {
                 Task::none()
             }
             Message::AddQuickRuleFromConnection { pattern, target } => {
-                let new_entry = infiltrator_core::rules::RuleEntry {
+                let new_entry = infiltrator_domain::rules::RuleEntry {
                     rule: format!("{pattern},{target}"),
                     enabled: true,
                 };

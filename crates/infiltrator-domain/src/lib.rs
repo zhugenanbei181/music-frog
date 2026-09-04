@@ -19,6 +19,8 @@ pub mod profile_converter;
 pub mod profile_options;
 pub mod proxy_nodes;
 pub mod rule_hit_counter;
+pub mod rules;
+pub mod pac_generator;
 pub mod script_engine;
 pub mod sub_rules;
 pub mod traffic_audit;

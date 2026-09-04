@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::RuleEntry;
 use super::types::{ParsedRule, RuleType, parse_rule_str};
-use infiltrator_domain::sub_rules::{LogicalRuleAst, format_ast};
+use crate::sub_rules::{LogicalRuleAst, format_ast};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TrafficContext {

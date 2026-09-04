@@ -384,7 +384,7 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
 
 pub fn rule_provider_diff_modal<'a>(
     state: &'a AppState,
-    diff: &'a infiltrator_core::rules::RuleProviderDiff,
+    diff: &'a infiltrator_domain::rules::RuleProviderDiff,
 ) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
     let _is_en = state.shell.lang.starts_with("en");

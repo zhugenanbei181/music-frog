@@ -11,7 +11,7 @@ use crate::types::message::Message;
 use crate::types::options::EditorPane;
 use crate::types::rules::RulesTab;
 use crate::view::virtual_list::VirtualListConfig;
-use infiltrator_core::rules::RuleEntry;
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
 
 #[test]

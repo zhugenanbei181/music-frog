@@ -4957,6 +4957,7 @@ dependencies = [
  "infiltrator-application",
  "infiltrator-contract",
  "infiltrator-core",
+ "infiltrator-domain",
  "infiltrator-ports",
  "jni 0.21.1",
  "log",

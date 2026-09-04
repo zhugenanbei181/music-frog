@@ -4,7 +4,8 @@
 //! `/admin/api/sniffer`, `/admin/api/rules`, `/admin/api/tun`).
 
 use axum::Json;
-use infiltrator_core::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
+use infiltrator_core::{dns, fake_ip, proxy_providers, rules_io, sniffer, tun};
+use infiltrator_domain::rules::{RuleProvidersPayload, RulesPayload};
 
 use crate::admin_api::events::{
     AdminEvent, EVENT_DNS_CHANGED, EVENT_FAKE_IP_CHANGED, EVENT_PROXY_PROVIDERS_CHANGED,
@@ -58,21 +59,21 @@ pub async fn flush_fake_ip_cache_http<C: AdminApiContext>(
 
 pub async fn get_rule_providers_http<C: AdminApiContext>(
     axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
-) -> Result<Json<rules::RuleProvidersPayload>, ApiError> {
-    let providers = rules::load_rule_providers().await?;
-    Ok(Json(rules::RuleProvidersPayload { providers }))
+) -> Result<Json<RuleProvidersPayload>, ApiError> {
+    let providers = rules_io::load_rule_providers().await?;
+    Ok(Json(RuleProvidersPayload { providers }))
 }
 
 pub async fn save_rule_providers_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
-    Json(payload): Json<rules::RuleProvidersPayload>,
-) -> Result<Json<rules::RuleProvidersPayload>, ApiError> {
-    let providers = rules::save_rule_providers(payload.providers).await?;
+    Json(payload): Json<RuleProvidersPayload>,
+) -> Result<Json<RuleProvidersPayload>, ApiError> {
+    let providers = rules_io::save_rule_providers(payload.providers).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "rule-providers-update");
     state
         .events
         .publish(AdminEvent::new(EVENT_RULE_PROVIDERS_CHANGED));
-    Ok(Json(rules::RuleProvidersPayload { providers }))
+    Ok(Json(RuleProvidersPayload { providers }))
 }
 
 pub async fn get_proxy_providers_http<C: AdminApiContext>(
@@ -113,19 +114,19 @@ pub async fn save_sniffer_config_http<C: AdminApiContext>(
 
 pub async fn get_rules_http<C: AdminApiContext>(
     axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
-) -> Result<Json<rules::RulesPayload>, ApiError> {
-    let rules_list = rules::load_rules().await?;
-    Ok(Json(rules::RulesPayload { rules: rules_list }))
+) -> Result<Json<RulesPayload>, ApiError> {
+    let rules_list = rules_io::load_rules().await?;
+    Ok(Json(RulesPayload { rules: rules_list }))
 }
 
 pub async fn save_rules_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
-    Json(payload): Json<rules::RulesPayload>,
-) -> Result<Json<rules::RulesPayload>, ApiError> {
-    let rules_list = rules::save_rules(payload.rules).await?;
+    Json(payload): Json<RulesPayload>,
+) -> Result<Json<RulesPayload>, ApiError> {
+    let rules_list = rules_io::save_rules(payload.rules).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "rules-update");
     state.events.publish(AdminEvent::new(EVENT_RULES_CHANGED));
-    Ok(Json(rules::RulesPayload { rules: rules_list }))
+    Ok(Json(RulesPayload { rules: rules_list }))
 }
 
 pub async fn get_tun_config_http<C: AdminApiContext>(

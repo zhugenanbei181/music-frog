@@ -122,9 +122,9 @@ impl AppState {
             }
             Message::CompileAndValidatePac => {
                 let config =
-                    infiltrator_core::pac_generator::PacGenerator::new("PROXY 127.0.0.1:7890");
+                    infiltrator_domain::pac_generator::PacGenerator::new("PROXY 127.0.0.1:7890");
                 let script = config.compile_pac_script(&self.editor.rules);
-                if infiltrator_core::pac_generator::validate_pac_script(&script).is_ok() {
+                if infiltrator_domain::pac_generator::validate_pac_script(&script).is_ok() {
                     self.runtime.pac_manager.last_compile_status = Some("Valid PAC compiled".into());
                     Task::done(Message::ShowToast(
                         "PAC script compiled successfully".into(),

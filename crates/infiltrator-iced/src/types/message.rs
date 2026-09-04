@@ -9,7 +9,7 @@ use super::rules::{RulesJsonTab, RulesLoadBundle, RulesTab};
 use super::runtime::{IpProbeResult, RuntimeConfig, RuntimeStreamKind, RuntimeStreamState};
 use iced::{widget::text_editor, window};
 use infiltrator_core::error::InfiltratorError;
-use infiltrator_core::rules::RuleEntry;
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_desktop::runtime::MihomoRuntime;
 use mihomo_api::types::{ConnectionSnapshot, TrafficData};
 use mihomo_config::profile::Profile;
@@ -189,7 +189,7 @@ pub enum Message {
     RulesSaved(Result<(), InfiltratorError>),
     InspectRuleProviderDiff(Option<String>),
     UnpackRuleProvider(String),
-    RuleProviderDiffLoaded(Result<infiltrator_core::rules::RuleProviderDiff, InfiltratorError>),
+    RuleProviderDiffLoaded(Result<infiltrator_domain::rules::RuleProviderDiff, InfiltratorError>),
     RuleProvidersEditorAction(text_editor::Action),
     SaveRuleProvidersJson,
     RuleProvidersJsonSaved(Result<(), InfiltratorError>),

@@ -3,7 +3,8 @@
 
 use std::collections::BTreeMap;
 
-use infiltrator_core::rules::{load_rule_providers, load_rules, save_rule_providers, save_rules};
+use infiltrator_core::rules_io::{load_rule_providers, load_rules, save_rule_providers, save_rules};
+use infiltrator_domain::rules::{RuleEntry as DomainRuleEntry, RuleProviders};
 
 use super::support::{get_runtime, map_anyhow_error};
 use crate::ffi::{FfiErrorCode, FfiStatus};
@@ -54,7 +55,7 @@ pub async fn rules_list() -> RulesResult {
 pub async fn rules_save(rules: Vec<RuleEntryRecord>) -> RulesResult {
     get_runtime()
         .spawn(async move {
-            let core_rules: Vec<infiltrator_core::rules::RuleEntry> =
+            let core_rules: Vec<DomainRuleEntry> =
                 rules.iter().map(record_to_core_rule).collect();
             match save_rules(core_rules).await.map_err(map_anyhow_error) {
                 Ok(rules) => RulesResult {
@@ -130,21 +131,21 @@ pub async fn rule_providers_save(json: String) -> RuleProvidersResult {
         })
 }
 
-fn core_rule_to_record(entry: infiltrator_core::rules::RuleEntry) -> RuleEntryRecord {
+fn core_rule_to_record(entry: DomainRuleEntry) -> RuleEntryRecord {
     RuleEntryRecord {
         rule: entry.rule,
         enabled: entry.enabled,
     }
 }
 
-fn record_to_core_rule(entry: &RuleEntryRecord) -> infiltrator_core::rules::RuleEntry {
-    infiltrator_core::rules::RuleEntry {
+fn record_to_core_rule(entry: &RuleEntryRecord) -> DomainRuleEntry {
+    DomainRuleEntry {
         rule: entry.rule.trim().to_string(),
         enabled: entry.enabled,
     }
 }
 
-fn rule_providers_to_json(providers: &infiltrator_core::rules::RuleProviders) -> String {
+fn rule_providers_to_json(providers: &RuleProviders) -> String {
     let value = serde_json::Value::Object(
         providers
             .iter()
@@ -156,7 +157,7 @@ fn rule_providers_to_json(providers: &infiltrator_core::rules::RuleProviders) ->
 
 fn parse_rule_providers_json(
     value: &str,
-) -> Result<infiltrator_core::rules::RuleProviders, FfiStatus> {
+) -> Result<RuleProviders, FfiStatus> {
     let parsed: serde_json::Value = serde_json::from_str(value).map_err(|err| {
         FfiStatus::err(FfiErrorCode::InvalidInput, format!("invalid JSON: {err}"))
     })?;

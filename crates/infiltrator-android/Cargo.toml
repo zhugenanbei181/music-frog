@@ -15,6 +15,7 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 infiltrator-application = { path = "../infiltrator-application" }
 infiltrator-contract = { path = "../infiltrator-contract" }
+infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 thiserror = { workspace = true }
 tokio = { workspace = true }

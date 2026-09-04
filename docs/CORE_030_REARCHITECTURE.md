@@ -8,7 +8,7 @@
 
 - [x] `release/0.20` 已冻结为提交 `9c187b2`，并从该点创建 `codex/0.30`。
 - [x] `infiltrator-domain`：提取生命周期状态机，依赖树无 Tokio。
-- [x] 纯算法 `vector_clock`、`sub_rules`、DNS 诊断、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、机密擦除、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
+- [x] 纯算法 `vector_clock`、`sub_rules`、DNS 诊断、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、机密擦除、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。
 - [x] `EndpointSource`/`ControllerEndpoint` 已移入 ports；profile endpoint adapter 已归位 `mihomo-config::endpoint`。
@@ -19,6 +19,7 @@
 - [x] Desktop/Android 已把 Core process、secure store、data-dir 和 readiness 组合到 host adapter 端口。
 - [ ] application actor/facade 覆盖全部 use-case，并统一前端命令与领域快照通道。
 - [x] 标准 Mihomo Overview adapter 已移入 `infiltrator-composition`；application 不再直接构造 `MihomoClient`。
+- [x] profile-options 与 rules 的文件读写已分别收敛为 core 内 `profile_options_io` / `rules_io`，纯 schema 和 YAML 变换不再依赖 Tokio。
 - [ ] 其余标准 adapter（配置、版本、Admin、同步）按同一规则下沉到 composition/outbound 组合根。
 - [x] `infiltrator-ios` host crate 已建立端口与保守 capability seam，且 composition root 已有 `IosBridge -> CoreApplication` 入口；Native NetworkExtension bridge 仍待接入。
 - [ ] Iced、Admin、Android FFI 完成同一 application facade 接入。

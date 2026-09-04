@@ -8,7 +8,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::ApplyTransactionStage;
-use infiltrator_core::rules::RuleEntry;
+use infiltrator_domain::rules::RuleEntry;
 
 #[test]
 fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {

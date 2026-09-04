@@ -1,4 +1,6 @@
 use super::*;
+use infiltrator_domain::rules::{format_rule_entry, parse_rule_entry};
+use std::collections::BTreeMap;
 
 #[test]
 fn test_parse_rule_entry() {

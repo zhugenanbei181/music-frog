@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
-use infiltrator_domain::sub_rules::{self, LogicalRule};
+use crate::sub_rules::{self, LogicalRule};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RuleType {

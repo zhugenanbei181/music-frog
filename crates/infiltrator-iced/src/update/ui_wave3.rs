@@ -54,7 +54,7 @@ impl AppState {
                 let conds = self.editor.subrule_draft.conditions.join(", ");
                 let target = &self.editor.subrule_draft.target;
                 let formatted_rule = format!("{op}(({conds})),{target}");
-                self.editor.rules.push(infiltrator_core::rules::RuleEntry {
+                self.editor.rules.push(infiltrator_domain::rules::RuleEntry {
                     rule: formatted_rule.clone(),
                     enabled: true,
                 });

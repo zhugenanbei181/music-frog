@@ -14,7 +14,7 @@ use crate::types::runtime::{
 use crate::types::runtime::{RebuildFlowState, RuntimeConfig};
 use iced::widget::text_editor;
 use infiltrator_core::error::InfiltratorError;
-use infiltrator_core::rules::RuleEntry;
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_shared::locales::{Lang, Localizer};
 use mihomo_api::types::TrafficData;
 use mihomo_config::profile::Profile;

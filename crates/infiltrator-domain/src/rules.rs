@@ -9,15 +9,9 @@ use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 use std::collections::{BTreeMap, HashSet};
 
-use crate::settings::app_config_manager;
-
 pub mod analyzer;
 pub mod tracer;
 pub mod types;
-
-#[cfg(test)]
-#[path = "rules_test.rs"]
-mod rules_test;
 
 pub type RuleProviders = BTreeMap<String, serde_json::Value>;
 
@@ -165,43 +159,11 @@ pub fn game_routing_presets(target: &str) -> Vec<RuleEntry> {
     ]
 }
 
-pub async fn load_rule_providers() -> Result<RuleProviders> {
-    let doc = load_profile_doc().await?;
-    extract_rule_providers_from_doc(&doc)
-}
-
-pub async fn save_rule_providers(providers: RuleProviders) -> Result<RuleProviders> {
-    let manager = app_config_manager().await.context("init config manager")?;
-    let profile = manager
-        .get_current()
-        .await
-        .context("load current profile")?;
-    let content = manager
-        .load(&profile)
-        .await
-        .context("read profile config")?;
-    let mut doc: Value = serde_yaml_ng::from_str(&content).context("parse profile yaml")?;
-
-    apply_rule_providers(&mut doc, &providers)?;
-
-    let updated = serde_yaml_ng::to_string(&doc).context("serialize profile yaml")?;
-    manager
-        .save(&profile, &updated)
-        .await
-        .context("save profile config")?;
-    Ok(providers)
-}
-
 /// Apply rule-provider changes to an in-memory profile document.
 pub fn apply_rule_providers_to_yaml(content: &str, providers: &RuleProviders) -> Result<String> {
     let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
     apply_rule_providers(&mut doc, providers)?;
     serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
-}
-
-pub async fn load_rules() -> Result<Vec<RuleEntry>> {
-    let doc = load_profile_doc().await?;
-    extract_rules_from_doc(&doc)
 }
 
 /// Extract the rule list from an already-loaded profile document.
@@ -210,48 +172,12 @@ pub fn load_rules_from_yaml(content: &str) -> Result<Vec<RuleEntry>> {
     extract_rules_from_doc(&doc)
 }
 
-pub async fn save_rules(rules: Vec<RuleEntry>) -> Result<Vec<RuleEntry>> {
-    validate_rules(&rules)?;
-    let manager = app_config_manager().await.context("init config manager")?;
-    let profile = manager
-        .get_current()
-        .await
-        .context("load current profile")?;
-    let content = manager
-        .load(&profile)
-        .await
-        .context("read profile config")?;
-    let mut doc: Value = serde_yaml_ng::from_str(&content).context("parse profile yaml")?;
-
-    apply_rules(&mut doc, &rules)?;
-
-    let updated = serde_yaml_ng::to_string(&doc).context("serialize profile yaml")?;
-    manager
-        .save(&profile, &updated)
-        .await
-        .context("save profile config")?;
-    Ok(rules)
-}
-
 /// Apply a complete rule list to an in-memory profile document.
 pub fn apply_rules_to_yaml(content: &str, rules: &[RuleEntry]) -> Result<String> {
     validate_rules(rules)?;
     let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
     apply_rules(&mut doc, rules)?;
     serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
-}
-
-async fn load_profile_doc() -> Result<Value> {
-    let manager = app_config_manager().await.context("init config manager")?;
-    let profile = manager
-        .get_current()
-        .await
-        .context("load current profile")?;
-    let content = manager
-        .load(&profile)
-        .await
-        .context("read profile config")?;
-    serde_yaml_ng::from_str(&content).context("parse profile yaml")
 }
 
 pub fn extract_rule_providers_from_doc(doc: &Value) -> Result<RuleProviders> {

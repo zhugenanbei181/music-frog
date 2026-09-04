@@ -1,8 +1,8 @@
 //! Rules-domain types: the rules load bundle, page tabs, tracer state,
 //! and the rendered rule rows consumed by the rules view.
 
-use infiltrator_core::rules::RuleEntry;
-use infiltrator_core::rules::tracer::RuleTraceMatch;
+use infiltrator_domain::rules::RuleEntry;
+use infiltrator_domain::rules::tracer::RuleTraceMatch;
 
 #[derive(Debug, Clone, Default)]
 pub struct RulesLoadBundle {

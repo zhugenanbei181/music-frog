@@ -21,7 +21,7 @@ use crate::types::runtime::{
 };
 use iced::Theme;
 use iced::widget::text_editor;
-use infiltrator_core::rules::RuleEntry;
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_desktop::runtime::MihomoRuntime;
 use infiltrator_desktop::tun_service::ServiceModeStatus;
 use mihomo_api::types::{ConnectionSnapshot, TrafficData};
@@ -261,7 +261,7 @@ pub struct ConfigEditorState {
     pub is_scanning_mrs: bool,
     pub syntax_error: Option<String>,
     pub syntax_error_line: Option<usize>,
-    pub inspecting_rule_provider_diff: Option<infiltrator_core::rules::RuleProviderDiff>,
+    pub inspecting_rule_provider_diff: Option<infiltrator_domain::rules::RuleProviderDiff>,
     pub is_loading_rule_provider_diff: bool,
 }
 

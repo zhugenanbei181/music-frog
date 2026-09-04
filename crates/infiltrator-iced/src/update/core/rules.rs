@@ -11,7 +11,7 @@ use crate::types::rules::{RuleBadgeKind, RuleRenderItem, RulesJsonTab, RulesLoad
 use crate::types::runtime::RebuildFlowState;
 use iced::Task;
 use infiltrator_core::error::InfiltratorError;
-use infiltrator_core::rules::RuleEntry;
+use infiltrator_domain::rules::{self as domain_rules, RuleEntry};
 
 impl AppState {
     fn split_rule_parts(rule: &str) -> (String, String, String) {
@@ -120,9 +120,9 @@ impl AppState {
             }
             Message::RunRulesTracer => {
                 let input = self.editor.rules_tracer_input.trim();
-                let ctx = infiltrator_core::rules::TrafficContext::from_query(input);
+                let ctx = domain_rules::TrafficContext::from_query(input);
                 self.editor.rules_tracer_result =
-                    infiltrator_core::rules::trace_rules(&self.editor.rules, &ctx).map(Into::into);
+                    domain_rules::trace_rules(&self.editor.rules, &ctx).map(Into::into);
                 Task::none()
             }
             Message::UpdateNewRuleType(t) => {
@@ -170,9 +170,9 @@ impl AppState {
                 save_task(
                     runtime,
                     move |content| {
-                        let mut rules = infiltrator_core::rules::load_rules_from_yaml(content)?;
+                        let mut rules = domain_rules::load_rules_from_yaml(content)?;
                         rules.insert(0, entry);
-                        infiltrator_core::rules::apply_rules_to_yaml(content, &rules)
+                        domain_rules::apply_rules_to_yaml(content, &rules)
                     },
                     Message::RuleAdded,
                 )
@@ -281,10 +281,10 @@ impl AppState {
                         let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
-                        let rules = infiltrator_core::rules::extract_rules_from_doc(&doc)
+                        let rules = domain_rules::extract_rules_from_doc(&doc)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let rule_providers =
-                            infiltrator_core::rules::extract_rule_providers_from_doc(&doc)
+                            domain_rules::extract_rule_providers_from_doc(&doc)
                                 .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let proxy_providers =
                             infiltrator_core::proxy_providers::extract_proxy_providers_from_doc(
@@ -470,7 +470,7 @@ impl AppState {
             }
             Message::ApplyGameRoutingPresets => {
                 let target = self.editor.new_rule_target.clone();
-                let presets = infiltrator_core::rules::game_routing_presets(&target);
+                let presets = domain_rules::game_routing_presets(&target);
                 for preset in presets.into_iter().rev() {
                     self.editor.rules.insert(0, preset);
                 }
@@ -511,7 +511,7 @@ impl AppState {
                 self.begin_save_phase("Rules");
                 save_task(
                     self.runtime.runtime.clone(),
-                    move |content| infiltrator_core::rules::apply_rules_to_yaml(content, &rules),
+                    move |content| domain_rules::apply_rules_to_yaml(content, &rules),
                     Message::RulesSaved,
                 )
             }
@@ -619,7 +619,7 @@ impl AppState {
                             "DOMAIN-KEYWORD,google".to_string(),
                             "DOMAIN-KEYWORD,youtube".to_string(),
                         ];
-                        let diff = infiltrator_core::rules::diff_rule_provider_contents(
+                        let diff = domain_rules::diff_rule_provider_contents(
                             &provider_name,
                             &local_rules,
                             &remote_rules,
@@ -646,7 +646,7 @@ impl AppState {
                     format!("DOMAIN-SUFFIX,{}", name.to_lowercase()),
                     format!("DOMAIN-KEYWORD,{}", name.to_lowercase()),
                 ];
-                let unpacked = infiltrator_core::rules::unpack_provider_rules_to_custom(
+                let unpacked = domain_rules::unpack_provider_rules_to_custom(
                     &sample_rules,
                     "PROXY",
                 );

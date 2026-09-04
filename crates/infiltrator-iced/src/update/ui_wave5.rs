@@ -88,11 +88,11 @@ impl AppState {
             }
             Message::UnpackRuleProviderToCustom(provider_name) => {
                 let unpacked = vec![
-                    infiltrator_core::rules::RuleEntry {
+                    infiltrator_domain::rules::RuleEntry {
                         rule: "DOMAIN-SUFFIX,apple.com,DIRECT".into(),
                         enabled: true,
                     },
-                    infiltrator_core::rules::RuleEntry {
+                    infiltrator_domain::rules::RuleEntry {
                         rule: "DOMAIN-SUFFIX,icloud.com,DIRECT".into(),
                         enabled: true,
                     },
