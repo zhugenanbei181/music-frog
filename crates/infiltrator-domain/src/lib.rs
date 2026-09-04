@@ -7,6 +7,7 @@
 pub mod backoff_strategy;
 pub mod app_routing;
 pub mod apply;
+pub mod backup;
 pub mod config;
 pub mod core_state;
 pub mod diagnostics;
@@ -33,6 +34,7 @@ pub mod proxy_nodes;
 pub mod rule_hit_counter;
 pub mod rules;
 pub mod runtime;
+pub mod sandbox;
 pub mod pac_generator;
 pub mod redact;
 pub mod script_engine;

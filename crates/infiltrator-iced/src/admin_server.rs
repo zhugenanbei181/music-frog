@@ -389,7 +389,7 @@ impl IcedAdminContext {
 }
 
 async fn load_settings_from_disk() -> anyhow::Result<AppSettings> {
-    let base_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
+    let base_dir = infiltrator_core::host_io::home_dir().map_err(|e| anyhow!(e.to_string()))?;
     let path = infiltrator_core::settings_io::settings_path(&base_dir)?;
     infiltrator_core::settings_io::load_settings(&path).await
 }
@@ -399,7 +399,7 @@ async fn load_settings_from_disk() -> anyhow::Result<AppSettings> {
 /// 重新应用路径使用；REST 读取路径保持不触碰 keyring。
 async fn load_settings_hydrated_from_disk()
 -> anyhow::Result<AppSettings> {
-    let base_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
+    let base_dir = infiltrator_core::host_io::home_dir().map_err(|e| anyhow!(e.to_string()))?;
     let path = infiltrator_core::settings_io::settings_path(&base_dir)?;
     infiltrator_core::settings_io::load_settings_hydrated(&path).await
 }
@@ -407,7 +407,7 @@ async fn load_settings_hydrated_from_disk()
 async fn save_settings_to_disk(
     settings: &AppSettings,
 ) -> anyhow::Result<()> {
-    let base_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
+    let base_dir = infiltrator_core::host_io::home_dir().map_err(|e| anyhow!(e.to_string()))?;
     let path = infiltrator_core::settings_io::settings_path(&base_dir)?;
     infiltrator_core::settings_io::save_settings(&path, settings).await
 }
@@ -420,7 +420,7 @@ impl AdminApiContext for IcedAdminContext {
         }
         let vm = VersionManager::new().map_err(|e| anyhow!(e.to_string()))?;
         let data_dir =
-            mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
+            infiltrator_core::host_io::home_dir().map_err(|e| anyhow!(e.to_string()))?;
         let (rebuilt, _rotated) =
             infiltrator_desktop::boot::bootstrap_host_runtime(&vm, true, &[], &data_dir).await?;
         self.shared.set_runtime(Some(rebuilt.clone()));

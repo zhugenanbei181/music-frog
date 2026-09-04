@@ -1,4 +1,5 @@
 use crate::*;
+use mihomo_platform::crash_reporter::CrashReporter;
 
 #[test]
 fn backtrace_summary_keeps_innermost_head() {

@@ -1,7 +1,12 @@
 use super::*;
-use chrono::TimeZone;
+use chrono::{TimeZone, Utc};
+use infiltrator_domain::backup::prune_snapshots;
+use infiltrator_domain::snapshots::SnapshotMeta;
+use std::io::{Cursor, Write};
 use std::path::PathBuf;
 use tempfile::tempdir;
+use zip::write::SimpleFileOptions;
+use zip::ZipWriter;
 
 fn sample_bundle() -> BackupBundle {
     let profiles = vec![
@@ -74,7 +79,7 @@ fn test_encrypted_export_import_roundtrip() {
         .export_encrypted(password)
         .expect("export encrypted bundle");
     assert!(!encrypted_bytes.is_empty());
-    assert!(encrypted_bytes.starts_with(ENCRYPTED_MAGIC));
+    assert!(encrypted_bytes.starts_with(b"IFTR_BACKUP_V1"));
 
     let imported = BackupBundle::import_encrypted(&encrypted_bytes, password)
         .expect("import encrypted bundle");

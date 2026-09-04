@@ -5144,6 +5144,7 @@ dependencies = [
  "url",
  "urlencoding",
  "yaml-rust2",
+ "zip",
 ]
 
 [[package]]

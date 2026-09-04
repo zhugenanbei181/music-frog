@@ -24,6 +24,7 @@
 - [x] `AppSettings` / WebDAV / runtime-panel schema 已移入 `infiltrator-domain::settings`；keyring、TOML 和 ConfigManager 读写集中在 `settings_io`。
 - [x] YAML 语法诊断与 ApplyStrategy 已移入 domain；core apply 仅保留 Mihomo/config-manager/lifecycle transaction adapter。
 - [x] controller 的连接、流量、内存、provider 与 proxy schema 已由 domain 持有；`mihomo-api` 只负责 wire decode 和 adapter conversion，前端消息不再引用 `mihomo_api::types` 或 `mihomo_api::proxy::types`。
+- [x] Backup bundle 的加密、ZIP/JSON 编解码、digest 和快照剪枝已移入 `infiltrator-domain::backup`；本地 settings/profile 文件收集与恢复留在 `infiltrator-core::backup_io`。
 - [x] `RuntimeGateway` 已拆成 ports 的 transport-neutral controller seam；Iced 与 Admin production code 不再直接依赖 `MihomoClient`，desktop/Mihomo API 只在 outbound/host adapter 与测试组合根出现。
 - [x] `ProfileStore` 已成为配置持久化 port；Iced profile/config flows 不再持有 `ConfigManager`，`mihomo-config` 负责把 keyring、TOML 和文件 CRUD 转换为 domain values。
 - [x] Iced runtime handle 已收敛为 `HostRuntime` trait object；desktop 的具体 `MihomoRuntime` 只在 boot composition 中构造，UI 仅消费 gateway、generation、apply 与 typed host capability。

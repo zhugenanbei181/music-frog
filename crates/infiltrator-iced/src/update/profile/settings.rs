@@ -101,18 +101,14 @@ impl AppState {
                         // 密码只进 OS keyring：空串=清除条目，非空=写入；
                         // 失败则整体不落盘，保持「settings 文件 + keyring」
                         // 状态一致（避免其他字段更新而凭据悄悄丢失）。
-                        let store = mihomo_platform::defaults::DefaultCredentialStore::default();
                         if webdav_password.is_empty() {
-                            infiltrator_core::settings_io::clear_webdav_password(&store).await;
+                            infiltrator_core::host_io::clear_webdav_password().await;
                         } else {
-                            infiltrator_core::settings_io::save_webdav_password(
-                                &store,
-                                &webdav_password,
-                            )
-                            .await
+                            infiltrator_core::host_io::save_webdav_password(&webdav_password)
+                                .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         }
-                        let base_dir = mihomo_platform::paths::get_home_dir()
+                        let base_dir = infiltrator_core::host_io::home_dir()
                             .map_err(infiltrator_contract::error::from_mihomo)?;
                             let settings_path = infiltrator_core::settings_io::settings_path(&base_dir)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;

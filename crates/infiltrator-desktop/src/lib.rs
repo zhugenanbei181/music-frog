@@ -1,5 +1,6 @@
 pub mod boot;
 pub mod clipboard_helper;
+pub mod crash;
 pub mod composition;
 pub mod deadlock_detector;
 pub mod display_adapter;

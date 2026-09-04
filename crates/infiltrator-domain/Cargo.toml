@@ -20,6 +20,7 @@ thiserror = { workspace = true }
 url = { workspace = true }
 urlencoding = "2.1"
 yaml-rust2 = { workspace = true }
+zip = { workspace = true }
 
 [dev-dependencies]
 toml = { workspace = true }

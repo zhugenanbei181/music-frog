@@ -426,7 +426,7 @@ impl AppState {
             Task::batch(vec![
                 Task::perform(
                     async {
-                        let data_dir = mihomo_platform::paths::get_home_dir().unwrap_or_default();
+                        let data_dir = infiltrator_core::host_io::home_dir().unwrap_or_default();
                         let path = infiltrator_core::settings_io::settings_path(&data_dir)
                             .unwrap_or_else(|_| data_dir.join("settings.toml"));
                         // hydrated：顺带从 keyring 取回 WebDAV 密码填充内存

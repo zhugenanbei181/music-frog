@@ -39,7 +39,6 @@ infiltrator-desktop = { path = "../infiltrator-desktop" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-admin = { path = "../infiltrator-admin" }
 mihomo-version = { path = "../mihomo-version" }
-mihomo-platform = { path = "../mihomo-platform" }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
 sync-engine = { path = "../mihomo-dav-sync/sync-engine" }
 serde = { workspace = true }
@@ -81,6 +80,7 @@ notify-rust = { workspace = true }
 [dev-dependencies]
 axum = { workspace = true }
 iced_runtime = "0.14"
+mihomo-platform = { path = "../mihomo-platform" }
 
 [package.metadata.packager]
 product-name = "MusicFrog Infiltrator"

@@ -196,9 +196,9 @@ impl AppState {
                     ));
                 }
                 let dummy_bundle =
-                    infiltrator_core::backup::BackupBundle::new(vec![], String::new(), String::new());
+                    infiltrator_domain::backup::BackupBundle::new(vec![], String::new(), String::new());
                 if let Ok(bytes) =
-                    infiltrator_core::backup::export_encrypted_bundle(&dummy_bundle, pass)
+                    infiltrator_domain::backup::export_encrypted_bundle(&dummy_bundle, pass)
                 {
                     let out_path = "/tmp/infiltrator_backup.encpkg".to_string();
                     let _ = std::fs::write(&out_path, bytes);

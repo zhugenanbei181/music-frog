@@ -31,7 +31,6 @@ mod test_mounts;
 
 use crate::state::AppState;
 use iced::{application, window};
-use mihomo_platform::crash_reporter::CrashReporter;
 use single_instance::SingleInstance;
 use std::fs::File;
 use std::io::Write;
@@ -53,7 +52,7 @@ pub fn run() -> iced::Result {
         return demo::run(demo_env);
     }
 
-    let log_dir = mihomo_platform::paths::get_home_dir().unwrap_or_else(|_| std::env::temp_dir());
+    let log_dir = infiltrator_core::host_io::home_dir().unwrap_or_else(|_| std::env::temp_dir());
     let _ = std::fs::create_dir_all(&log_dir);
     let crash_log_path = log_dir.join("infiltrator_crash.log");
 
@@ -108,26 +107,16 @@ pub fn run() -> iced::Result {
 /// Innermost frames kept in the sanitized report's backtrace summary.
 pub(crate) const BACKTRACE_SUMMARY_LINES: usize = 32;
 
-/// Best-effort structured crash report, wired per platform contract §7c:
-/// after the raw crash log above, collect a [`CrashReport`] (timestamp, OS,
-/// version, panic reason, compact backtrace), sanitize it via the shared
-/// [`CrashReporter`] (redacts bearer tokens and unix/Windows home paths) and
-/// write it as JSON next to the raw log. Strictly local — the module exposes
-/// no network paths — and fully best-effort: `catch_unwind` keeps a failure
-/// here (or a panic in the reporting code itself) from disturbing the
-/// in-progress panic, the normal startup path is untouched.
+/// Best-effort structured crash report delegated to the desktop host adapter.
 fn write_sanitized_crash_report(log_dir: &Path, panic_message: &str) {
     let _ = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         let backtrace = std::backtrace::Backtrace::force_capture().to_string();
-        let mut report = CrashReporter::new_report(
+        infiltrator_desktop::crash::write_sanitized_report(
+            log_dir,
             panic_message,
             env!("CARGO_PKG_VERSION"),
-            Some(backtrace_summary(&backtrace).as_str()),
+            &backtrace_summary(&backtrace),
         );
-        CrashReporter::sanitize_report(&mut report);
-        if let Ok(json) = CrashReporter::serialize_report(&report) {
-            let _ = std::fs::write(log_dir.join("infiltrator_crash_report.json"), json);
-        }
     }));
 }
 

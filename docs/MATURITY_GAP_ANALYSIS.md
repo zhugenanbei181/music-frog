@@ -130,7 +130,7 @@
 | **P07-04** | **订阅 User-Agent 动态伪装与防屏蔽**：内置 User-Agent 库（Clash.Meta, ClashVerge, Shadowrocket 等）防止机场后端拦截。 | P1 | 已落地 | `infiltrator-domain::subscription` |
 | **P07-05** | **订阅套餐用量与到期智能预警**：解析 `subscription-userinfo` 头，在流量超 80%/90% 或临期时推送系统通知。 | P1 | 已落地 | `infiltrator-domain::subscription` |
 | **P07-06** | **防 Cloudflare / 5秒盾订阅下载器**：支持自定义 HTTP Headers、Cookie 注入与经现有代理拉取更新。 | P1 | 已落地 | `infiltrator-core::subscription_io` |
-| **P07-07** | **配置 Diff 可视化比对与智能回滚**：更新前后直观呈现节点增删改差异，支持一键回滚历史快照。 | P2 | 已落地 | `infiltrator-core::backup` |
+| **P07-07** | **配置 Diff 可视化比对与智能回滚**：更新前后直观呈现节点增删改差异，支持一键回滚历史快照。 | P2 | 已落地 | `infiltrator-domain::backup` + `infiltrator-core::history` |
 | **P07-08** | **配置写入原子事务与语法预检**：在应用新配置前调用独立沙箱预检语法语义，失败时零副作用原子回滚。 | P0 | 已落地 | `infiltrator-core::apply` |
 | **P07-09** | **订阅定时轮询调度与并发防重入**：基于 Cron/间隔的调度器，支持断线指数退避与 SingleFlight 并发锁。 | P1 | 已落地 | `infiltrator-core::scheduler` |
 | **P07-10** | **自建单节点表单化管理与二维码导入**：支持表单化添加/编辑个人 VPS 节点与扫描/解析二维码导入。 | P2 | 已落地 | `infiltrator-core::profile_converter` |
@@ -150,7 +150,7 @@
 | **P08-07** | **开放 RESTful API 与 Webhook 联动**：向第三方工具（Raycast/Alfred/快捷指令）开放节点切换、模式切换与测速接口。 | P2 | 已落地 | `infiltrator-admin::admin_api` |
 | **P08-08** | **插件市场与社区扩展生态**：支持在 UI 上一键安装、升级第三方规则集、DNS 预设与主题包。 | P2 | 已落地 | `infiltrator-core::mixin` |
 | **P08-09** | **多内核版本热切换与故障回滚**：支持在 Alpha 开发版、Meta 稳定版、开源版之间一键下载、校验与无感切换。 | P1 | 已落地 | `mihomo-version` |
-| **P08-10** | **扩展配置包一键导出与跨端分享**：支持将自定义脚本、Mixin 模板与规则打包为单文件并一键分享导入。 | P3 | 已落地 | `infiltrator-core::backup` |
+| **P08-10** | **扩展配置包一键导出与跨端分享**：支持将自定义脚本、Mixin 模板与规则打包为单文件并一键分享导入。 | P3 | 已落地 | `infiltrator-domain::backup` + `infiltrator-core::backup_io` |
 
 ---
 
@@ -179,8 +179,8 @@
 | **P10-02** | **External Controller 端口严格安全加固**：强制随机强 Token 认证、CORS/CSRF 拦截与局域网 mTLS 双向校验。 | P1 | 已落地 | `infiltrator-domain::config` |
 | **P10-03** | **端到端加密 (E2EE) 配置漫游同步**：WebDAV 同步支持客户端本地 AES-256-GCM / ChaCha20 加密，实现零知识备份。 | P1 | 已落地 | `sync-engine` |
 | **P10-04** | **版本向量时钟与智能三向合并 (3-Way Merge)**：基于 Vector Clock 版本追踪，提供 Local/Remote/Base 差异可视化合并器。 | P1 | 已落地 | `infiltrator-core::vector_clock` |
-| **P10-05** | **局域网 P2P 扫码一键加密快传**：基于 mDNS 发现与 TLS 传输，手机端扫码秒级完成配置与订阅克隆。 | P2 | 已落地 | `infiltrator-core::backup` |
-| **P10-06** | **配置与私钥加密导出备份 (.encpkg)**：打包所有订阅、规则、Mixin 与设置为主密码加密的归档文件。 | P1 | 已落地 | `infiltrator-core::backup` |
+| **P10-05** | **局域网 P2P 扫码一键加密快传**：基于 mDNS 发现与 TLS 传输，手机端扫码秒级完成配置与订阅克隆。 | P2 | 已落地 | `infiltrator-domain::backup` + host transport |
+| **P10-06** | **配置与私钥加密导出备份 (.encpkg)**：打包所有订阅、规则、Mixin 与设置为主密码加密的归档文件。 | P1 | 已落地 | `infiltrator-domain::backup` + `infiltrator-core::backup_io` |
 | **P10-07** | **运行时内存脱敏与零化安全 (Zeroize)**：敏感凭据生命周期结束后全面接入 `zeroize` 覆写，防止内存扫描泄露。 | P1 | 已落地 | `infiltrator-core::zeroize_guard` |
 | **P10-08** | **隐私保护与日志脱敏工作流**：导出诊断报告与日志时，自动对所有域名、真实 IP、订阅 Token 进行模糊化。 | P1 | 已落地 | `infiltrator-core::redact` |
 | **P10-09** | **恶意订阅与节点配置注入攻击防御**：静态安全审计订阅下发的危险字段（篡改控制器端口、注入脚本等）并拦截。 | P0 | 已落地 | `infiltrator-domain::subscription` |

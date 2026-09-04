@@ -25,7 +25,7 @@ impl AppState {
         Task::perform(
             async move {
                 let base_dir =
-                    mihomo_platform::paths::get_home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
+                    infiltrator_core::host_io::home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
                 let settings_path = infiltrator_core::settings_io::settings_path(&base_dir)
                     .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                 let mut settings = infiltrator_core::settings_io::load_settings(&settings_path)

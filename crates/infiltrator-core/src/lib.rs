@@ -1,6 +1,6 @@
 pub mod app_routing_io;
 pub mod apply;
-pub mod backup;
+pub mod backup_io;
 pub mod bench_harness;
 pub mod bootstrap;
 pub mod diagnostics_adapter;
@@ -10,6 +10,7 @@ pub mod factory_reset;
 pub mod fake_ip_io;
 pub mod flow_control;
 pub mod history;
+pub mod host_io;
 pub mod profile_options_io;
 pub mod profile_store_io;
 pub mod profiles;

@@ -9,7 +9,7 @@ use iced::futures::SinkExt;
 use iced::{Task, stream};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_shared::locales::{Lang, Localizer};
-use mihomo_platform::sandbox_validator::{PathValidationResult, SandboxValidator};
+use infiltrator_domain::sandbox::{PathValidationResult, SandboxValidator};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

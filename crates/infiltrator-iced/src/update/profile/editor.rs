@@ -116,7 +116,7 @@ impl AppState {
                 self.editor.is_restoring_snapshot = true;
                 Task::perform(
                     async move {
-                        let home = mihomo_platform::paths::get_home_dir()
+                        let home = infiltrator_core::host_io::home_dir()
                             .map_err(infiltrator_contract::error::from_mihomo)?;
                         let snapshot_root = tokio::fs::canonicalize(home.join("configs/snapshots"))
                             .await

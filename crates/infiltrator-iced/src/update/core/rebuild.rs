@@ -84,7 +84,7 @@ impl AppState {
                     .map_err(infiltrator_contract::error::from_mihomo)?;
                 let vm = VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
                 let data_dir =
-                    mihomo_platform::paths::get_home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
+                    infiltrator_core::host_io::home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
                 let candidates = vec![];
                 match infiltrator_desktop::boot::bootstrap_host_runtime(
                     &vm,

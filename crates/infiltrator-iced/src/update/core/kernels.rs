@@ -257,7 +257,7 @@ impl AppState {
                         )
                         .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
 
-                        let home = mihomo_platform::paths::get_home_dir()
+                        let home = infiltrator_core::host_io::home_dir()
                             .map_err(infiltrator_contract::error::from_mihomo)?;
 
                         // 必须趁 settings.toml 还在时解析 configs 目录
@@ -343,7 +343,7 @@ impl AppState {
                             Task::done(Message::LoadKernels),
                             Task::perform(
                                 async {
-                                    let home = mihomo_platform::paths::get_home_dir()
+                                    let home = infiltrator_core::host_io::home_dir()
                                         .map_err(infiltrator_contract::error::from_mihomo)?;
                                     let path = infiltrator_core::settings_io::settings_path(&home)
                                         .map_err(|error| {
