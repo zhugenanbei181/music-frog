@@ -10,7 +10,7 @@
 ## 架构原则与边界约束
 
 1. **求同存异**：
-   - **求同**：所有核心控制面（CoreSession、配置 AST 引擎、订阅清洗 Pipeline、诊断流控、WebDAV 同步）100% 下沉在 Rust 共享层，各前端（Iced 桌面、Bevy UI、Android 原生、CLI）统一消费，零重复造轮子。
+   - **求同**：所有核心控制面（CoreApplication、配置 AST 引擎、订阅清洗 Pipeline、诊断流控、WebDAV 同步）100% 下沉在 Rust 共享层，各前端（Iced 桌面、Bevy UI、Android 原生、CLI）统一消费，零重复造轮子。
    - **存异**：各宿主平台（Windows Service / WinTun、Linux polkit / setcap、macOS launchd / networksetup、Android VpnService）通过标准 `HostAdapter` 契约特化承接。
 2. **提高复用率**：
    - 视图层保持为纯渲染投影，业务逻辑与异步操作统一由底层状态机与 Controller 管理。
