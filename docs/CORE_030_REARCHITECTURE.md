@@ -16,7 +16,7 @@
 - [ ] application actor/facade 覆盖全部 use-case，并统一前端命令与领域快照通道。
 - [x] 标准 Mihomo Overview adapter 已移入 `infiltrator-composition`；application 不再直接构造 `MihomoClient`。
 - [ ] 其余标准 adapter（配置、版本、Admin、同步）按同一规则下沉到 composition/outbound 组合根。
-- [x] `infiltrator-ios` host crate 已建立端口与保守 capability seam；Native NetworkExtension bridge 仍待接入。
+- [x] `infiltrator-ios` host crate 已建立端口与保守 capability seam，且 composition root 已有 `IosBridge -> CoreApplication` 入口；Native NetworkExtension bridge 仍待接入。
 - [ ] Iced、Admin、Android FFI 完成同一 application facade 接入。
 - [ ] 全端删除对具体 Mihomo client、Reqwest 和 Tokio channel 的公开/直接依赖。
 

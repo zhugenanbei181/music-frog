@@ -4,16 +4,18 @@
 
 use std::sync::{Arc, Mutex, OnceLock};
 
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::{
     ApplyError, ApplyParams, ApplyStrategy, SessionConfigReloader, apply_current_profile,
 };
 use infiltrator_core::error::InfiltratorError;
 use infiltrator_core::session::{
-    CoreSession, CoreStatus, MihomoVersionProbe, ProfileEndpointSource, READINESS_TIMEOUT,
-    SessionError,
+    CoreSession, CoreStatus, EndpointSource, MihomoVersionProbe, ProfileEndpointSource,
+    READINESS_TIMEOUT, ReadinessProbe, SessionError,
 };
-use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
@@ -34,7 +36,30 @@ use crate::ffi::{FfiErrorCode, FfiStatus};
 pub(super) struct SharedCore {
     // Accessed from support.rs's controller client fallback path.
     pub(super) session: Arc<CoreSession>,
+    pub(super) application: CoreApplication,
     config: Arc<ConfigManager<DefaultCredentialStore>>,
+}
+
+/// Adapts the legacy endpoint-aware readiness probe to the 0.30 application
+/// port while the profile-apply transaction is still owned by CoreSession.
+struct ApplicationReadiness {
+    endpoints: Arc<ProfileEndpointSource<DefaultCredentialStore>>,
+    probe: Arc<MihomoVersionProbe<DefaultCredentialStore>>,
+}
+
+#[async_trait::async_trait]
+impl CoreReadiness for ApplicationReadiness {
+    async fn probe(&self) -> Result<String, PortError> {
+        self.probe
+            .probe()
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))?;
+        self.endpoints
+            .resolve()
+            .await
+            .map(|endpoint| endpoint.url)
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
 }
 
 /// Core lifecycle controller for the shared session. On Android this is
@@ -138,12 +163,20 @@ pub(super) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
     }
     let endpoints = Arc::new(ProfileEndpointSource::new(Arc::clone(&config)));
     let probe = Arc::new(MihomoVersionProbe::new(Arc::clone(&endpoints)));
+    let process = platform_core_controller();
+    let session_endpoints: Arc<dyn EndpointSource> = endpoints.clone();
     let session = Arc::new(CoreSession::new(
-        platform_core_controller(),
-        endpoints,
-        probe,
+        Arc::clone(&process),
+        session_endpoints,
+        Arc::clone(&probe) as Arc<dyn ReadinessProbe>,
     ));
-    let core = Arc::new(SharedCore { session, config });
+    let application =
+        CoreApplication::new(process, Arc::new(ApplicationReadiness { endpoints, probe }));
+    let core = Arc::new(SharedCore {
+        session,
+        application,
+        config,
+    });
     *guard = Some(Arc::clone(&core));
     Ok(core)
 }
@@ -182,12 +215,18 @@ async fn restart_with_readiness() -> Result<(), FfiStatus> {
             return Ok(());
         }
     };
-    adopt_running_core(&core.session).await?;
-    let generation = core.session.restart().await.map_err(map_session_error)?;
-    core.session
-        .wait_for_ready(generation, READINESS_TIMEOUT)
-        .await
-        .map_err(map_session_error)
+    if let Err(failure) = core.application.adopt_if_running().await {
+        return Err(FfiStatus::from(InfiltratorError::Mihomo(failure.message)));
+    }
+    match core.application.execute(CommandIntent::RestartCore).await {
+        CommandResult::Completed { .. } => Ok(()),
+        CommandResult::Rejected { failure, .. } => {
+            Err(FfiStatus::from(InfiltratorError::Mihomo(failure.message)))
+        }
+        CommandResult::Accepted { .. } => Err(FfiStatus::from(InfiltratorError::Internal(
+            "application restart unexpectedly returned Accepted".to_string(),
+        ))),
+    }
 }
 
 /// Pre-session behavior kept as the fallback path: raw bridge stop+start

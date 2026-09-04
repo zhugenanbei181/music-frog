@@ -5041,6 +5041,7 @@ name = "infiltrator-composition"
 version = "0.30.0"
 dependencies = [
  "infiltrator-application",
+ "infiltrator-ios",
  "infiltrator-ports",
  "mihomo-api",
 ]

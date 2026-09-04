@@ -7,5 +7,6 @@ description = "Composition roots that wire concrete outbound and host adapters i
 
 [dependencies]
 infiltrator-application = { path = "../infiltrator-application" }
+infiltrator-ios = { path = "../infiltrator-ios" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 mihomo-api = { path = "../mihomo-api" }
