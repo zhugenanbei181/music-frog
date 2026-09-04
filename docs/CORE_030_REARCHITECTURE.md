@@ -8,7 +8,7 @@
 
 - [x] `release/0.20` 已冻结为提交 `9c187b2`，并从该点创建 `codex/0.30`。
 - [x] `infiltrator-domain`：提取生命周期状态机，依赖树无 Tokio。
-- [x] 纯算法 `vector_clock`、`sub_rules`、DNS 诊断、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、机密擦除、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
+- [x] 纯算法 `vector_clock`、`sub_rules`、DNS 诊断、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、机密擦除、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。
 - [x] `EndpointSource`/`ControllerEndpoint` 已移入 ports；profile endpoint adapter 已归位 `mihomo-config::endpoint`。

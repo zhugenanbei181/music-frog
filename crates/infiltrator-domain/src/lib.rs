@@ -7,6 +7,7 @@
 pub mod backoff_strategy;
 pub mod app_routing;
 pub mod core_state;
+pub mod diagnostics;
 pub mod dns_tester;
 pub mod failover_arbiter;
 pub mod filter;

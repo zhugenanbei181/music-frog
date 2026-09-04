@@ -72,13 +72,13 @@ impl AppState {
                         let duration_ms = 2400u64;
                         let total_bytes = 1024 * 1024 * 48;
                         let bandwidth_mbps =
-                            infiltrator_core::diagnostics::SpeedtestCalculator::calculate_bandwidth(
+                            infiltrator_domain::diagnostics::SpeedtestCalculator::calculate_bandwidth(
                                 total_bytes,
                                 duration_ms,
                             ) * 8.0
                                 / 1000.0;
                         let mut jitter_calc =
-                            infiltrator_core::diagnostics::JitterCalculator::new();
+                            infiltrator_domain::diagnostics::JitterCalculator::new();
                         jitter_calc.record_success(24.5);
                         jitter_calc.record_success(28.2);
                         jitter_calc.record_success(22.1);

@@ -4,7 +4,7 @@ pub mod backup;
 pub mod bench_harness;
 pub mod bootstrap;
 pub mod config;
-pub mod diagnostics;
+pub mod diagnostics_adapter;
 pub mod dns;
 pub mod dns_topology;
 pub mod doctor;

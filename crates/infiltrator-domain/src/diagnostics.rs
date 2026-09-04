@@ -2,10 +2,6 @@
 
 use std::time::Instant;
 
-#[cfg(test)]
-#[path = "diagnostics_test.rs"]
-mod tests;
-
 /// Snapshot of connection transfer rates at a given time.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ConnectionRateSnapshot {
@@ -564,22 +560,6 @@ impl DiagnosticConnection {
     pub fn with_process_path(mut self, path: impl Into<String>) -> Self { self.process_path = Some(path.into()); self }
 }
 
-impl From<&mihomo_api::types::Connection> for DiagnosticConnection {
-    fn from(c: &mihomo_api::types::Connection) -> Self {
-        Self {
-            id: c.id.clone(),
-            network: c.metadata.network.clone(),
-            source_ip: c.metadata.source_ip.clone(),
-            destination_ip: c.metadata.destination_ip.clone(),
-            destination_port: c.metadata.destination_port.parse().unwrap_or(0),
-            host: c.metadata.host.clone(),
-            rule: c.rule.clone(),
-            chains: c.chains.clone(),
-            process_path: if c.metadata.process_path.trim().is_empty() { None } else { Some(c.metadata.process_path.clone()) },
-        }
-    }
-}
-
 /// Recorded DNS resolution log event for leak detection.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct DnsResolutionLog {
@@ -639,11 +619,6 @@ impl PrivacyLeakDetectionSuite {
         Self::new().evaluate_suite(connections, dns_logs)
     }
 
-    pub fn evaluate_mihomo_connections(connections: &[mihomo_api::types::Connection], dns_logs: &[DnsResolutionLog]) -> LeakTestOutcome {
-        let converted: Vec<DiagnosticConnection> = connections.iter().map(Into::into).collect();
-        Self::evaluate(&converted, dns_logs)
-    }
-
     pub fn evaluate_suite(&self, connections: &[DiagnosticConnection], dns_logs: &[DnsResolutionLog]) -> LeakTestOutcome {
         let mut outcome = LeakTestOutcome::default();
         for conn in connections { self.check_connection(conn, &mut outcome); }
@@ -658,7 +633,7 @@ impl PrivacyLeakDetectionSuite {
         // 1. Fake-IP Bypass check: connection to a Fake-IP address routed DIRECT
         if is_direct
             && !conn.destination_ip.is_empty()
-            && infiltrator_domain::dns_tester::DnsTester::check_fake_ip_range(
+            && crate::dns_tester::DnsTester::check_fake_ip_range(
                 &conn.destination_ip,
                 &self.fake_ip_cidr,
             )
@@ -735,7 +710,7 @@ impl PrivacyLeakDetectionSuite {
         // 4. Fake-IP Bypass in DNS log: domain resolved directly while answers are Fake-IP
         if log.is_direct
             && log.resolved_ips.iter().any(|ip| {
-                infiltrator_domain::dns_tester::DnsTester::check_fake_ip_range(
+                crate::dns_tester::DnsTester::check_fake_ip_range(
                     ip,
                     &self.fake_ip_cidr,
                 )
@@ -790,3 +765,7 @@ fn is_webrtc_stun_host(host: &str) -> bool {
         || lower.ends_with(".twilio.com")
         || lower == "stun.l.google.com"
 }
+
+#[cfg(test)]
+#[path = "diagnostics_test.rs"]
+mod tests;
