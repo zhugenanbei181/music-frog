@@ -3,6 +3,7 @@ pub mod client;
 pub mod connection;
 pub mod error;
 pub mod proxy;
+pub mod readiness;
 pub mod types;
 
 #[cfg(test)]

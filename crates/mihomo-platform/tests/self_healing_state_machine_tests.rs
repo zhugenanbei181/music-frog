@@ -1,18 +1,14 @@
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 use tokio::time::Instant;
 
-use mihomo_platform::crash_reporter::{
-    DnsCrashWatchdog, DnsStateSentinel, StandaloneDnsWatchdog,
-};
+use mihomo_platform::crash_reporter::{DnsCrashWatchdog, DnsStateSentinel, StandaloneDnsWatchdog};
 use mihomo_platform::interface_watcher::{
-    GatewayHotplugArbiter, GatewayMigrationAction,
-    HotplugDebouncer, InterfaceType, NetworkInterfaceSnapshot,
+    GatewayHotplugArbiter, GatewayMigrationAction, HotplugDebouncer, InterfaceType,
+    NetworkInterfaceSnapshot,
 };
-use mihomo_platform::power::{
-    SelfHealingPipeline, SelfHealingTier,
-};
+use mihomo_platform::power::{SelfHealingPipeline, SelfHealingTier};
 
 fn create_test_iface(
     name: &str,
@@ -144,7 +140,10 @@ async fn test_five_tier_self_healing_pipeline_wake_normal_flow() {
 
     assert!(report.success);
     assert!(!report.safe_mode_tripped);
-    assert_eq!(report.highest_tier_reached, SelfHealingTier::Tier3NodeDelayRetest);
+    assert_eq!(
+        report.highest_tier_reached,
+        SelfHealingTier::Tier3NodeDelayRetest
+    );
     assert_eq!(rst_purges.load(Ordering::SeqCst), 1);
     assert_eq!(fake_ip_probes.load(Ordering::SeqCst), 1);
     assert_eq!(node_retests.load(Ordering::SeqCst), 1);
@@ -181,7 +180,10 @@ async fn test_five_tier_self_healing_pipeline_dns_corruption_escalation() {
     let report = pipeline.execute("Wake with corrupted Fake-IP pool").await;
 
     assert!(report.success);
-    assert_eq!(report.highest_tier_reached, SelfHealingTier::Tier4ConfigReload);
+    assert_eq!(
+        report.highest_tier_reached,
+        SelfHealingTier::Tier4ConfigReload
+    );
     assert_eq!(fake_ip_probes.load(Ordering::SeqCst), 2);
     assert_eq!(config_reloads.load(Ordering::SeqCst), 1);
 }
@@ -208,7 +210,10 @@ async fn test_five_tier_self_healing_pipeline_core_deadlock_respawn() {
     let report = pipeline.execute("Core deadlock on resume").await;
 
     assert!(report.success);
-    assert_eq!(report.highest_tier_reached, SelfHealingTier::Tier5ProcessRespawnAndSafeMode);
+    assert_eq!(
+        report.highest_tier_reached,
+        SelfHealingTier::Tier5ProcessRespawnAndSafeMode
+    );
     assert_eq!(config_reloads.load(Ordering::SeqCst), 1);
     assert_eq!(process_respawns.load(Ordering::SeqCst), 1);
 }
@@ -240,17 +245,48 @@ async fn test_five_tier_self_healing_safe_mode_escalation() {
 
 #[test]
 fn test_gateway_hotplug_arbiter_failover_hierarchy() {
-    let eth = create_test_iface("eth0", true, false, vec!["192.168.1.100"], InterfaceType::Ethernet, 100);
-    let wifi = create_test_iface("wlan0", true, true, vec!["192.168.2.100"], InterfaceType::WiFi, 200);
-    let cellular = create_test_iface("rmnet0", true, false, vec!["10.0.0.5"], InterfaceType::Cellular, 300);
-    let tun = create_test_iface("Meta", true, false, vec!["198.18.0.1"], InterfaceType::Tun, 500);
+    let eth = create_test_iface(
+        "eth0",
+        true,
+        false,
+        vec!["192.168.1.100"],
+        InterfaceType::Ethernet,
+        100,
+    );
+    let wifi = create_test_iface(
+        "wlan0",
+        true,
+        true,
+        vec!["192.168.2.100"],
+        InterfaceType::WiFi,
+        200,
+    );
+    let cellular = create_test_iface(
+        "rmnet0",
+        true,
+        false,
+        vec!["10.0.0.5"],
+        InterfaceType::Cellular,
+        300,
+    );
+    let tun = create_test_iface(
+        "Meta",
+        true,
+        false,
+        vec!["198.18.0.1"],
+        InterfaceType::Tun,
+        500,
+    );
 
     // Case 1: All available -> Ethernet wins over Wi-Fi and Cellular
     let all = vec![cellular.clone(), wifi.clone(), tun.clone(), eth.clone()];
     let d1 = GatewayHotplugArbiter::arbitrate(&all, Some("wlan0"), Some("Meta"));
     assert_eq!(d1.selected_interface.as_deref(), Some("eth0"));
     assert_eq!(d1.fallback_interfaces, vec!["wlan0", "rmnet0"]);
-    assert!(matches!(d1.action, GatewayMigrationAction::UpdateTunRoutes { .. }));
+    assert!(matches!(
+        d1.action,
+        GatewayMigrationAction::UpdateTunRoutes { .. }
+    ));
 
     // Case 2: Ethernet goes down -> Failover to Wi-Fi
     let eth_down = create_test_iface("eth0", false, false, vec![], InterfaceType::Ethernet, 100);
@@ -267,9 +303,10 @@ fn test_gateway_hotplug_arbiter_failover_hierarchy() {
     assert!(d3.fallback_interfaces.is_empty());
 
     // Case 4: Optimal MTU calculation on cellular
-    let (tun_mtu, mss) = GatewayHotplugArbiter::calculate_optimal_mtu(InterfaceType::Cellular.standard_mtu());
+    let (tun_mtu, mss) =
+        GatewayHotplugArbiter::calculate_optimal_mtu(InterfaceType::Cellular.standard_mtu());
     assert_eq!(tun_mtu, 1340); // 1420 - 80
-    assert_eq!(mss, 1300);     // 1340 - 40
+    assert_eq!(mss, 1300); // 1340 - 40
 }
 
 #[test]
@@ -277,9 +314,30 @@ fn test_gateway_hotplug_debouncer_1000ms_stabilization() {
     let mut debouncer = HotplugDebouncer::with_duration(Duration::from_millis(1000));
     let t0 = Instant::now();
 
-    let s0 = vec![create_test_iface("eth0", false, false, vec![], InterfaceType::Ethernet, 100)];
-    let s1 = vec![create_test_iface("eth0", true, false, vec!["169.254.1.1"], InterfaceType::Ethernet, 100)];
-    let s2 = vec![create_test_iface("eth0", true, true, vec!["192.168.1.50"], InterfaceType::Ethernet, 100)];
+    let s0 = vec![create_test_iface(
+        "eth0",
+        false,
+        false,
+        vec![],
+        InterfaceType::Ethernet,
+        100,
+    )];
+    let s1 = vec![create_test_iface(
+        "eth0",
+        true,
+        false,
+        vec!["169.254.1.1"],
+        InterfaceType::Ethernet,
+        100,
+    )];
+    let s2 = vec![create_test_iface(
+        "eth0",
+        true,
+        true,
+        vec!["192.168.1.50"],
+        InterfaceType::Ethernet,
+        100,
+    )];
 
     // Initialize baseline s0
     let _ = debouncer.ingest(s0.clone(), t0);

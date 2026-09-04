@@ -10,3 +10,10 @@ pub trait CoreProcess: Send + Sync {
     async fn status(&self) -> Result<CoreLifecycle, PortError>;
     fn controller_endpoint(&self) -> Option<String>;
 }
+
+/// Proves that the controller is ready without exposing an HTTP client or
+/// polling/timer implementation to the application boundary.
+#[async_trait]
+pub trait CoreReadiness: Send + Sync {
+    async fn probe(&self) -> Result<String, PortError>;
+}

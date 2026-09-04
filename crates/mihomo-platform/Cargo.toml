@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+infiltrator-contract = { path = "../infiltrator-contract" }
+infiltrator-ports = { path = "../infiltrator-ports" }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 thiserror = { workspace = true }

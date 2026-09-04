@@ -3,12 +3,12 @@ mod self_healing_pipeline;
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::{broadcast, watch, Mutex};
+use tokio::sync::{Mutex, broadcast, watch};
 use tokio::time::{self, Instant};
 
 /// Power event representing system power changes, sleep, wake, battery state,
@@ -152,13 +152,19 @@ impl PowerEventWatcher {
 
 pub type ProbeFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = bool> + Send>> + Send + Sync>;
 pub type RecoveryFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
-pub type ResetConnectionsFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
+pub type ResetConnectionsFn =
+    Arc<dyn Fn() -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
 
-pub type ZombiePurgeFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> + Send + Sync>;
-pub type FakeIpProbeFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<bool, String>> + Send>> + Send + Sync>;
-pub type NodeRetestFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<u32, String>> + Send>> + Send + Sync>;
-pub type ConfigReloadFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> + Send + Sync>;
-pub type ProcessRespawnFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> + Send + Sync>;
+pub type ZombiePurgeFn =
+    Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> + Send + Sync>;
+pub type FakeIpProbeFn =
+    Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<bool, String>> + Send>> + Send + Sync>;
+pub type NodeRetestFn =
+    Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<u32, String>> + Send>> + Send + Sync>;
+pub type ConfigReloadFn =
+    Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> + Send + Sync>;
+pub type ProcessRespawnFn =
+    Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> + Send + Sync>;
 
 /// Event emitted when the controller API is found to be dead/unresponsive after a resume.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -234,10 +240,19 @@ impl SelfHealingTier {
 /// Execution outcome of an individual self-healing pipeline step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StepOutcome {
-    Success { message: String },
-    Skipped { reason: String },
-    Failed { error: String },
-    Escalated { to_tier: SelfHealingTier, reason: String },
+    Success {
+        message: String,
+    },
+    Skipped {
+        reason: String,
+    },
+    Failed {
+        error: String,
+    },
+    Escalated {
+        to_tier: SelfHealingTier,
+        reason: String,
+    },
 }
 
 /// Execution report for a single tier step.
@@ -470,7 +485,10 @@ impl SelfHealingController {
 
         let _ = self.report_tx.send(report.clone());
         if !report.success {
-            let trigger = SelfHealingTrigger::with_attempts(reason, report.highest_tier_reached.tier_number() as u32);
+            let trigger = SelfHealingTrigger::with_attempts(
+                reason,
+                report.highest_tier_reached.tier_number() as u32,
+            );
             let _ = self.trigger_tx.send(trigger);
         }
 

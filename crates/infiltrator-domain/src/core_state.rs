@@ -6,11 +6,11 @@ use serde::{Deserialize, Serialize};
 /// timers, and controller clients belong to an adapter/application layer.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CoreState {
-    Idle,
+    Idle { generation: u64 },
     Starting { generation: u64 },
     Running { generation: u64, endpoint: String },
     Reloading { generation: u64, endpoint: String },
-    Stopping,
+    Stopping { generation: u64 },
     Failed { generation: u64, error: String },
 }
 
@@ -18,6 +18,7 @@ pub enum CoreState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CoreEvent {
     StartRequested,
+    StartFailed(String),
     ReadinessSuccess(String),
     ReadinessTimeout,
     ProcessExitedUnexpectedly(String),
@@ -26,6 +27,7 @@ pub enum CoreEvent {
     ReloadFailed(String),
     StopRequested,
     StopCompleted,
+    StopFailed(String),
 }
 
 /// Pure reducer for the mihomo lifecycle state.
@@ -36,9 +38,12 @@ impl CoreStateMachine {
     /// Returns the new state and an optional warning/effect string.
     pub fn step(state: &CoreState, event: CoreEvent) -> (CoreState, Option<String>) {
         match (state, event) {
-            (CoreState::Idle, CoreEvent::StartRequested) => {
-                (CoreState::Starting { generation: 1 }, None)
-            }
+            (CoreState::Idle { generation }, CoreEvent::StartRequested) => (
+                CoreState::Starting {
+                    generation: generation.saturating_add(1).max(1),
+                },
+                None,
+            ),
             (CoreState::Failed { generation, .. }, CoreEvent::StartRequested) => (
                 CoreState::Starting {
                     generation: generation + 1,
@@ -49,6 +54,13 @@ impl CoreStateMachine {
                 CoreState::Running {
                     generation: *generation,
                     endpoint,
+                },
+                None,
+            ),
+            (CoreState::Starting { generation }, CoreEvent::StartFailed(error)) => (
+                CoreState::Failed {
+                    generation: *generation,
+                    error,
                 },
                 None,
             ),
@@ -105,8 +117,31 @@ impl CoreStateMachine {
             (CoreState::Starting { .. }, CoreEvent::StopRequested)
             | (CoreState::Running { .. }, CoreEvent::StopRequested)
             | (CoreState::Reloading { .. }, CoreEvent::StopRequested)
-            | (CoreState::Failed { .. }, CoreEvent::StopRequested) => (CoreState::Stopping, None),
-            (CoreState::Stopping, CoreEvent::StopCompleted) => (CoreState::Idle, None),
+            | (CoreState::Failed { .. }, CoreEvent::StopRequested) => {
+                let generation = match state {
+                    CoreState::Starting { generation }
+                    | CoreState::Running { generation, .. }
+                    | CoreState::Reloading { generation, .. }
+                    | CoreState::Failed { generation, .. } => *generation,
+                    CoreState::Idle { generation } | CoreState::Stopping { generation } => {
+                        *generation
+                    }
+                };
+                (CoreState::Stopping { generation }, None)
+            }
+            (CoreState::Stopping { generation }, CoreEvent::StopCompleted) => (
+                CoreState::Idle {
+                    generation: *generation,
+                },
+                None,
+            ),
+            (CoreState::Stopping { generation }, CoreEvent::StopFailed(error)) => (
+                CoreState::Failed {
+                    generation: *generation,
+                    error,
+                },
+                None,
+            ),
             (current_state, _) => (current_state.clone(), None),
         }
     }
@@ -114,10 +149,11 @@ impl CoreStateMachine {
     /// Verifies the invariant that every non-idle generation is non-zero.
     pub fn verify_invariants(state: &CoreState) -> bool {
         match state {
-            CoreState::Idle | CoreState::Stopping => true,
+            CoreState::Idle { .. } => true,
             CoreState::Starting { generation }
             | CoreState::Running { generation, .. }
             | CoreState::Reloading { generation, .. }
+            | CoreState::Stopping { generation }
             | CoreState::Failed { generation, .. } => *generation > 0,
         }
     }
@@ -129,7 +165,7 @@ mod tests {
 
     #[test]
     fn full_lifecycle_success() {
-        let mut state = CoreState::Idle;
+        let mut state = CoreState::Idle { generation: 0 };
         assert!(CoreStateMachine::verify_invariants(&state));
 
         (state, _) = CoreStateMachine::step(&state, CoreEvent::StartRequested);
@@ -169,9 +205,9 @@ mod tests {
         );
 
         (state, _) = CoreStateMachine::step(&state, CoreEvent::StopRequested);
-        assert_eq!(state, CoreState::Stopping);
+        assert_eq!(state, CoreState::Stopping { generation: 1 });
         (state, _) = CoreStateMachine::step(&state, CoreEvent::StopCompleted);
-        assert_eq!(state, CoreState::Idle);
+        assert_eq!(state, CoreState::Idle { generation: 1 });
         assert!(CoreStateMachine::verify_invariants(&state));
     }
 
@@ -207,8 +243,37 @@ mod tests {
     }
 
     #[test]
+    fn start_and_stop_failures_keep_the_current_generation() {
+        let state = CoreState::Starting { generation: 7 };
+        let (state, _) =
+            CoreStateMachine::step(&state, CoreEvent::StartFailed("process exited".to_string()));
+        assert_eq!(
+            state,
+            CoreState::Failed {
+                generation: 7,
+                error: "process exited".to_string(),
+            }
+        );
+
+        let (state, _) = CoreStateMachine::step(&state, CoreEvent::StopRequested);
+        assert_eq!(state, CoreState::Stopping { generation: 7 });
+
+        let (state, _) = CoreStateMachine::step(
+            &state,
+            CoreEvent::StopFailed("permission denied".to_string()),
+        );
+        assert_eq!(
+            state,
+            CoreState::Failed {
+                generation: 7,
+                error: "permission denied".to_string(),
+            }
+        );
+    }
+
+    #[test]
     fn unexpected_events_are_noops() {
-        let state = CoreState::Idle;
+        let state = CoreState::Idle { generation: 0 };
         let (next, effect) = CoreStateMachine::step(&state, CoreEvent::StopCompleted);
         assert_eq!(next, state);
         assert_eq!(effect, None);

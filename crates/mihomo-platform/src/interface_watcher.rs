@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use sysinfo::Networks;
-use tokio::sync::{broadcast, watch, Mutex};
+use tokio::sync::{Mutex, broadcast, watch};
 use tokio::time::{self, Instant};
 
 /// Physical or virtual classification of a network interface.
@@ -188,7 +188,8 @@ impl NetworkInterfaceSnapshot {
     }
 
     pub fn effective_mtu(&self) -> u32 {
-        self.mtu.unwrap_or_else(|| self.inferred_type().standard_mtu())
+        self.mtu
+            .unwrap_or_else(|| self.inferred_type().standard_mtu())
     }
 }
 
@@ -305,7 +306,8 @@ impl GatewayHotplugArbiter {
                 action: if let Some(tun) = tun_interface {
                     GatewayMigrationAction::DeadTunMitigation {
                         tun_interface: tun.to_string(),
-                        reason: "All physical interfaces are down; no physical route to Internet".to_string(),
+                        reason: "All physical interfaces are down; no physical route to Internet"
+                            .to_string(),
                     }
                 } else {
                     GatewayMigrationAction::None
@@ -315,10 +317,13 @@ impl GatewayHotplugArbiter {
         }
 
         let best = &candidates[0];
-        let fallback_names: Vec<String> = candidates.iter().skip(1).map(|c| c.name.clone()).collect();
+        let fallback_names: Vec<String> =
+            candidates.iter().skip(1).map(|c| c.name.clone()).collect();
 
         // Check for TUN routing loop
-        if best.inferred_type().is_tun() || tun_interface.is_some_and(|t| best.name.eq_ignore_ascii_case(t)) {
+        if best.inferred_type().is_tun()
+            || tun_interface.is_some_and(|t| best.name.eq_ignore_ascii_case(t))
+        {
             let physical_fallback = fallback_names.first().cloned();
             return GatewayArbitrationDecision {
                 selected_interface: Some(best.name.clone()),
@@ -334,7 +339,8 @@ impl GatewayHotplugArbiter {
             };
         }
 
-        let is_migrated = previous_gateway.is_none() || previous_gateway.is_some_and(|prev| prev != best.name);
+        let is_migrated =
+            previous_gateway.is_none() || previous_gateway.is_some_and(|prev| prev != best.name);
 
         let action = if is_migrated {
             if let Some(_tun) = tun_interface {
@@ -362,22 +368,34 @@ impl GatewayHotplugArbiter {
             reason: format!(
                 "Selected best candidate '{}' with metric {}",
                 best.name,
-                best.metric.unwrap_or_else(|| best.inferred_type().default_priority_metric())
+                best.metric
+                    .unwrap_or_else(|| best.inferred_type().default_priority_metric())
             ),
         }
     }
 
     /// Filters and ranks valid candidate network interfaces (lowest metric first).
-    pub fn rank_candidates(snapshots: &[NetworkInterfaceSnapshot]) -> Vec<NetworkInterfaceSnapshot> {
+    pub fn rank_candidates(
+        snapshots: &[NetworkInterfaceSnapshot],
+    ) -> Vec<NetworkInterfaceSnapshot> {
         let mut candidates: Vec<NetworkInterfaceSnapshot> = snapshots
             .iter()
-            .filter(|i| i.is_up && !i.is_loopback && !i.inferred_type().is_tun() && !i.ip_addresses.is_empty())
+            .filter(|i| {
+                i.is_up
+                    && !i.is_loopback
+                    && !i.inferred_type().is_tun()
+                    && !i.ip_addresses.is_empty()
+            })
             .cloned()
             .collect();
 
         candidates.sort_by(|a, b| {
-            let prio_a = a.metric.unwrap_or_else(|| a.inferred_type().default_priority_metric());
-            let prio_b = b.metric.unwrap_or_else(|| b.inferred_type().default_priority_metric());
+            let prio_a = a
+                .metric
+                .unwrap_or_else(|| a.inferred_type().default_priority_metric());
+            let prio_b = b
+                .metric
+                .unwrap_or_else(|| b.inferred_type().default_priority_metric());
             prio_a.cmp(&prio_b).then_with(|| a.name.cmp(&b.name))
         });
 
@@ -408,9 +426,16 @@ impl GatewayPriorityArbiter {
     ) -> Option<&NetworkInterfaceSnapshot> {
         snapshots
             .iter()
-            .filter(|i| i.is_up && !i.is_loopback && !i.inferred_type().is_tun() && !i.ip_addresses.is_empty())
+            .filter(|i| {
+                i.is_up
+                    && !i.is_loopback
+                    && !i.inferred_type().is_tun()
+                    && !i.ip_addresses.is_empty()
+            })
             .min_by_key(|i| {
-                let prio = i.metric.unwrap_or_else(|| i.inferred_type().default_priority_metric());
+                let prio = i
+                    .metric
+                    .unwrap_or_else(|| i.inferred_type().default_priority_metric());
                 (prio, i.name.clone())
             })
     }
@@ -427,8 +452,12 @@ impl GatewayPriorityArbiter {
         a: &NetworkInterfaceSnapshot,
         b: &NetworkInterfaceSnapshot,
     ) -> std::cmp::Ordering {
-        let prio_a = a.metric.unwrap_or_else(|| a.inferred_type().default_priority_metric());
-        let prio_b = b.metric.unwrap_or_else(|| b.inferred_type().default_priority_metric());
+        let prio_a = a
+            .metric
+            .unwrap_or_else(|| a.inferred_type().default_priority_metric());
+        let prio_b = b
+            .metric
+            .unwrap_or_else(|| b.inferred_type().default_priority_metric());
         prio_a.cmp(&prio_b)
     }
 }
@@ -579,10 +608,15 @@ impl InterfaceFlapGuard {
     /// Records an interface change and returns whether flap threshold is exceeded.
     pub fn record_change(&mut self, iface: &str) -> bool {
         let now = Instant::now();
-        self.flap_history.retain(|(t, _)| now.duration_since(*t) < self.flap_window);
+        self.flap_history
+            .retain(|(t, _)| now.duration_since(*t) < self.flap_window);
         self.flap_history.push((now, iface.to_string()));
 
-        let count = self.flap_history.iter().filter(|(_, name)| name == iface).count() as u32;
+        let count = self
+            .flap_history
+            .iter()
+            .filter(|(_, name)| name == iface)
+            .count() as u32;
         if count >= self.max_flaps_per_window {
             self.hold_until = Some(now + self.flap_window);
             true
@@ -627,11 +661,20 @@ impl InterfaceDiffDetector {
     ) -> Vec<NetworkEvent> {
         let mut events = Vec::new();
 
-        let old_gw = before.iter().find(|i| i.is_default_gateway).map(|i| i.name.clone());
-        let new_gw = after.iter().find(|i| i.is_default_gateway).map(|i| i.name.clone());
+        let old_gw = before
+            .iter()
+            .find(|i| i.is_default_gateway)
+            .map(|i| i.name.clone());
+        let new_gw = after
+            .iter()
+            .find(|i| i.is_default_gateway)
+            .map(|i| i.name.clone());
 
         if old_gw != new_gw {
-            events.push(NetworkEvent::DefaultGatewayChanged { old: old_gw, new: new_gw });
+            events.push(NetworkEvent::DefaultGatewayChanged {
+                old: old_gw,
+                new: new_gw,
+            });
         }
 
         for next_iface in after {
@@ -676,7 +719,8 @@ impl InterfaceDiffDetector {
                 ref tun_interface,
                 ref reason,
                 ..
-            } = migration.action_required {
+            } = migration.action_required
+            {
                 events.push(NetworkEvent::RoutingLoopRiskDetected {
                     tun_interface: tun_interface.clone(),
                     gateway_interface: migration.new_gateway_interface.clone().unwrap_or_default(),
@@ -704,7 +748,8 @@ impl InterfaceDiffDetector {
             NetworkEvent::RoutingLoopRiskDetected { .. } => true,
             NetworkEvent::InterfaceUp(_) | NetworkEvent::InterfaceDown(_) => true,
             NetworkEvent::IpAddressChanged { .. } => false,
-            NetworkEvent::MtuClampingSuggested { .. } | NetworkEvent::InterfaceFlapDetected { .. } => false,
+            NetworkEvent::MtuClampingSuggested { .. }
+            | NetworkEvent::InterfaceFlapDetected { .. } => false,
         })
     }
 }
@@ -755,10 +800,14 @@ impl NetworkInterfaceWatcher {
     ) -> Self {
         let (sender, _) = broadcast::channel(32);
         let (stop_tx, stop_rx) = watch::channel(false);
-        let detector = Arc::new(Mutex::new(GatewayMigrationDetector::new(tun_interface_name)));
+        let detector = Arc::new(Mutex::new(GatewayMigrationDetector::new(
+            tun_interface_name,
+        )));
         let last_snapshots = Arc::new(Mutex::new(Vec::new()));
         let flap_guard = Arc::new(Mutex::new(InterfaceFlapGuard::default()));
-        let debouncer = Arc::new(Mutex::new(HotplugDebouncer::with_duration(debounce_duration)));
+        let debouncer = Arc::new(Mutex::new(HotplugDebouncer::with_duration(
+            debounce_duration,
+        )));
 
         Self {
             sender,
@@ -775,10 +824,7 @@ impl NetworkInterfaceWatcher {
     /// Configures the hot-plug debounce window.
     pub fn with_debounce(self, debounce: Duration) -> Self {
         let debouncer = Arc::new(Mutex::new(HotplugDebouncer::with_duration(debounce)));
-        Self {
-            debouncer,
-            ..self
-        }
+        Self { debouncer, ..self }
     }
 
     /// Returns the hotplug debouncer mutex handle.
@@ -880,7 +926,10 @@ impl NetworkInterfaceWatcher {
     }
 
     /// Emits a network event manually.
-    pub fn emit(&self, event: NetworkEvent) -> Result<usize, broadcast::error::SendError<NetworkEvent>> {
+    pub fn emit(
+        &self,
+        event: NetworkEvent,
+    ) -> Result<usize, broadcast::error::SendError<NetworkEvent>> {
         self.sender.send(event)
     }
 
@@ -890,7 +939,10 @@ impl NetworkInterfaceWatcher {
     }
 
     /// Ingests a new set of snapshots, computing diffs and emitting any detected events.
-    pub async fn update_snapshots(&self, new_snapshots: Vec<NetworkInterfaceSnapshot>) -> Vec<NetworkEvent> {
+    pub async fn update_snapshots(
+        &self,
+        new_snapshots: Vec<NetworkInterfaceSnapshot>,
+    ) -> Vec<NetworkEvent> {
         let mut prev_guard = self.last_snapshots.lock().await;
         let mut detector_guard = self.detector.lock().await;
 
@@ -916,7 +968,8 @@ impl NetworkInterfaceWatcher {
         now: Instant,
     ) -> Vec<NetworkEvent> {
         let mut deb_guard = self.debouncer.lock().await;
-        let settled = deb_guard.ingest(new_snapshots, now)
+        let settled = deb_guard
+            .ingest(new_snapshots, now)
             .or_else(|| deb_guard.poll_settled(now));
 
         if let Some(settled_snaps) = settled {

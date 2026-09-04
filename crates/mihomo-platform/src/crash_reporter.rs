@@ -156,8 +156,7 @@ impl DnsStateSentinel {
         if !self.is_active {
             return false;
         }
-        !DnsCrashWatchdog::is_process_alive(self.daemon_pid)
-            || self.is_heartbeat_expired(now_secs)
+        !DnsCrashWatchdog::is_process_alive(self.daemon_pid) || self.is_heartbeat_expired(now_secs)
     }
 }
 
@@ -251,7 +250,9 @@ impl DnsCrashWatchdog {
         #[cfg(windows)]
         {
             use windows_sys::Win32::Foundation::CloseHandle;
-            use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+            use windows_sys::Win32::System::Threading::{
+                OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+            };
             unsafe {
                 let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
                 if !handle.is_null() {
@@ -512,7 +513,10 @@ impl StandaloneDnsWatchdog {
         } else if cfg!(windows) {
             let iface_win = interface.unwrap_or("Ethernet");
             if servers.is_empty() {
-                commands.push(format!("netsh interface ip set dns name=\"{}\" source=dhcp", iface_win));
+                commands.push(format!(
+                    "netsh interface ip set dns name=\"{}\" source=dhcp",
+                    iface_win
+                ));
             } else {
                 if let Some(primary) = servers.first() {
                     commands.push(format!(
@@ -530,7 +534,11 @@ impl StandaloneDnsWatchdog {
                 }
             }
         } else {
-            commands.push(format!("# generic restore for {}: {}", iface, servers.join(",")));
+            commands.push(format!(
+                "# generic restore for {}: {}",
+                iface,
+                servers.join(",")
+            ));
         }
 
         commands
@@ -628,8 +636,13 @@ impl CrashReporter {
         let password_re = Regex::new(r"(?i)(password[=:]\s*)[^\s&,;\x22\x27]+").unwrap();
         let apikey_re = Regex::new(r"(?i)(api[-_]?key[=:]\s*)[^\s&,;\x22\x27]+").unwrap();
         let url_cred_re = Regex::new(r"(?i)(https?://)([^:]+):([^@]+)@").unwrap();
-        let jwt_re = Regex::new(r"eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}").unwrap();
-        let private_key_re = Regex::new(r"-----BEGIN[ A-Z0-9_\-]+PRIVATE KEY-----[\s\S]*?-----END[ A-Z0-9_\-]+PRIVATE KEY-----").unwrap();
+        let jwt_re =
+            Regex::new(r"eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}")
+                .unwrap();
+        let private_key_re = Regex::new(
+            r"-----BEGIN[ A-Z0-9_\-]+PRIVATE KEY-----[\s\S]*?-----END[ A-Z0-9_\-]+PRIVATE KEY-----",
+        )
+        .unwrap();
 
         let unix_home_re = Regex::new(r"/home/[^/\s\x22\x27,:]+").unwrap();
         let mac_home_re = Regex::new(r"/Users/[^/\s\x22\x27,:]+").unwrap();
@@ -668,7 +681,9 @@ impl CrashReporter {
                 .replace_all(text, "${1}<REDACTED_USER>:<REDACTED_PASS>@")
                 .to_string();
             *text = jwt_re.replace_all(text, "<REDACTED_JWT>").to_string();
-            *text = private_key_re.replace_all(text, "<REDACTED_PRIVATE_KEY>").to_string();
+            *text = private_key_re
+                .replace_all(text, "<REDACTED_PRIVATE_KEY>")
+                .to_string();
         }
 
         report.sanitized = true;
@@ -731,7 +746,9 @@ impl CrashReporter {
             let path = entry.path();
             if path.is_file()
                 && path.extension().is_some_and(|ext| ext == "json")
-                && path.file_name().is_some_and(|n| n.to_string_lossy().starts_with("crash_"))
+                && path
+                    .file_name()
+                    .is_some_and(|n| n.to_string_lossy().starts_with("crash_"))
                 && let Ok(metadata) = entry.metadata()
             {
                 let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);

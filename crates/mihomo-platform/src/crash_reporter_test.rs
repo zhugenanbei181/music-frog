@@ -1,6 +1,6 @@
 use super::*;
-use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 #[test]
@@ -81,14 +81,8 @@ fn test_sanitize_paths_and_jwt() {
 
 #[test]
 fn test_serialization_roundtrip() {
-    let report = CrashReporter::new_full_report(
-        "Test panic",
-        "v1.0.0",
-        Some("v1.0.0"),
-        42,
-        None,
-        None,
-    );
+    let report =
+        CrashReporter::new_full_report("Test panic", "v1.0.0", Some("v1.0.0"), 42, None, None);
     let serialized = CrashReporter::serialize_report(&report).unwrap();
     let deserialized = CrashReporter::parse_report(&serialized).unwrap();
     assert_eq!(report, deserialized);
@@ -102,16 +96,20 @@ fn test_save_crash_dump_creates_file_and_rotates() {
     let saved_path = CrashReporter::save_crash_dump(&report, Some(temp_dir.path())).unwrap();
 
     assert!(saved_path.exists());
-    assert!(saved_path
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .starts_with("crash_"));
-    assert!(saved_path
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .ends_with(".json"));
+    assert!(
+        saved_path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("crash_")
+    );
+    assert!(
+        saved_path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .ends_with(".json")
+    );
 
     let content = std::fs::read_to_string(&saved_path).unwrap();
     let parsed = CrashReporter::parse_report(&content).unwrap();
@@ -227,8 +225,14 @@ fn test_dns_state_sentinel_builder_and_expiration() {
     assert_eq!(sentinel.daemon_pid, 12345);
     assert_eq!(sentinel.interface_name.as_deref(), Some("eth0"));
     assert_eq!(sentinel.heartbeat_timeout_secs, 10);
-    assert_eq!(sentinel.system_proxy_current.as_deref(), Some("127.0.0.1:7890"));
-    assert_eq!(sentinel.metadata.get("key1").map(String::as_str), Some("val1"));
+    assert_eq!(
+        sentinel.system_proxy_current.as_deref(),
+        Some("127.0.0.1:7890")
+    );
+    assert_eq!(
+        sentinel.metadata.get("key1").map(String::as_str),
+        Some("val1")
+    );
     assert!(sentinel.is_active);
 
     let now = sentinel.heartbeat_secs + 5;

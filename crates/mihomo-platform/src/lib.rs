@@ -9,6 +9,7 @@ pub mod instance_lock;
 pub mod interface_watcher;
 pub mod package_verifier;
 pub mod paths;
+pub mod ports_adapter;
 pub mod power;
 pub mod sandbox_validator;
 pub mod target_matrix;

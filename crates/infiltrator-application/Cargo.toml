@@ -1,0 +1,16 @@
+[package]
+name = "infiltrator-application"
+version = "0.30.0"
+edition = "2024"
+publish = false
+description = "Tokio-backed application services over runtime-neutral MusicFrog ports."
+
+[dependencies]
+infiltrator-contract = { path = "../infiltrator-contract" }
+infiltrator-domain = { path = "../infiltrator-domain" }
+infiltrator-ports = { path = "../infiltrator-ports" }
+log = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+async-trait = { workspace = true }

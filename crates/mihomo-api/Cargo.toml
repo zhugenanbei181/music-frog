@@ -14,6 +14,7 @@ url = { workspace = true }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 log = { workspace = true }
 futures-util = { workspace = true }
+infiltrator-ports = { path = "../infiltrator-ports" }
 yaml-rust2 = { workspace = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
