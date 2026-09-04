@@ -181,7 +181,7 @@ impl AppState {
                         {
                             runtime
                                 .apply_current_config(
-                                    infiltrator_core::apply::ApplyStrategy::AlwaysRestart,
+                                    infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
                                 )
                                 .await
                                 .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
@@ -255,7 +255,7 @@ impl AppState {
                                 if let Some(runtime) = runtime.as_ref() {
                                     runtime
                                         .apply_current_config(
-                                            infiltrator_core::apply::ApplyStrategy::AlwaysRestart,
+                                            infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
                                         )
                                         .await
                                         .map_err(|error| {
@@ -354,7 +354,7 @@ impl AppState {
                                     if let Some(runtime) = runtime.as_ref() {
                                         runtime
                                             .apply_current_config(
-                                                infiltrator_core::apply::ApplyStrategy::AlwaysRestart,
+                                                infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
                                             )
                                             .await
                                             .map_err(|error| {

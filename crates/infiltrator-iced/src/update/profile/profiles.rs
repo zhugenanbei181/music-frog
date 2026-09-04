@@ -14,10 +14,9 @@ impl AppState {
                 self.profile.is_loading_profiles = true;
                 Task::perform(
                     async {
-                        let cm = crate::configs_dir::config_manager().await?;
-                        cm.list_profiles()
+                        infiltrator_core::profiles::list_profile_infos()
                             .await
-                            .map_err(|e: mihomo_api::error::MihomoError| infiltrator_contract::error::from_mihomo(e))
+                            .map_err(|e| InfiltratorError::Config(e.to_string()))
                     },
                     Message::ProfilesLoaded,
                 )

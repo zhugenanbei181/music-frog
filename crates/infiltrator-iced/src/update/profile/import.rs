@@ -5,7 +5,7 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_core::apply::ApplyStrategy;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
 
 impl AppState {
@@ -159,7 +159,7 @@ impl AppState {
                             .map_err(|e| InfiltratorError::Io(e.to_string()))?;
                         let content = infiltrator_domain::profile_converter::ProfileConverter::detect_and_convert(&content)
                             .unwrap_or(content);
-                        infiltrator_core::config::validate_yaml(&content)
+                        infiltrator_domain::config::validate_yaml(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
                         let cm = crate::configs_dir::config_manager().await?;

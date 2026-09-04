@@ -22,10 +22,11 @@ use crate::types::runtime::{
 use iced::Theme;
 use iced::widget::text_editor;
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_desktop::runtime::MihomoRuntime;
 use infiltrator_desktop::tun_service::ServiceModeStatus;
 use mihomo_api::types::{ConnectionSnapshot, TrafficData};
-use mihomo_config::profile::Profile;
+use infiltrator_domain::profiles::ProfileInfo;
 use mihomo_version::manager::VersionInfo;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -113,7 +114,7 @@ pub struct RuntimeState {
 
 /// 订阅与档案域:Profile 列表、订阅导入/更新、WebDAV 同步与应用设置保存(UI-002)。
 pub struct ProfileState {
-    pub profiles: Vec<Profile>,
+    pub profiles: Vec<ProfileInfo>,
     pub profiles_filter: String,
     pub is_loading_profiles: bool,
     pub import_url: String,
@@ -247,7 +248,7 @@ pub struct ConfigEditorState {
     pub editor_content: text_editor::Content,
     pub editor_path: Option<PathBuf>,
     pub editor_path_setting: String,
-    pub profile_snapshots: Vec<infiltrator_core::history::SnapshotMeta>,
+    pub profile_snapshots: Vec<SnapshotMeta>,
     pub is_loading_snapshots: bool,
     pub is_restoring_snapshot: bool,
     pub editor_pane: crate::types::options::EditorPane,

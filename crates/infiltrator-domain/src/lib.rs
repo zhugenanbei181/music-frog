@@ -6,6 +6,8 @@
 
 pub mod backoff_strategy;
 pub mod app_routing;
+pub mod apply;
+pub mod config;
 pub mod core_state;
 pub mod diagnostics;
 pub mod dns;
@@ -25,6 +27,7 @@ pub mod pcap_exporter;
 pub mod profile_converter;
 pub mod profile_options;
 pub mod profiles;
+pub mod proxy_providers;
 pub mod proxy_nodes;
 pub mod rule_hit_counter;
 pub mod rules;
@@ -32,6 +35,8 @@ pub mod pac_generator;
 pub mod redact;
 pub mod script_engine;
 pub mod settings;
+pub mod snapshots;
+pub mod sniffer;
 pub mod sub_rules;
 pub mod subscription;
 pub mod traffic_audit;

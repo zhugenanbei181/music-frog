@@ -8,7 +8,7 @@
 
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_core::apply::ApplyStrategy;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_desktop::runtime::MihomoRuntime;
 use std::sync::Arc;

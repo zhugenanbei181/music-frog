@@ -5139,6 +5139,7 @@ dependencies = [
  "toml 0.8.23",
  "url",
  "urlencoding",
+ "yaml-rust2",
 ]
 
 [[package]]

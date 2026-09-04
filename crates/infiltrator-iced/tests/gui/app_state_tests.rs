@@ -14,10 +14,10 @@ use crate::types::runtime::{
 use crate::types::runtime::{RebuildFlowState, RuntimeConfig};
 use iced::widget::text_editor;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_shared::locales::{Lang, Localizer};
 use mihomo_api::types::TrafficData;
-use mihomo_config::profile::Profile;
 use std::path::PathBuf;
 
 #[test]
@@ -206,11 +206,12 @@ fn test_profiles_and_rules_loading() {
     let (mut state, _) = AppState::new();
 
     // Profiles loaded
-    let _ = state.update(Message::ProfilesLoaded(Ok(vec![Profile::new(
-        "test".into(),
-        PathBuf::from("test.yaml"),
-        true,
-    )])));
+    let _ = state.update(Message::ProfilesLoaded(Ok(vec![ProfileInfo {
+        name: "test".into(),
+        path: "test.yaml".into(),
+        active: true,
+        ..Default::default()
+    }])));
     assert_eq!(state.profile.profiles.len(), 1);
     assert!(!state.profile.is_loading_profiles);
 

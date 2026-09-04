@@ -11,9 +11,10 @@ use iced::{widget::text_editor, window};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_desktop::runtime::MihomoRuntime;
 use mihomo_api::types::{ConnectionSnapshot, TrafficData};
-use mihomo_config::profile::Profile;
+use infiltrator_domain::profiles::ProfileInfo;
 use mihomo_version::manager::VersionInfo;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -38,7 +39,7 @@ pub enum Message {
     ProxyStopped,
     SettingsLoaded(Result<AppSettings, InfiltratorError>),
     LoadProfiles,
-    ProfilesLoaded(Result<Vec<Profile>, InfiltratorError>),
+    ProfilesLoaded(Result<Vec<ProfileInfo>, InfiltratorError>),
     SetActiveProfile(String),
     ProfileActivationFinished(Result<bool, InfiltratorError>),
     UpdateImportUrl(String),
@@ -305,7 +306,7 @@ pub enum Message {
     EditProfileAs(PathBuf, crate::types::options::EditorPane),
     ProfileContentLoaded(Result<(PathBuf, String), InfiltratorError>),
     LoadProfileSnapshots,
-    ProfileSnapshotsLoaded(Result<Vec<infiltrator_core::history::SnapshotMeta>, InfiltratorError>),
+    ProfileSnapshotsLoaded(Result<Vec<SnapshotMeta>, InfiltratorError>),
     RestoreProfileSnapshot(PathBuf),
     ProfileSnapshotRestored(Result<(), InfiltratorError>),
     EditorAction(text_editor::Action),

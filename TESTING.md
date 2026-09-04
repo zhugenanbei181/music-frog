@@ -10,8 +10,8 @@
 
   | Crate / test target | 测试数（`cargo nextest list --workspace`） |
   | :--- | ---: |
-  | infiltrator-core | 160 |
-  | infiltrator-domain | 399 |
+  | infiltrator-core | 144 |
+  | infiltrator-domain | 415 |
   | infiltrator-application | 10 |
   | infiltrator-ios | 2 |
   | infiltrator-iced + headless | 255 |

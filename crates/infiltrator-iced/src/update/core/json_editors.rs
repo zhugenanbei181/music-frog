@@ -129,10 +129,10 @@ impl AppState {
                     self.runtime.runtime.clone(),
                     move |content| {
                         let providers = serde_json::from_str::<
-                            infiltrator_core::proxy_providers::ProxyProviders,
+                            infiltrator_domain::proxy_providers::ProxyProviders,
                         >(&text)
                         .map_err(|e| anyhow::anyhow!("Invalid proxy providers JSON: {e}"))?;
-                        infiltrator_core::proxy_providers::apply_proxy_providers_to_yaml(
+                        infiltrator_domain::proxy_providers::apply_proxy_providers_to_yaml(
                             content, &providers,
                         )
                     },
@@ -183,7 +183,7 @@ impl AppState {
                     move |content| {
                         let config = serde_json::from_str::<serde_json::Value>(&text)
                             .map_err(|e| anyhow::anyhow!("Invalid sniffer JSON: {e}"))?;
-                        infiltrator_core::sniffer::apply_sniffer_to_yaml(content, &config)
+                        infiltrator_domain::sniffer::apply_sniffer_to_yaml(content, &config)
                     },
                     Message::SnifferJsonSaved,
                 )

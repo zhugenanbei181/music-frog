@@ -28,14 +28,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     let mut state = fresh_state();
 
     // Startup回流: the bootstrap task would fetch the profile list.
-    let listed = block_on(async {
-        crate::configs_dir::config_manager()
-            .await
-            .unwrap()
-            .list_profiles()
-            .await
-            .unwrap()
-    });
+    let listed = block_on(infiltrator_core::profiles::list_profile_infos()).unwrap();
     let units = feed(&mut state, Message::ProfilesLoaded(Ok(listed)));
     assert_eq!(units, 0);
     assert_eq!(state.profile.profiles.len(), 1);
@@ -91,7 +84,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     // Task body for real: read_to_string → validate_yaml → save → activate.
     let stored = block_on(async {
         let content = tokio::fs::read_to_string(&source).await.unwrap();
-        infiltrator_core::config::validate_yaml(&content).unwrap();
+        infiltrator_domain::config::validate_yaml(&content).unwrap();
         let manager = crate::configs_dir::config_manager().await.unwrap();
         manager.save("Travel Node", &content).await.unwrap();
         crate::update::core::profile_apply::activate_profile(None, "Travel Node")
@@ -109,14 +102,9 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     // ---- explicit activation of another profile ----
     feed(
         &mut state,
-        Message::ProfilesLoaded(Ok(block_on(async {
-            crate::configs_dir::config_manager()
-                .await
-                .unwrap()
-                .list_profiles()
-                .await
-                .unwrap()
-        }))),
+        Message::ProfilesLoaded(Ok(
+            block_on(infiltrator_core::profiles::list_profile_infos()).unwrap(),
+        )),
     );
     state.shell.error_msg = Some("stale".into());
     let units = feed(&mut state, Message::SetActiveProfile("default".into()));
@@ -248,14 +236,7 @@ fn subscription_settings_save_gates_persists_and_reloads_profiles() {
         assert!(!reread.auto_update_enabled, "auto-update flag persisted");
         assert!(reread.subscription_url.is_none());
     });
-    let listed = block_on(async {
-        crate::configs_dir::config_manager()
-            .await
-            .unwrap()
-            .list_profiles()
-            .await
-            .unwrap()
-    });
+    let listed = block_on(infiltrator_core::profiles::list_profile_infos()).unwrap();
     feed(&mut state, Message::ProfilesLoaded(Ok(listed)));
     let paid = state
         .profile
@@ -355,14 +336,7 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
     assert!(home.configs().join("options/Doomed.yaml").exists());
 
     let mut state = fresh_state();
-    let listed = block_on(async {
-        crate::configs_dir::config_manager()
-            .await
-            .unwrap()
-            .list_profiles()
-            .await
-            .unwrap()
-    });
+    let listed = block_on(infiltrator_core::profiles::list_profile_infos()).unwrap();
     assert_eq!(listed.len(), 2);
     feed(&mut state, Message::ProfilesLoaded(Ok(listed)));
 

@@ -7,34 +7,14 @@
 //! transaction, so restores inherit validation, atomic write, readiness and
 //! rollback — never a raw file overwrite.
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use mihomo_api::error::{MihomoError, Result};
-use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
+
+use infiltrator_domain::snapshots::{SnapshotMeta, content_hash, parse_snapshot_name};
 
 /// How many snapshots are retained per profile after pruning.
 pub const DEFAULT_KEEP: usize = 20;
-
-/// Metadata of one stored snapshot; content is read on demand.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SnapshotMeta {
-    pub profile: String,
-    /// RFC 3339 timestamp captured at write time, also part of the name.
-    pub timestamp: DateTime<Utc>,
-    /// Lowercase hex SHA-256 of the snapshot content.
-    pub sha256: String,
-    pub path: PathBuf,
-}
-
-/// Hex SHA-256 of `content`.
-pub fn content_hash(content: &[u8]) -> String {
-    let digest = Sha256::digest(content);
-    let mut hex = String::with_capacity(digest.len() * 2);
-    for byte in digest {
-        hex.push_str(&format!("{byte:02x}"));
-    }
-    hex
-}
 
 /// Directory holding `profile`'s snapshots: `<config_dir>/snapshots/<profile>`.
 pub fn snapshot_dir(config_dir: &Path, profile: &str) -> PathBuf {
@@ -114,19 +94,6 @@ pub async fn prune_snapshots(config_dir: &Path, profile: &str, keep: usize) -> R
         }
     }
     Ok(removed)
-}
-
-/// Parse `<unix_millis>-<8 hex>.yaml` into its parts. Numeric timestamps
-/// keep the name stable and sortable without locale/format ambiguity.
-fn parse_snapshot_name(name: &str) -> Option<(DateTime<Utc>, String)> {
-    let stem = name.strip_suffix(".yaml")?;
-    let (stamp, hash) = stem.split_once('-')?;
-    let millis = stamp.parse::<i64>().ok()?;
-    if hash.len() != 8 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return None;
-    }
-    let timestamp = DateTime::from_timestamp_millis(millis)?;
-    Some((timestamp, hash.to_ascii_lowercase()))
 }
 
 #[cfg(test)]

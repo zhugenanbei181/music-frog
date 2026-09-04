@@ -3,9 +3,8 @@
 
 use infiltrator_domain::rules::RuleEntry;
 use mihomo_api::types::{Connection, ConnectionMetadata, ConnectionSnapshot};
-use mihomo_config::profile::Profile;
+use infiltrator_domain::profiles::ProfileInfo;
 use std::collections::VecDeque;
-use std::path::PathBuf;
 
 /// 60 samples (the app's own history cap and the chart's `max_points`) of a
 /// believable wave: up 0.5–4 MB/s, down 1–12 MB/s.
@@ -258,16 +257,18 @@ pub(super) fn demo_rules() -> Vec<RuleEntry> {
 }
 
 /// 3 profiles: an active subscription, a local file and a standby subscription.
-pub(super) fn demo_profiles() -> Vec<Profile> {
+pub(super) fn demo_profiles() -> Vec<ProfileInfo> {
     use chrono::TimeZone;
     let updated = chrono::Utc
         .with_ymd_and_hms(2026, 8, 29, 13, 45, 0)
         .unwrap();
     vec![
-        Profile {
+        ProfileInfo {
             name: "机场订阅".to_string(),
-            path: PathBuf::from("/home/demo/.config/musicfrog-infiltrator/profiles/机场订阅.yaml"),
+            path: "/home/demo/.config/musicfrog-infiltrator/profiles/机场订阅.yaml".to_string(),
             active: true,
+            controller_url: None,
+            controller_changed: None,
             subscription_url: Some(
                 "https://sub.example.com/api/v1/client/subscribe?token=demo-token".to_string(),
             ),
@@ -281,10 +282,12 @@ pub(super) fn demo_profiles() -> Vec<Profile> {
             traffic_total: Some(322_122_547_200),
             expire_at: Some(1_811_395_200),
         },
-        Profile {
+        ProfileInfo {
             name: "本地配置".to_string(),
-            path: PathBuf::from("/home/demo/.config/musicfrog-infiltrator/profiles/本地配置.yaml"),
+            path: "/home/demo/.config/musicfrog-infiltrator/profiles/本地配置.yaml".to_string(),
             active: false,
+            controller_url: None,
+            controller_changed: None,
             subscription_url: None,
             auto_update_enabled: false,
             update_interval_hours: None,
@@ -295,10 +298,12 @@ pub(super) fn demo_profiles() -> Vec<Profile> {
             traffic_total: None,
             expire_at: None,
         },
-        Profile {
+        ProfileInfo {
             name: "备用线路".to_string(),
-            path: PathBuf::from("/home/demo/.config/musicfrog-infiltrator/profiles/备用线路.yaml"),
+            path: "/home/demo/.config/musicfrog-infiltrator/profiles/备用线路.yaml".to_string(),
             active: false,
+            controller_url: None,
+            controller_changed: None,
             subscription_url: Some("https://backup.example.com/link/demo".to_string()),
             auto_update_enabled: false,
             update_interval_hours: Some(12),

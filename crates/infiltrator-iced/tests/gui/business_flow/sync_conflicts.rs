@@ -261,12 +261,12 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
             &accept_removals,
         )
         .unwrap();
-        infiltrator_core::config::validate_yaml(&merged).unwrap();
+        infiltrator_domain::config::validate_yaml(&merged).unwrap();
         crate::update::core::profile_apply::save_profile_content(
             None,
             "alpha".into(),
             merged,
-            infiltrator_core::apply::ApplyStrategy::PreferReload,
+            infiltrator_domain::apply::ApplyStrategy::PreferReload,
         )
         .await
         .unwrap();
@@ -404,12 +404,12 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
         assert_eq!(units, 1);
         {
             let content = tokio::fs::read_to_string(&conflict_path).await.unwrap();
-            infiltrator_core::config::validate_yaml(&content).unwrap();
+        infiltrator_domain::config::validate_yaml(&content).unwrap();
             crate::update::core::profile_apply::save_profile_content(
                 None,
                 "alpha".into(),
                 content,
-                infiltrator_core::apply::ApplyStrategy::PreferReload,
+                infiltrator_domain::apply::ApplyStrategy::PreferReload,
             )
             .await
             .unwrap();

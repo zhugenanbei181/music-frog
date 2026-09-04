@@ -15,8 +15,8 @@ use super::*;
 use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
+use infiltrator_domain::profiles::ProfileInfo;
 use mihomo_api::proxy::types::{Proxy, ProxyBase, ProxyGroup, ProxyHistory, Shadowsocks};
-use mihomo_config::profile::Profile;
 use mihomo_version::manager::VersionInfo;
 use std::path::PathBuf;
 use std::sync::mpsc;
@@ -75,12 +75,13 @@ fn proxy_group(name: &str, current: &str, nodes: &[(&str, Option<u32>)]) -> Tray
     }
 }
 
-fn test_profile(name: &str, active: bool, auto_update: bool) -> Profile {
-    let mut profile = Profile::new(
-        name.to_string(),
-        PathBuf::from(format!("/tmp/profiles/{name}.yaml")),
+fn test_profile(name: &str, active: bool, auto_update: bool) -> ProfileInfo {
+    let mut profile = ProfileInfo {
+        name: name.to_string(),
+        path: format!("/tmp/profiles/{name}.yaml"),
         active,
-    );
+        ..Default::default()
+    };
     profile.auto_update_enabled = auto_update;
     profile
 }
@@ -93,7 +94,7 @@ fn test_kernel(version: &str, is_default: bool) -> VersionInfo {
     }
 }
 
-fn event_ctx<'a>(profiles: &'a [Profile]) -> TrayEventContext<'a> {
+fn event_ctx<'a>(profiles: &'a [ProfileInfo]) -> TrayEventContext<'a> {
     TrayEventContext {
         system_proxy: true,
         tun: false,

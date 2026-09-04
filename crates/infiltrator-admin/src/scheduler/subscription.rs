@@ -303,7 +303,7 @@ async fn update_profile_subscription(params: ProfileUpdateParams<'_>) -> anyhow:
     )
     .await
     .map_err(|err| anyhow!("应用配置选项失败: {err}"))?;
-    if infiltrator_core::config::validate_yaml(&content).is_err() {
+    if infiltrator_domain::config::validate_yaml(&content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
     }
     params

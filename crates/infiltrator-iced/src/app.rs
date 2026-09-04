@@ -449,8 +449,9 @@ impl AppState {
                 ),
                 Task::perform(
                     async {
-                        let cm = crate::configs_dir::config_manager().await?;
-                        cm.list_profiles().await.map_err(infiltrator_contract::error::from_mihomo)
+                        infiltrator_core::profiles::list_profile_infos()
+                            .await
+                            .map_err(|e| InfiltratorError::Config(e.to_string()))
                     },
                     Message::ProfilesLoaded,
                 ),

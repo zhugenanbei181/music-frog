@@ -12,7 +12,7 @@ use crate::types::message::Message;
 use crate::types::options::{EditorPane, FilterDraft};
 use iced::Task;
 use iced::widget::text_editor;
-use infiltrator_core::apply::ApplyStrategy;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_core::profile_options_io;
 use infiltrator_domain::filter::SubscriptionFilterPipeline;
@@ -35,7 +35,7 @@ impl AppState {
             Message::MixinEditorAction(action) => {
                 self.editor.mixin_content.perform(action);
                 let text = self.editor.mixin_content.text();
-                match infiltrator_core::config::preflight_yaml_syntax(&text) {
+                match infiltrator_domain::config::preflight_yaml_syntax(&text) {
                     Ok(()) => {
                         self.editor.syntax_error = None;
                         self.editor.syntax_error_line = None;
@@ -264,7 +264,7 @@ impl AppState {
                 let base = profile_options::strip_rule_lines(&content, &removals);
                 let merged = infiltrator_domain::mixin::merge_profile_with_config(&base, &mixin)
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                infiltrator_core::config::validate_yaml(&merged)
+                infiltrator_domain::config::validate_yaml(&merged)
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 crate::update::core::profile_apply::save_profile_content(
                     runtime,
@@ -327,7 +327,7 @@ impl AppState {
                 let (filtered, report) = SubscriptionFilterPipeline::new(rule)
                     .apply_to_yaml(&content)
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                infiltrator_core::config::validate_yaml(&filtered)
+                infiltrator_domain::config::validate_yaml(&filtered)
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 crate::update::core::profile_apply::save_profile_content(
                     runtime,

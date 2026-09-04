@@ -19,6 +19,7 @@ sha2 = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
 urlencoding = "2.1"
+yaml-rust2 = { workspace = true }
 
 [dev-dependencies]
 toml = { workspace = true }

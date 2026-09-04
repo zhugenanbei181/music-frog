@@ -169,7 +169,7 @@ impl AppState {
                                         remote_path
                                     ))
                                 })?;
-                                infiltrator_core::config::validate_yaml(&content)
+                                infiltrator_domain::config::validate_yaml(&content)
                                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                                 let path = config_root.join(format!("{profile_name}.yaml"));
                                 if sandbox.validate_path(&path) != PathValidationResult::Allowed {
@@ -369,13 +369,13 @@ impl AppState {
                         let content = tokio::fs::read_to_string(&conflict.remote_path)
                             .await
                             .map_err(|error| InfiltratorError::Io(error.to_string()))?;
-                        infiltrator_core::config::validate_yaml(&content)
+                        infiltrator_domain::config::validate_yaml(&content)
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         crate::update::core::profile_apply::save_profile_content(
                             runtime,
                             conflict.profile.clone(),
                             content,
-                            infiltrator_core::apply::ApplyStrategy::PreferReload,
+                            infiltrator_domain::apply::ApplyStrategy::PreferReload,
                         )
                         .await?;
                         tokio::fs::remove_file(&conflict.remote_path)

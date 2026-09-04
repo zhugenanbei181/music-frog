@@ -8,7 +8,7 @@ use crate::state::AppState;
 use crate::types::dns::DnsLeakReport;
 use crate::types::message::Message;
 use crate::types::runtime::ConnectionGroupingMode;
-use mihomo_config::profile::Profile;
+use infiltrator_domain::profiles::ProfileInfo;
 
 #[test]
 fn test_advancement_w2_1_dns_leak_privacy_probe_lifecycle() {
@@ -87,9 +87,9 @@ fn test_advancement_w2_3_multi_profile_aggregator_workflow() {
     let (mut state, _) = AppState::new();
 
     // Mock active profiles in state
-    let mut p1 = Profile::new("Airport-US".to_string(), std::path::PathBuf::from("/tmp/us.yaml"), false);
+    let mut p1 = ProfileInfo { name: "Airport-US".to_string(), path: "/tmp/us.yaml".to_string(), ..Default::default() };
     p1.subscription_url = Some("https://sub.lan/us".to_string());
-    let mut p2 = Profile::new("Airport-HK".to_string(), std::path::PathBuf::from("/tmp/hk.yaml"), true);
+    let mut p2 = ProfileInfo { name: "Airport-HK".to_string(), path: "/tmp/hk.yaml".to_string(), active: true, ..Default::default() };
     p2.subscription_url = Some("https://sub.lan/hk".to_string());
     state.profile.profiles = vec![p1, p2];
 

@@ -46,7 +46,7 @@ crates.io/Homebrew 发行（产品形态不同）。内核下载无校验和是�
 对标交付后复查确认的三个确定性缺口，已全部补齐：
 
 1. **configs_dir settings 字段路径全端生效**（此前仅 env 路径与 CLI/Admin 设置读写生效）：
-   - core：`settings::app_config_manager[_in]` 规范工厂，接入 profiles/rules/proxy_providers/sniffer/tun/dns/fake_ip 全部构造点；doctor 检查与修复、bootstrap 跟随重定向（`DoctorEnv::config_manager` 改 async）；mihomo-config 新增 `with_home_configs_dir[_and_store]`、`config_dir()`。
+   - core：`settings::app_config_manager[_in]` 规范工厂，接入 profiles/rules/proxy_providers/sniffer/tun/dns/fake_ip 全部构造点；其中 schema/YAML 变换归 `infiltrator-domain`，profile 文件读写由对应 `*_io` adapter 承担；doctor 检查与修复、bootstrap 跟随重定向（`DoctorEnv::config_manager` 改 async）；mihomo-config 新增 `with_home_configs_dir[_and_store]`、`config_dir()`。
    - admin：私有 `support.rs` 助手，订阅调度（含 JoinSet/启动播种）、profiles handlers 8 处、WebDAV 同步 local_root 跟随重定向；顺手修复 delete handler 清错 sidecar 目录的问题。
    - 桌面：iced 22 处构造 + 8 处手拼路径经 `configs_dir.rs` 入口；desktop runtime bootstrap 设置感知；src-tauri 5+ 处。
    - Android：`support.rs::build_config_manager` 唯一工厂，8 处构造 + 1 处手拼路径归零；webdav sync 根跟随重定向。

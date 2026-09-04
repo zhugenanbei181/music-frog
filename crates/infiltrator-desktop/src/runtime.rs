@@ -1,8 +1,9 @@
 use anyhow::anyhow;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_core::apply::{
-    ApplyOutcome, ApplyParams, ApplyStrategy, EndpointConfigReloader, apply_current_profile,
+    ApplyOutcome, ApplyParams, EndpointConfigReloader, apply_current_profile,
 };
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
 use mihomo_api::client::MihomoClient;

@@ -164,7 +164,7 @@ pub async fn profile_save(name: String, content: String, activate: bool) -> FfiS
                 Ok(value) => value,
                 Err(err) => return map_anyhow_error(err),
             };
-            if let Err(err) = infiltrator_core::config::validate_yaml(&content) {
+            if let Err(err) = infiltrator_domain::config::validate_yaml(&content) {
                 return map_anyhow_error(err);
             }
 

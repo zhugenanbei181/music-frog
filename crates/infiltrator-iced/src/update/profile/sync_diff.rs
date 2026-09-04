@@ -13,7 +13,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::options::{SyncDiffBundle, SyncDiffState};
 use iced::Task;
-use infiltrator_core::apply::ApplyStrategy;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::collections::HashSet;
@@ -144,7 +144,7 @@ impl AppState {
                             &accept_removals,
                         )
                         .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                        infiltrator_core::config::validate_yaml(&merged)
+                        infiltrator_domain::config::validate_yaml(&merged)
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         crate::update::core::profile_apply::save_profile_content(
                             runtime,

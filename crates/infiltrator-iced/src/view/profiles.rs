@@ -18,6 +18,7 @@ use iced::widget::{
     button, column, container, pick_list, progress_bar, row, text, text_input, Space,
 };
 use iced::{border, Alignment, Border, Color, Element, Length, Theme};
+use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_desktop::clipboard_helper::ClipboardHelper;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -127,7 +128,7 @@ fn ua_preset_chip<'a>(label: &'static str, current_val: &str) -> Element<'a, Mes
 /// total quota, progress bar with color-coded warning (<50% green, 50-80% blue,
 /// 80-90% amber, >90% red), and expiration countdown badge (P12-05, P12-06).
 fn traffic_row<'a>(
-    profile: &mihomo_config::profile::Profile,
+    profile: &ProfileInfo,
     lang: &Lang<'_>,
 ) -> Option<Element<'a, Message>> {
     let total = profile.traffic_total.unwrap_or(0);
@@ -384,7 +385,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 Space::new().width(theme::SP_MD),
                 subscription_update_now_action,
                 Space::new().width(theme::SP_MD),
-                text_btn(lang.tr("profiles_open_overlay").to_string(), style_ghost, selected_profile_meta.and_then(|p| (!p.path.as_os_str().is_empty()).then_some(Message::EditProfileAs(p.path.clone(), EditorPane::Mixin)))),
+                            text_btn(lang.tr("profiles_open_overlay").to_string(), style_ghost, selected_profile_meta.and_then(|p| (!p.path.is_empty()).then_some(Message::EditProfileAs(p.path.clone().into(), EditorPane::Mixin)))),
             ].align_y(Alignment::Center),
         ].spacing(theme::SP_SM),
     );
@@ -392,7 +393,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let mut profiles_list = column![].spacing(SP_MD);
     let profile_filter = state.profile.profiles_filter.trim().to_lowercase();
     let filtered_profiles: Vec<_> = state.profile.profiles.iter().filter(|p| {
-        profile_filter.is_empty() || p.name.to_lowercase().contains(&profile_filter) || p.path.to_string_lossy().to_lowercase().contains(&profile_filter)
+        profile_filter.is_empty() || p.name.to_lowercase().contains(&profile_filter) || p.path.to_lowercase().contains(&profile_filter)
     }).collect();
 
     if state.profile.is_loading_profiles {
@@ -416,8 +417,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             if !is_active {
                 actions = actions.push(text_btn(lang.tr("use").to_string(), style_ghost, Some(Message::SetActiveProfile(profile.name.clone()))));
             }
-            actions = actions.push(icon_button(Icon::Pencil, 14.0, Message::EditProfile(profile.path.clone())));
-            actions = actions.push(icon_button(Icon::Code2, 14.0, Message::EditProfileAs(profile.path.clone(), EditorPane::Mixin)));
+            actions = actions.push(icon_button(Icon::Pencil, 14.0, Message::EditProfile(profile.path.clone().into())));
+            actions = actions.push(icon_button(Icon::Code2, 14.0, Message::EditProfileAs(profile.path.clone().into(), EditorPane::Mixin)));
             if !is_active {
                 actions = actions.push(icon_button(Icon::Trash2, 14.0, Message::RequestConfirmation(ConfirmAction::DeleteProfile(profile.name.clone()))));
             }
@@ -437,7 +438,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                                 row![
                                     kbd_badge(if is_subscription { "SUB" } else { "YAML" }),
                                     Space::new().width(theme::SP_XS),
-                                    text(profile.path.to_string_lossy().to_string()).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) }),
+                                    text(profile.path.clone()).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) }),
                                 ].align_y(Alignment::Center),
                             ].spacing(theme::SP_XS).width(Length::Fill),
                             actions,
@@ -505,7 +506,6 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[test]
     fn test_format_bytes_scale() {
@@ -528,22 +528,23 @@ mod tests {
 
     #[test]
     fn test_traffic_row_none_without_info() {
-        let p = mihomo_config::profile::Profile::new(
-            "test".to_string(),
-            PathBuf::from("/tmp/test.yaml"),
-            false,
-        );
+        let p = ProfileInfo {
+            name: "test".to_string(),
+            path: "/tmp/test.yaml".to_string(),
+            ..Default::default()
+        };
         assert!(traffic_row(&p, &Lang("zh-CN")).is_none());
         assert!(traffic_row(&p, &Lang("en-US")).is_none());
     }
 
     #[test]
     fn test_traffic_row_with_quota_and_expire() {
-        let mut p = mihomo_config::profile::Profile::new(
-            "sub".to_string(),
-            PathBuf::from("/tmp/sub.yaml"),
-            true,
-        );
+        let mut p = ProfileInfo {
+            name: "sub".to_string(),
+            path: "/tmp/sub.yaml".to_string(),
+            active: true,
+            ..Default::default()
+        };
         p.subscription_url = Some("https://example.com/sub".to_string());
         p.traffic_upload = Some(1024 * 1024 * 100);
         p.traffic_download = Some(1024 * 1024 * 900);
@@ -556,11 +557,12 @@ mod tests {
 
     #[test]
     fn test_traffic_row_threshold_tiers() {
-        let mut p = mihomo_config::profile::Profile::new(
-            "sub".to_string(),
-            PathBuf::from("/tmp/sub.yaml"),
-            true,
-        );
+        let mut p = ProfileInfo {
+            name: "sub".to_string(),
+            path: "/tmp/sub.yaml".to_string(),
+            active: true,
+            ..Default::default()
+        };
         p.subscription_url = Some("https://example.com/sub".to_string());
         p.traffic_total = Some(1000);
 

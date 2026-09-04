@@ -110,12 +110,12 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
             .collect();
         let base = profile_options::strip_rule_lines(&content, &removals);
         let merged = infiltrator_domain::mixin::merge_profile_with_config(&base, &mixin).unwrap();
-        infiltrator_core::config::validate_yaml(&merged).unwrap();
+        infiltrator_domain::config::validate_yaml(&merged).unwrap();
         crate::update::core::profile_apply::save_profile_content(
             None,
             "alpha".into(),
             merged,
-            infiltrator_core::apply::ApplyStrategy::PreferReload,
+            infiltrator_domain::apply::ApplyStrategy::PreferReload,
         )
         .await
         .unwrap();
@@ -203,12 +203,12 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
     let (filtered, report) = infiltrator_domain::filter::SubscriptionFilterPipeline::new(rule)
             .apply_to_yaml(&content)
             .unwrap();
-        infiltrator_core::config::validate_yaml(&filtered).unwrap();
+        infiltrator_domain::config::validate_yaml(&filtered).unwrap();
         crate::update::core::profile_apply::save_profile_content(
             None,
             "alpha".into(),
             filtered,
-            infiltrator_core::apply::ApplyStrategy::PreferReload,
+            infiltrator_domain::apply::ApplyStrategy::PreferReload,
         )
         .await
         .unwrap();

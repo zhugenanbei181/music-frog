@@ -176,12 +176,13 @@ pub fn subscribed_profile(
     name: &str,
     active: bool,
     url: Option<&str>,
-) -> mihomo_config::profile::Profile {
-    let mut profile = mihomo_config::profile::Profile::new(
-        name.to_string(),
-        PathBuf::from(format!("/configs/{name}.yaml")),
+) -> infiltrator_domain::profiles::ProfileInfo {
+    let mut profile = infiltrator_domain::profiles::ProfileInfo {
+        name: name.to_string(),
+        path: format!("/configs/{name}.yaml"),
         active,
-    );
+        ..Default::default()
+    };
     profile.subscription_url = url.map(str::to_string);
     profile.auto_update_enabled = url.is_some();
     profile.update_interval_hours = url.is_some().then_some(24);

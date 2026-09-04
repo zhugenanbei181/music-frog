@@ -103,7 +103,7 @@ async fn import(runtime: &Runtime, name: &str, url: &str) -> anyhow::Result<()> 
         content,
     )
     .await?;
-    infiltrator_core::config::validate_yaml(&content)
+    infiltrator_domain::config::validate_yaml(&content)
         .map_err(|err| anyhow!("订阅内容不是有效的 YAML: {err}"))?;
 
     let manager = runtime.config_manager()?;

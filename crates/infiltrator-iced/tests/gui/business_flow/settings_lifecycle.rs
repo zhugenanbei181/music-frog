@@ -133,14 +133,7 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
     assert!(units >= 4, "LoadProfiles + LoadKernels + settings + toast");
 
     // The post-reset LoadProfiles would list the reseeded default only.
-    let listed = block_on(async {
-        crate::configs_dir::config_manager()
-            .await
-            .unwrap()
-            .list_profiles()
-            .await
-            .unwrap()
-    });
+    let listed = block_on(infiltrator_core::profiles::list_profile_infos()).unwrap();
     feed(&mut state, Message::ProfilesLoaded(Ok(listed)));
     assert_eq!(state.profile.profiles.len(), 1);
     assert_eq!(state.profile.profiles[0].name, "default");

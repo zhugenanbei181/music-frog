@@ -44,8 +44,8 @@
 | **P02-03** | **MRS 二进制规则集深度集成**：支持 Mihomo 官方 `.mrs` 二进制规则集高性能本地索引、格式校验与版本 diff。 | P1 | 已落地 | `infiltrator-core::mrs` |
 | **P02-04** | **Rule-Provider 全生命周期治理**：支持多行为模式 (`classical/domain/ipcidr`)、条件请求 (ETag/Last-Modified)、退避重试与自动定时更新。 | P1 | 已落地 | `infiltrator-core::rules` |
 | **P02-05** | **规则命中实时流与性能计数**：基于内核事件流统计每条规则累计命中次数、时延贡献与冷门规则检测。 | P2 | 已落地 | `infiltrator-core::rule_hit_counter` |
-| **P02-06** | **分流模式全矩阵支持**：支持 `Script` (可编程全局脚本), `Direct`, `Global`, `Rule` 四大模式即时无感切换。 | P1 | 已落地 | `infiltrator-core::config` |
-| **P02-07** | **策略组调度算法完整度**：支持 `LoadBalance` 会话保持 (`sticky-sessions` / `consistent-hashing`)、权重分配；支持 `URLTest`/`Fallback` 退避阈值。 | P1 | 已落地 | `infiltrator-core::config` |
+| **P02-06** | **分流模式全矩阵支持**：支持 `Script` (可编程全局脚本), `Direct`, `Global`, `Rule` 四大模式即时无感切换。 | P1 | 已落地 | `infiltrator-domain::config` |
+| **P02-07** | **策略组调度算法完整度**：支持 `LoadBalance` 会话保持 (`sticky-sessions` / `consistent-hashing`)、权重分配；支持 `URLTest`/`Fallback` 退避阈值。 | P1 | 已落地 | `infiltrator-domain::config` |
 | **P02-08** | **可视化分流追踪 (Tracer) 与沙盒回放**：提供输入 `URL + 来源 IP + 进程名 + 入口协议` 的模拟分流沙箱与命中全景链路回放。 | P1 | 已落地 | `infiltrator-core::rules` |
 | **P02-09** | **规则拓扑排序与冲突检测**：静态分析死规则（如被上层覆写的下层规则）、IP-CIDR 掩码重叠与 GEOIP 判定顺序倒置。 | P2 | 已落地 | `infiltrator-core::rules` |
 | **P02-10** | **多配置规则分层覆写 (Cascade Overlay)**：构建 Base Profile -> Subscription -> Custom Overwrite -> Mixin 的清晰多级注入管道。 | P1 | 已落地 | `infiltrator-core::mixin` |
@@ -95,7 +95,7 @@
 | **P05-03** | **细粒度连接阻断与批量清退**：支持按 PID、目标域名后缀、规则组、出站节点一键批量掐断所有相关连接。 | P1 | 已落地 | `infiltrator-core::idle_connection_sweeper` |
 | **P05-04** | **长周期流量时序存储与报表**：嵌入式时序数据库记录按日/周/月的订阅流量走势、节点使用排行与分应用报表。 | P2 | 已落地 | `infiltrator-core::traffic_audit` |
 | **P05-05** | **真实下行带宽测速 (Speedtest) 引擎**：发起真实多线程数据拉取，测量节点实际下行带宽、峰值速率、丢包率与抖动。 | P1 | 已落地 | `infiltrator-core::diagnostics` |
-| **P05-06** | **Sniffer 嗅探状态机监控**：实时展示 HTTP Host、TLS SNI、QUIC SNI 嗅探抓包日志与域名覆写记录。 | P2 | 已落地 | `infiltrator-core::sniffer` |
+| **P05-06** | **Sniffer 嗅探状态机监控**：实时展示 HTTP Host、TLS SNI、QUIC SNI 嗅探抓包日志与域名覆写记录。 | P2 | 已落地 | `infiltrator-domain::sniffer` + `infiltrator-core::sniffer_io` |
 | **P05-07** | **遥测流有界 RingBuffer 调优**：连接流与日志流采用无锁定长环形缓冲与丢弃策略，杜绝内存膨胀。 | P0 | 已落地 | `infiltrator-core::flow_control` |
 | **P05-08** | **内置 Traceroute / MTR 路由跳数诊断**：集成可视化 MTR 工具，诊断本地 -> 代理入口 -> 目标服务器路由跳数与丢包。 | P2 | 已落地 | `infiltrator-core::diagnostics` |
 | **P05-09** | **公网出口 IP 多源交叉校验**：多源并发探测出口 IP，交叉比对检测直连真实 IP 泄露与 WebRTC 暴露风险。 | P1 | 已落地 | `infiltrator-core::diagnostics` |
@@ -176,7 +176,7 @@
 | 编号 | 任务与差距项 | 优先级 | 状态 | 涉及模块 |
 |:---|:---|:---:|:---:|:---|
 | **P10-01** | **系统级原生凭据保险库 (OS Keyring)**：WebDAV 密码、订阅 Token 100% 收敛至 Windows Credential / macOS Keychain / Linux Secret Service。 | P0 | 已落地 | `infiltrator-core::settings` |
-| **P10-02** | **External Controller 端口严格安全加固**：强制随机强 Token 认证、CORS/CSRF 拦截与局域网 mTLS 双向校验。 | P1 | 已落地 | `infiltrator-core::config` |
+| **P10-02** | **External Controller 端口严格安全加固**：强制随机强 Token 认证、CORS/CSRF 拦截与局域网 mTLS 双向校验。 | P1 | 已落地 | `infiltrator-domain::config` |
 | **P10-03** | **端到端加密 (E2EE) 配置漫游同步**：WebDAV 同步支持客户端本地 AES-256-GCM / ChaCha20 加密，实现零知识备份。 | P1 | 已落地 | `sync-engine` |
 | **P10-04** | **版本向量时钟与智能三向合并 (3-Way Merge)**：基于 Vector Clock 版本追踪，提供 Local/Remote/Base 差异可视化合并器。 | P1 | 已落地 | `infiltrator-core::vector_clock` |
 | **P10-05** | **局域网 P2P 扫码一键加密快传**：基于 mDNS 发现与 TLS 传输，手机端扫码秒级完成配置与订阅克隆。 | P2 | 已落地 | `infiltrator-core::backup` |

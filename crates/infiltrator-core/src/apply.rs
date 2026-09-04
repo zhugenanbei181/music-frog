@@ -28,20 +28,9 @@ use yaml_rust2::{Yaml, YamlLoader};
 
 use infiltrator_domain::yaml_edit::SourceDoc;
 use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
-
-/// How the running core should pick up the new configuration.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ApplyStrategy {
-    /// Try the controller hot-reload first (`PUT /configs?force=true`) and
-    /// keep the process (and its connections) alive; fall back to a restart
-    /// if the reload is rejected or the core turns unhealthy afterwards.
-    PreferReload,
-    /// Always restart the process. Required for changes hot-reload does not
-    /// apply reliably (TUN device, DNS stack, listeners).
-    AlwaysRestart,
-}
 
 const DEFAULT_RESTART_TIMEOUT: Duration = Duration::from_secs(15);
 

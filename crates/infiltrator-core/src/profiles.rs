@@ -58,7 +58,7 @@ pub async fn create_profile_from_url(name: &str, url: &str) -> anyhow::Result<Pr
     let content = strip_utf8_bom(&content);
     let (content, _report) =
         crate::profile_options_io::apply_saved_options_for(&profile_name, content).await?;
-    if crate::config::validate_yaml(&content).is_err() {
+    if infiltrator_domain::config::validate_yaml(&content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
     }
 
@@ -108,7 +108,7 @@ pub async fn update_profile(name: &str) -> anyhow::Result<ProfileInfo> {
     let content = strip_utf8_bom(&content);
     let (content, _report) =
         crate::profile_options_io::apply_saved_options_for(&profile_name, content).await?;
-    if crate::config::validate_yaml(&content).is_err() {
+    if infiltrator_domain::config::validate_yaml(&content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
     }
     manager.save(&profile_name, &content).await?;

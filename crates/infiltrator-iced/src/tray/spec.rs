@@ -15,7 +15,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 
-use mihomo_config::profile::Profile;
+use infiltrator_domain::profiles::ProfileInfo;
 use mihomo_version::manager::VersionInfo;
 
 /// Stable menu action id, shared by the spec builder, both backends and the
@@ -291,7 +291,7 @@ pub struct TrayEventContext<'a> {
     pub system_proxy: bool,
     pub tun: bool,
     pub autostart: bool,
-    pub profiles: &'a [Profile],
+    pub profiles: &'a [ProfileInfo],
 }
 
 /// Pure mapping from a neutral event to an intent. Toggle entries are
@@ -410,7 +410,7 @@ pub struct TraySpecContext<'a> {
     pub tun: bool,
     /// Proxy group snapshots (at most [`TRAY_MAX_GROUPS`], GLOBAL first).
     pub groups: &'a [TrayProxyGroup],
-    pub profiles: &'a [Profile],
+    pub profiles: &'a [ProfileInfo],
     pub kernels: &'a [VersionInfo],
     pub status: TrayCoreStatus,
     pub core_checking: bool,

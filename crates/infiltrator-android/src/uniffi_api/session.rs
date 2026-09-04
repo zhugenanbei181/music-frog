@@ -8,8 +8,9 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_core::apply::{
-    ApplyError, ApplyParams, ApplyStrategy, EndpointConfigReloader, apply_current_profile,
+    ApplyError, ApplyParams, EndpointConfigReloader, apply_current_profile,
 };
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};

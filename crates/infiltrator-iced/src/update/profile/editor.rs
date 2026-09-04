@@ -6,7 +6,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use iced::widget::text_editor;
-use infiltrator_core::apply::ApplyStrategy;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
 
 impl AppState {
@@ -57,7 +57,7 @@ impl AppState {
             Message::EditorAction(action) => {
                 self.editor.editor_content.perform(action);
                 let text = self.editor.editor_content.text();
-                match infiltrator_core::config::preflight_yaml_syntax(&text) {
+                match infiltrator_domain::config::preflight_yaml_syntax(&text) {
                     Ok(()) => {
                         self.editor.syntax_error = None;
                         self.editor.syntax_error_line = None;
@@ -172,7 +172,7 @@ impl AppState {
                     return Task::none();
                 }
                 let content = self.editor.editor_content.text();
-                if let Err(diag) = infiltrator_core::config::preflight_yaml_syntax(&content) {
+                if let Err(diag) = infiltrator_domain::config::preflight_yaml_syntax(&content) {
                     self.editor.syntax_error = Some(diag.message.clone());
                     self.editor.syntax_error_line = Some(diag.line);
                     return Task::done(Message::ShowToast(

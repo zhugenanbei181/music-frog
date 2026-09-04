@@ -4,11 +4,9 @@
 //! `/admin/api/sniffer`, `/admin/api/rules`, `/admin/api/tun`).
 
 use axum::Json;
-use infiltrator_core::{
-    dns_io, fake_ip_io, proxy_providers, rules_io, sniffer, tun_io,
-};
-use infiltrator_domain::{dns, fake_ip, tun};
+use infiltrator_core::{dns_io, fake_ip_io, proxy_providers_io, rules_io, sniffer_io, tun_io};
 use infiltrator_domain::rules::{RuleProvidersPayload, RulesPayload};
+use infiltrator_domain::{dns, fake_ip, proxy_providers, tun};
 
 use crate::admin_api::events::{
     AdminEvent, EVENT_DNS_CHANGED, EVENT_FAKE_IP_CHANGED, EVENT_PROXY_PROVIDERS_CHANGED,
@@ -82,7 +80,7 @@ pub async fn save_rule_providers_http<C: AdminApiContext>(
 pub async fn get_proxy_providers_http<C: AdminApiContext>(
     axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<proxy_providers::ProxyProvidersPayload>, ApiError> {
-    let providers = proxy_providers::load_proxy_providers().await?;
+    let providers = proxy_providers_io::load_proxy_providers().await?;
     Ok(Json(proxy_providers::ProxyProvidersPayload { providers }))
 }
 
@@ -90,7 +88,7 @@ pub async fn save_proxy_providers_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<proxy_providers::ProxyProvidersPayload>,
 ) -> Result<Json<proxy_providers::ProxyProvidersPayload>, ApiError> {
-    let providers = proxy_providers::save_proxy_providers(payload.providers).await?;
+    let providers = proxy_providers_io::save_proxy_providers(payload.providers).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "proxy-providers-update");
     state
         .events
@@ -101,7 +99,7 @@ pub async fn save_proxy_providers_http<C: AdminApiContext>(
 pub async fn get_sniffer_config_http<C: AdminApiContext>(
     axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let config = sniffer::load_sniffer_config().await?;
+    let config = sniffer_io::load_sniffer_config().await?;
     Ok(Json(config))
 }
 
@@ -109,7 +107,7 @@ pub async fn save_sniffer_config_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let config = sniffer::save_sniffer_config(payload).await?;
+    let config = sniffer_io::save_sniffer_config(payload).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "sniffer-update");
     state.events.publish(AdminEvent::new(EVENT_SNIFFER_CHANGED));
     Ok(Json(config))

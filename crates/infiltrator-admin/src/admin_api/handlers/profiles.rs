@@ -82,7 +82,7 @@ pub async fn save_profile_http<C: AdminApiContext>(
     Json(payload): Json<SaveProfilePayload>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let name = ensure_valid_profile_name(&payload.name)?;
-    if let Err(err) = infiltrator_core::config::validate_yaml(&payload.content) {
+    if let Err(err) = infiltrator_domain::config::validate_yaml(&payload.content) {
         return Err(ApiError::bad_request(err.to_string()));
     }
 
@@ -305,7 +305,7 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
         infiltrator_core::profile_options_io::apply_saved_options_for(&profile_name, content)
             .await
             .map_err(|e| ApiError::bad_request(format!("应用配置选项失败: {e}")))?;
-    if infiltrator_core::config::validate_yaml(&content).is_err() {
+    if infiltrator_domain::config::validate_yaml(&content).is_err() {
         return Err(ApiError::bad_request("订阅内容不是有效的 YAML"));
     }
     manager
@@ -417,7 +417,7 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
         infiltrator_core::profile_options_io::apply_saved_options_for(&profile_name, content)
             .await
             .map_err(|e| anyhow!("应用配置选项失败: {e}"))?;
-    if infiltrator_core::config::validate_yaml(&content).is_err() {
+    if infiltrator_domain::config::validate_yaml(&content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
     }
 

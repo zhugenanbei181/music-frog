@@ -22,9 +22,11 @@
 - [x] profile-options 与 rules 的文件读写已分别收敛为 core 内 `profile_options_io` / `rules_io`，纯 schema 和 YAML 变换不再依赖 Tokio。
 - [x] DNS、Fake-IP、TUN 的 profile 文件读写已分别收敛为 core 内 `dns_io` / `fake_ip_io` / `tun_io`，domain 只保留 schema、校验和内存 YAML 变换。
 - [x] `AppSettings` / WebDAV / runtime-panel schema 已移入 `infiltrator-domain::settings`；keyring、TOML 和 ConfigManager 读写集中在 `settings_io`。
+- [x] YAML 语法诊断与 ApplyStrategy 已移入 domain；core apply 仅保留 Mihomo/config-manager/lifecycle transaction adapter。
 - [x] `InfiltratorError` 已移入 `infiltrator-contract`；Mihomo/IO 适配通过显式边界转换，不再从 core 暴露 transport error 类型。
 - [x] profile projection (`ProfileInfo` / `ProfileDetail`) 与 profile name 校验已移入 `infiltrator-domain::profiles`。
 - [x] subscription 的 URL 校验、内容解码、userinfo/配额、UA、WAF 分类和安全审计已移入 `infiltrator-domain::subscription`；HTTP 重试、响应体上限和 HeaderMap 转换集中在 `infiltrator-core::subscription_io`。
+- [x] proxy-provider 与 sniffer 的 schema、校验和 YAML 变换已移入 `infiltrator-domain::{proxy_providers,sniffer}`；当前 profile 文件读写分别位于 `proxy_providers_io` / `sniffer_io`。
 - [ ] 其余标准 adapter（配置、版本、Admin、同步）按同一规则下沉到 composition/outbound 组合根。
 - [x] `infiltrator-ios` host crate 已建立端口与保守 capability seam，且 composition root 已有 `IosBridge -> CoreApplication` 入口；Native NetworkExtension bridge 仍待接入。
 - [ ] Iced、Admin、Android FFI 完成同一 application facade 接入。

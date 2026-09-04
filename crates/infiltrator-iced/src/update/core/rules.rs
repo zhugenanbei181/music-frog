@@ -287,12 +287,12 @@ impl AppState {
                             domain_rules::extract_rule_providers_from_doc(&doc)
                                 .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let proxy_providers =
-                            infiltrator_core::proxy_providers::extract_proxy_providers_from_doc(
+                            infiltrator_domain::proxy_providers::extract_proxy_providers_from_doc(
                                 &doc,
                             )
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let sniffer =
-                            infiltrator_core::sniffer::extract_sniffer_config_from_doc(&doc)
+                            infiltrator_domain::sniffer::extract_sniffer_config_from_doc(&doc)
                                 .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
                         let rule_providers_json = serde_json::to_string_pretty(&rule_providers)

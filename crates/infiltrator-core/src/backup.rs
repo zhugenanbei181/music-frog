@@ -14,8 +14,8 @@ use thiserror::Error;
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 
-use crate::history::SnapshotMeta;
 use crate::settings_io::settings_path;
+use infiltrator_domain::snapshots::SnapshotMeta;
 
 #[cfg(test)]
 #[path = "backup_test.rs"]
