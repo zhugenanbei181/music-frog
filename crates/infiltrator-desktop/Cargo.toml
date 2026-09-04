@@ -5,7 +5,10 @@ edition = "2024"
 
 [dependencies]
 anyhow = { workspace = true }
+infiltrator-application = { path = "../infiltrator-application" }
+infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-core = { path = "../infiltrator-core" }
+infiltrator-ports = { path = "../infiltrator-ports" }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }

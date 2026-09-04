@@ -209,7 +209,10 @@ impl WindowsServiceManager {
     /// Parses the raw stdout of `sc.exe query <service>`.
     pub fn parse_sc_query_output(output: &str) -> WindowsServiceStatus {
         let upper = output.to_uppercase();
-        if upper.contains("1060") || upper.contains("DOES NOT EXIST") || upper.contains("FAILED 1060") {
+        if upper.contains("1060")
+            || upper.contains("DOES NOT EXIST")
+            || upper.contains("FAILED 1060")
+        {
             WindowsServiceStatus::NotInstalled
         } else if upper.contains("STATE") && upper.contains("RUNNING") {
             WindowsServiceStatus::Running

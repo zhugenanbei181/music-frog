@@ -203,12 +203,7 @@ pub fn escape_powershell_str(s: &str) -> String {
 pub fn build_windows_toast_script(notification: &SystemNotification) -> String {
     let title = escape_powershell_str(&notification.title);
     let body = escape_powershell_str(&notification.body);
-    let app_id = escape_powershell_str(
-        notification
-            .app_id
-            .as_deref()
-            .unwrap_or(DEFAULT_APP_ID),
-    );
+    let app_id = escape_powershell_str(notification.app_id.as_deref().unwrap_or(DEFAULT_APP_ID));
 
     format!(
         r#"[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
@@ -302,17 +297,20 @@ pub fn build_macos_applescript(notification: &SystemNotification) -> String {
     let title = escape_applescript_str(&notification.title);
     let body = escape_applescript_str(&notification.body);
 
-    let mut script = format!(
-        "display notification \"{}\" with title \"{}\"",
-        body, title
-    );
+    let mut script = format!("display notification \"{}\" with title \"{}\"", body, title);
 
     if let Some(ref subtitle) = notification.subtitle {
-        script.push_str(&format!(" subtitle \"{}\"", escape_applescript_str(subtitle)));
+        script.push_str(&format!(
+            " subtitle \"{}\"",
+            escape_applescript_str(subtitle)
+        ));
     }
 
     if let Some(ref sound) = notification.sound {
-        script.push_str(&format!(" sound name \"{}\"", escape_applescript_str(sound)));
+        script.push_str(&format!(
+            " sound name \"{}\"",
+            escape_applescript_str(sound)
+        ));
     } else if notification.level == NotificationLevel::Error {
         script.push_str(" sound name \"Sosumi\"");
     }
@@ -453,7 +451,9 @@ impl SystemNotifier {
                 None => {
                     if start.elapsed() >= timeout {
                         let _ = child.kill();
-                        warn_throttled("System notification timed out and child process was killed");
+                        warn_throttled(
+                            "System notification timed out and child process was killed",
+                        );
                         return Ok(false);
                     }
                     std::thread::sleep(Duration::from_millis(20));
@@ -504,18 +504,12 @@ mod tests {
         .with_subtitle("Password: my_super_secret");
 
         let sanitized = n.sanitized();
-        assert_eq!(
-            sanitized.title,
-            "Fetch Error: Authorization: Bearer ***"
-        );
+        assert_eq!(sanitized.title, "Fetch Error: Authorization: Bearer ***");
         assert_eq!(
             sanitized.body,
             "Update failed for https://user:***@sub.example.com/api?token=***"
         );
-        assert_eq!(
-            sanitized.subtitle.as_deref(),
-            Some("Password: ***")
-        );
+        assert_eq!(sanitized.subtitle.as_deref(), Some("Password: ***"));
     }
 
     #[test]
@@ -603,11 +597,15 @@ World"#;
 
     #[test]
     fn test_macos_unuser_notification_script_generation() {
-        let n = SystemNotification::error("Error Occurred", "Connection reset")
-            .with_sound("Sosumi");
+        let n =
+            SystemNotification::error("Error Occurred", "Connection reset").with_sound("Sosumi");
         let script = build_macos_unuser_notification_script(&n);
 
-        assert!(script.contains("display notification \"Connection reset\" with title \"Error Occurred\""));
+        assert!(
+            script.contains(
+                "display notification \"Connection reset\" with title \"Error Occurred\""
+            )
+        );
         assert!(script.contains("sound name \"Sosumi\""));
         assert!(script.contains("try"));
         assert!(script.contains("on error"));

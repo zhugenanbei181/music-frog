@@ -37,10 +37,7 @@ pub enum LifecycleState {
         proxy_active: bool,
     },
     /// Service has encountered an error or crashed.
-    Error {
-        message: String,
-        recoverable: bool,
-    },
+    Error { message: String, recoverable: bool },
 }
 
 impl LifecycleState {
@@ -49,7 +46,10 @@ impl LifecycleState {
     }
 
     pub fn is_installed(&self) -> bool {
-        !matches!(self, LifecycleState::Uninstalled | LifecycleState::Installing)
+        !matches!(
+            self,
+            LifecycleState::Uninstalled | LifecycleState::Installing
+        )
     }
 
     pub fn is_tun_active(&self) -> bool {
@@ -83,7 +83,11 @@ impl fmt::Display for LifecycleState {
             LifecycleState::Installing => write!(f, "Installing"),
             LifecycleState::InstalledStopped => write!(f, "Installed (Stopped)"),
             LifecycleState::Starting => write!(f, "Starting"),
-            LifecycleState::Running { pid, tun_active, proxy_active } => {
+            LifecycleState::Running {
+                pid,
+                tun_active,
+                proxy_active,
+            } => {
                 write!(
                     f,
                     "Running (pid={:?}, tun={}, proxy={})",
@@ -92,19 +96,22 @@ impl fmt::Display for LifecycleState {
             }
             LifecycleState::Stopping => write!(f, "Stopping"),
             LifecycleState::Uninstalling => write!(f, "Uninstalling"),
-            LifecycleState::Degraded { reason, tun_active, proxy_active } => {
+            LifecycleState::Degraded {
+                reason,
+                tun_active,
+                proxy_active,
+            } => {
                 write!(
                     f,
                     "Degraded: {} (tun={}, proxy={})",
                     reason, tun_active, proxy_active
                 )
             }
-            LifecycleState::Error { message, recoverable } => {
-                write!(
-                    f,
-                    "Error (recoverable={}): {}",
-                    recoverable, message
-                )
+            LifecycleState::Error {
+                message,
+                recoverable,
+            } => {
+                write!(f, "Error (recoverable={}): {}", recoverable, message)
             }
         }
     }
@@ -117,14 +124,9 @@ pub enum LifecycleEvent {
     InstallSuccess,
     InstallFailure(String),
     StartRequested,
-    StartSuccess {
-        pid: Option<u32>,
-        tun_active: bool,
-    },
+    StartSuccess { pid: Option<u32>, tun_active: bool },
     StartFailure(String),
-    TunStarted {
-        interface_name: Option<String>,
-    },
+    TunStarted { interface_name: Option<String> },
     TunStopped,
     ProxyApplied,
     ProxyCleared,
@@ -218,7 +220,10 @@ impl ServiceStateMachine {
     }
 
     /// Calculates the next state given an event, returning an error if illegal.
-    pub fn next_state(&self, event: &LifecycleEvent) -> Result<LifecycleState, InvalidTransitionError> {
+    pub fn next_state(
+        &self,
+        event: &LifecycleEvent,
+    ) -> Result<LifecycleState, InvalidTransitionError> {
         let err = |reason: &str| InvalidTransitionError {
             from_state: self.current_state.clone(),
             event: event.clone(),
@@ -227,15 +232,21 @@ impl ServiceStateMachine {
 
         match (&self.current_state, event) {
             // Uninstalled -> Installing
-            (LifecycleState::Uninstalled, LifecycleEvent::InstallStart) => Ok(LifecycleState::Installing),
-            (LifecycleState::Uninstalled, LifecycleEvent::InstallSuccess) => Ok(LifecycleState::InstalledStopped),
-            (LifecycleState::Uninstalled, LifecycleEvent::Reset) => Ok(LifecycleState::Uninstalled),
-            (LifecycleState::Uninstalled, _) => {
-                Err(err("Cannot perform operation while service is uninstalled. Install service first."))
+            (LifecycleState::Uninstalled, LifecycleEvent::InstallStart) => {
+                Ok(LifecycleState::Installing)
             }
+            (LifecycleState::Uninstalled, LifecycleEvent::InstallSuccess) => {
+                Ok(LifecycleState::InstalledStopped)
+            }
+            (LifecycleState::Uninstalled, LifecycleEvent::Reset) => Ok(LifecycleState::Uninstalled),
+            (LifecycleState::Uninstalled, _) => Err(err(
+                "Cannot perform operation while service is uninstalled. Install service first.",
+            )),
 
             // Installing -> InstalledStopped or Error / Uninstalled
-            (LifecycleState::Installing, LifecycleEvent::InstallSuccess) => Ok(LifecycleState::InstalledStopped),
+            (LifecycleState::Installing, LifecycleEvent::InstallSuccess) => {
+                Ok(LifecycleState::InstalledStopped)
+            }
             (LifecycleState::Installing, LifecycleEvent::InstallFailure(msg)) => {
                 Ok(LifecycleState::Error {
                     message: format!("Installation failed: {msg}"),
@@ -246,24 +257,33 @@ impl ServiceStateMachine {
             (LifecycleState::Installing, _) => Err(err("Installation is currently in progress")),
 
             // InstalledStopped -> Starting / Uninstalling / Error
-            (LifecycleState::InstalledStopped, LifecycleEvent::StartRequested) => Ok(LifecycleState::Starting),
-            (LifecycleState::InstalledStopped, LifecycleEvent::StartSuccess { pid, tun_active }) => {
-                Ok(LifecycleState::Running {
-                    pid: *pid,
-                    tun_active: *tun_active,
-                    proxy_active: false,
-                })
+            (LifecycleState::InstalledStopped, LifecycleEvent::StartRequested) => {
+                Ok(LifecycleState::Starting)
             }
-            (LifecycleState::InstalledStopped, LifecycleEvent::UninstallStart) => Ok(LifecycleState::Uninstalling),
-            (LifecycleState::InstalledStopped, LifecycleEvent::UninstallSuccess) => Ok(LifecycleState::Uninstalled),
-            (LifecycleState::InstalledStopped, LifecycleEvent::Reset) => Ok(LifecycleState::Uninstalled),
+            (
+                LifecycleState::InstalledStopped,
+                LifecycleEvent::StartSuccess { pid, tun_active },
+            ) => Ok(LifecycleState::Running {
+                pid: *pid,
+                tun_active: *tun_active,
+                proxy_active: false,
+            }),
+            (LifecycleState::InstalledStopped, LifecycleEvent::UninstallStart) => {
+                Ok(LifecycleState::Uninstalling)
+            }
+            (LifecycleState::InstalledStopped, LifecycleEvent::UninstallSuccess) => {
+                Ok(LifecycleState::Uninstalled)
+            }
+            (LifecycleState::InstalledStopped, LifecycleEvent::Reset) => {
+                Ok(LifecycleState::Uninstalled)
+            }
             (LifecycleState::InstalledStopped, LifecycleEvent::InstallStart) => {
                 // Reinstallation
                 Ok(LifecycleState::Installing)
             }
-            (LifecycleState::InstalledStopped, _) => {
-                Err(err("Service is stopped. Must start service before dispatching routing commands."))
-            }
+            (LifecycleState::InstalledStopped, _) => Err(err(
+                "Service is stopped. Must start service before dispatching routing commands.",
+            )),
 
             // Starting -> Running or Error
             (LifecycleState::Starting, LifecycleEvent::StartSuccess { pid, tun_active }) => {
@@ -285,12 +305,18 @@ impl ServiceStateMachine {
                     recoverable: true,
                 })
             }
-            (LifecycleState::Starting, LifecycleEvent::Reset) => Ok(LifecycleState::InstalledStopped),
+            (LifecycleState::Starting, LifecycleEvent::Reset) => {
+                Ok(LifecycleState::InstalledStopped)
+            }
             (LifecycleState::Starting, _) => Err(err("Service is currently starting up")),
 
             // Running -> active operations, Stopping, Degraded, Crashed
             (
-                LifecycleState::Running { pid, tun_active: _, proxy_active },
+                LifecycleState::Running {
+                    pid,
+                    tun_active: _,
+                    proxy_active,
+                },
                 LifecycleEvent::TunStarted { .. },
             ) => Ok(LifecycleState::Running {
                 pid: *pid,
@@ -298,7 +324,11 @@ impl ServiceStateMachine {
                 proxy_active: *proxy_active,
             }),
             (
-                LifecycleState::Running { pid, tun_active: _, proxy_active },
+                LifecycleState::Running {
+                    pid,
+                    tun_active: _,
+                    proxy_active,
+                },
                 LifecycleEvent::TunStopped,
             ) => Ok(LifecycleState::Running {
                 pid: *pid,
@@ -306,7 +336,11 @@ impl ServiceStateMachine {
                 proxy_active: *proxy_active,
             }),
             (
-                LifecycleState::Running { pid, tun_active, proxy_active: _ },
+                LifecycleState::Running {
+                    pid,
+                    tun_active,
+                    proxy_active: _,
+                },
                 LifecycleEvent::ProxyApplied,
             ) => Ok(LifecycleState::Running {
                 pid: *pid,
@@ -314,7 +348,11 @@ impl ServiceStateMachine {
                 proxy_active: true,
             }),
             (
-                LifecycleState::Running { pid, tun_active, proxy_active: _ },
+                LifecycleState::Running {
+                    pid,
+                    tun_active,
+                    proxy_active: _,
+                },
                 LifecycleEvent::ProxyCleared,
             ) => Ok(LifecycleState::Running {
                 pid: *pid,
@@ -322,15 +360,23 @@ impl ServiceStateMachine {
                 proxy_active: false,
             }),
             (
-                LifecycleState::Running { tun_active, proxy_active, .. },
+                LifecycleState::Running {
+                    tun_active,
+                    proxy_active,
+                    ..
+                },
                 LifecycleEvent::Degrade(reason),
             ) => Ok(LifecycleState::Degraded {
                 reason: reason.clone(),
                 tun_active: *tun_active,
                 proxy_active: *proxy_active,
             }),
-            (LifecycleState::Running { .. }, LifecycleEvent::StopRequested) => Ok(LifecycleState::Stopping),
-            (LifecycleState::Running { .. }, LifecycleEvent::StopSuccess) => Ok(LifecycleState::InstalledStopped),
+            (LifecycleState::Running { .. }, LifecycleEvent::StopRequested) => {
+                Ok(LifecycleState::Stopping)
+            }
+            (LifecycleState::Running { .. }, LifecycleEvent::StopSuccess) => {
+                Ok(LifecycleState::InstalledStopped)
+            }
             (LifecycleState::Running { .. }, LifecycleEvent::ProcessCrashed(msg)) => {
                 Ok(LifecycleState::Error {
                     message: format!("Process crashed: {msg}"),
@@ -344,66 +390,104 @@ impl ServiceStateMachine {
                     proxy_active: false,
                 })
             }
-            (LifecycleState::Running { .. }, LifecycleEvent::Reset) => Ok(LifecycleState::InstalledStopped),
-            (LifecycleState::Running { .. }, _) => Err(err("Invalid event while service is running")),
+            (LifecycleState::Running { .. }, LifecycleEvent::Reset) => {
+                Ok(LifecycleState::InstalledStopped)
+            }
+            (LifecycleState::Running { .. }, _) => {
+                Err(err("Invalid event while service is running"))
+            }
 
             // Stopping -> InstalledStopped or Error
-            (LifecycleState::Stopping, LifecycleEvent::StopSuccess) => Ok(LifecycleState::InstalledStopped),
+            (LifecycleState::Stopping, LifecycleEvent::StopSuccess) => {
+                Ok(LifecycleState::InstalledStopped)
+            }
             (LifecycleState::Stopping, LifecycleEvent::StopFailure(msg)) => {
                 Ok(LifecycleState::Error {
                     message: format!("Stop failed: {msg}"),
                     recoverable: true,
                 })
             }
-            (LifecycleState::Stopping, LifecycleEvent::Reset) => Ok(LifecycleState::InstalledStopped),
+            (LifecycleState::Stopping, LifecycleEvent::Reset) => {
+                Ok(LifecycleState::InstalledStopped)
+            }
             (LifecycleState::Stopping, _) => Err(err("Service is currently stopping")),
 
             // Uninstalling -> Uninstalled or Error
-            (LifecycleState::Uninstalling, LifecycleEvent::UninstallSuccess) => Ok(LifecycleState::Uninstalled),
+            (LifecycleState::Uninstalling, LifecycleEvent::UninstallSuccess) => {
+                Ok(LifecycleState::Uninstalled)
+            }
             (LifecycleState::Uninstalling, LifecycleEvent::UninstallFailure(msg)) => {
                 Ok(LifecycleState::Error {
                     message: format!("Uninstallation failed: {msg}"),
                     recoverable: true,
                 })
             }
-            (LifecycleState::Uninstalling, LifecycleEvent::Reset) => Ok(LifecycleState::Uninstalled),
-            (LifecycleState::Uninstalling, _) => Err(err("Uninstallation is currently in progress")),
+            (LifecycleState::Uninstalling, LifecycleEvent::Reset) => {
+                Ok(LifecycleState::Uninstalled)
+            }
+            (LifecycleState::Uninstalling, _) => {
+                Err(err("Uninstallation is currently in progress"))
+            }
 
             // Degraded -> Running / Stopping / Error
             (
-                LifecycleState::Degraded { tun_active, proxy_active, .. },
+                LifecycleState::Degraded {
+                    tun_active,
+                    proxy_active,
+                    ..
+                },
                 LifecycleEvent::Recover,
             ) => Ok(LifecycleState::Running {
                 pid: None,
                 tun_active: *tun_active,
                 proxy_active: *proxy_active,
             }),
-            (LifecycleState::Degraded { .. }, LifecycleEvent::StopRequested) => Ok(LifecycleState::Stopping),
-            (LifecycleState::Degraded { .. }, LifecycleEvent::StopSuccess) => Ok(LifecycleState::InstalledStopped),
+            (LifecycleState::Degraded { .. }, LifecycleEvent::StopRequested) => {
+                Ok(LifecycleState::Stopping)
+            }
+            (LifecycleState::Degraded { .. }, LifecycleEvent::StopSuccess) => {
+                Ok(LifecycleState::InstalledStopped)
+            }
             (LifecycleState::Degraded { .. }, LifecycleEvent::ProcessCrashed(msg)) => {
                 Ok(LifecycleState::Error {
                     message: format!("Degraded service crashed: {msg}"),
                     recoverable: true,
                 })
             }
-            (LifecycleState::Degraded { .. }, LifecycleEvent::Reset) => Ok(LifecycleState::InstalledStopped),
-            (LifecycleState::Degraded { .. }, _) => Err(err("Service is in degraded state; attempt recovery or stop")),
-
-            // Error -> Recover / Reset / Install
-            (LifecycleState::Error { recoverable: true, .. }, LifecycleEvent::Recover) => {
+            (LifecycleState::Degraded { .. }, LifecycleEvent::Reset) => {
                 Ok(LifecycleState::InstalledStopped)
             }
-            (LifecycleState::Error { .. }, LifecycleEvent::Reset) => Ok(LifecycleState::InstalledStopped),
-            (LifecycleState::Error { .. }, LifecycleEvent::InstallStart) => Ok(LifecycleState::Installing),
-            (LifecycleState::Error { .. }, LifecycleEvent::UninstallStart) => Ok(LifecycleState::Uninstalling),
-            (LifecycleState::Error { .. }, _) => {
-                Err(err("Service is in error state. Recover or reset the state machine first."))
+            (LifecycleState::Degraded { .. }, _) => Err(err(
+                "Service is in degraded state; attempt recovery or stop",
+            )),
+
+            // Error -> Recover / Reset / Install
+            (
+                LifecycleState::Error {
+                    recoverable: true, ..
+                },
+                LifecycleEvent::Recover,
+            ) => Ok(LifecycleState::InstalledStopped),
+            (LifecycleState::Error { .. }, LifecycleEvent::Reset) => {
+                Ok(LifecycleState::InstalledStopped)
             }
+            (LifecycleState::Error { .. }, LifecycleEvent::InstallStart) => {
+                Ok(LifecycleState::Installing)
+            }
+            (LifecycleState::Error { .. }, LifecycleEvent::UninstallStart) => {
+                Ok(LifecycleState::Uninstalling)
+            }
+            (LifecycleState::Error { .. }, _) => Err(err(
+                "Service is in error state. Recover or reset the state machine first.",
+            )),
         }
     }
 
     /// Applies an event to the state machine, mutating the current state and appending to history.
-    pub fn apply(&mut self, event: LifecycleEvent) -> Result<&LifecycleState, InvalidTransitionError> {
+    pub fn apply(
+        &mut self,
+        event: LifecycleEvent,
+    ) -> Result<&LifecycleState, InvalidTransitionError> {
         let next = self.next_state(&event)?;
         let prev = std::mem::replace(&mut self.current_state, next);
 
@@ -457,10 +541,7 @@ impl CommandSequence {
     }
 
     /// Generates a sequence for configuring system proxy.
-    pub fn system_proxy_sequence(
-        endpoint: impl Into<String>,
-        bypass: Option<String>,
-    ) -> Self {
+    pub fn system_proxy_sequence(endpoint: impl Into<String>, bypass: Option<String>) -> Self {
         Self::new("SystemProxyConfigure")
             .then(ServiceCommand::QueryStatus)
             .then(ServiceCommand::SetSystemProxy {

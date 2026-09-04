@@ -2,17 +2,17 @@ use std::borrow::Cow;
 
 #[path = "locales_table.rs"]
 mod locales_table;
-#[path = "locales_table_ext.rs"]
-mod locales_table_ext;
 #[path = "locales_table_en.rs"]
 mod locales_table_en;
 #[path = "locales_table_en_ext.rs"]
 mod locales_table_en_ext;
+#[path = "locales_table_ext.rs"]
+mod locales_table_ext;
 
 use locales_table::translate_zh_cn;
 use locales_table_en::translate_en;
-use locales_table_ext::translate_zh_cn_ext;
 use locales_table_en_ext::translate_en_ext;
+use locales_table_ext::translate_zh_cn_ext;
 
 pub trait Localizer {
     fn tr(&self, key: &str) -> Cow<'static, str>;

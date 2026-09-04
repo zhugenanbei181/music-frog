@@ -69,9 +69,18 @@ fn test_parse_semver_compatibility() {
 #[test]
 fn test_channel_parsing_and_display() {
     use std::str::FromStr;
-    assert_eq!(UpdateChannel::from_str("stable").unwrap(), UpdateChannel::Stable);
-    assert_eq!(UpdateChannel::from_str("Beta").unwrap(), UpdateChannel::Beta);
-    assert_eq!(UpdateChannel::from_str("NIGHTLY").unwrap(), UpdateChannel::Nightly);
+    assert_eq!(
+        UpdateChannel::from_str("stable").unwrap(),
+        UpdateChannel::Stable
+    );
+    assert_eq!(
+        UpdateChannel::from_str("Beta").unwrap(),
+        UpdateChannel::Beta
+    );
+    assert_eq!(
+        UpdateChannel::from_str("NIGHTLY").unwrap(),
+        UpdateChannel::Nightly
+    );
     assert!(UpdateChannel::from_str("unknown").is_err());
 
     assert_eq!(UpdateChannel::Stable.to_string(), "stable");
@@ -332,13 +341,8 @@ fn test_stage_payload_integrity_enforcement() {
     let valid_sha = ClientUpdater::compute_sha256(payload);
 
     // Staging with valid SHA-256 succeeds
-    let staged_path = ClientUpdater::stage_payload(
-        payload,
-        &staging_dir,
-        "staged_binary",
-        &valid_sha,
-    )
-    .unwrap();
+    let staged_path =
+        ClientUpdater::stage_payload(payload, &staging_dir, "staged_binary", &valid_sha).unwrap();
     assert!(staged_path.exists());
     assert_eq!(fs::read(&staged_path).unwrap(), payload);
 
@@ -365,13 +369,9 @@ fn test_atomic_update_and_rollback_flow() {
     // 2. Stage updated binary
     let v2_data = b"infiltrator v0.21.0 new upgraded binary content";
     let v2_sha = ClientUpdater::compute_sha256(v2_data);
-    let staged = ClientUpdater::stage_payload(
-        v2_data,
-        &staging_dir,
-        "infiltrator-client.staged",
-        &v2_sha,
-    )
-    .unwrap();
+    let staged =
+        ClientUpdater::stage_payload(v2_data, &staging_dir, "infiltrator-client.staged", &v2_sha)
+            .unwrap();
 
     // 3. Apply atomic update
     let backup = ClientUpdater::apply_atomic_update(&target_bin, &staged).unwrap();

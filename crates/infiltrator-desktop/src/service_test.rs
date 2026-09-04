@@ -1,6 +1,6 @@
-use super::*;
 use super::client::ServiceClient;
 use super::server::{MockServiceHarness, ServiceServer};
+use super::*;
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
@@ -91,7 +91,9 @@ async fn test_auth_token_file_save_and_load() {
         .expect("Failed to save auth token");
     assert!(token_path.exists());
 
-    let loaded = AuthToken::load_from_file(&token_path).await.expect("Failed to load auth token");
+    let loaded = AuthToken::load_from_file(&token_path)
+        .await
+        .expect("Failed to load auth token");
     assert_eq!(token.secret(), loaded.secret());
     assert!(loaded.verify(token.secret()));
 }
@@ -444,7 +446,8 @@ async fn test_mock_service_harness_requests() {
 #[cfg(unix)]
 async fn test_real_unix_socket_client_server_lifecycle() {
     let _ = std::fs::create_dir_all("target/tmp");
-    let socket_path = std::path::PathBuf::from(format!("target/tmp/mf_{}.sock", std::process::id()));
+    let socket_path =
+        std::path::PathBuf::from(format!("target/tmp/mf_{}.sock", std::process::id()));
     let endpoint = IpcEndpoint::from_unix_path(&socket_path);
 
     let auth_token = AuthToken::generate();
@@ -469,7 +472,9 @@ async fn test_real_unix_socket_client_server_lifecycle() {
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
     if !socket_path.exists() {
-        eprintln!("Skipping unix socket lifecycle test: socket bind restricted by sandbox/environment");
+        eprintln!(
+            "Skipping unix socket lifecycle test: socket bind restricted by sandbox/environment"
+        );
         let _ = shutdown_tx.send(true);
         let _ = server_handle.await;
         return;
@@ -576,10 +581,19 @@ fn test_windows_service_manager_args_and_sddl() {
     assert_eq!(create_args[4], "start=auto");
 
     // 2. Delete / Start / Stop / Query args
-    assert_eq!(manager.build_delete_args(), vec!["delete", "TestCustomService"]);
-    assert_eq!(manager.build_start_args(), vec!["start", "TestCustomService"]);
+    assert_eq!(
+        manager.build_delete_args(),
+        vec!["delete", "TestCustomService"]
+    );
+    assert_eq!(
+        manager.build_start_args(),
+        vec!["start", "TestCustomService"]
+    );
     assert_eq!(manager.build_stop_args(), vec!["stop", "TestCustomService"]);
-    assert_eq!(manager.build_query_args(), vec!["query", "TestCustomService"]);
+    assert_eq!(
+        manager.build_query_args(),
+        vec!["query", "TestCustomService"]
+    );
 
     // 3. SDDL Generation
     let sddl_auth = NamedPipeSecurity::generate_sddl(true);
@@ -592,15 +606,25 @@ fn test_windows_service_manager_args_and_sddl() {
     assert!(sddl_admin_only.contains("SY"));
 
     // 4. Pipe Name Validation
-    assert!(NamedPipeSecurity::is_valid_pipe_name(r"\\.\pipe\musicfrog-infiltrator-service"));
-    assert!(NamedPipeSecurity::is_valid_pipe_name(r"\\.\pipe\test_pipe_123"));
-    assert!(!NamedPipeSecurity::is_valid_pipe_name(r"/var/run/test.sock"));
-    assert!(!NamedPipeSecurity::is_valid_pipe_name(r"\\.\pipe\nested\pipe"));
+    assert!(NamedPipeSecurity::is_valid_pipe_name(
+        r"\\.\pipe\musicfrog-infiltrator-service"
+    ));
+    assert!(NamedPipeSecurity::is_valid_pipe_name(
+        r"\\.\pipe\test_pipe_123"
+    ));
+    assert!(!NamedPipeSecurity::is_valid_pipe_name(
+        r"/var/run/test.sock"
+    ));
+    assert!(!NamedPipeSecurity::is_valid_pipe_name(
+        r"\\.\pipe\nested\pipe"
+    ));
     assert!(!NamedPipeSecurity::is_valid_pipe_name(r"\\.\pipe\"));
 
     // 5. sc.exe Query Parser
     assert_eq!(
-        WindowsServiceManager::parse_sc_query_output("[SC] EnumQueryServicesStatus:OpenService FAILED 1060: The specified service does not exist"),
+        WindowsServiceManager::parse_sc_query_output(
+            "[SC] EnumQueryServicesStatus:OpenService FAILED 1060: The specified service does not exist"
+        ),
         WindowsServiceStatus::NotInstalled
     );
     assert_eq!(
@@ -612,11 +636,15 @@ fn test_windows_service_manager_args_and_sddl() {
         WindowsServiceStatus::Stopped
     );
     assert_eq!(
-        WindowsServiceManager::parse_sc_query_output("        STATE              : 2  START_PENDING \n"),
+        WindowsServiceManager::parse_sc_query_output(
+            "        STATE              : 2  START_PENDING \n"
+        ),
         WindowsServiceStatus::StartPending
     );
     assert_eq!(
-        WindowsServiceManager::parse_sc_query_output("        STATE              : 3  STOP_PENDING \n"),
+        WindowsServiceManager::parse_sc_query_output(
+            "        STATE              : 3  STOP_PENDING \n"
+        ),
         WindowsServiceStatus::StopPending
     );
     assert_eq!(
@@ -624,11 +652,15 @@ fn test_windows_service_manager_args_and_sddl() {
         WindowsServiceStatus::Paused
     );
     assert_eq!(
-        WindowsServiceManager::parse_sc_query_output("        STATE              : 6  PAUSE_PENDING \n"),
+        WindowsServiceManager::parse_sc_query_output(
+            "        STATE              : 6  PAUSE_PENDING \n"
+        ),
         WindowsServiceStatus::PausePending
     );
     assert_eq!(
-        WindowsServiceManager::parse_sc_query_output("        STATE              : 5  CONTINUE_PENDING \n"),
+        WindowsServiceManager::parse_sc_query_output(
+            "        STATE              : 5  CONTINUE_PENDING \n"
+        ),
         WindowsServiceStatus::ContinuePending
     );
 
@@ -646,12 +678,27 @@ fn test_windows_service_manager_args_and_sddl() {
 
     assert_eq!(WindowsServiceStatus::Running.to_string(), "Running");
     assert_eq!(WindowsServiceStatus::Stopped.to_string(), "Stopped");
-    assert_eq!(WindowsServiceStatus::NotInstalled.to_string(), "Not Installed");
-    assert_eq!(WindowsServiceStatus::StartPending.to_string(), "Start Pending");
-    assert_eq!(WindowsServiceStatus::StopPending.to_string(), "Stop Pending");
+    assert_eq!(
+        WindowsServiceStatus::NotInstalled.to_string(),
+        "Not Installed"
+    );
+    assert_eq!(
+        WindowsServiceStatus::StartPending.to_string(),
+        "Start Pending"
+    );
+    assert_eq!(
+        WindowsServiceStatus::StopPending.to_string(),
+        "Stop Pending"
+    );
     assert_eq!(WindowsServiceStatus::Paused.to_string(), "Paused");
-    assert_eq!(WindowsServiceStatus::PausePending.to_string(), "Pause Pending");
-    assert_eq!(WindowsServiceStatus::ContinuePending.to_string(), "Continue Pending");
+    assert_eq!(
+        WindowsServiceStatus::PausePending.to_string(),
+        "Pause Pending"
+    );
+    assert_eq!(
+        WindowsServiceStatus::ContinuePending.to_string(),
+        "Continue Pending"
+    );
 }
 
 #[test]
@@ -729,7 +776,10 @@ fn test_macos_privileged_helper_contract_and_xpc() {
     let spec = MacPrivilegedHelperSpec::default();
     assert_eq!(spec.helper_bundle_id, "com.musicfrog.infiltrator.helper");
     assert_eq!(spec.app_bundle_id, "com.musicfrog.infiltrator");
-    assert_eq!(spec.mach_service_name, "com.musicfrog.infiltrator.helper.xpc");
+    assert_eq!(
+        spec.mach_service_name,
+        "com.musicfrog.infiltrator.helper.xpc"
+    );
 
     // 1. Designated Requirement Generator
     let dr = MacPrivilegedHelperContract::generate_designated_requirement(
@@ -771,7 +821,10 @@ fn test_macos_privileged_helper_contract_and_xpc() {
         },
     );
     assert_eq!(xpc_msg.protocol_version, 1);
-    assert_eq!(xpc_msg.required_right, Some(AUTH_RIGHT_TUN_MANAGE.to_string()));
+    assert_eq!(
+        xpc_msg.required_right,
+        Some(AUTH_RIGHT_TUN_MANAGE.to_string())
+    );
 
     let json_xpc = serde_json::to_string(&xpc_msg).unwrap();
     let de_xpc: XpcMessage = serde_json::from_str(&json_xpc).unwrap();
@@ -792,7 +845,10 @@ fn test_macos_privileged_helper_contract_and_xpc() {
 
     // 6. Helper Doctor
     let doctor_status = MacHelperDoctor::check_helper_status(&spec);
-    assert_eq!(doctor_status, crate::tun_service::ServiceModeStatus::NotInstalled);
+    assert_eq!(
+        doctor_status,
+        crate::tun_service::ServiceModeStatus::NotInstalled
+    );
 
     let verify_res = MacHelperDoctor::verify_support("install_service");
     #[cfg(target_os = "macos")]
@@ -886,11 +942,16 @@ fn test_service_state_machine_error_and_degraded_recovery() {
     // 1. Install failure recovery
     let mut sm = ServiceStateMachine::new(LifecycleState::Uninstalled);
     sm.apply(LifecycleEvent::InstallStart).unwrap();
-    sm.apply(LifecycleEvent::InstallFailure("Permission denied".to_string()))
-        .unwrap();
+    sm.apply(LifecycleEvent::InstallFailure(
+        "Permission denied".to_string(),
+    ))
+    .unwrap();
     assert!(matches!(
         sm.current_state(),
-        LifecycleState::Error { recoverable: true, .. }
+        LifecycleState::Error {
+            recoverable: true,
+            ..
+        }
     ));
     sm.apply(LifecycleEvent::Recover).unwrap();
     assert_eq!(sm.current_state(), &LifecycleState::InstalledStopped);
@@ -901,7 +962,10 @@ fn test_service_state_machine_error_and_degraded_recovery() {
         .unwrap();
     assert!(matches!(
         sm.current_state(),
-        LifecycleState::Error { recoverable: true, .. }
+        LifecycleState::Error {
+            recoverable: true,
+            ..
+        }
     ));
     sm.apply(LifecycleEvent::Recover).unwrap();
     assert_eq!(sm.current_state(), &LifecycleState::InstalledStopped);
@@ -936,10 +1000,7 @@ fn test_service_state_machine_error_and_degraded_recovery() {
     sm.apply(LifecycleEvent::StartRequested).unwrap();
     sm.apply(LifecycleEvent::ProcessCrashed("SIGKILL".to_string()))
         .unwrap();
-    assert!(matches!(
-        sm.current_state(),
-        LifecycleState::Error { .. }
-    ));
+    assert!(matches!(sm.current_state(), LifecycleState::Error { .. }));
     sm.apply(LifecycleEvent::Reset).unwrap();
     assert_eq!(sm.current_state(), &LifecycleState::InstalledStopped);
 
@@ -952,19 +1013,13 @@ fn test_service_state_machine_error_and_degraded_recovery() {
     sm.apply(LifecycleEvent::StopRequested).unwrap();
     sm.apply(LifecycleEvent::StopFailure("Timeout".to_string()))
         .unwrap();
-    assert!(matches!(
-        sm.current_state(),
-        LifecycleState::Error { .. }
-    ));
+    assert!(matches!(sm.current_state(), LifecycleState::Error { .. }));
     sm.apply(LifecycleEvent::Reset).unwrap();
 
     sm.apply(LifecycleEvent::UninstallStart).unwrap();
     sm.apply(LifecycleEvent::UninstallFailure("File locked".to_string()))
         .unwrap();
-    assert!(matches!(
-        sm.current_state(),
-        LifecycleState::Error { .. }
-    ));
+    assert!(matches!(sm.current_state(), LifecycleState::Error { .. }));
 }
 
 #[test]
@@ -978,8 +1033,14 @@ fn test_service_state_machine_illegal_transitions() {
     let err = sm.apply(LifecycleEvent::StartRequested).unwrap_err();
     assert!(err.to_string().contains("uninstalled"));
 
-    assert!(!sm.can_apply(&LifecycleEvent::TunStarted { interface_name: None }));
-    let err2 = sm.apply(LifecycleEvent::TunStarted { interface_name: None }).unwrap_err();
+    assert!(!sm.can_apply(&LifecycleEvent::TunStarted {
+        interface_name: None
+    }));
+    let err2 = sm
+        .apply(LifecycleEvent::TunStarted {
+            interface_name: None,
+        })
+        .unwrap_err();
     assert!(err2.to_string().contains("uninstalled"));
 
     // Transition to InstalledStopped
@@ -1012,7 +1073,8 @@ async fn test_command_sequences_with_mock_service_harness() {
     assert_eq!(res.step_results.len(), 3);
 
     // 2. Execute System Proxy Sequence
-    let proxy_seq = CommandSequence::system_proxy_sequence("127.0.0.1:7890", Some("localhost".to_string()));
+    let proxy_seq =
+        CommandSequence::system_proxy_sequence("127.0.0.1:7890", Some("localhost".to_string()));
     let res_proxy = harness.execute_sequence(&proxy_seq).await;
     assert!(res_proxy.all_successful());
     assert_eq!(res_proxy.step_results.len(), 3);

@@ -39,23 +39,24 @@ pub fn parse_no_proxy(val: &str) -> String {
 pub fn generate_env_vars(endpoint: Option<&str>, bypass: Option<&str>) -> HashMap<String, String> {
     let mut map = HashMap::new();
     if let Some(ep) = endpoint
-        && let Some((host, port)) = parse_endpoint(ep) {
-            let http_url = format!("http://{host}:{port}");
-            let socks_url = format!("socks5://{host}:{port}");
+        && let Some((host, port)) = parse_endpoint(ep)
+    {
+        let http_url = format!("http://{host}:{port}");
+        let socks_url = format!("socks5://{host}:{port}");
 
-            map.insert("http_proxy".to_string(), http_url.clone());
-            map.insert("HTTP_PROXY".to_string(), http_url.clone());
-            map.insert("https_proxy".to_string(), http_url.clone());
-            map.insert("HTTPS_PROXY".to_string(), http_url);
-            map.insert("all_proxy".to_string(), socks_url.clone());
-            map.insert("ALL_PROXY".to_string(), socks_url);
+        map.insert("http_proxy".to_string(), http_url.clone());
+        map.insert("HTTP_PROXY".to_string(), http_url.clone());
+        map.insert("https_proxy".to_string(), http_url.clone());
+        map.insert("HTTPS_PROXY".to_string(), http_url);
+        map.insert("all_proxy".to_string(), socks_url.clone());
+        map.insert("ALL_PROXY".to_string(), socks_url);
 
-            if let Some(b) = bypass {
-                let no_p = format_no_proxy(b);
-                map.insert("no_proxy".to_string(), no_p.clone());
-                map.insert("NO_PROXY".to_string(), no_p);
-            }
+        if let Some(b) = bypass {
+            let no_p = format_no_proxy(b);
+            map.insert("no_proxy".to_string(), no_p.clone());
+            map.insert("NO_PROXY".to_string(), no_p);
         }
+    }
     map
 }
 
@@ -95,22 +96,24 @@ pub fn generate_environment_d(endpoint: Option<&str>, bypass: Option<&str>) -> S
 /// 定位 environment.d 配置文件路径（`~/.config/environment.d/99-infiltrator-proxy.conf`）。
 pub fn environment_d_path() -> Option<PathBuf> {
     if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME")
-        && !config_home.trim().is_empty() {
-            return Some(
-                PathBuf::from(config_home)
-                    .join("environment.d")
-                    .join("99-infiltrator-proxy.conf"),
-            );
-        }
+        && !config_home.trim().is_empty()
+    {
+        return Some(
+            PathBuf::from(config_home)
+                .join("environment.d")
+                .join("99-infiltrator-proxy.conf"),
+        );
+    }
     if let Ok(home) = std::env::var("HOME")
-        && !home.trim().is_empty() {
-            return Some(
-                PathBuf::from(home)
-                    .join(".config")
-                    .join("environment.d")
-                    .join("99-infiltrator-proxy.conf"),
-            );
-        }
+        && !home.trim().is_empty()
+    {
+        return Some(
+            PathBuf::from(home)
+                .join(".config")
+                .join("environment.d")
+                .join("99-infiltrator-proxy.conf"),
+        );
+    }
     None
 }
 
@@ -163,10 +166,11 @@ where
         "HTTPS_PROXY",
     ] {
         if let Some(val) = get_env(key)
-            && let Some(ep) = parse_url_to_endpoint(&val) {
-                endpoint = Some(ep);
-                break;
-            }
+            && let Some(ep) = parse_url_to_endpoint(&val)
+        {
+            endpoint = Some(ep);
+            break;
+        }
     }
 
     let enabled = endpoint.is_some();

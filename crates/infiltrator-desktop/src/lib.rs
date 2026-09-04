@@ -1,9 +1,11 @@
 pub mod boot;
 pub mod clipboard_helper;
+pub mod composition;
 pub mod deadlock_detector;
 pub mod display_adapter;
 pub mod editor;
 pub mod graceful_reboot;
+pub mod host;
 pub mod log_formatter;
 pub mod notify;
 pub mod process_enumerator;

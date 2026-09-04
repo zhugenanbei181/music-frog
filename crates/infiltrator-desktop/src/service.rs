@@ -8,6 +8,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use infiltrator_ports::core_process::CoreProcess;
 use mihomo_platform::desktop::ProcessCoreController;
 use mihomo_platform::traits::CoreController;
 use serde::{Deserialize, Serialize};
@@ -73,6 +74,12 @@ impl ServiceManager {
     pub fn controller(&self) -> Arc<dyn CoreController> {
         self.controller.clone()
     }
+
+    /// 0.30 process port. New application code should consume this trait
+    /// object instead of the legacy `mihomo-platform` controller trait.
+    pub fn core_process(&self) -> Arc<dyn CoreProcess> {
+        self.controller.clone()
+    }
     pub fn binary_path(&self) -> &Path {
         &self.binary_path
     }
@@ -82,15 +89,15 @@ impl ServiceManager {
     }
 
     pub async fn start(&self) -> mihomo_api::error::Result<()> {
-        self.controller.start().await
+        CoreController::start(self.controller.as_ref()).await
     }
 
     pub async fn stop(&self) -> mihomo_api::error::Result<()> {
-        self.controller.stop().await
+        CoreController::stop(self.controller.as_ref()).await
     }
 
     pub async fn restart(&self) -> mihomo_api::error::Result<()> {
-        self.controller.start().await
+        CoreController::start(self.controller.as_ref()).await
     }
 
     pub async fn status(&self) -> mihomo_api::error::Result<ServiceStatus> {
@@ -130,7 +137,8 @@ impl AuthToken {
         let pid = std::process::id();
         let mut s = String::with_capacity(64);
         for i in 0..32 {
-            let val = ((now.wrapping_mul(i as u128 + 1) ^ (pid as u128).wrapping_mul(31)) >> (i % 8)) as u8;
+            let val = ((now.wrapping_mul(i as u128 + 1) ^ (pid as u128).wrapping_mul(31))
+                >> (i % 8)) as u8;
             let _ = write!(s, "{:02x}", val);
         }
         Self(s)
@@ -318,7 +326,11 @@ pub struct ServiceRequest {
 }
 
 impl ServiceRequest {
-    pub fn new(id: impl Into<String>, auth_token: impl Into<String>, command: ServiceCommand) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        auth_token: impl Into<String>,
+        command: ServiceCommand,
+    ) -> Self {
         let token_str = auth_token.into();
         Self {
             id: id.into(),
@@ -513,7 +525,9 @@ pub async fn recv_framed_json<R: AsyncBufReadExt + Unpin, T: serde::de::Deserial
         .await
         .map_err(|e| ServiceError::Io(e.to_string()))?;
     if bytes_read == 0 {
-        return Err(ServiceError::ConnectionFailed("Connection closed by peer".to_string()));
+        return Err(ServiceError::ConnectionFailed(
+            "Connection closed by peer".to_string(),
+        ));
     }
     serde_json::from_str::<T>(line.trim()).map_err(|e| {
         ServiceError::ProtocolError(format!("Deserialization failed: {e} (raw: {line})"))

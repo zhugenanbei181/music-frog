@@ -18,12 +18,12 @@ pub use uniffi_api::{
     AndroidAppCategory, AndroidAppInfo, AndroidVpnPerAppPlan, BootstrapResult, BootstrapStepRecord,
     ConnectionRecord, ConnectionsResult, DnsFallbackFilterSettings, DnsSettings, DnsSettingsPatch,
     DnsSettingsResult, DoctorCheckMetaRecord, DoctorCheckMetaResult, DoctorCheckResultRecord,
-    DoctorFixActionRecord, DoctorFixResult, DoctorReportRecord, FakeIpSettings, FakeIpSettingsPatch,
-    FakeIpSettingsResult, IpCheckResult, IpResult, MobileCloudProvider, ProfileSummary,
-    ProfilesResult, ProxyGroupSummary, ProxyGroupsResult, RuleEntryRecord, RuleProvidersResult,
-    RulesResult, TrafficResult, TrafficSnapshot, TunStatusResult, VpnTunSettings,
-    VpnTunSettingsPatch, VpnTunSettingsResult, WebDavSettings, WebDavSettingsResult,
-    WebDavSyncResult,
+    DoctorFixActionRecord, DoctorFixResult, DoctorReportRecord, FakeIpSettings,
+    FakeIpSettingsPatch, FakeIpSettingsResult, IpCheckResult, IpResult, MobileCloudProvider,
+    ProfileSummary, ProfilesResult, ProxyGroupSummary, ProxyGroupsResult, RuleEntryRecord,
+    RuleProvidersResult, RulesResult, TrafficResult, TrafficSnapshot, TunStatusResult,
+    VpnTunSettings, VpnTunSettingsPatch, VpnTunSettingsResult, WebDavSettings,
+    WebDavSettingsResult, WebDavSyncResult,
 };
 
 uniffi::setup_scaffolding!("infiltrator_android");

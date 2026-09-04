@@ -20,7 +20,6 @@ pub enum UpdateChannel {
     Nightly,
 }
 
-
 impl std::fmt::Display for UpdateChannel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -74,8 +73,14 @@ impl SemVer {
 
         let mut nums = numeric_core.split('.');
         let major = nums.next()?.parse::<u64>().ok()?;
-        let minor = nums.next().map(|n| n.parse::<u64>().ok()).unwrap_or(Some(0))?;
-        let patch = nums.next().map(|n| n.parse::<u64>().ok()).unwrap_or(Some(0))?;
+        let minor = nums
+            .next()
+            .map(|n| n.parse::<u64>().ok())
+            .unwrap_or(Some(0))?;
+        let patch = nums
+            .next()
+            .map(|n| n.parse::<u64>().ok())
+            .unwrap_or(Some(0))?;
 
         if nums.next().is_some() {
             return None;
@@ -337,12 +342,14 @@ impl ClientUpdater {
 
         // Channel verification
         if let Some(chan) = current_channel
-            && chan != manifest.channel && !manifest.critical_security_fix {
-                return UpdateEligibility::ChannelMismatch {
-                    current_channel: chan,
-                    manifest_channel: manifest.channel,
-                };
-            }
+            && chan != manifest.channel
+            && !manifest.critical_security_fix
+        {
+            return UpdateEligibility::ChannelMismatch {
+                current_channel: chan,
+                manifest_channel: manifest.channel,
+            };
+        }
 
         // Downgrade Barrier: Target must be strictly newer than current version
         if target_v <= cur_v {
@@ -361,12 +368,14 @@ impl ClientUpdater {
         // Minimum supported version barrier (prevents unsupported long jumps)
         if let Some(min_v_str) = &manifest.min_supported_version
             && let Some(min_v) = SemVer::parse(min_v_str)
-                && cur_v < min_v && !manifest.critical_security_fix {
-                    return UpdateEligibility::BelowMinSupportedVersion {
-                        current_version: current_version.to_string(),
-                        min_supported_version: min_v_str.clone(),
-                    };
-                }
+            && cur_v < min_v
+            && !manifest.critical_security_fix
+        {
+            return UpdateEligibility::BelowMinSupportedVersion {
+                current_version: current_version.to_string(),
+                min_supported_version: min_v_str.clone(),
+            };
+        }
 
         // Canary rollout / grayscale gating
         if manifest.rollout_percentage < 100 && !manifest.critical_security_fix {
@@ -536,12 +545,15 @@ impl ClientUpdater {
             ));
         }
 
-        let parent = target_binary
-            .parent()
-            .unwrap_or_else(|| Path::new("."));
+        let parent = target_binary.parent().unwrap_or_else(|| Path::new("."));
         let file_stem = target_binary
             .file_name()
-            .ok_or_else(|| anyhow!("Invalid target binary filename: {}", target_binary.display()))?
+            .ok_or_else(|| {
+                anyhow!(
+                    "Invalid target binary filename: {}",
+                    target_binary.display()
+                )
+            })?
             .to_string_lossy();
 
         let backup_path = parent.join(format!("{}.bak", file_stem));
@@ -590,7 +602,10 @@ impl ClientUpdater {
                     if old_path.exists() {
                         let _ = fs::rename(&old_path, target_binary);
                     }
-                    return Err(anyhow!("Failed to replace target binary on Windows: {}", ce));
+                    return Err(anyhow!(
+                        "Failed to replace target binary on Windows: {}",
+                        ce
+                    ));
                 }
                 let _ = fs::remove_file(staged_binary);
             }
@@ -612,7 +627,10 @@ impl ClientUpdater {
             if let Err(err) = prep_result {
                 let _ = fs::remove_file(&temp_staged);
                 // Attempt automatic rollback if target was corrupted
-                if backup_path.exists() && (!target_binary.exists() || fs::metadata(target_binary).map(|m| m.len()).unwrap_or(0) == 0) {
+                if backup_path.exists()
+                    && (!target_binary.exists()
+                        || fs::metadata(target_binary).map(|m| m.len()).unwrap_or(0) == 0)
+                {
                     let _ = fs::copy(&backup_path, target_binary);
                     use std::os::unix::fs::PermissionsExt;
                     let _ = fs::set_permissions(target_binary, fs::Permissions::from_mode(0o755));
@@ -639,9 +657,7 @@ impl ClientUpdater {
             ));
         }
 
-        let parent = target_binary
-            .parent()
-            .unwrap_or_else(|| Path::new("."));
+        let parent = target_binary.parent().unwrap_or_else(|| Path::new("."));
         let file_stem = target_binary
             .file_name()
             .ok_or_else(|| anyhow!("Invalid target binary filename"))?
@@ -665,8 +681,9 @@ impl ClientUpdater {
             fs::copy(backup_path, &temp_restore)?;
             use std::os::unix::fs::PermissionsExt;
             let _ = fs::set_permissions(&temp_restore, fs::Permissions::from_mode(0o755));
-            fs::rename(&temp_restore, target_binary)
-                .with_context(|| "Failed to atomically restore backup binary on POSIX".to_string())?;
+            fs::rename(&temp_restore, target_binary).with_context(|| {
+                "Failed to atomically restore backup binary on POSIX".to_string()
+            })?;
             let _ = fs::set_permissions(target_binary, fs::Permissions::from_mode(0o755));
         }
 
@@ -675,9 +692,7 @@ impl ClientUpdater {
 
     /// Cleans up leftover `.old`, `.bak`, or temporary artifacts from previous updates.
     pub fn cleanup_old_artifacts(target_binary: &Path) -> Result<()> {
-        let parent = target_binary
-            .parent()
-            .unwrap_or_else(|| Path::new("."));
+        let parent = target_binary.parent().unwrap_or_else(|| Path::new("."));
         let file_stem = match target_binary.file_name() {
             Some(name) => name.to_string_lossy(),
             None => return Ok(()),
@@ -697,7 +712,10 @@ impl ClientUpdater {
     pub fn cleanup_staging(staging_dir: &Path) -> Result<()> {
         if staging_dir.exists() {
             fs::remove_dir_all(staging_dir).with_context(|| {
-                format!("Failed to clean staging directory: {}", staging_dir.display())
+                format!(
+                    "Failed to clean staging directory: {}",
+                    staging_dir.display()
+                )
             })?;
         }
         Ok(())

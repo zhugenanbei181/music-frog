@@ -195,14 +195,7 @@ pub fn matches_uwp_preset(pkg: &AppContainerPackage, preset: UwpPreset) -> bool 
             "windowsstore",
         ]),
         UwpPreset::MediaAndBrowsers => matches_any(&[
-            "edge",
-            "spotify",
-            "netflix",
-            "music",
-            "video",
-            "zune",
-            "photo",
-            "browser",
+            "edge", "spotify", "netflix", "music", "video", "zune", "photo", "browser",
         ]),
         UwpPreset::DeveloperTools => matches_any(&[
             "powertoys",

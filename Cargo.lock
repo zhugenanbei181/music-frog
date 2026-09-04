@@ -4953,7 +4953,9 @@ dependencies = [
  "camino",
  "chrono",
  "dav-client",
+ "infiltrator-contract",
  "infiltrator-core",
+ "infiltrator-ports",
  "jni 0.21.1",
  "log",
  "mihomo-api",
@@ -5078,7 +5080,10 @@ name = "infiltrator-desktop"
 version = "0.1.1"
 dependencies = [
  "anyhow",
+ "infiltrator-application",
+ "infiltrator-contract",
  "infiltrator-core",
+ "infiltrator-ports",
  "log",
  "mihomo-api",
  "mihomo-config",

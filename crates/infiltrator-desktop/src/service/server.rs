@@ -103,9 +103,9 @@ impl<H: ServiceCommandHandler + 'static> ServiceServer<H> {
                 Ok(())
             }
             #[cfg(not(windows))]
-            IpcEndpoint::NamedPipe(pipe_name) => {
-                Err(ServiceError::Io(format!("Named pipes are not supported on this platform: {pipe_name}")))
-            }
+            IpcEndpoint::NamedPipe(pipe_name) => Err(ServiceError::Io(format!(
+                "Named pipes are not supported on this platform: {pipe_name}"
+            ))),
             IpcEndpoint::Mock => Ok(()),
         }
     }
@@ -167,7 +167,11 @@ impl<H: ServiceCommandHandler + 'static> MockServiceHarness<H> {
         &self.auth_token
     }
 
-    pub async fn execute_request(&self, token: &str, command: super::ServiceCommand) -> Result<ServiceResponse, ServiceError> {
+    pub async fn execute_request(
+        &self,
+        token: &str,
+        command: super::ServiceCommand,
+    ) -> Result<ServiceResponse, ServiceError> {
         self.dispatch(token, command).await
     }
 
@@ -189,7 +193,10 @@ impl<H: ServiceCommandHandler + 'static> MockServiceHarness<H> {
         let mut client_reader = BufReader::new(client_read);
 
         send_framed_json(&mut client_writer, request).await?;
-        client_writer.flush().await.map_err(|e| ServiceError::Io(e.to_string()))?;
+        client_writer
+            .flush()
+            .await
+            .map_err(|e| ServiceError::Io(e.to_string()))?;
 
         recv_framed_json::<_, ServiceResponse>(&mut client_reader).await
     }
@@ -220,10 +227,7 @@ impl<H: ServiceCommandHandler + 'static> MockServiceHarness<H> {
         }
     }
 
-    pub async fn execute_sequence(
-        &self,
-        sequence: &CommandSequence,
-    ) -> SequenceExecutionResult {
+    pub async fn execute_sequence(&self, sequence: &CommandSequence) -> SequenceExecutionResult {
         let mut step_results = Vec::new();
         let mut all_ok = true;
 

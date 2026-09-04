@@ -7,7 +7,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
     match key {
         // Category 1: DNS Leak & Privacy Probe
         "dns_leak_probe_title" => "DNS 泄漏与公网 IP 隐私检测".into(),
-        "dns_leak_probe_desc" => "多源并发检测当前出口公网 IP、地理位置与运营商，排查 DNS 真实解析泄露".into(),
+        "dns_leak_probe_desc" => {
+            "多源并发检测当前出口公网 IP、地理位置与运营商，排查 DNS 真实解析泄露".into()
+        }
         "dns_leak_btn_run" => "发起隐私检测".into(),
         "dns_leak_status_secure" => "DNS 与出站网络安全，未发现泄漏".into(),
         "dns_leak_status_leaked" => "检测到潜在 DNS 泄漏风险".into(),
@@ -27,11 +29,15 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "custom_node_port" => "端口".into(),
         "custom_node_uuid_pass" => "UUID / 密码".into(),
         "custom_node_sni" => "TLS / Reality SNI 伪装".into(),
-        "custom_node_uri_placeholder" => "粘贴 vless://, ss://, hysteria2://, trojan:// 节点链接...".into(),
+        "custom_node_uri_placeholder" => {
+            "粘贴 vless://, ss://, hysteria2://, trojan:// 节点链接...".into()
+        }
 
         // Category 3: Multi-Profile Aggregator & Topology Generator
         "aggregator_title" => "多订阅配置聚合器".into(),
-        "aggregator_desc" => "勾选多个订阅配置，自动去重节点并按国家地区生成自动测速与分流策略组".into(),
+        "aggregator_desc" => {
+            "勾选多个订阅配置，自动去重节点并按国家地区生成自动测速与分流策略组".into()
+        }
         "aggregator_btn_merge" => "执行合并聚合".into(),
         "aggregator_name_placeholder" => "聚合配置名称 (例如: Aggregated-All)".into(),
         "aggregator_selected_count" => "已选中 {count} 个订阅".into(),
@@ -121,7 +127,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
 
         // Category 2: Crash Watchdog & Forensic Viewer
         "crash_watchdog_title" => "崩溃自愈看门狗与脱敏取证".into(),
-        "crash_watchdog_desc" => "监控异常退出与 Panic 状态，提供本地脱敏调用栈分析与孤儿状态恢复".into(),
+        "crash_watchdog_desc" => {
+            "监控异常退出与 Panic 状态，提供本地脱敏调用栈分析与孤儿状态恢复".into()
+        }
         "crash_watchdog_btn_recover" => "一键恢复网络与清退孤儿状态".into(),
         "crash_watchdog_btn_export" => "导出脱敏取证包".into(),
         "crash_watchdog_clean" => "系统运行正常，未检测到异常退出与孤儿状态".into(),
@@ -129,7 +137,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
 
         // Category 3: External Web Dashboard
         "web_dash_title" => "外部 Web 仪表盘 (Web Dashboard)".into(),
-        "web_dash_desc" => "内置 Metacubexd、Yacd 与 Razord 控制台，免密携带 Token 自动握手拉起".into(),
+        "web_dash_desc" => {
+            "内置 Metacubexd、Yacd 与 Razord 控制台，免密携带 Token 自动握手拉起".into()
+        }
         "web_dash_btn_metacubexd" => "打开 Metacubexd".into(),
         "web_dash_btn_yacd" => "打开 Yacd".into(),
         "web_dash_btn_razord" => "打开 Razord".into(),
@@ -157,7 +167,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "pac_compile_success" => "PAC 脚本编译成功并已热加载".into(),
         // Wave 5 Category 1: Rule Hit Counter & Stale Rule Analyzer
         "rule_hit_title" => "分流规则命中统计与冷门审计".into(),
-        "rule_hit_desc" => "统计当前会话各规则累计命中频次，快速识别并清理 0 次命中的冷门规则".into(),
+        "rule_hit_desc" => {
+            "统计当前会话各规则累计命中频次，快速识别并清理 0 次命中的冷门规则".into()
+        }
         "rule_hit_btn_audit" => "审计冷门规则".into(),
         "rule_hit_btn_clean" => "一键停用 0 命中规则".into(),
         "rule_hit_total_hits" => "累计总命中次数".into(),
@@ -180,7 +192,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
 
         // Wave 5 Category 4: Rule-Provider Lifecycle & Rule Unpacker
         "provider_unpack_title" => "规则集解构与本地规则提取".into(),
-        "provider_unpack_desc" => "将远程 Rule-Provider 规则条目一键解构导入为本地可编辑规则".into(),
+        "provider_unpack_desc" => {
+            "将远程 Rule-Provider 规则条目一键解构导入为本地可编辑规则".into()
+        }
         "provider_btn_unpack" => "一键解构成自定义规则".into(),
         "provider_btn_purge_cache" => "清理规则集本地缓存".into(),
         "provider_cache_purged" => "规则集本地磁盘缓存已清理完毕".into(),
@@ -196,7 +210,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
 
         // Wave 5 Category 6: LAN Proxy Sharing & Client Access Whitelist
         "lan_sharing_title" => "局域网共享代理与访问控制列表 (ACL)".into(),
-        "lan_sharing_desc" => "允许局域网设备接入当前代理连接，并严格基于 IP/CIDR 白名单授权".into(),
+        "lan_sharing_desc" => {
+            "允许局域网设备接入当前代理连接，并严格基于 IP/CIDR 白名单授权".into()
+        }
         "lan_sharing_enable" => "开启局域网共享 (Allow LAN)".into(),
         "lan_sharing_port" => "局域网混合代理端口".into(),
         "lan_sharing_acl" => "允许接入的客户端 IP 白名单 (CIDR)".into(),

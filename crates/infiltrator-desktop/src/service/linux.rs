@@ -203,7 +203,8 @@ impl LinuxPrivilegeWizard {
             details: if polkit_policy_installed {
                 format!("Policy file present at {POLKIT_POLICY_PATH}")
             } else {
-                "Polkit policy file not installed (pkexec will prompt for root password)".to_string()
+                "Polkit policy file not installed (pkexec will prompt for root password)"
+                    .to_string()
             },
             remediation: if !polkit_policy_installed {
                 Some(format!("Install policy file to {POLKIT_POLICY_PATH}"))

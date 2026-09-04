@@ -9,7 +9,7 @@ pub enum HostKind {
 }
 
 /// The inbound surface presenting the shared application contract.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SurfaceKind {
     IcedDesktop,
     BevyDesktop,

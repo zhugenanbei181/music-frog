@@ -6,7 +6,6 @@ pub mod country_flags;
 pub mod error_codes;
 pub mod fuzzy_search;
 pub mod i18n_interpolator;
-pub mod intent_registry;
 pub mod latency_chart;
 pub mod locales;
 pub mod metrics_summary;

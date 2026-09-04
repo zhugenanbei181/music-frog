@@ -16,9 +16,10 @@ impl ProcessFilter {
         }
 
         if let Some(cat) = self.category
-            && proc.category != cat {
-                return false;
-            }
+            && proc.category != cat
+        {
+            return false;
+        }
 
         if let Some(ref q) = self.query {
             let needle = q.trim().to_ascii_lowercase();

@@ -7,6 +7,7 @@
 pub mod capability;
 pub mod command;
 pub mod error;
+pub mod intent;
 pub mod snapshot;
 pub mod surface;
 

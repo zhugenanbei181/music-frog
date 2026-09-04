@@ -1,4 +1,14 @@
 use async_trait::async_trait;
+use infiltrator_contract::capability::{
+    Availability, Capability, CapabilitySnapshot, CapabilityStatus,
+};
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::surface::HostKind;
+use infiltrator_ports::capability_provider::CapabilityProvider;
+use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::data_dir::DataDirProvider as PortDataDirProvider;
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::Result;
 use mihomo_platform::android_bridge::AndroidBridge;
 use mihomo_platform::traits::{CoreController, CredentialStore, DataDirProvider};
@@ -105,6 +115,134 @@ where
     B: AndroidBridge,
 {
     AndroidBridgeAdapter::new(bridge)
+}
+
+fn map_port_error(error: mihomo_api::error::MihomoError) -> PortError {
+    match error {
+        mihomo_api::error::MihomoError::Io(error) => PortError::Io(error.to_string()),
+        mihomo_api::error::MihomoError::Http(error) => PortError::Network(error.to_string()),
+        mihomo_api::error::MihomoError::WebSocket(error) => PortError::Network(error.to_string()),
+        mihomo_api::error::MihomoError::NotFound(message) => PortError::NotFound(message),
+        other => PortError::Failed(other.to_string()),
+    }
+}
+
+#[async_trait]
+impl<B> CoreProcess for AndroidBridgeAdapter<B>
+where
+    B: AndroidBridge,
+{
+    async fn start(&self) -> std::result::Result<(), PortError> {
+        self.bridge.core_start().await.map_err(map_port_error)
+    }
+
+    async fn stop(&self) -> std::result::Result<(), PortError> {
+        self.bridge.core_stop().await.map_err(map_port_error)
+    }
+
+    async fn status(&self) -> std::result::Result<CoreLifecycle, PortError> {
+        let running = self
+            .bridge
+            .core_is_running()
+            .await
+            .map_err(map_port_error)?;
+        Ok(if running {
+            CoreLifecycle::Running
+        } else {
+            CoreLifecycle::Stopped
+        })
+    }
+
+    fn controller_endpoint(&self) -> Option<String> {
+        self.bridge.core_controller_url()
+    }
+}
+
+#[async_trait]
+impl<B> SecureStore for AndroidBridgeAdapter<B>
+where
+    B: AndroidBridge,
+{
+    async fn get(
+        &self,
+        namespace: &str,
+        key: &str,
+    ) -> std::result::Result<Option<String>, PortError> {
+        self.bridge
+            .credential_get(namespace, key)
+            .await
+            .map_err(map_port_error)
+    }
+
+    async fn set(
+        &self,
+        namespace: &str,
+        key: &str,
+        value: &str,
+    ) -> std::result::Result<(), PortError> {
+        self.bridge
+            .credential_set(namespace, key, value)
+            .await
+            .map_err(map_port_error)
+    }
+
+    async fn delete(&self, namespace: &str, key: &str) -> std::result::Result<(), PortError> {
+        self.bridge
+            .credential_delete(namespace, key)
+            .await
+            .map_err(map_port_error)
+    }
+}
+
+impl<B> PortDataDirProvider for AndroidBridgeAdapter<B>
+where
+    B: AndroidBridge,
+{
+    fn data_dir(&self) -> Option<PathBuf> {
+        self.bridge.data_dir()
+    }
+
+    fn cache_dir(&self) -> Option<PathBuf> {
+        self.bridge.cache_dir()
+    }
+}
+
+impl<B> CapabilityProvider for AndroidBridgeAdapter<B>
+where
+    B: AndroidBridge,
+{
+    fn host_kind(&self) -> HostKind {
+        HostKind::Android
+    }
+
+    fn capabilities(&self) -> CapabilitySnapshot {
+        CapabilitySnapshot::new(
+            HostKind::Android,
+            1,
+            vec![
+                CapabilityStatus {
+                    capability: Capability::CoreLifecycle,
+                    availability: Availability::Supported,
+                },
+                CapabilityStatus {
+                    capability: Capability::Tun,
+                    availability: Availability::Supported,
+                },
+                CapabilityStatus {
+                    capability: Capability::SystemProxy,
+                    availability: Availability::Unsupported {
+                        reason: "Android VpnService owns proxy routing".to_string(),
+                    },
+                },
+                CapabilityStatus {
+                    capability: Capability::CoreVersionInstall,
+                    availability: Availability::Unsupported {
+                        reason: "core binaries are delivered with the APK ABI".to_string(),
+                    },
+                },
+            ],
+        )
+    }
 }
 
 pub struct AndroidRuntime<B>

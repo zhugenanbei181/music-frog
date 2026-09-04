@@ -126,15 +126,16 @@ impl DesktopEntryScanner {
                     let file_path = entry.path();
                     if file_path.extension().and_then(|e| e.to_str()) == Some("desktop")
                         && let Ok(content) = std::fs::read_to_string(&file_path)
-                            && let Some(desktop_entry) = Self::parse_desktop_file(&content) {
-                                let key = desktop_entry
-                                    .exec
-                                    .rsplit('/')
-                                    .next()
-                                    .unwrap_or(&desktop_entry.exec)
-                                    .to_ascii_lowercase();
-                                self.entries.insert(key, desktop_entry);
-                            }
+                        && let Some(desktop_entry) = Self::parse_desktop_file(&content)
+                    {
+                        let key = desktop_entry
+                            .exec
+                            .rsplit('/')
+                            .next()
+                            .unwrap_or(&desktop_entry.exec)
+                            .to_ascii_lowercase();
+                        self.entries.insert(key, desktop_entry);
+                    }
                 }
             }
         }

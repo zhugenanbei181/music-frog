@@ -41,10 +41,23 @@ fn test_lang_alias_en() {
 #[test]
 fn test_locales_table_key_parity() {
     let keys = [
-        "app_title", "nav_overview", "nav_profiles", "nav_proxies", "nav_runtime",
-        "nav_rules", "nav_dns", "nav_sync", "nav_settings", "sync_title",
-        "settings_admin_open", "settings_uac_unsupported", "toast_script_mode_unavailable",
-        "tray_factory_reset", "notify_rebuild_failed", "traffic_expires", "rules_title",
+        "app_title",
+        "nav_overview",
+        "nav_profiles",
+        "nav_proxies",
+        "nav_runtime",
+        "nav_rules",
+        "nav_dns",
+        "nav_sync",
+        "nav_settings",
+        "sync_title",
+        "settings_admin_open",
+        "settings_uac_unsupported",
+        "toast_script_mode_unavailable",
+        "tray_factory_reset",
+        "notify_rebuild_failed",
+        "traffic_expires",
+        "rules_title",
     ];
     let zh = Lang("zh-CN");
     let en = Lang("en-US");

@@ -7,32 +7,44 @@ use std::process::Command;
 /// KDE Plasma 桌面环境代理后端（基于 `kwriteconfig5`/`kwriteconfig6` 与 `kconfig` / `kioslaverc`）。
 /// 查找可用的 KDE 配置写入工具（优先 kwriteconfig6，其次 kwriteconfig5）。
 pub fn find_kwriteconfig() -> Option<&'static str> {
-    ["kwriteconfig6", "kwriteconfig5"].iter().find(|&cmd| Command::new(cmd)
-            .arg("--version")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)).map(|v| v as _)
+    ["kwriteconfig6", "kwriteconfig5"]
+        .iter()
+        .find(|&cmd| {
+            Command::new(cmd)
+                .arg("--version")
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        })
+        .map(|v| v as _)
 }
 
 /// 查找可用的 KDE 配置读取工具（优先 kreadconfig6，其次 kreadconfig5）。
 pub fn find_kreadconfig() -> Option<&'static str> {
-    ["kreadconfig6", "kreadconfig5"].iter().find(|&cmd| Command::new(cmd)
-            .arg("--version")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)).map(|v| v as _)
+    ["kreadconfig6", "kreadconfig5"]
+        .iter()
+        .find(|&cmd| {
+            Command::new(cmd)
+                .arg("--version")
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        })
+        .map(|v| v as _)
 }
 
 /// 定位 KDE kioslaverc 配置文件路径。
 pub fn kioslaverc_path() -> Option<PathBuf> {
     if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME")
-        && !config_home.trim().is_empty() {
-            return Some(PathBuf::from(config_home).join("kioslaverc"));
-        }
+        && !config_home.trim().is_empty()
+    {
+        return Some(PathBuf::from(config_home).join("kioslaverc"));
+    }
     if let Ok(home) = std::env::var("HOME")
-        && !home.trim().is_empty() {
-            return Some(PathBuf::from(home).join(".config").join("kioslaverc"));
-        }
+        && !home.trim().is_empty()
+    {
+        return Some(PathBuf::from(home).join(".config").join("kioslaverc"));
+    }
     None
 }
 
@@ -287,20 +299,19 @@ pub fn parse_kioslaverc_content(content: &str) -> SystemProxyState {
             in_proxy_settings = section_name.trim().eq_ignore_ascii_case("Proxy Settings");
             continue;
         }
-        if in_proxy_settings
-            && let Some((k, v)) = trimmed.split_once('=') {
-                let key = k.trim();
-                let val = v.trim();
-                if key.eq_ignore_ascii_case("ProxyType") {
-                    proxy_type = Some(val.to_string());
-                } else if key.eq_ignore_ascii_case("httpProxy") {
-                    http_proxy = Some(val.to_string());
-                } else if key.eq_ignore_ascii_case("socksProxy") {
-                    socks_proxy = Some(val.to_string());
-                } else if key.eq_ignore_ascii_case("NoProxyFor") {
-                    no_proxy_for = Some(val.to_string());
-                }
+        if in_proxy_settings && let Some((k, v)) = trimmed.split_once('=') {
+            let key = k.trim();
+            let val = v.trim();
+            if key.eq_ignore_ascii_case("ProxyType") {
+                proxy_type = Some(val.to_string());
+            } else if key.eq_ignore_ascii_case("httpProxy") {
+                http_proxy = Some(val.to_string());
+            } else if key.eq_ignore_ascii_case("socksProxy") {
+                socks_proxy = Some(val.to_string());
+            } else if key.eq_ignore_ascii_case("NoProxyFor") {
+                no_proxy_for = Some(val.to_string());
             }
+        }
     }
 
     let enabled = matches!(proxy_type.as_deref(), Some("1") | Some("4"));
@@ -347,9 +358,10 @@ pub fn notify_kio() {
 /// 应用 KDE 代理设置。
 pub fn apply(endpoint: Option<&str>, bypass: Option<&str>) -> anyhow::Result<()> {
     if let Some(ep) = endpoint
-        && parse_endpoint(ep).is_none() {
-            return Err(anyhow!("Invalid endpoint format"));
-        }
+        && parse_endpoint(ep).is_none()
+    {
+        return Err(anyhow!("Invalid endpoint format"));
+    }
 
     if let Some(tool) = find_kwriteconfig() {
         let cmds = generate_write_commands(tool, endpoint, bypass);
@@ -428,10 +440,11 @@ pub fn read_state() -> anyhow::Result<SystemProxyState> {
 
     // 回退：直接读取 kioslaverc 文件
     if let Some(path) = kioslaverc_path()
-        && path.exists() {
-            let content = std::fs::read_to_string(&path)?;
-            return Ok(parse_kioslaverc_content(&content));
-        }
+        && path.exists()
+    {
+        let content = std::fs::read_to_string(&path)?;
+        return Ok(parse_kioslaverc_content(&content));
+    }
 
     Ok(SystemProxyState::default())
 }

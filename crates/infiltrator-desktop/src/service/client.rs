@@ -150,10 +150,7 @@ impl ServiceClient {
         }
     }
 
-    pub async fn execute_sequence(
-        &self,
-        sequence: &CommandSequence,
-    ) -> SequenceExecutionResult {
+    pub async fn execute_sequence(&self, sequence: &CommandSequence) -> SequenceExecutionResult {
         let mut step_results = Vec::new();
         let mut all_ok = true;
 
@@ -218,12 +215,13 @@ impl ServiceClient {
                 .map_err(|_| ServiceError::Timeout)?
             }
             #[cfg(not(windows))]
-            IpcEndpoint::NamedPipe(pipe_name) => {
-                Err(ServiceError::ConnectionFailed(format!("Named pipes are not supported on this platform: {pipe_name}")))
-            }
-            IpcEndpoint::Mock => {
-                Err(ServiceError::ConnectionFailed("Mock endpoint cannot connect via execute_request; use MockServiceHarness".to_string()))
-            }
+            IpcEndpoint::NamedPipe(pipe_name) => Err(ServiceError::ConnectionFailed(format!(
+                "Named pipes are not supported on this platform: {pipe_name}"
+            ))),
+            IpcEndpoint::Mock => Err(ServiceError::ConnectionFailed(
+                "Mock endpoint cannot connect via execute_request; use MockServiceHarness"
+                    .to_string(),
+            )),
         }
     }
 }

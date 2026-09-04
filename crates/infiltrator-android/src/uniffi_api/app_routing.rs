@@ -248,7 +248,9 @@ pub fn app_routing_classify_package(package_name: String) -> AndroidAppCategory 
 /// Android formula: `userId * 100000 + appId`.
 #[uniffi::export]
 pub fn app_routing_calculate_dual_app_uid(user_id: u32, app_id: u32) -> u32 {
-    user_id.saturating_mul(100_000).saturating_add(app_id % 100_000)
+    user_id
+        .saturating_mul(100_000)
+        .saturating_add(app_id % 100_000)
 }
 
 /// Builds the comprehensive VpnService split tunneling plan based on the current
@@ -406,7 +408,11 @@ mod tests_app_info {
         // Default is ProxyAll
         let plan_all = app_routing_build_vpn_plan("com.infiltrator.app".to_string());
         assert_eq!(plan_all.mode, AppRoutingMode::ProxyAll);
-        assert!(plan_all.disallowed_packages.contains(&"com.infiltrator.app".to_string()));
+        assert!(
+            plan_all
+                .disallowed_packages
+                .contains(&"com.infiltrator.app".to_string())
+        );
         assert!(plan_all.self_package_excluded);
     }
 }

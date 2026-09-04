@@ -13,6 +13,8 @@ path = "uniffi-bindgen.rs"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+infiltrator-contract = { path = "../infiltrator-contract" }
+infiltrator-ports = { path = "../infiltrator-ports" }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 log = { workspace = true }

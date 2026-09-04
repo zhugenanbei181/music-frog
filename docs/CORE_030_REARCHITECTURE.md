@@ -7,7 +7,7 @@
 ### 当前 0.30 进度
 
 - [x] `infiltrator-domain`：提取生命周期状态机，依赖树无 Tokio。
-- [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力和失败模型。
+- [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、secure store、data store 和 capability provider 端口。
 - [x] application actor/facade 第一批生命周期 seam：single-flight、adopt、bounded contract events。
 - [ ] application actor/facade 覆盖全部 use-case，并统一前端命令与领域快照通道。
