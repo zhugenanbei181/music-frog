@@ -11,8 +11,9 @@ use axum::{
 use infiltrator_http::reqwest;
 use log::warn;
 use infiltrator_domain::runtime::{ConnectionsResponse, MemoryData};
+use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use futures_util::StreamExt;
 use serde::Deserialize;
-use tokio_stream::{StreamExt, wrappers::UnboundedReceiverStream};
 
 use crate::admin_api::events::{AdminEvent, EVENT_RUNTIME_CHANGED};
 use crate::admin_api::models::*;
@@ -67,14 +68,18 @@ pub async fn list_runtime_connections_http<C: AdminApiContext>(
 ) -> Result<Json<ConnectionsResponse>, ApiError> {
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let data = client
+    let snapshot = client
         .get_connections()
         .await
-        .map(Into::into)
         .map_err(|e| ApiError::internal(e.to_string()))?;
+    let data = ConnectionsResponse {
+        download_total: snapshot.download_total,
+        upload_total: snapshot.upload_total,
+        connections: snapshot.connections,
+    };
     Ok(Json(data))
 }
 
@@ -83,7 +88,7 @@ pub async fn close_all_runtime_connections_http<C: AdminApiContext>(
 ) -> Result<StatusCode, ApiError> {
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     client
@@ -103,7 +108,7 @@ pub async fn close_runtime_connection_http<C: AdminApiContext>(
     }
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     client
@@ -120,14 +125,17 @@ pub async fn stream_runtime_logs_http<C: AdminApiContext>(
     let level = normalize_log_level(query.level.as_deref())?;
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let receiver = client
-        .stream_logs(level.as_deref())
+        .stream_logs(level)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let stream = UnboundedReceiverStream::new(receiver).filter_map(|message| {
+    let stream = receiver.filter_map(|event| async move {
+        let RuntimeStreamEvent::Item(message) = event else {
+            return None;
+        };
         let payload = match serde_json::to_string(&RuntimeLogEvent { message }) {
             Ok(payload) => payload,
             Err(err) => {
@@ -149,13 +157,12 @@ pub async fn get_runtime_traffic_http<C: AdminApiContext>(
 ) -> Result<Json<RuntimeTrafficSnapshotResponse>, ApiError> {
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let connections: ConnectionsResponse = client
+    let connections = client
         .get_connections()
         .await
-        .map(Into::into)
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let snapshot = state.traffic_snapshot(
         connections.upload_total,
@@ -170,13 +177,12 @@ pub async fn get_runtime_memory_http<C: AdminApiContext>(
 ) -> Result<Json<MemoryData>, ApiError> {
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let memory = client
         .get_memory()
         .await
-        .map(Into::into)
         .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(memory))
 }
@@ -220,7 +226,7 @@ async fn runtime_status_snapshot<C: AdminApiContext>(ctx: &C) -> RuntimeStatusRe
     let running = ctx.runtime_running().await;
     let controller = ctx.runtime_controller_url().await;
     let mode = if running {
-        match ctx.runtime_client().await {
+        match ctx.runtime_gateway().await {
             Ok(client) => client
                 .get_config()
                 .await

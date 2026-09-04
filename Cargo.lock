@@ -4923,9 +4923,11 @@ dependencies = [
  "axum",
  "chrono",
  "dav-client",
+ "futures-util",
  "infiltrator-core",
  "infiltrator-domain",
  "infiltrator-http",
+ "infiltrator-ports",
  "infiltrator-shared",
  "log",
  "mihomo-api",
@@ -5099,6 +5101,8 @@ name = "infiltrator-desktop"
 version = "0.1.1"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "futures-util",
  "infiltrator-application",
  "infiltrator-contract",
  "infiltrator-core",
@@ -5161,6 +5165,7 @@ dependencies = [
  "axum",
  "chrono",
  "dav-client",
+ "futures-util",
  "iced",
  "iced_runtime",
  "image",
@@ -5175,7 +5180,6 @@ dependencies = [
  "is_elevated",
  "ksni",
  "log",
- "mihomo-api",
  "mihomo-config",
  "mihomo-platform",
  "mihomo-version",
@@ -5212,7 +5216,10 @@ name = "infiltrator-ports"
 version = "0.30.0"
 dependencies = [
  "async-trait",
+ "futures-util",
  "infiltrator-contract",
+ "infiltrator-domain",
+ "serde_json",
 ]
 
 [[package]]

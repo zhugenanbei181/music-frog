@@ -3,7 +3,6 @@
 //! `/admin/api/runtime/delay/*`).
 
 use std::collections::HashSet;
-use std::sync::Arc;
 use std::time::Duration;
 
 use axum::{Json, http::StatusCode, response::{IntoResponse, Response}};
@@ -25,7 +24,7 @@ pub async fn get_proxies_http<C: AdminApiContext>(
 ) -> Result<Json<RuntimeProxiesResponse>, ApiError> {
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let config = client
@@ -66,7 +65,7 @@ pub async fn set_proxy_mode_http<C: AdminApiContext>(
     let mode = normalize_proxy_mode_candidate(&payload.mode)?;
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     client
@@ -92,7 +91,7 @@ pub async fn select_proxy_http<C: AdminApiContext>(
 
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     client
@@ -108,7 +107,7 @@ pub async fn list_runtime_proxy_delays_http<C: AdminApiContext>(
 ) -> Result<Json<RuntimeProxyDelayNodesResponse>, ApiError> {
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let proxies = client
@@ -137,7 +136,7 @@ pub async fn test_runtime_proxy_delay_http<C: AdminApiContext>(
     let timeout_ms = normalize_delay_timeout_ms(payload.timeout_ms);
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let delay_ms = client
@@ -162,7 +161,7 @@ pub async fn test_all_runtime_proxy_delays_http<C: AdminApiContext>(
     let timeout_ms = normalize_delay_timeout_ms(payload.timeout_ms);
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let proxies = client
@@ -180,15 +179,15 @@ pub async fn test_all_runtime_proxy_delays_http<C: AdminApiContext>(
         Duration::from_millis(timeout_ms as u64),
     );
     let (_cancel_tx, cancel_rx) = watch::channel(false);
-    let client_arc = Arc::new(client);
+    let gateway = client;
 
     let outcomes = tester
         .test_proxies(
             candidates,
             move |proxy, url| {
-                let client = client_arc.clone();
+                let gateway = gateway.clone();
                 async move {
-                    client
+                    gateway
                         .test_delay(&proxy, &url, timeout_ms)
                         .await
                         .map(|d| d as u64)
@@ -240,7 +239,7 @@ pub async fn test_proxies_delay_http<C: AdminApiContext>(
     let timeout_ms = normalize_delay_timeout_ms(payload.timeout_ms);
     let client = state
         .ctx
-        .runtime_client()
+        .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
@@ -286,15 +285,15 @@ pub async fn test_proxies_delay_http<C: AdminApiContext>(
         Duration::from_millis(timeout_ms as u64),
     );
     let (_cancel_tx, cancel_rx) = watch::channel(false);
-    let client_arc = Arc::new(client);
+    let gateway = client;
 
     let outcomes = tester
         .test_proxies(
             candidates,
             move |proxy, url| {
-                let client = client_arc.clone();
+                let gateway = gateway.clone();
                 async move {
-                    client
+                    gateway
                         .test_delay(&proxy, &url, timeout_ms)
                         .await
                         .map(|d| d as u64)

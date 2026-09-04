@@ -7,6 +7,7 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
 
 impl AppState {
     pub(super) fn update_import(&mut self, message: Message) -> Task<Message> {
@@ -166,8 +167,11 @@ impl AppState {
                         let current = cm.get_current().await.map_err(infiltrator_contract::error::from_mihomo)?;
                         let reloaded = match (runtime, current == profile_name) {
                             (Some(runtime), true) => {
-                                runtime
-                                    .apply_profile_content(&content, ApplyStrategy::AlwaysRestart)
+                                ManagedRuntime::apply_profile_content(
+                                    runtime.as_ref(),
+                                    &content,
+                                    ApplyStrategy::AlwaysRestart,
+                                )
                                     .await
                                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                                 true

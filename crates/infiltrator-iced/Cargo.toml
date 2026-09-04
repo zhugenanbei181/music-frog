@@ -39,7 +39,6 @@ infiltrator-desktop = { path = "../infiltrator-desktop" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-admin = { path = "../infiltrator-admin" }
 mihomo-version = { path = "../mihomo-version" }
-mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }
 mihomo-platform = { path = "../mihomo-platform" }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
@@ -54,6 +53,7 @@ ksni = { workspace = true }
 is_elevated = "0.1"
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+futures-util = { workspace = true }
 log = { workspace = true }
 reqwest = { workspace = true }
 chrono = { workspace = true }

@@ -1,11 +1,14 @@
 use anyhow::anyhow;
+use futures_util::stream::BoxStream;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_core::apply::{
     ApplyOutcome, ApplyParams, EndpointConfigReloader, apply_current_profile,
 };
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStreamEvent};
 use mihomo_api::client::MihomoClient;
 use mihomo_api::proxy::manager::ProxyManager;
 use infiltrator_domain::proxy::ProxyGroup;
@@ -270,6 +273,245 @@ impl MihomoRuntime {
         let content = tokio::fs::read_to_string(&self.config_path).await?;
         proxy_endpoint_from_config(&content)
     }
+}
+
+#[async_trait::async_trait]
+impl RuntimeGateway for MihomoRuntime {
+    async fn get_config(
+        &self,
+    ) -> Result<infiltrator_domain::runtime::ConfigSnapshot, PortError> {
+        self.client
+            .get_config()
+            .await
+            .map(Into::into)
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn patch_config(&self, updates: serde_json::Value) -> Result<(), PortError> {
+        self.client
+            .patch_config(updates)
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn set_proxy_mode(
+        &self,
+        mode: infiltrator_contract::command::ProxyMode,
+    ) -> Result<(), PortError> {
+        match self.application.execute(infiltrator_contract::command::CommandIntent::SetProxyMode { mode }).await {
+            infiltrator_contract::command::CommandResult::Completed { .. } => Ok(()),
+            infiltrator_contract::command::CommandResult::Rejected { failure, .. } => {
+                Err(PortError::Failed(failure.message))
+            }
+            infiltrator_contract::command::CommandResult::Accepted { .. } => Err(
+                PortError::Failed("proxy mode command unexpectedly returned Accepted".to_string()),
+            ),
+        }
+    }
+
+    async fn get_proxies(
+        &self,
+    ) -> Result<std::collections::HashMap<String, infiltrator_domain::proxy::Proxy>, PortError>
+    {
+        self.client
+            .get_proxies()
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn switch_proxy(&self, group: &str, proxy: &str) -> Result<(), PortError> {
+        self.client
+            .switch_proxy(group, proxy)
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn test_delay(
+        &self,
+        proxy: &str,
+        url: &str,
+        timeout_ms: u32,
+    ) -> Result<u32, PortError> {
+        self.client
+            .test_delay(proxy, url, timeout_ms)
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn get_proxy_providers(
+        &self,
+    ) -> Result<Vec<infiltrator_domain::runtime::ProxyProvider>, PortError> {
+        self.client
+            .get_proxy_providers()
+            .await
+            .map(|providers| providers.into_values().map(Into::into).collect())
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn get_rule_providers(
+        &self,
+    ) -> Result<Vec<infiltrator_domain::runtime::RuleProvider>, PortError> {
+        self.client
+            .get_rule_providers()
+            .await
+            .map(|providers| providers.into_values().map(Into::into).collect())
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn update_proxy_provider(&self, name: &str) -> Result<(), PortError> {
+        self.client
+            .update_proxy_provider(name)
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn update_rule_provider(&self, name: &str) -> Result<(), PortError> {
+        self.client
+            .update_rule_provider(name)
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
+        self.client
+            .flush_fakeip_cache()
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn get_connections(
+        &self,
+    ) -> Result<infiltrator_domain::runtime::ConnectionSnapshot, PortError> {
+        self.client
+            .get_connections()
+            .await
+            .map(Into::into)
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn get_memory(&self) -> Result<infiltrator_domain::runtime::MemoryData, PortError> {
+        self.client
+            .get_memory()
+            .await
+            .map(Into::into)
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn close_connection(&self, id: &str) -> Result<(), PortError> {
+        self.client
+            .close_connection(id)
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn close_all_connections(&self) -> Result<(), PortError> {
+        self.client
+            .close_all_connections()
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn stream_logs(
+        &self,
+        level: Option<String>,
+    ) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<String>, PortError> {
+        let receiver = self
+            .client
+            .stream_logs_events(level.as_deref())
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))?;
+        Ok(map_stream(receiver, |line| line))
+    }
+
+    async fn stream_traffic(
+        &self,
+    ) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<infiltrator_domain::runtime::TrafficData>, PortError>
+    {
+        let receiver = self
+            .client
+            .stream_traffic_events()
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))?;
+        Ok(map_stream(receiver, Into::into))
+    }
+
+    async fn stream_connections(
+        &self,
+    ) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<infiltrator_domain::runtime::ConnectionSnapshot>, PortError>
+    {
+        let receiver = self
+            .client
+            .stream_connections_events()
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))?;
+        Ok(map_stream(receiver, Into::into))
+    }
+
+}
+
+#[async_trait::async_trait]
+impl ManagedRuntime for MihomoRuntime {
+    fn generation(&self) -> u64 {
+        self.application.generation()
+    }
+
+    async fn http_proxy_endpoint(&self) -> Result<Option<String>, PortError> {
+        MihomoRuntime::http_proxy_endpoint(self)
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    async fn shutdown(&self) -> Result<(), PortError> {
+        MihomoRuntime::shutdown(self)
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    async fn apply_current_config(&self, strategy: ApplyStrategy) -> Result<u64, PortError> {
+        MihomoRuntime::apply_current_config(self, strategy)
+            .await
+            .map(|outcome| outcome.generation)
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    async fn apply_profile_content(
+        &self,
+        content: &str,
+        strategy: ApplyStrategy,
+    ) -> Result<u64, PortError> {
+        MihomoRuntime::apply_profile_content(self, content, strategy)
+            .await
+            .map(|outcome| outcome.generation)
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+}
+
+fn map_stream<T, U>(
+    receiver: tokio::sync::mpsc::UnboundedReceiver<mihomo_api::client::StreamEvent<T>>,
+    map_item: fn(T) -> U,
+) -> BoxStream<'static, RuntimeStreamEvent<U>>
+where
+    T: Send + 'static,
+    U: Send + 'static,
+{
+    Box::pin(futures_util::stream::unfold(
+        receiver,
+        move |mut receiver| async move {
+            let event = receiver.recv().await?;
+            let event = match event {
+                mihomo_api::client::StreamEvent::Connecting => RuntimeStreamEvent::Connecting,
+                mihomo_api::client::StreamEvent::Connected => RuntimeStreamEvent::Connected,
+                mihomo_api::client::StreamEvent::Item(item) => {
+                    RuntimeStreamEvent::Item(map_item(item))
+                }
+                mihomo_api::client::StreamEvent::Reconnecting(error) => {
+                    RuntimeStreamEvent::Reconnecting(error)
+                }
+                mihomo_api::client::StreamEvent::Failed(error) => RuntimeStreamEvent::Failed(error),
+            };
+            Some((event, receiver))
+        },
+    ))
 }
 
 fn proxy_endpoint_from_config(content: &str) -> anyhow::Result<Option<String>> {

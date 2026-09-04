@@ -32,16 +32,10 @@ impl AppState {
                 let lifecycle_token = self.runtime.lifecycle_token;
                 Task::perform(
                     async {
-                        let vm = VersionManager::new().map_err(
-                            |e: mihomo_api::error::MihomoError| {
-                                InfiltratorError::Mihomo(e.to_string())
-                            },
-                        )?;
-                        let data_dir = mihomo_platform::paths::get_home_dir().map_err(
-                            |e: mihomo_api::error::MihomoError| {
-                                InfiltratorError::Mihomo(e.to_string())
-                            },
-                        )?;
+                        let vm = VersionManager::new()
+                            .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
+                        let data_dir = mihomo_platform::paths::get_home_dir()
+                            .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
                         let candidates = vec![];
                         // Boot retry loop: up to 3 attempts with controller
                         // port rotation between attempts (ledger §1.2).

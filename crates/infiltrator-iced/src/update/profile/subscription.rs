@@ -7,6 +7,7 @@ use crate::types::message::Message;
 use chrono::Utc;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_shared::locales::Localizer;
 
 impl AppState {
@@ -179,10 +180,10 @@ impl AppState {
                         if let Some(runtime) = runtime
                             && current == profile_name
                         {
-                            runtime
-                                .apply_current_config(
-                                    infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
-                                )
+                            ManagedRuntime::apply_current_config(
+                                runtime.as_ref(),
+                                infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
+                            )
                                 .await
                                 .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
                             Ok(true)
@@ -253,10 +254,10 @@ impl AppState {
                             if profile.active {
                                 active_updated = true;
                                 if let Some(runtime) = runtime.as_ref() {
-                                    runtime
-                                        .apply_current_config(
-                                            infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
-                                        )
+                                    ManagedRuntime::apply_current_config(
+                                        runtime.as_ref(),
+                                        infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
+                                    )
                                         .await
                                         .map_err(|error| {
                                             InfiltratorError::Mihomo(error.to_string())
@@ -352,10 +353,10 @@ impl AppState {
                                     .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                                 if profile.active {
                                     if let Some(runtime) = runtime.as_ref() {
-                                        runtime
-                                            .apply_current_config(
-                                                infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
-                                            )
+                                            ManagedRuntime::apply_current_config(
+                                            runtime.as_ref(),
+                                            infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
+                                        )
                                             .await
                                             .map_err(|error| {
                                                 InfiltratorError::Mihomo(error.to_string())

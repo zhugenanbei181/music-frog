@@ -11,6 +11,7 @@ use iced::Task;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_desktop::runtime::MihomoRuntime;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use std::sync::Arc;
 
 pub(super) fn save_task<F>(
@@ -84,8 +85,7 @@ pub(crate) async fn save_profile_content(
     if let Some(runtime) = runtime
         && current == profile
     {
-        runtime
-            .apply_profile_content(&content, strategy)
+        ManagedRuntime::apply_profile_content(runtime.as_ref(), &content, strategy)
             .await
             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
     } else {
@@ -124,14 +124,18 @@ pub(crate) async fn activate_profile(
     let Some(runtime) = runtime else {
         return Ok(false);
     };
-    if let Err(error) = runtime
-        .apply_current_config(ApplyStrategy::AlwaysRestart)
-        .await
+    if let Err(error) = ManagedRuntime::apply_current_config(
+        runtime.as_ref(),
+        ApplyStrategy::AlwaysRestart,
+    )
+    .await
     {
         let _ = manager.set_current(&previous).await;
-        if let Err(recovery) = runtime
-            .apply_current_config(ApplyStrategy::AlwaysRestart)
-            .await
+        if let Err(recovery) = ManagedRuntime::apply_current_config(
+            runtime.as_ref(),
+            ApplyStrategy::AlwaysRestart,
+        )
+        .await
         {
             let _ = manager.clear_backup(profile).await;
             return Err(InfiltratorError::Mihomo(format!(

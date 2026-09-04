@@ -5,8 +5,8 @@ use crate::types::message::Message;
 use crate::types::runtime::{RuntimeStatus, RuntimeStreamKind, RuntimeStreamState};
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, stream, window};
-use infiltrator_desktop::runtime::MihomoRuntime;
-use mihomo_api::client::{MihomoClient, StreamEvent};
+use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStreamEvent};
+use futures_util::StreamExt;
 use std::hash::Hash;
 use std::sync::Arc;
 use std::time::Duration;
@@ -15,7 +15,7 @@ use std::time::Duration;
 struct RuntimeStreamInput {
     identity: usize,
     generation: u64,
-    client: MihomoClient,
+    gateway: Arc<dyn RuntimeGateway>,
     log_level: String,
 }
 
@@ -30,14 +30,14 @@ impl Hash for RuntimeStreamInput {
 /// Start the three controller streams as one declarative subscription. The
 /// identity is tied to the runtime Arc and CoreApplication generation, so a
 /// stopped/rebuilt core cancels all old receivers before a new one starts.
-pub(crate) fn runtime_streams_subscription(
-    runtime: &Arc<MihomoRuntime>,
-    log_level: &str,
-) -> Subscription<Message> {
+pub(crate) fn runtime_streams_subscription<R>(runtime: &Arc<R>, log_level: &str) -> Subscription<Message>
+where
+    R: ManagedRuntime + 'static,
+{
     let input = RuntimeStreamInput {
         identity: Arc::as_ptr(runtime) as *const () as usize,
-        generation: runtime.application().generation(),
-        client: runtime.client(),
+        generation: runtime.generation(),
+        gateway: runtime.clone(),
         log_level: log_level.to_string(),
     };
     Subscription::run_with(input, build_runtime_stream)
@@ -66,11 +66,11 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                 ));
 
                 let logs = input
-                    .client
-                    .stream_logs_events(Some(input.log_level.as_str()))
+                    .gateway
+                    .stream_logs(Some(input.log_level.clone()))
                     .await;
-                let traffic = input.client.stream_traffic_events().await;
-                let connections = input.client.stream_connections_events().await;
+                let traffic = input.gateway.stream_traffic().await;
+                let connections = input.gateway.stream_connections().await;
 
                 let (mut logs, mut traffic, mut connections) = match (logs, traffic, connections) {
                     (Ok(logs), Ok(traffic), Ok(connections)) => (logs, traffic, connections),
@@ -103,24 +103,24 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
 
                 loop {
                     tokio::select! {
-                        item = logs.recv() => match item {
-                            Some(StreamEvent::Item(line)) => {
+                        item = logs.next() => match item {
+                            Some(RuntimeStreamEvent::Item(line)) => {
                                 if output.try_send(Message::RuntimeStreamLogReceived(input.generation, line)).is_err() { return; }
                             }
-                            Some(StreamEvent::Connecting) => {
+                            Some(RuntimeStreamEvent::Connecting) => {
                                 if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
                             }
-                            Some(StreamEvent::Connected) => {
+                            Some(RuntimeStreamEvent::Connected) => {
                                 if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
                             }
-                            Some(StreamEvent::Reconnecting(error)) | Some(StreamEvent::Failed(error)) => {
+                            Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
                                 if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Failed(error))).is_err() { return; }
                                 if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
                             }
                             None => break,
                         },
-                        item = traffic.recv() => match item {
-                            Some(StreamEvent::Item(data)) => {
+                        item = traffic.next() => match item {
+                            Some(RuntimeStreamEvent::Item(data)) => {
                                 if output
                                     .try_send(Message::RuntimeStreamTrafficReceived(
                                         input.generation,
@@ -131,20 +131,20 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                                     return;
                                 }
                             }
-                            Some(StreamEvent::Connecting) => {
+                            Some(RuntimeStreamEvent::Connecting) => {
                                 if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
                             }
-                            Some(StreamEvent::Connected) => {
+                            Some(RuntimeStreamEvent::Connected) => {
                                 if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
                             }
-                            Some(StreamEvent::Reconnecting(error)) | Some(StreamEvent::Failed(error)) => {
+                            Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
                                 if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Failed(error))).is_err() { return; }
                                 if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
                             }
                             None => break,
                         },
-                        item = connections.recv() => match item {
-                            Some(StreamEvent::Item(snapshot)) => {
+                        item = connections.next() => match item {
+                            Some(RuntimeStreamEvent::Item(snapshot)) => {
                                 if output
                                     .try_send(Message::RuntimeStreamConnectionsReceived(
                                         input.generation,
@@ -155,13 +155,13 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                                     return;
                                 }
                             }
-                            Some(StreamEvent::Connecting) => {
+                            Some(RuntimeStreamEvent::Connecting) => {
                                 if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
                             }
-                            Some(StreamEvent::Connected) => {
+                            Some(RuntimeStreamEvent::Connected) => {
                                 if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
                             }
-                            Some(StreamEvent::Reconnecting(error)) | Some(StreamEvent::Failed(error)) => {
+                            Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
                                 if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Failed(error))).is_err() { return; }
                                 if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
                             }

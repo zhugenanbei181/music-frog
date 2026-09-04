@@ -8,6 +8,7 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::settings::{AppSettings, RuntimePanelConfig};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 pub(super) const DEFAULT_RUNTIME_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
 pub(super) const DEFAULT_RUNTIME_DELAY_TIMEOUT_MS: u32 = 5000;
@@ -254,10 +255,9 @@ impl AppState {
                     self.runtime.is_loading_proxies = true;
                     Task::perform(
                         async move {
-                            rt.client()
-                                .get_proxies()
+                            rt.get_proxies()
                                 .await
-                                .map_err(infiltrator_contract::error::from_mihomo)
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
                         Message::ProxiesLoaded,
                     )
@@ -282,10 +282,9 @@ impl AppState {
                 if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
-                            rt.client()
-                                .switch_proxy(&group, &name)
+                            rt.switch_proxy(&group, &name)
                                 .await
-                                .map_err(infiltrator_contract::error::from_mihomo)
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
                         |_| Message::LoadProxies,
                     )
@@ -521,11 +520,10 @@ impl AppState {
                     self.runtime.runtime_testing_delay_proxy = name.clone();
                     Task::perform(
                         async move {
-                            rt.client()
-                                .test_delay(&n, &test_url, timeout_ms)
+                            rt.test_delay(&n, &test_url, timeout_ms)
                                 .await
                                 .map(|d| d as u64)
-                                .map_err(infiltrator_contract::error::from_mihomo)
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
                         move |res| Message::ProxyTested(name, res),
                     )
@@ -568,14 +566,14 @@ impl AppState {
                                 std::time::Duration::from_millis(timeout_ms as u64),
                             );
                             let (_cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
-                            let client_arc = std::sync::Arc::new(rt.client());
+                            let gateway = rt.clone();
                             let outcomes = tester
                                 .test_proxies(
                                     members,
                                     move |proxy, url| {
-                                        let client = client_arc.clone();
+                                        let gateway = gateway.clone();
                                         async move {
-                                            client
+                                            gateway
                                                 .test_delay(&proxy, &url, timeout_ms)
                                                 .await
                                                 .map(|d| d as u64)
@@ -632,14 +630,14 @@ impl AppState {
                                 std::time::Duration::from_millis(timeout_ms as u64),
                             );
                             let (_cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
-                            let client_arc = std::sync::Arc::new(rt.client());
+                            let gateway = rt.clone();
                             let outcomes = tester
                                 .test_proxies(
                                     candidates,
                                     move |proxy, url| {
-                                        let client = client_arc.clone();
+                                        let gateway = gateway.clone();
                                         async move {
-                                            client
+                                            gateway
                                                 .test_delay(&proxy, &url, timeout_ms)
                                                 .await
                                                 .map(|d| d as u64)

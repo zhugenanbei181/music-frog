@@ -24,7 +24,7 @@ pub async fn get_audit_http<C: AdminApiContext>(
 ) -> Result<Json<AuditResponse>, ApiError> {
     let now = Utc::now().to_rfc3339();
 
-    let client = match state.ctx.runtime_client().await {
+    let gateway = match state.ctx.runtime_gateway().await {
         Ok(c) => c,
         Err(_) => {
             return Ok(Json(AuditResponse {
@@ -45,11 +45,15 @@ pub async fn get_audit_http<C: AdminApiContext>(
         }
     };
 
-    let connections_resp: ConnectionsResponse = client
+    let snapshot = gateway
         .get_connections()
         .await
-        .map(Into::into)
         .map_err(|e| ApiError::internal(format!("failed to get runtime connections: {e}")))?;
+    let connections_resp = ConnectionsResponse {
+        download_total: snapshot.download_total,
+        upload_total: snapshot.upload_total,
+        connections: snapshot.connections,
+    };
 
     let audit_result = analyze_connections_for_audit(
         &connections_resp.connections,

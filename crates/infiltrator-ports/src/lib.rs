@@ -12,6 +12,7 @@ pub mod endpoint;
 pub mod error;
 pub mod overview;
 pub mod secure_store;
+pub mod runtime_gateway;
 
 #[cfg(test)]
 mod tests {

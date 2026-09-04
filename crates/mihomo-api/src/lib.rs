@@ -6,6 +6,7 @@ pub mod overview;
 pub mod proxy;
 pub mod readiness;
 pub mod types;
+mod runtime_gateway;
 
 #[cfg(test)]
 mod error_test;

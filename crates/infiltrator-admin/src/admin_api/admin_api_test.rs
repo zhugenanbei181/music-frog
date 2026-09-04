@@ -15,6 +15,7 @@ mod tests {
     use mihomo_api::client::MihomoClient;
     use mihomo_platform::TEST_LOCK;
     use mihomo_platform::defaults::DefaultCredentialStore;
+    use infiltrator_ports::runtime_gateway::RuntimeGateway;
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt; // for `oneshot`, `ready`, and `call`
 
@@ -111,12 +112,13 @@ mod tests {
         async fn stop_runtime(&self) -> anyhow::Result<()> {
             Ok(())
         }
-        async fn runtime_client(&self) -> anyhow::Result<MihomoClient> {
+        async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
             let runtime_url = self
                 .runtime_url
                 .as_deref()
                 .ok_or_else(|| anyhow!("runtime url is not configured"))?;
-            MihomoClient::new(runtime_url, None).map_err(|e| anyhow!(e.to_string()))
+            let client = MihomoClient::new(runtime_url, None).map_err(|e| anyhow!(e.to_string()))?;
+            Ok(Arc::new(client))
         }
         async fn system_proxy_enabled(&self) -> bool {
             false

@@ -12,6 +12,7 @@ use crate::types::runtime::RebuildFlowState;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::rules::{self as domain_rules, RuleEntry};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 impl AppState {
     fn split_rule_parts(rule: &str) -> (String, String, String) {
@@ -272,12 +273,14 @@ impl AppState {
                 let mut tasks = vec![Task::perform(
                     async {
                         let manager = crate::configs_dir::config_manager().await?;
-                        let profile = manager.get_current().await.map_err(
-                            |e: mihomo_api::error::MihomoError| infiltrator_contract::error::from_mihomo(e),
-                        )?;
-                        let content = manager.load(&profile).await.map_err(
-                            |e: mihomo_api::error::MihomoError| infiltrator_contract::error::from_mihomo(e),
-                        )?;
+                        let profile = manager
+                            .get_current()
+                            .await
+                            .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
+                        let content = manager
+                            .load(&profile)
+                            .await
+                            .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
                         let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
@@ -317,18 +320,16 @@ impl AppState {
                     tasks.push(Task::perform(
                         async move {
                             let proxies = rt
-                                .client()
                                 .get_proxy_providers()
                                 .await
-                                .map_err(infiltrator_contract::error::from_mihomo)?;
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
                             let rules = rt
-                                .client()
                                 .get_rule_providers()
                                 .await
-                                .map_err(infiltrator_contract::error::from_mihomo)?;
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
                             Ok((
-                                proxies.into_values().map(Into::into).collect(),
-                                rules.into_values().map(Into::into).collect(),
+                                proxies,
+                                rules,
                             ))
                         },
                         Message::ProvidersLoaded,
@@ -560,10 +561,9 @@ impl AppState {
                 if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
-                            rt.client()
-                                .update_proxy_provider(&name)
+                            rt.update_proxy_provider(&name)
                                 .await
-                                .map_err(infiltrator_contract::error::from_mihomo)
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
                         Message::OperationResult,
                     )
@@ -575,10 +575,9 @@ impl AppState {
                 if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
-                            rt.client()
-                                .update_rule_provider(&name)
+                            rt.update_rule_provider(&name)
                                 .await
-                                .map_err(infiltrator_contract::error::from_mihomo)
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
                         Message::OperationResult,
                     )

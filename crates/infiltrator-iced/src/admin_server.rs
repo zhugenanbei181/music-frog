@@ -29,7 +29,7 @@ use infiltrator_admin::admin_api::state::AdminApiContext;
 use infiltrator_admin::servers::AdminServerHandle;
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use mihomo_api::client::MihomoClient;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mihomo_version::manager::VersionManager;
 
 use crate::state::AppState;
@@ -575,12 +575,12 @@ impl AdminApiContext for IcedAdminContext {
         Ok(())
     }
 
-    async fn runtime_client(&self) -> anyhow::Result<MihomoClient> {
+    async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
         let runtime = self
             .shared
             .runtime()
             .ok_or_else(|| anyhow!("内核未在运行"))?;
-        Ok(runtime.client())
+        Ok(runtime)
     }
 
     async fn system_proxy_enabled(&self) -> bool {

@@ -6,6 +6,7 @@ use crate::types::message::Message;
 use crate::types::runtime::{IpProbeResult, RuntimeStatus, RuntimeStreamKind, RuntimeStreamState};
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
 
 impl AppState {
     /// Kick one polling round: connections + memory always, proxies every
@@ -32,11 +33,9 @@ impl AppState {
             Task::perform(
                 async move {
                     rt_for_connections
-                        .client()
                         .get_connections()
                         .await
-                        .map(Into::into)
-                        .map_err(infiltrator_contract::error::from_mihomo)
+                        .map_err(|error| InfiltratorError::Internal(error.to_string()))
                 },
                 |result| match result {
                     Ok(snapshot) => Message::ConnectionsReceived(snapshot),
@@ -46,11 +45,9 @@ impl AppState {
             Task::perform(
                 async move {
                     rt_for_memory
-                        .client()
                         .get_memory()
                         .await
-                        .map(Into::into)
-                        .map_err(infiltrator_contract::error::from_mihomo)
+                        .map_err(|error| InfiltratorError::Internal(error.to_string()))
                 },
                 |result| match result {
                     Ok(memory) => Message::MemoryReceived(memory),
@@ -86,8 +83,7 @@ impl AppState {
                                 "内核未运行，无法探测代理出口 IP".to_string(),
                             )
                         })?;
-                        let endpoint = runtime
-                            .http_proxy_endpoint()
+                        let endpoint = ManagedRuntime::http_proxy_endpoint(runtime.as_ref())
                             .await
                             .map_err(|error| InfiltratorError::Internal(error.to_string()))?
                             .ok_or_else(|| {
@@ -283,10 +279,9 @@ impl AppState {
                 if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
-                            rt.client()
-                                .patch_config(serde_json::json!({ "log-level": level }))
+                            rt.patch_config(serde_json::json!({ "log-level": level }))
                                 .await
-                                .map_err(infiltrator_contract::error::from_mihomo)
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
                         Message::OperationResult,
                     )
@@ -298,10 +293,9 @@ impl AppState {
                 if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
-                            rt.client()
-                                .close_connection(&id)
+                            rt.close_connection(&id)
                                 .await
-                                .map_err(infiltrator_contract::error::from_mihomo)
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
                         Message::OperationResult,
                     )
@@ -313,10 +307,9 @@ impl AppState {
                 if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
-                            rt.client()
-                                .close_all_connections()
+                            rt.close_all_connections()
                                 .await
-                                .map_err(infiltrator_contract::error::from_mihomo)
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
                         Message::OperationResult,
                     )

@@ -313,3 +313,28 @@ impl From<RuleProvider> for infiltrator_domain::runtime::RuleProvider {
         }
     }
 }
+
+impl From<ConfigResponse> for infiltrator_domain::runtime::ConfigSnapshot {
+    fn from(value: ConfigResponse) -> Self {
+        Self {
+            mode: value.mode,
+            tun: value.tun.map(|tun| infiltrator_domain::runtime::TunSnapshot {
+                enable: tun.enable,
+                stack: tun.stack,
+                auto_route: tun.auto_route,
+                strict_route: tun.strict_route,
+            }),
+            dns: value.dns.map(|dns| infiltrator_domain::runtime::DnsSnapshot {
+                nameserver: dns.nameserver,
+                fallback: dns.fallback.unwrap_or_default(),
+                enhanced_mode: dns.enhanced_mode,
+            }),
+            sniffer: value
+                .sniffer
+                .map(|sniffer| infiltrator_domain::runtime::SnifferSnapshot {
+                    enable: sniffer.enable,
+                }),
+            script: value.script,
+        }
+    }
+}

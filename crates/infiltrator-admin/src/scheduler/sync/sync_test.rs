@@ -4,8 +4,9 @@ mod tests {
     use crate::admin_api::state::AdminApiContext;
     use anyhow::anyhow;
     use infiltrator_domain::settings::{AppSettings, WebDavConfig};
-    use mihomo_api::client::MihomoClient;
     use mihomo_platform::TEST_LOCK;
+    use infiltrator_ports::runtime_gateway::RuntimeGateway;
+    use std::sync::Arc;
 
     #[derive(Clone)]
     struct MockContext;
@@ -52,7 +53,7 @@ mod tests {
         async fn stop_runtime(&self) -> anyhow::Result<()> {
             Ok(())
         }
-        async fn runtime_client(&self) -> anyhow::Result<MihomoClient> {
+        async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
             Err(anyhow!("runtime client is not available in sync tests"))
         }
         async fn system_proxy_enabled(&self) -> bool {

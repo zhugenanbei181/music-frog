@@ -8,14 +8,15 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true }
 chrono = { workspace = true }
+futures-util = { workspace = true }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-http = { path = "../infiltrator-http" }
+infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 log = { workspace = true }
 mihomo-config = { path = "../mihomo-config" }
-mihomo-api = { path = "../mihomo-api" }
 mihomo-platform = { path = "../mihomo-platform" }
 mihomo-version = { path = "../mihomo-version" }
 serde = { workspace = true }
@@ -29,5 +30,6 @@ tower = { version = "0.5", features = ["util"] }
 url = { workspace = true }
 
 [dev-dependencies]
+mihomo-api = { path = "../mihomo-api" }
 tempfile = { workspace = true }
 mockito = { workspace = true }

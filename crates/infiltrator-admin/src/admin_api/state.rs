@@ -7,7 +7,7 @@ use std::{
 };
 
 use infiltrator_http::{HttpClient, build_http_client, build_raw_http_client};
-use mihomo_api::client::MihomoClient;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 use super::events::AdminEventBus;
 use super::models::{RebuildStatusResponse, RuntimeTrafficSnapshotResponse};
@@ -44,7 +44,7 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn runtime_running(&self) -> bool;
     async fn runtime_controller_url(&self) -> Option<String>;
     async fn stop_runtime(&self) -> anyhow::Result<()>;
-    async fn runtime_client(&self) -> anyhow::Result<MihomoClient>;
+    async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>>;
     async fn system_proxy_enabled(&self) -> bool;
     async fn set_system_proxy_enabled(&self, enabled: bool) -> anyhow::Result<()>;
     async fn autostart_enabled(&self) -> bool;

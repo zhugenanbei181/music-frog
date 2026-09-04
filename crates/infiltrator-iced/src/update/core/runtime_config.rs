@@ -5,9 +5,10 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::{RuntimeConfig, RuntimePatchSnapshot};
 use iced::Task;
-use infiltrator_contract::command::{CommandIntent, CommandResult, ProxyMode};
+use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_desktop::tun_service::{ServiceModeStatus, TunServiceManager};
+use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
 use infiltrator_shared::locales::Localizer;
 
 impl AppState {
@@ -62,15 +63,14 @@ impl AppState {
             return Task::none();
         };
         let token = self.begin_runtime_patch();
-        let generation = rt.application().generation();
+        let generation = rt.generation();
         self.runtime.tun_enabled = Some(enabled);
         self.refresh_tray();
         Task::perform(
             async move {
-                rt.client()
-                    .patch_config(serde_json::json!({ "tun": { "enable": enabled } }))
+                rt.patch_config(serde_json::json!({ "tun": { "enable": enabled } }))
                     .await
-                    .map_err(infiltrator_contract::error::from_mihomo)
+                    .map_err(|error| InfiltratorError::Internal(error.to_string()))
             },
             move |result| Message::RuntimePatchResult(result, token, generation),
         )
@@ -116,14 +116,13 @@ impl AppState {
         match message {
             Message::FetchRuntimeConfig => {
                 if let Some(rt) = self.runtime.runtime.clone() {
-                    let generation = rt.application().generation();
+                    let generation = rt.generation();
                     Task::perform(
                         async move {
                             let config = rt
-                                .client()
                                 .get_config()
                                 .await
-                                .map_err(infiltrator_contract::error::from_mihomo)?;
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
                             let mode = config.mode;
                             let (tun_en, tun_st, tun_ar, tun_sr) = config
                                 .tun
@@ -134,7 +133,7 @@ impl AppState {
                                 .map(|d| {
                                     (
                                         d.nameserver,
-                                        d.fallback.unwrap_or_default(),
+                                        d.fallback,
                                         d.enhanced_mode,
                                     )
                                 })
@@ -208,24 +207,14 @@ impl AppState {
                     ));
                 };
                 let token = self.begin_runtime_patch();
-                let generation = rt.application().generation();
+                let generation = rt.generation();
                 self.runtime.proxy_mode = Some(mode.clone());
                 self.refresh_tray();
-                let application = rt.application();
                 Task::perform(
                     async move {
-                        match application
-                            .execute(CommandIntent::SetProxyMode { mode: proxy_mode })
+                        rt.set_proxy_mode(proxy_mode)
                             .await
-                        {
-                            CommandResult::Completed { .. } => Ok(()),
-                            CommandResult::Rejected { failure, .. } => {
-                                Err(InfiltratorError::Mihomo(failure.message))
-                            }
-                            CommandResult::Accepted { .. } => Err(InfiltratorError::Internal(
-                                "同步命令不应返回 Accepted".to_string(),
-                            )),
-                        }
+                            .map_err(|error| InfiltratorError::Internal(error.to_string()))
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )
@@ -352,14 +341,13 @@ impl AppState {
                     return self.runtime_unavailable("修改 TUN 堆栈");
                 };
                 let token = self.begin_runtime_patch();
-                let generation = rt.application().generation();
+                let generation = rt.generation();
                 self.editor.tun_stack = stack.clone();
                 Task::perform(
                     async move {
-                        rt.client()
-                            .patch_config(serde_json::json!({ "tun": { "stack": stack } }))
+                        rt.patch_config(serde_json::json!({ "tun": { "stack": stack } }))
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)
+                            .map_err(|error| InfiltratorError::Internal(error.to_string()))
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )
@@ -369,14 +357,13 @@ impl AppState {
                     return self.runtime_unavailable("修改 TUN 自动路由");
                 };
                 let token = self.begin_runtime_patch();
-                let generation = rt.application().generation();
+                let generation = rt.generation();
                 self.editor.tun_auto_route = enabled;
                 Task::perform(
                     async move {
-                        rt.client()
-                            .patch_config(serde_json::json!({ "tun": { "auto-route": enabled } }))
+                        rt.patch_config(serde_json::json!({ "tun": { "auto-route": enabled } }))
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)
+                            .map_err(|error| InfiltratorError::Internal(error.to_string()))
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )
@@ -386,14 +373,13 @@ impl AppState {
                     return self.runtime_unavailable("修改 TUN 严格路由");
                 };
                 let token = self.begin_runtime_patch();
-                let generation = rt.application().generation();
+                let generation = rt.generation();
                 self.editor.tun_strict_route = enabled;
                 Task::perform(
                     async move {
-                        rt.client()
-                            .patch_config(serde_json::json!({ "tun": { "strict-route": enabled } }))
+                        rt.patch_config(serde_json::json!({ "tun": { "strict-route": enabled } }))
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)
+                            .map_err(|error| InfiltratorError::Internal(error.to_string()))
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )
@@ -403,14 +389,13 @@ impl AppState {
                     return self.runtime_unavailable("修改嗅探器状态");
                 };
                 let token = self.begin_runtime_patch();
-                let generation = rt.application().generation();
+                let generation = rt.generation();
                 self.editor.sniffer_enabled = enabled;
                 Task::perform(
                     async move {
-                        rt.client()
-                            .patch_config(serde_json::json!({ "sniffer": { "enable": enabled } }))
+                        rt.patch_config(serde_json::json!({ "sniffer": { "enable": enabled } }))
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)
+                            .map_err(|error| InfiltratorError::Internal(error.to_string()))
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )

@@ -11,6 +11,7 @@ use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 impl AppState {
     pub(super) fn ensure_dns_editor_loaded(&mut self) {
@@ -547,10 +548,9 @@ impl AppState {
                 if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
-                            rt.client()
-                                .flush_fakeip_cache()
+                            rt.flush_fakeip_cache()
                                 .await
-                                .map_err(infiltrator_contract::error::from_mihomo)
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
                         Message::OperationResult,
                     )

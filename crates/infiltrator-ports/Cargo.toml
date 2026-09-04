@@ -7,5 +7,7 @@ description = "Runtime-neutral outbound ports for MusicFrog Infiltrator applicat
 
 [dependencies]
 async-trait = { workspace = true }
+futures-util = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
-
+infiltrator-domain = { path = "../infiltrator-domain" }
+serde_json = { workspace = true }

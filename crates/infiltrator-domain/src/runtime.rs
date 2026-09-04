@@ -6,6 +6,35 @@
 
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct ConfigSnapshot {
+    pub mode: String,
+    pub tun: Option<TunSnapshot>,
+    pub dns: Option<DnsSnapshot>,
+    pub sniffer: Option<SnifferSnapshot>,
+    pub script: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct TunSnapshot {
+    pub enable: bool,
+    pub stack: String,
+    pub auto_route: bool,
+    pub strict_route: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct DnsSnapshot {
+    pub nameserver: Vec<String>,
+    pub fallback: Vec<String>,
+    pub enhanced_mode: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct SnifferSnapshot {
+    pub enable: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct TrafficData {
     pub up: u64,

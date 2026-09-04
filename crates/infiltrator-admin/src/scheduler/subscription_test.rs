@@ -16,11 +16,11 @@ mod tests {
     use infiltrator_domain::settings::AppSettings;
     use infiltrator_domain::subscription::mask_subscription_url;
     use infiltrator_http::HttpClient;
-    use mihomo_api::client::MihomoClient;
     use mihomo_config::manager::ConfigManager;
     use mihomo_config::profile::Profile;
     use mihomo_platform::TEST_LOCK;
     use mihomo_platform::defaults::DefaultCredentialStore;
+    use infiltrator_ports::runtime_gateway::RuntimeGateway;
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
@@ -79,7 +79,7 @@ mod tests {
         async fn stop_runtime(&self) -> anyhow::Result<()> {
             Ok(())
         }
-        async fn runtime_client(&self) -> anyhow::Result<MihomoClient> {
+        async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
             Err(anyhow!(
                 "runtime client is not available in subscription tests"
             ))

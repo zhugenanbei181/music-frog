@@ -110,12 +110,14 @@ impl AppState {
                 Task::perform(
                     async {
                         let manager = crate::configs_dir::config_manager().await?;
-                        let profile = manager.get_current().await.map_err(
-                            |e: mihomo_api::error::MihomoError| infiltrator_contract::error::from_mihomo(e),
-                        )?;
-                        let content = manager.load(&profile).await.map_err(
-                            |e: mihomo_api::error::MihomoError| infiltrator_contract::error::from_mihomo(e),
-                        )?;
+                        let profile = manager
+                            .get_current()
+                            .await
+                            .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
+                        let content = manager
+                            .load(&profile)
+                            .await
+                            .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
                         let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
