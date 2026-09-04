@@ -37,6 +37,7 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::host_runtime::HostRuntime;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::port::is_port_available;
 use mihomo_version::manager::VersionManager;
@@ -154,6 +155,18 @@ pub async fn bootstrap_with_retry(
         BootRetryOptions::default(),
     )
     .await
+}
+
+/// Boot the desktop host and return only the inbound-safe runtime port.
+/// Concrete `MihomoRuntime` ownership remains inside this composition module.
+pub async fn bootstrap_host_runtime(
+    vm: &VersionManager,
+    use_bundled: bool,
+    bundled_candidates: &[PathBuf],
+    data_dir: &Path,
+) -> anyhow::Result<(Arc<dyn HostRuntime>, bool)> {
+    let outcome = bootstrap_with_retry(vm, use_bundled, bundled_candidates, data_dir).await?;
+    Ok((Arc::new(outcome.runtime), outcome.rotated))
 }
 
 /// [`bootstrap_with_retry`] with explicit retry behavior (tests, rebuild

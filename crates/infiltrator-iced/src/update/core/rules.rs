@@ -12,7 +12,6 @@ use crate::types::runtime::RebuildFlowState;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::rules::{self as domain_rules, RuleEntry};
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 impl AppState {
     fn split_rule_parts(rule: &str) -> (String, String, String) {

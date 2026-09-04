@@ -6,7 +6,7 @@ use crate::types::message::Message;
 use crate::types::runtime::{IpProbeResult, RuntimeStatus, RuntimeStreamKind, RuntimeStreamState};
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
 
 impl AppState {
     /// Kick one polling round: connections + memory always, proxies every

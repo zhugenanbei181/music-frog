@@ -7,6 +7,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::{Task, stream};
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_shared::locales::Localizer;
 use mihomo_version::channel::{Channel, fetch_latest};
 use mihomo_version::manager::VersionManager;
@@ -235,7 +236,10 @@ impl AppState {
                 Task::perform(
                     async move {
                         if let Some(runtime) = runtime {
-                            tokio::time::timeout(Duration::from_secs(5), runtime.shutdown())
+                            tokio::time::timeout(
+                                Duration::from_secs(5),
+                                ManagedRuntime::shutdown(runtime.as_ref()),
+                            )
                                 .await
                                 .map_err(|_| {
                                     InfiltratorError::Internal(

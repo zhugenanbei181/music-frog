@@ -177,7 +177,7 @@ mod tests {
             }"#,
         )
         .unwrap();
-        assert!(config.tun.unwrap().strict_route == false);
+        assert!(!config.tun.unwrap().strict_route);
 
         let connections: crate::types::ConnectionsResponse =
             serde_json::from_str(r#"{"downloadTotal": 0, "uploadTotal": 0, "connections": null}"#)

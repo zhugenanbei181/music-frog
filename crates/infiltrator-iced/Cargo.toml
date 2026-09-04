@@ -39,7 +39,6 @@ infiltrator-desktop = { path = "../infiltrator-desktop" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-admin = { path = "../infiltrator-admin" }
 mihomo-version = { path = "../mihomo-version" }
-mihomo-config = { path = "../mihomo-config" }
 mihomo-platform = { path = "../mihomo-platform" }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
 sync-engine = { path = "../mihomo-dav-sync/sync-engine" }

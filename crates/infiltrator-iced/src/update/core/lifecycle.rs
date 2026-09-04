@@ -6,10 +6,10 @@ use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_shared::autostart;
 use infiltrator_shared::locales::Localizer;
 use mihomo_version::manager::VersionManager;
-use std::sync::Arc;
 
 impl AppState {
     pub fn cancel_all_tasks(&mut self) {
@@ -39,7 +39,7 @@ impl AppState {
                         let candidates = vec![];
                         // Boot retry loop: up to 3 attempts with controller
                         // port rotation between attempts (ledger §1.2).
-                        let outcome = infiltrator_desktop::boot::bootstrap_with_retry(
+                        let outcome = infiltrator_desktop::boot::bootstrap_host_runtime(
                             &vm,
                             true,
                             &candidates,
@@ -58,7 +58,7 @@ impl AppState {
                                 InfiltratorError::Mihomo(e.to_string())
                             }
                         })?;
-                        Ok((Arc::new(outcome.runtime), outcome.rotated))
+                        Ok(outcome)
                     },
                     move |result| Message::ProxyStarted(result, lifecycle_token),
                 )
@@ -70,7 +70,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         if let Some(r) = rt {
-                            let _ = r.shutdown().await;
+                            let _ = ManagedRuntime::shutdown(r.as_ref()).await;
                         }
                     },
                     |_| Message::ProxyStopped,
@@ -81,7 +81,7 @@ impl AppState {
                     if let Ok((runtime, _)) = result {
                         return Task::perform(
                             async move {
-                                let _ = runtime.shutdown().await;
+                                let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
                             },
                             |_| Message::Noop,
                         );
@@ -103,7 +103,7 @@ impl AppState {
                                 format!(
                                     "{} {}",
                                     lang.tr("toast_port_rotated"),
-                                    runtime.controller_url
+                                    runtime.controller_url()
                                 ),
                                 crate::types::app::ToastStatus::Warning,
                             )));

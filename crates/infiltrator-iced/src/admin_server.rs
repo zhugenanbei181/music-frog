@@ -28,8 +28,8 @@ use iced::{Subscription, Task, stream};
 use infiltrator_admin::admin_api::state::AdminApiContext;
 use infiltrator_admin::servers::AdminServerHandle;
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
-use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::host_runtime::HostRuntime;
+use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
 use mihomo_version::manager::VersionManager;
 
 use crate::state::AppState;
@@ -92,7 +92,7 @@ pub fn plan_admin_server_action(
 #[derive(Clone)]
 pub enum AdminHostCommand {
     /// A context-driven `rebuild_runtime` finished; resync the UI runtime.
-    RuntimeResynced(Result<Arc<infiltrator_desktop::runtime::MihomoRuntime>, String>),
+    RuntimeResynced(Result<Arc<dyn HostRuntime>, String>),
     /// A context-driven `stop_runtime` finished; clear the UI runtime.
     RuntimeStopped,
     /// Surface a toast (e.g. subscription update notifications).
@@ -153,7 +153,7 @@ pub struct AdminSharedRuntime {
 }
 
 struct SharedInner {
-    runtime: Mutex<Option<Arc<infiltrator_desktop::runtime::MihomoRuntime>>>,
+    runtime: Mutex<Option<Arc<dyn HostRuntime>>>,
     commands: std::sync::mpsc::Sender<AdminHostCommand>,
     events: infiltrator_admin::admin_api::events::AdminEventBus,
 }
@@ -176,7 +176,7 @@ impl AdminSharedRuntime {
         self.inner.events.clone()
     }
 
-    pub fn set_runtime(&self, runtime: Option<Arc<infiltrator_desktop::runtime::MihomoRuntime>>) {
+    pub fn set_runtime(&self, runtime: Option<Arc<dyn HostRuntime>>) {
         *self
             .inner
             .runtime
@@ -184,7 +184,7 @@ impl AdminSharedRuntime {
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = runtime;
     }
 
-    pub fn take_runtime(&self) -> Option<Arc<infiltrator_desktop::runtime::MihomoRuntime>> {
+    pub fn take_runtime(&self) -> Option<Arc<dyn HostRuntime>> {
         self.inner
             .runtime
             .lock()
@@ -192,7 +192,7 @@ impl AdminSharedRuntime {
             .take()
     }
 
-    pub fn runtime(&self) -> Option<Arc<infiltrator_desktop::runtime::MihomoRuntime>> {
+    pub fn runtime(&self) -> Option<Arc<dyn HostRuntime>> {
         self.inner
             .runtime
             .lock()
@@ -416,15 +416,13 @@ async fn save_settings_to_disk(
 impl AdminApiContext for IcedAdminContext {
     async fn rebuild_runtime(&self) -> anyhow::Result<()> {
         if let Some(runtime) = self.shared.take_runtime() {
-            let _ = runtime.shutdown().await;
+            let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
         }
         let vm = VersionManager::new().map_err(|e| anyhow!(e.to_string()))?;
         let data_dir =
             mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
-        let rebuilt = Arc::new(
-            infiltrator_desktop::runtime::MihomoRuntime::bootstrap(&vm, true, &[], &data_dir)
-                .await?,
-        );
+        let (rebuilt, _rotated) =
+            infiltrator_desktop::boot::bootstrap_host_runtime(&vm, true, &[], &data_dir).await?;
         self.shared.set_runtime(Some(rebuilt.clone()));
         self.shared
             .send(AdminHostCommand::RuntimeResynced(Ok(rebuilt)));
@@ -438,8 +436,7 @@ impl AdminApiContext for IcedAdminContext {
         let Some(runtime) = self.shared.runtime() else {
             return self.rebuild_runtime().await;
         };
-        let application = runtime.application();
-        CoreLifecyclePort::restart(application.as_ref())
+        ManagedRuntime::restart(runtime.as_ref())
             .await
             .map_err(|e| anyhow!(e.to_string()))?;
         self.shared
@@ -550,7 +547,7 @@ impl AdminApiContext for IcedAdminContext {
 
     async fn runtime_running(&self) -> bool {
         match self.shared.runtime() {
-            Some(runtime) => runtime.is_running().await,
+            Some(runtime) => ManagedRuntime::is_running(runtime.as_ref()).await,
             None => false,
         }
     }
@@ -558,12 +555,12 @@ impl AdminApiContext for IcedAdminContext {
     async fn runtime_controller_url(&self) -> Option<String> {
         self.shared
             .runtime()
-            .map(|runtime| runtime.controller_url.clone())
+            .map(|runtime| runtime.controller_url())
     }
 
     async fn stop_runtime(&self) -> anyhow::Result<()> {
         if let Some(runtime) = self.shared.take_runtime() {
-            let _ = runtime.shutdown().await;
+            let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
         }
         if infiltrator_desktop::proxy::read_system_proxy_state()
             .map(|state| state.enabled)
@@ -595,8 +592,7 @@ impl AdminApiContext for IcedAdminContext {
                 .shared
                 .runtime()
                 .ok_or_else(|| anyhow!("内核未在运行"))?;
-            let endpoint = runtime
-                .http_proxy_endpoint()
+            let endpoint = ManagedRuntime::http_proxy_endpoint(runtime.as_ref())
                 .await?
                 .ok_or_else(|| anyhow!("当前配置中未配置代理端口（port/mixed-port）"))?;
             infiltrator_desktop::proxy::apply_system_proxy(Some(&endpoint))?;
@@ -725,7 +721,7 @@ impl AppState {
     /// (or [`Self::take_app_runtime`]) so the REST context sees the live one.
     pub(crate) fn sync_runtime_slot(
         &mut self,
-        runtime: Option<std::sync::Arc<infiltrator_desktop::runtime::MihomoRuntime>>,
+        runtime: Option<std::sync::Arc<dyn HostRuntime>>,
     ) {
         let runtime_changed = match (&self.runtime.runtime, &runtime) {
             (Some(previous), Some(next)) => !std::sync::Arc::ptr_eq(previous, next),
@@ -742,7 +738,7 @@ impl AppState {
         }
         self.runtime.runtime_generation = runtime
             .as_ref()
-            .map(|runtime| runtime.application().generation())
+            .map(|runtime| runtime.generation())
             .unwrap_or_else(|| self.runtime.runtime_generation.saturating_add(1));
         self.runtime.tun_service_status =
             runtime.as_ref().map(|runtime| runtime.tun_service_status());
@@ -755,7 +751,7 @@ impl AppState {
     /// Take the runtime for shutdown/teardown, clearing the shared snapshot.
     pub(crate) fn take_app_runtime(
         &mut self,
-    ) -> Option<std::sync::Arc<infiltrator_desktop::runtime::MihomoRuntime>> {
+    ) -> Option<std::sync::Arc<dyn HostRuntime>> {
         let taken = self.runtime.runtime.take();
         self.runtime.runtime_generation = self.runtime.runtime_generation.saturating_add(1);
         self.runtime.runtime_patch_token = self.runtime.runtime_patch_token.wrapping_add(1);

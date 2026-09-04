@@ -17,7 +17,7 @@ use infiltrator_domain::runtime::{
     ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
 use infiltrator_domain::snapshots::SnapshotMeta;
-use infiltrator_desktop::runtime::MihomoRuntime;
+use infiltrator_ports::host_runtime::HostRuntime;
 use mihomo_version::manager::VersionInfo;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -38,7 +38,7 @@ pub enum Message {
     StopProxy,
     /// Core boot result; the bool reports whether the external-controller
     /// port had to be rotated during the boot retry loop.
-    ProxyStarted(Result<(Arc<MihomoRuntime>, bool), InfiltratorError>, u64),
+    ProxyStarted(Result<(Arc<dyn HostRuntime>, bool), InfiltratorError>, u64),
     ProxyStopped,
     SettingsLoaded(Result<AppSettings, InfiltratorError>),
     LoadProfiles,
@@ -137,7 +137,7 @@ pub enum Message {
     InstallTunService,
     RefreshTunServiceStatus,
     TunServiceStatusLoaded(
-        Result<infiltrator_desktop::tun_service::ServiceModeStatus, InfiltratorError>,
+        Result<infiltrator_ports::host_runtime::TunServiceStatus, InfiltratorError>,
     ),
     TunServiceInstalled(Result<(), InfiltratorError>),
     SetTunStack(String),
@@ -367,7 +367,7 @@ pub enum Message {
     ShowWindow,
     UpdateRuntimeAutoRefresh(bool),
     RuntimePanelSettingsSaved(Result<(), InfiltratorError>),
-    RuntimeRebuildFinished(Result<Arc<MihomoRuntime>, InfiltratorError>),
+    RuntimeRebuildFinished(Result<Arc<dyn HostRuntime>, InfiltratorError>),
     ClearRebuildFlow,
     TogglePerfPanel,
     ToggleTheme,

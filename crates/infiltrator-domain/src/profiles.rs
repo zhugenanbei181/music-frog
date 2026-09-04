@@ -8,6 +8,19 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct ProfileMetadata {
+    pub subscription_url: Option<String>,
+    pub auto_update_enabled: bool,
+    pub update_interval_hours: Option<u32>,
+    pub last_updated: Option<DateTime<Utc>>,
+    pub next_update: Option<DateTime<Utc>>,
+    pub traffic_upload: Option<u64>,
+    pub traffic_download: Option<u64>,
+    pub traffic_total: Option<u64>,
+    pub expire_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct ProfileInfo {
     pub name: String,
     pub active: bool,

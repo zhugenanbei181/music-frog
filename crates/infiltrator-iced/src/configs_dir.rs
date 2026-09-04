@@ -1,46 +1,26 @@
-//! configs 目录重定向的统一构造入口：把 settings 的 `configs_dir` 字段喂给
-//! `ConfigManager`，供所有 update/app 路径复用。
+//! Profile persistence and configs-directory port access for the Iced host.
 //!
-//! 约束：解析优先级为 `INFILTRATOR_CONFIGS_DIR` env、`AppSettings.configs_dir`、
-//! `<home>/configs` 依次回退，前两级比较在 `mihomo-config` 内部完成；settings
-//! 读不到（无 home、路径推导失败、文件损坏）时按未设置处理。
+//! The concrete ConfigManager, keyring and settings resolution stay behind
+//! the core adapter; this module exposes only the port object to UI handlers.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_core::settings_io as settings;
-use mihomo_config::manager::ConfigManager;
-use mihomo_platform::defaults::DefaultCredentialStore;
-use mihomo_platform::paths::get_home_dir;
+use infiltrator_ports::profile_store::ProfileStore;
 
-/// settings 的 `configs_dir` 覆盖；任何读取失败一律回退 `None`。
-async fn settings_configs_dir() -> Option<String> {
-    let home = mihomo_platform::paths::get_home_dir().ok()?;
-    let path = settings::settings_path(&home).ok()?;
-    let settings = settings::load_settings(&path)
+/// Construct the host's profile persistence port.
+pub async fn config_manager() -> Result<Arc<dyn ProfileStore>, InfiltratorError> {
+    infiltrator_core::profile_store_io::open()
         .await
-        .ok()?;
-    settings.configs_dir
-}
-
-/// 构造感知 settings `configs_dir` 的 [`ConfigManager`]（env 优先级不变）。
-pub async fn config_manager() -> Result<ConfigManager<DefaultCredentialStore>, InfiltratorError> {
-    let home = get_home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
-    let configs_dir = settings_configs_dir().await;
-    ConfigManager::with_home_configs_dir_and_store(
-        home,
-        configs_dir.as_deref(),
-        DefaultCredentialStore::default(),
-    )
-    .map_err(infiltrator_contract::error::from_mihomo)
+        .map_err(|error| InfiltratorError::Config(error.to_string()))
 }
 
 /// 解析后的 configs 目录（env > settings 字段 > `<home>/configs`），供
 /// profile_options / 快照 / MRS 扫描等需要目录本身（而非 manager）的路径用，
 /// 避免与 [`config_manager`] 的解析结果分叉。
 pub async fn configs_dir() -> Result<PathBuf, InfiltratorError> {
-    let home = get_home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
-    let configs_dir = settings_configs_dir().await;
-    mihomo_config::manager::paths::resolve_configs_dir_in(configs_dir.as_deref(), &home)
-        .map_err(infiltrator_contract::error::from_mihomo)
+    infiltrator_core::profile_store_io::config_dir()
+        .await
+        .map_err(|error| InfiltratorError::Config(error.to_string()))
 }

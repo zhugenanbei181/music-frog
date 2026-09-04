@@ -8,7 +8,6 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::settings::{AppSettings, RuntimePanelConfig};
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 pub(super) const DEFAULT_RUNTIME_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
 pub(super) const DEFAULT_RUNTIME_DELAY_TIMEOUT_MS: u32 = 5000;

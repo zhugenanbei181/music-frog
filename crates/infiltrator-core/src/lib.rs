@@ -11,6 +11,7 @@ pub mod fake_ip_io;
 pub mod flow_control;
 pub mod history;
 pub mod profile_options_io;
+pub mod profile_store_io;
 pub mod profiles;
 pub mod proxy_providers_io;
 pub mod rules_io;

@@ -8,8 +8,8 @@ use crate::types::message::Message;
 use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use mihomo_version::manager::VersionManager;
-use std::sync::Arc;
 
 impl AppState {
     fn active_rebuild_label(&self) -> String {
@@ -76,7 +76,7 @@ impl AppState {
 
         Task::perform(
             async move {
-                let _ = runtime.shutdown().await;
+                let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
                 let manager = crate::configs_dir::config_manager().await?;
                 let profile = manager
                     .get_current()
@@ -86,7 +86,7 @@ impl AppState {
                 let data_dir =
                     mihomo_platform::paths::get_home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
                 let candidates = vec![];
-                match infiltrator_desktop::boot::bootstrap_with_retry(
+                match infiltrator_desktop::boot::bootstrap_host_runtime(
                     &vm,
                     true,
                     &candidates,
@@ -94,12 +94,12 @@ impl AppState {
                 )
                 .await
                 {
-                    Ok(outcome) => {
+                        Ok((runtime, _rotated)) => {
                         manager
                             .clear_backup(&profile)
                             .await
                             .map_err(infiltrator_contract::error::from_mihomo)?;
-                        Ok(Arc::new(outcome.runtime))
+                            Ok(runtime)
                     }
                     Err(cause) => {
                         let restored = manager

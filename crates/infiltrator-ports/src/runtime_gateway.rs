@@ -63,6 +63,8 @@ pub trait RuntimeGateway: Send + Sync {
 #[async_trait]
 pub trait ManagedRuntime: RuntimeGateway {
     fn generation(&self) -> u64;
+    async fn is_running(&self) -> bool;
+    async fn restart(&self) -> Result<u64, PortError>;
     async fn http_proxy_endpoint(&self) -> Result<Option<String>, PortError>;
     async fn shutdown(&self) -> Result<(), PortError>;
     async fn apply_current_config(&self, strategy: ApplyStrategy) -> Result<u64, PortError>;

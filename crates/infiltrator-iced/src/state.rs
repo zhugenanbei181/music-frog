@@ -28,8 +28,7 @@ use infiltrator_domain::runtime::{
     ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
 use infiltrator_domain::snapshots::SnapshotMeta;
-use infiltrator_desktop::runtime::MihomoRuntime;
-use infiltrator_desktop::tun_service::ServiceModeStatus;
+use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use mihomo_version::manager::VersionInfo;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -39,7 +38,7 @@ use std::time::Instant;
 /// 内核运行时域:内核进程句柄、生命周期状态、代理模式/系统代理/自启、
 /// 节点与分组运行控制、批量测速与内核版本管理(UI-002)。
 pub struct RuntimeState {
-    pub runtime: Option<Arc<MihomoRuntime>>,
+    pub runtime: Option<Arc<dyn HostRuntime>>,
     pub runtime_generation: u64,
     pub lifecycle_token: u64,
     pub status: RuntimeStatus,
@@ -69,7 +68,7 @@ pub struct RuntimeState {
     /// (`GET /configs` → `script`). Gates the Script mode entry points.
     pub script_block_present: bool,
     pub tun_enabled: Option<bool>,
-    pub tun_service_status: Option<ServiceModeStatus>,
+    pub tun_service_status: Option<TunServiceStatus>,
     pub is_installing_tun_service: bool,
     pub system_proxy_enabled: bool,
     pub system_proxy_pending: bool,

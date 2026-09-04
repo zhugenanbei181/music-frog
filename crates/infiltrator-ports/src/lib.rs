@@ -10,7 +10,9 @@ pub mod data_dir;
 pub mod data_store;
 pub mod endpoint;
 pub mod error;
+pub mod host_runtime;
 pub mod overview;
+pub mod profile_store;
 pub mod secure_store;
 pub mod runtime_gateway;
 

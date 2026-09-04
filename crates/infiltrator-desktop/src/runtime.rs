@@ -8,6 +8,7 @@ use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStreamEvent};
 use mihomo_api::client::MihomoClient;
 use mihomo_api::proxy::manager::ProxyManager;
@@ -24,6 +25,7 @@ use std::sync::Arc;
 use yaml_rust2::{Yaml, YamlLoader};
 
 use crate::service::{ServiceManager, ServiceStatus};
+use crate::tun_service::TunServiceManager;
 use crate::version;
 
 pub struct MihomoRuntime {
@@ -455,6 +457,16 @@ impl ManagedRuntime for MihomoRuntime {
         self.application.generation()
     }
 
+    async fn is_running(&self) -> bool {
+        MihomoRuntime::is_running(self).await
+    }
+
+    async fn restart(&self) -> Result<u64, PortError> {
+        CoreLifecyclePort::restart(self.application.as_ref())
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
     async fn http_proxy_endpoint(&self) -> Result<Option<String>, PortError> {
         MihomoRuntime::http_proxy_endpoint(self)
             .await
@@ -483,6 +495,36 @@ impl ManagedRuntime for MihomoRuntime {
             .await
             .map(|outcome| outcome.generation)
             .map_err(|error| PortError::Failed(error.to_string()))
+    }
+}
+
+impl HostRuntime for MihomoRuntime {
+    fn controller_url(&self) -> String {
+        self.controller_url.clone()
+    }
+
+    fn core_binary_path(&self) -> std::path::PathBuf {
+        self.binary_path.clone()
+    }
+
+    fn tun_service_status(&self) -> TunServiceStatus {
+        match TunServiceManager::check_status_for(&self.binary_path) {
+            crate::tun_service::ServiceModeStatus::InstalledAndRunning => {
+                TunServiceStatus::InstalledAndRunning
+            }
+            crate::tun_service::ServiceModeStatus::InstalledStopped => {
+                TunServiceStatus::InstalledStopped
+            }
+            crate::tun_service::ServiceModeStatus::NotInstalled => TunServiceStatus::NotInstalled,
+            crate::tun_service::ServiceModeStatus::MissingPrivilege => {
+                TunServiceStatus::MissingPrivilege
+            }
+            crate::tun_service::ServiceModeStatus::Unsupported => TunServiceStatus::Unsupported,
+        }
+    }
+
+    fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {
+        self.application.clone()
     }
 }
 

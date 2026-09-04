@@ -13,6 +13,7 @@ use iced::widget::{
     Space, button, column, container, pick_list, progress_bar, row, text, text_input,
 };
 use iced::{Alignment, Color, Element, Length, Theme, border};
+use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -185,11 +186,11 @@ fn system_integration_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: boo
 
 fn tun_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'a, Message> {
     let (tun_status_text, tun_status_kind) = match state.runtime.tun_service_status {
-        Some(infiltrator_desktop::tun_service::ServiceModeStatus::InstalledAndRunning) => (lang.tr("settings_status_running").to_string(), BadgeKind::Success),
-        Some(infiltrator_desktop::tun_service::ServiceModeStatus::InstalledStopped) => (lang.tr("settings_status_stopped").to_string(), BadgeKind::Warning),
-        Some(infiltrator_desktop::tun_service::ServiceModeStatus::MissingPrivilege) => (lang.tr("settings_status_no_perm").to_string(), BadgeKind::Danger),
-        Some(infiltrator_desktop::tun_service::ServiceModeStatus::Unsupported) => (lang.tr("settings_status_unsupported").to_string(), BadgeKind::Neutral),
-        Some(infiltrator_desktop::tun_service::ServiceModeStatus::NotInstalled) => (lang.tr("settings_status_uninstalled").to_string(), BadgeKind::Neutral),
+        Some(TunServiceStatus::InstalledAndRunning) => (lang.tr("settings_status_running").to_string(), BadgeKind::Success),
+        Some(TunServiceStatus::InstalledStopped) => (lang.tr("settings_status_stopped").to_string(), BadgeKind::Warning),
+        Some(TunServiceStatus::MissingPrivilege) => (lang.tr("settings_status_no_perm").to_string(), BadgeKind::Danger),
+        Some(TunServiceStatus::Unsupported) => (lang.tr("settings_status_unsupported").to_string(), BadgeKind::Neutral),
+        Some(TunServiceStatus::NotInstalled) => (lang.tr("settings_status_uninstalled").to_string(), BadgeKind::Neutral),
         None => (lang.tr("settings_status_undetected").to_string(), BadgeKind::Neutral),
     };
 
@@ -360,7 +361,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let is_en = state.shell.lang.starts_with("en");
     let selected_language = LANGUAGE_OPTIONS.iter().find(|option| option.value == state.shell.lang).copied();
     let selected_core_channel = CORE_CHANNEL_OPTIONS.iter().find(|option| option.value == state.runtime.core_channel).copied();
-    let tun_service_ready = state.shell.is_admin || matches!(state.runtime.tun_service_status, Some(infiltrator_desktop::tun_service::ServiceModeStatus::InstalledAndRunning));
+    let tun_service_ready = state.shell.is_admin || matches!(state.runtime.tun_service_status, Some(TunServiceStatus::InstalledAndRunning));
 
     let header = text(lang.tr("nav_settings").to_string()).size(24).font(FONT_SEMIBOLD).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) });
 

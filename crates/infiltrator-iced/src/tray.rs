@@ -215,6 +215,11 @@ impl AppState {
             let total = stats.total?;
             (total > 0).then(|| ((stats.downloaded.min(total) * 100) / total) as u8)
         });
+        let controller = self
+            .runtime
+            .runtime
+            .as_ref()
+            .map(|runtime| runtime.controller_url());
         let ctx = TraySpecContext {
             lang: &self.shell.lang,
             mode: self.runtime.proxy_mode.as_deref(),
@@ -232,11 +237,7 @@ impl AppState {
             syncing: self.profile.is_syncing,
             sync_step,
             autostart: self.runtime.autostart_enabled,
-            controller: self
-                .runtime
-                .runtime
-                .as_ref()
-                .map(|runtime| runtime.controller_url.as_str()),
+            controller: controller.as_deref(),
             admin_enabled: self.shell.admin_enabled,
             admin_port: self.shell.admin_port,
         };

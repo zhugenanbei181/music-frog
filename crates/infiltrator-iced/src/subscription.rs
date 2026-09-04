@@ -5,7 +5,8 @@ use crate::types::message::Message;
 use crate::types::runtime::{RuntimeStatus, RuntimeStreamKind, RuntimeStreamState};
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, stream, window};
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStreamEvent};
+use infiltrator_ports::host_runtime::HostRuntime;
+use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
 use futures_util::StreamExt;
 use std::hash::Hash;
 use std::sync::Arc;
@@ -15,7 +16,7 @@ use std::time::Duration;
 struct RuntimeStreamInput {
     identity: usize,
     generation: u64,
-    gateway: Arc<dyn RuntimeGateway>,
+    gateway: Arc<dyn HostRuntime>,
     log_level: String,
 }
 
@@ -30,10 +31,10 @@ impl Hash for RuntimeStreamInput {
 /// Start the three controller streams as one declarative subscription. The
 /// identity is tied to the runtime Arc and CoreApplication generation, so a
 /// stopped/rebuilt core cancels all old receivers before a new one starts.
-pub(crate) fn runtime_streams_subscription<R>(runtime: &Arc<R>, log_level: &str) -> Subscription<Message>
-where
-    R: ManagedRuntime + 'static,
-{
+pub(crate) fn runtime_streams_subscription(
+    runtime: &Arc<dyn HostRuntime>,
+    log_level: &str,
+) -> Subscription<Message> {
     let input = RuntimeStreamInput {
         identity: Arc::as_ptr(runtime) as *const () as usize,
         generation: runtime.generation(),

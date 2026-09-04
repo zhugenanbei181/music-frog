@@ -11,7 +11,6 @@ use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 impl AppState {
     pub(super) fn ensure_dns_editor_loaded(&mut self) {

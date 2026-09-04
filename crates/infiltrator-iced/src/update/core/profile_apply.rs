@@ -1,7 +1,7 @@
 //! Shared profile-document commit path for Iced configuration editors.
 //!
 //! Each editor supplies a pure `YAML -> YAML` transform. The helper then
-//! commits the complete document through `MihomoRuntime::apply_profile_content`
+//! commits the complete document through the host `ManagedRuntime` port
 //! when the core is live, or through the validated atomic config manager when
 //! it is stopped. This keeps individual page handlers from bypassing the
 //! apply/reload/readiness/rollback contract.
@@ -10,12 +10,12 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_desktop::runtime::MihomoRuntime;
+use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use std::sync::Arc;
 
 pub(super) fn save_task<F>(
-    runtime: Option<Arc<MihomoRuntime>>,
+    runtime: Option<Arc<dyn HostRuntime>>,
     transform: F,
     result_message: fn(Result<(), InfiltratorError>) -> Message,
 ) -> Task<Message>
@@ -31,7 +31,7 @@ where
 }
 
 pub(super) fn save_task_with_strategy<F>(
-    runtime: Option<Arc<MihomoRuntime>>,
+    runtime: Option<Arc<dyn HostRuntime>>,
     strategy: ApplyStrategy,
     transform: F,
     result_message: fn(Result<(), InfiltratorError>) -> Message,
@@ -46,7 +46,7 @@ where
 }
 
 pub(super) async fn save_current_profile_content<F>(
-    runtime: Option<Arc<MihomoRuntime>>,
+    runtime: Option<Arc<dyn HostRuntime>>,
     strategy: ApplyStrategy,
     transform: F,
 ) -> Result<(), InfiltratorError>
@@ -72,7 +72,7 @@ where
 /// core's atomic apply transaction; inactive profiles still use the validated
 /// manager writer and clear their transient backup immediately.
 pub(crate) async fn save_profile_content(
-    runtime: Option<Arc<MihomoRuntime>>,
+    runtime: Option<Arc<dyn HostRuntime>>,
     profile: String,
     content: String,
     strategy: ApplyStrategy,
@@ -105,7 +105,7 @@ pub(crate) async fn save_profile_content(
 /// target. If applying the target fails, restore the pointer and explicitly
 /// re-apply the previous profile so the old core configuration is live again.
 pub(crate) async fn activate_profile(
-    runtime: Option<Arc<MihomoRuntime>>,
+    runtime: Option<Arc<dyn HostRuntime>>,
     profile: &str,
 ) -> Result<bool, InfiltratorError> {
     let manager = crate::configs_dir::config_manager().await?;

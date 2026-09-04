@@ -6,6 +6,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
 
 impl AppState {
     pub(super) fn update_profiles(&mut self, message: Message) -> Task<Message> {
@@ -49,8 +50,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         if let Some(runtime) = runtime {
-                            runtime
-                                .shutdown()
+                            ManagedRuntime::shutdown(runtime.as_ref())
                                 .await
                                 .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
                         }

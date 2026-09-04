@@ -7,8 +7,8 @@ use crate::types::runtime::{RuntimeConfig, RuntimePatchSnapshot};
 use iced::Task;
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_desktop::tun_service::{ServiceModeStatus, TunServiceManager};
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_desktop::tun_service::TunServiceManager;
+use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_shared::locales::Localizer;
 
 impl AppState {
@@ -78,7 +78,7 @@ impl AppState {
 
     pub(crate) fn install_or_start_tun_service(
         &mut self,
-        status: ServiceModeStatus,
+        status: TunServiceStatus,
     ) -> Task<Message> {
         let Some(runtime) = self.runtime.runtime.clone() else {
             return Task::done(Message::ShowToast(
@@ -88,17 +88,17 @@ impl AppState {
         };
         self.shell.error_msg = None;
         self.editor.is_saving_tun = false;
-        let binary = runtime.core_binary_path().to_path_buf();
+        let binary = runtime.core_binary_path();
         self.runtime.tun_service_status = Some(status);
         self.runtime.is_installing_tun_service = true;
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || match status {
-                    ServiceModeStatus::InstalledStopped => TunServiceManager::start_service(),
-                    ServiceModeStatus::NotInstalled | ServiceModeStatus::MissingPrivilege => {
+                    TunServiceStatus::InstalledStopped => TunServiceManager::start_service(),
+                    TunServiceStatus::NotInstalled | TunServiceStatus::MissingPrivilege => {
                         TunServiceManager::install_service(&binary)
                     }
-                    ServiceModeStatus::InstalledAndRunning | ServiceModeStatus::Unsupported => {
+                    TunServiceStatus::InstalledAndRunning | TunServiceStatus::Unsupported => {
                         Ok(())
                     }
                 })
@@ -238,13 +238,13 @@ impl AppState {
                     let status = runtime.tun_service_status();
                     self.runtime.tun_service_status = Some(status);
                     match status {
-                        ServiceModeStatus::InstalledAndRunning => {}
-                        ServiceModeStatus::InstalledStopped
-                        | ServiceModeStatus::NotInstalled
-                        | ServiceModeStatus::MissingPrivilege => {
+                        TunServiceStatus::InstalledAndRunning => {}
+                        TunServiceStatus::InstalledStopped
+                        | TunServiceStatus::NotInstalled
+                        | TunServiceStatus::MissingPrivilege => {
                             return self.install_or_start_tun_service(status);
                         }
-                        ServiceModeStatus::Unsupported => {
+                        TunServiceStatus::Unsupported => {
                             let error = InfiltratorError::Privilege(
                                 "当前平台未提供 TUN 服务模式".to_string(),
                             );
@@ -271,16 +271,16 @@ impl AppState {
                 let status = runtime.tun_service_status();
                 self.runtime.tun_service_status = Some(status);
                 match status {
-                    ServiceModeStatus::InstalledAndRunning => Task::done(Message::ShowToast(
+                    TunServiceStatus::InstalledAndRunning => Task::done(Message::ShowToast(
                         "TUN 服务已就绪".to_string(),
                         crate::types::app::ToastStatus::Success,
                     )),
-                    ServiceModeStatus::InstalledStopped
-                    | ServiceModeStatus::NotInstalled
-                    | ServiceModeStatus::MissingPrivilege => {
+                    TunServiceStatus::InstalledStopped
+                    | TunServiceStatus::NotInstalled
+                    | TunServiceStatus::MissingPrivilege => {
                         self.install_or_start_tun_service(status)
                     }
-                    ServiceModeStatus::Unsupported => {
+                    TunServiceStatus::Unsupported => {
                         let error =
                             InfiltratorError::Privilege("当前平台未提供 TUN 服务模式".to_string());
                         self.set_error(&error);
@@ -296,11 +296,9 @@ impl AppState {
                     self.runtime.tun_service_status = None;
                     return Task::none();
                 };
-                let binary = runtime.core_binary_path().to_path_buf();
+                let status_runtime = runtime.clone();
                 Task::perform(
-                    tokio::task::spawn_blocking(move || {
-                        TunServiceManager::check_status_for(&binary)
-                    }),
+                    tokio::task::spawn_blocking(move || status_runtime.tun_service_status()),
                     |result| match result {
                         Ok(status) => Message::TunServiceStatusLoaded(Ok(status)),
                         Err(error) => Message::TunServiceStatusLoaded(Err(
