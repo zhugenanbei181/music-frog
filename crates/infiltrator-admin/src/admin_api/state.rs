@@ -6,6 +6,7 @@ use std::{
     time::Instant,
 };
 
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_http::{HttpClient, build_http_client, build_raw_http_client};
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
@@ -16,6 +17,11 @@ use infiltrator_domain::settings::AppSettings;
 
 #[async_trait::async_trait]
 pub trait AdminApiContext: Clone + Send + Sync + 'static {
+    async fn profile_application(&self) -> anyhow::Result<ProfileApplication> {
+        let store = infiltrator_core::profile_store_io::open().await?;
+        Ok(ProfileApplication::new(store))
+    }
+
     async fn rebuild_runtime(&self) -> anyhow::Result<()>;
     /// Restart the running core so config-level changes take effect, keeping
     /// the same runtime object. Defaults to a full [`Self::rebuild_runtime`];

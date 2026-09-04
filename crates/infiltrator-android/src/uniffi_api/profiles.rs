@@ -5,12 +5,13 @@
 use chrono::Utc;
 
 use super::session::apply_current_profile_status;
-use super::support::{build_config_manager, get_runtime, map_anyhow_error, map_mihomo_error};
-use crate::ffi::{FfiErrorCode, FfiStatus};
-use infiltrator_core::profiles::{
-    create_profile_from_url, list_profile_infos, load_profile_detail,
+use super::support::{
+    build_config_manager, get_runtime, map_anyhow_error, map_application_failure,
 };
+use crate::ffi::{FfiErrorCode, FfiStatus};
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_domain::profiles::{ProfileInfo, sanitize_profile_name};
+use std::sync::Arc;
 
 // --- Profiles API ---
 
@@ -53,13 +54,22 @@ pub struct ProfileDetailResult {
 pub async fn profiles_list() -> ProfilesResult {
     get_runtime()
         .spawn(async move {
-            match list_profile_infos().await.map_err(map_anyhow_error) {
+            let application = match build_profile_application().await {
+                Ok(application) => application,
+                Err(status) => {
+                    return ProfilesResult {
+                        status,
+                        profiles: Vec::new(),
+                    };
+                }
+            };
+            match application.list_profiles().await {
                 Ok(profiles) => ProfilesResult {
                     status: FfiStatus::ok(),
                     profiles: profiles.into_iter().map(profile_to_summary).collect(),
                 },
-                Err(status) => ProfilesResult {
-                    status,
+                Err(failure) => ProfilesResult {
+                    status: map_application_failure(failure),
                     profiles: Vec::new(),
                 },
             }
@@ -75,9 +85,15 @@ pub async fn profiles_list() -> ProfilesResult {
 pub async fn profile_create(name: String, url: String) -> FfiStatus {
     get_runtime()
         .spawn(async move {
-            match create_profile_from_url(&name, &url).await {
+            let application = match build_profile_application().await {
+                Ok(application) => application,
+                Err(status) => return status,
+            };
+            let source =
+                infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients();
+            match application.import_subscription(&source, &name, &url).await {
                 Ok(_) => FfiStatus::ok(),
-                Err(err) => map_anyhow_error(err),
+                Err(failure) => map_application_failure(failure),
             }
         })
         .await
@@ -90,16 +106,16 @@ pub async fn profile_create(name: String, url: String) -> FfiStatus {
 pub async fn profile_select(name: String) -> FfiStatus {
     get_runtime()
         .spawn(async move {
-            let manager = match build_config_manager().await {
-                Ok(manager) => manager,
+            let application = match build_profile_application().await {
+                Ok(application) => application,
                 Err(status) => return status,
             };
-            let previous = manager.get_current().await.ok();
-            match infiltrator_core::profiles::select_profile(&name).await {
+            let previous = application.current_profile().await.ok();
+            match application.select_profile(&name).await {
                 // Apply the newly current profile through the session
                 // transaction; on rollback the switch above is undone.
                 Ok(_) => apply_current_profile_status(previous).await,
-                Err(err) => map_anyhow_error(err),
+                Err(failure) => map_application_failure(failure),
             }
         })
         .await
@@ -112,12 +128,14 @@ pub async fn profile_select(name: String) -> FfiStatus {
 pub async fn profile_update(name: String) -> FfiStatus {
     get_runtime()
         .spawn(async move {
-            let manager = match build_config_manager().await {
-                Ok(manager) => manager,
+            let application = match build_profile_application().await {
+                Ok(application) => application,
                 Err(status) => return status,
             };
-            let previous = manager.get_current().await.ok();
-            match infiltrator_core::profiles::update_profile(&name).await {
+            let previous = application.current_profile().await.ok();
+            let source =
+                infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients();
+            match application.update_subscription(&source, &name).await {
                 Ok(profile) => {
                     if profile.active {
                         apply_current_profile_status(previous).await
@@ -125,7 +143,7 @@ pub async fn profile_update(name: String) -> FfiStatus {
                         FfiStatus::ok()
                     }
                 }
-                Err(err) => map_anyhow_error(err),
+                Err(failure) => map_application_failure(failure),
             }
         })
         .await
@@ -138,13 +156,22 @@ pub async fn profile_update(name: String) -> FfiStatus {
 pub async fn profile_detail(name: String) -> ProfileDetailResult {
     get_runtime()
         .spawn(async move {
-            match load_profile_detail(&name).await {
+            let application = match build_profile_application().await {
+                Ok(application) => application,
+                Err(status) => {
+                    return ProfileDetailResult {
+                        status,
+                        profile: None,
+                    };
+                }
+            };
+            match application.load_profile_detail(&name).await {
                 Ok(profile) => ProfileDetailResult {
                     status: FfiStatus::ok(),
                     profile: Some(profile_detail_to_record(profile)),
                 },
-                Err(err) => ProfileDetailResult {
-                    status: map_anyhow_error(err),
+                Err(failure) => ProfileDetailResult {
+                    status: map_application_failure(failure),
                     profile: None,
                 },
             }
@@ -168,18 +195,18 @@ pub async fn profile_save(name: String, content: String, activate: bool) -> FfiS
                 return map_anyhow_error(err);
             }
 
-            let manager = match build_config_manager().await {
+            let application = match build_profile_application().await {
                 Ok(value) => value,
                 Err(status) => return status,
             };
-            if let Err(err) = manager.save(&profile_name, &content).await {
-                return map_mihomo_error(err);
+            let previous = application.current_profile().await.ok();
+            if let Err(failure) = application.save_profile(&profile_name, &content).await {
+                return map_application_failure(failure);
             }
 
-            let previous = manager.get_current().await.ok();
             let should_apply = activate || previous.as_deref() == Some(profile_name.as_str());
-            if activate && let Err(err) = manager.set_current(&profile_name).await {
-                return map_mihomo_error(err);
+            if activate && let Err(failure) = application.select_profile(&profile_name).await {
+                return map_application_failure(failure);
             }
             if should_apply {
                 // set_current + apply transaction; on rollback the activation
@@ -203,15 +230,15 @@ pub async fn profile_delete(name: String) -> FfiStatus {
                 Ok(value) => value,
                 Err(err) => return map_anyhow_error(err),
             };
-            let manager = match build_config_manager().await {
+            let application = match build_profile_application().await {
                 Ok(value) => value,
                 Err(status) => return status,
             };
-            manager
+            application
                 .delete_profile(&profile_name)
                 .await
                 .map(|_| FfiStatus::ok())
-                .unwrap_or_else(map_mihomo_error)
+                .unwrap_or_else(map_application_failure)
         })
         .await
         .unwrap_or_else(|e| {
@@ -243,18 +270,18 @@ pub async fn profile_subscription_save(
                 );
             }
 
-            let manager = match build_config_manager().await {
+            let application = match build_profile_application().await {
                 Ok(value) => value,
                 Err(status) => return status,
             };
 
-            if let Err(err) = manager.load(&profile_name).await {
-                return map_mihomo_error(err);
+            if let Err(failure) = application.load_profile_info(&profile_name).await {
+                return map_application_failure(failure);
             }
 
-            let mut metadata = match manager.get_profile_metadata(&profile_name).await {
+            let mut metadata = match application.load_metadata(&profile_name).await {
                 Ok(value) => value,
-                Err(err) => return map_mihomo_error(err),
+                Err(failure) => return map_application_failure(failure),
             };
             metadata.subscription_url = Some(source_url.to_string());
             metadata.auto_update_enabled = auto_update_enabled;
@@ -266,11 +293,11 @@ pub async fn profile_subscription_save(
             } else {
                 metadata.next_update = None;
             }
-            manager
-                .update_profile_metadata(&profile_name, &metadata)
+            application
+                .update_metadata(&profile_name, &metadata)
                 .await
                 .map(|_| FfiStatus::ok())
-                .unwrap_or_else(map_mihomo_error)
+                .unwrap_or_else(map_application_failure)
         })
         .await
         .unwrap_or_else(|e| {
@@ -286,34 +313,39 @@ pub async fn profile_subscription_clear(name: String) -> FfiStatus {
                 Ok(value) => value,
                 Err(err) => return map_anyhow_error(err),
             };
-            let manager = match build_config_manager().await {
+            let application = match build_profile_application().await {
                 Ok(value) => value,
                 Err(status) => return status,
             };
 
-            if let Err(err) = manager.load(&profile_name).await {
-                return map_mihomo_error(err);
+            if let Err(failure) = application.load_profile_info(&profile_name).await {
+                return map_application_failure(failure);
             }
 
-            let mut metadata = match manager.get_profile_metadata(&profile_name).await {
+            let mut metadata = match application.load_metadata(&profile_name).await {
                 Ok(value) => value,
-                Err(err) => return map_mihomo_error(err),
+                Err(failure) => return map_application_failure(failure),
             };
             metadata.subscription_url = None;
             metadata.auto_update_enabled = false;
             metadata.update_interval_hours = None;
             metadata.last_updated = None;
             metadata.next_update = None;
-            manager
-                .update_profile_metadata(&profile_name, &metadata)
+            application
+                .update_metadata(&profile_name, &metadata)
                 .await
                 .map(|_| FfiStatus::ok())
-                .unwrap_or_else(map_mihomo_error)
+                .unwrap_or_else(map_application_failure)
         })
         .await
         .unwrap_or_else(|e| {
             FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e))
         })
+}
+
+async fn build_profile_application() -> Result<ProfileApplication, FfiStatus> {
+    let manager = build_config_manager().await?;
+    Ok(ProfileApplication::new(Arc::new(manager)))
 }
 
 fn profile_to_summary(profile: ProfileInfo) -> ProfileSummary {

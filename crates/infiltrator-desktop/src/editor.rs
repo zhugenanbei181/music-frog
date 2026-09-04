@@ -1,8 +1,7 @@
 use anyhow::anyhow;
+use infiltrator_application::profile_application::ProfileApplication;
 use std::path::PathBuf;
 use std::process::Command;
-
-use infiltrator_core::profiles;
 
 #[cfg(target_os = "windows")]
 use std::env;
@@ -14,7 +13,11 @@ use std::path::Path;
 use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
 
 pub async fn open_profile_in_editor(editor_path: Option<String>, name: &str) -> anyhow::Result<()> {
-    let profile = profiles::load_profile_info(name).await?;
+    let store = infiltrator_core::profile_store_io::open().await?;
+    let profile = ProfileApplication::new(store)
+        .load_profile_info(name)
+        .await
+        .map_err(|failure| anyhow!(failure.message))?;
     let auto_detect = editor_path
         .as_ref()
         .map(|value| value.trim().is_empty())

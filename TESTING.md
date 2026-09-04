@@ -10,9 +10,9 @@
 
   | Crate / test target | 测试数（`cargo nextest list --workspace`） |
   | :--- | ---: |
-  | infiltrator-core | 143 |
+  | infiltrator-core | 140 |
   | infiltrator-domain | 418 |
-  | infiltrator-application | 10 |
+  | infiltrator-application | 15 |
   | infiltrator-ios | 2 |
   | infiltrator-iced + headless | 255 |
   | infiltrator-desktop | 197 |
@@ -30,7 +30,7 @@
   | infiltrator-bevy-widgets + headless | 237 |
   | infiltrator-contract | 4 |
   | infiltrator-ports | 1 |
-  | **全仓自动化测试总计** | **2021** |
+  | **全仓自动化测试总计** | **2023** |
 
 - **代码洁净度**：全工作空间必须保持 **0 编译警告** (`cargo check --workspace` 无任何输出)。
 - **测试可靠性**：环境敏感型测试必须在固定 4 个 nextest 测试进程并发下保持

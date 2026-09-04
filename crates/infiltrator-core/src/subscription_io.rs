@@ -10,13 +10,57 @@ use anyhow::{Result, anyhow};
 use infiltrator_domain::subscription::{
     CheckedSubscriptionUrl, SubscriptionFetchOptions, SubscriptionUserInfo, UserAgentCatalog,
     WafChallengeDetector as DomainWafChallengeDetector, WafDiagnostic, WafResponseMetadata,
-    decode_subscription_bytes, parse_subscription_userinfo,
+    decode_subscription_bytes, parse_subscription_userinfo, strip_utf8_bom,
 };
 use infiltrator_http::HttpClient;
 use infiltrator_http::reqwest::{Response, header::HeaderMap};
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::subscription_source::{SubscriptionDocument, SubscriptionSource};
 
 /// 订阅本质上是配置文件；上限只为拦截把下载接口当无限代理用的滥用。
 const MAX_SUBSCRIPTION_BYTES: usize = 32 * 1024 * 1024;
+
+/// HTTP-backed subscription source used by application profile use-cases.
+/// The source owns transport and profile-option preparation; the application
+/// decides when and how the resulting document is committed.
+pub struct HttpSubscriptionSource {
+    client: HttpClient,
+    raw_client: HttpClient,
+}
+
+impl HttpSubscriptionSource {
+    pub fn new(client: &HttpClient, raw_client: &HttpClient) -> Self {
+        Self {
+            client: client.clone(),
+            raw_client: raw_client.clone(),
+        }
+    }
+
+    pub fn with_default_clients() -> Self {
+        let client = infiltrator_http::build_http_client();
+        let raw_client = infiltrator_http::build_raw_http_client(&client);
+        Self { client, raw_client }
+    }
+}
+
+#[async_trait::async_trait]
+impl SubscriptionSource for HttpSubscriptionSource {
+    async fn fetch(
+        &self,
+        profile: &str,
+        url: &CheckedSubscriptionUrl,
+    ) -> Result<SubscriptionDocument, PortError> {
+        let (content, userinfo) = fetch_subscription_with_info(&self.client, &self.raw_client, url)
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))?;
+        let content = strip_utf8_bom(&content);
+        let (content, _report) =
+            crate::profile_options_io::apply_saved_options_for(profile, content)
+                .await
+                .map_err(|error| PortError::Io(error.to_string()))?;
+        Ok(SubscriptionDocument { content, userinfo })
+    }
+}
 
 /// Fetch the subscription text through the normal client and retry once with
 /// the raw client when the provider returns a non-success status.

@@ -82,6 +82,20 @@ where
             .map_err(storage_error)
     }
 
+    async fn delete_options(&self, profile: &str) -> Result<(), PortError> {
+        let path = infiltrator_domain::profile_options::options_path(self.config_dir(), profile);
+        tokio::fs::remove_file(path)
+            .await
+            .or_else(|error| {
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    Ok(())
+                } else {
+                    Err(error)
+                }
+            })
+            .map_err(storage_error)
+    }
+
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError> {
         ConfigManager::clear_backup(self, profile)
             .await

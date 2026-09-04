@@ -44,7 +44,7 @@ Absent → Starting → Ready → Running
 
 ## 3. CoreApplication / CoreLifecyclePort 的目标形状
 
-地基已于 0.30 先落在 `infiltrator-domain`、`infiltrator-ports` 和 `infiltrator-application`：`CoreLifecyclePort` 使用稳定的 `CoreLifecycle` 与 generation，配置 apply 事务已不再要求具体 session，Desktop/Android 已切换到 `CoreApplication`。旧 session 实现已经删除，剩余是把各 use-case 从旧 core facade 移入 application。
+地基已于 0.30 先落在 `infiltrator-domain`、`infiltrator-ports` 和 `infiltrator-application`：`CoreLifecyclePort` 使用稳定的 `CoreLifecycle` 与 generation，配置 apply 事务已不再要求具体 session，Desktop/Android 已切换到 `CoreApplication`；profile/订阅 use-case 也已切到 `ProfileApplication`。旧 session 与 profile 高阶 facade 已删除，剩余是把其他 use-case 从旧 core facade 移入 application。
 
 不要求立即创建同名 struct，但所有功能应逐步收敛到以下概念：
 

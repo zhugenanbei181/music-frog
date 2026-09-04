@@ -1,5 +1,6 @@
 //! crate 内共用的 ConfigManager / configs 目录构造入口（不导出 crate 外）。
 
+#[cfg(test)]
 use std::path::PathBuf;
 
 use infiltrator_core::settings_io as settings;
@@ -32,6 +33,7 @@ pub(crate) async fn app_config_manager() -> anyhow::Result<ConfigManager<Default
 
 /// configs 目录路径解析，优先级与 [`app_config_manager`] 一致
 /// （env > settings.configs_dir > `<home>/configs`）。
+#[cfg(test)]
 pub(crate) async fn app_configs_dir() -> anyhow::Result<PathBuf> {
     let home = get_home_dir()?;
     let settings = load_app_settings().await?;

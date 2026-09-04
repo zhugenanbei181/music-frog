@@ -1,8 +1,8 @@
 //! Runtime-neutral profile projections and profile-name validation.
 //!
-//! ConfigManager and subscription/file operations stay in
-//! `infiltrator-core::profiles`; these values are the owned data exchanged
-//! with inbound surfaces.
+//! ConfigManager and subscription/file operations stay in outbound adapters;
+//! these values are the owned data exchanged with application and inbound
+//! surfaces.
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -64,7 +64,9 @@ pub fn sanitize_profile_name(name: &str) -> anyhow::Result<String> {
         .chars()
         .any(|ch| matches!(ch, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
     {
-        return Err(anyhow::anyhow!("配置名称不能包含特殊字符 / \\\\ : * ? \\\" < > |"));
+        return Err(anyhow::anyhow!(
+            "配置名称不能包含特殊字符 / \\\\ : * ? \\\" < > |"
+        ));
     }
     Ok(trimmed.to_string())
 }
@@ -75,7 +77,10 @@ mod tests {
 
     #[test]
     fn valid_names_are_trimmed() {
-        assert_eq!(sanitize_profile_name("  valid_name  ").unwrap(), "valid_name");
+        assert_eq!(
+            sanitize_profile_name("  valid_name  ").unwrap(),
+            "valid_name"
+        );
     }
 
     #[test]

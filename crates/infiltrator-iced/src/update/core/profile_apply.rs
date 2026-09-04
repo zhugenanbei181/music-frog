@@ -8,10 +8,10 @@
 
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::host_runtime::HostRuntime;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use std::sync::Arc;
 
 pub(super) fn save_task<F>(
@@ -53,19 +53,12 @@ pub(super) async fn save_current_profile_content<F>(
 where
     F: FnOnce(&str) -> anyhow::Result<String> + Send + 'static,
 {
-    let manager = crate::configs_dir::config_manager().await?;
-    let profile = manager
-        .get_current()
+    let store = crate::configs_dir::config_manager().await?;
+    let application = ProfileApplication::new(store);
+    application
+        .save_current_profile_content(runtime, strategy, transform)
         .await
-        .map_err(infiltrator_contract::error::from_mihomo)?;
-    let content = manager
-        .load(&profile)
-        .await
-        .map_err(infiltrator_contract::error::from_mihomo)?;
-    let updated =
-        transform(&content).map_err(|error| InfiltratorError::Config(error.to_string()))?;
-
-    save_profile_content(runtime, profile, updated, strategy).await
+        .map_err(|failure| InfiltratorError::Config(failure.message))
 }
 
 /// Commit an arbitrary profile document. Active profiles use the running
@@ -77,28 +70,11 @@ pub(crate) async fn save_profile_content(
     content: String,
     strategy: ApplyStrategy,
 ) -> Result<(), InfiltratorError> {
-    let manager = crate::configs_dir::config_manager().await?;
-    let current = manager
-        .get_current()
+    let store = crate::configs_dir::config_manager().await?;
+    ProfileApplication::new(store)
+        .save_profile_content(runtime, profile, content, strategy)
         .await
-        .map_err(infiltrator_contract::error::from_mihomo)?;
-    if let Some(runtime) = runtime
-        && current == profile
-    {
-        ManagedRuntime::apply_profile_content(runtime.as_ref(), &content, strategy)
-            .await
-            .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-    } else {
-        manager
-            .save(&profile, &content)
-            .await
-            .map_err(infiltrator_contract::error::from_mihomo)?;
-        manager
-            .clear_backup(&profile)
-            .await
-            .map_err(infiltrator_contract::error::from_mihomo)?;
-    }
-    Ok(())
+        .map_err(|failure| InfiltratorError::Config(failure.message))
 }
 
 /// Switch the active profile without leaving a running core on a half-applied
@@ -108,44 +84,9 @@ pub(crate) async fn activate_profile(
     runtime: Option<Arc<dyn HostRuntime>>,
     profile: &str,
 ) -> Result<bool, InfiltratorError> {
-    let manager = crate::configs_dir::config_manager().await?;
-    let previous = manager
-        .get_current()
+    let store = crate::configs_dir::config_manager().await?;
+    ProfileApplication::new(store)
+        .activate_profile(runtime, profile)
         .await
-        .map_err(infiltrator_contract::error::from_mihomo)?;
-    if previous == profile {
-        return Ok(runtime.is_some());
-    }
-    manager
-        .set_current(profile)
-        .await
-        .map_err(infiltrator_contract::error::from_mihomo)?;
-
-    let Some(runtime) = runtime else {
-        return Ok(false);
-    };
-    if let Err(error) = ManagedRuntime::apply_current_config(
-        runtime.as_ref(),
-        ApplyStrategy::AlwaysRestart,
-    )
-    .await
-    {
-        let _ = manager.set_current(&previous).await;
-        if let Err(recovery) = ManagedRuntime::apply_current_config(
-            runtime.as_ref(),
-            ApplyStrategy::AlwaysRestart,
-        )
-        .await
-        {
-            let _ = manager.clear_backup(profile).await;
-            return Err(InfiltratorError::Mihomo(format!(
-                "切换配置失败: {error}; 恢复上一配置也失败: {recovery}"
-            )));
-        }
-        let _ = manager.clear_backup(profile).await;
-        return Err(InfiltratorError::Mihomo(format!(
-            "切换配置失败，已恢复上一配置: {error}"
-        )));
-    }
-    Ok(true)
+        .map_err(|failure| InfiltratorError::Mihomo(failure.message))
 }

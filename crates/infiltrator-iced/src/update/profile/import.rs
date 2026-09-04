@@ -5,8 +5,10 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_core::subscription_io::HttpSubscriptionSource;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 
 impl AppState {
@@ -39,18 +41,24 @@ impl AppState {
                 self.profile.is_importing = true;
                 Task::perform(
                     async move {
-                        let profile_name = infiltrator_domain::profiles::sanitize_profile_name(&name)
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        let profile_name =
+                            infiltrator_domain::profiles::sanitize_profile_name(&name)
+                                .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let cm = crate::configs_dir::config_manager().await?;
-                        let current = cm.get_current().await.map_err(infiltrator_contract::error::from_mihomo)?;
+                        let current = cm
+                            .get_current()
+                            .await
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         if runtime.is_some() && current == profile_name {
                             return Err(InfiltratorError::Config(
                                 "内核运行时不能直接覆盖当前配置，请先停止内核后再导入".to_string(),
                             ));
                         }
-                        infiltrator_core::profiles::create_profile_from_url(&profile_name, &url)
+                        let source = HttpSubscriptionSource::with_default_clients();
+                        ProfileApplication::new(cm)
+                            .import_subscription(&source, &profile_name, &url)
                             .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
 
                         let reloaded = if activate {
                             crate::update::core::profile_apply::activate_profile(
@@ -153,8 +161,9 @@ impl AppState {
                 self.profile.is_importing_local = true;
                 Task::perform(
                     async move {
-                        let profile_name = infiltrator_domain::profiles::sanitize_profile_name(&name)
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        let profile_name =
+                            infiltrator_domain::profiles::sanitize_profile_name(&name)
+                                .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let content = tokio::fs::read_to_string(&path)
                             .await
                             .map_err(|e| InfiltratorError::Io(e.to_string()))?;
@@ -164,7 +173,10 @@ impl AppState {
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
                         let cm = crate::configs_dir::config_manager().await?;
-                        let current = cm.get_current().await.map_err(infiltrator_contract::error::from_mihomo)?;
+                        let current = cm
+                            .get_current()
+                            .await
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         let reloaded = match (runtime, current == profile_name) {
                             (Some(runtime), true) => {
                                 ManagedRuntime::apply_profile_content(
@@ -172,8 +184,8 @@ impl AppState {
                                     &content,
                                     ApplyStrategy::AlwaysRestart,
                                 )
-                                    .await
-                                    .map_err(|error| InfiltratorError::Config(error.to_string()))?;
+                                .await
+                                .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                                 true
                             }
                             (runtime, false) => {

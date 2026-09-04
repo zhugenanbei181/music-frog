@@ -6,7 +6,9 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use chrono::Utc;
 use iced::Task;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_shared::locales::Localizer;
 
@@ -118,10 +120,11 @@ impl AppState {
                 Task::perform(
                     async move {
                         let cm = crate::configs_dir::config_manager().await?;
-                        let mut metadata = cm
-                            .get_profile_metadata(&profile_name)
+                        let application = ProfileApplication::new(cm);
+                        let mut metadata = application
+                            .load_metadata(&profile_name)
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
 
                         if url.is_empty() {
                             metadata.subscription_url = None;
@@ -136,9 +139,10 @@ impl AppState {
                             metadata.next_update = None;
                         }
 
-                        cm.update_profile_metadata(&profile_name, &metadata)
+                        application
+                            .update_metadata(&profile_name, &metadata)
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
                         Ok(())
                     },
                     Message::SubscriptionSettingsSaved,
@@ -172,11 +176,17 @@ impl AppState {
                 let runtime = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
-                        infiltrator_core::profiles::update_profile(&profile_name)
-                            .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let cm = crate::configs_dir::config_manager().await?;
-                        let current = cm.get_current().await.map_err(infiltrator_contract::error::from_mihomo)?;
+                        let application = ProfileApplication::new(cm);
+                        let source = HttpSubscriptionSource::with_default_clients();
+                        application
+                            .update_subscription(&source, &profile_name)
+                            .await
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
+                        let current = application
+                            .current_profile()
+                            .await
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
                         if let Some(runtime) = runtime
                             && current == profile_name
                         {
@@ -184,13 +194,14 @@ impl AppState {
                                 runtime.as_ref(),
                                 infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
                             )
-                                .await
-                                .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
+                            .await
+                            .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
                             Ok(true)
                         } else {
-                            cm.clear_backup(&profile_name)
+                            application
+                                .clear_backup(&profile_name)
                                 .await
-                                .map_err(infiltrator_contract::error::from_mihomo)?;
+                                .map_err(|failure| InfiltratorError::Config(failure.message))?;
                             Ok(false)
                         }
                     },
@@ -224,10 +235,12 @@ impl AppState {
                 Task::perform(
                     async move {
                         let manager = crate::configs_dir::config_manager().await?;
-                        let profiles = manager
+                        let application = ProfileApplication::new(manager);
+                        let profiles = application
                             .list_profiles()
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
+                        let source = HttpSubscriptionSource::with_default_clients();
                         let now = Utc::now();
                         let mut updated_names = Vec::new();
                         let mut active_updated = false;
@@ -248,9 +261,10 @@ impl AppState {
                                 continue;
                             }
 
-                            infiltrator_core::profiles::update_profile(&profile.name)
+                            application
+                                .update_subscription(&source, &profile.name)
                                 .await
-                                .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                                .map_err(|failure| InfiltratorError::Config(failure.message))?;
                             if profile.active {
                                 active_updated = true;
                                 if let Some(runtime) = runtime.as_ref() {
@@ -258,21 +272,18 @@ impl AppState {
                                         runtime.as_ref(),
                                         infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
                                     )
-                                        .await
-                                        .map_err(|error| {
-                                            InfiltratorError::Mihomo(error.to_string())
-                                        })?;
+                                    .await
+                                    .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
                                 } else {
-                                    manager
-                                        .clear_backup(&profile.name)
-                                        .await
-                                        .map_err(infiltrator_contract::error::from_mihomo)?;
+                                    application.clear_backup(&profile.name).await.map_err(
+                                        |failure| InfiltratorError::Config(failure.message),
+                                    )?;
                                 }
                             } else {
-                                manager
+                                application
                                     .clear_backup(&profile.name)
                                     .await
-                                    .map_err(infiltrator_contract::error::from_mihomo)?;
+                                    .map_err(|failure| InfiltratorError::Config(failure.message))?;
                             }
                             updated_names.push(profile.name);
                         }
@@ -334,10 +345,12 @@ impl AppState {
                 Task::perform(
                     async move {
                         let manager = crate::configs_dir::config_manager().await?;
-                        let profiles = manager
+                        let application = ProfileApplication::new(manager);
+                        let profiles = application
                             .list_profiles()
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
+                        let source = HttpSubscriptionSource::with_default_clients();
                         let mut outcomes = Vec::new();
 
                         for profile in profiles {
@@ -348,30 +361,29 @@ impl AppState {
                                 continue;
                             }
                             let outcome = async {
-                                infiltrator_core::profiles::update_profile(&profile.name)
+                                application
+                                    .update_subscription(&source, &profile.name)
                                     .await
-                                    .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                                    .map_err(|failure| InfiltratorError::Config(failure.message))?;
                                 if profile.active {
                                     if let Some(runtime) = runtime.as_ref() {
-                                            ManagedRuntime::apply_current_config(
+                                        ManagedRuntime::apply_current_config(
                                             runtime.as_ref(),
                                             infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
                                         )
-                                            .await
-                                            .map_err(|error| {
-                                                InfiltratorError::Mihomo(error.to_string())
-                                            })?;
+                                        .await
+                                        .map_err(
+                                            |error| InfiltratorError::Mihomo(error.to_string()),
+                                        )?;
                                     } else {
-                                        manager
-                                            .clear_backup(&profile.name)
-                                            .await
-                                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                                        application.clear_backup(&profile.name).await.map_err(
+                                            |failure| InfiltratorError::Config(failure.message),
+                                        )?;
                                     }
                                 } else {
-                                    manager
-                                        .clear_backup(&profile.name)
-                                        .await
-                                        .map_err(infiltrator_contract::error::from_mihomo)?;
+                                    application.clear_backup(&profile.name).await.map_err(
+                                        |failure| InfiltratorError::Config(failure.message),
+                                    )?;
                                 }
                                 Ok(())
                             }
@@ -458,14 +470,16 @@ impl AppState {
                 Task::perform(
                     async move {
                         let cm = crate::configs_dir::config_manager().await?;
-                        let mut metadata = cm
-                            .get_profile_metadata(&name)
+                        let application = ProfileApplication::new(cm);
+                        let mut metadata = application
+                            .load_metadata(&name)
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
                         metadata.auto_update_enabled = enabled;
-                        cm.update_profile_metadata(&name, &metadata)
+                        application
+                            .update_metadata(&name, &metadata)
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
                         Ok(name)
                     },
                     Message::ProfileAutoUpdateSet,

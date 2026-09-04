@@ -14,6 +14,7 @@ use tokio::runtime::Runtime;
 
 use super::session::shared_core;
 use crate::ffi::{FfiErrorCode, FfiStatus};
+use infiltrator_contract::error::{ErrorCode, Failure};
 pub(super) fn get_runtime() -> &'static Runtime {
     static RUNTIME: OnceLock<Runtime> = OnceLock::new();
     RUNTIME.get_or_init(|| Runtime::new().expect("failed to create tokio runtime"))
@@ -108,6 +109,22 @@ pub(super) fn map_anyhow_error(err: anyhow::Error) -> FfiStatus {
         return map_mihomo_error_ref(source);
     }
     FfiStatus::err(FfiErrorCode::Unknown, err.to_string())
+}
+
+pub(super) fn map_application_failure(failure: Failure) -> FfiStatus {
+    let code = match failure.code {
+        ErrorCode::InvalidInput => FfiErrorCode::InvalidInput,
+        ErrorCode::InvalidState => FfiErrorCode::InvalidState,
+        ErrorCode::NotReady => FfiErrorCode::NotReady,
+        ErrorCode::Unsupported => FfiErrorCode::NotSupported,
+        ErrorCode::Network => FfiErrorCode::Network,
+        ErrorCode::Authentication => FfiErrorCode::Auth,
+        ErrorCode::Configuration => FfiErrorCode::Config,
+        ErrorCode::Storage => FfiErrorCode::Io,
+        ErrorCode::Permission => FfiErrorCode::InvalidState,
+        ErrorCode::Canceled | ErrorCode::Internal => FfiErrorCode::Unknown,
+    };
+    FfiStatus::err(code, failure.message)
 }
 
 pub(super) fn map_mihomo_error(err: MihomoError) -> FfiStatus {

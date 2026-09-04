@@ -11,7 +11,7 @@
 //!    profile 名清理 OS keyring 中的订阅凭证，**然后**才调用
 //!    [`execute`]——settings 一旦删除，云目录就无从得知，残留无法清理；
 //! 3. [`execute`] 返回后再调用
-//!    [`crate::profiles::reset_profiles_to_default()`] 重建 default 配置：
+//!    [`crate::profile_reset::reset_profiles_to_default()`] 重建 default 配置：
 //!    此时 settings 已删，configs 目录回落 `<home>/configs`，正是出厂态。
 //!
 //! [`execute`] 的删除语义：

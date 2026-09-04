@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_core::settings_io::{load_settings, save_settings, settings_path};
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::endpoint::EndpointSource as _;
@@ -67,6 +68,10 @@ impl Runtime {
             self.settings.configs_dir.as_deref(),
             &self.home,
         )?)
+    }
+
+    pub fn profile_application(&self) -> mihomo_api::error::Result<ProfileApplication> {
+        Ok(ProfileApplication::new(Arc::new(self.config_manager()?)))
     }
 
     /// Controller API client for the current profile. Endpoint URL and secret

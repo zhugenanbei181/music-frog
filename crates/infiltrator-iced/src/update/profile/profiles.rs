@@ -5,6 +5,7 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 
@@ -15,9 +16,11 @@ impl AppState {
                 self.profile.is_loading_profiles = true;
                 Task::perform(
                     async {
-                        infiltrator_core::profiles::list_profile_infos()
+                        let store = crate::configs_dir::config_manager().await?;
+                        ProfileApplication::new(store)
+                            .list_profiles()
                             .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
                     Message::ProfilesLoaded,
                 )
@@ -54,7 +57,7 @@ impl AppState {
                                 .await
                                 .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
                         }
-                        infiltrator_core::profiles::reset_profiles_to_default()
+                        infiltrator_core::profile_reset::reset_profiles_to_default()
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         Ok(())
@@ -128,16 +131,11 @@ impl AppState {
             },
             Message::DeleteProfile(name) => Task::perform(
                 async move {
-                    let cm = crate::configs_dir::config_manager().await?;
-                    cm.delete_profile(&name)
+                    let store = crate::configs_dir::config_manager().await?;
+                    ProfileApplication::new(store)
+                        .delete_profile(&name)
                         .await
-                        .map_err(infiltrator_contract::error::from_mihomo)?;
-                    // Best-effort: a stale sidecar would silently re-apply its
-                    // filter/mixin to a future profile of the same name.
-                    if let Ok(dir) = crate::configs_dir::configs_dir().await {
-                        infiltrator_core::profile_options_io::delete_options(&dir, &name).await;
-                    }
-                    Ok(())
+                        .map_err(|failure| InfiltratorError::Config(failure.message))
                 },
                 Message::ProfileDeleted,
             ),

@@ -4924,6 +4924,8 @@ dependencies = [
  "chrono",
  "dav-client",
  "futures-util",
+ "infiltrator-application",
+ "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-domain",
  "infiltrator-http",
@@ -4985,6 +4987,7 @@ name = "infiltrator-application"
 version = "0.30.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "futures-util",
  "infiltrator-contract",
  "infiltrator-domain",
@@ -5026,6 +5029,7 @@ dependencies = [
  "async-trait",
  "clap",
  "dav-client",
+ "infiltrator-application",
  "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-domain",

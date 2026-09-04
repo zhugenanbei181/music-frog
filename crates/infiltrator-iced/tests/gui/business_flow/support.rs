@@ -43,6 +43,17 @@ pub fn fresh_state() -> AppState {
     state
 }
 
+/// Read the canonical profile projection through the application facade.
+pub fn list_profiles() -> Vec<infiltrator_domain::profiles::ProfileInfo> {
+    block_on(async {
+        let store = crate::configs_dir::config_manager().await.unwrap();
+        infiltrator_application::profile_application::ProfileApplication::new(store)
+            .list_profiles()
+            .await
+            .unwrap()
+    })
+}
+
 /// Serializes every test that flips the global home override, and provides
 /// RAII cleanup. `mihomo_platform::paths::get_home_dir()` (and therefore
 /// `crate::configs_dir`, `VersionManager::new`, settings load/save and the

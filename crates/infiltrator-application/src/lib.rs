@@ -1,12 +1,12 @@
 //! Application services for MusicFrog Infiltrator.
 //!
-//! The application layer is allowed to use Tokio internally. Its public
-//! surface is deliberately expressed in contract values and standard Rust
-//! methods, so a UI or FFI consumer never needs to know about Tokio channels,
-//! task handles, or concrete Mihomo clients.
+//! The application layer is runtime-neutral. Its public surface is expressed
+//! in contract values and ports, so a UI or FFI consumer never needs to know
+//! about an executor, task handles, or concrete Mihomo clients.
 
 pub mod core_application;
 pub mod overview;
+pub mod profile_application;
 
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use std::future::Future;

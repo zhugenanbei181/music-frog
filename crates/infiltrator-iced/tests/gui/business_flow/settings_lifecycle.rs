@@ -4,7 +4,7 @@
 //!
 //! test-intent: behavior
 
-use super::support::{TempHome, block_on, feed, fresh_state, subscribed_profile};
+use super::support::{TempHome, block_on, feed, fresh_state, list_profiles, subscribed_profile};
 use crate::types::app::{ConfirmAction, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
@@ -50,9 +50,9 @@ fn subscription_auto_updated_notification_task_honours_the_master_switch() {
     state.shell.notifications_enabled = true;
     let units = feed(
         &mut state,
-        Message::SubscriptionAutoUpdated(Err(infiltrator_contract::error::InfiltratorError::Config(
-            "拉取失败".into(),
-        ))),
+        Message::SubscriptionAutoUpdated(Err(
+            infiltrator_contract::error::InfiltratorError::Config("拉取失败".into()),
+        )),
     );
     assert_eq!(units, 2, "warning-toast + critical-notification legs");
     assert!(state.shell.error_msg.is_some());
@@ -104,7 +104,7 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
         report.warnings.is_empty(),
         "clean temp home resets warning-free"
     );
-    block_on(infiltrator_core::profiles::reset_profiles_to_default()).unwrap();
+    block_on(infiltrator_core::profile_reset::reset_profiles_to_default()).unwrap();
 
     // Files are gone / back to factory shape.
     assert!(!home.join("settings.toml").exists(), "AppSettings wiped");
@@ -133,7 +133,7 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
     assert!(units >= 4, "LoadProfiles + LoadKernels + settings + toast");
 
     // The post-reset LoadProfiles would list the reseeded default only.
-    let listed = block_on(infiltrator_core::profiles::list_profile_infos()).unwrap();
+    let listed = list_profiles();
     feed(&mut state, Message::ProfilesLoaded(Ok(listed)));
     assert_eq!(state.profile.profiles.len(), 1);
     assert_eq!(state.profile.profiles[0].name, "default");

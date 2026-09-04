@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use mihomo_config::profile::Profile;
+use infiltrator_domain::profiles::ProfileInfo;
 
 use crate::commands::{ConfigsDirAction, ProfileAction};
 use crate::context::Runtime;
@@ -12,14 +12,20 @@ pub(crate) async fn handle(action: ProfileAction) -> anyhow::Result<()> {
         ProfileAction::Current => current(&runtime).await?,
         ProfileAction::Path => println!("{}", runtime.configs_dir()?.display()),
         ProfileAction::Use { name } => {
-            let manager = runtime.config_manager()?;
-            manager.set_current(&name).await?;
+            runtime
+                .profile_application()?
+                .select_profile(&name)
+                .await
+                .map_err(|failure| anyhow!(failure.message))?;
             print_success(&format!("Active profile set to '{name}'"));
         }
         ProfileAction::Show { name } => show(&runtime, name).await?,
         ProfileAction::Delete { name } => {
-            let manager = runtime.config_manager()?;
-            manager.delete_profile(&name).await?;
+            runtime
+                .profile_application()?
+                .delete_profile(&name)
+                .await
+                .map_err(|failure| anyhow!(failure.message))?;
             print_success(&format!("Deleted profile '{name}'"));
         }
         ProfileAction::Import { name, url } => import(&runtime, &name, &url).await?,
@@ -29,7 +35,11 @@ pub(crate) async fn handle(action: ProfileAction) -> anyhow::Result<()> {
 }
 
 async fn list(runtime: &Runtime, json: bool) -> anyhow::Result<()> {
-    let profiles = runtime.config_manager()?.list_profiles().await?;
+    let profiles = runtime
+        .profile_application()?
+        .list_profiles()
+        .await
+        .map_err(|failure| anyhow!(failure.message))?;
     if json {
         let values: Vec<serde_json::Value> = profiles.iter().map(profile_json).collect();
         output::print_json(&values)?;
@@ -44,70 +54,61 @@ async fn list(runtime: &Runtime, json: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub(crate) fn profile_row(profile: &Profile) -> Vec<String> {
+pub(crate) fn profile_row(profile: &ProfileInfo) -> Vec<String> {
     vec![
         profile.name.clone(),
         (if profile.active { "*" } else { "" }).to_string(),
-        profile.path.display().to_string(),
+        profile.path.clone(),
     ]
 }
 
-pub(crate) fn profile_json(profile: &Profile) -> serde_json::Value {
+pub(crate) fn profile_json(profile: &ProfileInfo) -> serde_json::Value {
     serde_json::json!({
         "name": profile.name,
         "active": profile.active,
-        "path": profile.path.display().to_string(),
+        "path": profile.path,
     })
 }
 
 async fn current(runtime: &Runtime) -> anyhow::Result<()> {
-    let manager = runtime.config_manager()?;
-    let name = manager.get_current().await?;
-    let path = manager.get_current_path().await?;
+    let application = runtime.profile_application()?;
+    let name = application
+        .current_profile()
+        .await
+        .map_err(|failure| anyhow!(failure.message))?;
+    let path = application.config_dir().join(format!("{name}.yaml"));
     println!("current profile: {name}");
     println!("config path: {}", path.display());
     Ok(())
 }
 
 async fn show(runtime: &Runtime, name: Option<String>) -> anyhow::Result<()> {
-    let manager = runtime.config_manager()?;
+    let application = runtime.profile_application()?;
     let name = match name {
         Some(name) => name,
-        None => manager.get_current().await?,
+        None => application
+            .current_profile()
+            .await
+            .map_err(|failure| anyhow!(failure.message))?,
     };
-    let content = manager.load(&name).await?;
-    println!("{content}");
+    let detail = application
+        .load_profile_detail(&name)
+        .await
+        .map_err(|failure| anyhow!(failure.message))?;
+    println!("{}", detail.content);
     Ok(())
 }
 
-/// Import a subscription into a new profile. Mirrors
-/// `infiltrator_core::profiles::create_profile_from_url` but targets the
-/// configs directory resolved from the settings override, which the core
-/// facade (built on an injected `ConfigManager`) cannot express.
+/// Import a subscription into a new profile through the shared application
+/// use-case and the host HTTP adapter.
 async fn import(runtime: &Runtime, name: &str, url: &str) -> anyhow::Result<()> {
     let profile_name = infiltrator_domain::profiles::sanitize_profile_name(name)?;
-    let checked_url = infiltrator_domain::subscription::CheckedSubscriptionUrl::parse(url)?;
-    let client = infiltrator_http::build_http_client();
-    let raw_client = infiltrator_http::build_raw_http_client(&client);
-    let content = infiltrator_core::subscription_io::fetch_subscription_text(
-        &client,
-        &raw_client,
-        &checked_url,
-    )
-    .await?;
-    let content = infiltrator_domain::subscription::strip_utf8_bom(&content);
-    let configs_dir = runtime.configs_dir()?;
-    let (content, _report) = infiltrator_core::profile_options_io::apply_saved_options(
-        &configs_dir,
-        &profile_name,
-        content,
-    )
-    .await?;
-    infiltrator_domain::config::validate_yaml(&content)
-        .map_err(|err| anyhow!("订阅内容不是有效的 YAML: {err}"))?;
-
-    let manager = runtime.config_manager()?;
-    manager.save(&profile_name, &content).await?;
+    let source = infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients();
+    runtime
+        .profile_application()?
+        .import_subscription(&source, &profile_name, url)
+        .await
+        .map_err(|failure| anyhow!(failure.message))?;
     print_success(&format!("Imported profile '{profile_name}'"));
     Ok(())
 }

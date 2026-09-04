@@ -175,8 +175,11 @@ impl AppState {
             }
             Message::LoadKernels => Task::perform(
                 async {
-                    let vm = VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
-                    vm.list_installed().await.map_err(infiltrator_contract::error::from_mihomo)
+                    let vm =
+                        VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
+                    vm.list_installed()
+                        .await
+                        .map_err(infiltrator_contract::error::from_mihomo)
                 },
                 Message::KernelsLoaded,
             ),
@@ -190,7 +193,8 @@ impl AppState {
             }
             Message::SetDefaultKernel(version) => Task::perform(
                 async move {
-                    let vm = VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
+                    let vm =
+                        VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
                     vm.set_default(&version)
                         .await
                         .map_err(infiltrator_contract::error::from_mihomo)
@@ -199,8 +203,11 @@ impl AppState {
             ),
             Message::DeleteKernel(version) => Task::perform(
                 async move {
-                    let vm = VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
-                    vm.uninstall(&version).await.map_err(infiltrator_contract::error::from_mihomo)
+                    let vm =
+                        VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
+                    vm.uninstall(&version)
+                        .await
+                        .map_err(infiltrator_contract::error::from_mihomo)
                 },
                 Message::KernelOperationFinished,
             ),
@@ -240,13 +247,13 @@ impl AppState {
                                 Duration::from_secs(5),
                                 ManagedRuntime::shutdown(runtime.as_ref()),
                             )
-                                .await
-                                .map_err(|_| {
-                                    InfiltratorError::Internal(
-                                        "停止内核超时，未执行恢复出厂".to_string(),
-                                    )
-                                })?
-                                .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
+                            .await
+                            .map_err(|_| {
+                                InfiltratorError::Internal(
+                                    "停止内核超时，未执行恢复出厂".to_string(),
+                                )
+                            })?
+                            .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
                         }
 
                         infiltrator_desktop::proxy::apply_system_proxy(None)
@@ -264,7 +271,9 @@ impl AppState {
                         // （settings 的 configs_dir 可指向云同步目录）并枚举
                         // profile 名清 keyring；settings 一旦先删，云目录里的
                         // cache.db / geoip / options / snapshots 就会整体漏删。
-                        let manager = infiltrator_core::settings_io::app_config_manager().await.ok();
+                        let manager = infiltrator_core::settings_io::app_config_manager()
+                            .await
+                            .ok();
                         let configs_dir = manager.as_ref().map(|m| m.config_dir().to_path_buf());
                         if let Some(manager) = &manager {
                             match manager.list_profiles().await {
@@ -311,7 +320,7 @@ impl AppState {
 
                         // settings 已删，configs 回落 `<home>/configs`：重建
                         // default 配置与当前指针，落出厂态。
-                        infiltrator_core::profiles::reset_profiles_to_default()
+                        infiltrator_core::profile_reset::reset_profiles_to_default()
                             .await
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         Ok(())

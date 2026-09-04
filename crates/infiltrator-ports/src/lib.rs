@@ -15,6 +15,7 @@ pub mod host_runtime;
 pub mod overview;
 pub mod profile_store;
 pub mod secure_store;
+pub mod subscription_source;
 pub mod runtime_gateway;
 
 #[cfg(test)]

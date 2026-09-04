@@ -1,15 +1,16 @@
-use mihomo_config::profile::Profile;
+use infiltrator_domain::profiles::ProfileInfo;
 use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
 
 use super::{apply_configs_dir_override, profile_json, profile_row};
 use crate::test_support::EnvGuard;
 
-fn sample_profile(name: &str, active: bool) -> Profile {
-    Profile::new(
-        name.to_string(),
-        format!("/x/configs/{name}.yaml").into(),
+fn sample_profile(name: &str, active: bool) -> ProfileInfo {
+    ProfileInfo {
+        name: name.to_string(),
         active,
-    )
+        path: format!("/x/configs/{name}.yaml"),
+        ..ProfileInfo::default()
+    }
 }
 
 #[test]

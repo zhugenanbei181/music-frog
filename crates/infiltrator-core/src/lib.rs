@@ -13,7 +13,7 @@ pub mod history;
 pub mod host_io;
 pub mod profile_options_io;
 pub mod profile_store_io;
-pub mod profiles;
+pub mod profile_reset;
 pub mod proxy_providers_io;
 pub mod rules_io;
 pub mod scheduler;

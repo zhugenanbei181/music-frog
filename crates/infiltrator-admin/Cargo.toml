@@ -9,6 +9,8 @@ async-trait = { workspace = true }
 axum = { workspace = true }
 chrono = { workspace = true }
 futures-util = { workspace = true }
+infiltrator-application = { path = "../infiltrator-application" }
+infiltrator-contract = { path = "../infiltrator-contract" }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-domain = { path = "../infiltrator-domain" }

@@ -7,6 +7,7 @@ description = "Runtime-neutral application services over MusicFrog ports."
 
 [dependencies]
 async-trait = { workspace = true }
+chrono = { workspace = true }
 futures-util = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }

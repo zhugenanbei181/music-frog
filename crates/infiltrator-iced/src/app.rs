@@ -14,6 +14,7 @@ use crate::types::message::Message;
 use crate::types::rules::{RulesJsonTab, RulesTab};
 use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
 use iced::Task;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
 use std::sync::{Arc, Mutex};
 
@@ -449,9 +450,11 @@ impl AppState {
                 ),
                 Task::perform(
                     async {
-                        infiltrator_core::profiles::list_profile_infos()
+                        let store = crate::configs_dir::config_manager().await?;
+                        ProfileApplication::new(store)
+                            .list_profiles()
                             .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
                     Message::ProfilesLoaded,
                 ),

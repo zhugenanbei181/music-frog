@@ -6,11 +6,12 @@
 //!
 //! test-intent: behavior
 
-use super::support::{TempHome, block_on, feed, fresh_state, subscribed_profile};
+use super::support::{TempHome, block_on, feed, fresh_state, list_profiles, subscribed_profile};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_core::profiles::create_profile_from_url;
+use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_domain::profiles::sanitize_profile_name;
 use std::path::PathBuf;
 
@@ -28,7 +29,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     let mut state = fresh_state();
 
     // Startup回流: the bootstrap task would fetch the profile list.
-    let listed = block_on(infiltrator_core::profiles::list_profile_infos()).unwrap();
+    let listed = list_profiles();
     let units = feed(&mut state, Message::ProfilesLoaded(Ok(listed)));
     assert_eq!(units, 0);
     assert_eq!(state.profile.profiles.len(), 1);
@@ -46,10 +47,17 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     assert!(state.profile.is_importing, "import is in flight");
     assert!(units >= 1, "import task spawned");
 
-    // The import task body, run for real: sanitize → create_profile_from_url
-    // on a closed port fails without any network egress.
+    // The import task body, run for real: sanitize → application subscription
+    // use-case on a closed port fails without any network egress.
     let name = sanitize_profile_name("Bad Sub").unwrap();
-    let remote = block_on(create_profile_from_url(&name, "http://127.0.0.1:1/sub"));
+    let remote = block_on(async {
+        let store = crate::configs_dir::config_manager().await.unwrap();
+        let application = ProfileApplication::new(store);
+        let source = HttpSubscriptionSource::with_default_clients();
+        application
+            .import_subscription(&source, &name, "http://127.0.0.1:1/sub")
+            .await
+    });
     assert!(remote.is_err(), "closed port must fail fast");
 
     let units = feed(
@@ -100,12 +108,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     assert!(units >= 3, "LoadProfiles + toast + StartProxy chained");
 
     // ---- explicit activation of another profile ----
-    feed(
-        &mut state,
-        Message::ProfilesLoaded(Ok(
-            block_on(infiltrator_core::profiles::list_profile_infos()).unwrap(),
-        )),
-    );
+    feed(&mut state, Message::ProfilesLoaded(Ok(list_profiles())));
     state.shell.error_msg = Some("stale".into());
     let units = feed(&mut state, Message::SetActiveProfile("default".into()));
     assert!(
@@ -236,7 +239,7 @@ fn subscription_settings_save_gates_persists_and_reloads_profiles() {
         assert!(!reread.auto_update_enabled, "auto-update flag persisted");
         assert!(reread.subscription_url.is_none());
     });
-    let listed = block_on(infiltrator_core::profiles::list_profile_infos()).unwrap();
+    let listed = list_profiles();
     feed(&mut state, Message::ProfilesLoaded(Ok(listed)));
     let paid = state
         .profile
@@ -336,7 +339,7 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
     assert!(home.configs().join("options/Doomed.yaml").exists());
 
     let mut state = fresh_state();
-    let listed = block_on(infiltrator_core::profiles::list_profile_infos()).unwrap();
+    let listed = list_profiles();
     assert_eq!(listed.len(), 2);
     feed(&mut state, Message::ProfilesLoaded(Ok(listed)));
 
