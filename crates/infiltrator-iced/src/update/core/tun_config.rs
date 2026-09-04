@@ -102,9 +102,11 @@ impl AppState {
         match message {
             Message::RefreshTunOnly => Task::perform(
                 async {
-                    let config = infiltrator_core::tun_io::load_tun_config()
+                    let config = crate::configuration::application()
+                        .await?
+                        .load_tun_config()
                         .await
-                        .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        .map_err(|failure| InfiltratorError::Config(failure.message))?;
                     serde_json::to_string_pretty(&config)
                         .map_err(|e| InfiltratorError::Config(e.to_string()))
                 },

@@ -83,7 +83,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         let configs_dir = crate::configs_dir::configs_dir().await?;
-                        infiltrator_core::history::list_snapshots(&configs_dir, &profile)
+                        infiltrator_desktop::storage::list_profile_snapshots(&configs_dir, &profile)
                             .await
                             .map_err(|error| InfiltratorError::Config(error.to_string()))
                     },
@@ -116,7 +116,7 @@ impl AppState {
                 self.editor.is_restoring_snapshot = true;
                 Task::perform(
                     async move {
-                        let home = infiltrator_core::host_io::home_dir()
+                        let home = infiltrator_desktop::storage::home_dir()
                             .map_err(infiltrator_contract::error::from_mihomo)?;
                         let snapshot_root = tokio::fs::canonicalize(home.join("configs/snapshots"))
                             .await
@@ -129,7 +129,7 @@ impl AppState {
                                 "拒绝从配置快照目录之外恢复文件".to_string(),
                             ));
                         }
-                        let content = infiltrator_core::history::read_snapshot(&snapshot_path)
+                        let content = infiltrator_desktop::storage::read_profile_snapshot(&snapshot_path)
                             .await
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         crate::update::core::profile_apply::save_profile_content(

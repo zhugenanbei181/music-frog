@@ -9,7 +9,7 @@
 | 代理与路由 | 代理模式、代理组/节点切换、延迟测速 | `mihomo-api::proxy`、`connection` | Iced Proxies、Bevy Proxies、Android Proxies | FUNC-002：共享节点身份、测速状态和排序语义 |
 | 运行态诊断 | connections、logs、traffic、memory、出口 IP | `mihomo-api` + `infiltrator-desktop` runtime handlers | Iced Runtime、Bevy Runtime、Android Connections/Overview | FUNC-003：快照/流式数据有界，双端同语义 |
 | DNS / Fake-IP / TUN | 读取、校验、保存、清缓存、VPN/TUN 控制 | `infiltrator-core::{dns,fake_ip,tun}` | Iced DNS、Bevy DNS、Android Settings/VPN | FUNC-004：字段能力矩阵和配置事务 |
-| Rules / Providers / Sniffer | 规则列表、provider 更新、Tracer 沙盒、JSON 编辑 | `infiltrator-domain::{rules,proxy_providers,sniffer}` + `infiltrator-core::{rules_io,proxy_providers_io,sniffer_io}` | Iced Rules、Bevy Rules、Android Rules | FUNC-005：区分结构化编辑与原始 JSON |
+| Rules / Providers / Sniffer | 规则列表、provider 更新、Tracer 沙盒、JSON 编辑 | `infiltrator-domain::{rules,proxy_providers,sniffer}` + `infiltrator-application::configuration_application` | Iced Rules、Bevy Rules、Android Rules | FUNC-005：区分结构化编辑与原始 JSON |
 | WebDAV 同步 | 保存、测试、手动同步、三向冲突处理 | `mihomo-dav-sync/*` + admin/Android orchestration | Iced Sync、Bevy Sync、Android | FUNC-004：单一同步生命周期和冲突结果 |
 | Core 版本交付 | 查询、下载、校验、安装、切换、回滚 | `mihomo-version` + `scripts/fetch-mihomo.sh` | Iced Settings、Bevy Settings、CI/package | CORE-006 / UP-001：版本 manifest、digest、回滚 |
 | 系统集成 | 系统代理、自启动、托盘、悬浮窗、权限 | `mihomo-platform`、`infiltrator-desktop`、各宿主 | Iced tray/HUD、Bevy tray/HUD、Android VPN | PLAT-003 / UI-005：native adapter 与业务解耦 |

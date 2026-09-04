@@ -13,8 +13,10 @@ pub mod endpoint;
 pub mod error;
 pub mod host_runtime;
 pub mod overview;
+pub mod public_ip_probe;
 pub mod profile_store;
 pub mod secure_store;
+pub mod settings_store;
 pub mod subscription_source;
 pub mod runtime_gateway;
 

@@ -102,20 +102,15 @@ impl AppState {
                         // 失败则整体不落盘，保持「settings 文件 + keyring」
                         // 状态一致（避免其他字段更新而凭据悄悄丢失）。
                         if webdav_password.is_empty() {
-                            infiltrator_core::host_io::clear_webdav_password().await;
+                            infiltrator_desktop::storage::clear_webdav_password().await;
                         } else {
-                            infiltrator_core::host_io::save_webdav_password(&webdav_password)
+                            infiltrator_desktop::storage::save_webdav_password(&webdav_password)
                                 .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         }
-                        let base_dir = infiltrator_core::host_io::home_dir()
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
-                            let settings_path = infiltrator_core::settings_io::settings_path(&base_dir)
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        let mut settings =
-                            infiltrator_core::settings_io::load_settings(&settings_path)
-                                .await
-                                .unwrap_or_else(|_| AppSettings::default());
+                        let mut settings = crate::settings_store::load()
+                            .await
+                            .unwrap_or_else(|_| AppSettings::default());
                         settings.language = language;
                         settings.core_channel = core_channel;
                         settings.theme = theme;
@@ -124,9 +119,9 @@ impl AppState {
                         settings.notifications_enabled = notifications_enabled;
                         settings.close_to_tray = close_to_tray;
                         settings.system_proxy_bypass = system_proxy_bypass;
-                        infiltrator_core::settings_io::save_settings(&settings_path, &settings)
+                        crate::settings_store::save(&settings)
                             .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                            ?;
                         Ok(())
                     },
                     Message::AppSettingsSaved,

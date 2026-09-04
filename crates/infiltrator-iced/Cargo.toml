@@ -34,7 +34,6 @@ infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-application = { path = "../infiltrator-application" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
-infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-desktop = { path = "../infiltrator-desktop" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-admin = { path = "../infiltrator-admin" }
@@ -53,7 +52,6 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
 log = { workspace = true }
-reqwest = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
 webbrowser = "1.0"
@@ -80,6 +78,7 @@ notify-rust = { workspace = true }
 [dev-dependencies]
 axum = { workspace = true }
 iced_runtime = "0.14"
+infiltrator-core = { path = "../infiltrator-core" }
 mihomo-platform = { path = "../mihomo-platform" }
 
 [package.metadata.packager]

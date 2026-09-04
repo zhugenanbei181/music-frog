@@ -6,7 +6,6 @@ use crate::types::message::Message;
 use crate::types::runtime::{IpProbeResult, RuntimeStatus, RuntimeStreamKind, RuntimeStreamState};
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
 
 impl AppState {
     /// Kick one polling round: connections + memory always, proxies every
@@ -76,48 +75,29 @@ impl AppState {
                 let runtime = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
-                        let mut builder =
-                            reqwest::Client::builder().timeout(std::time::Duration::from_secs(5));
                         let runtime = runtime.ok_or_else(|| {
                             InfiltratorError::Internal(
                                 "内核未运行，无法探测代理出口 IP".to_string(),
                             )
                         })?;
-                        let endpoint = ManagedRuntime::http_proxy_endpoint(runtime.as_ref())
+                        let snapshot = crate::network::application()
+                            .probe_through_runtime(runtime)
                             .await
-                            .map_err(|error| InfiltratorError::Internal(error.to_string()))?
-                            .ok_or_else(|| {
-                                InfiltratorError::Internal(
-                                    "当前配置未提供可用的 port 或 mixed-port".to_string(),
-                                )
-                            })?;
-                        let proxy = reqwest::Proxy::http(format!("http://{endpoint}"))
-                            .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
-                        builder = builder.proxy(proxy);
-                        let client = builder
-                            .build()
-                            .map_err(|e| InfiltratorError::Internal(e.to_string()))?;
-                        let provider = "api.ipify.org".to_string();
-                        let resp = client
-                            .get("https://api.ipify.org")
-                            .send()
-                            .await
-                            .map_err(|e| InfiltratorError::Internal(e.to_string()))?
-                            .text()
-                            .await
-                            .map_err(|e| InfiltratorError::Internal(e.to_string()))?;
-                        let ip = resp.trim().to_string();
-                        if ip.parse::<std::net::IpAddr>().is_err() {
-                            return Err(InfiltratorError::Internal(format!(
-                                "出口 IP provider {provider} 返回了无效地址"
-                            )));
-                        }
-                        Ok(IpProbeResult {
-                            ip,
-                            provider,
-                            checked_at: chrono::Local::now()
+                            .map_err(|failure| InfiltratorError::Internal(failure.message))?;
+                        let checked_at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(
+                            snapshot.checked_at_epoch_ms,
+                        )
+                        .map(|value| {
+                            value
+                                .with_timezone(&chrono::Local)
                                 .format("%Y-%m-%d %H:%M:%S")
-                                .to_string(),
+                                .to_string()
+                        })
+                        .unwrap_or_default();
+                        Ok(IpProbeResult {
+                            ip: snapshot.ip,
+                            provider: snapshot.provider,
+                            checked_at,
                         })
                     },
                     move |res| Message::IpInfoReceived(res, task_id),

@@ -186,12 +186,11 @@ pub async fn bootstrap_now() -> BootstrapResult {
         })
 }
 
-// DoctorEnv 的 settings 文件必须经 `settings_path` 派生，与 settings 读写
-// 两侧保持同一约定。
+// DoctorEnv 的 settings 文件与 settings store 使用同一 `<home>/settings.toml`
+// 约定。
 fn doctor_env() -> Result<DoctorEnv, FfiStatus> {
     let home = get_home_dir().map_err(map_mihomo_error)?;
-    let settings_file = infiltrator_core::settings_io::settings_path(&home)
-        .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?;
+    let settings_file = home.join("settings.toml");
     Ok(DoctorEnv::with_home(home).with_settings_file(settings_file))
 }
 
@@ -474,6 +473,6 @@ mod tests {
     }
 
     fn settings_toml_path(home: &std::path::Path) -> PathBuf {
-        infiltrator_core::settings_io::settings_path(home).expect("settings path resolves")
+        home.join("settings.toml")
     }
 }

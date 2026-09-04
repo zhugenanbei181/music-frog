@@ -445,21 +445,12 @@ impl AppState {
                 self.diag.is_probing_dns_leak = true;
                 Task::perform(async {
                     let probe_start = std::time::Instant::now();
-                    let client = reqwest::Client::builder()
-                        .timeout(std::time::Duration::from_secs(4))
-                        .build()
-                        .ok();
                     let mut ip = "104.28.19.42".to_string();
                     let country = "US".to_string();
                     let isp = "Cloudflare".to_string();
-                    if let Some(c) = client
-                        && let Ok(resp) = c.get("https://api.ipify.org").send().await
-                            && let Ok(text) = resp.text().await {
-                                let trimmed = text.trim();
-                                if !trimmed.is_empty() {
-                                    ip = trimmed.to_string();
-                                }
-                            }
+                    if let Ok(snapshot) = crate::network::application().probe_public_ip(None).await {
+                        ip = snapshot.ip;
+                    }
                     crate::types::dns::DnsLeakReport {
                         public_ip: ip,
                         country,
@@ -600,7 +591,7 @@ impl AppState {
             }
             Message::ShowToast(content, status) => {
                 // Toast text originates from raw error chains (subscription
-                // updates, reqwest failures) that can embed access tokens;
+                // updates, transport failures) that can embed access tokens;
                 // redact here — the one ingestion point for every toast —
                 // before anything reaches the screen (CORE-001).
                 self.shell

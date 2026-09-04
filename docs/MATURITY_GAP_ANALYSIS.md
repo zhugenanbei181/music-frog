@@ -95,7 +95,7 @@
 | **P05-03** | **细粒度连接阻断与批量清退**：支持按 PID、目标域名后缀、规则组、出站节点一键批量掐断所有相关连接。 | P1 | 已落地 | `infiltrator-core::idle_connection_sweeper` |
 | **P05-04** | **长周期流量时序存储与报表**：嵌入式时序数据库记录按日/周/月的订阅流量走势、节点使用排行与分应用报表。 | P2 | 已落地 | `infiltrator-core::traffic_audit` |
 | **P05-05** | **真实下行带宽测速 (Speedtest) 引擎**：发起真实多线程数据拉取，测量节点实际下行带宽、峰值速率、丢包率与抖动。 | P1 | 已落地 | `infiltrator-core::diagnostics` |
-| **P05-06** | **Sniffer 嗅探状态机监控**：实时展示 HTTP Host、TLS SNI、QUIC SNI 嗅探抓包日志与域名覆写记录。 | P2 | 已落地 | `infiltrator-domain::sniffer` + `infiltrator-core::sniffer_io` |
+| **P05-06** | **Sniffer 嗅探状态机监控**：实时展示 HTTP Host、TLS SNI、QUIC SNI 嗅探抓包日志与域名覆写记录。 | P2 | 已落地 | `infiltrator-domain::sniffer` + `infiltrator-application::configuration_application` |
 | **P05-07** | **遥测流有界 RingBuffer 调优**：连接流与日志流采用无锁定长环形缓冲与丢弃策略，杜绝内存膨胀。 | P0 | 已落地 | `infiltrator-core::flow_control` |
 | **P05-08** | **内置 Traceroute / MTR 路由跳数诊断**：集成可视化 MTR 工具，诊断本地 -> 代理入口 -> 目标服务器路由跳数与丢包。 | P2 | 已落地 | `infiltrator-core::diagnostics` |
 | **P05-09** | **公网出口 IP 多源交叉校验**：多源并发探测出口 IP，交叉比对检测直连真实 IP 泄露与 WebRTC 暴露风险。 | P1 | 已落地 | `infiltrator-core::diagnostics` |

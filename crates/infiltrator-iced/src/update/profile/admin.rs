@@ -5,8 +5,7 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_contract::error::InfiltratorError;
-use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
+use infiltrator_domain::settings::AdminServerConfig;
 use infiltrator_shared::locales::Localizer;
 
 impl AppState {
@@ -24,18 +23,7 @@ impl AppState {
         };
         Task::perform(
             async move {
-                let base_dir =
-                    infiltrator_core::host_io::home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
-                let settings_path = infiltrator_core::settings_io::settings_path(&base_dir)
-                    .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                let mut settings = infiltrator_core::settings_io::load_settings(&settings_path)
-                    .await
-                    .unwrap_or_else(|_| AppSettings::default());
-                settings.admin = admin;
-                infiltrator_core::settings_io::save_settings(&settings_path, &settings)
-                    .await
-                    .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                Ok(())
+                crate::settings_store::update(|settings| settings.admin = admin).await
             },
             Message::AdminSettingsSaved,
         )

@@ -593,7 +593,7 @@ impl AppState {
                 let provider_name = name.clone();
                 Task::perform(
                     async move {
-                        let home = infiltrator_core::host_io::home_dir()
+                        let home = infiltrator_desktop::storage::home_dir()
                             .map_err(infiltrator_contract::error::from_mihomo)?;
                         let cache_path = home.join(format!("rules/{}.yaml", provider_name));
                         let local_rules: Vec<String> = if cache_path.exists() {

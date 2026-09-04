@@ -34,7 +34,7 @@ impl AppState {
                     async {
                         let vm = VersionManager::new()
                             .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
-                        let data_dir = infiltrator_core::host_io::home_dir()
+                        let data_dir = infiltrator_desktop::storage::home_dir()
                             .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
                         let candidates = vec![];
                         // Boot retry loop: up to 3 attempts with controller

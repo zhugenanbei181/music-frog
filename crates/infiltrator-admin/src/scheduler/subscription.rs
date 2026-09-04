@@ -1,21 +1,18 @@
 use anyhow::anyhow;
 use chrono::Utc;
+use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_http::HttpClient;
 use log::{info, warn};
-use mihomo_config::manager::ConfigManager;
-use mihomo_config::profile::Profile;
-use mihomo_platform::defaults::DefaultCredentialStore;
+use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_ports::subscription_source::SubscriptionSource;
+use std::sync::Arc;
 use tokio::task::JoinSet;
 use tokio::time::{Duration, sleep};
 
 use crate::admin_api::state::AdminApiContext;
-use crate::support::app_config_manager;
-use infiltrator_core::subscription_io::fetch_subscription_with_info;
 use infiltrator_domain::redact::redact_line;
-use infiltrator_domain::subscription::{
-    CheckedSubscriptionUrl, mask_subscription_url, strip_utf8_bom,
-};
-use mihomo_config::manager::paths::validate_profile_name;
+use infiltrator_domain::subscription::mask_subscription_url;
 
 #[derive(Clone, Debug, Default)]
 pub struct SubscriptionUpdateSummary {
@@ -46,22 +43,23 @@ pub(super) async fn run_profile_subscription_tick<C: AdminApiContext>(
     client: &HttpClient,
     raw_client: &HttpClient,
 ) -> Result<(), String> {
-    let manager = app_config_manager()
+    let application = ctx
+        .profile_application()
         .await
-        .map_err(|err| format!("打开配置管理器失败: {err}"))?;
-    let profile = manager
-        .get_profile_metadata(profile_name)
+        .map_err(|error| format!("打开 profile application 失败: {error}"))?;
+    let profile = application
+        .load_profile_info(profile_name)
         .await
-        .map_err(|err| format!("读取 profile `{profile_name}` 元数据失败: {err:#}"))?;
+        .map_err(|failure| format!("读取 profile `{profile_name}` 元数据失败: {}", failure.message))?;
     // The job is canceled as soon as auto-update is switched off; treat an
     // in-flight run that observes the new state as done.
     if !profile.auto_update_enabled {
         return Ok(());
     }
-    let url = match profile.subscription_url.as_deref() {
-        Some(url) if !url.trim().is_empty() => url.trim().to_string(),
+    match profile.subscription_url.as_deref() {
+        Some(url) if !url.trim().is_empty() => {}
         _ => return Ok(()),
-    };
+    }
     let interval_hours = match profile.update_interval_hours {
         Some(hours) if hours > 0 => hours,
         _ => return Ok(()),
@@ -72,19 +70,8 @@ pub(super) async fn run_profile_subscription_tick<C: AdminApiContext>(
         return Ok(());
     }
 
-    match update_profile_subscription_with_retry(
-        ProfileUpdateParams {
-            manager: &manager,
-            profile: &profile,
-            url: &url,
-            interval_hours: Some(interval_hours),
-            auto_update_enabled: true,
-            now,
-            client,
-            raw_client,
-        },
-        3,
-    )
+    let source = HttpSubscriptionSource::new(client, raw_client);
+    match update_profile_subscription_with_retry(&application, &source, &profile.name, 3)
     .await
     {
         Ok(needs_rebuild) => {
@@ -106,7 +93,7 @@ pub(super) async fn run_profile_subscription_tick<C: AdminApiContext>(
                 Some(redact_line(&err.to_string(), &[])),
             )
             .await;
-            let _ = schedule_next_attempt(&manager, &profile, interval_hours, now).await;
+            let _ = schedule_next_attempt(&application, &profile.name, interval_hours, now).await;
             // Redacted: this string becomes the JobScheduler's last_error and
             // admin-facing status text; anyhow chains can embed the full
             // request URL including its subscription token.
@@ -120,9 +107,11 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
     client: &HttpClient,
     raw_client: &HttpClient,
 ) -> anyhow::Result<SubscriptionUpdateSummary> {
-    let manager = app_config_manager().await?;
-    let profiles = manager.list_profiles().await?;
-    let now = Utc::now();
+    let application = ctx.profile_application().await?;
+    let profiles = application
+        .list_profiles()
+        .await
+        .map_err(|failure| anyhow!(failure.message))?;
     let mut summary = SubscriptionUpdateSummary {
         total: profiles.len(),
         ..Default::default()
@@ -130,7 +119,7 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
     let mut rebuild_needed = false;
 
     // Collect profiles with subscription URLs
-    let profiles_to_update: Vec<(String, Profile, Option<u32>, bool)> = profiles
+    let profiles_to_update: Vec<ProfileInfo> = profiles
         .into_iter()
         .filter_map(|profile| {
             if let Some(url) = profile
@@ -139,12 +128,8 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
                 .map(|url| url.trim().to_string())
                 .filter(|url| !url.is_empty())
             {
-                Some((
-                    url,
-                    profile.clone(),
-                    profile.update_interval_hours,
-                    profile.auto_update_enabled,
-                ))
+                let _ = url;
+                Some(profile)
             } else {
                 summary.skipped += 1;
                 None
@@ -165,7 +150,8 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
     let max_concurrent = 5usize;
     let mut join_set: JoinSet<anyhow::Result<SubscriptionUpdateResult>> = JoinSet::new();
 
-    for (url, profile, interval_hours, auto_update_enabled) in profiles_to_update {
+    let source = Arc::new(HttpSubscriptionSource::new(client, raw_client));
+    for profile in profiles_to_update {
         // Wait for available slot if we've reached max concurrency
         while join_set.len() >= max_concurrent {
             if let Some(result) = join_set.join_next().await {
@@ -199,25 +185,15 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
             }
         }
 
-        let client_clone = client.clone();
-        let raw_client_clone = raw_client.clone();
         let profile_name = profile.name.clone();
-        let profile_for_task = profile.clone();
-        let interval_for_task = interval_hours;
-        let auto_update_for_task = auto_update_enabled;
+        let application_for_task = application.clone();
+        let source_for_task = Arc::clone(&source);
 
         join_set.spawn(async move {
             let result = update_profile_subscription_with_retry(
-                ProfileUpdateParams {
-                    manager: &app_config_manager().await?,
-                    profile: &profile_for_task,
-                    url: &url,
-                    interval_hours: interval_for_task,
-                    auto_update_enabled: auto_update_for_task,
-                    now,
-                    client: &client_clone,
-                    raw_client: &raw_client_clone,
-                },
+                &application_for_task,
+                source_for_task.as_ref(),
+                &profile_name,
                 3,
             )
             .await;
@@ -233,7 +209,15 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
                         profile_name,
                         // mask shortens the path; redact strips query tokens
                         // and any credentials the error Display embedded.
-                        redact_line(&mask_subscription_url(&url), &[]),
+                        redact_line(
+                            &mask_subscription_url(
+                                profile
+                                    .subscription_url
+                                    .as_deref()
+                                    .unwrap_or_default(),
+                            ),
+                            &[],
+                        ),
                         redact_line(&format!("{err:#}"), &[])
                     );
                     Err(err)
@@ -274,90 +258,39 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
     Ok(summary)
 }
 
-struct ProfileUpdateParams<'a> {
-    manager: &'a ConfigManager<DefaultCredentialStore>,
-    profile: &'a Profile,
-    url: &'a str,
-    interval_hours: Option<u32>,
-    auto_update_enabled: bool,
-    now: chrono::DateTime<Utc>,
-    client: &'a HttpClient,
-    raw_client: &'a HttpClient,
-}
-
-async fn update_profile_subscription(params: ProfileUpdateParams<'_>) -> anyhow::Result<bool> {
-    // 污点入口处显式校验：profile 名会落盘为文件路径，url 会被发起网络请求。
-    validate_profile_name(&params.profile.name).map_err(|err| anyhow!(err.to_string()))?;
-    let checked_url = CheckedSubscriptionUrl::parse(params.url)?;
+async fn update_profile_subscription(
+    application: &ProfileApplication,
+    source: &dyn SubscriptionSource,
+    profile_name: &str,
+) -> anyhow::Result<bool> {
+    let profile = application
+        .load_profile_info(profile_name)
+        .await
+        .map_err(|failure| anyhow!(failure.message))?;
+    let url = profile.subscription_url.as_deref().unwrap_or_default();
     info!(
         "subscription update: profile={} url={}",
-        params.profile.name,
-        mask_subscription_url(params.url)
+        profile.name,
+        mask_subscription_url(url)
     );
-    let (content, userinfo) =
-        fetch_subscription_with_info(params.client, params.raw_client, &checked_url).await?;
-    let content = strip_utf8_bom(&content);
-    let (content, _report) = infiltrator_core::profile_options_io::apply_saved_options_for(
-        &params.profile.name,
-        content,
-    )
-    .await
-    .map_err(|err| anyhow!("应用配置选项失败: {err}"))?;
-    if infiltrator_domain::config::validate_yaml(&content).is_err() {
-        return Err(anyhow!("订阅内容不是有效的 YAML"));
-    }
-    params
-        .manager
-        .save(&params.profile.name, &content)
+    let updated = application
+        .update_subscription(source, profile_name)
         .await
-        .map_err(|err| anyhow!(err.to_string()))?;
-
-    let next_update = if params.auto_update_enabled {
-        params
-            .interval_hours
-            .map(|hours| params.now + chrono::Duration::hours(hours as i64))
-    } else {
-        None
-    };
-    let mut updated = params.profile.clone();
-    updated.subscription_url = Some(params.url.to_string());
-    if let Some(info) = userinfo {
-        updated.traffic_upload = info.upload;
-        updated.traffic_download = info.download;
-        updated.traffic_total = info.total;
-        updated.expire_at = info.expire;
-    }
-    updated.auto_update_enabled = params.auto_update_enabled;
-    updated.update_interval_hours = params.interval_hours;
-    updated.last_updated = Some(params.now);
-    updated.next_update = next_update;
-    params
-        .manager
-        .update_profile_metadata(&params.profile.name, &updated)
-        .await?;
-
-    Ok(params.profile.active)
+        .map_err(|failure| anyhow!(failure.message))?;
+    Ok(updated.active)
 }
 
 async fn update_profile_subscription_with_retry(
-    params: ProfileUpdateParams<'_>,
+    application: &ProfileApplication,
+    source: &dyn SubscriptionSource,
+    profile_name: &str,
     max_attempts: usize,
 ) -> anyhow::Result<bool> {
     let mut attempt = 0usize;
     let mut delay = Duration::from_secs(2);
     loop {
         attempt += 1;
-        let retry_params = ProfileUpdateParams {
-            manager: params.manager,
-            profile: params.profile,
-            url: params.url,
-            interval_hours: params.interval_hours,
-            auto_update_enabled: params.auto_update_enabled,
-            now: params.now,
-            client: params.client,
-            raw_client: params.raw_client,
-        };
-        match update_profile_subscription(retry_params).await {
+        match update_profile_subscription(application, source, profile_name).await {
             Ok(needs_rebuild) => return Ok(needs_rebuild),
             Err(err) => {
                 if attempt >= max_attempts {
@@ -365,7 +298,7 @@ async fn update_profile_subscription_with_retry(
                 }
                 warn!(
                     "subscription update retry: profile={} attempt={} err={:#}",
-                    params.profile.name, attempt, err
+                    profile_name, attempt, err
                 );
                 sleep(delay).await;
                 delay = delay
@@ -378,17 +311,20 @@ async fn update_profile_subscription_with_retry(
 }
 
 pub(crate) async fn schedule_next_attempt(
-    manager: &ConfigManager<DefaultCredentialStore>,
-    profile: &Profile,
+    application: &ProfileApplication,
+    profile_name: &str,
     interval_hours: u32,
     now: chrono::DateTime<Utc>,
 ) -> anyhow::Result<()> {
-    validate_profile_name(&profile.name).map_err(|err| anyhow!(err.to_string()))?;
     let next_update = now + chrono::Duration::hours(interval_hours as i64);
-    let mut updated = profile.clone();
+    let mut updated = application
+        .load_metadata(profile_name)
+        .await
+        .map_err(|failure| anyhow!(failure.message))?;
     updated.next_update = Some(next_update);
-    manager
-        .update_profile_metadata(&profile.name, &updated)
-        .await?;
+    application
+        .update_metadata(profile_name, &updated)
+        .await
+        .map_err(|failure| anyhow!(failure.message))?;
     Ok(())
 }

@@ -4993,6 +4993,8 @@ dependencies = [
  "infiltrator-domain",
  "infiltrator-ports",
  "log",
+ "serde_json",
+ "serde_yaml_ng",
  "tokio",
 ]
 
@@ -5194,7 +5196,6 @@ dependencies = [
  "muda",
  "naga 27.0.3",
  "notify-rust",
- "reqwest",
  "rfd",
  "serde",
  "serde_json",

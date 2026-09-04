@@ -109,25 +109,19 @@ impl AppState {
                 }
                 Task::perform(
                     async {
-                        let manager = crate::configs_dir::config_manager().await?;
-                        let profile = manager
-                            .get_current()
+                        let application = crate::configuration::application().await?;
+                        let dns = application
+                            .load_dns_config()
                             .await
-                            .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
-                        let content = manager
-                            .load(&profile)
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
+                        let fake_ip = application
+                            .load_fake_ip_config()
                             .await
-                            .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
-                        let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-
-                        let dns = infiltrator_domain::dns::extract_dns_config_from_doc(&doc)
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        let fake_ip =
-                            infiltrator_domain::fake_ip::extract_fake_ip_config_from_doc(&doc)
-                                .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        let tun = infiltrator_domain::tun::extract_tun_config_from_doc(&doc)
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
+                        let tun = application
+                            .load_tun_config()
+                            .await
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
 
                         Ok(Box::new(AdvancedConfigsBundle {
                             dns_json: serde_json::to_string_pretty(&dns)

@@ -7,7 +7,6 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 
@@ -54,7 +53,7 @@ impl AppState {
                                 "内核运行时不能直接覆盖当前配置，请先停止内核后再导入".to_string(),
                             ));
                         }
-                        let source = HttpSubscriptionSource::with_default_clients();
+                        let source = infiltrator_desktop::storage::subscription_source();
                         ProfileApplication::new(cm)
                             .import_subscription(&source, &profile_name, &url)
                             .await

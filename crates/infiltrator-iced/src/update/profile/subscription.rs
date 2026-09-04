@@ -8,7 +8,6 @@ use chrono::Utc;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_shared::locales::Localizer;
 
@@ -178,7 +177,7 @@ impl AppState {
                     async move {
                         let cm = crate::configs_dir::config_manager().await?;
                         let application = ProfileApplication::new(cm);
-                        let source = HttpSubscriptionSource::with_default_clients();
+                        let source = infiltrator_desktop::storage::subscription_source();
                         application
                             .update_subscription(&source, &profile_name)
                             .await
@@ -240,7 +239,7 @@ impl AppState {
                             .list_profiles()
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                        let source = HttpSubscriptionSource::with_default_clients();
+                        let source = infiltrator_desktop::storage::subscription_source();
                         let now = Utc::now();
                         let mut updated_names = Vec::new();
                         let mut active_updated = false;
@@ -350,7 +349,7 @@ impl AppState {
                             .list_profiles()
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                        let source = HttpSubscriptionSource::with_default_clients();
+                        let source = infiltrator_desktop::storage::subscription_source();
                         let mut outcomes = Vec::new();
 
                         for profile in profiles {

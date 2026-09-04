@@ -26,6 +26,7 @@ pub trait ProfileStore: Send + Sync {
         profile: &str,
         metadata: &ProfileMetadata,
     ) -> Result<(), PortError>;
+    async fn delete_subscription_credential(&self, profile: &str) -> Result<(), PortError>;
     async fn delete_options(&self, profile: &str) -> Result<(), PortError>;
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError>;
     async fn restore_backup(&self, profile: &str) -> Result<bool, PortError>;

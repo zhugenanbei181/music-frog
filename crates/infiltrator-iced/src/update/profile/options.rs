@@ -14,7 +14,6 @@ use iced::Task;
 use iced::widget::text_editor;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_core::profile_options_io;
 use infiltrator_domain::filter::SubscriptionFilterPipeline;
 use infiltrator_domain::mixin::MixinConfig;
 use infiltrator_domain::profile_options::FilterSpec;
@@ -175,7 +174,7 @@ impl AppState {
         Task::perform(
             async move {
                 let config_dir = crate::configs_dir::configs_dir().await?;
-                let options = profile_options_io::load_options(&config_dir, &profile)
+                let options = infiltrator_desktop::storage::load_profile_options(&config_dir, &profile)
                     .await
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 serde_yaml_ng::to_string(&options.mixin)
@@ -205,7 +204,7 @@ impl AppState {
         Task::perform(
             async move {
                 let config_dir = crate::configs_dir::configs_dir().await?;
-                let options = profile_options_io::load_options(&config_dir, &profile)
+                let options = infiltrator_desktop::storage::load_profile_options(&config_dir, &profile)
                     .await
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 Ok(FilterDraft::from_spec(options.filter.as_ref()))
@@ -247,7 +246,7 @@ impl AppState {
         Task::perform(
             async move {
                 let config_dir = crate::configs_dir::configs_dir().await?;
-                let old = profile_options_io::load_options(&config_dir, &profile)
+                let old = infiltrator_desktop::storage::load_profile_options(&config_dir, &profile)
                     .await
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 let manager = crate::configs_dir::config_manager().await?;
@@ -273,7 +272,7 @@ impl AppState {
                     ApplyStrategy::PreferReload,
                 )
                 .await?;
-                profile_options_io::save_options(
+                infiltrator_desktop::storage::save_profile_options(
                     &config_dir,
                     &profile,
                     &ProfileOptions {
@@ -337,10 +336,10 @@ impl AppState {
                 )
                 .await?;
                 let config_dir = crate::configs_dir::configs_dir().await?;
-                let old = profile_options_io::load_options(&config_dir, &profile)
+                let old = infiltrator_desktop::storage::load_profile_options(&config_dir, &profile)
                     .await
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                profile_options_io::save_options(
+                infiltrator_desktop::storage::save_profile_options(
                     &config_dir,
                     &profile,
                     &ProfileOptions {

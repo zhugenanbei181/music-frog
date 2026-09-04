@@ -3,10 +3,11 @@
 
 use std::collections::BTreeMap;
 
-use infiltrator_core::rules_io::{load_rule_providers, load_rules, save_rule_providers, save_rules};
 use infiltrator_domain::rules::{RuleEntry as DomainRuleEntry, RuleProviders};
 
-use super::support::{get_runtime, map_anyhow_error};
+use super::support::{
+    build_configuration_application, get_runtime, map_application_failure,
+};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
 // --- Rules API ---
@@ -33,13 +34,22 @@ pub struct RuleProvidersResult {
 pub async fn rules_list() -> RulesResult {
     get_runtime()
         .spawn(async move {
-            match load_rules().await.map_err(map_anyhow_error) {
+            let application = match build_configuration_application().await {
+                Ok(application) => application,
+                Err(status) => {
+                    return RulesResult {
+                        status,
+                        rules: Vec::new(),
+                    };
+                }
+            };
+            match application.load_rules().await {
                 Ok(rules) => RulesResult {
                     status: FfiStatus::ok(),
                     rules: rules.into_iter().map(core_rule_to_record).collect(),
                 },
-                Err(status) => RulesResult {
-                    status,
+                Err(failure) => RulesResult {
+                    status: map_application_failure(failure),
                     rules: Vec::new(),
                 },
             }
@@ -57,13 +67,22 @@ pub async fn rules_save(rules: Vec<RuleEntryRecord>) -> RulesResult {
         .spawn(async move {
             let core_rules: Vec<DomainRuleEntry> =
                 rules.iter().map(record_to_core_rule).collect();
-            match save_rules(core_rules).await.map_err(map_anyhow_error) {
+            let application = match build_configuration_application().await {
+                Ok(application) => application,
+                Err(status) => {
+                    return RulesResult {
+                        status,
+                        rules: Vec::new(),
+                    };
+                }
+            };
+            match application.save_rules(core_rules).await {
                 Ok(rules) => RulesResult {
                     status: FfiStatus::ok(),
                     rules: rules.into_iter().map(core_rule_to_record).collect(),
                 },
-                Err(status) => RulesResult {
-                    status,
+                Err(failure) => RulesResult {
+                    status: map_application_failure(failure),
                     rules: Vec::new(),
                 },
             }
@@ -79,13 +98,22 @@ pub async fn rules_save(rules: Vec<RuleEntryRecord>) -> RulesResult {
 pub async fn rule_providers() -> RuleProvidersResult {
     get_runtime()
         .spawn(async move {
-            match load_rule_providers().await.map_err(map_anyhow_error) {
+            let application = match build_configuration_application().await {
+                Ok(application) => application,
+                Err(status) => {
+                    return RuleProvidersResult {
+                        status,
+                        json: "{}".to_string(),
+                    };
+                }
+            };
+            match application.load_rule_providers().await {
                 Ok(providers) => RuleProvidersResult {
                     status: FfiStatus::ok(),
                     json: rule_providers_to_json(&providers),
                 },
-                Err(status) => RuleProvidersResult {
-                    status,
+                Err(failure) => RuleProvidersResult {
+                    status: map_application_failure(failure),
                     json: "{}".to_string(),
                 },
             }
@@ -110,16 +138,22 @@ pub async fn rule_providers_save(json: String) -> RuleProvidersResult {
                     };
                 }
             };
-            match save_rule_providers(providers)
-                .await
-                .map_err(map_anyhow_error)
-            {
+            let application = match build_configuration_application().await {
+                Ok(application) => application,
+                Err(status) => {
+                    return RuleProvidersResult {
+                        status,
+                        json: "{}".to_string(),
+                    };
+                }
+            };
+            match application.save_rule_providers(providers).await {
                 Ok(providers) => RuleProvidersResult {
                     status: FfiStatus::ok(),
                     json: rule_providers_to_json(&providers),
                 },
-                Err(status) => RuleProvidersResult {
-                    status,
+                Err(failure) => RuleProvidersResult {
+                    status: map_application_failure(failure),
                     json: "{}".to_string(),
                 },
             }

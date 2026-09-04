@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use infiltrator_application::profile_application::ProfileApplication;
     use crate::admin_api::state::AdminApiContext;
     use crate::scheduler::subscription::{
         SubscriptionUpdateSummary, run_profile_subscription_tick, schedule_next_attempt,
@@ -236,16 +237,15 @@ mod tests {
         let profile_path = configs_dir.join(format!("{}.yaml", profile_name));
         let _ = std::fs::write(&profile_path, "port: 7890");
 
-        let profile = Profile::new(profile_name.clone(), profile_path, false);
-
         let now = Utc::now();
         let interval_hours = 24u32;
 
-        schedule_next_attempt(&manager, &profile, interval_hours, now)
+        let application = ProfileApplication::new(Arc::new(manager));
+        schedule_next_attempt(&application, &profile_name, interval_hours, now)
             .await
             .unwrap();
 
-        let updated_profile = manager.get_profile_metadata(&profile_name).await.unwrap();
+        let updated_profile = application.load_metadata(&profile_name).await.unwrap();
 
         if let Some(next_update) = updated_profile.next_update {
             let expected = now + chrono::Duration::hours(interval_hours as i64);

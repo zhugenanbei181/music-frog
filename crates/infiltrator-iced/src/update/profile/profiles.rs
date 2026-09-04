@@ -57,7 +57,7 @@ impl AppState {
                                 .await
                                 .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
                         }
-                        infiltrator_core::profile_reset::reset_profiles_to_default()
+                        infiltrator_desktop::storage::reset_profiles_to_default()
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         Ok(())

@@ -4,7 +4,7 @@
 //! `/admin/api/sniffer`, `/admin/api/rules`, `/admin/api/tun`).
 
 use axum::Json;
-use infiltrator_core::{dns_io, fake_ip_io, proxy_providers_io, rules_io, sniffer_io, tun_io};
+use infiltrator_core::fake_ip_cache_io;
 use infiltrator_domain::rules::{RuleProvidersPayload, RulesPayload};
 use infiltrator_domain::{dns, fake_ip, proxy_providers, tun};
 
@@ -18,9 +18,16 @@ use crate::admin_api::state::{AdminApiContext, AdminApiState};
 use super::schedule_rebuild;
 
 pub async fn get_dns_config_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<dns::DnsConfig>, ApiError> {
-    let config = dns_io::load_dns_config().await?;
+    let config = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .load_dns_config()
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
     Ok(Json(config))
 }
 
@@ -28,16 +35,30 @@ pub async fn save_dns_config_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<dns::DnsConfigPatch>,
 ) -> Result<Json<dns::DnsConfig>, ApiError> {
-    let config = dns_io::save_dns_config(payload).await?;
+    let config = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .save_dns_config(payload)
+        .await
+        .map_err(|failure| ApiError::bad_request(failure.message))?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "dns-update");
     state.events.publish(AdminEvent::new(EVENT_DNS_CHANGED));
     Ok(Json(config))
 }
 
 pub async fn get_fake_ip_config_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<fake_ip::FakeIpConfig>, ApiError> {
-    let config = fake_ip_io::load_fake_ip_config().await?;
+    let config = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .load_fake_ip_config()
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
     Ok(Json(config))
 }
 
@@ -45,7 +66,14 @@ pub async fn save_fake_ip_config_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<fake_ip::FakeIpConfigPatch>,
 ) -> Result<Json<fake_ip::FakeIpConfig>, ApiError> {
-    let config = fake_ip_io::save_fake_ip_config(payload).await?;
+    let config = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .save_fake_ip_config(payload)
+        .await
+        .map_err(|failure| ApiError::bad_request(failure.message))?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "fake-ip-update");
     state.events.publish(AdminEvent::new(EVENT_FAKE_IP_CHANGED));
     Ok(Json(config))
@@ -54,14 +82,21 @@ pub async fn save_fake_ip_config_http<C: AdminApiContext>(
 pub async fn flush_fake_ip_cache_http<C: AdminApiContext>(
     axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<CacheFlushResponse>, ApiError> {
-    let removed = fake_ip_io::clear_fake_ip_cache().await?;
+    let removed = fake_ip_cache_io::clear_fake_ip_cache().await?;
     Ok(Json(CacheFlushResponse { removed }))
 }
 
 pub async fn get_rule_providers_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuleProvidersPayload>, ApiError> {
-    let providers = rules_io::load_rule_providers().await?;
+    let providers = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .load_rule_providers()
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
     Ok(Json(RuleProvidersPayload { providers }))
 }
 
@@ -69,7 +104,14 @@ pub async fn save_rule_providers_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<RuleProvidersPayload>,
 ) -> Result<Json<RuleProvidersPayload>, ApiError> {
-    let providers = rules_io::save_rule_providers(payload.providers).await?;
+    let providers = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .save_rule_providers(payload.providers)
+        .await
+        .map_err(|failure| ApiError::bad_request(failure.message))?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "rule-providers-update");
     state
         .events
@@ -78,9 +120,16 @@ pub async fn save_rule_providers_http<C: AdminApiContext>(
 }
 
 pub async fn get_proxy_providers_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<proxy_providers::ProxyProvidersPayload>, ApiError> {
-    let providers = proxy_providers_io::load_proxy_providers().await?;
+    let providers = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .load_proxy_providers()
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
     Ok(Json(proxy_providers::ProxyProvidersPayload { providers }))
 }
 
@@ -88,7 +137,14 @@ pub async fn save_proxy_providers_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<proxy_providers::ProxyProvidersPayload>,
 ) -> Result<Json<proxy_providers::ProxyProvidersPayload>, ApiError> {
-    let providers = proxy_providers_io::save_proxy_providers(payload.providers).await?;
+    let providers = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .save_proxy_providers(payload.providers)
+        .await
+        .map_err(|failure| ApiError::bad_request(failure.message))?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "proxy-providers-update");
     state
         .events
@@ -97,9 +153,16 @@ pub async fn save_proxy_providers_http<C: AdminApiContext>(
 }
 
 pub async fn get_sniffer_config_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let config = sniffer_io::load_sniffer_config().await?;
+    let config = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .load_sniffer_config()
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
     Ok(Json(config))
 }
 
@@ -107,16 +170,30 @@ pub async fn save_sniffer_config_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let config = sniffer_io::save_sniffer_config(payload).await?;
+    let config = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .save_sniffer_config(payload)
+        .await
+        .map_err(|failure| ApiError::bad_request(failure.message))?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "sniffer-update");
     state.events.publish(AdminEvent::new(EVENT_SNIFFER_CHANGED));
     Ok(Json(config))
 }
 
 pub async fn get_rules_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<RulesPayload>, ApiError> {
-    let rules_list = rules_io::load_rules().await?;
+    let rules_list = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .load_rules()
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
     Ok(Json(RulesPayload { rules: rules_list }))
 }
 
@@ -124,16 +201,30 @@ pub async fn save_rules_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<RulesPayload>,
 ) -> Result<Json<RulesPayload>, ApiError> {
-    let rules_list = rules_io::save_rules(payload.rules).await?;
+    let rules_list = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .save_rules(payload.rules)
+        .await
+        .map_err(|failure| ApiError::bad_request(failure.message))?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "rules-update");
     state.events.publish(AdminEvent::new(EVENT_RULES_CHANGED));
     Ok(Json(RulesPayload { rules: rules_list }))
 }
 
 pub async fn get_tun_config_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<tun::TunConfig>, ApiError> {
-    let config = tun_io::load_tun_config().await?;
+    let config = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .load_tun_config()
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
     Ok(Json(config))
 }
 
@@ -141,7 +232,14 @@ pub async fn save_tun_config_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<tun::TunConfigPatch>,
 ) -> Result<Json<tun::TunConfig>, ApiError> {
-    let config = tun_io::save_tun_config(payload).await?;
+    let config = state
+        .ctx
+        .configuration_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .save_tun_config(payload)
+        .await
+        .map_err(|failure| ApiError::bad_request(failure.message))?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "tun-update");
     state.events.publish(AdminEvent::new(EVENT_TUN_CHANGED));
     Ok(Json(config))

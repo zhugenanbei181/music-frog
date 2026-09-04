@@ -10,10 +10,13 @@
 pub mod admin_server;
 pub mod app;
 pub mod configs_dir;
+pub mod configuration;
 pub mod demo;
 mod notify;
+pub mod network;
 pub mod state;
 pub mod subscription;
+pub mod settings_store;
 pub mod toast_state;
 pub mod tray;
 pub mod types;
@@ -52,7 +55,8 @@ pub fn run() -> iced::Result {
         return demo::run(demo_env);
     }
 
-    let log_dir = infiltrator_core::host_io::home_dir().unwrap_or_else(|_| std::env::temp_dir());
+    let log_dir = infiltrator_desktop::storage::home_dir()
+        .unwrap_or_else(|_| std::env::temp_dir());
     let _ = std::fs::create_dir_all(&log_dir);
     let crash_log_path = log_dir.join("infiltrator_crash.log");
 

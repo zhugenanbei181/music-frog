@@ -427,14 +427,7 @@ impl AppState {
             Task::batch(vec![
                 Task::perform(
                     async {
-                        let data_dir = infiltrator_core::host_io::home_dir().unwrap_or_default();
-                        let path = infiltrator_core::settings_io::settings_path(&data_dir)
-                            .unwrap_or_else(|_| data_dir.join("settings.toml"));
-                        // hydrated：顺带从 keyring 取回 WebDAV 密码填充内存
-                        // 镜像（磁盘序列化跳过该字段，不会因此落盘）。
-                        infiltrator_core::settings_io::load_settings_hydrated(&path)
-                            .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))
+                        crate::settings_store::load_hydrated().await
                     },
                     // env 覆写生效时清空回灌快照的 language 字段（仅内存
                     // 快照），apply_loaded_settings 因此保留 env 注入值；

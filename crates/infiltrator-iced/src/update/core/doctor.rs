@@ -11,9 +11,6 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
 
-/// 体检/修复/引导都只碰本地文件与 loopback HTTP，超时给足余量。
-const DOCTOR_HTTP_TIMEOUT_SECS: u64 = 30;
-
 impl AppState {
     /// 内嵌 admin server 的 API 基址：实际绑定地址优先（端口被占时会向上
     /// 漂移），服务未起时退回配置端口，让调用以连接失败的形式暴露。
@@ -37,19 +34,9 @@ impl AppState {
                 let base = self.admin_api_base();
                 Task::perform(
                     async move {
-                        let client = reqwest::Client::builder()
-                            .timeout(std::time::Duration::from_secs(DOCTOR_HTTP_TIMEOUT_SECS))
-                            .build()
-                            .map_err(|e| InfiltratorError::Internal(e.to_string()))?;
-                        let response = client
-                            .get(format!("{base}/api/doctor"))
-                            .send()
-                            .await
-                            .map_err(|e| InfiltratorError::Internal(e.to_string()))?;
-                        response
-                            .error_for_status()
+                        infiltrator_desktop::admin_client::AdminApiClient::new(base)
                             .map_err(|e| InfiltratorError::Internal(e.to_string()))?
-                            .json::<DoctorReport>()
+                            .get::<DoctorReport>("/api/doctor")
                             .await
                             .map_err(|e| InfiltratorError::Internal(e.to_string()))
                     },
@@ -75,20 +62,9 @@ impl AppState {
                 let base = self.admin_api_base();
                 Task::perform(
                     async move {
-                        let client = reqwest::Client::builder()
-                            .timeout(std::time::Duration::from_secs(DOCTOR_HTTP_TIMEOUT_SECS))
-                            .build()
-                            .map_err(|e| InfiltratorError::Internal(e.to_string()))?;
-                        let response = client
-                            .post(format!("{base}/api/doctor/fix"))
-                            .json(&serde_json::json!({}))
-                            .send()
-                            .await
-                            .map_err(|e| InfiltratorError::Internal(e.to_string()))?;
-                        response
-                            .error_for_status()
+                        infiltrator_desktop::admin_client::AdminApiClient::new(base)
                             .map_err(|e| InfiltratorError::Internal(e.to_string()))?
-                            .json::<DoctorFixReport>()
+                            .post::<DoctorFixReport, _>("/api/doctor/fix", &serde_json::json!({}))
                             .await
                             .map_err(|e| InfiltratorError::Internal(e.to_string()))
                     },
@@ -122,19 +98,9 @@ impl AppState {
                 let base = self.admin_api_base();
                 Task::perform(
                     async move {
-                        let client = reqwest::Client::builder()
-                            .timeout(std::time::Duration::from_secs(DOCTOR_HTTP_TIMEOUT_SECS))
-                            .build()
-                            .map_err(|e| InfiltratorError::Internal(e.to_string()))?;
-                        let response = client
-                            .post(format!("{base}/api/bootstrap"))
-                            .send()
-                            .await
-                            .map_err(|e| InfiltratorError::Internal(e.to_string()))?;
-                        response
-                            .error_for_status()
+                        infiltrator_desktop::admin_client::AdminApiClient::new(base)
                             .map_err(|e| InfiltratorError::Internal(e.to_string()))?
-                            .json::<BootstrapReport>()
+                            .post::<BootstrapReport, _>("/api/bootstrap", &serde_json::json!({}))
                             .await
                             .map_err(|e| InfiltratorError::Internal(e.to_string()))
                     },

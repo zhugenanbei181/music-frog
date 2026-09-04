@@ -83,8 +83,8 @@ impl AppState {
                     .await
                     .map_err(infiltrator_contract::error::from_mihomo)?;
                 let vm = VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
-                let data_dir =
-                    infiltrator_core::host_io::home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
+                let data_dir = infiltrator_desktop::storage::home_dir()
+                    .map_err(infiltrator_contract::error::from_mihomo)?;
                 let candidates = vec![];
                 match infiltrator_desktop::boot::bootstrap_host_runtime(
                     &vm,

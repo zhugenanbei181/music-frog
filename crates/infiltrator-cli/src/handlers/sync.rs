@@ -1,10 +1,11 @@
 use anyhow::anyhow;
 use dav_client::DavClient as _;
 use dav_client::client::WebDavClient;
+#[cfg(test)]
 use infiltrator_core::settings_io::load_webdav_password;
 use infiltrator_domain::settings::AppSettings;
+#[cfg(test)]
 use infiltrator_ports::secure_store::SecureStore;
-use mihomo_platform::defaults::DefaultCredentialStore;
 use state_store::StateStore;
 use sync_engine::SyncPlanner;
 use sync_engine::executor::SyncExecutor;
@@ -34,16 +35,18 @@ pub(crate) fn dav_config(settings: &AppSettings) -> anyhow::Result<(String, Stri
     Ok((config.url.clone(), config.username.clone()))
 }
 
-/// WebDAV 密码经 core helper 从凭据存储取回（`webdav:password`）。读取
+/// WebDAV 密码 helper 只保留给隔离测试；生产 CLI 通过 settings application
+/// 的 hydrated store 读取（`webdav:password`）。读取
 /// 失败归一为空串，由后续服务器认证显式报错，而不是在 CLI 里掩盖配置
 /// 问题。
+#[cfg(test)]
 pub(crate) async fn dav_password<S: SecureStore>(store: &S) -> String {
     load_webdav_password(store).await.unwrap_or_default()
 }
 
 async fn dav_client(runtime: &Runtime) -> anyhow::Result<WebDavClient> {
     let (url, username) = dav_config(&runtime.settings)?;
-    let password = dav_password(&DefaultCredentialStore::default()).await;
+    let password = runtime.webdav_password().await;
     WebDavClient::new(&url, &username, &password)
 }
 

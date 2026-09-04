@@ -3,12 +3,9 @@
 //! `/admin/api/runtime/delay/*`).
 
 use std::collections::HashSet;
-use std::time::Duration;
 
 use axum::{Json, http::StatusCode, response::{IntoResponse, Response}};
 use chrono::Utc;
-use infiltrator_core::flow_control::BatchDelayTester;
-use tokio::sync::watch;
 
 use crate::admin_api::events::{AdminEvent, EVENT_PROXY_CHANGED};
 use crate::admin_api::models::*;
@@ -173,36 +170,20 @@ pub async fn test_all_runtime_proxy_delays_http<C: AdminApiContext>(
     let candidates =
         collect_delay_test_candidates(payload.proxies.as_deref(), &proxies, &mut results);
 
-    let tester = BatchDelayTester::new(
-        30,
+    let outcomes = infiltrator_application::proxy_application::test_proxy_delays(
+        client,
+        candidates,
         test_url.clone(),
-        Duration::from_millis(timeout_ms as u64),
-    );
-    let (_cancel_tx, cancel_rx) = watch::channel(false);
-    let gateway = client;
-
-    let outcomes = tester
-        .test_proxies(
-            candidates,
-            move |proxy, url| {
-                let gateway = gateway.clone();
-                async move {
-                    gateway
-                        .test_delay(&proxy, &url, timeout_ms)
-                        .await
-                        .map(|d| d as u64)
-                        .map_err(|e| e.to_string())
-                }
-            },
-            cancel_rx,
-        )
+        timeout_ms,
+        30,
+    )
         .await;
 
     for outcome in outcomes {
         match outcome.result {
             Ok(res) => results.push(RuntimeDelayBatchResult {
                 proxy: outcome.proxy_name,
-                delay_ms: Some(res.latency_ms as u32),
+                delay_ms: Some(res),
                 tested_at: Some(Utc::now().to_rfc3339()),
                 error: None,
             }),
@@ -279,36 +260,20 @@ pub async fn test_proxies_delay_http<C: AdminApiContext>(
     let candidates =
         collect_delay_test_candidates(payload.proxies.as_deref(), &proxies, &mut results);
 
-    let tester = BatchDelayTester::new(
-        30,
+    let outcomes = infiltrator_application::proxy_application::test_proxy_delays(
+        client,
+        candidates,
         test_url.clone(),
-        Duration::from_millis(timeout_ms as u64),
-    );
-    let (_cancel_tx, cancel_rx) = watch::channel(false);
-    let gateway = client;
-
-    let outcomes = tester
-        .test_proxies(
-            candidates,
-            move |proxy, url| {
-                let gateway = gateway.clone();
-                async move {
-                    gateway
-                        .test_delay(&proxy, &url, timeout_ms)
-                        .await
-                        .map(|d| d as u64)
-                        .map_err(|e| e.to_string())
-                }
-            },
-            cancel_rx,
-        )
+        timeout_ms,
+        30,
+    )
         .await;
 
     for outcome in outcomes {
         match outcome.result {
             Ok(res) => results.push(RuntimeDelayBatchResult {
                 proxy: outcome.proxy_name,
-                delay_ms: Some(res.latency_ms as u32),
+                delay_ms: Some(res),
                 tested_at: Some(Utc::now().to_rfc3339()),
                 error: None,
             }),

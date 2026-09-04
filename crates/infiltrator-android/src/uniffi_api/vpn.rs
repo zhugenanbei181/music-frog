@@ -7,13 +7,14 @@ use serde_yaml_ng::Value;
 
 use mihomo_platform::android_bridge::get_android_bridge;
 
-use infiltrator_core::dns_io::{load_dns_config, save_dns_config};
-use infiltrator_core::tun_io::{load_tun_config, save_tun_config};
 use infiltrator_domain::{dns, tun};
 
 #[cfg(target_os = "android")]
 use super::support::build_config_manager;
-use super::support::{get_runtime, map_anyhow_error, map_mihomo_error, normalize_optional_string};
+use super::support::{
+    build_configuration_application, get_runtime, map_application_failure, map_mihomo_error,
+    normalize_optional_string,
+};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
 #[uniffi::export]
@@ -37,8 +38,14 @@ pub fn start_vpn(fd: i32) -> FfiStatus {
         args.tun_fd = Some(fd);
         args.close_fd_on_drop = Some(true);
         let mtu = get_runtime()
-            .block_on(load_tun_config())
-            .ok()
+            .block_on(async {
+                build_configuration_application()
+                    .await
+                    .ok()?
+                    .load_tun_config()
+                    .await
+                    .ok()
+            })
             .and_then(|config| config.mtu)
             .and_then(|value| u16::try_from(value).ok())
             .unwrap_or(1500);
@@ -235,8 +242,15 @@ fn default_proxy_url() -> String {
 }
 
 async fn load_vpn_tun_settings() -> Result<VpnTunSettings, FfiStatus> {
-    let tun_config = load_tun_config().await.map_err(map_anyhow_error)?;
-    let dns_config = load_dns_config().await.map_err(map_anyhow_error)?;
+    let application = build_configuration_application().await?;
+    let tun_config = application
+        .load_tun_config()
+        .await
+        .map_err(map_application_failure)?;
+    let dns_config = application
+        .load_dns_config()
+        .await
+        .map_err(map_application_failure)?;
     Ok(build_vpn_tun_settings(tun_config, dns_config))
 }
 
@@ -244,17 +258,33 @@ async fn save_vpn_tun_settings(patch: VpnTunSettingsPatch) -> Result<VpnTunSetti
     let (tun_patch, has_tun) = build_tun_patch(&patch);
     let has_dns = patch.dns_servers.is_some() || patch.ipv6.is_some();
 
+    let application = build_configuration_application().await?;
     let tun_config = if has_tun {
-        save_tun_config(tun_patch).await.map_err(map_anyhow_error)?
+        application
+            .save_tun_config(tun_patch)
+            .await
+            .map_err(map_application_failure)?
     } else {
-        load_tun_config().await.map_err(map_anyhow_error)?
+        application
+            .load_tun_config()
+            .await
+            .map_err(map_application_failure)?
     };
     let dns_config = if has_dns {
-        let current = load_dns_config().await.map_err(map_anyhow_error)?;
+        let current = application
+            .load_dns_config()
+            .await
+            .map_err(map_application_failure)?;
         let dns_patch = build_dns_patch(&patch, &current);
-        save_dns_config(dns_patch).await.map_err(map_anyhow_error)?
+        application
+            .save_dns_config(dns_patch)
+            .await
+            .map_err(map_application_failure)?
     } else {
-        load_dns_config().await.map_err(map_anyhow_error)?
+        application
+            .load_dns_config()
+            .await
+            .map_err(map_application_failure)?
     };
 
     Ok(build_vpn_tun_settings(tun_config, dns_config))

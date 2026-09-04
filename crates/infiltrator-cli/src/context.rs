@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_core::settings_store::FileSettingsStore;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_core::settings_io::{load_settings, save_settings, settings_path};
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::endpoint::EndpointSource as _;
 use mihomo_api::client::MihomoClient;
@@ -30,8 +31,12 @@ impl Runtime {
 
     /// Context rooted at an explicit home (tests inject a temp dir).
     pub async fn with_home(home: PathBuf) -> anyhow::Result<Self> {
-        let settings_file = settings_path(&home)?;
-        let settings = load_settings(&settings_file).await?;
+        let settings = SettingsApplication::new(Arc::new(FileSettingsStore::for_home(
+            home.clone(),
+        )))
+        .load()
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
         Ok(Self { home, settings })
     }
 
@@ -39,8 +44,21 @@ impl Runtime {
         &self.home
     }
 
+    #[cfg(test)]
     pub fn settings_file(&self) -> anyhow::Result<PathBuf> {
-        settings_path(&self.home)
+        Ok(self.home.join("settings.toml"))
+    }
+
+    pub fn settings_application(&self) -> SettingsApplication {
+        SettingsApplication::new(Arc::new(FileSettingsStore::for_home(self.home.clone())))
+    }
+
+    pub async fn webdav_password(&self) -> String {
+        self.settings_application()
+            .load_hydrated()
+            .await
+            .map(|settings| settings.webdav.password)
+            .unwrap_or_default()
     }
 
     /// ConfigManager following the full configs-directory resolution chain:
@@ -90,11 +108,10 @@ impl Runtime {
     where
         F: FnOnce(&mut AppSettings),
     {
-        let file = self.settings_file()?;
-        let mut settings = self.settings.clone();
-        update(&mut settings);
-        save_settings(&file, &settings).await?;
-        Ok(())
+        self.settings_application()
+            .update(update)
+            .await
+            .map_err(|failure| anyhow::anyhow!(failure.message))
     }
 }
 

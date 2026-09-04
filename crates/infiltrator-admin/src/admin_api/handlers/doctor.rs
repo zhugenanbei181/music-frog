@@ -25,13 +25,11 @@ use crate::admin_api::models::{
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
 
 /// The settings check must inspect the exact file the `/admin/api/settings`
-/// handlers read and write: both sides derive it through
-/// `settings_io::settings_path(get_home_dir())`, never through a second
-/// derivation.
+/// handlers read and write: both sides use `<home>/settings.toml`, never
+/// through a second derivation.
 pub(crate) fn detect_doctor_env() -> Result<DoctorEnv, ApiError> {
     let home = get_home_dir().map_err(|e| ApiError::internal(e.to_string()))?;
-    let settings_file = infiltrator_core::settings_io::settings_path(&home)
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let settings_file = home.join("settings.toml");
     Ok(DoctorEnv::with_home(home).with_settings_file(settings_file))
 }
 

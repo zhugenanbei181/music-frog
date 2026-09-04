@@ -2,11 +2,13 @@
 //! (servers, enhanced mode, fallback filter) and Fake-IP configuration
 //! (range, filter list, cache store) plus cache clearing.
 
-use infiltrator_core::dns_io::{load_dns_config, save_dns_config};
-use infiltrator_core::fake_ip_io::{clear_fake_ip_cache, load_fake_ip_config, save_fake_ip_config};
+use infiltrator_core::fake_ip_cache_io::clear_fake_ip_cache;
 use infiltrator_domain::{dns, fake_ip};
 
-use super::support::{get_runtime, map_anyhow_error, normalize_optional_string, sanitize_list};
+use super::support::{
+    build_configuration_application, get_runtime, map_anyhow_error, map_application_failure,
+    normalize_optional_string, sanitize_list,
+};
 use crate::ffi::{FfiBoolResult, FfiErrorCode, FfiStatus};
 
 // --- DNS API ---
@@ -177,15 +179,21 @@ pub async fn fake_ip_cache_clear() -> FfiBoolResult {
 }
 
 async fn load_dns_settings() -> Result<DnsSettings, FfiStatus> {
-    let config = load_dns_config().await.map_err(map_anyhow_error)?;
+    let config = build_configuration_application()
+        .await?
+        .load_dns_config()
+        .await
+        .map_err(map_application_failure)?;
     Ok(build_dns_settings(config))
 }
 
 async fn save_dns_settings(patch: DnsSettingsPatch) -> Result<DnsSettings, FfiStatus> {
     let core_patch = build_dns_settings_patch(patch);
-    let config = save_dns_config(core_patch)
+    let config = build_configuration_application()
+        .await?
+        .save_dns_config(core_patch)
         .await
-        .map_err(map_anyhow_error)?;
+        .map_err(map_application_failure)?;
     Ok(build_dns_settings(config))
 }
 
@@ -246,15 +254,21 @@ pub(super) fn record_to_core_dns_fallback_filter(
 }
 
 async fn load_fake_ip_settings() -> Result<FakeIpSettings, FfiStatus> {
-    let config = load_fake_ip_config().await.map_err(map_anyhow_error)?;
+    let config = build_configuration_application()
+        .await?
+        .load_fake_ip_config()
+        .await
+        .map_err(map_application_failure)?;
     Ok(build_fake_ip_settings(config))
 }
 
 async fn save_fake_ip_settings(patch: FakeIpSettingsPatch) -> Result<FakeIpSettings, FfiStatus> {
     let core_patch = build_fake_ip_settings_patch(patch);
-    let config = save_fake_ip_config(core_patch)
+    let config = build_configuration_application()
+        .await?
+        .save_fake_ip_config(core_patch)
         .await
-        .map_err(map_anyhow_error)?;
+        .map_err(map_application_failure)?;
     Ok(build_fake_ip_settings(config))
 }
 

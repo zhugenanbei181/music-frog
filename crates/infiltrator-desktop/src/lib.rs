@@ -1,3 +1,4 @@
+pub mod admin_client;
 pub mod boot;
 pub mod clipboard_helper;
 pub mod crash;
@@ -13,6 +14,7 @@ pub mod process_enumerator;
 pub mod proxy;
 pub mod runtime;
 pub mod service;
+pub mod storage;
 pub mod shortcut_manager;
 pub mod tray_badge;
 pub mod tray_event;

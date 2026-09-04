@@ -4,6 +4,8 @@
 
 use std::sync::OnceLock;
 
+use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::settings_application::SettingsApplication;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
@@ -45,15 +47,37 @@ pub(super) fn sanitize_list(value: Option<Vec<String>>) -> Option<Vec<String>> {
 /// resolution; `None` keeps the default `<home>/configs` behavior. A settings
 /// load failure must not block the default path, so it degrades to `None`.
 pub(super) async fn configs_dir_override() -> Option<String> {
-    let home = mihomo_platform::paths::get_home_dir().ok()?;
-    let path = infiltrator_core::settings_io::settings_path(&home).ok()?;
-    match infiltrator_core::settings_io::load_settings(&path).await {
-        Ok(settings) => settings.configs_dir,
-        Err(err) => {
-            log::warn!("settings load failed, configs_dir override ignored: {err:#}");
+    match build_settings_application().await {
+        Ok(application) => match application.load().await {
+            Ok(settings) => settings.configs_dir,
+            Err(failure) => {
+                log::warn!(
+                    "settings load failed, configs_dir override ignored: {}",
+                    failure.message
+                );
+                None
+            }
+        },
+        Err(status) => {
+            log::warn!(
+                "settings adapter unavailable, configs_dir override ignored: {:?}",
+                status.code
+            );
             None
         }
     }
+}
+
+pub(super) async fn build_settings_application() -> Result<SettingsApplication, FfiStatus> {
+    let store = infiltrator_core::settings_store::for_current_home()
+        .map_err(map_anyhow_error)?;
+    Ok(SettingsApplication::new(std::sync::Arc::new(store)))
+}
+
+pub(super) async fn build_configuration_application()
+-> Result<ConfigurationApplication, FfiStatus> {
+    let manager = build_config_manager().await?;
+    Ok(ConfigurationApplication::new(std::sync::Arc::new(manager)))
 }
 
 /// ConfigManager wired for the configs-dir redirect. The `INFILTRATOR_CONFIGS_DIR`

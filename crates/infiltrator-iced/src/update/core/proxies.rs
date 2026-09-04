@@ -7,7 +7,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_domain::settings::{AppSettings, RuntimePanelConfig};
+use infiltrator_domain::settings::RuntimePanelConfig;
 
 pub(super) const DEFAULT_RUNTIME_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
 pub(super) const DEFAULT_RUNTIME_DELAY_TIMEOUT_MS: u32 = 5000;
@@ -115,18 +115,10 @@ impl AppState {
 
         Task::perform(
             async move {
-                let base_dir =
-                    infiltrator_core::host_io::home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
-                let settings_path = infiltrator_core::settings_io::settings_path(&base_dir)
-                    .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                let mut settings = infiltrator_core::settings_io::load_settings(&settings_path)
-                    .await
-                    .unwrap_or_else(|_| AppSettings::default());
-                settings.runtime_panel = runtime_panel;
-                infiltrator_core::settings_io::save_settings(&settings_path, &settings)
-                    .await
-                    .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                Ok(())
+                crate::settings_store::update(|settings| {
+                    settings.runtime_panel = runtime_panel;
+                })
+                .await
             },
             Message::RuntimePanelSettingsSaved,
         )
@@ -559,27 +551,9 @@ impl AppState {
                                 .and_then(|p| p.all())
                                 .map(|all| all.to_vec())
                                 .unwrap_or_default();
-                            let tester = infiltrator_core::flow_control::BatchDelayTester::new(
-                                30,
-                                test_url,
-                                std::time::Duration::from_millis(timeout_ms as u64),
-                            );
-                            let (_cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
-                            let gateway = rt.clone();
-                            let outcomes = tester
-                                .test_proxies(
-                                    members,
-                                    move |proxy, url| {
-                                        let gateway = gateway.clone();
-                                        async move {
-                                            gateway
-                                                .test_delay(&proxy, &url, timeout_ms)
-                                                .await
-                                                .map(|d| d as u64)
-                                                .map_err(|e| e.to_string())
-                                        }
-                                    },
-                                    cancel_rx,
+                            let outcomes =
+                                infiltrator_application::proxy_application::test_proxy_delays(
+                                    rt, members, test_url, timeout_ms, 30,
                                 )
                                 .await;
                             let mut success = 0usize;
@@ -623,27 +597,9 @@ impl AppState {
                     self.runtime.runtime_testing_all_delays = true;
                     Task::perform(
                         async move {
-                            let tester = infiltrator_core::flow_control::BatchDelayTester::new(
-                                30,
-                                test_url,
-                                std::time::Duration::from_millis(timeout_ms as u64),
-                            );
-                            let (_cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
-                            let gateway = rt.clone();
-                            let outcomes = tester
-                                .test_proxies(
-                                    candidates,
-                                    move |proxy, url| {
-                                        let gateway = gateway.clone();
-                                        async move {
-                                            gateway
-                                                .test_delay(&proxy, &url, timeout_ms)
-                                                .await
-                                                .map(|d| d as u64)
-                                                .map_err(|e| e.to_string())
-                                        }
-                                    },
-                                    cancel_rx,
+                            let outcomes =
+                                infiltrator_application::proxy_application::test_proxy_delays(
+                                    rt, candidates, test_url, timeout_ms, 30,
                                 )
                                 .await;
                             let mut success = 0usize;

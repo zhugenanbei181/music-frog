@@ -26,6 +26,9 @@ use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
 use infiltrator_admin::admin_api::state::AdminApiContext;
+use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_admin::servers::AdminServerHandle;
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
 use infiltrator_ports::host_runtime::HostRuntime;
@@ -381,46 +384,64 @@ impl IcedAdminContext {
         &self,
         apply: impl FnOnce(&mut AppSettings),
     ) -> anyhow::Result<()> {
-        let mut settings = load_settings_from_disk().await?;
-        apply(&mut settings);
-        save_settings_to_disk(&settings).await?;
-        Ok(())
+        let application = settings_application().await?;
+        application
+            .update(apply)
+            .await
+            .map_err(|failure| anyhow!(failure.message))
     }
 }
 
+async fn settings_application() -> anyhow::Result<SettingsApplication> {
+    let store = infiltrator_desktop::storage::settings_store().await?;
+    Ok(SettingsApplication::new(store))
+}
+
 async fn load_settings_from_disk() -> anyhow::Result<AppSettings> {
-    let base_dir = infiltrator_core::host_io::home_dir().map_err(|e| anyhow!(e.to_string()))?;
-    let path = infiltrator_core::settings_io::settings_path(&base_dir)?;
-    infiltrator_core::settings_io::load_settings(&path).await
+    settings_application()
+        .await?
+        .load()
+        .await
+        .map_err(|failure| anyhow!(failure.message))
 }
 
 /// 同 [`load_settings_from_disk`]，但把 keyring 里的 WebDAV 密码水合进
 /// `webdav.password` 内存镜像，供 UI 域（`webdav_pass`）回填。仅 UI 展示/
 /// 重新应用路径使用；REST 读取路径保持不触碰 keyring。
-async fn load_settings_hydrated_from_disk()
--> anyhow::Result<AppSettings> {
-    let base_dir = infiltrator_core::host_io::home_dir().map_err(|e| anyhow!(e.to_string()))?;
-    let path = infiltrator_core::settings_io::settings_path(&base_dir)?;
-    infiltrator_core::settings_io::load_settings_hydrated(&path).await
+async fn load_settings_hydrated_from_disk() -> anyhow::Result<AppSettings> {
+    settings_application()
+        .await?
+        .load_hydrated()
+        .await
+        .map_err(|failure| anyhow!(failure.message))
 }
 
-async fn save_settings_to_disk(
-    settings: &AppSettings,
-) -> anyhow::Result<()> {
-    let base_dir = infiltrator_core::host_io::home_dir().map_err(|e| anyhow!(e.to_string()))?;
-    let path = infiltrator_core::settings_io::settings_path(&base_dir)?;
-    infiltrator_core::settings_io::save_settings(&path, settings).await
+async fn save_settings_to_disk(settings: &AppSettings) -> anyhow::Result<()> {
+    settings_application()
+        .await?
+        .save(settings)
+        .await
+        .map_err(|failure| anyhow!(failure.message))
 }
 
 #[async_trait::async_trait]
 impl AdminApiContext for IcedAdminContext {
+    async fn profile_application(&self) -> anyhow::Result<ProfileApplication> {
+        let store = infiltrator_desktop::storage::profile_store().await?;
+        Ok(ProfileApplication::new(store))
+    }
+
+    async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication> {
+        let store = infiltrator_desktop::storage::profile_store().await?;
+        Ok(ConfigurationApplication::new(store))
+    }
+
     async fn rebuild_runtime(&self) -> anyhow::Result<()> {
         if let Some(runtime) = self.shared.take_runtime() {
             let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
         }
         let vm = VersionManager::new().map_err(|e| anyhow!(e.to_string()))?;
-        let data_dir =
-            infiltrator_core::host_io::home_dir().map_err(|e| anyhow!(e.to_string()))?;
+        let data_dir = infiltrator_desktop::storage::home_dir()?;
         let (rebuilt, _rotated) =
             infiltrator_desktop::boot::bootstrap_host_runtime(&vm, true, &[], &data_dir).await?;
         self.shared.set_runtime(Some(rebuilt.clone()));

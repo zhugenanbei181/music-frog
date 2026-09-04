@@ -184,9 +184,11 @@ impl AppState {
         match message {
             Message::RefreshDnsOnly => Task::perform(
                 async {
-                    let config = infiltrator_core::dns_io::load_dns_config()
+                    let config = crate::configuration::application()
+                        .await?
+                        .load_dns_config()
                         .await
-                        .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        .map_err(|failure| InfiltratorError::Config(failure.message))?;
                     serde_json::to_string_pretty(&config)
                         .map_err(|e| InfiltratorError::Config(e.to_string()))
                 },
@@ -194,9 +196,11 @@ impl AppState {
             ),
             Message::RefreshFakeIpOnly => Task::perform(
                 async {
-                    let config = infiltrator_core::fake_ip_io::load_fake_ip_config()
+                    let config = crate::configuration::application()
+                        .await?
+                        .load_fake_ip_config()
                         .await
-                        .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        .map_err(|failure| InfiltratorError::Config(failure.message))?;
                     serde_json::to_string_pretty(&config)
                         .map_err(|e| InfiltratorError::Config(e.to_string()))
                 },

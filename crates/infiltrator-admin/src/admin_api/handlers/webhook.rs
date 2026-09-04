@@ -1,14 +1,10 @@
 //! Generic automation endpoint for Alfred / Raycast / Apple Shortcuts
 //! (`POST /admin/api/webhook`).
 
-use std::time::Duration;
-
 use axum::Json;
 use chrono::Utc;
 use infiltrator_core::doctor;
-use infiltrator_core::flow_control::BatchDelayTester;
 use log::info;
-use tokio::sync::watch;
 
 use crate::admin_api::events::{
     AdminEvent, EVENT_DOCTOR_FIX, EVENT_PROFILES_CHANGED, EVENT_PROXY_CHANGED,
@@ -269,28 +265,13 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
                 .map_err(|e| ApiError::internal(e.to_string()))?;
             let mut results = Vec::new();
             let candidates = collect_delay_test_candidates(None, &proxies, &mut results);
-            let tester = BatchDelayTester::new(
-                30,
+            let outcomes = infiltrator_application::proxy_application::test_proxy_delays(
+                client,
+                candidates,
                 test_url.to_string(),
-                Duration::from_millis(timeout_ms as u64),
-            );
-            let (_cancel_tx, cancel_rx) = watch::channel(false);
-            let gateway = client;
-            let outcomes = tester
-                .test_proxies(
-                    candidates,
-                    move |proxy, url| {
-                        let gateway = gateway.clone();
-                        async move {
-                            gateway
-                                .test_delay(&proxy, &url, timeout_ms)
-                                .await
-                                .map(|d| d as u64)
-                                .map_err(|e| e.to_string())
-                        }
-                    },
-                    cancel_rx,
-                )
+                timeout_ms,
+                30,
+            )
                 .await;
             let success_count = outcomes.iter().filter(|o| o.result.is_ok()).count();
             return Ok(Json(WebhookResponse {

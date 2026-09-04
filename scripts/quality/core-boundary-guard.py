@@ -92,6 +92,13 @@ FORBIDDEN_DIRECT = {
         "mihomo-version",
         "infiltrator-core",
     },
+    "infiltrator-iced": {
+        "reqwest",
+        "mihomo-api",
+        "mihomo-config",
+        "mihomo-platform",
+        "infiltrator-core",
+    },
     "infiltrator-bevy-widgets": {
         "tokio",
         "reqwest",
@@ -120,6 +127,9 @@ SOURCE_PATTERNS = {
     ),
     "infiltrator-bevy-ui": re.compile(
         r"\b(?:tokio|reqwest|mihomo_api)::|\bMihomoClient\b"
+    ),
+    "infiltrator-iced": re.compile(
+        r"\b(?:reqwest|mihomo_api|mihomo_config|mihomo_platform|infiltrator_core)::|\bMihomoClient\b"
     ),
 }
 
@@ -185,6 +195,9 @@ def self_test() -> int:
     )
     assert SOURCE_PATTERNS["infiltrator-bevy-ui"].search(
         "use mihomo_api::client::MihomoClient;"
+    )
+    assert SOURCE_PATTERNS["infiltrator-iced"].search(
+        "use infiltrator_core::settings_io;"
     )
     print("core boundary guard self-test: PASS")
     return 0

@@ -96,6 +96,12 @@ where
             .map_err(storage_error)
     }
 
+    async fn delete_subscription_credential(&self, profile: &str) -> Result<(), PortError> {
+        ConfigManager::delete_subscription_credential(self, profile)
+            .await
+            .map_err(storage_error)
+    }
+
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError> {
         ConfigManager::clear_backup(self, profile)
             .await

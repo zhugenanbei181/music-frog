@@ -30,6 +30,14 @@ pub struct CoreSnapshot {
     pub memory_bytes: Option<u64>,
 }
 
+/// Result of a user-requested public-egress probe.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublicIpSnapshot {
+    pub ip: String,
+    pub provider: String,
+    pub checked_at_epoch_ms: i64,
+}
+
 /// Bounded, surface-neutral events emitted by the application layer.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum CoreEvent {

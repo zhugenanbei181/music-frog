@@ -19,8 +19,7 @@
 - [x] Desktop/Android 已把 Core process、secure store、data-dir 和 readiness 组合到 host adapter 端口。
 - [ ] application actor/facade 覆盖全部 use-case，并统一前端命令与领域快照通道。
 - [x] 标准 Mihomo Overview adapter 已移入 `infiltrator-composition`；application 不再直接构造 `MihomoClient`。
-- [x] profile-options 与 rules 的文件读写已分别收敛为 core 内 `profile_options_io` / `rules_io`，纯 schema 和 YAML 变换不再依赖 Tokio。
-- [x] DNS、Fake-IP、TUN 的 profile 文件读写已分别收敛为 core 内 `dns_io` / `fake_ip_io` / `tun_io`，domain 只保留 schema、校验和内存 YAML 变换。
+- [x] profile-options 仍由 host adapter 持有 sidecar IO，rules、DNS、Fake-IP、TUN、proxy-provider、sniffer 的 profile YAML 读写已统一收敛到 `infiltrator-application::configuration_application`；domain 只保留 schema、校验和内存 YAML 变换。
 - [x] `AppSettings` / WebDAV / runtime-panel schema 已移入 `infiltrator-domain::settings`；keyring、TOML 和 ConfigManager 读写集中在 `settings_io`。
 - [x] YAML 语法诊断与 ApplyStrategy 已移入 domain；core apply 仅保留 Mihomo/config-manager/lifecycle transaction adapter。
 - [x] controller 的连接、流量、内存、provider 与 proxy schema 已由 domain 持有；`mihomo-api` 只负责 wire decode 和 adapter conversion，前端消息不再引用 `mihomo_api::types` 或 `mihomo_api::proxy::types`。
@@ -29,11 +28,13 @@
 - [x] application 的 dispatch、串行锁和 readiness delay 已改为 `ApplicationRuntime` port；Tokio 实现只在 composition root，`infiltrator-application` production code 不再直接依赖 Tokio。
 - [x] `ProfileStore` 已成为配置持久化 port；Iced profile/config flows 不再持有 `ConfigManager`，`mihomo-config` 负责把 keyring、TOML 和文件 CRUD 转换为 domain values。
 - [x] `ProfileApplication` 已覆盖 profile 列表、详情、切换、保存、删除、metadata、订阅导入/更新；`SubscriptionSource` 将 HTTP/sidecar 适配留在 core adapter，前端不再调用 `infiltrator-core::profiles`。
+- [x] `ConfigurationApplication` 已统一 DNS、Fake-IP、TUN、rules、provider、sniffer 的 profile YAML 读写；Iced production 已移除 core/Reqwest 直连，Iced 的文件、订阅、快照与 Admin API 走 desktop host adapter。
+- [x] `NetworkApplication` / `PublicIpProbe` 已统一出口 IP 探测，页面不再直接构造 Reqwest；Fake-IP cache 作为独立 host IO adapter 保留。
 - [x] Iced runtime handle 已收敛为 `HostRuntime` trait object；desktop 的具体 `MihomoRuntime` 只在 boot composition 中构造，UI 仅消费 gateway、generation、apply 与 typed host capability。
 - [x] `InfiltratorError` 已移入 `infiltrator-contract`；Mihomo/IO 适配通过显式边界转换，不再从 core 暴露 transport error 类型。
 - [x] profile projection (`ProfileInfo` / `ProfileDetail`) 与 profile name 校验已移入 `infiltrator-domain::profiles`。
 - [x] subscription 的 URL 校验、内容解码、userinfo/配额、UA、WAF 分类和安全审计已移入 `infiltrator-domain::subscription`；HTTP 重试、响应体上限和 HeaderMap 转换集中在 `infiltrator-core::subscription_io`。
-- [x] proxy-provider 与 sniffer 的 schema、校验和 YAML 变换已移入 `infiltrator-domain::{proxy_providers,sniffer}`；当前 profile 文件读写分别位于 `proxy_providers_io` / `sniffer_io`。
+- [x] proxy-provider 与 sniffer 的 schema、校验和 YAML 变换已移入 `infiltrator-domain::{proxy_providers,sniffer}`，持久化由 configuration application 通过 `ProfileStore` 完成。
 - [ ] 其余标准 adapter（配置、版本、Admin、同步）按同一规则下沉到 composition/outbound 组合根。
 - [x] `infiltrator-ios` host crate 已建立端口与保守 capability seam，且 composition root 已有 `IosBridge -> CoreApplication` 入口；Native NetworkExtension bridge 仍待接入。
 - [ ] Iced、Admin、Android FFI 完成同一 application facade 接入。

@@ -40,6 +40,12 @@ impl ProfileApplication {
         self.store.get_current().await.map_err(Failure::from)
     }
 
+    pub async fn current_content(&self) -> Result<(String, String), Failure> {
+        let profile = self.current_profile().await?;
+        let content = self.store.load(&profile).await.map_err(Failure::from)?;
+        Ok((profile, content))
+    }
+
     pub async fn load_profile_info(&self, name: &str) -> Result<ProfileInfo, Failure> {
         let name = valid_name(name)?;
         self.list_profiles()
@@ -125,6 +131,14 @@ impl ProfileApplication {
     pub async fn clear_backup(&self, name: &str) -> Result<(), Failure> {
         let name = valid_name(name)?;
         self.store.clear_backup(&name).await.map_err(Failure::from)
+    }
+
+    pub async fn delete_subscription_credential(&self, name: &str) -> Result<(), Failure> {
+        let name = valid_name(name)?;
+        self.store
+            .delete_subscription_credential(&name)
+            .await
+            .map_err(Failure::from)
     }
 
     pub async fn import_subscription<S: SubscriptionSource + ?Sized>(
@@ -461,6 +475,10 @@ mod tests {
                 .get_mut(profile)
                 .map(|(_, current)| *current = metadata.clone())
                 .ok_or_else(|| PortError::NotFound(profile.to_string()))
+        }
+
+        async fn delete_subscription_credential(&self, _profile: &str) -> Result<(), PortError> {
+            Ok(())
         }
 
         async fn delete_options(&self, profile: &str) -> Result<(), PortError> {
