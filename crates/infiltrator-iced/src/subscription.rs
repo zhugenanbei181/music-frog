@@ -36,7 +36,7 @@ pub(crate) fn runtime_streams_subscription(
 ) -> Subscription<Message> {
     let input = RuntimeStreamInput {
         identity: Arc::as_ptr(runtime) as *const () as usize,
-        generation: runtime.session().generation(),
+        generation: runtime.application().generation(),
         client: runtime.client(),
         log_level: log_level.to_string(),
     };
@@ -264,10 +264,9 @@ impl AppState {
         // 4. 全局键盘热键订阅（Command Palette Ctrl+K / Cmd+K 与 ESC）
         subs.push(iced::event::listen_with(|event, _status, _window| {
             if let iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
-                key,
-                modifiers,
-                ..
-            }) = event {
+                key, modifiers, ..
+            }) = event
+            {
                 if (modifiers.control() || modifiers.command())
                     && (key == iced::keyboard::Key::Character("k".into())
                         || key == iced::keyboard::Key::Character("K".into()))

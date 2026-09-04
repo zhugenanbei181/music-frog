@@ -95,7 +95,7 @@ and sync          (REST / WebSocket)
 
 1. **0.20 freeze**：提交当前工作树，保留当前行为作为可复现基线。
 2. **0.30 contract**：先定 `Command`、`Snapshot`、`Event`、`Capability`、错误码和 generation。
-3. **0.30 ports/application**：把 controller、store、网络、文件、时间、TUN 等能力改为端口；将 `CoreSession`、事务和 scheduler 收敛到 application actor。
+3. **0.30 ports/application**：把 controller、store、网络、文件、时间、TUN 等能力改为端口；`CoreLifecyclePort` 已接通 apply 事务，继续将旧 `CoreSession`、事务和 scheduler 收敛到 application actor。
 4. **0.30 domain**：抽出状态机、规则、配置变换、订阅解析、节点编解码和纯诊断计算。
 5. **0.30 vertical slice**：优先迁移“profile 切换 → 配置应用 → core readiness → 状态回传”，同时接 Iced、Bevy、Android FFI 和 Admin。
 6. **0.30 host/frontends**：Desktop、Android、iOS 作为同级 host adapter；UI 只消费 application contract；最后删除旧路径和直接底层依赖。

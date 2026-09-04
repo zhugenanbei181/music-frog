@@ -14,7 +14,6 @@ use tokio::runtime::Runtime;
 
 use super::session::shared_core;
 use crate::ffi::{FfiErrorCode, FfiStatus};
-
 pub(super) fn get_runtime() -> &'static Runtime {
     static RUNTIME: OnceLock<Runtime> = OnceLock::new();
     RUNTIME.get_or_init(|| Runtime::new().expect("failed to create tokio runtime"))
@@ -72,20 +71,20 @@ pub(super) async fn build_config_manager()
 }
 
 pub(super) async fn build_controller_client() -> Result<MihomoClient, FfiStatus> {
-    // Prefer the shared session: endpoint and secret are re-resolved from the
-    // current profile on every call (port rotation and secret aware).
+    // Prefer the shared endpoint port: URL and secret are re-resolved from
+    // the current profile on every call (port rotation and secret aware).
     if let Ok(core) = shared_core().await {
-        match core.session.endpoint().await {
+        match core.endpoints.resolve().await {
             Ok(endpoint) => match MihomoClient::new(&endpoint.url, endpoint.secret) {
                 Ok(client) => return Ok(client),
                 Err(err) => {
                     log::debug!(
-                        "session endpoint client unavailable, using legacy resolution: {err}"
+                        "application endpoint client unavailable, using legacy resolution: {err}"
                     );
                 }
             },
             Err(err) => {
-                log::debug!("session endpoint unavailable, using legacy resolution: {err}");
+                log::debug!("application endpoint unavailable, using legacy resolution: {err}");
             }
         }
     }

@@ -2,6 +2,7 @@ use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreEvent, CoreLifecycle, CoreSnapshot};
 use infiltrator_domain::core_state::{CoreEvent as DomainEvent, CoreState, CoreStateMachine};
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::overview::OverviewReader;
 use std::collections::VecDeque;
@@ -11,6 +12,24 @@ use std::sync::{Arc, Mutex, RwLock};
 
 const EVENT_CAPACITY: usize = 256;
 const DISPATCH_CAPACITY: usize = 256;
+const DEFAULT_READINESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+const DEFAULT_READINESS_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// Readiness retry policy expressed entirely in standard-library values.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReadinessPolicy {
+    pub timeout: std::time::Duration,
+    pub poll_interval: std::time::Duration,
+}
+
+impl Default for ReadinessPolicy {
+    fn default() -> Self {
+        Self {
+            timeout: DEFAULT_READINESS_TIMEOUT,
+            poll_interval: DEFAULT_READINESS_POLL_INTERVAL,
+        }
+    }
+}
 
 struct StateMirror {
     state: CoreState,
@@ -21,6 +40,7 @@ struct Inner {
     process: Arc<dyn CoreProcess>,
     readiness: Arc<dyn CoreReadiness>,
     overview: Option<Arc<dyn OverviewReader>>,
+    readiness_policy: ReadinessPolicy,
     dispatch_tx: std::sync::mpsc::SyncSender<DispatchedCommand>,
     operation: tokio::sync::Mutex<()>,
     state: RwLock<StateMirror>,
@@ -46,7 +66,18 @@ pub struct CoreApplication {
 
 impl CoreApplication {
     pub fn new(process: Arc<dyn CoreProcess>, readiness: Arc<dyn CoreReadiness>) -> Self {
-        Self::build(process, readiness, None)
+        Self::build(process, readiness, None, ReadinessPolicy::default())
+    }
+
+    /// Construct a lifecycle-only application with an explicit readiness
+    /// policy. Tests and embedders can choose a smaller budget without
+    /// changing the production default.
+    pub fn new_with_policy(
+        process: Arc<dyn CoreProcess>,
+        readiness: Arc<dyn CoreReadiness>,
+        readiness_policy: ReadinessPolicy,
+    ) -> Self {
+        Self::build(process, readiness, None, readiness_policy)
     }
 
     /// Construct the application with the optional Overview port wired in.
@@ -58,19 +89,37 @@ impl CoreApplication {
         readiness: Arc<dyn CoreReadiness>,
         overview: Arc<dyn OverviewReader>,
     ) -> Self {
-        Self::build(process, readiness, Some(overview))
+        Self::build(
+            process,
+            readiness,
+            Some(overview),
+            ReadinessPolicy::default(),
+        )
+    }
+
+    /// Construct an application with both an Overview port and an explicit
+    /// readiness policy.
+    pub fn new_with_overview_and_policy(
+        process: Arc<dyn CoreProcess>,
+        readiness: Arc<dyn CoreReadiness>,
+        overview: Arc<dyn OverviewReader>,
+        readiness_policy: ReadinessPolicy,
+    ) -> Self {
+        Self::build(process, readiness, Some(overview), readiness_policy)
     }
 
     fn build(
         process: Arc<dyn CoreProcess>,
         readiness: Arc<dyn CoreReadiness>,
         overview: Option<Arc<dyn OverviewReader>>,
+        readiness_policy: ReadinessPolicy,
     ) -> Self {
         let (dispatch_tx, dispatch_rx) = std::sync::mpsc::sync_channel(DISPATCH_CAPACITY);
         let inner = Arc::new(Inner {
             process,
             readiness,
             overview,
+            readiness_policy,
             dispatch_tx,
             operation: tokio::sync::Mutex::new(()),
             state: RwLock::new(StateMirror {
@@ -136,6 +185,11 @@ impl CoreApplication {
         snapshot_from_state(&mirror.state, mirror.revision)
     }
 
+    /// Current lifecycle generation used to fence delayed surface work.
+    pub fn generation(&self) -> u64 {
+        self.snapshot().generation
+    }
+
     /// Drain a bounded batch of application events for a frame-driven or FFI
     /// surface. The queue drops the oldest event when it reaches capacity.
     pub fn drain_events(&self) -> Vec<CoreEvent> {
@@ -158,7 +212,10 @@ impl CoreApplication {
         }
 
         self.apply_domain_event(DomainEvent::StartRequested);
-        match self.inner.readiness.probe().await {
+        match self
+            .wait_for_readiness(self.inner.readiness_policy.timeout)
+            .await
+        {
             Ok(endpoint) => {
                 self.apply_domain_event(DomainEvent::ReadinessSuccess(endpoint));
                 Ok(true)
@@ -250,7 +307,10 @@ impl CoreApplication {
             return Err(Failure::from(error));
         }
 
-        match self.inner.readiness.probe().await {
+        match self
+            .wait_for_readiness(self.inner.readiness_policy.timeout)
+            .await
+        {
             Ok(endpoint) => {
                 self.apply_domain_event(DomainEvent::ReadinessSuccess(endpoint));
                 Ok(())
@@ -321,6 +381,96 @@ impl CoreApplication {
             events.pop_front();
         }
         events.push_back(event);
+    }
+
+    async fn wait_for_readiness(
+        &self,
+        timeout: std::time::Duration,
+    ) -> Result<String, infiltrator_ports::error::PortError> {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            match self.inner.process.status().await {
+                Ok(CoreLifecycle::Starting)
+                | Ok(CoreLifecycle::Ready)
+                | Ok(CoreLifecycle::Running) => {}
+                Ok(_) => {
+                    return Err(infiltrator_ports::error::PortError::Failed(
+                        "core process exited before readiness".to_string(),
+                    ));
+                }
+                Err(error) => return Err(error),
+            }
+
+            let probe_error = match self.inner.readiness.probe().await {
+                Ok(endpoint) => return Ok(endpoint),
+                Err(error) => error,
+            };
+
+            if tokio::time::Instant::now() >= deadline {
+                return Err(probe_error);
+            }
+            tokio::time::sleep(self.inner.readiness_policy.poll_interval).await;
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl CoreLifecyclePort for CoreApplication {
+    fn lifecycle(&self) -> CoreLifecycle {
+        self.snapshot().lifecycle
+    }
+
+    fn generation(&self) -> u64 {
+        CoreApplication::generation(self)
+    }
+
+    async fn start(&self) -> Result<u64, infiltrator_ports::error::PortError> {
+        match self.execute(CommandIntent::StartCore).await {
+            CommandResult::Completed { .. } => Ok(self.generation()),
+            CommandResult::Rejected { failure, .. } => {
+                Err(infiltrator_ports::error::PortError::Failed(failure.message))
+            }
+            CommandResult::Accepted { .. } => Err(infiltrator_ports::error::PortError::Failed(
+                "application start unexpectedly returned Accepted".to_string(),
+            )),
+        }
+    }
+
+    async fn stop(&self) -> Result<(), infiltrator_ports::error::PortError> {
+        match self.execute(CommandIntent::StopCore).await {
+            CommandResult::Completed { .. } => Ok(()),
+            CommandResult::Rejected { failure, .. } => {
+                Err(infiltrator_ports::error::PortError::Failed(failure.message))
+            }
+            CommandResult::Accepted { .. } => Err(infiltrator_ports::error::PortError::Failed(
+                "application stop unexpectedly returned Accepted".to_string(),
+            )),
+        }
+    }
+
+    async fn restart(&self) -> Result<u64, infiltrator_ports::error::PortError> {
+        match self.execute(CommandIntent::RestartCore).await {
+            CommandResult::Completed { .. } => Ok(self.generation()),
+            CommandResult::Rejected { failure, .. } => {
+                Err(infiltrator_ports::error::PortError::Failed(failure.message))
+            }
+            CommandResult::Accepted { .. } => Err(infiltrator_ports::error::PortError::Failed(
+                "application restart unexpectedly returned Accepted".to_string(),
+            )),
+        }
+    }
+
+    async fn wait_for_ready(
+        &self,
+        generation: u64,
+        timeout: std::time::Duration,
+    ) -> Result<(), infiltrator_ports::error::PortError> {
+        if self.generation() != generation {
+            return Err(infiltrator_ports::error::PortError::Failed(
+                "stale application generation".to_string(),
+            ));
+        }
+        self.wait_for_readiness(timeout).await.map(|_| ())
     }
 }
 
@@ -518,11 +668,15 @@ mod tests {
     }
 
     fn application(process: FakeProcess, readiness: Result<String, PortError>) -> CoreApplication {
-        CoreApplication::new(
+        CoreApplication::new_with_policy(
             Arc::new(process),
             Arc::new(FakeReadiness {
                 endpoint: readiness,
             }),
+            ReadinessPolicy {
+                timeout: std::time::Duration::from_millis(100),
+                poll_interval: std::time::Duration::from_millis(1),
+            },
         )
     }
 

@@ -62,7 +62,7 @@ impl AppState {
             return Task::none();
         };
         let token = self.begin_runtime_patch();
-        let generation = rt.session().generation();
+        let generation = rt.application().generation();
         self.runtime.tun_enabled = Some(enabled);
         self.refresh_tray();
         Task::perform(
@@ -116,7 +116,7 @@ impl AppState {
         match message {
             Message::FetchRuntimeConfig => {
                 if let Some(rt) = self.runtime.runtime.clone() {
-                    let generation = rt.session().generation();
+                    let generation = rt.application().generation();
                     Task::perform(
                         async move {
                             let config = rt
@@ -208,7 +208,7 @@ impl AppState {
                     ));
                 };
                 let token = self.begin_runtime_patch();
-                let generation = rt.session().generation();
+                let generation = rt.application().generation();
                 self.runtime.proxy_mode = Some(mode.clone());
                 self.refresh_tray();
                 let application = rt.application();
@@ -352,7 +352,7 @@ impl AppState {
                     return self.runtime_unavailable("修改 TUN 堆栈");
                 };
                 let token = self.begin_runtime_patch();
-                let generation = rt.session().generation();
+                let generation = rt.application().generation();
                 self.editor.tun_stack = stack.clone();
                 Task::perform(
                     async move {
@@ -369,7 +369,7 @@ impl AppState {
                     return self.runtime_unavailable("修改 TUN 自动路由");
                 };
                 let token = self.begin_runtime_patch();
-                let generation = rt.session().generation();
+                let generation = rt.application().generation();
                 self.editor.tun_auto_route = enabled;
                 Task::perform(
                     async move {
@@ -386,7 +386,7 @@ impl AppState {
                     return self.runtime_unavailable("修改 TUN 严格路由");
                 };
                 let token = self.begin_runtime_patch();
-                let generation = rt.session().generation();
+                let generation = rt.application().generation();
                 self.editor.tun_strict_route = enabled;
                 Task::perform(
                     async move {
@@ -403,7 +403,7 @@ impl AppState {
                     return self.runtime_unavailable("修改嗅探器状态");
                 };
                 let token = self.begin_runtime_patch();
-                let generation = rt.session().generation();
+                let generation = rt.application().generation();
                 self.editor.sniffer_enabled = enabled;
                 Task::perform(
                     async move {

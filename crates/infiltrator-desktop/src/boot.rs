@@ -33,10 +33,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::anyhow;
-use infiltrator_core::session::{
-    CoreSession, EndpointSource, MihomoVersionProbe, ProfileEndpointSource, READINESS_TIMEOUT,
-};
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_core::session::ProfileEndpointSource;
 use infiltrator_core::settings::app_config_manager;
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_ports::endpoint::EndpointSource;
 use mihomo_config::port::is_port_available;
 use mihomo_version::manager::VersionManager;
 
@@ -395,70 +396,68 @@ impl BootEngine for ProductionEngine<'_> {
             )
         })?;
 
-        // Mirror of runtime.rs:70-77: service + session with a lazily
+        // Mirror of runtime.rs:70-77: service + application with a lazily
         // resolving endpoint source, so a rotated port is picked up by every
         // readiness probe without being passed around.
         let service_manager = ServiceManager::new(binary, config_path);
         let endpoints = Arc::new(ProfileEndpointSource::new(cm.clone()));
-        let session = Arc::new(CoreSession::new(
-            service_manager.core_process(),
-            endpoints.clone(),
-            Arc::new(MihomoVersionProbe::new(endpoints.clone())),
-        ));
-
-        // Mirror of runtime.rs:82-95: attach to a running instance by proving
-        // it answers, or start fresh and wait for readiness (15s).
-        let readiness: Result<(), AttemptFailure> = if service_manager.is_running().await {
-            log::info!("boot: attaching to running mihomo service");
-            session
-                .wait_for_ready(session.generation(), READINESS_TIMEOUT)
-                .await
-                .map_err(|error| {
-                    AttemptFailure::new(
-                        anyhow!("running instance not ready: {error}"),
-                        controller,
-                        true,
-                    )
-                })
-        } else {
-            log::info!("boot: starting mihomo service");
-            match session.start().await {
-                Err(error) => Err(AttemptFailure::new(
-                    anyhow!("start mihomo core: {error}"),
-                    controller,
-                    true,
-                )),
-                Ok(generation) => session
-                    .wait_for_ready(generation, READINESS_TIMEOUT)
-                    .await
-                    .map_err(|error| {
-                        AttemptFailure::new(
-                            anyhow!("mihomo core not ready: {error}"),
-                            controller,
-                            true,
-                        )
-                    }),
-            }
-        };
-        if let Err(failure) = readiness {
-            // CoreSession has no Drop-stop: without this the core keeps the
-            // controller port and every later attempt attaches to the same
-            // zombie. Bounded stop; a wedged process is logged and left for
-            // the next attempt (whose ensure_external_controller will dodge
-            // its port).
-            stop_session_quietly(&session).await;
-            return Err(failure);
-        }
-
-        // Mirror of runtime.rs:97-100. Config-shaped and therefore fatal; the
-        // core stays up (it is ready) for materialize to attach.
-        endpoints.resolve().await.map_err(|error| {
+        let endpoint = endpoints.resolve().await.map_err(|error| {
             AttemptFailure::new(
                 anyhow!("resolve controller endpoint: {error}"),
                 controller,
                 false,
             )
         })?;
+        let application = Arc::new(
+            crate::composition::core_application(
+                &service_manager,
+                endpoint.url.clone(),
+                endpoint.secret.clone(),
+            )
+            .map_err(|error| {
+                AttemptFailure::new(
+                    anyhow!("build core application: {error}"),
+                    controller,
+                    false,
+                )
+            })?,
+        );
+
+        // Mirror of runtime.rs:82-95: attach to a running instance by proving
+        // it answers, or start fresh and let application own readiness (15s).
+        let readiness: Result<(), AttemptFailure> = if service_manager.is_running().await {
+            log::info!("boot: attaching to running mihomo service");
+            application
+                .adopt_if_running()
+                .await
+                .map(|_| ())
+                .map_err(|error| {
+                    AttemptFailure::new(
+                        anyhow!("running instance not ready: {}", error.message),
+                        controller,
+                        true,
+                    )
+                })
+        } else {
+            log::info!("boot: starting mihomo service");
+            CoreLifecyclePort::start(application.as_ref())
+                .await
+                .map(|_| ())
+                .map_err(|error| {
+                    AttemptFailure::new(anyhow!("mihomo core not ready: {error}"), controller, true)
+                })
+        };
+        if let Err(failure) = readiness {
+            // Application has no Drop-stop: without this the core keeps the
+            // controller port and every later attempt attaches to the same
+            // zombie. Bounded stop; a wedged process is logged and left for
+            // the next attempt (whose ensure_external_controller will dodge
+            // its port).
+            stop_application_quietly(application.as_ref()).await;
+            return Err(failure);
+        }
+
+        // The core stays up (it is ready) for materialize to attach.
         Ok(())
     }
 
@@ -483,8 +482,8 @@ impl BootEngine for ProductionEngine<'_> {
     }
 }
 
-async fn stop_session_quietly(session: &Arc<CoreSession>) {
-    match tokio::time::timeout(STOP_TIMEOUT, session.stop()).await {
+async fn stop_application_quietly(application: &CoreApplication) {
+    match tokio::time::timeout(STOP_TIMEOUT, CoreLifecyclePort::stop(application)).await {
         Ok(Ok(())) => log::info!("stopped mihomo core after failed boot attempt"),
         Ok(Err(error)) => {
             log::warn!("failed to stop mihomo core after failed attempt: {error}")

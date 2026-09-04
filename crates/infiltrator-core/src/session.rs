@@ -11,7 +11,10 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::manager::ConfigManager;
@@ -91,24 +94,6 @@ impl From<SessionError> for InfiltratorError {
 
 pub type SessionResult<T> = std::result::Result<T, SessionError>;
 
-/// Resolves the controller endpoint for the *current* profile on demand.
-///
-/// Resolution must be lazy and repeated: the endpoint port can be rotated
-/// between rebuilds, so caching a URL across calls desynchronizes frontends
-/// from the core (the failure mode that produced per-frontend client caches).
-#[async_trait]
-pub trait EndpointSource: Send + Sync {
-    async fn resolve(&self) -> std::result::Result<ControllerEndpoint, SessionError>;
-}
-
-/// Controller endpoint plus its authentication secret, as written in the
-/// active profile YAML (`external-controller` / `secret`).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ControllerEndpoint {
-    pub url: String,
-    pub secret: Option<String>,
-}
-
 /// [`EndpointSource`] backed by [`ConfigManager`]: reads the current
 /// profile's `external-controller` via the manager (normalization and port
 /// fallback included) and parses the top-level `secret` key, which no
@@ -122,19 +107,19 @@ impl<S: SecureStore> ProfileEndpointSource<S> {
         Self { config }
     }
 
-    async fn current_profile_secret(&self) -> std::result::Result<Option<String>, SessionError> {
+    async fn current_profile_secret(&self) -> Result<Option<String>, PortError> {
         let profile = self
             .config
             .get_current()
             .await
-            .map_err(|err| SessionError::Endpoint(err.to_string()))?;
+            .map_err(|err| PortError::Io(err.to_string()))?;
         let content = self
             .config
             .load(&profile)
             .await
-            .map_err(|err| SessionError::Endpoint(err.to_string()))?;
+            .map_err(|err| PortError::Io(err.to_string()))?;
         let docs = YamlLoader::load_from_str(&content)
-            .map_err(|err| SessionError::Endpoint(format!("invalid profile YAML: {err}")))?;
+            .map_err(|err| PortError::Io(format!("invalid profile YAML: {err}")))?;
         let secret = docs
             .first()
             .and_then(|doc| doc["secret"].as_str())
@@ -145,12 +130,12 @@ impl<S: SecureStore> ProfileEndpointSource<S> {
 
 #[async_trait]
 impl<S: SecureStore> EndpointSource for ProfileEndpointSource<S> {
-    async fn resolve(&self) -> std::result::Result<ControllerEndpoint, SessionError> {
+    async fn resolve(&self) -> Result<ControllerEndpoint, PortError> {
         let url = self
             .config
             .get_external_controller()
             .await
-            .map_err(|err| SessionError::Endpoint(err.to_string()))?;
+            .map_err(|err| PortError::Io(err.to_string()))?;
         let secret = self.current_profile_secret().await?;
         Ok(ControllerEndpoint { url, secret })
     }
@@ -180,7 +165,11 @@ impl<S: SecureStore> MihomoVersionProbe<S> {
 #[async_trait]
 impl<S: SecureStore> ReadinessProbe for MihomoVersionProbe<S> {
     async fn probe(&self) -> SessionResult<()> {
-        let endpoint = self.endpoints.resolve().await?;
+        let endpoint = self
+            .endpoints
+            .resolve()
+            .await
+            .map_err(|error| SessionError::Endpoint(error.to_string()))?;
         let client = MihomoClient::new(&endpoint.url, endpoint.secret)
             .map_err(|err| SessionError::Probe(err.to_string()))?;
         client
@@ -253,7 +242,10 @@ impl CoreSession {
 
     /// Resolve the controller endpoint for the current profile.
     pub async fn endpoint(&self) -> SessionResult<ControllerEndpoint> {
-        self.endpoints.resolve().await
+        self.endpoints
+            .resolve()
+            .await
+            .map_err(|error| SessionError::Endpoint(error.to_string()))
     }
 
     /// Start the core: bump the generation (invalidating in-flight work),
@@ -366,6 +358,68 @@ impl CoreSession {
         state.generation += 1;
         state.status = status;
         state.generation
+    }
+}
+
+#[async_trait]
+impl CoreLifecyclePort for CoreSession {
+    fn lifecycle(&self) -> CoreLifecycle {
+        match self.status() {
+            CoreStatus::Stopped => CoreLifecycle::Stopped,
+            CoreStatus::Starting => CoreLifecycle::Starting,
+            CoreStatus::Ready => CoreLifecycle::Ready,
+            CoreStatus::Running => CoreLifecycle::Running,
+            CoreStatus::Stopping => CoreLifecycle::Stopping,
+            CoreStatus::Failed(_) => CoreLifecycle::Failed,
+        }
+    }
+
+    fn generation(&self) -> u64 {
+        CoreSession::generation(self)
+    }
+
+    async fn start(&self) -> Result<u64, PortError> {
+        CoreSession::start(self)
+            .await
+            .map_err(map_session_port_error)
+    }
+
+    async fn stop(&self) -> Result<(), PortError> {
+        CoreSession::stop(self)
+            .await
+            .map_err(map_session_port_error)
+    }
+
+    async fn restart(&self) -> Result<u64, PortError> {
+        CoreSession::restart(self)
+            .await
+            .map_err(map_session_port_error)
+    }
+
+    async fn wait_for_ready(&self, generation: u64, timeout: Duration) -> Result<(), PortError> {
+        CoreSession::wait_for_ready(self, generation, timeout)
+            .await
+            .map_err(map_session_port_error)
+    }
+}
+
+fn map_session_port_error(error: SessionError) -> PortError {
+    match error {
+        SessionError::Endpoint(message) | SessionError::Probe(message) => {
+            PortError::Network(message)
+        }
+        SessionError::ProcessExited => {
+            PortError::Network("core process exited before readiness".to_string())
+        }
+        SessionError::ReadinessTimeout { timeout_secs } => {
+            PortError::Network(format!("controller not ready within {timeout_secs:.1}s"))
+        }
+        SessionError::StaleGeneration { captured, current } => PortError::Failed(format!(
+            "stale session generation (captured {captured}, current {current})"
+        )),
+        SessionError::InvalidStatus { operation, status } => PortError::Failed(format!(
+            "operation {operation} not allowed in status {status:?}"
+        )),
     }
 }
 
@@ -531,7 +585,7 @@ mod tests {
 
     #[async_trait]
     impl EndpointSource for StaticEndpoints {
-        async fn resolve(&self) -> SessionResult<ControllerEndpoint> {
+        async fn resolve(&self) -> Result<ControllerEndpoint, PortError> {
             Ok(ControllerEndpoint {
                 url: "http://127.0.0.1:9090".into(),
                 secret: Some("test-secret".into()),

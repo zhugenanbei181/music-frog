@@ -409,7 +409,7 @@ fn test_process_alias_registry_custom_aliases() {
     assert!(registry.is_empty());
 
     registry.register_alias("MyCustomBrowser", "mybrowser");
-    registry.register_aliases(&["mb.exe", "mybrowser-bin"], "mybrowser");
+    registry.register_aliases(["mb.exe", "mybrowser-bin"], "mybrowser");
 
     assert_eq!(registry.canonicalize("MyCustomBrowser"), "mybrowser");
     assert_eq!(registry.canonicalize("mb.exe"), "mybrowser");

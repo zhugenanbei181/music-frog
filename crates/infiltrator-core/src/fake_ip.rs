@@ -753,8 +753,8 @@ mod tests {
         assert_eq!(ip3, ip1); // Re-used ip1
         assert_eq!(pool.reverse_lookup(&ip3), Some("domain3.com"));
         assert_eq!(pool.reverse_lookup(&ip1), Some("domain3.com"));
-        assert!(pool.domain_to_ip.get("domain1.com").is_none());
-        assert!(pool.domain_to_ip.get("domain2.com").is_some());
+        assert!(!pool.domain_to_ip.contains_key("domain1.com"));
+        assert!(pool.domain_to_ip.contains_key("domain2.com"));
     }
 
     #[test]

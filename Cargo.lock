@@ -5149,6 +5149,7 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-desktop",
+ "infiltrator-ports",
  "infiltrator-shared",
  "is_elevated",
  "ksni",

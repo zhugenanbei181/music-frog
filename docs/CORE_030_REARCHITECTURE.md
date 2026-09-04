@@ -11,6 +11,7 @@
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。
 - [x] application actor/facade 第一批生命周期与 Overview seam：single-flight、adopt、bounded contract events、模式回读和运行态快照。
+- [x] `CoreLifecyclePort` 已成为 apply transaction 的生命周期输入；桌面 runtime 与 Android apply 已切到 `CoreApplication`。
 - [x] Bevy Overview 已改为消费 application snapshot；UI crate 不再直连 `mihomo-api`、Reqwest 或 Tokio。
 - [x] Desktop/Android 已把 Core process、secure store、data-dir 和 readiness 组合到 host adapter 端口。
 - [ ] application actor/facade 覆盖全部 use-case，并统一前端命令与领域快照通道。
@@ -64,8 +65,8 @@ Iced / Bevy / Compose / Admin REST / CLI
 | --- | --- | --- |
 | 纯领域层 | `infiltrator-domain` | `infiltrator-core` 中的状态机、规则、配置变换、编解码和纯计算模块 |
 | 跨端契约 | `infiltrator-contract` | `infiltrator-shared` 中的 intent、snapshot、event、capability；主题/本地化另行归类 |
-| 外部端口 | `infiltrator-ports` | `CoreProcess`、`SecureStore`、文件/时间/网络/TUN 等 trait |
-| 应用层 | `infiltrator-application`（可先保留包名 `infiltrator-core`） | `CoreSession`、use-case、apply transaction、actor、scheduler |
+| 外部端口 | `infiltrator-ports` | `CoreProcess`、`CoreLifecyclePort`、`EndpointSource`、`SecureStore`、文件/时间/网络/TUN 等 trait |
+| 应用层 | `infiltrator-application`（当前为独立垂直切片） | lifecycle/Overview use-case、apply transaction 入口、actor；其余旧 use-case 仍在迁移 |
 | 组合根 | `infiltrator-composition` + 各 host composition | 将具体 outbound/host adapter 注入 application；不承载 UI 状态 |
 | Mihomo outbound adapter | `mihomo-api`、`infiltrator-http` | REST/WebSocket 和 HTTP 传输实现 |
 | 配置/版本 outbound adapter | `mihomo-config`、`mihomo-version` | 文件、下载、安装和版本切换实现 |

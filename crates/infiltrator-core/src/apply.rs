@@ -26,8 +26,11 @@ use mihomo_config::manager::ConfigManager;
 use tokio::io::AsyncWriteExt;
 use yaml_rust2::{Yaml, YamlLoader};
 
-use crate::session::{CoreSession, CoreStatus, READINESS_TIMEOUT, SessionError};
+use crate::session::READINESS_TIMEOUT;
 use crate::yaml_edit::SourceDoc;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_ports::endpoint::EndpointSource;
 
 /// How the running core should pick up the new configuration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -95,13 +98,13 @@ pub enum ApplyError {
     #[error("failed to write config atomically: {0}")]
     Write(String),
     #[error("core is {status:?}; wait for the transition to finish before applying")]
-    Busy { status: CoreStatus },
+    Busy { status: CoreLifecycle },
     #[error("apply failed, previous config restored and core recovered: {cause}")]
     RolledBack { cause: String },
     #[error("apply failed ({cause}) and rollback failed as well; core is down: {rollback}")]
     RollbackFailed { cause: String, rollback: String },
-    #[error(transparent)]
-    Session(#[from] SessionError),
+    #[error("core lifecycle failed: {0}")]
+    Lifecycle(String),
 }
 
 pub type ApplyResult<T> = std::result::Result<T, ApplyError>;
@@ -115,23 +118,25 @@ pub trait ConfigReloader: Send + Sync {
 }
 
 /// Production reloader: resolve the current endpoint per call (port rotation
-/// safe), build a client, `PUT /configs?force=true` with the file path.
-pub struct SessionConfigReloader {
-    session: std::sync::Arc<CoreSession>,
+/// safe), build a client, `PUT /configs?force=true` with the file path. It is
+/// deliberately independent of the lifecycle owner so CoreApplication and
+/// any lifecycle owner can share the same transaction.
+pub struct EndpointConfigReloader {
+    endpoints: std::sync::Arc<dyn EndpointSource>,
 }
 
-impl SessionConfigReloader {
-    pub fn new(session: std::sync::Arc<CoreSession>) -> Self {
-        Self { session }
+impl EndpointConfigReloader {
+    pub fn new(endpoints: std::sync::Arc<dyn EndpointSource>) -> Self {
+        Self { endpoints }
     }
 }
 
 #[async_trait]
-impl ConfigReloader for SessionConfigReloader {
+impl ConfigReloader for EndpointConfigReloader {
     async fn reload(&self, path: &Path) -> Result<(), String> {
         let endpoint = self
-            .session
-            .endpoint()
+            .endpoints
+            .resolve()
             .await
             .map_err(|err| err.to_string())?;
         let client = MihomoClient::new(&endpoint.url, endpoint.secret)
@@ -200,7 +205,7 @@ async fn atomic_write(path: &Path, content: &str) -> std::io::Result<()> {
 /// still healthy. Returns `Err(cause)` when either step fails; the caller
 /// falls back to the restart path without rolling back yet.
 async fn reload_and_check(
-    session: &CoreSession,
+    session: &impl CoreLifecyclePort,
     reloader: &dyn ConfigReloader,
     path: &Path,
     params: &ApplyParams,
@@ -218,13 +223,17 @@ async fn reload_and_check(
 }
 
 async fn restart_and_check(
-    session: &CoreSession,
+    session: &impl CoreLifecyclePort,
     params: &ApplyParams,
-) -> Result<ApplyOutcome, SessionError> {
-    let generation = session.restart().await?;
+) -> Result<ApplyOutcome, ApplyError> {
+    let generation = session
+        .restart()
+        .await
+        .map_err(|error| ApplyError::Lifecycle(error.to_string()))?;
     session
         .wait_for_ready(generation, params.restart_timeout)
-        .await?;
+        .await
+        .map_err(|error| ApplyError::Lifecycle(error.to_string()))?;
     Ok(ApplyOutcome {
         method: ApplyMethod::Restart,
         generation,
@@ -232,13 +241,17 @@ async fn restart_and_check(
 }
 
 async fn start_and_check(
-    session: &CoreSession,
+    session: &impl CoreLifecyclePort,
     params: &ApplyParams,
-) -> Result<ApplyOutcome, SessionError> {
-    let generation = session.start().await?;
+) -> Result<ApplyOutcome, ApplyError> {
+    let generation = session
+        .start()
+        .await
+        .map_err(|error| ApplyError::Lifecycle(error.to_string()))?;
     session
         .wait_for_ready(generation, params.restart_timeout)
-        .await?;
+        .await
+        .map_err(|error| ApplyError::Lifecycle(error.to_string()))?;
     Ok(ApplyOutcome {
         method: ApplyMethod::Restart,
         generation,
@@ -259,7 +272,7 @@ async fn start_and_check(
 /// running, restoring the file is enough — the session keeps its `Failed`
 /// state and the next explicit start picks up the restored config.
 pub async fn apply_current_profile<S: SecureStore>(
-    session: &CoreSession,
+    session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
     new_content: &str,
@@ -267,11 +280,11 @@ pub async fn apply_current_profile<S: SecureStore>(
 ) -> ApplyResult<ApplyOutcome> {
     validate_config(new_content).map_err(ApplyError::Validation)?;
 
-    let status = session.status();
-    if matches!(status, CoreStatus::Starting | CoreStatus::Stopping) {
+    let status = session.lifecycle();
+    if matches!(status, CoreLifecycle::Starting | CoreLifecycle::Stopping) {
         return Err(ApplyError::Busy { status });
     }
-    let was_running = matches!(status, CoreStatus::Ready | CoreStatus::Running);
+    let was_running = matches!(status, CoreLifecycle::Ready | CoreLifecycle::Running);
 
     let current = config
         .get_current()
@@ -368,7 +381,7 @@ pub async fn apply_current_profile<S: SecureStore>(
 
 /// Apply a [`SourceDoc`] as the current profile through the full CORE-004 transaction.
 pub async fn apply_current_profile_doc<S: SecureStore>(
-    session: &CoreSession,
+    session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
     doc: &SourceDoc,
@@ -385,7 +398,7 @@ pub async fn apply_current_profile_doc<S: SecureStore>(
 /// through the CORE-004 transaction. Untouched comments, anchors, formatting,
 /// and line endings remain 100% preserved.
 pub async fn apply_profile_edit<S: SecureStore, F>(
-    session: &CoreSession,
+    session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
     edit_fn: F,
@@ -413,7 +426,7 @@ where
 /// Update a top-level scalar configuration key (`mode`, `log-level`, `mixed-port`, etc.)
 /// in the current profile while preserving 100% of existing comments, anchors, and formatting.
 pub async fn apply_profile_set_scalar<S: SecureStore>(
-    session: &CoreSession,
+    session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
     key: &str,
@@ -433,7 +446,7 @@ pub async fn apply_profile_set_scalar<S: SecureStore>(
 /// Append a rule to the `rules` section of the current profile while preserving
 /// 100% of existing comments, anchors, and formatting.
 pub async fn apply_profile_append_rule<S: SecureStore>(
-    session: &CoreSession,
+    session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
     rule: &str,
@@ -452,7 +465,7 @@ pub async fn apply_profile_append_rule<S: SecureStore>(
 /// Remove a rule from the `rules` section of the current profile while preserving
 /// 100% of existing comments, anchors, and formatting.
 pub async fn apply_profile_remove_rule<S: SecureStore>(
-    session: &CoreSession,
+    session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
     rule: &str,
@@ -471,7 +484,7 @@ pub async fn apply_profile_remove_rule<S: SecureStore>(
 /// Rewrite anchor namespaces in the current profile while preserving 100% of
 /// existing comments and formatting.
 pub async fn apply_profile_rewrite_anchors<S: SecureStore>(
-    session: &CoreSession,
+    session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
     prefix: &str,
@@ -495,7 +508,7 @@ pub async fn apply_profile_rewrite_anchors<S: SecureStore>(
 /// If the mixin contains complex structural edits that require AST merge,
 /// falls back to full merge.
 pub async fn apply_profile_mixin_fidelity<S: SecureStore>(
-    session: &CoreSession,
+    session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
     mixin: &crate::mixin::MixinConfig,

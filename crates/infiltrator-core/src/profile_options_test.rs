@@ -273,10 +273,10 @@ fn test_advanced_filter_spec_compilation_and_execution() {
 
     let text = serde_yaml_ng::to_string(&spec).unwrap();
     let parsed: FilterSpec = serde_yaml_ng::from_str(&text).unwrap();
-    assert_eq!(parsed.normalize_country_code, true);
-    assert_eq!(parsed.remove_emojis, true);
+    assert!(parsed.normalize_country_code);
+    assert!(parsed.remove_emojis);
     assert_eq!(parsed.allowed_ports, Some(vec![443, 8443]));
-    assert_eq!(parsed.drop_private_ip, true);
+    assert!(parsed.drop_private_ip);
 
     let rule = parsed.to_rule().unwrap();
     assert!(rule.normalize_country_code);
@@ -311,7 +311,7 @@ proxies:
     assert_eq!(rep.mutated, 1);
     let first = proxies[0].as_mapping().unwrap();
     assert_eq!(first.get("name").unwrap().as_str().unwrap(), "[HK] 香港 VIP 01 [2x]");
-    assert_eq!(first.get("tls").unwrap().as_bool().unwrap(), true);
-    assert_eq!(first.get("udp").unwrap().as_bool().unwrap(), true);
+    assert!(first.get("tls").unwrap().as_bool().unwrap());
+    assert!(first.get("udp").unwrap().as_bool().unwrap());
     assert_eq!(first.get("client-fingerprint").unwrap().as_str().unwrap(), "chrome");
 }

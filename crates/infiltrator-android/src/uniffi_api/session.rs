@@ -1,4 +1,4 @@
-//! Core session lifecycle: shared [`CoreSession`] wiring, adoption of an
+//! Core application lifecycle: shared [`CoreApplication`] wiring, adoption of an
 //! already-running core, the restart-with-readiness path, and the
 //! apply-current-profile transaction with rollback.
 
@@ -8,14 +8,12 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::{
-    ApplyError, ApplyParams, ApplyStrategy, SessionConfigReloader, apply_current_profile,
+    ApplyError, ApplyParams, ApplyStrategy, EndpointConfigReloader, apply_current_profile,
 };
 use infiltrator_core::error::InfiltratorError;
-use infiltrator_core::session::{
-    CoreSession, CoreStatus, EndpointSource, MihomoVersionProbe, ProfileEndpointSource,
-    READINESS_TIMEOUT, ReadinessProbe, SessionError,
-};
+use infiltrator_core::session::{MihomoVersionProbe, ProfileEndpointSource, ReadinessProbe};
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
@@ -28,20 +26,18 @@ use mihomo_platform::android::AndroidCoreController;
 use super::support::{build_config_manager, map_mihomo_error};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
-/// Shared frontend wiring for the mihomo core: the unified [`CoreSession`]
-/// (status machine, generation protocol, readiness probing) plus the
-/// [`ConfigManager`] its endpoint source resolves against. Lazily constructed
-/// on first use; the controller resolves the Android bridge dynamically on
-/// every call, so a bridge re-registration does not strand this slot.
+/// Shared frontend wiring for the mihomo core: the application service plus
+/// the [`ConfigManager`] endpoint source it resolves against. Lazily
+/// constructed on first use; the controller resolves the Android bridge
+/// dynamically on every call, so a bridge re-registration does not strand
+/// this slot.
 pub(super) struct SharedCore {
-    // Accessed from support.rs's controller client fallback path.
-    pub(super) session: Arc<CoreSession>,
     pub(super) application: CoreApplication,
+    pub(super) endpoints: Arc<dyn EndpointSource>,
     config: Arc<ConfigManager<DefaultCredentialStore>>,
 }
 
-/// Adapts the legacy endpoint-aware readiness probe to the 0.30 application
-/// port while the profile-apply transaction is still owned by CoreSession.
+/// Adapts the endpoint-aware readiness probe to the 0.30 application port.
 struct ApplicationReadiness {
     endpoints: Arc<ProfileEndpointSource<DefaultCredentialStore>>,
     probe: Arc<MihomoVersionProbe<DefaultCredentialStore>>,
@@ -122,28 +118,6 @@ fn platform_core_controller() -> Arc<dyn CoreProcess> {
     Arc::new(BridgeCoreController)
 }
 
-#[cfg(target_os = "android")]
-async fn platform_core_is_running() -> bool {
-    match get_android_bridge() {
-        Some(bridge) => bridge.core_is_running().await.unwrap_or_else(|error| {
-            log::warn!("android core is_running failed: {error}");
-            false
-        }),
-        None => false,
-    }
-}
-
-#[cfg(not(target_os = "android"))]
-async fn platform_core_is_running() -> bool {
-    match get_android_bridge() {
-        Some(bridge) => bridge.core_is_running().await.unwrap_or_else(|err| {
-            log::warn!("android core is_running failed: {err}");
-            false
-        }),
-        None => false,
-    }
-}
-
 pub(super) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
     static SHARED_CORE: OnceLock<Mutex<Option<Arc<SharedCore>>>> = OnceLock::new();
     let slot = SHARED_CORE.get_or_init(|| Mutex::new(None));
@@ -164,17 +138,16 @@ pub(super) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
     let endpoints = Arc::new(ProfileEndpointSource::new(Arc::clone(&config)));
     let probe = Arc::new(MihomoVersionProbe::new(Arc::clone(&endpoints)));
     let process = platform_core_controller();
-    let session_endpoints: Arc<dyn EndpointSource> = endpoints.clone();
-    let session = Arc::new(CoreSession::new(
-        Arc::clone(&process),
-        session_endpoints,
-        Arc::clone(&probe) as Arc<dyn ReadinessProbe>,
-    ));
-    let application =
-        CoreApplication::new(process, Arc::new(ApplicationReadiness { endpoints, probe }));
+    let application = CoreApplication::new(
+        process,
+        Arc::new(ApplicationReadiness {
+            endpoints: Arc::clone(&endpoints),
+            probe,
+        }),
+    );
     let core = Arc::new(SharedCore {
-        session,
         application,
+        endpoints: endpoints as Arc<dyn EndpointSource>,
         config,
     });
     *guard = Some(Arc::clone(&core));
@@ -187,24 +160,7 @@ async fn restart_runtime_if_running() {
     }
 }
 
-/// A freshly constructed session reports [`CoreStatus::Stopped`] even when
-/// the Kotlin side already started the core behind the session's back (the
-/// VPN flow calls the bridge directly, and the platform `start` is
-/// idempotent). Prove the live controller and adopt the process into the
-/// session so later transactions treat it as running instead of skipping
-/// the restart.
-async fn adopt_running_core(session: &CoreSession) -> Result<(), FfiStatus> {
-    if session.status() != CoreStatus::Stopped || !platform_core_is_running().await {
-        return Ok(());
-    }
-    let generation = session.start().await.map_err(map_session_error)?;
-    session
-        .wait_for_ready(generation, READINESS_TIMEOUT)
-        .await
-        .map_err(map_session_error)
-}
-
-/// Core restart through the shared session: stop + start under one
+/// Core restart through the shared application: stop + start under one
 /// generation, then block on controller readiness. Falls back to the legacy
 /// bridge restart when the session cannot be constructed.
 async fn restart_with_readiness() -> Result<(), FfiStatus> {
@@ -259,11 +215,11 @@ async fn restore_current_profile<S: SecureStore>(
         .map_err(|err| err.to_string())
 }
 
-/// Apply the *current* profile content through the session transaction
+/// Apply the *current* profile content through the application transaction
 /// (validate → atomic write → restart → readiness → rollback on failure).
 /// `previous` is the active profile name before the caller switched to the
 /// profile being applied; it is restored when the transaction rolls back.
-/// When the shared session cannot be constructed, falls back to the legacy
+/// When the shared application cannot be constructed, falls back to the legacy
 /// bridge restart so the pre-session behavior is kept.
 pub(super) async fn apply_current_profile_status(previous: Option<String>) -> FfiStatus {
     let core = match shared_core().await {
@@ -273,8 +229,8 @@ pub(super) async fn apply_current_profile_status(previous: Option<String>) -> Ff
             return FfiStatus::ok();
         }
     };
-    if let Err(status) = adopt_running_core(&core.session).await {
-        return status;
+    if let Err(failure) = core.application.adopt_if_running().await {
+        return FfiStatus::from(InfiltratorError::Mihomo(failure.message));
     }
     let current = match core.config.get_current().await {
         Ok(current) => current,
@@ -284,12 +240,13 @@ pub(super) async fn apply_current_profile_status(previous: Option<String>) -> Ff
         Ok(content) => content,
         Err(err) => return map_mihomo_error(err),
     };
-    let reloader = SessionConfigReloader::new(Arc::clone(&core.session));
+    let reloader = EndpointConfigReloader::new(core.endpoints.clone() as Arc<dyn EndpointSource>);
     let params = ApplyParams {
         strategy: ApplyStrategy::AlwaysRestart,
         ..ApplyParams::default()
     };
-    match apply_current_profile(&core.session, &core.config, &reloader, &content, params).await {
+    match apply_current_profile(&core.application, &core.config, &reloader, &content, params).await
+    {
         Ok(_) => FfiStatus::ok(),
         Err(ApplyError::RolledBack { cause }) => {
             if let Err(restore_err) = restore_current_profile(&core.config, previous).await {
@@ -321,19 +278,12 @@ pub(super) async fn apply_current_profile_status(previous: Option<String>) -> Ff
     }
 }
 
-fn map_session_error(err: SessionError) -> FfiStatus {
-    // Route session failures through the existing
-    // InfiltratorError -> FfiStatus channel so they stay readable at the
-    // FFI boundary instead of being collapsed into a generic string.
-    FfiStatus::from(InfiltratorError::from(err))
-}
-
 fn map_apply_error(err: ApplyError) -> FfiStatus {
     match err {
         ApplyError::Validation(message) | ApplyError::Write(message) => {
             FfiStatus::err(FfiErrorCode::Config, message)
         }
-        ApplyError::Session(session_error) => map_session_error(session_error),
+        ApplyError::Lifecycle(message) => FfiStatus::err(FfiErrorCode::InvalidState, message),
         // RolledBack/RollbackFailed are handled by the apply caller with
         // set_current restoration; anything reaching here still carries its
         // readable message.

@@ -1,8 +1,9 @@
 //! Integration and unit tests for config apply transaction and YAML fidelity.
 
 use super::*;
-use crate::session::{ControllerEndpoint, EndpointSource, ReadinessProbe};
+use crate::session::{CoreSession, CoreStatus, ReadinessProbe, SessionError};
 use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -71,7 +72,7 @@ struct StaticEndpoints;
 
 #[async_trait]
 impl EndpointSource for StaticEndpoints {
-    async fn resolve(&self) -> Result<ControllerEndpoint, SessionError> {
+    async fn resolve(&self) -> Result<ControllerEndpoint, infiltrator_ports::error::PortError> {
         Ok(ControllerEndpoint {
             url: "http://127.0.0.1:9090".into(),
             secret: None,
@@ -365,7 +366,7 @@ async fn busy_transition_rejects_apply() {
     assert_eq!(
         err,
         ApplyError::Busy {
-            status: CoreStatus::Starting
+            status: infiltrator_contract::snapshot::CoreLifecycle::Starting
         }
     );
     assert_eq!(file_content(&f.config).await, OLD);

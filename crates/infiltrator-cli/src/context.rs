@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use infiltrator_core::session::{EndpointSource as _, ProfileEndpointSource};
+use infiltrator_core::session::ProfileEndpointSource;
 use infiltrator_core::settings::{AppSettings, load_settings, save_settings, settings_path};
+use infiltrator_ports::endpoint::EndpointSource as _;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;

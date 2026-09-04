@@ -14,7 +14,7 @@ Rust 的目标调用链：
 
 ```text
 frontend intent
-  → Rust use-case / CoreSession
+  → Rust application use-case / CoreLifecyclePort
   → lifecycle adapter + MihomoApi
   → mihomo process/controller
   → typed result + event + new generation
@@ -42,14 +42,14 @@ Absent → Starting → Ready → Running
 
 当前代码在桌面和 Android 仍有固定等待/分散检查的路径。后续应以 controller readiness（至少包括版本查询和目标配置可读）取代固定 `sleep`，并让所有上层消费同一个生命周期结果。
 
-## 3. CoreSession 的目标形状
+## 3. CoreApplication / CoreLifecyclePort 的目标形状
 
-地基已于 2026-08-29 落地在 `crates/infiltrator-core/src/session.rs`：`CoreStatus` 状态机（Stopped/Starting/Ready/Running/Stopping/Failed，对应 `LifecycleState`）、generation 协议（`check_generation`/`transition`，对应 `Generation`）、controller readiness 轮询（`wait_for_ready` + `MihomoVersionProbe`）、以及统一的 endpoint/secret 解析入口（`ProfileEndpointSource`，首次实现解析 profile YAML 的 `secret` 键，对应 `ControllerEndpoint`）。尚未收敛：`CoreIdentity`、`CapabilitySnapshot`、`ActiveProfile` 关联，以及 Iced/Admin/Android 三端从各自 runtime 槽位迁移到共享 `CoreSession`。
+地基已于 0.30 先落在 `infiltrator-domain`、`infiltrator-ports` 和 `infiltrator-application`：`CoreLifecyclePort` 使用稳定的 `CoreLifecycle` 与 generation，配置 apply 事务已不再要求具体 `CoreSession`，Desktop/Android 已切换到 `CoreApplication`。旧 `CoreSession` 目前仍被桌面 retry bootstrap 和部分旧 use-case 使用，待其余 vertical slice 收敛后删除。
 
 不要求立即创建同名 struct，但所有功能应逐步收敛到以下概念：
 
 ```text
-CoreSession
+CoreApplication
 ├── CoreIdentity       # version + platform/arch + data directory
 ├── LifecycleState     # typed state and failure
 ├── ControllerEndpoint # URL + secret reference, never raw secret in UI
@@ -61,7 +61,7 @@ CoreSession
 它不应成为拥有所有业务的 God object：
 
 - profile、订阅、sync、network config 和 runtime diagnostics 仍由各自 use-case 负责；
-- CoreSession 只提供当前 core 的生命周期、controller 和 generation；
+- CoreApplication 只提供当前 core 的生命周期、controller 和 generation；
 - UI 通过 use-case 返回的 owned snapshot 工作，不保存可变的 session guard；
 - Android 的 Kotlin process/VPN 实现可以继续是 native adapter，但不能再形成独立的 profile/config 事实源。
 

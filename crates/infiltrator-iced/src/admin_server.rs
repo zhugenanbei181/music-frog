@@ -28,6 +28,7 @@ use iced::{Subscription, Task, stream};
 use infiltrator_admin::admin_api::state::AdminApiContext;
 use infiltrator_admin::servers::AdminServerHandle;
 use infiltrator_core::settings::AdminServerConfig;
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use mihomo_api::client::MihomoClient;
 use mihomo_version::manager::VersionManager;
 
@@ -430,22 +431,17 @@ impl AdminApiContext for IcedAdminContext {
         Ok(())
     }
 
-    /// Session-level restart: same core process manager, new generation, and
-    /// a readiness wait — no shutdown/bootstrap cycle. Falls back to a full
-    /// rebuild when no live runtime exists.
+    /// Application-level restart: same core process manager, new generation,
+    /// and a readiness wait — no shutdown/bootstrap cycle. Falls back to a
+    /// full rebuild when no live runtime exists.
     async fn restart_core(&self) -> anyhow::Result<()> {
         let Some(runtime) = self.shared.runtime() else {
             return self.rebuild_runtime().await;
         };
-        let session = runtime.session();
-        let generation = session
-            .restart()
+        let application = runtime.application();
+        CoreLifecyclePort::restart(application.as_ref())
             .await
             .map_err(|e| anyhow!(e.to_string()))?;
-        session
-            .wait_for_ready(generation, infiltrator_core::session::READINESS_TIMEOUT)
-            .await
-            .map_err(|e| anyhow!("core restart did not become ready: {e}"))?;
         self.shared
             .send(AdminHostCommand::RuntimeResynced(Ok(runtime)));
         Ok(())
@@ -746,7 +742,7 @@ impl AppState {
         }
         self.runtime.runtime_generation = runtime
             .as_ref()
-            .map(|runtime| runtime.session().generation())
+            .map(|runtime| runtime.application().generation())
             .unwrap_or_else(|| self.runtime.runtime_generation.saturating_add(1));
         self.runtime.tun_service_status =
             runtime.as_ref().map(|runtime| runtime.tun_service_status());

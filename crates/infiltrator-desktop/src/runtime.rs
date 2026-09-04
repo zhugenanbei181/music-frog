@@ -1,11 +1,11 @@
 use anyhow::anyhow;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_core::apply::{
-    ApplyOutcome, ApplyParams, ApplyStrategy, SessionConfigReloader, apply_current_profile,
+    ApplyOutcome, ApplyParams, ApplyStrategy, EndpointConfigReloader, apply_current_profile,
 };
-use infiltrator_core::session::{
-    CoreSession, EndpointSource, MihomoVersionProbe, ProfileEndpointSource, READINESS_TIMEOUT,
-};
+use infiltrator_core::session::ProfileEndpointSource;
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_ports::endpoint::EndpointSource;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::proxy::{manager::ProxyManager, types::ProxyGroup};
 use mihomo_config::manager::ConfigManager;
@@ -28,7 +28,7 @@ pub struct MihomoRuntime {
     pub controller_url: String,
     client: MihomoClient,
     service_manager: ServiceManager,
-    session: Arc<CoreSession>,
+    endpoints: Arc<ProfileEndpointSource<DefaultCredentialStore>>,
     application: Arc<CoreApplication>,
     apply_guard: Arc<tokio::sync::Mutex<()>>,
 }
@@ -80,46 +80,30 @@ impl MihomoRuntime {
         let service_manager = ServiceManager::new(binary.clone(), config_path.clone());
 
         let endpoints = Arc::new(ProfileEndpointSource::new(cm.clone()));
-        let session = Arc::new(CoreSession::new(
-            service_manager.core_process(),
-            endpoints.clone(),
-            Arc::new(MihomoVersionProbe::new(endpoints.clone())),
-        ));
-
-        // Attach to an already-running instance by proving it answers, or
-        // start a fresh one and wait for the controller — either way this
-        // only returns once the core is actually serving.
-        if service_manager.is_running().await {
-            log::info!("Attaching to running mihomo service");
-            session
-                .wait_for_ready(session.generation(), READINESS_TIMEOUT)
-                .await
-                .map_err(|e| anyhow!("mihomo is running but not ready: {e}"))?;
-        } else {
-            log::info!("Starting mihomo service");
-            let generation = session.start().await.map_err(|e| anyhow!(e.to_string()))?;
-            session
-                .wait_for_ready(generation, READINESS_TIMEOUT)
-                .await
-                .map_err(|e| anyhow!(e.to_string()))?;
-        }
-
         let endpoint = endpoints
             .resolve()
             .await
             .map_err(|e| anyhow!(e.to_string()))?;
-        let client = MihomoClient::new(&endpoint.url, endpoint.secret.clone())?;
         let application = Arc::new(crate::composition::core_application(
             &service_manager,
             endpoint.url.clone(),
             endpoint.secret.clone(),
         )?);
-        if let Err(error) = application.adopt_if_running().await {
-            log::warn!(
-                "failed to seed application lifecycle state: {}",
-                error.message
-            );
+        // Attach to an already-running instance by proving it answers, or
+        // start a fresh one and let the application own readiness retries.
+        if service_manager.is_running().await {
+            log::info!("Attaching to running mihomo service");
+            application
+                .adopt_if_running()
+                .await
+                .map_err(|error| anyhow!(error.message))?;
+        } else {
+            log::info!("Starting mihomo service");
+            CoreLifecyclePort::start(application.as_ref())
+                .await
+                .map_err(|error| anyhow!(error.to_string()))?;
         }
+        let client = MihomoClient::new(&endpoint.url, endpoint.secret.clone())?;
 
         Ok(Self {
             config_manager: cm,
@@ -128,15 +112,10 @@ impl MihomoRuntime {
             controller_url,
             client,
             service_manager,
-            session,
+            endpoints,
             application,
             apply_guard: Arc::new(tokio::sync::Mutex::new(())),
         })
-    }
-
-    /// The unified core session owning lifecycle state and generations.
-    pub fn session(&self) -> Arc<CoreSession> {
-        self.session.clone()
     }
 
     /// The 0.30 contract/application seam for host surfaces. Legacy runtime
@@ -163,13 +142,14 @@ impl MihomoRuntime {
         let _guard = self.apply_guard.lock().await;
         let profile = self.config_manager.get_current().await?;
         let content = self.config_manager.load(&profile).await?;
-        let reloader = SessionConfigReloader::new(self.session.clone());
+        let reloader =
+            EndpointConfigReloader::new(self.endpoints.clone() as Arc<dyn EndpointSource>);
         let params = ApplyParams {
             strategy,
             ..Default::default()
         };
         let outcome = apply_current_profile(
-            &self.session,
+            self.application.as_ref(),
             &self.config_manager,
             &reloader,
             &content,
@@ -197,13 +177,14 @@ impl MihomoRuntime {
     ) -> anyhow::Result<ApplyOutcome> {
         let _guard = self.apply_guard.lock().await;
         let profile = self.config_manager.get_current().await?;
-        let reloader = SessionConfigReloader::new(self.session.clone());
+        let reloader =
+            EndpointConfigReloader::new(self.endpoints.clone() as Arc<dyn EndpointSource>);
         let params = ApplyParams {
             strategy,
             ..Default::default()
         };
         apply_current_profile(
-            &self.session,
+            self.application.as_ref(),
             &self.config_manager,
             &reloader,
             new_content,
@@ -274,8 +255,7 @@ impl MihomoRuntime {
     }
 
     pub async fn shutdown(&self) -> anyhow::Result<()> {
-        self.session
-            .stop()
+        CoreLifecyclePort::stop(self.application.as_ref())
             .await
             .map_err(|e| anyhow!(e.to_string()))
     }
