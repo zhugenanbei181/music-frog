@@ -7,6 +7,7 @@ use chrono::Utc;
 use super::session::apply_current_profile_status;
 use super::support::{
     build_config_manager, get_runtime, map_anyhow_error, map_application_failure,
+    subscription_source,
 };
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use infiltrator_application::profile_application::ProfileApplication;
@@ -89,8 +90,7 @@ pub async fn profile_create(name: String, url: String) -> FfiStatus {
                 Ok(application) => application,
                 Err(status) => return status,
             };
-            let source =
-                infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients();
+            let source = subscription_source();
             match application.import_subscription(&source, &name, &url).await {
                 Ok(_) => FfiStatus::ok(),
                 Err(failure) => map_application_failure(failure),
@@ -133,8 +133,7 @@ pub async fn profile_update(name: String) -> FfiStatus {
                 Err(status) => return status,
             };
             let previous = application.current_profile().await.ok();
-            let source =
-                infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients();
+            let source = subscription_source();
             match application.update_subscription(&source, &name).await {
                 Ok(profile) => {
                     if profile.active {

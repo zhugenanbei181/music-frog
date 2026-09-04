@@ -6,6 +6,7 @@ use std::sync::OnceLock;
 
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
@@ -69,15 +70,18 @@ pub(super) async fn configs_dir_override() -> Option<String> {
 }
 
 pub(super) async fn build_settings_application() -> Result<SettingsApplication, FfiStatus> {
-    let store = infiltrator_core::settings_store::for_current_home()
-        .map_err(map_anyhow_error)?;
+    let store = infiltrator_core::settings_store::for_current_home().map_err(map_anyhow_error)?;
     Ok(SettingsApplication::new(std::sync::Arc::new(store)))
 }
 
-pub(super) async fn build_configuration_application()
--> Result<ConfigurationApplication, FfiStatus> {
+pub(super) async fn build_configuration_application() -> Result<ConfigurationApplication, FfiStatus>
+{
     let manager = build_config_manager().await?;
     Ok(ConfigurationApplication::new(std::sync::Arc::new(manager)))
+}
+
+pub(super) fn subscription_source() -> impl SubscriptionSource {
+    infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients()
 }
 
 /// ConfigManager wired for the configs-dir redirect. The `INFILTRATOR_CONFIGS_DIR`
@@ -206,7 +210,8 @@ mod tests {
             configs_dir: Some(configs_dir.to_string()),
             ..AppSettings::default()
         };
-        let path = infiltrator_core::settings_io::settings_path(home).expect("settings path resolves");
+        let path =
+            infiltrator_core::settings_io::settings_path(home).expect("settings path resolves");
         save_settings(&path, &settings)
             .await
             .expect("save settings");
