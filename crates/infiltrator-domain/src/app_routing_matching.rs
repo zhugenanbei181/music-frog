@@ -1,6 +1,6 @@
 //! Linux cgroup matching and canonical application route tables.
 
-use infiltrator_domain::rules::RuleEntry;
+use crate::rules::RuleEntry;
 
 use super::{CanonicalAppRule, CgroupV2Classifier};
 

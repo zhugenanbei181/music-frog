@@ -5,6 +5,7 @@
 //! any native surface or tested without an executor.
 
 pub mod backoff_strategy;
+pub mod app_routing;
 pub mod core_state;
 pub mod dns_tester;
 pub mod failover_arbiter;

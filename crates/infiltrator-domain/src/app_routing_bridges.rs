@@ -1,6 +1,6 @@
 //! Virtual bridge detection and route rule compilation.
 
-use infiltrator_domain::rules::RuleEntry;
+use crate::rules::RuleEntry;
 use std::net::{IpAddr, Ipv4Addr};
 
 use super::{

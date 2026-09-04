@@ -4,10 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-
-use mihomo_platform::paths::get_home_dir;
 
 #[path = "app_routing_aliases.rs"]
 mod app_routing_aliases;
@@ -73,65 +70,6 @@ impl AppRoutingConfig {
             _ => None,
         }
     }
-}
-
-fn config_path() -> anyhow::Result<PathBuf> {
-    let home = get_home_dir()?;
-    Ok(home.join("app_routing.toml"))
-}
-
-pub fn load_app_routing() -> anyhow::Result<AppRoutingConfig> {
-    let path = config_path()?;
-    if !path.exists() {
-        return Ok(AppRoutingConfig::default());
-    }
-    let content = std::fs::read_to_string(&path)?;
-    let config: AppRoutingConfig = toml::from_str(&content)?;
-    Ok(config)
-}
-
-pub fn save_app_routing(config: &AppRoutingConfig) -> anyhow::Result<()> {
-    let path = config_path()?;
-    let content = toml::to_string_pretty(config)?;
-    std::fs::write(&path, content)?;
-    Ok(())
-}
-
-pub fn add_package(package: &str) -> anyhow::Result<()> {
-    let mut config = load_app_routing()?;
-    config.packages.insert(package.to_string());
-    save_app_routing(&config)
-}
-
-pub fn remove_package(package: &str) -> anyhow::Result<()> {
-    let mut config = load_app_routing()?;
-    config.packages.remove(package);
-    save_app_routing(&config)
-}
-
-pub fn set_routing_mode(mode: AppRoutingMode) -> anyhow::Result<()> {
-    let mut config = load_app_routing()?;
-    config.mode = mode;
-    save_app_routing(&config)
-}
-
-pub fn set_packages(packages: Vec<String>) -> anyhow::Result<()> {
-    let mut config = load_app_routing()?;
-    config.packages = packages.into_iter().collect();
-    save_app_routing(&config)
-}
-
-pub fn toggle_package(package: &str) -> anyhow::Result<bool> {
-    let mut config = load_app_routing()?;
-    let is_selected = if config.packages.contains(package) {
-        config.packages.remove(package);
-        false
-    } else {
-        config.packages.insert(package.to_string());
-        true
-    };
-    save_app_routing(&config)?;
-    Ok(is_selected)
 }
 
 // ============================================================================
@@ -711,6 +649,9 @@ pub struct VirtualNetworkBridge {
 pub struct VirtualNetworkBridgeDetector {
     bridges: Vec<VirtualNetworkBridge>,
 }
+#[cfg(test)]
+#[path = "app_routing_test.rs"]
+mod tests;
 
 // ============================================================================
 // Linux Cgroup v2 Path Classifier
@@ -730,7 +671,3 @@ pub struct CanonicalAppRule {
     pub target_policy: String,
     pub enabled: bool,
 }
-
-#[cfg(test)]
-#[path = "app_routing_test.rs"]
-mod tests;

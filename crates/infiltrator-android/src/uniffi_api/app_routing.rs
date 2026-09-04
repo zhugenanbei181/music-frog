@@ -1,7 +1,12 @@
 //! Per-app routing surface: routing mode and package selection lists stored
 //! via infiltrator-core's app-routing config.
 
-use infiltrator_core::app_routing::{load_app_routing, save_app_routing};
+use infiltrator_core::app_routing_io::{
+    load_app_routing, save_app_routing, set_routing_mode, toggle_package,
+};
+use infiltrator_domain::app_routing::{
+    AppRoutingConfig as DomainAppRoutingConfig, AppRoutingMode as DomainAppRoutingMode,
+};
 
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
@@ -14,30 +19,26 @@ pub enum AppRoutingMode {
     BypassSelected,
 }
 
-impl From<infiltrator_core::app_routing::AppRoutingMode> for AppRoutingMode {
-    fn from(mode: infiltrator_core::app_routing::AppRoutingMode) -> Self {
+impl From<DomainAppRoutingMode> for AppRoutingMode {
+    fn from(mode: DomainAppRoutingMode) -> Self {
         match mode {
-            infiltrator_core::app_routing::AppRoutingMode::ProxyAll => AppRoutingMode::ProxyAll,
-            infiltrator_core::app_routing::AppRoutingMode::ProxySelected => {
+            DomainAppRoutingMode::ProxyAll => AppRoutingMode::ProxyAll,
+            DomainAppRoutingMode::ProxySelected => {
                 AppRoutingMode::ProxySelected
             }
-            infiltrator_core::app_routing::AppRoutingMode::BypassSelected => {
+            DomainAppRoutingMode::BypassSelected => {
                 AppRoutingMode::BypassSelected
             }
         }
     }
 }
 
-impl From<AppRoutingMode> for infiltrator_core::app_routing::AppRoutingMode {
+impl From<AppRoutingMode> for DomainAppRoutingMode {
     fn from(mode: AppRoutingMode) -> Self {
         match mode {
-            AppRoutingMode::ProxyAll => infiltrator_core::app_routing::AppRoutingMode::ProxyAll,
-            AppRoutingMode::ProxySelected => {
-                infiltrator_core::app_routing::AppRoutingMode::ProxySelected
-            }
-            AppRoutingMode::BypassSelected => {
-                infiltrator_core::app_routing::AppRoutingMode::BypassSelected
-            }
+            AppRoutingMode::ProxyAll => DomainAppRoutingMode::ProxyAll,
+            AppRoutingMode::ProxySelected => DomainAppRoutingMode::ProxySelected,
+            AppRoutingMode::BypassSelected => DomainAppRoutingMode::BypassSelected,
         }
     }
 }
@@ -73,7 +74,7 @@ pub fn app_routing_load() -> AppRoutingResult {
 
 #[uniffi::export]
 pub fn app_routing_save(mode: AppRoutingMode, packages: Vec<String>) -> FfiStatus {
-    let config = infiltrator_core::app_routing::AppRoutingConfig {
+    let config = DomainAppRoutingConfig {
         mode: mode.into(),
         packages: packages.into_iter().collect(),
     };
@@ -85,7 +86,7 @@ pub fn app_routing_save(mode: AppRoutingMode, packages: Vec<String>) -> FfiStatu
 
 #[uniffi::export]
 pub fn app_routing_set_mode(mode: AppRoutingMode) -> FfiStatus {
-    match infiltrator_core::app_routing::set_routing_mode(mode.into()) {
+    match set_routing_mode(mode.into()) {
         Ok(_) => FfiStatus::ok(),
         Err(e) => FfiStatus::err(FfiErrorCode::Io, e.to_string()),
     }
@@ -99,7 +100,7 @@ pub struct AppRoutingToggleResult {
 
 #[uniffi::export]
 pub fn app_routing_toggle_package(package: String) -> AppRoutingToggleResult {
-    match infiltrator_core::app_routing::toggle_package(&package) {
+    match toggle_package(&package) {
         Ok(is_selected) => AppRoutingToggleResult {
             status: FfiStatus::ok(),
             is_selected,
@@ -266,7 +267,7 @@ pub fn app_routing_build_vpn_plan(self_package: String) -> AndroidVpnPerAppPlan 
     let mut self_package_excluded = false;
 
     match config.mode {
-        infiltrator_core::app_routing::AppRoutingMode::ProxyAll => {
+        DomainAppRoutingMode::ProxyAll => {
             // In ProxyAll mode, we explicitly disallow our own package so the VPN daemon
             // traffic goes straight to upstream sockets without looping.
             if !clean_self.is_empty() {
@@ -274,7 +275,7 @@ pub fn app_routing_build_vpn_plan(self_package: String) -> AndroidVpnPerAppPlan 
                 self_package_excluded = true;
             }
         }
-        infiltrator_core::app_routing::AppRoutingMode::ProxySelected => {
+        DomainAppRoutingMode::ProxySelected => {
             for pkg in &config.packages {
                 let p = pkg.trim();
                 if !p.is_empty() {
@@ -291,7 +292,7 @@ pub fn app_routing_build_vpn_plan(self_package: String) -> AndroidVpnPerAppPlan 
                 self_package_excluded = true;
             }
         }
-        infiltrator_core::app_routing::AppRoutingMode::BypassSelected => {
+        DomainAppRoutingMode::BypassSelected => {
             for pkg in &config.packages {
                 let p = pkg.trim();
                 if !p.is_empty() {

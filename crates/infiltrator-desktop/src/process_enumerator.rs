@@ -80,7 +80,7 @@ impl From<ProcessInfo> for ExtendedProcessInfo {
     fn from(info: ProcessInfo) -> Self {
         let display_name = ProcessEnumerator::normalize_display_name(&info.name);
         let canonical_name =
-            infiltrator_core::app_routing::ProcessAliasRegistry::canonicalize_name(&info.name);
+            infiltrator_domain::app_routing::ProcessAliasRegistry::canonicalize_name(&info.name);
         let category =
             classify_process_category(&info.name, info.binary_path.as_deref(), info.is_system);
 
@@ -266,7 +266,7 @@ pub fn enumerate_extended_processes() -> Result<Vec<ExtendedProcessInfo>> {
         let icon_hint = resolve_icon_hint(&name, binary_path.as_deref());
         let display_name = normalize_display_name(&name);
         let canonical_name =
-            infiltrator_core::app_routing::ProcessAliasRegistry::canonicalize_name(&name);
+            infiltrator_domain::app_routing::ProcessAliasRegistry::canonicalize_name(&name);
         let category = classify_process_category(&name, binary_path.as_deref(), is_system);
         let memory_bytes = process.memory();
 
