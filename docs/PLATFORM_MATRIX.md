@@ -11,6 +11,7 @@
 | macOS desktop | Rust platform path 已有 keyring 条件分支 | 当前 fetch 脚本未声明 macOS 资产 | `mihomo-platform` macOS dependency | core 资产/签名/打包/权限与真实运行验证 |
 | Android arm64-v8a | Compose + UniFFI + Kotlin host/VPN | `vendor/mihomo-android-arm64-v8`，构建时复制为 `libmihomo.so` | `scripts/android-build.sh`、Gradle ABI 配置 | 真实设备 VPN、后台、升级和异常退出矩阵 |
 | Android x86_64 | Compose + UniFFI + Kotlin host/VPN | `vendor/mihomo-android-amd64`，用于 emulator/ABI | Gradle 与 fetch 脚本 | emulator/CI ABI smoke、性能与网络隔离验证 |
+| iOS arm64 | `infiltrator-ios` host seam；Native UI/NetworkExtension 未接入 | 由签名 app/extension bundle 交付（策略已定，资产未接入） | `infiltrator-ios` 的 `IosBridge`、保守 capability 测试 | Swift/Objective-C bridge、NetworkExtension entitlement、真机 VPN 与后台验证 |
 | Admin Web | 浏览器内 Vue 管理面 | 不拥有 core；由桌面 Admin server 提供 | `infiltrator-admin` + `config-manager-ui` | API contract、浏览器断线/重连和旧客户端兼容 |
 | External mihomo dashboard | 已随 WebUI 于 0.20 退役 | 管理能力由 Iced 本体承担 | `TAURI_WEBUI_RETIREMENT_LEDGER.md` | — |
 

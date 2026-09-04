@@ -88,6 +88,11 @@ jobs:
       - name: Enforce import hygiene (no `as` aliases, no re-exports)
         run: python3 scripts/quality/import-guard.py --mode enforce
 
+      # 0.30 layer guard: pure contracts/ports/application and the Bevy
+      # surface must not reacquire concrete transport or executor dependencies.
+      - name: Enforce 0.30 core boundaries
+        run: python3 scripts/quality/core-boundary-guard.py --mode enforce
+
       # Bevy UI bsn! 场景法守卫（BEVY-004）：两个 bevy crate 的生产代码里 UI 树
       # 只能在 bsn! 场景内声明并经 spawn_scene 挂载；豁免（Camera2d/Observer）
       # 与规则明细见 scripts/quality/bevy_bsn_guard.py 与 docs/BEVY_UI_FRONTEND.md。

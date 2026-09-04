@@ -58,7 +58,7 @@ but `bevy_ui_widgets` (official unstyled widgets) plus our own
   longer re-exports it; 0.24.1 matches the locked bevy resolution).
 - Dependency whitelist: locked bevy (`=0.19.1`) +
   `infiltrator-bevy-widgets` + `infiltrator-contract` +
-  `infiltrator-application` + the accesskit vocabulary crate. Low-level
+  `infiltrator-application` + `infiltrator-composition` + the accesskit vocabulary crate. Low-level
   `mihomo-api`, Reqwest and Tokio types do not enter this frontend crate.
 - `infiltrator_bevy_ui::run()` launches the windowed shell.
 

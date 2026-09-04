@@ -60,13 +60,15 @@ and sync          (REST / WebSocket)
 | Core configuration | `mihomo-config`、`infiltrator-core` | 配置解析、profile、订阅、DNS/Fake-IP/TUN/rules 等领域操作 | toolkit 类型、Android Compose 状态 |
 | Core lifecycle/platform | `mihomo-platform`、`infiltrator-desktop`、Android `MihomoHost` | 进程/VPN/凭据/目录/平台资源 | 业务页面和第二套配置模型 |
 | Application/admin | `infiltrator-admin`、`infiltrator-http` | use-case 编排、Admin API、调度、事件和重建流程 | 另一套 mihomo client 或 UI 专属状态 |
+| Composition roots | `infiltrator-composition`、各 host 的 `composition` 模块 | 组装 application 与具体 outbound/host adapter | 页面状态和第二套业务语义 |
 | Desktop primary UI | `infiltrator-iced` | Iced 路由、布局、交互、托盘呈现 | OS 进程控制、核心 API 语义 |
 | Desktop secondary/legacy | ~~`src-tauri` + `webui/config-manager-ui`~~ | 已于 release/0.20 退役（台账：TAURI_WEBUI_RETIREMENT_LEDGER.md） | — |
 | Android surface | `infiltrator-android` + Compose | UniFFI DTO、Android VPN/权限/生命周期和移动布局 | 直接复制桌面业务实现 |
+| iOS host/surface | `infiltrator-ios` + Swift/Compose（0.30 seam） | NetworkExtension bridge、Keychain 和 iOS 生命周期 | Android VpnService 实现、未接入的 native bridge |
 | External dashboard | ~~`webui/mihomo-manager-ui/dist`~~ | 已于 release/0.20 退役 | MusicFrog 自己的配置事实 |
 | Sync | `mihomo-dav-sync/*` | WebDAV 传输、索引、状态、冲突处理 | 页面私有同步协议 |
 
-当前依赖图仍有收敛空间：多个上层 crate 同时依赖 `mihomo-api`、`mihomo-config`、`mihomo-platform`，Iced 还持有较大的 `AppState`，application 的标准 Overview 构造仍是临时 outbound seam。Bevy UI 已经只依赖 application/contract；0.30 下一步是把 application 的具体 adapter 构造下沉到 composition root，并迁移 Iced/Admin/Android FFI。
+当前依赖图仍有收敛空间：多个上层 crate 同时依赖 `mihomo-api`、`mihomo-config`、`mihomo-platform`，Iced 还持有较大的 `AppState`。标准 Overview 构造已经下沉到 `infiltrator-composition`，Bevy UI 只接收 application pump；0.30 下一步是按同一规则迁移 Iced/Admin/Android FFI 的其余 adapter。
 
 ## 3. taskmanager 参照下的求同存异
 

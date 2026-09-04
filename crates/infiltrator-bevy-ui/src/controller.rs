@@ -85,7 +85,7 @@ pub struct MihomoOverviewSource {
 
 impl MihomoOverviewSource {
     pub fn spawn(config: ControllerConfig) -> Self {
-        let pump = OverviewPump::spawn_mihomo(OverviewConfig {
+        let pump = infiltrator_composition::spawn_mihomo_overview(OverviewConfig {
             endpoint: config.endpoint,
             secret: config.secret,
             sample_interval: config.sample_interval,

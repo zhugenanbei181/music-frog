@@ -5,6 +5,7 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::{RuntimeConfig, RuntimePatchSnapshot};
 use iced::Task;
+use infiltrator_contract::command::{CommandIntent, CommandResult, ProxyMode};
 use infiltrator_core::error::InfiltratorError;
 use infiltrator_desktop::tun_service::{ServiceModeStatus, TunServiceManager};
 use infiltrator_shared::locales::Localizer;
@@ -198,16 +199,33 @@ impl AppState {
                 let Some(rt) = self.runtime.runtime.clone() else {
                     return self.runtime_unavailable("切换代理模式");
                 };
+                let Some(proxy_mode) = ProxyMode::from_wire(&mode) else {
+                    let error = InfiltratorError::Config(format!("不支持的代理模式: {mode}"));
+                    self.set_error(&error);
+                    return Task::done(Message::ShowToast(
+                        error.to_string(),
+                        crate::types::app::ToastStatus::Error,
+                    ));
+                };
                 let token = self.begin_runtime_patch();
                 let generation = rt.session().generation();
                 self.runtime.proxy_mode = Some(mode.clone());
                 self.refresh_tray();
+                let application = rt.application();
                 Task::perform(
                     async move {
-                        rt.client()
-                            .patch_config(serde_json::json!({ "mode": mode }))
+                        match application
+                            .execute(CommandIntent::SetProxyMode { mode: proxy_mode })
                             .await
-                            .map_err(InfiltratorError::from)
+                        {
+                            CommandResult::Completed { .. } => Ok(()),
+                            CommandResult::Rejected { failure, .. } => {
+                                Err(InfiltratorError::Mihomo(failure.message))
+                            }
+                            CommandResult::Accepted { .. } => Err(InfiltratorError::Internal(
+                                "同步命令不应返回 Accepted".to_string(),
+                            )),
+                        }
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )

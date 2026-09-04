@@ -4984,7 +4984,6 @@ dependencies = [
  "infiltrator-domain",
  "infiltrator-ports",
  "log",
- "mihomo-api",
  "tokio",
 ]
 
@@ -4997,6 +4996,7 @@ dependencies = [
  "blake3",
  "infiltrator-application",
  "infiltrator-bevy-widgets",
+ "infiltrator-composition",
  "infiltrator-contract",
  "mockito",
  "serde",
@@ -5034,6 +5034,15 @@ dependencies = [
  "sync-engine",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "infiltrator-composition"
+version = "0.30.0"
+dependencies = [
+ "infiltrator-application",
+ "infiltrator-ports",
+ "mihomo-api",
 ]
 
 [[package]]
@@ -5136,6 +5145,7 @@ dependencies = [
  "iced_runtime",
  "image",
  "infiltrator-admin",
+ "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-desktop",
  "infiltrator-shared",
@@ -5162,6 +5172,16 @@ dependencies = [
  "tray-icon",
  "webbrowser",
  "wgpu 27.0.1",
+]
+
+[[package]]
+name = "infiltrator-ios"
+version = "0.30.0"
+dependencies = [
+ "async-trait",
+ "infiltrator-contract",
+ "infiltrator-ports",
+ "tokio",
 ]
 
 [[package]]

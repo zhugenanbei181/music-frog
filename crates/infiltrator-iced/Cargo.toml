@@ -30,6 +30,7 @@ wgpu = { version = "27.0", default-features = false, features = ["std", "wgsl", 
 # when iced's wgpu stack bumps past naga 27.
 naga27 = { package = "naga", version = "27", default-features = false, features = ["termcolor"] }
 tokio = { workspace = true }
+infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-desktop = { path = "../infiltrator-desktop" }
 infiltrator-shared = { path = "../infiltrator-shared" }

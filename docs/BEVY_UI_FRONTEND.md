@@ -17,9 +17,9 @@ surface**：它的上限包含移动端。iced 是 winit 桌面方案，没有 A
   评审事项（bevy 0.19 已把 UI 布局与渲染拆开，`bevy_ui` 单独只排版不上屏，必须闭合
   `bevy_ui_render`）。
 - **依赖白名单**：`infiltrator-bevy-widgets` 只依赖 bevy；`infiltrator-bevy-ui` 依赖
-  bevy + widgets + `infiltrator-contract` + `infiltrator-application`，但不依赖
-  `infiltrator-core`、`mihomo-api`、Reqwest 或 Tokio。具体 Mihomo adapter 由 application
-  的 composition seam 提供，不能进入页面与 projection 模块。
+  bevy + widgets + `infiltrator-contract` + `infiltrator-application` 与组合根，但不依赖
+  `infiltrator-core`、`mihomo-api`、Reqwest 或 Tokio。具体 Mihomo adapter 由
+  `infiltrator-composition` seam 提供，不能进入页面与 projection 模块。
 - **feature 闭包两段式声明**：`[dependencies]` 空特征基座声明 + per-target 表持有
   真实闭包（bevy derive 宏按 `::bevy::…` 路径扫描普通依赖表，只写 target 表会
   unresolved）。`default-features` 全关（无音频/gilrs/3D/动态链接）；`multi_threaded`

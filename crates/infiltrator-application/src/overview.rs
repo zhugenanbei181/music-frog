@@ -1,8 +1,9 @@
 //! Runtime-owned Overview sampling and bounded event transport.
 //!
-//! This module owns the Tokio worker and the Mihomo transport adapter. UI
+//! This module owns the Tokio worker over an injected OverviewReader port. UI
 //! surfaces consume only `CoreSnapshot` values and standard-library callback
-//! channels; no Bevy/Iced/FFI type is part of the seam.
+//! channels; no Bevy/Iced/FFI type or concrete HTTP client is part of the
+//! seam.
 
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -98,19 +99,6 @@ impl OverviewPump {
         pump
     }
 
-    /// Spawn the standard Mihomo REST-backed reader. Transport construction
-    /// remains in the application/adaptor side, not in a UI crate.
-    pub fn spawn_mihomo(config: OverviewConfig) -> Self {
-        let reader: Arc<dyn OverviewReader> =
-            match mihomo_api::client::MihomoClient::new(&config.endpoint, config.secret.clone()) {
-                Ok(client) => Arc::new(mihomo_api::overview::ControllerOverviewReader::new(client)),
-                Err(error) => Arc::new(UnavailableReader {
-                    failure: PortError::Network(error.to_string()),
-                }),
-            };
-        Self::spawn(reader, config.sample_interval)
-    }
-
     pub fn current(&self) -> CoreSnapshot {
         self.shared
             .last
@@ -141,12 +129,21 @@ impl OverviewPump {
     }
 }
 
-struct UnavailableReader {
+/// Fallback reader used by a composition root when adapter construction
+/// itself fails. Keeping this here means the failure remains a typed port
+/// result and the UI does not need to know how the adapter was built.
+pub struct UnavailableOverviewReader {
     failure: PortError,
 }
 
+impl UnavailableOverviewReader {
+    pub fn new(failure: PortError) -> Self {
+        Self { failure }
+    }
+}
+
 #[async_trait::async_trait]
-impl OverviewReader for UnavailableReader {
+impl OverviewReader for UnavailableOverviewReader {
     async fn sample(&self) -> Result<OverviewSample, PortError> {
         Err(self.failure.clone())
     }

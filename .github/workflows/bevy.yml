@@ -14,8 +14,13 @@ on:
       - "Cargo.lock"
       - "crates/infiltrator-bevy-ui/**"
       - "crates/infiltrator-bevy-widgets/**"
+      - "crates/infiltrator-application/**"
+      - "crates/infiltrator-composition/**"
+      - "crates/infiltrator-contract/**"
+      - "crates/infiltrator-ports/**"
       - "rust-toolchain.toml"
       - "scripts/quality/bevy_bsn_guard.py"
+      - "scripts/quality/core-boundary-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -25,8 +30,13 @@ on:
       - "Cargo.lock"
       - "crates/infiltrator-bevy-ui/**"
       - "crates/infiltrator-bevy-widgets/**"
+      - "crates/infiltrator-application/**"
+      - "crates/infiltrator-composition/**"
+      - "crates/infiltrator-contract/**"
+      - "crates/infiltrator-ports/**"
       - "rust-toolchain.toml"
       - "scripts/quality/bevy_bsn_guard.py"
+      - "scripts/quality/core-boundary-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -81,6 +91,9 @@ jobs:
             echo "::error::naga27 coexistence workaround missing from infiltrator-iced"
             exit 1
           fi
+
+      - name: Enforce 0.30 core boundaries
+        run: python3 scripts/quality/core-boundary-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

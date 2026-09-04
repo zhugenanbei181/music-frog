@@ -1,14 +1,14 @@
 [package]
-name = "infiltrator-application"
+name = "infiltrator-ios"
 version = "0.30.0"
 edition = "2024"
 publish = false
-description = "Tokio-backed application services over runtime-neutral MusicFrog ports."
+description = "iOS host adapter seams for NetworkExtension and Swift/Objective-C lifecycle bridges."
 
 [dependencies]
 async-trait = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
-infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
-log = { workspace = true }
+
+[dev-dependencies]
 tokio = { workspace = true }

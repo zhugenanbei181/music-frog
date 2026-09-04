@@ -1,0 +1,11 @@
+[package]
+name = "infiltrator-composition"
+version = "0.30.0"
+edition = "2024"
+publish = false
+description = "Composition roots that wire concrete outbound and host adapters into the application layer."
+
+[dependencies]
+infiltrator-application = { path = "../infiltrator-application" }
+infiltrator-ports = { path = "../infiltrator-ports" }
+mihomo-api = { path = "../mihomo-api" }

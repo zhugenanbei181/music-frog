@@ -35,7 +35,11 @@ pub mod shortcuts;
 use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};
 use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_bevy_widgets::theme::LightDark;
+use std::sync::Arc;
+
+use crate::command::UiCommandSink;
 
 /// Launch the windowed Bevy shell. Desktop: one primary window titled
 /// "MusicFrog Infiltrator — Bevy", the sidebar/content shell with a live
@@ -54,6 +58,20 @@ use infiltrator_bevy_widgets::theme::LightDark;
 /// keeps the demo frontend, a configured-but-unreachable controller
 /// projects the typed unavailable state.
 pub fn run() {
+    run_with_command_sink(Arc::new(command::DemoCommandSink::accepting()));
+}
+
+/// Launch the shell with a host-composed application command service. The
+/// host owns process/VPN adapters and hands the UI only the application
+/// facade; Bevy never needs to construct a Tokio runtime or a concrete HTTP
+/// client for command dispatch.
+pub fn run_with_application(application: Arc<CoreApplication>) {
+    run_with_command_sink(Arc::new(command::ApplicationCommandSink::new(application)));
+}
+
+/// Launch the windowed shell with an arbitrary command sink. This is useful
+/// for native composition roots and for deterministic demo/test hosts.
+pub fn run_with_command_sink(sink: Arc<dyn UiCommandSink>) {
     let skin = capture::skin_from_env().unwrap_or(LightDark::Dark);
     let (width, height) = capture::window_size_from_env().unwrap_or((1180, 760));
     let marker = capture::marker_path_from_env();
@@ -70,6 +88,7 @@ pub fn run() {
         ..WindowPlugin::default()
     }));
     app.add_plugins(app::ShellPlugin::new_with_width(skin, width as f32));
+    app.add_plugins(command::CommandPumpPlugin::new(sink));
     // The route + page bootstrap: without it the content slot stays empty in
     // the windowed run (headless tests add PagesPlugin explicitly, which is
     // why this regression only shows up on screen). The configured

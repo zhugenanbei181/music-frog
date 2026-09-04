@@ -14,8 +14,10 @@
 - [x] Bevy Overview 已改为消费 application snapshot；UI crate 不再直连 `mihomo-api`、Reqwest 或 Tokio。
 - [x] Desktop/Android 已把 Core process、secure store、data-dir 和 readiness 组合到 host adapter 端口。
 - [ ] application actor/facade 覆盖全部 use-case，并统一前端命令与领域快照通道。
-- [ ] application 从 `mihomo-api` 具体实现中脱离；标准 adapter 下沉到独立 composition/outbound 组合根。
-- [ ] Iced、Admin、Android FFI 完成同一 application facade 接入；补建 `infiltrator-ios` host crate。
+- [x] 标准 Mihomo Overview adapter 已移入 `infiltrator-composition`；application 不再直接构造 `MihomoClient`。
+- [ ] 其余标准 adapter（配置、版本、Admin、同步）按同一规则下沉到 composition/outbound 组合根。
+- [x] `infiltrator-ios` host crate 已建立端口与保守 capability seam；Native NetworkExtension bridge 仍待接入。
+- [ ] Iced、Admin、Android FFI 完成同一 application facade 接入。
 - [ ] 全端删除对具体 Mihomo client、Reqwest 和 Tokio channel 的公开/直接依赖。
 
 ## 1. 版本切线
@@ -64,6 +66,7 @@ Iced / Bevy / Compose / Admin REST / CLI
 | 跨端契约 | `infiltrator-contract` | `infiltrator-shared` 中的 intent、snapshot、event、capability；主题/本地化另行归类 |
 | 外部端口 | `infiltrator-ports` | `CoreProcess`、`SecureStore`、文件/时间/网络/TUN 等 trait |
 | 应用层 | `infiltrator-application`（可先保留包名 `infiltrator-core`） | `CoreSession`、use-case、apply transaction、actor、scheduler |
+| 组合根 | `infiltrator-composition` + 各 host composition | 将具体 outbound/host adapter 注入 application；不承载 UI 状态 |
 | Mihomo outbound adapter | `mihomo-api`、`infiltrator-http` | REST/WebSocket 和 HTTP 传输实现 |
 | 配置/版本 outbound adapter | `mihomo-config`、`mihomo-version` | 文件、下载、安装和版本切换实现 |
 | Desktop host adapter | `infiltrator-desktop` | 进程、系统代理、TUN、凭据、托盘宿主能力 |

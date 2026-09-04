@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_core::apply::{
     ApplyOutcome, ApplyParams, ApplyStrategy, SessionConfigReloader, apply_current_profile,
 };
@@ -28,6 +29,7 @@ pub struct MihomoRuntime {
     client: MihomoClient,
     service_manager: ServiceManager,
     session: Arc<CoreSession>,
+    application: Arc<CoreApplication>,
     apply_guard: Arc<tokio::sync::Mutex<()>>,
 }
 
@@ -106,7 +108,18 @@ impl MihomoRuntime {
             .resolve()
             .await
             .map_err(|e| anyhow!(e.to_string()))?;
-        let client = MihomoClient::new(&endpoint.url, endpoint.secret)?;
+        let client = MihomoClient::new(&endpoint.url, endpoint.secret.clone())?;
+        let application = Arc::new(crate::composition::core_application(
+            &service_manager,
+            endpoint.url.clone(),
+            endpoint.secret.clone(),
+        )?);
+        if let Err(error) = application.adopt_if_running().await {
+            log::warn!(
+                "failed to seed application lifecycle state: {}",
+                error.message
+            );
+        }
 
         Ok(Self {
             config_manager: cm,
@@ -116,6 +129,7 @@ impl MihomoRuntime {
             client,
             service_manager,
             session,
+            application,
             apply_guard: Arc::new(tokio::sync::Mutex::new(())),
         })
     }
@@ -123,6 +137,12 @@ impl MihomoRuntime {
     /// The unified core session owning lifecycle state and generations.
     pub fn session(&self) -> Arc<CoreSession> {
         self.session.clone()
+    }
+
+    /// The 0.30 contract/application seam for host surfaces. Legacy runtime
+    /// helpers remain available while their use-cases are migrated.
+    pub fn application(&self) -> Arc<CoreApplication> {
+        self.application.clone()
     }
 
     pub fn core_binary_path(&self) -> &std::path::Path {
