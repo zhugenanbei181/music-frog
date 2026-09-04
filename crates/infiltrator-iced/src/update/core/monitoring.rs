@@ -5,7 +5,7 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::{IpProbeResult, RuntimeStatus, RuntimeStreamKind, RuntimeStreamState};
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 
 impl AppState {
     /// Kick one polling round: connections + memory always, proxies every
@@ -35,7 +35,7 @@ impl AppState {
                         .client()
                         .get_connections()
                         .await
-                        .map_err(InfiltratorError::from)
+                        .map_err(infiltrator_contract::error::from_mihomo)
                 },
                 |result| match result {
                     Ok(snapshot) => {
@@ -54,7 +54,7 @@ impl AppState {
                         .client()
                         .get_memory()
                         .await
-                        .map_err(InfiltratorError::from)
+                        .map_err(infiltrator_contract::error::from_mihomo)
                 },
                 |result| match result {
                     Ok(memory) => Message::MemoryReceived(memory),
@@ -290,7 +290,7 @@ impl AppState {
                             rt.client()
                                 .patch_config(serde_json::json!({ "log-level": level }))
                                 .await
-                                .map_err(InfiltratorError::from)
+                                .map_err(infiltrator_contract::error::from_mihomo)
                         },
                         Message::OperationResult,
                     )
@@ -305,7 +305,7 @@ impl AppState {
                             rt.client()
                                 .close_connection(&id)
                                 .await
-                                .map_err(InfiltratorError::from)
+                                .map_err(infiltrator_contract::error::from_mihomo)
                         },
                         Message::OperationResult,
                     )
@@ -320,7 +320,7 @@ impl AppState {
                             rt.client()
                                 .close_all_connections()
                                 .await
-                                .map_err(InfiltratorError::from)
+                                .map_err(infiltrator_contract::error::from_mihomo)
                         },
                         Message::OperationResult,
                     )

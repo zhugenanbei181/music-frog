@@ -85,7 +85,7 @@ async fn show(runtime: &Runtime, name: Option<String>) -> anyhow::Result<()> {
 /// configs directory resolved from the settings override, which the core
 /// facade (built on an injected `ConfigManager`) cannot express.
 async fn import(runtime: &Runtime, name: &str, url: &str) -> anyhow::Result<()> {
-    let profile_name = infiltrator_core::profiles::sanitize_profile_name(name)?;
+    let profile_name = infiltrator_domain::profiles::sanitize_profile_name(name)?;
     let checked_url = infiltrator_core::subscription::CheckedSubscriptionUrl::parse(url)?;
     let client = infiltrator_http::build_http_client();
     let raw_client = infiltrator_http::build_raw_http_client(&client);

@@ -5,7 +5,7 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn update_profiles(&mut self, message: Message) -> Task<Message> {
@@ -17,7 +17,7 @@ impl AppState {
                         let cm = crate::configs_dir::config_manager().await?;
                         cm.list_profiles()
                             .await
-                            .map_err(|e: mihomo_api::error::MihomoError| InfiltratorError::from(e))
+                            .map_err(|e: mihomo_api::error::MihomoError| infiltrator_contract::error::from_mihomo(e))
                     },
                     Message::ProfilesLoaded,
                 )
@@ -132,7 +132,7 @@ impl AppState {
                     let cm = crate::configs_dir::config_manager().await?;
                     cm.delete_profile(&name)
                         .await
-                        .map_err(InfiltratorError::from)?;
+                        .map_err(infiltrator_contract::error::from_mihomo)?;
                     // Best-effort: a stale sidecar would silently re-apply its
                     // filter/mixin to a future profile of the same name.
                     if let Ok(dir) = crate::configs_dir::configs_dir().await {

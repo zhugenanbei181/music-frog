@@ -9,8 +9,9 @@
 use super::support::{TempHome, block_on, feed, fresh_state, subscribed_profile};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
-use infiltrator_core::error::InfiltratorError;
-use infiltrator_core::profiles::{create_profile_from_url, sanitize_profile_name};
+use infiltrator_contract::error::InfiltratorError;
+use infiltrator_core::profiles::create_profile_from_url;
+use infiltrator_domain::profiles::sanitize_profile_name;
 use std::path::PathBuf;
 
 const LOCAL_IMPORT_YAML: &str = "mixed-port: 7890\nmode: rule\n";

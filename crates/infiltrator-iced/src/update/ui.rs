@@ -2,7 +2,7 @@ use crate::state::AppState;
 use crate::types::app::{ConfirmAction, Route, ToastStatus};
 use crate::types::message::Message;
 use iced::{Task, Theme, window};
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use std::path::Path;
 use std::time::Instant;
 
@@ -177,7 +177,7 @@ impl AppState {
                     let directory = crate::configs_dir::configs_dir().await?;
                     tokio::fs::create_dir_all(&directory)
                         .await
-                        .map_err(InfiltratorError::from)?;
+                        .map_err(infiltrator_contract::error::from_mihomo)?;
                     tokio::task::spawn_blocking(move || open_directory(&directory))
                         .await
                         .map_err(|error| InfiltratorError::Internal(error.to_string()))??;

@@ -10,7 +10,7 @@ use crate::types::message::Message;
 use crate::types::rules::{RuleBadgeKind, RuleRenderItem, RulesJsonTab, RulesLoadBundle, RulesTab};
 use crate::types::runtime::RebuildFlowState;
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::rules::{self as domain_rules, RuleEntry};
 
 impl AppState {
@@ -273,10 +273,10 @@ impl AppState {
                     async {
                         let manager = crate::configs_dir::config_manager().await?;
                         let profile = manager.get_current().await.map_err(
-                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                            |e: mihomo_api::error::MihomoError| infiltrator_contract::error::from_mihomo(e),
                         )?;
                         let content = manager.load(&profile).await.map_err(
-                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                            |e: mihomo_api::error::MihomoError| infiltrator_contract::error::from_mihomo(e),
                         )?;
                         let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
@@ -320,12 +320,12 @@ impl AppState {
                                 .client()
                                 .get_proxy_providers()
                                 .await
-                                .map_err(InfiltratorError::from)?;
+                                .map_err(infiltrator_contract::error::from_mihomo)?;
                             let rules = rt
                                 .client()
                                 .get_rule_providers()
                                 .await
-                                .map_err(InfiltratorError::from)?;
+                                .map_err(infiltrator_contract::error::from_mihomo)?;
                             Ok((
                                 proxies.into_values().collect(),
                                 rules.into_values().collect(),
@@ -563,7 +563,7 @@ impl AppState {
                             rt.client()
                                 .update_proxy_provider(&name)
                                 .await
-                                .map_err(InfiltratorError::from)
+                                .map_err(infiltrator_contract::error::from_mihomo)
                         },
                         Message::OperationResult,
                     )
@@ -578,7 +578,7 @@ impl AppState {
                             rt.client()
                                 .update_rule_provider(&name)
                                 .await
-                                .map_err(InfiltratorError::from)
+                                .map_err(infiltrator_contract::error::from_mihomo)
                         },
                         Message::OperationResult,
                     )
@@ -596,7 +596,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         let home = mihomo_platform::paths::get_home_dir()
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         let cache_path = home.join(format!("rules/{}.yaml", provider_name));
                         let local_rules: Vec<String> = if cache_path.exists() {
                             tokio::fs::read_to_string(&cache_path)

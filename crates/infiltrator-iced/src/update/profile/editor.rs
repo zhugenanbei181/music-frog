@@ -7,7 +7,7 @@ use crate::types::message::Message;
 use iced::Task;
 use iced::widget::text_editor;
 use infiltrator_core::apply::ApplyStrategy;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn update_editor(&mut self, message: Message) -> Task<Message> {
@@ -117,13 +117,13 @@ impl AppState {
                 Task::perform(
                     async move {
                         let home = mihomo_platform::paths::get_home_dir()
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         let snapshot_root = tokio::fs::canonicalize(home.join("configs/snapshots"))
                             .await
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         let snapshot_path = tokio::fs::canonicalize(&path)
                             .await
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         if !snapshot_path.starts_with(&snapshot_root) {
                             return Err(InfiltratorError::Config(
                                 "拒绝从配置快照目录之外恢复文件".to_string(),

@@ -1,46 +1,11 @@
 use anyhow::anyhow;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use infiltrator_http::{build_http_client, build_raw_http_client};
 use mihomo_config::port::find_available_port;
 
 use crate::settings_io::app_config_manager;
-use serde::Serialize;
+use infiltrator_domain::profiles::{ProfileDetail, ProfileInfo, sanitize_profile_name};
 use tokio::fs;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ProfileInfo {
-    pub name: String,
-    pub active: bool,
-    pub path: String,
-    pub controller_url: Option<String>,
-    pub controller_changed: Option<bool>,
-    pub subscription_url: Option<String>,
-    pub auto_update_enabled: bool,
-    pub update_interval_hours: Option<u32>,
-    pub last_updated: Option<DateTime<Utc>>,
-    pub next_update: Option<DateTime<Utc>>,
-    pub traffic_upload: Option<u64>,
-    pub traffic_download: Option<u64>,
-    pub traffic_total: Option<u64>,
-    pub expire_at: Option<i64>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ProfileDetail {
-    pub name: String,
-    pub active: bool,
-    pub path: String,
-    pub content: String,
-    pub subscription_url: Option<String>,
-    pub auto_update_enabled: bool,
-    pub update_interval_hours: Option<u32>,
-    pub last_updated: Option<DateTime<Utc>>,
-    pub next_update: Option<DateTime<Utc>>,
-    pub traffic_upload: Option<u64>,
-    pub traffic_download: Option<u64>,
-    pub traffic_total: Option<u64>,
-    pub expire_at: Option<i64>,
-}
 
 pub fn profile_to_info(profile: mihomo_config::profile::Profile) -> ProfileInfo {
     ProfileInfo {
@@ -188,20 +153,6 @@ pub async fn load_profile_detail(name: &str) -> anyhow::Result<ProfileDetail> {
         traffic_total: profile.traffic_total,
         expire_at: profile.expire_at,
     })
-}
-
-pub fn sanitize_profile_name(name: &str) -> anyhow::Result<String> {
-    let trimmed = name.trim();
-    if trimmed.is_empty() {
-        return Err(anyhow!("配置名称不能为空"));
-    }
-    if trimmed
-        .chars()
-        .any(|ch| matches!(ch, '/' | '\\' | ':' | '*' | '?' | '\"' | '<' | '>' | '|'))
-    {
-        return Err(anyhow!("配置名称不能包含特殊字符 / \\\\ : * ? \\\" < > |"));
-    }
-    Ok(trimmed.to_string())
 }
 
 pub async fn reset_profiles_to_default() -> anyhow::Result<ProfileInfo> {

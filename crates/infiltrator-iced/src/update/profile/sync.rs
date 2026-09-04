@@ -7,7 +7,7 @@ use crate::types::message::Message;
 use dav_client::{DavClient, client::WebDavClient};
 use iced::futures::SinkExt;
 use iced::{Task, stream};
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_shared::locales::{Lang, Localizer};
 use mihomo_platform::sandbox_validator::{PathValidationResult, SandboxValidator};
 use std::collections::HashSet;
@@ -51,7 +51,7 @@ impl AppState {
                         let result = async {
                             let cm = crate::configs_dir::config_manager().await?;
                             let profiles =
-                                cm.list_profiles().await.map_err(InfiltratorError::from)?;
+                                cm.list_profiles().await.map_err(infiltrator_contract::error::from_mihomo)?;
                             let total = profiles.len();
                             let _ = output.try_send(Message::SyncProgress(SyncProgress {
                                 phase: "上传配置".to_string(),
@@ -144,7 +144,7 @@ impl AppState {
                             let active_profile = manager
                                 .get_current()
                                 .await
-                                .map_err(InfiltratorError::from)?;
+                                .map_err(infiltrator_contract::error::from_mihomo)?;
                             let total = remote_profiles.len();
                             let _ = output.try_send(Message::SyncProgress(SyncProgress {
                                 phase: "下载配置".to_string(),
@@ -216,7 +216,7 @@ impl AppState {
                                 manager
                                     .save(&profile_name, &content)
                                     .await
-                                    .map_err(InfiltratorError::from)?;
+                                    .map_err(infiltrator_contract::error::from_mihomo)?;
                                 let is_active = active_profile == profile_name;
                                 if is_active {
                                     active_profile_changed = true;
@@ -225,7 +225,7 @@ impl AppState {
                                     manager
                                         .clear_backup(&profile_name)
                                         .await
-                                        .map_err(InfiltratorError::from)?;
+                                        .map_err(infiltrator_contract::error::from_mihomo)?;
                                 }
                                 downloaded += 1;
                                 processed += 1;
@@ -541,7 +541,7 @@ fn safe_remote_profile_name(remote_path: &str) -> Result<Option<String>, Infiltr
         .rsplit_once('.')
         .map(|(name, _)| name)
         .unwrap_or_default();
-    infiltrator_core::profiles::sanitize_profile_name(profile_name)
+    infiltrator_domain::profiles::sanitize_profile_name(profile_name)
         .map(Some)
         .map_err(|error| InfiltratorError::Config(error.to_string()))
 }
@@ -564,7 +564,7 @@ async fn atomic_write_file(path: &Path, content: &[u8]) -> Result<(), Infiltrato
         .ok_or_else(|| InfiltratorError::Io(format!("路径没有父目录: {}", path.display())))?;
     tokio::fs::create_dir_all(parent)
         .await
-        .map_err(InfiltratorError::from)?;
+        .map_err(infiltrator_contract::error::from_mihomo)?;
     let temp = path.with_file_name(format!(
         ".{}.sync-tmp",
         path.file_name()

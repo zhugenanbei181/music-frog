@@ -24,6 +24,7 @@ pub mod packet_loss_tracker;
 pub mod pcap_exporter;
 pub mod profile_converter;
 pub mod profile_options;
+pub mod profiles;
 pub mod proxy_nodes;
 pub mod rule_hit_counter;
 pub mod rules;

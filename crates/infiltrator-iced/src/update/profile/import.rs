@@ -6,7 +6,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_core::apply::ApplyStrategy;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn update_import(&mut self, message: Message) -> Task<Message> {
@@ -38,10 +38,10 @@ impl AppState {
                 self.profile.is_importing = true;
                 Task::perform(
                     async move {
-                        let profile_name = infiltrator_core::profiles::sanitize_profile_name(&name)
+                        let profile_name = infiltrator_domain::profiles::sanitize_profile_name(&name)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let cm = crate::configs_dir::config_manager().await?;
-                        let current = cm.get_current().await.map_err(InfiltratorError::from)?;
+                        let current = cm.get_current().await.map_err(infiltrator_contract::error::from_mihomo)?;
                         if runtime.is_some() && current == profile_name {
                             return Err(InfiltratorError::Config(
                                 "内核运行时不能直接覆盖当前配置，请先停止内核后再导入".to_string(),
@@ -152,7 +152,7 @@ impl AppState {
                 self.profile.is_importing_local = true;
                 Task::perform(
                     async move {
-                        let profile_name = infiltrator_core::profiles::sanitize_profile_name(&name)
+                        let profile_name = infiltrator_domain::profiles::sanitize_profile_name(&name)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let content = tokio::fs::read_to_string(&path)
                             .await
@@ -163,7 +163,7 @@ impl AppState {
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
                         let cm = crate::configs_dir::config_manager().await?;
-                        let current = cm.get_current().await.map_err(InfiltratorError::from)?;
+                        let current = cm.get_current().await.map_err(infiltrator_contract::error::from_mihomo)?;
                         let reloaded = match (runtime, current == profile_name) {
                             (Some(runtime), true) => {
                                 runtime
@@ -175,7 +175,7 @@ impl AppState {
                             (runtime, false) => {
                                 cm.save(&profile_name, &content)
                                     .await
-                                    .map_err(InfiltratorError::from)?;
+                                    .map_err(infiltrator_contract::error::from_mihomo)?;
                                 if activate {
                                     crate::update::core::profile_apply::activate_profile(
                                         runtime,
@@ -189,7 +189,7 @@ impl AppState {
                             (None, true) => {
                                 cm.save(&profile_name, &content)
                                     .await
-                                    .map_err(InfiltratorError::from)?;
+                                    .map_err(infiltrator_contract::error::from_mihomo)?;
                                 false
                             }
                         };

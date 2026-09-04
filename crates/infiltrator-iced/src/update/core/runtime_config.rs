@@ -6,7 +6,7 @@ use crate::types::message::Message;
 use crate::types::runtime::{RuntimeConfig, RuntimePatchSnapshot};
 use iced::Task;
 use infiltrator_contract::command::{CommandIntent, CommandResult, ProxyMode};
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_desktop::tun_service::{ServiceModeStatus, TunServiceManager};
 use infiltrator_shared::locales::Localizer;
 
@@ -70,7 +70,7 @@ impl AppState {
                 rt.client()
                     .patch_config(serde_json::json!({ "tun": { "enable": enabled } }))
                     .await
-                    .map_err(InfiltratorError::from)
+                    .map_err(infiltrator_contract::error::from_mihomo)
             },
             move |result| Message::RuntimePatchResult(result, token, generation),
         )
@@ -123,7 +123,7 @@ impl AppState {
                                 .client()
                                 .get_config()
                                 .await
-                                .map_err(InfiltratorError::from)?;
+                                .map_err(infiltrator_contract::error::from_mihomo)?;
                             let mode = config.mode;
                             let (tun_en, tun_st, tun_ar, tun_sr) = config
                                 .tun
@@ -359,7 +359,7 @@ impl AppState {
                         rt.client()
                             .patch_config(serde_json::json!({ "tun": { "stack": stack } }))
                             .await
-                            .map_err(InfiltratorError::from)
+                            .map_err(infiltrator_contract::error::from_mihomo)
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )
@@ -376,7 +376,7 @@ impl AppState {
                         rt.client()
                             .patch_config(serde_json::json!({ "tun": { "auto-route": enabled } }))
                             .await
-                            .map_err(InfiltratorError::from)
+                            .map_err(infiltrator_contract::error::from_mihomo)
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )
@@ -393,7 +393,7 @@ impl AppState {
                         rt.client()
                             .patch_config(serde_json::json!({ "tun": { "strict-route": enabled } }))
                             .await
-                            .map_err(InfiltratorError::from)
+                            .map_err(infiltrator_contract::error::from_mihomo)
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )
@@ -410,7 +410,7 @@ impl AppState {
                         rt.client()
                             .patch_config(serde_json::json!({ "sniffer": { "enable": enabled } }))
                             .await
-                            .map_err(InfiltratorError::from)
+                            .map_err(infiltrator_contract::error::from_mihomo)
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )

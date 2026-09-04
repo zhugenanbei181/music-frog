@@ -5,7 +5,7 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
 use infiltrator_shared::locales::Localizer;
 
@@ -25,7 +25,7 @@ impl AppState {
         Task::perform(
             async move {
                 let base_dir =
-                    mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
+                    mihomo_platform::paths::get_home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
                 let settings_path = infiltrator_core::settings_io::settings_path(&base_dir)
                     .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                 let mut settings = infiltrator_core::settings_io::load_settings(&settings_path)

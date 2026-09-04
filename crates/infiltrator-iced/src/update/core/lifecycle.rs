@@ -5,7 +5,7 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_shared::autostart;
 use infiltrator_shared::locales::Localizer;
 use mihomo_version::manager::VersionManager;

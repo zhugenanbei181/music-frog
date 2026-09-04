@@ -7,7 +7,6 @@ pub mod config;
 pub mod diagnostics_adapter;
 pub mod dns_io;
 pub mod doctor;
-pub mod error;
 pub mod factory_reset;
 pub mod fake_ip_io;
 pub mod flow_control;

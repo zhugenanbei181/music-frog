@@ -9,7 +9,7 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::MrsProviderDetail;
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_shared::locales::{Lang, Localizer};
 use serde_yaml_ng::Value;
 use std::collections::HashMap;

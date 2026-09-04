@@ -176,7 +176,7 @@ fn test_mrs_details_projection() {
     // Scan errors surface through the error sink instead of silently
     // clearing the previous details.
     let _ = state.update(Message::MrsDetailsReady(Err(
-        infiltrator_core::error::InfiltratorError::Config("扫描失败".into()),
+        infiltrator_contract::error::InfiltratorError::Config("扫描失败".into()),
     )));
     assert!(state.shell.error_msg.is_some());
 }
@@ -246,7 +246,7 @@ fn test_sync_diff_flow_pick_merge_and_cleanup() {
         modified: vec![("port".into(), "1".into(), "2".into())],
     }));
     let _ = state.update(Message::SyncDiffMerged(Err(
-        infiltrator_core::error::InfiltratorError::Config("合并失败".into()),
+        infiltrator_contract::error::InfiltratorError::Config("合并失败".into()),
     )));
     assert!(!state.profile.is_applying_sync_diff);
     assert!(state.profile.sync_diff.is_some());

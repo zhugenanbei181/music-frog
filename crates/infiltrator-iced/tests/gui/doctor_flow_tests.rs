@@ -9,7 +9,7 @@ use crate::types::doctor::{
     DoctorReport, DoctorStatus,
 };
 use crate::types::message::Message;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 
 fn check(id: &str, status: DoctorStatus) -> DoctorCheckResult {
     DoctorCheckResult {

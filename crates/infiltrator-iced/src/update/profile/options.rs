@@ -13,7 +13,7 @@ use crate::types::options::{EditorPane, FilterDraft};
 use iced::Task;
 use iced::widget::text_editor;
 use infiltrator_core::apply::ApplyStrategy;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_core::profile_options_io;
 use infiltrator_domain::filter::SubscriptionFilterPipeline;
 use infiltrator_domain::mixin::MixinConfig;
@@ -254,7 +254,7 @@ impl AppState {
                 let content = manager
                     .load(&profile)
                     .await
-                    .map_err(InfiltratorError::from)?;
+                    .map_err(infiltrator_contract::error::from_mihomo)?;
                 let removals: Vec<String> = old
                     .mixin
                     .rules
@@ -323,7 +323,7 @@ impl AppState {
                 let content = manager
                     .load(&profile)
                     .await
-                    .map_err(InfiltratorError::from)?;
+                    .map_err(infiltrator_contract::error::from_mihomo)?;
                 let (filtered, report) = SubscriptionFilterPipeline::new(rule)
                     .apply_to_yaml(&content)
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;

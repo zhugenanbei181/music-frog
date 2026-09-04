@@ -6,5 +6,5 @@ publish = false
 description = "Stable cross-surface commands, snapshots, events, capabilities, and failures."
 
 [dependencies]
+anyhow = { workspace = true }
 serde = { workspace = true }
-

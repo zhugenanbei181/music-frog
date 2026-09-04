@@ -9,7 +9,7 @@ use crate::types::app::ToastStatus;
 use crate::types::doctor::{BootstrapReport, DoctorFixReport, DoctorReport};
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 
 /// 体检/修复/引导都只碰本地文件与 loopback HTTP，超时给足余量。
 const DOCTOR_HTTP_TIMEOUT_SECS: u64 = 30;

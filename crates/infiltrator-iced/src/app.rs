@@ -14,7 +14,7 @@ use crate::types::message::Message;
 use crate::types::rules::{RulesJsonTab, RulesTab};
 use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use std::sync::{Arc, Mutex};
 
 /// `INFILTRATOR_LANG` 会话级语言覆写（非 demo 启动路径；demo 有自己的同名
@@ -450,7 +450,7 @@ impl AppState {
                 Task::perform(
                     async {
                         let cm = crate::configs_dir::config_manager().await?;
-                        cm.list_profiles().await.map_err(InfiltratorError::from)
+                        cm.list_profiles().await.map_err(infiltrator_contract::error::from_mihomo)
                     },
                     Message::ProfilesLoaded,
                 ),

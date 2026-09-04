@@ -35,7 +35,7 @@ use mihomo_version::manager::VersionManager;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 
 /// Same default the legacy Tauri client passes to `start_admin_server`.
 pub const ADMIN_DEFAULT_PORT: u16 = 25210;

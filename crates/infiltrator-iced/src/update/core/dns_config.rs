@@ -10,7 +10,7 @@ use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn ensure_dns_editor_loaded(&mut self) {
@@ -550,7 +550,7 @@ impl AppState {
                             rt.client()
                                 .flush_fakeip_cache()
                                 .await
-                                .map_err(InfiltratorError::from)
+                                .map_err(infiltrator_contract::error::from_mihomo)
                         },
                         Message::OperationResult,
                     )

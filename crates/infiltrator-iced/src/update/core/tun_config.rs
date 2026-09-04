@@ -10,7 +10,7 @@ use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use iced::Task;
 use infiltrator_core::apply::ApplyStrategy;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn ensure_tun_editor_loaded(&mut self) {

@@ -14,7 +14,7 @@ use crate::types::message::Message;
 use crate::types::options::{SyncDiffBundle, SyncDiffState};
 use iced::Task;
 use infiltrator_core::apply::ApplyStrategy;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::collections::HashSet;
 
@@ -41,7 +41,7 @@ impl AppState {
                         let local = manager
                             .load(&conflict.profile)
                             .await
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         let remote = tokio::fs::read_to_string(&conflict.remote_path)
                             .await
                             .map_err(|error| InfiltratorError::Io(error.to_string()))?;
@@ -133,7 +133,7 @@ impl AppState {
                         let local = manager
                             .load(&conflict.profile)
                             .await
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         let remote = tokio::fs::read_to_string(&conflict.remote_path)
                             .await
                             .map_err(|error| InfiltratorError::Io(error.to_string()))?;

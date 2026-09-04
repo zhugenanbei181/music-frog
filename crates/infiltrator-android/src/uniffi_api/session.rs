@@ -11,7 +11,7 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::{
     ApplyError, ApplyParams, ApplyStrategy, EndpointConfigReloader, apply_current_profile,
 };
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::error::PortError;

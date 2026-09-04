@@ -1,7 +1,7 @@
 //! Runtime-domain types: core lifecycle status, the live runtime config
 //! snapshot and the profile-rebuild flow state.
 
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RuntimeStreamKind {

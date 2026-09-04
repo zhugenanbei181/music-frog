@@ -50,7 +50,7 @@ fn subscription_auto_updated_notification_task_honours_the_master_switch() {
     state.shell.notifications_enabled = true;
     let units = feed(
         &mut state,
-        Message::SubscriptionAutoUpdated(Err(infiltrator_core::error::InfiltratorError::Config(
+        Message::SubscriptionAutoUpdated(Err(infiltrator_contract::error::InfiltratorError::Config(
             "拉取失败".into(),
         ))),
     );
@@ -149,7 +149,7 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
     // Failure leg: banner + localized failure toast, no state reset.
     let units = feed(
         &mut state,
-        Message::FactoryResetFinished(Err(infiltrator_core::error::InfiltratorError::Config(
+        Message::FactoryResetFinished(Err(infiltrator_contract::error::InfiltratorError::Config(
             "settings.toml 删除失败".into(),
         ))),
     );
@@ -214,7 +214,7 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
     let mut state3 = fresh_state();
     let units = feed(
         &mut state3,
-        Message::SettingsLoaded(Err(infiltrator_core::error::InfiltratorError::Config(
+        Message::SettingsLoaded(Err(infiltrator_contract::error::InfiltratorError::Config(
             "TOML parse error".into(),
         ))),
     );

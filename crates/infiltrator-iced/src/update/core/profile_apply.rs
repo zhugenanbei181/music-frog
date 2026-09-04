@@ -9,7 +9,7 @@
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_core::apply::ApplyStrategy;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_desktop::runtime::MihomoRuntime;
 use std::sync::Arc;
 
@@ -56,11 +56,11 @@ where
     let profile = manager
         .get_current()
         .await
-        .map_err(InfiltratorError::from)?;
+        .map_err(infiltrator_contract::error::from_mihomo)?;
     let content = manager
         .load(&profile)
         .await
-        .map_err(InfiltratorError::from)?;
+        .map_err(infiltrator_contract::error::from_mihomo)?;
     let updated =
         transform(&content).map_err(|error| InfiltratorError::Config(error.to_string()))?;
 
@@ -80,7 +80,7 @@ pub(crate) async fn save_profile_content(
     let current = manager
         .get_current()
         .await
-        .map_err(InfiltratorError::from)?;
+        .map_err(infiltrator_contract::error::from_mihomo)?;
     if let Some(runtime) = runtime
         && current == profile
     {
@@ -92,11 +92,11 @@ pub(crate) async fn save_profile_content(
         manager
             .save(&profile, &content)
             .await
-            .map_err(InfiltratorError::from)?;
+            .map_err(infiltrator_contract::error::from_mihomo)?;
         manager
             .clear_backup(&profile)
             .await
-            .map_err(InfiltratorError::from)?;
+            .map_err(infiltrator_contract::error::from_mihomo)?;
     }
     Ok(())
 }
@@ -112,14 +112,14 @@ pub(crate) async fn activate_profile(
     let previous = manager
         .get_current()
         .await
-        .map_err(InfiltratorError::from)?;
+        .map_err(infiltrator_contract::error::from_mihomo)?;
     if previous == profile {
         return Ok(runtime.is_some());
     }
     manager
         .set_current(profile)
         .await
-        .map_err(InfiltratorError::from)?;
+        .map_err(infiltrator_contract::error::from_mihomo)?;
 
     let Some(runtime) = runtime else {
         return Ok(false);

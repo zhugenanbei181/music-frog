@@ -20,7 +20,7 @@ use crate::types::runtime::{RebuildFlowState, RuntimeConfig, RuntimeStatus};
 use axum::extract::{Request, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use sync_engine::conflict_resolution::diff_yaml_configs;

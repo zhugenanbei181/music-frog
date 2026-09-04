@@ -9,9 +9,9 @@ use serde_json::json;
 
 use infiltrator_core::{
     doctor::{DoctorFixAction, DoctorReport},
-    profiles::ProfileInfo,
 };
 use infiltrator_domain::script_engine::{ExtensionPackage, HookStage, PluginManifest, ScriptPreset};
+use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::settings::WebDavConfig;
 
 #[derive(Serialize, Deserialize)]

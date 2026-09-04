@@ -8,6 +8,7 @@ description = "Runtime- and UI-independent domain state and algorithms for Music
 [dependencies]
 anyhow = { workspace = true }
 base64 = "0.22"
+chrono = { workspace = true }
 regex = { workspace = true }
 ring = "0.17"
 serde = { workspace = true }

@@ -8,9 +8,9 @@ use super::session::apply_current_profile_status;
 use super::support::{build_config_manager, get_runtime, map_anyhow_error, map_mihomo_error};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use infiltrator_core::profiles::{
-    ProfileInfo, create_profile_from_url, list_profile_infos, load_profile_detail,
-    sanitize_profile_name,
+    create_profile_from_url, list_profile_infos, load_profile_detail,
 };
+use infiltrator_domain::profiles::{ProfileInfo, sanitize_profile_name};
 
 // --- Profiles API ---
 
@@ -228,7 +228,7 @@ pub async fn profile_subscription_save(
 ) -> FfiStatus {
     get_runtime()
         .spawn(async move {
-            let profile_name = match infiltrator_core::profiles::sanitize_profile_name(&name) {
+            let profile_name = match sanitize_profile_name(&name) {
                 Ok(value) => value,
                 Err(err) => return map_anyhow_error(err),
             };
@@ -282,7 +282,7 @@ pub async fn profile_subscription_save(
 pub async fn profile_subscription_clear(name: String) -> FfiStatus {
     get_runtime()
         .spawn(async move {
-            let profile_name = match infiltrator_core::profiles::sanitize_profile_name(&name) {
+            let profile_name = match sanitize_profile_name(&name) {
                 Ok(value) => value,
                 Err(err) => return map_anyhow_error(err),
             };
@@ -328,7 +328,7 @@ fn profile_to_summary(profile: ProfileInfo) -> ProfileSummary {
     }
 }
 
-fn profile_detail_to_record(profile: infiltrator_core::profiles::ProfileDetail) -> ProfileDetail {
+fn profile_detail_to_record(profile: infiltrator_domain::profiles::ProfileDetail) -> ProfileDetail {
     ProfileDetail {
         name: profile.name,
         active: profile.active,

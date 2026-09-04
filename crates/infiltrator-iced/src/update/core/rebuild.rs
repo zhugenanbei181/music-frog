@@ -7,7 +7,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use mihomo_version::manager::VersionManager;
 use std::sync::Arc;
 
@@ -81,10 +81,10 @@ impl AppState {
                 let profile = manager
                     .get_current()
                     .await
-                    .map_err(InfiltratorError::from)?;
-                let vm = VersionManager::new().map_err(InfiltratorError::from)?;
+                    .map_err(infiltrator_contract::error::from_mihomo)?;
+                let vm = VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
                 let data_dir =
-                    mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
+                    mihomo_platform::paths::get_home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
                 let candidates = vec![];
                 match infiltrator_desktop::boot::bootstrap_with_retry(
                     &vm,
@@ -98,14 +98,14 @@ impl AppState {
                         manager
                             .clear_backup(&profile)
                             .await
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         Ok(Arc::new(outcome.runtime))
                     }
                     Err(cause) => {
                         let restored = manager
                             .restore_backup(&profile)
                             .await
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         let _ = manager.clear_backup(&profile).await;
                         if restored {
                             Err(InfiltratorError::Mihomo(format!(

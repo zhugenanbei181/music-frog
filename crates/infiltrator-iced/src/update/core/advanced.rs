@@ -9,7 +9,7 @@ use crate::types::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn reset_dns_lazy_state(&mut self) {
@@ -111,10 +111,10 @@ impl AppState {
                     async {
                         let manager = crate::configs_dir::config_manager().await?;
                         let profile = manager.get_current().await.map_err(
-                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                            |e: mihomo_api::error::MihomoError| infiltrator_contract::error::from_mihomo(e),
                         )?;
                         let content = manager.load(&profile).await.map_err(
-                            |e: mihomo_api::error::MihomoError| InfiltratorError::from(e),
+                            |e: mihomo_api::error::MihomoError| infiltrator_contract::error::from_mihomo(e),
                         )?;
                         let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;

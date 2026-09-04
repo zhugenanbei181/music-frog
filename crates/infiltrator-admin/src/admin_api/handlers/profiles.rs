@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use axum::{Json, http::StatusCode};
 use chrono::Utc;
-use infiltrator_core::profiles::{ProfileDetail, ProfileInfo};
+use infiltrator_domain::profiles::{ProfileDetail, ProfileInfo, sanitize_profile_name};
 use infiltrator_http::HttpClient;
 use log::info;
 
@@ -365,7 +365,7 @@ pub async fn update_all_profiles_http<C: AdminApiContext>(
 }
 
 pub(crate) fn ensure_valid_profile_name(name: &str) -> Result<String, ApiError> {
-    infiltrator_core::profiles::sanitize_profile_name(name)
+    sanitize_profile_name(name)
         .map_err(|e| ApiError::bad_request(e.to_string()))
 }
 
@@ -374,7 +374,7 @@ async fn switch_profile_internal<C: AdminApiContext>(
     rebuild_status: &Arc<RebuildStatus>,
     name: &str,
 ) -> anyhow::Result<ProfileInfo> {
-    let profile_name = infiltrator_core::profiles::sanitize_profile_name(name)?;
+    let profile_name = sanitize_profile_name(name)?;
     let manager = app_config_manager().await?;
     manager.set_current(&profile_name).await?;
     // Config-level change only: the running core just needs a restart, not
@@ -392,7 +392,7 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
     url: &str,
     activate: bool,
 ) -> anyhow::Result<(ProfileInfo, bool)> {
-    let profile_name = infiltrator_core::profiles::sanitize_profile_name(name)?;
+    let profile_name = sanitize_profile_name(name)?;
     let source_url = url.trim();
     if source_url.is_empty() {
         return Err(anyhow!("订阅链接不能为空"));

@@ -14,7 +14,7 @@ use crate::tray::spec::{
 use crate::types::app::CoreDownloadProgress;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use mihomo_api::proxy::types::{Proxy, ProxyBase, ProxyGroup};
 use mihomo_version::manager::{VersionInfo, VersionManager};
 use std::path::PathBuf;

@@ -6,7 +6,7 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::{Task, stream};
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_shared::locales::Localizer;
 use mihomo_version::channel::{Channel, fetch_latest};
 use mihomo_version::manager::VersionManager;
@@ -29,7 +29,7 @@ impl AppState {
                     async move {
                         fetch_latest(channel)
                             .await
-                            .map_err(InfiltratorError::from)
+                            .map_err(infiltrator_contract::error::from_mihomo)
                             .map(|info| info.version)
                     },
                     Message::CoreUpdateInfo,
@@ -71,7 +71,7 @@ impl AppState {
                             Ok(v) => v,
                             Err(e) => {
                                 let _ = output.try_send(Message::CoreDownloadFinished(
-                                    Err(InfiltratorError::from(e)),
+                                    Err(infiltrator_contract::error::from_mihomo(e)),
                                     token,
                                 ));
                                 return;
@@ -117,7 +117,7 @@ impl AppState {
                             }
                             Err(e) => {
                                 let _ = output.try_send(Message::CoreDownloadFinished(
-                                    Err(InfiltratorError::from(e)),
+                                    Err(infiltrator_contract::error::from_mihomo(e)),
                                     token,
                                 ));
                             }
@@ -174,8 +174,8 @@ impl AppState {
             }
             Message::LoadKernels => Task::perform(
                 async {
-                    let vm = VersionManager::new().map_err(InfiltratorError::from)?;
-                    vm.list_installed().await.map_err(InfiltratorError::from)
+                    let vm = VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
+                    vm.list_installed().await.map_err(infiltrator_contract::error::from_mihomo)
                 },
                 Message::KernelsLoaded,
             ),
@@ -189,17 +189,17 @@ impl AppState {
             }
             Message::SetDefaultKernel(version) => Task::perform(
                 async move {
-                    let vm = VersionManager::new().map_err(InfiltratorError::from)?;
+                    let vm = VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
                     vm.set_default(&version)
                         .await
-                        .map_err(InfiltratorError::from)
+                        .map_err(infiltrator_contract::error::from_mihomo)
                 },
                 Message::KernelOperationFinished,
             ),
             Message::DeleteKernel(version) => Task::perform(
                 async move {
-                    let vm = VersionManager::new().map_err(InfiltratorError::from)?;
-                    vm.uninstall(&version).await.map_err(InfiltratorError::from)
+                    let vm = VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
+                    vm.uninstall(&version).await.map_err(infiltrator_contract::error::from_mihomo)
                 },
                 Message::KernelOperationFinished,
             ),
@@ -254,7 +254,7 @@ impl AppState {
                         .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
 
                         let home = mihomo_platform::paths::get_home_dir()
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
 
                         // 必须趁 settings.toml 还在时解析 configs 目录
                         // （settings 的 configs_dir 可指向云同步目录）并枚举
@@ -340,7 +340,7 @@ impl AppState {
                             Task::perform(
                                 async {
                                     let home = mihomo_platform::paths::get_home_dir()
-                                        .map_err(InfiltratorError::from)?;
+                                        .map_err(infiltrator_contract::error::from_mihomo)?;
                                     let path = infiltrator_core::settings_io::settings_path(&home)
                                         .map_err(|error| {
                                             InfiltratorError::Config(error.to_string())

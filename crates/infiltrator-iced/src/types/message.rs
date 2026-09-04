@@ -8,7 +8,7 @@ use super::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
 use super::rules::{RulesJsonTab, RulesLoadBundle, RulesTab};
 use super::runtime::{IpProbeResult, RuntimeConfig, RuntimeStreamKind, RuntimeStreamState};
 use iced::{widget::text_editor, window};
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_desktop::runtime::MihomoRuntime;

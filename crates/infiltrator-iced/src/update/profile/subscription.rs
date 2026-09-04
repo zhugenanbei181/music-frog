@@ -6,7 +6,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use chrono::Utc;
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_shared::locales::Localizer;
 
 impl AppState {
@@ -120,7 +120,7 @@ impl AppState {
                         let mut metadata = cm
                             .get_profile_metadata(&profile_name)
                             .await
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
 
                         if url.is_empty() {
                             metadata.subscription_url = None;
@@ -137,7 +137,7 @@ impl AppState {
 
                         cm.update_profile_metadata(&profile_name, &metadata)
                             .await
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         Ok(())
                     },
                     Message::SubscriptionSettingsSaved,
@@ -175,7 +175,7 @@ impl AppState {
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let cm = crate::configs_dir::config_manager().await?;
-                        let current = cm.get_current().await.map_err(InfiltratorError::from)?;
+                        let current = cm.get_current().await.map_err(infiltrator_contract::error::from_mihomo)?;
                         if let Some(runtime) = runtime
                             && current == profile_name
                         {
@@ -189,7 +189,7 @@ impl AppState {
                         } else {
                             cm.clear_backup(&profile_name)
                                 .await
-                                .map_err(InfiltratorError::from)?;
+                                .map_err(infiltrator_contract::error::from_mihomo)?;
                             Ok(false)
                         }
                     },
@@ -226,7 +226,7 @@ impl AppState {
                         let profiles = manager
                             .list_profiles()
                             .await
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         let now = Utc::now();
                         let mut updated_names = Vec::new();
                         let mut active_updated = false;
@@ -265,13 +265,13 @@ impl AppState {
                                     manager
                                         .clear_backup(&profile.name)
                                         .await
-                                        .map_err(InfiltratorError::from)?;
+                                        .map_err(infiltrator_contract::error::from_mihomo)?;
                                 }
                             } else {
                                 manager
                                     .clear_backup(&profile.name)
                                     .await
-                                    .map_err(InfiltratorError::from)?;
+                                    .map_err(infiltrator_contract::error::from_mihomo)?;
                             }
                             updated_names.push(profile.name);
                         }
@@ -336,7 +336,7 @@ impl AppState {
                         let profiles = manager
                             .list_profiles()
                             .await
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         let mut outcomes = Vec::new();
 
                         for profile in profiles {
@@ -364,13 +364,13 @@ impl AppState {
                                         manager
                                             .clear_backup(&profile.name)
                                             .await
-                                            .map_err(InfiltratorError::from)?;
+                                            .map_err(infiltrator_contract::error::from_mihomo)?;
                                     }
                                 } else {
                                     manager
                                         .clear_backup(&profile.name)
                                         .await
-                                        .map_err(InfiltratorError::from)?;
+                                        .map_err(infiltrator_contract::error::from_mihomo)?;
                                 }
                                 Ok(())
                             }
@@ -460,11 +460,11 @@ impl AppState {
                         let mut metadata = cm
                             .get_profile_metadata(&name)
                             .await
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         metadata.auto_update_enabled = enabled;
                         cm.update_profile_metadata(&name, &metadata)
                             .await
-                            .map_err(InfiltratorError::from)?;
+                            .map_err(infiltrator_contract::error::from_mihomo)?;
                         Ok(name)
                     },
                     Message::ProfileAutoUpdateSet,

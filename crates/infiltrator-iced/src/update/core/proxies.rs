@@ -6,7 +6,7 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_core::error::InfiltratorError;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::settings::{AppSettings, RuntimePanelConfig};
 
 pub(super) const DEFAULT_RUNTIME_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
@@ -116,7 +116,7 @@ impl AppState {
         Task::perform(
             async move {
                 let base_dir =
-                    mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
+                    mihomo_platform::paths::get_home_dir().map_err(infiltrator_contract::error::from_mihomo)?;
                 let settings_path = infiltrator_core::settings_io::settings_path(&base_dir)
                     .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                 let mut settings = infiltrator_core::settings_io::load_settings(&settings_path)
@@ -257,7 +257,7 @@ impl AppState {
                             rt.client()
                                 .get_proxies()
                                 .await
-                                .map_err(InfiltratorError::from)
+                                .map_err(infiltrator_contract::error::from_mihomo)
                         },
                         Message::ProxiesLoaded,
                     )
@@ -285,7 +285,7 @@ impl AppState {
                             rt.client()
                                 .switch_proxy(&group, &name)
                                 .await
-                                .map_err(InfiltratorError::from)
+                                .map_err(infiltrator_contract::error::from_mihomo)
                         },
                         |_| Message::LoadProxies,
                     )
@@ -525,7 +525,7 @@ impl AppState {
                                 .test_delay(&n, &test_url, timeout_ms)
                                 .await
                                 .map(|d| d as u64)
-                                .map_err(InfiltratorError::from)
+                                .map_err(infiltrator_contract::error::from_mihomo)
                         },
                         move |res| Message::ProxyTested(name, res),
                     )

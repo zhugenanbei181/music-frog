@@ -5053,6 +5053,7 @@ dependencies = [
 name = "infiltrator-contract"
 version = "0.30.0"
 dependencies = [
+ "anyhow",
  "serde",
 ]
 
@@ -5126,6 +5127,7 @@ version = "0.30.0"
 dependencies = [
  "anyhow",
  "base64",
+ "chrono",
  "regex",
  "ring",
  "serde",
