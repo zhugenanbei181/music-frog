@@ -63,9 +63,9 @@ pub struct AdvancedConfigsBundle {
     pub dns_json: String,
     pub fake_ip_json: String,
     pub tun_json: String,
-    pub dns: infiltrator_core::dns::DnsConfig,
-    pub fake_ip: infiltrator_core::fake_ip::FakeIpConfig,
-    pub tun: infiltrator_core::tun::TunConfig,
+    pub dns: infiltrator_domain::dns::DnsConfig,
+    pub fake_ip: infiltrator_domain::fake_ip::FakeIpConfig,
+    pub tun: infiltrator_domain::tun::TunConfig,
 }
 
 /// Report produced by the active DNS Leak and IP Privacy Probe.

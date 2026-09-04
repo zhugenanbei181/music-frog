@@ -115,7 +115,7 @@ fn test_dns_form_dirty_and_json_sync() {
         "1.1.1.1, 8.8.8.8".to_string(),
     ));
     assert!(state.editor.dns_form_dirty);
-    let patch: infiltrator_core::dns::DnsConfigPatch =
+    let patch: infiltrator_domain::dns::DnsConfigPatch =
         serde_json::from_str(&state.editor.dns_json_cache).expect("dns patch json");
     assert_eq!(
         patch.nameserver,
@@ -160,18 +160,18 @@ fn test_advanced_bundle_load_applies_form_drafts() {
         dns_json: "{}".to_string(),
         fake_ip_json: "{}".to_string(),
         tun_json: "{}".to_string(),
-        dns: infiltrator_core::dns::DnsConfig {
+        dns: infiltrator_domain::dns::DnsConfig {
             enable: Some(true),
             nameserver: Some(vec!["https://dns.google/dns-query".to_string()]),
             enhanced_mode: Some("fake-ip".to_string()),
             ..Default::default()
         },
-        fake_ip: infiltrator_core::fake_ip::FakeIpConfig {
+        fake_ip: infiltrator_domain::fake_ip::FakeIpConfig {
             fake_ip_range: Some("198.18.0.1/16".to_string()),
             store_fake_ip: Some(true),
             ..Default::default()
         },
-        tun: infiltrator_core::tun::TunConfig {
+        tun: infiltrator_domain::tun::TunConfig {
             enable: Some(true),
             stack: Some("gvisor".to_string()),
             mtu: Some(1500),

@@ -26,7 +26,7 @@ impl AppState {
         self.diag.perf_snapshot.dns_with_text_apply_ms = start.elapsed().as_millis();
     }
 
-    pub(super) fn apply_tun_form_from_config(&mut self, config: &infiltrator_core::tun::TunConfig) {
+    pub(super) fn apply_tun_form_from_config(&mut self, config: &infiltrator_domain::tun::TunConfig) {
         self.editor.tun_form = TunFormDraft {
             enable: config.enable.unwrap_or(false),
             stack: config.stack.clone().unwrap_or_else(|| "gvisor".to_string()),
@@ -43,7 +43,7 @@ impl AppState {
 
     fn tun_patch_from_form(
         &self,
-    ) -> Result<infiltrator_core::tun::TunConfigPatch, InfiltratorError> {
+    ) -> Result<infiltrator_domain::tun::TunConfigPatch, InfiltratorError> {
         let stack = self.editor.tun_form.stack.trim().to_ascii_lowercase();
         if !stack.is_empty() && stack != "system" && stack != "gvisor" {
             return Err(InfiltratorError::Config(
@@ -65,7 +65,7 @@ impl AppState {
             ));
         }
 
-        Ok(infiltrator_core::tun::TunConfigPatch {
+        Ok(infiltrator_domain::tun::TunConfigPatch {
             enable: Some(self.editor.tun_form.enable),
             stack: if stack.is_empty() { None } else { Some(stack) },
             mtu,
@@ -102,7 +102,7 @@ impl AppState {
         match message {
             Message::RefreshTunOnly => Task::perform(
                 async {
-                    let config = infiltrator_core::tun::load_tun_config()
+                    let config = infiltrator_core::tun_io::load_tun_config()
                         .await
                         .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                     serde_json::to_string_pretty(&config)
@@ -117,7 +117,7 @@ impl AppState {
             Message::TunConfigJsonLoaded(result) => {
                 match result {
                     Ok(json) => {
-                        match serde_json::from_str::<infiltrator_core::tun::TunConfig>(&json) {
+                        match serde_json::from_str::<infiltrator_domain::tun::TunConfig>(&json) {
                             Ok(config) => {
                                 self.editor.advanced_configs_loaded_once = true;
                                 self.editor.tun_json_cache = json;
@@ -190,7 +190,7 @@ impl AppState {
                     self.ensure_tun_editor_loaded();
                     let text = self.editor.tun_json_content.text();
                     self.editor.tun_json_cache = text.clone();
-                    serde_json::from_str::<infiltrator_core::tun::TunConfigPatch>(&text)
+                    serde_json::from_str::<infiltrator_domain::tun::TunConfigPatch>(&text)
                         .map_err(|e| InfiltratorError::Config(format!("Invalid TUN JSON: {}", e)))
                 };
                 let patch = match patch {
@@ -218,7 +218,7 @@ impl AppState {
                 save_task_with_strategy(
                     self.runtime.runtime.clone(),
                     ApplyStrategy::AlwaysRestart,
-                    move |content| infiltrator_core::tun::apply_tun_patch_to_yaml(content, patch),
+                    move |content| infiltrator_domain::tun::apply_tun_patch_to_yaml(content, patch),
                     Message::TunConfigSaved,
                 )
             }

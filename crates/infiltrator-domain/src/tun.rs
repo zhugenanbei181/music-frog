@@ -1,4 +1,3 @@
-use crate::settings::app_config_manager;
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
@@ -28,7 +27,7 @@ pub struct TunConfigPatch {
 }
 
 impl TunConfig {
-    fn apply_patch(&mut self, patch: TunConfigPatch) {
+    pub fn apply_patch(&mut self, patch: TunConfigPatch) {
         if let Some(value) = patch.enable {
             self.enable = Some(value);
         }
@@ -63,36 +62,6 @@ impl TunConfig {
     }
 }
 
-pub async fn load_tun_config() -> Result<TunConfig> {
-    let doc = load_profile_doc().await?;
-    extract_tun_config_from_doc(&doc)
-}
-
-pub async fn save_tun_config(patch: TunConfigPatch) -> Result<TunConfig> {
-    let manager = app_config_manager().await.context("init config manager")?;
-    let profile = manager
-        .get_current()
-        .await
-        .context("load current profile")?;
-    let content = manager
-        .load(&profile)
-        .await
-        .context("read profile config")?;
-    let mut doc: Value = serde_yaml_ng::from_str(&content).context("parse profile yaml")?;
-
-    let mut config = extract_tun_config_from_doc(&doc)?;
-    config.apply_patch(patch);
-    validate_tun_config(&config)?;
-    apply_tun_config(&mut doc, &config)?;
-
-    let updated = serde_yaml_ng::to_string(&doc).context("serialize profile yaml")?;
-    manager
-        .save(&profile, &updated)
-        .await
-        .context("save profile config")?;
-    Ok(config)
-}
-
 /// Apply a TUN patch to an in-memory profile document for the shared atomic
 /// Apply transaction.
 pub fn apply_tun_patch_to_yaml(content: &str, patch: TunConfigPatch) -> Result<String> {
@@ -102,19 +71,6 @@ pub fn apply_tun_patch_to_yaml(content: &str, patch: TunConfigPatch) -> Result<S
     validate_tun_config(&config)?;
     apply_tun_config(&mut doc, &config)?;
     serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
-}
-
-async fn load_profile_doc() -> Result<Value> {
-    let manager = app_config_manager().await.context("init config manager")?;
-    let profile = manager
-        .get_current()
-        .await
-        .context("load current profile")?;
-    let content = manager
-        .load(&profile)
-        .await
-        .context("read profile config")?;
-    serde_yaml_ng::from_str(&content).context("parse profile yaml")
 }
 
 pub fn extract_tun_config_from_doc(doc: &Value) -> Result<TunConfig> {
@@ -252,34 +208,4 @@ mod tests {
         assert!(validate_tun_config(&config).is_err());
     }
 
-    /// tun 读写必须落在 settings `configs_dir` 重定向后的目录：
-    /// 重定向态下读回成功即证明写入落点正确，`<home>/configs` 保持未创建。
-    #[tokio::test]
-    async fn test_tun_io_follows_configs_dir_redirect() {
-        let temp = tempfile::tempdir().unwrap();
-        let home = temp.path().to_path_buf();
-        let cloud = home.join("cloud-sync").join("profiles");
-        std::fs::create_dir_all(&cloud).unwrap();
-        let guard = crate::settings::test_support::RedirectGuard::acquire(home.clone()).await;
-        guard
-            .set_configs_dir(&home, Some(cloud.to_str().unwrap()))
-            .await;
-
-        let seed = crate::settings::app_config_manager().await.unwrap();
-        seed.save("main", "port: 7890\n").await.unwrap();
-        seed.set_current("main").await.unwrap();
-
-        let saved = save_tun_config(TunConfigPatch {
-            enable: Some(true),
-            ..TunConfigPatch::default()
-        })
-        .await
-        .unwrap();
-        assert_eq!(saved.enable, Some(true));
-
-        let loaded = load_tun_config().await.unwrap();
-        assert_eq!(loaded.enable, Some(true));
-        assert!(cloud.join("main.yaml").is_file());
-        assert!(!home.join("configs").exists());
-    }
 }

@@ -39,7 +39,7 @@ impl AppState {
         self.diag.perf_snapshot.dns_with_text_apply_ms = start.elapsed().as_millis();
     }
 
-    pub(super) fn apply_dns_form_from_config(&mut self, config: &infiltrator_core::dns::DnsConfig) {
+    pub(super) fn apply_dns_form_from_config(&mut self, config: &infiltrator_domain::dns::DnsConfig) {
         self.editor.dns_form = DnsFormDraft {
             enable: config.enable.unwrap_or(false),
             nameserver: Self::join_list_field(&config.nameserver),
@@ -62,7 +62,7 @@ impl AppState {
 
     pub(super) fn apply_fake_ip_form_from_config(
         &mut self,
-        config: &infiltrator_core::fake_ip::FakeIpConfig,
+        config: &infiltrator_domain::fake_ip::FakeIpConfig,
     ) {
         self.editor.fake_ip_form = FakeIpFormDraft {
             fake_ip_range: config.fake_ip_range.clone().unwrap_or_default(),
@@ -73,7 +73,7 @@ impl AppState {
 
     fn dns_patch_from_form(
         &self,
-    ) -> Result<infiltrator_core::dns::DnsConfigPatch, InfiltratorError> {
+    ) -> Result<infiltrator_domain::dns::DnsConfigPatch, InfiltratorError> {
         let enhanced_mode = self
             .editor
             .dns_form
@@ -88,7 +88,7 @@ impl AppState {
         }
 
         let fake_ip_range = self.editor.dns_form.fake_ip_range.trim();
-        Ok(infiltrator_core::dns::DnsConfigPatch {
+        Ok(infiltrator_domain::dns::DnsConfigPatch {
             enable: Some(self.editor.dns_form.enable),
             nameserver: Some(Self::split_list_field(&self.editor.dns_form.nameserver)),
             fallback: Some(Self::split_list_field(&self.editor.dns_form.fallback)),
@@ -114,15 +114,15 @@ impl AppState {
             direct_nameserver: Some(Self::split_list_field(
                 &self.editor.dns_form.direct_nameserver,
             )),
-            ..infiltrator_core::dns::DnsConfigPatch::default()
+            ..infiltrator_domain::dns::DnsConfigPatch::default()
         })
     }
 
     fn fake_ip_patch_from_form(
         &self,
-    ) -> Result<infiltrator_core::fake_ip::FakeIpConfigPatch, InfiltratorError> {
+    ) -> Result<infiltrator_domain::fake_ip::FakeIpConfigPatch, InfiltratorError> {
         let fake_ip_range = self.editor.fake_ip_form.fake_ip_range.trim();
-        Ok(infiltrator_core::fake_ip::FakeIpConfigPatch {
+        Ok(infiltrator_domain::fake_ip::FakeIpConfigPatch {
             fake_ip_range: if fake_ip_range.is_empty() {
                 None
             } else {
@@ -184,7 +184,7 @@ impl AppState {
         match message {
             Message::RefreshDnsOnly => Task::perform(
                 async {
-                    let config = infiltrator_core::dns::load_dns_config()
+                    let config = infiltrator_core::dns_io::load_dns_config()
                         .await
                         .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                     serde_json::to_string_pretty(&config)
@@ -194,7 +194,7 @@ impl AppState {
             ),
             Message::RefreshFakeIpOnly => Task::perform(
                 async {
-                    let config = infiltrator_core::fake_ip::load_fake_ip_config()
+                    let config = infiltrator_core::fake_ip_io::load_fake_ip_config()
                         .await
                         .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                     serde_json::to_string_pretty(&config)
@@ -213,7 +213,7 @@ impl AppState {
             Message::DnsConfigJsonLoaded(result) => {
                 match result {
                     Ok(json) => {
-                        match serde_json::from_str::<infiltrator_core::dns::DnsConfig>(&json) {
+                        match serde_json::from_str::<infiltrator_domain::dns::DnsConfig>(&json) {
                             Ok(config) => {
                                 self.editor.advanced_configs_loaded_once = true;
                                 self.editor.dns_json_cache = json;
@@ -237,7 +237,7 @@ impl AppState {
             Message::FakeIpConfigJsonLoaded(result) => {
                 match result {
                     Ok(json) => {
-                        match serde_json::from_str::<infiltrator_core::fake_ip::FakeIpConfig>(&json)
+                        match serde_json::from_str::<infiltrator_domain::fake_ip::FakeIpConfig>(&json)
                         {
                             Ok(config) => {
                                 self.editor.advanced_configs_loaded_once = true;
@@ -404,7 +404,7 @@ impl AppState {
                     self.ensure_dns_editor_loaded();
                     let text = self.editor.dns_json_content.text();
                     self.editor.dns_json_cache = text.clone();
-                    serde_json::from_str::<infiltrator_core::dns::DnsConfigPatch>(&text)
+                    serde_json::from_str::<infiltrator_domain::dns::DnsConfigPatch>(&text)
                         .map_err(|e| InfiltratorError::Config(format!("Invalid DNS JSON: {}", e)))
                 };
                 let patch = match patch {
@@ -431,7 +431,7 @@ impl AppState {
                 };
                 save_task(
                     self.runtime.runtime.clone(),
-                    move |content| infiltrator_core::dns::apply_dns_patch_to_yaml(content, patch),
+                    move |content| infiltrator_domain::dns::apply_dns_patch_to_yaml(content, patch),
                     Message::DnsSaved,
                 )
             }
@@ -476,7 +476,7 @@ impl AppState {
                     self.ensure_fake_ip_editor_loaded();
                     let text = self.editor.fake_ip_json_content.text();
                     self.editor.fake_ip_json_cache = text.clone();
-                    serde_json::from_str::<infiltrator_core::fake_ip::FakeIpConfigPatch>(&text)
+                    serde_json::from_str::<infiltrator_domain::fake_ip::FakeIpConfigPatch>(&text)
                         .map_err(|e| {
                             InfiltratorError::Config(format!("Invalid Fake-IP JSON: {}", e))
                         })
@@ -506,7 +506,7 @@ impl AppState {
                 save_task(
                     self.runtime.runtime.clone(),
                     move |content| {
-                        infiltrator_core::fake_ip::apply_fake_ip_patch_to_yaml(content, patch)
+                        infiltrator_domain::fake_ip::apply_fake_ip_patch_to_yaml(content, patch)
                     },
                     Message::FakeIpConfigSaved,
                 )

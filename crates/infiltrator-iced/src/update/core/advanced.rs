@@ -119,12 +119,12 @@ impl AppState {
                         let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
-                        let dns = infiltrator_core::dns::extract_dns_config_from_doc(&doc)
+                        let dns = infiltrator_domain::dns::extract_dns_config_from_doc(&doc)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let fake_ip =
-                            infiltrator_core::fake_ip::extract_fake_ip_config_from_doc(&doc)
+                            infiltrator_domain::fake_ip::extract_fake_ip_config_from_doc(&doc)
                                 .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        let tun = infiltrator_core::tun::extract_tun_config_from_doc(&doc)
+                        let tun = infiltrator_domain::tun::extract_tun_config_from_doc(&doc)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
                         Ok(Box::new(AdvancedConfigsBundle {

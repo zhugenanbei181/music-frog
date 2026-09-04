@@ -4,7 +4,10 @@
 //! `/admin/api/sniffer`, `/admin/api/rules`, `/admin/api/tun`).
 
 use axum::Json;
-use infiltrator_core::{dns, fake_ip, proxy_providers, rules_io, sniffer, tun};
+use infiltrator_core::{
+    dns_io, fake_ip_io, proxy_providers, rules_io, sniffer, tun_io,
+};
+use infiltrator_domain::{dns, fake_ip, tun};
 use infiltrator_domain::rules::{RuleProvidersPayload, RulesPayload};
 
 use crate::admin_api::events::{
@@ -19,7 +22,7 @@ use super::schedule_rebuild;
 pub async fn get_dns_config_http<C: AdminApiContext>(
     axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<dns::DnsConfig>, ApiError> {
-    let config = dns::load_dns_config().await?;
+    let config = dns_io::load_dns_config().await?;
     Ok(Json(config))
 }
 
@@ -27,7 +30,7 @@ pub async fn save_dns_config_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<dns::DnsConfigPatch>,
 ) -> Result<Json<dns::DnsConfig>, ApiError> {
-    let config = dns::save_dns_config(payload).await?;
+    let config = dns_io::save_dns_config(payload).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "dns-update");
     state.events.publish(AdminEvent::new(EVENT_DNS_CHANGED));
     Ok(Json(config))
@@ -36,7 +39,7 @@ pub async fn save_dns_config_http<C: AdminApiContext>(
 pub async fn get_fake_ip_config_http<C: AdminApiContext>(
     axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<fake_ip::FakeIpConfig>, ApiError> {
-    let config = fake_ip::load_fake_ip_config().await?;
+    let config = fake_ip_io::load_fake_ip_config().await?;
     Ok(Json(config))
 }
 
@@ -44,7 +47,7 @@ pub async fn save_fake_ip_config_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<fake_ip::FakeIpConfigPatch>,
 ) -> Result<Json<fake_ip::FakeIpConfig>, ApiError> {
-    let config = fake_ip::save_fake_ip_config(payload).await?;
+    let config = fake_ip_io::save_fake_ip_config(payload).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "fake-ip-update");
     state.events.publish(AdminEvent::new(EVENT_FAKE_IP_CHANGED));
     Ok(Json(config))
@@ -53,7 +56,7 @@ pub async fn save_fake_ip_config_http<C: AdminApiContext>(
 pub async fn flush_fake_ip_cache_http<C: AdminApiContext>(
     axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<CacheFlushResponse>, ApiError> {
-    let removed = fake_ip::clear_fake_ip_cache().await?;
+    let removed = fake_ip_io::clear_fake_ip_cache().await?;
     Ok(Json(CacheFlushResponse { removed }))
 }
 
@@ -132,7 +135,7 @@ pub async fn save_rules_http<C: AdminApiContext>(
 pub async fn get_tun_config_http<C: AdminApiContext>(
     axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<tun::TunConfig>, ApiError> {
-    let config = tun::load_tun_config().await?;
+    let config = tun_io::load_tun_config().await?;
     Ok(Json(config))
 }
 
@@ -140,7 +143,7 @@ pub async fn save_tun_config_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<tun::TunConfigPatch>,
 ) -> Result<Json<tun::TunConfig>, ApiError> {
-    let config = tun::save_tun_config(payload).await?;
+    let config = tun_io::save_tun_config(payload).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "tun-update");
     state.events.publish(AdminEvent::new(EVENT_TUN_CHANGED));
     Ok(Json(config))

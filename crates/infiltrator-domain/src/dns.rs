@@ -10,12 +10,6 @@ use serde_yaml_ng::{Mapping, Value};
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-use crate::settings::app_config_manager;
-
-#[cfg(test)]
-#[path = "dns_test.rs"]
-mod dns_test;
-
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct DnsConfig {
@@ -532,36 +526,6 @@ pub fn sanitize_ecs_subnet(cidr: &str) -> Result<String> {
     }
 }
 
-pub async fn load_dns_config() -> Result<DnsConfig> {
-    let doc = load_profile_doc().await?;
-    extract_dns_config_from_doc(&doc)
-}
-
-pub async fn save_dns_config(patch: DnsConfigPatch) -> Result<DnsConfig> {
-    let manager = app_config_manager().await.context("init config manager")?;
-    let profile = manager
-        .get_current()
-        .await
-        .context("load current profile")?;
-    let content = manager
-        .load(&profile)
-        .await
-        .context("read profile config")?;
-    let mut doc: Value = serde_yaml_ng::from_str(&content).context("parse profile yaml")?;
-
-    let mut config = extract_dns_config_from_doc(&doc)?;
-    config.apply_patch(patch);
-    validate_dns_config(&config)?;
-    apply_dns_config(&mut doc, &config)?;
-
-    let updated = serde_yaml_ng::to_string(&doc).context("serialize profile yaml")?;
-    manager
-        .save(&profile, &updated)
-        .await
-        .context("save profile config")?;
-    Ok(config)
-}
-
 pub fn apply_dns_config_to_yaml(content: &str, config: &DnsConfig) -> Result<String> {
     validate_dns_config(config)?;
     let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
@@ -576,19 +540,6 @@ pub fn apply_dns_patch_to_yaml(content: &str, patch: DnsConfigPatch) -> Result<S
     validate_dns_config(&config)?;
     apply_dns_config(&mut doc, &config)?;
     serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
-}
-
-async fn load_profile_doc() -> Result<Value> {
-    let manager = app_config_manager().await.context("init config manager")?;
-    let profile = manager
-        .get_current()
-        .await
-        .context("load current profile")?;
-    let content = manager
-        .load(&profile)
-        .await
-        .context("read profile config")?;
-    serde_yaml_ng::from_str(&content).context("parse profile yaml")
 }
 
 pub fn extract_dns_config_from_doc(doc: &Value) -> Result<DnsConfig> {
@@ -818,3 +769,7 @@ fn validate_bootstrap_server_list(list: Option<&Vec<String>>) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "dns_test.rs"]
+mod tests;

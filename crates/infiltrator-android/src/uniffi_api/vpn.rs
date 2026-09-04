@@ -7,8 +7,9 @@ use serde_yaml_ng::Value;
 
 use mihomo_platform::android_bridge::get_android_bridge;
 
-use infiltrator_core::dns::{load_dns_config, save_dns_config};
-use infiltrator_core::tun::{load_tun_config, save_tun_config};
+use infiltrator_core::dns_io::{load_dns_config, save_dns_config};
+use infiltrator_core::tun_io::{load_tun_config, save_tun_config};
+use infiltrator_domain::{dns, tun};
 
 #[cfg(target_os = "android")]
 use super::support::build_config_manager;
@@ -260,8 +261,8 @@ async fn save_vpn_tun_settings(patch: VpnTunSettingsPatch) -> Result<VpnTunSetti
 }
 
 fn build_vpn_tun_settings(
-    tun_config: infiltrator_core::tun::TunConfig,
-    dns_config: infiltrator_core::dns::DnsConfig,
+    tun_config: tun::TunConfig,
+    dns_config: dns::DnsConfig,
 ) -> VpnTunSettings {
     let dns_servers = dns_config
         .nameserver
@@ -280,8 +281,8 @@ fn build_vpn_tun_settings(
 
 pub(super) fn build_tun_patch(
     patch: &VpnTunSettingsPatch,
-) -> (infiltrator_core::tun::TunConfigPatch, bool) {
-    let mut core_patch = infiltrator_core::tun::TunConfigPatch::default();
+) -> (tun::TunConfigPatch, bool) {
+    let mut core_patch = tun::TunConfigPatch::default();
     let mut has_patch = false;
     if let Some(value) = patch.mtu {
         core_patch.mtu = Some(value);
@@ -308,9 +309,9 @@ pub(super) fn build_tun_patch(
 
 fn build_dns_patch(
     patch: &VpnTunSettingsPatch,
-    current: &infiltrator_core::dns::DnsConfig,
-) -> infiltrator_core::dns::DnsConfigPatch {
-    let mut core_patch = infiltrator_core::dns::DnsConfigPatch::default();
+    current: &dns::DnsConfig,
+) -> dns::DnsConfigPatch {
+    let mut core_patch = dns::DnsConfigPatch::default();
     if let Some(value) = patch.ipv6 {
         core_patch.ipv6 = Some(value);
     }

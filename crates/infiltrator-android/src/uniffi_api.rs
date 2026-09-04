@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn test_dns_fallback_filter_roundtrip_record_conversion() {
-        let core = infiltrator_core::dns::DnsFallbackFilter {
+        let core = infiltrator_domain::dns::DnsFallbackFilter {
             geoip: Some(false),
             geoip_code: Some("US".to_string()),
             ipcidr: Some(vec!["198.18.0.0/16".to_string()]),
