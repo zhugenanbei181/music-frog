@@ -10,12 +10,10 @@ use tokio::time::{Duration, sleep};
 
 use crate::admin_api::state::AdminApiContext;
 use crate::support::app_config_manager;
-use infiltrator_core::{
-    redact::redact_line,
-    subscription::{
-        CheckedSubscriptionUrl, fetch_subscription_with_info, mask_subscription_url, strip_utf8_bom,
-    },
+use infiltrator_core::subscription::{
+    CheckedSubscriptionUrl, fetch_subscription_with_info, mask_subscription_url, strip_utf8_bom,
 };
+use infiltrator_domain::redact::redact_line;
 use mihomo_config::manager::paths::validate_profile_name;
 
 #[derive(Clone, Debug, Default)]

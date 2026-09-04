@@ -8,7 +8,7 @@
 //!
 //! Features:
 //! - **Sanitization**: All titles, bodies, and subtitles are passed through
-//!   [`infiltrator_core::redact::redact_line`] to redact subscription tokens, passwords,
+//!   [`infiltrator_domain::redact::redact_line`] to redact subscription tokens, passwords,
 //!   and secrets before reaching the OS.
 //! - **Throttling**: Throttled error/warning logging and dispatch rate limiting to prevent
 //!   spamming the notification daemon.
@@ -132,7 +132,7 @@ impl SystemNotification {
 
 /// Redact credentials, tokens, passwords, and URL secrets from a string.
 pub fn sanitize_text(text: &str) -> String {
-    infiltrator_core::redact::redact_line(text, &[])
+    infiltrator_domain::redact::redact_line(text, &[])
 }
 
 /// Throttled warning logger: ensures that notification backend failures do not spam logs.

@@ -19,10 +19,10 @@ pub fn format_bytes(bytes: u64) -> String {
 /// Structural redaction for user-visible text (CORE-001): toasts and the
 /// error banner render raw error chains that can embed subscription query
 /// tokens, `Authorization` headers or userinfo passwords, so everything
-/// bound for the screen passes through [`infiltrator_core::redact::redact_line`]
+/// bound for the screen passes through [`infiltrator_domain::redact::redact_line`]
 /// first. Preserves plain text byte-for-byte and is idempotent.
 pub fn sanitize_ui_text(text: &str) -> String {
-    infiltrator_core::redact::redact_line(text, &[])
+    infiltrator_domain::redact::redact_line(text, &[])
 }
 
 #[cfg(test)]
