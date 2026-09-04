@@ -327,8 +327,8 @@ impl AppState {
                                 .await
                                 .map_err(infiltrator_contract::error::from_mihomo)?;
                             Ok((
-                                proxies.into_values().collect(),
-                                rules.into_values().collect(),
+                                proxies.into_values().map(Into::into).collect(),
+                                rules.into_values().map(Into::into).collect(),
                             ))
                         },
                         Message::ProvidersLoaded,

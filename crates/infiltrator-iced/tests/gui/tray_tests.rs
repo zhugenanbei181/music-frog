@@ -16,7 +16,7 @@ use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
 use infiltrator_domain::profiles::ProfileInfo;
-use mihomo_api::proxy::types::{Proxy, ProxyBase, ProxyGroup, ProxyHistory, Shadowsocks};
+use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup, ProxyHistory, Shadowsocks};
 use mihomo_version::manager::VersionInfo;
 use std::path::PathBuf;
 use std::sync::mpsc;

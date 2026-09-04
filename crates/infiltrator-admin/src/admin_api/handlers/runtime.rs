@@ -10,7 +10,7 @@ use axum::{
 };
 use infiltrator_http::reqwest;
 use log::warn;
-use mihomo_api::types::{ConnectionsResponse, MemoryData};
+use infiltrator_domain::runtime::{ConnectionsResponse, MemoryData};
 use serde::Deserialize;
 use tokio_stream::{StreamExt, wrappers::UnboundedReceiverStream};
 
@@ -73,6 +73,7 @@ pub async fn list_runtime_connections_http<C: AdminApiContext>(
     let data = client
         .get_connections()
         .await
+        .map(Into::into)
         .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(data))
 }
@@ -151,9 +152,10 @@ pub async fn get_runtime_traffic_http<C: AdminApiContext>(
         .runtime_client()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let connections = client
+    let connections: ConnectionsResponse = client
         .get_connections()
         .await
+        .map(Into::into)
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let snapshot = state.traffic_snapshot(
         connections.upload_total,
@@ -174,6 +176,7 @@ pub async fn get_runtime_memory_http<C: AdminApiContext>(
     let memory = client
         .get_memory()
         .await
+        .map(Into::into)
         .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(memory))
 }

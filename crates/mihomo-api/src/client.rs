@@ -1,5 +1,5 @@
 use crate::error::{MihomoError, Result};
-use crate::proxy::types::Proxy;
+use infiltrator_domain::proxy::Proxy;
 use crate::types::*;
 use futures_util::StreamExt;
 use reqwest::Client;

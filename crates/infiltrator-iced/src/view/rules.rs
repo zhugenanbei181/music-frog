@@ -22,6 +22,7 @@ use iced::widget::{
 };
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
+use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use std::collections::HashMap;
 
 /// Rule hit statistics and recency metadata.
@@ -159,7 +160,7 @@ fn provider_icon_chip<'a>(icon: Icon, size: f32) -> Element<'a, Message> {
         }).into()
 }
 
-fn proxy_provider_row<'a>(provider: &mihomo_api::types::ProxyProvider, lang: &Lang<'_>) -> Element<'a, Message> {
+fn proxy_provider_row<'a>(provider: &ProxyProvider, lang: &Lang<'_>) -> Element<'a, Message> {
     let update_btn = button(row![
         svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).text_secondary), Space::new().width(4.0), text(lang.tr("btn_update").to_string()).size(11).font(FONT_MEDIUM),
     ].align_y(Alignment::Center)).padding([4, 10]).style(style_ghost).on_press(Message::UpdateProxyProvider(provider.name.clone()));
@@ -188,7 +189,7 @@ pub fn format_provider_behavior(behavior: &str) -> &'static str {
 }
 
 /// Sniff or normalize rule provider payload format (e.g. `MRS`, `YAML`, `TEXT`, `FILE`, `HTTP`).
-pub fn format_rule_provider_format(provider: &mihomo_api::types::RuleProvider) -> &'static str {
+pub fn format_rule_provider_format(provider: &RuleProvider) -> &'static str {
     let lower_name = provider.name.to_ascii_lowercase();
     let lower_type = provider.provider_type.to_ascii_lowercase();
     let lower_vehicle = provider.vehicle_type.to_ascii_lowercase();
@@ -209,11 +210,11 @@ pub fn format_rule_provider_format(provider: &mihomo_api::types::RuleProvider) -
 }
 
 /// Compute total external rules loaded across all active rule providers.
-pub fn total_external_rules(rule_providers: &[mihomo_api::types::RuleProvider]) -> u32 {
+pub fn total_external_rules(rule_providers: &[RuleProvider]) -> u32 {
     rule_providers.iter().map(|rp| rp.rule_count).sum()
 }
 
-pub fn rule_provider_row<'a>(provider: &mihomo_api::types::RuleProvider, _lang: &Lang<'_>) -> Element<'a, Message> {
+pub fn rule_provider_row<'a>(provider: &RuleProvider, _lang: &Lang<'_>) -> Element<'a, Message> {
     let behavior_badge_text = format_provider_behavior(&provider.behavior);
     let rule_count_str = crate::view::mrs_panel::format_rule_count(provider.rule_count);
     let format_str = format_rule_provider_format(provider);
@@ -645,7 +646,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
 
     let mut available_targets: Vec<String> = state.runtime.proxies.iter()
-        .filter(|(_, p): &(&String, &mihomo_api::proxy::types::Proxy)| p.is_group())
+        .filter(|(_, p): &(&String, &infiltrator_domain::proxy::Proxy)| p.is_group())
         .map(|(name, _)| name.clone())
         .collect();
     available_targets.sort();
@@ -717,7 +718,7 @@ mod tests {
     #[test]
     fn test_proxy_and_rule_provider_row_render() {
         let lang = Lang("en");
-        let proxy_p = mihomo_api::types::ProxyProvider {
+        let proxy_p = ProxyProvider {
             name: "DefaultProxies".into(),
             provider_type: "http".into(),
             vehicle_type: "HTTP".into(),
@@ -725,7 +726,7 @@ mod tests {
         };
         let _proxy_element = proxy_provider_row(&proxy_p, &lang);
 
-        let rule_p = mihomo_api::types::RuleProvider {
+        let rule_p = RuleProvider {
             name: "RejectAds".into(),
             provider_type: "http".into(),
             behavior: "domain".into(),

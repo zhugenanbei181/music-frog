@@ -1,4 +1,4 @@
-use mihomo_api::types::{Connection, ConnectionMetadata};
+use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
 
 use super::{ListFilters, apply_filters, process_name, short_id};
 

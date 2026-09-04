@@ -231,7 +231,7 @@ pub async fn connections_list() -> ConnectionsResult {
                     connections: response
                         .connections
                         .into_iter()
-                        .map(connection_to_record)
+                        .map(|connection| connection_to_record(connection.into()))
                         .collect(),
                     upload_total: response.upload_total,
                     download_total: response.download_total,
@@ -342,7 +342,7 @@ async fn traffic_snapshot_internal() -> Result<TrafficSnapshot, FfiStatus> {
     ))
 }
 
-fn connection_to_record(connection: mihomo_api::types::Connection) -> ConnectionRecord {
+fn connection_to_record(connection: infiltrator_domain::runtime::Connection) -> ConnectionRecord {
     ConnectionRecord {
         id: connection.id,
         host: connection.metadata.host,

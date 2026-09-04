@@ -466,7 +466,9 @@ impl NodeMetadata {
         let node = state.runtime.proxies.get(member_name);
         Self {
             node_type: node.map(|p| p.proxy_type().to_string()).unwrap_or_default(),
-            udp: node.map(mihomo_api::proxy::types::Proxy::udp).unwrap_or(false),
+            udp: node
+                .map(infiltrator_domain::proxy::Proxy::udp)
+                .unwrap_or(false),
             is_xudp: member_name.to_ascii_lowercase().contains("xudp"),
             delay: node.and_then(|p| p.history().last().map(|h| h.delay)).filter(|d| *d > 0),
             flag: node_flag_emoji(member_name),

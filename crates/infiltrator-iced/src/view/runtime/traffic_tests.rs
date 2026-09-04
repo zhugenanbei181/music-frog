@@ -8,10 +8,10 @@ use super::*;
         chains: Vec<String>,
         up: u64,
         down: u64,
-    ) -> mihomo_api::types::Connection {
-        mihomo_api::types::Connection {
+    ) -> infiltrator_domain::runtime::Connection {
+        infiltrator_domain::runtime::Connection {
             id: id.to_string(),
-            metadata: mihomo_api::types::ConnectionMetadata {
+            metadata: infiltrator_domain::runtime::ConnectionMetadata {
                 network: "tcp".to_string(),
                 connection_type: "TLS".to_string(),
                 source_ip: source_ip.to_string(),
@@ -56,7 +56,7 @@ use super::*;
     #[test]
     fn test_host_traffic_rankings_calculation() {
         let (mut state, _) = AppState::new();
-        let mut snapshot = mihomo_api::types::ConnectionSnapshot::default();
+        let mut snapshot = infiltrator_domain::runtime::ConnectionSnapshot::default();
         let conn1 = make_test_conn("conn-1", "google.com", "", "", vec![], 100, 900);
         let conn2 = make_test_conn("conn-2", "youtube.com", "", "", vec![], 1000, 3000);
         snapshot.connections = vec![conn1, conn2];
@@ -75,7 +75,7 @@ use super::*;
     #[test]
     fn test_device_rankings_calculation() {
         let (mut state, _) = AppState::new();
-        let mut snapshot = mihomo_api::types::ConnectionSnapshot::default();
+        let mut snapshot = infiltrator_domain::runtime::ConnectionSnapshot::default();
         let conn1 = make_test_conn("c1", "", "192.168.1.10", "", vec![], 200, 800);
         let conn2 = make_test_conn("c2", "", "192.168.1.20", "", vec![], 500, 2500);
         snapshot.connections = vec![conn1, conn2];
@@ -94,7 +94,7 @@ use super::*;
     #[test]
     fn test_proxy_rankings_calculation() {
         let (mut state, _) = AppState::new();
-        let mut snapshot = mihomo_api::types::ConnectionSnapshot::default();
+        let mut snapshot = infiltrator_domain::runtime::ConnectionSnapshot::default();
         let conn1 = make_test_conn("c1", "", "", "", vec!["HK-Node-01".to_string()], 1000, 1000);
         let conn2 = make_test_conn("c2", "", "", "", vec!["US-Node-02".to_string()], 2000, 6000);
         snapshot.connections = vec![conn1, conn2];
@@ -113,7 +113,7 @@ use super::*;
     #[test]
     fn test_process_rankings_calculation() {
         let (mut state, _) = AppState::new();
-        let mut snapshot = mihomo_api::types::ConnectionSnapshot::default();
+        let mut snapshot = infiltrator_domain::runtime::ConnectionSnapshot::default();
         let conn1 = make_test_conn("c1", "", "", "/usr/bin/curl", vec![], 300, 700);
         let conn2 = make_test_conn(
             "c2",
@@ -140,7 +140,7 @@ use super::*;
     #[test]
     fn test_dimension_rankings_dispatch() {
         let (mut state, _) = AppState::new();
-        let mut snapshot = mihomo_api::types::ConnectionSnapshot::default();
+        let mut snapshot = infiltrator_domain::runtime::ConnectionSnapshot::default();
         let conn = make_test_conn(
             "c1",
             "example.org",

@@ -35,25 +35,25 @@ fn modal_card<'a>(content: Element<'a, Message>, width: f32) -> Element<'a, Mess
         .into()
 }
 
-fn extract_proxy_metadata(proxy: Option<&mihomo_api::proxy::types::Proxy>) -> (&str, String, &str, bool) {
+fn extract_proxy_metadata(proxy: Option<&infiltrator_domain::proxy::Proxy>) -> (&str, String, &str, bool) {
     match proxy {
-        Some(mihomo_api::proxy::types::Proxy::Shadowsocks(p)) => (p.server.as_str(), p.port.to_string(), p.cipher.as_str(), p.base.udp),
-        Some(mihomo_api::proxy::types::Proxy::Vmess(p)) => (p.server.as_str(), p.port.to_string(), p.cipher.as_str(), p.base.udp),
-        Some(mihomo_api::proxy::types::Proxy::Trojan(p)) => (p.server.as_str(), p.port.to_string(), "TLS", p.base.udp),
-        Some(mihomo_api::proxy::types::Proxy::Hysteria2(p)) => (p.server.as_str(), p.port.to_string(), "QUIC / BBR", p.base.udp),
-        Some(mihomo_api::proxy::types::Proxy::WireGuard(p)) => (
+        Some(infiltrator_domain::proxy::Proxy::Shadowsocks(p)) => (p.server.as_str(), p.port.to_string(), p.cipher.as_str(), p.base.udp),
+        Some(infiltrator_domain::proxy::Proxy::Vmess(p)) => (p.server.as_str(), p.port.to_string(), p.cipher.as_str(), p.base.udp),
+        Some(infiltrator_domain::proxy::Proxy::Trojan(p)) => (p.server.as_str(), p.port.to_string(), "TLS", p.base.udp),
+        Some(infiltrator_domain::proxy::Proxy::Hysteria2(p)) => (p.server.as_str(), p.port.to_string(), "QUIC / BBR", p.base.udp),
+        Some(infiltrator_domain::proxy::Proxy::WireGuard(p)) => (
             if !p.server.is_empty() { p.server.as_str() } else { p.ip.as_str() },
             p.port.to_string(),
             "ChaCha20",
             p.base.udp,
         ),
-        Some(mihomo_api::proxy::types::Proxy::Tuic(p)) => (p.server.as_str(), p.port.to_string(), "QUIC", p.base.udp),
-        Some(mihomo_api::proxy::types::Proxy::Vless(p)) => (p.server.as_str(), p.port.to_string(), if p.tls { "TLS / Reality" } else { "None" }, p.base.udp),
-        Some(mihomo_api::proxy::types::Proxy::Http(p)) => (p.server.as_str(), p.port.to_string(), "Plaintext", p.base.udp),
-        Some(mihomo_api::proxy::types::Proxy::Socks5(p)) => (p.server.as_str(), p.port.to_string(), "None", p.base.udp),
-        Some(mihomo_api::proxy::types::Proxy::Snell(p)) => (p.server.as_str(), p.port.to_string(), "PSK", p.base.udp),
-        Some(mihomo_api::proxy::types::Proxy::Direct(p)) => ("Direct Outbound", "—".to_string(), "—", p.base.udp),
-        Some(mihomo_api::proxy::types::Proxy::Reject(p)) => ("Reject Outbound", "—".to_string(), "—", p.base.udp),
+        Some(infiltrator_domain::proxy::Proxy::Tuic(p)) => (p.server.as_str(), p.port.to_string(), "QUIC", p.base.udp),
+        Some(infiltrator_domain::proxy::Proxy::Vless(p)) => (p.server.as_str(), p.port.to_string(), if p.tls { "TLS / Reality" } else { "None" }, p.base.udp),
+        Some(infiltrator_domain::proxy::Proxy::Http(p)) => (p.server.as_str(), p.port.to_string(), "Plaintext", p.base.udp),
+        Some(infiltrator_domain::proxy::Proxy::Socks5(p)) => (p.server.as_str(), p.port.to_string(), "None", p.base.udp),
+        Some(infiltrator_domain::proxy::Proxy::Snell(p)) => (p.server.as_str(), p.port.to_string(), "PSK", p.base.udp),
+        Some(infiltrator_domain::proxy::Proxy::Direct(p)) => ("Direct Outbound", "—".to_string(), "—", p.base.udp),
+        Some(infiltrator_domain::proxy::Proxy::Reject(p)) => ("Reject Outbound", "—".to_string(), "—", p.base.udp),
         _ => ("—", "—".to_string(), "—", false),
     }
 }

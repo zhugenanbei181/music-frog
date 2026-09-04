@@ -17,7 +17,7 @@ use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_shared::locales::{Lang, Localizer};
-use mihomo_api::types::TrafficData;
+use infiltrator_domain::runtime::TrafficData;
 use std::path::PathBuf;
 
 #[test]
@@ -522,7 +522,7 @@ fn test_p0_runtime_patch_failure_restores_the_previous_snapshot() {
 
 #[test]
 fn connections_pagination_windows_and_clamps() {
-    use mihomo_api::types::{Connection, ConnectionMetadata, ConnectionSnapshot};
+    use infiltrator_domain::runtime::{Connection, ConnectionMetadata, ConnectionSnapshot};
 
     let snapshot_with = |count: usize| ConnectionSnapshot {
         download_total: 0,

@@ -1,6 +1,6 @@
 use crate::client::MihomoClient;
 use crate::error::Result;
-use crate::proxy::types::{Proxies, Proxy, ProxyGroup, ProxyHistory};
+use infiltrator_domain::proxy::{Proxy, ProxyGroup, ProxyHistory, Proxies};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default)]
 pub struct ProxyNode {

@@ -9,7 +9,7 @@ use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, progress_bar, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
-use mihomo_api::types::Connection;
+use infiltrator_domain::runtime::Connection;
 
 pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);

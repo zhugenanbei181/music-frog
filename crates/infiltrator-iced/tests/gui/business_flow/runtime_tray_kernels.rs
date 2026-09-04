@@ -15,7 +15,7 @@ use crate::types::app::CoreDownloadProgress;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use infiltrator_contract::error::InfiltratorError;
-use mihomo_api::proxy::types::{Proxy, ProxyBase, ProxyGroup};
+use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup};
 use mihomo_version::manager::{VersionInfo, VersionManager};
 use std::path::PathBuf;
 
@@ -28,7 +28,7 @@ fn core_lifecycle_degrades_cleanly_from_boot_failure_to_full_stop_cleanup() {
     let tray = super::support::FakeTray::install(&mut state);
 
     // Seed every domain ProxyStopped is supposed to clear.
-    state.diag.traffic = Some(mihomo_api::types::TrafficData { up: 1, down: 2 });
+    state.diag.traffic = Some(infiltrator_domain::runtime::TrafficData { up: 1, down: 2 });
     state.diag.logs.push_back("stale log".into());
     state.runtime.proxy_mode = Some("rule".into());
     state.runtime.script_block_present = true;
@@ -423,8 +423,8 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     assert!(state.profile.is_updating_subscription_now);
 }
 
-fn shadowsocks_proxy() -> mihomo_api::proxy::types::Shadowsocks {
-    mihomo_api::proxy::types::Shadowsocks {
+fn shadowsocks_proxy() -> infiltrator_domain::proxy::Shadowsocks {
+    infiltrator_domain::proxy::Shadowsocks {
         base: ProxyBase::default(),
         ..Default::default()
     }

@@ -19,7 +19,7 @@ use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
-use mihomo_api::types::Connection;
+use infiltrator_domain::runtime::Connection;
 
 /// Extract clean executable/binary name from a system process path.
 pub fn extract_process_name(path: &str) -> String {
@@ -532,7 +532,7 @@ fn stream_badge<'a>(state: &RuntimeStreamState, lang: &Lang<'_>) -> Element<'a, 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mihomo_api::types::{Connection, ConnectionMetadata};
+    use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
 
     fn make_test_conn(id: &str, host: &str, process: &str, up: u64, down: u64) -> Connection {
         Connection {

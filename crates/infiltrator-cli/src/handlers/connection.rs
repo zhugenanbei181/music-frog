@@ -1,5 +1,5 @@
 use mihomo_api::connection::manager::ConnectionManager;
-use mihomo_api::types::Connection;
+use infiltrator_domain::runtime::Connection;
 
 use crate::commands::ConnectionAction;
 use crate::context::Runtime;
@@ -45,7 +45,15 @@ pub(crate) async fn handle(action: ConnectionAction) -> anyhow::Result<()> {
 }
 
 async fn list(manager: &ConnectionManager, filters: ListFilters, json: bool) -> anyhow::Result<()> {
-    let connections = apply_filters(manager.list().await?, &filters);
+    let connections = apply_filters(
+        manager
+            .list()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        &filters,
+    );
     if json {
         output::print_json(&connections)?;
         return Ok(());

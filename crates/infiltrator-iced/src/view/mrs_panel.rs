@@ -5,6 +5,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::MrsProviderDetail;
+use infiltrator_domain::runtime::RuleProvider;
 use crate::view::components::{
     BadgeKind, badge, card, chip, row_card_surface, style_ghost,
 };
@@ -53,7 +54,7 @@ fn meta_text(value: String) -> text::Text<'static> {
 fn detail_row<'a>(
     lang: &Lang<'a>,
     detail: &MrsProviderDetail,
-    rule_provider: Option<&mihomo_api::types::RuleProvider>,
+    rule_provider: Option<&RuleProvider>,
 ) -> Element<'a, Message> {
     let vehicle_type = rule_provider.map(|rp| rp.vehicle_type.as_str());
     let behavior_raw = if !detail.behavior.is_empty() {
@@ -191,7 +192,7 @@ pub fn mrs_card(state: &AppState) -> Option<Element<'_, Message>> {
                 }),
         );
     }
-    let rp_map: HashMap<&str, &mihomo_api::types::RuleProvider> = state
+    let rp_map: HashMap<&str, &RuleProvider> = state
         .editor
         .rule_providers
         .iter()

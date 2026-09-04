@@ -267,7 +267,7 @@ impl AppState {
     /// determinism, capped at [`TRAY_MAX_GROUPS`], each node annotated with
     /// its latest measured delay.
     fn tray_proxy_groups(&self) -> Vec<TrayProxyGroup> {
-        let mut groups: Vec<&mihomo_api::proxy::types::Proxy> = self
+        let mut groups: Vec<&infiltrator_domain::proxy::Proxy> = self
             .runtime
             .proxies
             .values()

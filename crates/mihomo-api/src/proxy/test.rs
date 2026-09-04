@@ -1,6 +1,6 @@
 use crate::client::MihomoClient;
 use crate::error::Result;
-use crate::proxy::types::Proxy;
+use infiltrator_domain::proxy::Proxy;
 use std::collections::HashMap;
 
 pub async fn test_delay(

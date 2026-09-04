@@ -1,4 +1,4 @@
-use crate::proxy::types::Proxy;
+use infiltrator_domain::proxy::Proxy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -208,4 +208,108 @@ where
 {
     let opt = Option::deserialize(deserializer)?;
     Ok(opt.unwrap_or_default())
+}
+
+impl From<TrafficData> for infiltrator_domain::runtime::TrafficData {
+    fn from(value: TrafficData) -> Self {
+        Self {
+            up: value.up,
+            down: value.down,
+        }
+    }
+}
+
+impl From<MemoryData> for infiltrator_domain::runtime::MemoryData {
+    fn from(value: MemoryData) -> Self {
+        Self {
+            in_use: value.in_use,
+            os_limit: value.os_limit,
+        }
+    }
+}
+
+impl From<ConnectionMetadata> for infiltrator_domain::runtime::ConnectionMetadata {
+    fn from(value: ConnectionMetadata) -> Self {
+        Self {
+            network: value.network,
+            connection_type: value.connection_type,
+            source_ip: value.source_ip,
+            destination_ip: value.destination_ip,
+            source_port: value.source_port,
+            destination_port: value.destination_port,
+            host: value.host,
+            dns_mode: value.dns_mode,
+            process_path: value.process_path,
+            special_proxy: value.special_proxy,
+        }
+    }
+}
+
+impl From<Connection> for infiltrator_domain::runtime::Connection {
+    fn from(value: Connection) -> Self {
+        Self {
+            id: value.id,
+            metadata: value.metadata.into(),
+            upload: value.upload,
+            download: value.download,
+            start: value.start,
+            rule: value.rule,
+            rule_payload: value.rule_payload,
+            chains: value.chains,
+        }
+    }
+}
+
+impl From<ConnectionSnapshot> for infiltrator_domain::runtime::ConnectionSnapshot {
+    fn from(value: ConnectionSnapshot) -> Self {
+        Self {
+            download_total: value.download_total,
+            upload_total: value.upload_total,
+            connections: value.connections.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<ConnectionsResponse> for infiltrator_domain::runtime::ConnectionsResponse {
+    fn from(value: ConnectionsResponse) -> Self {
+        Self {
+            download_total: value.download_total,
+            upload_total: value.upload_total,
+            connections: value.connections.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<ConnectionsResponse> for infiltrator_domain::runtime::ConnectionSnapshot {
+    fn from(value: ConnectionsResponse) -> Self {
+        Self {
+            download_total: value.download_total,
+            upload_total: value.upload_total,
+            connections: value.connections.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<ProxyProvider> for infiltrator_domain::runtime::ProxyProvider {
+    fn from(value: ProxyProvider) -> Self {
+        Self {
+            name: value.name,
+            provider_type: value.provider_type,
+            vehicle_type: value.vehicle_type,
+            updated_at: value.updated_at,
+        }
+    }
+}
+
+impl From<RuleProvider> for infiltrator_domain::runtime::RuleProvider {
+    fn from(value: RuleProvider) -> Self {
+        Self {
+            name: value.name,
+            provider_type: value.provider_type,
+            behavior: value.behavior,
+            vehicle_type: value.vehicle_type,
+            updated_at: value.updated_at,
+            rule_count: value.rule_count,
+        }
+    }
 }

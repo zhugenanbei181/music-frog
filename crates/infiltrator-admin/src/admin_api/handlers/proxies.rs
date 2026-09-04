@@ -375,7 +375,7 @@ fn normalize_delay_timeout_ms(timeout_ms: Option<u32>) -> u32 {
 }
 
 fn build_runtime_proxy_delay_nodes(
-    proxies: std::collections::HashMap<String, mihomo_api::proxy::types::Proxy>,
+    proxies: std::collections::HashMap<String, infiltrator_domain::proxy::Proxy>,
 ) -> Vec<RuntimeProxyDelayNode> {
     let mut nodes: Vec<RuntimeProxyDelayNode> = proxies
         .into_iter()
@@ -398,7 +398,7 @@ fn build_runtime_proxy_delay_nodes(
 
 pub(crate) fn collect_delay_test_candidates(
     requested: Option<&[String]>,
-    proxies: &std::collections::HashMap<String, mihomo_api::proxy::types::Proxy>,
+    proxies: &std::collections::HashMap<String, infiltrator_domain::proxy::Proxy>,
     results: &mut Vec<RuntimeDelayBatchResult>,
 ) -> Vec<String> {
     match requested {

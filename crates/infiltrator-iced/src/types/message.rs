@@ -9,12 +9,15 @@ use super::rules::{RulesJsonTab, RulesLoadBundle, RulesTab};
 use super::runtime::{IpProbeResult, RuntimeConfig, RuntimeStreamKind, RuntimeStreamState};
 use iced::{widget::text_editor, window};
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_domain::runtime::{
+    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+};
 use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_desktop::runtime::MihomoRuntime;
-use mihomo_api::types::{ConnectionSnapshot, TrafficData};
-use infiltrator_domain::profiles::ProfileInfo;
 use mihomo_version::manager::VersionInfo;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -79,7 +82,7 @@ pub enum Message {
     ClearProfiles,
     ProfilesCleared(Result<(), InfiltratorError>),
     LoadProxies,
-    ProxiesLoaded(Result<HashMap<String, mihomo_api::proxy::types::Proxy>, InfiltratorError>),
+    ProxiesLoaded(Result<HashMap<String, Proxy>, InfiltratorError>),
     SelectProxy(String, String),
     FilterProxies(String),
     ToggleFilterAlive(bool),
@@ -107,7 +110,7 @@ pub enum Message {
     UpdateRuntimeConnectionSort(String),
     RefreshRuntimeNow,
     TrafficReceived(TrafficData),
-    MemoryReceived(mihomo_api::types::MemoryData),
+    MemoryReceived(MemoryData),
     IpInfoReceived(Result<IpProbeResult, InfiltratorError>, usize),
     ConnectionsReceived(ConnectionSnapshot),
     LogReceived(String),
@@ -164,8 +167,8 @@ pub enum Message {
     ProvidersLoaded(
         Result<
             (
-                Vec<mihomo_api::types::ProxyProvider>,
-                Vec<mihomo_api::types::RuleProvider>,
+                Vec<ProxyProvider>,
+                Vec<RuleProvider>,
             ),
             InfiltratorError,
         >,

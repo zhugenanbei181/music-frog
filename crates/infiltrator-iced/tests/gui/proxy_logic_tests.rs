@@ -5,7 +5,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use mihomo_api::proxy::types::{Proxy, ProxyBase, ProxyGroup, ProxyHistory};
+use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup, ProxyHistory};
 
 #[test]
 fn test_proxy_filtering_and_sorting() {
@@ -26,7 +26,7 @@ fn test_proxy_filtering_and_sorting() {
     // Node A (100ms)
     proxies.insert(
         "Proxy-A".to_string(),
-        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
             base: ProxyBase {
                 name: "Proxy-A".to_string(),
                 history: vec![ProxyHistory {
@@ -42,7 +42,7 @@ fn test_proxy_filtering_and_sorting() {
     // Node B (50ms)
     proxies.insert(
         "Proxy-B".to_string(),
-        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
             base: ProxyBase {
                 name: "Proxy-B".to_string(),
                 history: vec![ProxyHistory {
@@ -58,7 +58,7 @@ fn test_proxy_filtering_and_sorting() {
     // Node Special (200ms)
     proxies.insert(
         "Special".to_string(),
-        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
             base: ProxyBase {
                 name: "Special".to_string(),
                 history: vec![ProxyHistory {
@@ -174,7 +174,7 @@ fn test_runtime_proxy_selector_sync_and_apply() {
     );
     proxies.insert(
         "Proxy-A".to_string(),
-        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
             base: ProxyBase {
                 name: "Proxy-A".to_string(),
                 ..Default::default()
@@ -184,7 +184,7 @@ fn test_runtime_proxy_selector_sync_and_apply() {
     );
     proxies.insert(
         "Proxy-B".to_string(),
-        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
             base: ProxyBase {
                 name: "Proxy-B".to_string(),
                 ..Default::default()
@@ -226,7 +226,7 @@ fn test_filter_alive_and_favorite_pinning() {
     // Node-Alive-1 (120ms)
     proxies.insert(
         "Node-Alive-1".to_string(),
-        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
             base: ProxyBase {
                 name: "Node-Alive-1".to_string(),
                 history: vec![ProxyHistory {
@@ -242,7 +242,7 @@ fn test_filter_alive_and_favorite_pinning() {
     // Node-Dead (0ms / no delay)
     proxies.insert(
         "Node-Dead".to_string(),
-        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
             base: ProxyBase {
                 name: "Node-Dead".to_string(),
                 history: vec![],
@@ -255,7 +255,7 @@ fn test_filter_alive_and_favorite_pinning() {
     // Node-Alive-2 (50ms)
     proxies.insert(
         "Node-Alive-2".to_string(),
-        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
             base: ProxyBase {
                 name: "Node-Alive-2".to_string(),
                 history: vec![ProxyHistory {

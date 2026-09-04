@@ -3,6 +3,7 @@
 use axum::Json;
 use chrono::Utc;
 use infiltrator_domain::dns_tester::DnsTester;
+use infiltrator_domain::runtime::{Connection, ConnectionsResponse};
 use std::collections::HashMap;
 
 use crate::admin_api::models::{
@@ -44,9 +45,10 @@ pub async fn get_audit_http<C: AdminApiContext>(
         }
     };
 
-    let connections_resp = client
+    let connections_resp: ConnectionsResponse = client
         .get_connections()
         .await
+        .map(Into::into)
         .map_err(|e| ApiError::internal(format!("failed to get runtime connections: {e}")))?;
 
     let audit_result = analyze_connections_for_audit(
@@ -60,7 +62,7 @@ pub async fn get_audit_http<C: AdminApiContext>(
 }
 
 pub(crate) fn analyze_connections_for_audit(
-    connections: &[mihomo_api::types::Connection],
+    connections: &[Connection],
     upload_total: u64,
     download_total: u64,
     timestamp: String,

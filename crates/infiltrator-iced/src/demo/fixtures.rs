@@ -2,7 +2,7 @@
 //! snapshots, rules, profiles and the JSON/YAML editor cache contents.
 
 use infiltrator_domain::rules::RuleEntry;
-use mihomo_api::types::{Connection, ConnectionMetadata, ConnectionSnapshot};
+use infiltrator_domain::runtime::{Connection, ConnectionMetadata, ConnectionSnapshot};
 use infiltrator_domain::profiles::ProfileInfo;
 use std::collections::VecDeque;
 

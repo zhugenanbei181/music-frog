@@ -11,7 +11,7 @@ use super::proxy_fixtures::demo_proxy_tables;
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
-use mihomo_api::types::{MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider, TrafficData};
 use mihomo_version::manager::VersionInfo;
 use std::path::PathBuf;
 
@@ -59,7 +59,7 @@ impl AppState {
         let history = demo_traffic_history();
         let last = *history.back().expect("demo traffic history is seeded");
         state.diag.traffic_history = history;
-        state.diag.traffic = Some(mihomo_api::types::TrafficData {
+        state.diag.traffic = Some(TrafficData {
             up: last.0,
             down: last.1,
         });

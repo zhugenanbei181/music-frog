@@ -35,16 +35,11 @@ impl AppState {
                         .client()
                         .get_connections()
                         .await
+                        .map(Into::into)
                         .map_err(infiltrator_contract::error::from_mihomo)
                 },
                 |result| match result {
-                    Ok(snapshot) => {
-                        Message::ConnectionsReceived(mihomo_api::types::ConnectionSnapshot {
-                            download_total: snapshot.download_total,
-                            upload_total: snapshot.upload_total,
-                            connections: snapshot.connections,
-                        })
-                    }
+                    Ok(snapshot) => Message::ConnectionsReceived(snapshot),
                     Err(error) => Message::RuntimePollFailed(format!("连接刷新失败: {error}")),
                 },
             ),
@@ -54,6 +49,7 @@ impl AppState {
                         .client()
                         .get_memory()
                         .await
+                        .map(Into::into)
                         .map_err(infiltrator_contract::error::from_mihomo)
                 },
                 |result| match result {
@@ -196,7 +192,7 @@ impl AppState {
                             (upload_total.saturating_sub(prev_up) as f64 / elapsed) as u64;
                         let down_rate =
                             (download_total.saturating_sub(prev_down) as f64 / elapsed) as u64;
-                        self.diag.traffic = Some(mihomo_api::types::TrafficData {
+                        self.diag.traffic = Some(infiltrator_domain::runtime::TrafficData {
                             up: up_rate,
                             down: down_rate,
                         });

@@ -121,7 +121,15 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                         },
                         item = traffic.recv() => match item {
                             Some(StreamEvent::Item(data)) => {
-                                if output.try_send(Message::RuntimeStreamTrafficReceived(input.generation, data)).is_err() { return; }
+                                if output
+                                    .try_send(Message::RuntimeStreamTrafficReceived(
+                                        input.generation,
+                                        data.into(),
+                                    ))
+                                    .is_err()
+                                {
+                                    return;
+                                }
                             }
                             Some(StreamEvent::Connecting) => {
                                 if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
@@ -137,7 +145,15 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                         },
                         item = connections.recv() => match item {
                             Some(StreamEvent::Item(snapshot)) => {
-                                if output.try_send(Message::RuntimeStreamConnectionsReceived(input.generation, snapshot)).is_err() { return; }
+                                if output
+                                    .try_send(Message::RuntimeStreamConnectionsReceived(
+                                        input.generation,
+                                        snapshot.into(),
+                                    ))
+                                    .is_err()
+                                {
+                                    return;
+                                }
                             }
                             Some(StreamEvent::Connecting) => {
                                 if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }

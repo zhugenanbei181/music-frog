@@ -21,12 +21,15 @@ use crate::types::runtime::{
 };
 use iced::Theme;
 use iced::widget::text_editor;
+use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_domain::runtime::{
+    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+};
 use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_desktop::runtime::MihomoRuntime;
 use infiltrator_desktop::tun_service::ServiceModeStatus;
-use mihomo_api::types::{ConnectionSnapshot, TrafficData};
-use infiltrator_domain::profiles::ProfileInfo;
 use mihomo_version::manager::VersionInfo;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -40,7 +43,7 @@ pub struct RuntimeState {
     pub runtime_generation: u64,
     pub lifecycle_token: u64,
     pub status: RuntimeStatus,
-    pub proxies: HashMap<String, mihomo_api::proxy::types::Proxy>,
+    pub proxies: HashMap<String, Proxy>,
     pub is_loading_proxies: bool,
     pub filtered_groups: Vec<(String, Vec<String>)>,
     pub proxy_filter: String,
@@ -229,8 +232,8 @@ pub struct ConfigEditorState {
     pub new_rule_payload: String,
     pub new_rule_target: String,
     pub is_adding_rule: bool,
-    pub proxy_providers: Vec<mihomo_api::types::ProxyProvider>,
-    pub rule_providers: Vec<mihomo_api::types::RuleProvider>,
+    pub proxy_providers: Vec<ProxyProvider>,
+    pub rule_providers: Vec<RuleProvider>,
     pub is_loading_providers: bool,
     pub script_sandbox: crate::types::editor::ScriptSandboxState,
     pub snapshot_diff_modal_open: bool,
@@ -270,7 +273,7 @@ pub struct ConfigEditorState {
 pub struct DiagnosticsState {
     pub traffic: Option<TrafficData>,
     pub traffic_history: VecDeque<(u64, u64)>,
-    pub memory: Option<mihomo_api::types::MemoryData>,
+    pub memory: Option<MemoryData>,
     pub public_ip: Option<String>,
     pub public_ip_provider: Option<String>,
     pub public_ip_checked_at: Option<String>,

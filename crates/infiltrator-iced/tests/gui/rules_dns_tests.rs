@@ -281,7 +281,7 @@ fn test_rule_provider_diff_and_unpack_flow() {
 
     // Verify rule provider row formatting (Domain, IPCIDR, Classical), badges, format chips, and rendering
     let lang = infiltrator_shared::locales::Lang("en");
-    let domain_provider = mihomo_api::types::RuleProvider {
+    let domain_provider = infiltrator_domain::runtime::RuleProvider {
         name: "GoogleRules".into(),
         provider_type: "http".into(),
         behavior: "domain".into(),
@@ -289,7 +289,7 @@ fn test_rule_provider_diff_and_unpack_flow() {
         updated_at: "2026-09-02 06:00:00".into(),
         rule_count: 1420,
     };
-    let ipcidr_provider = mihomo_api::types::RuleProvider {
+    let ipcidr_provider = infiltrator_domain::runtime::RuleProvider {
         name: "geoip-cn.mrs".into(),
         provider_type: "mrs".into(),
         behavior: "ipcidr".into(),
@@ -297,7 +297,7 @@ fn test_rule_provider_diff_and_unpack_flow() {
         updated_at: "2026-09-01 12:00:00".into(),
         rule_count: 850,
     };
-    let classical_provider = mihomo_api::types::RuleProvider {
+    let classical_provider = infiltrator_domain::runtime::RuleProvider {
         name: "custom-ads.yaml".into(),
         provider_type: "yaml".into(),
         behavior: "classical".into(),

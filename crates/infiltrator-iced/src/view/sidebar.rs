@@ -749,7 +749,7 @@ mod tests {
     #[test]
     fn test_sidebar_render_with_traffic_and_samples() {
         let (mut state, _) = AppState::new();
-        state.diag.traffic = Some(mihomo_api::types::TrafficData {
+        state.diag.traffic = Some(infiltrator_domain::runtime::TrafficData {
             up: 1024 * 50,
             down: 1024 * 1024 * 2,
         });

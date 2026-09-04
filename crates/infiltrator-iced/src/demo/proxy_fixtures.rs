@@ -1,7 +1,7 @@
 //! Demo proxy-table fixtures: provider groups, exit nodes with mixed latency
 //! tiers and the deterministic `filtered_groups` ordering.
 
-use mihomo_api::proxy::types::{
+use infiltrator_domain::proxy::{
     Hysteria2, Proxy, ProxyBase, ProxyGroup, ProxyHistory, Shadowsocks, Trojan, Vmess,
 };
 use std::collections::HashMap;
@@ -232,14 +232,14 @@ fn hysteria2_node(name: &str, server: &str, port: u16) -> Proxy {
     })
 }
 
-fn direct_base(name: &str) -> mihomo_api::proxy::types::Direct {
-    mihomo_api::proxy::types::Direct {
+fn direct_base(name: &str) -> infiltrator_domain::proxy::Direct {
+    infiltrator_domain::proxy::Direct {
         base: untested_base(name),
     }
 }
 
-fn reject_base(name: &str) -> mihomo_api::proxy::types::Reject {
-    mihomo_api::proxy::types::Reject {
+fn reject_base(name: &str) -> infiltrator_domain::proxy::Reject {
+    infiltrator_domain::proxy::Reject {
         base: untested_base(name),
     }
 }

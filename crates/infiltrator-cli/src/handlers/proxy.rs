@@ -59,7 +59,7 @@ fn node_row(node: &mihomo_api::proxy::manager::ProxyNode) -> Vec<String> {
     ]
 }
 
-fn group_row(group: &mihomo_api::proxy::types::ProxyGroup) -> Vec<String> {
+fn group_row(group: &infiltrator_domain::proxy::ProxyGroup) -> Vec<String> {
     vec![
         group.name.clone(),
         group.now.clone(),
@@ -71,7 +71,7 @@ fn group_row(group: &mihomo_api::proxy::types::ProxyGroup) -> Vec<String> {
 mod tests {
     use mihomo_api::client::MihomoClient;
     use mihomo_api::proxy::manager::ProxyNode;
-    use mihomo_api::proxy::types::ProxyGroup;
+    use infiltrator_domain::proxy::ProxyGroup;
 
     use super::{ProxyManager, group_row, node_row};
 
