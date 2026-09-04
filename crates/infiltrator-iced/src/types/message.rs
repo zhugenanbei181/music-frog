@@ -27,6 +27,8 @@ pub type SubscriptionUpdateOutcomes = Result<Vec<(String, Result<(), String>)>, 
 pub enum Message {
     Noop,
     Navigate(Route),
+    NavigateBack,
+    NavigateForward,
     StartProxy,
     StopProxy,
     /// Core boot result; the bool reports whether the external-controller
@@ -381,6 +383,133 @@ pub enum Message {
     DoctorFixApplied(Result<crate::types::doctor::DoctorFixReport, InfiltratorError>),
     RunBootstrap,
     BootstrapFinished(Result<crate::types::doctor::BootstrapReport, InfiltratorError>),
+    // Command Palette
+    ToggleCommandPalette,
+    OpenCommandPalette,
+    CloseCommandPalette,
+    SetCommandQuery(String),
+    SelectNextCommand,
+    SelectPrevCommand,
+    ExecuteCommand(super::app::CommandAction),
+    // Connection Deep Telemetry Inspector Drawer
+    InspectConnection(Option<String>),
+    CloseSingleConnection(String),
+    // YAML Editor Snippets & Format
+    InsertYamlSnippet(&'static str),
+    FormatYamlEditor,
+    // App Routing (应用分流)
+    RefreshAppRoutingProcesses,
+    AppRoutingProcessesLoaded(Vec<infiltrator_desktop::process_enumerator::ExtendedProcessInfo>),
+    SetAppRoutingFilter(String),
+    SetAppRoutingMode(super::app_routing::AppRoutingMode),
+    SetAppRouteRule { process: String, rule: super::app_routing::AppRouteRule },
+    SetAppRoutingCategory(Option<infiltrator_desktop::process_enumerator::ProcessCategory>),
+    // Proxy Group Reorder (策略组重排)
+    MoveProxyGroupUp(String),
+    MoveProxyGroupDown(String),
+    ResetProxyGroupOrder,
+    // Mini HUD Mode (迷你网速悬浮窗)
+    ToggleMiniHudMode,
+    SetAlwaysOnTop(bool),
+    // Script Sandbox Console (脚本沙箱控制台)
+    RunScriptSandboxTest,
+    SelectScriptPreset(String),
+    UpdateScriptSandboxCode(String),
+    UpdateScriptSandboxInputYaml(String),
+    ClearScriptSandbox,
+    // DNS Leak & Privacy Probe (Category 1)
+    RunDnsLeakProbe,
+    DnsLeakProbeFinished(super::dns::DnsLeakReport),
+    // Custom Node Modal & Universal URI Codec (Category 2)
+    OpenCustomNodeModal,
+    CloseCustomNodeModal,
+    UpdateCustomNodeUriInput(String),
+    ParseAndImportCustomUri,
+    ExportNodeAsUri(String),
+    SaveCustomNodeForm,
+    // Multi-Profile Aggregator (Category 3)
+    OpenAggregatorModal,
+    CloseAggregatorModal,
+    ToggleAggregatorProfileSelection(String),
+    UpdateAggregatorName(String),
+    ExecuteProfileAggregation,
+    // Connection Grouping & Quick Rule (Category 4)
+    SetConnectionGroupingMode(super::runtime::ConnectionGroupingMode),
+    AddQuickRuleFromConnection { pattern: String, target: String },
+    // Config Snapshot Visual Diff & Rollback (Category 5)
+    OpenSnapshotDiff(String),
+    CloseSnapshotDiff,
+    RollbackToSnapshot(String),
+    // Global Hotkey Manager (Category 6)
+    UpdateHotkeyCombo { id: String, combo: String },
+    ToggleHotkeyEnabled(String),
+    // Wave 3 Category 1: PCAP Exporter
+    TogglePcapCapture,
+    ExportPcapBuffer,
+    // Wave 3 Category 2: Logical Sub-Rules Builder
+    UpdateSubRuleOperator(String),
+    AddSubRuleCondition(String),
+    RemoveSubRuleCondition(usize),
+    UpdateSubRuleTarget(String),
+    InsertSubRuleIntoRules,
+    // Wave 3 Category 3: Node Speedtest & Jitter
+    RunNodeSpeedtest(String),
+    NodeSpeedtestFinished(super::perf::SpeedtestResult),
+    // Wave 3 Category 4: Geo Data Updater
+    CheckGeoDataUpdates,
+    TriggerGeoDataUpdate,
+    GeoDataUpdateFinished(super::editor::GeoDataStatus),
+    // Wave 3 Category 5: Windows UWP Loopback Utility
+    ScanUwpApps,
+    UwpAppsLoaded(Vec<super::app::UwpAppItem>),
+    ExemptAllUwpApps,
+    ClearAllUwpExemptions,
+    ToggleUwpAppExemption(String),
+    // Wave 3 Category 6: Encrypted Backup Package
+    UpdateEncryptedBackupPassphrase(String),
+    ExportEncryptedPackage,
+    ImportEncryptedPackage,
+    // Wave 4 Category 1: Network Interface Roaming
+    PollNetworkInterfaces,
+    NetworkInterfacesPolled(Vec<super::runtime::NetworkInterfaceItem>),
+    ForceGatewayReconnect,
+    // Wave 4 Category 2: Crash Watchdog & Forensics
+    CheckCrashWatchdog,
+    RecoverOrphanedState,
+    ExportCrashDiagnostics,
+    // Wave 4 Category 3: External Web Dashboard
+    LaunchWebDashboard(&'static str),
+    // Wave 4 Category 4: Log Regex & Redacted Export
+    UpdateLogRegexFilter(String),
+    SetLogLevelFilter(String),
+    ExportRedactedLogs,
+    // Wave 4 Category 5: Subscription Quota & Cron
+    EvaluateSubscriptionQuota,
+    UpdateCronScheduleHours(u32),
+    // Wave 4 Category 6: PAC Auto-Proxy & Bypass CIDR
+    UpdatePacBypassSubnets(String),
+    CompileAndValidatePac,
+    TogglePacMode(bool),
+    // Wave 5 Category 1: Rule Hit Counter & Stale Rule Audit
+    AuditStaleRules,
+    DisableZeroHitRules,
+    // Wave 5 Category 2: Latency Time-Series & Stability Radar
+    SelectRadarNode(String),
+    RecordRadarLatencySample { node: String, latency_ms: u64 },
+    // Wave 5 Category 3: TUN Multi-Stack & MTU Negotiator
+    SelectTunStack(String),
+    ProbeOptimalMtu,
+    MtuProbed(u32),
+    // Wave 5 Category 4: Rule-Provider Lifecycle & Rule Unpacker
+    UnpackRuleProviderToCustom(String),
+    PurgeRuleProviderCache,
+    // Wave 5 Category 5: Config Apply Multi-Stage Transaction Guard
+    TriggerAtomicConfigApply,
+    ApplyTransactionStageChanged(super::runtime::ApplyTransactionStage),
+    // Wave 5 Category 6: LAN Proxy Sharing & Client Access Whitelist
+    ToggleLanSharing(bool),
+    UpdateLanSharingPort(u16),
+    UpdateLanAclWhitelist(String),
 }
 
 mod debug;

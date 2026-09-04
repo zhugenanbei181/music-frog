@@ -2,6 +2,8 @@
 
 MusicFrog 是以 mihomo 为数据平面和代理内核的跨平台客户端。mihomo 是外部 Go 二进制，Rust 负责生命周期、配置、版本、REST/WebSocket 控制和面向 UI 的业务编排；UI 不应直接拥有进程或配置文件事实。
 
+0.20 冻结当前产品安排；0.30 是有意的底层破坏性重整线。领域层、跨端契约、外部端口和 application/runtime 的详细目标见 [CORE_030_REARCHITECTURE.md](CORE_030_REARCHITECTURE.md)。
+
 ## 1. 总体数据流
 
 ```text
@@ -43,11 +45,12 @@ and sync          (REST / WebSocket)
 - 两项例外（白名单同时登记在 `scripts/quality/import-guard.py`）：`infiltrator_http::reqwest` 是依赖版本收敛点（全 workspace 统一 reqwest 版本），不是名字转发；`infiltrator-android/src/lib.rs` 与其 `uniffi_api.rs` 的导出面属 UniFFI FFI 表面，随 FFI 专项另行处理。
 - 机械化强制：`scripts/quality/import-guard.py --mode enforce`（CI `test.yml` 执行），违规即红；新增公开类型时直接在定义模块登记，不得为省事加转发——避免同一类型出现两个可用路径后调用方随机分叉。
 
-### 异步与调度模型（2026-08-29 决策）
+### 异步与调度模型（0.30 重整决策）
 
-- tokio 是全 workspace 唯一的异步执行器；不引入第二个调度范式。
-- 已评估并否决 Bevy ECS 作为底层调度器：其 system 模型是同步、帧驱动的，与控制面的长耗时异步 I/O（controller 调用、进程管理、下载、同步）执行模型冲突；ECS world 作为共享可变状态会与"Rust 拥有唯一事实 → UI 消费 owned snapshot"原则冲突，且无法穿过 UniFFI 边界。
-- 统一调度的落点是一个 tokio 原生 job scheduler（`infiltrator-core/src/scheduler.rs`，FUNC-006）：命名任务、interval 触发、顺序执行天然 single-flight、watch 关闭、结构化状态快照；收敛 admin 订阅调度、Iced timer 与 readiness 轮询。Bevy 的 change-tick 思想已由 CoreSession 的 generation 协议吸收。
+- Tokio 继续是 native workspace 的唯一异步执行器，但它只属于 application/runtime 和具体 outbound/host adapter；不进入纯领域层和跨端 contract。
+- `async fn` 本身不是前端耦合；真正禁止的是公开 `tokio::sync::*`、`JoinHandle`、`Runtime`、Reqwest 类型和 `MihomoClient`。
+- Bevy ECS 不是控制面的底层 executor。长耗时 controller、进程、下载和同步任务由一个 Core actor/runtime 管理，Bevy 只接收有界 snapshot/event 投影。
+- 0.30 的 scheduler 属于 application/runtime；它可以继续使用 Tokio，但不能成为 domain API 的一部分。
 
 ## 2. 分层与当前 crate 归属
 
@@ -63,7 +66,7 @@ and sync          (REST / WebSocket)
 | External dashboard | ~~`webui/mihomo-manager-ui/dist`~~ | 已于 release/0.20 退役 | MusicFrog 自己的配置事实 |
 | Sync | `mihomo-dav-sync/*` | WebDAV 传输、索引、状态、冲突处理 | 页面私有同步协议 |
 
-当前依赖图仍有收敛空间：多个上层 crate 同时依赖 `mihomo-api`、`mihomo-config`、`mihomo-platform`，Iced 还持有较大的 `AppState`。重整不要求立即改名或一次性拆 crate，先用稳定的 use-case/contract seam 收敛依赖，再按实际边界移动代码。
+当前依赖图仍有收敛空间：多个上层 crate 同时依赖 `mihomo-api`、`mihomo-config`、`mihomo-platform`，Iced 还持有较大的 `AppState`，Bevy 目前也有临时的直接 controller pump。0.30 不保留这些直接依赖：先建立 application/contract/ports seam，再一次性迁移调用方。
 
 ## 3. taskmanager 参照下的求同存异
 
@@ -88,12 +91,12 @@ and sync          (REST / WebSocket)
 
 ## 4. 迁移顺序
 
-1. **先定控制平面**：统一 core session、controller URL/secret、readiness、generation 和错误映射。
-2. **再定 use-case**：将 profile、runtime、proxy、network config、sync、core update 暴露为面向意图的 Rust facade；UI 不再逐页拼装底层 client。
-3. **做一条垂直切片**：优先选择“profile 切换 → 配置应用 → core 重启 → 状态回传”，同时接 Iced、Android 的最小 surface（0.30 起加 Bevy UI）。
-4. **补兼容矩阵**：对 mihomo API 和配置字段建立版本 fixture，锁定旧版本失败语义和新版本能力探测。
-5. **迁移其他功能域**：runtime diagnostics、proxy/delay、DNS/Fake-IP/TUN、rules/providers、WebDAV。
-6. **最后处理 UI 视觉与清理**：在共享语义和回归矩阵稳定后，再做组件、动效、主题和旧路径删除。
+1. **0.20 freeze**：提交当前工作树，保留当前行为作为可复现基线。
+2. **0.30 contract**：先定 `Command`、`Snapshot`、`Event`、`Capability`、错误码和 generation。
+3. **0.30 ports/application**：把 controller、store、网络、文件、时间、TUN 等能力改为端口；将 `CoreSession`、事务和 scheduler 收敛到 application actor。
+4. **0.30 domain**：抽出状态机、规则、配置变换、订阅解析、节点编解码和纯诊断计算。
+5. **0.30 vertical slice**：优先迁移“profile 切换 → 配置应用 → core readiness → 状态回传”，同时接 Iced、Bevy、Android FFI 和 Admin。
+6. **0.30 host/frontends**：Desktop、Android、iOS 作为同级 host adapter；UI 只消费 application contract；最后删除旧路径和直接底层依赖。
 
 ## 5. 不可违反的边界
 

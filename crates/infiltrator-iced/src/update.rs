@@ -1,3 +1,6 @@
+mod ui_wave5;
+mod ui_wave4;
+mod ui_wave3;
 pub mod core;
 pub mod profile;
 pub mod ui;
@@ -81,7 +84,105 @@ impl AppState {
 
         match message {
             // UI & Navigation
-            Message::Navigate(_)
+            Message::ToggleCommandPalette
+            | Message::OpenCommandPalette
+            | Message::CloseCommandPalette
+            | Message::SetCommandQuery(_)
+            | Message::SelectNextCommand
+            | Message::SelectPrevCommand
+            | Message::ExecuteCommand(_)
+            | Message::InspectConnection(_)
+            | Message::CloseSingleConnection(_)
+            | Message::InsertYamlSnippet(_)
+            | Message::FormatYamlEditor
+            | Message::RefreshAppRoutingProcesses
+            | Message::AppRoutingProcessesLoaded(_)
+            | Message::SetAppRoutingFilter(_)
+            | Message::SetAppRoutingMode(_)
+            | Message::SetAppRouteRule { .. }
+            | Message::SetAppRoutingCategory(_)
+            | Message::MoveProxyGroupUp(_)
+            | Message::MoveProxyGroupDown(_)
+            | Message::ResetProxyGroupOrder
+            | Message::ToggleMiniHudMode
+            | Message::SetAlwaysOnTop(_)
+            | Message::RunScriptSandboxTest
+            | Message::SelectScriptPreset(_)
+            | Message::UpdateScriptSandboxCode(_)
+            | Message::UpdateScriptSandboxInputYaml(_)
+            | Message::ClearScriptSandbox
+            | Message::RunDnsLeakProbe
+            | Message::DnsLeakProbeFinished(_)
+            | Message::OpenCustomNodeModal
+            | Message::CloseCustomNodeModal
+            | Message::UpdateCustomNodeUriInput(_)
+            | Message::ParseAndImportCustomUri
+            | Message::ExportNodeAsUri(_)
+            | Message::SaveCustomNodeForm
+            | Message::OpenAggregatorModal
+            | Message::CloseAggregatorModal
+            | Message::ToggleAggregatorProfileSelection(_)
+            | Message::UpdateAggregatorName(_)
+            | Message::ExecuteProfileAggregation
+            | Message::SetConnectionGroupingMode(_)
+            | Message::AddQuickRuleFromConnection { .. }
+            | Message::OpenSnapshotDiff(_)
+            | Message::CloseSnapshotDiff
+            | Message::RollbackToSnapshot(_)
+            | Message::UpdateHotkeyCombo { .. }
+            | Message::ToggleHotkeyEnabled(_)
+            | Message::TogglePcapCapture
+            | Message::ExportPcapBuffer
+            | Message::UpdateSubRuleOperator(_)
+            | Message::AddSubRuleCondition(_)
+            | Message::RemoveSubRuleCondition(_)
+            | Message::UpdateSubRuleTarget(_)
+            | Message::InsertSubRuleIntoRules
+            | Message::RunNodeSpeedtest(_)
+            | Message::NodeSpeedtestFinished(_)
+            | Message::CheckGeoDataUpdates
+            | Message::TriggerGeoDataUpdate
+            | Message::GeoDataUpdateFinished(_)
+            | Message::ScanUwpApps
+            | Message::UwpAppsLoaded(_)
+            | Message::ExemptAllUwpApps
+            | Message::ClearAllUwpExemptions
+            | Message::ToggleUwpAppExemption(_)
+            | Message::UpdateEncryptedBackupPassphrase(_)
+            | Message::ExportEncryptedPackage
+            | Message::ImportEncryptedPackage
+            | Message::PollNetworkInterfaces
+            | Message::NetworkInterfacesPolled(_)
+            | Message::ForceGatewayReconnect
+            | Message::CheckCrashWatchdog
+            | Message::RecoverOrphanedState
+            | Message::ExportCrashDiagnostics
+            | Message::LaunchWebDashboard(_)
+            | Message::UpdateLogRegexFilter(_)
+            | Message::SetLogLevelFilter(_)
+            | Message::ExportRedactedLogs
+            | Message::EvaluateSubscriptionQuota
+            | Message::UpdateCronScheduleHours(_)
+            | Message::UpdatePacBypassSubnets(_)
+            | Message::CompileAndValidatePac
+            | Message::TogglePacMode(_)
+            | Message::AuditStaleRules
+            | Message::DisableZeroHitRules
+            | Message::SelectRadarNode(_)
+            | Message::RecordRadarLatencySample { .. }
+            | Message::SelectTunStack(_)
+            | Message::ProbeOptimalMtu
+            | Message::MtuProbed(_)
+            | Message::UnpackRuleProviderToCustom(_)
+            | Message::PurgeRuleProviderCache
+            | Message::TriggerAtomicConfigApply
+            | Message::ApplyTransactionStageChanged(_)
+            | Message::ToggleLanSharing(_)
+            | Message::UpdateLanSharingPort(_)
+            | Message::UpdateLanAclWhitelist(_)
+            | Message::Navigate(_)
+            | Message::NavigateBack
+            | Message::NavigateForward
             | Message::ToggleTheme
             | Message::TickFrame(_)
             | Message::WindowClosed(_)

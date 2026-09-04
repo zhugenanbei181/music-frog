@@ -614,11 +614,10 @@ pub fn extract_multiplier(name: &str) -> Option<f64> {
     let mult_re =
         Regex::new(r"(?i)(?:[\[（【])?(?:(\d+(?:\.\d+)?)[xX]|[xX](\d+(?:\.\d+)?))(?:[\]）】])?")
             .ok()?;
-    if let Some(caps) = mult_re.captures(name) {
-        if let Some(m) = caps.get(1).or_else(|| caps.get(2)) {
+    if let Some(caps) = mult_re.captures(name)
+        && let Some(m) = caps.get(1).or_else(|| caps.get(2)) {
             return m.as_str().parse::<f64>().ok();
         }
-    }
     None
 }
 

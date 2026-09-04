@@ -213,7 +213,6 @@ fn parse_vless(parsed: &Url) -> Result<ProxyNodeItem> {
         http_opts: None,
         xhttp_opts,
         extra: std::collections::BTreeMap::new(),
-        ..Default::default()
     })
 }
 
@@ -338,7 +337,6 @@ fn parse_hysteria2(parsed: &Url) -> Result<ProxyNodeItem> {
         http_opts: None,
         xhttp_opts: None,
         extra: std::collections::BTreeMap::new(),
-        ..Default::default()
     })
 }
 

@@ -128,11 +128,14 @@ fn proxies_page_in_place_update() {
             name: "节点选择 (PROXIES)".to_owned(),
             group_type: "Selector".to_owned(),
             current: "🇯🇵 日本东京 01 · 专线".to_owned(),
+            expanded: true,
             proxies: vec![ProxyNode {
                 name: "🇯🇵 日本东京 01 · 专线".to_owned(),
                 node_type: "Shadowsocks".to_owned(),
                 delay_ms: Some(42),
                 selected: true,
+                favorite: true,
+                features: vec!["Reality".to_owned()],
             }],
         }],
     };
@@ -359,6 +362,7 @@ fn sync_page_in_place_update() {
         username: "user2@custom.org".to_owned(),
         last_sync: Some("2026-09-02 12:30".to_owned()),
         auto_sync: false,
+        conflict: None,
         snapshots: vec![SnapshotItem {
             id: "snap-new".to_owned(),
             timestamp: "2026-09-02 12:30".to_owned(),

@@ -1,10 +1,11 @@
 //! Headless tests for the checkbox wrapper: official `Checkbox` semantics on
-//! the row, token box visuals driven by the official `Checked` marker, and
-//! in-place repaint when state or palette changes.
+//! the row, token box visuals driven by the official `Checked` marker,
+//! tri-state / indeterminate states, and in-place repaint when state or palette changes.
 
 use bevy::MinimalPlugins;
 use bevy::app::{App, Startup};
 use bevy::asset::AssetPlugin;
+use bevy::camera::visibility::Visibility;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::Has;
@@ -16,7 +17,8 @@ use bevy::ui::Checked;
 use bevy::ui_widgets::Checkbox;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::checkbox::{
-    CheckboxBox, checkbox_border, checkbox_fill, checkbox_scene,
+    CheckboxBox, CheckboxDash, TriState, checkbox_border, checkbox_fill, checkbox_scene,
+    tri_checkbox_border, tri_checkbox_fill, tri_checkbox_next, tri_checkbox_scene,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::theme::Theme;
@@ -97,4 +99,61 @@ fn box_fill_layers_follow_the_tokens() {
     assert_eq!(checkbox_border(false, &palette), palette.border);
     let light = UiPalette::new(&Theme::light());
     assert_eq!(checkbox_fill(false, &light), light.surface_elevated);
+}
+
+#[test]
+fn tri_state_transitions_and_dash_visibility() {
+    let palette = UiPalette::new(&Theme::dark());
+
+    // Cycle without indeterminate
+    assert_eq!(
+        tri_checkbox_next(TriState::Unchecked, false),
+        TriState::Checked
+    );
+    assert_eq!(
+        tri_checkbox_next(TriState::Checked, false),
+        TriState::Unchecked
+    );
+
+    // Cycle with indeterminate
+    assert_eq!(
+        tri_checkbox_next(TriState::Unchecked, true),
+        TriState::Checked
+    );
+    assert_eq!(
+        tri_checkbox_next(TriState::Checked, true),
+        TriState::Indeterminate
+    );
+    assert_eq!(
+        tri_checkbox_next(TriState::Indeterminate, true),
+        TriState::Unchecked
+    );
+
+    // Fills & Borders
+    assert_eq!(
+        tri_checkbox_fill(TriState::Indeterminate, &palette),
+        palette.accent
+    );
+    assert_eq!(
+        tri_checkbox_border(TriState::Indeterminate, &palette),
+        palette.accent
+    );
+
+    let mut app = headless_app();
+    app.add_systems(
+        Startup,
+        |mut commands: Commands, palette: Res<UiPalette>| {
+            commands.spawn_scene(tri_checkbox_scene(
+                "All Rules".to_owned(),
+                TriState::Indeterminate,
+                &palette,
+            ));
+        },
+    );
+    app.update();
+
+    let world = app.world_mut();
+    let mut dashes = world.query::<(&CheckboxDash, &Visibility)>();
+    let (_, vis) = dashes.iter(world).next().expect("dash mounted");
+    assert_eq!(*vis, Visibility::Visible);
 }

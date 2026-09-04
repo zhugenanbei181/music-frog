@@ -11,9 +11,12 @@ use bevy::ecs::system::{Commands, Res};
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::ui::BackgroundColor;
 use infiltrator_bevy_widgets::WidgetsPlugin;
+use infiltrator_bevy_widgets::list::scroll_core::{
+    clamp_scroll_offset, visible_window, visible_window_with_overscan,
+};
 use infiltrator_bevy_widgets::list::{
     List, ListSelection, VirtualList, VirtualListScroll, VirtualListSelect, VirtualListState,
-    clamp_scroll_offset, list_row_scene, list_scene, visible_window, visible_window_with_overscan,
+    list_row_scene, list_scene,
 };
 use infiltrator_bevy_widgets::nav::{NavActive, NavItem, nav_fill};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -230,47 +233,52 @@ fn virtual_list_ecs_message_advancement() {
 
 #[test]
 fn responsive_breakpoint_classification() {
-    assert_eq!(Breakpoint::MOBILE_PX, 600.0);
-    assert_eq!(Breakpoint::TABLET_PX, 1024.0);
+    assert_eq!(Breakpoint::COMPACT_MAX_PX, 600.0);
+    assert_eq!(Breakpoint::MEDIUM_MAX_PX, 1024.0);
+    assert_eq!(Breakpoint::EXPANDED_MAX_PX, 1440.0);
 
-    // Mobile range (< 600px)
-    let mobile = Breakpoint::from_width(375.0);
-    assert_eq!(mobile, Breakpoint::Mobile);
-    assert!(mobile.is_mobile());
-    assert!(mobile.is_compact());
-    assert!(!mobile.is_tablet());
-    assert!(!mobile.is_desktop());
-    assert_eq!(mobile.sidebar_width_px(), None);
+    // Compact range (< 600px)
+    let compact = Breakpoint::from_width(375.0);
+    assert_eq!(compact, Breakpoint::Compact);
+    assert!(compact.is_compact());
+    assert!(compact.is_mobile());
+    assert!(!compact.is_medium());
+    assert!(!compact.is_expanded());
+    assert_eq!(compact.sidebar_width_px(), None);
 
-    let mobile_edge = Breakpoint::from_width(599.9);
-    assert_eq!(mobile_edge, Breakpoint::Mobile);
+    let compact_edge = Breakpoint::from_width(599.9);
+    assert_eq!(compact_edge, Breakpoint::Compact);
 
-    // Tablet range (600px .. 1024px)
-    let tablet_min = Breakpoint::from_width(600.0);
-    assert_eq!(tablet_min, Breakpoint::Tablet);
-    assert!(!tablet_min.is_mobile());
-    assert!(!tablet_min.is_compact());
-    assert!(tablet_min.is_tablet());
-    assert!(!tablet_min.is_desktop());
-    assert_eq!(tablet_min.sidebar_width_px(), Some(240.0));
+    // Medium range (600px .. 1024px)
+    let med_min = Breakpoint::from_width(600.0);
+    assert_eq!(med_min, Breakpoint::Medium);
+    assert!(!med_min.is_compact());
+    assert!(med_min.is_medium());
+    assert!(med_min.is_tablet());
+    assert!(!med_min.is_expanded());
+    assert_eq!(med_min.sidebar_width_px(), Some(72.0));
 
-    let tablet_mid = Breakpoint::from_width(768.0);
-    assert_eq!(tablet_mid, Breakpoint::Tablet);
+    let med_mid = Breakpoint::from_width(768.0);
+    assert_eq!(med_mid, Breakpoint::Medium);
 
-    let tablet_edge = Breakpoint::from_width(1023.9);
-    assert_eq!(tablet_edge, Breakpoint::Tablet);
+    let med_edge = Breakpoint::from_width(1023.9);
+    assert_eq!(med_edge, Breakpoint::Medium);
 
-    // Desktop range (>= 1024px)
-    let desktop_min = Breakpoint::from_width(1024.0);
-    assert_eq!(desktop_min, Breakpoint::Desktop);
-    assert!(!desktop_min.is_mobile());
-    assert!(!desktop_min.is_compact());
-    assert!(!desktop_min.is_tablet());
-    assert!(desktop_min.is_desktop());
-    assert_eq!(desktop_min.sidebar_width_px(), Some(240.0));
+    // Expanded range (1024px .. 1440px)
+    let exp_min = Breakpoint::from_width(1024.0);
+    assert_eq!(exp_min, Breakpoint::Expanded);
+    assert!(!exp_min.is_compact());
+    assert!(!exp_min.is_medium());
+    assert!(exp_min.is_expanded());
+    assert!(exp_min.is_desktop());
+    assert_eq!(exp_min.sidebar_width_px(), Some(240.0));
 
-    let desktop_wide = Breakpoint::from_width(1920.0);
-    assert_eq!(desktop_wide, Breakpoint::Desktop);
+    // Ultra range (>= 1440px)
+    let ultra = Breakpoint::from_width(1920.0);
+    assert_eq!(ultra, Breakpoint::Ultra);
+    assert!(ultra.is_ultra());
+    assert!(ultra.is_desktop());
+    assert_eq!(ultra.sidebar_width_px(), Some(280.0));
 }
 
 #[test]

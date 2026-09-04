@@ -21,6 +21,7 @@ pub enum UserIntent {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PlatformKind {
     IcedDesktop,
+    BevyDesktop,
     TauriWeb,
     AndroidCompose,
 }
@@ -76,6 +77,7 @@ impl IntentRegistry {
 
             // Default support status
             platform_map.insert(IcedDesktop, Supported);
+            platform_map.insert(BevyDesktop, Supported);
             platform_map.insert(TauriWeb, Supported);
             platform_map.insert(AndroidCompose, Supported);
 

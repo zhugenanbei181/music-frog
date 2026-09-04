@@ -1,5 +1,14 @@
 use std::collections::HashMap;
 
+/// Convenient array-based key-value interpolation helper.
+pub fn interpolate(template: &str, pairs: &[(&str, &str)]) -> String {
+    let mut s = template.to_string();
+    for &(k, v) in pairs {
+        s = s.replace(&format!("{{{k}}}"), v);
+    }
+    s
+}
+
 pub struct I18nInterpolator;
 
 impl I18nInterpolator {

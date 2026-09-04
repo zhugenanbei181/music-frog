@@ -2,21 +2,19 @@
 //! `bevy_ui_widgets` [`RadioButton`] / [`RadioGroup`]. The official widgets
 //! own the behavior — group-scoped keyboard navigation, mutually exclusive
 //! `ValueChange<Entity>` emission on the group, `ValueChange<bool>` on the
-//! button — while this module owns the token-backed ring and label. State
-//! stays external: the official `Checked` marker on a row is the single
-//! source of truth, and the wiring from a group's `ValueChange<Entity>` back
-//! to `Checked` belongs to the caller (the official `radio_self_update`
-//! observer, or an app-owned one).
+//! button — while this module owns the token-backed ring, keyboard flow
+//! state machine, index tracking, and label.
 //!
 //! [`sync_radio_visuals`] re-projects ring fill and outline from `Checked`
-//! and the live palette every pass (compare-and-set) — which is also what
-//! makes a theme switch repaint rings without any switch-specific hook.
+//! and the live palette every pass (compare-and-set).
 
 use bevy::color::Color;
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::message::{Message, MessageReader};
 use bevy::ecs::query::{Has, With};
-use bevy::ecs::system::{Query, Res};
+use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, Val, px,
@@ -29,11 +27,94 @@ use crate::palette::UiPalette;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
 
-/// Marker on the visual ring child of a radio row; the row itself carries
-/// the official [`RadioButton`] and [`Checked`] state. Pure routing for the
-/// repaint system, never a state store.
+/// Marker on the visual ring child of a radio row.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RadioRing;
+
+/// Component on a radio button indicating its 0-based index in a group.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RadioButtonIndex(pub usize);
+
+/// Group state tracking total items and active selection.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RadioGroupState {
+    pub active_index: Option<usize>,
+    pub count: usize,
+}
+
+impl RadioGroupState {
+    pub fn new(count: usize, active_index: Option<usize>) -> Self {
+        Self {
+            active_index,
+            count,
+        }
+    }
+}
+
+/// Navigation actions for keyboard traversal within a radio group.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RadioNavAction {
+    /// Move to next item (ArrowDown / ArrowRight).
+    Next,
+    /// Move to previous item (ArrowUp / ArrowLeft).
+    Previous,
+    /// Move to first item (Home).
+    First,
+    /// Move to last item (End).
+    Last,
+    /// Select explicit index (e.g. number key or click).
+    SelectIndex(usize),
+}
+
+/// Navigation message sent to a specific radio group entity.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RadioGroupNavEvent {
+    pub group: Entity,
+    pub action: RadioNavAction,
+}
+
+/// Pure state machine: navigate within a radio group.
+/// Returns the new selected index. Headless-testable with zero Bevy dependency.
+pub fn navigate_radio_group(
+    current_selected: Option<usize>,
+    count: usize,
+    action: RadioNavAction,
+    wrap: bool,
+) -> usize {
+    if count == 0 {
+        return 0;
+    }
+
+    match action {
+        RadioNavAction::Next => match current_selected {
+            Some(idx) => {
+                if idx + 1 < count {
+                    idx + 1
+                } else if wrap {
+                    0
+                } else {
+                    idx
+                }
+            }
+            None => 0,
+        },
+        RadioNavAction::Previous => match current_selected {
+            Some(idx) => {
+                if idx > 0 {
+                    idx - 1
+                } else if wrap {
+                    count - 1
+                } else {
+                    0
+                }
+            }
+            None => count - 1,
+        },
+        RadioNavAction::First => 0,
+        RadioNavAction::Last => count.saturating_sub(1),
+        RadioNavAction::SelectIndex(idx) => idx.min(count.saturating_sub(1)),
+    }
+}
 
 /// The ring fill for one checked state: idle rings sit on the elevated
 /// control surface; selecting fills the disc with the accent. Pure function —
@@ -67,16 +148,131 @@ pub fn radio_scene(label: String, selected: bool, palette: &UiPalette) -> Box<dy
     }
 }
 
+/// One indexed radio row with [`RadioButtonIndex`].
+pub fn indexed_radio_scene(
+    index: usize,
+    label: String,
+    selected: bool,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let fill = radio_fill(selected, palette);
+    let edge = radio_ring(selected, palette);
+
+    if selected {
+        Box::new(bsn! {
+            Node {
+                min_height: px(palette.control_height_px),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                padding: UiRect::horizontal(Val::Px(space::S4)),
+            }
+            RadioButton
+            Checked
+            RadioButtonIndex(index)
+            Children [
+                (
+                    Node {
+                        width: px(palette.control_square_px),
+                        height: px(palette.control_square_px),
+                        flex_shrink: 0.0,
+                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                        border_radius: BorderRadius::all(Val::Px(
+                            palette.control_square_px * 0.5,
+                        )),
+                    }
+                    BackgroundColor({ fill })
+                    BorderColor {
+                        top: edge,
+                        right: edge,
+                        bottom: edge,
+                        left: edge,
+                    }
+                    RadioRing
+                ),
+                ( Text(label) TextRole(Role::Body) ),
+            ]
+        })
+    } else {
+        Box::new(bsn! {
+            Node {
+                min_height: px(palette.control_height_px),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                padding: UiRect::horizontal(Val::Px(space::S4)),
+            }
+            RadioButton
+            RadioButtonIndex(index)
+            Children [
+                (
+                    Node {
+                        width: px(palette.control_square_px),
+                        height: px(palette.control_square_px),
+                        flex_shrink: 0.0,
+                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                        border_radius: BorderRadius::all(Val::Px(
+                            palette.control_square_px * 0.5,
+                        )),
+                    }
+                    BackgroundColor({ fill })
+                    BorderColor {
+                        top: edge,
+                        right: edge,
+                        bottom: edge,
+                        left: edge,
+                    }
+                    RadioRing
+                ),
+                ( Text(label) TextRole(Role::Body) ),
+            ]
+        })
+    }
+}
+
 /// The group container: the official [`RadioGroup`] behavior primitive over
-/// a token-spaced column of rows. Members are already-composed radio (or
-/// other) scenes — the module never creates children imperatively.
+/// a token-spaced column of rows. Members are already-composed radio scenes.
 pub fn radio_group_scene(members: Vec<Box<dyn Scene>>) -> impl Scene + use<> {
+    let count = members.len();
     bsn! {
         Node {
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(space::S4),
         }
         RadioGroup
+        RadioGroupState {
+            active_index: None,
+            count: count,
+        }
+        Children [
+            { members },
+        ]
+    }
+}
+
+/// High-level indexed radio group scene constructor.
+pub fn indexed_radio_group_scene(
+    options: Vec<String>,
+    selected_index: Option<usize>,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let count = options.len();
+    let members: Vec<Box<dyn Scene>> = options
+        .into_iter()
+        .enumerate()
+        .map(|(idx, opt)| indexed_radio_scene(idx, opt, Some(idx) == selected_index, palette))
+        .collect();
+
+    bsn! {
+        Node {
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(space::S4),
+        }
+        RadioGroup
+        RadioGroupState {
+            active_index: selected_index,
+            count: count,
+        }
         Children [
             { members },
         ]
@@ -155,6 +351,36 @@ fn idle_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
             ),
             ( Text(label) TextRole(Role::Body) ),
         ]
+    }
+}
+
+/// System to advance radio group keyboard navigation events.
+pub fn advance_radio_group_navigation(
+    mut events: MessageReader<RadioGroupNavEvent>,
+    mut groups: Query<(&mut RadioGroupState, &Children), With<RadioGroup>>,
+    buttons: Query<(Entity, &RadioButtonIndex, Has<Checked>), With<RadioButton>>,
+    mut commands: Commands,
+) {
+    for event in events.read() {
+        if let Ok((mut group_state, children)) = groups.get_mut(event.group) {
+            let next_idx = navigate_radio_group(
+                group_state.active_index,
+                group_state.count,
+                event.action,
+                true,
+            );
+            group_state.active_index = Some(next_idx);
+
+            for child in children.iter() {
+                if let Ok((entity, btn_idx, is_checked)) = buttons.get(*child) {
+                    if btn_idx.0 == next_idx && !is_checked {
+                        commands.entity(entity).insert(Checked);
+                    } else if btn_idx.0 != next_idx && is_checked {
+                        commands.entity(entity).remove::<Checked>();
+                    }
+                }
+            }
+        }
     }
 }
 

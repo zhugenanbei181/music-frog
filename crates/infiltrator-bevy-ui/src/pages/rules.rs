@@ -1,9 +1,12 @@
-//! The Rules page (分流规则): rule inspection, rule providers (MRS),
+//! The Rules page (分流规则): ruleset table, MRS/geosite providers,
 //! rule tracer, and hit statistics.
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`RulesLine`],
-//! [`RuleRowMarker`]). The page self-registers
-//! [`apply_rules_projection`] once per world via [`RulesPageRoot`].
+//! [`RuleHitText`], [`RuleProxyText`], [`RulePayloadText`], [`RuleTypeText`],
+//! [`ProviderNameText`], [`ProviderCountText`], [`ProviderUpdatedText`]).
+//! The page self-registers [`apply_rules_projection`] and action observers
+//! once per world via [`RulesPageRoot`]. When [`RulesProjectionUpdated`]
+//! fires, texts and hit counts restamp in place without tree rebuilds.
 
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::component::Component;
@@ -13,7 +16,7 @@ use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, ResMut};
+use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn, template_value};
 use bevy::ui::prelude::{
@@ -21,7 +24,7 @@ use bevy::ui::prelude::{
     UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -29,7 +32,10 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
+use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
+
+pub use crate::pages::rules_mrs::{RulesMrsRoot, UnpackRuleProviderButton, rules_mrs_scene};
 
 /// Root marker on the Rules page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -47,10 +53,10 @@ pub struct RulesLine(pub RulesLineKind);
 /// Different text lines on the rules page.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum RulesLineKind {
-    /// Overview summary: total rules and provider counts.
+    /// Overview summary: total rules and active providers count.
     #[default]
     Summary,
-    /// Default match action.
+    /// Default fallback rule target.
     DefaultAction,
 }
 
@@ -58,9 +64,33 @@ pub enum RulesLineKind {
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RuleHitText(pub usize);
 
-/// Marker for a rule item proxy target text.
+/// Marker for a rule item proxy outbound text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RuleProxyText(pub usize);
+
+/// Marker for a rule item payload text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RulePayloadText(pub usize);
+
+/// Marker for a rule item type text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RuleTypeText(pub usize);
+
+/// Marker for a rule provider name text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProviderNameText(pub usize);
+
+/// Marker for a rule provider count text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProviderCountText(pub usize);
+
+/// Marker for a rule provider update time text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProviderUpdatedText(pub usize);
+
+/// Marker for the "Refresh Rule Providers" button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RefreshRuleProvidersButton;
 
 /// A single rule entry.
 #[derive(Clone, Debug, PartialEq)]
@@ -72,7 +102,7 @@ pub struct RuleItem {
     pub hit_count: u64,
 }
 
-/// A rule provider (e.g. MRS rule set) entry.
+/// A rule provider (MRS / geosite) entry.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RuleProviderItem {
     pub name: String,
@@ -85,9 +115,9 @@ pub struct RuleProviderItem {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RulesProjection {
     pub total_rules: usize,
-    pub rules: Vec<RuleItem>,
-    pub providers: Vec<RuleProviderItem>,
     pub default_action: String,
+    pub providers: Vec<RuleProviderItem>,
+    pub rules: Vec<RuleItem>,
 }
 
 impl RulesProjection {
@@ -105,15 +135,15 @@ impl RulesProjection {
                 },
                 RuleProviderItem {
                     name: "geoip-cn".to_owned(),
-                    rule_count: 890,
+                    rule_count: 850,
                     behavior: "ipcidr".to_owned(),
-                    updated_at: "2026-09-02 06:00".to_owned(),
+                    updated_at: "2026-09-01 12:00".to_owned(),
                 },
                 RuleProviderItem {
-                    name: "custom-direct-list".to_owned(),
-                    rule_count: 532,
+                    name: "custom-reject-ads".to_owned(),
+                    rule_count: 572,
                     behavior: "classical".to_owned(),
-                    updated_at: "2026-09-01 18:30".to_owned(),
+                    updated_at: "2026-08-30 18:30".to_owned(),
                 },
             ],
             rules: vec![
@@ -121,43 +151,36 @@ impl RulesProjection {
                     id: 1,
                     rule_type: "DOMAIN-SUFFIX".to_owned(),
                     payload: "google.com".to_owned(),
-                    proxy: "节点选择".to_owned(),
+                    proxy: "国外媒体 (GLOBAL-MEDIA)".to_owned(),
                     hit_count: 1420,
                 },
                 RuleItem {
                     id: 2,
-                    rule_type: "DOMAIN-SUFFIX".to_owned(),
-                    payload: "github.com".to_owned(),
-                    proxy: "节点选择".to_owned(),
-                    hit_count: 856,
+                    rule_type: "DOMAIN-KEYWORD".to_owned(),
+                    payload: "github".to_owned(),
+                    proxy: "节点选择 (PROXIES)".to_owned(),
+                    hit_count: 852,
                 },
                 RuleItem {
                     id: 3,
-                    rule_type: "GEOSITE".to_owned(),
-                    payload: "cn".to_owned(),
+                    rule_type: "GEOIP".to_owned(),
+                    payload: "CN".to_owned(),
                     proxy: "DIRECT".to_owned(),
                     hit_count: 4210,
                 },
                 RuleItem {
                     id: 4,
-                    rule_type: "GEOIP".to_owned(),
-                    payload: "CN".to_owned(),
-                    proxy: "DIRECT".to_owned(),
-                    hit_count: 3105,
+                    rule_type: "RULE-SET".to_owned(),
+                    payload: "custom-reject-ads".to_owned(),
+                    proxy: "REJECT".to_owned(),
+                    hit_count: 128,
                 },
                 RuleItem {
                     id: 5,
-                    rule_type: "IP-CIDR".to_owned(),
-                    payload: "192.168.0.0/16".to_owned(),
-                    proxy: "DIRECT".to_owned(),
-                    hit_count: 120,
-                },
-                RuleItem {
-                    id: 6,
                     rule_type: "MATCH".to_owned(),
-                    payload: "*".to_owned(),
-                    proxy: "漏网之鱼".to_owned(),
-                    hit_count: 65,
+                    payload: "".to_owned(),
+                    proxy: "DIRECT".to_owned(),
+                    hit_count: 56,
                 },
             ],
         }
@@ -180,12 +203,13 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         projection.total_rules,
         projection.providers.len()
     );
-    let default_act = format!("最终匹配目标: {}", projection.default_action);
+    let default_action = format!("最终匹配目标: {}", projection.default_action);
 
     let provider_scenes: Vec<Box<dyn Scene>> = projection
         .providers
         .iter()
-        .map(|p| Box::new(provider_item_scene(p, palette)) as Box<dyn Scene>)
+        .enumerate()
+        .map(|(idx, p)| Box::new(provider_item_scene(idx, p, palette)) as Box<dyn Scene>)
         .collect();
 
     let rule_scenes: Vec<Box<dyn Scene>> = projection
@@ -198,7 +222,10 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
     bsn! {
         Node {
             width: percent(100),
+            min_width: px(0.0),
+            max_width: percent(100),
             height: percent(100),
+            min_height: px(0.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(space::S16),
             overflow: Overflow::scroll_y(),
@@ -206,16 +233,19 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         PageRoot(Route::Rules)
         RulesPageRoot
         Children [
-            ( { header_card_scene(summary, default_act, palette) } ),
+            ( { header_card_scene(summary, default_action, palette) } ),
+            ( { crate::pages::rules_tracer::rules_tracer_scene(palette) } ),
+            ( { crate::pages::rules_mrs::rules_mrs_scene(palette) } ),
+            ( { crate::pages::rules_builder::rules_builder_scene(palette) } ),
             ( { providers_card_scene(provider_scenes, palette) } ),
-            ( { rules_table_card_scene(rule_scenes, palette) } ),
+            ( { rules_table_scene(rule_scenes, palette) } ),
         ]
     }
 }
 
 fn header_card_scene(
     summary: String,
-    default_act: String,
+    default_action: String,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
@@ -237,7 +267,7 @@ fn header_card_scene(
                         column_gap: Val::Px(space::S12),
                     }
                     Children [
-                        ( { icon_tile_scene(IconId::Activity, 36.0, palette) } ),
+                        ( { icon_tile_scene(IconId::Zap, 36.0, palette) } ),
                         (
                             Node {
                                 flex_direction: FlexDirection::Column,
@@ -245,7 +275,7 @@ fn header_card_scene(
                             }
                             Children [
                                 ( Text(summary) RulesLine(RulesLineKind::Summary) TextRole(Role::Heading) ),
-                                ( Text(default_act) RulesLine(RulesLineKind::DefaultAction) TextRole(Role::Caption) ),
+                                ( Text(default_action) RulesLine(RulesLineKind::DefaultAction) TextRole(Role::Caption) ),
                             ]
                         ),
                     ]
@@ -266,6 +296,7 @@ fn header_card_scene(
                             }
                             BackgroundColor({ palette.surface_elevated })
                             Button
+                            RefreshRuleProvidersButton
                             Children [
                                 ( Text({ "刷新规则集".to_owned() }) TextRole(Role::Body) ),
                             ]
@@ -287,10 +318,13 @@ fn providers_card_scene(
             Box::new(bsn! {
                 Node {
                     width: percent(100),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::SpaceBetween,
                     padding: UiRect::bottom(Val::Px(space::S8)),
                 }
                 Children [
-                    ( Text({ "规则集 (Rule Providers / MRS)".to_owned() }) TextRole(Role::BodyStrong) ),
+                    ( Text({ "外部规则集 (Rule Providers)".to_owned() }) TextRole(Role::BodyStrong) ),
+                    ( Text({ "MRS / GeoSite 二进制加速".to_owned() }) TextRole(Role::Caption) ),
                 ]
             }),
             Box::new(bsn! {
@@ -308,7 +342,11 @@ fn providers_card_scene(
     )
 }
 
-fn provider_item_scene(provider: &RuleProviderItem, palette: &UiPalette) -> impl Scene + use<> {
+fn provider_item_scene(
+    idx: usize,
+    provider: &RuleProviderItem,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let name = provider.name.clone();
     let count_info = format!("{} 条 ({})", provider.rule_count, provider.behavior);
     let updated = format!("更新: {}", provider.updated_at);
@@ -316,9 +354,9 @@ fn provider_item_scene(provider: &RuleProviderItem, palette: &UiPalette) -> impl
     bsn! {
         Node {
             width: percent(100),
+            padding: UiRect::all(Val::Px(space::S8)),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
             border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
         }
         BackgroundColor({ palette.surface_elevated })
@@ -329,19 +367,16 @@ fn provider_item_scene(provider: &RuleProviderItem, palette: &UiPalette) -> impl
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    ( Text(name) TextRole(Role::Body) ),
-                    ( Text(count_info) TextRole(Role::Caption) ),
+                    ( Text(name) ProviderNameText(idx) TextRole(Role::Body) ),
+                    ( Text(count_info) ProviderCountText(idx) TextRole(Role::Caption) ),
                 ]
             ),
-            ( Text(updated) TextRole(Role::Caption) ),
+            ( Text(updated) ProviderUpdatedText(idx) TextRole(Role::Caption) ),
         ]
     }
 }
 
-fn rules_table_card_scene(
-    rule_scenes: Vec<Box<dyn Scene>>,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
+fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> impl Scene + use<> {
     surface_scene(
         vec![
             Box::new(bsn! {
@@ -352,15 +387,15 @@ fn rules_table_card_scene(
                     padding: UiRect::bottom(Val::Px(space::S8)),
                 }
                 Children [
-                    ( Text({ "核心分流规则表 (Top Rules)".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ( Text({ "按匹配优先级自上而下命中".to_owned() }) TextRole(Role::Caption) ),
+                    ( Text({ "规则匹配序列表 (Rules Flow)".to_owned() }) TextRole(Role::BodyStrong) ),
+                    ( Text({ "自上而下第一命中即生效".to_owned() }) TextRole(Role::Caption) ),
                 ]
             }),
             Box::new(bsn! {
                 Node {
                     width: percent(100),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
+                    row_gap: Val::Px(space::S8),
                 }
                 Children [
                     { rule_scenes },
@@ -373,45 +408,44 @@ fn rules_table_card_scene(
 
 fn rule_row_scene(idx: usize, rule: &RuleItem, palette: &UiPalette) -> impl Scene + use<> {
     let idx_str = format!("#{}", rule.id);
-    let type_str = rule.rule_type.clone();
+    let type_str = format!("[{}]", rule.rule_type);
     let payload = rule.payload.clone();
     let proxy = rule.proxy.clone();
-    let hit_str = format!("{} 次命中", rule.hit_count);
+    let hits = format!("{} 次命中", rule.hit_count);
 
-    bsn! {
-        Node {
-            width: percent(100),
-            min_height: px(palette.control_height_px),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            (
-                Node {
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S12),
-                }
-                Children [
-                    ( Text(idx_str) TextRole(Role::Caption) ),
-                    ( Text(type_str) TextRole(Role::BodyStrong) ),
-                    ( Text(payload) TextRole(Role::Body) ),
-                ]
-            ),
-            (
-                Node {
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S12),
-                }
-                Children [
-                    ( Text(proxy) RuleProxyText(idx) TextRole(Role::Body) ),
-                    ( Text(hit_str) RuleHitText(idx) TextRole(Role::Mono) ),
-                ]
-            ),
-        ]
-    }
+    surface_scene(
+        vec![Box::new(bsn! {
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+            }
+            Children [
+                (
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S12),
+                    }
+                    Children [
+                        ( Text(idx_str) TextRole(Role::Caption) ),
+                        ( Text(type_str) RuleTypeText(idx) TextRole(Role::BodyStrong) ),
+                        ( Text(payload) RulePayloadText(idx) TextRole(Role::Body) ),
+                    ]
+                ),
+                (
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S12),
+                    }
+                    Children [
+                        ( Text(proxy) RuleProxyText(idx) TextRole(Role::Body) ),
+                        ( Text(hits) RuleHitText(idx) TextRole(Role::Caption) ),
+                    ]
+                ),
+            ]
+        })],
+        palette,
+    )
 }
 
 // ---- Observer & Update Hook -----------------------------------------------
@@ -423,9 +457,24 @@ fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     let mut commands = world.commands();
     commands.insert_resource(RulesPageBound);
     commands.add_observer(apply_rules_projection);
+    commands.add_observer(on_rules_action_activated);
+}
+
+pub(crate) fn on_rules_action_activated(
+    activate: On<Activate>,
+    buttons: Query<(), With<RefreshRuleProvidersButton>>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    if buttons.contains(activate.entity) {
+        handle.submit(UiCommand::RefreshRuleProviders);
+    }
 }
 
 #[allow(clippy::type_complexity)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_rules_projection(
     update: On<RulesProjectionUpdated>,
     mut last: Option<ResMut<LastRulesProjection>>,
@@ -435,6 +484,11 @@ pub(crate) fn apply_rules_projection(
             With<RulesLine>,
             Without<RuleHitText>,
             Without<RuleProxyText>,
+            Without<RulePayloadText>,
+            Without<RuleTypeText>,
+            Without<ProviderNameText>,
+            Without<ProviderCountText>,
+            Without<ProviderUpdatedText>,
         ),
     >,
     mut hits: Query<
@@ -443,6 +497,11 @@ pub(crate) fn apply_rules_projection(
             With<RuleHitText>,
             Without<RulesLine>,
             Without<RuleProxyText>,
+            Without<RulePayloadText>,
+            Without<RuleTypeText>,
+            Without<ProviderNameText>,
+            Without<ProviderCountText>,
+            Without<ProviderUpdatedText>,
         ),
     >,
     mut proxies: Query<
@@ -451,6 +510,76 @@ pub(crate) fn apply_rules_projection(
             With<RuleProxyText>,
             Without<RulesLine>,
             Without<RuleHitText>,
+            Without<RulePayloadText>,
+            Without<RuleTypeText>,
+            Without<ProviderNameText>,
+            Without<ProviderCountText>,
+            Without<ProviderUpdatedText>,
+        ),
+    >,
+    mut payloads: Query<
+        (&mut Text, &RulePayloadText),
+        (
+            With<RulePayloadText>,
+            Without<RulesLine>,
+            Without<RuleHitText>,
+            Without<RuleProxyText>,
+            Without<RuleTypeText>,
+            Without<ProviderNameText>,
+            Without<ProviderCountText>,
+            Without<ProviderUpdatedText>,
+        ),
+    >,
+    mut types: Query<
+        (&mut Text, &RuleTypeText),
+        (
+            With<RuleTypeText>,
+            Without<RulesLine>,
+            Without<RuleHitText>,
+            Without<RuleProxyText>,
+            Without<RulePayloadText>,
+            Without<ProviderNameText>,
+            Without<ProviderCountText>,
+            Without<ProviderUpdatedText>,
+        ),
+    >,
+    mut provider_names: Query<
+        (&mut Text, &ProviderNameText),
+        (
+            With<ProviderNameText>,
+            Without<RulesLine>,
+            Without<RuleHitText>,
+            Without<RuleProxyText>,
+            Without<RulePayloadText>,
+            Without<RuleTypeText>,
+            Without<ProviderCountText>,
+            Without<ProviderUpdatedText>,
+        ),
+    >,
+    mut provider_counts: Query<
+        (&mut Text, &ProviderCountText),
+        (
+            With<ProviderCountText>,
+            Without<RulesLine>,
+            Without<RuleHitText>,
+            Without<RuleProxyText>,
+            Without<RulePayloadText>,
+            Without<RuleTypeText>,
+            Without<ProviderNameText>,
+            Without<ProviderUpdatedText>,
+        ),
+    >,
+    mut provider_updates: Query<
+        (&mut Text, &ProviderUpdatedText),
+        (
+            With<ProviderUpdatedText>,
+            Without<RulesLine>,
+            Without<RuleHitText>,
+            Without<RuleProxyText>,
+            Without<RulePayloadText>,
+            Without<RuleTypeText>,
+            Without<ProviderNameText>,
+            Without<ProviderCountText>,
         ),
     >,
 ) {
@@ -459,27 +588,81 @@ pub(crate) fn apply_rules_projection(
     for (mut text, line) in &mut lines {
         match line.0 {
             RulesLineKind::Summary => {
-                text.0 = format!(
+                let want = format!(
                     "分流规则 · 共 {} 条规则 ({} 个规则集 / 命中统计开启)",
                     projection.total_rules,
                     projection.providers.len()
                 );
+                if text.0 != want {
+                    text.0 = want;
+                }
             }
             RulesLineKind::DefaultAction => {
-                text.0 = format!("最终匹配目标: {}", projection.default_action);
+                let want = format!("最终匹配目标: {}", projection.default_action);
+                if text.0 != want {
+                    text.0 = want;
+                }
             }
         }
     }
 
     for (mut text, marker) in &mut hits {
         if let Some(rule) = projection.rules.get(marker.0) {
-            text.0 = format!("{} 次命中", rule.hit_count);
+            let want = format!("{} 次命中", rule.hit_count);
+            if text.0 != want {
+                text.0 = want;
+            }
         }
     }
 
     for (mut text, marker) in &mut proxies {
-        if let Some(rule) = projection.rules.get(marker.0) {
+        if let Some(rule) = projection.rules.get(marker.0)
+            && text.0 != rule.proxy
+        {
             text.0 = rule.proxy.clone();
+        }
+    }
+
+    for (mut text, marker) in &mut payloads {
+        if let Some(rule) = projection.rules.get(marker.0)
+            && text.0 != rule.payload
+        {
+            text.0 = rule.payload.clone();
+        }
+    }
+
+    for (mut text, marker) in &mut types {
+        if let Some(rule) = projection.rules.get(marker.0) {
+            let want = format!("[{}]", rule.rule_type);
+            if text.0 != want {
+                text.0 = want;
+            }
+        }
+    }
+
+    for (mut text, marker) in &mut provider_names {
+        if let Some(provider) = projection.providers.get(marker.0)
+            && text.0 != provider.name
+        {
+            text.0 = provider.name.clone();
+        }
+    }
+
+    for (mut text, marker) in &mut provider_counts {
+        if let Some(provider) = projection.providers.get(marker.0) {
+            let want = format!("{} 条 ({})", provider.rule_count, provider.behavior);
+            if text.0 != want {
+                text.0 = want;
+            }
+        }
+    }
+
+    for (mut text, marker) in &mut provider_updates {
+        if let Some(provider) = projection.providers.get(marker.0) {
+            let want = format!("更新: {}", provider.updated_at);
+            if text.0 != want {
+                text.0 = want;
+            }
         }
     }
 
@@ -496,7 +679,13 @@ mod tests {
     fn demo_rules_fixture() {
         let proj = RulesProjection::demo();
         assert_eq!(proj.total_rules, 2842);
+        assert_eq!(proj.default_action, "DIRECT (漏网之鱼直连)");
         assert_eq!(proj.providers.len(), 3);
-        assert_eq!(proj.rules.len(), 6);
+        assert_eq!(proj.providers[0].name, "geosite-geolocation-!cn");
+        assert_eq!(proj.providers[0].rule_count, 1420);
+        assert_eq!(proj.rules.len(), 5);
+        assert_eq!(proj.rules[0].rule_type, "DOMAIN-SUFFIX");
+        assert_eq!(proj.rules[0].payload, "google.com");
+        assert_eq!(proj.rules[0].proxy, "国外媒体 (GLOBAL-MEDIA)");
     }
 }

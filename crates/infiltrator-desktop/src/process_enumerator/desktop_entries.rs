@@ -124,9 +124,9 @@ impl DesktopEntryScanner {
             if let Ok(entries) = std::fs::read_dir(path) {
                 for entry in entries.filter_map(|r| r.ok()) {
                     let file_path = entry.path();
-                    if file_path.extension().and_then(|e| e.to_str()) == Some("desktop") {
-                        if let Ok(content) = std::fs::read_to_string(&file_path) {
-                            if let Some(desktop_entry) = Self::parse_desktop_file(&content) {
+                    if file_path.extension().and_then(|e| e.to_str()) == Some("desktop")
+                        && let Ok(content) = std::fs::read_to_string(&file_path)
+                            && let Some(desktop_entry) = Self::parse_desktop_file(&content) {
                                 let key = desktop_entry
                                     .exec
                                     .rsplit('/')
@@ -135,8 +135,6 @@ impl DesktopEntryScanner {
                                     .to_ascii_lowercase();
                                 self.entries.insert(key, desktop_entry);
                             }
-                        }
-                    }
                 }
             }
         }

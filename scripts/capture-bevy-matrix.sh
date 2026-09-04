@@ -52,7 +52,7 @@ APP_ID="infiltrator-bevy-ui"
 # PID stays the authoritative binding either way.
 APP_TITLE="MusicFrog Infiltrator — Bevy"
 CRATE_DIR="$REPO/crates/infiltrator-bevy-ui"
-APP="$CRATE_DIR/target/debug/infiltrator-bevy-ui"
+APP="$REPO/target/debug/infiltrator-bevy-ui"
 ASSET_ROOT="$REPO/crates/infiltrator-bevy-widgets"
 MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$REPO/scripts/capture_bevy_scenarios.tsv}"
 OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/docs/screenshots/bevy}"
@@ -220,7 +220,7 @@ while IFS=$'\t' read -r name page skin window_size; do
     exit 2
   }
   case "$page" in
-  overview) ;;
+  overview | proxies | profiles | rules | connections | logs | dns | doctor | app_routing | sync | settings) ;;
   *)
     printf 'invalid scenario row (bad page): %s -> %s\n' "$name" "$page" >&2
     exit 2
@@ -482,6 +482,7 @@ capture_one() {
       XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$NIRI_SOCK" DISPLAY= \
         LIBGL_ALWAYS_SOFTWARE=1 WGPU_BACKEND="$wgpu_backend" \
         BEVY_ASSET_ROOT="$ASSET_ROOT" \
+        INFILTRATOR_BEVY_PAGE="$page" \
         INFILTRATOR_BEVY_SKIN="$skin" \
         INFILTRATOR_BEVY_WINDOW_SIZE="$window_size" \
         INFILTRATOR_CAPTURE_MARKER="$marker" \
@@ -490,6 +491,7 @@ capture_one() {
       XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$NIRI_SOCK" DISPLAY= \
         LIBGL_ALWAYS_SOFTWARE=1 \
         BEVY_ASSET_ROOT="$ASSET_ROOT" \
+        INFILTRATOR_BEVY_PAGE="$page" \
         INFILTRATOR_BEVY_SKIN="$skin" \
         INFILTRATOR_BEVY_WINDOW_SIZE="$window_size" \
         INFILTRATOR_CAPTURE_MARKER="$marker" \

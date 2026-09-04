@@ -1,13 +1,14 @@
 //! The Proxies page (代理策略): proxy groups and nodes, latency testing,
-//! group selection, and active outbound routing.
+//! group selection, collapsible strategy groups, and active outbound routing.
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`ProxiesLine`],
-//! [`ProxyNodeMarker`], [`LatencyText`]). The page self-registers
-//! [`apply_proxies_projection`] once per world via the [`ProxiesPageRoot`]
-//! `on_insert` bind hook. When [`ProxiesProjectionUpdated`] fires, texts,
-//! latency inks, and selection states restamp in place without tree rebuilds.
+//! [`NodeNameText`], [`NodeFlagText`], [`NodeProtoText`], [`LatencyText`],
+//! [`GroupCurrentText`], [`GroupFoldText`]).
+//! The page self-registers [`apply_proxies_projection`] and action observers
+//! once per world via [`ProxiesPageRoot`]. When [`ProxiesProjectionUpdated`] fires,
+//! texts, latency inks, group expansion, and selection states restamp in place
+//! without tree rebuilds.
 
-use bevy::a11y::AccessibilityNode;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
@@ -18,22 +19,18 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
+    BackgroundColor, BorderColor, Display, FlexDirection, Node, Overflow, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use bevy::ui_widgets::Activate;
 use infiltrator_bevy_widgets::button::ControlVisual;
-use infiltrator_bevy_widgets::icon::IconId;
-use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
+use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
 
 /// Root marker on the Proxies page scene.
@@ -68,9 +65,113 @@ pub struct LatencyText {
     pub node_idx: usize,
 }
 
-/// Marker for a proxy node's selection state text.
+/// Marker for a proxy node's name text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NodeNameText {
+    pub group_idx: usize,
+    pub node_idx: usize,
+}
+
+/// Marker for a proxy node's country flag text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NodeFlagText {
+    pub group_idx: usize,
+    pub node_idx: usize,
+}
+
+/// Marker for a proxy node's protocol badge text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NodeProtoText {
+    pub group_idx: usize,
+    pub node_idx: usize,
+}
+
+/// Marker for a proxy group's current selection label text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GroupCurrentText(pub usize);
+
+/// Marker for a proxy group's fold/expand toggle button text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GroupFoldText(pub usize);
+
+/// Marker for a proxy group's nodes container.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GroupNodesContainer(pub usize);
+
+/// Marker for the "Test All Groups" button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TestAllProxiesButton;
+
+/// Marker for a proxy group speed test button ("组测速").
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct TestProxyGroupButton {
+    pub group_idx: usize,
+    pub group_name: String,
+}
+
+/// Marker for a proxy group fold toggle button.
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProxyGroupFoldButton {
+    pub group_idx: usize,
+    pub group_name: String,
+}
+
+/// Marker and target information for a proxy node selection button.
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProxyNodeButton {
+    pub group_idx: usize,
+    pub node_idx: usize,
+    pub group_name: String,
+    pub node_name: String,
+}
+
+/// Marker for the "Add Node" button (+ 添加节点).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AddCustomNodeButton;
+
+/// Marker for the view mode toggle button (网格/列表视图).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ToggleViewModeButton;
+
+/// Marker for the "Filter Alive" toggle switch (只看可用).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FilterAliveToggle;
+
+/// Marker for the sort mode pills.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ProxySortMode {
+    #[default]
+    LatencyAsc,
+    LatencyDesc,
+    NameAsc,
+    NameDesc,
+}
+
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProxySortPill(pub ProxySortMode);
+
+/// Marker for the delay test URL indicator ("测试地址").
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DelayTestUrlIndicator;
+
+/// Marker for favorite pin icon / button on proxy node cards.
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct NodePinButton {
+    pub group_idx: usize,
+    pub node_idx: usize,
+    pub node_name: String,
+}
+
+/// Marker for latency trend / waveform icon on proxy node cards.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LatencyTrendIcon {
+    pub group_idx: usize,
+    pub node_idx: usize,
+}
+
+/// Marker for capability UDP tag on proxy node cards.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NodeUdpTag {
     pub group_idx: usize,
     pub node_idx: usize,
 }
@@ -84,12 +185,26 @@ pub enum LatencyTier {
     Timeout,
 }
 
-/// Pure helper to classify and format latency in milliseconds.
+/// Convenience helper to return the flag emoji for a node name, or 🌐 if unrecognized.
+pub fn node_flag(name: &str) -> &'static str {
+    crate::pages::proxies_filter::node_flag(name)
+}
+
+/// Canonical display name for proxy protocols (Shadowsocks, Vless, VMess, Trojan, Hysteria2).
+pub fn format_protocol_chip(raw_type: &str) -> String {
+    crate::pages::proxies_filter::format_protocol_chip(raw_type)
+}
+
+/// Multi-mode fuzzy search and pinyin/abbreviation filter (BEVY-GAP-032).
+pub fn matches_proxy_filter(node: &ProxyNode, query: &str) -> bool {
+    crate::pages::proxies_filter::matches_proxy_filter(node, query)
+}
+
 pub fn format_latency(delay_ms: Option<u32>) -> (String, LatencyTier) {
     match delay_ms {
         Some(0) => ("超时".to_owned(), LatencyTier::Timeout),
-        Some(ms) if ms < 150 => (format!("{ms} ms"), LatencyTier::Fast),
-        Some(ms) if ms < 500 => (format!("{ms} ms"), LatencyTier::Medium),
+        Some(ms) if ms < 100 => (format!("{ms} ms"), LatencyTier::Fast),
+        Some(ms) if ms < 250 => (format!("{ms} ms"), LatencyTier::Medium),
         Some(ms) => (format!("{ms} ms"), LatencyTier::Slow),
         None => ("未测速".to_owned(), LatencyTier::Timeout),
     }
@@ -100,7 +215,8 @@ pub fn latency_color(tier: LatencyTier, palette: &UiPalette) -> Color {
     match tier {
         LatencyTier::Fast => palette.success,
         LatencyTier::Medium => palette.warning,
-        LatencyTier::Slow | LatencyTier::Timeout => palette.ink_dim,
+        LatencyTier::Slow => palette.danger,
+        LatencyTier::Timeout => palette.danger,
     }
 }
 
@@ -111,6 +227,8 @@ pub struct ProxyNode {
     pub node_type: String,
     pub delay_ms: Option<u32>,
     pub selected: bool,
+    pub favorite: bool,
+    pub features: Vec<String>,
 }
 
 /// A proxy group snapshot.
@@ -119,6 +237,7 @@ pub struct ProxyGroup {
     pub name: String,
     pub group_type: String,
     pub current: String,
+    pub expanded: bool,
     pub proxies: Vec<ProxyNode>,
 }
 
@@ -141,30 +260,39 @@ impl ProxiesProjection {
                     name: "节点选择 (PROXIES)".to_owned(),
                     group_type: "Selector".to_owned(),
                     current: "🇭🇰 香港 01 · BGP 专线".to_owned(),
+                    expanded: true,
                     proxies: vec![
                         ProxyNode {
                             name: "🇭🇰 香港 01 · BGP 专线".to_owned(),
                             node_type: "Shadowsocks".to_owned(),
                             delay_ms: Some(38),
                             selected: true,
+                            favorite: true,
+                            features: vec!["UDP".to_owned(), "TFO".to_owned()],
                         },
                         ProxyNode {
                             name: "🇯🇵 日本东京 02 · 极速".to_owned(),
                             node_type: "Vmess".to_owned(),
                             delay_ms: Some(65),
                             selected: false,
+                            favorite: false,
+                            features: vec!["Vision".to_owned()],
                         },
                         ProxyNode {
                             name: "🇸🇬 新加坡 01 · Anycast".to_owned(),
                             node_type: "Trojan".to_owned(),
                             delay_ms: Some(72),
                             selected: false,
+                            favorite: false,
+                            features: vec!["Reality".to_owned()],
                         },
                         ProxyNode {
                             name: "🇺🇸 美国硅谷 01 · 4K".to_owned(),
                             node_type: "Hysteria2".to_owned(),
                             delay_ms: Some(152),
                             selected: false,
+                            favorite: false,
+                            features: vec!["UDP".to_owned(), "Reality".to_owned()],
                         },
                     ],
                 },
@@ -172,18 +300,23 @@ impl ProxiesProjection {
                     name: "自动选择 (AUTO)".to_owned(),
                     group_type: "URLTest".to_owned(),
                     current: "🇭🇰 香港 01 · BGP 专线".to_owned(),
+                    expanded: true,
                     proxies: vec![
                         ProxyNode {
                             name: "🇭🇰 香港 01 · BGP 专线".to_owned(),
                             node_type: "Shadowsocks".to_owned(),
                             delay_ms: Some(38),
                             selected: true,
+                            favorite: true,
+                            features: vec!["UDP".to_owned(), "TFO".to_owned()],
                         },
                         ProxyNode {
                             name: "🇯🇵 日本东京 02 · 极速".to_owned(),
                             node_type: "Vmess".to_owned(),
                             delay_ms: Some(65),
                             selected: false,
+                            favorite: false,
+                            features: vec!["Vision".to_owned()],
                         },
                     ],
                 },
@@ -191,18 +324,23 @@ impl ProxiesProjection {
                     name: "国外媒体 (STREAMING)".to_owned(),
                     group_type: "Selector".to_owned(),
                     current: "🇸🇬 新加坡 01 · Anycast".to_owned(),
+                    expanded: true,
                     proxies: vec![
                         ProxyNode {
                             name: "🇸🇬 新加坡 01 · Anycast".to_owned(),
                             node_type: "Trojan".to_owned(),
                             delay_ms: Some(72),
                             selected: true,
+                            favorite: false,
+                            features: vec!["Reality".to_owned()],
                         },
                         ProxyNode {
                             name: "🇺🇸 美国硅谷 01 · 4K".to_owned(),
                             node_type: "Hysteria2".to_owned(),
                             delay_ms: Some(152),
                             selected: false,
+                            favorite: false,
+                            features: vec!["UDP".to_owned(), "Reality".to_owned()],
                         },
                     ],
                 },
@@ -250,7 +388,10 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
     bsn! {
         Node {
             width: percent(100),
+            min_width: px(0.0),
+            max_width: percent(100),
             height: percent(100),
+            min_height: px(0.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(space::S16),
             overflow: Overflow::scroll_y(),
@@ -259,9 +400,15 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
         ProxiesPageRoot
         Children [
             ( { header_card_scene(summary, active_exit, test_status, palette) } ),
+            ( { search_bar_card_scene(palette) } ),
+            ( { crate::pages::proxies_custom::custom_node_scene(palette) } ),
             { group_scenes },
         ]
     }
+}
+
+fn search_bar_card_scene(palette: &UiPalette) -> impl Scene + use<> {
+    crate::pages::proxies_card::search_bar_card_scene(palette)
 }
 
 fn header_card_scene(
@@ -270,184 +417,21 @@ fn header_card_scene(
     test_status: String,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
-    header_a11y.set_label("代理策略概览");
-
-    surface_scene(
-        vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                column_gap: Val::Px(space::S16),
-            }
-            template_value(AccessibilityNode(header_a11y))
-            Children [
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
-                    }
-                    Children [
-                        ( { icon_tile_scene(IconId::Globe, 36.0, palette) } ),
-                        (
-                            Node {
-                                flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
-                            }
-                            Children [
-                                ( Text(summary) ProxiesLine(ProxiesLineKind::Summary) TextRole(Role::Heading) ),
-                                (
-                                    Node {
-                                        align_items: AlignItems::Center,
-                                        column_gap: Val::Px(space::S8),
-                                    }
-                                    Children [
-                                        ( Text({ "当前出口:".to_owned() }) TextRole(Role::Caption) ),
-                                        ( Text(active_exit) ProxiesLine(ProxiesLineKind::ActiveExit) TextRole(Role::BodyStrong) ),
-                                    ]
-                                ),
-                            ]
-                        ),
-                    ]
-                ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                    }
-                    Children [
-                        ( Text(test_status) ProxiesLine(ProxiesLineKind::TestStatus) TextRole(Role::Caption) ),
-                        (
-                            Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            }
-                            BackgroundColor({ palette.accent })
-                            Button
-                            Children [
-                                ( Text({ "全部测速".to_owned() }) TextRole(Role::BodyStrong) ),
-                            ]
-                        ),
-                    ]
-                ),
-            ]
-        })],
-        palette,
-    )
+    crate::pages::proxies_card::header_card_scene(summary, active_exit, test_status, palette)
 }
 
 fn group_card_scene(g_idx: usize, group: &ProxyGroup, palette: &UiPalette) -> impl Scene + use<> {
-    let title = group.name.clone();
-    let type_badge = format!("[{}]", group.group_type);
-    let current_label = format!("选中: {}", group.current);
-
-    let node_scenes: Vec<Box<dyn Scene>> = group
-        .proxies
-        .iter()
-        .enumerate()
-        .map(|(n_idx, node)| {
-            Box::new(proxy_node_scene(g_idx, n_idx, node, palette)) as Box<dyn Scene>
-        })
-        .collect();
-
-    surface_scene(
-        vec![
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( Text(title) TextRole(Role::BodyStrong) ),
-                            ( Text(type_badge) TextRole(Role::Caption) ),
-                        ]
-                    ),
-                    ( Text(current_label) TextRole(Role::Caption) ),
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    { node_scenes },
-                ]
-            }),
-        ],
-        palette,
-    )
+    crate::pages::proxies_card::group_card_scene(g_idx, group, palette)
 }
 
-fn proxy_node_scene(
+pub fn proxy_node_scene(
     g_idx: usize,
     n_idx: usize,
+    group_name: &str,
     node: &ProxyNode,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let name = node.name.clone();
-    let (delay_str, tier) = format_latency(node.delay_ms);
-    let delay_color_val = latency_color(tier, palette);
-    let proto_tag = node.node_type.clone();
-
-    let bg = if node.selected {
-        palette.accent_container
-    } else {
-        palette.surface_elevated
-    };
-
-    bsn! {
-        Node {
-            width: percent(100),
-            min_height: px(palette.control_height_px),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ bg })
-        ControlVisual({ node.selected })
-        Button
-        Children [
-            (
-                Node {
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    ( Text(name) NodeNameText { group_idx: g_idx, node_idx: n_idx } TextRole(Role::Body) ),
-                    ( Text(proto_tag) TextRole(Role::Caption) ),
-                ]
-            ),
-            (
-                Node {
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    (
-                        Text(delay_str)
-                        LatencyText { group_idx: g_idx, node_idx: n_idx }
-                        TextRole(Role::Mono)
-                        TextColor(delay_color_val)
-                    ),
-                ]
-            ),
-        ]
-    }
+    crate::pages::proxies_card::proxy_node_scene(g_idx, n_idx, group_name, node, palette)
 }
 
 // ---- Observer & Update Hook -----------------------------------------------
@@ -459,9 +443,40 @@ fn bind_proxies_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     let mut commands = world.commands();
     commands.insert_resource(ProxiesPageBound);
     commands.add_observer(apply_proxies_projection);
+    commands.add_observer(on_proxies_action_activated);
+}
+
+pub(crate) fn on_proxies_action_activated(
+    activate: On<Activate>,
+    test_all_buttons: Query<(), With<TestAllProxiesButton>>,
+    test_group_buttons: Query<&TestProxyGroupButton>,
+    fold_buttons: Query<&ProxyGroupFoldButton>,
+    node_buttons: Query<&ProxyNodeButton>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    if test_all_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::TestAllProxyGroups);
+    } else if let Ok(btn) = test_group_buttons.get(activate.entity) {
+        handle.submit(UiCommand::TestProxyGroup {
+            group: btn.group_name.clone(),
+        });
+    } else if let Ok(btn) = fold_buttons.get(activate.entity) {
+        handle.submit(UiCommand::ToggleProxyGroupExpand {
+            group: btn.group_name.clone(),
+        });
+    } else if let Ok(btn) = node_buttons.get(activate.entity) {
+        handle.submit(UiCommand::SelectProxyNode {
+            group: btn.group_name.clone(),
+            node: btn.node_name.clone(),
+        });
+    }
 }
 
 #[allow(clippy::type_complexity)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_proxies_projection(
     update: On<ProxiesProjectionUpdated>,
     palette: Res<UiPalette>,
@@ -472,14 +487,47 @@ pub(crate) fn apply_proxies_projection(
             With<ProxiesLine>,
             Without<LatencyText>,
             Without<NodeNameText>,
+            Without<GroupCurrentText>,
+            Without<GroupFoldText>,
+            Without<NodeFlagText>,
+            Without<NodeProtoText>,
         ),
     >,
+    mut group_currents: Query<
+        (&mut Text, &GroupCurrentText),
+        (
+            With<GroupCurrentText>,
+            Without<ProxiesLine>,
+            Without<LatencyText>,
+            Without<NodeNameText>,
+            Without<GroupFoldText>,
+            Without<NodeFlagText>,
+            Without<NodeProtoText>,
+        ),
+    >,
+    mut group_folds: Query<
+        (&mut Text, &GroupFoldText),
+        (
+            With<GroupFoldText>,
+            Without<ProxiesLine>,
+            Without<LatencyText>,
+            Without<NodeNameText>,
+            Without<GroupCurrentText>,
+            Without<NodeFlagText>,
+            Without<NodeProtoText>,
+        ),
+    >,
+    mut group_containers: Query<(&mut Node, &GroupNodesContainer)>,
     mut latencies: Query<
         (&mut Text, &mut TextColor, &LatencyText),
         (
             With<LatencyText>,
             Without<ProxiesLine>,
             Without<NodeNameText>,
+            Without<GroupCurrentText>,
+            Without<GroupFoldText>,
+            Without<NodeFlagText>,
+            Without<NodeProtoText>,
         ),
     >,
     mut node_names: Query<
@@ -488,8 +536,43 @@ pub(crate) fn apply_proxies_projection(
             With<NodeNameText>,
             Without<ProxiesLine>,
             Without<LatencyText>,
+            Without<GroupCurrentText>,
+            Without<GroupFoldText>,
+            Without<NodeFlagText>,
+            Without<NodeProtoText>,
         ),
     >,
+    mut node_flags: Query<
+        (&mut Text, &NodeFlagText),
+        (
+            With<NodeFlagText>,
+            Without<ProxiesLine>,
+            Without<LatencyText>,
+            Without<NodeNameText>,
+            Without<GroupCurrentText>,
+            Without<GroupFoldText>,
+            Without<NodeProtoText>,
+        ),
+    >,
+    mut node_protos: Query<
+        (&mut Text, &NodeProtoText),
+        (
+            With<NodeProtoText>,
+            Without<ProxiesLine>,
+            Without<LatencyText>,
+            Without<NodeNameText>,
+            Without<GroupCurrentText>,
+            Without<GroupFoldText>,
+            Without<NodeFlagText>,
+        ),
+    >,
+    mut node_buttons: Query<(
+        &mut BackgroundColor,
+        &mut BorderColor,
+        &mut ControlVisual,
+        &mut ProxyNodeButton,
+    )>,
+    mut test_group_buttons: Query<&mut TestProxyGroupButton>,
 ) {
     let projection = &update.0;
 
@@ -515,6 +598,32 @@ pub(crate) fn apply_proxies_projection(
         }
     }
 
+    for (mut text, marker) in &mut group_currents {
+        if let Some(group) = projection.groups.get(marker.0) {
+            text.0 = format!("选中: {}", group.current);
+        }
+    }
+
+    for (mut text, marker) in &mut group_folds {
+        if let Some(group) = projection.groups.get(marker.0) {
+            text.0 = if group.expanded {
+                "折叠 ▼".to_owned()
+            } else {
+                "展开 ▶".to_owned()
+            };
+        }
+    }
+
+    for (mut node_layout, marker) in &mut group_containers {
+        if let Some(group) = projection.groups.get(marker.0) {
+            node_layout.display = if group.expanded {
+                Display::Flex
+            } else {
+                Display::None
+            };
+        }
+    }
+
     for (mut text, mut color, marker) in &mut latencies {
         if let Some(group) = projection.groups.get(marker.group_idx)
             && let Some(node) = group.proxies.get(marker.node_idx)
@@ -530,6 +639,52 @@ pub(crate) fn apply_proxies_projection(
             && let Some(node) = group.proxies.get(marker.node_idx)
         {
             text.0 = node.name.clone();
+        }
+    }
+
+    for (mut text, marker) in &mut node_flags {
+        if let Some(group) = projection.groups.get(marker.group_idx)
+            && let Some(node) = group.proxies.get(marker.node_idx)
+        {
+            text.0 = node_flag(&node.name).to_owned();
+        }
+    }
+
+    for (mut text, marker) in &mut node_protos {
+        if let Some(group) = projection.groups.get(marker.group_idx)
+            && let Some(node) = group.proxies.get(marker.node_idx)
+        {
+            text.0 = format_protocol_chip(&node.node_type);
+        }
+    }
+
+    for (mut bg, mut border, mut visual, mut btn) in &mut node_buttons {
+        if let Some(group) = projection.groups.get(btn.group_idx)
+            && let Some(node) = group.proxies.get(btn.node_idx)
+        {
+            btn.group_name = group.name.clone();
+            btn.node_name = node.name.clone();
+            visual.0 = node.selected;
+            bg.0 = if node.selected {
+                palette.accent_container
+            } else {
+                palette.surface_elevated
+            };
+            let border_col = if node.selected {
+                palette.accent
+            } else {
+                palette.border
+            };
+            border.top = border_col;
+            border.right = border_col;
+            border.bottom = border_col;
+            border.left = border_col;
+        }
+    }
+
+    for mut btn in &mut test_group_buttons {
+        if let Some(group) = projection.groups.get(btn.group_idx) {
+            btn.group_name = group.name.clone();
         }
     }
 
@@ -570,6 +725,52 @@ mod tests {
         let proj = ProxiesProjection::demo();
         assert_eq!(proj.groups.len(), 3);
         assert_eq!(proj.total_nodes(), 8);
-        assert!(!proj.active_exit.is_empty());
+        assert_eq!(proj.active_exit, "🇭🇰 香港 01 · BGP 专线");
+        assert_eq!(proj.groups[0].name, "节点选择 (PROXIES)");
+        assert_eq!(proj.groups[0].group_type, "Selector");
+        assert_eq!(proj.groups[0].proxies.len(), 4);
+        assert_eq!(proj.groups[0].proxies[0].name, "🇭🇰 香港 01 · BGP 专线");
+        assert_eq!(proj.groups[0].proxies[0].delay_ms, Some(38));
+        assert!(proj.groups[0].expanded);
+    }
+
+    #[test]
+    fn test_node_flag_extraction() {
+        assert_eq!(node_flag("🇭🇰 香港 01 · BGP 专线"), "🇭🇰");
+        assert_eq!(node_flag("HK-IEPL-01"), "🇭🇰");
+        assert_eq!(node_flag("🇯🇵 日本东京 02 · 极速"), "🇯🇵");
+        assert_eq!(node_flag("JP-Tokyo-01"), "🇯🇵");
+        assert_eq!(node_flag("🇸🇬 新加坡 01 · Anycast"), "🇸🇬");
+        assert_eq!(node_flag("SG-01"), "🇸🇬");
+        assert_eq!(node_flag("🇺🇸 美国硅谷 01 · 4K"), "🇺🇸");
+        assert_eq!(node_flag("US-Silicon-Valley"), "🇺🇸");
+        assert_eq!(node_flag("Taiwan Premium"), "🇹🇼");
+        assert_eq!(node_flag("Korea Seoul 01"), "🇰🇷");
+        assert_eq!(node_flag("Unknown Node"), "🌐");
+    }
+
+    #[test]
+    fn test_matches_proxy_filter() {
+        let node = ProxyNode {
+            name: "🇭🇰 香港 01 · BGP 专线".to_owned(),
+            node_type: "Shadowsocks".to_owned(),
+            delay_ms: Some(38),
+            selected: true,
+            favorite: true,
+            features: vec!["UDP".to_owned(), "TFO".to_owned()],
+        };
+
+        assert!(matches_proxy_filter(&node, ""));
+        assert!(matches_proxy_filter(&node, "香港"));
+        assert!(matches_proxy_filter(&node, "hk"));
+        assert!(matches_proxy_filter(&node, "xg"));
+        assert!(matches_proxy_filter(&node, "Shadowsocks"));
+        assert!(matches_proxy_filter(&node, "ss"));
+        assert!(matches_proxy_filter(&node, "<100"));
+        assert!(!matches_proxy_filter(&node, "<30"));
+        assert!(matches_proxy_filter(&node, ">20"));
+        assert!(!matches_proxy_filter(&node, ">50"));
+        assert!(!matches_proxy_filter(&node, "日本"));
+        assert!(!matches_proxy_filter(&node, "jp"));
     }
 }

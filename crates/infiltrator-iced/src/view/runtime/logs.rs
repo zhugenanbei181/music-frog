@@ -1,7 +1,7 @@
 //! Runtime page system-logs section: log-level picker, stream badge, log count,
 //! scroll pin/freeze button, clear logs button, and structured log lines.
 
-use iced::widget::{Scrollable, Space, column, container, pick_list, row, text};
+use iced::widget::{Scrollable, Space, button, column, container, pick_list, row, text, text_input};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -9,8 +9,9 @@ use infiltrator_shared::locales::{Lang, Localizer};
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStreamState;
-use crate::view::components::{BadgeKind, badge, chip, form_pick_style, icon_button, section_header};
-use crate::view::svg_icons::Icon;
+use crate::view::components::{
+    form_input_style, style_accent, BadgeKind, badge, chip, form_pick_style, icon_button, section_header};
+use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, MONO, R_CONTROL, SP_MD, SP_SM, SP_XS, tokens};
 
 /// Fixed right padding so log text does not sit under the scrollbar.
@@ -44,7 +45,7 @@ pub struct StructuredLogLine {
 
 pub(super) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
     let log_count = state.diag.logs.len();
-    let is_zh = !lang.0.starts_with("en");
+    let _is_zh = !lang.0.starts_with("en");
 
     // Header toolbar: log level picker, stream status badge, log count badge,
     // scroll pin/freeze button (Icon::Pin), and clear logs button (Icon::Trash2).
@@ -57,31 +58,69 @@ pub(super) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
         .text_size(12)
         .style(form_pick_style),
         Space::new().width(theme::SP_SM),
-        stream_badge(&state.diag.logs_stream_state),
+        stream_badge(&state.diag.logs_stream_state, &lang),
         Space::new().width(theme::SP_SM),
-        badge(if is_zh { format!("{log_count} 条") } else { format!("{log_count} lines") }, BadgeKind::Neutral),
+        badge(infiltrator_shared::i18n_interpolator::interpolate(&lang.tr("logs_count_unit"), &[("log_count", &log_count.to_string())]), BadgeKind::Neutral),
         Space::new().width(theme::SP_SM),
+        button(
+            row![
+                svg_icons::icon_themed(Icon::FileText, 12.0, |t: &Theme| tokens(t).on_accent),
+                Space::new().width(4.0),
+                text(lang.tr("logs_btn_export_redacted").to_string()).size(11),
+            ]
+            .align_y(Alignment::Center)
+        )
+        .padding([4, 8])
+        .style(style_accent)
+        .on_press(Message::ExportRedactedLogs),
+        Space::new().width(theme::SP_XS),
         icon_button(Icon::Pin, 14.0, Message::Noop),
         Space::new().width(theme::SP_XS),
         icon_button(Icon::Trash2, 14.0, Message::ClearRuntimeLogs),
     ]
     .align_y(Alignment::Center);
 
+    let regex_filter = state.diag.log_filter.regex_query.trim().to_lowercase();
     let log_lines: Vec<Element<'_, Message>> = if state.diag.logs.is_empty() {
         vec![
-            text(if is_zh { "暂无实时日志记录" } else { "No live log events" })
+            text(lang.tr("logs_no_realtime_records").to_string())
                 .size(11)
                 .font(MONO)
                 .style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) })
                 .into(),
         ]
     } else {
-        state.diag.logs.iter().map(|l| render_log_line(l, &state.shell.theme)).collect()
+        state
+            .diag
+            .logs
+            .iter()
+            .filter(|l| {
+                if regex_filter.is_empty() {
+                    true
+                } else {
+                    l.to_lowercase().contains(&regex_filter)
+                }
+            })
+            .map(|l| render_log_line(l, &state.shell.theme))
+            .collect()
     };
+
+    let regex_bar = text_input(
+        lang.tr("logs_regex_placeholder").as_ref(),
+        &state.diag.log_filter.regex_query,
+    )
+    .on_input(Message::UpdateLogRegexFilter)
+    .padding([4, 8])
+    .size(12)
+    .font(MONO)
+    .width(Length::Fill)
+    .style(form_input_style);
 
     column![
         section_header(lang.tr("runtime_system_logs").as_ref(), Some(logs_trailing.into())),
-        Space::new().height(theme::SP_MD),
+        Space::new().height(theme::SP_XS),
+        regex_bar,
+        Space::new().height(theme::SP_SM),
         container(
             Scrollable::new(
                 column(log_lines).spacing(4).padding(iced::Padding {
@@ -200,15 +239,15 @@ fn render_log_line<'a>(raw_line: &str, theme: &Theme) -> Element<'a, Message> {
     }
 }
 
-fn stream_badge(state: &RuntimeStreamState) -> Element<'static, Message> {
-    let (label, kind) = match state {
-        RuntimeStreamState::Idle => ("未连接", BadgeKind::Neutral),
-        RuntimeStreamState::Connecting => ("连接中", BadgeKind::Neutral),
-        RuntimeStreamState::Connected => ("实时", BadgeKind::Success),
-        RuntimeStreamState::Reconnecting => ("重连中", BadgeKind::Warning),
-        RuntimeStreamState::Failed(_) => ("不可用", BadgeKind::Danger),
+fn stream_badge<'a>(state: &RuntimeStreamState, lang: &Lang<'_>) -> Element<'a, Message> {
+    let (key, kind) = match state {
+        RuntimeStreamState::Idle => ("conn_state_disconnected", BadgeKind::Neutral),
+        RuntimeStreamState::Connecting => ("conn_state_connecting", BadgeKind::Neutral),
+        RuntimeStreamState::Connected => ("conn_state_live", BadgeKind::Success),
+        RuntimeStreamState::Reconnecting => ("conn_state_reconnecting", BadgeKind::Warning),
+        RuntimeStreamState::Failed(_) => ("conn_state_unavailable", BadgeKind::Danger),
     };
-    badge(label, kind)
+    badge(lang.tr(key).to_string(), kind)
 }
 
 /// Parse a raw log line into structured log components.
@@ -265,8 +304,8 @@ pub fn parse_structured_log(raw: &str) -> StructuredLogLine {
     }
 
     let mut protocol = None;
-    if rest.starts_with('[') {
-        if let Some(close_bracket) = rest.find(']') {
+    if rest.starts_with('[')
+        && let Some(close_bracket) = rest.find(']') {
             let tag = &rest[1..close_bracket];
             let tag_upper = tag.to_uppercase();
             if matches!(tag_upper.as_str(), "TCP" | "UDP" | "HTTP" | "HTTPS" | "TLS" | "QUIC" | "DNS" | "SOCKS5" | "ICMP") {
@@ -274,7 +313,6 @@ pub fn parse_structured_log(raw: &str) -> StructuredLogLine {
                 rest = rest[close_bracket + 1..].trim();
             }
         }
-    }
 
     // Check connection routing line: "... --> ... match ... using ..."
     let arrow_delimiter = if rest.contains("-->") {

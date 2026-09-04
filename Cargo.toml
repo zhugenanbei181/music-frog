@@ -1,10 +1,10 @@
 [workspace]
 resolver = "2"
-# 0.20 构建面：Android 原生 + Iced 桌面 + 共享栈。
+# 双路构建面：核心 + Iced 桌面产品线 + Bevy 统一产品线。
 # - WebUI/Tauri 已退役（台账：docs/TAURI_WEBUI_RETIREMENT_LEDGER.md）。
-# - 0.30 大一统 UI 线：infiltrator-bevy-widgets / infiltrator-bevy-ui 目录保留在
-#   crates/ 下但不出现在 0.20 构建面（二者为独立工作区，自带 Cargo.lock 与
-#   headless 测试，可编译全绿；接入主构建面归 0.30）。
+# - Iced 是当前主桌面 surface（winit/wgpu）。
+# - Bevy 是战略统一 surface（桌面 + 移动 + iOS 大一统）。
+# - 两个前端共享核心业务 crate，进程内直接调用。
 members = [
   "crates/mihomo-api",
   "crates/mihomo-config",
@@ -22,7 +22,9 @@ members = [
   "crates/mihomo-dav-sync/indexer",
   "crates/mihomo-dav-sync/platform-android",
   "crates/infiltrator-iced",
-  "crates/infiltrator-cli"]
+  "crates/infiltrator-cli",
+  "crates/infiltrator-bevy-widgets",
+  "crates/infiltrator-bevy-ui"]
 
 [workspace.dependencies]
 # Network & Async
@@ -88,4 +90,9 @@ tempfile = "3.27"
 mockito = "1.7"
 clap = { version = "4.6", features = ["derive"] }
 regex = "1.11"
+
+# Bevy UI (战略统一 surface，锁定 =0.19.1 与 taskmanager 同锁)
+bevy = { version = "=0.19.1", default-features = false }
+accesskit = "0.24.1"
+unicode-segmentation = "1.12"
 

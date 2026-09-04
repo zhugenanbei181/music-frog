@@ -84,7 +84,7 @@ fn waterfall_metric<'a>(name: &'static str, ms: u32, pct: u32, color: Color) -> 
     ].spacing(1).into()
 }
 
-fn latency_waterfall_section<'a>(delay: Option<u32>, is_en: bool) -> Element<'a, Message> {
+fn latency_waterfall_section<'a>(delay: Option<u32>, lang: &Lang<'_>) -> Element<'a, Message> {
     let dns_color = Color::from_rgb(0.04, 0.65, 0.95);
     let tcp_color = Color::from_rgb(0.18, 0.68, 0.38);
     let tls_color = Color::from_rgb(0.55, 0.36, 0.96);
@@ -145,16 +145,16 @@ fn latency_waterfall_section<'a>(delay: Option<u32>, is_en: bool) -> Element<'a,
                 waterfall_metric("TTFB", ttfb_ms, ttfb_pct, ttfb_color),
             ].align_y(Alignment::Center).width(Length::Fill);
 
-            (if is_en { "Latency Waterfall Breakdown" } else { "延迟瀑布流明细" }, column![bar, Space::new().height(8.0), metrics].spacing(4))
+            (lang.tr("modal_latency_waterfall").to_string(), column![bar, Space::new().height(8.0), metrics].spacing(4))
         }
         _ => {
             let empty_bar = container(Space::new().width(Length::Fill).height(8.0)).style(|t: &Theme| {
                 let tk = crate::view::theme::tokens(t);
                 container::Style { background: Some(tk.control_bg.into()), border: Border { radius: 4.0.into(), ..Default::default() }, ..Default::default() }
             });
-            let hint = text(if is_en { "Node latency untested. Click 'Test Latency Now' to probe." } else { "节点延迟未测试，点击下方“立即测速”进行探测。" })
+            let hint = text(lang.tr("modal_latency_untested").to_string())
                 .size(11).style(|t: &Theme| text::Style { color: Some(crate::view::theme::tokens(t).text_tertiary) });
-            (if is_en { "Latency Waterfall Breakdown" } else { "延迟瀑布流明细" }, column![empty_bar, Space::new().height(6.0), hint].spacing(4))
+            (lang.tr("modal_latency_waterfall").to_string(), column![empty_bar, Space::new().height(6.0), hint].spacing(4))
         }
     };
 
@@ -180,12 +180,13 @@ fn latency_waterfall_section<'a>(delay: Option<u32>, is_en: bool) -> Element<'a,
         .into()
 }
 
-fn meta_card<'a>(label: &'static str, val: String, mono: bool, badge: Option<Element<'a, Message>>) -> Element<'a, Message> {
+fn meta_card<'a>(label: impl Into<String>, val: String, mono: bool, badge: Option<Element<'a, Message>>) -> Element<'a, Message> {
+    let label_s = label.into();
     let mut val_text = text(val).size(12).style(|t: &Theme| text::Style { color: Some(crate::view::theme::tokens(t).text_primary) });
     if mono { val_text = val_text.font(crate::view::theme::MONO); }
     let mut val_row = row![val_text].align_y(Alignment::Center).spacing(6);
     if let Some(b) = badge { val_row = val_row.push(b); }
-    let label_text = text(label).size(10).font(crate::view::theme::FONT_MEDIUM).style(|t: &Theme| text::Style {
+    let label_text = text(label_s).size(10).font(crate::view::theme::FONT_MEDIUM).style(|t: &Theme| text::Style {
         color: Some(crate::view::theme::tokens(t).text_secondary),
     });
     container(column![label_text, Space::new().height(2.0), val_row].spacing(2))
@@ -203,11 +204,12 @@ fn meta_card<'a>(label: &'static str, val: String, mono: bool, badge: Option<Ele
 }
 
 pub fn inspect_proxy_modal<'a>(state: &'a AppState, proxy_name: &str) -> Element<'a, Message> {
+    let lang = Lang(&state.shell.lang);
     let proxy_info = state.runtime.proxies.get(proxy_name);
     let flag = infiltrator_shared::country_flags::node_flag_emoji(proxy_name);
     let p_type = proxy_info.map(|p| p.proxy_type().to_string()).unwrap_or_else(|| "Unknown".to_string());
     let delay = proxy_info.and_then(|p| p.delay().or_else(|| p.history().last().map(|h| h.delay)));
-    let is_en = state.shell.lang.starts_with("en");
+    let _is_en = state.shell.lang.starts_with("en");
     let (server, port, cipher, udp) = extract_proxy_metadata(proxy_info);
 
     let udp_badge = if udp {
@@ -218,14 +220,14 @@ pub fn inspect_proxy_modal<'a>(state: &'a AppState, proxy_name: &str) -> Element
 
     let meta_grid = column![
         row![
-            meta_card(if is_en { "Server Address" } else { "服务器地址" }, server.to_string(), true, None),
+            meta_card(lang.tr("modal_server_addr").to_string(), server.to_string(), true, None),
             Space::new().width(crate::view::theme::SP_SM),
-            meta_card(if is_en { "Port" } else { "端口" }, port, true, None),
+            meta_card(lang.tr("modal_port").to_string(), port, true, None),
         ],
         row![
-            meta_card(if is_en { "Cipher" } else { "加密算法" }, cipher.to_string(), true, None),
+            meta_card(lang.tr("modal_cipher").to_string(), cipher.to_string(), true, None),
             Space::new().width(crate::view::theme::SP_SM),
-            meta_card(if is_en { "UDP Support" } else { "UDP 转发" }, if udp { "Supported".into() } else { "Disabled".into() }, false, udp_badge),
+            meta_card(lang.tr("modal_udp").to_string(), if udp { "Supported".into() } else { "Disabled".into() }, false, udp_badge),
         ],
     ].spacing(8);
 
@@ -245,12 +247,12 @@ pub fn inspect_proxy_modal<'a>(state: &'a AppState, proxy_name: &str) -> Element
     ].align_y(Alignment::Center);
 
     let actions = row![
-        button(text(if is_en { "Close" } else { "关闭" }).size(12).font(crate::view::theme::FONT_MEDIUM))
+        button(text(lang.tr("modal_close").to_string()).size(12).font(crate::view::theme::FONT_MEDIUM))
             .padding([7, 16])
             .style(crate::view::components::style_ghost)
             .on_press(Message::InspectProxy(None)),
         Space::new().width(Length::Fill),
-        button(text(if is_en { "Test Latency Now" } else { "立即测速" }).size(12).font(crate::view::theme::FONT_MEDIUM))
+        button(text(lang.tr("modal_speed_test_now").to_string()).size(12).font(crate::view::theme::FONT_MEDIUM))
             .padding([7, 16])
             .style(crate::view::components::style_accent)
             .on_press(Message::TestProxyDelay(proxy_name.to_string())),
@@ -259,7 +261,7 @@ pub fn inspect_proxy_modal<'a>(state: &'a AppState, proxy_name: &str) -> Element
     let dialog_content = column![
         header,
         Space::new().height(crate::view::theme::SP_SM),
-        latency_waterfall_section(delay, is_en),
+        latency_waterfall_section(delay, &lang),
         Space::new().height(crate::view::theme::SP_SM),
         meta_grid,
         Space::new().height(crate::view::theme::SP_MD),
@@ -384,20 +386,21 @@ pub fn rule_provider_diff_modal<'a>(
     state: &'a AppState,
     diff: &'a infiltrator_core::rules::RuleProviderDiff,
 ) -> Element<'a, Message> {
-    let is_en = state.shell.lang.starts_with("en");
+    let lang = Lang(&state.shell.lang);
+    let _is_en = state.shell.lang.starts_with("en");
     let mut diff_items = column![].spacing(6);
 
     let chips_row = row![
-        crate::view::components::chip(format!("{}: {} {}", if is_en { "Local" } else { "本地" }, diff.local_count, if is_en { "rules" } else { "条" })),
+        crate::view::components::chip(format!("{}: {} {}", lang.tr("modal_local"), diff.local_count, lang.tr("modal_items_count"))),
         Space::new().width(crate::view::theme::SP_XS),
-        crate::view::components::chip(format!("{}: {} {}", if is_en { "Remote" } else { "远程" }, diff.remote_count, if is_en { "rules" } else { "条" })),
+        crate::view::components::chip(format!("{}: {} {}", lang.tr("modal_remote"), diff.remote_count, lang.tr("modal_items_count"))),
         Space::new().width(crate::view::theme::SP_XS),
-        crate::view::components::chip(format!("{}: {}", if is_en { "Unchanged" } else { "未变更" }, diff.unchanged_count)),
+        crate::view::components::chip(format!("{}: {}", lang.tr("modal_unchanged"), diff.unchanged_count)),
     ].spacing(4).align_y(Alignment::Center);
 
     if diff.added_rules.is_empty() && diff.removed_rules.is_empty() {
         diff_items = diff_items.push(
-            container(text(if is_en { "No rule differences detected (Up to date)" } else { "未检测到规则差异（已是最新版本）" }).size(12).style(|t: &Theme| text::Style {
+            container(text(lang.tr("modal_no_diff").to_string()).size(12).style(|t: &Theme| text::Style {
                 color: Some(crate::view::theme::tokens(t).text_secondary),
             })).padding([12, 16]),
         );
@@ -450,7 +453,7 @@ pub fn rule_provider_diff_modal<'a>(
 
     let provider_name = diff.provider_name.clone();
     let header = row![
-        text(format!("{} · {}", if is_en { "Rule Provider Diff" } else { "规则集差异对比" }, diff.provider_name))
+        text(format!("{} · {}", lang.tr("modal_diff_title"), diff.provider_name))
             .size(16).font(crate::view::theme::FONT_SEMIBOLD).style(|t: &Theme| text::Style {
                 color: Some(crate::view::theme::tokens(t).text_primary),
             }),
@@ -462,12 +465,12 @@ pub fn rule_provider_diff_modal<'a>(
     ].align_y(Alignment::Center);
 
     let actions = row![
-        button(text(if is_en { "Close" } else { "关闭" }).size(12).font(crate::view::theme::FONT_MEDIUM))
+        button(text(lang.tr("modal_close").to_string()).size(12).font(crate::view::theme::FONT_MEDIUM))
             .padding([7, 14])
             .style(crate::view::components::style_ghost)
             .on_press(Message::InspectRuleProviderDiff(None)),
         Space::new().width(Length::Fill),
-        button(text(if is_en { "Unpack into Custom Rules" } else { "解包至自定义规则" }).size(12).font(crate::view::theme::FONT_MEDIUM))
+        button(text(lang.tr("modal_unpack_rules").to_string()).size(12).font(crate::view::theme::FONT_MEDIUM))
             .padding([7, 16])
             .style(crate::view::components::style_accent)
             .on_press(Message::UnpackRuleProvider(provider_name)),
@@ -494,8 +497,9 @@ pub fn rule_provider_diff_modal<'a>(
 }
 
 pub fn confirmation_modal<'a>(state: &'a AppState, action: &'a ConfirmAction) -> Element<'a, Message> {
-    let (title, detail, confirm_label) = confirmation_copy(action, Lang(&state.shell.lang).0.starts_with("en"));
-    let cancel_label = if state.shell.lang.starts_with("en") { "Cancel" } else { "取消" };
+    let lang = Lang(&state.shell.lang);
+    let (title, detail, confirm_label) = confirmation_copy(action, &lang);
+    let cancel_label = lang.tr("modal_cancel");
 
     let content = column![
         row![
@@ -529,62 +533,32 @@ pub fn confirmation_modal<'a>(state: &'a AppState, action: &'a ConfirmAction) ->
     modal_backdrop(modal_card(content.into(), 420.0))
 }
 
-fn confirmation_copy(action: &ConfirmAction, is_en: bool) -> (String, String, String) {
-    if is_en {
-        match action {
-            ConfirmAction::FactoryReset => (
-                "Reset application?".to_string(),
-                "This stops the core and removes local settings, profiles and installed cores.".to_string(),
-                "Reset".to_string(),
-            ),
-            ConfirmAction::ClearProfiles => (
-                "Reset profiles?".to_string(),
-                "All profiles will be replaced with the default profile.".to_string(),
-                "Reset profiles".to_string(),
-            ),
-            ConfirmAction::DeleteProfile(name) => (
-                "Delete profile?".to_string(),
-                format!("The profile \"{name}\" will be permanently deleted."),
-                "Delete".to_string(),
-            ),
-            ConfirmAction::DeleteKernel(version) => (
-                "Delete core version?".to_string(),
-                format!("The installed core {version} will be removed."),
-                "Delete".to_string(),
-            ),
-            ConfirmAction::CloseAllConnections => (
-                "Close all connections?".to_string(),
-                "Every active connection will be disconnected.".to_string(),
-                "Close all".to_string(),
-            ),
-        }
-    } else {
-        match action {
-            ConfirmAction::FactoryReset => (
-                "恢复出厂设置？".to_string(),
-                "这将停止内核并删除本地设置、配置文件和已安装内核。".to_string(),
-                "恢复出厂".to_string(),
-            ),
-            ConfirmAction::ClearProfiles => (
-                "重置配置？".to_string(),
-                "所有配置将被默认配置替换。".to_string(),
-                "重置配置".to_string(),
-            ),
-            ConfirmAction::DeleteProfile(name) => (
-                "删除配置？".to_string(),
-                format!("配置“{name}”将被永久删除。"),
-                "删除".to_string(),
-            ),
-            ConfirmAction::DeleteKernel(version) => (
-                "删除内核版本？".to_string(),
-                format!("已安装的内核 {version} 将被删除。"),
-                "删除".to_string(),
-            ),
-            ConfirmAction::CloseAllConnections => (
-                "断开全部连接？".to_string(),
-                "所有活动连接都会被断开。".to_string(),
-                "全部断开".to_string(),
-            ),
-        }
+fn confirmation_copy(action: &ConfirmAction, lang: &Lang<'_>) -> (String, String, String) {
+    match action {
+        ConfirmAction::FactoryReset => (
+            lang.tr("modal_confirm_factory_title").to_string(),
+            lang.tr("modal_confirm_factory_desc").to_string(),
+            lang.tr("modal_confirm_factory_btn").to_string(),
+        ),
+        ConfirmAction::ClearProfiles => (
+            lang.tr("modal_confirm_reset_title").to_string(),
+            lang.tr("modal_confirm_reset_desc").to_string(),
+            lang.tr("modal_confirm_reset_btn").to_string(),
+        ),
+        ConfirmAction::DeleteProfile(name) => (
+            lang.tr("modal_confirm_del_profile_title").to_string(),
+            infiltrator_shared::i18n_interpolator::interpolate(&lang.tr("modal_confirm_del_profile_desc"), &[("name", name)]),
+            lang.tr("modal_delete").to_string(),
+        ),
+        ConfirmAction::DeleteKernel(version) => (
+            lang.tr("modal_confirm_del_kernel_title").to_string(),
+            infiltrator_shared::i18n_interpolator::interpolate(&lang.tr("modal_confirm_del_kernel_desc"), &[("version", version)]),
+            lang.tr("modal_delete").to_string(),
+        ),
+        ConfirmAction::CloseAllConnections => (
+            lang.tr("modal_confirm_disconnect_all_title").to_string(),
+            lang.tr("modal_confirm_disconnect_all_desc").to_string(),
+            lang.tr("modal_confirm_disconnect_all_btn").to_string(),
+        ),
     }
 }

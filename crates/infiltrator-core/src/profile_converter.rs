@@ -603,7 +603,7 @@ impl MultiSubscriptionAggregator {
 
         // 1. Main select group
         let mut main_proxies = vec!["♻️ 自动选择".to_string(), "🎯 全球直连".to_string()];
-        for (iso, _) in &country_groups {
+        for iso in country_groups.keys() {
             main_proxies.push(format!("{iso} 节点"));
         }
         main_proxies.extend(node_names.clone());

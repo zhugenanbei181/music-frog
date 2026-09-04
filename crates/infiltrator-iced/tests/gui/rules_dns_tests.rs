@@ -278,4 +278,58 @@ fn test_rule_provider_diff_and_unpack_flow() {
     let _ = state.update(Message::UnpackRuleProvider("GoogleRules".into()));
     assert!(state.editor.rules.len() > prev_len);
     assert!(state.editor.rules_dirty);
+
+    // Verify rule provider row formatting (Domain, IPCIDR, Classical), badges, format chips, and rendering
+    let lang = infiltrator_shared::locales::Lang("en");
+    let domain_provider = mihomo_api::types::RuleProvider {
+        name: "GoogleRules".into(),
+        provider_type: "http".into(),
+        behavior: "domain".into(),
+        vehicle_type: "HTTP".into(),
+        updated_at: "2026-09-02 06:00:00".into(),
+        rule_count: 1420,
+    };
+    let ipcidr_provider = mihomo_api::types::RuleProvider {
+        name: "geoip-cn.mrs".into(),
+        provider_type: "mrs".into(),
+        behavior: "ipcidr".into(),
+        vehicle_type: "File".into(),
+        updated_at: "2026-09-01 12:00:00".into(),
+        rule_count: 850,
+    };
+    let classical_provider = mihomo_api::types::RuleProvider {
+        name: "custom-ads.yaml".into(),
+        provider_type: "yaml".into(),
+        behavior: "classical".into(),
+        vehicle_type: "HTTP".into(),
+        updated_at: "2026-08-30 18:30:00".into(),
+        rule_count: 572,
+    };
+
+    assert_eq!(
+        crate::view::rules::format_provider_behavior(&domain_provider.behavior),
+        "Domain"
+    );
+    assert_eq!(
+        crate::view::rules::format_provider_behavior(&ipcidr_provider.behavior),
+        "IPCIDR"
+    );
+    assert_eq!(
+        crate::view::rules::format_provider_behavior(&classical_provider.behavior),
+        "Classical"
+    );
+
+    assert_eq!(crate::view::rules::format_rule_provider_format(&domain_provider), "HTTP");
+    assert_eq!(crate::view::rules::format_rule_provider_format(&ipcidr_provider), "MRS");
+    assert_eq!(crate::view::rules::format_rule_provider_format(&classical_provider), "YAML");
+
+    let providers = vec![domain_provider.clone(), ipcidr_provider.clone(), classical_provider.clone()];
+    assert_eq!(crate::view::rules::total_external_rules(&providers), 1420 + 850 + 572);
+
+    let _dom_elem = crate::view::rules::rule_provider_row(&domain_provider, &lang);
+    let _ipc_elem = crate::view::rules::rule_provider_row(&ipcidr_provider, &lang);
+    let _cls_elem = crate::view::rules::rule_provider_row(&classical_provider, &lang);
+
+    state.editor.rule_providers = providers;
+    let _providers_elem = crate::view::rules::providers_view(&state, &lang);
 }

@@ -6,10 +6,9 @@ publish = false
 description = "Business-agnostic Bevy UI widget layer for MusicFrog: bsn! scene functions over the official unstyled bevy_ui_widgets."
 
 # Business-agnostic by law (docs/BEVY_UI_FRONTEND.md): this crate depends on
-# locked bevy only — never on infiltrator-core / mihomo-* / infiltrator-*. It
-# is the future extraction candidate shared with taskmanager's bevy frontend,
-# which is why bevy is pinned to the exact same patch (`=0.19.1`) so both
-# workspaces resolve one widget ABI.
+# locked bevy only — never on infiltrator-core / mihomo-*. It is the future
+# extraction candidate shared with taskmanager's bevy frontend, which is why
+# bevy is pinned to the exact same patch (`=0.19.1`) so both resolve one ABI.
 
 # Base `bevy` declaration with an EMPTY feature set. The per-target tables
 # below own the real feature closure; this entry exists because bevy's derive
@@ -18,8 +17,8 @@ description = "Business-agnostic Bevy UI widget layer for MusicFrog: bsn! scene 
 # leaves them unresolved. The feature union across the tables is exactly the
 # per-target closure below. (Same two-phase shape taskmanager ships.)
 [dependencies]
-bevy = { version = "=0.19.1", default-features = false }
-unicode-segmentation = "1.12"
+bevy = { workspace = true }
+unicode-segmentation = { workspace = true }
 
 # Feature closure (minimal for a bevy_ui surface), locked `=0.19.1`:
 # - bevy_ui: the toolkit layer itself (its layout plugin; pulls bevy_text and
@@ -48,7 +47,7 @@ unicode-segmentation = "1.12"
 #   dev-tools. `multi_threaded` stays off so headless tests can observe the
 #   render pass inline on the app thread.
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
-bevy = { version = "=0.19.1", default-features = false, features = [
+bevy = { workspace = true, features = [
     "bevy_ui",
     "bevy_ui_widgets",
     "bevy_scene",
@@ -71,22 +70,9 @@ bevy = { version = "=0.19.1", default-features = false, features = [
 # Android (the reason this frontend exists), BEVY-006 front half: same UI
 # closure as desktop, minus `wayland` (winit backend selection is a desktop
 # compositor concern), plus `android-native-activity` — the one feature bevy
-# 0.19.1 offers to satisfy android-activity's hard requirement
-# (`android-activity` 0.6.1 compile_error!s unless exactly one of
-# `native-activity`/`game-activity` is on; bevy_internal Cargo.toml.orig:152
-# "Android activity support (choose one)", and native-activity is the simpler,
-# more device-compatible entry point). There is deliberately no
-# `android-shared-stdcxx`: bevy 0.19 removed it with the oboe audio stack
-# (bevy-0.19.1/_release-content/migration-guides/rodio_0_22.md), and bevy's
-# android windowing glue (`bevy_android`, `ANDROID_APP`) is wired in
-# automatically by bevy_internal's `cfg(target_os = "android")` dep — no extra
-# feature needed. `x11` stays off (bevy_winit default, not inherited:
-# default-features = false above). A11y on Android has no bevy feature yet
-# (0.19.1 only ships `accesskit_unix`), so TalkBack support is BEVY-M3 back
-# half (APK packaging + on-device smoke) along with actually exercising this
-# closure on hardware.
+# 0.19.1 offers to satisfy android-activity's hard requirement.
 [target.'cfg(target_os = "android")'.dependencies]
-bevy = { version = "=0.19.1", default-features = false, features = [
+bevy = { workspace = true, features = [
     "bevy_ui",
     "bevy_ui_widgets",
     "bevy_scene",
@@ -101,22 +87,14 @@ bevy = { version = "=0.19.1", default-features = false, features = [
     "android-native-activity",
     "system_font_discovery",
 ] }
-# bevy_asset pulls blake3 (default-features = false) for asset hashing; on
-# aarch64 blake3's build.rs unconditionally cc-compiles c/blake3_neon.c
-# (blake3-1.8.7 build.rs: `!is_no_neon() && is_aarch64()`), which needs the
-# NDK C compiler. This machine's cross-check environment (BEVY-006 front
-# half) deliberately ships no NDK, so `no_neon` pins the portable Rust
-# implementation — same BLAKE3 hash, slightly slower on device. Feature
-# unification reaches bevy_asset's blake3; the other tables don't carry
-# this, so desktop keeps NEON. BEVY-M3 back half: revisit (drop this pin
-# once the APK build runs with a real NDK clang).
+# bevy_asset pulls blake3; on aarch64 it cc-compiles NEON C which needs the
+# NDK C compiler. `no_neon` pins the portable Rust implementation.
 blake3 = { version = "1.8", default-features = false, features = ["no_neon"] }
 
 # Everything that is neither the Linux desktop nor Android — today macOS and
-# Windows — keeps the windowing-agnostic closure (no wayland, no android
-# activity backend; winit picks its platform backend on its own).
+# Windows — keeps the windowing-agnostic closure.
 [target.'cfg(not(any(target_os = "android", all(target_os = "linux", not(target_os = "android")))))'.dependencies]
-bevy = { version = "=0.19.1", default-features = false, features = [
+bevy = { workspace = true, features = [
     "bevy_ui",
     "bevy_ui_widgets",
     "bevy_scene",
@@ -130,10 +108,3 @@ bevy = { version = "=0.19.1", default-features = false, features = [
     "ui_picking",
     "system_font_discovery",
 ] }
-
-# Standalone workspace on purpose (empty `[workspace]` table): the root
-# music-frog workspace must not absorb this crate — its bevy closure and lock
-# stay independently resolvable so taskmanager's bevy frontend resolves the
-# exact same widget ABI, and `aarch64-linux-android` cross-checks
-# (BEVY-006) never drag the whole desktop workspace through bevy.
-[workspace]

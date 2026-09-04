@@ -70,39 +70,32 @@ fn read_clipboard_url() -> Option<String> {
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-            if let Ok(output) = std::process::Command::new("wl-paste").args(["--no-newline"]).output() {
-                if output.status.success() && !output.stdout.is_empty() {
-                    if let Ok(s) = String::from_utf8(output.stdout) {
+        if std::env::var_os("WAYLAND_DISPLAY").is_some()
+            && let Ok(output) = std::process::Command::new("wl-paste").args(["--no-newline"]).output()
+                && output.status.success() && !output.stdout.is_empty()
+                    && let Ok(s) = String::from_utf8(output.stdout) {
                         let clean = ClipboardHelper::sanitize_clipboard_text(&s);
                         if !clean.is_empty() {
                             return Some(ClipboardHelper::extract_subscription_url(&clean).unwrap_or(clean));
                         }
                     }
-                }
-            }
-        }
         if std::env::var_os("DISPLAY").is_some() {
-            if let Ok(output) = std::process::Command::new("xclip").args(["-selection", "clipboard", "-o"]).output() {
-                if output.status.success() && !output.stdout.is_empty() {
-                    if let Ok(s) = String::from_utf8(output.stdout) {
+            if let Ok(output) = std::process::Command::new("xclip").args(["-selection", "clipboard", "-o"]).output()
+                && output.status.success() && !output.stdout.is_empty()
+                    && let Ok(s) = String::from_utf8(output.stdout) {
                         let clean = ClipboardHelper::sanitize_clipboard_text(&s);
                         if !clean.is_empty() {
                             return Some(ClipboardHelper::extract_subscription_url(&clean).unwrap_or(clean));
                         }
                     }
-                }
-            }
-            if let Ok(output) = std::process::Command::new("xsel").args(["--clipboard", "--output"]).output() {
-                if output.status.success() && !output.stdout.is_empty() {
-                    if let Ok(s) = String::from_utf8(output.stdout) {
+            if let Ok(output) = std::process::Command::new("xsel").args(["--clipboard", "--output"]).output()
+                && output.status.success() && !output.stdout.is_empty()
+                    && let Ok(s) = String::from_utf8(output.stdout) {
                         let clean = ClipboardHelper::sanitize_clipboard_text(&s);
                         if !clean.is_empty() {
                             return Some(ClipboardHelper::extract_subscription_url(&clean).unwrap_or(clean));
                         }
                     }
-                }
-            }
         }
     }
     None
@@ -135,7 +128,7 @@ fn ua_preset_chip<'a>(label: &'static str, current_val: &str) -> Element<'a, Mes
 /// 80-90% amber, >90% red), and expiration countdown badge (P12-05, P12-06).
 fn traffic_row<'a>(
     profile: &mihomo_config::profile::Profile,
-    is_zh: bool,
+    lang: &Lang<'_>,
 ) -> Option<Element<'a, Message>> {
     let total = profile.traffic_total.unwrap_or(0);
     let upload = profile.traffic_upload.unwrap_or(0);
@@ -149,14 +142,14 @@ fn traffic_row<'a>(
     let fraction = if total > 0 { (used as f32 / total as f32).clamp(0.0, 1.0) } else { 0.0 };
     let is_exhausted = total > 0 && fraction >= 0.90;
     let is_depleted = total > 0 && fraction >= 1.0;
-    let is_warning = total > 0 && fraction >= 0.80 && fraction < 0.90;
+    let is_warning = total > 0 && (0.80..0.90).contains(&fraction);
     let now = chrono::Utc::now().timestamp();
     let is_expired = profile.expire_at.is_some_and(|exp| exp > 0 && exp <= now);
     let is_expiring_soon = profile.expire_at.is_some_and(|exp| exp > now && exp - now < 3 * 86400);
 
     let expire_suffix = profile.expire_at.and_then(|sec| chrono::DateTime::from_timestamp(sec, 0)).map(|exp| {
         let d = exp.with_timezone(&Local).format("%Y-%m-%d").to_string();
-        if is_zh { format!("  {d} 到期") } else { format!("  Exp: {d}") }
+        format!("  {}", infiltrator_shared::i18n_interpolator::interpolate(&lang.tr("profiles_expires_at"), &[("d", &d)]))
     }).unwrap_or_default();
 
     let usage_label = if total > 0 {
@@ -175,18 +168,18 @@ fn traffic_row<'a>(
     ].spacing(theme::SP_SM).align_y(Alignment::Center);
 
     if is_depleted {
-        info_row = info_row.push(badge(if is_zh { "已用尽" } else { "Exhausted" }, BadgeKind::Danger));
+        info_row = info_row.push(badge(lang.tr("profiles_exhausted").to_string(), BadgeKind::Danger));
     } else if is_exhausted {
-        info_row = info_row.push(badge(if is_zh { "即将用尽" } else { "Nearly Full" }, BadgeKind::Danger));
+        info_row = info_row.push(badge(lang.tr("profiles_almost_exhausted").to_string(), BadgeKind::Danger));
     } else if is_warning {
-        info_row = info_row.push(badge(if is_zh { "即将用尽" } else { "Nearly Full" }, BadgeKind::Warning));
+        info_row = info_row.push(badge(lang.tr("profiles_almost_exhausted").to_string(), BadgeKind::Warning));
     }
 
     if is_expired {
-        info_row = info_row.push(badge(if is_zh { "已到期" } else { "Expired" }, BadgeKind::Danger));
+        info_row = info_row.push(badge(lang.tr("profiles_expired").to_string(), BadgeKind::Danger));
     } else if is_expiring_soon {
         let days = profile.expire_at.map(|exp| ((exp - now) / 86400).max(1)).unwrap_or(1);
-        let label = if is_zh { format!("即将到期 ({days}天)") } else { format!("Expiring ({days}d)") };
+        let label = infiltrator_shared::i18n_interpolator::interpolate(&lang.tr("profiles_expiring_soon"), &[("days", &days.to_string())]);
         info_row = info_row.push(badge(label, BadgeKind::Warning));
     }
 
@@ -209,7 +202,7 @@ fn traffic_row<'a>(
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
-    let is_zh = !matches!(state.shell.lang.as_str(), "en-US" | "en");
+    let _is_zh = !matches!(state.shell.lang.as_str(), "en-US" | "en");
 
     let clear_profiles_btn: Element<'_, Message> = if state.profile.is_loading_profiles {
         text_btn(lang.tr("profiles_clearing").to_string(), style_danger, None)
@@ -230,6 +223,18 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         search_box,
         Space::new().width(theme::SP_SM),
         clear_profiles_btn,
+        Space::new().width(theme::SP_SM),
+        button(
+            row![
+                svg_icons::icon_themed(Icon::LayoutGrid, 13.0, |t: &Theme| tokens(t).text_secondary),
+                Space::new().width(theme::SP_XS),
+                text(lang.tr("aggregator_title").to_string()).size(12),
+            ]
+            .align_y(Alignment::Center)
+        )
+        .padding([6, 10])
+        .style(style_ghost)
+        .on_press(Message::OpenAggregatorModal),
         Space::new().width(Length::Fill),
         text_btn(lang.tr("profiles_open_folder").to_string(), style_ghost, Some(Message::OpenConfigDir)),
     ].align_y(Alignment::Center);
@@ -244,11 +249,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         let is_exhausted = total > 0 && fraction >= 0.80;
 
         if is_expired {
-            Some(banner_alert(BadgeKind::Danger, if is_zh { "当前激活的订阅已到期" } else { "Active subscription has expired" }, if is_zh { "请更新订阅链接或切换至其他可用配置以保持代理可用。" } else { "Please update subscription URL or switch profile." }, Some(text_btn(lang.tr("profiles_update_now").to_string(), style_ghost, Some(Message::UpdateSubscriptionNow)))))
+            Some(banner_alert(BadgeKind::Danger, lang.tr("profiles_active_expired_title").to_string(), lang.tr("profiles_active_expired_desc").to_string(), Some(text_btn(lang.tr("profiles_update_now").to_string(), style_ghost, Some(Message::UpdateSubscriptionNow)))))
         } else if is_expiring_soon {
-            Some(banner_alert(BadgeKind::Warning, if is_zh { "当前激活的订阅即将到期" } else { "Active subscription is expiring soon" }, if is_zh { "订阅将在 3 天内到期，建议及时续费以避免服务中断。" } else { "Subscription will expire within 3 days." }, Some(text_btn(lang.tr("profiles_update_now").to_string(), style_ghost, Some(Message::UpdateSubscriptionNow)))))
+            Some(banner_alert(BadgeKind::Warning, lang.tr("profiles_active_expiring_title").to_string(), lang.tr("profiles_active_expiring_desc").to_string(), Some(text_btn(lang.tr("profiles_update_now").to_string(), style_ghost, Some(Message::UpdateSubscriptionNow)))))
         } else if is_exhausted {
-            Some(banner_alert(BadgeKind::Warning, if is_zh { "当前激活的订阅流量即将用尽" } else { "Active subscription traffic quota almost full" }, format!("{}: {:.1}%", if is_zh { "已用流量" } else { "Used" }, fraction * 100.0), Some(text_btn(lang.tr("profiles_update_now").to_string(), style_ghost, Some(Message::UpdateSubscriptionNow)))))
+            Some(banner_alert(BadgeKind::Warning, lang.tr("profiles_active_exhausted_title").to_string(), format!("{}: {:.1}%", lang.tr("profiles_used_traffic"), fraction * 100.0), Some(text_btn(lang.tr("profiles_update_now").to_string(), style_ghost, Some(Message::UpdateSubscriptionNow)))))
         } else {
             None
         }
@@ -259,11 +264,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let paste_msg = if let Some(url) = read_clipboard_url() {
         Message::UpdateImportUrl(url)
     } else {
-        Message::ShowToast(if is_zh { "剪贴板无有效订阅链接".to_string() } else { "No valid subscription URL in clipboard".to_string() }, ToastStatus::Warning)
+        Message::ShowToast(lang.tr("profiles_no_sub_in_clipboard").to_string(), ToastStatus::Warning)
     };
 
     let paste_btn = button(
-        row![svg_icons::icon_themed(Icon::Copy, 13.0, |t: &Theme| tokens(t).text_secondary), text(if is_zh { "粘贴" } else { "Paste" }).size(12).font(FONT_MEDIUM)].spacing(theme::SP_XS).align_y(Alignment::Center),
+        row![svg_icons::icon_themed(Icon::Copy, 13.0, |t: &Theme| tokens(t).text_secondary), text(lang.tr("profiles_paste").to_string()).size(12).font(FONT_MEDIUM)].spacing(theme::SP_XS).align_y(Alignment::Center),
     ).padding([7, 12]).style(style_ghost).on_press(paste_msg);
 
     let import_actions: Element<'_, Message> = if state.profile.is_importing {
@@ -336,7 +341,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     });
 
     let ua_presets = row![
-        text(if is_zh { "UA 预设:" } else { "UA Presets:" }).size(11).font(FONT_MEDIUM).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+        text(lang.tr("profiles_ua_preset").to_string()).size(11).font(FONT_MEDIUM).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
         Space::new().width(theme::SP_XS),
         ua_preset_chip("Clash.Meta", &state.profile.subscription_user_agent),
         Space::new().width(theme::SP_XS),
@@ -404,7 +409,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             let source_badge: Element<'_, Message> = if is_subscription {
                 badge(lang.tr("subscription").as_ref(), BadgeKind::Accent)
             } else {
-                chip(if is_zh { "本地" } else { "Local" })
+                chip(lang.tr("profiles_badge_local").to_string())
             };
 
             let mut actions = row![].spacing(theme::SP_SM).align_y(Alignment::Center);
@@ -440,7 +445,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         if is_subscription {
                             let last_up = format_datetime(profile.last_updated, lang.tr("profiles_never").as_ref());
                             let mut sub_details = column![row![text(format!("{} {}", lang.tr("profiles_last_updated"), last_up)).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) })].align_y(Alignment::Center)].spacing(theme::SP_XS);
-                            if let Some(traffic_elem) = traffic_row(profile, is_zh) {
+                            if let Some(traffic_elem) = traffic_row(profile, &lang) {
                                 sub_details = sub_details.push(traffic_elem);
                             }
                             Element::from(sub_details)
@@ -487,6 +492,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     content_items.push(local_import_section);
     content_items.push(Space::new().height(SP_MD).into());
     content_items.push(subscription_section);
+    content_items.push(Space::new().height(theme::SP_MD).into());
+    content_items.push(crate::view::sub_quota_card::sub_quota_card(state, &lang));
     content_items.push(Space::new().height(theme::SP_LG).into());
     content_items.push(profiles_section);
     content_items.push(Space::new().height(theme::SP_XL).into());
@@ -526,8 +533,8 @@ mod tests {
             PathBuf::from("/tmp/test.yaml"),
             false,
         );
-        assert!(traffic_row(&p, true).is_none());
-        assert!(traffic_row(&p, false).is_none());
+        assert!(traffic_row(&p, &Lang("zh-CN")).is_none());
+        assert!(traffic_row(&p, &Lang("en-US")).is_none());
     }
 
     #[test]
@@ -543,8 +550,8 @@ mod tests {
         p.traffic_total = Some(1024 * 1024 * 1000);
         p.expire_at = Some(1900000000);
 
-        assert!(traffic_row(&p, true).is_some());
-        assert!(traffic_row(&p, false).is_some());
+        assert!(traffic_row(&p, &Lang("zh-CN")).is_some());
+        assert!(traffic_row(&p, &Lang("en-US")).is_some());
     }
 
     #[test]
@@ -558,19 +565,19 @@ mod tests {
         p.traffic_total = Some(1000);
 
         p.traffic_download = Some(300);
-        assert!(traffic_row(&p, true).is_some());
+        assert!(traffic_row(&p, &Lang("zh-CN")).is_some());
 
         p.traffic_download = Some(650);
-        assert!(traffic_row(&p, true).is_some());
+        assert!(traffic_row(&p, &Lang("zh-CN")).is_some());
 
         p.traffic_download = Some(850);
-        assert!(traffic_row(&p, true).is_some());
+        assert!(traffic_row(&p, &Lang("zh-CN")).is_some());
 
         p.traffic_download = Some(950);
-        assert!(traffic_row(&p, true).is_some());
+        assert!(traffic_row(&p, &Lang("zh-CN")).is_some());
 
         p.traffic_download = Some(1050);
-        assert!(traffic_row(&p, true).is_some());
+        assert!(traffic_row(&p, &Lang("zh-CN")).is_some());
     }
 
     #[test]

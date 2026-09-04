@@ -13,6 +13,7 @@ pub enum EditorPane {
     Profile,
     Mixin,
     Filter,
+    Script,
 }
 
 /// Form draft of the per-profile subscription filter. Keywords stay as raw
@@ -201,4 +202,23 @@ impl SyncDiffState {
             .collect();
         Self { bundle, picks }
     }
+}
+
+/// State for AES-256 encrypted configuration backup (.encpkg) export and import.
+#[derive(Debug, Clone, Default)]
+pub struct EncryptedBackupState {
+    pub passphrase: String,
+    pub last_exported_path: Option<String>,
+    pub is_processing: bool,
+}
+
+/// State for subscription quota monitoring, expiry alerts, and cron scheduling.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct QuotaScheduleState {
+    pub used_bytes: u64,
+    pub total_bytes: u64,
+    pub remaining_percent: f64,
+    pub expiry_timestamp: Option<u64>,
+    pub warning_tier: String,
+    pub cron_interval_hours: u32,
 }

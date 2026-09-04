@@ -515,7 +515,7 @@ impl BatchSpeedtester {
         Fut: Future<Output = Result<SpeedtestReport, String>> + Send + 'static,
     {
         // Sort highest priority first
-        proxies.sort_by(|a, b| b.priority.cmp(&a.priority));
+        proxies.sort_by_key(|p| std::cmp::Reverse(p.priority));
 
         let speedtest_fn = Arc::new(speedtest_fn);
         let mut tasks = Vec::new();

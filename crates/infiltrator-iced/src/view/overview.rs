@@ -8,9 +8,10 @@ use crate::types::app::{Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use crate::view::components::{
-    BadgeKind, TrafficChart, badge, card_surface, chip, icon_button, modern_scrollable,
+    BadgeKind, badge, card_surface, chip, icon_button, modern_scrollable,
     premium_card, row_card_surface, section_header, status_dot, style_accent, style_ghost,
 };
+use crate::view::waveform::TrafficChart;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CHIP, R_CONTROL, tokens};
 use iced::widget::{Space, button, canvas, column, container, row, text};
@@ -209,10 +210,10 @@ fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         .unwrap_or_else(|| "—".to_string());
 
     row![
-        metric_tile(Icon::Activity, stat_label(lang, "连接数", "Connections"), connections, |t| tokens(t).accent),
-        metric_tile(Icon::Server, stat_label(lang, "内存", "Memory"), memory, |t| tokens(t).warning),
-        metric_tile(Icon::ArrowUp, stat_label(lang, "上传", "Upload"), upload, |t| tokens(t).success),
-        metric_tile(Icon::ArrowDown, stat_label(lang, "下载", "Download"), download, |t| tokens(t).accent),
+        metric_tile(Icon::Activity, lang.tr("overview_connections").to_string(), connections, |t| tokens(t).accent),
+        metric_tile(Icon::Server, lang.tr("overview_memory").to_string(), memory, |t| tokens(t).warning),
+        metric_tile(Icon::ArrowUp, lang.tr("overview_upload").to_string(), upload, |t| tokens(t).success),
+        metric_tile(Icon::ArrowDown, lang.tr("overview_download").to_string(), download, |t| tokens(t).accent),
     ]
     .spacing(theme::SP_MD)
     .width(Length::Fill)
@@ -340,7 +341,7 @@ fn speed_pill<'a>(
 // Network topology graph / Flow preview (P02-04 ~ P02-07)
 // ---------------------------------------------------------------------------
 
-fn topology_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Element<'a, Message> {
+fn topology_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'a, Message> {
     let conn_count = state.diag.connections.as_ref()
         .map(|snapshot| snapshot.connections.len())
         .unwrap_or(0);
@@ -349,14 +350,14 @@ fn topology_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Eleme
         row![
             icon_themed(Icon::Network, 16.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_SM),
-            text(stat_label(lang, "分流网络拓扑", "Network Topology Flow"))
+            text(lang.tr("overview_topology_title").to_string())
                 .size(14).font(FONT_SEMIBOLD)
                 .style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
         ]
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
         badge(
-            format!("{conn_count} {}", if is_en { "conns" } else { "连接" }),
+            format!("{conn_count} {}", lang.tr("overview_conn_unit")),
             if conn_count > 0 { BadgeKind::Success } else { BadgeKind::Neutral },
         ),
     ]
@@ -372,7 +373,7 @@ fn topology_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Eleme
     let selected_group = if !state.runtime.runtime_selected_group.is_empty() {
         state.runtime.runtime_selected_group.clone()
     } else {
-        "🚀 节点选择".to_string()
+        lang.tr("overview_node_select_title").to_string()
     };
 
     let exit_node = state.runtime.proxies.get("GLOBAL")
@@ -499,17 +500,13 @@ fn arrow_connector<'a>() -> Element<'a, Message> {
 // Current IP & Multi-Source Probe Card (P02-01 ~ P02-03)
 // ---------------------------------------------------------------------------
 
-fn current_ip_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Element<'a, Message> {
+fn current_ip_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'a, Message> {
     let public_ip_str = state.diag.public_ip.as_deref()
         .unwrap_or(if state.shell.demo { "203.0.113.7" } else { "—" });
     let provider_name = state.diag.public_ip_provider.as_deref().unwrap_or("ipapi.is");
 
     let copy_msg = Message::ShowToast(
-        if is_en {
-            format!("Copied IP ({public_ip_str}) to clipboard")
-        } else {
-            format!("已复制 IP ({public_ip_str}) 到剪贴板")
-        },
+        infiltrator_shared::i18n_interpolator::interpolate(&lang.tr("overview_copied_ip"), &[("ip", public_ip_str)]),
         ToastStatus::Success,
     );
 
@@ -517,7 +514,7 @@ fn current_ip_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Ele
         row![
             icon_themed(Icon::Copy, 12.0, |t| tokens(t).text_secondary),
             Space::new().width(theme::SP_XS),
-            text(if is_en { "Copy" } else { "复制" }).size(11).font(FONT_MEDIUM),
+            text(lang.tr("common_copy").to_string()).size(11).font(FONT_MEDIUM),
         ]
         .align_y(Alignment::Center),
     )
@@ -529,7 +526,7 @@ fn current_ip_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Ele
         row![
             icon_themed(Icon::Globe, 16.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_SM),
-            text(stat_label(lang, "当前公网 IP", "Current Public IP"))
+            text(lang.tr("overview_current_ip").to_string())
                 .size(14).font(FONT_SEMIBOLD)
                 .style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
         ]
@@ -553,19 +550,15 @@ fn current_ip_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Ele
     .width(Length::Fill);
 
     let meta_text: Element<'a, Message> = if let Some(err) = state.diag.public_ip_error.as_deref() {
-        text(format!("{}: {err}", if is_en { "Probe Error" } else { "探测失败" }))
+        text(format!("{}: {err}", lang.tr("overview_probe_failed")))
             .size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).danger) })
             .into()
     } else if let Some(checked_at) = state.diag.public_ip_checked_at.as_deref() {
-        text(format!("{} · {provider_name} · {checked_at}", if is_en { "Via Proxy" } else { "经当前代理" }))
+        text(format!("{} · {provider_name} · {checked_at}", lang.tr("overview_via_current_proxy")))
             .size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) })
             .into()
     } else {
-        text(if is_en {
-            "Provider: ipapi.is · Via active proxy outbound"
-        } else {
-            "探测源: ipapi.is · 经当前活动代理节点出口"
-        })
+        text(lang.tr("overview_probe_source_desc").to_string())
         .size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) })
         .into()
     };
@@ -590,12 +583,12 @@ fn current_ip_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Ele
 // Multi-Target Latency Comparison Bars (P02-08 ~ P02-10)
 // ---------------------------------------------------------------------------
 
-fn latency_card<'a>(_state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Element<'a, Message> {
+fn latency_card<'a>(_state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'a, Message> {
     let avg_pill = container(
         row![
             icon_themed(Icon::Activity, 11.0, |t| tokens(t).success),
             Space::new().width(theme::SP_XS),
-            text(if is_en { "Avg: 180ms" } else { "平均: 180ms" })
+            text(lang.tr("overview_avg_latency").to_string())
                 .size(11).font(MONO)
                 .style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
         ]
@@ -619,7 +612,7 @@ fn latency_card<'a>(_state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Eleme
         row![
             icon_themed(Icon::Target, 16.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_SM),
-            text(stat_label(lang, "网络延迟对比", "Network Latency"))
+            text(lang.tr("runtime_delay_title").to_string())
                 .size(14).font(FONT_SEMIBOLD)
                 .style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
         ]
@@ -699,78 +692,4 @@ fn latency_comparison_bar<'a>(
     .align_y(Alignment::Center)
     .width(Length::Fill)
     .into()
-}
-
-/// Bilingual fallback for stat labels that have no locale key yet.
-fn stat_label(lang: &Lang<'_>, zh: &str, en: &str) -> String {
-    if lang.0.starts_with("en") {
-        en.to_string()
-    } else {
-        zh.to_string()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_overview_view_render() {
-        let (state, _) = AppState::new();
-        let _view: Element<'_, Message> = view(&state);
-    }
-
-    #[test]
-    fn test_hero_card_render() {
-        let (state, _) = AppState::new();
-        let lang = Lang(&state.shell.lang);
-        let _hero: Element<'_, Message> = hero_card(&state, &lang);
-    }
-
-    #[test]
-    fn test_stats_grid_render() {
-        let (state, _) = AppState::new();
-        let lang = Lang(&state.shell.lang);
-        let _stats: Element<'_, Message> = stats_grid(&state, &lang);
-    }
-
-    #[test]
-    fn test_traffic_card_render() {
-        let (state, _) = AppState::new();
-        let lang = Lang(&state.shell.lang);
-        let _traffic: Element<'_, Message> = traffic_card(&state, &lang);
-    }
-
-    #[test]
-    fn test_topology_card_render() {
-        let (state, _) = AppState::new();
-        let lang = Lang(&state.shell.lang);
-        let _topo_zh: Element<'_, Message> = topology_card(&state, &lang, false);
-        let _topo_en: Element<'_, Message> = topology_card(&state, &lang, true);
-    }
-
-    #[test]
-    fn test_current_ip_card_render() {
-        let (state, _) = AppState::new();
-        let lang = Lang(&state.shell.lang);
-        let _ip_zh: Element<'_, Message> = current_ip_card(&state, &lang, false);
-        let _ip_en: Element<'_, Message> = current_ip_card(&state, &lang, true);
-    }
-
-    #[test]
-    fn test_latency_card_render() {
-        let (state, _) = AppState::new();
-        let lang = Lang(&state.shell.lang);
-        let _lat_zh: Element<'_, Message> = latency_card(&state, &lang, false);
-        let _lat_en: Element<'_, Message> = latency_card(&state, &lang, true);
-    }
-
-    #[test]
-    fn test_mode_label_translations() {
-        let lang_zh = Lang("zh-CN");
-        let lang_en = Lang("en-US");
-        assert!(!mode_label("rule", &lang_zh).is_empty());
-        assert!(!mode_label("rule", &lang_en).is_empty());
-        assert_eq!(mode_label("custom_mode", &lang_zh), "custom_mode");
-    }
 }

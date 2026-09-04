@@ -213,16 +213,14 @@ impl FilterPipeline {
                 }
                 FilterStage::PortFilter { config } => {
                     nodes.retain(|node| {
-                        if let Some(ref allowed) = config.allowed_ports {
-                            if !allowed.contains(&node.port) {
+                        if let Some(ref allowed) = config.allowed_ports
+                            && !allowed.contains(&node.port) {
                                 return false;
                             }
-                        }
-                        if let Some(ref blocked) = config.blocked_ports {
-                            if blocked.contains(&node.port) {
+                        if let Some(ref blocked) = config.blocked_ports
+                            && blocked.contains(&node.port) {
                                 return false;
                             }
-                        }
                         true
                     });
                 }

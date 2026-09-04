@@ -331,6 +331,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .spacing(2),
             Space::new().width(Length::Fill),
             badge(total_count.to_string(), BadgeKind::Neutral),
+            icon_button(
+                Icon::ArrowUp,
+                12.0,
+                Message::MoveProxyGroupUp(group_name.clone()),
+            ),
+            icon_button(
+                Icon::ArrowDown,
+                12.0,
+                Message::MoveProxyGroupDown(group_name.clone()),
+            ),
             test_group_btn,
             icon_button(
                 chevron_icon,
@@ -363,6 +373,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         header,
         Space::new().height(theme::SP_MD),
         controls,
+        Space::new().height(theme::SP_MD),
+        crate::view::speedtest_modal::speedtest_card(state, &lang),
+        Space::new().height(theme::SP_MD),
+        crate::view::latency_radar_card::latency_radar_card(state, &lang),
         Space::new().height(theme::SP_LG),
         modern_scrollable(groups_col).height(Length::Fill),
     ]
@@ -375,7 +389,7 @@ pub fn group_icon(proxy_type: &str) -> Icon {
         "URLTest" | "url-test" | "UrlTest" => Icon::Zap,
         "Fallback" | "fallback" => Icon::Shield,
         "LoadBalance" | "load-balance" | "Load-Balance" => Icon::ListChecks,
-        "Selector" | "selector" | _ => Icon::Globe,
+        _ => Icon::Globe,
     }
 }
 

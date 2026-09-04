@@ -2,6 +2,9 @@
 
 本台账记录 Infiltrator 对标业界成熟客户端（Clash Verge Rev、Clash Party、Flclash、ClashMi）的全景差距与 10 个演进阶段、100 项具体工程落地任务。
 
+> **台账归宿与演进定位（2026-09-03）**：
+> 本台账记录项目初期 10 个演进阶段与 100 项底层核心落地事实。针对后续推进，双前端（Iced 与 Bevy UI）同步演进、10 大业务组功能全景并集以及 Waves 1~4 批次计划统一收敛至最高主控台账 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md)。
+
 ---
 
 ## 架构原则与边界约束

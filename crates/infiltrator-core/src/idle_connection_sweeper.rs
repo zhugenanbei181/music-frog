@@ -283,47 +283,40 @@ impl ConnectionQuery {
             }
         }
 
-        if let Some(ref nd) = self.node {
-            if conn.outbound_node.as_deref() != Some(nd.as_str()) {
+        if let Some(ref nd) = self.node
+            && conn.outbound_node.as_deref() != Some(nd.as_str()) {
                 return false;
             }
-        }
 
-        if let Some(ref grp) = self.group {
-            if conn.rule_group.as_deref() != Some(grp.as_str()) {
+        if let Some(ref grp) = self.group
+            && conn.rule_group.as_deref() != Some(grp.as_str()) {
                 return false;
             }
-        }
 
-        if let Some(pid) = self.pid {
-            if conn.pid != Some(pid) {
+        if let Some(pid) = self.pid
+            && conn.pid != Some(pid) {
                 return false;
             }
-        }
 
-        if let Some(state) = self.state {
-            if conn.state != state {
+        if let Some(state) = self.state
+            && conn.state != state {
                 return false;
             }
-        }
 
-        if let Some(min_idle) = self.min_idle_secs {
-            if conn.idle_duration_secs(now_secs) < min_idle {
+        if let Some(min_idle) = self.min_idle_secs
+            && conn.idle_duration_secs(now_secs) < min_idle {
                 return false;
             }
-        }
 
-        if let Some(min_bytes) = self.min_total_bytes {
-            if conn.total_bytes() < min_bytes {
+        if let Some(min_bytes) = self.min_total_bytes
+            && conn.total_bytes() < min_bytes {
                 return false;
             }
-        }
 
-        if let Some(tag) = self.has_security_tag {
-            if !conn.security_tags.contains(&tag) {
+        if let Some(tag) = self.has_security_tag
+            && !conn.security_tags.contains(&tag) {
                 return false;
             }
-        }
 
         true
     }

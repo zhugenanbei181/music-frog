@@ -113,6 +113,9 @@ pub fn parse_page(value: &str) -> Option<Route> {
         "editor" | "mixin" | "filter" => Some(Route::Editor),
         "rules" | "rules-providers" => Some(Route::Rules),
         "settings" => Some(Route::Settings),
+        "app_routing" | "app-routing" => Some(Route::AppRouting),
+        "doctor" => Some(Route::Doctor),
+        "connections" | "logs" => Some(Route::Runtime),
         _ => None,
     }
 }
@@ -129,6 +132,8 @@ pub fn route_env_name(route: Route) -> &'static str {
         Route::Sync => "sync",
         Route::Editor => "editor",
         Route::Settings => "settings",
+        Route::AppRouting => "app_routing",
+        Route::Doctor => "doctor",
     }
 }
 

@@ -40,10 +40,7 @@ pub fn validate(node: &RawNode) -> Vec<String> {
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
                 .is_some()
-                || match node.extra.get("uuid") {
-                    Some(Value::String(uuid)) if !uuid.trim().is_empty() => true,
-                    _ => false,
-                };
+                || matches!(node.extra.get("uuid"), Some(Value::String(uuid)) if !uuid.trim().is_empty());
             if !has_uuid {
                 issues.push("vless: uuid is required".to_string());
             }

@@ -261,7 +261,27 @@ impl AppState {
             }));
         }
 
-        // 4. 高性能动画订阅：只有正在转场时才开启帧回调
+        // 4. 全局键盘热键订阅（Command Palette Ctrl+K / Cmd+K 与 ESC）
+        subs.push(iced::event::listen_with(|event, _status, _window| {
+            if let iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key,
+                modifiers,
+                ..
+            }) = event {
+                if (modifiers.control() || modifiers.command())
+                    && (key == iced::keyboard::Key::Character("k".into())
+                        || key == iced::keyboard::Key::Character("K".into()))
+                {
+                    return Some(Message::ToggleCommandPalette);
+                }
+                if key == iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape) {
+                    return Some(Message::CloseCommandPalette);
+                }
+            }
+            None
+        }));
+
+        // 5. 高性能动画订阅：只有正在转场时才开启帧回调
         if self.shell.transition.start_time.is_some() {
             subs.push(window::frames().map(Message::TickFrame));
         }

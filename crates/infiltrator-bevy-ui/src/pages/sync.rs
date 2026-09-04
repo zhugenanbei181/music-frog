@@ -1,9 +1,11 @@
 //! The Sync page (数据同步): WebDAV roaming, remote backups, 3-way merge,
-//! snapshot history, and multi-device profile roaming.
+//! conflict detection and resolution, snapshot history, and multi-device sync.
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`SyncLine`],
-//! [`SnapshotRowMarker`]). The page self-registers
-//! [`apply_sync_projection`] once per world via [`SyncPageRoot`].
+//! [`SnapshotDeviceText`], [`SnapshotSizeText`], [`ConflictSummaryText`]).
+//! The page self-registers [`apply_sync_projection`] and action observers
+//! once per world via [`SyncPageRoot`]. When [`SyncProjectionUpdated`] fires,
+//! texts, conflict panels, and snapshots restamp in place without tree rebuilds.
 
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::component::Component;
@@ -11,16 +13,17 @@ use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
+use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, ResMut};
+use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn, template_value};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
+    Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -29,6 +32,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
+use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::overview::format_byte_count;
 use crate::route::{PageRoot, Route};
 
@@ -57,6 +61,45 @@ pub enum SyncLineKind {
     ServerUrl,
 }
 
+/// Marker for conflict summary text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConflictSummaryText;
+
+/// Marker for conflict card container to toggle display.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConflictCardContainer;
+
+/// Marker for snapshot device/time text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SnapshotDeviceText(pub usize);
+
+/// Marker for snapshot size text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SnapshotSizeText(pub usize);
+
+/// Marker for "Sync Now" button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SyncNowButton;
+
+/// Marker for "Create Backup" button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CreateBackupButton;
+
+/// Marker for "Keep Local" conflict resolution button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct KeepLocalConflictButton;
+
+/// Marker for "Take Remote" conflict resolution button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TakeRemoteConflictButton;
+
+/// Marker for restoring a specific snapshot.
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct RestoreSnapshotButton {
+    pub snapshot_id: String,
+    pub snapshot_idx: usize,
+}
+
 /// Status of the WebDAV sync connection.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SyncStatus {
@@ -64,6 +107,7 @@ pub enum SyncStatus {
     Connected,
     Disconnected,
     Syncing,
+    Conflict,
     Error,
 }
 
@@ -73,9 +117,26 @@ impl SyncStatus {
             Self::Connected => "已连接 · 同步就绪",
             Self::Disconnected => "未连接",
             Self::Syncing => "正在同步数据中...",
+            Self::Conflict => "同步冲突 · 需要手动解决",
             Self::Error => "同步异常",
         }
     }
+}
+
+/// Information about a single conflicting configuration key.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConflictingKey {
+    pub key: String,
+    pub local_value: String,
+    pub remote_value: String,
+}
+
+/// Conflict details when WebDAV detects out-of-sync diverging vector clocks.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SyncConflictInfo {
+    pub remote_device: String,
+    pub conflict_time: String,
+    pub conflicting_keys: Vec<ConflictingKey>,
 }
 
 /// A remote backup snapshot item.
@@ -95,6 +156,7 @@ pub struct SyncProjection {
     pub username: String,
     pub last_sync: Option<String>,
     pub auto_sync: bool,
+    pub conflict: Option<SyncConflictInfo>,
     pub snapshots: Vec<SnapshotItem>,
 }
 
@@ -107,6 +169,7 @@ impl SyncProjection {
             username: "user@example.com".to_owned(),
             last_sync: Some("2026-09-02 10:15".to_owned()),
             auto_sync: true,
+            conflict: None,
             snapshots: vec![
                 SnapshotItem {
                     id: "snap-1".to_owned(),
@@ -152,13 +215,19 @@ pub fn sync_page(projection: &SyncProjection, palette: &UiPalette) -> impl Scene
     let snapshot_scenes: Vec<Box<dyn Scene>> = projection
         .snapshots
         .iter()
-        .map(|s| Box::new(snapshot_row_scene(s, palette)) as Box<dyn Scene>)
+        .enumerate()
+        .map(|(idx, s)| Box::new(snapshot_row_scene(idx, s, palette)) as Box<dyn Scene>)
         .collect();
+
+    let conflict_scene = conflict_panel_scene(projection.conflict.as_ref(), palette);
 
     bsn! {
         Node {
             width: percent(100),
+            min_width: px(0.0),
+            max_width: percent(100),
             height: percent(100),
+            min_height: px(0.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(space::S16),
             overflow: Overflow::scroll_y(),
@@ -167,6 +236,8 @@ pub fn sync_page(projection: &SyncProjection, palette: &UiPalette) -> impl Scene
         SyncPageRoot
         Children [
             ( { header_card_scene(summary, last_sync_str, palette) } ),
+            ( { conflict_scene } ),
+            ( { crate::pages::sync_merge::sync_three_way_merge_scene(palette) } ),
             ( { webdav_config_card(projection, palette) } ),
             ( { snapshots_card_scene(snapshot_scenes, palette) } ),
         ]
@@ -225,6 +296,7 @@ fn header_card_scene(
                                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                             }
                             BackgroundColor({ palette.accent })
+                            SyncNowButton
                             Button
                             Children [
                                 ( Text({ "立即同步".to_owned() }) TextRole(Role::BodyStrong) ),
@@ -239,9 +311,95 @@ fn header_card_scene(
                                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                             }
                             BackgroundColor({ palette.surface_elevated })
+                            CreateBackupButton
                             Button
                             Children [
                                 ( Text({ "创建备份".to_owned() }) TextRole(Role::Body) ),
+                            ]
+                        ),
+                    ]
+                ),
+            ]
+        })],
+        palette,
+    )
+}
+
+fn conflict_panel_scene(
+    conflict: Option<&SyncConflictInfo>,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let has_conflict = conflict.is_some();
+    let display_mode = if has_conflict {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    let conflict_text = match conflict {
+        Some(info) => format!(
+            "检测到冲突：远端设备 {} 于 {} 产生变更，共 {} 处不一致",
+            info.remote_device,
+            info.conflict_time,
+            info.conflicting_keys.len()
+        ),
+        None => "无冲突".to_owned(),
+    };
+
+    surface_scene(
+        vec![Box::new(bsn! {
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S8),
+                display: { display_mode },
+            }
+            ConflictCardContainer
+            Children [
+                (
+                    Node {
+                        width: percent(100),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                    }
+                    Children [
+                        ( Text({ "⚠️ WebDAV 3-Way 同步冲突待解决".to_owned() }) TextRole(Role::BodyStrong) ),
+                    ]
+                ),
+                ( Text(conflict_text) ConflictSummaryText TextRole(Role::Body) ),
+                (
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S8),
+                    }
+                    Children [
+                        (
+                            Node {
+                                min_height: px(palette.control_height_px * 0.85),
+                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.accent })
+                            KeepLocalConflictButton
+                            Button
+                            Children [
+                                ( Text({ "保留本地配置 (Keep Local)".to_owned() }) TextRole(Role::Body) ),
+                            ]
+                        ),
+                        (
+                            Node {
+                                min_height: px(palette.control_height_px * 0.85),
+                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            TakeRemoteConflictButton
+                            Button
+                            Children [
+                                ( Text({ "采用远端配置 (Take Remote)".to_owned() }) TextRole(Role::Body) ),
                             ]
                         ),
                     ]
@@ -329,7 +487,11 @@ fn snapshots_card_scene(
     )
 }
 
-fn snapshot_row_scene(snapshot: &SnapshotItem, palette: &UiPalette) -> impl Scene + use<> {
+fn snapshot_row_scene(
+    idx: usize,
+    snapshot: &SnapshotItem,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let device_time = format!("{} · {}", snapshot.device, snapshot.timestamp);
     let size_str = format_byte_count(snapshot.size_bytes);
 
@@ -349,8 +511,8 @@ fn snapshot_row_scene(snapshot: &SnapshotItem, palette: &UiPalette) -> impl Scen
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text(device_time) TextRole(Role::Body) ),
-                    ( Text(size_str) TextRole(Role::Mono) ),
+                    ( Text(device_time) SnapshotDeviceText(idx) TextRole(Role::Body) ),
+                    ( Text(size_str) SnapshotSizeText(idx) TextRole(Role::Mono) ),
                 ]
             ),
             (
@@ -362,6 +524,10 @@ fn snapshot_row_scene(snapshot: &SnapshotItem, palette: &UiPalette) -> impl Scen
                     border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                 }
                 BackgroundColor({ palette.surface })
+                template_value(RestoreSnapshotButton {
+                    snapshot_id: snapshot.id.clone(),
+                    snapshot_idx: idx,
+                } )
                 Button
                 Children [
                     ( Text({ "还原此版本".to_owned() }) TextRole(Role::Caption) ),
@@ -380,12 +546,79 @@ fn bind_sync_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     let mut commands = world.commands();
     commands.insert_resource(SyncPageBound);
     commands.add_observer(apply_sync_projection);
+    commands.add_observer(on_sync_action_activated);
 }
 
+pub(crate) fn on_sync_action_activated(
+    activate: On<Activate>,
+    sync_now_buttons: Query<(), With<SyncNowButton>>,
+    create_backup_buttons: Query<(), With<CreateBackupButton>>,
+    keep_local_buttons: Query<(), With<KeepLocalConflictButton>>,
+    take_remote_buttons: Query<(), With<TakeRemoteConflictButton>>,
+    restore_buttons: Query<&RestoreSnapshotButton>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    if sync_now_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::SyncNow);
+    } else if create_backup_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::CreateBackupSnapshot);
+    } else if keep_local_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::ResolveConflictKeepLocal);
+    } else if take_remote_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::ResolveConflictTakeRemote);
+    } else if let Ok(btn) = restore_buttons.get(activate.entity) {
+        handle.submit(UiCommand::RestoreSnapshot {
+            id: btn.snapshot_id.clone(),
+        });
+    }
+}
+
+#[allow(clippy::type_complexity)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_sync_projection(
     update: On<SyncProjectionUpdated>,
     mut last: Option<ResMut<LastSyncProjection>>,
-    mut lines: Query<(&mut Text, &SyncLine)>,
+    mut lines: Query<
+        (&mut Text, &SyncLine),
+        (
+            With<SyncLine>,
+            Without<ConflictSummaryText>,
+            Without<SnapshotDeviceText>,
+            Without<SnapshotSizeText>,
+        ),
+    >,
+    mut conflict_texts: Query<
+        (&mut Text, &ConflictSummaryText),
+        (
+            With<ConflictSummaryText>,
+            Without<SyncLine>,
+            Without<SnapshotDeviceText>,
+            Without<SnapshotSizeText>,
+        ),
+    >,
+    mut conflict_containers: Query<&mut Node, With<ConflictCardContainer>>,
+    mut snapshot_devices: Query<
+        (&mut Text, &SnapshotDeviceText),
+        (
+            With<SnapshotDeviceText>,
+            Without<SyncLine>,
+            Without<ConflictSummaryText>,
+            Without<SnapshotSizeText>,
+        ),
+    >,
+    mut snapshot_sizes: Query<
+        (&mut Text, &SnapshotSizeText),
+        (
+            With<SnapshotSizeText>,
+            Without<SyncLine>,
+            Without<ConflictSummaryText>,
+            Without<SnapshotDeviceText>,
+        ),
+    >,
+    mut restore_buttons: Query<&mut RestoreSnapshotButton>,
 ) {
     let projection = &update.0;
 
@@ -407,6 +640,44 @@ pub(crate) fn apply_sync_projection(
         }
     }
 
+    let has_conflict = projection.conflict.is_some();
+    for mut container in &mut conflict_containers {
+        container.display = if has_conflict {
+            Display::Flex
+        } else {
+            Display::None
+        };
+    }
+
+    if let Some(conflict) = &projection.conflict {
+        for (mut text, _) in &mut conflict_texts {
+            text.0 = format!(
+                "检测到冲突：远端设备 {} 于 {} 产生变更，共 {} 处不一致",
+                conflict.remote_device,
+                conflict.conflict_time,
+                conflict.conflicting_keys.len()
+            );
+        }
+    }
+
+    for (mut text, marker) in &mut snapshot_devices {
+        if let Some(snap) = projection.snapshots.get(marker.0) {
+            text.0 = format!("{} · {}", snap.device, snap.timestamp);
+        }
+    }
+
+    for (mut text, marker) in &mut snapshot_sizes {
+        if let Some(snap) = projection.snapshots.get(marker.0) {
+            text.0 = format_byte_count(snap.size_bytes);
+        }
+    }
+
+    for mut btn in &mut restore_buttons {
+        if let Some(snap) = projection.snapshots.get(btn.snapshot_idx) {
+            btn.snapshot_id = snap.id.clone();
+        }
+    }
+
     if let Some(ref mut last_proj) = last {
         last_proj.0 = Some(projection.clone());
     }
@@ -420,7 +691,12 @@ mod tests {
     fn demo_sync_fixture() {
         let proj = SyncProjection::demo();
         assert_eq!(proj.status, SyncStatus::Connected);
+        assert_eq!(proj.server_url, "https://dav.jianguoyun.com/dav/MusicFrog/");
+        assert_eq!(proj.username, "user@example.com");
         assert_eq!(proj.snapshots.len(), 3);
+        assert_eq!(proj.snapshots[0].device, "Linux Desktop (CachyOS)");
+        assert_eq!(proj.snapshots[0].size_bytes, 142_800);
         assert!(proj.auto_sync);
+        assert_eq!(proj.conflict, None);
     }
 }

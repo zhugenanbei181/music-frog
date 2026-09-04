@@ -1,100 +1,57 @@
-//! The app shell: a left sidebar (identity, mode segment control, nav,
-//! version) and a content column (title row + the page slot), composed
-//! with `bsn!` over the widget layer in the iced reference product
-//! language. The two shell seams are unchanged:
-//!
-//! - **Theme affordance** ([`ThemeToggle`] / [`ThemeMode`]): a pill in
-//!   the title row whose activation flips the shell-owned mode mirror
-//!   and triggers the widget layer's `ThemeSwitch` — the mounted tree is
-//!   restamped in place, never remounted (charter law: observers change
-//!   components). The sidebar's own fill carries the [`SidebarPanel`]
-//!   marker and is repainted every frame by [`sync_sidebar_panel`] (the
-//!   checkbox/slider compare-and-set idiom); the widget layer runs the
-//!   same contract for its pills, nav items, icon tiles and chips.
-//! - **Semantic seeds** ([`window_semantic_node`] /
-//!   [`header_semantic_node`]): `AccessibilityNode` components stamped
-//!   into the scene. They are pure data until a windowed composition
-//!   activates the AccessKit bridge.
-//!
-//! **Mode segment control (BEVY-005)**: the sidebar's mode pills are wired
-//! through [`on_mode_pill_activated`] — one `On<Activate>` observer that
-//! dispatches on the [`OverviewModePill`] marker, posts `set_mode` through
-//! the injected [`OverviewSourceHandle`] and latches
-//! [`ModeCommandInFlight`] until [`drain_mode_ack`] receives the typed
-//! receipt (in-flight activations are ignored, never queued). A refused
-//! command projects [`OverviewState::Unavailable`] with the failure copy
-//! and latches the pump's [`FailureDwell`] when one is mounted, so the
-//! verdict survives the next sampling ticks; an accepted one re-reads the
-//! source so the pills follow the round trip.
-//! The stop button stays demo-honest: the page swaps it for a typed
-//! lifecycle caption when a live core feeds the projection (see
-//! `pages::overview`).
-//!
-//! **Honesty note**: the sidebar's 数据同步 / 系统设置 entries are real,
-//! visibly-disabled items tagged 未迁移 — they route nowhere because
-//! nothing behind them exists yet.
-//!
-//! **Copy note**: sidebar strings are zh-CN literals by design of this
-//! demo slice — the 0.30 i18n milestone unifies them into locale keys.
-//! (本片文案为 zh-CN 字面量，0.30 i18n 里程碑统一 locale key。)
-//!
-//! bsn! idiom (crate law, docs/BEVY_UI_FRONTEND.md): one `bsn!` per named
-//! scene function; dynamic values ride the declarative shape; runtime
-//! changes restamp components via observers and never rebuild the tree.
-//! The plugin below stays headless-safe (no `DefaultPlugins` here — the
-//! window launcher in `lib.rs` owns that composition), which is exactly
-//! what lets `MinimalPlugins` headless tests exercise the real shell.
+//! The app shell: left sidebar/rail/bottom-nav and content column composed with `bsn!`.
+//! Seams: Responsive layout breakpoints (Compact, Medium, Expanded, Ultra), theme/density toggles,
+//! AccessKit semantic nodes, and mode segment control (BEVY-005).
 
-use std::sync::Mutex;
-use std::sync::mpsc::Receiver;
+use std::sync::{Mutex, mpsc::Receiver};
 use std::time::Instant;
 
 use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::camera::Camera2d;
 use bevy::camera::ClearColor;
-use bevy::color::Color;
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
-use bevy::scene::{CommandsSceneExt, Scene, bsn, template_value};
-use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderColor, Display, FlexDirection, JustifyContent, Node, UiRect,
-    Val, percent, px,
-};
+use bevy::scene::{CommandsSceneExt, Scene};
+use bevy::text::TextColor;
+use bevy::ui::prelude::{BackgroundColor, BorderColor, Display, Node, UiRect, Val, px};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_widgets::WidgetsPlugin;
-use infiltrator_bevy_widgets::button::{pill_caption_scene, pill_scene};
-use infiltrator_bevy_widgets::icon::{IconId, IconTint, icon_scene};
-use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
-use infiltrator_bevy_widgets::nav::nav_item_scene;
+use infiltrator_bevy_widgets::icon::IconTint;
+use infiltrator_bevy_widgets::nav::{NavActive, NavLabel, nav_fill, nav_label_ink};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::responsive::{Density, DensitySwitch, ResponsiveContext};
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Breakpoint, LightDark, Theme, space};
 
 use crate::controller::FailureDwell;
-use crate::pages::overview::{OverviewModePill, OverviewProjectionUpdated, mode_label};
-use crate::projection::{OverviewState, ProxyMode};
-use crate::route::OverviewSourceHandle;
+use crate::pages::overview::{OverviewModePill, OverviewProjectionUpdated};
+use crate::projection::OverviewState;
+use crate::route::{ActiveRoute, OverviewSourceHandle, Route, RouteChanged};
 
-/// Sidebar rail width (px) — the iced reference's left column.
-const SIDEBAR_WIDTH_PX: f32 = 240.0;
+/// Sidebar rail standard width (px).
+pub const SIDEBAR_WIDTH_PX: f32 = 240.0;
 /// Identity tile edge (px).
-const IDENTITY_TILE_PX: f32 = 40.0;
+pub const IDENTITY_TILE_PX: f32 = 40.0;
 
 /// Shell layout mode corresponding to responsive breakpoints.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum LayoutMode {
-    /// Desktop / tablet layout: left sidebar rail + content area.
-    #[default]
-    Sidebar,
     /// Mobile compact layout (<600px): collapsed sidebar + bottom navigation bar.
     BottomNav,
+    /// Tablet / split screen medium layout (600px - 1024px): slim rail.
+    Rail,
+    /// Desktop expanded layout (1024px - 1440px): standard sidebar (240px).
+    #[default]
+    Sidebar,
+    /// Ultrawide layout (>=1440px): wide sidebar (280px).
+    Wide,
 }
 
 /// Live responsive shell layout state.
@@ -106,21 +63,25 @@ pub struct ShellLayoutState {
     pub breakpoint: Breakpoint,
     /// Active shell layout mode.
     pub mode: LayoutMode,
+    /// Active layout density.
+    pub density: Density,
 }
 
 impl ShellLayoutState {
     /// Construct shell layout state from a viewport / window width in pixels.
     pub fn from_width(width_px: f32) -> Self {
         let breakpoint = Breakpoint::from_width(width_px);
-        let mode = if breakpoint.is_compact() {
-            LayoutMode::BottomNav
-        } else {
-            LayoutMode::Sidebar
+        let mode = match breakpoint {
+            Breakpoint::Compact => LayoutMode::BottomNav,
+            Breakpoint::Medium => LayoutMode::Rail,
+            Breakpoint::Expanded => LayoutMode::Sidebar,
+            Breakpoint::Ultra => LayoutMode::Wide,
         };
         Self {
             width_px,
             breakpoint,
             mode,
+            density: Density::Comfortable,
         }
     }
 
@@ -128,12 +89,28 @@ impl ShellLayoutState {
     /// Returns `true` if breakpoint or layout mode changed.
     pub fn set_width(&mut self, width_px: f32) -> bool {
         let next = Self::from_width(width_px);
-        if *self != next {
-            *self = next;
+        if self.width_px != width_px || self.breakpoint != next.breakpoint || self.mode != next.mode
+        {
+            self.width_px = width_px;
+            self.breakpoint = next.breakpoint;
+            self.mode = next.mode;
             true
         } else {
             false
         }
+    }
+
+    pub fn is_compact(&self) -> bool {
+        self.mode == LayoutMode::BottomNav
+    }
+    pub fn is_rail(&self) -> bool {
+        self.mode == LayoutMode::Rail
+    }
+    pub fn is_sidebar(&self) -> bool {
+        self.mode == LayoutMode::Sidebar
+    }
+    pub fn is_wide(&self) -> bool {
+        self.mode == LayoutMode::Wide
     }
 }
 
@@ -143,107 +120,140 @@ impl Default for ShellLayoutState {
     }
 }
 
-/// Marker for the content region product pages mount into. Page routing
-/// (BEVY-M2) replaces bounded subtrees below this slot.
+/// Marker for the content region product pages mount into.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct ContentSlot;
 
-/// Marker for the shell root entity: carries the window-level semantic node.
+/// Marker on the content column for responsive padding scaling.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ContentColumn;
+
+/// Marker for the shell root entity.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct ShellRoot;
 
-/// Marker for the title row: carries the header semantic node.
+/// Marker for the title row.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct ShellHeader;
 
-/// Marker for the theme-toggle pill. The shell's `On<Activate>` observer
-/// filters on this marker, so one global observer serves the affordance
-/// without per-entity observer plumbing inside the scene.
+/// Marker on the top header title text node.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ContentTitleLabel;
+
+/// Marker for the theme-toggle pill.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct ThemeToggle;
 
-/// Marker on the sidebar rail; [`sync_sidebar_panel`] re-projects its
-/// fill from the live palette (compare-and-set).
+/// Marker for the density-toggle pill.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct DensityToggle;
+
+/// Marker on navigation back button (<) (BEVY-GAP-011).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HistoryBackButton;
+
+/// Marker on navigation forward button (>) (BEVY-GAP-011).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HistoryForwardButton;
+
+/// Marker on global running status indicator dot (BEVY-GAP-007).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GlobalStatusDot;
+
+/// Marker on global proxy mode capsule (BEVY-GAP-007).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GlobalModeCapsule;
+
+/// Marker on the sidebar Script proxy mode pill.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarScriptModePill;
+
+/// Marker on the sidebar system proxy toggle card.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarSystemProxyCard;
+
+/// Marker on the sidebar system proxy toggle switch.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarSystemProxyToggle;
+
+/// Marker on the sidebar TUN mode toggle card.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarTunCard;
+
+/// Marker on the sidebar TUN mode toggle switch.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarTunToggle;
+
+/// Marker on the sidebar active profile card.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarActiveProfileCard;
+
+/// Marker on the sidebar 2x2 shortcut matrix.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarShortcutMatrix;
+
+/// Marker on a shortcut tile in the sidebar matrix.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarShortcutTile(pub Route);
+
+/// Marker on the sidebar live speed footer.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarSpeedFooter;
+
+/// Marker on the sidebar rail.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SidebarPanel;
+
+/// Marker on an individual item in the sidebar navigation with its target route.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarNavItem(pub Route);
 
 /// Marker on the bottom navigation bar for mobile compact mode (<600px).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BottomNavBar;
 
-/// Marker on an individual item in the bottom navigation bar.
+/// Marker on an individual item in the bottom navigation bar with its target route.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct BottomNavItem;
+pub struct BottomNavItem(pub Route);
 
 /// Active state flag for bottom navigation items.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BottomNavActive(pub bool);
 
-/// Marker on the sidebar's foot caption. The text is spawned with the
-/// demo default (the shell mounts before any page source exists);
-/// [`crate::route::sync_sidebar_foot`] re-projects it from the injected
-/// source's kind — `0.30 demo` for the fixture, `实时内核 · <version>`
-/// for the live pump (compare-and-set, in place).
+/// Marker on the sidebar's foot caption.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SidebarFoot;
 
-/// The shell's mirror of the current appearance. The resolved `UiPalette`
-/// cannot be inverted back to a mode (its colors are not bijective), so the
-/// shell owns the mode the theme pill flips. Seeded by the launcher (env
-/// capture skin, else the cold-start dark theme — the same theme
-/// [`ShellPlugin`] hands to `WidgetsPlugin`).
+/// The shell's mirror of the current appearance.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ThemeMode(pub LightDark);
 
-/// Latch for a proxy-mode command in flight: set by
-/// [`on_mode_pill_activated`], cleared by [`drain_mode_ack`] when the
-/// typed receipt lands. While latched, further pill activations are
-/// ignored (never queued) — duplicate clicks cannot double-submit.
+/// Latch for a proxy-mode command in flight.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ModeCommandInFlight(pub bool);
 
-/// The receipt channel of the in-flight mode command, parked here until
-/// the per-frame drain reads it. The `Receiver` is not `Sync`, so the
-/// resource carries it behind a mutex (the drain holds `ResMut`, i.e.
-/// exclusive access, and uses `get_mut`).
+/// The receipt channel of the in-flight mode command.
 #[derive(Resource, Debug, Default)]
 pub struct PendingModeAck(pub Option<Mutex<Receiver<Result<(), String>>>>);
 
-/// The AccessKit node for the shell root: a Window role carrying the app
-/// title. Pure component data — headless apps carry it inertly; only a
-/// windowed composition (which mounts bevy_winit's `AccessKitPlugin`, the
-/// only bridge activation point in bevy 0.19) publishes it to the platform
-/// tree. Scenes seed it through `template_value`, which carries the already
-/// constructed component untouched.
 pub fn window_semantic_node(title: &str) -> AccessibilityNode {
     let mut node = accesskit::Node::new(accesskit::Role::Window);
     node.set_label(title);
     AccessibilityNode(node)
 }
 
-/// The AccessKit node for the title row: a Header role carrying the same
-/// title, so assistive technology reads the chrome as one labeled region.
 pub fn header_semantic_node(title: &str) -> AccessibilityNode {
     let mut node = accesskit::Node::new(accesskit::Role::Header);
     node.set_label(title);
     AccessibilityNode(node)
 }
 
-/// The pill's semantic node: an explicitly named Button role. The explicit
-/// node replaces the unnamed `Role::Button` default the official `Button`
-/// widget requires (`bevy_ui_widgets` stamps it via `#[require]`), so the
-/// control reads by its action — the theme pill ("Toggle color theme")
-/// and the sidebar's mode pills alike.
 pub fn toggle_semantic_node(label: &str) -> AccessibilityNode {
     let mut node = accesskit::Node::new(accesskit::Role::Button);
     node.set_label(label);
     AccessibilityNode(node)
 }
 
-/// The AccessKit node for a sidebar nav entry: a Button role carrying the
-/// entry's label. The two 未迁移 (not-migrated) entries are stamped
-/// disabled — they read as buttons that cannot be activated, matching
-/// their visibly-idle look and their click-through-to-nowhere honesty.
 pub fn nav_semantic_node(label: &str, disabled: bool) -> AccessibilityNode {
     let mut node = accesskit::Node::new(accesskit::Role::Button);
     node.set_label(label);
@@ -253,22 +263,13 @@ pub fn nav_semantic_node(label: &str, disabled: bool) -> AccessibilityNode {
     AccessibilityNode(node)
 }
 
-/// The AccessKit node for the content region: a labeled Region role, so
-/// assistive technology reads the page area as one named container. The
-/// label names the page family the slot currently hosts (the Overview
-/// page is the whole M2 surface).
 pub fn region_semantic_node(label: &str) -> AccessibilityNode {
     let mut node = accesskit::Node::new(accesskit::Role::Region);
     node.set_label(label);
     AccessibilityNode(node)
 }
 
-/// The theme affordance: activating the shell's theme pill flips the
-/// shell-owned [`ThemeMode`] mirror and triggers the widget layer's
-/// [`ThemeSwitch`], whose `apply_theme` observer re-resolves the palette and
-/// restamps the mounted tree in place — zero remounts. The official `Button`
-/// widget emits `Activate` for pointer and keyboard activation alike in
-/// windowed runs; headless tests trigger the event directly.
+/// Theme toggle observer.
 fn on_theme_pill_activated(
     activate: On<Activate>,
     toggles: Query<(), With<ThemeToggle>>,
@@ -286,14 +287,80 @@ fn on_theme_pill_activated(
     commands.trigger(ThemeSwitch(next));
 }
 
-/// The mode segment's affordance: activating a pill (matched by the
-/// [`OverviewModePill`] marker, the same global-observer idiom as the
-/// theme pill) posts `set_mode` through the injected source and latches
-/// [`ModeCommandInFlight`] until [`drain_mode_ack`] reads the receipt.
-/// Sources without mode support refuse through the receipt channel, so
-/// the failure projection is the honest visible outcome. A pill already
-/// in flight is ignored — the projection refresh (accepted) or the
-/// failure copy (refused) is the only thing that un-latches.
+/// Density toggle observer.
+fn on_density_pill_activated(
+    activate: On<Activate>,
+    toggles: Query<(), With<DensityToggle>>,
+    mut layout: ResMut<ShellLayoutState>,
+    mut commands: Commands,
+) {
+    if !toggles.contains(activate.entity) {
+        return;
+    }
+    let next = match layout.density {
+        Density::Comfortable => Density::Compact,
+        Density::Compact => Density::Comfortable,
+    };
+    layout.density = next;
+    commands.trigger(DensitySwitch(next));
+}
+
+/// Back navigation button observer (BEVY-GAP-011).
+fn on_history_back_activated(
+    activate: On<Activate>,
+    buttons: Query<(), With<HistoryBackButton>>,
+    mut commands: Commands,
+) {
+    if buttons.contains(activate.entity) {
+        commands.trigger(crate::route::NavigateBack);
+    }
+}
+
+/// Forward navigation button observer (BEVY-GAP-011).
+fn on_history_forward_activated(
+    activate: On<Activate>,
+    buttons: Query<(), With<HistoryForwardButton>>,
+    mut commands: Commands,
+) {
+    if buttons.contains(activate.entity) {
+        commands.trigger(crate::route::NavigateForward);
+    }
+}
+
+/// Bottom navigation item activation observer.
+fn on_bottom_nav_activated(
+    activate: On<Activate>,
+    items: Query<&BottomNavItem>,
+    mut commands: Commands,
+) {
+    if let Ok(item) = items.get(activate.entity) {
+        commands.trigger(RouteChanged(item.0));
+    }
+}
+
+/// Sidebar navigation item activation observer.
+fn on_sidebar_nav_activated(
+    activate: On<Activate>,
+    items: Query<&SidebarNavItem>,
+    mut commands: Commands,
+) {
+    if let Ok(item) = items.get(activate.entity) {
+        commands.trigger(RouteChanged(item.0));
+    }
+}
+
+/// Sidebar shortcut tile activation observer.
+fn on_sidebar_shortcut_tile_activated(
+    activate: On<Activate>,
+    tiles: Query<&SidebarShortcutTile>,
+    mut commands: Commands,
+) {
+    if let Ok(tile) = tiles.get(activate.entity) {
+        commands.trigger(RouteChanged(tile.0));
+    }
+}
+
+/// Mode segment pill observer.
 fn on_mode_pill_activated(
     activate: On<Activate>,
     pills: Query<&OverviewModePill>,
@@ -316,21 +383,7 @@ fn on_mode_pill_activated(
     pending.0 = Some(Mutex::new(ack_rx));
 }
 
-/// The receipt drain: one typed outcome per accepted pill activation.
-///
-/// - `Ok(())` — re-read the source and fire [`OverviewProjectionUpdated`]:
-///   the success path is a projection round trip, never a local override.
-/// - `Err(reason)` — project [`OverviewState::Unavailable`] with the
-///   failure copy (the failure line becomes visible) and latch the pump's
-///   [`FailureDwell`] when one is mounted: on a live source the next
-///   sampling ticks would otherwise wash the verdict away within seconds
-///   (see `controller::FailureDwell` — the verdict holds until the dwell
-///   elapses *and* a successful sample arrives). The demo fixture keeps
-///   the verdict until the next refresh either way — both honest.
-/// - A disconnected channel — the source is gone; same failure path.
-/// - An empty but connected channel — the command is still executing
-///   (the live PATCH can take up to the client's HTTP timeout); the latch
-///   stays and a later frame re-checks.
+/// Drain receipt channel for proxy mode switch.
 fn drain_mode_ack(
     mut pending: ResMut<PendingModeAck>,
     mut in_flight: ResMut<ModeCommandInFlight>,
@@ -341,15 +394,13 @@ fn drain_mode_ack(
     let Some(slot) = pending.0.as_mut() else {
         return;
     };
-    // Exclusive access: get_mut cannot race; a poisoned mutex still hands
-    // us the (valid) receiver.
     let outcome = match slot
         .get_mut()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .try_recv()
     {
         Ok(receipt) => Some(receipt),
-        Err(std::sync::mpsc::TryRecvError::Empty) => None, // still executing
+        Err(std::sync::mpsc::TryRecvError::Empty) => None,
         Err(std::sync::mpsc::TryRecvError::Disconnected) => {
             Some(Err("模式命令通道已断开".to_owned()))
         }
@@ -360,7 +411,7 @@ fn drain_mode_ack(
     pending.0 = None;
     in_flight.0 = false;
     let Some(handle) = handle else {
-        return; // no source mounted; the latch is already cleared
+        return;
     };
     let mut projection = handle.0.current();
     match receipt {
@@ -376,21 +427,13 @@ fn drain_mode_ack(
     }
 }
 
-/// Installs the widget layer (seeded with this plugin's cold-start mode),
-/// the theme-mode mirror, the affordance observer, the sidebar reskin and
-/// mounts the shell. No windowing infrastructure here — the launcher in
-/// `lib.rs` owns `DefaultPlugins`. Headless tests run this plugin under
-/// `MinimalPlugins` plus the asset/scene singleton plugins that
-/// `spawn_scene` resolves through; the AccessKit bridge itself is mounted
-/// only by the windowed `WinitPlugin`, so headless compositions carry the
-/// semantic nodes as inert components (the honest M1 boundary).
+/// App shell plugin.
 pub struct ShellPlugin {
     mode: LightDark,
     initial_width_px: Option<f32>,
 }
 
 impl ShellPlugin {
-    /// Cold-start with an explicit appearance (the capture seam's skin).
     pub fn new(mode: LightDark) -> Self {
         Self {
             mode,
@@ -398,7 +441,6 @@ impl ShellPlugin {
         }
     }
 
-    /// Cold-start with an explicit appearance and viewport width.
     pub fn new_with_width(mode: LightDark, width_px: f32) -> Self {
         Self {
             mode,
@@ -417,21 +459,30 @@ impl Plugin for ShellPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(WidgetsPlugin::new(&Theme::for_mode(self.mode)));
         app.insert_resource(ThemeMode(self.mode));
-        let initial_layout = self
-            .initial_width_px
-            .map(ShellLayoutState::from_width)
-            .unwrap_or_default();
+
+        let width = self.initial_width_px.unwrap_or(1180.0);
+        let initial_layout = ShellLayoutState::from_width(width);
         app.insert_resource(initial_layout);
+        app.insert_resource(ResponsiveContext::new(width, 760.0));
+
         app.init_resource::<ModeCommandInFlight>();
         app.init_resource::<PendingModeAck>();
         app.add_observer(on_theme_pill_activated);
+        app.add_observer(on_density_pill_activated);
         app.add_observer(on_mode_pill_activated);
+        app.add_observer(on_bottom_nav_activated);
+        app.add_observer(on_sidebar_nav_activated);
+        app.add_observer(on_sidebar_shortcut_tile_activated);
+        app.add_observer(on_history_back_activated);
+        app.add_observer(on_history_forward_activated);
         app.init_resource::<ClearColor>();
         app.add_systems(Startup, (spawn_camera, spawn_shell));
         app.add_systems(
             Update,
             (
+                sync_content_title,
                 sync_sidebar_panel,
+                sync_sidebar_nav_visuals,
                 sync_bottom_nav_visuals,
                 sync_responsive_shell,
                 sync_window_clear,
@@ -449,9 +500,7 @@ fn spawn_shell(mut commands: Commands, palette: Res<UiPalette>) {
     commands.spawn_scene(shell_scene("MusicFrog Infiltrator".to_string(), &palette));
 }
 
-/// Repaint the sidebar rail from the live palette. Compare-and-set:
-/// unchanged frames cost nothing, and a theme switch repaints the rail
-/// with no switch-specific hook.
+/// Repaint the sidebar rail from the live palette.
 fn sync_sidebar_panel(
     palette: Res<UiPalette>,
     mut panels: Query<&mut BackgroundColor, With<SidebarPanel>>,
@@ -463,11 +512,73 @@ fn sync_sidebar_panel(
     }
 }
 
-/// Repaint bottom navigation bar and items from the live palette.
+/// Sync top content title with the active route.
+fn sync_content_title(
+    active_route: Option<Res<ActiveRoute>>,
+    mut titles: Query<&mut Text, With<ContentTitleLabel>>,
+) {
+    let target = active_route
+        .as_ref()
+        .and_then(|r| r.0)
+        .unwrap_or(Route::Overview)
+        .label();
+    for mut text in &mut titles {
+        if text.0 != target {
+            text.0 = target.to_owned();
+        }
+    }
+}
+
+/// Sync sidebar navigation items with the active route and live palette.
+fn sync_sidebar_nav_visuals(
+    palette: Res<UiPalette>,
+    active_route: Option<Res<ActiveRoute>>,
+    mut items: Query<(Entity, &SidebarNavItem, &mut NavActive, &Children)>,
+    mut bgs: Query<&mut BackgroundColor>,
+    mut texts: Query<(&NavLabel, &mut TextColor, Option<&mut TextRole>)>,
+) {
+    let current = active_route
+        .as_ref()
+        .and_then(|r| r.0)
+        .unwrap_or(Route::Overview);
+    for (entity, item, mut active_marker, children) in &mut items {
+        let is_active = item.0 == current;
+        if active_marker.0 != is_active {
+            active_marker.0 = is_active;
+        }
+        let target_fill = nav_fill(is_active, &palette);
+        if let Ok(mut bg) = bgs.get_mut(entity)
+            && bg.0 != target_fill
+        {
+            bg.0 = target_fill;
+        }
+        let target_ink = nav_label_ink(is_active, &palette);
+        let target_role = if is_active {
+            Role::BodyStrong
+        } else {
+            Role::Body
+        };
+        for child in children.iter() {
+            if let Ok((_, mut text_color, text_role)) = texts.get_mut(*child) {
+                if text_color.0 != target_ink {
+                    text_color.0 = target_ink;
+                }
+                if let Some(mut role) = text_role
+                    && role.0 != target_role
+                {
+                    role.0 = target_role;
+                }
+            }
+        }
+    }
+}
+
+/// Repaint bottom navigation bar and sync active states with ActiveRoute.
 fn sync_bottom_nav_visuals(
     palette: Res<UiPalette>,
+    active_route: Option<Res<ActiveRoute>>,
     mut bars: Query<(&mut BackgroundColor, &mut BorderColor), With<BottomNavBar>>,
-    mut items: Query<(&BottomNavActive, &Children), With<BottomNavItem>>,
+    mut items: Query<(&BottomNavItem, &mut BottomNavActive, &Children)>,
     mut icons: Query<&mut IconTint>,
 ) {
     let edge = palette.border;
@@ -479,8 +590,17 @@ fn sync_bottom_nav_visuals(
             border.top = edge;
         }
     }
-    for (active, children) in &mut items {
-        let target_ink = if active.0 {
+
+    let current = active_route
+        .as_ref()
+        .and_then(|r| r.0)
+        .unwrap_or(Route::Overview);
+    for (item, mut active_marker, children) in &mut items {
+        let is_active = item.0 == current;
+        if active_marker.0 != is_active {
+            active_marker.0 = is_active;
+        }
+        let target_ink = if is_active {
             palette.accent
         } else {
             palette.ink_dim
@@ -495,33 +615,67 @@ fn sync_bottom_nav_visuals(
     }
 }
 
+type ContentColFilter = (
+    With<ContentColumn>,
+    Without<SidebarPanel>,
+    Without<BottomNavBar>,
+    Without<DensityToggle>,
+);
+type DensityPillFilter = (
+    With<DensityToggle>,
+    Without<ContentColumn>,
+    Without<SidebarPanel>,
+    Without<BottomNavBar>,
+);
+
+type ContentColQuery<'w, 's> = Query<'w, 's, &'static mut Node, ContentColFilter>;
+type DensityPillQuery<'w, 's> = Query<'w, 's, &'static mut Node, DensityPillFilter>;
+
 /// Update layout mode and toggle sidebar vs bottom navigation bar display based on window width.
 fn sync_responsive_shell(
     windows: Option<Query<&bevy::window::Window, With<bevy::window::PrimaryWindow>>>,
     mut layout: ResMut<ShellLayoutState>,
+    mut responsive_ctx: Option<ResMut<ResponsiveContext>>,
     mut sidebars: Query<&mut Node, (With<SidebarPanel>, Without<BottomNavBar>)>,
     mut bottom_navs: Query<&mut Node, (With<BottomNavBar>, Without<SidebarPanel>)>,
+    mut content_cols: ContentColQuery,
+    mut density_pills: DensityPillQuery,
 ) {
     if let Some(windows) = windows
         && let Ok(primary) = windows.single()
     {
         let w = primary.width();
+        let h = primary.height();
         if (w - layout.width_px).abs() > 0.5 {
             layout.set_width(w);
+            if let Some(ref mut ctx) = responsive_ctx {
+                ctx.set_dimensions(w, h);
+            }
         }
     }
 
     let is_compact = layout.mode == LayoutMode::BottomNav;
     for mut node in &mut sidebars {
-        let target = if is_compact {
-            Display::None
+        if is_compact {
+            if node.display != Display::None {
+                node.display = Display::None;
+            }
         } else {
-            Display::Flex
-        };
-        if node.display != target {
-            node.display = target;
+            if node.display != Display::Flex {
+                node.display = Display::Flex;
+            }
+            let target_w = match layout.mode {
+                LayoutMode::Rail => px(72.0),
+                LayoutMode::Sidebar => px(SIDEBAR_WIDTH_PX),
+                LayoutMode::Wide => px(280.0),
+                LayoutMode::BottomNav => px(0.0),
+            };
+            if node.width != target_w {
+                node.width = target_w;
+            }
         }
     }
+
     for mut node in &mut bottom_navs {
         let target = if is_compact {
             Display::Flex
@@ -532,13 +686,39 @@ fn sync_responsive_shell(
             node.display = target;
         }
     }
+
+    let col_pad = if is_compact {
+        UiRect::all(Val::Px(space::S12))
+    } else {
+        UiRect::all(Val::Px(space::S16))
+    };
+    let col_gap = if is_compact {
+        Val::Px(space::S12)
+    } else {
+        Val::Px(space::S16)
+    };
+    for mut node in &mut content_cols {
+        if node.padding != col_pad {
+            node.padding = col_pad;
+        }
+        if node.row_gap != col_gap {
+            node.row_gap = col_gap;
+        }
+    }
+
+    let density_display = if is_compact {
+        Display::None
+    } else {
+        Display::Flex
+    };
+    for mut node in &mut density_pills {
+        if node.display != density_display {
+            node.display = density_display;
+        }
+    }
 }
 
-/// Repaint the window canvas (the camera's global clear color) from the
-/// `window_clear` token. Compare-and-set: unchanged frames cost nothing,
-/// and a theme switch repaints the canvas with no switch-specific hook.
-/// `Option` because headless `MinimalPlugins` compositions carry no core
-/// pipeline — there is simply nothing to clear there.
+/// Repaint window canvas clear color.
 fn sync_window_clear(palette: Res<UiPalette>, mut clear: Option<ResMut<ClearColor>>) {
     let Some(clear) = clear.as_deref_mut() else {
         return;
@@ -548,303 +728,12 @@ fn sync_window_clear(palette: Res<UiPalette>, mut clear: Option<ResMut<ClearColo
     }
 }
 
-/// The shell: a full-bleed sidebar (fixed 240px rail) beside the content
-/// column (title row over the content slot product pages mount into), with
-/// a responsive bottom navigation bar that automatically activates on
-/// mobile viewports (<600px width).
-/// The theme pill is the widget layer's `pill_scene` re-skinned by one
-/// shell marker and one semantic node — interaction wiring belongs to the
-/// shell.
+/// The root shell scene.
 pub fn shell_scene(title: String, palette: &UiPalette) -> impl Scene + use<> {
-    let window_node = window_semantic_node(&title);
-    let region_node = region_semantic_node("核心概览");
-    bsn! {
-        Node {
-            width: percent(100),
-            height: percent(100),
-            flex_direction: FlexDirection::Column,
-        }
-        ShellRoot
-        template_value(window_node)
-        Children [
-            (
-                Node {
-                    width: percent(100),
-                    height: percent(100),
-                    flex_grow: 1.0,
-                    flex_direction: FlexDirection::Row,
-                }
-                Children [
-                    ( { sidebar_scene(palette) } ),
-                    (
-                        Node {
-                            flex_grow: 1.0,
-                            flex_direction: FlexDirection::Column,
-                            padding: UiRect::all(Val::Px(space::S16)),
-                            row_gap: Val::Px(space::S16),
-                        }
-                        Children [
-                            ( { content_title_row(&title, palette) } ),
-                            (
-                                Node { flex_grow: 1.0 }
-                                ContentSlot
-                                template_value(region_node)
-                            ),
-                        ]
-                    ),
-                ]
-            ),
-            ( { bottom_nav_scene(palette) } ),
-        ]
-    }
+    crate::shell_scene::shell_scene(title, palette)
 }
 
-/// The bottom navigation bar: full-width horizontal bar across the bottom
-/// of the viewport for mobile compact mode (<600px). Contains nav buttons
-/// for 核心概览 (active), 数据同步 (disabled/idle), and 系统设置 (disabled/idle).
+/// The bottom navigation bar for Compact mode (<600px).
 pub fn bottom_nav_scene(palette: &UiPalette) -> Box<dyn Scene> {
-    let overview_node = nav_semantic_node("核心概览", false);
-    let sync_node = nav_semantic_node("数据同步", true);
-    let settings_node = nav_semantic_node("系统设置", true);
-    let edge = palette.border;
-
-    Box::new(bsn! {
-        Node {
-            width: percent(100),
-            height: px(56.0),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceAround,
-            border: UiRect::top(Val::Px(palette.hairline_px)),
-            display: Display::None,
-        }
-        BackgroundColor({ palette.sidebar })
-        BorderColor {
-            top: edge,
-            right: Color::NONE,
-            bottom: Color::NONE,
-            left: Color::NONE,
-        }
-        BottomNavBar
-        Children [
-            (
-                { bottom_nav_item_scene("核心概览", IconId::Network, true, palette) }
-                template_value(overview_node)
-            ),
-            (
-                { bottom_nav_item_scene("数据同步", IconId::Globe, false, palette) }
-                template_value(sync_node)
-            ),
-            (
-                { bottom_nav_item_scene("系统设置", IconId::Settings, false, palette) }
-                template_value(settings_node)
-            ),
-        ]
-    })
-}
-
-fn bottom_nav_item_scene(
-    label: &str,
-    icon: IconId,
-    active: bool,
-    palette: &UiPalette,
-) -> Box<dyn Scene> {
-    let ink = if active {
-        palette.accent
-    } else {
-        palette.ink_dim
-    };
-    let role = if active {
-        Role::BodyStrong
-    } else {
-        Role::Caption
-    };
-    Box::new(bsn! {
-        Node {
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            row_gap: Val::Px(space::S4),
-            padding: UiRect::vertical(Val::Px(space::S4)),
-        }
-        BottomNavItem
-        BottomNavActive({ active })
-        Children [
-            ( { icon_scene(icon, 20.0, ink) } ),
-            ( Text({ label.to_owned() }) TextRole(role) ),
-        ]
-    })
-}
-
-/// The title row: the page-family heading, a flex spacer, then the theme
-/// pill. Carries the header semantic node.
-fn content_title_row(title: &str, palette: &UiPalette) -> impl Scene + use<> {
-    let header_node = header_semantic_node(title);
-    let pill_node = toggle_semantic_node("Toggle color theme");
-    bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S16),
-        }
-        ShellHeader
-        template_value(header_node)
-        Children [
-            ( Text({ "核心概览".to_owned() }) TextRole(Role::Heading) ),
-            ( Node { flex_grow: 1.0 } ),
-            (
-                { pill_scene("Theme".to_owned(), false, palette) }
-                ThemeToggle
-                template_value(pill_node)
-            ),
-        ]
-    }
-}
-
-/// The sidebar rail: identity block, mode segment control, the nav group
-/// in the content flow (the reference keeps nav just below the segment
-/// control, one S16 step down — the rail's own `row_gap`), a flex spacer
-/// and the version caption at the foot.
-fn sidebar_scene(palette: &UiPalette) -> impl Scene + use<> {
-    bsn! {
-        Node {
-            width: px(SIDEBAR_WIDTH_PX),
-            height: percent(100),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Column,
-            padding: UiRect::all(Val::Px(space::S16)),
-            row_gap: Val::Px(space::S16),
-        }
-        BackgroundColor({ palette.sidebar })
-        SidebarPanel
-        Children [
-            ( { identity_scene(palette) } ),
-            ( { mode_segment_scene(ProxyMode::default(), palette) } ),
-            ( { nav_column_scene(palette) } ),
-            ( Node { flex_grow: 1.0 } ),
-            (
-                Node {
-                    width: percent(100),
-                    justify_content: JustifyContent::Center,
-                }
-                Children [
-                    (
-                        Text({ "0.30 demo".to_owned() }) TextRole(Role::Caption)
-                        SidebarFoot
-                    ),
-                ]
-            ),
-        ]
-    }
-}
-
-/// The identity block: the app icon tile, "MusicFrog" (body strong) over
-/// "Infiltrator" (caption).
-fn identity_scene(palette: &UiPalette) -> impl Scene + use<> {
-    bsn! {
-        Node {
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S12),
-        }
-        Children [
-            ( { icon_tile_scene(IconId::Network, IDENTITY_TILE_PX, palette) } ),
-            (
-                Node {
-                    flex_direction: FlexDirection::Column,
-                }
-                Children [
-                    ( Text({ "MusicFrog".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ( Text({ "Infiltrator".to_owned() }) TextRole(Role::Caption) ),
-                ]
-            ),
-        ]
-    }
-}
-
-/// The proxy-mode segment control: three compact pills in a row, the
-/// selection mirroring the Overview projection's mode (restamped by the
-/// page's refresh observer through [`OverviewModePill`]; spawned on the
-/// default mode, corrected by the router's first paint).
-fn mode_segment_scene(mode: ProxyMode, palette: &UiPalette) -> impl Scene + use<> {
-    let rule_node = toggle_semantic_node(mode_label(ProxyMode::Rule));
-    let global_node = toggle_semantic_node(mode_label(ProxyMode::Global));
-    let direct_node = toggle_semantic_node(mode_label(ProxyMode::Direct));
-    bsn! {
-        Node {
-            align_items: AlignItems::Center,
-            // S4: three 64px caption pills (48px of CJK + S8 padding each)
-            // fit the 208px rail interior only with the tighter gap — at S8
-            // the row hits the boundary exactly and flex shrink wraps the
-            // labels (capture round 3).
-            column_gap: Val::Px(space::S4),
-        }
-        Children [
-            (
-                { pill_caption_scene(mode_label(ProxyMode::Rule).to_owned(), mode == ProxyMode::Rule, palette) }
-                OverviewModePill(ProxyMode::Rule)
-                template_value(rule_node)
-            ),
-            (
-                { pill_caption_scene(mode_label(ProxyMode::Global).to_owned(), mode == ProxyMode::Global, palette) }
-                OverviewModePill(ProxyMode::Global)
-                template_value(global_node)
-            ),
-            (
-                { pill_caption_scene(mode_label(ProxyMode::Direct).to_owned(), mode == ProxyMode::Direct, palette) }
-                OverviewModePill(ProxyMode::Direct)
-                template_value(direct_node)
-            ),
-        ]
-    }
-}
-
-/// The nav column: the active 核心概览 item, then the two honest,
-/// visibly-disabled entries (each tagged 未迁移 — nothing routes yet).
-/// Every item carries a labeled Button semantic node (the disabled ones
-/// stamped disabled).
-fn nav_column_scene(palette: &UiPalette) -> impl Scene + use<> {
-    let overview_node = nav_semantic_node("核心概览", false);
-    bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S8),
-        }
-        Children [
-            (
-                { nav_item_scene("核心概览".to_owned(), true, palette) }
-                template_value(overview_node)
-            ),
-            ( { disabled_nav_row("数据同步", palette) } ),
-            ( { disabled_nav_row("系统设置", palette) } ),
-        ]
-    }
-}
-
-/// One disabled nav entry: the idle nav item beside its 未迁移 caption.
-/// The item is a plain node (never the official `Button`) — clicking it
-/// must not even look pressable; its semantic node reads as a disabled
-/// Button labeled with the entry name.
-fn disabled_nav_row(label: &str, palette: &UiPalette) -> impl Scene + use<> {
-    let nav_node = nav_semantic_node(label, true);
-    bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-        }
-        Children [
-            (
-                Node { flex_grow: 1.0 }
-                Children [
-                    (
-                        { nav_item_scene(label.to_owned(), false, palette) }
-                        template_value(nav_node)
-                    ),
-                ]
-            ),
-            ( Text({ "未迁移".to_owned() }) TextRole(Role::Caption) ),
-        ]
-    }
+    crate::shell_scene::bottom_nav_scene(palette)
 }

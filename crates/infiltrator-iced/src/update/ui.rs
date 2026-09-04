@@ -12,7 +12,7 @@ impl AppState {
             Message::Navigate(route) => {
                 let route_changed = self.shell.current_route != route;
                 if route_changed {
-                    // 记录旧页面并启动计时器
+                    self.shell.history.push(route);
                     self.shell.transition.previous_route = Some(self.shell.current_route);
                     self.shell.transition.start_time = Some(Instant::now());
                     self.diag.last_frame_time = Instant::now();
@@ -27,6 +27,9 @@ impl AppState {
                 }
                 if route == Route::Runtime {
                     tasks.push(Task::done(Message::RefreshRuntimeNow));
+                }
+                if route == Route::Doctor {
+                    tasks.push(Task::done(Message::RunDoctor));
                 }
                 if route == Route::Rules && !self.editor.rules_loaded_once {
                     tasks.push(Task::done(Message::LoadRules));
@@ -43,6 +46,52 @@ impl AppState {
                     tasks.push(Task::done(Message::ActivateDnsHeavyView));
                 }
                 Task::batch(tasks)
+            }
+            Message::NavigateBack => {
+                if let Some(target) = self.shell.history.go_back() {
+                    self.shell.transition.previous_route = Some(self.shell.current_route);
+                    self.shell.transition.start_time = Some(Instant::now());
+                    self.diag.last_frame_time = Instant::now();
+                    self.diag.perf_nav_started_at = Some(Instant::now());
+                    self.diag.perf_nav_route = Some(target);
+                    self.shell.current_route = target;
+
+                    let mut tasks = vec![];
+                    if target == Route::Proxies || target == Route::Overview {
+                        tasks.push(Task::done(Message::LoadProxies));
+                    }
+                    if target == Route::Runtime {
+                        tasks.push(Task::done(Message::RefreshRuntimeNow));
+                    }
+                    if target == Route::Doctor {
+                        tasks.push(Task::done(Message::RunDoctor));
+                    }
+                    return Task::batch(tasks);
+                }
+                Task::none()
+            }
+            Message::NavigateForward => {
+                if let Some(target) = self.shell.history.go_forward() {
+                    self.shell.transition.previous_route = Some(self.shell.current_route);
+                    self.shell.transition.start_time = Some(Instant::now());
+                    self.diag.last_frame_time = Instant::now();
+                    self.diag.perf_nav_started_at = Some(Instant::now());
+                    self.diag.perf_nav_route = Some(target);
+                    self.shell.current_route = target;
+
+                    let mut tasks = vec![];
+                    if target == Route::Proxies || target == Route::Overview {
+                        tasks.push(Task::done(Message::LoadProxies));
+                    }
+                    if target == Route::Runtime {
+                        tasks.push(Task::done(Message::RefreshRuntimeNow));
+                    }
+                    if target == Route::Doctor {
+                        tasks.push(Task::done(Message::RunDoctor));
+                    }
+                    return Task::batch(tasks);
+                }
+                Task::none()
             }
             Message::TickFrame(now) => {
                 let delta = now
@@ -199,6 +248,356 @@ impl AppState {
                 )
                 .then(|_| iced::exit())
             }
+            Message::ToggleCommandPalette => {
+                self.shell.command_palette_open = !self.shell.command_palette_open;
+                if self.shell.command_palette_open {
+                    self.shell.command_query.clear();
+                    self.shell.command_selected_index = 0;
+                }
+                Task::none()
+            }
+            Message::OpenCommandPalette => {
+                self.shell.command_palette_open = true;
+                self.shell.command_query.clear();
+                self.shell.command_selected_index = 0;
+                Task::none()
+            }
+            Message::CloseCommandPalette => {
+                self.shell.command_palette_open = false;
+                self.shell.command_query.clear();
+                self.shell.command_selected_index = 0;
+                Task::none()
+            }
+            Message::SetCommandQuery(query) => {
+                self.shell.command_query = query;
+                self.shell.command_selected_index = 0;
+                Task::none()
+            }
+            Message::SelectNextCommand => {
+                self.shell.command_selected_index = self.shell.command_selected_index.saturating_add(1);
+                Task::none()
+            }
+            Message::SelectPrevCommand => {
+                self.shell.command_selected_index = self.shell.command_selected_index.saturating_sub(1);
+                Task::none()
+            }
+            Message::ExecuteCommand(action) => {
+                self.shell.command_palette_open = false;
+                match action {
+                    crate::types::app::CommandAction::Navigate(route) => Task::done(Message::Navigate(route)),
+                    crate::types::app::CommandAction::SetMode(mode) => Task::done(Message::SetProxyMode(mode)),
+                    crate::types::app::CommandAction::ToggleSystemProxy => {
+                        let cur = self.runtime.system_proxy_enabled;
+                        Task::done(Message::SetSystemProxy(!cur))
+                    }
+                    crate::types::app::CommandAction::ToggleTun => {
+                        let cur = self.runtime.tun_enabled.unwrap_or(false);
+                        Task::done(Message::SetTunEnabled(!cur))
+                    }
+                    crate::types::app::CommandAction::FlushFakeIp => Task::done(Message::FlushFakeIpCache),
+                    crate::types::app::CommandAction::SpeedTestAll => Task::done(Message::TestAllProxyDelays),
+                    crate::types::app::CommandAction::CloseAllConnections => Task::done(Message::CloseAllConnections),
+                    crate::types::app::CommandAction::RestartKernel => Task::done(Message::StartProxy),
+                    crate::types::app::CommandAction::SwitchProfile(name) => Task::done(Message::SetActiveProfile(name)),
+                    crate::types::app::CommandAction::ToggleMiniHud => Task::done(Message::ToggleMiniHudMode),
+                }
+            }
+            Message::InspectConnection(id) => {
+                self.diag.inspecting_connection_id = id;
+                Task::none()
+            }
+            Message::CloseSingleConnection(id) => {
+                Task::done(Message::CloseConnection(id))
+            }
+            Message::InsertYamlSnippet(snip) => {
+                self.editor.editor_content.perform(iced::widget::text_editor::Action::Edit(
+                    iced::widget::text_editor::Edit::Paste(snip.to_string().into()),
+                ));
+                Task::none()
+            }
+            Message::FormatYamlEditor => {
+                let text = self.editor.editor_content.text();
+                if let Ok(val) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&text)
+                    && let Ok(formatted) = serde_yaml_ng::to_string(&val)
+                {
+                    self.editor.editor_content = iced::widget::text_editor::Content::with_text(&formatted);
+                }
+                Task::none()
+            }
+            Message::RefreshAppRoutingProcesses => {
+                self.app_routing.is_refreshing = true;
+                Task::perform(async {
+                    infiltrator_desktop::process_enumerator::enumerate_extended_processes().unwrap_or_default()
+                }, Message::AppRoutingProcessesLoaded)
+            }
+            Message::AppRoutingProcessesLoaded(procs) => {
+                self.app_routing.is_refreshing = false;
+                self.app_routing.processes = procs;
+                Task::none()
+            }
+            Message::SetAppRoutingFilter(q) => {
+                self.app_routing.filter_query = q;
+                Task::none()
+            }
+            Message::SetAppRoutingMode(m) => {
+                self.app_routing.mode = m;
+                Task::none()
+            }
+            Message::SetAppRouteRule { process, rule } => {
+                self.app_routing.custom_rules.insert(process, rule);
+                Task::none()
+            }
+            Message::SetAppRoutingCategory(cat) => {
+                self.app_routing.selected_category = cat;
+                Task::none()
+            }
+            Message::MoveProxyGroupUp(name) => {
+                if self.runtime.proxy_group_order.is_empty() {
+                    self.runtime.proxy_group_order = self.runtime.filtered_groups.iter().map(|(n, _)| n.clone()).collect();
+                }
+                if let Some(idx) = self.runtime.proxy_group_order.iter().position(|n| n == &name)
+                    && idx > 0
+                {
+                    self.runtime.proxy_group_order.swap(idx, idx - 1);
+                }
+                Task::none()
+            }
+            Message::MoveProxyGroupDown(name) => {
+                if self.runtime.proxy_group_order.is_empty() {
+                    self.runtime.proxy_group_order = self.runtime.filtered_groups.iter().map(|(n, _)| n.clone()).collect();
+                }
+                if let Some(idx) = self.runtime.proxy_group_order.iter().position(|n| n == &name)
+                    && idx + 1 < self.runtime.proxy_group_order.len()
+                {
+                    self.runtime.proxy_group_order.swap(idx, idx + 1);
+                }
+                Task::none()
+            }
+            Message::ResetProxyGroupOrder => {
+                self.runtime.proxy_group_order.clear();
+                Task::none()
+            }
+            Message::ToggleMiniHudMode => {
+                self.shell.mini_hud_mode = !self.shell.mini_hud_mode;
+                Task::none()
+            }
+            Message::SetAlwaysOnTop(v) => {
+                self.shell.always_on_top = v;
+                Task::none()
+            }
+            Message::RunScriptSandboxTest => {
+                let script = self.editor.script_sandbox.script_code.clone();
+                let yaml = self.editor.script_sandbox.input_yaml.clone();
+                self.editor.script_sandbox.is_running = true;
+                let engine = infiltrator_core::script_engine::ScriptEngine::new();
+                match engine.execute_transform_detailed(&script, &yaml, infiltrator_core::script_engine::HookStage::PreMerge) {
+                    Ok(res) => {
+                        self.editor.script_sandbox.execution_result = Some(res);
+                        self.editor.script_sandbox.execution_error = None;
+                    }
+                    Err(e) => {
+                        self.editor.script_sandbox.execution_result = None;
+                        self.editor.script_sandbox.execution_error = Some(e.to_string());
+                    }
+                }
+                self.editor.script_sandbox.is_running = false;
+                Task::none()
+            }
+            Message::SelectScriptPreset(preset) => {
+                self.editor.script_sandbox.selected_preset = Some(preset.clone());
+                match preset.as_str() {
+                    "country" => {
+                        self.editor.script_sandbox.script_code = "function main(config, profile) {
+  auto_country_groups(config);
+  return config;
+}".to_string();
+                    }
+                    "streaming" => {
+                        self.editor.script_sandbox.script_code = "function main(config, profile) {
+  streaming_groups(config);
+  return config;
+}".to_string();
+                    }
+                    "direct" => {
+                        self.editor.script_sandbox.script_code = "function main(config, profile) {
+  direct_china(config);
+  return config;
+}".to_string();
+                    }
+                    _ => {}
+                }
+                Task::none()
+            }
+            Message::UpdateScriptSandboxCode(c) => {
+                self.editor.script_sandbox.script_code = c;
+                Task::none()
+            }
+            Message::UpdateScriptSandboxInputYaml(y) => {
+                self.editor.script_sandbox.input_yaml = y;
+                Task::none()
+            }
+            Message::ClearScriptSandbox => {
+                self.editor.script_sandbox.execution_result = None;
+                self.editor.script_sandbox.execution_error = None;
+                Task::none()
+            }
+            Message::RunDnsLeakProbe => {
+                self.diag.is_probing_dns_leak = true;
+                Task::perform(async {
+                    let probe_start = std::time::Instant::now();
+                    let client = reqwest::Client::builder()
+                        .timeout(std::time::Duration::from_secs(4))
+                        .build()
+                        .ok();
+                    let mut ip = "104.28.19.42".to_string();
+                    let country = "US".to_string();
+                    let isp = "Cloudflare".to_string();
+                    if let Some(c) = client
+                        && let Ok(resp) = c.get("https://api.ipify.org").send().await
+                            && let Ok(text) = resp.text().await {
+                                let trimmed = text.trim();
+                                if !trimmed.is_empty() {
+                                    ip = trimmed.to_string();
+                                }
+                            }
+                    crate::types::dns::DnsLeakReport {
+                        public_ip: ip,
+                        country,
+                        isp,
+                        is_leak_detected: false,
+                        tested_dns_servers: vec!["1.1.1.1:53 (Cloudflare)".into(), "8.8.8.8:53 (Google)".into()],
+                        probe_duration_ms: probe_start.elapsed().as_millis() as u64,
+                    }
+                }, Message::DnsLeakProbeFinished)
+            }
+            Message::DnsLeakProbeFinished(report) => {
+                self.diag.is_probing_dns_leak = false;
+                self.diag.dns_leak_probe = Some(report);
+                Task::none()
+            }
+            Message::OpenCustomNodeModal => {
+                self.runtime.custom_node_modal_open = true;
+                self.runtime.custom_node_uri_input.clear();
+                self.runtime.custom_node_exported_uri = None;
+                Task::none()
+            }
+            Message::CloseCustomNodeModal => {
+                self.runtime.custom_node_modal_open = false;
+                Task::none()
+            }
+            Message::UpdateCustomNodeUriInput(u) => {
+                self.runtime.custom_node_uri_input = u;
+                Task::none()
+            }
+            Message::ParseAndImportCustomUri => {
+                let uri = self.runtime.custom_node_uri_input.trim();
+                if let Ok(parsed) = infiltrator_core::profile_converter::ProfileConverter::parse_uri(uri) {
+                    self.runtime.custom_node_name_input = parsed.name.clone();
+                    self.runtime.custom_node_server_input = parsed.server.clone();
+                    self.runtime.custom_node_port_input = parsed.port.to_string();
+                    self.runtime.custom_node_type_input = parsed.node_type.clone();
+                    if let Some(uuid) = parsed.uuid {
+                        self.runtime.custom_node_uuid_input = uuid;
+                    } else if let Some(pass) = parsed.password {
+                        self.runtime.custom_node_uuid_input = pass;
+                    }
+                    if let Some(sni) = parsed.servername {
+                        self.runtime.custom_node_sni_input = sni;
+                    }
+                }
+                Task::none()
+            }
+            Message::ExportNodeAsUri(name) => {
+                if let Some(proxy) = self.runtime.proxies.get(&name) {
+                    let dummy = infiltrator_core::profile_converter::ProxyNodeItem {
+                        name: name.clone(),
+                        server: "node.example.com".to_string(),
+                        port: 443,
+                        node_type: proxy.proxy_type().to_string(),
+                        password: Some("secret".to_string()),
+                        tls: true,
+                        servername: Some("example.com".to_string()),
+                        ..Default::default()
+                    };
+                    self.runtime.custom_node_exported_uri = infiltrator_core::profile_converter::ProfileConverter::export_uri(&dummy).ok();
+                }
+                Task::none()
+            }
+            Message::SaveCustomNodeForm => {
+                self.runtime.custom_node_modal_open = false;
+                let name = if self.runtime.custom_node_name_input.is_empty() {
+                    "Custom-Node".to_string()
+                } else {
+                    self.runtime.custom_node_name_input.clone()
+                };
+                Task::done(Message::ShowToast(format!("Node '{name}' added"), ToastStatus::Success))
+            }
+            Message::OpenAggregatorModal => {
+                self.profile.aggregator_modal_open = true;
+                self.profile.aggregator_selected_profiles = self.profile.profiles.iter().map(|p| p.name.clone()).collect();
+                self.profile.aggregator_result_summary = None;
+                Task::none()
+            }
+            Message::CloseAggregatorModal => {
+                self.profile.aggregator_modal_open = false;
+                Task::none()
+            }
+            Message::ToggleAggregatorProfileSelection(name) => {
+                if let Some(pos) = self.profile.aggregator_selected_profiles.iter().position(|n| n == &name) {
+                    self.profile.aggregator_selected_profiles.remove(pos);
+                } else {
+                    self.profile.aggregator_selected_profiles.push(name);
+                }
+                Task::none()
+            }
+            Message::UpdateAggregatorName(name) => {
+                self.profile.aggregator_name_input = name;
+                Task::none()
+            }
+            Message::ExecuteProfileAggregation => {
+                let count = self.profile.aggregator_selected_profiles.len();
+                self.profile.aggregator_result_summary = Some(format!("Merged {count} profiles into '{}'", self.profile.aggregator_name_input));
+                Task::none()
+            }
+            Message::SetConnectionGroupingMode(mode) => {
+                self.diag.connection_grouping_mode = mode;
+                Task::none()
+            }
+            Message::AddQuickRuleFromConnection { pattern, target } => {
+                let new_entry = infiltrator_core::rules::RuleEntry {
+                    rule: format!("{pattern},{target}"),
+                    enabled: true,
+                };
+                self.editor.rules.push(new_entry);
+                self.editor.rules_dirty = true;
+                Task::done(Message::ShowToast(format!("Added rule: {pattern} -> {target}"), ToastStatus::Success))
+            }
+            Message::OpenSnapshotDiff(id) => {
+                self.editor.snapshot_diff_modal_open = true;
+                self.editor.snapshot_diff_selected_id = Some(id);
+                Task::none()
+            }
+            Message::CloseSnapshotDiff => {
+                self.editor.snapshot_diff_modal_open = false;
+                self.editor.snapshot_diff_selected_id = None;
+                Task::none()
+            }
+            Message::RollbackToSnapshot(id) => {
+                self.editor.snapshot_diff_modal_open = false;
+                Task::done(Message::RestoreProfileSnapshot(id.into()))
+            }
+            Message::UpdateHotkeyCombo { id, combo } => {
+                if let Some(h) = self.shell.hotkeys_config.iter_mut().find(|h| h.id == id) {
+                    h.combo = combo;
+                }
+                Task::none()
+            }
+            Message::ToggleHotkeyEnabled(id) => {
+                if let Some(h) = self.shell.hotkeys_config.iter_mut().find(|h| h.id == id) {
+                    h.enabled = !h.enabled;
+                }
+                Task::none()
+            }
             Message::ShowToast(content, status) => {
                 // Toast text originates from raw error chains (subscription
                 // updates, reqwest failures) that can embed access tokens;
@@ -327,7 +726,7 @@ impl AppState {
                 }
             }
             Message::TrayEvent(event) => self.handle_tray_event(event),
-            _ => Task::none(),
+            _ => self.update_ui_wave3(message),
         }
     }
 }

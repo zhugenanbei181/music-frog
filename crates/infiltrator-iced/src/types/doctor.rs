@@ -81,3 +81,12 @@ pub struct DoctorPanelState {
     pub is_bootstrapping: bool,
     pub error: Option<String>,
 }
+
+/// State for the Crash Watchdog and Sanitized Forensics Reporter.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CrashWatchdogState {
+    pub is_orphaned_detected: bool,
+    pub last_crash_summary: Option<String>,
+    pub recovery_status: Option<String>,
+    pub exported_log_path: Option<String>,
+}

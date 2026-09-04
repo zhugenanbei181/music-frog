@@ -377,11 +377,10 @@ fn match_domain_pattern(domain: &str, pattern: &str) -> bool {
         return true;
     }
 
-    if let Some(suffix) = p.strip_prefix("*.") {
-        if d.ends_with(suffix) && d.len() > suffix.len() && d[..d.len() - suffix.len()].ends_with('.') {
+    if let Some(suffix) = p.strip_prefix("*.")
+        && d.ends_with(suffix) && d.len() > suffix.len() && d[..d.len() - suffix.len()].ends_with('.') {
             return true;
         }
-    }
 
     if let Some(suffix) = p.strip_prefix("+.") {
         if d == suffix {
@@ -398,24 +397,22 @@ fn match_domain_pattern(domain: &str, pattern: &str) -> bool {
         let mut cur_d = d.as_str();
 
         // Check first part (must be prefix)
-        if let Some(first) = parts.first() {
-            if !first.is_empty() {
+        if let Some(first) = parts.first()
+            && !first.is_empty() {
                 if !cur_d.starts_with(first) {
                     return false;
                 }
                 cur_d = &cur_d[first.len()..];
             }
-        }
 
         // Check last part (must be suffix)
-        if let Some(last) = parts.last() {
-            if !last.is_empty() {
+        if let Some(last) = parts.last()
+            && !last.is_empty() {
                 if !cur_d.ends_with(last) {
                     return false;
                 }
                 cur_d = &cur_d[..cur_d.len() - last.len()];
             }
-        }
 
         // Check middle parts in sequence
         for part in &parts[1..parts.len().saturating_sub(1)] {

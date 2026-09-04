@@ -12,9 +12,10 @@ use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::view::components::{
-    BadgeKind, badge, card_surface, icon_button, mini_waveform, nav_button, segmented_control,
+    BadgeKind, badge, card_surface, icon_button, nav_button, segmented_control,
     toggle_switch,
 };
+use crate::view::waveform::mini_waveform;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CARD, R_CONTROL};
 use iced::widget::{Space, button, column, container, progress_bar, row, text};
@@ -49,17 +50,27 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
         nav_button(
             lang.tr("nav_overview").into_owned(),
             Route::Overview,
-            &state.shell.current_route
+            &state.shell.current_route,
+        ),
+        nav_button(
+            lang.tr("nav_app_routing").into_owned(),
+            Route::AppRouting,
+            &state.shell.current_route,
+        ),
+        nav_button(
+            lang.tr("nav_doctor").into_owned(),
+            Route::Doctor,
+            &state.shell.current_route,
         ),
         nav_button(
             lang.tr("nav_sync").into_owned(),
             Route::Sync,
-            &state.shell.current_route
+            &state.shell.current_route,
         ),
         nav_button(
             lang.tr("nav_settings").into_owned(),
             Route::Settings,
-            &state.shell.current_route
+            &state.shell.current_route,
         ),
         Space::new().height(Length::Fill),
     ]
@@ -76,13 +87,64 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
         .into()
 }
 
+/// Compact 64px rail sidebar for responsive tablet or narrow desktop views.
+pub const RAIL_WIDTH: f32 = 64.0;
+
+pub fn sidebar_rail(state: &AppState) -> Element<'_, Message> {
+    let routes = [
+        Route::Overview,
+        Route::Proxies,
+        Route::Profiles,
+        Route::Rules,
+        Route::Runtime,
+        Route::Dns,
+        Route::Doctor,
+        Route::AppRouting,
+        Route::Sync,
+        Route::Settings,
+    ];
+
+    let mut items = column![
+        container(icon_themed(Icon::Server, 20.0, |t| theme::tokens(t).on_accent))
+            .width(36)
+            .height(36)
+            .align_x(Alignment::Center)
+            .align_y(Alignment::Center)
+            .style(|t: &Theme| container::Style {
+                background: Some(theme::tokens(t).accent.into()),
+                border: Border {
+                    radius: border::Radius::from(R_CONTROL),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+        divider(),
+    ]
+    .spacing(theme::SP_SM)
+    .align_x(Alignment::Center);
+
+    for route in routes {
+        items = items.push(crate::view::components::nav_rail_icon(route, &state.shell.current_route));
+    }
+
+    container(items)
+        .width(RAIL_WIDTH)
+        .height(Length::Fill)
+        .padding([theme::SP_MD, theme::SP_XS])
+        .style(|t: &Theme| container::Style {
+            background: Some(theme::tokens(t).sidebar.into()),
+            ..Default::default()
+        })
+        .into()
+}
+
 // ---------------------------------------------------------------------------
 // Header
 // ---------------------------------------------------------------------------
 
 /// Logo mark in an accent tile + app name with version `v0.20.0`,
 /// accompanied by restart/refresh and settings gear action buttons on right.
-fn header(_state: &AppState) -> Element<'_, Message> {
+fn header(state: &AppState) -> Element<'_, Message> {
     let logo_tile = container(icon_themed(Icon::Server, 20.0, |t| {
         theme::tokens(t).on_accent
     }))
@@ -114,9 +176,47 @@ fn header(_state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(1);
 
+    let can_back = state.shell.history.can_go_back();
+    let can_fwd = state.shell.history.can_go_forward();
+
+    let nav_history = row![
+        icon_button(
+            Icon::ChevronLeft,
+            13.0,
+            if can_back { Message::NavigateBack } else { Message::Noop },
+        ),
+        icon_button(
+            Icon::ChevronRight,
+            13.0,
+            if can_fwd { Message::NavigateForward } else { Message::Noop },
+        ),
+    ]
+    .spacing(2)
+    .align_y(Alignment::Center);
+
+    let status_dot = container(Space::new().width(8).height(8)).style(move |t: &Theme| {
+        let is_running = matches!(state.runtime.status, crate::types::runtime::RuntimeStatus::Running);
+        let col = if is_running {
+            theme::tokens(t).success
+        } else {
+            theme::tokens(t).danger
+        };
+        container::Style {
+            background: Some(col.into()),
+            border: Border {
+                radius: border::Radius::from(4.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    });
+
     let actions = row![
-        icon_button(Icon::RefreshCw, 16.0, Message::RefreshRuntimeNow),
-        icon_button(Icon::Settings, 16.0, Message::Navigate(Route::Settings)),
+        nav_history,
+        status_dot,
+        icon_button(Icon::Search, 14.0, Message::ToggleCommandPalette),
+        icon_button(Icon::RefreshCw, 14.0, Message::RefreshRuntimeNow),
+        icon_button(Icon::Settings, 14.0, Message::Navigate(Route::Settings)),
     ]
     .spacing(theme::SP_XS)
     .align_y(Alignment::Center);
@@ -256,32 +356,22 @@ fn short_label(value: &str) -> String {
 /// and informative subtitle.
 fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let active = state.profile.profiles.iter().find(|p| p.active);
-    let is_zh = state.shell.lang.starts_with("zh");
+    let _is_zh = state.shell.lang.starts_with("zh");
 
     let (name, is_subscription, subtitle) = match active {
         Some(profile) => {
             let is_sub = profile.subscription_url.is_some();
             let sub = if is_sub {
-                if is_zh {
-                    "订阅配置".to_string()
-                } else {
-                    "Subscription".to_string()
-                }
-            } else if is_zh {
-                "本地配置".to_string()
+                lang.tr("sidebar_sub_profile").to_string()
             } else {
-                "Local Profile".to_string()
+                lang.tr("sidebar_local_profile").to_string()
             };
             (profile.name.clone(), is_sub, sub)
         }
         None => (
             lang.tr("no_profiles").into_owned(),
             false,
-            if is_zh {
-                "点击导入配置".to_string()
-            } else {
-                "Click to import".to_string()
-            },
+            lang.tr("sidebar_import_hint").to_string(),
         ),
     };
 
@@ -485,9 +575,7 @@ fn shortcut_tile<'a>(
                 border: Border {
                     radius: border::Radius::from(R_CARD),
                     width: if is_active { 1.5 } else { 1.0 },
-                    color: if is_active {
-                        tokens.accent
-                    } else if hovered {
+                    color: if is_active || hovered {
                         tokens.accent
                     } else {
                         tokens.card_border
@@ -672,3 +760,10 @@ mod tests {
         let _elem = sidebar(&state);
     }
 }
+
+    #[test]
+    fn test_sidebar_rail_render_smoke() {
+        let (state, _) = AppState::new();
+        let _rail = sidebar_rail(&state);
+        assert_eq!(RAIL_WIDTH, 64.0);
+    }

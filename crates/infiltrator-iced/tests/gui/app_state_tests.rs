@@ -24,12 +24,44 @@ use std::path::PathBuf;
 fn test_route_navigation() {
     let (mut state, _) = AppState::new();
     assert_eq!(state.shell.current_route, Route::Overview);
+    assert!(!state.shell.history.can_go_back());
+    assert!(!state.shell.history.can_go_forward());
 
     let _ = state.update(Message::Navigate(Route::Runtime));
     assert_eq!(state.shell.current_route, Route::Runtime);
+    assert!(state.shell.history.can_go_back());
+    assert!(!state.shell.history.can_go_forward());
 
     let _ = state.update(Message::Navigate(Route::Settings));
     assert_eq!(state.shell.current_route, Route::Settings);
+
+    let _ = state.update(Message::Navigate(Route::Doctor));
+    assert_eq!(state.shell.current_route, Route::Doctor);
+
+    let _ = state.update(Message::Navigate(Route::AppRouting));
+    assert_eq!(state.shell.current_route, Route::AppRouting);
+
+    // Back to Doctor
+    let _ = state.update(Message::NavigateBack);
+    assert_eq!(state.shell.current_route, Route::Doctor);
+    assert!(state.shell.history.can_go_forward());
+
+    // Back to Settings
+    let _ = state.update(Message::NavigateBack);
+    assert_eq!(state.shell.current_route, Route::Settings);
+
+    // Forward to Doctor
+    let _ = state.update(Message::NavigateForward);
+    assert_eq!(state.shell.current_route, Route::Doctor);
+
+    // Navigate to Proxies branches and clears forward stack
+    let _ = state.update(Message::Navigate(Route::Proxies));
+    assert_eq!(state.shell.current_route, Route::Proxies);
+    assert!(!state.shell.history.can_go_forward());
+
+    // Same route navigation is idempotent
+    let _ = state.update(Message::Navigate(Route::Proxies));
+    assert_eq!(state.shell.current_route, Route::Proxies);
 }
 
 #[test]

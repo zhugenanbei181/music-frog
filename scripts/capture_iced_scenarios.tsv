@@ -32,3 +32,9 @@ filter-forest	filter	forest	1180x780
 settings-light	settings	light	1180x780
 settings-dark	settings	dark	1180x780
 settings-forest	settings	forest	1180x780
+app-routing-light	app_routing	light	1180x780
+app-routing-dark	app_routing	dark	1180x780
+app-routing-forest	app_routing	forest	1180x780
+doctor-light	doctor	light	1180x780
+doctor-dark	doctor	dark	1180x780
+doctor-forest	doctor	forest	1180x780

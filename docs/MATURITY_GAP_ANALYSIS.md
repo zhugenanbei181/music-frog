@@ -2,6 +2,9 @@
 
 本文档实事求是地记录本项目与业界一线成熟客户端（Clash Verge Rev、Mihomo Party、Flclash、Clash Nyanpasu 以及 Surge/Shadowrocket/Stash 等）的全景技术差距，并作为分批落地实施的唯一基准台账。
 
+> **主控台账与分工说明（2026-09-03）**：
+> 本文档聚焦于底层核心层与协议层（`infiltrator-core` / `mihomo-*`）的 10×10 深度差距。有关 Iced 与 Bevy UI 的**双端同步演进**、**10 大业务组功能并集**与 **UI 表现清单**，统一归属并由最高主控台账 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 统摄。
+
 ---
 
 ## 总体设计原则

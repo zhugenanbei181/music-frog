@@ -13,3 +13,4 @@ pub mod options;
 pub mod perf;
 pub mod rules;
 pub mod runtime;
+pub mod app_routing;

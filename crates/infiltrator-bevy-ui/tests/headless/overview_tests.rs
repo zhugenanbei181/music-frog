@@ -23,8 +23,11 @@ use infiltrator_bevy_ui::history::{TrafficHistory, chart_series, demo_traffic_se
 use infiltrator_bevy_ui::pages::overview::{
     CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText, OverviewCardState, OverviewChip,
     OverviewChipKind, OverviewLine, OverviewLineKind, OverviewModeChip, OverviewModePill,
-    OverviewProjectionUpdated, OverviewStatusCard, StatusDot, StopButton, format_memory,
-    format_rate,
+    OverviewProjectionUpdated, OverviewStatusCard, StatusDot, StopButton, SubscriptionQuotaCard,
+    TopologyChainCard, format_memory, format_rate, subscription_quota_scene, topology_chain_scene,
+};
+use infiltrator_bevy_ui::pages::overview_cards::{
+    ActiveExitNodeCard, SystemProxyMasterCard, TunMasterCard,
 };
 use infiltrator_bevy_ui::projection::{
     DemoOverviewSource, OverviewOrigin, OverviewProjection, OverviewSource, OverviewState,
@@ -1039,4 +1042,163 @@ fn overview_page_chips_and_container_responsive_wrapping() {
             "chips carry 140px flex_basis for responsive 2x2 wrapping on mobile"
         );
     }
+}
+
+/// The Overview page mounts the traffic topology chain card (BEVY-GAP-018)
+/// with 4 linked stage chips and connecting arrows (">").
+#[test]
+fn test_topology_chain_card_mounts_with_four_stages_and_arrows() {
+    let mut app = mounted_default();
+    let world = app.world_mut();
+
+    let mut query = world.query::<(Entity, &TopologyChainCard)>();
+    let (card_entity, _) = query
+        .iter(world)
+        .next()
+        .expect("TopologyChainCard must be mounted in overview page");
+
+    let all_descendants = descendants(world, card_entity);
+    let texts: Vec<String> = all_descendants
+        .iter()
+        .filter_map(|e| world.get::<Text>(*e).map(|t| t.0.clone()))
+        .collect();
+
+    // Card title & badge
+    assert!(
+        texts.iter().any(|t| t == "分流网络拓扑 (Traffic Topology)"),
+        "card contains title"
+    );
+    assert!(
+        texts.iter().any(|t| t == "12 连接"),
+        "card contains connection count badge"
+    );
+
+    // Stage 1: Client / Inbound
+    assert!(texts.iter().any(|t| t == "Client / Inbound"));
+    assert!(texts.iter().any(|t| t == "Mixed: 7890"));
+    assert!(texts.iter().any(|t| t == "12 conns"));
+
+    // Stage 2: RuleSet
+    assert!(texts.iter().any(|t| t == "RuleSet"));
+    assert!(texts.iter().any(|t| t == "MRS / GeoIP"));
+    assert!(texts.iter().any(|t| t == "Active"));
+
+    // Stage 3: Proxy Group
+    assert!(texts.iter().any(|t| t == "Proxy Group"));
+    assert!(texts.iter().any(|t| t == "GLOBAL / PROXIES"));
+    assert!(texts.iter().any(|t| t == "Selector"));
+
+    // Stage 4: Outbound Node
+    assert!(texts.iter().any(|t| t == "Outbound Node"));
+    assert!(texts.iter().any(|t| t == "香港 01 · BGP 专线"));
+    assert!(texts.iter().any(|t| t == "38 ms"));
+
+    // Connecting arrows
+    let arrow_count = texts.iter().filter(|t| t.as_str() == ">").count();
+    assert_eq!(
+        arrow_count, 3,
+        "must have exactly 3 connecting arrows between the 4 chips"
+    );
+
+    // Standalone scene creation test
+    let palette = UiPalette::new(&Theme::dark());
+    let _scene = topology_chain_scene(&palette);
+}
+
+/// The Overview page mounts the subscription quota card (BEVY-GAP-020)
+/// with title, header, subtitle/stats and visual progress bar.
+#[test]
+fn test_subscription_quota_card_mounts_with_progress_bar() {
+    let mut app = mounted_default();
+    let world = app.world_mut();
+
+    let mut query = world.query::<(Entity, &SubscriptionQuotaCard)>();
+    let (card_entity, _) = query
+        .iter(world)
+        .next()
+        .expect("SubscriptionQuotaCard must be mounted in overview page");
+
+    let all_descendants = descendants(world, card_entity);
+    let texts: Vec<String> = all_descendants
+        .iter()
+        .filter_map(|e| world.get::<Text>(*e).map(|t| t.0.clone()))
+        .collect();
+
+    // Card title
+    assert!(texts.iter().any(|t| t == "订阅配额"), "contains 订阅配额");
+
+    // Header: "主力高速订阅 (Primary VIP)" and "2026-10-01 到期"
+    assert!(
+        texts.iter().any(|t| t == "主力高速订阅 (Primary VIP)"),
+        "contains 主力高速订阅 (Primary VIP)"
+    );
+    assert!(
+        texts.iter().any(|t| t == "2026-10-01 到期"),
+        "contains 2026-10-01 到期"
+    );
+
+    // Subtitle/stats: "已用: 46.43 GB / 总计: 186.26 GB (24.9%)"
+    assert!(
+        texts
+            .iter()
+            .any(|t| t == "已用: 46.43 GB / 总计: 186.26 GB (24.9%)"),
+        "contains stats"
+    );
+
+    // Visual progress bar: height ~8px, inner fill width 25% with palette.accent
+    let mut found_bar = false;
+    for e in &all_descendants {
+        if let Some(node) = world.get::<bevy::ui::Node>(*e)
+            && node.height == bevy::ui::Val::Px(8.0)
+        {
+            let bar_descendants = descendants(world, *e);
+            for child in bar_descendants {
+                if let Some(inner_node) = world.get::<bevy::ui::Node>(child)
+                    && inner_node.width == bevy::ui::Val::Percent(25.0)
+                {
+                    found_bar = true;
+                    break;
+                }
+            }
+        }
+    }
+    assert!(
+        found_bar,
+        "visual progress bar with 8px height and 25% fill mounted"
+    );
+
+    // Standalone scene creation test
+    let palette = UiPalette::new(&Theme::dark());
+    let _scene = subscription_quota_scene(&palette);
+}
+
+#[test]
+fn test_overview_master_switches_and_exit_node_cards() {
+    let mut app = mounted_default();
+    let world = app.world_mut();
+
+    let mut exit_query = world.query::<(Entity, &ActiveExitNodeCard)>();
+    let (exit_entity, _) = exit_query
+        .iter(world)
+        .next()
+        .expect("ActiveExitNodeCard must be mounted");
+    let exit_descendants = descendants(world, exit_entity);
+    let exit_texts: Vec<String> = exit_descendants
+        .iter()
+        .filter_map(|e| world.get::<Text>(*e).map(|t| t.0.clone()))
+        .collect();
+    assert!(exit_texts.iter().any(|t| t.contains("当前主出口节点")));
+    assert!(exit_texts.iter().any(|t| t.contains("🇭🇰")));
+
+    let mut proxy_query = world.query::<(Entity, &SystemProxyMasterCard)>();
+    assert!(
+        proxy_query.iter(world).next().is_some(),
+        "SystemProxyMasterCard must be mounted"
+    );
+
+    let mut tun_query = world.query::<(Entity, &TunMasterCard)>();
+    assert!(
+        tun_query.iter(world).next().is_some(),
+        "TunMasterCard must be mounted"
+    );
 }

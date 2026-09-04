@@ -227,7 +227,7 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
                 summary.updated, summary.total, summary.failed, summary.skipped
             )),
             data: Some(
-                serde_json::to_value(&ProfilesUpdateAllResponse::from(summary)).unwrap_or_default(),
+                serde_json::to_value(ProfilesUpdateAllResponse::from(summary)).unwrap_or_default(),
             ),
         }));
     }

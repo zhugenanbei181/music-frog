@@ -66,13 +66,12 @@ pub async fn import_extension_package_http<C: AdminApiContext>(
         .map_err(|e| ApiError::bad_request(format!("Failed to import extension package: {e}")))?;
 
     let checksum = package.calculate_checksum();
-    if let Some(expected) = payload.expected_checksum {
-        if !package.verify_checksum(&expected) {
+    if let Some(expected) = payload.expected_checksum
+        && !package.verify_checksum(&expected) {
             return Err(ApiError::bad_request(format!(
                 "Checksum mismatch: expected `{expected}`, got `{checksum}`"
             )));
         }
-    }
 
     Ok(Json(ExtensionImportResponse { package, checksum }))
 }

@@ -20,14 +20,6 @@
 //! live palette (the checkbox/slider sync idiom), so a `ThemeSwitch`
 //! rethemes them with no switch-specific hook and no remount. The widget
 //! layer owns the same contract for its stat chips / surfaces / icon
-//! tiles / nav items.
-//!
-//! **Theme seam**: every filled node of the page (banner, status dot,
-//! mode chip, stop button) carries a marker and is repainted every frame
-//! by [`reskin_overview_tokens`] — a compare-and-set projection from the
-//! live palette (the checkbox/slider sync idiom), so a `ThemeSwitch`
-//! rethemes them with no switch-specific hook and no remount. The widget
-//! layer owns the same contract for its stat chips / surfaces / icon
 //! tiles / nav items. What a per-frame reskin *cannot* recover is the
 //! state-specific text ink (the unavailable danger ink, the uplink
 //! success ink) that the widget layer's `apply_theme` restamps to plain
@@ -60,8 +52,8 @@ use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn, template_value};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
-    Overflow, UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent,
+    Node, Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -160,6 +152,38 @@ pub enum OverviewChipKind {
 /// can re-derive the token fill from the live palette.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct OverviewStatusCard;
+
+/// Marker on the traffic topology chain card.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TopologyChainCard;
+
+/// Marker on the middle connecting arrow between stage pairs in the topology chain.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MiddleTopologyArrow;
+
+/// Marker on the subscription quota card.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SubscriptionQuotaCard;
+
+/// Marker on nodes filled with the `surface_elevated` token.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SurfaceElevatedFill;
+
+/// Marker on nodes filled with the `accent_container` token.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AccentContainerFill;
+
+/// Marker on nodes filled with the `surface` token.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SurfaceFill;
+
+/// Marker on nodes filled with the `border` token.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BorderFill;
+
+/// Marker on nodes filled with the `accent` token.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AccentFill;
 
 /// The banner's stored projection state; restamped by the refresh
 /// observer, read by [`reskin_overview_tokens`].
@@ -369,7 +393,10 @@ pub fn overview_page(
     bsn! {
         Node {
             width: percent(100),
+            min_width: px(0.0),
+            max_width: percent(100),
             height: percent(100),
+            min_height: px(0.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(space::S16),
             overflow: Overflow::scroll_y(),
@@ -380,6 +407,10 @@ pub fn overview_page(
             ( { banner_scene(projection, palette) } ),
             ( { traffic_card_scene(projection, history, palette) } ),
             ( { chips_row_scene(projection, palette) } ),
+            ( { crate::pages::overview_cards::master_switches_scene(palette) } ),
+            ( { crate::pages::overview_cards::active_exit_node_scene(palette) } ),
+            ( { topology_chain_scene(palette) } ),
+            ( { subscription_quota_scene(palette) } ),
         ]
     }
 }
@@ -619,6 +650,8 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
     bsn! {
         Node {
             width: percent(100),
+            min_width: px(0.0),
+            max_width: percent(100),
             flex_direction: FlexDirection::Row,
             flex_wrap: FlexWrap::Wrap,
             align_items: AlignItems::Center,
@@ -650,14 +683,17 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
     }
 }
 
-// ---- the self-registered refresh observer -----------------------------------
+/// The traffic topology chain card: 4 linked stage chips with connecting arrows (">").
+/// 4-stage network traffic topology chain scene (BEVY-GAP-018).
+pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
+    crate::pages::overview_cards::topology_chain_scene(palette)
+}
 
-/// Bind hook: register [`apply_overview_projection`] once per world.
-/// Re-mounts of the page find the guard resource and do nothing — the
-/// observer is global and survives page swaps. The first paint is fired
-/// by the router (queued after `spawn_scene`: at this hook's flush point
-/// the page's child lines do not exist yet, so triggering here would
-/// dispatch into an empty tree).
+/// Subscription quota and billing cycle visualization card (BEVY-GAP-020).
+pub fn subscription_quota_scene(palette: &UiPalette) -> impl Scene + use<> {
+    crate::pages::overview_cards::subscription_quota_scene(palette)
+}
+
 fn bind_overview_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     if world.get_resource::<OverviewPageBound>().is_some() {
         return;
@@ -774,18 +810,33 @@ pub(crate) fn reskin_overview_tokens(
         Has<StatusDot>,
         Has<OverviewModeChip>,
         Has<StopButton>,
+        Has<SurfaceElevatedFill>,
+        Has<AccentContainerFill>,
+        Has<SurfaceFill>,
+        Has<BorderFill>,
+        Has<AccentFill>,
     )>,
     mut inks: Query<(&mut TextColor, Has<OnAccentText>)>,
 ) {
-    for (mut fill, card, dot, chip, stop) in &mut fills {
+    for (mut fill, card, dot, chip, stop, elevated, acc_container, surface, border, accent) in
+        &mut fills
+    {
         let want = if let Some(state) = card {
             card_fill(state.0, &palette)
         } else if dot {
             palette.success
-        } else if chip {
+        } else if chip || accent {
             palette.accent
         } else if stop {
             palette.danger
+        } else if elevated {
+            palette.surface_elevated
+        } else if acc_container {
+            palette.accent_container
+        } else if surface {
+            palette.surface
+        } else if border {
+            palette.border
         } else {
             continue;
         };
@@ -796,6 +847,27 @@ pub(crate) fn reskin_overview_tokens(
     for (mut ink, on_accent) in &mut inks {
         if on_accent && ink.0 != palette.on_accent {
             ink.0 = palette.on_accent;
+        }
+    }
+}
+
+/// Sync overview topology chain responsive layout according to layout mode.
+pub fn sync_overview_responsive(
+    layout: Option<Res<crate::app::ShellLayoutState>>,
+    mut middle_arrows: Query<&mut Node, With<MiddleTopologyArrow>>,
+) {
+    let Some(layout) = layout else {
+        return;
+    };
+    let is_compact = layout.mode == crate::app::LayoutMode::BottomNav;
+    let target_display = if is_compact {
+        Display::None
+    } else {
+        Display::Flex
+    };
+    for mut node in &mut middle_arrows {
+        if node.display != target_display {
+            node.display = target_display;
         }
     }
 }

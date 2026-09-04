@@ -6,9 +6,10 @@
 use crate::state::AppState;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
-use crate::types::runtime::RuntimeStreamState;
+use crate::types::runtime::{ConnectionGroupingMode, RuntimeStreamState};
 use crate::utils::format_bytes;
 use crate::view::components::{
+    modern_scrollable,
     BadgeKind, badge, chip, empty_state, icon_button, row_card_surface,
     search_input, section_header, segmented_control, status_dot, style_danger, style_ghost,
     text_btn,
@@ -52,9 +53,9 @@ pub fn outbound_target_info(conn: &Connection) -> (String, BadgeKind) {
         });
 
     let target_upper = target.to_uppercase();
-    let kind = if target_upper == "DIRECT" || target == "全球直连" || target == "直连" {
+    let kind = if target_upper == "DIRECT" || target.contains("\u{76f4}\u{8fde}") || target_upper == "DIRECT" {
         BadgeKind::Success
-    } else if target_upper == "REJECT" || target == "拒绝" {
+    } else if target_upper == "REJECT" || target.contains("\u{62d2}\u{7edd}") || target_upper == "REJECT" {
         BadgeKind::Danger
     } else {
         BadgeKind::Accent
@@ -113,7 +114,7 @@ pub fn sort_connections(conns: &mut [Connection], sort_key: &str) {
 }
 
 pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
-    let is_zh = state.shell.lang.starts_with("zh");
+    let _is_zh = state.shell.lang.starts_with("zh");
 
     // 1. Sort segmented control: download / upload / latest / host
     let sort_labels: Vec<String> = vec![
@@ -165,7 +166,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
 
     // 4. Header toolbar
     let header_trailing = row![
-        stream_badge(&state.diag.connections_stream_state),
+        stream_badge(&state.diag.connections_stream_state, &lang),
         Space::new().width(theme::SP_SM),
         upload_badge,
         Space::new().width(theme::SP_XS),
@@ -198,12 +199,8 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         .unwrap_or(0);
 
     let tab_labels = vec![
-        format!(
-            "{} ({})",
-            if is_zh { "活动中" } else { "Active" },
-            total_active_conns
-        ),
-        format!("{} (0)", if is_zh { "已关闭" } else { "Closed" }),
+        format!("{} ({total_active_conns})", lang.tr("conn_status_active")),
+        format!("{} (0)", lang.tr("conn_status_closed")),
     ];
     let tab_index = if is_closed_tab { 1 } else { 0 };
     let sub_tabs = segmented_control(&tab_labels, tab_index, move |idx| {
@@ -237,8 +234,28 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         Message::UpdateRuntimeConnectionFilter(String::new())
     };
 
+    let group_labels = vec![
+        lang.tr("conn_group_flat").to_string(),
+        lang.tr("conn_group_process").to_string(),
+        lang.tr("conn_group_host").to_string(),
+    ];
+    let group_idx = match state.diag.connection_grouping_mode {
+        ConnectionGroupingMode::Flat => 0,
+        ConnectionGroupingMode::ByProcess => 1,
+        ConnectionGroupingMode::ByHost => 2,
+    };
+    let group_control = segmented_control(&group_labels, group_idx, |idx| {
+        Message::SetConnectionGroupingMode(match idx {
+            1 => ConnectionGroupingMode::ByProcess,
+            2 => ConnectionGroupingMode::ByHost,
+            _ => ConnectionGroupingMode::Flat,
+        })
+    });
+
     let filter_bar = row![
         sub_tabs,
+        Space::new().width(theme::SP_MD),
+        group_control,
         Space::new().width(theme::SP_LG),
         search_input(
             lang.tr("runtime_conn_filter_placeholder").as_ref(),
@@ -261,12 +278,8 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         // Sub-tab: 已关闭 (Closed)
         connections_section = connections_section.push(empty_state(
             Icon::Plug,
-            if is_zh { "暂无已关闭连接" } else { "No closed connections" },
-            if is_zh {
-                "所有已断开或已终止的连接记录已由内核自动回收"
-            } else {
-                "All closed and terminated connections have been collected"
-            },
+            lang.tr("conn_no_closed").as_ref(),
+            lang.tr("conn_no_closed_desc").as_ref(),
         ));
     } else if let Some(c) = &state.diag.connections {
         let mut sorted_conns = c.connections.clone();
@@ -281,6 +294,58 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 lang.tr("runtime_no_matching_connections").as_ref(),
                 "",
             ));
+        } else if state.diag.connection_grouping_mode == ConnectionGroupingMode::ByProcess {
+            let mut proc_map: std::collections::HashMap<String, (usize, u64, u64)> = std::collections::HashMap::new();
+            for conn in &sorted_conns {
+                let name = extract_process_name(&conn.metadata.process_path);
+                let entry = proc_map.entry(if name.is_empty() { "unknown".to_string() } else { name }).or_insert((0, 0, 0));
+                entry.0 += 1;
+                entry.1 += conn.upload;
+                entry.2 += conn.download;
+            }
+            let mut grouped_list = column![].spacing(theme::SP_SM);
+            let mut sorted_procs: Vec<_> = proc_map.into_iter().collect();
+            sorted_procs.sort_by_key(|item| std::cmp::Reverse(item.1 .1));
+            for (proc_name, (cnt, up, down)) in sorted_procs {
+                let proc_card = container(
+                    row![
+                        svg_icons::icon_themed(Icon::Activity, 16.0, |t: &Theme| tokens(t).accent),
+                        Space::new().width(theme::SP_MD),
+                        text(proc_name).size(13).font(FONT_SEMIBOLD).width(Length::Fill),
+                        badge(format!("{cnt} connections"), BadgeKind::Neutral),
+                        Space::new().width(theme::SP_MD),
+                        text(format!("↑ {} / ↓ {}", format_bytes(up), format_bytes(down))).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+                    ].align_y(Alignment::Center)
+                ).padding([10, 16]).style(row_card_surface);
+                grouped_list = grouped_list.push(proc_card);
+            }
+            connections_section = connections_section.push(modern_scrollable(grouped_list).height(Length::Fill));
+        } else if state.diag.connection_grouping_mode == ConnectionGroupingMode::ByHost {
+            let mut host_map: std::collections::HashMap<String, (usize, u64, u64)> = std::collections::HashMap::new();
+            for conn in &sorted_conns {
+                let h = if !conn.metadata.host.is_empty() { conn.metadata.host.clone() } else { conn.metadata.destination_ip.clone() };
+                let entry = host_map.entry(h).or_insert((0, 0, 0));
+                entry.0 += 1;
+                entry.1 += conn.upload;
+                entry.2 += conn.download;
+            }
+            let mut grouped_list = column![].spacing(theme::SP_SM);
+            let mut sorted_hosts: Vec<_> = host_map.into_iter().collect();
+            sorted_hosts.sort_by_key(|item| std::cmp::Reverse(item.1 .1));
+            for (h_name, (cnt, up, down)) in sorted_hosts {
+                let host_card = container(
+                    row![
+                        svg_icons::icon_themed(Icon::Globe, 16.0, |t: &Theme| tokens(t).success),
+                        Space::new().width(theme::SP_MD),
+                        text(h_name).size(13).font(MONO).width(Length::Fill),
+                        badge(format!("{cnt} conns"), BadgeKind::Neutral),
+                        Space::new().width(theme::SP_MD),
+                        text(format!("↑ {} / ↓ {}", format_bytes(up), format_bytes(down))).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+                    ].align_y(Alignment::Center)
+                ).padding([10, 16]).style(row_card_surface);
+                grouped_list = grouped_list.push(host_card);
+            }
+            connections_section = connections_section.push(modern_scrollable(grouped_list).height(Length::Fill));
         } else {
             // Windowed rendering: only current window items are instantiated into widgets
             let total = sorted_conns.len();
@@ -344,7 +409,13 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                     })
                     .into(),
                 );
-                headline_items.push(Space::new().width(theme::SP_MD).into());
+                headline_items.push(Space::new().width(theme::SP_SM).into());
+                headline_items.push(icon_button(
+                    Icon::Activity,
+                    14.0,
+                    Message::InspectConnection(Some(conn.id.clone())),
+                ));
+                headline_items.push(Space::new().width(theme::SP_XS).into());
                 headline_items.push(icon_button(
                     Icon::X,
                     14.0,
@@ -447,15 +518,15 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
     connections_section.into()
 }
 
-fn stream_badge(state: &RuntimeStreamState) -> Element<'static, Message> {
-    let (label, kind) = match state {
-        RuntimeStreamState::Idle => ("未连接", BadgeKind::Neutral),
-        RuntimeStreamState::Connecting => ("连接中", BadgeKind::Neutral),
-        RuntimeStreamState::Connected => ("实时", BadgeKind::Success),
-        RuntimeStreamState::Reconnecting => ("重连中", BadgeKind::Warning),
-        RuntimeStreamState::Failed(_) => ("不可用", BadgeKind::Danger),
+fn stream_badge<'a>(state: &RuntimeStreamState, lang: &Lang<'_>) -> Element<'a, Message> {
+    let (key, kind) = match state {
+        RuntimeStreamState::Idle => ("conn_state_disconnected", BadgeKind::Neutral),
+        RuntimeStreamState::Connecting => ("conn_state_connecting", BadgeKind::Neutral),
+        RuntimeStreamState::Connected => ("conn_state_live", BadgeKind::Success),
+        RuntimeStreamState::Reconnecting => ("conn_state_reconnecting", BadgeKind::Warning),
+        RuntimeStreamState::Failed(_) => ("conn_state_unavailable", BadgeKind::Danger),
     };
-    badge(label, kind)
+    badge(lang.tr(key).to_string(), kind)
 }
 
 #[cfg(test)]
@@ -550,8 +621,8 @@ mod tests {
 
     #[test]
     fn test_stream_badge_kinds() {
-        let _elem_idle: Element<'_, Message> = stream_badge(&RuntimeStreamState::Idle);
-        let _elem_connected: Element<'_, Message> = stream_badge(&RuntimeStreamState::Connected);
-        let _elem_failed: Element<'_, Message> = stream_badge(&RuntimeStreamState::Failed("err".into()));
+        let _elem_idle: Element<'_, Message> = stream_badge(&RuntimeStreamState::Idle, &Lang("zh-CN"));
+        let _elem_connected: Element<'_, Message> = stream_badge(&RuntimeStreamState::Connected, &Lang("zh-CN"));
+        let _elem_failed: Element<'_, Message> = stream_badge(&RuntimeStreamState::Failed("err".into()), &Lang("zh-CN"));
     }
 }

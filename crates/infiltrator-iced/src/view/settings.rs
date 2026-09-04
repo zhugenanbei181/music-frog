@@ -37,16 +37,16 @@ fn secondary_text(value: impl Into<String>) -> Element<'static, Message> {
     text(value.into()).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }).into()
 }
 
-fn shell_export_row<'a>(shell_name: &'static str, command: &'static str, is_en: bool) -> Element<'a, Message> {
+fn shell_export_row<'a>(shell_name: &'static str, command: &'static str, lang: &Lang<'_>) -> Element<'a, Message> {
     let copy_msg = Message::ShowToast(
-        if is_en { format!("Copied {shell_name} command to clipboard") } else { format!("已复制 {shell_name} 代理命令到剪贴板") },
+        infiltrator_shared::i18n_interpolator::interpolate(&lang.tr("settings_copied_env"), &[("shell_name", shell_name)]),
         ToastStatus::Success,
     );
     let copy_btn = button(
         row![
             icon_themed(Icon::Copy, 12.0, |t| tokens(t).text_secondary),
             Space::new().width(theme::SP_XS),
-            text(if is_en { "Copy" } else { "复制" }).size(11).font(FONT_MEDIUM),
+            text(lang.tr("settings_copy").to_string()).size(11).font(FONT_MEDIUM),
         ].align_y(Alignment::Center),
     )
     .padding([4, 10]).style(style_ghost).on_press(copy_msg);
@@ -63,30 +63,26 @@ fn shell_export_row<'a>(shell_name: &'static str, command: &'static str, is_en: 
     .padding([theme::SP_SM, theme::SP_MD]).width(Length::Fill).style(row_card_surface).into()
 }
 
-fn shell_export_card<'a>(is_en: bool) -> Element<'a, Message> {
+fn shell_export_card<'a>(lang: &Lang<'_>) -> Element<'a, Message> {
     let bash_cmd = "export http_proxy=http://127.0.0.1:7890 https_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7891";
     let fish_cmd = "set -gx http_proxy http://127.0.0.1:7890; set -gx https_proxy http://127.0.0.1:7890; set -gx all_proxy socks5://127.0.0.1:7891";
     let pwsh_cmd = "$env:http_proxy=\"http://127.0.0.1:7890\"; $env:https_proxy=\"http://127.0.0.1:7890\"; $env:all_proxy=\"socks5://127.0.0.1:7891\"";
     let cmd_cmd = "set http_proxy=http://127.0.0.1:7890 & set https_proxy=http://127.0.0.1:7890 & set all_proxy=socks5://127.0.0.1:7891";
 
     card(
-        Some(if is_en { "Terminal Proxy Environment" } else { "终端代理环境变量" }.to_string()),
+        Some(lang.tr("settings_term_env_title").to_string()),
         column![
-            secondary_text(if is_en {
-                "Quickly copy export commands to configure CLI and terminal sessions to route traffic through the local proxy."
-            } else {
-                "在终端或命令行会话中快速配置代理环境变量，使 CLI 工具经由本地代理出站。"
-            }),
+            secondary_text(lang.tr("settings_term_env_desc").to_string()),
             Space::new().height(theme::SP_XS),
-            shell_export_row("Bash / Zsh", bash_cmd, is_en),
-            shell_export_row("Fish", fish_cmd, is_en),
-            shell_export_row("PowerShell", pwsh_cmd, is_en),
-            shell_export_row("Windows CMD", cmd_cmd, is_en),
+            shell_export_row("Bash / Zsh", bash_cmd, lang),
+            shell_export_row("Fish", fish_cmd, lang),
+            shell_export_row("PowerShell", pwsh_cmd, lang),
+            shell_export_row("Windows CMD", cmd_cmd, lang),
         ].spacing(theme::SP_SM),
     )
 }
 
-fn inbound_port_tile<'a>(running: bool, title: &'static str, badge_label: &'static str, badge_kind: BadgeKind, proto_tag: &'static str, endpoint: &'static str) -> Element<'a, Message> {
+fn inbound_port_tile<'a>(running: bool, title: String, badge_label: String, badge_kind: BadgeKind, proto_tag: &'static str, endpoint: &'static str) -> Element<'a, Message> {
     container(
         column![
             row![
@@ -107,42 +103,42 @@ fn inbound_port_tile<'a>(running: bool, title: &'static str, badge_label: &'stat
     .width(Length::FillPortion(1)).padding(theme::SP_MD).style(row_card_surface).into()
 }
 
-fn inbounds_card<'a>(state: &AppState, is_en: bool) -> Element<'a, Message> {
+fn inbounds_card<'a>(state: &AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let running = matches!(state.runtime.status, RuntimeStatus::Running);
     let (status_str, badge_kind) = if running {
-        (if is_en { "Listening" } else { "监听中" }, BadgeKind::Success)
+        (lang.tr("settings_listening").to_string(), BadgeKind::Success)
     } else {
-        (if is_en { "Standby" } else { "待命就绪" }, BadgeKind::Neutral)
+        (lang.tr("settings_ready").to_string(), BadgeKind::Neutral)
     };
 
-    let mixed_tile = inbound_port_tile(running, if is_en { "Mixed Port" } else { "混合代理端口" }, status_str, badge_kind, "HTTP / SOCKS5", "127.0.0.1:7890");
-    let socks_tile = inbound_port_tile(running, if is_en { "SOCKS5 Port" } else { "SOCKS5 专用端口" }, status_str, badge_kind, "SOCKS5", "127.0.0.1:7891");
+    let mixed_tile = inbound_port_tile(running, lang.tr("settings_mixed_port").to_string(), status_str.clone(), badge_kind, "HTTP / SOCKS5", "127.0.0.1:7890");
+    let socks_tile = inbound_port_tile(running, lang.tr("settings_socks_port").to_string(), status_str, badge_kind, "SOCKS5", "127.0.0.1:7891");
 
     card(
-        Some(if is_en { "Core Inbound & Ports" } else { "核心入站与端口" }.to_string()),
+        Some(lang.tr("settings_inbound_title").to_string()),
         column![
-            secondary_text(if is_en { "Standard local inbound ports for HTTP/HTTPS and SOCKS5 proxy traffic." } else { "核心本地标准入站端口（提供 HTTP/HTTPS 与 SOCKS5 代理接入服务）。" }),
+            secondary_text(lang.tr("settings_inbound_desc").to_string()),
             Space::new().height(theme::SP_XS),
             row![mixed_tile, socks_tile].spacing(theme::SP_MD),
         ].spacing(theme::SP_SM),
     )
 }
 
-fn system_proxy_card<'a>(state: &AppState, lang: &Lang<'a>, is_en: bool) -> Element<'a, Message> {
+fn system_proxy_card<'a>(state: &AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'a, Message> {
     const DEFAULT_BYPASS: &str = "localhost;127.*;10.*;192.168.*;*.lan";
-    let proxy_mode_options = if is_en { vec!["Manual".to_string(), "PAC".to_string()] } else { vec!["手动".to_string(), "PAC".to_string()] };
+    let proxy_mode_options = vec![lang.tr("settings_mode_manual").to_string(), "PAC".to_string()];
 
     card(
         Some(lang.tr("system_proxy").to_string()),
         column![
-            form_toggle_row(if is_en { "System Proxy" } else { "系统代理" }, state.runtime.system_proxy_enabled, Message::SetSystemProxy),
+            form_toggle_row(lang.tr("settings_sys_proxy").to_string(), state.runtime.system_proxy_enabled, Message::SetSystemProxy),
             row![
-                text(if is_en { "Proxy Host" } else { "代理主机" }).size(13).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                text(lang.tr("settings_proxy_host").to_string()).size(13).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
                 Space::new().width(Length::Fill),
                 text("127.0.0.1").size(13).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
             ].align_y(Alignment::Center),
             row![
-                text(if is_en { "Proxy Mode" } else { "代理模式" }).size(13).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                text(lang.tr("settings_proxy_mode").to_string()).size(13).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
                 Space::new().width(Length::Fill),
                 segmented_control(&proxy_mode_options, 0, |_| Message::Noop),
             ].align_y(Alignment::Center),
@@ -150,7 +146,7 @@ fn system_proxy_card<'a>(state: &AppState, lang: &Lang<'a>, is_en: bool) -> Elem
                 row![
                     form_field_label(lang.tr("settings_proxy_bypass").to_string()),
                     Space::new().width(Length::Fill),
-                    text_btn(if is_en { "Add Default Bypass" } else { "添加默认代理绕过" }, style_ghost, Some(Message::UpdateSystemProxyBypass(DEFAULT_BYPASS.to_string()))),
+                    text_btn(lang.tr("settings_add_default_bypass").to_string(), style_ghost, Some(Message::UpdateSystemProxyBypass(DEFAULT_BYPASS.to_string()))),
                 ].align_y(Alignment::Center),
                 Space::new().height(theme::SP_XS),
                 text_input(DEFAULT_BYPASS, &state.shell.system_proxy_bypass).on_input(Message::UpdateSystemProxyBypass).padding([7, 11]).size(12).font(MONO).style(form_input_style),
@@ -159,7 +155,7 @@ fn system_proxy_card<'a>(state: &AppState, lang: &Lang<'a>, is_en: bool) -> Elem
     )
 }
 
-fn system_integration_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool, theme_selector: Element<'a, Message>, selected_language: Option<SettingsChoice>) -> Element<'a, Message> {
+fn system_integration_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool, theme_selector: Element<'a, Message>, selected_language: Option<SettingsChoice>) -> Element<'a, Message> {
     card(
         Some(lang.tr("settings_system_integration").to_string()),
         column![
@@ -173,28 +169,28 @@ fn system_integration_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool
                 theme_selector,
             ].align_y(Alignment::Center),
             row![
-                text(if is_en { "Language" } else { "语言 / Language" }).size(13).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                text(lang.tr("settings_lang_label").to_string()).size(13).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
                 Space::new().width(Length::Fill),
                 pick_list(LANGUAGE_OPTIONS, selected_language, |choice: SettingsChoice| Message::SetLanguage(choice.value.to_string())).width(Length::Fixed(120.0)).style(form_pick_style),
             ].align_y(Alignment::Center),
             Space::new().height(theme::SP_SM),
             row![
-                text_btn(if state.profile.is_saving_app_settings { if is_en { "Saving..." } else { "保存中..." }.to_string() } else if is_en { "Save Settings".to_string() } else { "保存设置".to_string() }, style_accent, (!state.profile.is_saving_app_settings).then_some(Message::SaveAppSettings)),
+                text_btn(if state.profile.is_saving_app_settings { lang.tr("settings_saving").to_string() } else { lang.tr("settings_save_btn").to_string() }, style_accent, (!state.profile.is_saving_app_settings).then_some(Message::SaveAppSettings)),
                 Space::new().width(theme::SP_MD),
-                text_btn(if state.shell.is_factory_resetting { if is_en { "Resetting..." } else { "恢复中..." }.to_string() } else { lang.tr("settings_factory_reset").to_string() }, style_danger, (!state.shell.is_factory_resetting).then_some(Message::RequestConfirmation(ConfirmAction::FactoryReset))),
+                text_btn(if state.shell.is_factory_resetting { lang.tr("settings_reverting").to_string() } else { lang.tr("settings_factory_reset").to_string() }, style_danger, (!state.shell.is_factory_resetting).then_some(Message::RequestConfirmation(ConfirmAction::FactoryReset))),
             ].align_y(Alignment::Center),
         ].spacing(theme::SP_SM),
     )
 }
 
-fn tun_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Element<'a, Message> {
+fn tun_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'a, Message> {
     let (tun_status_text, tun_status_kind) = match state.runtime.tun_service_status {
-        Some(infiltrator_desktop::tun_service::ServiceModeStatus::InstalledAndRunning) => (if is_en { "Running" } else { "运行中" }.to_string(), BadgeKind::Success),
-        Some(infiltrator_desktop::tun_service::ServiceModeStatus::InstalledStopped) => (if is_en { "Stopped" } else { "已停止" }.to_string(), BadgeKind::Warning),
-        Some(infiltrator_desktop::tun_service::ServiceModeStatus::MissingPrivilege) => (if is_en { "Missing Privilege" } else { "缺少权限" }.to_string(), BadgeKind::Danger),
-        Some(infiltrator_desktop::tun_service::ServiceModeStatus::Unsupported) => (if is_en { "Unsupported" } else { "不支持" }.to_string(), BadgeKind::Neutral),
-        Some(infiltrator_desktop::tun_service::ServiceModeStatus::NotInstalled) => (if is_en { "Not Installed" } else { "未安装" }.to_string(), BadgeKind::Neutral),
-        None => (if is_en { "Unchecked" } else { "未检测" }.to_string(), BadgeKind::Neutral),
+        Some(infiltrator_desktop::tun_service::ServiceModeStatus::InstalledAndRunning) => (lang.tr("settings_status_running").to_string(), BadgeKind::Success),
+        Some(infiltrator_desktop::tun_service::ServiceModeStatus::InstalledStopped) => (lang.tr("settings_status_stopped").to_string(), BadgeKind::Warning),
+        Some(infiltrator_desktop::tun_service::ServiceModeStatus::MissingPrivilege) => (lang.tr("settings_status_no_perm").to_string(), BadgeKind::Danger),
+        Some(infiltrator_desktop::tun_service::ServiceModeStatus::Unsupported) => (lang.tr("settings_status_unsupported").to_string(), BadgeKind::Neutral),
+        Some(infiltrator_desktop::tun_service::ServiceModeStatus::NotInstalled) => (lang.tr("settings_status_uninstalled").to_string(), BadgeKind::Neutral),
+        None => (lang.tr("settings_status_undetected").to_string(), BadgeKind::Neutral),
     };
 
     let stack_options = vec!["gVisor".to_string(), "Mixed".to_string(), "System".to_string()];
@@ -216,13 +212,13 @@ fn tun_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Element<'a
         Some(lang.tr("tun_mode").to_string()),
         column![
             row![
-                text(if is_en { "TUN Service Status" } else { "TUN 服务状态" }).size(13).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                text(lang.tr("settings_tun_service_status").to_string()).size(13).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
                 Space::new().width(theme::SP_MD),
                 badge(tun_status_text, if state.runtime.is_installing_tun_service { BadgeKind::Warning } else { tun_status_kind }),
                 Space::new().width(Length::Fill),
                 icon_button(Icon::RefreshCw, 14.0, Message::RefreshTunServiceStatus),
                 Space::new().width(theme::SP_SM),
-                text_btn(if state.runtime.is_installing_tun_service { if is_en { "Preparing..." } else { "准备中..." }.to_string() } else if is_en { "Prepare TUN Service".to_string() } else { "准备 TUN 服务".to_string() }, style_ghost, (!state.runtime.is_installing_tun_service).then_some(Message::InstallTunService)),
+                text_btn(if state.runtime.is_installing_tun_service { lang.tr("settings_tun_preparing").to_string() } else { lang.tr("settings_tun_prepare_btn").to_string() }, style_ghost, (!state.runtime.is_installing_tun_service).then_some(Message::InstallTunService)),
             ].align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
             row![
@@ -237,12 +233,12 @@ fn tun_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool) -> Element<'a
             ].align_y(Alignment::Center),
             form_toggle_row(lang.tr("tun_auto_route").to_string(), state.editor.tun_auto_route || state.editor.tun_form.auto_route, Message::SetTunAutoRoute),
             form_toggle_row(lang.tr("tun_strict_route").to_string(), state.editor.tun_strict_route || state.editor.tun_form.strict_route, Message::SetTunStrictRoute),
-            form_toggle_row(if is_en { "DNS Hijack" } else { "DNS 劫持 (DNS Hijack)" }.to_string(), dns_hijack_active, |on| Message::UpdateTunFormDnsHijack(if on { "any:53".to_string() } else { String::new() })),
+            form_toggle_row(lang.tr("settings_dns_hijack").to_string(), dns_hijack_active, |on| Message::UpdateTunFormDnsHijack(if on { "any:53".to_string() } else { String::new() })),
         ].spacing(theme::SP_SM),
     )
 }
 
-fn kernel_management_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool, selected_core_channel: Option<SettingsChoice>) -> Element<'a, Message> {
+fn kernel_management_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool, selected_core_channel: Option<SettingsChoice>) -> Element<'a, Message> {
     let mut kernel_rows = column![].spacing(theme::SP_SM);
 
     if let Some(latest) = &state.runtime.latest_core_version {
@@ -254,10 +250,10 @@ fn kernel_management_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool,
                         Element::from(row![
                             column![
                                 progress_bar(0.0..=1.0, state.runtime.download_progress).length(Length::Fixed(180.0)),
-                                secondary_text(format!("{} {}/s", if is_en { "Speed" } else { "速度" }, state.runtime.download_stats.as_ref().map(|s| crate::utils::format_bytes(s.speed_bytes)).unwrap_or_else(|| "—".to_string()))),
+                                secondary_text(format!("{} {}/s", lang.tr("settings_speed"), state.runtime.download_stats.as_ref().map(|s| crate::utils::format_bytes(s.speed_bytes)).unwrap_or_else(|| "—".to_string()))),
                             ].spacing(theme::SP_XS),
                             Space::new().width(theme::SP_SM),
-                            text_btn(if is_en { "Cancel" } else { "取消" }, style_ghost, Some(Message::CancelCoreDownload)),
+                            text_btn(lang.tr("btn_cancel").to_string(), style_ghost, Some(Message::CancelCoreDownload)),
                         ].align_y(Alignment::Center))
                     } else {
                         Element::from(text_btn(lang.tr("settings_download"), style_accent, Some(Message::DownloadCore(latest.clone()))))
@@ -320,6 +316,45 @@ fn kernel_management_card<'a>(state: &'a AppState, lang: &Lang<'a>, is_en: bool,
     )
 }
 
+fn hotkeys_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
+    let mut rows = column![].spacing(theme::SP_SM);
+    for binding in &state.shell.hotkeys_config {
+        let binding_id = binding.id.clone();
+        let binding_id_toggle = binding.id.clone();
+        let action_name = lang.tr(binding.action_title_key);
+
+        let row_item = row![
+            column![
+                text(action_name.to_string()).size(13).font(FONT_SEMIBOLD),
+                secondary_text(format!("Global hotkey: {}", binding.combo)),
+            ].width(Length::Fill),
+            text_input("e.g. Ctrl+Alt+P", &binding.combo)
+                .on_input(move |combo| Message::UpdateHotkeyCombo { id: binding_id.clone(), combo })
+                .padding([4, 8])
+                .size(11)
+                .font(MONO)
+                .width(110)
+                .style(form_input_style),
+            Space::new().width(theme::SP_SM),
+            button(text(if binding.enabled { "Active" } else { "Off" }).size(11))
+                .padding([4, 8])
+                .style(if binding.enabled { style_accent } else { style_ghost })
+                .on_press(Message::ToggleHotkeyEnabled(binding_id_toggle)),
+        ].align_y(Alignment::Center);
+
+        rows = rows.push(row_item);
+    }
+
+    card(
+        Some(lang.tr("hotkey_manager_title").to_string()),
+        column![
+            secondary_text(lang.tr("hotkey_manager_desc")),
+            Space::new().height(theme::SP_XS),
+            rows,
+        ].spacing(theme::SP_SM)
+    )
+}
+
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let is_en = state.shell.lang.starts_with("en");
@@ -336,16 +371,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         } else if is_en {
             "Configuring platform permissions is required before enabling TUN mode; restart or prepare permissions below.".to_string()
         } else {
-            "启用 TUN 前需要为 mihomo 配置平台权限；完成后请重新开启 TUN。".to_string()
+            lang.tr("settings_tun_perm_hint").to_string()
         };
-        let uac_btn_label = if cfg!(windows) { lang.tr("settings_uac_request").to_string() } else if is_en { "Prepare TUN Privilege".to_string() } else { "准备 TUN 权限".to_string() };
+        let uac_btn_label = if cfg!(windows) { lang.tr("settings_uac_request").to_string() } else if is_en { "Prepare TUN Privilege".to_string() } else { lang.tr("settings_tun_prepare_perm_btn").to_string() };
         let action_btn = text_btn(uac_btn_label, style_accent, Some(Message::RequestAdminPrivilege));
         Some(banner_alert(BadgeKind::Warning, uac_title, uac_desc, Some(action_btn)))
     } else {
         None
     };
 
-    let theme_labels = if is_en { vec!["Light".to_string(), "Dark".to_string(), "Forest".to_string(), "AMOLED".to_string()] } else { vec!["浅色模式".to_string(), "深色模式".to_string(), "护眼森林".to_string(), "AMOLED".to_string()] };
+    let theme_labels = vec![lang.tr("theme_light").to_string(), lang.tr("theme_dark").to_string(), lang.tr("theme_forest").to_string(), "AMOLED".to_string()];
     let current_theme_index = if crate::view::theme::is_amoled(&state.shell.theme) { 3 } else if crate::view::theme::is_forest(&state.shell.theme) { 2 } else if state.shell.theme == Theme::Light { 0 } else { 1 };
     let theme_selector = segmented_control(&theme_labels, current_theme_index, |index| {
         let name = match index { 0 => "light", 2 => "forest", 3 => "amoled", _ => "dark" };
@@ -411,13 +446,19 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     content = content
         .push(system_proxy_section)
         .push(Space::new().height(10))
+        .push(crate::view::pac_card::pac_card(state, &lang))
+        .push(Space::new().height(10))
         .push(system_section)
         .push(Space::new().height(10))
-        .push(inbounds_card(state, is_en))
+        .push(inbounds_card(state, &lang))
         .push(Space::new().height(10))
-        .push(shell_export_card(is_en))
+        .push(crate::view::lan_sharing_card::lan_sharing_card(state, &lang))
+        .push(Space::new().height(10))
+        .push(shell_export_card(&lang))
         .push(Space::new().height(10))
         .push(tun_section)
+        .push(Space::new().height(10))
+        .push(crate::view::net_roam_card::net_roam_card(state, &lang))
         .push(Space::new().height(10))
         .push(sniffer_section)
         .push(Space::new().height(10))
@@ -425,7 +466,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .push(Space::new().height(10))
         .push(admin_section)
         .push(Space::new().height(10))
+        .push(crate::view::web_dash_card::web_dash_card(state, &lang))
+        .push(Space::new().height(10))
+        .push(crate::view::apply_guard_card::apply_guard_card(state, &lang))
+        .push(Space::new().height(10))
         .push(crate::view::doctor::section(state))
+        .push(Space::new().height(10))
+        .push(hotkeys_card(state, &lang))
+        .push(Space::new().height(10))
+        .push(crate::view::geodata_card::geodata_card(state, &lang))
+        .push(Space::new().height(10))
+        .push(crate::view::uwp_card::uwp_card(state, &lang))
         .push(Space::new().height(10))
         .push(kernel_management_card(state, &lang, is_en, selected_core_channel))
         .push(Space::new().height(40));
@@ -459,14 +510,14 @@ mod tests {
 
     #[test]
     fn test_shell_export_row() {
-        let _row: Element<'_, Message> = shell_export_row("Bash", "export http_proxy=...", true);
-        let _card: Element<'_, Message> = shell_export_card(false);
+        let _row: Element<'_, Message> = shell_export_row("Bash", "export http_proxy=...", &Lang("en-US"));
+        let _card: Element<'_, Message> = shell_export_card(&Lang("zh-CN"));
     }
 
     #[test]
     fn test_inbounds_card() {
         let (state, _) = AppState::new();
-        let _card: Element<'_, Message> = inbounds_card(&state, false);
+        let _card: Element<'_, Message> = inbounds_card(&state, &Lang("zh-CN"));
     }
 
     #[test]

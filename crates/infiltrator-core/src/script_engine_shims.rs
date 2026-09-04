@@ -486,8 +486,8 @@ impl FetchPermissionShim {
             ));
         }
 
-        if let Some(whitelist) = allowed_domains {
-            if !whitelist.is_empty() {
+        if let Some(whitelist) = allowed_domains
+            && !whitelist.is_empty() {
                 let parsed = url::Url::parse(target_url)
                     .map_err(|e| ScriptError::Runtime(format!("Invalid fetch URL: {e}")))?;
                 let host = parsed.host_str().unwrap_or("");
@@ -500,7 +500,6 @@ impl FetchPermissionShim {
                     )));
                 }
             }
-        }
         Ok(())
     }
 }

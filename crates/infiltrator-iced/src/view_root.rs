@@ -1,19 +1,28 @@
 //! View root for the iced desktop client: sidebar + main view routing,
 //! notification toasts, operation errors, rebuild status HUD and modal dialogs.
 
+mod aggregator_modal;
+mod command_palette;
+mod connection_drawer;
+mod custom_node_modal;
 mod modals;
+mod snapshot_diff_modal;
 
 use crate::state::AppState;
 use crate::types::app::{Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use crate::view;
+use infiltrator_shared::locales::Localizer;
 use iced::widget::{Space, button, column, container, row, stack, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
 use std::time::Instant;
 
 impl AppState {
     pub fn view(&self) -> Element<'_, Message> {
+        if self.shell.mini_hud_mode {
+            return view::mini_hud::mini_hud_view(self);
+        }
         let sidebar = view::sidebar::sidebar(self);
 
         // 声明式动画进度计算
@@ -36,6 +45,8 @@ impl AppState {
             Route::Sync => view::sync::view(self),
             Route::Editor => view::editor::view(self),
             Route::Settings => view::settings::view(self),
+            Route::AppRouting => view::app_routing::view(self),
+            Route::Doctor => view::doctor::view(self),
         })
         .width(Length::Fill)
         .height(Length::Fill)
@@ -119,13 +130,9 @@ impl AppState {
         }
 
         if let Some(error) = &self.shell.error_msg {
-            let is_en = self.shell.lang.starts_with("en");
-            let title = if is_en {
-                "Operation failed"
-            } else {
-                "操作失败"
-            };
-            let dismiss = if is_en { "Dismiss" } else { "关闭" };
+            let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+            let title = lang.tr("modal_op_failed");
+            let dismiss = lang.tr("modal_close");
             layers.push(
                 container(
                     container(
@@ -283,6 +290,27 @@ impl AppState {
         if let Some(action) = &self.shell.confirmation {
             layers.push(modals::confirmation_modal(self, action));
         }
+
+        if let Some(conn_id) = &self.diag.inspecting_connection_id {
+            layers.push(connection_drawer::connection_drawer_modal(self, conn_id));
+        }
+
+        if self.shell.command_palette_open {
+            layers.push(command_palette::command_palette_modal(self));
+        }
+
+        if self.runtime.custom_node_modal_open {
+            layers.push(custom_node_modal::custom_node_modal(self));
+        }
+
+        if self.profile.aggregator_modal_open {
+            layers.push(aggregator_modal::aggregator_modal(self));
+        }
+
+        if let Some(snap_id) = &self.editor.snapshot_diff_selected_id
+            && self.editor.snapshot_diff_modal_open {
+                layers.push(snapshot_diff_modal::snapshot_diff_modal(self, snap_id));
+            }
 
         if self.diag.perf_panel_visible {
             layers.push(

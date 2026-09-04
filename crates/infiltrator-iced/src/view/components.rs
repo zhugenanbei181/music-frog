@@ -11,7 +11,6 @@ use iced::{
     Border, Color, Element, Length, Point, Rectangle, Renderer, Shadow, Size, Theme, Vector,
     border, mouse,
 };
-use std::collections::VecDeque;
 
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, Tokens};
@@ -458,6 +457,8 @@ pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Ele
         Route::Sync => Icon::RefreshCw,
         Route::Settings => Icon::Settings,
         Route::Editor => Icon::Code2,
+        Route::AppRouting => Icon::LayoutGrid,
+        Route::Doctor => Icon::ListChecks,
     };
 
     let indicator = container(Space::new().width(4).height(18)).style(move |t: &Theme| {
@@ -500,141 +501,9 @@ pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Ele
     }).on_press(Message::Navigate(route)).into()
 }
 
-// ---------------------------------------------------------------------------
-// Traffic chart & Waveforms
-// ---------------------------------------------------------------------------
 
-pub struct TrafficChart {
-    pub history: VecDeque<(u64, u64)>,
-}
 
-impl<Message> canvas::Program<Message> for TrafficChart {
-    type State = ();
-    fn draw(
-        &self,
-        _state: &(),
-        _renderer: &Renderer,
-        _theme: &Theme,
-        bounds: Rectangle,
-        _cursor: mouse::Cursor,
-    ) -> Vec<canvas::Geometry> {
-        let tk = theme::tokens(_theme);
-        let accent = tk.accent;
-        let success = tk.success;
 
-        let mut frame = canvas::Frame::new(_renderer, bounds.size());
-        if self.history.len() < 2 {
-            return vec![frame.into_geometry()];
-        }
-        let (width, height) = (bounds.width, bounds.height);
-        let max_points = 60;
-        let x_step = width / (max_points - 1) as f32;
-        let mut max_speed = self.history.iter().map(|(u, d)| std::cmp::max(*u, *d)).max().unwrap_or(1024 * 100);
-        if max_speed < 1024 * 100 {
-            max_speed = 1024 * 100;
-        }
-        let scale = |speed: u64| height - (speed as f32 / max_speed as f32) * height;
-        let down_path = canvas::Path::new(|p| {
-            p.move_to(Point::new(0.0, height));
-            for (i, (_, down)) in self.history.iter().enumerate() {
-                p.line_to(Point::new(i as f32 * x_step, scale(*down)));
-            }
-            p.line_to(Point::new((self.history.len() - 1) as f32 * x_step, height));
-            p.close();
-        });
-        frame.fill(&down_path, Color { a: 0.10, ..accent });
-        let down_line = canvas::Path::new(|p| {
-            for (i, (_, down)) in self.history.iter().enumerate() {
-                let pt = Point::new(i as f32 * x_step, scale(*down));
-                if i == 0 { p.move_to(pt); } else { p.line_to(pt); }
-            }
-        });
-        frame.stroke(&down_line, canvas::Stroke::default().with_color(accent).with_width(2.5));
-        let up_line = canvas::Path::new(|p| {
-            for (i, (up, _)) in self.history.iter().enumerate() {
-                let pt = Point::new(i as f32 * x_step, scale(*up));
-                if i == 0 { p.move_to(pt); } else { p.line_to(pt); }
-            }
-        });
-        frame.stroke(&up_line, canvas::Stroke::default().with_color(success).with_width(2.0));
-        vec![frame.into_geometry()]
-    }
-}
-
-/// Compact 60x24 Canvas sparkline for sidebar speed or KPI card traffic preview.
-pub struct MiniWaveform {
-    pub samples: Vec<u64>,
-}
-
-impl<Message> canvas::Program<Message> for MiniWaveform {
-    type State = ();
-
-    fn draw(
-        &self,
-        _state: &Self::State,
-        renderer: &Renderer,
-        theme: &Theme,
-        bounds: Rectangle,
-        _cursor: mouse::Cursor,
-    ) -> Vec<canvas::Geometry> {
-        let tk = theme::tokens(theme);
-        let mut frame = canvas::Frame::new(renderer, bounds.size());
-        let (width, height) = (bounds.width, bounds.height);
-
-        if self.samples.is_empty() {
-            let mid_y = height / 2.0;
-            let baseline = canvas::Path::line(Point::new(0.0, mid_y), Point::new(width, mid_y));
-            frame.stroke(&baseline, canvas::Stroke::default().with_color(Color { a: 0.25, ..tk.text_tertiary }).with_width(1.0));
-            return vec![frame.into_geometry()];
-        }
-
-        if self.samples.len() == 1 {
-            let mid_y = height / 2.0;
-            let baseline = canvas::Path::line(Point::new(0.0, mid_y), Point::new(width, mid_y));
-            frame.stroke(&baseline, canvas::Stroke::default().with_color(tk.accent).with_width(1.5));
-            return vec![frame.into_geometry()];
-        }
-
-        let max_val = *self.samples.iter().max().unwrap_or(&1).max(&1);
-        let pad_y = 2.0_f32;
-        let usable_h = (height - pad_y * 2.0).max(1.0);
-        let step = width / (self.samples.len() - 1) as f32;
-        let scale_y = |val: u64| -> f32 {
-            let ratio = (val as f32 / max_val as f32).clamp(0.0, 1.0);
-            height - pad_y - (ratio * usable_h)
-        };
-
-        let area_path = canvas::Path::new(|p| {
-            p.move_to(Point::new(0.0, height));
-            for (i, &val) in self.samples.iter().enumerate() {
-                p.line_to(Point::new(i as f32 * step, scale_y(val)));
-            }
-            p.line_to(Point::new(width, height));
-            p.close();
-        });
-        frame.fill(&area_path, Color { a: 0.12, ..tk.accent });
-
-        let line_path = canvas::Path::new(|p| {
-            for (i, &val) in self.samples.iter().enumerate() {
-                let pt = Point::new(i as f32 * step, scale_y(val));
-                if i == 0 { p.move_to(pt); } else { p.line_to(pt); }
-            }
-        });
-        frame.stroke(&line_path, canvas::Stroke::default().with_color(tk.accent).with_width(1.5));
-
-        vec![frame.into_geometry()]
-    }
-}
-
-/// Compact 60x24 Canvas sparkline for sidebar speed or KPI card traffic preview.
-pub fn mini_waveform<'a, Message: 'a>(samples: &[u64]) -> Element<'a, Message> {
-    canvas::Canvas::new(MiniWaveform {
-        samples: samples.to_vec(),
-    })
-    .width(60)
-    .height(24)
-    .into()
-}
 
 // ---------------------------------------------------------------------------
 // Standard Token-Driven Button Styles & Helpers
@@ -832,83 +701,51 @@ pub fn row_card_surface(t: &Theme) -> container::Style {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+#[path = "components/tests.rs"]
+mod tests;
 
-    #[derive(Debug, Clone)]
-    #[allow(dead_code)]
-    enum TestMsg {
-        Search(String),
-        Clear,
-        Action,
-        Add,
-        Remove(usize),
-        Input(String),
-    }
+/// Compact icon button for the responsive rail mode sidebar.
+pub fn nav_rail_icon<'a>(route: Route, current_route: &Route) -> Element<'a, Message> {
+    let is_active = route == *current_route;
+    let icon = match route {
+        Route::Overview => Icon::LayoutGrid,
+        Route::Profiles => Icon::FileText,
+        Route::Proxies => Icon::Globe,
+        Route::Runtime => Icon::Activity,
+        Route::Rules => Icon::Shield,
+        Route::Dns => Icon::Network,
+        Route::Sync => Icon::RefreshCw,
+        Route::Settings => Icon::Settings,
+        Route::Editor => Icon::Code2,
+        Route::AppRouting => Icon::LayoutGrid,
+        Route::Doctor => Icon::ListChecks,
+    };
 
-    #[test]
-    fn test_search_input_widget() {
-        let _elem_empty: Element<'_, TestMsg> =
-            search_input("Search...", "", TestMsg::Search, TestMsg::Clear);
-        let _elem_filled: Element<'_, TestMsg> =
-            search_input("Search...", "query", TestMsg::Search, TestMsg::Clear);
-    }
+    let glyph = svg_icons::icon_themed(icon, 18.0, move |t: &Theme| {
+        let tk = theme::tokens(t);
+        if is_active { tk.accent } else { tk.sidebar_text_muted }
+    });
 
-    #[test]
-    fn test_banner_alert_widget() {
-        let _alert_accent: Element<'_, TestMsg> =
-            banner_alert(BadgeKind::Accent, "Notice", "Details here", None);
-        let _alert_with_action: Element<'_, TestMsg> = banner_alert(
-            BadgeKind::Danger,
-            "Error",
-            "Something failed",
-            Some(text_btn("Retry", style_ghost, Some(TestMsg::Action))),
-        );
-    }
-
-    #[test]
-    fn test_kbd_badge_widget() {
-        let _ctrl: Element<'_, TestMsg> = kbd_badge("Ctrl");
-        let _k: Element<'_, TestMsg> = kbd_badge("K");
-    }
-
-    #[test]
-    fn test_skeleton_box_widget() {
-        let _fixed: Element<'_, TestMsg> = skeleton_box(100.0, 24.0);
-        let _fill: Element<'_, TestMsg> = skeleton_box(Length::Fill, 16.0);
-    }
-
-    #[test]
-    fn test_dynamic_list_editor_widget() {
-        let items = vec!["1.1.1.1".to_string(), "8.8.8.8".to_string()];
-        let _elem: Element<'_, TestMsg> = dynamic_list_editor(
-            &items,
-            "1.0.0.1",
-            "Enter IP...",
-            TestMsg::Input,
-            TestMsg::Add,
-            TestMsg::Remove,
-        );
-        let empty_items: Vec<String> = vec![];
-        let _elem_empty: Element<'_, TestMsg> = dynamic_list_editor(
-            &empty_items,
-            "",
-            "Enter IP...",
-            TestMsg::Input,
-            TestMsg::Add,
-            TestMsg::Remove,
-        );
-    }
-
-    #[test]
-    fn test_mini_waveform_widget() {
-        let empty: &[u64] = &[];
-        let _elem_empty: Element<'_, TestMsg> = mini_waveform(empty);
-        let single = [1000u64];
-        let _elem_single: Element<'_, TestMsg> = mini_waveform(&single);
-        let samples = [100u64, 450, 800, 300, 950, 1200];
-        let _elem_multi: Element<'_, TestMsg> = mini_waveform(&samples);
-        let zeros = [0u64, 0, 0];
-        let _elem_zeros: Element<'_, TestMsg> = mini_waveform(&zeros);
-    }
+    button(glyph)
+        .padding([8, 8])
+        .style(move |t: &Theme, status| {
+            let tk = theme::tokens(t);
+            let bg = if is_active {
+                Some(tk.accent_soft.into())
+            } else if matches!(status, button::Status::Hovered) {
+                Some(tk.control_bg.into())
+            } else {
+                None
+            };
+            button::Style {
+                background: bg,
+                border: Border {
+                    radius: border::Radius::from(theme::R_CONTROL),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }
+        })
+        .on_press(Message::Navigate(route))
+        .into()
 }

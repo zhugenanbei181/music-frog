@@ -168,14 +168,14 @@ use super::*;
 
     #[test]
     fn test_traffic_dimension_labels_and_icons() {
-        assert_eq!(TrafficDimension::Domains.label(true), "域名 (Domains)");
-        assert_eq!(TrafficDimension::Domains.label(false), "Domains");
-        assert_eq!(TrafficDimension::Devices.label(true), "设备 (Devices)");
-        assert_eq!(TrafficDimension::Devices.label(false), "Devices");
-        assert_eq!(TrafficDimension::Proxies.label(true), "代理 (Proxies)");
-        assert_eq!(TrafficDimension::Proxies.label(false), "Proxies");
-        assert_eq!(TrafficDimension::Processes.label(true), "进程 (Processes)");
-        assert_eq!(TrafficDimension::Processes.label(false), "Processes");
+        assert_eq!(TrafficDimension::Domains.label(&Lang("zh-CN")), "域名 (Domains)");
+        assert_eq!(TrafficDimension::Domains.label(&Lang("en-US")), "Domains");
+        assert_eq!(TrafficDimension::Devices.label(&Lang("zh-CN")), "设备 (Devices)");
+        assert_eq!(TrafficDimension::Devices.label(&Lang("en-US")), "Devices");
+        assert_eq!(TrafficDimension::Proxies.label(&Lang("zh-CN")), "代理 (Proxies)");
+        assert_eq!(TrafficDimension::Proxies.label(&Lang("en-US")), "Proxies");
+        assert_eq!(TrafficDimension::Processes.label(&Lang("zh-CN")), "进程 (Processes)");
+        assert_eq!(TrafficDimension::Processes.label(&Lang("en-US")), "Processes");
         assert_eq!(TrafficDimension::Domains.icon(), Icon::Globe);
         assert_eq!(TrafficDimension::Devices.icon(), Icon::Server);
         assert_eq!(TrafficDimension::Proxies.icon(), Icon::Zap);

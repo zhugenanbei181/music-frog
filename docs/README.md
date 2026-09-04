@@ -5,22 +5,29 @@
 ## 阅读顺序
 
 1. [README.md](../README.md)：产品定位、发行形态和用户可见能力。
-2. [ARCHITECTURE.md](ARCHITECTURE.md)：Rust、mihomo、宿主与多个 UI 的分层边界。
-3. [FUNCTIONAL_MAP.md](FUNCTIONAL_MAP.md)：按功能域查找唯一 owner、各端入口和待办编号。
-4. [MIHOMO_CORE.md](MIHOMO_CORE.md)：Rust 操作 mihomo 的核心契约、生命周期和安全边界。
-5. [FRONTENDS.md](FRONTENDS.md)：Iced、Tauri/Web、Android 的求同存异矩阵。
-6. [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)：平台、架构、打包和验证状态。
-7. [UPSTREAM.md](UPSTREAM.md)：Rust、mihomo、Web、Android 依赖的版本与升级流程。
-8. [TEST_MATRIX.md](TEST_MATRIX.md)：功能域、UI、平台和真实 core 的分层回归矩阵。
+2. [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md)：**【最高主控台账】**双端（Iced & Bevy UI）同步演进、10 大业务组功能并集与 UI 表现规范。
+3. [ARCHITECTURE.md](ARCHITECTURE.md)：Rust、mihomo、宿主与多个 UI 的分层边界。
+4. [CORE_030_REARCHITECTURE.md](CORE_030_REARCHITECTURE.md)：0.20 基线与 0.30 破坏性 Core 重整计划。
+5. [FUNCTIONAL_MAP.md](FUNCTIONAL_MAP.md)：按功能域查找唯一 owner、各端入口和待办编号。
+6. [FRONTENDS.md](FRONTENDS.md)：Iced 与 Bevy UI 对等双主干、Android 的求同存异矩阵。
+7. [MIHOMO_CORE.md](MIHOMO_CORE.md)：Rust 操作 mihomo 的核心契约、生命周期和安全边界。
+8. [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)：平台、架构、打包和验证状态。
+9. [UPSTREAM.md](UPSTREAM.md)：Rust、mihomo、Web、Android 依赖的版本与升级流程。
+10. [TEST_MATRIX.md](TEST_MATRIX.md)：功能域、UI、平台和真实 core 的分层回归矩阵。
 
 ## 文档与待办的权威关系
 
 | 内容 | 唯一入口 | 规则 |
 | --- | --- | --- |
+| 双端同步与功能并集 | `docs/DUAL_SURFACE_PARITY_MASTER_PLAN.md` | Iced 与 Bevy UI 同步演进、功能并集与 UI 表现的权威规范 |
+| 0.20/0.30 Core 重整 | `docs/CORE_030_REARCHITECTURE.md` | 0.20 冻结基线；0.30 允许破坏性替换，领域/契约/端口边界以本文件为准 |
 | 产品当前状态 | `README.md` | 只写当前可验证事实，不写开发流水 |
 | 架构和边界 | `docs/ARCHITECTURE.md` | 变更先更新边界，再改实现 |
 | 功能归属 | `docs/FUNCTIONAL_MAP.md` | 一项功能只指定一个逻辑 owner |
 | UI 求同存异 | `docs/FRONTENDS.md` | 每个前端必须显式选择 shared/local/accepted difference/unsupported |
+| Iced 落地台账 | `docs/ICED_CORE_MATURITY_GAPS.md` | Iced 端 4 维度与各 Wave 落地状态及测试证据 |
+| Bevy UI 落地台账 | `docs/BEVY_CORE_MATURITY_GAPS.md` | Bevy UI 端 10 维度 150 项工程缺口落地状态及无头测试证据 |
+| 核心协议与 AST 台账 | `docs/MATURITY_GAP_ANALYSIS.md` | 核心层与协议层 10×10 成熟度全景差距台账 |
 | 上游依赖 | `docs/UPSTREAM.md` | 版本真相来自 manifest/lockfile/脚本，不在多个文档手抄 |
 | 回归证据 | `docs/TEST_MATRIX.md` + `TESTING.md` | 测试命令和测试覆盖矩阵分开维护 |
 | 工作台账 | 本地 `TODO.md` | 被 `.gitignore` 忽略，按任务 ID 与验收条件维护 |

@@ -234,6 +234,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         header,
         runtime_proxy_selector,
         traffic::traffic_section(state, Lang(&state.shell.lang)),
+        crate::view::pcap_panel::pcap_card(state, &lang),
         card(
             None,
             connections::connections_section(state, Lang(&state.shell.lang))

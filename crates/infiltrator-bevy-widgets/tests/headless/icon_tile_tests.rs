@@ -5,13 +5,16 @@
 use bevy::MinimalPlugins;
 use bevy::app::{App, Startup};
 use bevy::asset::AssetPlugin;
+use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::ui::BackgroundColor;
 use bevy::ui::widget::ImageNode;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::icon::IconId;
-use infiltrator_bevy_widgets::icon_tile::{icon_tile_fill, icon_tile_scene, icon_tile_tint};
+use infiltrator_bevy_widgets::icon_tile::{
+    IconTile, icon_tile_fill, icon_tile_scene, icon_tile_tint,
+};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::theme::{LightDark, Theme};
@@ -41,7 +44,7 @@ fn tile_spawns_with_token_fill_and_accent_tint() {
 
     let palette = UiPalette::new(&Theme::dark());
     let world = app.world_mut();
-    let mut fills = world.query::<&BackgroundColor>();
+    let mut fills = world.query_filtered::<&BackgroundColor, With<IconTile>>();
     let fill = *fills.iter(world).next().expect("tile fill mounted");
     assert_eq!(fill, BackgroundColor(icon_tile_fill(&palette)));
     assert_eq!(fill, BackgroundColor(palette.icon_tile));
@@ -83,7 +86,8 @@ fn tile_fill_flips_with_the_theme_without_respawn() {
 
     let dark = UiPalette::new(&Theme::dark());
     let world = app.world_mut();
-    let mut tiles = world.query::<(bevy::ecs::entity::Entity, &BackgroundColor)>();
+    let mut tiles =
+        world.query_filtered::<(bevy::ecs::entity::Entity, &BackgroundColor), With<IconTile>>();
     let (id, dark_fill) = tiles.iter(world).next().expect("tile mounted");
     assert_eq!(*dark_fill, BackgroundColor(dark.icon_tile));
 

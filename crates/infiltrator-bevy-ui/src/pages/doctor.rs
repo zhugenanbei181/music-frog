@@ -2,8 +2,10 @@
 //! port conflict detector, DNS poisoning leak check, and one-click repair.
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`DoctorLine`],
-//! [`DoctorCheckStateMarker`]). The page self-registers
-//! [`apply_doctor_projection`] once per world via [`DoctorPageRoot`].
+//! [`CheckStateText`], [`CheckDetailText`]). The page self-registers
+//! [`apply_doctor_projection`] and action observers once per world via
+//! [`DoctorPageRoot`]. When [`DoctorProjectionUpdated`] fires, texts, state colors,
+//! and check items restamp in place without tree rebuilds.
 
 use bevy::a11y::AccessibilityNode;
 use bevy::color::Color;
@@ -23,7 +25,7 @@ use bevy::ui::prelude::{
     UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -31,6 +33,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
+use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
 
 /// Root marker on the Doctor page scene.
@@ -59,6 +62,25 @@ pub enum DoctorLineKind {
 /// Marker for a check item's status text and color.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CheckStateText(pub usize);
+
+/// Marker for a check item's detail description text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CheckDetailText(pub usize);
+
+/// Marker for "Run Doctor Diagnostics" button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RunDoctorDiagnosticsButton;
+
+/// Marker for "Repair All Doctor Issues" button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RepairAllDoctorButton;
+
+/// Marker for repairing a specific check issue.
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct RepairDoctorRowButton {
+    pub check_id: String,
+    pub check_idx: usize,
+}
 
 /// State of an individual diagnostic check.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -202,7 +224,10 @@ pub fn doctor_page(projection: &DoctorProjection, palette: &UiPalette) -> impl S
     bsn! {
         Node {
             width: percent(100),
+            min_width: px(0.0),
+            max_width: percent(100),
             height: percent(100),
+            min_height: px(0.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(space::S16),
             overflow: Overflow::scroll_y(),
@@ -264,6 +289,7 @@ fn header_card_scene(summary: String, last_run: String, palette: &UiPalette) -> 
                                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                             }
                             BackgroundColor({ palette.accent })
+                            RunDoctorDiagnosticsButton
                             Button
                             Children [
                                 ( Text({ "立即诊断".to_owned() }) TextRole(Role::BodyStrong) ),
@@ -278,6 +304,7 @@ fn header_card_scene(summary: String, last_run: String, palette: &UiPalette) -> 
                                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                             }
                             BackgroundColor({ palette.surface_elevated })
+                            RepairAllDoctorButton
                             Button
                             Children [
                                 ( Text({ "一键修复".to_owned() }) TextRole(Role::Body) ),
@@ -347,7 +374,7 @@ fn check_row_scene(idx: usize, check: &DoctorCheckItem, palette: &UiPalette) -> 
                 }
                 Children [
                     ( Text(name) TextRole(Role::BodyStrong) ),
-                    ( Text(detail) TextRole(Role::Caption) ),
+                    ( Text(detail) CheckDetailText(idx) TextRole(Role::Caption) ),
                 ]
             ),
             (
@@ -369,6 +396,28 @@ fn bind_doctor_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     let mut commands = world.commands();
     commands.insert_resource(DoctorPageBound);
     commands.add_observer(apply_doctor_projection);
+    commands.add_observer(on_doctor_action_activated);
+}
+
+pub(crate) fn on_doctor_action_activated(
+    activate: On<Activate>,
+    diag_buttons: Query<(), With<RunDoctorDiagnosticsButton>>,
+    repair_all_buttons: Query<(), With<RepairAllDoctorButton>>,
+    repair_row_buttons: Query<&RepairDoctorRowButton>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    if diag_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::RunDoctorDiagnostics);
+    } else if repair_all_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::RepairAllDoctorIssues);
+    } else if let Ok(btn) = repair_row_buttons.get(activate.entity) {
+        handle.submit(UiCommand::RepairDoctorIssue {
+            check_id: btn.check_id.clone(),
+        });
+    }
 }
 
 #[allow(clippy::type_complexity)]
@@ -376,10 +425,29 @@ pub(crate) fn apply_doctor_projection(
     update: On<DoctorProjectionUpdated>,
     palette: Res<UiPalette>,
     mut last: Option<ResMut<LastDoctorProjection>>,
-    mut lines: Query<(&mut Text, &DoctorLine), (With<DoctorLine>, Without<CheckStateText>)>,
+    mut lines: Query<
+        (&mut Text, &DoctorLine),
+        (
+            With<DoctorLine>,
+            Without<CheckStateText>,
+            Without<CheckDetailText>,
+        ),
+    >,
     mut states: Query<
         (&mut Text, &mut TextColor, &CheckStateText),
-        (With<CheckStateText>, Without<DoctorLine>),
+        (
+            With<CheckStateText>,
+            Without<DoctorLine>,
+            Without<CheckDetailText>,
+        ),
+    >,
+    mut details: Query<
+        (&mut Text, &CheckDetailText),
+        (
+            With<CheckDetailText>,
+            Without<DoctorLine>,
+            Without<CheckStateText>,
+        ),
     >,
 ) {
     let projection = &update.0;
@@ -406,6 +474,12 @@ pub(crate) fn apply_doctor_projection(
         }
     }
 
+    for (mut text, marker) in &mut details {
+        if let Some(check) = projection.checks.get(marker.0) {
+            text.0 = check.detail.clone();
+        }
+    }
+
     if let Some(ref mut last_proj) = last {
         last_proj.0 = Some(projection.clone());
     }
@@ -421,5 +495,9 @@ mod tests {
         assert!(proj.overall_healthy);
         assert_eq!(proj.passed_count(), 6);
         assert_eq!(proj.checks.len(), 6);
+        assert_eq!(proj.checks[0].id, "chk-1");
+        assert_eq!(proj.checks[0].name, "TUN 虚拟网卡与路由表健康度");
+        assert_eq!(proj.checks[0].category, "网络栈");
+        assert_eq!(proj.checks[0].state, DoctorCheckState::Pass);
     }
 }

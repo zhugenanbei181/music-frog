@@ -33,3 +33,18 @@ mod business_flow_tests;
 
 #[path = "../tests/gui/crash_report_tests.rs"]
 mod crash_report_tests;
+
+#[path = "../tests/gui/iced_six_advancements_tests.rs"]
+mod iced_six_advancements_tests;
+
+#[path = "../tests/gui/iced_six_advancements_wave2_tests.rs"]
+mod iced_six_advancements_wave2_tests;
+
+#[path = "../tests/gui/iced_six_advancements_wave3_tests.rs"]
+mod iced_six_advancements_wave3_tests;
+
+#[path = "../tests/gui/iced_six_advancements_wave4_tests.rs"]
+mod iced_six_advancements_wave4_tests;
+
+#[path = "../tests/gui/iced_six_advancements_wave5_tests.rs"]
+mod iced_six_advancements_wave5_tests;

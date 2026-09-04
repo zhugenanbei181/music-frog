@@ -104,19 +104,17 @@ where
     }
 
     // 4. 检查 KDE / GNOME 专属环境变量
-    if let Some(kde_full) = get_env("KDE_FULL_SESSION") {
-        if kde_full.trim().eq_ignore_ascii_case("true") {
+    if let Some(kde_full) = get_env("KDE_FULL_SESSION")
+        && kde_full.trim().eq_ignore_ascii_case("true") {
             return DesktopEnvironment::Kde;
         }
-    }
     if get_env("KDE_SESSION_VERSION").is_some() {
         return DesktopEnvironment::Kde;
     }
-    if let Some(gnome_id) = get_env("GNOME_DESKTOP_SESSION_ID") {
-        if !gnome_id.trim().is_empty() {
+    if let Some(gnome_id) = get_env("GNOME_DESKTOP_SESSION_ID")
+        && !gnome_id.trim().is_empty() {
             return DesktopEnvironment::Gnome;
         }
-    }
 
     DesktopEnvironment::Generic
 }

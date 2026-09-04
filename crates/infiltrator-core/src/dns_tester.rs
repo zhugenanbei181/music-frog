@@ -180,11 +180,10 @@ impl DnsTester {
                 is_bogus = true;
                 is_hijacked = true;
             }
-            if let Some(cidr) = fake_ip_cidr {
-                if Self::check_fake_ip_range(ip, cidr) {
+            if let Some(cidr) = fake_ip_cidr
+                && Self::check_fake_ip_range(ip, cidr) {
                     is_fake_ip = true;
                 }
-            }
         }
 
         DnsTestResult {

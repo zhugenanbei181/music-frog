@@ -1,10 +1,238 @@
-//! IME preedit segmentation and state-machine behavior for [`super`].
-//!
-//! The public state types stay defined by the parent `text_input` module so
-//! their canonical paths and the widget API do not move. This child owns the
-//! implementation boundary for Pinyin segmentation and clause navigation.
+//! CJK IME preedit segmentation, character classification, and cursor area geometry.
 
-use super::{PreeditClause, PreeditClauseState, PreeditStateMachine, PreeditStatus};
+use bevy::ecs::component::Component;
+use bevy::math::Vec2;
+
+/// Classification of a preedit segment in CJK IME composition.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum PreeditClauseState {
+    /// Raw uncommitted input (e.g. latin pinyin syllables).
+    #[default]
+    Raw,
+    /// Currently focused / active candidate clause being selected.
+    Selected,
+    /// Converted clause that is not currently selected.
+    Converted,
+}
+
+/// A segmented clause within an IME preedit composition.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreeditClause {
+    /// Text content of this clause.
+    pub text: String,
+    /// State / classification of this clause.
+    pub state: PreeditClauseState,
+    /// Character range `(start, end)` within the full preedit string.
+    pub range: (usize, usize),
+}
+
+impl PreeditClause {
+    /// Construct a new preedit clause.
+    pub fn new(text: impl Into<String>, state: PreeditClauseState, range: (usize, usize)) -> Self {
+        Self {
+            text: text.into(),
+            state,
+            range,
+        }
+    }
+
+    /// Whether this clause is the active / selected one.
+    pub fn is_selected(&self) -> bool {
+        self.state == PreeditClauseState::Selected
+    }
+}
+
+/// Status of the IME Preedit composition state machine.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum PreeditStatus {
+    /// No active composition.
+    #[default]
+    Idle,
+    /// Active composition in progress.
+    Composing,
+    /// Composition just committed.
+    Committed,
+}
+
+/// State machine for IME preedit composition and CJK syllable/clause segmentation.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PreeditStateMachine {
+    raw_text: String,
+    clauses: Vec<PreeditClause>,
+    cursor: usize,
+    active_clause: Option<usize>,
+    status: PreeditStatus,
+}
+
+/// Snapshot of text field state prior to an IME composition session,
+/// enabling transaction rollback on cancellation (e.g. Escape / Cancel).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ImeTransaction {
+    /// Controlled text when the transaction began.
+    pub original_text: String,
+    /// Caret character position when the transaction began.
+    pub original_cursor: usize,
+    /// Selection anchor when the transaction began.
+    pub original_anchor: Option<usize>,
+}
+
+/// Absolute screen rectangle for the IME cursor / composition area.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct ImeCursorArea {
+    /// Top-left position in window/screen pixel coordinates.
+    pub position: Vec2,
+    /// Dimensions (width, height) of the cursor / composition area in pixels.
+    pub size: Vec2,
+}
+
+impl ImeCursorArea {
+    /// Construct a new cursor area from position and size.
+    pub fn new(position: Vec2, size: Vec2) -> Self {
+        Self { position, size }
+    }
+
+    /// Construct a new cursor area from individual scalar bounds.
+    pub fn from_rect(x: f32, y: f32, width: f32, height: f32) -> Self {
+        Self {
+            position: Vec2::new(x, y),
+            size: Vec2::new(width, height),
+        }
+    }
+
+    pub fn x(&self) -> f32 {
+        self.position.x
+    }
+
+    pub fn y(&self) -> f32 {
+        self.position.y
+    }
+
+    pub fn width(&self) -> f32 {
+        self.size.x
+    }
+
+    pub fn height(&self) -> f32 {
+        self.size.y
+    }
+
+    pub fn min(&self) -> Vec2 {
+        self.position
+    }
+
+    pub fn right(&self) -> f32 {
+        self.position.x + self.size.x
+    }
+
+    pub fn bottom(&self) -> f32 {
+        self.position.y + self.size.y
+    }
+}
+
+/// Parameters for calculating the absolute IME cursor area.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ImeCursorAreaParams {
+    /// Absolute top-left position of the text field bounding box on screen.
+    pub field_origin: Vec2,
+    /// Total bounding size of the text field.
+    pub field_size: Vec2,
+    /// Left / top padding of the text container inside the field.
+    pub padding: Vec2,
+    /// Horizontal offset in pixels from the start of the text to the caret.
+    pub caret_offset_x: f32,
+    /// Caret width in pixels (typically 2px).
+    pub caret_width: f32,
+    /// Caret height in pixels (typically line height / control square size).
+    pub caret_height: f32,
+    /// Width of any active preedit string in pixels (0 if no preedit).
+    pub preedit_width: f32,
+}
+
+/// Pure function: compute the absolute screen coordinates for the IME cursor area.
+pub fn compute_ime_cursor_area(params: ImeCursorAreaParams) -> ImeCursorArea {
+    let x = params.field_origin.x + params.padding.x + params.caret_offset_x;
+    let y = params.field_origin.y
+        + params.padding.y
+        + ((params.field_size.y - params.padding.y * 2.0 - params.caret_height).max(0.0) * 0.5);
+    let width = if params.preedit_width > 0.0 {
+        params.preedit_width.max(params.caret_width)
+    } else {
+        params.caret_width
+    };
+    ImeCursorArea {
+        position: Vec2::new(x, y),
+        size: Vec2::new(width, params.caret_height),
+    }
+}
+
+/// Estimate text advance width in pixels based on character classes (CJK/wide vs ASCII).
+pub fn estimate_text_width(text: &str, font_size: f32) -> f32 {
+    let mut width = 0.0;
+    for c in text.chars() {
+        if is_cjk_or_wide(c) {
+            width += font_size;
+        } else {
+            width += font_size * 0.55;
+        }
+    }
+    width
+}
+
+/// Whether a character is CJK ideograph, Hangul, Kana, fullwidth, or emoji.
+pub fn is_cjk_or_wide(c: char) -> bool {
+    matches!(c as u32,
+        0x1100..=0x115F | // Hangul Jamo
+        0x2E80..=0xA4CF | // CJK Radicals, Kangxi, Ideographic, Hiragana, Katakana, Bopomofo, CJK Unified Ideographs, Yi
+        0xAC00..=0xD7A3 | // Hangul Syllables
+        0xF900..=0xFAFF | // CJK Compatibility Ideographs
+        0xFE30..=0xFE4F | // CJK Compatibility Forms
+        0xFF00..=0xFF60 | // Fullwidth Forms
+        0xFFE0..=0xFFE6 | // Fullwidth Signs
+        0x1F300..=0x1F9FF // Emojis & Pictographs
+    )
+}
+
+/// Find previous word boundary character index starting backwards from `cursor_chars`.
+pub fn find_prev_word_boundary(text: &str, cursor_chars: usize) -> usize {
+    if cursor_chars == 0 || text.is_empty() {
+        return 0;
+    }
+    let chars: Vec<char> = text.chars().collect();
+    let mut idx = cursor_chars.min(chars.len());
+
+    // Skip trailing whitespace if immediately before cursor
+    while idx > 0 && chars[idx - 1].is_whitespace() {
+        idx -= 1;
+    }
+
+    // Skip word characters
+    while idx > 0 && !chars[idx - 1].is_whitespace() {
+        idx -= 1;
+    }
+
+    idx
+}
+
+/// Find next word boundary character index starting forwards from `cursor_chars`.
+pub fn find_next_word_boundary(text: &str, cursor_chars: usize) -> usize {
+    let chars: Vec<char> = text.chars().collect();
+    let len = chars.len();
+    if cursor_chars >= len {
+        return len;
+    }
+    let mut idx = cursor_chars;
+
+    // Skip current word characters
+    while idx < len && !chars[idx].is_whitespace() {
+        idx += 1;
+    }
+
+    // Skip whitespace following the word
+    while idx < len && chars[idx].is_whitespace() {
+        idx += 1;
+    }
+
+    idx
+}
 
 /// Standard Pinyin syllables sorted by descending length for greedy clause segmentation.
 const PINYIN_SYLLABLES: &[&str] = &[
@@ -102,7 +330,6 @@ impl PreeditStateMachine {
     }
 
     /// Update preedit text with optional cursor position (in char index).
-    /// Performs rule-based syllable and delimiter segmentation into clauses.
     pub fn update(&mut self, text: impl Into<String>, cursor: Option<usize>) -> bool {
         let text = text.into();
         if text.is_empty() {
@@ -127,7 +354,6 @@ impl PreeditStateMachine {
     }
 
     /// Segment a raw composition string into Pinyin / CJK clauses.
-    /// Handles explicit apostrophe delimiters (e.g. "xi'an") and standard Pinyin syllable boundaries.
     pub fn segment_pinyin(raw: &str) -> Vec<PreeditClause> {
         if raw.is_empty() {
             return Vec::new();
@@ -209,6 +435,32 @@ impl PreeditStateMachine {
         }
     }
 
+    /// Move active clause selection to the previous clause.
+    pub fn prev_clause(&mut self) -> bool {
+        if self.clauses.is_empty() {
+            return false;
+        }
+        let current = self.active_clause.unwrap_or(0);
+        if current > 0 {
+            self.select_clause(current - 1)
+        } else {
+            false
+        }
+    }
+
+    /// Move active clause selection to the next clause.
+    pub fn next_clause(&mut self) -> bool {
+        if self.clauses.is_empty() {
+            return false;
+        }
+        let current = self.active_clause.unwrap_or(0);
+        if current + 1 < self.clauses.len() {
+            self.select_clause(current + 1)
+        } else {
+            false
+        }
+    }
+
     /// Select a specific clause by index.
     pub fn select_clause(&mut self, index: usize) -> bool {
         if index < self.clauses.len() {
@@ -218,26 +470,6 @@ impl PreeditStateMachine {
         } else {
             false
         }
-    }
-
-    /// Navigate to next clause.
-    pub fn next_clause(&mut self) -> bool {
-        if let Some(curr) = self.active_clause
-            && curr + 1 < self.clauses.len()
-        {
-            return self.select_clause(curr + 1);
-        }
-        false
-    }
-
-    /// Navigate to previous clause.
-    pub fn prev_clause(&mut self) -> bool {
-        if let Some(curr) = self.active_clause
-            && curr > 0
-        {
-            return self.select_clause(curr - 1);
-        }
-        false
     }
 
     /// Commit the preedit composition, returning the text to insert.

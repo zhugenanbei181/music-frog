@@ -18,16 +18,30 @@
 //!   Pages never touch bevy color/asset constructors directly.
 
 pub mod app_routing;
+pub mod app_routing_uwp;
 pub mod connections;
+pub mod connections_drawer;
 pub mod dns;
 pub mod doctor;
 pub mod logs;
 pub mod overview;
+pub mod overview_cards;
 pub mod profiles;
+pub mod profiles_aggregator;
+pub mod profiles_diff;
+pub mod profiles_import;
+pub mod profiles_script;
 pub mod proxies;
+pub mod proxies_card;
+pub mod proxies_custom;
+pub mod proxies_filter;
 pub mod rules;
+pub mod rules_builder;
+pub mod rules_mrs;
+pub mod rules_tracer;
 pub mod settings;
 pub mod sync;
+pub mod sync_merge;
 
 use bevy::ecs::hierarchy::Children;
 use bevy::scene::{Scene, bsn};

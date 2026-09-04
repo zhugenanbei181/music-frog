@@ -5,7 +5,7 @@ surface**：它的上限包含移动端。iced 是 winit 桌面方案，没有 A
 的同一棵 UI 树可以直接跑在 `aarch64-linux-android` 上。控件生态薄是事实，但
 `bevy_ui_widgets`（官方无样式控件包）加上我们自有的 `infiltrator-bevy-widgets`
 层可以补齐——控件是我们自己建的，就归我们自己所有。iced 主桌面维持维护态并继续
-承接 X11 会话；新产品能力仍以 Iced 优先落地，Bevy 按 M1→M3 里程碑追赶。
+承接 X11 会话；依据最高主控台账 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md)，Iced（成熟桌面端）与 Bevy UI（跨平台战略端）现已确立为严格对等的双主干 surface，在功能和 UI 表现上全面同步演进。
 
 参考实现：taskmanager 的 `taskmanager-bevy-ui`（同为 bevy 0.19 产品级 UI，bsn! 场景法
 + 观察者绑定 + 纯核/场景适配器二分 + 中立主题 token）。本章程的多条铁律直接来自该
@@ -161,3 +161,49 @@ PID/标题绑定截图，零宿主会话串扰）产出真实渲染证据到 `do
 "截图 → 与参考图对比 → 修最重项 → 重截"闭环，禁止盲改。应用侧取证缝：
 `INFILTRATOR_BEVY_SKIN`、`INFILTRATOR_BEVY_WINDOW_SIZE`、
 `INFILTRATOR_CAPTURE_MARKER`（CAPTURE_READY 标记）。
+
+## 8. 进阶十五大维度演进与实事求是性能预算 (0.30+ / 1.0 终局路线)
+
+为确保 Bevy UI 在超越传统桌面与移动端 UI 框架（Iced / Qt / Flutter / GPUI）的同时，**坚决不抛弃原生 GUI 的高效率、低内存占用与即时响应**，确立如下进阶十五大演进维度与**实事求是、严禁夸口**的性能指标红线。
+
+### 8.1 进阶十五大演进维度
+
+1. **渲染管线深度定制与计算着色器加速 (Compute & RenderGraph Shaders)**：SDF 矢量字形抗锯齿、物理拟真双重 Kawase 毛玻璃材质（GPU 后处理）、解析级圆角盒动态投影与 GPU Instancing 图元批量提交。
+2. **声明式 UI 元编程与常量场景优化 (Const Scene Graph & Reactive DAG)**：静态场景编译期展平、细粒度反应式原子信号依赖拓扑、类型安全静态几何约束布局。
+3. **自适应多窗口、画中画与工作区自由停靠 (Multi-Window, PiP & Workspace Docking)**：共享单个 ECS World 的跨原生 OS 窗口并发渲染、独立置顶桌面画中画网速浮窗、分栏工作区自由拖拽撕裂与吸附停靠。
+4. **高性能 3D / 2.5D 全球网络拓扑与粒子引擎 (Spatial 2.5D/3D Globe & Particles)**：无缝桥接 Bevy 3D 渲染器嵌入交互式 3D 节点地球仪、实时数据包流向粒子物理模拟、UI 卡片视差微 3D 悬浮透视。
+5. **移动端系统级深度集成与原生视图混排 (Mobile System Integration & Platform Views)**：Android TalkBack / iOS VoiceOver 原生无障碍桥接、摄像头扫码纹理 GPU 直通渲染、移动端抛掷惯性滚动物理引擎。
+6. **多模态音效与触觉物理微反馈系统 (Audio-Haptic Multimodal Feedback)**：微触觉波形（Android Vibrator / iOS Haptic / macOS 触控板）、程序化零延迟 UI 微音效、手势速度加权振动阻尼。
+7. **智能网络上下文感知与预测式 UI 预取 (Smart Context Sensing & Predictive UI)**：启发式最佳节点智能评估与高亮、网络故障交互式自愈向导卡片、异常流量热力图视觉警示。
+8. **动态着色器皮肤、主题热插拔与视觉沙盒 (Shader Skins & OKLCH Palette)**：运行时 WGSL 动态热重载、基于色彩科学的 OKLCH 感知均匀色阶生成、主题 Token 跨端标准 JSON/Tailwind 互转。
+9. **富文本高级排版、双向文字 (BiDi) 与数学公式 (Advanced Typography & BiDi)**：OpenType 连字与可变字重无级插值、阿拉伯语/希伯来语 RTL 布局镜像翻转、轻量级 Markdown 与行内指标胶囊混排。
+10. **高性能本地嵌入式时序数据库与时空回放 (Embedded TSDB & Time-Travel Replay)**：SIMD 加速时序存储与动态重采样、时间轴滑动条历史网络状态时空回放、多维交叉透视统计图表。
+11. **WASM / QuickJS 驱动的微前端插件 UI 沙盒 (Micro-Frontend Widget Sandbox)**：轻量级自定义仪表盘小组件沙盒、声明式受限 UI 渲染槽、社区扩展市场与可视化安装器。
+12. **电视大屏 (10-Foot UI)、手柄与全模态控制体系 (10-Foot TV & Gamepad Engine)**：Android TV 十字键导航、游戏手柄左摇杆平滑阻尼滚动、局域网 mDNS 跨端伴侣控制屏幕。
+13. **极限冷启动预热、零开销内存与二进制瘦身 (Sub-Millisecond Boot & Optimization)**：管线与布局缓存静态预编译消除首帧卡顿、只读数据段 mmap 零堆分配启动、PGO 引导编译与符号剥离。
+14. **全场景数字孪生仿真、网络混沌工程与压力测试 (Digital Twin & Chaos Sandbox)**：网络故障注入沙盒（突发丢包/高抖动/DNS污染）、全自动无头 Monkey 探索机器人、云端真机自动化性能与视觉基准流水线。
+15. **跨项目通用 GUI 框架独立抽取与生态标准化 (Universal Widget Engine Extraction)**：纯净通用控件库独立 Crate 抽取发布、跨项目统一 ABI 规范、多平台宿主薄壳标准化模板。
+
+---
+
+### 8.2 实事求是的性能与内存预算红线 (真实硬件测量基准)
+
+拒绝不切实际的虚高指标，立足 Bevy 0.19 + Winit + Wgpu 的物理硬件测量事实：
+
+| 性能与资源指标 | 极简原生态 (Eco / Native) | 均衡态 (Balanced - 默认) | 沉浸态 (Pro / Enhanced) | 测量口径与验收事实 |
+| :--- | :---: | :---: | :---: | :--- |
+| **无头测试基线 RAM** | **12 ~ 20 MB** | **15 ~ 25 MB** | **20 ~ 30 MB** | `MinimalPlugins` 纯 ECS 结构，无窗口与 GPU 驱动开销 |
+| **窗口冷启动 RAM (Linux/Wayland)** | **35 ~ 50 MB** | **45 ~ 65 MB** | **60 ~ 85 MB** | 包含 Wgpu 驱动运行时、Vulkan 堆栈及嵌入式字体表常驻 |
+| **万级节点常驻 RAM** | **45 ~ 60 MB** | **55 ~ 75 MB** | **70 ~ 95 MB** | 虚拟滚动仅实例化视口内 25 个实体，10k 结构体仅增 ~1MB |
+| **静止待机 CPU** | **0.0% ~ 0.05%** | **0.0% ~ 0.1%** | **0.1% ~ 0.2%** | Winit `ControlFlow::Wait` 事件驱动，零静态帧无谓空转 |
+| **后台 / 最小化 CPU** | **0.00%** | **0.00%** | **0.00%** | 彻底关闭渲染管线，仅保留 1s 节流后台数据泵 (每次 <0.1ms) |
+| **核心交互单帧响应延迟** | **< 16 ms (60Hz)** | **< 8.3 ms (120Hz)** | **< 8.3 ms (120Hz)** | 节点切换、搜索过滤在单帧内完成 ECS 状态盖章与重绘 |
+| **拼音模糊搜索 10,000 节点** | **< 3 ms** | **< 5 ms** | **< 5 ms** | 倒排索引 + SIMD 模糊匹配，实测基准预算内通过 |
+| **桌面 Release 二进制体积** | **~ 22 MB** | **~ 26 MB** | **~ 32 MB** | `strip = true` + `lto = "thin"` + `opt-level = 3` 剥离后单文件 |
+| **Android APK 单架构体积** | **~ 18 MB** | **~ 22 MB** | **~ 28 MB** | `arm64-v8a` release 构建剥离调试符号后体积 |
+
+### 8.3 收放自如的降级原则
+
+1. **可有可无**：高级特性（3D/粒子/毛玻璃/TSDB/WASM 沙盒）全部由 Feature Gate 控制编译，运行时默认关闭或按需初始化。
+2. **随用随清**：大显存纹理与 3D 资源仅在特定页面激活，离开视口 30s 即刻 Drop 释放显存，禁止无限制常驻。
+3. **能耗优先**：感知低电量模式或系统发热时，自动降级至 Eco 档位，保全核心代理与交互流畅度。

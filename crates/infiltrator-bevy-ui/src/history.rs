@@ -115,6 +115,52 @@ pub fn chart_series(origin: OverviewOrigin, history: &TrafficHistory) -> (Vec<f3
     }
 }
 
+/// Double-buffered ring snapshot decoupling async producers from UI render loops.
+#[derive(Clone, Debug)]
+pub struct DoubleBufferedRing<T: Clone> {
+    front: Vec<T>,
+    back: Vec<T>,
+    capacity: usize,
+}
+
+impl<T: Clone> DoubleBufferedRing<T> {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            front: Vec::with_capacity(capacity),
+            back: Vec::with_capacity(capacity),
+            capacity: capacity.max(1),
+        }
+    }
+
+    /// Push an item into the write buffer (back). Drops oldest when full.
+    pub fn push_back(&mut self, item: T) {
+        if self.back.len() >= self.capacity {
+            self.back.remove(0);
+        }
+        self.back.push(item);
+    }
+
+    /// Atomically swap back and front buffers at frame boundary. O(1).
+    pub fn swap_buffers(&mut self) {
+        std::mem::swap(&mut self.front, &mut self.back);
+        // Back buffer copies latest front state as starting point
+        self.back.clone_from(&self.front);
+    }
+
+    /// Read front buffer snapshot (guaranteed stable for current frame).
+    pub fn read_front(&self) -> &[T] {
+        &self.front
+    }
+
+    pub fn len(&self) -> usize {
+        self.front.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.front.is_empty()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,5 +244,27 @@ mod tests {
         // A live core with no samples yet stays honestly empty.
         let (up, down) = chart_series(OverviewOrigin::LiveCore, &TrafficHistory::default());
         assert!(up.is_empty() && down.is_empty());
+    }
+    #[test]
+    fn test_double_buffered_ring_swap_and_isolation() {
+        let mut ring = DoubleBufferedRing::<u32>::new(3);
+        assert!(ring.is_empty());
+
+        ring.push_back(10);
+        ring.push_back(20);
+        // Before swap: front is still empty
+        assert!(ring.is_empty());
+
+        // Swap at frame boundary
+        ring.swap_buffers();
+        assert_eq!(ring.read_front(), &[10, 20]);
+
+        // Push to back while front is being read
+        ring.push_back(30);
+        assert_eq!(ring.read_front(), &[10, 20]); // Front is completely isolated
+
+        // Next swap propagates 30
+        ring.swap_buffers();
+        assert_eq!(ring.read_front(), &[10, 20, 30]);
     }
 }

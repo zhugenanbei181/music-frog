@@ -92,3 +92,91 @@ pub fn style_text_roles(
     metrics.font = typography.font;
     ink.0 = typography.ink;
 }
+
+use crate::theme::space;
+use bevy::scene::Scene;
+
+/// A styled segment of rich inline text.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RichTextSpan {
+    pub text: String,
+    pub role: Role,
+    pub color_override: Option<Color>,
+    pub is_badge: bool,
+}
+
+impl RichTextSpan {
+    pub fn new(text: impl Into<String>, role: Role) -> Self {
+        Self {
+            text: text.into(),
+            role,
+            color_override: None,
+            is_badge: false,
+        }
+    }
+
+    pub fn badge(text: impl Into<String>, color: Color) -> Self {
+        Self {
+            text: text.into(),
+            role: Role::Caption,
+            color_override: Some(color),
+            is_badge: true,
+        }
+    }
+}
+
+/// Construct a declarative scene for a line of rich text with inline badges.
+pub fn rich_text_line_scene(spans: Vec<RichTextSpan>, palette: &UiPalette) -> Box<dyn Scene> {
+    use bevy::color::Alpha;
+    use bevy::ecs::hierarchy::Children;
+    use bevy::scene::{Scene, bsn};
+    use bevy::ui::prelude::{
+        AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
+    };
+    use bevy::ui::widget::Text;
+
+    let span_nodes: Vec<Box<dyn Scene>> = spans
+        .into_iter()
+        .map(|span| {
+            let ink = span.color_override.unwrap_or(palette.ink);
+            let role = span.role;
+            if span.is_badge {
+                Box::new(bsn! {
+                    Node {
+                        padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                    }
+                    BackgroundColor({ ink.with_alpha(0.15) })
+                    Children [
+                        (
+                            Text({ span.text })
+                            TextRole(Role::Caption)
+                            TextColor({ ink })
+                        ),
+                    ]
+                }) as Box<dyn Scene>
+            } else {
+                Box::new(bsn! {
+                    (
+                        Text({ span.text })
+                        TextRole({ role })
+                        TextColor({ ink })
+                    )
+                }) as Box<dyn Scene>
+            }
+        })
+        .collect();
+
+    Box::new(bsn! {
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(space::S8),
+        }
+        Children [
+            { span_nodes },
+        ]
+    })
+}

@@ -57,7 +57,9 @@ pub fn stat_chip_scene(
     bsn! {
         Node {
             flex_grow: 1.0,
+            flex_shrink: 1.0,
             flex_basis: px(140.0),
+            min_width: px(110.0),
             min_height: px(CHIP_MIN_HEIGHT),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,

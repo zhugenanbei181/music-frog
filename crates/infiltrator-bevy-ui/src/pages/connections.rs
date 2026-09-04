@@ -2,8 +2,9 @@
 //! inspection, matched rule tracer, throughput rates, and disconnect actions.
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`ConnectionsLine`],
-//! [`ConnectionRowMarker`]). The page self-registers
-//! [`apply_connections_projection`] once per world via [`ConnectionsPageRoot`].
+//! [`ConnSpeedText`], [`ConnHostText`], [`ConnProcessText`], [`ConnChainText`],
+//! [`CloseConnectionButton`]). The page self-registers [`apply_connections_projection`]
+//! and action observers once per world via [`ConnectionsPageRoot`].
 
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::component::Component;
@@ -13,15 +14,17 @@ use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, ResMut};
+use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn, template_value};
+use bevy::text::TextColor;
+use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
     UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -29,6 +32,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
+use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::overview::{format_byte_count, format_rate};
 use crate::route::{PageRoot, Route};
 
@@ -58,6 +62,45 @@ pub enum ConnectionsLineKind {
 /// Marker for a connection row's rate display.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ConnSpeedText(pub usize);
+
+/// Marker for a connection row's host display.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConnHostText(pub usize);
+
+/// Marker for a connection row's process/rule display.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConnProcessText(pub usize);
+
+/// Marker for a connection row's chain display.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConnChainText(pub usize);
+
+/// Marker for the "Close All Connections" button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CloseAllConnectionsButton;
+
+/// Marker and target information for a single connection close button.
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct CloseConnectionButton {
+    pub connection_id: String,
+    pub connection_idx: usize,
+}
+
+/// Connection aggregation / grouping mode.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ConnGroupingMode {
+    /// Flat list of all active connections.
+    #[default]
+    Flat,
+    /// Group connections by application process.
+    ByProcess,
+    /// Group connections by destination host.
+    ByHost,
+}
+
+/// Marker component for the connection aggregation segmented control pills.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConnAggregationPill(pub ConnGroupingMode);
 
 /// A single active connection entry.
 #[derive(Clone, Debug, PartialEq)]
@@ -173,7 +216,10 @@ pub fn connections_page(
     bsn! {
         Node {
             width: percent(100),
+            min_width: px(0.0),
+            max_width: percent(100),
             height: percent(100),
+            min_height: px(0.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(space::S16),
             overflow: Overflow::scroll_y(),
@@ -183,6 +229,7 @@ pub fn connections_page(
         Children [
             ( { header_card_scene(summary, traffic, palette) } ),
             ( { connections_table_scene(connection_scenes, palette) } ),
+            ( { crate::pages::connections_drawer::connection_drawer_scene(palette) } ),
         ]
     }
 }
@@ -228,6 +275,27 @@ fn header_card_scene(summary: String, traffic: String, palette: &UiPalette) -> i
                     Children [
                         (
                             Node {
+                                align_items: AlignItems::Center,
+                                padding: UiRect::all(Val::Px(2.0)),
+                                border: UiRect::all(Val::Px(palette.hairline_px)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                column_gap: Val::Px(space::S4),
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            BorderColor {
+                                top: { palette.border },
+                                right: { palette.border },
+                                bottom: { palette.border },
+                                left: { palette.border },
+                            }
+                            Children [
+                                ( { conn_aggregation_pill(ConnGroupingMode::Flat, "全部连接 (Flat)", true, palette) } ),
+                                ( { conn_aggregation_pill(ConnGroupingMode::ByProcess, "按应用进程聚合 (By Process)", false, palette) } ),
+                                ( { conn_aggregation_pill(ConnGroupingMode::ByHost, "按目标域名聚合 (By Host)", false, palette) } ),
+                            ]
+                        ),
+                        (
+                            Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
                                 align_items: AlignItems::Center,
@@ -236,6 +304,7 @@ fn header_card_scene(summary: String, traffic: String, palette: &UiPalette) -> i
                             }
                             BackgroundColor({ palette.danger })
                             Button
+                            CloseAllConnectionsButton
                             Children [
                                 ( Text({ "关闭全部连接".to_owned() }) TextRole(Role::BodyStrong) ),
                             ]
@@ -246,6 +315,34 @@ fn header_card_scene(summary: String, traffic: String, palette: &UiPalette) -> i
         })],
         palette,
     )
+}
+
+fn conn_aggregation_pill(
+    mode: ConnGroupingMode,
+    label: &str,
+    active: bool,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let (bg, text_color) = if active {
+        (palette.accent_container, palette.accent)
+    } else {
+        (palette.surface, palette.ink_dim)
+    };
+    let label_str = label.to_owned();
+
+    bsn! {
+        Node {
+            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+            border_radius: BorderRadius::all(Val::Px(4.0)),
+            align_items: AlignItems::Center,
+        }
+        BackgroundColor({ bg })
+        ConnAggregationPill(mode)
+        Button
+        Children [
+            ( Text(label_str) TextRole(Role::Caption) TextColor({ text_color }) ),
+        ]
+    }
 }
 
 fn connections_table_scene(
@@ -294,6 +391,10 @@ fn connection_row_scene(
         format_rate(conn.upload_bps),
         format_rate(conn.download_bps)
     );
+    let conn_btn = CloseConnectionButton {
+        connection_id: conn.id.clone(),
+        connection_idx: idx,
+    };
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -315,11 +416,11 @@ fn connection_row_scene(
                                 column_gap: Val::Px(space::S8),
                             }
                             Children [
-                                ( Text(host) TextRole(Role::BodyStrong) ),
-                                ( Text(process_info) TextRole(Role::Caption) ),
+                                ( Text(host) ConnHostText(idx) TextRole(Role::BodyStrong) ),
+                                ( Text(process_info) ConnProcessText(idx) TextRole(Role::Caption) ),
                             ]
                         ),
-                        ( Text(chain_info) TextRole(Role::Caption) ),
+                        ( Text(chain_info) ConnChainText(idx) TextRole(Role::Caption) ),
                     ]
                 ),
                 (
@@ -339,6 +440,7 @@ fn connection_row_scene(
                             }
                             BackgroundColor({ palette.surface_elevated })
                             Button
+                            template_value(conn_btn)
                             Children [
                                 ( Text({ "断开".to_owned() }) TextRole(Role::Caption) ),
                             ]
@@ -360,17 +462,83 @@ fn bind_connections_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     let mut commands = world.commands();
     commands.insert_resource(ConnectionsPageBound);
     commands.add_observer(apply_connections_projection);
+    commands.add_observer(on_connections_action_activated);
+}
+
+pub(crate) fn on_connections_action_activated(
+    activate: On<Activate>,
+    close_all_buttons: Query<(), With<CloseAllConnectionsButton>>,
+    close_row_buttons: Query<&CloseConnectionButton>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    if close_all_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::CloseAllConnections);
+    } else if let Ok(btn) = close_row_buttons.get(activate.entity) {
+        handle.submit(UiCommand::CloseConnection {
+            id: btn.connection_id.clone(),
+        });
+    }
 }
 
 #[allow(clippy::type_complexity)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_connections_projection(
     update: On<ConnectionsProjectionUpdated>,
     mut last: Option<ResMut<LastConnectionsProjection>>,
     mut lines: Query<
         (&mut Text, &ConnectionsLine),
-        (With<ConnectionsLine>, Without<ConnSpeedText>),
+        (
+            With<ConnectionsLine>,
+            Without<ConnSpeedText>,
+            Without<ConnHostText>,
+            Without<ConnProcessText>,
+            Without<ConnChainText>,
+        ),
     >,
-    mut speeds: Query<(&mut Text, &ConnSpeedText), (With<ConnSpeedText>, Without<ConnectionsLine>)>,
+    mut speeds: Query<
+        (&mut Text, &ConnSpeedText),
+        (
+            With<ConnSpeedText>,
+            Without<ConnectionsLine>,
+            Without<ConnHostText>,
+            Without<ConnProcessText>,
+            Without<ConnChainText>,
+        ),
+    >,
+    mut hosts: Query<
+        (&mut Text, &ConnHostText),
+        (
+            With<ConnHostText>,
+            Without<ConnectionsLine>,
+            Without<ConnSpeedText>,
+            Without<ConnProcessText>,
+            Without<ConnChainText>,
+        ),
+    >,
+    mut processes: Query<
+        (&mut Text, &ConnProcessText),
+        (
+            With<ConnProcessText>,
+            Without<ConnectionsLine>,
+            Without<ConnSpeedText>,
+            Without<ConnHostText>,
+            Without<ConnChainText>,
+        ),
+    >,
+    mut chains: Query<
+        (&mut Text, &ConnChainText),
+        (
+            With<ConnChainText>,
+            Without<ConnectionsLine>,
+            Without<ConnSpeedText>,
+            Without<ConnHostText>,
+            Without<ConnProcessText>,
+        ),
+    >,
+    mut buttons: Query<&mut CloseConnectionButton>,
 ) {
     let projection = &update.0;
 
@@ -402,6 +570,30 @@ pub(crate) fn apply_connections_projection(
         }
     }
 
+    for (mut text, marker) in &mut hosts {
+        if let Some(conn) = projection.connections.get(marker.0) {
+            text.0 = conn.host.clone();
+        }
+    }
+
+    for (mut text, marker) in &mut processes {
+        if let Some(conn) = projection.connections.get(marker.0) {
+            text.0 = format!("{} · {}", conn.process, conn.rule);
+        }
+    }
+
+    for (mut text, marker) in &mut chains {
+        if let Some(conn) = projection.connections.get(marker.0) {
+            text.0 = format!("链路: {}", conn.chain);
+        }
+    }
+
+    for mut btn in &mut buttons {
+        if let Some(conn) = projection.connections.get(btn.connection_idx) {
+            btn.connection_id = conn.id.clone();
+        }
+    }
+
     if let Some(ref mut last_proj) = last {
         last_proj.0 = Some(projection.clone());
     }
@@ -416,6 +608,10 @@ mod tests {
         let proj = ConnectionsProjection::demo();
         assert_eq!(proj.total_connections, 4);
         assert_eq!(proj.connections.len(), 4);
-        assert!(proj.total_download_bytes > 0);
+        assert_eq!(proj.connections[0].id, "c-1");
+        assert_eq!(proj.connections[0].host, "api.github.com:443");
+        assert_eq!(proj.connections[0].process, "git (pid: 14238)");
+        assert_eq!(proj.total_upload_bytes, 14_200_000);
+        assert_eq!(proj.total_download_bytes, 88_900_000);
     }
 }

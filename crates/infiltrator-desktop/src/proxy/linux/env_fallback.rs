@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// 环境变量代理模式（http_proxy / https_proxy / all_proxy / no_proxy）。
-
 /// 代理环境变量名称列表（大小写全覆盖）。
 pub const PROXY_ENV_KEYS: &[&str] = &[
     "http_proxy",
@@ -29,7 +28,7 @@ pub fn format_no_proxy(bypass: &str) -> String {
 
 /// 将逗号或分号分隔的 no_proxy 字符串转换为统一的分号分隔格式。
 pub fn parse_no_proxy(val: &str) -> String {
-    val.split(|c| c == ',' || c == ';')
+    val.split([',', ';'])
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
@@ -39,8 +38,8 @@ pub fn parse_no_proxy(val: &str) -> String {
 /// 生成环境变量键值对映射。
 pub fn generate_env_vars(endpoint: Option<&str>, bypass: Option<&str>) -> HashMap<String, String> {
     let mut map = HashMap::new();
-    if let Some(ep) = endpoint {
-        if let Some((host, port)) = parse_endpoint(ep) {
+    if let Some(ep) = endpoint
+        && let Some((host, port)) = parse_endpoint(ep) {
             let http_url = format!("http://{host}:{port}");
             let socks_url = format!("socks5://{host}:{port}");
 
@@ -57,7 +56,6 @@ pub fn generate_env_vars(endpoint: Option<&str>, bypass: Option<&str>) -> HashMa
                 map.insert("NO_PROXY".to_string(), no_p);
             }
         }
-    }
     map
 }
 
@@ -96,17 +94,16 @@ pub fn generate_environment_d(endpoint: Option<&str>, bypass: Option<&str>) -> S
 
 /// 定位 environment.d 配置文件路径（`~/.config/environment.d/99-infiltrator-proxy.conf`）。
 pub fn environment_d_path() -> Option<PathBuf> {
-    if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME") {
-        if !config_home.trim().is_empty() {
+    if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME")
+        && !config_home.trim().is_empty() {
             return Some(
                 PathBuf::from(config_home)
                     .join("environment.d")
                     .join("99-infiltrator-proxy.conf"),
             );
         }
-    }
-    if let Ok(home) = std::env::var("HOME") {
-        if !home.trim().is_empty() {
+    if let Ok(home) = std::env::var("HOME")
+        && !home.trim().is_empty() {
             return Some(
                 PathBuf::from(home)
                     .join(".config")
@@ -114,7 +111,6 @@ pub fn environment_d_path() -> Option<PathBuf> {
                     .join("99-infiltrator-proxy.conf"),
             );
         }
-    }
     None
 }
 
@@ -166,12 +162,11 @@ where
         "https_proxy",
         "HTTPS_PROXY",
     ] {
-        if let Some(val) = get_env(key) {
-            if let Some(ep) = parse_url_to_endpoint(&val) {
+        if let Some(val) = get_env(key)
+            && let Some(ep) = parse_url_to_endpoint(&val) {
                 endpoint = Some(ep);
                 break;
             }
-        }
     }
 
     let enabled = endpoint.is_some();

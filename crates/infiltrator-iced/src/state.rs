@@ -93,6 +93,22 @@ pub struct RuntimeState {
     pub is_checking_update: bool,
     pub rebuild_flow: RebuildFlowState,
     pub proxy_groups_expanded: Option<Vec<String>>,
+    pub proxy_group_order: Vec<String>,
+    pub custom_node_modal_open: bool,
+    pub custom_node_uri_input: String,
+    pub custom_node_name_input: String,
+    pub custom_node_server_input: String,
+    pub custom_node_port_input: String,
+    pub custom_node_type_input: String,
+    pub custom_node_uuid_input: String,
+    pub custom_node_sni_input: String,
+    pub custom_node_exported_uri: Option<String>,
+    pub network_roaming: crate::types::runtime::NetworkRoamingState,
+    pub pac_manager: crate::types::app::PacManagerConfig,
+    pub latency_radar: crate::types::runtime::LatencyRadarState,
+    pub apply_guard: crate::types::runtime::ApplyTransactionGuardState,
+    pub lan_sharing: crate::types::app::LanSharingConfig,
+    pub tun_stack_config: crate::types::dns::TunStackConfig,
 }
 
 /// 订阅与档案域:Profile 列表、订阅导入/更新、WebDAV 同步与应用设置保存(UI-002)。
@@ -135,6 +151,13 @@ pub struct ProfileState {
     pub sync_diff: Option<crate::types::options::SyncDiffState>,
     pub is_loading_sync_diff: bool,
     pub is_applying_sync_diff: bool,
+    pub aggregator_modal_open: bool,
+    pub aggregator_selected_profiles: Vec<String>,
+    pub aggregator_name_input: String,
+    pub aggregator_result_summary: Option<String>,
+    pub is_aggregating: bool,
+    pub encrypted_backup: crate::types::options::EncryptedBackupState,
+    pub quota_schedule: crate::types::options::QuotaScheduleState,
 }
 
 /// 配置编辑器域:Rules / Providers / Sniffer / DNS / Fake-IP / TUN 的 JSON 与
@@ -208,6 +231,13 @@ pub struct ConfigEditorState {
     pub proxy_providers: Vec<mihomo_api::types::ProxyProvider>,
     pub rule_providers: Vec<mihomo_api::types::RuleProvider>,
     pub is_loading_providers: bool,
+    pub script_sandbox: crate::types::editor::ScriptSandboxState,
+    pub snapshot_diff_modal_open: bool,
+    pub snapshot_diff_selected_id: Option<String>,
+    pub subrule_draft: crate::types::rules::SubRuleDraft,
+    pub geodata_status: crate::types::editor::GeoDataStatus,
+    pub rule_hit_audit: crate::types::rules::RuleHitAuditState,
+    pub provider_unpack: crate::types::rules::ProviderUnpackState,
     pub dns_nameservers: Vec<String>,
     pub dns_fallback_servers: Vec<String>,
     pub dns_enhanced_mode: String,
@@ -262,12 +292,21 @@ pub struct DiagnosticsState {
     pub traffic_stream_state: RuntimeStreamState,
     pub connections_stream_state: RuntimeStreamState,
     pub doctor: crate::types::doctor::DoctorPanelState,
+    pub inspecting_connection_id: Option<String>,
+    pub dns_leak_probe: Option<crate::types::dns::DnsLeakReport>,
+    pub is_probing_dns_leak: bool,
+    pub pcap_state: crate::types::runtime::PcapCaptureState,
+    pub speedtest_result: crate::types::perf::SpeedtestResult,
+    pub crash_watchdog: crate::types::doctor::CrashWatchdogState,
+    pub log_filter: crate::types::runtime::LogFilterState,
+    pub connection_grouping_mode: crate::types::runtime::ConnectionGroupingMode,
 }
 
 /// 外壳域:导航路由、语言/主题、全局错误与 Toast、托盘、Admin 管理端、
 /// 任务计数与 demo 捕获标记(UI-002)。
 pub struct ShellState {
     pub current_route: Route,
+    pub history: crate::types::app::RouteHistory,
     pub error_msg: Option<String>,
     pub transition: Transition,
     pub lang: String,
@@ -297,6 +336,13 @@ pub struct ShellState {
     pub demo: bool,
     pub capture_marker: Option<PathBuf>,
     pub capture_marker_written: std::sync::atomic::AtomicBool,
+    pub command_palette_open: bool,
+    pub command_query: String,
+    pub command_selected_index: usize,
+    pub mini_hud_mode: bool,
+    pub always_on_top: bool,
+    pub hotkeys_config: Vec<crate::types::app::HotkeyBinding>,
+    pub uwp_loopback: crate::types::app::UwpLoopbackState,
 }
 
 pub struct AppState {
@@ -305,6 +351,7 @@ pub struct AppState {
     pub editor: ConfigEditorState,
     pub diag: DiagnosticsState,
     pub shell: ShellState,
+    pub app_routing: crate::types::app_routing::AppRoutingState,
 }
 
 impl AppState {

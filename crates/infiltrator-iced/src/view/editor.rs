@@ -1,4 +1,4 @@
-//! Editor page for raw profile YAML editing, Mixin overlay editing and
+//!  Editor page for raw profile YAML editing, Mixin overlay editing and
 //! per-profile subscription filtering with history snapshot restoration.
 
 use crate::state::AppState;
@@ -15,6 +15,61 @@ use iced::widget::{Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::path::PathBuf;
+
+const SNIPPET_SS: &str = "
+  - name: SS-Node
+    type: ss
+    server: server.example.com
+    port: 8388
+    cipher: aes-256-gcm
+    password: password
+";
+const SNIPPET_VMESS: &str = "
+  - name: Vmess-Node
+    type: vmess
+    server: server.example.com
+    port: 443
+    uuid: a3482e88-7d8f-4a42-9988-1a2b3c4d5e6f
+    alterId: 0
+    cipher: auto
+    tls: true
+";
+const SNIPPET_TROJAN: &str = "
+  - name: Trojan-Node
+    type: trojan
+    server: server.example.com
+    port: 443
+    password: password
+    sni: example.com
+";
+const SNIPPET_HY2: &str = "
+  - name: Hy2-Node
+    type: hysteria2
+    server: server.example.com
+    port: 443
+    password: password
+    sni: example.com
+";
+const SNIPPET_SELECT: &str = "
+  - name: PROXIES
+    type: select
+    proxies:
+      - DIRECT
+";
+const SNIPPET_URLTEST: &str = "
+  - name: AUTO-TEST
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    proxies:
+      - DIRECT
+";
+const SNIPPET_RULE_DOMAIN: &str = "
+  - DOMAIN-SUFFIX,google.com,PROXIES
+";
+const SNIPPET_RULE_GEOIP: &str = "
+  - GEOIP,CN,DIRECT
+";
 
 /// Truncate full SHA-256 to 8-character short hash pill string.
 pub fn format_short_sha(sha: &str) -> String {
@@ -44,16 +99,19 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         lang.tr("editor_pane_yaml").to_string(),
         lang.tr("editor_pane_mixin").to_string(),
         lang.tr("editor_pane_filter").to_string(),
+        lang.tr("script_sandbox_title").to_string(),
     ];
     let pane_index = match state.editor.editor_pane {
         EditorPane::Profile => 0,
         EditorPane::Mixin => 1,
         EditorPane::Filter => 2,
+        EditorPane::Script => 3,
     };
     let pane_switch = segmented_control(&pane_labels, pane_index, |index| {
         Message::SetEditorPane(match index {
             1 => EditorPane::Mixin,
             2 => EditorPane::Filter,
+            3 => EditorPane::Script,
             _ => EditorPane::Profile,
         })
     });
@@ -62,12 +120,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         EditorPane::Profile => Icon::FileText,
         EditorPane::Mixin => Icon::Code2,
         EditorPane::Filter => Icon::ListChecks,
+        EditorPane::Script => Icon::Zap,
     };
 
     let pane_tag = match state.editor.editor_pane {
         EditorPane::Profile => "YAML",
         EditorPane::Mixin => "Mixin",
         EditorPane::Filter => "Filter",
+        EditorPane::Script => "QuickJS",
     };
 
     // File info block with icon chip, filename, and format chip
@@ -137,6 +197,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             },
             state.editor.is_saving_filter,
         ),
+        EditorPane::Script => (
+            lang.tr("script_sandbox_run").to_string(),
+            state.editor.script_sandbox.is_running,
+        ),
     };
 
     let save_btn = button(
@@ -154,6 +218,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             EditorPane::Profile => Message::SaveProfile,
             EditorPane::Mixin => Message::SaveMixin,
             EditorPane::Filter => Message::SaveProfileFilter,
+            EditorPane::Script => Message::RunScriptSandboxTest,
         },
     ));
 
@@ -202,6 +267,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .height(Length::Fill)
             .into(),
         EditorPane::Filter => crate::view::profile_filter::filter_pane(state),
+        EditorPane::Script => crate::view::script_console::view(state),
     };
     let editor = container(editor_document)
         .width(Length::Fill)
@@ -224,6 +290,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ),
         EditorPane::Filter => Some(
             text(lang.tr("editor_filter_hint").to_string())
+                .size(11)
+                .style(hint_style)
+                .into(),
+        ),
+        EditorPane::Script => Some(
+            text(lang.tr("script_sandbox_subtitle").to_string())
                 .size(11)
                 .style(hint_style)
                 .into(),
@@ -258,7 +330,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
             let mut header_row = row![
                 icon_themed(Icon::Activity, 16.0, |t: &Theme| tokens(t).danger),
-                text("YAML Syntax Error")
+                text(lang.tr("yaml_status_error").to_string())
                     .size(12)
                     .font(FONT_SEMIBOLD)
                     .style(|t: &Theme| text::Style {
@@ -301,7 +373,29 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .into()
         });
 
-    let mut content = column![toolbar, Space::new().height(theme::SP_MD)];
+        let snippets_bar = row![
+        text(lang.tr("yaml_snippets_title").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) }),
+        Space::new().width(theme::SP_SM),
+        snip_btn("+ Shadowsocks", SNIPPET_SS),
+        Space::new().width(theme::SP_XS),
+        snip_btn("+ Vmess", SNIPPET_VMESS),
+        Space::new().width(theme::SP_XS),
+        snip_btn("+ Trojan", SNIPPET_TROJAN),
+        Space::new().width(theme::SP_XS),
+        snip_btn("+ Hy2", SNIPPET_HY2),
+        Space::new().width(theme::SP_XS),
+        snip_btn("+ Select", SNIPPET_SELECT),
+        Space::new().width(theme::SP_XS),
+        snip_btn("+ URL-Test", SNIPPET_URLTEST),
+        Space::new().width(theme::SP_XS),
+        snip_btn("+ DOMAIN", SNIPPET_RULE_DOMAIN),
+        Space::new().width(theme::SP_XS),
+        snip_btn("+ GEOIP", SNIPPET_RULE_GEOIP),
+        Space::new().width(Length::Fill),
+        button(row![icon_themed(Icon::Code2, 12.0, |t: &Theme| tokens(t).accent), Space::new().width(4.0), text(lang.tr("yaml_format_btn").to_string()).size(11).font(FONT_MEDIUM)].align_y(Alignment::Center))
+            .style(style_ghost).padding([3, 8]).on_press(Message::FormatYamlEditor),
+    ].align_y(Alignment::Center);
+    let mut content = column![toolbar, Space::new().height(theme::SP_XS), snippets_bar, Space::new().height(theme::SP_SM)];
     if let Some(alert) = syntax_alert {
         content = content.push(alert).push(Space::new().height(theme::SP_SM));
     }
@@ -310,7 +404,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
     // The Filter pane owns its full-width form; the document panes share the
     // editor + history side panel layout.
-    if state.editor.editor_pane == EditorPane::Filter {
+    if state.editor.editor_pane == EditorPane::Filter || state.editor.editor_pane == EditorPane::Script {
         content = content.push(editor);
     } else {
         content = content.push(
@@ -503,4 +597,22 @@ mod tests {
         state.editor.syntax_error_line = Some(14);
         let _v = view(&state);
     }
+}
+
+fn snip_btn<'a>(label: &'static str, snippet: &'static str) -> Element<'a, Message> {
+    button(text(label).size(10).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }))
+        .padding([2, 6])
+        .style(|t: &Theme, status| {
+            let tk = tokens(t);
+            button::Style {
+                background: match status {
+                    button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
+                    _ => Some(tk.chip_bg.into()),
+                },
+                border: Border { radius: border::Radius::from(theme::R_CHIP), width: 1.0, color: tk.card_border },
+                ..Default::default()
+            }
+        })
+        .on_press(Message::InsertYamlSnippet(snippet))
+        .into()
 }

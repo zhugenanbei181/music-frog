@@ -45,7 +45,7 @@ impl AppState {
                         crate::types::options::EditorPane::Filter => {
                             tasks.push(self.ensure_filter_loaded());
                         }
-                        crate::types::options::EditorPane::Profile => {}
+                        crate::types::options::EditorPane::Profile | crate::types::options::EditorPane::Script => {}
                     }
                     Task::batch(tasks)
                 }

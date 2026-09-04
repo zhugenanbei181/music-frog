@@ -702,13 +702,11 @@ impl SubscriptionSecurityAuditor {
             // Check dangerous TUN hijacking
             if let Some(tun) = map.get(serde_yaml_ng::Value::String("tun".to_string()))
                 && let Some(tun_map) = tun.as_mapping()
-            {
-                if let Some(auto_route) = tun_map.get(serde_yaml_ng::Value::String("auto-route".to_string()))
+                && let Some(auto_route) = tun_map.get(serde_yaml_ng::Value::String("auto-route".to_string()))
                     && auto_route.as_bool() == Some(true)
                 {
                     warnings.push("Subscription enables auto-route in TUN section".to_string());
                 }
-            }
         }
 
         let is_safe = flagged_keys.is_empty();

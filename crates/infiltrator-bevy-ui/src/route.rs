@@ -2,35 +2,15 @@
 //! [`ContentSlot`] (charter law — page remount = replace a bounded
 //! subtree, docs/BEVY_UI_FRONTEND.md).
 //!
-//! Three pieces:
-//!
-//! - [`Route`] / [`RouteChanged`]: the typed navigation vocabulary.
-//!   Anyone (a nav control, a test, a hotkey) triggers
-//!   `RouteChanged(Route::…)`; nothing polls.
-//! - [`sync_route`], a global observer: on a [`RouteChanged`] it despawns
-//!   the mounted page subtree below the [`ContentSlot`] (the slot entity
-//!   itself survives) and mounts the new page's scene with
-//!   `spawn_scene`. Idempotency is structural: the despawn is queued
-//!   *before* the spawn, so even same-frame duplicate triggers converge
-//!   on exactly one mounted page; across frames an identical route is a
-//!   no-op ([`ActiveRoute`]) so entity ids stay stable while a page is
-//!   shown.
-//! - [`PagesPlugin`]: installs the route state, the injected
-//!   [`OverviewSource`] handle, both observers, and mounts the default
-//!   route as soon as the shell's [`ContentSlot`] lands (an
-//!   `On<Add, ContentSlot>` observer — no schedule-ordering hazards). It
-//!   also runs the page's housekeeping systems: the token reskin, the
-//!   post-theme-switch projection replay, and the sidebar foot that
-//!   follows the injected source's kind.
-//!
-//! Despawn evidence (vendored bevy_ecs 0.19.1):
-//! `EntityCommands::despawn_children` (relationship/related_methods.rs)
-//! queues `despawn_related::<Children>`, which calls `EntityWorldMut::
-//! despawn` per child — and `despawn` is documented recursive
-//! ("recursive despawn" behavior). Mounting goes through
-//! `Commands::spawn_scene` (the only sanctioned tree route; the bsn!
-//! guard bans `.spawn(`), then a `ChildOf` insert parents the page root
-//! under the slot — the taskmanager-proven spawn-then-attach idiom.
+//! Architecture:
+//! - [`Route`] / [`RouteChanged`]: typed navigation vocabulary across all 11 pages.
+//! - [`RouteHistory`]: complete navigation stack supporting back/forward/push/replace.
+//! - [`sync_route`]: global observer on [`RouteChanged`]; despawns the mounted
+//!   page subtree below [`ContentSlot`] and mounts the new page scene with
+//!   `spawn_scene` and `ChildOf(slot)`.
+//! - Idempotency & Re-entrancy: same-route triggers short-circuit; multiple
+//!   transitions in one frame queue despawn before spawn to cleanly converge on
+//!   one active page tree without leaked entities.
 
 use std::sync::Arc;
 
@@ -43,7 +23,7 @@ use bevy::ecs::lifecycle::Add;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{CommandsSceneExt, Scene};
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -61,7 +41,7 @@ use crate::pages::doctor::{DoctorProjection, DoctorProjectionUpdated, doctor_pag
 use crate::pages::logs::{LogsProjection, LogsProjectionUpdated, logs_page};
 use crate::pages::overview::{
     LastOverviewProjection, OverviewProjectionUpdated, banner_note, overview_page,
-    replay_projection_after_theme, reskin_overview_tokens,
+    replay_projection_after_theme, reskin_overview_tokens, sync_overview_responsive,
 };
 use crate::pages::profiles::{ProfilesProjection, ProfilesProjectionUpdated, profiles_page};
 use crate::pages::proxies::{ProxiesProjection, ProxiesProjectionUpdated, proxies_page};
@@ -72,7 +52,7 @@ use crate::projection::{OverviewProjection, OverviewSource, SourceKind};
 
 /// The app's pages. New pages append a variant and an arm in
 /// [`page_scene`] — never a second mount path.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Route {
     /// 核心概览 (Home / Overview: run state, proxy mode, traffic, connections).
     #[default]
@@ -138,6 +118,97 @@ impl Route {
 #[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RouteChanged(pub Route);
 
+/// Event requesting navigation back in the route history stack.
+#[derive(Event, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NavigateBack;
+
+/// Event requesting navigation forward in the route history stack.
+#[derive(Event, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NavigateForward;
+
+/// Navigation history stack tracking back/forward transitions.
+#[derive(Resource, Clone, Debug, PartialEq, Eq)]
+pub struct RouteHistory {
+    back_stack: Vec<Route>,
+    forward_stack: Vec<Route>,
+    max_depth: usize,
+}
+
+impl Default for RouteHistory {
+    fn default() -> Self {
+        Self {
+            back_stack: vec![Route::default()],
+            forward_stack: Vec::new(),
+            max_depth: 50,
+        }
+    }
+}
+
+impl RouteHistory {
+    /// Create history with a specific max depth.
+    pub fn new(max_depth: usize) -> Self {
+        Self {
+            back_stack: vec![Route::default()],
+            forward_stack: Vec::new(),
+            max_depth,
+        }
+    }
+
+    /// Current active route at top of stack.
+    pub fn current(&self) -> Route {
+        self.back_stack.last().copied().unwrap_or_default()
+    }
+
+    /// Push a new route onto the stack, clearing forward history.
+    pub fn push(&mut self, route: Route) {
+        if self.current() == route {
+            return;
+        }
+        self.back_stack.push(route);
+        if self.back_stack.len() > self.max_depth {
+            self.back_stack.remove(0);
+        }
+        self.forward_stack.clear();
+    }
+
+    /// Replace current top of stack with a new route.
+    pub fn replace(&mut self, route: Route) {
+        if let Some(top) = self.back_stack.last_mut() {
+            *top = route;
+        } else {
+            self.back_stack.push(route);
+        }
+        self.forward_stack.clear();
+    }
+
+    /// Can the user navigate back?
+    pub fn can_go_back(&self) -> bool {
+        self.back_stack.len() > 1
+    }
+
+    /// Can the user navigate forward?
+    pub fn can_go_forward(&self) -> bool {
+        !self.forward_stack.is_empty()
+    }
+
+    /// Navigate back: pops current route to forward stack, returns previous route.
+    pub fn go_back(&mut self) -> Option<Route> {
+        if !self.can_go_back() {
+            return None;
+        }
+        let current = self.back_stack.pop()?;
+        self.forward_stack.push(current);
+        Some(self.current())
+    }
+
+    /// Navigate forward: pops from forward stack to back stack, returns new route.
+    pub fn go_forward(&mut self) -> Option<Route> {
+        let next = self.forward_stack.pop()?;
+        self.back_stack.push(next);
+        Some(next)
+    }
+}
+
 /// Marker on a mounted page's root entity, carrying its route. Tests and
 /// nav chrome assert on it; the exactly-one-page invariant lives here.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -185,6 +256,7 @@ impl Default for PagesPlugin {
 impl Plugin for PagesPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ActiveRoute>();
+        app.init_resource::<RouteHistory>();
         app.init_resource::<LastOverviewProjection>();
         // The trend chart's sample ring: written by the live pump's drain
         // (when one is mounted), read by the page's refresh observer and
@@ -194,6 +266,8 @@ impl Plugin for PagesPlugin {
         app.insert_resource(OverviewSourceHandle(Arc::clone(&self.source)));
         app.add_observer(on_content_slot_added);
         app.add_observer(sync_route);
+        app.add_observer(on_navigate_back);
+        app.add_observer(on_navigate_forward);
         // The Overview page's per-frame token reskin (banner / dot / mode
         // chip / stop button compare-and-set from the live palette).
         app.add_systems(Update, reskin_overview_tokens);
@@ -203,7 +277,29 @@ impl Plugin for PagesPlugin {
         app.add_observer(replay_projection_after_theme);
         // The sidebar foot follows the injected source (demo caption vs
         // 实时内核 version).
-        app.add_systems(Update, sync_sidebar_foot);
+        app.add_systems(Update, (sync_sidebar_foot, sync_overview_responsive));
+    }
+}
+
+/// Handle navigate back trigger.
+fn on_navigate_back(
+    _trigger: On<NavigateBack>,
+    mut history: ResMut<RouteHistory>,
+    mut commands: Commands,
+) {
+    if let Some(prev) = history.go_back() {
+        commands.trigger(RouteChanged(prev));
+    }
+}
+
+/// Handle navigate forward trigger.
+fn on_navigate_forward(
+    _trigger: On<NavigateForward>,
+    mut history: ResMut<RouteHistory>,
+    mut commands: Commands,
+) {
+    if let Some(next) = history.go_forward() {
+        commands.trigger(RouteChanged(next));
     }
 }
 
@@ -236,7 +332,8 @@ fn sync_sidebar_foot(
 /// Mount the default route the moment the shell's content slot lands —
 /// the routing bootstrap with zero schedule-ordering assumptions.
 fn on_content_slot_added(_ready: On<Add, ContentSlot>, mut commands: Commands) {
-    commands.trigger(RouteChanged(Route::default()));
+    let initial = crate::capture::page_from_env().unwrap_or_default();
+    commands.trigger(RouteChanged(initial));
 }
 
 /// The route → scene table. The only place that knows which page backs
@@ -266,13 +363,15 @@ fn page_scene(
 /// [`ContentSlot`]. Same-route re-triggers after a settled mount are
 /// no-ops; any accepted trigger queues `despawn_children` on the slot
 /// *before* the new `spawn_scene`, so re-entrancy converges on one page.
+#[allow(clippy::too_many_arguments)]
 fn sync_route(
     trigger: On<RouteChanged>,
     slots: Query<Entity, With<ContentSlot>>,
     active: Option<Res<ActiveRoute>>,
+    mut history: Option<ResMut<RouteHistory>>,
     palette: Res<UiPalette>,
     source: Res<OverviewSourceHandle>,
-    history: Res<TrafficHistory>,
+    history_ring: Res<TrafficHistory>,
     mut commands: Commands,
 ) {
     let route = trigger.0;
@@ -282,8 +381,11 @@ fn sync_route(
     let Ok(slot) = slots.single() else {
         return;
     };
+    if let Some(ref mut h) = history {
+        h.push(route);
+    }
     let projection = source.0.current();
-    let scene = page_scene(route, &projection, &history, &palette);
+    let scene = page_scene(route, &projection, &history_ring, &palette);
     commands.entity(slot).despawn_children();
     commands.spawn_scene(scene).insert(ChildOf(slot));
     // First paint: queued after the spawn command, so the page's child
@@ -325,4 +427,44 @@ fn sync_route(
         }
     }
     commands.insert_resource(ActiveRoute(Some(route)));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn route_history_stack_operations() {
+        let mut history = RouteHistory::new(10);
+        assert_eq!(history.current(), Route::Overview);
+        assert!(!history.can_go_back());
+        assert!(!history.can_go_forward());
+
+        history.push(Route::Proxies);
+        assert_eq!(history.current(), Route::Proxies);
+        assert!(history.can_go_back());
+
+        history.push(Route::Logs);
+        assert_eq!(history.current(), Route::Logs);
+
+        // Duplicate push is ignored
+        history.push(Route::Logs);
+        assert_eq!(history.back_stack.len(), 3);
+
+        // Go back
+        assert_eq!(history.go_back(), Some(Route::Proxies));
+        assert_eq!(history.current(), Route::Proxies);
+        assert!(history.can_go_forward());
+
+        // Go forward
+        assert_eq!(history.go_forward(), Some(Route::Logs));
+        assert_eq!(history.current(), Route::Logs);
+        assert!(!history.can_go_forward());
+
+        // Push invalidates forward stack
+        assert_eq!(history.go_back(), Some(Route::Proxies));
+        history.push(Route::Dns);
+        assert_eq!(history.current(), Route::Dns);
+        assert!(!history.can_go_forward());
+    }
 }

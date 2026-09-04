@@ -2,8 +2,10 @@
 //! process binary matching, system app inclusion filter, and direct/proxy/block policies.
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`AppRoutingLine`],
-//! [`AppRuleMarker`]). The page self-registers
-//! [`apply_app_routing_projection`] once per world via [`AppRoutingPageRoot`].
+//! [`AppRuleText`], [`AppProcessText`], [`AppNameText`]). The page self-registers
+//! [`apply_app_routing_projection`] and action observers once per world via
+//! [`AppRoutingPageRoot`]. When [`AppRoutingProjectionUpdated`] fires, texts,
+//! rules, and items restamp in place without tree rebuilds.
 
 use bevy::a11y::AccessibilityNode;
 use bevy::color::Color;
@@ -23,7 +25,7 @@ use bevy::ui::prelude::{
     UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::icon::IconId;
@@ -33,6 +35,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
+use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
 
 /// Root marker on the App Routing page scene.
@@ -56,9 +59,29 @@ pub enum AppRoutingLineKind {
     Summary,
 }
 
+/// Marker for an app name text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AppNameText(pub usize);
+
+/// Marker for an app process text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AppProcessText(pub usize);
+
 /// Marker for an app rule text and color.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct AppRuleText(pub usize);
+
+/// Marker for "Add App Routing Rule" button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AddAppRouteButton;
+
+/// Marker for switching an individual application's rule.
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct SwitchAppRuleButton {
+    pub app_id: String,
+    pub app_idx: usize,
+    pub current_rule: AppRouteRule,
+}
 
 /// Mode of split tunneling.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -94,6 +117,14 @@ impl AppRouteRule {
             Self::Proxy => "代理 (Proxy)",
             Self::Direct => "直连 (Direct)",
             Self::Block => "拦截 (Block)",
+        }
+    }
+
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Proxy => Self::Direct,
+            Self::Direct => Self::Block,
+            Self::Block => Self::Proxy,
         }
     }
 }
@@ -209,7 +240,10 @@ pub fn app_routing_page(
     bsn! {
         Node {
             width: percent(100),
+            min_width: px(0.0),
+            max_width: percent(100),
             height: percent(100),
+            min_height: px(0.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(space::S16),
             overflow: Overflow::scroll_y(),
@@ -218,6 +252,7 @@ pub fn app_routing_page(
         AppRoutingPageRoot
         Children [
             ( { header_card_scene(summary, projection.include_system, palette) } ),
+            ( { crate::pages::app_routing_uwp::uwp_exemption_scene(palette) } ),
             ( { apps_container_scene(app_scenes, palette) } ),
         ]
     }
@@ -267,6 +302,7 @@ fn header_card_scene(
                                     border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                                 }
                                 BackgroundColor({ palette.accent })
+                                AddAppRouteButton
                                 Button
                                 Children [
                                     ( Text({ "添加应用分流".to_owned() }) TextRole(Role::BodyStrong) ),
@@ -346,8 +382,8 @@ fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene +
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text(name) TextRole(Role::BodyStrong) ),
-                    ( Text(proc_str) TextRole(Role::Caption) ),
+                    ( Text(name) AppNameText(idx) TextRole(Role::BodyStrong) ),
+                    ( Text(proc_str) AppProcessText(idx) TextRole(Role::Caption) ),
                 ]
             ),
             (
@@ -372,6 +408,11 @@ fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene +
                         }
                         BackgroundColor({ palette.surface })
                         ControlVisual(false)
+                        SwitchAppRuleButton {
+                            app_id: { app.id.clone() },
+                            app_idx: { idx },
+                            current_rule: { app.rule },
+                        }
                         Button
                         Children [
                             ( Text({ "切换策略".to_owned() }) TextRole(Role::Caption) ),
@@ -392,18 +433,75 @@ fn bind_app_routing_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     let mut commands = world.commands();
     commands.insert_resource(AppRoutingPageBound);
     commands.add_observer(apply_app_routing_projection);
+    commands.add_observer(on_app_routing_action_activated);
+}
+
+pub(crate) fn on_app_routing_action_activated(
+    activate: On<Activate>,
+    add_buttons: Query<(), With<AddAppRouteButton>>,
+    switch_buttons: Query<&SwitchAppRuleButton>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    if add_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::SetAppRule {
+            app_id: "new-app".to_owned(),
+            rule: "Proxy".to_owned(),
+        });
+    } else if let Ok(btn) = switch_buttons.get(activate.entity) {
+        let next_rule = btn.current_rule.next();
+        handle.submit(UiCommand::SetAppRule {
+            app_id: btn.app_id.clone(),
+            rule: format!("{:?}", next_rule),
+        });
+    }
 }
 
 #[allow(clippy::type_complexity)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_app_routing_projection(
     update: On<AppRoutingProjectionUpdated>,
     palette: Res<UiPalette>,
     mut last: Option<ResMut<LastAppRoutingProjection>>,
-    mut lines: Query<(&mut Text, &AppRoutingLine), (With<AppRoutingLine>, Without<AppRuleText>)>,
+    mut lines: Query<
+        (&mut Text, &AppRoutingLine),
+        (
+            With<AppRoutingLine>,
+            Without<AppRuleText>,
+            Without<AppNameText>,
+            Without<AppProcessText>,
+        ),
+    >,
+    mut names: Query<
+        (&mut Text, &AppNameText),
+        (
+            With<AppNameText>,
+            Without<AppRoutingLine>,
+            Without<AppRuleText>,
+            Without<AppProcessText>,
+        ),
+    >,
+    mut processes: Query<
+        (&mut Text, &AppProcessText),
+        (
+            With<AppProcessText>,
+            Without<AppRoutingLine>,
+            Without<AppRuleText>,
+            Without<AppNameText>,
+        ),
+    >,
     mut rules: Query<
         (&mut Text, &mut TextColor, &AppRuleText),
-        (With<AppRuleText>, Without<AppRoutingLine>),
+        (
+            With<AppRuleText>,
+            Without<AppRoutingLine>,
+            Without<AppNameText>,
+            Without<AppProcessText>,
+        ),
     >,
+    mut switch_buttons: Query<&mut SwitchAppRuleButton>,
 ) {
     let projection = &update.0;
 
@@ -419,10 +517,29 @@ pub(crate) fn apply_app_routing_projection(
         }
     }
 
+    for (mut text, marker) in &mut names {
+        if let Some(app) = projection.apps.get(marker.0) {
+            text.0 = app.name.clone();
+        }
+    }
+
+    for (mut text, marker) in &mut processes {
+        if let Some(app) = projection.apps.get(marker.0) {
+            text.0 = format!("进程名: {}", app.process_name);
+        }
+    }
+
     for (mut text, mut color, marker) in &mut rules {
         if let Some(app) = projection.apps.get(marker.0) {
             text.0 = app.rule.label().to_owned();
             color.0 = app_rule_color(app.rule, &palette);
+        }
+    }
+
+    for mut btn in &mut switch_buttons {
+        if let Some(app) = projection.apps.get(btn.app_idx) {
+            btn.app_id = app.id.clone();
+            btn.current_rule = app.rule;
         }
     }
 
@@ -440,6 +557,11 @@ mod tests {
         let proj = AppRoutingProjection::demo();
         assert_eq!(proj.mode, AppRoutingMode::BypassList);
         assert_eq!(proj.apps.len(), 6);
+        assert_eq!(proj.apps[0].id, "app-1");
+        assert_eq!(proj.apps[0].name, "Google Chrome 浏览器");
+        assert_eq!(proj.apps[0].process_name, "chrome / google-chrome");
         assert_eq!(proj.apps[0].rule, AppRouteRule::Proxy);
+        assert_eq!(proj.apps[1].id, "app-2");
+        assert_eq!(proj.apps[1].rule, AppRouteRule::Direct);
     }
 }

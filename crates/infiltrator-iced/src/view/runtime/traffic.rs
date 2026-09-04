@@ -32,21 +32,12 @@ pub enum TrafficDimension {
 }
 
 impl TrafficDimension {
-    pub fn label(self, is_zh: bool) -> String {
-        if is_zh {
-            match self {
-                Self::Domains => "域名 (Domains)".to_string(),
-                Self::Devices => "设备 (Devices)".to_string(),
-                Self::Proxies => "代理 (Proxies)".to_string(),
-                Self::Processes => "进程 (Processes)".to_string(),
-            }
-        } else {
-            match self {
-                Self::Domains => "Domains".to_string(),
-                Self::Devices => "Devices".to_string(),
-                Self::Proxies => "Proxies".to_string(),
-                Self::Processes => "Processes".to_string(),
-            }
+    pub fn label(self, lang: &Lang<'_>) -> String {
+        match self {
+            Self::Domains => lang.tr("traffic_dim_domains").to_string(),
+            Self::Devices => lang.tr("traffic_dim_devices").to_string(),
+            Self::Proxies => lang.tr("traffic_dim_proxies").to_string(),
+            Self::Processes => lang.tr("traffic_dim_processes").to_string(),
         }
     }
 
@@ -84,7 +75,7 @@ pub struct HostTrafficRank {
 
 pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
     let theme_tokens = tokens(&state.shell.theme);
-    let is_zh = !lang.0.starts_with("en");
+    let _is_zh = !lang.0.starts_with("en");
 
     // 1. KPI metrics tiles: Upload speed, Download speed, Memory usage, Public exit IP.
     let up_rate = state
@@ -142,11 +133,12 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
     let realtime_up_badge = badge(format!("↑ {}/s", format_bytes(cur_up)), BadgeKind::Success);
     let realtime_down_badge = badge(format!("↓ {}/s", format_bytes(cur_down)), BadgeKind::Accent);
 
-    let time_range_labels = if is_zh {
-        vec!["1小时".into(), "24小时".into(), "7天".into(), "30天".into()]
-    } else {
-        vec!["1h".into(), "24h".into(), "7d".into(), "30d".into()]
-    };
+    let time_range_labels = vec![
+        lang.tr("traffic_1h").to_string(),
+        lang.tr("traffic_24h").to_string(),
+        lang.tr("traffic_7d").to_string(),
+        lang.tr("traffic_30d").to_string(),
+    ];
     let time_range_pills = segmented_control(&time_range_labels, 0, |_| Message::Noop);
 
     let waiting_note: Element<'a, Message> = if state.diag.traffic.is_none() {
@@ -162,7 +154,7 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
         badge(
             format!(
                 "{}: ↑ {}/s · ↓ {}/s",
-                if is_zh { "峰值" } else { "Peak" },
+                lang.tr("traffic_peak").as_ref(),
                 format_bytes(peak_up),
                 format_bytes(peak_down)
             ),
@@ -177,14 +169,14 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
             theme_tokens.success,
             lang.tr("runtime_stat_up").as_ref(),
             &format!("{}/s", format_bytes(cur_up)),
-            (peak_up > 0).then(|| format!("{}: {}/s", if is_zh { "峰值" } else { "Peak" }, format_bytes(peak_up))),
+            (peak_up > 0).then(|| format!("{}: {}/s", lang.tr("traffic_peak").as_ref(), format_bytes(peak_up))),
         ),
         Space::new().width(SP_LG),
         legend_indicator(
             theme_tokens.accent,
             lang.tr("runtime_stat_down").as_ref(),
             &format!("{}/s", format_bytes(cur_down)),
-            (peak_down > 0).then(|| format!("{}: {}/s", if is_zh { "峰值" } else { "Peak" }, format_bytes(peak_down))),
+            (peak_down > 0).then(|| format!("{}: {}/s", lang.tr("traffic_peak").as_ref(), format_bytes(peak_down))),
         ),
         Space::new().width(SP_MD),
         peak_indicator,
@@ -204,7 +196,7 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
         None,
         column![
             section_header(
-                if is_zh { "实时流量趋势" } else { "Traffic Trends" },
+                lang.tr("traffic_trend_title").as_ref(),
                 Some(
                     row![
                         realtime_up_badge,
@@ -213,7 +205,7 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
                         Space::new().width(theme::SP_MD),
                         time_range_pills,
                         Space::new().width(theme::SP_MD),
-                        stream_badge(&state.diag.traffic_stream_state),
+                        stream_badge(&state.diag.traffic_stream_state, &lang),
                     ]
                     .align_y(Alignment::Center)
                     .into(),
@@ -229,10 +221,10 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
 
     // 3. Multi-Dimension Dimension Selector & Rankings List
     let dim_labels = vec![
-        TrafficDimension::Domains.label(is_zh),
-        TrafficDimension::Devices.label(is_zh),
-        TrafficDimension::Proxies.label(is_zh),
-        TrafficDimension::Processes.label(is_zh),
+        TrafficDimension::Domains.label(&lang),
+        TrafficDimension::Devices.label(&lang),
+        TrafficDimension::Proxies.label(&lang),
+        TrafficDimension::Processes.label(&lang),
     ];
     let dim_selector = segmented_control(&dim_labels, 0, |_| Message::Noop);
 
@@ -251,7 +243,7 @@ fn public_ip_tile<'a>(
     lang: &Lang<'a>,
     accent: Color,
 ) -> Element<'a, Message> {
-    let is_zh = !lang.0.starts_with("en");
+    let _is_zh = !lang.0.starts_with("en");
     let icon_chip = container(crate::view::svg_icons::icon(
         Icon::Globe,
         20.0,
@@ -268,7 +260,7 @@ fn public_ip_tile<'a>(
     });
 
     let ip_text = state.diag.public_ip.as_deref().unwrap_or("—");
-    let probe_btn = button(text(if is_zh { "探测" } else { "Probe" }).size(10).font(theme::FONT_MEDIUM))
+    let probe_btn = button(text(lang.tr("traffic_probe_btn").to_string()).size(10).font(theme::FONT_MEDIUM))
         .padding([2, 6])
         .style(iced::widget::button::secondary)
         .on_press(Message::FetchIpInfo);
@@ -280,7 +272,7 @@ fn public_ip_tile<'a>(
     ) {
         (Some(provider), Some(checked_at), _) => text(format!("{provider} · {checked_at}")),
         (_, _, Some(error)) => text(format!("Error: {error}")),
-        _ => text(if is_zh { "点击探测出口公网 IP" } else { "Click probe to check egress IP" }),
+        _ => text(lang.tr("traffic_probe_tooltip").to_string()),
     }
     .size(10)
     .font(MONO)
@@ -470,20 +462,20 @@ fn render_domain_rankings<'a>(
     dim_selector: Element<'a, Message>,
     lang: &Lang<'a>,
 ) -> Element<'a, Message> {
-    let is_zh = !lang.0.starts_with("en");
-    let header_title = if is_zh { "域名流量排行" } else { "Domain Traffic Rankings" };
+    let _is_zh = !lang.0.starts_with("en");
+    let header_title = lang.tr("traffic_domain_rank");
 
     if ranks.is_empty() {
         return card(
             None,
             column![
                 section_header(
-                    header_title,
+                    &header_title,
                     Some(
                         row![
                             dim_selector,
                             Space::new().width(theme::SP_SM),
-                            badge(if is_zh { "多维分析" } else { "Analytics" }, BadgeKind::Neutral),
+                            badge(lang.tr("traffic_multidim_analysis").to_string(), BadgeKind::Neutral),
                         ]
                         .align_y(Alignment::Center)
                         .into()
@@ -492,12 +484,8 @@ fn render_domain_rankings<'a>(
                 Space::new().height(theme::SP_SM),
                 empty_state(
                     Icon::Globe,
-                    if is_zh { "暂无流量分析统计" } else { "No traffic analytics" },
-                    if is_zh {
-                        "活跃连接产生上下行流量后将在此自动统计各维度占比与排行"
-                    } else {
-                        "Traffic share will be calculated across dimensions when connections are active"
-                    },
+                    lang.tr("traffic_no_stats").as_ref(),
+lang.tr("traffic_no_stats_desc").as_ref(),
                 ),
             ],
         );
@@ -514,7 +502,7 @@ fn render_domain_rankings<'a>(
 
         let rank_badge = badge(format!("#{rank_num}"), rank_kind);
         let progress_bar = share_bar(rank.share_percent);
-        let total_label = if is_zh { "总计" } else { "Total" };
+        let total_label = lang.tr("traffic_total");
 
         let row_content = column![
             row![
@@ -558,7 +546,7 @@ fn render_domain_rankings<'a>(
         None,
         column![
             section_header(
-                header_title,
+                &header_title,
                 Some(
                     row![
                         dim_selector,
@@ -612,15 +600,15 @@ pub fn share_bar<'a, Message: 'a>(percent: f64) -> Element<'a, Message> {
     .into()
 }
 
-fn stream_badge(state: &RuntimeStreamState) -> Element<'static, Message> {
-    let (label, kind) = match state {
-        RuntimeStreamState::Idle => ("未连接", BadgeKind::Neutral),
-        RuntimeStreamState::Connecting => ("连接中", BadgeKind::Neutral),
-        RuntimeStreamState::Connected => ("实时", BadgeKind::Success),
-        RuntimeStreamState::Reconnecting => ("重连中", BadgeKind::Warning),
-        RuntimeStreamState::Failed(_) => ("不可用", BadgeKind::Danger),
+fn stream_badge<'a>(state: &RuntimeStreamState, lang: &Lang<'_>) -> Element<'a, Message> {
+    let (key, kind) = match state {
+        RuntimeStreamState::Idle => ("conn_state_disconnected", BadgeKind::Neutral),
+        RuntimeStreamState::Connecting => ("conn_state_connecting", BadgeKind::Neutral),
+        RuntimeStreamState::Connected => ("conn_state_live", BadgeKind::Success),
+        RuntimeStreamState::Reconnecting => ("conn_state_reconnecting", BadgeKind::Warning),
+        RuntimeStreamState::Failed(_) => ("conn_state_unavailable", BadgeKind::Danger),
     };
-    badge(label, kind)
+    badge(lang.tr(key).to_string(), kind)
 }
 
 // ---------------------------------------------------------------------------

@@ -5,12 +5,12 @@ impl std::fmt::Debug for Message {
         match self {
             Message::Noop => write!(f, "Noop"),
             Message::Navigate(route) => write!(f, "Navigate({:?})", route),
+            Message::NavigateBack => write!(f, "NavigateBack"),
+            Message::NavigateForward => write!(f, "NavigateForward"),
             Message::StartProxy => write!(f, "StartProxy"),
             Message::StopProxy => write!(f, "StopProxy"),
             Message::ProxyStarted(Ok(_), token) => write!(f, "ProxyStarted(Ok, token={token})"),
-            Message::ProxyStarted(Err(e), token) => {
-                write!(f, "ProxyStarted(Err({:?}), token={token})", e)
-            }
+            Message::ProxyStarted(Err(e), token) => write!(f, "ProxyStarted(Err({:?}), token={token})", e),
             Message::ProxyStopped => write!(f, "ProxyStopped"),
             Message::SettingsLoaded(Ok(_)) => write!(f, "SettingsLoaded(Ok)"),
             Message::SettingsLoaded(Err(e)) => write!(f, "SettingsLoaded(Err({:?}))", e),
@@ -18,78 +18,44 @@ impl std::fmt::Debug for Message {
             Message::ProfilesLoaded(Ok(p)) => write!(f, "ProfilesLoaded(Ok({} profiles))", p.len()),
             Message::ProfilesLoaded(Err(e)) => write!(f, "ProfilesLoaded(Err({:?}))", e),
             Message::SetActiveProfile(name) => write!(f, "SetActiveProfile({})", name),
-            Message::ProfileActivationFinished(Ok(reloaded)) => {
-                write!(f, "ProfileActivationFinished(Ok(reloaded={}))", reloaded)
-            }
-            Message::ProfileActivationFinished(Err(error)) => {
-                write!(f, "ProfileActivationFinished(Err({:?}))", error)
-            }
+            Message::ProfileActivationFinished(Ok(reloaded)) => write!(f, "ProfileActivationFinished(Ok(reloaded={}))", reloaded),
+            Message::ProfileActivationFinished(Err(error)) => write!(f, "ProfileActivationFinished(Err({:?}))", error),
             Message::UpdateImportUrl(url) => write!(f, "UpdateImportUrl({})", url),
             Message::UpdateImportName(name) => write!(f, "UpdateImportName({})", name),
-            Message::UpdateImportActivate(enabled) => {
-                write!(f, "UpdateImportActivate({})", enabled)
-            }
+            Message::UpdateImportActivate(enabled) => write!(f, "UpdateImportActivate({})", enabled),
             Message::ImportProfile => write!(f, "ImportProfile"),
-            Message::ProfileImported(Ok(reloaded)) => {
-                write!(f, "ProfileImported(Ok(reloaded={}))", reloaded)
-            }
+            Message::ProfileImported(Ok(reloaded)) => write!(f, "ProfileImported(Ok(reloaded={}))", reloaded),
             Message::ProfileImported(Err(e)) => write!(f, "ProfileImported(Err({:?}))", e),
             Message::DeleteProfile(name) => write!(f, "DeleteProfile({})", name),
             Message::ProfileDeleted(Ok(_)) => write!(f, "ProfileDeleted(Ok)"),
             Message::ProfileDeleted(Err(e)) => write!(f, "ProfileDeleted(Err({:?}))", e),
             Message::UpdateLocalImportPath(path) => write!(f, "UpdateLocalImportPath({})", path),
             Message::BrowseLocalImportFile => write!(f, "BrowseLocalImportFile"),
-            Message::LocalImportFilePicked(Some(path)) => {
-                write!(f, "LocalImportFilePicked(Some({:?}))", path)
-            }
+            Message::LocalImportFilePicked(Some(path)) => write!(f, "LocalImportFilePicked(Some({:?}))", path),
             Message::LocalImportFilePicked(None) => write!(f, "LocalImportFilePicked(None)"),
             Message::UpdateLocalImportName(name) => write!(f, "UpdateLocalImportName({})", name),
-            Message::UpdateLocalImportActivate(enabled) => {
-                write!(f, "UpdateLocalImportActivate({})", enabled)
-            }
+            Message::UpdateLocalImportActivate(enabled) => write!(f, "UpdateLocalImportActivate({})", enabled),
             Message::ImportLocalProfile => write!(f, "ImportLocalProfile"),
-            Message::LocalProfileImported(Ok(reloaded)) => {
-                write!(f, "LocalProfileImported(Ok(reloaded={}))", reloaded)
-            }
-            Message::LocalProfileImported(Err(e)) => {
-                write!(f, "LocalProfileImported(Err({:?}))", e)
-            }
-            Message::SelectSubscriptionProfile(name) => {
-                write!(f, "SelectSubscriptionProfile({})", name)
-            }
+            Message::LocalProfileImported(Ok(reloaded)) => write!(f, "LocalProfileImported(Ok(reloaded={}))", reloaded),
+            Message::LocalProfileImported(Err(e)) => write!(f, "LocalProfileImported(Err({:?}))", e),
+            Message::SelectSubscriptionProfile(name) => write!(f, "SelectSubscriptionProfile({})", name),
             Message::UpdateSubscriptionUrl(url) => write!(f, "UpdateSubscriptionUrl({})", url),
-            Message::UpdateSubscriptionAutoUpdate(enabled) => {
-                write!(f, "UpdateSubscriptionAutoUpdate({})", enabled)
-            }
-            Message::UpdateSubscriptionInterval(v) => {
-                write!(f, "UpdateSubscriptionInterval({})", v)
-            }
-            Message::UpdateSubscriptionUserAgent(v) => {
-                write!(f, "UpdateSubscriptionUserAgent({})", v)
-            }
+            Message::UpdateSubscriptionAutoUpdate(enabled) => write!(f, "UpdateSubscriptionAutoUpdate({})", enabled),
+            Message::UpdateSubscriptionInterval(v) => write!(f, "UpdateSubscriptionInterval({})", v),
+            Message::UpdateSubscriptionUserAgent(v) => write!(f, "UpdateSubscriptionUserAgent({})", v),
             Message::SaveSubscriptionSettings => write!(f, "SaveSubscriptionSettings"),
-            Message::SubscriptionSettingsSaved(Ok(_)) => {
-                write!(f, "SubscriptionSettingsSaved(Ok)")
-            }
-            Message::SubscriptionSettingsSaved(Err(e)) => {
-                write!(f, "SubscriptionSettingsSaved(Err({:?}))", e)
-            }
+            Message::SubscriptionSettingsSaved(Ok(_)) => write!(f, "SubscriptionSettingsSaved(Ok)"),
+            Message::SubscriptionSettingsSaved(Err(e)) => write!(f, "SubscriptionSettingsSaved(Err({:?}))", e),
             Message::UpdateSubscriptionNow => write!(f, "UpdateSubscriptionNow"),
-            Message::SubscriptionUpdatedNow(Ok(reloaded)) => {
-                write!(f, "SubscriptionUpdatedNow(Ok(reloaded={}))", reloaded)
-            }
-            Message::SubscriptionUpdatedNow(Err(e)) => {
-                write!(f, "SubscriptionUpdatedNow(Err({:?}))", e)
-            }
+            Message::SubscriptionUpdatedNow(Ok(reloaded)) => write!(f, "SubscriptionUpdatedNow(Ok(reloaded={}))", reloaded),
+            Message::SubscriptionUpdatedNow(Err(e)) => write!(f, "SubscriptionUpdatedNow(Err({:?}))", e),
             Message::SubscriptionAutoUpdated(Ok((names, active_updated))) => write!(
                 f,
                 "SubscriptionAutoUpdated(Ok({} profiles, active_updated={}))",
                 names.len(),
                 active_updated
             ),
-            Message::SubscriptionAutoUpdated(Err(e)) => {
-                write!(f, "SubscriptionAutoUpdated(Err({:?}))", e)
-            }
+            Message::SubscriptionAutoUpdated(Err(e)) => write!(f, "SubscriptionAutoUpdated(Err({:?}))", e),
             Message::UpdateAllSubscriptionsNow => write!(f, "UpdateAllSubscriptionsNow"),
             Message::AllSubscriptionsUpdated(Ok(results)) => write!(
                 f,
@@ -97,18 +63,10 @@ impl std::fmt::Debug for Message {
                 results.len(),
                 results.iter().filter(|(_, r)| r.is_err()).count()
             ),
-            Message::AllSubscriptionsUpdated(Err(e)) => {
-                write!(f, "AllSubscriptionsUpdated(Err({:?}))", e)
-            }
-            Message::SetProfileAutoUpdate { name, enabled } => {
-                write!(f, "SetProfileAutoUpdate({name}, {enabled})")
-            }
-            Message::ProfileAutoUpdateSet(Ok(name)) => {
-                write!(f, "ProfileAutoUpdateSet(Ok({}))", name)
-            }
-            Message::ProfileAutoUpdateSet(Err(e)) => {
-                write!(f, "ProfileAutoUpdateSet(Err({:?}))", e)
-            }
+            Message::AllSubscriptionsUpdated(Err(e)) => write!(f, "AllSubscriptionsUpdated(Err({:?}))", e),
+            Message::SetProfileAutoUpdate { name, enabled } => write!(f, "SetProfileAutoUpdate({name}, {enabled})"),
+            Message::ProfileAutoUpdateSet(Ok(name)) => write!(f, "ProfileAutoUpdateSet(Ok({}))", name),
+            Message::ProfileAutoUpdateSet(Err(e)) => write!(f, "ProfileAutoUpdateSet(Err({:?}))", e),
             Message::UpdateProfilesFilter(s) => write!(f, "UpdateProfilesFilter({})", s),
             Message::ClearProfiles => write!(f, "ClearProfiles"),
             Message::ProfilesCleared(Ok(_)) => write!(f, "ProfilesCleared(Ok)"),
@@ -137,23 +95,13 @@ impl std::fmt::Debug for Message {
             Message::UpdateProxyDelaySort(s) => write!(f, "UpdateProxyDelaySort({})", s),
             Message::UpdateDelayTestUrl(s) => write!(f, "UpdateDelayTestUrl({})", s),
             Message::UpdateDelayTimeoutMs(s) => write!(f, "UpdateDelayTimeoutMs({})", s),
-            Message::UpdateRuntimeSelectedGroup(s) => {
-                write!(f, "UpdateRuntimeSelectedGroup({})", s)
-            }
-            Message::UpdateRuntimeSelectedProxy(s) => {
-                write!(f, "UpdateRuntimeSelectedProxy({})", s)
-            }
+            Message::UpdateRuntimeSelectedGroup(s) => write!(f, "UpdateRuntimeSelectedGroup({})", s),
+            Message::UpdateRuntimeSelectedProxy(s) => write!(f, "UpdateRuntimeSelectedProxy({})", s),
             Message::ApplyRuntimeSelectedProxy => write!(f, "ApplyRuntimeSelectedProxy"),
-            Message::UpdateRuntimeConnectionFilter(s) => {
-                write!(f, "UpdateRuntimeConnectionFilter({})", s)
-            }
-            Message::UpdateRuntimeConnectionSort(s) => {
-                write!(f, "UpdateRuntimeConnectionSort({})", s)
-            }
+            Message::UpdateRuntimeConnectionFilter(s) => write!(f, "UpdateRuntimeConnectionFilter({})", s),
+            Message::UpdateRuntimeConnectionSort(s) => write!(f, "UpdateRuntimeConnectionSort({})", s),
             Message::RefreshRuntimeNow => write!(f, "RefreshRuntimeNow"),
-            Message::TrafficReceived(t) => {
-                write!(f, "TrafficReceived(up: {}, down: {})", t.up, t.down)
-            }
+            Message::TrafficReceived(t) => write!(f, "TrafficReceived(up: {}, down: {})", t.up, t.down),
             Message::MemoryReceived(m) => write!(
                 f,
                 "MemoryReceived(in_use: {}, os_limit: {})",
@@ -166,18 +114,14 @@ impl std::fmt::Debug for Message {
                     result.ip, result.provider, id
                 )
             }
-            Message::IpInfoReceived(Err(e), id) => {
-                write!(f, "IpInfoReceived(Err({:?}), taskId: {})", e, id)
-            }
+            Message::IpInfoReceived(Err(e), id) => write!(f, "IpInfoReceived(Err({:?}), taskId: {})", e, id),
             Message::ConnectionsReceived(c) => write!(
                 f,
                 "ConnectionsReceived({} connections)",
                 c.connections.len()
             ),
             Message::LogReceived(l) => write!(f, "LogReceived({})", l),
-            Message::RuntimeStreamLogReceived(generation, _) => {
-                write!(f, "RuntimeStreamLogReceived(generation={generation})")
-            }
+            Message::RuntimeStreamLogReceived(generation, _) => write!(f, "RuntimeStreamLogReceived(generation={generation})"),
             Message::RuntimeStreamTrafficReceived(generation, data) => write!(
                 f,
                 "RuntimeStreamTrafficReceived(generation={}, up={}, down={})",
@@ -233,16 +177,10 @@ impl std::fmt::Debug for Message {
             Message::SetTunEnabled(t) => write!(f, "SetTunEnabled({})", t),
             Message::InstallTunService => write!(f, "InstallTunService"),
             Message::RefreshTunServiceStatus => write!(f, "RefreshTunServiceStatus"),
-            Message::TunServiceStatusLoaded(Ok(status)) => {
-                write!(f, "TunServiceStatusLoaded(Ok({status:?}))")
-            }
-            Message::TunServiceStatusLoaded(Err(error)) => {
-                write!(f, "TunServiceStatusLoaded(Err({:?}))", error)
-            }
+            Message::TunServiceStatusLoaded(Ok(status)) => write!(f, "TunServiceStatusLoaded(Ok({status:?}))"),
+            Message::TunServiceStatusLoaded(Err(error)) => write!(f, "TunServiceStatusLoaded(Err({:?}))", error),
             Message::TunServiceInstalled(Ok(_)) => write!(f, "TunServiceInstalled(Ok)"),
-            Message::TunServiceInstalled(Err(error)) => {
-                write!(f, "TunServiceInstalled(Err({:?}))", error)
-            }
+            Message::TunServiceInstalled(Err(error)) => write!(f, "TunServiceInstalled(Err({:?}))", error),
             Message::SetTunStack(s) => write!(f, "SetTunStack({})", s),
             Message::SetTunAutoRoute(a) => write!(f, "SetTunAutoRoute({})", a),
             Message::SetTunStrictRoute(s) => write!(f, "SetTunStrictRoute({})", s),
@@ -278,29 +216,15 @@ impl std::fmt::Debug for Message {
             Message::RulesPrevPage => write!(f, "RulesPrevPage"),
             Message::RulesNextPage => write!(f, "RulesNextPage"),
             Message::RulesSetPage(page) => write!(f, "RulesSetPage({})", page),
-            Message::EnsureRuleProvidersEditorLoaded => {
-                write!(f, "EnsureRuleProvidersEditorLoaded")
-            }
-            Message::EnsureProxyProvidersEditorLoaded => {
-                write!(f, "EnsureProxyProvidersEditorLoaded")
-            }
+            Message::EnsureRuleProvidersEditorLoaded => write!(f, "EnsureRuleProvidersEditorLoaded"),
+            Message::EnsureProxyProvidersEditorLoaded => write!(f, "EnsureProxyProvidersEditorLoaded"),
             Message::EnsureSnifferEditorLoaded => write!(f, "EnsureSnifferEditorLoaded"),
             Message::ActivateRulesHeavyView => write!(f, "ActivateRulesHeavyView"),
-            Message::RuleProvidersJsonLoaded(Ok(json)) => {
-                write!(f, "RuleProvidersJsonLoaded(Ok({} chars))", json.len())
-            }
-            Message::RuleProvidersJsonLoaded(Err(e)) => {
-                write!(f, "RuleProvidersJsonLoaded(Err({:?}))", e)
-            }
-            Message::ProxyProvidersJsonLoaded(Ok(json)) => {
-                write!(f, "ProxyProvidersJsonLoaded(Ok({} chars))", json.len())
-            }
-            Message::ProxyProvidersJsonLoaded(Err(e)) => {
-                write!(f, "ProxyProvidersJsonLoaded(Err({:?}))", e)
-            }
-            Message::SnifferJsonLoaded(Ok(json)) => {
-                write!(f, "SnifferJsonLoaded(Ok({} chars))", json.len())
-            }
+            Message::RuleProvidersJsonLoaded(Ok(json)) => write!(f, "RuleProvidersJsonLoaded(Ok({} chars))", json.len()),
+            Message::RuleProvidersJsonLoaded(Err(e)) => write!(f, "RuleProvidersJsonLoaded(Err({:?}))", e),
+            Message::ProxyProvidersJsonLoaded(Ok(json)) => write!(f, "ProxyProvidersJsonLoaded(Ok({} chars))", json.len()),
+            Message::ProxyProvidersJsonLoaded(Err(e)) => write!(f, "ProxyProvidersJsonLoaded(Err({:?}))", e),
+            Message::SnifferJsonLoaded(Ok(json)) => write!(f, "SnifferJsonLoaded(Ok({} chars))", json.len()),
             Message::SnifferJsonLoaded(Err(e)) => write!(f, "SnifferJsonLoaded(Err({:?}))", e),
             Message::LoadProviders => write!(f, "LoadProviders"),
             Message::ProvidersLoaded(Ok((p, r))) => write!(
@@ -334,24 +258,16 @@ impl std::fmt::Debug for Message {
             Message::RulesSaved(Err(e)) => write!(f, "RulesSaved(Err({:?}))", e),
             Message::InspectRuleProviderDiff(opt) => write!(f, "InspectRuleProviderDiff({opt:?})"),
             Message::UnpackRuleProvider(name) => write!(f, "UnpackRuleProvider({name})"),
-            Message::RuleProviderDiffLoaded(Ok(diff)) => {
-                write!(f, "RuleProviderDiffLoaded(Ok({}))", diff.provider_name)
-            }
-            Message::RuleProviderDiffLoaded(Err(e)) => {
-                write!(f, "RuleProviderDiffLoaded(Err({e:?}))")
-            }
+            Message::RuleProviderDiffLoaded(Ok(diff)) => write!(f, "RuleProviderDiffLoaded(Ok({}))", diff.provider_name),
+            Message::RuleProviderDiffLoaded(Err(e)) => write!(f, "RuleProviderDiffLoaded(Err({e:?}))"),
             Message::RuleProvidersEditorAction(_) => write!(f, "RuleProvidersEditorAction"),
             Message::SaveRuleProvidersJson => write!(f, "SaveRuleProvidersJson"),
             Message::RuleProvidersJsonSaved(Ok(_)) => write!(f, "RuleProvidersJsonSaved(Ok)"),
-            Message::RuleProvidersJsonSaved(Err(e)) => {
-                write!(f, "RuleProvidersJsonSaved(Err({:?}))", e)
-            }
+            Message::RuleProvidersJsonSaved(Err(e)) => write!(f, "RuleProvidersJsonSaved(Err({:?}))", e),
             Message::ProxyProvidersEditorAction(_) => write!(f, "ProxyProvidersEditorAction"),
             Message::SaveProxyProvidersJson => write!(f, "SaveProxyProvidersJson"),
             Message::ProxyProvidersJsonSaved(Ok(_)) => write!(f, "ProxyProvidersJsonSaved(Ok)"),
-            Message::ProxyProvidersJsonSaved(Err(e)) => {
-                write!(f, "ProxyProvidersJsonSaved(Err({:?}))", e)
-            }
+            Message::ProxyProvidersJsonSaved(Err(e)) => write!(f, "ProxyProvidersJsonSaved(Err({:?}))", e),
             Message::SnifferEditorAction(_) => write!(f, "SnifferEditorAction"),
             Message::SaveSnifferJson => write!(f, "SaveSnifferJson"),
             Message::SnifferJsonSaved(Ok(_)) => write!(f, "SnifferJsonSaved(Ok)"),
@@ -364,13 +280,9 @@ impl std::fmt::Debug for Message {
                 bundle.fake_ip_json.len(),
                 bundle.tun_json.len()
             ),
-            Message::AdvancedConfigsBundleLoaded(Err(e)) => {
-                write!(f, "AdvancedConfigsBundleLoaded(Err({:?}))", e)
-            }
+            Message::AdvancedConfigsBundleLoaded(Err(e)) => write!(f, "AdvancedConfigsBundleLoaded(Err({:?}))", e),
             Message::SetDnsTab(tab) => write!(f, "SetDnsTab({:?})", tab),
-            Message::SetAdvancedMode(tab, mode) => {
-                write!(f, "SetAdvancedMode({:?}, {:?})", tab, mode)
-            }
+            Message::SetAdvancedMode(tab, mode) => write!(f, "SetAdvancedMode({:?}, {:?})", tab, mode),
             Message::RefreshDnsOnly => write!(f, "RefreshDnsOnly"),
             Message::RefreshFakeIpOnly => write!(f, "RefreshFakeIpOnly"),
             Message::RefreshTunOnly => write!(f, "RefreshTunOnly"),
@@ -378,51 +290,25 @@ impl std::fmt::Debug for Message {
             Message::EnsureFakeIpEditorLoaded => write!(f, "EnsureFakeIpEditorLoaded"),
             Message::EnsureTunEditorLoaded => write!(f, "EnsureTunEditorLoaded"),
             Message::ActivateDnsHeavyView => write!(f, "ActivateDnsHeavyView"),
-            Message::DnsConfigJsonLoaded(Ok(json)) => {
-                write!(f, "DnsConfigJsonLoaded(Ok({} chars))", json.len())
-            }
-            Message::DnsConfigJsonLoaded(Err(e)) => {
-                write!(f, "DnsConfigJsonLoaded(Err({:?}))", e)
-            }
-            Message::FakeIpConfigJsonLoaded(Ok(json)) => {
-                write!(f, "FakeIpConfigJsonLoaded(Ok({} chars))", json.len())
-            }
-            Message::FakeIpConfigJsonLoaded(Err(e)) => {
-                write!(f, "FakeIpConfigJsonLoaded(Err({:?}))", e)
-            }
-            Message::TunConfigJsonLoaded(Ok(json)) => {
-                write!(f, "TunConfigJsonLoaded(Ok({} chars))", json.len())
-            }
-            Message::TunConfigJsonLoaded(Err(e)) => {
-                write!(f, "TunConfigJsonLoaded(Err({:?}))", e)
-            }
+            Message::DnsConfigJsonLoaded(Ok(json)) => write!(f, "DnsConfigJsonLoaded(Ok({} chars))", json.len()),
+            Message::DnsConfigJsonLoaded(Err(e)) => write!(f, "DnsConfigJsonLoaded(Err({:?}))", e),
+            Message::FakeIpConfigJsonLoaded(Ok(json)) => write!(f, "FakeIpConfigJsonLoaded(Ok({} chars))", json.len()),
+            Message::FakeIpConfigJsonLoaded(Err(e)) => write!(f, "FakeIpConfigJsonLoaded(Err({:?}))", e),
+            Message::TunConfigJsonLoaded(Ok(json)) => write!(f, "TunConfigJsonLoaded(Ok({} chars))", json.len()),
+            Message::TunConfigJsonLoaded(Err(e)) => write!(f, "TunConfigJsonLoaded(Err({:?}))", e),
             Message::UpdateDnsFormEnable(v) => write!(f, "UpdateDnsFormEnable({})", v),
             Message::UpdateDnsFormNameserver(v) => write!(f, "UpdateDnsFormNameserver({})", v),
             Message::UpdateDnsFormFallback(v) => write!(f, "UpdateDnsFormFallback({})", v),
-            Message::UpdateDnsFormEnhancedMode(v) => {
-                write!(f, "UpdateDnsFormEnhancedMode({})", v)
-            }
-            Message::UpdateDnsFormFakeIpRange(v) => {
-                write!(f, "UpdateDnsFormFakeIpRange({})", v)
-            }
-            Message::UpdateDnsFormFakeIpFilter(v) => {
-                write!(f, "UpdateDnsFormFakeIpFilter({})", v)
-            }
+            Message::UpdateDnsFormEnhancedMode(v) => write!(f, "UpdateDnsFormEnhancedMode({})", v),
+            Message::UpdateDnsFormFakeIpRange(v) => write!(f, "UpdateDnsFormFakeIpRange({})", v),
+            Message::UpdateDnsFormFakeIpFilter(v) => write!(f, "UpdateDnsFormFakeIpFilter({})", v),
             Message::UpdateDnsFormIpv6(v) => write!(f, "UpdateDnsFormIpv6({})", v),
             Message::UpdateDnsFormCache(v) => write!(f, "UpdateDnsFormCache({})", v),
             Message::UpdateDnsFormUseHosts(v) => write!(f, "UpdateDnsFormUseHosts({})", v),
-            Message::UpdateDnsFormUseSystemHosts(v) => {
-                write!(f, "UpdateDnsFormUseSystemHosts({})", v)
-            }
-            Message::UpdateDnsFormRespectRules(v) => {
-                write!(f, "UpdateDnsFormRespectRules({})", v)
-            }
-            Message::UpdateDnsFormProxyServerNameserver(v) => {
-                write!(f, "UpdateDnsFormProxyServerNameserver({})", v)
-            }
-            Message::UpdateDnsFormDirectNameserver(v) => {
-                write!(f, "UpdateDnsFormDirectNameserver({})", v)
-            }
+            Message::UpdateDnsFormUseSystemHosts(v) => write!(f, "UpdateDnsFormUseSystemHosts({})", v),
+            Message::UpdateDnsFormRespectRules(v) => write!(f, "UpdateDnsFormRespectRules({})", v),
+            Message::UpdateDnsFormProxyServerNameserver(v) => write!(f, "UpdateDnsFormProxyServerNameserver({})", v),
+            Message::UpdateDnsFormDirectNameserver(v) => write!(f, "UpdateDnsFormDirectNameserver({})", v),
             Message::UpdateFakeIpFormRange(v) => write!(f, "UpdateFakeIpFormRange({})", v),
             Message::UpdateFakeIpFormFilter(v) => write!(f, "UpdateFakeIpFormFilter({})", v),
             Message::UpdateFakeIpFormStore(v) => write!(f, "UpdateFakeIpFormStore({})", v),
@@ -431,12 +317,8 @@ impl std::fmt::Debug for Message {
             Message::UpdateTunFormMtu(v) => write!(f, "UpdateTunFormMtu({})", v),
             Message::UpdateTunFormDnsHijack(v) => write!(f, "UpdateTunFormDnsHijack({})", v),
             Message::UpdateTunFormAutoRoute(v) => write!(f, "UpdateTunFormAutoRoute({})", v),
-            Message::UpdateTunFormAutoDetectInterface(v) => {
-                write!(f, "UpdateTunFormAutoDetectInterface({})", v)
-            }
-            Message::UpdateTunFormStrictRoute(v) => {
-                write!(f, "UpdateTunFormStrictRoute({})", v)
-            }
+            Message::UpdateTunFormAutoDetectInterface(v) => write!(f, "UpdateTunFormAutoDetectInterface({})", v),
+            Message::UpdateTunFormStrictRoute(v) => write!(f, "UpdateTunFormStrictRoute({})", v),
             Message::DnsConfigEditorAction(_) => write!(f, "DnsConfigEditorAction"),
             Message::FakeIpConfigEditorAction(_) => write!(f, "FakeIpConfigEditorAction"),
             Message::TunConfigEditorAction(_) => write!(f, "TunConfigEditorAction"),
@@ -451,9 +333,7 @@ impl std::fmt::Debug for Message {
             Message::AddDnsServer => write!(f, "AddDnsServer"),
             Message::AddDnsServerTemplate(s) => write!(f, "AddDnsServerTemplate({})", s),
             Message::RemoveDnsServer(i) => write!(f, "RemoveDnsServer({})", i),
-            Message::UpdateFallbackDnsServer(i, s) => {
-                write!(f, "UpdateFallbackDnsServer({}, {})", i, s)
-            }
+            Message::UpdateFallbackDnsServer(i, s) => write!(f, "UpdateFallbackDnsServer({}, {})", i, s),
             Message::AddFallbackDnsServer => write!(f, "AddFallbackDnsServer"),
             Message::RemoveFallbackDnsServer(i) => write!(f, "RemoveFallbackDnsServer({})", i),
             Message::SaveDns => write!(f, "SaveDns"),
@@ -468,20 +348,14 @@ impl std::fmt::Debug for Message {
             Message::SetAutostart(b) => write!(f, "SetAutostart({})", b),
             Message::AutostartSet(Ok(_)) => write!(f, "AutostartSet(Ok)"),
             Message::AutostartSet(Err(e)) => write!(f, "AutostartSet(Err({:?}))", e),
-            Message::UpdateNotificationsEnabled(b) => {
-                write!(f, "UpdateNotificationsEnabled({})", b)
-            }
+            Message::UpdateNotificationsEnabled(b) => write!(f, "UpdateNotificationsEnabled({})", b),
             Message::UpdateCloseToTray(b) => write!(f, "UpdateCloseToTray({b})"),
             Message::UpdateWebDavEnabled(b) => write!(f, "UpdateWebDavEnabled({})", b),
             Message::UpdateWebDavUrl(s) => write!(f, "UpdateWebDavUrl({})", s),
             Message::UpdateWebDavUser(s) => write!(f, "UpdateWebDavUser({})", s),
             Message::UpdateWebDavPass(_) => write!(f, "UpdateWebDavPass(***)"),
-            Message::UpdateWebDavSyncInterval(s) => {
-                write!(f, "UpdateWebDavSyncInterval({})", s)
-            }
-            Message::UpdateWebDavSyncOnStartup(b) => {
-                write!(f, "UpdateWebDavSyncOnStartup({})", b)
-            }
+            Message::UpdateWebDavSyncInterval(s) => write!(f, "UpdateWebDavSyncInterval({})", s),
+            Message::UpdateWebDavSyncOnStartup(b) => write!(f, "UpdateWebDavSyncOnStartup({})", b),
             Message::SaveAppSettings => write!(f, "SaveAppSettings"),
             Message::AppSettingsSaved(Ok(_)) => write!(f, "AppSettingsSaved(Ok)"),
             Message::AppSettingsSaved(Err(e)) => write!(f, "AppSettingsSaved(Err({:?}))", e),
@@ -494,13 +368,9 @@ impl std::fmt::Debug for Message {
             Message::AdminSettingsSaved(Err(e)) => write!(f, "AdminSettingsSaved(Err({:?}))", e),
             Message::AdminServerStarted(Ok(url)) => write!(f, "AdminServerStarted(Ok({}))", url),
             Message::AdminServerStarted(Err(e)) => write!(f, "AdminServerStarted(Err({:?}))", e),
-            Message::AdminHostCommand(command) => {
-                write!(f, "AdminHostCommand({:?})", command)
-            }
+            Message::AdminHostCommand(command) => write!(f, "AdminHostCommand({:?})", command),
             Message::ExternalSettingsLoaded(Ok(_)) => write!(f, "ExternalSettingsLoaded(Ok)"),
-            Message::ExternalSettingsLoaded(Err(e)) => {
-                write!(f, "ExternalSettingsLoaded(Err({:?}))", e)
-            }
+            Message::ExternalSettingsLoaded(Err(e)) => write!(f, "ExternalSettingsLoaded(Err({:?}))", e),
             Message::SyncUpload => write!(f, "SyncUpload"),
             Message::SyncDownload => write!(f, "SyncDownload"),
             Message::SyncFinished(Ok(summary)) => write!(
@@ -517,50 +387,28 @@ impl std::fmt::Debug for Message {
                 "SyncProgress({}, {}/{})",
                 progress.phase, progress.current, progress.total
             ),
-            Message::ResolveSyncConflict(profile) => {
-                write!(f, "ResolveSyncConflict({})", profile)
-            }
-            Message::DismissSyncConflict(profile) => {
-                write!(f, "DismissSyncConflict({})", profile)
-            }
-            Message::SyncConflictResolved(Ok(profile)) => {
-                write!(f, "SyncConflictResolved(Ok({}))", profile)
-            }
-            Message::SyncConflictResolved(Err(error)) => {
-                write!(f, "SyncConflictResolved(Err({:?}))", error)
-            }
-            Message::SyncConflictDismissed(Ok(profile)) => {
-                write!(f, "SyncConflictDismissed(Ok({}))", profile)
-            }
-            Message::SyncConflictDismissed(Err(error)) => {
-                write!(f, "SyncConflictDismissed(Err({:?}))", error)
-            }
+            Message::ResolveSyncConflict(profile) => write!(f, "ResolveSyncConflict({})", profile),
+            Message::DismissSyncConflict(profile) => write!(f, "DismissSyncConflict({})", profile),
+            Message::SyncConflictResolved(Ok(profile)) => write!(f, "SyncConflictResolved(Ok({}))", profile),
+            Message::SyncConflictResolved(Err(error)) => write!(f, "SyncConflictResolved(Err({:?}))", error),
+            Message::SyncConflictDismissed(Ok(profile)) => write!(f, "SyncConflictDismissed(Ok({}))", profile),
+            Message::SyncConflictDismissed(Err(error)) => write!(f, "SyncConflictDismissed(Err({:?}))", error),
             Message::CancelWebDavSync => write!(f, "CancelWebDavSync"),
             Message::TestWebDavConnection => write!(f, "TestWebDavConnection"),
-            Message::WebDavConnectionTested(Ok(_)) => {
-                write!(f, "WebDavConnectionTested(Ok)")
-            }
-            Message::WebDavConnectionTested(Err(error)) => {
-                write!(f, "WebDavConnectionTested(Err({:?}))", error)
-            }
+            Message::WebDavConnectionTested(Ok(_)) => write!(f, "WebDavConnectionTested(Ok)"),
+            Message::WebDavConnectionTested(Err(error)) => write!(f, "WebDavConnectionTested(Err({:?}))", error),
             Message::SetSystemProxy(b) => write!(f, "SetSystemProxy({})", b),
             Message::UpdateSystemProxyBypass(s) => write!(f, "UpdateSystemProxyBypass({s})"),
             Message::SystemProxySet(Ok(_)) => write!(f, "SystemProxySet(Ok)"),
             Message::SystemProxySet(Err(e)) => write!(f, "SystemProxySet(Err({:?}))", e),
             Message::RequestAdminPrivilege => write!(f, "RequestAdminPrivilege"),
-            Message::RequestConfirmation(action) => {
-                write!(f, "RequestConfirmation({action:?})")
-            }
+            Message::RequestConfirmation(action) => write!(f, "RequestConfirmation({action:?})"),
             Message::ConfirmAction => write!(f, "ConfirmAction"),
             Message::CancelConfirmation => write!(f, "CancelConfirmation"),
             Message::ClearError => write!(f, "ClearError"),
             Message::EditProfile(p) => write!(f, "EditProfile({:?})", p),
-            Message::ProfileContentLoaded(Ok((p, _))) => {
-                write!(f, "ProfileContentLoaded(Ok({:?}))", p)
-            }
-            Message::ProfileContentLoaded(Err(e)) => {
-                write!(f, "ProfileContentLoaded(Err({:?}))", e)
-            }
+            Message::ProfileContentLoaded(Ok((p, _))) => write!(f, "ProfileContentLoaded(Ok({:?}))", p),
+            Message::ProfileContentLoaded(Err(e)) => write!(f, "ProfileContentLoaded(Err({:?}))", e),
             Message::LoadProfileSnapshots => write!(f, "LoadProfileSnapshots"),
             Message::ProfileSnapshotsLoaded(Ok(snapshots)) => {
                 write!(
@@ -569,28 +417,16 @@ impl std::fmt::Debug for Message {
                     snapshots.len()
                 )
             }
-            Message::ProfileSnapshotsLoaded(Err(error)) => {
-                write!(f, "ProfileSnapshotsLoaded(Err({:?}))", error)
-            }
-            Message::RestoreProfileSnapshot(path) => {
-                write!(f, "RestoreProfileSnapshot({:?})", path)
-            }
-            Message::ProfileSnapshotRestored(Ok(_)) => {
-                write!(f, "ProfileSnapshotRestored(Ok)")
-            }
-            Message::ProfileSnapshotRestored(Err(error)) => {
-                write!(f, "ProfileSnapshotRestored(Err({:?}))", error)
-            }
+            Message::ProfileSnapshotsLoaded(Err(error)) => write!(f, "ProfileSnapshotsLoaded(Err({:?}))", error),
+            Message::RestoreProfileSnapshot(path) => write!(f, "RestoreProfileSnapshot({:?})", path),
+            Message::ProfileSnapshotRestored(Ok(_)) => write!(f, "ProfileSnapshotRestored(Ok)"),
+            Message::ProfileSnapshotRestored(Err(error)) => write!(f, "ProfileSnapshotRestored(Err({:?}))", error),
             Message::EditorAction(_) => write!(f, "EditorAction"),
             Message::SaveProfile => write!(f, "SaveProfile"),
             Message::ProfileSaved(Ok(_)) => write!(f, "ProfileSaved(Ok)"),
             Message::ProfileSaved(Err(e)) => write!(f, "ProfileSaved(Err({:?}))", e),
-            Message::OpenConfigDirFinished(Ok(_)) => {
-                write!(f, "OpenConfigDirFinished(Ok)")
-            }
-            Message::OpenConfigDirFinished(Err(error)) => {
-                write!(f, "OpenConfigDirFinished(Err({:?}))", error)
-            }
+            Message::OpenConfigDirFinished(Ok(_)) => write!(f, "OpenConfigDirFinished(Ok)"),
+            Message::OpenConfigDirFinished(Err(error)) => write!(f, "OpenConfigDirFinished(Err({:?}))", error),
             Message::LoadKernels => write!(f, "LoadKernels"),
             Message::KernelsLoaded(Ok(k)) => write!(f, "KernelsLoaded(Ok({} kernels))", k.len()),
             Message::KernelsLoaded(Err(e)) => write!(f, "KernelsLoaded(Err({:?}))", e),
@@ -606,26 +442,16 @@ impl std::fmt::Debug for Message {
                     progress.downloaded, progress.total, progress.speed_bytes, token
                 )
             }
-            Message::CoreDownloadFinished(Ok(v), token) => {
-                write!(f, "CoreDownloadFinished(Ok({}), token={})", v, token)
-            }
-            Message::CoreDownloadFinished(Err(e), token) => {
-                write!(f, "CoreDownloadFinished(Err({:?}), token={})", e, token)
-            }
+            Message::CoreDownloadFinished(Ok(v), token) => write!(f, "CoreDownloadFinished(Ok({}), token={})", v, token),
+            Message::CoreDownloadFinished(Err(e), token) => write!(f, "CoreDownloadFinished(Err({:?}), token={})", e, token),
             Message::CancelCoreDownload => write!(f, "CancelCoreDownload"),
             Message::DeleteKernel(v) => write!(f, "DeleteKernel({})", v),
             Message::SetDefaultKernel(v) => write!(f, "SetDefaultKernel({})", v),
-            Message::KernelOperationFinished(Ok(_)) => {
-                write!(f, "KernelOperationFinished(Ok)")
-            }
-            Message::KernelOperationFinished(Err(error)) => {
-                write!(f, "KernelOperationFinished(Err({:?}))", error)
-            }
+            Message::KernelOperationFinished(Ok(_)) => write!(f, "KernelOperationFinished(Ok)"),
+            Message::KernelOperationFinished(Err(error)) => write!(f, "KernelOperationFinished(Err({:?}))", error),
             Message::FactoryReset => write!(f, "FactoryReset"),
             Message::FactoryResetFinished(Ok(_)) => write!(f, "FactoryResetFinished(Ok)"),
-            Message::FactoryResetFinished(Err(error)) => {
-                write!(f, "FactoryResetFinished(Err({:?}))", error)
-            }
+            Message::FactoryResetFinished(Err(error)) => write!(f, "FactoryResetFinished(Err({:?}))", error),
             Message::OpenConfigDir => write!(f, "OpenConfigDir"),
             Message::FlushFakeIpCache => write!(f, "FlushFakeIpCache"),
             Message::TestProxyDelay(p) => write!(f, "TestProxyDelay({})", p),
@@ -636,16 +462,10 @@ impl std::fmt::Debug for Message {
             Message::HideWindow => write!(f, "HideWindow"),
             Message::ShowWindow => write!(f, "ShowWindow"),
             Message::UpdateRuntimeAutoRefresh(v) => write!(f, "UpdateRuntimeAutoRefresh({})", v),
-            Message::RuntimePanelSettingsSaved(Ok(_)) => {
-                write!(f, "RuntimePanelSettingsSaved(Ok)")
-            }
-            Message::RuntimePanelSettingsSaved(Err(e)) => {
-                write!(f, "RuntimePanelSettingsSaved(Err({:?}))", e)
-            }
+            Message::RuntimePanelSettingsSaved(Ok(_)) => write!(f, "RuntimePanelSettingsSaved(Ok)"),
+            Message::RuntimePanelSettingsSaved(Err(e)) => write!(f, "RuntimePanelSettingsSaved(Err({:?}))", e),
             Message::RuntimeRebuildFinished(Ok(_)) => write!(f, "RuntimeRebuildFinished(Ok)"),
-            Message::RuntimeRebuildFinished(Err(e)) => {
-                write!(f, "RuntimeRebuildFinished(Err({:?}))", e)
-            }
+            Message::RuntimeRebuildFinished(Err(e)) => write!(f, "RuntimeRebuildFinished(Err({:?}))", e),
             Message::ClearRebuildFlow => write!(f, "ClearRebuildFlow"),
             Message::TogglePerfPanel => write!(f, "TogglePerfPanel"),
             Message::ToggleTheme => write!(f, "ToggleTheme"),
@@ -660,17 +480,11 @@ impl std::fmt::Debug for Message {
                     s, f_cnt
                 )
             }
-            Message::AllProxyDelaysTested(Err(e)) => {
-                write!(f, "AllProxyDelaysTested(Err({:?}))", e)
-            }
+            Message::AllProxyDelaysTested(Err(e)) => write!(f, "AllProxyDelaysTested(Err({:?}))", e),
             // ui-wave2-p
-            Message::ToggleProxyGroupExpanded(name) => {
-                write!(f, "ToggleProxyGroupExpanded({})", name)
-            }
+            Message::ToggleProxyGroupExpanded(name) => write!(f, "ToggleProxyGroupExpanded({})", name),
             Message::SetEditorPane(pane) => write!(f, "SetEditorPane({:?})", pane),
-            Message::EditProfileAs(path, pane) => {
-                write!(f, "EditProfileAs({},{:?})", path.display(), pane)
-            }
+            Message::EditProfileAs(path, pane) => write!(f, "EditProfileAs({},{:?})", path.display(), pane),
             Message::MixinEditorAction(_) => write!(f, "MixinEditorAction"),
             Message::MixinLoaded(Ok(_)) => write!(f, "MixinLoaded(Ok)"),
             Message::MixinLoaded(Err(e)) => write!(f, "MixinLoaded(Err({:?}))", e),
@@ -686,46 +500,133 @@ impl std::fmt::Debug for Message {
             Message::UpdateFilterRenames(v) => write!(f, "UpdateFilterRenames({})", v),
             Message::UpdateFilterDedup(i) => write!(f, "UpdateFilterDedup({})", i),
             Message::SaveProfileFilter => write!(f, "SaveProfileFilter"),
-            Message::ProfileFilterSaved(Ok(report)) => {
-                write!(f, "ProfileFilterSaved(Ok(passed={}))", report.passed)
-            }
+            Message::ProfileFilterSaved(Ok(report)) => write!(f, "ProfileFilterSaved(Ok(passed={}))", report.passed),
             Message::ProfileFilterSaved(Err(e)) => write!(f, "ProfileFilterSaved(Err({:?}))", e),
             Message::ScanMrsProviders => write!(f, "ScanMrsProviders"),
-            Message::MrsDetailsReady(Ok(details)) => {
-                write!(f, "MrsDetailsReady(Ok({} providers))", details.len())
-            }
+            Message::MrsDetailsReady(Ok(details)) => write!(f, "MrsDetailsReady(Ok({} providers))", details.len()),
             Message::MrsDetailsReady(Err(e)) => write!(f, "MrsDetailsReady(Err({:?}))", e),
             Message::LoadSyncDiff(profile) => write!(f, "LoadSyncDiff({})", profile),
-            Message::SyncDiffLoaded(Ok(bundle)) => {
-                write!(f, "SyncDiffLoaded(Ok({}))", bundle.profile)
-            }
+            Message::SyncDiffLoaded(Ok(bundle)) => write!(f, "SyncDiffLoaded(Ok({}))", bundle.profile),
             Message::SyncDiffLoaded(Err(e)) => write!(f, "SyncDiffLoaded(Err({:?}))", e),
-            Message::PickSyncDiffKey(key, take_remote) => {
-                write!(f, "PickSyncDiffKey({}, {})", key, take_remote)
-            }
-            Message::SetSyncDiffPicks(take_remote) => {
-                write!(f, "SetSyncDiffPicks({})", take_remote)
-            }
+            Message::PickSyncDiffKey(key, take_remote) => write!(f, "PickSyncDiffKey({}, {})", key, take_remote),
+            Message::SetSyncDiffPicks(take_remote) => write!(f, "SetSyncDiffPicks({})", take_remote),
             Message::ApplySyncDiffMerge => write!(f, "ApplySyncDiffMerge"),
             Message::SyncDiffMerged(Ok(profile)) => write!(f, "SyncDiffMerged(Ok({}))", profile),
             Message::SyncDiffMerged(Err(e)) => write!(f, "SyncDiffMerged(Err({:?}))", e),
             Message::CloseSyncDiff => write!(f, "CloseSyncDiff"),
             // Doctor 体检面板
             Message::RunDoctor => write!(f, "RunDoctor"),
-            Message::DoctorReportReady(Ok(report)) => {
-                write!(f, "DoctorReportReady(Ok({} checks))", report.checks.len())
-            }
+            Message::DoctorReportReady(Ok(report)) => write!(f, "DoctorReportReady(Ok({} checks))", report.checks.len()),
             Message::DoctorReportReady(Err(e)) => write!(f, "DoctorReportReady(Err({:?}))", e),
             Message::RunDoctorFix => write!(f, "RunDoctorFix"),
-            Message::DoctorFixApplied(Ok(report)) => {
-                write!(f, "DoctorFixApplied(Ok({} actions))", report.actions.len())
-            }
+            Message::DoctorFixApplied(Ok(report)) => write!(f, "DoctorFixApplied(Ok({} actions))", report.actions.len()),
             Message::DoctorFixApplied(Err(e)) => write!(f, "DoctorFixApplied(Err({:?}))", e),
             Message::RunBootstrap => write!(f, "RunBootstrap"),
-            Message::BootstrapFinished(Ok(report)) => {
-                write!(f, "BootstrapFinished(Ok({} steps))", report.steps.len())
-            }
+            Message::BootstrapFinished(Ok(report)) => write!(f, "BootstrapFinished(Ok({} steps))", report.steps.len()),
             Message::BootstrapFinished(Err(e)) => write!(f, "BootstrapFinished(Err({:?}))", e),
+            // Wave 1: Command Palette, Connection Drawer, Editor formatting
+            Message::ToggleCommandPalette => write!(f, "ToggleCommandPalette"),
+            Message::OpenCommandPalette => write!(f, "OpenCommandPalette"),
+            Message::CloseCommandPalette => write!(f, "CloseCommandPalette"),
+            Message::SetCommandQuery(q) => write!(f, "SetCommandQuery({q})"),
+            Message::SelectNextCommand => write!(f, "SelectNextCommand"),
+            Message::SelectPrevCommand => write!(f, "SelectPrevCommand"),
+            Message::ExecuteCommand(action) => write!(f, "ExecuteCommand({action:?})"),
+            Message::InspectConnection(id) => write!(f, "InspectConnection({id:?})"),
+            Message::CloseSingleConnection(id) => write!(f, "CloseSingleConnection({id})"),
+            Message::InsertYamlSnippet(snip) => write!(f, "InsertYamlSnippet({snip})"),
+            Message::FormatYamlEditor => write!(f, "FormatYamlEditor"),
+            Message::RefreshAppRoutingProcesses => write!(f, "RefreshAppRoutingProcesses"),
+            Message::AppRoutingProcessesLoaded(p) => write!(f, "AppRoutingProcessesLoaded({} procs)", p.len()),
+            Message::SetAppRoutingFilter(q) => write!(f, "SetAppRoutingFilter({q})"),
+            Message::SetAppRoutingMode(m) => write!(f, "SetAppRoutingMode({m:?})"),
+            Message::SetAppRouteRule { process, rule } => write!(f, "SetAppRouteRule({process}: {rule:?})"),
+            Message::SetAppRoutingCategory(c) => write!(f, "SetAppRoutingCategory({c:?})"),
+            Message::MoveProxyGroupUp(g) => write!(f, "MoveProxyGroupUp({g})"),
+            Message::MoveProxyGroupDown(g) => write!(f, "MoveProxyGroupDown({g})"),
+            Message::ResetProxyGroupOrder => write!(f, "ResetProxyGroupOrder"),
+            Message::ToggleMiniHudMode => write!(f, "ToggleMiniHudMode"),
+            Message::SetAlwaysOnTop(v) => write!(f, "SetAlwaysOnTop({v})"),
+            Message::RunScriptSandboxTest => write!(f, "RunScriptSandboxTest"),
+            Message::SelectScriptPreset(p) => write!(f, "SelectScriptPreset({p})"),
+            Message::UpdateScriptSandboxCode(c) => write!(f, "UpdateScriptSandboxCode({} chars)", c.len()),
+            Message::UpdateScriptSandboxInputYaml(y) => write!(f, "UpdateScriptSandboxInputYaml({} chars)", y.len()),
+            Message::ClearScriptSandbox => write!(f, "ClearScriptSandbox"),
+
+            // Wave 2: DNS Leak, Custom Node, Aggregator, Grouping, Snapshot Diff, Hotkeys
+            Message::RunDnsLeakProbe => write!(f, "RunDnsLeakProbe"),
+            Message::DnsLeakProbeFinished(r) => write!(f, "DnsLeakProbeFinished({:?})", r.public_ip),
+            Message::OpenCustomNodeModal => write!(f, "OpenCustomNodeModal"),
+            Message::CloseCustomNodeModal => write!(f, "CloseCustomNodeModal"),
+            Message::UpdateCustomNodeUriInput(u) => write!(f, "UpdateCustomNodeUriInput({} chars)", u.len()),
+            Message::ParseAndImportCustomUri => write!(f, "ParseAndImportCustomUri"),
+            Message::ExportNodeAsUri(n) => write!(f, "ExportNodeAsUri({n})"),
+            Message::SaveCustomNodeForm => write!(f, "SaveCustomNodeForm"),
+            Message::OpenAggregatorModal => write!(f, "OpenAggregatorModal"),
+            Message::CloseAggregatorModal => write!(f, "CloseAggregatorModal"),
+            Message::ToggleAggregatorProfileSelection(p) => write!(f, "ToggleAggregatorProfileSelection({p})"),
+            Message::UpdateAggregatorName(n) => write!(f, "UpdateAggregatorName({n})"),
+            Message::ExecuteProfileAggregation => write!(f, "ExecuteProfileAggregation"),
+            Message::SetConnectionGroupingMode(m) => write!(f, "SetConnectionGroupingMode({m:?})"),
+            Message::AddQuickRuleFromConnection { pattern, target } => write!(f, "AddQuickRuleFromConnection({pattern} -> {target})"),
+            Message::OpenSnapshotDiff(id) => write!(f, "OpenSnapshotDiff({id})"),
+            Message::CloseSnapshotDiff => write!(f, "CloseSnapshotDiff"),
+            Message::RollbackToSnapshot(id) => write!(f, "RollbackToSnapshot({id})"),
+            Message::UpdateHotkeyCombo { id, combo } => write!(f, "UpdateHotkeyCombo({id}: {combo})"),
+            Message::ToggleHotkeyEnabled(id) => write!(f, "ToggleHotkeyEnabled({id})"),
+
+            // Wave 3: PCAP Exporter, Sub-Rules, Speedtest, GeoData, UWP, Encrypted Backup
+            Message::TogglePcapCapture => write!(f, "TogglePcapCapture"),
+            Message::ExportPcapBuffer => write!(f, "ExportPcapBuffer"),
+            Message::UpdateSubRuleOperator(op) => write!(f, "UpdateSubRuleOperator({op})"),
+            Message::AddSubRuleCondition(c) => write!(f, "AddSubRuleCondition({c})"),
+            Message::RemoveSubRuleCondition(idx) => write!(f, "RemoveSubRuleCondition({idx})"),
+            Message::UpdateSubRuleTarget(t) => write!(f, "UpdateSubRuleTarget({t})"),
+            Message::InsertSubRuleIntoRules => write!(f, "InsertSubRuleIntoRules"),
+            Message::RunNodeSpeedtest(node) => write!(f, "RunNodeSpeedtest({node})"),
+            Message::NodeSpeedtestFinished(res) => write!(f, "NodeSpeedtestFinished({:?} mbps)", res.bandwidth_mbps),
+            Message::CheckGeoDataUpdates => write!(f, "CheckGeoDataUpdates"),
+            Message::TriggerGeoDataUpdate => write!(f, "TriggerGeoDataUpdate"),
+            Message::GeoDataUpdateFinished(_) => write!(f, "GeoDataUpdateFinished"),
+            Message::ScanUwpApps => write!(f, "ScanUwpApps"),
+            Message::UwpAppsLoaded(apps) => write!(f, "UwpAppsLoaded({} apps)", apps.len()),
+            Message::ExemptAllUwpApps => write!(f, "ExemptAllUwpApps"),
+            Message::ClearAllUwpExemptions => write!(f, "ClearAllUwpExemptions"),
+            Message::ToggleUwpAppExemption(sid) => write!(f, "ToggleUwpAppExemption({sid})"),
+            Message::UpdateEncryptedBackupPassphrase(_) => write!(f, "UpdateEncryptedBackupPassphrase"),
+            Message::ExportEncryptedPackage => write!(f, "ExportEncryptedPackage"),
+            Message::ImportEncryptedPackage => write!(f, "ImportEncryptedPackage"),
+
+            // Wave 4: Network Roaming, Crash Watchdog, Web Dashboard, Log Regex, Quota, PAC
+            Message::PollNetworkInterfaces => write!(f, "PollNetworkInterfaces"),
+            Message::NetworkInterfacesPolled(ifaces) => write!(f, "NetworkInterfacesPolled({} ifaces)", ifaces.len()),
+            Message::ForceGatewayReconnect => write!(f, "ForceGatewayReconnect"),
+            Message::CheckCrashWatchdog => write!(f, "CheckCrashWatchdog"),
+            Message::RecoverOrphanedState => write!(f, "RecoverOrphanedState"),
+            Message::ExportCrashDiagnostics => write!(f, "ExportCrashDiagnostics"),
+            Message::LaunchWebDashboard(dash) => write!(f, "LaunchWebDashboard({dash})"),
+            Message::UpdateLogRegexFilter(q) => write!(f, "UpdateLogRegexFilter({q})"),
+            Message::SetLogLevelFilter(lvl) => write!(f, "SetLogLevelFilter({lvl})"),
+            Message::ExportRedactedLogs => write!(f, "ExportRedactedLogs"),
+            Message::EvaluateSubscriptionQuota => write!(f, "EvaluateSubscriptionQuota"),
+            Message::UpdateCronScheduleHours(h) => write!(f, "UpdateCronScheduleHours({h})"),
+            Message::UpdatePacBypassSubnets(s) => write!(f, "UpdatePacBypassSubnets({s})"),
+            Message::CompileAndValidatePac => write!(f, "CompileAndValidatePac"),
+            Message::TogglePacMode(on) => write!(f, "TogglePacMode({on})"),
+            Message::AuditStaleRules => write!(f, "AuditStaleRules"),
+            Message::DisableZeroHitRules => write!(f, "DisableZeroHitRules"),
+            Message::SelectRadarNode(n) => write!(f, "SelectRadarNode({n})"),
+            Message::RecordRadarLatencySample { node, latency_ms } => write!(f, "RecordRadarLatencySample({node}: {latency_ms}ms)"),
+            Message::SelectTunStack(s) => write!(f, "SelectTunStack({s})"),
+            Message::ProbeOptimalMtu => write!(f, "ProbeOptimalMtu"),
+            Message::MtuProbed(mtu) => write!(f, "MtuProbed({mtu})"),
+            Message::UnpackRuleProviderToCustom(p) => write!(f, "UnpackRuleProviderToCustom({p})"),
+            Message::PurgeRuleProviderCache => write!(f, "PurgeRuleProviderCache"),
+            Message::TriggerAtomicConfigApply => write!(f, "TriggerAtomicConfigApply"),
+            Message::ApplyTransactionStageChanged(st) => write!(f, "ApplyTransactionStageChanged({st:?})"),
+            Message::ToggleLanSharing(on) => write!(f, "ToggleLanSharing({on})"),
+            Message::UpdateLanSharingPort(p) => write!(f, "UpdateLanSharingPort({p})"),
+            Message::UpdateLanAclWhitelist(w) => write!(f, "UpdateLanAclWhitelist({w})"),
         }
     }
 }

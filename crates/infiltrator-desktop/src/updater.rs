@@ -12,17 +12,14 @@ use std::path::{Path, PathBuf};
 /// Target release channels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum UpdateChannel {
+    #[default]
     Stable,
     Beta,
     Nightly,
 }
 
-impl Default for UpdateChannel {
-    fn default() -> Self {
-        Self::Stable
-    }
-}
 
 impl std::fmt::Display for UpdateChannel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -339,14 +336,13 @@ impl ClientUpdater {
         };
 
         // Channel verification
-        if let Some(chan) = current_channel {
-            if chan != manifest.channel && !manifest.critical_security_fix {
+        if let Some(chan) = current_channel
+            && chan != manifest.channel && !manifest.critical_security_fix {
                 return UpdateEligibility::ChannelMismatch {
                     current_channel: chan,
                     manifest_channel: manifest.channel,
                 };
             }
-        }
 
         // Downgrade Barrier: Target must be strictly newer than current version
         if target_v <= cur_v {
@@ -363,16 +359,14 @@ impl ClientUpdater {
         }
 
         // Minimum supported version barrier (prevents unsupported long jumps)
-        if let Some(min_v_str) = &manifest.min_supported_version {
-            if let Some(min_v) = SemVer::parse(min_v_str) {
-                if cur_v < min_v && !manifest.critical_security_fix {
+        if let Some(min_v_str) = &manifest.min_supported_version
+            && let Some(min_v) = SemVer::parse(min_v_str)
+                && cur_v < min_v && !manifest.critical_security_fix {
                     return UpdateEligibility::BelowMinSupportedVersion {
                         current_version: current_version.to_string(),
                         min_supported_version: min_v_str.clone(),
                     };
                 }
-            }
-        }
 
         // Canary rollout / grayscale gating
         if manifest.rollout_percentage < 100 && !manifest.critical_security_fix {
@@ -672,7 +666,7 @@ impl ClientUpdater {
             use std::os::unix::fs::PermissionsExt;
             let _ = fs::set_permissions(&temp_restore, fs::Permissions::from_mode(0o755));
             fs::rename(&temp_restore, target_binary)
-                .with_context(|| format!("Failed to atomically restore backup binary on POSIX"))?;
+                .with_context(|| "Failed to atomically restore backup binary on POSIX".to_string())?;
             let _ = fs::set_permissions(target_binary, fs::Permissions::from_mode(0o755));
         }
 

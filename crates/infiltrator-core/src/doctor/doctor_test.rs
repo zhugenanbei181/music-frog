@@ -76,10 +76,18 @@ fn install_fake_core(env: &DoctorEnv, version: &str, executable: bool) {
 fn spawn_named_sleep(dir: &Path, name: &str) -> std::process::Child {
     let program = dir.join(name);
     std::fs::copy("/bin/sleep", &program).expect("copy sleep binary");
-    std::process::Command::new(&program)
-        .arg("30")
-        .spawn()
-        .expect("spawn fake process")
+    // ETXTBSY: the kernel may still hold a write reference right after copy;
+    // retry a handful of times with a short sleep to absorb the race.
+    for attempt in 0..10 {
+        match std::process::Command::new(&program).arg("30").spawn() {
+            Ok(child) => return child,
+            Err(e) if e.raw_os_error() == Some(26 /* ETXTBSY */) && attempt < 9 => {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            Err(e) => panic!("spawn fake process: {e}"),
+        }
+    }
+    unreachable!()
 }
 
 #[cfg(unix)]

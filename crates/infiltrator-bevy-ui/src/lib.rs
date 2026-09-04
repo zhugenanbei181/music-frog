@@ -13,16 +13,24 @@
 //! Overview page renders, [`history`] the rate-history ring behind that
 //! page's trend chart, [`controller`] the live mihomo controller pump
 //! behind that seam (BEVY-005), [`pages`] the page modules themselves,
-//! and [`capture`] the headless screenshot forensics seam (env-driven
-//! skin/window-size/marker, read only here).
+//! [`command`] the UI command sink pipeline, and [`capture`] the headless
+//! screenshot forensics seam (env-driven skin/window-size/marker, read only here).
 
 pub mod app;
 pub mod capture;
+pub mod command;
+pub mod command_palette;
 pub mod controller;
+pub mod domain_state;
 pub mod history;
+pub mod lifecycle;
+pub mod mini_hud;
 pub mod pages;
+pub mod pipeline;
 pub mod projection;
 pub mod route;
+pub mod shell_scene;
+pub mod shortcuts;
 
 use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};

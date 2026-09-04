@@ -31,13 +31,13 @@ pub async fn verify_admin_token<C: AdminApiContext>(
             .get(axum::http::header::AUTHORIZATION)
             .and_then(|v| v.to_str().ok());
 
-        let token_from_header = auth_header.and_then(|h| {
+        let token_from_header = auth_header.map(|h| {
             if let Some(bearer) = h.strip_prefix("Bearer ") {
-                Some(bearer.trim())
+                bearer.trim()
             } else if let Some(bearer) = h.strip_prefix("bearer ") {
-                Some(bearer.trim())
+                bearer.trim()
             } else {
-                Some(h.trim())
+                h.trim()
             }
         });
 

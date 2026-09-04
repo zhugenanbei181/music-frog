@@ -67,3 +67,23 @@ pub struct AdvancedConfigsBundle {
     pub fake_ip: infiltrator_core::fake_ip::FakeIpConfig,
     pub tun: infiltrator_core::tun::TunConfig,
 }
+
+/// Report produced by the active DNS Leak and IP Privacy Probe.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DnsLeakReport {
+    pub public_ip: String,
+    pub country: String,
+    pub isp: String,
+    pub is_leak_detected: bool,
+    pub tested_dns_servers: Vec<String>,
+    pub probe_duration_ms: u64,
+}
+
+/// Configuration and negotiation state for TUN network stacks and MTU probe.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TunStackConfig {
+    pub active_stack: String,
+    pub negotiated_mtu: u32,
+    pub is_probing_mtu: bool,
+    pub probe_result_summary: Option<String>,
+}

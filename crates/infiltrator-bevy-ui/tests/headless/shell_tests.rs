@@ -17,19 +17,26 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::world::World;
 use bevy::scene::ScenePlugin;
 use bevy::text::{FontSize, TextColor, TextFont};
+use bevy::ui::prelude::px;
 use bevy::ui::widget::Text;
 use bevy::ui::{BackgroundColor, Display, Node};
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_ui::app::{
-    BottomNavActive, BottomNavBar, BottomNavItem, ContentSlot, LayoutMode, ShellHeader,
-    ShellLayoutState, ShellPlugin, ShellRoot, SidebarPanel, ThemeMode, ThemeToggle,
+    BottomNavActive, BottomNavBar, BottomNavItem, ContentSlot, ContentTitleLabel, DensityToggle,
+    GlobalModeCapsule, GlobalStatusDot, HistoryBackButton, HistoryForwardButton, LayoutMode,
+    ShellHeader, ShellLayoutState, ShellPlugin, ShellRoot, SidebarActiveProfileCard,
+    SidebarNavItem, SidebarPanel, SidebarScriptModePill, SidebarShortcutMatrix,
+    SidebarShortcutTile, SidebarSpeedFooter, SidebarSystemProxyCard, SidebarSystemProxyToggle,
+    SidebarTunCard, SidebarTunToggle, ThemeMode, ThemeToggle,
 };
 use infiltrator_bevy_ui::pages::overview::OverviewModePill;
 use infiltrator_bevy_ui::projection::ProxyMode;
+use infiltrator_bevy_ui::route::{ActiveRoute, Route};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::icon::IconTint;
 use infiltrator_bevy_widgets::nav::{NavActive, NavItem};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::responsive::{Density, ResponsiveContext};
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Breakpoint, LightDark, Theme};
@@ -38,10 +45,6 @@ use infiltrator_bevy_widgets::theme::{Breakpoint, LightDark, Theme};
 fn shell_mounts_camera_content_slot_and_stamped_header() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
-    // `spawn_scene` resolves bsn! scenes through the asset infrastructure
-    // (AssetServer + Assets<ScenePatch>). These are the singleton plugins a
-    // windowed run inherits from DefaultPlugins; headless tests add them
-    // explicitly instead.
     app.add_plugins((AssetPlugin::default(), ScenePlugin));
     app.add_plugins(ShellPlugin::default());
     app.update();
@@ -73,16 +76,10 @@ fn shell_mounts_camera_content_slot_and_stamped_header() {
     );
 }
 
-/// Guard against accidental duplicate shell mounts (routing remounts must
-/// replace, not stack — BEVY-M2 leans on this invariant).
 #[test]
 fn shell_reruns_do_not_stack_slots() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
-    // `spawn_scene` resolves bsn! scenes through the asset infrastructure
-    // (AssetServer + Assets<ScenePatch>). These are the singleton plugins a
-    // windowed run inherits from DefaultPlugins; headless tests add them
-    // explicitly instead.
     app.add_plugins((AssetPlugin::default(), ScenePlugin));
     app.add_plugins(ShellPlugin::default());
     app.update();
@@ -92,16 +89,12 @@ fn shell_reruns_do_not_stack_slots() {
     assert_eq!(slots.iter(world).count(), 1);
 }
 
-/// Compile-time declaration that ContentSlot is a plain marker component
-/// usable by page routing (keeps the M2 seam honest without a page yet).
 #[test]
 fn content_slot_is_a_component_marker() {
     fn assert_component<T: Component>() {}
     assert_component::<ContentSlot>();
 }
 
-/// The headless composition under test: the real `ShellPlugin` on
-/// `MinimalPlugins` plus the asset/scene singletons, mounted and settled.
 fn mounted_shell() -> App {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
@@ -125,13 +118,11 @@ fn theme_pill_entity(world: &mut World) -> Entity {
     pills.single(world).expect("exactly one theme pill").0
 }
 
-/// M1 a11y: the shell seeds semantic nodes on the root (Window role, named),
-/// the title row (Header role, named) and the theme pill (an explicitly
-/// named Button role replacing the official widget's anonymous required
-/// default). The components are inert data under `MinimalPlugins` — the
-/// winit AccessKit bridge that publishes them exists only in windowed
-/// compositions (bevy_winit mounts `AccessKitPlugin`), which is the honest
-/// headless boundary.
+fn density_pill_entity(world: &mut World) -> Entity {
+    let mut pills = world.query::<(Entity, &DensityToggle)>();
+    pills.single(world).expect("exactly one density pill").0
+}
+
 #[test]
 fn shell_exposes_named_semantic_nodes_on_root_header_and_pill() {
     let mut app = mounted_shell();
@@ -153,9 +144,6 @@ fn shell_exposes_named_semantic_nodes_on_root_header_and_pill() {
     assert_eq!(pill.label(), Some("Toggle color theme"));
 }
 
-/// M2 a11y: the sidebar's nav entries carry labeled Button semantics (the
-/// two 未迁移 entries stamped disabled), the mode pills carry their mode
-/// names, and the content slot reads as the named page region.
 #[test]
 fn nav_entries_mode_pills_and_content_region_carry_semantics() {
     let mut app = mounted_shell();
@@ -170,14 +158,13 @@ fn nav_entries_mode_pills_and_content_region_carry_semantics() {
             node.is_disabled(),
         ));
     }
+    let expected_nav_labels: Vec<(String, bool)> = Route::ALL
+        .iter()
+        .map(|r| (r.label().to_owned(), false))
+        .collect();
     assert_eq!(
-        nav_labels,
-        vec![
-            ("核心概览".to_owned(), false),
-            ("数据同步".to_owned(), true),
-            ("系统设置".to_owned(), true),
-        ],
-        "every nav entry is a named button; the 未迁移 ones read disabled"
+        nav_labels, expected_nav_labels,
+        "every nav entry is a named button; all 11 routes are enabled"
     );
 
     let mut pills = world.query::<(&OverviewModePill, &AccessibilityNode)>();
@@ -202,8 +189,6 @@ fn nav_entries_mode_pills_and_content_region_carry_semantics() {
     assert_eq!(region.label(), Some("核心概览"));
 }
 
-/// The sidebar mounts its chrome: the active nav item, the two honest
-/// disabled nav items, and the three mode pills of the segment control.
 #[test]
 fn sidebar_mounts_nav_and_mode_segment() {
     let mut app = mounted_shell();
@@ -220,7 +205,10 @@ fn sidebar_mounts_nav_and_mode_segment() {
         }
     }
     assert_eq!(active, 1, "exactly one active nav item (核心概览)");
-    assert_eq!(idle, 2, "数据同步 and 系统设置 mount as idle items");
+    assert_eq!(
+        idle, 10,
+        "the remaining 10 routes in Route::ALL mount as idle items"
+    );
 
     let mut pills = world.query::<(&OverviewModePill, &ControlVisual)>();
     let mut selected = Vec::new();
@@ -236,7 +224,6 @@ fn sidebar_mounts_nav_and_mode_segment() {
     );
 }
 
-/// Whether any entity at or below `root` carries `T`.
 fn subtree_contains<T: Component>(world: &World, root: Entity) -> bool {
     let mut stack = vec![root];
     while let Some(entity) = stack.pop() {
@@ -250,7 +237,6 @@ fn subtree_contains<T: Component>(world: &World, root: Entity) -> bool {
     false
 }
 
-/// Whether any text node at or below `root` spells exactly `needle`.
 fn subtree_has_text(world: &World, root: Entity, needle: &str) -> bool {
     let mut stack = vec![root];
     while let Some(entity) = stack.pop() {
@@ -267,10 +253,6 @@ fn subtree_has_text(world: &World, root: Entity, needle: &str) -> bool {
     false
 }
 
-/// The reference's sidebar rhythm: identity block, mode segment, the nav
-/// group in the content flow (one S16 row-gap step below the segment), a
-/// flex spacer, and the version caption at the foot. Guards against the
-/// nav group ever being pushed back to the rail's bottom edge.
 #[test]
 fn sidebar_orders_nav_into_the_content_flow_above_the_spacer() {
     let mut app = mounted_shell();
@@ -280,33 +262,30 @@ fn sidebar_orders_nav_into_the_content_flow_above_the_spacer() {
     let children: Vec<Entity> = world.get::<Children>(rail).expect("rail children").to_vec();
     assert_eq!(
         children.len(),
-        5,
-        "identity, mode segment, nav, spacer, version expected"
+        9,
+        "identity, mode segment, system toggles, active profile, shortcut matrix, speed footer, nav, spacer, version expected"
     );
 
     assert!(
-        subtree_contains::<NavItem>(world, children[2]),
-        "the nav group sits directly after the mode segment (content flow)"
+        subtree_contains::<NavItem>(world, children[6]),
+        "the nav group sits directly in content flow above the spacer"
     );
     assert!(
-        !subtree_contains::<NavItem>(world, children[4]),
+        !subtree_contains::<NavItem>(world, children[8]),
         "the version foot carries no nav items"
     );
 
-    let spacer = world.get::<Node>(children[3]).expect("spacer node");
+    let spacer = world.get::<Node>(children[7]).expect("spacer node");
     assert!(
         spacer.flex_grow > 0.0,
         "the gap between nav and version stays a flexible spacer"
     );
     assert!(
-        subtree_has_text(world, children[4], "0.30 demo"),
+        subtree_has_text(world, children[8], "0.30 demo"),
         "the version caption closes the rail"
     );
 }
 
-/// M1 theme affordance: triggering `ThemeSwitch` re-resolves the palette and
-/// restamps text ink and pill fill in place — the title text and pill
-/// entities keep their ids across dark → light → dark (zero remounts).
 #[test]
 fn theme_switch_restamps_ink_and_fill_in_place() {
     let mut app = mounted_shell();
@@ -359,9 +338,6 @@ fn theme_switch_restamps_ink_and_fill_in_place() {
     assert!(world.get_entity(pill).is_ok(), "pill id still unchanged");
 }
 
-/// Every token-filled sidebar surface (rail, nav items, mode pills) flips
-/// with the theme and keeps its entity id — the reskin hard requirement
-/// for the shell side of the tree.
 #[test]
 fn theme_flip_repaints_every_sidebar_surface_in_place() {
     let mut app = mounted_shell();
@@ -397,8 +373,8 @@ fn theme_flip_repaints_every_sidebar_surface_in_place() {
     }
 
     let mut pills = world.query::<(Entity, &OverviewModePill, &ControlVisual)>();
-    for (id, pill, visual) in pills.iter(world) {
-        let fill = world.get::<BackgroundColor>(id).expect("pill survives");
+    for (entity, pill, visual) in pills.iter(world) {
+        let fill = world.get::<BackgroundColor>(entity).expect("pill survives");
         assert_eq!(
             fill.0,
             if visual.0 {
@@ -417,9 +393,6 @@ fn theme_flip_repaints_every_sidebar_surface_in_place() {
     assert_eq!(after, surface_ids, "the reskin is a restamp: zero remounts");
 }
 
-/// The full affordance chain: an `Activate` on the theme pill flips the
-/// shell-owned mode mirror and triggers `ThemeSwitch`; an `Activate` on any
-/// other entity must not.
 #[test]
 fn activating_the_pill_flips_the_mode_mirror() {
     let mut app = mounted_shell();
@@ -460,15 +433,52 @@ fn activating_the_pill_flips_the_mode_mirror() {
     );
 }
 
-/// Responsive shell mounts both sidebar and bottom nav bar, defaulting to
-/// desktop mode (width >= 600px) with sidebar visible and bottom nav hidden.
+#[test]
+fn activating_density_pill_toggles_density() {
+    let mut app = mounted_shell();
+    let density_pill = density_pill_entity(app.world_mut());
+
+    assert_eq!(
+        app.world().resource::<ShellLayoutState>().density,
+        Density::Comfortable
+    );
+
+    app.world_mut().commands().trigger(Activate {
+        entity: density_pill,
+    });
+    app.update();
+
+    assert_eq!(
+        app.world().resource::<ShellLayoutState>().density,
+        Density::Compact
+    );
+    assert_eq!(
+        app.world().resource::<ResponsiveContext>().density,
+        Density::Compact
+    );
+
+    app.world_mut().commands().trigger(Activate {
+        entity: density_pill,
+    });
+    app.update();
+
+    assert_eq!(
+        app.world().resource::<ShellLayoutState>().density,
+        Density::Comfortable
+    );
+    assert_eq!(
+        app.world().resource::<ResponsiveContext>().density,
+        Density::Comfortable
+    );
+}
+
 #[test]
 fn responsive_shell_mounts_both_modes_and_defaults_to_sidebar() {
     let mut app = mounted_shell();
     let world = app.world_mut();
 
     let layout = world.resource::<ShellLayoutState>();
-    assert_eq!(layout.breakpoint, Breakpoint::Desktop);
+    assert_eq!(layout.breakpoint, Breakpoint::Expanded);
     assert_eq!(layout.mode, LayoutMode::Sidebar);
     assert!(layout.width_px >= 600.0);
 
@@ -489,8 +499,6 @@ fn responsive_shell_mounts_both_modes_and_defaults_to_sidebar() {
     );
 }
 
-/// On mobile viewport width (<600px), responsive shell automatically collapses
-/// the sidebar and switches to bottom navigation bar mode.
 #[test]
 fn responsive_shell_switches_to_bottom_nav_on_mobile_width() {
     let mut app = mounted_shell();
@@ -503,7 +511,7 @@ fn responsive_shell_switches_to_bottom_nav_on_mobile_width() {
 
     let world = app.world_mut();
     let layout = world.resource::<ShellLayoutState>();
-    assert_eq!(layout.breakpoint, Breakpoint::Mobile);
+    assert_eq!(layout.breakpoint, Breakpoint::Compact);
     assert_eq!(layout.mode, LayoutMode::BottomNav);
     assert!(layout.breakpoint.is_compact());
 
@@ -524,8 +532,6 @@ fn responsive_shell_switches_to_bottom_nav_on_mobile_width() {
     );
 }
 
-/// Transitioning from mobile (<600px) back to desktop (>=600px) restores the sidebar
-/// and hides the bottom navigation bar.
 #[test]
 fn responsive_shell_switches_back_to_sidebar_on_desktop_width() {
     let mut app = mounted_shell();
@@ -548,7 +554,7 @@ fn responsive_shell_switches_back_to_sidebar_on_desktop_width() {
 
     let world = app.world_mut();
     let layout = world.resource::<ShellLayoutState>();
-    assert_eq!(layout.breakpoint, Breakpoint::Desktop);
+    assert_eq!(layout.breakpoint, Breakpoint::Expanded);
     assert_eq!(layout.mode, LayoutMode::Sidebar);
 
     let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
@@ -560,7 +566,61 @@ fn responsive_shell_switches_back_to_sidebar_on_desktop_width() {
     assert_eq!(bottom_node.display, Display::None);
 }
 
-/// Responsive layout transitions preserve entity IDs (zero remounts, component restamp in place).
+#[test]
+fn responsive_four_tier_sidebar_morphology() {
+    let mut app = mounted_shell();
+
+    // 1. Compact: 375px -> BottomNav
+    app.world_mut()
+        .resource_mut::<ShellLayoutState>()
+        .set_width(375.0);
+    app.update();
+    {
+        let world = app.world_mut();
+        let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
+        assert_eq!(sidebars.single(world).unwrap().0.display, Display::None);
+    }
+
+    // 2. Medium: 768px -> Rail (72px)
+    app.world_mut()
+        .resource_mut::<ShellLayoutState>()
+        .set_width(768.0);
+    app.update();
+    {
+        let world = app.world_mut();
+        let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
+        let (node, _) = sidebars.single(world).unwrap();
+        assert_eq!(node.display, Display::Flex);
+        assert_eq!(node.width, px(72.0));
+    }
+
+    // 3. Expanded: 1280px -> Sidebar (240px)
+    app.world_mut()
+        .resource_mut::<ShellLayoutState>()
+        .set_width(1280.0);
+    app.update();
+    {
+        let world = app.world_mut();
+        let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
+        let (node, _) = sidebars.single(world).unwrap();
+        assert_eq!(node.display, Display::Flex);
+        assert_eq!(node.width, px(240.0));
+    }
+
+    // 4. Ultra: 1920px -> Wide (280px)
+    app.world_mut()
+        .resource_mut::<ShellLayoutState>()
+        .set_width(1920.0);
+    app.update();
+    {
+        let world = app.world_mut();
+        let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
+        let (node, _) = sidebars.single(world).unwrap();
+        assert_eq!(node.display, Display::Flex);
+        assert_eq!(node.width, px(280.0));
+    }
+}
+
 #[test]
 fn responsive_mode_switch_keeps_entity_identities() {
     let mut app = mounted_shell();
@@ -596,7 +656,6 @@ fn responsive_mode_switch_keeps_entity_identities() {
     }
 }
 
-/// Theme flip repaints the bottom navigation bar and active items in place without respawn.
 #[test]
 fn theme_flip_repaints_bottom_nav_bar_in_place() {
     let mut app = mounted_shell();
@@ -647,7 +706,6 @@ fn theme_flip_repaints_bottom_nav_bar_in_place() {
     }
 }
 
-/// Bottom navigation bar carries accessible semantic nodes for all its items.
 #[test]
 fn bottom_nav_carries_named_button_semantics() {
     let mut app = mounted_shell();
@@ -665,10 +723,330 @@ fn bottom_nav_carries_named_button_semantics() {
     assert_eq!(
         labels,
         vec![
-            ("核心概览".to_owned(), false),
-            ("数据同步".to_owned(), true),
-            ("系统设置".to_owned(), true),
+            (Route::Overview.label().to_owned(), false),
+            (Route::Proxies.label().to_owned(), false),
+            (Route::Profiles.label().to_owned(), false),
+            (Route::Settings.label().to_owned(), false),
         ],
-        "bottom nav carries named button accessibility semantics matching sidebar"
+        "bottom nav carries 4 clean button semantics matching the 4 key routes"
+    );
+}
+
+#[test]
+fn content_title_syncs_with_active_route() {
+    let mut app = mounted_shell();
+
+    // Default title is "核心概览"
+    {
+        let world = app.world_mut();
+        let mut titles = world.query::<(&Text, &ContentTitleLabel)>();
+        let (text, _) = titles.single(world).expect("title text");
+        assert_eq!(text.0, "核心概览");
+    }
+
+    // Set active route to Proxies
+    app.world_mut()
+        .insert_resource(ActiveRoute(Some(Route::Proxies)));
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let mut titles = world.query::<(&Text, &ContentTitleLabel)>();
+        let (text, _) = titles.single(world).expect("title text");
+        assert_eq!(text.0, "代理策略");
+    }
+
+    // Set active route to Settings
+    app.world_mut()
+        .insert_resource(ActiveRoute(Some(Route::Settings)));
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let mut titles = world.query::<(&Text, &ContentTitleLabel)>();
+        let (text, _) = titles.single(world).expect("title text");
+        assert_eq!(text.0, "系统设置");
+    }
+}
+
+#[test]
+fn sidebar_nav_click_triggers_route_change_and_updates_visuals() {
+    let mut app = mounted_shell();
+    let dark = UiPalette::new(&Theme::dark());
+
+    // Initially Overview is active
+    {
+        let world = app.world_mut();
+        let mut items = world.query::<(&SidebarNavItem, &NavActive, &BackgroundColor)>();
+        for (item, active, bg) in items.iter(world) {
+            if item.0 == Route::Overview {
+                assert!(active.0);
+                assert_eq!(bg.0, dark.accent);
+            } else {
+                assert!(!active.0);
+                assert_eq!(bg.0, dark.surface_elevated);
+            }
+        }
+    }
+
+    // Find the Proxies nav item entity and activate it
+    let proxies_entity = {
+        let world = app.world_mut();
+        let mut items = world.query::<(Entity, &SidebarNavItem)>();
+        items
+            .iter(world)
+            .find(|(_, item)| item.0 == Route::Proxies)
+            .expect("proxies nav item")
+            .0
+    };
+
+    app.world_mut().commands().trigger(Activate {
+        entity: proxies_entity,
+    });
+    // Simulate router setting active route on RouteChanged
+    app.world_mut()
+        .insert_resource(ActiveRoute(Some(Route::Proxies)));
+    app.update();
+
+    // Now Proxies is active and Overview is idle
+    {
+        let world = app.world_mut();
+        let mut items = world.query::<(&SidebarNavItem, &NavActive, &BackgroundColor)>();
+        for (item, active, bg) in items.iter(world) {
+            if item.0 == Route::Proxies {
+                assert!(active.0, "Proxies should be active");
+                assert_eq!(bg.0, dark.accent);
+            } else {
+                assert!(!active.0, "{:?} should be idle", item.0);
+                assert_eq!(bg.0, dark.surface_elevated);
+            }
+        }
+    }
+}
+
+#[test]
+fn bottom_nav_renders_four_items_and_click_activates() {
+    let mut app = mounted_shell();
+
+    // 4 items exist
+    {
+        let world = app.world_mut();
+        let mut items = world.query::<&BottomNavItem>();
+        let routes: Vec<Route> = items.iter(world).map(|i| i.0).collect();
+        assert_eq!(
+            routes,
+            vec![
+                Route::Overview,
+                Route::Proxies,
+                Route::Profiles,
+                Route::Settings
+            ]
+        );
+    }
+
+    // Activate Profiles
+    let profiles_entity = {
+        let world = app.world_mut();
+        let mut items = world.query::<(Entity, &BottomNavItem)>();
+        items
+            .iter(world)
+            .find(|(_, item)| item.0 == Route::Profiles)
+            .expect("profiles bottom nav item")
+            .0
+    };
+
+    app.world_mut().commands().trigger(Activate {
+        entity: profiles_entity,
+    });
+    app.world_mut()
+        .insert_resource(ActiveRoute(Some(Route::Profiles)));
+    app.update();
+
+    // Active marker updated
+    {
+        let world = app.world_mut();
+        let mut items = world.query::<(&BottomNavItem, &BottomNavActive)>();
+        for (item, active) in items.iter(world) {
+            if item.0 == Route::Profiles {
+                assert!(active.0);
+            } else {
+                assert!(!active.0);
+            }
+        }
+    }
+}
+
+#[test]
+fn test_shell_header_history_and_status_indicators() {
+    let mut app = mounted_shell();
+    let world = app.world_mut();
+
+    let mut back_query = world.query::<(Entity, &HistoryBackButton)>();
+    let (back_entity, _) = back_query
+        .iter(world)
+        .next()
+        .expect("HistoryBackButton must be mounted in header");
+
+    let mut forward_query = world.query::<(Entity, &HistoryForwardButton)>();
+    let (forward_entity, _) = forward_query
+        .iter(world)
+        .next()
+        .expect("HistoryForwardButton must be mounted in header");
+
+    let mut dot_query = world.query::<(Entity, &GlobalStatusDot)>();
+    assert!(
+        dot_query.iter(world).next().is_some(),
+        "GlobalStatusDot must be mounted"
+    );
+
+    let mut mode_capsule_query = world.query::<(Entity, &GlobalModeCapsule)>();
+    assert!(
+        mode_capsule_query.iter(world).next().is_some(),
+        "GlobalModeCapsule must be mounted"
+    );
+
+    // Trigger back button activation
+    world.commands().trigger(Activate {
+        entity: back_entity,
+    });
+    app.update();
+
+    // Trigger forward button activation
+    app.world_mut().commands().trigger(Activate {
+        entity: forward_entity,
+    });
+    app.update();
+}
+
+#[test]
+fn test_sidebar_modern_control_center_parity() {
+    let mut app = mounted_shell();
+    let world = app.world_mut();
+
+    let mut rails = world.query::<(Entity, &SidebarPanel)>();
+    let (rail, _) = rails.single(world).expect("one sidebar rail");
+    let children: Vec<Entity> = world.get::<Children>(rail).expect("rail children").to_vec();
+
+    // 1. Header row: logo + MusicFrog + v0.20.0
+    assert!(
+        subtree_has_text(world, children[0], "MusicFrog"),
+        "sidebar identity header contains MusicFrog"
+    );
+    assert!(
+        subtree_has_text(world, children[0], "v0.20.0"),
+        "sidebar identity header contains v0.20.0"
+    );
+
+    // 2. Proxy Mode Segmented Control: Script segment alongside Rule, Global, Direct
+    let mut script_pills = world.query::<(&SidebarScriptModePill, &AccessibilityNode)>();
+    let (_, script_node) = script_pills
+        .iter(world)
+        .next()
+        .expect("SidebarScriptModePill mounted");
+    assert_eq!(script_node.role(), accesskit::Role::Button);
+    assert_eq!(script_node.label(), Some("脚本模式"));
+    assert!(
+        subtree_has_text(world, children[1], "脚本模式"),
+        "mode segment contains 脚本模式"
+    );
+
+    // 3. Double System Toggle Cards
+    let mut proxy_cards = world.query::<(Entity, &SidebarSystemProxyCard)>();
+    let (proxy_card, _) = proxy_cards
+        .iter(world)
+        .next()
+        .expect("SidebarSystemProxyCard mounted");
+    assert!(
+        subtree_has_text(world, proxy_card, "系统代理"),
+        "proxy card contains label 系统代理"
+    );
+    let mut proxy_toggles = world.query::<(Entity, &SidebarSystemProxyToggle)>();
+    assert!(proxy_toggles.iter(world).next().is_some());
+
+    let mut tun_cards = world.query::<(Entity, &SidebarTunCard)>();
+    let (tun_card, _) = tun_cards
+        .iter(world)
+        .next()
+        .expect("SidebarTunCard mounted");
+    assert!(
+        subtree_has_text(world, tun_card, "TUN 模式"),
+        "tun card contains label TUN 模式"
+    );
+    let mut tun_toggles = world.query::<(Entity, &SidebarTunToggle)>();
+    assert!(tun_toggles.iter(world).next().is_some());
+
+    // 4. Active Profile Card
+    let mut profile_cards = world.query::<(Entity, &SidebarActiveProfileCard)>();
+    let (profile_card, _) = profile_cards
+        .iter(world)
+        .next()
+        .expect("SidebarActiveProfileCard mounted");
+    assert!(
+        subtree_has_text(world, profile_card, "Default Profile"),
+        "profile card displays subscription name"
+    );
+    assert!(
+        subtree_has_text(world, profile_card, "46.4 GB / 186.2 GB"),
+        "profile card displays usage progress line"
+    );
+    assert!(
+        subtree_has_text(world, profile_card, "25%"),
+        "profile card displays usage percentage"
+    );
+
+    // 5. 2x2 Shortcut Grid Matrix
+    let mut matrix_query = world.query::<(Entity, &SidebarShortcutMatrix)>();
+    let (matrix, _) = matrix_query
+        .iter(world)
+        .next()
+        .expect("SidebarShortcutMatrix mounted");
+    assert!(
+        subtree_has_text(world, matrix, "代理策略 (8)"),
+        "shortcut tile 代理策略 (8)"
+    );
+    assert!(
+        subtree_has_text(world, matrix, "分流规则 (2842)"),
+        "shortcut tile 分流规则 (2842)"
+    );
+    assert!(
+        subtree_has_text(world, matrix, "连接审计 (12)"),
+        "shortcut tile 连接审计 (12)"
+    );
+    assert!(
+        subtree_has_text(world, matrix, "域名解析 (4)"),
+        "shortcut tile 域名解析 (4)"
+    );
+
+    // 6. Live Speed Footer
+    let mut speed_query = world.query::<(Entity, &SidebarSpeedFooter)>();
+    let (speed_footer, _) = speed_query
+        .iter(world)
+        .next()
+        .expect("SidebarSpeedFooter mounted");
+    assert!(
+        subtree_has_text(world, speed_footer, "↑ 124.5 KB/s"),
+        "speed footer displays upload rate"
+    );
+    assert!(
+        subtree_has_text(world, speed_footer, "↓ 1.8 MB/s"),
+        "speed footer displays download rate"
+    );
+
+    // 7. Shortcut tile clicking activates route change
+    let mut shortcut_tiles = world.query::<(Entity, &SidebarShortcutTile)>();
+    let (proxies_tile_entity, _) = shortcut_tiles
+        .iter(world)
+        .find(|(_, tile)| tile.0 == Route::Proxies)
+        .expect("Proxies shortcut tile entity");
+    app.world_mut().commands().trigger(Activate {
+        entity: proxies_tile_entity,
+    });
+    app.world_mut()
+        .insert_resource(ActiveRoute(Some(Route::Proxies)));
+    app.update();
+    assert_eq!(
+        app.world().resource::<ActiveRoute>().0,
+        Some(Route::Proxies),
+        "clicking shortcut tile navigates to Route::Proxies"
     );
 }

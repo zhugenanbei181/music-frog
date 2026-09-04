@@ -31,6 +31,7 @@ use infiltrator_bevy_widgets::theme::LightDark;
 use crate::app::ThemeMode;
 use crate::controller::PumpSnapshotSeen;
 use crate::history::TrafficHistory;
+use crate::route::Route;
 
 /// Parse the capture skin knob. Case-insensitive, whitespace-tolerant;
 /// anything else is `None` (the launcher falls back to the cold-start
@@ -73,13 +74,55 @@ pub fn marker_path_from_env() -> Option<PathBuf> {
         .filter(|path| !path.as_os_str().is_empty())
 }
 
+/// Parse a page name into its corresponding route.
+pub fn parse_page(raw: &str) -> Option<Route> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "overview" => Some(Route::Overview),
+        "proxies" => Some(Route::Proxies),
+        "profiles" => Some(Route::Profiles),
+        "rules" => Some(Route::Rules),
+        "connections" => Some(Route::Connections),
+        "logs" => Some(Route::Logs),
+        "dns" => Some(Route::Dns),
+        "doctor" => Some(Route::Doctor),
+        "app_routing" | "approuting" | "app-routing" => Some(Route::AppRouting),
+        "sync" => Some(Route::Sync),
+        "settings" => Some(Route::Settings),
+        _ => None,
+    }
+}
+
+/// The capture page from the environment, if set.
+pub fn page_from_env() -> Option<Route> {
+    std::env::var("INFILTRATOR_BEVY_PAGE")
+        .ok()
+        .and_then(|raw| parse_page(&raw))
+}
+
+pub fn route_slug(route: Route) -> &'static str {
+    match route {
+        Route::Overview => "overview",
+        Route::Proxies => "proxies",
+        Route::Profiles => "profiles",
+        Route::Rules => "rules",
+        Route::Connections => "connections",
+        Route::Logs => "logs",
+        Route::Dns => "dns",
+        Route::Doctor => "doctor",
+        Route::AppRouting => "app_routing",
+        Route::Sync => "sync",
+        Route::Settings => "settings",
+    }
+}
+
 /// The readiness line the capture script waits on. Pure function.
-pub fn capture_marker_line(skin: LightDark) -> String {
-    let skin = match skin {
+pub fn capture_marker_line(route: Route, skin: LightDark) -> String {
+    let skin_str = match skin {
         LightDark::Dark => "dark",
         LightDark::Light => "light",
     };
-    format!("CAPTURE_READY page=overview skin={skin}\n")
+    let page_str = route_slug(route);
+    format!("CAPTURE_READY page={page_str} skin={skin_str}\n")
 }
 
 /// Where the marker goes. Injected by the launcher; a resource so the
@@ -158,12 +201,14 @@ fn live_trend_ready(snapshot_seen: bool, ring_len: Option<usize>) -> bool {
 /// marker once past the threshold (and, when gated, once the live pump has
 /// delivered enough of a trend), then retire. A failed write retries on
 /// the next frame; a successful one never writes again.
+#[allow(clippy::too_many_arguments)]
 fn write_capture_marker(
     mut frames: Local<u32>,
     mut done: Local<bool>,
     mode: Option<Res<ThemeMode>>,
     seen: Option<Res<PumpSnapshotSeen>>,
     history: Option<Res<TrafficHistory>>,
+    active_route: Option<Res<crate::route::ActiveRoute>>,
     gate: Res<WaitForLiveSnapshot>,
     path: Res<CaptureMarkerPath>,
 ) {
@@ -180,13 +225,14 @@ fn write_capture_marker(
             history.as_ref().map(|history| history.len()),
         )
     {
-        // Live run: the page still shows the pre-sample placeholder or a
-        // not-yet-drawable one-point trend — not ready, no matter how many
-        // frames have rendered.
         return;
     }
     let skin = mode.map(|mode| mode.0).unwrap_or(LightDark::Dark);
-    if std::fs::write(&path.0, capture_marker_line(skin)).is_ok() {
+    let route = active_route
+        .and_then(|r| r.0)
+        .or_else(page_from_env)
+        .unwrap_or_default();
+    if std::fs::write(&path.0, capture_marker_line(route, skin)).is_ok() {
         *done = true;
     }
 }
@@ -218,14 +264,31 @@ mod tests {
     }
 
     #[test]
+    fn page_parses_all_eleven_routes_and_rejects_junk() {
+        assert_eq!(parse_page("overview"), Some(Route::Overview));
+        assert_eq!(parse_page("proxies"), Some(Route::Proxies));
+        assert_eq!(parse_page("PROFILES"), Some(Route::Profiles));
+        assert_eq!(parse_page("rules"), Some(Route::Rules));
+        assert_eq!(parse_page("connections"), Some(Route::Connections));
+        assert_eq!(parse_page("logs"), Some(Route::Logs));
+        assert_eq!(parse_page("dns"), Some(Route::Dns));
+        assert_eq!(parse_page("doctor"), Some(Route::Doctor));
+        assert_eq!(parse_page("app_routing"), Some(Route::AppRouting));
+        assert_eq!(parse_page("app-routing"), Some(Route::AppRouting));
+        assert_eq!(parse_page("sync"), Some(Route::Sync));
+        assert_eq!(parse_page("settings"), Some(Route::Settings));
+        assert_eq!(parse_page("invalid_page"), None);
+    }
+
+    #[test]
     fn marker_line_names_the_route_and_skin() {
         assert_eq!(
-            capture_marker_line(LightDark::Dark),
+            capture_marker_line(Route::Overview, LightDark::Dark),
             "CAPTURE_READY page=overview skin=dark\n"
         );
         assert_eq!(
-            capture_marker_line(LightDark::Light),
-            "CAPTURE_READY page=overview skin=light\n"
+            capture_marker_line(Route::Proxies, LightDark::Light),
+            "CAPTURE_READY page=proxies skin=light\n"
         );
     }
 

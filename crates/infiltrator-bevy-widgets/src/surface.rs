@@ -9,7 +9,9 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, Val, percent};
+use bevy::ui::prelude::{
+    BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, Val, percent, px,
+};
 
 use crate::palette::UiPalette;
 use crate::theme::space;
@@ -25,6 +27,8 @@ pub fn surface_scene(children: Vec<Box<dyn Scene>>, palette: &UiPalette) -> impl
     bsn! {
         Node {
             width: percent(100),
+            min_width: px(0.0),
+            max_width: percent(100),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(space::S8),
             padding: UiRect::all(Val::Px(space::S16)),

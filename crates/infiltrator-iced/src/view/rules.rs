@@ -64,9 +64,8 @@ pub fn lookup_hit_stats(stats: &HashMap<String, RuleHitStats>, rule_type: &str, 
     let norm_rule = normalize_rule_name(rule_type);
     let norm_payload = payload.trim().to_ascii_lowercase();
 
-    if norm_rule == "match" {
-        if let Some(s) = stats.get("match:") { return *s; }
-    }
+    if norm_rule == "match"
+        && let Some(s) = stats.get("match:") { return *s; }
     if let Some(s) = stats.get(&format!("{norm_rule}:{norm_payload}")) { return *s; }
     if !norm_payload.is_empty() {
         if let Some(s) = stats.get(&format!("p:{norm_payload}")) { return *s; }
@@ -133,6 +132,7 @@ fn json_editor_card<'a>(title: String, content: &'a text_editor::Content, on_act
     ])
 }
 
+#[allow(clippy::too_many_arguments)]
 fn json_tab_card<'a>(
     title: String, state: EditorLazyState, content: &'a text_editor::Content,
     dirty: bool, saving: bool, on_load: Message, on_action: fn(text_editor::Action) -> Message,
@@ -177,9 +177,46 @@ fn proxy_provider_row<'a>(provider: &mihomo_api::types::ProxyProvider, lang: &La
     ].align_y(Alignment::Center)).padding([theme::SP_SM, SP_MD]).width(Length::Fill).style(row_card_surface).into()
 }
 
-fn rule_provider_row<'a>(provider: &mihomo_api::types::RuleProvider, lang: &Lang<'_>) -> Element<'a, Message> {
-    let behavior_format = crate::view::mrs_panel::format_vehicle_behavior(Some(&provider.vehicle_type), &provider.behavior);
+/// Format the behavior badge text for rule providers (`Domain`, `IPCIDR`, `Classical`).
+pub fn format_provider_behavior(behavior: &str) -> &'static str {
+    match behavior.to_ascii_lowercase().as_str() {
+        "domain" => "Domain",
+        "ipcidr" | "ip-cidr" => "IPCIDR",
+        "classical" => "Classical",
+        _ => "Domain",
+    }
+}
+
+/// Sniff or normalize rule provider payload format (e.g. `MRS`, `YAML`, `TEXT`, `FILE`, `HTTP`).
+pub fn format_rule_provider_format(provider: &mihomo_api::types::RuleProvider) -> &'static str {
+    let lower_name = provider.name.to_ascii_lowercase();
+    let lower_type = provider.provider_type.to_ascii_lowercase();
+    let lower_vehicle = provider.vehicle_type.to_ascii_lowercase();
+
+    if lower_name.ends_with(".mrs") || lower_type == "mrs" || lower_vehicle == "mrs" {
+        "MRS"
+    } else if lower_name.ends_with(".txt") || lower_type == "text" {
+        "TEXT"
+    } else if lower_name.ends_with(".yaml") || lower_name.ends_with(".yml") || lower_type == "yaml" {
+        "YAML"
+    } else if lower_type == "file" || lower_vehicle == "file" {
+        "FILE"
+    } else if lower_type == "http" || lower_vehicle == "http" {
+        "HTTP"
+    } else {
+        "YAML"
+    }
+}
+
+/// Compute total external rules loaded across all active rule providers.
+pub fn total_external_rules(rule_providers: &[mihomo_api::types::RuleProvider]) -> u32 {
+    rule_providers.iter().map(|rp| rp.rule_count).sum()
+}
+
+pub fn rule_provider_row<'a>(provider: &mihomo_api::types::RuleProvider, _lang: &Lang<'_>) -> Element<'a, Message> {
+    let behavior_badge_text = format_provider_behavior(&provider.behavior);
     let rule_count_str = crate::view::mrs_panel::format_rule_count(provider.rule_count);
+    let format_str = format_rule_provider_format(provider);
     let updated_text = if provider.updated_at.is_empty() { "—".to_string() } else { format!("Updated: {}", provider.updated_at) };
 
     let actions = row![
@@ -189,8 +226,7 @@ fn rule_provider_row<'a>(provider: &mihomo_api::types::RuleProvider, lang: &Lang
         button(row![svg_icons::icon_themed(Icon::Zap, 12.0, |t: &Theme| tokens(t).text_secondary), Space::new().width(4.0), text("Unpack").size(11).font(FONT_MEDIUM)].align_y(Alignment::Center))
             .padding([4, 10]).style(style_ghost).on_press(Message::UnpackRuleProvider(provider.name.clone())),
         Space::new().width(theme::SP_XS),
-        button(row![svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).text_secondary), Space::new().width(4.0), text(lang.tr("btn_update").to_string()).size(11).font(FONT_MEDIUM)].align_y(Alignment::Center))
-            .padding([4, 10]).style(style_ghost).on_press(Message::UpdateRuleProvider(provider.name.clone())),
+        icon_button(Icon::RefreshCw, 13.0, Message::UpdateRuleProvider(provider.name.clone())),
     ].align_y(Alignment::Center);
 
     container(row![
@@ -198,11 +234,12 @@ fn rule_provider_row<'a>(provider: &mihomo_api::types::RuleProvider, lang: &Lang
         column![
             row![
                 text(provider.name.clone()).size(13).font(FONT_SEMIBOLD).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
-                Space::new().width(theme::SP_SM), badge(rule_count_str, BadgeKind::Accent),
+                Space::new().width(theme::SP_SM), badge(behavior_badge_text, BadgeKind::Neutral),
+                Space::new().width(theme::SP_XS), badge(rule_count_str, BadgeKind::Accent),
             ].align_y(Alignment::Center),
             text(updated_text).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
         ].width(Length::Fill),
-        chip(behavior_format), Space::new().width(theme::SP_SM), actions,
+        chip(format_str), Space::new().width(theme::SP_SM), actions,
     ].align_y(Alignment::Center)).padding([theme::SP_SM, SP_MD]).width(Length::Fill).style(row_card_surface).into()
 }
 
@@ -236,106 +273,26 @@ fn target_group_pill<'a>(target: &str, is_enabled: bool) -> Element<'a, Message>
 }
 
 /// Hit counter badge and recent hit indicator.
-fn hit_stats_badge<'a>(stats: RuleHitStats, is_zh: bool) -> Element<'a, Message> {
+fn hit_stats_badge<'a>(stats: RuleHitStats, lang: &Lang<'_>) -> Element<'a, Message> {
     if stats.count > 0 {
+        let hits_text = infiltrator_shared::i18n_interpolator::interpolate(
+            &lang.tr("rule_tracer_hits_count"),
+            &[("count", &stats.count.to_string())],
+        );
         row![
             status_dot(true), Space::new().width(theme::SP_XS),
-            text(if is_zh { format!("{} 命中", stats.count) } else { format!("{} hits", stats.count) }).size(11).font(FONT_MEDIUM).style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
-            Space::new().width(theme::SP_XS), badge(if is_zh { "最近命中" } else { "Recent" }, BadgeKind::Success),
+            text(hits_text).size(11).font(FONT_MEDIUM).style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
+            Space::new().width(theme::SP_XS), badge(lang.tr("rule_tracer_recent_hits").to_string(), BadgeKind::Success),
         ].align_y(Alignment::Center).into()
     } else {
-        row![text(if is_zh { "0 命中" } else { "0 hits" }).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) })].align_y(Alignment::Center).into()
+        row![text(lang.tr("rule_tracer_zero_hits").to_string()).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) })].align_y(Alignment::Center).into()
     }
 }
 
-/// Quick preset test button for Rule Tracer.
-fn quick_test_btn<'a>(sample: &'static str) -> Element<'a, Message> {
-    button(text(sample).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }))
-        .padding([2, 8])
-        .style(|t: &Theme, status| {
-            let tk = tokens(t);
-            button::Style {
-                background: match status { button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()), _ => Some(tk.chip_bg.into()) },
-                border: Border { radius: border::Radius::from(theme::R_CHIP), width: 1.0, color: tk.card_border },
-                ..Default::default()
-            }
-        }).on_press(Message::UpdateRulesTracerInput(sample.to_string())).into()
-}
+
 
 fn tracer_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let is_zh = !lang.0.starts_with("en");
-    let tracer_result_view: Element<'_, Message> = match &state.editor.rules_tracer_result {
-        Some((index, matched_rule, target)) => {
-            let (rule_type_part, payload_part) = matched_rule.split_once(',').map(|(t, p)| (t.trim(), p.trim())).unwrap_or((matched_rule.as_str(), ""));
-            let bkind = semantic_badge_kind(rule_type_part, RuleBadgeKind::Other);
-            let norm_type = display_rule_type(rule_type_part);
-
-            container(column![
-                row![
-                    svg_icons::icon_themed(Icon::Activity, 14.0, |t: &Theme| tokens(t).success), Space::new().width(theme::SP_XS),
-                    text(if is_zh { format!("命中第 {} 条规则", index + 1) } else { format!("Matched Rule #{}", index + 1) }).size(13).font(FONT_SEMIBOLD).style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
-                    Space::new().width(theme::SP_SM), badge(if is_zh { "匹配命中" } else { "MATCHED" }, BadgeKind::Success),
-                    Space::new().width(Length::Fill),
-                    text(if is_zh { format!("规则行 #{}", index + 1) } else { format!("Line #{}", index + 1) }).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) }),
-                ].align_y(Alignment::Center),
-                Space::new().height(theme::SP_XS),
-                row![
-                    badge(norm_type, bkind), Space::new().width(theme::SP_SM),
-                    text(if payload_part.is_empty() { matched_rule.as_str() } else { payload_part }).size(13).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
-                    Space::new().width(Length::Fill), text("➔").size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) }),
-                    Space::new().width(theme::SP_SM), target_group_pill(target, true),
-                ].align_y(Alignment::Center),
-            ].spacing(theme::SP_XS)).padding([10, 14]).width(Length::Fill).style(|t: &Theme| {
-                let tk = tokens(t);
-                container::Style { background: Some(Color { a: 0.08, ..tk.success }.into()), border: Border { radius: border::Radius::from(theme::R_CONTROL), width: 1.0, color: Color { a: 0.30, ..tk.success } }, ..Default::default() }
-            }).into()
-        }
-        None => {
-            if !state.editor.rules_tracer_input.trim().is_empty() {
-                container(row![
-                    svg_icons::icon_themed(Icon::Shield, 16.0, |t: &Theme| tokens(t).warning), Space::new().width(theme::SP_MD),
-                    column![
-                        text(if is_zh { "未命中任何自定义规则" } else { "No Custom Rule Matched" }).size(13).font(FONT_SEMIBOLD).style(|t: &Theme| text::Style { color: Some(tokens(t).warning) }),
-                        text(if is_zh { "流量将顺延走最后的默认 MATCH 规则兜底路由" } else { "Traffic will fall through to default MATCH rule routing" }).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
-                    ].width(Length::Fill),
-                    badge(if is_zh { "默认兜底" } else { "FALLTHROUGH" }, BadgeKind::Warning),
-                ].align_y(Alignment::Center)).padding([10, 14]).width(Length::Fill).style(|t: &Theme| {
-                    let tk = tokens(t);
-                    container::Style { background: Some(Color { a: 0.08, ..tk.warning }.into()), border: Border { radius: border::Radius::from(theme::R_CONTROL), width: 1.0, color: Color { a: 0.25, ..tk.warning } }, ..Default::default() }
-                }).into()
-            } else {
-                container(row![
-                    svg_icons::icon_themed(Icon::Target, 14.0, |t: &Theme| tokens(t).text_tertiary), Space::new().width(theme::SP_SM),
-                    text(if is_zh { "输入域名 (如 google.com) 或 IP (如 1.1.1.1) 测试分流匹配路径" } else { "Enter a domain (e.g. google.com) or IP (e.g. 1.1.1.1) to test rule routing match" }).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) }),
-                ].align_y(Alignment::Center)).padding([8, 12]).width(Length::Fill).style(|t: &Theme| {
-                    let tk = tokens(t);
-                    container::Style { background: Some(tk.control_bg.into()), border: Border { radius: border::Radius::from(theme::R_CONTROL), width: 1.0, color: tk.card_border }, ..Default::default() }
-                }).into()
-            }
-        }
-    };
-
-    let title = if is_zh { "分流命中测试器 (Rule Tracer)" } else { "Rule Tracer (Test Routing)" };
-    let clear_btn = if state.editor.rules_tracer_input.is_empty() { Element::from(Space::new().width(0)) } else { icon_button(Icon::X, 12.0, Message::UpdateRulesTracerInput(String::new())) };
-    let trace_btn = button(
-        row![svg_icons::icon_themed(Icon::Search, 14.0, |t: &Theme| tokens(t).on_accent), text(if is_zh { "测试匹配" } else { "Trace" }).size(12).font(FONT_MEDIUM), kbd_badge("↵")].spacing(theme::SP_SM).align_y(Alignment::Center)
-    ).padding([8, 16]).style(style_accent).on_press(Message::RunRulesTracer);
-
-    let quick_presets = row![
-        text(if is_zh { "快捷预设:" } else { "Presets:" }).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) }),
-        Space::new().width(theme::SP_XS), quick_test_btn("google.com"),
-        Space::new().width(theme::SP_XS), quick_test_btn("1.1.1.1"),
-        Space::new().width(theme::SP_XS), quick_test_btn("steamcommunity.com"),
-        Space::new().width(theme::SP_XS), quick_test_btn("netflix.com"),
-    ].align_y(Alignment::Center);
-
-    card(Some(title.to_string()), column![
-        row![
-            text_input("e.g. www.google.com, 1.1.1.1, netflix.com", &state.editor.rules_tracer_input).on_input(Message::UpdateRulesTracerInput).on_submit(Message::RunRulesTracer).padding([8, 12]).size(12).font(MONO).width(Length::Fill).style(form_input_style),
-            clear_btn, Space::new().width(theme::SP_SM), trace_btn,
-        ].align_y(Alignment::Center),
-        quick_presets, Space::new().height(theme::SP_XS), tracer_result_view,
-    ].spacing(theme::SP_SM))
+    crate::view::rules_tracer::inline_tracer_panel(state, lang)
 }
 
 fn add_rule_panel<'a>(state: &'a AppState, lang: &Lang<'_>, available_targets: Vec<String>) -> Element<'a, Message> {
@@ -378,7 +335,6 @@ fn add_rule_panel<'a>(state: &'a AppState, lang: &Lang<'_>, available_targets: V
 }
 
 fn rules_list_view<'a>(state: &'a AppState, lang: &Lang<'_>, available_targets: Vec<String>) -> Element<'a, Message> {
-    let is_zh = !lang.0.starts_with("en");
     let tracer_card = tracer_panel(state, lang);
     let add_rule_form = add_rule_panel(state, lang, available_targets);
     let hit_stats_map = compute_rule_hit_stats(state);
@@ -430,9 +386,9 @@ fn rules_list_view<'a>(state: &'a AppState, lang: &Lang<'_>, available_targets: 
                     Space::new().width(theme::SP_SM), badge(display_type, bkind), Space::new().width(theme::SP_MD),
                     column![
                         text(if item.payload.is_empty() {
-                            if item.rule_type.eq_ignore_ascii_case("MATCH") { if is_zh { "全量兜底匹配 (Match All)" } else { "Default Fallthrough (Match All)" } } else { "—" }
+                            if item.rule_type.eq_ignore_ascii_case("MATCH") { lang.tr("rule_match_all").to_string() } else { "—".to_string() }
                         } else {
-                            &item.payload
+                            item.payload.clone()
                         }).size(13).font(MONO).style(move |t: &Theme| text::Style {
                             color: Some(if is_enabled { tokens(t).text_primary } else { tokens(t).text_tertiary }),
                         }),
@@ -447,7 +403,7 @@ fn rules_list_view<'a>(state: &'a AppState, lang: &Lang<'_>, available_targets: 
                             Element::from(Space::new().width(0).height(0))
                         },
                     ].width(Length::Fill),
-                    hit_stats_badge(hit_stats, is_zh), Space::new().width(theme::SP_MD),
+                    hit_stats_badge(hit_stats, lang), Space::new().width(theme::SP_MD),
                     target_group_pill(target_label, is_enabled), Space::new().width(theme::SP_SM),
                     row![up_button, down_button].spacing(2).align_y(Alignment::Center),
                 ].align_y(Alignment::Center)).padding([theme::SP_SM, SP_MD]).width(Length::Fill).style(row_card_surface),
@@ -457,11 +413,14 @@ fn rules_list_view<'a>(state: &'a AppState, lang: &Lang<'_>, available_targets: 
 
     let pager = row![
         row![
-            text(if is_zh {
-                format!("显示第 {}-{} 条，共 {} 条规则", if total_count == 0 { 0 } else { start + 1 }, end, total_count)
-            } else {
-                format!("Showing {}-{} of {} rules", if total_count == 0 { 0 } else { start + 1 }, end, total_count)
-            }).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(infiltrator_shared::i18n_interpolator::interpolate(
+                &lang.tr("rule_rules_showing"),
+                &[
+                    ("start", &(if total_count == 0 { 0 } else { start + 1 }).to_string()),
+                    ("end", &end.to_string()),
+                    ("total", &total_count.to_string()),
+                ],
+            )).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
             Space::new().width(theme::SP_SM), kbd_badge(format!("{}/{}", current_page + 1, total_pages)),
         ].align_y(Alignment::Center),
         Space::new().width(Length::Fill),
@@ -472,6 +431,8 @@ fn rules_list_view<'a>(state: &'a AppState, lang: &Lang<'_>, available_targets: 
 
     column![
         tracer_card, Space::new().height(theme::SP_MD),
+        crate::view::rule_hit_card::rule_hit_card(state, lang), Space::new().height(theme::SP_MD),
+        crate::view::subrules_builder::subrules_panel(state, lang), Space::new().height(theme::SP_MD),
         add_rule_form, Space::new().height(theme::SP_MD),
         search_bar, Space::new().height(theme::SP_SM),
         pager, Space::new().height(theme::SP_SM),
@@ -479,14 +440,16 @@ fn rules_list_view<'a>(state: &'a AppState, lang: &Lang<'_>, available_targets: 
     ].spacing(theme::SP_SM).into()
 }
 
-fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let is_zh = !lang.0.starts_with("en");
+pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
+    let total_ext_rules = total_external_rules(&state.editor.rule_providers);
     let mut content = column![section_header(
         "Providers",
         Some(row![
             chip(format!("Proxy: {}", state.editor.proxy_providers.len())),
             Space::new().width(theme::SP_XS),
             chip(format!("Rule: {}", state.editor.rule_providers.len())),
+            Space::new().width(theme::SP_XS),
+            chip(format!("External Rules: {total_ext_rules}")),
             Space::new().width(theme::SP_SM),
             text_btn(
                 if state.editor.rules_providers_expanded { lang.tr("rules_collapse").to_string() } else { lang.tr("rules_expand").to_string() },
@@ -496,6 +459,7 @@ fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Messa
         ].align_y(Alignment::Center).into()),
     )].spacing(theme::SP_MD);
 
+    content = content.push(crate::view::provider_unpack_card::provider_unpack_card(state, lang));
     if state.editor.rules_providers_expanded {
         let mut proxy_list = column![].spacing(theme::SP_SM);
         if state.editor.proxy_providers.is_empty() {
@@ -533,18 +497,29 @@ fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Messa
                 provider_icon_chip(Icon::Globe, 18.0), Space::new().width(theme::SP_MD),
                 column![
                     text("geoip.metadb / geosite.dat / Country.mmdb").size(13).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
-                    text(if is_zh { "MetaCubeX 官方全量规则资源库" } else { "Official MetaCubeX Geo Data Assets" }).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+                    text(lang.tr("rule_repo_official").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
                 ].width(Length::Fill),
                 badge("MetaCubeX", BadgeKind::Accent), Space::new().width(theme::SP_XS), chip("db / dat"),
                 Space::new().width(theme::SP_SM), update_geo_btn,
             ].align_y(Alignment::Center)].spacing(theme::SP_SM),
         );
 
+        let rule_card_header = row![
+            text(lang.tr("rules_rule_providers").to_string()).size(14).font(FONT_SEMIBOLD).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+            Space::new().width(theme::SP_SM),
+            chip(format!("Total External Rules: {total_ext_rules}")),
+        ].align_y(Alignment::Center);
+
+        let rule_card = card(
+            None,
+            column![rule_card_header, rule_list].spacing(theme::SP_MD),
+        );
+
         content = content
             .push(column![
                 card(Some(lang.tr("rules_proxy_providers").to_string()), proxy_list),
                 Space::new().height(theme::SP_MD),
-                card(Some(lang.tr("rules_rule_providers").to_string()), rule_list),
+                rule_card,
             ].spacing(theme::SP_MD))
             .push(Space::new().height(theme::SP_MD))
             .push(geo_card);
@@ -642,16 +617,19 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         lang.tr("rules_tab_list").to_string(),
         lang.tr("rules_tab_providers").to_string(),
         lang.tr("rules_tab_json").to_string(),
+        lang.tr("rules_tab_tracer").to_string(),
     ];
     let tab_index = match state.editor.rules_tab {
         RulesTab::Providers => 1,
         RulesTab::JsonEditors => 2,
+        RulesTab::Tracer => 3,
         RulesTab::RulesList => 0,
     };
     let tabs = segmented_control(&tab_labels, tab_index, |index| {
         Message::SetRulesTab(match index {
             1 => RulesTab::Providers,
             2 => RulesTab::JsonEditors,
+            3 => RulesTab::Tracer,
             _ => RulesTab::RulesList,
         })
     });
@@ -678,6 +656,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         RulesTab::RulesList => rules_list_view(state, &lang, available_targets),
         RulesTab::Providers => providers_view(state, &lang),
         RulesTab::JsonEditors => json_editors_view(state, &lang),
+        RulesTab::Tracer => crate::view::rules_tracer::tracer_view(state, &lang),
     };
 
     column![header, Space::new().height(theme::SP_MD), tabs, Space::new().height(theme::SP_MD), tab_content].spacing(SP_LG).into()
@@ -755,5 +734,9 @@ mod tests {
             rule_count: 179,
         };
         let _rule_element = rule_provider_row(&rule_p, &lang);
+
+        assert_eq!(format_provider_behavior(&rule_p.behavior), "Domain");
+        assert_eq!(format_rule_provider_format(&rule_p), "HTTP");
+        assert_eq!(total_external_rules(&[rule_p]), 179);
     }
 }

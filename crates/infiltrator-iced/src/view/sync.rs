@@ -22,11 +22,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_primary),
             }),
-        text(if is_en {
-            "Manage remote WebDAV profile synchronization, backups, and conflict resolution."
-        } else {
-            "管理远端 WebDAV 配置同步、备份与冲突解决。"
-        })
+        text(lang.tr("sync_hero_desc").to_string())
         .size(12)
         .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_secondary),
@@ -46,7 +42,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let mut content = column![
         header,
         Space::new().height(theme::SP_MD),
-        section_header(if is_en { "Live Status" } else { "实时状态" }, None),
+        section_header(lang.tr("sync_live_status").as_ref(), None),
         status_card,
         Space::new().height(SP_LG),
     ]
@@ -59,6 +55,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     content = content
         .push(section_header(lang.tr("sync_settings").as_ref(), None))
         .push(settings_form)
+        .push(Space::new().height(SP_LG))
+        .push(encrypted_backup_card(state, &lang))
         .push(Space::new().height(SP_LG));
 
     modern_scrollable(content)
@@ -70,34 +68,26 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 fn build_status_card<'a>(
     state: &'a AppState,
     lang: &Lang<'_>,
-    is_en: bool,
+    _is_en: bool,
 ) -> Element<'a, Message> {
     let is_active = state.profile.is_syncing || state.profile.webdav_enabled;
 
     let (status_title, badge_text, badge_kind) = if state.profile.is_syncing {
         (
-            if is_en {
-                "Syncing in progress...".to_string()
-            } else {
-                "正在同步...".to_string()
-            },
-            if is_en { "SYNCING" } else { "同步中" },
+            lang.tr("sync_syncing").to_string(),
+            lang.tr("sync_status_syncing").to_string(),
             BadgeKind::Accent,
         )
     } else if state.profile.webdav_enabled {
         (
             lang.tr("sync_auto_enabled").to_string(),
-            if is_en { "ACTIVE" } else { "已启用" },
+            lang.tr("sync_enabled").to_string(),
             BadgeKind::Success,
         )
     } else {
         (
-            if is_en {
-                "WebDAV auto sync disabled".to_string()
-            } else {
-                "WebDAV 自动同步未开启".to_string()
-            },
-            if is_en { "DISABLED" } else { "未启用" },
+            lang.tr("sync_auto_disabled_desc").to_string(),
+            lang.tr("sync_disabled").to_string(),
             BadgeKind::Neutral,
         )
     };
@@ -139,11 +129,7 @@ fn build_status_card<'a>(
         .into()
     } else {
         let hint_text = if state.profile.webdav_sync_on_startup {
-            if is_en {
-                "Sync on startup enabled".to_string()
-            } else {
-                "启动时自动同步".to_string()
-            }
+            lang.tr("sync_autostart_sync").to_string()
         } else {
             lang.tr("sync_manual_only").to_string()
         };
@@ -187,7 +173,7 @@ fn build_status_card<'a>(
 fn build_conflicts_card<'a>(
     state: &'a AppState,
     lang: &Lang<'_>,
-    is_en: bool,
+    _is_en: bool,
 ) -> Option<Element<'a, Message>> {
     if state.profile.sync_conflicts.is_empty() {
         return None;
@@ -214,7 +200,7 @@ fn build_conflicts_card<'a>(
                             color: Some(tokens(t).text_primary),
                         }),
                     Space::new().width(theme::SP_SM),
-                    badge(if is_en { "CONFLICT" } else { "冲突" }, BadgeKind::Warning),
+                    badge(lang.tr("sync_conflict").to_string(), BadgeKind::Warning),
                 ]
                 .align_y(Alignment::Center),
                 text(conflict.remote_path.display().to_string())
@@ -286,25 +272,17 @@ fn build_conflicts_card<'a>(
 fn build_settings_form<'a>(
     state: &'a AppState,
     lang: &Lang<'_>,
-    is_en: bool,
+    _is_en: bool,
 ) -> Element<'a, Message> {
     let save_settings_btn: Element<'_, Message> = if state.profile.is_saving_app_settings {
         text_btn(
-            if is_en {
-                "Saving...".to_string()
-            } else {
-                "保存中...".to_string()
-            },
+            lang.tr("sync_saving").to_string(),
             style_ghost,
             None,
         )
     } else {
         text_btn(
-            if is_en {
-                "Save Settings".to_string()
-            } else {
-                "保存设置".to_string()
-            },
+            lang.tr("sync_save_btn").to_string(),
             style_accent,
             Some(Message::SaveAppSettings),
         )
@@ -312,11 +290,7 @@ fn build_settings_form<'a>(
 
     let cancel_sync_btn: Option<Element<'_, Message>> = if state.profile.is_syncing {
         Some(text_btn(
-            if is_en {
-                "Cancel Sync".to_string()
-            } else {
-                "取消同步".to_string()
-            },
+            lang.tr("sync_cancel_btn").to_string(),
             style_ghost,
             Some(Message::CancelWebDavSync),
         ))
@@ -326,17 +300,9 @@ fn build_settings_form<'a>(
 
     let test_connection_btn = text_btn(
         if state.profile.is_testing_webdav {
-            if is_en {
-                "Testing...".to_string()
-            } else {
-                "测试中...".to_string()
-            }
+            lang.tr("sync_testing").to_string()
         } else {
-            if is_en {
-                "Test Connection".to_string()
-            } else {
-                "测试连接".to_string()
-            }
+            lang.tr("sync_test_btn").to_string()
         },
         style_ghost,
         (!state.profile.is_syncing && !state.profile.is_testing_webdav)
@@ -398,15 +364,7 @@ fn build_settings_form<'a>(
     card(
         None,
         column![
-            form_toggle_row(
-                if is_en {
-                    "Enable WebDAV Auto Sync".to_string()
-                } else {
-                    "开启 WebDAV 自动同步".to_string()
-                },
-                state.profile.webdav_enabled,
-                Message::UpdateWebDavEnabled,
-            ),
+            form_toggle_row(lang.tr("sync_enable_auto").to_string(), state.profile.webdav_enabled, Message::UpdateWebDavEnabled),
             Space::new().height(theme::SP_MD),
             column![
                 form_field_label(lang.tr("sync_url").to_string()),
@@ -448,11 +406,7 @@ fn build_settings_form<'a>(
             Space::new().height(theme::SP_MD),
             row![
                 column![
-                    form_field_label(if is_en {
-                        "Sync Interval (mins)".to_string()
-                    } else {
-                        "自动同步间隔 (分钟)".to_string()
-                    }),
+                    form_field_label(lang.tr("sync_interval_mins").to_string()),
                     Space::new().height(theme::SP_XS),
                     text_input("60", &state.profile.webdav_sync_interval_mins)
                         .on_input(Message::UpdateWebDavSyncInterval)
@@ -465,21 +419,9 @@ fn build_settings_form<'a>(
                 .spacing(theme::SP_XS),
                 Space::new().width(theme::SP_LG),
                 column![
-                    form_field_label(if is_en {
-                        "Startup Behavior".to_string()
-                    } else {
-                        "启动行为".to_string()
-                    }),
+                    form_field_label(lang.tr("sync_startup_behavior").to_string()),
                     Space::new().height(theme::SP_XS),
-                    form_toggle_row(
-                        if is_en {
-                            "Sync on startup".to_string()
-                        } else {
-                            "启动时自动同步".to_string()
-                        },
-                        state.profile.webdav_sync_on_startup,
-                        Message::UpdateWebDavSyncOnStartup,
-                    ),
+                    form_toggle_row(lang.tr("sync_autostart_sync").to_string(), state.profile.webdav_sync_on_startup, Message::UpdateWebDavSyncOnStartup),
                 ]
                 .width(Length::FillPortion(1))
                 .spacing(theme::SP_XS),
@@ -551,4 +493,76 @@ mod tests {
 
         let _element: Element<'_, Message> = view(&state);
     }
+}
+
+fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
+    let enc = &state.profile.encrypted_backup;
+
+    let pass_input = text_input(
+        lang.tr("encpkg_pass_placeholder").as_ref(),
+        &enc.passphrase,
+    )
+    .on_input(Message::UpdateEncryptedBackupPassphrase)
+    .padding([8, 12])
+    .size(12)
+    .secure(true)
+    .font(MONO)
+    .width(Length::Fill)
+    .style(form_input_style);
+
+    let export_btn = button(
+        row![
+            svg_icons::icon_themed(Icon::FileText, 14.0, |t: &Theme| tokens(t).on_accent),
+            Space::new().width(theme::SP_SM),
+            text(lang.tr("encpkg_btn_export").to_string()).size(12).font(FONT_MEDIUM),
+        ]
+        .align_y(Alignment::Center)
+    )
+    .padding([8, 14])
+    .style(style_accent)
+    .on_press(Message::ExportEncryptedPackage);
+
+    let import_btn = button(
+        row![
+            svg_icons::icon_themed(Icon::RefreshCw, 14.0, |t: &Theme| tokens(t).text_secondary),
+            Space::new().width(theme::SP_SM),
+            text(lang.tr("encpkg_btn_import").to_string()).size(12).font(FONT_MEDIUM),
+        ]
+        .align_y(Alignment::Center)
+    )
+    .padding([8, 14])
+    .style(style_ghost)
+    .on_press(Message::ImportEncryptedPackage);
+
+    let feedback: Element<'_, Message> = if let Some(path) = &enc.last_exported_path {
+        container(
+            row![
+                svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
+                Space::new().width(theme::SP_XS),
+                text(format!("Exported: {path}")).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
+            ]
+            .align_y(Alignment::Center),
+        )
+        .into()
+    } else {
+        Element::from(Space::new().height(0))
+    };
+
+    card(
+        Some(lang.tr("encpkg_title").to_string()),
+        column![
+            text(lang.tr("encpkg_desc").to_string()).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            Space::new().height(theme::SP_XS),
+            row![
+                pass_input,
+                Space::new().width(theme::SP_SM),
+                export_btn,
+                Space::new().width(theme::SP_XS),
+                import_btn,
+            ]
+            .align_y(Alignment::Center),
+            feedback,
+        ]
+        .spacing(theme::SP_SM)
+    )
 }

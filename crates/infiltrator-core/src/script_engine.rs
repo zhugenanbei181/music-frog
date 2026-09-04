@@ -572,11 +572,10 @@ impl ScriptCircuitBreaker {
     }
 
     pub fn is_tripped(&self) -> bool {
-        if let Some(tripped_at) = self.tripped_at {
-            if tripped_at.elapsed() < self.cooldown {
+        if let Some(tripped_at) = self.tripped_at
+            && tripped_at.elapsed() < self.cooldown {
                 return true;
             }
-        }
         false
     }
 

@@ -24,7 +24,6 @@ impl std::fmt::Display for UnsupportedDesktopError {
 impl std::error::Error for UnsupportedDesktopError {}
 
 /// GNOME 桌面环境代理后端（基于 `gsettings`）。
-
 /// 检查 `gsettings` 是否在系统中可用。
 pub fn is_available() -> bool {
     Command::new("gsettings")

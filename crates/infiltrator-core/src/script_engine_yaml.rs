@@ -421,13 +421,12 @@ pub(super) fn rename_nodes_by_regex(
         .and_then(|v| v.as_sequence_mut())
     {
         for item in proxies_seq.iter_mut() {
-            if let Some(p_map) = item.as_mapping_mut() {
-                if let Some(old_name) = p_map
+            if let Some(p_map) = item.as_mapping_mut()
+                && let Some(old_name) = p_map
                     .get(&name_key)
                     .and_then(|v| v.as_str())
                     .map(ToString::to_string)
-                {
-                    if re.is_match(&old_name) {
+                    && re.is_match(&old_name) {
                         let new_name = re.replace_all(&old_name, replacement).to_string();
                         if new_name != old_name {
                             p_map.insert(name_key.clone(), Value::String(new_name.clone()));
@@ -435,8 +434,6 @@ pub(super) fn rename_nodes_by_regex(
                             renamed_count += 1;
                         }
                     }
-                }
-            }
         }
     }
 
@@ -448,11 +445,10 @@ pub(super) fn rename_nodes_by_regex(
                     let p_key = Value::String("proxies".to_string());
                     if let Some(p_seq) = g_map.get_mut(&p_key).and_then(|v| v.as_sequence_mut()) {
                         for p in p_seq.iter_mut() {
-                            if let Some(old_name) = p.as_str() {
-                                if let Some(new_name) = rename_map.get(old_name) {
+                            if let Some(old_name) = p.as_str()
+                                && let Some(new_name) = rename_map.get(old_name) {
                                     *p = Value::String(new_name.clone());
                                 }
-                            }
                         }
                     }
                 }

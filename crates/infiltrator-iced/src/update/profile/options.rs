@@ -28,7 +28,7 @@ impl AppState {
                 match pane {
                     EditorPane::Mixin => self.ensure_mixin_loaded(),
                     EditorPane::Filter => self.ensure_filter_loaded(),
-                    EditorPane::Profile => Task::none(),
+                    EditorPane::Profile | EditorPane::Script => Task::none(),
                 }
             }
             Message::MixinEditorAction(action) => {

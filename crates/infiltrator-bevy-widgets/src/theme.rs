@@ -139,21 +139,29 @@ impl Theme {
 
 /// Spacing scale (px), mirroring the iced spacing ladder.
 pub mod space {
+    pub const S2: f32 = 2.0;
     pub const S4: f32 = 4.0;
+    pub const S6: f32 = 6.0;
     pub const S8: f32 = 8.0;
     pub const S12: f32 = 12.0;
     pub const S16: f32 = 16.0;
+    pub const S20: f32 = 20.0;
+    pub const S24: f32 = 24.0;
+    pub const S32: f32 = 32.0;
 }
 
 /// Corner radius scale (px).
 pub mod radius {
     pub const CARD: f32 = 12.0;
     pub const CONTROL: f32 = 8.0;
+    pub const SHEET_TOP: f32 = 16.0;
 }
 
 /// Control metrics (px).
 pub mod metrics {
     pub const CONTROL_HEIGHT: f32 = 36.0;
+    pub const CONTROL_HEIGHT_COMPACT: f32 = 28.0;
+    pub const CONTROL_HEIGHT_COMFORTABLE: f32 = 36.0;
     /// Square of a checkbox, radio ring or slider thumb (px).
     pub const CONTROL_SQUARE: f32 = 18.0;
     /// Slider track thickness (px).
@@ -168,67 +176,134 @@ pub mod metrics {
 
 /// Responsive layout breakpoints (px).
 pub mod breakpoint {
-    /// Mobile compact breakpoint: <600px width (smartphones in portrait).
-    pub const MOBILE_PX: f32 = 600.0;
-    /// Tablet medium breakpoint: 600px - 1024px width (tablets, foldables).
-    pub const TABLET_PX: f32 = 1024.0;
+    /// Compact breakpoint boundary: < 600px width (smartphones portrait, narrow splits).
+    pub const COMPACT_MAX_PX: f32 = 600.0;
+    /// Medium breakpoint boundary: 600px <= width < 1024px (tablets, foldables, small desktop).
+    pub const MEDIUM_MAX_PX: f32 = 1024.0;
+    /// Expanded breakpoint boundary: 1024px <= width < 1440px (desktop, laptop standard).
+    pub const EXPANDED_MAX_PX: f32 = 1440.0;
+
+    /// Backwards-compatible alias for compact breakpoint boundary (600.0 px).
+    pub const MOBILE_PX: f32 = COMPACT_MAX_PX;
+    /// Backwards-compatible alias for medium breakpoint boundary (1024.0 px).
+    pub const TABLET_PX: f32 = MEDIUM_MAX_PX;
+    /// Backwards-compatible alias for expanded breakpoint boundary (1440.0 px).
+    pub const DESKTOP_PX: f32 = EXPANDED_MAX_PX;
 }
 
-/// Responsive layout breakpoint category.
+/// Standardized 4-tier responsive layout breakpoint category.
 #[derive(
     bevy::ecs::resource::Resource, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
 pub enum Breakpoint {
-    /// Mobile compact layout: width < 600px (smartphones in portrait).
-    Mobile,
-    /// Tablet medium layout: 600px <= width < 1024px (tablets, foldables, split screen).
-    Tablet,
-    /// Desktop expanded layout: width >= 1024px (desktop, widescreen).
+    /// Compact layout: width < 600px (smartphones portrait, split screen).
+    Compact,
+    /// Medium layout: 600px <= width < 1024px (tablets, foldables, compact desktop).
+    Medium,
+    /// Expanded layout: 1024px <= width < 1440px (standard desktop, laptop).
     #[default]
-    Desktop,
+    Expanded,
+    /// Ultra layout: width >= 1440px (ultrawide monitors, 2K/4K displays).
+    Ultra,
 }
 
 impl Breakpoint {
-    /// Mobile compact breakpoint boundary (600.0 px).
-    pub const MOBILE_PX: f32 = breakpoint::MOBILE_PX;
-    /// Tablet medium breakpoint boundary (1024.0 px).
-    pub const TABLET_PX: f32 = breakpoint::TABLET_PX;
+    /// Compact boundary: 600.0 px.
+    pub const COMPACT_MAX_PX: f32 = breakpoint::COMPACT_MAX_PX;
+    /// Medium boundary: 1024.0 px.
+    pub const MEDIUM_MAX_PX: f32 = breakpoint::MEDIUM_MAX_PX;
+    /// Expanded boundary: 1440.0 px.
+    pub const EXPANDED_MAX_PX: f32 = breakpoint::EXPANDED_MAX_PX;
 
-    /// Classify a window or viewport width in pixels into a [`Breakpoint`].
+    /// Backwards-compatible alias for mobile/compact boundary (600.0 px).
+    #[allow(non_upper_case_globals)]
+    pub const MOBILE: Breakpoint = Breakpoint::Compact;
+    #[allow(non_upper_case_globals)]
+    pub const DESKTOP: Breakpoint = Breakpoint::Expanded;
+    #[allow(non_upper_case_globals)]
+    pub const TABLET: Breakpoint = Breakpoint::Medium;
+    #[allow(non_upper_case_globals)]
+    pub const Mobile: Breakpoint = Breakpoint::Compact;
+    #[allow(non_upper_case_globals)]
+    pub const Desktop: Breakpoint = Breakpoint::Expanded;
+    #[allow(non_upper_case_globals)]
+    pub const Tablet: Breakpoint = Breakpoint::Medium;
+    pub const MOBILE_PX: f32 = breakpoint::MOBILE_PX;
+    /// Backwards-compatible alias for tablet/medium boundary (1024.0 px).
+    pub const TABLET_PX: f32 = breakpoint::TABLET_PX;
+    /// Backwards-compatible alias for desktop/expanded boundary (1440.0 px).
+    pub const DESKTOP_PX: f32 = breakpoint::DESKTOP_PX;
+
+    /// Classify a window or viewport width in pixels into a 4-tier [`Breakpoint`].
     pub fn from_width(width_px: f32) -> Self {
-        if width_px < Self::MOBILE_PX {
-            Breakpoint::Mobile
-        } else if width_px < Self::TABLET_PX {
-            Breakpoint::Tablet
+        if width_px < Self::COMPACT_MAX_PX {
+            Breakpoint::Compact
+        } else if width_px < Self::MEDIUM_MAX_PX {
+            Breakpoint::Medium
+        } else if width_px < Self::EXPANDED_MAX_PX {
+            Breakpoint::Expanded
         } else {
-            Breakpoint::Desktop
+            Breakpoint::Ultra
         }
     }
 
-    /// Whether this breakpoint represents mobile compact layout (<600px).
-    pub fn is_mobile(&self) -> bool {
-        matches!(self, Breakpoint::Mobile)
-    }
-
-    /// Whether this breakpoint represents tablet medium layout (600px..1024px).
-    pub fn is_tablet(&self) -> bool {
-        matches!(self, Breakpoint::Tablet)
-    }
-
-    /// Whether this breakpoint represents desktop expanded layout (>=1024px).
-    pub fn is_desktop(&self) -> bool {
-        matches!(self, Breakpoint::Desktop)
-    }
-
-    /// Whether this breakpoint triggers compact layout mode (sidebar collapsed into bottom nav).
+    /// Whether this breakpoint represents compact layout (<600px).
     pub fn is_compact(&self) -> bool {
-        self.is_mobile()
+        matches!(self, Breakpoint::Compact)
+    }
+
+    /// Whether this breakpoint represents medium layout (600px..1024px).
+    pub fn is_medium(&self) -> bool {
+        matches!(self, Breakpoint::Medium)
+    }
+
+    /// Whether this breakpoint represents expanded layout (1024px..1440px).
+    pub fn is_expanded(&self) -> bool {
+        matches!(self, Breakpoint::Expanded)
+    }
+
+    /// Whether this breakpoint represents ultra layout (>=1440px).
+    pub fn is_ultra(&self) -> bool {
+        matches!(self, Breakpoint::Ultra)
+    }
+
+    /// Backwards-compatible helper: whether this breakpoint represents mobile compact layout (<600px).
+    pub fn is_mobile(&self) -> bool {
+        self.is_compact()
+    }
+
+    /// Backwards-compatible helper: whether this breakpoint represents tablet medium layout (600px..1024px).
+    pub fn is_tablet(&self) -> bool {
+        self.is_medium()
+    }
+
+    /// Backwards-compatible helper: whether this breakpoint represents desktop layout (>=1024px).
+    pub fn is_desktop(&self) -> bool {
+        matches!(self, Breakpoint::Expanded | Breakpoint::Ultra)
     }
 
     /// Recommended sidebar width in pixels for this breakpoint.
-    /// Returns `None` for mobile compact mode (sidebar collapsed), and `Some(240.0)` for tablet/desktop.
+    /// Returns `None` for compact mode (sidebar collapsed into bottom nav),
+    /// `Some(72.0)` for medium (slim rail mode),
+    /// `Some(240.0)` for expanded (standard sidebar),
+    /// and `Some(280.0)` for ultra (wide sidebar).
     pub fn sidebar_width_px(&self) -> Option<f32> {
-        if self.is_mobile() { None } else { Some(240.0) }
+        match self {
+            Breakpoint::Compact => None,
+            Breakpoint::Medium => Some(72.0),
+            Breakpoint::Expanded => Some(240.0),
+            Breakpoint::Ultra => Some(280.0),
+        }
+    }
+
+    /// Default grid column count recommended for this breakpoint.
+    pub fn default_grid_columns(&self) -> usize {
+        match self {
+            Breakpoint::Compact => 1,
+            Breakpoint::Medium => 2,
+            Breakpoint::Expanded => 3,
+            Breakpoint::Ultra => 4,
+        }
     }
 }
 
@@ -244,10 +319,82 @@ pub mod timing {
 pub mod type_scale {
     /// One step above [`HEADING`]: the Overview banner's state word (the
     /// iced reference draws it larger than a panel title). Adding a rung
-    /// keeps the page titles at 20 — global relcales are off the table.
+    /// keeps the page titles at 20 — global rescales are off the table.
     pub const DISPLAY: f32 = 22.0;
     pub const HEADING: f32 = 20.0;
     pub const BODY: f32 = 15.0;
     pub const CAPTION: f32 = 12.0;
     pub const MONO: f32 = 13.0;
+}
+
+/// WCAG 2.1 relative luminance and color contrast ratio calculations.
+pub mod contrast {
+    use super::TokenColor;
+
+    /// Calculate linearized channel value per sRGB W3C formula.
+    fn linearize_channel(c: f32) -> f32 {
+        let c_norm = c.clamp(0.0, 1.0);
+        if c_norm <= 0.04045 {
+            c_norm / 12.92
+        } else {
+            ((c_norm + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    /// Compute relative luminance of a color per WCAG 2.1 specification [0.0..1.0].
+    pub fn relative_luminance(color: TokenColor) -> f32 {
+        let r = linearize_channel(color.r);
+        let g = linearize_channel(color.g);
+        let b = linearize_channel(color.b);
+        0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+
+    /// Compute contrast ratio between two colors [1.0..21.0].
+    pub fn contrast_ratio(c1: TokenColor, c2: TokenColor) -> f32 {
+        let l1 = relative_luminance(c1);
+        let l2 = relative_luminance(c2);
+        let lighter = l1.max(l2);
+        let darker = l1.min(l2);
+        (lighter + 0.05) / (darker + 0.05)
+    }
+
+    /// Check if contrast meets WCAG 2.1 AA level for standard text (>= 4.5:1).
+    pub fn is_wcag_aa(contrast: f32) -> bool {
+        contrast >= 4.5
+    }
+
+    /// Check if contrast meets WCAG 2.1 AAA enhanced accessibility level (>= 7.0:1).
+    pub fn is_wcag_aaa(contrast: f32) -> bool {
+        contrast >= 7.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_wcag_contrast_black_and_white() {
+        let black = TokenColor {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 1.0,
+        };
+        let white = TokenColor {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+            a: 1.0,
+        };
+
+        let ratio = contrast::contrast_ratio(white, black);
+        assert!((ratio - 21.0).abs() < 0.1);
+        assert!(contrast::is_wcag_aa(ratio));
+        assert!(contrast::is_wcag_aaa(ratio));
+
+        let same_ratio = contrast::contrast_ratio(white, white);
+        assert!((same_ratio - 1.0).abs() < 1e-4);
+        assert!(!contrast::is_wcag_aa(same_ratio));
+    }
 }

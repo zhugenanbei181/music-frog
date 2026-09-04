@@ -1,28 +1,15 @@
-//! 设置页的 Doctor 体检卡片：一键体检 / 一键修复 / 初始化引导，加状态
-//! 徽章（pass/warn/fail/skip）+ summary + hint 的检查项列表。
-//!
-//! 约束：纯渲染投影，只读 `diag.doctor`；文案走双语内联回退（locales.rs
-//! 不在本 wave 的文件所有权内）。
+//! Doctor diagnostics card: self-healing check / repair / bootstrap actions.
 
 use crate::state::AppState;
 use crate::types::doctor::{DoctorCheckResult, DoctorReport, DoctorStatus};
 use crate::types::message::Message;
 use crate::view::components::{BadgeKind, badge, card};
-use crate::view::theme::{self, FONT_MEDIUM};
-use iced::widget::{Space, button, column, row, text};
+use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD};
+use iced::widget::{Space, button, column, row, scrollable, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_shared::locales::Lang;
+use infiltrator_shared::locales::{Lang, Localizer};
 
-/// 双语标签：无 locale key 时的内联回退（与 overview.rs 的 stat_label 同型）。
-fn label(lang: &Lang<'_>, zh: &str, en: &str) -> String {
-    if lang.0.starts_with("en") {
-        en.to_string()
-    } else {
-        zh.to_string()
-    }
-}
-
-/// Doctor 检查状态 → 徽章配色。
+/// Doctor check status badge coloring.
 pub(crate) fn status_badge_kind(status: DoctorStatus) -> BadgeKind {
     match status {
         DoctorStatus::Pass => BadgeKind::Success,
@@ -32,7 +19,7 @@ pub(crate) fn status_badge_kind(status: DoctorStatus) -> BadgeKind {
     }
 }
 
-/// 徽章文本（大写缩写，与 "ACTIVE"/"ERROR" 徽章风格一致）。
+/// Status text badge.
 pub(crate) fn status_label(status: DoctorStatus) -> &'static str {
     match status {
         DoctorStatus::Pass => "PASS",
@@ -42,7 +29,7 @@ pub(crate) fn status_label(status: DoctorStatus) -> &'static str {
     }
 }
 
-/// 设置页挂载的体检卡片。
+/// Doctor section in settings / diagnostics.
 pub fn section(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let doctor = &state.diag.doctor;
@@ -51,7 +38,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
 
     let actions = row![
         button(
-            text(label(&lang, "一键体检", "Run check"))
+            text(lang.tr("doctor_btn_check").to_string())
                 .size(12)
                 .font(FONT_MEDIUM)
         )
@@ -60,7 +47,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
         .on_press_maybe((!doctor.is_running && !busy).then_some(Message::RunDoctor)),
         Space::new().width(theme::SP_SM),
         button(
-            text(label(&lang, "一键修复", "Fix"))
+            text(lang.tr("doctor_btn_fix").to_string())
                 .size(12)
                 .font(FONT_MEDIUM)
         )
@@ -69,7 +56,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
         .on_press_maybe((!doctor.is_fixing && !busy).then_some(Message::RunDoctorFix)),
         Space::new().width(theme::SP_SM),
         button(
-            text(label(&lang, "初始化引导", "Bootstrap"))
+            text(lang.tr("doctor_btn_bootstrap").to_string())
                 .size(12)
                 .font(FONT_MEDIUM),
         )
@@ -83,21 +70,13 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
     let mut body = column![].spacing(theme::SP_SM);
 
     if doctor.is_running {
-        body = body.push(secondary_text(label(
-            &lang,
-            "体检运行中…",
-            "Check run in progress…",
-        )));
+        body = body.push(secondary_text(lang.tr("doctor_running_check").to_string()));
     }
     if doctor.is_fixing {
-        body = body.push(secondary_text(label(&lang, "修复执行中…", "Fixing…")));
+        body = body.push(secondary_text(lang.tr("doctor_running_fix").to_string()));
     }
     if doctor.is_bootstrapping {
-        body = body.push(secondary_text(label(
-            &lang,
-            "初始化引导执行中…",
-            "Bootstrap in progress…",
-        )));
+        body = body.push(secondary_text(lang.tr("doctor_running_bootstrap").to_string()));
     }
     if let Some(error) = &doctor.error {
         body = body.push(error_text(error));
@@ -105,45 +84,47 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
 
     body = match &doctor.report {
         Some(report) => {
-            let mut body = body.push(summary_row(report));
+            let mut body = body.push(summary_row(report, &lang));
             for check in &report.checks {
                 body = body.push(check_row(check));
             }
             body
         }
-        None => body.push(secondary_text(label(
-            &lang,
-            "点击「一键体检」运行自检：目录、settings、内核、控制端口与 pid 文件。",
-            "Run the self-check to inspect directories, settings, cores, the controller port and the pid file.",
-        ))),
+        None => body.push(secondary_text(lang.tr("doctor_hint_desc").to_string())),
     };
 
-    card(
-        Some(label(&lang, "体检与修复", "Doctor")),
-        column![actions, body].spacing(theme::SP_MD),
-    )
+    let watchdog = crate::view::crash_watchdog_card::crash_watchdog_card(state, &lang);
+
+    column![
+        card(
+            Some(lang.tr("doctor_section_title").to_string()),
+            column![actions, body].spacing(theme::SP_MD),
+        ),
+        Space::new().height(theme::SP_MD),
+        watchdog,
+    ]
+    .spacing(theme::SP_SM)
+    .into()
 }
 
-/// pass/warn/fail/skip 计数徽章行。
-fn summary_row(report: &DoctorReport) -> Element<'static, Message> {
+fn summary_row(report: &DoctorReport, lang: &Lang<'_>) -> Element<'static, Message> {
     let counts = [
-        (DoctorStatus::Pass, "通过", "pass"),
-        (DoctorStatus::Warn, "警告", "warn"),
-        (DoctorStatus::Fail, "失败", "fail"),
-        (DoctorStatus::Skip, "跳过", "skip"),
+        (DoctorStatus::Pass, "doctor_status_pass"),
+        (DoctorStatus::Warn, "doctor_status_warn"),
+        (DoctorStatus::Fail, "doctor_status_fail"),
+        (DoctorStatus::Skip, "doctor_status_skip"),
     ];
     let mut summary = row![].spacing(theme::SP_SM);
-    for (status, zh, en) in counts {
+    for (status, key) in counts {
         let count = report.count_by_status(status);
         summary = summary.push(badge(
-            format!("{en} {zh} {count}"),
+            format!("{} {}", lang.tr(key), count),
             status_badge_kind(status),
         ));
     }
     summary.into()
 }
 
-/// 单条检查：状态徽章 + summary/detail + hint（可折叠进第二行小字）。
 fn check_row(check: &DoctorCheckResult) -> Element<'static, Message> {
     let mut lines = column![
         row![
@@ -220,5 +201,32 @@ fn error_text(value: &str) -> Element<'_, Message> {
         .style(|t: &Theme| text::Style {
             color: Some(theme::tokens(t).danger),
         })
+        .into()
+}
+
+/// Standalone full-page Doctor view.
+pub fn view(state: &AppState) -> Element<'_, Message> {
+    let lang = Lang(&state.shell.lang);
+    let title = row![
+        text(lang.tr("nav_doctor").to_string())
+            .size(24)
+            .font(FONT_SEMIBOLD)
+            .style(|t: &Theme| text::Style {
+                color: Some(theme::tokens(t).text_primary),
+            }),
+    ]
+    .align_y(Alignment::Center);
+
+    let content = column![
+        title,
+        Space::new().height(theme::SP_MD),
+        section(state),
+    ]
+    .spacing(theme::SP_MD)
+    .width(Length::Fill);
+
+    scrollable(content)
+        .width(Length::Fill)
+        .height(Length::Fill)
         .into()
 }

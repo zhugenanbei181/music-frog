@@ -115,3 +115,96 @@ impl UiPalette {
     /// the token modules directly for timing.
     pub const CARET_BLINK_SECS: f32 = timing::CARET_BLINK_SECS;
 }
+
+/// Calculate relative luminance of a color according to WCAG 2.1 standard.
+pub fn calculate_relative_luminance(color: Color) -> f32 {
+    let srgb = color.to_srgba();
+    let to_linear = |c: f32| -> f32 {
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+
+    let r = to_linear(srgb.red);
+    let g = to_linear(srgb.green);
+    let b = to_linear(srgb.blue);
+
+    0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+/// Calculate contrast ratio between background and foreground colors [1.0..21.0].
+pub fn calculate_contrast_ratio(bg: Color, fg: Color) -> f32 {
+    let l1 = calculate_relative_luminance(bg);
+    let l2 = calculate_relative_luminance(fg);
+    let lighter = l1.max(l2);
+    let darker = l1.min(l2);
+    (lighter + 0.05) / (darker + 0.05)
+}
+
+/// Check if color combination satisfies WCAG AA (4.5:1) standard for standard text.
+pub fn satisfies_wcag_aa(bg: Color, fg: Color) -> bool {
+    calculate_contrast_ratio(bg, fg) >= 4.5
+}
+
+/// A partial theme token patch for localized scoped overrides or emergency alert skins.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ThemeTokenPatch {
+    pub accent: Option<Color>,
+    pub surface: Option<Color>,
+    pub surface_elevated: Option<Color>,
+    pub danger: Option<Color>,
+    pub success: Option<Color>,
+    pub border: Option<Color>,
+}
+
+impl UiPalette {
+    /// Create a patched palette clone applying localized token overrides.
+    pub fn with_patch(&self, patch: &ThemeTokenPatch) -> Self {
+        let mut patched = *self;
+        if let Some(c) = patch.accent {
+            patched.accent = c;
+        }
+        if let Some(c) = patch.surface {
+            patched.surface = c;
+        }
+        if let Some(c) = patch.surface_elevated {
+            patched.surface_elevated = c;
+        }
+        if let Some(c) = patch.danger {
+            patched.danger = c;
+        }
+        if let Some(c) = patch.success {
+            patched.success = c;
+        }
+        if let Some(c) = patch.border {
+            patched.border = c;
+        }
+        patched
+    }
+}
+
+#[cfg(test)]
+mod patch_tests {
+    use super::*;
+
+    #[test]
+    fn test_palette_token_patch() {
+        let theme = Theme::dark();
+        let palette = UiPalette::new(&theme);
+
+        let override_accent = Color::srgb(1.0, 0.5, 0.0);
+        let patch = ThemeTokenPatch {
+            accent: Some(override_accent),
+            danger: None,
+            ..Default::default()
+        };
+
+        let patched = palette.with_patch(&patch);
+        assert_eq!(patched.accent, override_accent);
+        // Unpatched fields remain identical
+        assert_eq!(patched.surface, palette.surface);
+        assert_eq!(patched.danger, palette.danger);
+    }
+}

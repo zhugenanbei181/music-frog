@@ -24,11 +24,16 @@ use infiltrator_bevy_widgets::scrollarea::{
     FocusAvoidanceParams, FocusedTextInput, SoftKeyboardState, calculate_focus_avoidance_scroll,
 };
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::text_input::{
+use infiltrator_bevy_widgets::text_input::ime::{
     ImeCursorArea, ImeCursorAreaParams, PreeditClauseState, PreeditStateMachine, PreeditStatus,
-    TextField, TextFieldAfter, TextFieldCaret, TextFieldInput, TextFieldPreeditText,
-    TextFieldSelection, TextFieldSelectionText, TextFieldState, compute_ime_cursor_area,
-    estimate_text_width, field_visual, sync_field_carets, text_field_scene,
+    compute_ime_cursor_area, estimate_text_width,
+};
+use infiltrator_bevy_widgets::text_input::state::{
+    TextFieldInput, TextFieldState, ValidationStatus, field_visual, validation_border_color,
+};
+use infiltrator_bevy_widgets::text_input::{
+    TextField, TextFieldAfter, TextFieldCaret, TextFieldPreeditText, TextFieldSelection,
+    TextFieldSelectionText, sync_field_carets, text_field_scene,
 };
 use infiltrator_bevy_widgets::theme::{LightDark, Theme};
 
@@ -684,4 +689,70 @@ fn focus_avoidance_auto_scroll_ecs() {
     let world = app.world_mut();
     let mut query = world.query::<&bevy::ui::ScrollPosition>();
     assert_eq!(query.iter(world).count(), 1);
+}
+
+#[test]
+fn text_input_word_navigation_and_word_deletion() {
+    let mut state = TextFieldState::new("hello world test");
+    assert_eq!(state.cursor(), 16);
+
+    // WordLeft
+    assert!(state.apply(TextFieldInput::WordLeft(false)));
+    assert_eq!(state.cursor(), 12); // start of "test"
+    assert!(state.apply(TextFieldInput::WordLeft(false)));
+    assert_eq!(state.cursor(), 6); // start of "world"
+
+    // WordRight
+    assert!(state.apply(TextFieldInput::WordRight(false)));
+    assert_eq!(state.cursor(), 12); // after "world "
+
+    // BackspaceWord
+    assert!(state.apply(TextFieldInput::BackspaceWord));
+    assert_eq!(state.text(), "hello test");
+
+    // Clear
+    assert!(state.apply(TextFieldInput::Clear));
+    assert_eq!(state.text(), "");
+    assert_eq!(state.cursor(), 0);
+}
+
+#[test]
+fn text_input_masked_password_and_placeholder() {
+    let state = TextFieldState::new("mySecret123")
+        .with_placeholder("Enter password")
+        .with_masked(true);
+
+    assert!(!state.is_placeholder_visible());
+    let visual = field_visual(&state);
+    assert_eq!(visual.before, "•••••••••••");
+
+    let empty_state = TextFieldState::new("")
+        .with_placeholder("Enter password")
+        .with_masked(true);
+    assert!(empty_state.is_placeholder_visible());
+}
+
+#[test]
+fn text_input_validation_border_colors() {
+    let palette = UiPalette::new(&Theme::dark());
+    assert_eq!(
+        validation_border_color(ValidationStatus::Valid, false, &palette),
+        palette.success
+    );
+    assert_eq!(
+        validation_border_color(ValidationStatus::Warning, false, &palette),
+        palette.warning
+    );
+    assert_eq!(
+        validation_border_color(ValidationStatus::Error, false, &palette),
+        palette.danger
+    );
+    assert_eq!(
+        validation_border_color(ValidationStatus::Normal, true, &palette),
+        palette.accent
+    );
+    assert_eq!(
+        validation_border_color(ValidationStatus::Normal, false, &palette),
+        palette.border
+    );
 }
