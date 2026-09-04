@@ -40,7 +40,7 @@ Absent → Starting → Ready → Running
 - `Failed` 必须携带阶段、退出码或 controller 错误；不能降级成 `false` 或空快照。
 - 每次成功启动、停止、profile 切换或 core 版本切换都产生新的 `core_generation`。旧 generation 的 stream、延迟测试和写命令不得作用于新实例。
 
-当前代码在桌面和 Android 仍有固定等待/分散检查的路径。后续应以 controller readiness（至少包括版本查询和目标配置可读）取代固定 `sleep`，并让所有上层消费同一个生命周期结果。
+当前桌面/Android 主启动和 apply 路径已经由 `CoreApplication` 统一执行 readiness 重试；其余旧 use-case 仍有分散 controller 查询，迁移时继续收敛到同一个 application 结果流。
 
 ## 3. CoreApplication / CoreLifecyclePort 的目标形状
 

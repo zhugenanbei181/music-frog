@@ -1,10 +1,10 @@
 [workspace]
 resolver = "2"
-# 双路构建面：核心 + Iced 桌面产品线 + Bevy 统一产品线。
+# 双路构建面：runtime/application + Iced 桌面产品线 + Bevy 统一产品线。
 # - WebUI/Tauri 已退役（台账：docs/TAURI_WEBUI_RETIREMENT_LEDGER.md）。
 # - Iced 是当前主桌面 surface（winit/wgpu）。
 # - Bevy 是战略统一 surface（桌面 + 移动 + iOS 大一统）。
-# - 两个前端共享核心业务 crate，进程内直接调用。
+# - 两个前端共享 contract/application，具体 host/outbound adapter 由组合根注入。
 members = [
   "crates/mihomo-api",
   "crates/mihomo-config",

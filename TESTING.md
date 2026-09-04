@@ -8,9 +8,12 @@
 - **核心模块覆盖率**：各子模块均维护了与其职责相称的单元/集成测试。以
   `grep -rE '#\[(tokio::)?test' --include='*.rs' <crate>/src | wc -l` 实测为准：
 
-  | Crate | 测试数 |
+  | Crate | 测试数（当前 nextest 口径） |
   | :--- | ---: |
-  | infiltrator-core | 318 |
+  | infiltrator-core | 271 |
+  | infiltrator-domain | 47 |
+  | infiltrator-application | 10 |
+  | infiltrator-ios | 2 |
   | infiltrator-iced | 142 |
   | infiltrator-desktop | 112 |
   | mihomo-version | 87 |
@@ -24,7 +27,7 @@
   | mihomo-dav-sync (sync-engine 27 + dav-client 7 + state-store 7) | 41 |
   | infiltrator-http | 7 |
   | infiltrator-bevy-* (widgets 65 + ui 56, 独立工作区) | 121 |
-  | **全仓自动化测试总计** | **1233** |
+  | **全仓自动化测试总计** | **2015** |
 
 - **代码洁净度**：全工作空间必须保持 **0 编译警告** (`cargo check --workspace` 无任何输出)。
 - **测试可靠性**：环境敏感型测试必须在固定 4 个 nextest 测试进程并发下保持

@@ -10,6 +10,7 @@ axum = { workspace = true }
 chrono = { workspace = true }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
 infiltrator-core = { path = "../infiltrator-core" }
+infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-http = { path = "../infiltrator-http" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 log = { workspace = true }

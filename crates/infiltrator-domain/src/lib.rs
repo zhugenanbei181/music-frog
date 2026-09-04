@@ -6,6 +6,7 @@
 
 pub mod backoff_strategy;
 pub mod core_state;
+pub mod dns_tester;
 pub mod mtu_optimizer;
 pub mod packet_loss_tracker;
 pub mod rule_hit_counter;

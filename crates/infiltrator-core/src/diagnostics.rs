@@ -656,7 +656,13 @@ impl PrivacyLeakDetectionSuite {
         let proc_label = conn.process_path.as_deref().unwrap_or("unknown");
 
         // 1. Fake-IP Bypass check: connection to a Fake-IP address routed DIRECT
-        if is_direct && !conn.destination_ip.is_empty() && crate::dns_tester::DnsTester::check_fake_ip_range(&conn.destination_ip, &self.fake_ip_cidr) {
+        if is_direct
+            && !conn.destination_ip.is_empty()
+            && infiltrator_domain::dns_tester::DnsTester::check_fake_ip_range(
+                &conn.destination_ip,
+                &self.fake_ip_cidr,
+            )
+        {
             outcome.fake_ip_bypass = true;
             outcome.details.push(format!(
                 "Fake-IP Bypass: Connection '{}' to Fake-IP {} from '{}' was routed DIRECT instead of through proxy tunnel",
@@ -727,7 +733,14 @@ impl PrivacyLeakDetectionSuite {
         }
 
         // 4. Fake-IP Bypass in DNS log: domain resolved directly while answers are Fake-IP
-        if log.is_direct && log.resolved_ips.iter().any(|ip| crate::dns_tester::DnsTester::check_fake_ip_range(ip, &self.fake_ip_cidr)) {
+        if log.is_direct
+            && log.resolved_ips.iter().any(|ip| {
+                infiltrator_domain::dns_tester::DnsTester::check_fake_ip_range(
+                    ip,
+                    &self.fake_ip_cidr,
+                )
+            })
+        {
             outcome.fake_ip_bypass = true;
             outcome.details.push(format!(
                 "Fake-IP Bypass: Direct resolution log for '{}' returned Fake-IP answers {:?}",

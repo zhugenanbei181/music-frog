@@ -2,7 +2,7 @@
 
 use axum::Json;
 use chrono::Utc;
-use infiltrator_core::dns_tester::DnsTester;
+use infiltrator_domain::dns_tester::DnsTester;
 use std::collections::HashMap;
 
 use crate::admin_api::models::{

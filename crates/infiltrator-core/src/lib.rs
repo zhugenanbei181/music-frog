@@ -6,7 +6,6 @@ pub mod bootstrap;
 pub mod config;
 pub mod diagnostics;
 pub mod dns;
-pub mod dns_tester;
 pub mod dns_topology;
 pub mod doctor;
 pub mod error;
