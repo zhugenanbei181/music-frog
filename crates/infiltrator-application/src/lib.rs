@@ -7,3 +7,11 @@
 
 pub mod core_application;
 pub mod overview;
+
+/// Validate a logical routing rule without exposing the domain error type to
+/// a surface. The application owns the public error boundary; the pure AST
+/// parser remains in `infiltrator-domain`.
+pub fn validate_logical_rule_syntax(rule: &str) -> Result<(), String> {
+    infiltrator_domain::sub_rules::validate_logical_rule_syntax(rule)
+        .map_err(|error| error.to_string())
+}

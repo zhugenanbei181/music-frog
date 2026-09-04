@@ -6,5 +6,9 @@ publish = false
 description = "Runtime- and UI-independent domain state and algorithms for MusicFrog Infiltrator."
 
 [dependencies]
+anyhow = { workspace = true }
 serde = { workspace = true }
-
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }

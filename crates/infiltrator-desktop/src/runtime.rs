@@ -3,11 +3,11 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_core::apply::{
     ApplyOutcome, ApplyParams, ApplyStrategy, EndpointConfigReloader, apply_current_profile,
 };
-use infiltrator_core::session::ProfileEndpointSource;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::proxy::{manager::ProxyManager, types::ProxyGroup};
+use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_version::manager::VersionManager;

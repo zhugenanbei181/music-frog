@@ -28,7 +28,7 @@ impl Hash for RuntimeStreamInput {
 }
 
 /// Start the three controller streams as one declarative subscription. The
-/// identity is tied to the runtime Arc and CoreSession generation, so a
+/// identity is tied to the runtime Arc and CoreApplication generation, so a
 /// stopped/rebuilt core cancels all old receivers before a new one starts.
 pub(crate) fn runtime_streams_subscription(
     runtime: &Arc<MihomoRuntime>,

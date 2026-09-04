@@ -19,8 +19,8 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn rebuild_runtime(&self) -> anyhow::Result<()>;
     /// Restart the running core so config-level changes take effect, keeping
     /// the same runtime object. Defaults to a full [`Self::rebuild_runtime`];
-    /// hosts owning a live `infiltrator_core::session::CoreSession` override
-    /// this with a session restart (generation bump + readiness), which
+    /// hosts owning a live `infiltrator_application::CoreApplication` override
+    /// this with an application restart (generation bump + readiness), which
     /// skips the re-bootstrap entirely. Core *version* switches must keep
     /// using [`Self::rebuild_runtime`] since the binary path changes.
     async fn restart_core(&self) -> anyhow::Result<()> {

@@ -7,7 +7,7 @@ mihomo 是外部 Go 二进制，不是本仓库内的 Rust library。Rust 对它
 | 控制面 | 负责内容 | 当前实现 | 目标约束 |
 | --- | --- | --- | --- |
 | 生命周期面 | binary、config、data dir、PID、启动/停止、退出原因 | `mihomo-platform`、`infiltrator-desktop`、Android `MihomoHost.kt` | 每个平台一个 adapter；上层只看到 typed lifecycle |
-| Controller 面 | REST/WebSocket、secret、runtime snapshot、命令和流 | `mihomo-api::MihomoClient` / `MihomoApi` | 所有 UI 共享同一 API 语义；transport DTO 不泄漏成 UI 状态 |
+| Controller 面 | REST/WebSocket、secret、runtime snapshot、命令和流 | `mihomo-api::MihomoClient` / `infiltrator-ports::overview::OverviewReader` | 所有 UI 共享同一 API 语义；transport DTO 不泄漏成 UI 状态 |
 | 配置/版本面 | profile 文件、订阅、reload、core 下载/安装/切换 | `mihomo-config`、`infiltrator-core`、`mihomo-version` | 写入有事务、切换有回滚、版本和配置兼容有矩阵 |
 
 Rust 的目标调用链：
@@ -44,7 +44,7 @@ Absent → Starting → Ready → Running
 
 ## 3. CoreApplication / CoreLifecyclePort 的目标形状
 
-地基已于 0.30 先落在 `infiltrator-domain`、`infiltrator-ports` 和 `infiltrator-application`：`CoreLifecyclePort` 使用稳定的 `CoreLifecycle` 与 generation，配置 apply 事务已不再要求具体 `CoreSession`，Desktop/Android 已切换到 `CoreApplication`。旧 `CoreSession` 目前仍被桌面 retry bootstrap 和部分旧 use-case 使用，待其余 vertical slice 收敛后删除。
+地基已于 0.30 先落在 `infiltrator-domain`、`infiltrator-ports` 和 `infiltrator-application`：`CoreLifecyclePort` 使用稳定的 `CoreLifecycle` 与 generation，配置 apply 事务已不再要求具体 session，Desktop/Android 已切换到 `CoreApplication`。旧 session 实现已经删除，剩余是把各 use-case 从旧 core facade 移入 application。
 
 不要求立即创建同名 struct，但所有功能应逐步收敛到以下概念：
 

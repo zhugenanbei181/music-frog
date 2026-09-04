@@ -5,17 +5,21 @@
 use std::sync::{Arc, Mutex, OnceLock};
 
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::{
     ApplyError, ApplyParams, ApplyStrategy, EndpointConfigReloader, apply_current_profile,
 };
 use infiltrator_core::error::InfiltratorError;
-use infiltrator_core::session::{MihomoVersionProbe, ProfileEndpointSource, ReadinessProbe};
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::secure_store::SecureStore;
+use mihomo_api::client::MihomoClient;
+use mihomo_api::overview::ControllerOverviewReader;
+use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::android_bridge::get_android_bridge;
 use mihomo_platform::defaults::DefaultCredentialStore;
@@ -39,22 +43,24 @@ pub(super) struct SharedCore {
 
 /// Adapts the endpoint-aware readiness probe to the 0.30 application port.
 struct ApplicationReadiness {
-    endpoints: Arc<ProfileEndpointSource<DefaultCredentialStore>>,
-    probe: Arc<MihomoVersionProbe<DefaultCredentialStore>>,
+    endpoints: Arc<dyn EndpointSource>,
 }
 
 #[async_trait::async_trait]
 impl CoreReadiness for ApplicationReadiness {
     async fn probe(&self) -> Result<String, PortError> {
-        self.probe
-            .probe()
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))?;
-        self.endpoints
+        let endpoint = self
+            .endpoints
             .resolve()
             .await
-            .map(|endpoint| endpoint.url)
-            .map_err(|error| PortError::Network(error.to_string()))
+            .map_err(|error| PortError::Network(error.to_string()))?;
+        let client = MihomoClient::new(&endpoint.url, endpoint.secret)
+            .map_err(|error| PortError::Network(error.to_string()))?;
+        client
+            .get_version()
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))?;
+        Ok(endpoint.url)
     }
 }
 
@@ -131,25 +137,34 @@ pub(super) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
     // Init path only: the configs-dir redirect resolution (settings load)
     // stays off the hot path; a concurrent winner's manager is reused below.
     let config = Arc::new(build_config_manager().await?);
-    let mut guard = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    if let Some(core) = guard.as_ref() {
-        return Ok(Arc::clone(core));
-    }
     let endpoints = Arc::new(ProfileEndpointSource::new(Arc::clone(&config)));
-    let probe = Arc::new(MihomoVersionProbe::new(Arc::clone(&endpoints)));
+    let endpoint_source: Arc<dyn EndpointSource> = endpoints.clone();
     let process = platform_core_controller();
-    let application = CoreApplication::new(
+    let overview: Arc<dyn OverviewReader> = match endpoints.resolve().await {
+        Ok(endpoint) => match MihomoClient::new(&endpoint.url, endpoint.secret) {
+            Ok(client) => Arc::new(ControllerOverviewReader::new(client)),
+            Err(error) => Arc::new(UnavailableOverviewReader::new(PortError::Network(
+                error.to_string(),
+            ))),
+        },
+        Err(error) => Arc::new(UnavailableOverviewReader::new(error)),
+    };
+    let application = CoreApplication::new_with_overview(
         process,
         Arc::new(ApplicationReadiness {
-            endpoints: Arc::clone(&endpoints),
-            probe,
+            endpoints: endpoint_source.clone(),
         }),
+        overview,
     );
     let core = Arc::new(SharedCore {
         application,
         endpoints: endpoints as Arc<dyn EndpointSource>,
         config,
     });
+    let mut guard = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(existing) = guard.as_ref() {
+        return Ok(Arc::clone(existing));
+    }
     *guard = Some(Arc::clone(&core));
     Ok(core)
 }

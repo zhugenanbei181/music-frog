@@ -1,9 +1,9 @@
 //! Integration and unit tests for config apply transaction and YAML fidelity.
 
 use super::*;
-use crate::session::{CoreSession, CoreStatus, ReadinessProbe, SessionError};
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreProcess;
-use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -53,30 +53,115 @@ impl CoreProcess for MockController {
     }
 }
 
-struct MockProbe {
-    failures_left: AtomicU64,
+struct TestLifecycleState {
+    lifecycle: CoreLifecycle,
+    generation: u64,
 }
 
-#[async_trait]
-impl ReadinessProbe for MockProbe {
-    async fn probe(&self) -> Result<(), SessionError> {
-        if self.failures_left.load(Ordering::SeqCst) > 0 {
-            self.failures_left.fetch_sub(1, Ordering::SeqCst);
-            return Err(SessionError::Probe("not listening yet".into()));
+struct TestLifecycle {
+    controller: Arc<MockController>,
+    readiness_failures: AtomicU64,
+    state: Mutex<TestLifecycleState>,
+}
+
+impl TestLifecycle {
+    fn new(controller: Arc<MockController>, readiness_failures: u64) -> Self {
+        Self {
+            controller,
+            readiness_failures: AtomicU64::new(readiness_failures),
+            state: Mutex::new(TestLifecycleState {
+                lifecycle: CoreLifecycle::Stopped,
+                generation: 0,
+            }),
         }
-        Ok(())
+    }
+
+    fn status(&self) -> CoreLifecycle {
+        self.state.lock().expect("lifecycle lock").lifecycle.clone()
+    }
+
+    fn generation(&self) -> u64 {
+        self.state.lock().expect("lifecycle lock").generation
+    }
+
+    fn set_status(&self, lifecycle: CoreLifecycle) {
+        self.state.lock().expect("lifecycle lock").lifecycle = lifecycle;
     }
 }
 
-struct StaticEndpoints;
-
 #[async_trait]
-impl EndpointSource for StaticEndpoints {
-    async fn resolve(&self) -> Result<ControllerEndpoint, infiltrator_ports::error::PortError> {
-        Ok(ControllerEndpoint {
-            url: "http://127.0.0.1:9090".into(),
-            secret: None,
-        })
+impl CoreLifecyclePort for TestLifecycle {
+    fn lifecycle(&self) -> CoreLifecycle {
+        self.status()
+    }
+
+    fn generation(&self) -> u64 {
+        self.generation()
+    }
+
+    async fn start(&self) -> Result<u64, infiltrator_ports::error::PortError> {
+        let generation = {
+            let mut state = self.state.lock().expect("lifecycle lock");
+            state.generation += 1;
+            state.lifecycle = CoreLifecycle::Starting;
+            state.generation
+        };
+        CoreProcess::start(self.controller.as_ref()).await?;
+        Ok(generation)
+    }
+
+    async fn stop(&self) -> Result<(), infiltrator_ports::error::PortError> {
+        self.set_status(CoreLifecycle::Stopping);
+        if let Err(error) = CoreProcess::stop(self.controller.as_ref()).await {
+            self.set_status(CoreLifecycle::Failed);
+            return Err(error);
+        }
+        self.set_status(CoreLifecycle::Stopped);
+        Ok(())
+    }
+
+    async fn restart(&self) -> Result<u64, infiltrator_ports::error::PortError> {
+        if self.status() != CoreLifecycle::Stopped {
+            self.stop().await?;
+        }
+        self.start().await
+    }
+
+    async fn wait_for_ready(
+        &self,
+        generation: u64,
+        timeout: std::time::Duration,
+    ) -> Result<(), infiltrator_ports::error::PortError> {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            if self.generation() != generation {
+                return Err(infiltrator_ports::error::PortError::Failed(
+                    "stale test lifecycle generation".to_string(),
+                ));
+            }
+            if !matches!(
+                CoreProcess::status(self.controller.as_ref()).await?,
+                CoreLifecycle::Running | CoreLifecycle::Ready | CoreLifecycle::Starting
+            ) {
+                self.set_status(CoreLifecycle::Failed);
+                return Err(infiltrator_ports::error::PortError::Failed(
+                    "test core exited before readiness".to_string(),
+                ));
+            }
+            if self.readiness_failures.load(Ordering::SeqCst) > 0 {
+                self.readiness_failures.fetch_sub(1, Ordering::SeqCst);
+            } else {
+                self.set_status(CoreLifecycle::Ready);
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                self.set_status(CoreLifecycle::Failed);
+                return Err(infiltrator_ports::error::PortError::Network(
+                    "test readiness timed out".to_string(),
+                ));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
     }
 }
 
@@ -144,7 +229,7 @@ impl SecureStore for MockStore {
 
 struct Fixture {
     _dir: tempfile::TempDir,
-    session: CoreSession,
+    session: TestLifecycle,
     config: ConfigManager<MockStore>,
     controller: Arc<MockController>,
     reloader: MockReloader,
@@ -170,13 +255,7 @@ async fn fixture(probe_failures: u64, reload_fails: bool) -> Fixture {
         running: AtomicBool::new(false),
         fail_starts_left: AtomicU64::new(0),
     });
-    let session = CoreSession::new(
-        controller.clone(),
-        Arc::new(StaticEndpoints),
-        Arc::new(MockProbe {
-            failures_left: AtomicU64::new(probe_failures),
-        }),
-    );
+    let session = TestLifecycle::new(controller.clone(), probe_failures);
     Fixture {
         _dir: dir,
         session,
@@ -226,7 +305,7 @@ async fn hot_reload_success_keeps_generation_and_updates_file() {
     assert_eq!(outcome.method, ApplyMethod::HotReload);
     assert_eq!(outcome.generation, generation);
     assert_eq!(file_content(&f.config).await, NEW);
-    assert_eq!(f.session.status(), CoreStatus::Ready);
+    assert_eq!(f.session.status(), CoreLifecycle::Ready);
     assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 1);
 }
 
@@ -278,7 +357,7 @@ async fn restart_failure_rolls_back_and_recovers() {
 
     assert!(matches!(err, ApplyError::RolledBack { .. }));
     assert_eq!(file_content(&f.config).await, OLD);
-    assert_eq!(f.session.status(), CoreStatus::Ready);
+    assert_eq!(f.session.status(), CoreLifecycle::Ready);
 }
 
 #[tokio::test]
@@ -297,7 +376,7 @@ async fn stopped_core_starts_with_new_config_without_reload() {
 
     assert_eq!(outcome.method, ApplyMethod::Restart);
     assert_eq!(file_content(&f.config).await, NEW);
-    assert_eq!(f.session.status(), CoreStatus::Ready);
+    assert_eq!(f.session.status(), CoreLifecycle::Ready);
     assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 0);
 }
 

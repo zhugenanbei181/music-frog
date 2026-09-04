@@ -154,8 +154,7 @@ impl AppState {
                     format!("{rule_type},{payload},{target}")
                 };
                 if matches!(rule_type.as_str(), "AND" | "OR" | "NOT" | "SUB-RULE")
-                    && let Err(error) =
-                        infiltrator_core::sub_rules::validate_logical_rule_syntax(&rule)
+                    && let Err(error) = infiltrator_application::validate_logical_rule_syntax(&rule)
                 {
                     return Task::done(Message::ShowToast(
                         format!("Invalid logical rule: {error}"),

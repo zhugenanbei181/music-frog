@@ -5120,7 +5120,12 @@ dependencies = [
 name = "infiltrator-domain"
 version = "0.30.0"
 dependencies = [
+ "anyhow",
  "serde",
+ "serde_json",
+ "serde_yaml_ng",
+ "sha2 0.11.0",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -5146,6 +5151,7 @@ dependencies = [
  "iced_runtime",
  "image",
  "infiltrator-admin",
+ "infiltrator-application",
  "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-desktop",

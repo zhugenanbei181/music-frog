@@ -8,10 +8,13 @@
 
 - [x] `release/0.20` 已冻结为提交 `9c187b2`，并从该点创建 `codex/0.30`。
 - [x] `infiltrator-domain`：提取生命周期状态机，依赖树无 Tokio。
+- [x] 纯算法 `vector_clock`、`sub_rules`、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。
+- [x] `EndpointSource`/`ControllerEndpoint` 已移入 ports；profile endpoint adapter 已归位 `mihomo-config::endpoint`。
 - [x] application actor/facade 第一批生命周期与 Overview seam：single-flight、adopt、bounded contract events、模式回读和运行态快照。
 - [x] `CoreLifecyclePort` 已成为 apply transaction 的生命周期输入；桌面 runtime 与 Android apply 已切到 `CoreApplication`。
+- [x] 旧 `infiltrator-core::session` 与未接线的 `session_adapter` 已删除；retry bootstrap 也走 `CoreApplication`。
 - [x] Bevy Overview 已改为消费 application snapshot；UI crate 不再直连 `mihomo-api`、Reqwest 或 Tokio。
 - [x] Desktop/Android 已把 Core process、secure store、data-dir 和 readiness 组合到 host adapter 端口。
 - [ ] application actor/facade 覆盖全部 use-case，并统一前端命令与领域快照通道。
@@ -32,7 +35,7 @@
 ### 0.30 破坏性重整线
 
 - 从 0.20 基线创建 `codex/0.30` 开发线。
-- 可以删除 `CoreSession::client()` 这类直接暴露底层 client 的 API，可以替换 channel、错误类型、store trait 和模块路径。
+- 可以删除旧 runtime/client 这类直接暴露底层实现的 API，可以替换 channel、错误类型、store trait 和模块路径。
 - 所有调用方在 0.30 同批次迁移；不增加仅为保留旧路径的 re-export 或长期兼容 facade。
 
 ## 2. 目标分层
@@ -119,7 +122,7 @@ Android host adapter / VpnService
 1. **Freeze**：提交当前 0.20 工作树，创建并切换 0.30 开发线。
 2. **Contract**：定义 `Command`、`CommandResult`、`CoreSnapshot`、`CoreEvent`、`Capability`、稳定错误码和 revision/generation。
 3. **Ports**：把平台、凭据、文件、时钟、Mihomo 控制能力改为端口；底层 adapter 实现端口。
-4. **Application**：将 `CoreSession`、配置应用事务和 scheduler 收敛到一个 application service/actor；Tokio 仅留在该层及 adapter。
+4. **Application**：将生命周期、配置应用事务和 scheduler 收敛到一个 application service/actor；Tokio 仅留在该层及 adapter。
 5. **Domain**：抽出不依赖 IO 的状态机、规则、配置变换、订阅解析、节点 URI 编解码和诊断计算。
 6. **Inbound adapters**：Admin、CLI、Iced、Bevy、Android FFI 统一调用 application facade；删除页面直接访问 `MihomoClient`/`ConfigManager` 的路径。
 7. **Host split**：将 Desktop、Android、iOS 宿主实现按端口接入；Android crate 内部至少分离 host 与 FFI。

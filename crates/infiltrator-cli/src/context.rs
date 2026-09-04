@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use infiltrator_core::session::ProfileEndpointSource;
 use infiltrator_core::settings::{AppSettings, load_settings, save_settings, settings_path};
 use infiltrator_ports::endpoint::EndpointSource as _;
 use mihomo_api::client::MihomoClient;
+use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
@@ -69,7 +69,7 @@ impl Runtime {
     }
 
     /// Controller API client for the current profile. Endpoint URL and secret
-    /// resolution reuse `infiltrator_core::session::ProfileEndpointSource`,
+    /// resolution reuse `mihomo_config::endpoint::ProfileEndpointSource`,
     /// the same construction path every frontend takes.
     pub async fn api_client(&self) -> anyhow::Result<MihomoClient> {
         let source = ProfileEndpointSource::new(Arc::new(self.config_manager()?));

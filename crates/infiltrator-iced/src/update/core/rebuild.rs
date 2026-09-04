@@ -31,7 +31,7 @@ impl AppState {
     pub(super) fn finish_without_rebuild(&mut self, label: String) -> Task<Message> {
         if let Some(runtime) = self.runtime.runtime.clone() {
             // A successful AlwaysRestart apply keeps the same Arc but moves
-            // the CoreSession to a new generation. Refresh the app/admin
+            // the CoreApplication to a new generation. Refresh the app/admin
             // snapshot before the stream subscription accepts new events.
             self.sync_runtime_slot(Some(runtime));
         }

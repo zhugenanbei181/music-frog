@@ -3,7 +3,7 @@
 //! [`apply_current_profile`] replaces the content of the *current* profile
 //! and makes the running core pick it up as one all-or-nothing step:
 //! validate → temp write → atomic replace → hot-reload or restart via
-//! [`CoreSession`] → readiness health check → rollback to the previous
+//! [`CoreLifecyclePort`] → readiness health check → rollback to the previous
 //! content on failure. A failed apply must never leave the core without a
 //! usable configuration and must never strand the caller in a half-updated
 //! state (the bug this transaction exists to fix: switching profiles used to
@@ -26,7 +26,6 @@ use mihomo_config::manager::ConfigManager;
 use tokio::io::AsyncWriteExt;
 use yaml_rust2::{Yaml, YamlLoader};
 
-use crate::session::READINESS_TIMEOUT;
 use crate::yaml_edit::SourceDoc;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
@@ -43,6 +42,8 @@ pub enum ApplyStrategy {
     /// apply reliably (TUN device, DNS stack, listeners).
     AlwaysRestart,
 }
+
+const DEFAULT_RESTART_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Tunables for [`apply_current_profile`].
 #[derive(Clone, Copy, Debug)]
@@ -64,7 +65,7 @@ impl Default for ApplyParams {
         Self {
             strategy: ApplyStrategy::PreferReload,
             health_timeout: Duration::from_secs(5),
-            restart_timeout: READINESS_TIMEOUT,
+            restart_timeout: DEFAULT_RESTART_TIMEOUT,
             snapshot_history: true,
         }
     }

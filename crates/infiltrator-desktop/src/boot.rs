@@ -3,14 +3,14 @@
 //! rebuild 等端口释放 5s").
 //!
 //! [`MihomoRuntime::bootstrap`] is a single shot: once it spawns the core it
-//! never returns a handle on failure, and [`CoreSession`] deliberately has no
+//! never returns a handle on failure, and the application deliberately has no
 //! `Drop`-stop — a readiness timeout would leave an unmanaged mihomo holding
 //! the controller port and poisoning every later attempt. So the retry loop
 //! cannot just call `bootstrap` repeatedly.
 //!
 //! Instead every *attempt* is a self-orchestrated probe that mirrors
 //! `runtime.rs` line by line using public APIs only (ConfigManager ensure_*,
-//! ServiceManager, CoreSession, wait_for_ready) and **owns its process**: on
+//! ServiceManager, CoreApplication, readiness) and **owns its process**: on
 //! failure the session is stopped explicitly under a timeout. Once an attempt
 //! proves the core startable and ready, `materialize` runs the real
 //! `MihomoRuntime::bootstrap`, which attaches to the now-running core (fast
@@ -34,10 +34,10 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_core::session::ProfileEndpointSource;
 use infiltrator_core::settings::app_config_manager;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
+use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::port::is_port_available;
 use mihomo_version::manager::VersionManager;
 
