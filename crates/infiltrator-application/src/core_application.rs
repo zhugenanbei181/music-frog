@@ -1,7 +1,9 @@
+use futures_util::lock::Mutex as AsyncMutex;
 use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreEvent, CoreLifecycle, CoreSnapshot};
 use infiltrator_domain::core_state::{CoreEvent as DomainEvent, CoreState, CoreStateMachine};
+use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::overview::OverviewReader;
@@ -41,8 +43,9 @@ struct Inner {
     readiness: Arc<dyn CoreReadiness>,
     overview: Option<Arc<dyn OverviewReader>>,
     readiness_policy: ReadinessPolicy,
+    runtime: Arc<dyn ApplicationRuntime>,
     dispatch_tx: std::sync::mpsc::SyncSender<DispatchedCommand>,
-    operation: tokio::sync::Mutex<()>,
+    operation: AsyncMutex<()>,
     state: RwLock<StateMirror>,
     next_request_id: AtomicU64,
     events: Mutex<VecDeque<CoreEvent>>,
@@ -65,8 +68,18 @@ pub struct CoreApplication {
 }
 
 impl CoreApplication {
-    pub fn new(process: Arc<dyn CoreProcess>, readiness: Arc<dyn CoreReadiness>) -> Self {
-        Self::build(process, readiness, None, ReadinessPolicy::default())
+    pub fn new(
+        process: Arc<dyn CoreProcess>,
+        readiness: Arc<dyn CoreReadiness>,
+        runtime: Arc<dyn ApplicationRuntime>,
+    ) -> Self {
+        Self::build(
+            process,
+            readiness,
+            None,
+            ReadinessPolicy::default(),
+            runtime,
+        )
     }
 
     /// Construct a lifecycle-only application with an explicit readiness
@@ -76,8 +89,9 @@ impl CoreApplication {
         process: Arc<dyn CoreProcess>,
         readiness: Arc<dyn CoreReadiness>,
         readiness_policy: ReadinessPolicy,
+        runtime: Arc<dyn ApplicationRuntime>,
     ) -> Self {
-        Self::build(process, readiness, None, readiness_policy)
+        Self::build(process, readiness, None, readiness_policy, runtime)
     }
 
     /// Construct the application with the optional Overview port wired in.
@@ -88,12 +102,14 @@ impl CoreApplication {
         process: Arc<dyn CoreProcess>,
         readiness: Arc<dyn CoreReadiness>,
         overview: Arc<dyn OverviewReader>,
+        runtime: Arc<dyn ApplicationRuntime>,
     ) -> Self {
         Self::build(
             process,
             readiness,
             Some(overview),
             ReadinessPolicy::default(),
+            runtime,
         )
     }
 
@@ -104,8 +120,15 @@ impl CoreApplication {
         readiness: Arc<dyn CoreReadiness>,
         overview: Arc<dyn OverviewReader>,
         readiness_policy: ReadinessPolicy,
+        runtime: Arc<dyn ApplicationRuntime>,
     ) -> Self {
-        Self::build(process, readiness, Some(overview), readiness_policy)
+        Self::build(
+            process,
+            readiness,
+            Some(overview),
+            readiness_policy,
+            runtime,
+        )
     }
 
     fn build(
@@ -113,6 +136,7 @@ impl CoreApplication {
         readiness: Arc<dyn CoreReadiness>,
         overview: Option<Arc<dyn OverviewReader>>,
         readiness_policy: ReadinessPolicy,
+        runtime: Arc<dyn ApplicationRuntime>,
     ) -> Self {
         let (dispatch_tx, dispatch_rx) = std::sync::mpsc::sync_channel(DISPATCH_CAPACITY);
         let inner = Arc::new(Inner {
@@ -120,8 +144,9 @@ impl CoreApplication {
             readiness,
             overview,
             readiness_policy,
+            runtime: Arc::clone(&runtime),
             dispatch_tx,
-            operation: tokio::sync::Mutex::new(()),
+            operation: AsyncMutex::new(()),
             state: RwLock::new(StateMirror {
                 state: CoreState::Idle { generation: 0 },
                 revision: 0,
@@ -129,7 +154,7 @@ impl CoreApplication {
             next_request_id: AtomicU64::new(1),
             events: Mutex::new(VecDeque::with_capacity(EVENT_CAPACITY)),
         });
-        spawn_dispatch_worker(Arc::downgrade(&inner), dispatch_rx);
+        spawn_dispatch_worker(Arc::downgrade(&inner), dispatch_rx, runtime);
         Self { inner }
     }
 
@@ -387,7 +412,7 @@ impl CoreApplication {
         &self,
         timeout: std::time::Duration,
     ) -> Result<String, infiltrator_ports::error::PortError> {
-        let deadline = tokio::time::Instant::now() + timeout;
+        let deadline = std::time::Instant::now() + timeout;
         loop {
             match self.inner.process.status().await {
                 Ok(CoreLifecycle::Starting)
@@ -406,10 +431,13 @@ impl CoreApplication {
                 Err(error) => error,
             };
 
-            if tokio::time::Instant::now() >= deadline {
+            if std::time::Instant::now() >= deadline {
                 return Err(probe_error);
             }
-            tokio::time::sleep(self.inner.readiness_policy.poll_interval).await;
+            self.inner
+                .runtime
+                .sleep(self.inner.readiness_policy.poll_interval)
+                .await;
         }
     }
 }
@@ -474,42 +502,24 @@ impl CoreLifecyclePort for CoreApplication {
     }
 }
 
-fn spawn_dispatch_worker(inner: std::sync::Weak<Inner>, dispatch_rx: Receiver<DispatchedCommand>) {
+fn spawn_dispatch_worker(
+    inner: std::sync::Weak<Inner>,
+    dispatch_rx: Receiver<DispatchedCommand>,
+    runtime: Arc<dyn ApplicationRuntime>,
+) {
     let _ = std::thread::Builder::new()
         .name("infiltrator-application".to_owned())
         .spawn(move || {
-            let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-            else {
-                while let Ok(command) = dispatch_rx.recv() {
-                    let Some(inner) = inner.upgrade() else {
-                        return;
-                    };
-                    let application = CoreApplication { inner };
-                    application.push_event(CoreEvent::CommandFailed {
-                        request_id: command.request_id,
-                        kind: command.intent.kind(),
-                        failure: Failure::new(
-                            ErrorCode::Internal,
-                            "application runtime initialization failed",
-                            true,
-                        ),
-                    });
-                }
-                return;
-            };
-
             while let Ok(command) = dispatch_rx.recv() {
                 let Some(inner) = inner.upgrade() else {
                     return;
                 };
                 let application = CoreApplication { inner };
-                runtime.block_on(async {
+                runtime.block_on(Box::pin(async move {
                     let _ = application
                         .execute_with_id(command.request_id, command.intent)
                         .await;
-                });
+                }));
             }
         });
 }
@@ -592,6 +602,9 @@ fn snapshot_from_state(state: &CoreState, revision: u64) -> CoreSnapshot {
 mod tests {
     use super::*;
     use infiltrator_contract::command::{CommandResult, ProxyMode};
+    use infiltrator_ports::application_runtime::{
+        ApplicationFuture, ApplicationRuntime, ApplicationSleep,
+    };
     use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::overview::{OverviewReader, OverviewSample};
@@ -654,6 +667,26 @@ mod tests {
         mode: Result<ProxyMode, PortError>,
     }
 
+    struct TestRuntime;
+
+    impl ApplicationRuntime for TestRuntime {
+        fn block_on(&self, future: ApplicationFuture) {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("test runtime")
+                .block_on(future);
+        }
+
+        fn sleep(&self, duration: std::time::Duration) -> ApplicationSleep<'_> {
+            Box::pin(tokio::time::sleep(duration))
+        }
+    }
+
+    fn runtime() -> Arc<dyn ApplicationRuntime> {
+        Arc::new(TestRuntime)
+    }
+
     #[async_trait::async_trait]
     impl OverviewReader for FakeOverview {
         async fn sample(&self) -> Result<OverviewSample, PortError> {
@@ -677,6 +710,7 @@ mod tests {
                 timeout: std::time::Duration::from_millis(100),
                 poll_interval: std::time::Duration::from_millis(1),
             },
+            runtime(),
         )
     }
 
@@ -831,6 +865,7 @@ mod tests {
             Arc::new(FakeOverview {
                 mode: Ok(ProxyMode::Global),
             }),
+            runtime(),
         );
 
         let result = app

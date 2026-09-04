@@ -2,7 +2,7 @@
 
 本项目的 UI 不是多份产品逻辑。Iced 是当前成熟主桌面 surface（Tauri + Vue 已退役，台账见 [TAURI_WEBUI_RETIREMENT_LEDGER.md](TAURI_WEBUI_RETIREMENT_LEDGER.md)），Bevy UI 是跨平台统一战略 surface（桌面 + 移动 + iOS 大一统，章程见 [BEVY_UI_FRONTEND.md](BEVY_UI_FRONTEND.md)），Android Compose 是原生移动伴侣。三者共享用户意图和 Rust 结果，不共享 toolkit 的状态和布局实现。
 
-从 0.30 起，三类前端都通过 `infiltrator-application` 的 contract 接入；Tokio 可以存在于 application/runtime 内部，但不能通过 `MihomoClient`、Reqwest 类型或 Tokio channel 进入前端契约。Desktop、Android、iOS 是与 UI 正交的同级 host adapter，负责各自的进程、VPN、权限和系统能力。
+从 0.30 起，三类前端都通过 `infiltrator-application` 的 contract 接入；application 通过 `ApplicationRuntime` port 工作，Tokio 只在 composition/outbound/host adapter 实现，不能通过 `MihomoClient`、Reqwest 类型或 Tokio channel 进入前端契约。Desktop、Android、iOS 是与 UI 正交的同级 host adapter，负责各自的进程、VPN、权限和系统能力。
 
 > **双端同步战略演进说明（2026-09-03 升级）**：
 > 依据最高主控台账 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md)，Iced 与 Bevy UI 正式确立为**对等双主干 Surface**。二者彻底告别“先后跟随”模式，在**功能完备度**与**UI/UX 表现**上步调一致、严格同步演进。双端全面对标 Clash Verge Rev、Mihomo Party、Flclash、Surge 的最完善功能并集。

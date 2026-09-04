@@ -7,12 +7,12 @@ use std::sync::{Arc, Mutex, OnceLock};
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_core::apply::{
     ApplyError, ApplyParams, EndpointConfigReloader, apply_current_profile,
 };
-use infiltrator_contract::error::InfiltratorError;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::error::PortError;
@@ -156,6 +156,8 @@ pub(super) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
             endpoints: endpoint_source.clone(),
         }),
         overview,
+        infiltrator_composition::tokio_application_runtime()
+            .map_err(|error| FfiStatus::err(FfiErrorCode::Unknown, error))?,
     );
     let core = Arc::new(SharedCore {
         application,

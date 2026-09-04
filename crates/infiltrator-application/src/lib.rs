@@ -8,6 +8,27 @@
 pub mod core_application;
 pub mod overview;
 
+use infiltrator_ports::application_runtime::ApplicationRuntime;
+use std::future::Future;
+
+/// Drive a typed future through the host-provided runtime without putting a
+/// result type into the runtime port. This is used by application workers
+/// that run on a dedicated thread and need to synchronously observe an
+/// async-port result before publishing a snapshot.
+pub(crate) fn run_on_runtime<T, F>(runtime: &dyn ApplicationRuntime, future: F) -> T
+where
+    T: Send + 'static,
+    F: Future<Output = T> + Send + 'static,
+{
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    runtime.block_on(Box::pin(async move {
+        let _ = sender.send(future.await);
+    }));
+    receiver
+        .recv()
+        .expect("application runtime dropped a completed future")
+}
+
 /// Validate a logical routing rule without exposing the domain error type to
 /// a surface. The application owns the public error boundary; the pure AST
 /// parser remains in `infiltrator-domain`.

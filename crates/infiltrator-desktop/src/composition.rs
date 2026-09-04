@@ -20,9 +20,12 @@ pub fn core_application(
 ) -> anyhow::Result<CoreApplication> {
     let controller_url = controller_url.into();
     let client = MihomoClient::new(&controller_url, secret.clone())?;
+    let runtime = infiltrator_composition::tokio_application_runtime()
+        .map_err(|error| anyhow::anyhow!(error))?;
     Ok(CoreApplication::new_with_overview(
         service.core_process(),
         std::sync::Arc::new(ControllerReadiness::new(controller_url, secret)),
         std::sync::Arc::new(ControllerOverviewReader::new(client)),
+        runtime,
     ))
 }

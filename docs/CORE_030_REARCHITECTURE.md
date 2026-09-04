@@ -26,6 +26,7 @@
 - [x] controller 的连接、流量、内存、provider 与 proxy schema 已由 domain 持有；`mihomo-api` 只负责 wire decode 和 adapter conversion，前端消息不再引用 `mihomo_api::types` 或 `mihomo_api::proxy::types`。
 - [x] Backup bundle 的加密、ZIP/JSON 编解码、digest 和快照剪枝已移入 `infiltrator-domain::backup`；本地 settings/profile 文件收集与恢复留在 `infiltrator-core::backup_io`。
 - [x] `RuntimeGateway` 已拆成 ports 的 transport-neutral controller seam；Iced 与 Admin production code 不再直接依赖 `MihomoClient`，desktop/Mihomo API 只在 outbound/host adapter 与测试组合根出现。
+- [x] application 的 dispatch、串行锁和 readiness delay 已改为 `ApplicationRuntime` port；Tokio 实现只在 composition root，`infiltrator-application` production code 不再直接依赖 Tokio。
 - [x] `ProfileStore` 已成为配置持久化 port；Iced profile/config flows 不再持有 `ConfigManager`，`mihomo-config` 负责把 keyring、TOML 和文件 CRUD 转换为 domain values。
 - [x] Iced runtime handle 已收敛为 `HostRuntime` trait object；desktop 的具体 `MihomoRuntime` 只在 boot composition 中构造，UI 仅消费 gateway、generation、apply 与 typed host capability。
 - [x] `InfiltratorError` 已移入 `infiltrator-contract`；Mihomo/IO 适配通过显式边界转换，不再从 core 暴露 transport error 类型。
@@ -60,7 +61,7 @@ Iced / Bevy / Compose / Admin REST / CLI
                     │
        infiltrator-application
        （use-case、actor、生命周期、事务）
-          Tokio 可以是私有实现
+          只依赖 ports；executor 由宿主注入
                     │
        ┌────────────┴────────────┐
        │                         │
@@ -98,7 +99,7 @@ Iced / Bevy / Compose / Admin REST / CLI
 “业务与前端无关”不要求整个产品 Core 没有异步运行时，要求运行时不成为领域和跨端契约的一部分。
 
 - `infiltrator-domain`、`infiltrator-contract` 禁止依赖 Tokio、Reqwest、Bevy、Iced、Compose、操作系统 API 和文件系统实现。
-- `infiltrator-application` 可以使用 Tokio，但只在私有实现中使用；公开 API 不返回 `tokio::sync::*`、`JoinHandle`、`Runtime`、`reqwest::Response` 或 `MihomoClient`。
+- `infiltrator-application` 的公开 API 可以是 `async fn`，但 production crate 不直接依赖 Tokio；串行执行与延迟通过 `ApplicationRuntime` port 注入。Tokio 只允许出现在 composition/outbound/host adapter，公开 API 不返回 `tokio::sync::*`、`JoinHandle`、`Runtime`、`reqwest::Response` 或 `MihomoClient`。
 - async API 可以公开 `async fn`；Bevy 和 UniFFI 优先使用 `dispatch`、`snapshot`、`poll_events` 这类 message-based seam。
 - 进程内只允许一个 Core actor/runtime。Iced、Bevy、Android Kotlin coroutine 都是调用边界，不各自再拥有一套 Core 事实。
 - Bevy ECS 是渲染与投影调度器，不是长耗时网络、进程和同步任务的底层 executor。
@@ -135,7 +136,7 @@ Android host adapter / VpnService
 1. **Freeze**：提交当前 0.20 工作树，创建并切换 0.30 开发线。
 2. **Contract**：定义 `Command`、`CommandResult`、`CoreSnapshot`、`CoreEvent`、`Capability`、稳定错误码和 revision/generation。
 3. **Ports**：把平台、凭据、文件、时钟、Mihomo 控制能力改为端口；底层 adapter 实现端口。
-4. **Application**：将生命周期、配置应用事务和 scheduler 收敛到一个 application service/actor；Tokio 仅留在该层及 adapter。
+4. **Application**：将生命周期、配置应用事务和 scheduler 收敛到一个 application service/actor；application 只持有 runtime port，Tokio 仅由 composition/outbound/host adapter 实现。
 5. **Domain**：抽出不依赖 IO 的状态机、规则、配置变换、订阅解析、节点 URI 编解码和诊断计算。
 6. **Inbound adapters**：Admin、CLI、Iced、Bevy、Android FFI 统一调用 application facade；删除页面直接访问 `MihomoClient`/`ConfigManager` 的路径。
 7. **Host split**：将 Desktop、Android、iOS 宿主实现按端口接入；Android crate 内部至少分离 host 与 FFI。

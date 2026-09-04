@@ -4957,6 +4957,7 @@ dependencies = [
  "chrono",
  "dav-client",
  "infiltrator-application",
+ "infiltrator-composition",
  "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-domain",
@@ -4984,6 +4985,7 @@ name = "infiltrator-application"
 version = "0.30.0"
 dependencies = [
  "async-trait",
+ "futures-util",
  "infiltrator-contract",
  "infiltrator-domain",
  "infiltrator-ports",
@@ -5049,6 +5051,7 @@ dependencies = [
  "infiltrator-ios",
  "infiltrator-ports",
  "mihomo-api",
+ "tokio",
 ]
 
 [[package]]
@@ -5104,6 +5107,7 @@ dependencies = [
  "async-trait",
  "futures-util",
  "infiltrator-application",
+ "infiltrator-composition",
  "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-domain",

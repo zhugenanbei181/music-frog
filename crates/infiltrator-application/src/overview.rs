@@ -8,6 +8,7 @@
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
 use std::sync::mpsc::{Receiver, Sender, SyncSender, TrySendError, sync_channel};
@@ -74,7 +75,11 @@ impl OverviewPumpBridge {
 
 impl OverviewPump {
     /// Spawn an application worker over an arbitrary OverviewReader port.
-    pub fn spawn(reader: Arc<dyn OverviewReader>, sample_interval: Duration) -> Self {
+    pub fn spawn(
+        reader: Arc<dyn OverviewReader>,
+        sample_interval: Duration,
+        runtime: Arc<dyn ApplicationRuntime>,
+    ) -> Self {
         let (snapshot_tx, snapshot_rx) = sync_channel(SNAPSHOT_CAPACITY);
         let snapshot_rx = Arc::new(Mutex::new(snapshot_rx));
         let (command_tx, command_rx) = std::sync::mpsc::channel();
@@ -90,6 +95,7 @@ impl OverviewPump {
             pump_loop(
                 reader,
                 sample_interval,
+                runtime,
                 command_rx,
                 snapshot_tx,
                 snapshot_rx,
@@ -176,18 +182,12 @@ fn initial_snapshot() -> CoreSnapshot {
 fn pump_loop(
     reader: Arc<dyn OverviewReader>,
     sample_interval: Duration,
+    runtime: Arc<dyn ApplicationRuntime>,
     command_rx: Receiver<OverviewCommand>,
     snapshot_tx: SyncSender<CoreSnapshot>,
     snapshot_rx: Arc<Mutex<Receiver<CoreSnapshot>>>,
     last: Arc<Mutex<CoreSnapshot>>,
 ) {
-    let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    else {
-        return;
-    };
-
     let mut previous_totals: Option<(u64, u64, Instant)> = None;
     let mut mode: Option<ProxyMode> = None;
     let mut version: Option<String> = None;
@@ -200,7 +200,10 @@ fn pump_loop(
                 mode: wanted,
                 responder,
             }) => {
-                let result = runtime.block_on(reader.set_mode(wanted));
+                let reader_for_call = Arc::clone(&reader);
+                let result = crate::run_on_runtime(runtime.as_ref(), async move {
+                    reader_for_call.set_mode(wanted).await
+                });
                 if let Ok(actual) = result.as_ref() {
                     mode = Some(*actual);
                 }
@@ -210,52 +213,57 @@ fn pump_loop(
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
         }
 
-        let snapshot = match runtime.block_on(reader.sample()) {
-            Ok(sample) => {
-                mode = sample.mode.or(mode);
-                version = sample.core_version.or(version);
-                memory_bytes = sample.memory_bytes.or(memory_bytes);
-                let now = Instant::now();
-                let (upload_bps, download_bps) = rates_from_totals(
-                    previous_totals,
-                    sample.upload_total,
-                    sample.download_total,
-                    now,
-                );
-                previous_totals = Some((sample.upload_total, sample.download_total, now));
-                revision = revision.saturating_add(1);
-                CoreSnapshot {
-                    lifecycle: sample.lifecycle,
-                    generation: 1,
-                    revision,
-                    proxy_mode: mode,
-                    core_version: version.clone(),
-                    sampled_at_epoch_ms: sample.sampled_at_epoch_ms,
-                    failure: None,
-                    upload_bps,
-                    download_bps,
-                    active_connections: sample.active_connections,
-                    memory_bytes,
+        let reader_for_call = Arc::clone(&reader);
+        let snapshot =
+            match crate::run_on_runtime(
+                runtime.as_ref(),
+                async move { reader_for_call.sample().await },
+            ) {
+                Ok(sample) => {
+                    mode = sample.mode.or(mode);
+                    version = sample.core_version.or(version);
+                    memory_bytes = sample.memory_bytes.or(memory_bytes);
+                    let now = Instant::now();
+                    let (upload_bps, download_bps) = rates_from_totals(
+                        previous_totals,
+                        sample.upload_total,
+                        sample.download_total,
+                        now,
+                    );
+                    previous_totals = Some((sample.upload_total, sample.download_total, now));
+                    revision = revision.saturating_add(1);
+                    CoreSnapshot {
+                        lifecycle: sample.lifecycle,
+                        generation: 1,
+                        revision,
+                        proxy_mode: mode,
+                        core_version: version.clone(),
+                        sampled_at_epoch_ms: sample.sampled_at_epoch_ms,
+                        failure: None,
+                        upload_bps,
+                        download_bps,
+                        active_connections: sample.active_connections,
+                        memory_bytes,
+                    }
                 }
-            }
-            Err(error) => {
-                previous_totals = None;
-                revision = revision.saturating_add(1);
-                CoreSnapshot {
-                    lifecycle: CoreLifecycle::Failed,
-                    generation: 1,
-                    revision,
-                    proxy_mode: mode,
-                    core_version: version.clone(),
-                    sampled_at_epoch_ms: None,
-                    failure: Some(Failure::from(error)),
-                    upload_bps: 0.0,
-                    download_bps: 0.0,
-                    active_connections: 0,
-                    memory_bytes,
+                Err(error) => {
+                    previous_totals = None;
+                    revision = revision.saturating_add(1);
+                    CoreSnapshot {
+                        lifecycle: CoreLifecycle::Failed,
+                        generation: 1,
+                        revision,
+                        proxy_mode: mode,
+                        core_version: version.clone(),
+                        sampled_at_epoch_ms: None,
+                        failure: Some(Failure::from(error)),
+                        upload_bps: 0.0,
+                        download_bps: 0.0,
+                        active_connections: 0,
+                        memory_bytes,
+                    }
                 }
-            }
-        };
+            };
 
         *last.lock().expect("overview mirror lock") = snapshot.clone();
         match snapshot_tx.try_send(snapshot) {

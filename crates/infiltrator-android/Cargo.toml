@@ -14,6 +14,7 @@ path = "uniffi-bindgen.rs"
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 infiltrator-application = { path = "../infiltrator-application" }
+infiltrator-composition = { path = "../infiltrator-composition" }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }

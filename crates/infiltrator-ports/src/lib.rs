@@ -4,6 +4,7 @@
 //! contain no Tokio channels, task handles, HTTP response types, or UI types.
 
 pub mod capability_provider;
+pub mod application_runtime;
 pub mod core_lifecycle;
 pub mod core_process;
 pub mod data_dir;

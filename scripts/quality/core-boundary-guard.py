@@ -70,6 +70,7 @@ FORBIDDEN_DIRECT = {
         "infiltrator-ios",
     },
     "infiltrator-application": {
+        "tokio",
         "reqwest",
         "bevy",
         "iced",

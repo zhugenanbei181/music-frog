@@ -8,6 +8,9 @@
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::overview::{OverviewConfig, OverviewPump, UnavailableOverviewReader};
 use infiltrator_ios::{IosBridge, IosHostAdapter};
+use infiltrator_ports::application_runtime::{
+    ApplicationFuture, ApplicationRuntime, ApplicationSleep,
+};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::OverviewReader;
 use mihomo_api::client::MihomoClient;
@@ -15,8 +18,41 @@ use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::readiness::ControllerReadiness;
 use std::sync::Arc;
 
+/// Tokio-backed implementation of the runtime capability required by the
+/// application layer. Tokio is deliberately constructed here, at a
+/// composition root, rather than in `infiltrator-application`.
+pub struct TokioApplicationRuntime {
+    runtime: tokio::runtime::Runtime,
+}
+
+impl TokioApplicationRuntime {
+    pub fn new() -> Result<Self, String> {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map(|runtime| Self { runtime })
+            .map_err(|error| error.to_string())
+    }
+}
+
+impl ApplicationRuntime for TokioApplicationRuntime {
+    fn block_on(&self, future: ApplicationFuture) {
+        self.runtime.block_on(future);
+    }
+
+    fn sleep(&self, duration: std::time::Duration) -> ApplicationSleep<'_> {
+        Box::pin(tokio::time::sleep(duration))
+    }
+}
+
+pub fn tokio_application_runtime() -> Result<Arc<dyn ApplicationRuntime>, String> {
+    Ok(Arc::new(TokioApplicationRuntime::new()?))
+}
+
 /// Build the standard Mihomo-backed Overview pump for a product composition.
 pub fn spawn_mihomo_overview(config: OverviewConfig) -> OverviewPump {
+    let runtime =
+        tokio_application_runtime().expect("Tokio application runtime must be constructible");
     let reader: Arc<dyn OverviewReader> =
         match mihomo_api::client::MihomoClient::new(&config.endpoint, config.secret.clone()) {
             Ok(client) => Arc::new(mihomo_api::overview::ControllerOverviewReader::new(client)),
@@ -24,7 +60,7 @@ pub fn spawn_mihomo_overview(config: OverviewConfig) -> OverviewPump {
                 error.to_string(),
             ))),
         };
-    OverviewPump::spawn(reader, config.sample_interval)
+    OverviewPump::spawn(reader, config.sample_interval, runtime)
 }
 
 /// Assemble the shared application for an iOS host. The native bridge is the
@@ -41,9 +77,11 @@ where
     let controller_url = controller_url.into();
     let client =
         MihomoClient::new(&controller_url, secret.clone()).map_err(|error| error.to_string())?;
+    let runtime = tokio_application_runtime()?;
     Ok(CoreApplication::new_with_overview(
         std::sync::Arc::new(IosHostAdapter::new(bridge)),
         std::sync::Arc::new(ControllerReadiness::new(controller_url, secret)),
         std::sync::Arc::new(ControllerOverviewReader::new(client)),
+        runtime,
     ))
 }

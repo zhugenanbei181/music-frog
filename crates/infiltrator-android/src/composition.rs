@@ -35,5 +35,7 @@ where
             error.to_string(),
         ))),
     };
-    CoreApplication::new_with_overview(process, readiness, reader)
+    let runtime = infiltrator_composition::tokio_application_runtime()
+        .expect("Tokio application runtime must be constructible");
+    CoreApplication::new_with_overview(process, readiness, reader, runtime)
 }

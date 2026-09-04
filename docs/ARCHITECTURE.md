@@ -47,10 +47,10 @@ and sync          (REST / WebSocket)
 
 ### 异步与调度模型（0.30 重整决策）
 
-- Tokio 继续是 native workspace 的唯一异步执行器，但它只属于 application/runtime 和具体 outbound/host adapter；不进入纯领域层和跨端 contract。
+- Tokio 不是业务层契约：`infiltrator-application` 只依赖 `ApplicationRuntime` port，具体 Tokio 实现由 composition root 注入；outbound/host adapter 可以继续使用 Tokio。
 - `async fn` 本身不是前端耦合；真正禁止的是公开 `tokio::sync::*`、`JoinHandle`、`Runtime`、Reqwest 类型和 `MihomoClient`。
 - Bevy ECS 不是控制面的底层 executor。长耗时 controller、进程、下载和同步任务由 application/host 的 Core actor/runtime 管理，Bevy 只接收有界 snapshot/event 投影。
-- 0.30 的 scheduler 属于 application/runtime；它可以继续使用 Tokio，但不能成为 domain API 的一部分。
+- 0.30 的 scheduler 属于 application/runtime；它可以由 Tokio composition 驱动，但不能把 Tokio 类型带入 domain、contract 或 application API。
 
 ## 2. 分层与当前 crate 归属
 
