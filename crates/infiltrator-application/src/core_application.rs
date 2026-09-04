@@ -6,9 +6,11 @@ use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::overview::OverviewReader;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, RwLock};
 
 const EVENT_CAPACITY: usize = 256;
+const DISPATCH_CAPACITY: usize = 256;
 
 struct StateMirror {
     state: CoreState,
@@ -19,10 +21,16 @@ struct Inner {
     process: Arc<dyn CoreProcess>,
     readiness: Arc<dyn CoreReadiness>,
     overview: Option<Arc<dyn OverviewReader>>,
+    dispatch_tx: std::sync::mpsc::SyncSender<DispatchedCommand>,
     operation: tokio::sync::Mutex<()>,
     state: RwLock<StateMirror>,
     next_request_id: AtomicU64,
     events: Mutex<VecDeque<CoreEvent>>,
+}
+
+struct DispatchedCommand {
+    request_id: RequestId,
+    intent: CommandIntent,
 }
 
 /// The single application owner of Core lifecycle operations.
@@ -58,20 +66,22 @@ impl CoreApplication {
         readiness: Arc<dyn CoreReadiness>,
         overview: Option<Arc<dyn OverviewReader>>,
     ) -> Self {
-        Self {
-            inner: Arc::new(Inner {
-                process,
-                readiness,
-                overview,
-                operation: tokio::sync::Mutex::new(()),
-                state: RwLock::new(StateMirror {
-                    state: CoreState::Idle { generation: 0 },
-                    revision: 0,
-                }),
-                next_request_id: AtomicU64::new(1),
-                events: Mutex::new(VecDeque::with_capacity(EVENT_CAPACITY)),
+        let (dispatch_tx, dispatch_rx) = std::sync::mpsc::sync_channel(DISPATCH_CAPACITY);
+        let inner = Arc::new(Inner {
+            process,
+            readiness,
+            overview,
+            dispatch_tx,
+            operation: tokio::sync::Mutex::new(()),
+            state: RwLock::new(StateMirror {
+                state: CoreState::Idle { generation: 0 },
+                revision: 0,
             }),
-        }
+            next_request_id: AtomicU64::new(1),
+            events: Mutex::new(VecDeque::with_capacity(EVENT_CAPACITY)),
+        });
+        spawn_dispatch_worker(Arc::downgrade(&inner), dispatch_rx);
+        Self { inner }
     }
 
     /// Execute a command and await its terminal result. The returned values
@@ -81,44 +91,41 @@ impl CoreApplication {
         self.execute_with_id(request_id, intent).await
     }
 
-    /// Schedule a command on the application's private executor and return
-    /// only its correlation id. Completion/failure is observed through
-    /// [`Self::drain_events`]. If the caller already runs inside Tokio, the
-    /// task is attached to that runtime; otherwise the application creates a
-    /// current-thread runtime on a detached worker thread. The caller
-    /// therefore never needs to own or name an executor.
+    /// Schedule a command on the application's single private executor and
+    /// return only its correlation id. Completion/failure is observed through
+    /// [`Self::drain_events`]. The caller never needs to own or name Tokio;
+    /// every dispatched command is serialized by the same worker.
     pub fn dispatch(&self, intent: CommandIntent) -> RequestId {
         let request_id = self.allocate_request_id();
-        let application = self.clone();
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            std::mem::drop(handle.spawn(async move {
-                let _ = application.execute_with_id(request_id, intent).await;
-            }));
-        } else {
-            let fallback = application.clone();
-            let kind = intent.kind();
-            let _ = std::thread::Builder::new()
-                .name("infiltrator-application".to_owned())
-                .spawn(move || {
-                    let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build()
-                    else {
-                        fallback.push_event(CoreEvent::CommandFailed {
-                            request_id,
-                            kind,
-                            failure: Failure::new(
-                                ErrorCode::Internal,
-                                "application runtime initialization failed",
-                                true,
-                            ),
-                        });
-                        return;
-                    };
-                    runtime.block_on(async move {
-                        let _ = fallback.execute_with_id(request_id, intent).await;
-                    });
+        let kind = intent.kind();
+        match self
+            .inner
+            .dispatch_tx
+            .try_send(DispatchedCommand { request_id, intent })
+        {
+            Ok(()) => {}
+            Err(std::sync::mpsc::TrySendError::Full(_)) => {
+                self.push_event(CoreEvent::CommandFailed {
+                    request_id,
+                    kind,
+                    failure: Failure::new(
+                        ErrorCode::Internal,
+                        "application command queue is full",
+                        true,
+                    ),
                 });
+            }
+            Err(std::sync::mpsc::TrySendError::Disconnected(_)) => {
+                self.push_event(CoreEvent::CommandFailed {
+                    request_id,
+                    kind,
+                    failure: Failure::new(
+                        ErrorCode::Internal,
+                        "application worker is no longer available",
+                        true,
+                    ),
+                });
+            }
         }
         request_id
     }
@@ -315,6 +322,46 @@ impl CoreApplication {
         }
         events.push_back(event);
     }
+}
+
+fn spawn_dispatch_worker(inner: std::sync::Weak<Inner>, dispatch_rx: Receiver<DispatchedCommand>) {
+    let _ = std::thread::Builder::new()
+        .name("infiltrator-application".to_owned())
+        .spawn(move || {
+            let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            else {
+                while let Ok(command) = dispatch_rx.recv() {
+                    let Some(inner) = inner.upgrade() else {
+                        return;
+                    };
+                    let application = CoreApplication { inner };
+                    application.push_event(CoreEvent::CommandFailed {
+                        request_id: command.request_id,
+                        kind: command.intent.kind(),
+                        failure: Failure::new(
+                            ErrorCode::Internal,
+                            "application runtime initialization failed",
+                            true,
+                        ),
+                    });
+                }
+                return;
+            };
+
+            while let Ok(command) = dispatch_rx.recv() {
+                let Some(inner) = inner.upgrade() else {
+                    return;
+                };
+                let application = CoreApplication { inner };
+                runtime.block_on(async {
+                    let _ = application
+                        .execute_with_id(command.request_id, command.intent)
+                        .await;
+                });
+            }
+        });
 }
 
 fn command_name(intent: &CommandIntent) -> &'static str {
@@ -597,7 +644,7 @@ mod tests {
                 assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
                 return;
             }
-            tokio::task::yield_now().await;
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
         }
         panic!("dispatched command did not complete");
     }
