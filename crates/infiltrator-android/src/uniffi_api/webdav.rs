@@ -5,10 +5,11 @@ use std::path::PathBuf;
 
 use dav_client::DavClient;
 use dav_client::client::WebDavClient;
-use infiltrator_core::settings::{
-    AppSettings, clear_webdav_password, load_settings, load_settings_hydrated_with_store,
-    save_settings, save_webdav_password, settings_path,
+use infiltrator_core::settings_io::{
+    clear_webdav_password, load_settings, load_settings_hydrated_with_store, save_settings,
+    save_webdav_password, settings_path,
 };
+use infiltrator_domain::settings::{AppSettings, WebDavConfig};
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
@@ -236,7 +237,7 @@ async fn sync_webdav_now_in<S: SecureStore>(
 }
 
 async fn run_webdav_sync(
-    config: &infiltrator_core::settings::WebDavConfig,
+    config: &WebDavConfig,
     local_root: PathBuf,
     home: &std::path::Path,
 ) -> Result<WebDavSyncSummary, FfiStatus> {
@@ -304,7 +305,7 @@ async fn load_hydrated_app_settings_in<S: SecureStore>(
         .map_err(map_anyhow_error)
 }
 
-fn webdav_settings_from_core(config: &infiltrator_core::settings::WebDavConfig) -> WebDavSettings {
+fn webdav_settings_from_core(config: &WebDavConfig) -> WebDavSettings {
     WebDavSettings {
         enabled: config.enabled,
         url: config.url.clone(),
@@ -315,8 +316,8 @@ fn webdav_settings_from_core(config: &infiltrator_core::settings::WebDavConfig) 
     }
 }
 
-fn webdav_settings_to_core(settings: WebDavSettings) -> infiltrator_core::settings::WebDavConfig {
-    infiltrator_core::settings::WebDavConfig {
+fn webdav_settings_to_core(settings: WebDavSettings) -> WebDavConfig {
+    WebDavConfig {
         enabled: settings.enabled,
         url: settings.url.trim().to_string(),
         username: settings.username.trim().to_string(),
@@ -327,7 +328,7 @@ fn webdav_settings_to_core(settings: WebDavSettings) -> infiltrator_core::settin
 }
 
 fn validate_webdav_config(
-    config: &infiltrator_core::settings::WebDavConfig,
+    config: &WebDavConfig,
 ) -> Result<(), FfiStatus> {
     if config.url.trim().is_empty() {
         return Err(FfiStatus::err(
@@ -341,7 +342,7 @@ fn validate_webdav_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_core::settings::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY};
+    use infiltrator_core::settings_io::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY};
     use std::path::PathBuf;
     use std::sync::Mutex;
     use std::time::{SystemTime, UNIX_EPOCH};

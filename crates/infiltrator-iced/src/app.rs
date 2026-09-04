@@ -427,11 +427,11 @@ impl AppState {
                 Task::perform(
                     async {
                         let data_dir = mihomo_platform::paths::get_home_dir().unwrap_or_default();
-                        let path = infiltrator_core::settings::settings_path(&data_dir)
+                        let path = infiltrator_core::settings_io::settings_path(&data_dir)
                             .unwrap_or_else(|_| data_dir.join("settings.toml"));
                         // hydrated：顺带从 keyring 取回 WebDAV 密码填充内存
                         // 镜像（磁盘序列化跳过该字段，不会因此落盘）。
-                        infiltrator_core::settings::load_settings_hydrated(&path)
+                        infiltrator_core::settings_io::load_settings_hydrated(&path)
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))
                     },

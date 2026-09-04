@@ -27,7 +27,7 @@ use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
 use infiltrator_admin::admin_api::state::AdminApiContext;
 use infiltrator_admin::servers::AdminServerHandle;
-use infiltrator_core::settings::AdminServerConfig;
+use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use mihomo_api::client::MihomoClient;
 use mihomo_version::manager::VersionManager;
@@ -373,13 +373,13 @@ impl IcedAdminContext {
         Self { shared }
     }
 
-    async fn load_settings(&self) -> infiltrator_core::settings::AppSettings {
+    async fn load_settings(&self) -> AppSettings {
         load_settings_from_disk().await.unwrap_or_default()
     }
 
     async fn update_settings(
         &self,
-        apply: impl FnOnce(&mut infiltrator_core::settings::AppSettings),
+        apply: impl FnOnce(&mut AppSettings),
     ) -> anyhow::Result<()> {
         let mut settings = load_settings_from_disk().await?;
         apply(&mut settings);
@@ -388,28 +388,28 @@ impl IcedAdminContext {
     }
 }
 
-async fn load_settings_from_disk() -> anyhow::Result<infiltrator_core::settings::AppSettings> {
+async fn load_settings_from_disk() -> anyhow::Result<AppSettings> {
     let base_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
-    let path = infiltrator_core::settings::settings_path(&base_dir)?;
-    infiltrator_core::settings::load_settings(&path).await
+    let path = infiltrator_core::settings_io::settings_path(&base_dir)?;
+    infiltrator_core::settings_io::load_settings(&path).await
 }
 
 /// 同 [`load_settings_from_disk`]，但把 keyring 里的 WebDAV 密码水合进
 /// `webdav.password` 内存镜像，供 UI 域（`webdav_pass`）回填。仅 UI 展示/
 /// 重新应用路径使用；REST 读取路径保持不触碰 keyring。
 async fn load_settings_hydrated_from_disk()
--> anyhow::Result<infiltrator_core::settings::AppSettings> {
+-> anyhow::Result<AppSettings> {
     let base_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
-    let path = infiltrator_core::settings::settings_path(&base_dir)?;
-    infiltrator_core::settings::load_settings_hydrated(&path).await
+    let path = infiltrator_core::settings_io::settings_path(&base_dir)?;
+    infiltrator_core::settings_io::load_settings_hydrated(&path).await
 }
 
 async fn save_settings_to_disk(
-    settings: &infiltrator_core::settings::AppSettings,
+    settings: &AppSettings,
 ) -> anyhow::Result<()> {
     let base_dir = mihomo_platform::paths::get_home_dir().map_err(|e| anyhow!(e.to_string()))?;
-    let path = infiltrator_core::settings::settings_path(&base_dir)?;
-    infiltrator_core::settings::save_settings(&path, settings).await
+    let path = infiltrator_core::settings_io::settings_path(&base_dir)?;
+    infiltrator_core::settings_io::save_settings(&path, settings).await
 }
 
 #[async_trait::async_trait]
@@ -530,13 +530,13 @@ impl AdminApiContext for IcedAdminContext {
         infiltrator_desktop::editor::open_profile_in_editor(editor_path, profile_name).await
     }
 
-    async fn get_app_settings(&self) -> infiltrator_core::settings::AppSettings {
+    async fn get_app_settings(&self) -> AppSettings {
         self.load_settings().await
     }
 
     async fn save_app_settings(
         &self,
-        settings: infiltrator_core::settings::AppSettings,
+        settings: AppSettings,
     ) -> anyhow::Result<()> {
         save_settings_to_disk(&settings).await?;
         self.shared

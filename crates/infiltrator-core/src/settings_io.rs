@@ -1,144 +1,8 @@
 use anyhow::anyhow;
+use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_platform::defaults::DefaultCredentialStore;
-use serde::{Deserialize, Serialize};
 use std::path::Path;
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(default)]
-pub struct WebDavConfig {
-    pub enabled: bool,
-    pub url: String,
-    pub username: String,
-    /// WebDAV 密码只在内存与 OS keyring 中流转，永不落盘（serde 只跳过
-    /// 序列化；反序列化仍接受旧 settings.toml 里的明文，交给
-    /// [`load_settings`] 的迁移逻辑搬到 keyring）。keyring 命名空间见
-    /// [`load_webdav_password`] / [`save_webdav_password`]。
-    #[serde(skip_serializing)]
-    pub password: String,
-    pub sync_interval_mins: u32,
-    pub sync_on_startup: bool,
-}
-
-impl Default for WebDavConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            url: "".to_string(),
-            username: "".to_string(),
-            password: "".to_string(),
-            sync_interval_mins: 60,
-            sync_on_startup: false,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(default)]
-pub struct RuntimePanelConfig {
-    pub auto_refresh: bool,
-    pub delay_sort: String,
-    pub delay_test_url: String,
-    pub delay_timeout_ms: u32,
-    pub connection_filter: String,
-    pub connection_sort: String,
-}
-
-impl Default for RuntimePanelConfig {
-    fn default() -> Self {
-        Self {
-            auto_refresh: true,
-            delay_sort: "delay_asc".to_string(),
-            delay_test_url: "http://www.gstatic.com/generate_204".to_string(),
-            delay_timeout_ms: 5000,
-            connection_filter: String::new(),
-            connection_sort: "download_desc".to_string(),
-        }
-    }
-}
-
-/// Admin Web UI server settings, shared by both desktop frontends.
-///
-/// Defaults mirror the legacy Tauri client, which always serves the admin UI
-/// on loopback starting at port 25210. The server only ever binds 127.0.0.1.
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(default)]
-pub struct AdminServerConfig {
-    pub enabled: bool,
-    pub port: u16,
-}
-
-impl Default for AdminServerConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            port: 25210,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(default)]
-pub struct AppSettings {
-    pub editor_path: Option<String>,
-    pub use_bundled_core: bool,
-    pub core_channel: String,
-    pub language: String,
-    pub theme: String,
-    /// 0.20 OS 系统通知总开关（订阅自动更新 / WebDAV 周期同步 / 内核错误）。
-    /// 缺省开启；旧 settings.toml 无此键时按 true 反序列化（向后兼容约定）。
-    #[serde(default = "default_notifications_enabled")]
-    pub notifications_enabled: bool,
-    #[serde(default = "default_close_to_tray")]
-    pub close_to_tray: bool,
-    pub webdav: WebDavConfig,
-    pub runtime_panel: RuntimePanelConfig,
-    pub admin: AdminServerConfig,
-    /// profiles/configs 存储目录覆盖（指向 iCloud/Dropbox/Syncthing 等云同步
-    /// 目录即可零服务器同步）。空串/纯空白视为未设置；解析优先级
-    /// （`INFILTRATOR_CONFIGS_DIR` 环境变量 > 本字段 > home 下 configs）
-    /// 见 `mihomo_config::manager::paths::resolve_configs_dir`。
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub configs_dir: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub system_proxy_bypass: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub window_size: Option<(f32, f32)>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub window_position: Option<(i32, i32)>,
-    #[serde(default)]
-    pub window_maximized: bool,
-}
-
-fn default_notifications_enabled() -> bool {
-    true
-}
-
-fn default_close_to_tray() -> bool {
-    true
-}
-
-impl Default for AppSettings {
-    fn default() -> Self {
-        Self {
-            editor_path: None,
-            use_bundled_core: true,
-            core_channel: "stable".to_string(),
-            language: "zh-CN".to_string(),
-            theme: "system".to_string(),
-            notifications_enabled: default_notifications_enabled(),
-            close_to_tray: default_close_to_tray(),
-            webdav: WebDavConfig::default(),
-            runtime_panel: RuntimePanelConfig::default(),
-            admin: AdminServerConfig::default(),
-            configs_dir: None,
-            system_proxy_bypass: None,
-            window_size: None,
-            window_position: None,
-            window_maximized: false,
-        }
-    }
-}
 
 /// WebDAV 凭据在 keyring 中的 service 名：与 mihomo-config 订阅 URL 的
 /// 既有先例（`subscription:<profile>`）共用同一 service，key 用 `webdav:`
@@ -310,7 +174,7 @@ pub async fn app_config_manager_in(
 pub(crate) mod test_support {
     use std::path::{Path, PathBuf};
 
-    use crate::settings::{AppSettings, save_settings, settings_path};
+    use super::{AppSettings, save_settings, settings_path};
 
     pub(crate) struct RedirectGuard {
         env_key: &'static str,
@@ -362,6 +226,7 @@ pub(crate) mod test_support {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_domain::settings::AdminServerConfig;
     use std::path::PathBuf;
 
     #[test]

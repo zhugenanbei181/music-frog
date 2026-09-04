@@ -2,7 +2,8 @@
 
 use std::path::PathBuf;
 
-use infiltrator_core::settings::{self, AppSettings};
+use infiltrator_core::settings_io as settings;
+use infiltrator_domain::settings::AppSettings;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
@@ -67,7 +68,8 @@ pub(crate) mod test_env {
 #[cfg(test)]
 mod tests {
     use super::{app_config_manager, app_configs_dir, test_env};
-    use infiltrator_core::settings::{self, AppSettings};
+    use infiltrator_core::settings_io as settings;
+    use infiltrator_domain::settings::AppSettings;
     use mihomo_platform::TEST_LOCK;
 
     async fn write_settings_with_configs_dir(

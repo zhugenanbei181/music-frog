@@ -10,7 +10,7 @@ use yaml_rust2::YamlLoader;
 
 use super::pidfile::{PidFileState, ProcessState, read_pid_state, service_running};
 use super::{DoctorCheckResult, DoctorEnv, DoctorStatus};
-use crate::settings::AppSettings;
+use infiltrator_domain::settings::AppSettings;
 
 const FIX_CONFIGS_DIR: &str = "Run doctor fix --only config.configs_dir to create it.";
 const FIX_CURRENT_YAML: &str =

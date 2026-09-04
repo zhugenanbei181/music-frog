@@ -190,7 +190,7 @@ pub async fn bootstrap_now() -> BootstrapResult {
 // 两侧保持同一约定。
 fn doctor_env() -> Result<DoctorEnv, FfiStatus> {
     let home = get_home_dir().map_err(map_mihomo_error)?;
-    let settings_file = infiltrator_core::settings::settings_path(&home)
+    let settings_file = infiltrator_core::settings_io::settings_path(&home)
         .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?;
     Ok(DoctorEnv::with_home(home).with_settings_file(settings_file))
 }
@@ -474,6 +474,6 @@ mod tests {
     }
 
     fn settings_toml_path(home: &std::path::Path) -> PathBuf {
-        infiltrator_core::settings::settings_path(home).expect("settings path resolves")
+        infiltrator_core::settings_io::settings_path(home).expect("settings path resolves")
     }
 }

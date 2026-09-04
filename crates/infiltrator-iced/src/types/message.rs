@@ -9,6 +9,7 @@ use super::rules::{RulesJsonTab, RulesLoadBundle, RulesTab};
 use super::runtime::{IpProbeResult, RuntimeConfig, RuntimeStreamKind, RuntimeStreamState};
 use iced::{widget::text_editor, window};
 use infiltrator_core::error::InfiltratorError;
+use infiltrator_domain::settings::AppSettings;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_desktop::runtime::MihomoRuntime;
 use mihomo_api::types::{ConnectionSnapshot, TrafficData};
@@ -35,7 +36,7 @@ pub enum Message {
     /// port had to be rotated during the boot retry loop.
     ProxyStarted(Result<(Arc<MihomoRuntime>, bool), InfiltratorError>, u64),
     ProxyStopped,
-    SettingsLoaded(Result<infiltrator_core::settings::AppSettings, InfiltratorError>),
+    SettingsLoaded(Result<AppSettings, InfiltratorError>),
     LoadProfiles,
     ProfilesLoaded(Result<Vec<Profile>, InfiltratorError>),
     SetActiveProfile(String),
@@ -278,7 +279,7 @@ pub enum Message {
     AdminSettingsSaved(Result<(), InfiltratorError>),
     AdminServerStarted(Result<String, InfiltratorError>),
     AdminHostCommand(crate::admin_server::AdminHostCommand),
-    ExternalSettingsLoaded(Result<infiltrator_core::settings::AppSettings, InfiltratorError>),
+    ExternalSettingsLoaded(Result<AppSettings, InfiltratorError>),
     SyncUpload,
     SyncDownload,
     SyncFinished(Result<SyncSummary, InfiltratorError>),

@@ -3,7 +3,7 @@
 //! `/admin/api/profiles/open`, `/admin/api/webdav/*`).
 
 use axum::{Json, http::StatusCode};
-use infiltrator_core::settings::WebDavConfig;
+use infiltrator_domain::settings::WebDavConfig;
 
 use crate::admin_api::events::{AdminEvent, EVENT_SETTINGS_CHANGED, EVENT_WEBDAV_SYNCED};
 use crate::admin_api::models::*;

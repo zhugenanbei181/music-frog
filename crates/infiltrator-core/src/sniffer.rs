@@ -1,4 +1,4 @@
-use crate::settings::app_config_manager;
+use crate::settings_io::app_config_manager;
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
@@ -597,12 +597,12 @@ sniffer:
         let home = temp.path().to_path_buf();
         let cloud = home.join("cloud-sync").join("profiles");
         std::fs::create_dir_all(&cloud).unwrap();
-        let guard = crate::settings::test_support::RedirectGuard::acquire(home.clone()).await;
+        let guard = crate::settings_io::test_support::RedirectGuard::acquire(home.clone()).await;
         guard
             .set_configs_dir(&home, Some(cloud.to_str().unwrap()))
             .await;
 
-        let seed = crate::settings::app_config_manager().await.unwrap();
+        let seed = crate::settings_io::app_config_manager().await.unwrap();
         seed.save("main", "port: 7890\n").await.unwrap();
         seed.set_current("main").await.unwrap();
 

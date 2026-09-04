@@ -15,7 +15,7 @@ use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 
 use crate::history::SnapshotMeta;
-use crate::settings::settings_path;
+use crate::settings_io::settings_path;
 
 #[cfg(test)]
 #[path = "backup_test.rs"]

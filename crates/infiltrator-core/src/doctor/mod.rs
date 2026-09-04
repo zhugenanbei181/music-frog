@@ -264,7 +264,7 @@ impl DoctorEnv {
         // configs 目录解析跟随本 env 的 settings 文件（`configs_dir` 字段）。
         // settings 解析失败时按默认值继续：坏 settings 由 config.settings_parse
         // 专门上报，其余检查不得连带失效。
-        let settings = crate::settings::load_settings(&self.settings_file)
+        let settings = crate::settings_io::load_settings(&self.settings_file)
             .await
             .unwrap_or_default();
         ConfigManager::with_home_configs_dir_and_store(

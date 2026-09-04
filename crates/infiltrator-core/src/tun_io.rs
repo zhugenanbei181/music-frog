@@ -5,7 +5,7 @@ use infiltrator_domain::tun::{TunConfig, TunConfigPatch, apply_tun_patch_to_yaml
 use serde_yaml_ng::Value;
 
 pub async fn load_tun_config() -> anyhow::Result<TunConfig> {
-    let manager = crate::settings::app_config_manager()
+    let manager = crate::settings_io::app_config_manager()
         .await
         .context("init config manager")?;
     let profile = manager
@@ -21,7 +21,7 @@ pub async fn load_tun_config() -> anyhow::Result<TunConfig> {
 }
 
 pub async fn save_tun_config(patch: TunConfigPatch) -> anyhow::Result<TunConfig> {
-    let manager = crate::settings::app_config_manager()
+    let manager = crate::settings_io::app_config_manager()
         .await
         .context("init config manager")?;
     let profile = manager

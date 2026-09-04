@@ -26,11 +26,11 @@ use crate::admin_api::state::{AdminApiContext, AdminApiState};
 
 /// The settings check must inspect the exact file the `/admin/api/settings`
 /// handlers read and write: both sides derive it through
-/// `settings::settings_path(get_home_dir())`, never through a second
+/// `settings_io::settings_path(get_home_dir())`, never through a second
 /// derivation.
 pub(crate) fn detect_doctor_env() -> Result<DoctorEnv, ApiError> {
     let home = get_home_dir().map_err(|e| ApiError::internal(e.to_string()))?;
-    let settings_file = infiltrator_core::settings::settings_path(&home)
+    let settings_file = infiltrator_core::settings_io::settings_path(&home)
         .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(DoctorEnv::with_home(home).with_settings_file(settings_file))
 }

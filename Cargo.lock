@@ -5024,6 +5024,7 @@ dependencies = [
  "dav-client",
  "infiltrator-contract",
  "infiltrator-core",
+ "infiltrator-domain",
  "infiltrator-http",
  "infiltrator-ports",
  "mihomo-api",

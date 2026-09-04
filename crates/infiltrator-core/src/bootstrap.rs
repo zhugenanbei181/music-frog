@@ -56,7 +56,7 @@ pub async fn ensure_bootstrap() -> anyhow::Result<BootstrapReport> {
 pub async fn ensure_bootstrap_at(home: &Path) -> anyhow::Result<BootstrapReport> {
     // 经由核心规范工厂：settings 的 `configs_dir` 指向云同步目录时，
     // 默认配置必须建到解析后的目录。
-    let manager = crate::settings::app_config_manager_in(home).await?;
+    let manager = crate::settings_io::app_config_manager_in(home).await?;
     let mut steps = Vec::new();
 
     // Step 1: the configs directory must exist before any profile file can.

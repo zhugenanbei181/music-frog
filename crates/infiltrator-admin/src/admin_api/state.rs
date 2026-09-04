@@ -12,7 +12,7 @@ use mihomo_api::client::MihomoClient;
 use super::events::AdminEventBus;
 use super::models::{RebuildStatusResponse, RuntimeTrafficSnapshotResponse};
 
-use infiltrator_core::settings::AppSettings;
+use infiltrator_domain::settings::AppSettings;
 
 #[async_trait::async_trait]
 pub trait AdminApiContext: Clone + Send + Sync + 'static {
@@ -56,7 +56,7 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     /// [`mihomo_platform::defaults::DefaultCredentialStore`]，可覆盖注入内存
     /// 实现以便测试；读取失败归一为 `None`，调用方无需处理错误。
     async fn webdav_password(&self) -> Option<String> {
-        infiltrator_core::settings::load_webdav_password(
+        infiltrator_core::settings_io::load_webdav_password(
             &mihomo_platform::defaults::DefaultCredentialStore::default(),
         )
         .await
@@ -66,7 +66,7 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     /// 失败，避免「其余设置已更新而凭据丢失」的不一致）。宿主可覆盖注入
     /// 测试实现。
     async fn set_webdav_password(&self, password: &str) -> anyhow::Result<()> {
-        infiltrator_core::settings::save_webdav_password(
+        infiltrator_core::settings_io::save_webdav_password(
             &mihomo_platform::defaults::DefaultCredentialStore::default(),
             password,
         )

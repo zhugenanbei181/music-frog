@@ -5,7 +5,7 @@ use infiltrator_domain::dns::{DnsConfig, DnsConfigPatch, apply_dns_patch_to_yaml
 use serde_yaml_ng::Value;
 
 pub async fn load_dns_config() -> anyhow::Result<DnsConfig> {
-    let manager = crate::settings::app_config_manager()
+    let manager = crate::settings_io::app_config_manager()
         .await
         .context("init config manager")?;
     let profile = manager
@@ -21,7 +21,7 @@ pub async fn load_dns_config() -> anyhow::Result<DnsConfig> {
 }
 
 pub async fn save_dns_config(patch: DnsConfigPatch) -> anyhow::Result<DnsConfig> {
-    let manager = crate::settings::app_config_manager()
+    let manager = crate::settings_io::app_config_manager()
         .await
         .context("init config manager")?;
     let profile = manager

@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use infiltrator_http::{build_http_client, build_raw_http_client};
 use mihomo_config::port::find_available_port;
 
-use crate::settings::app_config_manager;
+use crate::settings_io::app_config_manager;
 use serde::Serialize;
 use tokio::fs;
 
@@ -265,7 +265,7 @@ mod tests {
         let home = temp.path().to_path_buf();
         let cloud = home.join("cloud-sync").join("profiles");
         std::fs::create_dir_all(&cloud).unwrap();
-        let guard = crate::settings::test_support::RedirectGuard::acquire(home.clone()).await;
+        let guard = crate::settings_io::test_support::RedirectGuard::acquire(home.clone()).await;
         guard
             .set_configs_dir(&home, Some(cloud.to_str().unwrap()))
             .await;

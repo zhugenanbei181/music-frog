@@ -7,7 +7,7 @@ use infiltrator_domain::fake_ip::{
 use serde_yaml_ng::Value;
 
 pub async fn load_fake_ip_config() -> anyhow::Result<FakeIpConfig> {
-    let manager = crate::settings::app_config_manager()
+    let manager = crate::settings_io::app_config_manager()
         .await
         .context("init config manager")?;
     let profile = manager
@@ -23,7 +23,7 @@ pub async fn load_fake_ip_config() -> anyhow::Result<FakeIpConfig> {
 }
 
 pub async fn save_fake_ip_config(patch: FakeIpConfigPatch) -> anyhow::Result<FakeIpConfig> {
-    let manager = crate::settings::app_config_manager()
+    let manager = crate::settings_io::app_config_manager()
         .await
         .context("init config manager")?;
     let profile = manager
@@ -45,7 +45,7 @@ pub async fn save_fake_ip_config(patch: FakeIpConfigPatch) -> anyhow::Result<Fak
 }
 
 pub async fn clear_fake_ip_cache() -> anyhow::Result<bool> {
-    let manager = crate::settings::app_config_manager()
+    let manager = crate::settings_io::app_config_manager()
         .await
         .context("init config manager")?;
     let profile_path = manager

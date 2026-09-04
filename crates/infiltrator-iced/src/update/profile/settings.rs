@@ -6,7 +6,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_core::error::InfiltratorError;
-use infiltrator_core::settings::{AppSettings, WebDavConfig};
+use infiltrator_domain::settings::{AppSettings, WebDavConfig};
 use std::str::FromStr;
 
 impl AppState {
@@ -103,9 +103,9 @@ impl AppState {
                         // 状态一致（避免其他字段更新而凭据悄悄丢失）。
                         let store = mihomo_platform::defaults::DefaultCredentialStore::default();
                         if webdav_password.is_empty() {
-                            infiltrator_core::settings::clear_webdav_password(&store).await;
+                            infiltrator_core::settings_io::clear_webdav_password(&store).await;
                         } else {
-                            infiltrator_core::settings::save_webdav_password(
+                            infiltrator_core::settings_io::save_webdav_password(
                                 &store,
                                 &webdav_password,
                             )
@@ -114,10 +114,10 @@ impl AppState {
                         }
                         let base_dir = mihomo_platform::paths::get_home_dir()
                             .map_err(InfiltratorError::from)?;
-                        let settings_path = infiltrator_core::settings::settings_path(&base_dir)
+                            let settings_path = infiltrator_core::settings_io::settings_path(&base_dir)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let mut settings =
-                            infiltrator_core::settings::load_settings(&settings_path)
+                            infiltrator_core::settings_io::load_settings(&settings_path)
                                 .await
                                 .unwrap_or_else(|_| AppSettings::default());
                         settings.language = language;
@@ -128,7 +128,7 @@ impl AppState {
                         settings.notifications_enabled = notifications_enabled;
                         settings.close_to_tray = close_to_tray;
                         settings.system_proxy_bypass = system_proxy_bypass;
-                        infiltrator_core::settings::save_settings(&settings_path, &settings)
+                        infiltrator_core::settings_io::save_settings(&settings_path, &settings)
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         Ok(())

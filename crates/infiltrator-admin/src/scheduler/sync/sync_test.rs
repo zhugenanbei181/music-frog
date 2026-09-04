@@ -3,8 +3,7 @@ mod tests {
     use super::super::run_sync_tick;
     use crate::admin_api::state::AdminApiContext;
     use anyhow::anyhow;
-    use infiltrator_core::settings::AppSettings;
-    use infiltrator_core::settings::WebDavConfig;
+    use infiltrator_domain::settings::{AppSettings, WebDavConfig};
     use mihomo_api::client::MihomoClient;
     use mihomo_platform::TEST_LOCK;
 

@@ -6,7 +6,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_core::error::InfiltratorError;
-use infiltrator_core::settings::AppSettings;
+use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
 use infiltrator_shared::locales::Localizer;
 
 impl AppState {
@@ -18,7 +18,7 @@ impl AppState {
     /// Load-modify-save only the admin slice of the settings file, mirroring
     /// how the runtime-panel settings are persisted from this frontend.
     fn persist_admin_settings_task(&self) -> Task<Message> {
-        let admin = infiltrator_core::settings::AdminServerConfig {
+        let admin = AdminServerConfig {
             enabled: self.shell.admin_enabled,
             port: self.shell.admin_port,
         };
@@ -26,13 +26,13 @@ impl AppState {
             async move {
                 let base_dir =
                     mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
-                let settings_path = infiltrator_core::settings::settings_path(&base_dir)
+                let settings_path = infiltrator_core::settings_io::settings_path(&base_dir)
                     .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                let mut settings = infiltrator_core::settings::load_settings(&settings_path)
+                let mut settings = infiltrator_core::settings_io::load_settings(&settings_path)
                     .await
                     .unwrap_or_else(|_| AppSettings::default());
                 settings.admin = admin;
-                infiltrator_core::settings::save_settings(&settings_path, &settings)
+                infiltrator_core::settings_io::save_settings(&settings_path, &settings)
                     .await
                     .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                 Ok(())

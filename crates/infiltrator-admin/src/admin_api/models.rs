@@ -10,9 +10,9 @@ use serde_json::json;
 use infiltrator_core::{
     doctor::{DoctorFixAction, DoctorReport},
     profiles::ProfileInfo,
-    settings::WebDavConfig,
 };
 use infiltrator_domain::script_engine::{ExtensionPackage, HookStage, PluginManifest, ScriptPreset};
+use infiltrator_domain::settings::WebDavConfig;
 
 #[derive(Serialize, Deserialize)]
 pub struct SwitchProfilePayload {

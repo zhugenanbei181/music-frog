@@ -12,7 +12,8 @@ mod tests {
     use crate::support::{app_config_manager, test_env};
     use anyhow::anyhow;
     use chrono::Utc;
-    use infiltrator_core::settings::{AppSettings, save_settings, settings_path};
+    use infiltrator_core::settings_io::{save_settings, settings_path};
+    use infiltrator_domain::settings::AppSettings;
     use infiltrator_core::subscription::mask_subscription_url;
     use infiltrator_http::HttpClient;
     use mihomo_api::client::MihomoClient;

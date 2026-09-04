@@ -7,7 +7,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_core::error::InfiltratorError;
-use infiltrator_core::settings::{AppSettings, RuntimePanelConfig};
+use infiltrator_domain::settings::{AppSettings, RuntimePanelConfig};
 
 pub(super) const DEFAULT_RUNTIME_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
 pub(super) const DEFAULT_RUNTIME_DELAY_TIMEOUT_MS: u32 = 5000;
@@ -117,13 +117,13 @@ impl AppState {
             async move {
                 let base_dir =
                     mihomo_platform::paths::get_home_dir().map_err(InfiltratorError::from)?;
-                let settings_path = infiltrator_core::settings::settings_path(&base_dir)
+                let settings_path = infiltrator_core::settings_io::settings_path(&base_dir)
                     .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                let mut settings = infiltrator_core::settings::load_settings(&settings_path)
+                let mut settings = infiltrator_core::settings_io::load_settings(&settings_path)
                     .await
                     .unwrap_or_else(|_| AppSettings::default());
                 settings.runtime_panel = runtime_panel;
-                infiltrator_core::settings::save_settings(&settings_path, &settings)
+                infiltrator_core::settings_io::save_settings(&settings_path, &settings)
                     .await
                     .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                 Ok(())

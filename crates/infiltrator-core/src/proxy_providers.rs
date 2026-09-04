@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::settings::app_config_manager;
+use crate::settings_io::app_config_manager;
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};

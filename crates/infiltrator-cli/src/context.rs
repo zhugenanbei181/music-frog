@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use infiltrator_core::settings::{AppSettings, load_settings, save_settings, settings_path};
+use infiltrator_core::settings_io::{load_settings, save_settings, settings_path};
+use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::endpoint::EndpointSource as _;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::endpoint::ProfileEndpointSource;

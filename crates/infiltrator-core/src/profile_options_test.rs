@@ -217,12 +217,12 @@ async fn test_options_wrapper_follows_configs_dir_redirect() {
     let prev_env = std::env::var(env_key).ok();
     unsafe { std::env::remove_var(env_key) };
 
-    let settings_file = crate::settings::settings_path(&home).unwrap();
-    let settings = crate::settings::AppSettings {
+    let settings_file = crate::settings_io::settings_path(&home).unwrap();
+    let settings = infiltrator_domain::settings::AppSettings {
         configs_dir: Some(cloud_dir.to_string_lossy().to_string()),
-        ..crate::settings::AppSettings::default()
+        ..infiltrator_domain::settings::AppSettings::default()
     };
-    crate::settings::save_settings(&settings_file, &settings)
+    crate::settings_io::save_settings(&settings_file, &settings)
         .await
         .unwrap();
 

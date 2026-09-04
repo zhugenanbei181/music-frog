@@ -14,6 +14,7 @@ infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
 infiltrator-core = { path = "../infiltrator-core" }
+infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-http = { path = "../infiltrator-http" }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }

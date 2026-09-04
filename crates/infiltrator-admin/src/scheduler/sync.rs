@@ -8,7 +8,7 @@ use state_store::StateStore;
 use sync_engine::{SyncPlanner, executor::SyncExecutor};
 
 use crate::admin_api::state::AdminApiContext;
-use infiltrator_core::settings::WebDavConfig;
+use infiltrator_domain::settings::WebDavConfig;
 
 /// Sync result summary for notification purposes
 #[derive(Debug, Default)]

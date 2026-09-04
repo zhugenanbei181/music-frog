@@ -260,7 +260,7 @@ impl AppState {
                         // （settings 的 configs_dir 可指向云同步目录）并枚举
                         // profile 名清 keyring；settings 一旦先删，云目录里的
                         // cache.db / geoip / options / snapshots 就会整体漏删。
-                        let manager = infiltrator_core::settings::app_config_manager().await.ok();
+                        let manager = infiltrator_core::settings_io::app_config_manager().await.ok();
                         let configs_dir = manager.as_ref().map(|m| m.config_dir().to_path_buf());
                         if let Some(manager) = &manager {
                             match manager.list_profiles().await {
@@ -341,11 +341,11 @@ impl AppState {
                                 async {
                                     let home = mihomo_platform::paths::get_home_dir()
                                         .map_err(InfiltratorError::from)?;
-                                    let path = infiltrator_core::settings::settings_path(&home)
+                                    let path = infiltrator_core::settings_io::settings_path(&home)
                                         .map_err(|error| {
                                             InfiltratorError::Config(error.to_string())
                                         })?;
-                                    infiltrator_core::settings::load_settings(&path)
+                                    infiltrator_core::settings_io::load_settings(&path)
                                         .await
                                         .map_err(|error| {
                                             InfiltratorError::Config(error.to_string())

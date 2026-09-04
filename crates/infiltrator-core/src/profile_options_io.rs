@@ -61,8 +61,8 @@ pub async fn apply_saved_options_for(
     content: &str,
 ) -> anyhow::Result<(String, Option<FilterReport>)> {
     let home = mihomo_platform::paths::get_home_dir()?;
-    let settings_file = crate::settings::settings_path(&home)?;
-    let settings = crate::settings::load_settings(&settings_file).await?;
+    let settings_file = crate::settings_io::settings_path(&home)?;
+    let settings = crate::settings_io::load_settings(&settings_file).await?;
     let config_dir = mihomo_config::manager::paths::resolve_configs_dir_in(
         settings.configs_dir.as_deref(),
         &home,

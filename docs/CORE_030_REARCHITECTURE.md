@@ -21,6 +21,7 @@
 - [x] 标准 Mihomo Overview adapter 已移入 `infiltrator-composition`；application 不再直接构造 `MihomoClient`。
 - [x] profile-options 与 rules 的文件读写已分别收敛为 core 内 `profile_options_io` / `rules_io`，纯 schema 和 YAML 变换不再依赖 Tokio。
 - [x] DNS、Fake-IP、TUN 的 profile 文件读写已分别收敛为 core 内 `dns_io` / `fake_ip_io` / `tun_io`，domain 只保留 schema、校验和内存 YAML 变换。
+- [x] `AppSettings` / WebDAV / runtime-panel schema 已移入 `infiltrator-domain::settings`；keyring、TOML 和 ConfigManager 读写集中在 `settings_io`。
 - [ ] 其余标准 adapter（配置、版本、Admin、同步）按同一规则下沉到 composition/outbound 组合根。
 - [x] `infiltrator-ios` host crate 已建立端口与保守 capability seam，且 composition root 已有 `IosBridge -> CoreApplication` 入口；Native NetworkExtension bridge 仍待接入。
 - [ ] Iced、Admin、Android FFI 完成同一 application facade 接入。

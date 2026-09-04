@@ -30,6 +30,7 @@ pub mod rules;
 pub mod pac_generator;
 pub mod redact;
 pub mod script_engine;
+pub mod settings;
 pub mod sub_rules;
 pub mod traffic_audit;
 pub mod tun;

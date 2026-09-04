@@ -121,7 +121,7 @@ async fn bootstrap_follows_settings_configs_dir_redirect() {
     let dir = temp_home("redirect");
     let cloud = dir.path().join("cloud").join("sync");
     let guard =
-        crate::settings::test_support::RedirectGuard::acquire(dir.path().to_path_buf()).await;
+        crate::settings_io::test_support::RedirectGuard::acquire(dir.path().to_path_buf()).await;
     guard
         .set_configs_dir(dir.path(), Some(cloud.to_str().unwrap()))
         .await;
@@ -132,7 +132,7 @@ async fn bootstrap_follows_settings_configs_dir_redirect() {
     assert!(!dir.path().join("configs").exists());
 
     // 当前 profile 的默认配置同样落在重定向目录。
-    let manager = crate::settings::app_config_manager_in(dir.path())
+    let manager = crate::settings_io::app_config_manager_in(dir.path())
         .await
         .unwrap();
     assert!(manager.get_current_path().await.unwrap().is_file());

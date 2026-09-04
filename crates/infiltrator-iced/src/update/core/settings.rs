@@ -7,7 +7,7 @@ use super::proxies::{
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_core::settings::AppSettings;
+use infiltrator_domain::settings::AppSettings;
 use std::str::FromStr;
 
 impl AppState {

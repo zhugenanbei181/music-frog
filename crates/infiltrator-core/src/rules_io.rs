@@ -13,7 +13,7 @@ use infiltrator_domain::rules::{
 use serde_yaml_ng::Value;
 
 async fn load_profile_doc() -> anyhow::Result<Value> {
-    let manager = crate::settings::app_config_manager()
+    let manager = crate::settings_io::app_config_manager()
         .await
         .context("init config manager")?;
     let profile = manager
@@ -32,7 +32,7 @@ async fn load_current_profile() -> anyhow::Result<(
     String,
     String,
 )> {
-    let manager = crate::settings::app_config_manager()
+    let manager = crate::settings_io::app_config_manager()
         .await
         .context("init config manager")?;
     let profile = manager

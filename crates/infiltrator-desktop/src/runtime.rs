@@ -49,8 +49,8 @@ impl MihomoRuntime {
     /// 显式注入 home 和默认 secure store，行为与默认安装目录一致。
     async fn settings_configs_dir() -> Option<String> {
         let home = mihomo_platform::paths::get_home_dir().ok()?;
-        let path = infiltrator_core::settings::settings_path(&home).ok()?;
-        let settings = infiltrator_core::settings::load_settings(&path)
+        let path = infiltrator_core::settings_io::settings_path(&home).ok()?;
+        let settings = infiltrator_core::settings_io::load_settings(&path)
             .await
             .ok()?;
         settings.configs_dir

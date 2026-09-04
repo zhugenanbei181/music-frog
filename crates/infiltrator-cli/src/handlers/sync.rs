@@ -1,7 +1,8 @@
 use anyhow::anyhow;
 use dav_client::DavClient as _;
 use dav_client::client::WebDavClient;
-use infiltrator_core::settings::{AppSettings, load_webdav_password};
+use infiltrator_core::settings_io::load_webdav_password;
+use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use state_store::StateStore;
@@ -117,10 +118,10 @@ pub(crate) fn render_summary(summary: &SyncSummary) -> String {
 
 #[cfg(test)]
 mod tests {
-    use infiltrator_core::settings::{
-        AppSettings, WebDavConfig, clear_webdav_password, load_settings, save_settings,
-        save_webdav_password,
+    use infiltrator_core::settings_io::{
+        clear_webdav_password, load_settings, save_settings, save_webdav_password,
     };
+    use infiltrator_domain::settings::{AppSettings, WebDavConfig};
     use infiltrator_ports::secure_store::SecureStore;
 
     use super::{SyncSummary, dav_config, dav_password, render_summary};

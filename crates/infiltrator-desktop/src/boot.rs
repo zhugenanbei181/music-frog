@@ -34,7 +34,7 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_core::settings::app_config_manager;
+use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
 use mihomo_config::endpoint::ProfileEndpointSource;

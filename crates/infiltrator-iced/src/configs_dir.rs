@@ -8,6 +8,7 @@
 use std::path::PathBuf;
 
 use infiltrator_core::error::InfiltratorError;
+use infiltrator_core::settings_io as settings;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
@@ -15,8 +16,8 @@ use mihomo_platform::paths::get_home_dir;
 /// settings 的 `configs_dir` 覆盖；任何读取失败一律回退 `None`。
 async fn settings_configs_dir() -> Option<String> {
     let home = mihomo_platform::paths::get_home_dir().ok()?;
-    let path = infiltrator_core::settings::settings_path(&home).ok()?;
-    let settings = infiltrator_core::settings::load_settings(&path)
+    let path = settings::settings_path(&home).ok()?;
+    let settings = settings::load_settings(&path)
         .await
         .ok()?;
     settings.configs_dir

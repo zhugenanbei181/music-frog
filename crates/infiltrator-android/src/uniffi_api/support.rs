@@ -45,8 +45,8 @@ pub(super) fn sanitize_list(value: Option<Vec<String>>) -> Option<Vec<String>> {
 /// load failure must not block the default path, so it degrades to `None`.
 pub(super) async fn configs_dir_override() -> Option<String> {
     let home = mihomo_platform::paths::get_home_dir().ok()?;
-    let path = infiltrator_core::settings::settings_path(&home).ok()?;
-    match infiltrator_core::settings::load_settings(&path).await {
+    let path = infiltrator_core::settings_io::settings_path(&home).ok()?;
+    match infiltrator_core::settings_io::load_settings(&path).await {
         Ok(settings) => settings.configs_dir,
         Err(err) => {
             log::warn!("settings load failed, configs_dir override ignored: {err:#}");
@@ -135,7 +135,8 @@ fn map_mihomo_error_ref(err: &MihomoError) -> FfiStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_core::settings::{AppSettings, save_settings};
+    use infiltrator_core::settings_io::save_settings;
+    use infiltrator_domain::settings::AppSettings;
     use mihomo_platform::TEST_LOCK;
     use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
     use std::fs;
@@ -164,7 +165,7 @@ mod tests {
             configs_dir: Some(configs_dir.to_string()),
             ..AppSettings::default()
         };
-        let path = infiltrator_core::settings::settings_path(home).expect("settings path resolves");
+        let path = infiltrator_core::settings_io::settings_path(home).expect("settings path resolves");
         save_settings(&path, &settings)
             .await
             .expect("save settings");

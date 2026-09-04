@@ -4,7 +4,8 @@
 
 use super::pidfile::{PidFileState, ProcessState, inspect_process, read_pid_state};
 use super::*;
-use crate::settings::{AppSettings, save_settings};
+use crate::settings_io::{save_settings, test_support};
+use infiltrator_domain::settings::AppSettings;
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -260,7 +261,7 @@ async fn config_checks_follow_settings_configs_dir_redirect() {
         .unwrap();
     let cloud = dir.path().join("cloud").join("profiles");
     let _guard =
-        crate::settings::test_support::RedirectGuard::acquire(dir.path().to_path_buf()).await;
+        test_support::RedirectGuard::acquire(dir.path().to_path_buf()).await;
     let env = DoctorEnv::with_home(dir.path().to_path_buf());
     save_settings(
         env.settings_file(),

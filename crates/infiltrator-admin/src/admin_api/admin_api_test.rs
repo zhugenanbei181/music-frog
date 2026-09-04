@@ -10,7 +10,8 @@ mod tests {
         body::Body,
         http::{Request, StatusCode},
     };
-    use infiltrator_core::settings::AppSettings;
+    use infiltrator_core::settings_io::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY};
+    use infiltrator_domain::settings::AppSettings;
     use mihomo_api::client::MihomoClient;
     use mihomo_platform::TEST_LOCK;
     use mihomo_platform::defaults::DefaultCredentialStore;
@@ -44,8 +45,8 @@ mod tests {
     fn secrets_key() -> String {
         format!(
             "{}/{}",
-            infiltrator_core::settings::WEBDAV_CREDENTIAL_SERVICE,
-            infiltrator_core::settings::WEBDAV_PASSWORD_KEY
+            WEBDAV_CREDENTIAL_SERVICE,
+            WEBDAV_PASSWORD_KEY
         )
     }
 

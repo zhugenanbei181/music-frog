@@ -8,7 +8,8 @@ use super::support::{TempHome, block_on, feed, fresh_state, subscribed_profile};
 use crate::types::app::{ConfirmAction, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
-use infiltrator_core::settings::{self, AppSettings};
+use infiltrator_core::settings_io as settings;
+use infiltrator_domain::settings::AppSettings;
 
 /// Journey 12 — 通知事件面：SubscriptionAutoUpdated Ok → toast + 系统通知
 /// 任务；notifications_enabled=false 时通知腿归零（`Task::none`，零开销）。

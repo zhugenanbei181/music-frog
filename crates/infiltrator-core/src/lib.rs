@@ -17,7 +17,7 @@ pub mod profile_options_io;
 pub mod proxy_providers;
 pub mod rules_io;
 pub mod scheduler;
-pub mod settings;
+pub mod settings_io;
 pub mod smoke_e2e;
 pub mod sniffer;
 pub mod subscription;

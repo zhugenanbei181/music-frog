@@ -5,7 +5,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use infiltrator_core::settings::{AdminServerConfig, AppSettings, RuntimePanelConfig};
+use infiltrator_domain::settings::{AdminServerConfig, AppSettings, RuntimePanelConfig};
 
 #[test]
 fn test_admin_settings_toggle_drives_lifecycle_bookkeeping() {
