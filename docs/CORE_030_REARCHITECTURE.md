@@ -4,6 +4,15 @@
 
 本文件定义底层重整的目标边界和验收规则。具体实现流水写入本地 `TODO.md`，功能归属仍以 `FUNCTIONAL_MAP.md` 为准。
 
+### 当前 0.30 进度
+
+- [x] `infiltrator-domain`：提取生命周期状态机，依赖树无 Tokio。
+- [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力和失败模型。
+- [x] `infiltrator-ports`：落下 Core process、secure store、data store 和 capability provider 端口。
+- [ ] application actor/facade 接入 ports，并统一前端命令与快照通道。
+- [ ] Desktop/Android/iOS host adapter 完成组合根接入。
+- [ ] 全端删除对具体 Mihomo client、Reqwest 和 Tokio channel 的公开/直接依赖。
+
 ## 1. 版本切线
 
 ### 0.20 基线

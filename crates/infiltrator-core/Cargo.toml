@@ -10,6 +10,7 @@ brotli = { workspace = true }
 chrono = { workspace = true }
 flate2 = { workspace = true }
 log = { workspace = true }
+infiltrator-domain = { path = "../infiltrator-domain" }
 mihomo-config = { path = "../mihomo-config" }
 mihomo-platform = { path = "../mihomo-platform" }
 mihomo-api = { path = "../mihomo-api" }

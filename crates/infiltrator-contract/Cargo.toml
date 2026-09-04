@@ -1,0 +1,10 @@
+[package]
+name = "infiltrator-contract"
+version = "0.30.0"
+edition = "2024"
+publish = false
+description = "Stable cross-surface commands, snapshots, events, capabilities, and failures."
+
+[dependencies]
+serde = { workspace = true }
+

@@ -5020,6 +5020,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "infiltrator-contract"
+version = "0.30.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "infiltrator-core"
 version = "0.1.2"
 dependencies = [
@@ -5029,6 +5036,7 @@ dependencies = [
  "brotli",
  "chrono",
  "flate2",
+ "infiltrator-domain",
  "infiltrator-http",
  "log",
  "mihomo-api",
@@ -5074,6 +5082,13 @@ dependencies = [
  "windows-sys 0.61.2",
  "winreg",
  "yaml-rust2",
+]
+
+[[package]]
+name = "infiltrator-domain"
+version = "0.30.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -5125,6 +5140,14 @@ dependencies = [
  "tray-icon",
  "webbrowser",
  "wgpu 27.0.1",
+]
+
+[[package]]
+name = "infiltrator-ports"
+version = "0.30.0"
+dependencies = [
+ "async-trait",
+ "infiltrator-contract",
 ]
 
 [[package]]

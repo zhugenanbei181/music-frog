@@ -1,0 +1,11 @@
+[package]
+name = "infiltrator-ports"
+version = "0.30.0"
+edition = "2024"
+publish = false
+description = "Runtime-neutral outbound ports for MusicFrog Infiltrator application services."
+
+[dependencies]
+async-trait = { workspace = true }
+infiltrator-contract = { path = "../infiltrator-contract" }
+

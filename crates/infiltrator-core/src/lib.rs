@@ -40,7 +40,6 @@ pub mod session_adapter;
 pub mod settings;
 pub mod smoke_e2e;
 pub mod sniffer;
-pub mod state_matrix;
 pub mod sub_rules;
 pub mod subscription;
 pub mod traffic_audit;

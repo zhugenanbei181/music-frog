@@ -1,0 +1,10 @@
+[package]
+name = "infiltrator-domain"
+version = "0.30.0"
+edition = "2024"
+publish = false
+description = "Runtime- and UI-independent domain state and algorithms for MusicFrog Infiltrator."
+
+[dependencies]
+serde = { workspace = true }
+

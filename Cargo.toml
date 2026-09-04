@@ -10,6 +10,9 @@ members = [
   "crates/mihomo-config",
   "crates/mihomo-platform",
   "crates/mihomo-version",
+  "crates/infiltrator-domain",
+  "crates/infiltrator-contract",
+  "crates/infiltrator-ports",
   "crates/infiltrator-core",
   "crates/infiltrator-http",
   "crates/infiltrator-admin",
@@ -95,4 +98,3 @@ regex = "1.11"
 bevy = { version = "=0.19.1", default-features = false }
 accesskit = "0.24.1"
 unicode-segmentation = "1.12"
-
