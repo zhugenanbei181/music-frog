@@ -27,6 +27,7 @@ use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
 use infiltrator_admin::admin_api::state::AdminApiContext;
 use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_admin::servers::AdminServerHandle;
@@ -434,6 +435,11 @@ impl AdminApiContext for IcedAdminContext {
     async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication> {
         let store = infiltrator_desktop::storage::profile_store().await?;
         Ok(ConfigurationApplication::new(store))
+    }
+
+    async fn doctor_application(&self) -> anyhow::Result<DoctorApplication> {
+        let doctor = infiltrator_desktop::storage::doctor()?;
+        Ok(DoctorApplication::new(Arc::new(doctor)))
     }
 
     async fn rebuild_runtime(&self) -> anyhow::Result<()> {

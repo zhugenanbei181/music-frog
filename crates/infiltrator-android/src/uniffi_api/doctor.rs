@@ -5,13 +5,11 @@
 //! Errors travel in the crate's `FfiStatus` records (the existing error
 //! channel); check statuses are flattened to "pass"/"warn"/"fail"/"skip".
 
-use infiltrator_core::bootstrap::{self, BootstrapStep};
-use infiltrator_core::doctor::{
-    DoctorCheckMeta, DoctorCheckResult, DoctorEnv, DoctorFixAction, DoctorStatus,
+use infiltrator_contract::doctor::{
+    BootstrapStep, DoctorCheckMeta, DoctorCheckResult, DoctorFixAction, DoctorStatus,
 };
-use mihomo_platform::paths::get_home_dir;
 
-use super::support::{get_runtime, map_anyhow_error, map_mihomo_error};
+use super::support::{doctor_application, get_runtime, map_application_failure};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -80,17 +78,23 @@ pub struct BootstrapResult {
 pub async fn doctor_run(only: Option<String>) -> DoctorReportRecord {
     get_runtime()
         .spawn(async move {
-            match doctor_env() {
-                Ok(env) => {
-                    let report = infiltrator_core::doctor::run_with(&env, only.as_deref()).await;
-                    DoctorReportRecord {
+            match doctor_application() {
+                Ok(application) => match application.run(only).await {
+                    Ok(report) => DoctorReportRecord {
                         status: FfiStatus::ok(),
                         started_at: report.started_at,
                         finished_at: report.finished_at,
                         has_failures: report.has_failures(),
                         checks: report.checks.into_iter().map(check_to_record).collect(),
-                    }
-                }
+                    },
+                    Err(failure) => DoctorReportRecord {
+                        status: map_application_failure(failure),
+                        started_at: 0,
+                        finished_at: 0,
+                        has_failures: true,
+                        checks: Vec::new(),
+                    },
+                },
                 Err(status) => DoctorReportRecord {
                     status,
                     started_at: 0,
@@ -114,8 +118,8 @@ pub async fn doctor_run(only: Option<String>) -> DoctorReportRecord {
 pub async fn doctor_fix(only: Option<String>) -> DoctorFixResult {
     get_runtime()
         .spawn(async move {
-            match doctor_env() {
-                Ok(env) => match infiltrator_core::doctor::fix_with(&env, only.as_deref()).await {
+            match doctor_application() {
+                Ok(application) => match application.fix(only).await {
                     Ok(report) => DoctorFixResult {
                         status: FfiStatus::ok(),
                         actions: report
@@ -124,8 +128,8 @@ pub async fn doctor_fix(only: Option<String>) -> DoctorFixResult {
                             .map(fix_action_to_record)
                             .collect(),
                     },
-                    Err(err) => DoctorFixResult {
-                        status: map_anyhow_error(err),
+                    Err(failure) => DoctorFixResult {
+                        status: map_application_failure(failure),
                         actions: Vec::new(),
                     },
                 },
@@ -144,21 +148,27 @@ pub async fn doctor_fix(only: Option<String>) -> DoctorFixResult {
 
 #[uniffi::export]
 pub fn doctor_checks() -> Vec<DoctorCheckMetaRecord> {
-    infiltrator_core::doctor::list_checks()
-        .iter()
-        .map(|meta| check_meta_to_record(*meta))
+    doctor_application()
+        .map(|application| application.list_checks())
+        .unwrap_or_default()
+        .into_iter()
+        .map(check_meta_to_record)
         .collect()
 }
 
 #[uniffi::export]
 pub fn doctor_explain(id: String) -> DoctorCheckMetaResult {
-    match infiltrator_core::doctor::explain_check(&id) {
+    match doctor_application().and_then(|application| {
+        application
+            .explain(&id)
+            .map_err(map_application_failure)
+    }) {
         Ok(meta) => DoctorCheckMetaResult {
             status: FfiStatus::ok(),
-            check: Some(check_meta_to_record(*meta)),
+            check: Some(check_meta_to_record(meta)),
         },
         Err(err) => DoctorCheckMetaResult {
-            status: map_anyhow_error(err),
+            status: err,
             check: None,
         },
     }
@@ -186,19 +196,11 @@ pub async fn bootstrap_now() -> BootstrapResult {
         })
 }
 
-// DoctorEnv 的 settings 文件与 settings store 使用同一 `<home>/settings.toml`
-// 约定。
-fn doctor_env() -> Result<DoctorEnv, FfiStatus> {
-    let home = get_home_dir().map_err(map_mihomo_error)?;
-    let settings_file = home.join("settings.toml");
-    Ok(DoctorEnv::with_home(home).with_settings_file(settings_file))
-}
-
 async fn bootstrap_internal() -> Result<Vec<BootstrapStepRecord>, FfiStatus> {
-    let home = get_home_dir().map_err(map_mihomo_error)?;
-    let report = bootstrap::ensure_bootstrap_at(&home)
+    let report = doctor_application()?
+        .bootstrap()
         .await
-        .map_err(map_anyhow_error)?;
+        .map_err(map_application_failure)?;
     Ok(report.steps.into_iter().map(step_to_record).collect())
 }
 
@@ -245,7 +247,7 @@ fn check_meta_to_record(meta: DoctorCheckMeta) -> DoctorCheckMetaRecord {
 
 fn step_to_record(step: BootstrapStep) -> BootstrapStepRecord {
     BootstrapStepRecord {
-        id: step.id.to_string(),
+        id: step.id,
         executed: step.executed,
         detail: step.detail,
     }

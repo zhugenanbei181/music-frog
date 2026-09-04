@@ -3,14 +3,12 @@
 
 use axum::Json;
 use chrono::Utc;
-use infiltrator_core::doctor;
 use log::info;
 
 use crate::admin_api::events::{
     AdminEvent, EVENT_DOCTOR_FIX, EVENT_PROFILES_CHANGED, EVENT_PROXY_CHANGED,
     EVENT_RUNTIME_CHANGED, EVENT_SETTINGS_CHANGED,
 };
-use crate::admin_api::handlers::doctor::detect_doctor_env;
 use crate::admin_api::handlers::profiles::ensure_valid_profile_name;
 use crate::admin_api::handlers::proxies::{
     DEFAULT_DELAY_TEST_URL, DEFAULT_DELAY_TIMEOUT_MS, collect_delay_test_candidates,
@@ -358,10 +356,15 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
 
     // 10. Doctor auto-repair
     if normalized == "doctor_fix" || raw_action == "DoctorFix" {
-        let env = detect_doctor_env()?;
-        let report = doctor::fix_with(&env, None)
+        let application = state
+            .ctx
+            .doctor_application()
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|error| ApiError::internal(error.to_string()))?;
+        let report = application
+            .fix(None)
+            .await
+            .map_err(|failure| ApiError::internal(failure.message))?;
         state.events.publish(AdminEvent::new(EVENT_DOCTOR_FIX));
         return Ok(Json(WebhookResponse {
             success: true,
@@ -376,9 +379,16 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
 
     // 11. Doctor diagnostics inspection
     if normalized == "doctor" || raw_action == "InspectDiagnostics" {
-        let env = detect_doctor_env()?;
-        let report = doctor::run_with(&env, None).await;
-        let exit_code = doctor::exit_code(&report);
+        let application = state
+            .ctx
+            .doctor_application()
+            .await
+            .map_err(|error| ApiError::internal(error.to_string()))?;
+        let report = application
+            .run(None)
+            .await
+            .map_err(|failure| ApiError::internal(failure.message))?;
+        let exit_code = if report.has_failures() { 1 } else { 0 };
         return Ok(Json(WebhookResponse {
             success: exit_code == 0,
             action: "doctor".to_string(),

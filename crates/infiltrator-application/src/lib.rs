@@ -6,6 +6,7 @@
 
 pub mod core_application;
 pub mod configuration_application;
+pub mod doctor_application;
 pub mod overview;
 pub mod network_application;
 pub mod profile_application;

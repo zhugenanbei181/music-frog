@@ -1,5 +1,7 @@
 use infiltrator_core::bootstrap;
-use infiltrator_core::doctor::{self, DoctorEnv, DoctorStatus};
+use infiltrator_application::doctor_application::DoctorApplication;
+use infiltrator_contract::doctor::DoctorStatus;
+use infiltrator_core::doctor_port::MihomoDoctor;
 use mihomo_version::manager::VersionManager;
 
 use super::{render_explanation, report_rows, report_summary, status_label};
@@ -30,8 +32,8 @@ async fn doctor_report_passes_on_bootstrapped_home() {
     let version_manager = VersionManager::with_home(home.clone()).unwrap();
     version_manager.set_default("v0.0.0-test").await.unwrap();
 
-    let env = DoctorEnv::with_home(home);
-    let report = doctor::run_with(&env, None).await;
+    let application = DoctorApplication::new(std::sync::Arc::new(MihomoDoctor::with_home(home)));
+    let report = application.run(None).await.unwrap();
     assert!(!report.checks.is_empty());
     let failures: Vec<String> = report
         .checks
@@ -40,7 +42,7 @@ async fn doctor_report_passes_on_bootstrapped_home() {
         .map(|check| format!("{}: {}", check.id, check.summary))
         .collect();
     assert!(failures.is_empty(), "unexpected failures: {failures:?}");
-    assert_eq!(doctor::exit_code(&report), 0);
+    assert_eq!(if report.has_failures() { 1 } else { 0 }, 0);
     assert!(report_summary(&report).contains("0 fail"));
     assert_eq!(report_rows(&report).len(), report.checks.len());
 }
@@ -51,17 +53,24 @@ async fn doctor_report_flags_missing_kernel_on_non_unix() {
     let _guard = EnvGuard::acquire().await;
     let temp = tempfile::tempdir().unwrap();
     bootstrap::ensure_bootstrap_at(temp.path()).await.unwrap();
-    let env = DoctorEnv::with_home(temp.path().to_path_buf());
-    let report = doctor::run_with(&env, Some("version")).await;
-    assert_eq!(doctor::exit_code(&report), 1);
+    let application = DoctorApplication::new(std::sync::Arc::new(MihomoDoctor::with_home(
+        temp.path().to_path_buf(),
+    )));
+    let report = application.run(Some("version".to_string())).await.unwrap();
+    assert_eq!(if report.has_failures() { 1 } else { 0 }, 1);
 }
 
 #[tokio::test]
 async fn doctor_filter_limits_report_to_matching_checks() {
     let _guard = EnvGuard::acquire().await;
     let temp = tempfile::tempdir().unwrap();
-    let env = DoctorEnv::with_home(temp.path().to_path_buf());
-    let report = doctor::run_with(&env, Some("service")).await;
+    let application = DoctorApplication::new(std::sync::Arc::new(MihomoDoctor::with_home(
+        temp.path().to_path_buf(),
+    )));
+    let report = application
+        .run(Some("service".to_string()))
+        .await
+        .unwrap();
     assert!(!report.checks.is_empty());
     assert!(
         report

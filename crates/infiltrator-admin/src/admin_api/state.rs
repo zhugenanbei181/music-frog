@@ -7,6 +7,7 @@ use std::{
 };
 
 use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_http::{HttpClient, build_http_client, build_raw_http_client};
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
@@ -26,6 +27,11 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication> {
         let store = infiltrator_core::profile_store_io::open().await?;
         Ok(ConfigurationApplication::new(store))
+    }
+
+    async fn doctor_application(&self) -> anyhow::Result<DoctorApplication> {
+        let doctor = infiltrator_core::doctor_port::MihomoDoctor::detect()?;
+        Ok(DoctorApplication::new(Arc::new(doctor)))
     }
 
     async fn rebuild_runtime(&self) -> anyhow::Result<()>;

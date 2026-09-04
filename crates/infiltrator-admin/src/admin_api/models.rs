@@ -7,9 +7,7 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use infiltrator_core::{
-    doctor::{DoctorFixAction, DoctorReport},
-};
+use infiltrator_contract::doctor::{DoctorFixAction, DoctorReport};
 use infiltrator_domain::script_engine::{ExtensionPackage, HookStage, PluginManifest, ScriptPreset};
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::settings::WebDavConfig;

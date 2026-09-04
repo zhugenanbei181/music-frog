@@ -12,9 +12,7 @@ use axum::{
         sse::{Event, KeepAlive, Sse},
     },
 };
-use infiltrator_core::bootstrap::{self, BootstrapReport};
-use infiltrator_core::doctor::{self, DoctorCheckMeta, DoctorEnv, DoctorFixAction};
-use mihomo_platform::paths::get_home_dir;
+use infiltrator_contract::doctor::{BootstrapReport, DoctorCheckMeta, DoctorFixAction};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::admin_api::events::{AdminEvent, EVENT_DOCTOR_FIX};
@@ -24,38 +22,46 @@ use crate::admin_api::models::{
 };
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
 
-/// The settings check must inspect the exact file the `/admin/api/settings`
-/// handlers read and write: both sides use `<home>/settings.toml`, never
-/// through a second derivation.
-pub(crate) fn detect_doctor_env() -> Result<DoctorEnv, ApiError> {
-    let home = get_home_dir().map_err(|e| ApiError::internal(e.to_string()))?;
-    let settings_file = home.join("settings.toml");
-    Ok(DoctorEnv::with_home(home).with_settings_file(settings_file))
-}
-
 pub async fn run_doctor_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     axum::extract::Query(query): axum::extract::Query<DoctorRunQuery>,
 ) -> Result<Json<DoctorRunResponse>, ApiError> {
-    let env = detect_doctor_env()?;
-    let report = doctor::run_with(&env, query.only.as_deref()).await;
-    let exit_code = doctor::exit_code(&report);
+    let application = state
+        .ctx
+        .doctor_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    let report = application
+        .run(query.only)
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
+    let exit_code = if report.has_failures() { 1 } else { 0 };
     Ok(Json(DoctorRunResponse { report, exit_code }))
 }
 
 pub async fn list_doctor_checks_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<Vec<DoctorCheckMeta>>, ApiError> {
-    Ok(Json(doctor::list_checks().to_vec()))
+    let application = state
+        .ctx
+        .doctor_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    Ok(Json(application.list_checks()))
 }
 
 pub async fn explain_doctor_check_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     axum::extract::Path(check_id): axum::extract::Path<String>,
 ) -> Result<Json<DoctorCheckMeta>, ApiError> {
-    match doctor::explain_check(&check_id) {
-        Ok(meta) => Ok(Json(*meta)),
-        Err(err) => Err(ApiError::not_found(err.to_string())),
+    let application = state
+        .ctx
+        .doctor_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    match application.explain(&check_id) {
+        Ok(meta) => Ok(Json(meta)),
+        Err(failure) => Err(ApiError::not_found(failure.message)),
     }
 }
 
@@ -77,10 +83,17 @@ pub async fn fix_doctor_http<C: AdminApiContext>(
         .and_then(|Json(p)| p.only)
         .or(query.only);
 
-    let env = detect_doctor_env()?;
+    let application = state
+        .ctx
+        .doctor_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
 
     if !is_stream {
-        let report = doctor::fix_with(&env, only.as_deref()).await?;
+        let report = application
+            .fix(only.clone())
+            .await
+            .map_err(|failure| ApiError::internal(failure.message))?;
         let detail = if report.actions.is_empty() {
             "nothing to repair".to_string()
         } else {
@@ -99,6 +112,7 @@ pub async fn fix_doctor_http<C: AdminApiContext>(
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<Event, Infallible>>();
     let state_events = state.events.clone();
+    let application_for_stream = application.clone();
 
     tokio::spawn(async move {
         let repair_tasks: &[(&str, &str, u8)] = &[
@@ -145,7 +159,10 @@ pub async fn fix_doctor_http<C: AdminApiContext>(
                 .unwrap_or_default(),
             )));
 
-            match doctor::fix_with(&env, Some(task_id)).await {
+            match application_for_stream
+                .fix(Some(task_id.to_string()))
+                .await
+            {
                 Ok(report) => {
                     for action in report.actions {
                         let _ = tx.send(Ok(Event::default().event("action").data(
@@ -166,7 +183,7 @@ pub async fn fix_doctor_http<C: AdminApiContext>(
                         serde_json::to_string(&DoctorFixProgressEvent {
                             stage: "error".to_string(),
                             task: Some(task_id.to_string()),
-                            summary: Some(format!("Failed to repair {task_id}: {err}")),
+                            summary: Some(format!("Failed to repair {task_id}: {}", err.message)),
                             progress_pct: Some(progress_pct),
                             actions: None,
                         })
@@ -213,9 +230,16 @@ pub async fn fix_doctor_http<C: AdminApiContext>(
 }
 
 pub async fn run_bootstrap_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<BootstrapReport>, ApiError> {
-    let home = get_home_dir().map_err(|e| ApiError::internal(e.to_string()))?;
-    let report = bootstrap::ensure_bootstrap_at(&home).await?;
+    let application = state
+        .ctx
+        .doctor_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    let report = application
+        .bootstrap()
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
     Ok(Json(report))
 }

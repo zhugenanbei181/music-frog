@@ -6,6 +6,7 @@ use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::public_ip_probe::PublicIpProbe;
 use infiltrator_ports::settings_store::SettingsStore;
 use infiltrator_ports::subscription_source::SubscriptionSource;
+use infiltrator_ports::doctor::DoctorPort;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -36,6 +37,10 @@ pub fn subscription_source() -> impl SubscriptionSource {
 
 pub fn public_ip_probe() -> impl PublicIpProbe {
     infiltrator_core::public_ip_io::HttpPublicIpProbe::with_default_client()
+}
+
+pub fn doctor() -> anyhow::Result<impl DoctorPort> {
+    infiltrator_core::doctor_port::MihomoDoctor::detect()
 }
 
 pub async fn reset_profiles_to_default() -> anyhow::Result<()> {

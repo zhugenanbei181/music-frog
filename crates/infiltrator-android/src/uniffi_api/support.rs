@@ -5,6 +5,7 @@
 use std::sync::OnceLock;
 
 use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
@@ -82,6 +83,12 @@ pub(super) async fn build_configuration_application() -> Result<ConfigurationApp
 
 pub(super) fn subscription_source() -> impl SubscriptionSource {
     infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients()
+}
+
+pub(super) fn doctor_application() -> Result<DoctorApplication, FfiStatus> {
+    let doctor = infiltrator_core::doctor_port::MihomoDoctor::detect()
+        .map_err(map_anyhow_error)?;
+    Ok(DoctorApplication::new(std::sync::Arc::new(doctor)))
 }
 
 /// ConfigManager wired for the configs-dir redirect. The `INFILTRATOR_CONFIGS_DIR`

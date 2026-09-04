@@ -10,6 +10,7 @@ pub mod core_lifecycle;
 pub mod core_process;
 pub mod data_dir;
 pub mod data_store;
+pub mod doctor;
 pub mod endpoint;
 pub mod error;
 pub mod host_runtime;

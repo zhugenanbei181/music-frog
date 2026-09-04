@@ -5,6 +5,7 @@ pub mod bench_harness;
 pub mod bootstrap;
 pub mod diagnostics_adapter;
 pub mod doctor;
+pub mod doctor_port;
 pub mod factory_reset;
 pub mod fake_ip_cache_io;
 pub mod flow_control;

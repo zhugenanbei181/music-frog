@@ -6,6 +6,7 @@
 
 pub mod capability;
 pub mod command;
+pub mod doctor;
 pub mod error;
 pub mod intent;
 pub mod snapshot;

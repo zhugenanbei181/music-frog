@@ -1,4 +1,6 @@
-use infiltrator_core::doctor::{self, DoctorEnv, DoctorFixReport, DoctorReport, DoctorStatus};
+use infiltrator_application::doctor_application::DoctorApplication;
+use infiltrator_contract::doctor::{DoctorFixReport, DoctorReport, DoctorStatus};
+use infiltrator_core::doctor_port::MihomoDoctor;
 
 use crate::commands::DoctorAction;
 use crate::handlers::EXIT_OK;
@@ -13,7 +15,7 @@ pub(crate) async fn handle(action: DoctorAction) -> anyhow::Result<i32> {
             } else {
                 print_report(&report);
             }
-            Ok(doctor::exit_code(&report))
+            Ok(if report.has_failures() { 1 } else { 0 })
         }
         DoctorAction::Fix { only, json } => {
             let report = fix_report(only.as_deref()).await?;
@@ -32,10 +34,12 @@ pub(crate) async fn handle(action: DoctorAction) -> anyhow::Result<i32> {
             Ok(EXIT_OK)
         }
         DoctorAction::List { json } => {
+            let application = doctor_application()?;
             if json {
-                output::print_json(&doctor::list_checks())?;
+                output::print_json(&application.list_checks())?;
             } else {
-                let rows: Vec<Vec<String>> = doctor::list_checks()
+                let rows: Vec<Vec<String>> = application
+                    .list_checks()
                     .iter()
                     .map(|check| {
                         vec![
@@ -61,13 +65,23 @@ pub(crate) async fn handle(action: DoctorAction) -> anyhow::Result<i32> {
 /// Detect the real installation and run the filtered checks. A detection
 /// failure surfaces as an error so the dispatcher maps it to exit code 2.
 async fn run_report(only: Option<&str>) -> anyhow::Result<DoctorReport> {
-    let env = DoctorEnv::detect()?;
-    Ok(doctor::run_with(&env, only).await)
+    doctor_application()?
+        .run(only.map(str::to_owned))
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))
 }
 
 async fn fix_report(only: Option<&str>) -> anyhow::Result<DoctorFixReport> {
-    let env = DoctorEnv::detect()?;
-    doctor::fix_with(&env, only).await
+    doctor_application()?
+        .fix(only.map(str::to_owned))
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))
+}
+
+fn doctor_application() -> anyhow::Result<DoctorApplication> {
+    Ok(DoctorApplication::new(std::sync::Arc::new(
+        MihomoDoctor::detect()?,
+    )))
 }
 
 pub(crate) fn status_label(status: &DoctorStatus) -> &'static str {
@@ -120,7 +134,9 @@ fn print_report(report: &DoctorReport) {
 }
 
 pub(crate) fn render_explanation(check_id: &str) -> anyhow::Result<String> {
-    let info = doctor::explain_check(check_id)?;
+    let info = doctor_application()?
+        .explain(check_id)
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
     Ok(format!(
         "{}\nid: {}\ncategory: {}\nfixable: {}\ndefault: {}\nwhy: {}\nfail means: {}\nhint: {}\n",
         info.summary,
