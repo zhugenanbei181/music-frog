@@ -1,6 +1,6 @@
 //! Editor lazy-load flag and script sandbox state shared by the configuration editors.
 
-use infiltrator_core::script_engine::ScriptExecutionResult;
+use infiltrator_domain::script_engine::ScriptExecutionResult;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum EditorLazyState {

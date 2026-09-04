@@ -249,8 +249,8 @@ mod tests {
             name: "XiaoHongShu".into(),
             behavior: "domain".into(),
             file: None,
-            metadata: Some(infiltrator_core::mrs::MrsMetadata {
-                behavior: infiltrator_core::mrs::Behavior::Domain,
+            metadata: Some(infiltrator_domain::mrs::MrsMetadata {
+                behavior: infiltrator_domain::mrs::Behavior::Domain,
                 rule_count: 179,
                 version: 1,
                 payload_size: 4096,
@@ -283,8 +283,8 @@ mod tests {
             name: "test-mrs".into(),
             behavior: "domain".into(),
             file: None,
-            metadata: Some(infiltrator_core::mrs::MrsMetadata {
-                behavior: infiltrator_core::mrs::Behavior::Domain,
+            metadata: Some(infiltrator_domain::mrs::MrsMetadata {
+                behavior: infiltrator_domain::mrs::Behavior::Domain,
                 rule_count: 350,
                 version: 1,
                 payload_size: 2048,

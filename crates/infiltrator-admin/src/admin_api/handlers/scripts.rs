@@ -3,7 +3,7 @@
 use axum::Json;
 use std::time::Duration;
 
-use infiltrator_core::script_engine::{
+use infiltrator_domain::script_engine::{
     HookStage, ScriptEngine, ScriptExecutionResult, ScriptValidationResult,
     DEFAULT_SCRIPT_TIMEOUT_MS,
 };

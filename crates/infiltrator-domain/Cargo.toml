@@ -7,8 +7,13 @@ description = "Runtime- and UI-independent domain state and algorithms for Music
 
 [dependencies]
 anyhow = { workspace = true }
+base64 = "0.22"
+regex = { workspace = true }
+ring = "0.17"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
+url = { workspace = true }
+urlencoding = "2.1"

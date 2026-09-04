@@ -2,7 +2,7 @@
 //! the mixin editor pane, the subscription filter draft, MRS rule-provider
 //! details and the sync-conflict key-level diff state.
 
-use infiltrator_core::mrs::MrsMetadata;
+use infiltrator_domain::mrs::MrsMetadata;
 use std::collections::HashMap;
 use std::path::PathBuf;
 

@@ -389,8 +389,8 @@ impl AppState {
                 let script = self.editor.script_sandbox.script_code.clone();
                 let yaml = self.editor.script_sandbox.input_yaml.clone();
                 self.editor.script_sandbox.is_running = true;
-                let engine = infiltrator_core::script_engine::ScriptEngine::new();
-                match engine.execute_transform_detailed(&script, &yaml, infiltrator_core::script_engine::HookStage::PreMerge) {
+                let engine = infiltrator_domain::script_engine::ScriptEngine::new();
+                match engine.execute_transform_detailed(&script, &yaml, infiltrator_domain::script_engine::HookStage::PreMerge) {
                     Ok(res) => {
                         self.editor.script_sandbox.execution_result = Some(res);
                         self.editor.script_sandbox.execution_error = None;

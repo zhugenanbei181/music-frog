@@ -119,8 +119,8 @@ impl AppState {
                 file: Some(PathBuf::from(
                     "/home/demo/.config/musicfrog-infiltrator/providers/rules/reject.mrs",
                 )),
-                metadata: Some(infiltrator_core::mrs::MrsMetadata {
-                    behavior: infiltrator_core::mrs::Behavior::Domain,
+                metadata: Some(infiltrator_domain::mrs::MrsMetadata {
+                    behavior: infiltrator_domain::mrs::Behavior::Domain,
                     rule_count: 52_345,
                     version: 1,
                     payload_size: 1_882_304,
@@ -134,8 +134,8 @@ impl AppState {
                 file: Some(PathBuf::from(
                     "/home/demo/.config/musicfrog-infiltrator/providers/rules/cn-cidr.mrs",
                 )),
-                metadata: Some(infiltrator_core::mrs::MrsMetadata {
-                    behavior: infiltrator_core::mrs::Behavior::IpCidr,
+                metadata: Some(infiltrator_domain::mrs::MrsMetadata {
+                    behavior: infiltrator_domain::mrs::Behavior::IpCidr,
                     rule_count: 9_412,
                     version: 1,
                     payload_size: 264_180,

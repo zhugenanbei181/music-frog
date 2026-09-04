@@ -3,7 +3,7 @@
 //! Provider names come from the current profile's `rule-providers` section
 //! (so the scan works without a live core) unioned with the live controller
 //! list. Each candidate cache file is read from disk; only bytes carrying the
-//! MRS magic parse into header metadata via `infiltrator_core::mrs`.
+//! MRS magic parse into header metadata via `infiltrator_domain::mrs`.
 
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -122,7 +122,7 @@ async fn scan_mrs_providers(
             match tokio::fs::read(&path).await {
                 Ok(bytes) => {
                     detail.file = Some(path.clone());
-                    match infiltrator_core::mrs::parse_mrs_header(&bytes) {
+                    match infiltrator_domain::mrs::parse_mrs_header(&bytes) {
                         Ok(meta) => detail.metadata = Some(meta),
                         Err(error) => {
                             detail.errors.push(format!("{}: {error}", path.display()));

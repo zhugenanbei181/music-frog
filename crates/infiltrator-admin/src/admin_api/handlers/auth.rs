@@ -61,7 +61,7 @@ pub async fn verify_admin_token<C: AdminApiContext>(
             .or(query_token.as_deref());
 
         let valid = match candidate {
-            Some(token) => infiltrator_core::script_engine::CryptoSubtleShim::timing_safe_equal(
+            Some(token) => infiltrator_domain::script_engine::CryptoSubtleShim::timing_safe_equal(
                 token.as_bytes(),
                 expected_token.as_bytes(),
             ),

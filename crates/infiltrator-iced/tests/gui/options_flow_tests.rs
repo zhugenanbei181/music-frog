@@ -161,7 +161,7 @@ fn test_mrs_details_projection() {
     let (mut state, _) = AppState::new();
     assert!(state.editor.mrs_details.is_empty());
     let bytes = mrs_header_bytes("geo");
-    let meta = infiltrator_core::mrs::parse_mrs_header(&bytes).unwrap();
+    let meta = infiltrator_domain::mrs::parse_mrs_header(&bytes).unwrap();
     let detail = crate::types::options::MrsProviderDetail {
         name: "geo".into(),
         behavior: "domain".into(),

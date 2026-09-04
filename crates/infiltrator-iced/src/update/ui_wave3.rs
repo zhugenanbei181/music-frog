@@ -18,8 +18,8 @@ impl AppState {
                 Task::none()
             }
             Message::ExportPcapBuffer => {
-                let mut writer = infiltrator_core::pcap_exporter::PcapExporter::new(
-                    infiltrator_core::pcap_exporter::PcapHeader::new(65535, 1),
+                let mut writer = infiltrator_domain::pcap_exporter::PcapExporter::new(
+                    infiltrator_domain::pcap_exporter::PcapHeader::new(65535, 1),
                 );
                 let data = [0x45, 0x00, 0x00, 0x3c, 0x00, 0x01];
                 writer.append_packet(1725360000, 500000, &data);

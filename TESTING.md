@@ -8,25 +8,28 @@
 - **核心模块覆盖率**：各子模块均维护了与其职责相称的单元/集成测试。以
   `grep -rE '#\[(tokio::)?test' --include='*.rs' <crate>/src | wc -l` 实测为准：
 
-  | Crate | 测试数（当前 nextest 口径） |
+  | Crate / test target | 测试数（`cargo nextest list --workspace`） |
   | :--- | ---: |
-  | infiltrator-core | 271 |
-  | infiltrator-domain | 47 |
+  | infiltrator-core | 402 |
+  | infiltrator-domain | 153 |
   | infiltrator-application | 10 |
   | infiltrator-ios | 2 |
-  | infiltrator-iced | 142 |
-  | infiltrator-desktop | 112 |
+  | infiltrator-iced + headless | 255 |
+  | infiltrator-desktop | 197 |
   | mihomo-version | 87 |
   | mihomo-config | 72 |
-  | infiltrator-admin | 72 |
-  | mihomo-api | 68 |
-  | infiltrator-shared | 52 |
+  | infiltrator-admin | 75 |
+  | mihomo-api | 69 |
+  | infiltrator-shared | 54 |
   | infiltrator-cli | 50 |
-  | infiltrator-android | 46 |
-  | mihomo-platform | 45 |
+  | infiltrator-android | 49 |
+  | mihomo-platform + self-healing state machine | 79 |
   | mihomo-dav-sync (sync-engine 27 + dav-client 7 + state-store 7) | 41 |
   | infiltrator-http | 7 |
-  | infiltrator-bevy-* (widgets 65 + ui 56, 独立工作区) | 121 |
+  | infiltrator-bevy-ui + headless | 171 |
+  | infiltrator-bevy-widgets + headless | 237 |
+  | infiltrator-contract | 4 |
+  | infiltrator-ports | 1 |
   | **全仓自动化测试总计** | **2015** |
 
 - **代码洁净度**：全工作空间必须保持 **0 编译警告** (`cargo check --workspace` 无任何输出)。

@@ -5122,11 +5122,16 @@ name = "infiltrator-domain"
 version = "0.30.0"
 dependencies = [
  "anyhow",
+ "base64",
+ "regex",
+ "ring",
  "serde",
  "serde_json",
  "serde_yaml_ng",
  "sha2 0.11.0",
  "thiserror 2.0.20",
+ "url",
+ "urlencoding",
 ]
 
 [[package]]
@@ -5156,6 +5161,7 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-desktop",
+ "infiltrator-domain",
  "infiltrator-ports",
  "infiltrator-shared",
  "is_elevated",

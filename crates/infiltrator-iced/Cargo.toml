@@ -32,6 +32,7 @@ naga27 = { package = "naga", version = "27", default-features = false, features 
 tokio = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-application = { path = "../infiltrator-application" }
+infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-desktop = { path = "../infiltrator-desktop" }
