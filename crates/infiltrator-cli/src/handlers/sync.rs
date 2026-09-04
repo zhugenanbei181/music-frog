@@ -2,7 +2,8 @@ use anyhow::anyhow;
 use dav_client::DavClient as _;
 use dav_client::client::WebDavClient;
 use infiltrator_core::settings::{AppSettings, load_webdav_password};
-use mihomo_platform::traits::{CredentialStore, DefaultCredentialStore};
+use infiltrator_ports::secure_store::SecureStore;
+use mihomo_platform::traits::DefaultCredentialStore;
 use state_store::StateStore;
 use sync_engine::SyncPlanner;
 use sync_engine::executor::SyncExecutor;
@@ -35,7 +36,7 @@ pub(crate) fn dav_config(settings: &AppSettings) -> anyhow::Result<(String, Stri
 /// WebDAV 密码经 core helper 从凭据存储取回（`webdav:password`）。读取
 /// 失败归一为空串，由后续服务器认证显式报错，而不是在 CLI 里掩盖配置
 /// 问题。
-pub(crate) async fn dav_password<S: CredentialStore>(store: &S) -> String {
+pub(crate) async fn dav_password<S: SecureStore>(store: &S) -> String {
     load_webdav_password(store).await.unwrap_or_default()
 }
 
@@ -120,7 +121,7 @@ mod tests {
         AppSettings, WebDavConfig, clear_webdav_password, load_settings, save_settings,
         save_webdav_password,
     };
-    use mihomo_platform::traits::CredentialStore;
+    use infiltrator_ports::secure_store::SecureStore;
 
     use super::{SyncSummary, dav_config, dav_password, render_summary};
 
@@ -194,8 +195,12 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl CredentialStore for MemoryStore {
-        async fn get(&self, service: &str, key: &str) -> mihomo_api::error::Result<Option<String>> {
+    impl SecureStore for MemoryStore {
+        async fn get(
+            &self,
+            service: &str,
+            key: &str,
+        ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
             Ok(self.peek(service, key))
         }
 
@@ -204,7 +209,7 @@ mod tests {
             service: &str,
             key: &str,
             value: &str,
-        ) -> mihomo_api::error::Result<()> {
+        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -212,7 +217,11 @@ mod tests {
             Ok(())
         }
 
-        async fn delete(&self, service: &str, key: &str) -> mihomo_api::error::Result<()> {
+        async fn delete(
+            &self,
+            service: &str,
+            key: &str,
+        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
             self.entries
                 .lock()
                 .expect("store lock")

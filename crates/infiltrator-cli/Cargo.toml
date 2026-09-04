@@ -10,6 +10,8 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }
+infiltrator-contract = { path = "../infiltrator-contract" }
+infiltrator-ports = { path = "../infiltrator-ports" }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-http = { path = "../infiltrator-http" }

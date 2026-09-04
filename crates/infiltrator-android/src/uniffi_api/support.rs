@@ -8,6 +8,8 @@ use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::android_bridge::get_android_bridge;
+use mihomo_platform::paths::get_home_dir;
+use mihomo_platform::traits::DefaultCredentialStore;
 use tokio::runtime::Runtime;
 
 use super::session::shared_core;
@@ -55,21 +57,33 @@ pub(super) async fn configs_dir_override() -> Option<String> {
 }
 
 /// ConfigManager wired for the configs-dir redirect. The `INFILTRATOR_CONFIGS_DIR`
-/// env keeps priority over the settings field inside `resolve_configs_dir`;
-/// with no override anywhere this equals `ConfigManager::new()`.
-pub(super) async fn build_config_manager() -> Result<ConfigManager, FfiStatus> {
+/// env keeps priority over the settings field inside `resolve_configs_dir_in`;
+/// with no override anywhere this uses `<home>/configs`.
+pub(super) async fn build_config_manager(
+) -> Result<ConfigManager<DefaultCredentialStore>, FfiStatus> {
+    let home = get_home_dir().map_err(map_mihomo_error)?;
     let override_dir = configs_dir_override().await;
-    ConfigManager::with_configs_dir(override_dir.as_deref()).map_err(map_mihomo_error)
+    ConfigManager::with_home_configs_dir_and_store(
+        home,
+        override_dir.as_deref(),
+        DefaultCredentialStore::default(),
+    )
+    .map_err(map_mihomo_error)
 }
 
 pub(super) async fn build_controller_client() -> Result<MihomoClient, FfiStatus> {
     // Prefer the shared session: endpoint and secret are re-resolved from the
     // current profile on every call (port rotation and secret aware).
     if let Ok(core) = shared_core().await {
-        match core.session.client().await {
-            Ok(client) => return Ok(client),
+        match core.session.endpoint().await {
+            Ok(endpoint) => match MihomoClient::new(&endpoint.url, endpoint.secret) {
+                Ok(client) => return Ok(client),
+                Err(err) => {
+                    log::debug!("session endpoint client unavailable, using legacy resolution: {err}");
+                }
+            },
             Err(err) => {
-                log::debug!("session client unavailable, using legacy resolution: {err}");
+                log::debug!("session endpoint unavailable, using legacy resolution: {err}");
             }
         }
     }
@@ -170,7 +184,9 @@ mod tests {
         }
     }
 
-    async fn configs_parent(manager: &ConfigManager) -> PathBuf {
+    async fn configs_parent(
+        manager: &ConfigManager<DefaultCredentialStore>,
+    ) -> PathBuf {
         manager
             .get_current_path()
             .await

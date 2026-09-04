@@ -4,6 +4,7 @@ use infiltrator_http::HttpClient;
 use log::{info, warn};
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile::Profile;
+use mihomo_platform::traits::DefaultCredentialStore;
 use tokio::task::JoinSet;
 use tokio::time::{Duration, sleep};
 
@@ -275,7 +276,7 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
 }
 
 struct ProfileUpdateParams<'a> {
-    manager: &'a ConfigManager,
+    manager: &'a ConfigManager<DefaultCredentialStore>,
     profile: &'a Profile,
     url: &'a str,
     interval_hours: Option<u32>,
@@ -376,7 +377,7 @@ async fn update_profile_subscription_with_retry(
 }
 
 pub(crate) async fn schedule_next_attempt(
-    manager: &ConfigManager,
+    manager: &ConfigManager<DefaultCredentialStore>,
     profile: &Profile,
     interval_hours: u32,
     now: chrono::DateTime<Utc>,

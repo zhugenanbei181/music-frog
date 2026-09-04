@@ -1,4 +1,5 @@
 pub mod api;
+pub mod composition;
 pub mod domain_snapshot;
 pub mod ffi;
 #[cfg(target_os = "android")]

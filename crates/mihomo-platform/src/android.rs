@@ -1,36 +1,45 @@
 use async_trait::async_trait;
-use mihomo_api::error::{MihomoError, Result};
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::data_dir::DataDirProvider;
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::secure_store::SecureStore;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::android_bridge::{AndroidBridge, get_android_bridge};
-use crate::traits::{CoreController, CredentialStore, DataDirProvider};
 
 pub struct AndroidCoreController;
 
 #[async_trait]
-impl CoreController for AndroidCoreController {
-    async fn start(&self) -> Result<()> {
-        let bridge = require_service_bridge("core start")?;
-        bridge.core_start().await
+impl CoreProcess for AndroidCoreController {
+    async fn start(&self) -> std::result::Result<(), PortError> {
+        require_bridge("core start")?
+            .core_start()
+            .await
+            .map_err(map_port_error)
     }
 
-    async fn stop(&self) -> Result<()> {
-        let bridge = require_service_bridge("core stop")?;
-        bridge.core_stop().await
+    async fn stop(&self) -> std::result::Result<(), PortError> {
+        require_bridge("core stop")?
+            .core_stop()
+            .await
+            .map_err(map_port_error)
     }
 
-    async fn is_running(&self) -> bool {
-        match get_android_bridge() {
-            Some(bridge) => bridge.core_is_running().await.unwrap_or_else(|err| {
-                log::warn!("android core is_running failed: {err}");
-                false
-            }),
-            None => false,
-        }
+    async fn status(&self) -> std::result::Result<CoreLifecycle, PortError> {
+        let running = require_bridge("core status")?
+            .core_is_running()
+            .await
+            .map_err(map_port_error)?;
+        Ok(if running {
+            CoreLifecycle::Running
+        } else {
+            CoreLifecycle::Stopped
+        })
     }
 
-    fn controller_url(&self) -> Option<String> {
+    fn controller_endpoint(&self) -> Option<String> {
         get_android_bridge().and_then(|bridge| bridge.core_controller_url())
     }
 }
@@ -44,20 +53,35 @@ impl Default for AndroidCredentialStore {
 }
 
 #[async_trait]
-impl CredentialStore for AndroidCredentialStore {
-    async fn get(&self, service: &str, key: &str) -> Result<Option<String>> {
-        let bridge = require_config_bridge("credential get")?;
-        bridge.credential_get(service, key).await
+impl SecureStore for AndroidCredentialStore {
+    async fn get(
+        &self,
+        service: &str,
+        key: &str,
+    ) -> std::result::Result<Option<String>, PortError> {
+        require_bridge("credential get")?
+            .credential_get(service, key)
+            .await
+            .map_err(map_port_error)
     }
 
-    async fn set(&self, service: &str, key: &str, value: &str) -> Result<()> {
-        let bridge = require_config_bridge("credential set")?;
-        bridge.credential_set(service, key, value).await
+    async fn set(
+        &self,
+        service: &str,
+        key: &str,
+        value: &str,
+    ) -> std::result::Result<(), PortError> {
+        require_bridge("credential set")?
+            .credential_set(service, key, value)
+            .await
+            .map_err(map_port_error)
     }
 
-    async fn delete(&self, service: &str, key: &str) -> Result<()> {
-        let bridge = require_config_bridge("credential delete")?;
-        bridge.credential_delete(service, key).await
+    async fn delete(&self, service: &str, key: &str) -> std::result::Result<(), PortError> {
+        require_bridge("credential delete")?
+            .credential_delete(service, key)
+            .await
+            .map_err(map_port_error)
     }
 }
 
@@ -79,13 +103,17 @@ impl DataDirProvider for AndroidDataDirProvider {
     }
 }
 
-fn require_service_bridge(context: &str) -> Result<Arc<dyn AndroidBridge>> {
-    get_android_bridge().ok_or_else(|| {
-        MihomoError::Service(format!("Android bridge is not configured ({context})"))
-    })
+fn map_port_error(error: mihomo_api::error::MihomoError) -> PortError {
+    match error {
+        mihomo_api::error::MihomoError::Io(error) => PortError::Io(error.to_string()),
+        mihomo_api::error::MihomoError::Http(error) => PortError::Network(error.to_string()),
+        mihomo_api::error::MihomoError::WebSocket(error) => PortError::Network(error.to_string()),
+        mihomo_api::error::MihomoError::NotFound(message) => PortError::NotFound(message),
+        other => PortError::Failed(other.to_string()),
+    }
 }
 
-fn require_config_bridge(context: &str) -> Result<Arc<dyn AndroidBridge>> {
+fn require_bridge(context: &str) -> std::result::Result<Arc<dyn AndroidBridge>, PortError> {
     get_android_bridge()
-        .ok_or_else(|| MihomoError::Config(format!("Android bridge is not configured ({context})")))
+        .ok_or_else(|| PortError::Failed(format!("Android bridge is not configured ({context})")))
 }

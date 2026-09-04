@@ -1,5 +1,6 @@
 use anyhow::anyhow;
-use mihomo_platform::traits::{CredentialStore, DefaultCredentialStore};
+use infiltrator_ports::secure_store::SecureStore;
+use mihomo_platform::traits::DefaultCredentialStore;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -148,7 +149,7 @@ pub const WEBDAV_PASSWORD_KEY: &str = "webdav:password";
 
 /// 读取 keyring 中的 WebDAV 密码。空条目与读取失败都归一为 `None`
 /// （失败仅 `log::warn`，不让调用方崩溃）。
-pub async fn load_webdav_password<S: CredentialStore>(store: &S) -> Option<String> {
+pub async fn load_webdav_password<S: SecureStore>(store: &S) -> Option<String> {
     match store
         .get(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY)
         .await
@@ -164,10 +165,7 @@ pub async fn load_webdav_password<S: CredentialStore>(store: &S) -> Option<Strin
 
 /// 把 WebDAV 密码写入 keyring。失败返回 `Err`，由调用方决定是否中断
 /// （保存路径应当中断，避免「文件已更新而凭据丢失」的不一致）。
-pub async fn save_webdav_password<S: CredentialStore>(
-    store: &S,
-    password: &str,
-) -> anyhow::Result<()> {
+pub async fn save_webdav_password<S: SecureStore>(store: &S, password: &str) -> anyhow::Result<()> {
     store
         .set(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY, password)
         .await
@@ -176,7 +174,7 @@ pub async fn save_webdav_password<S: CredentialStore>(
 
 /// 清除 keyring 中的 WebDAV 密码。条目不存在或删除失败只告警（幂等清空：
 /// 「清除」语义下二次清除与目标本就为空都算成功）。
-pub async fn clear_webdav_password<S: CredentialStore>(store: &S) {
+pub async fn clear_webdav_password<S: SecureStore>(store: &S) {
     if let Err(err) = store
         .delete(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY)
         .await
@@ -188,7 +186,7 @@ pub async fn clear_webdav_password<S: CredentialStore>(store: &S) {
 /// 旧版 settings.toml 明文携带 `webdav.password` 的一次性迁移：写入
 /// keyring 后用「不带密码」的序列化重写文件。keyring 写失败时保留内存值
 /// 并跳过重写（下次启动重试），绝不因迁移失败让启动崩溃。
-async fn migrate_webdav_password_to_keyring<S: CredentialStore>(
+async fn migrate_webdav_password_to_keyring<S: SecureStore>(
     settings: &mut AppSettings,
     path: &Path,
     store: &S,
@@ -218,7 +216,7 @@ pub async fn load_settings(path: &Path) -> anyhow::Result<AppSettings> {
 
 /// 同 [`load_settings`]，但 WebDAV 密码迁移走调用方提供的凭据存储
 /// （测试注入内存实现，避免触碰真实 OS keyring）。
-pub async fn load_settings_with_store<S: CredentialStore>(
+pub async fn load_settings_with_store<S: SecureStore>(
     path: &Path,
     store: &S,
 ) -> anyhow::Result<AppSettings> {
@@ -251,7 +249,7 @@ pub async fn load_settings_hydrated(path: &Path) -> anyhow::Result<AppSettings> 
 }
 
 /// 同 [`load_settings_hydrated`]，但 keyring 存取走调用方提供的凭据存储。
-pub async fn load_settings_hydrated_with_store<S: CredentialStore>(
+pub async fn load_settings_hydrated_with_store<S: SecureStore>(
     path: &Path,
     store: &S,
 ) -> anyhow::Result<AppSettings> {
@@ -282,9 +280,10 @@ pub fn settings_path(base_dir: &Path) -> anyhow::Result<std::path::PathBuf> {
 
 /// 核心内部规范工厂：按真实 home（含测试 override）构造 ConfigManager，
 /// configs 目录跟随 settings 的 `configs_dir` 字段（解析优先级见
-/// `mihomo_config::manager::paths::resolve_configs_dir`）。
+/// `mihomo_config::manager::paths::resolve_configs_dir_in`）。
 /// 全部业务门面的 ConfigManager 构造都必须经由这里，禁止再自行 `new()`。
-pub async fn app_config_manager() -> anyhow::Result<mihomo_config::manager::ConfigManager> {
+pub async fn app_config_manager(
+) -> anyhow::Result<mihomo_config::manager::ConfigManager<DefaultCredentialStore>> {
     let home = mihomo_platform::paths::get_home_dir()?;
     app_config_manager_in(&home).await
 }
@@ -293,7 +292,7 @@ pub async fn app_config_manager() -> anyhow::Result<mihomo_config::manager::Conf
 /// settings 从 `<home>/settings.toml` 读取。
 pub async fn app_config_manager_in(
     home: &Path,
-) -> anyhow::Result<mihomo_config::manager::ConfigManager> {
+) -> anyhow::Result<mihomo_config::manager::ConfigManager<DefaultCredentialStore>> {
     let settings = load_settings(&settings_path(home)?).await?;
     Ok(
         mihomo_config::manager::ConfigManager::with_home_configs_dir_and_store(
@@ -607,8 +606,12 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl CredentialStore for MemoryStore {
-        async fn get(&self, service: &str, key: &str) -> mihomo_api::error::Result<Option<String>> {
+    impl SecureStore for MemoryStore {
+        async fn get(
+            &self,
+            service: &str,
+            key: &str,
+        ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
             Ok(self.get(service, key))
         }
 
@@ -617,9 +620,9 @@ mod tests {
             service: &str,
             key: &str,
             value: &str,
-        ) -> mihomo_api::error::Result<()> {
+        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
             if self.fail_set {
-                return Err(mihomo_api::error::MihomoError::Config(
+                return Err(infiltrator_ports::error::PortError::Failed(
                     "injected keyring failure".to_string(),
                 ));
             }
@@ -630,7 +633,11 @@ mod tests {
             Ok(())
         }
 
-        async fn delete(&self, service: &str, key: &str) -> mihomo_api::error::Result<()> {
+        async fn delete(
+            &self,
+            service: &str,
+            key: &str,
+        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
             self.entries
                 .lock()
                 .expect("store lock")

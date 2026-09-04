@@ -276,8 +276,10 @@ pub async fn apply_saved_options_for(
     let home = mihomo_platform::paths::get_home_dir()?;
     let settings_file = crate::settings::settings_path(&home)?;
     let settings = crate::settings::load_settings(&settings_file).await?;
-    let config_dir =
-        mihomo_config::manager::paths::resolve_configs_dir(settings.configs_dir.as_deref())?;
+    let config_dir = mihomo_config::manager::paths::resolve_configs_dir_in(
+        settings.configs_dir.as_deref(),
+        &home,
+    )?;
     apply_saved_options(&config_dir, profile, content).await
 }
 

@@ -2,14 +2,14 @@
 //! configured address, ensure it is usable, and rotate it when the port is
 //! occupied.
 
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
-use mihomo_platform::traits::CredentialStore;
 
 use super::ConfigManager;
 use crate::port::{find_available_port, is_port_available, parse_port_from_addr};
 use crate::yaml;
 
-impl<S: CredentialStore> ConfigManager<S> {
+impl<S: SecureStore> ConfigManager<S> {
     pub async fn get_external_controller(&self) -> Result<String> {
         let profile = self.get_current().await?;
         log::debug!("Reading external-controller from profile: {}", profile);

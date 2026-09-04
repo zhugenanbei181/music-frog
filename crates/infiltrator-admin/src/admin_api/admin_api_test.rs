@@ -12,7 +12,8 @@ mod tests {
     };
     use infiltrator_core::settings::AppSettings;
     use mihomo_api::client::MihomoClient;
-    use mihomo_platform::TEST_LOCK;
+use mihomo_platform::TEST_LOCK;
+use mihomo_platform::traits::DefaultCredentialStore;
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt; // for `oneshot`, `ready`, and `call`
 
@@ -384,7 +385,11 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
-        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
+        let manager = mihomo_config::manager::ConfigManager::with_home_and_store(
+            temp_dir.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        )
+        .unwrap();
         manager.save("active", "port: 7890").await.unwrap();
         manager.set_current("active").await.unwrap();
 
@@ -436,7 +441,11 @@ mod tests {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
-        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
+        let manager = mihomo_config::manager::ConfigManager::with_home_and_store(
+            temp_dir.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        )
+        .unwrap();
         manager
             .save("default", "dns:\n  enable: true")
             .await
@@ -461,7 +470,11 @@ mod tests {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
-        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
+        let manager = mihomo_config::manager::ConfigManager::with_home_and_store(
+            temp_dir.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        )
+        .unwrap();
         manager
             .save("default", "tun:\n  enable: true")
             .await
@@ -486,7 +499,11 @@ mod tests {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
-        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
+        let manager = mihomo_config::manager::ConfigManager::with_home_and_store(
+            temp_dir.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        )
+        .unwrap();
         manager.save("default", "rules:\n  - DIRECT").await.unwrap();
 
         let app = setup_app();
@@ -508,7 +525,11 @@ mod tests {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
-        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
+        let manager = mihomo_config::manager::ConfigManager::with_home_and_store(
+            temp_dir.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        )
+        .unwrap();
         manager
             .save(
                 "default",
@@ -536,7 +557,11 @@ mod tests {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
-        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
+        let manager = mihomo_config::manager::ConfigManager::with_home_and_store(
+            temp_dir.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        )
+        .unwrap();
         manager
             .save(
                 "default",
@@ -781,7 +806,11 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
-        let manager = mihomo_config::manager::ConfigManager::new().unwrap();
+        let manager = mihomo_config::manager::ConfigManager::with_home_and_store(
+            temp_dir.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        )
+        .unwrap();
         manager.save("default", "rules:\n  - DIRECT").await.unwrap();
 
         let app = setup_app();

@@ -5,8 +5,8 @@
 //! reference (`subscription_url_key`) plus a plaintext fallback
 //! (`subscription_url`) for stores that cannot persist the value.
 
-use mihomo_api::error::Result;
-use mihomo_platform::traits::CredentialStore;
+use infiltrator_ports::secure_store::SecureStore;
+use mihomo_api::error::{MihomoError, Result};
 
 const SUBSCRIPTION_SERVICE: &str = "MusicFrog-Despicable-Infiltrator";
 const SUBSCRIPTION_KEY_PREFIX: &str = "subscription";
@@ -15,7 +15,7 @@ pub(super) fn subscription_key(profile: &str) -> String {
     format!("{SUBSCRIPTION_KEY_PREFIX}:{profile}")
 }
 
-pub(super) async fn store_subscription_url<S: CredentialStore>(
+pub(super) async fn store_subscription_url<S: SecureStore>(
     credential_store: &S,
     profile: &str,
     url: &str,
@@ -23,11 +23,12 @@ pub(super) async fn store_subscription_url<S: CredentialStore>(
     let key = subscription_key(profile);
     credential_store
         .set(SUBSCRIPTION_SERVICE, &key, url)
-        .await?;
+        .await
+        .map_err(|error| MihomoError::Config(error.to_string()))?;
     Ok(key)
 }
 
-pub(super) async fn load_subscription_url<S: CredentialStore>(
+pub(super) async fn load_subscription_url<S: SecureStore>(
     credential_store: &S,
     profile: &str,
     key: Option<&str>,
@@ -45,11 +46,14 @@ pub(super) async fn load_subscription_url<S: CredentialStore>(
     }
 }
 
-pub(super) async fn delete_subscription_url<S: CredentialStore>(
+pub(super) async fn delete_subscription_url<S: SecureStore>(
     credential_store: &S,
     profile: &str,
 ) -> Result<()> {
     let key = subscription_key(profile);
-    credential_store.delete(SUBSCRIPTION_SERVICE, &key).await?;
+    credential_store
+        .delete(SUBSCRIPTION_SERVICE, &key)
+        .await
+        .map_err(|error| MihomoError::Config(error.to_string()))?;
     Ok(())
 }

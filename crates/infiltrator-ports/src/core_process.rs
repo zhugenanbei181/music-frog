@@ -9,6 +9,10 @@ pub trait CoreProcess: Send + Sync {
     async fn stop(&self) -> Result<(), PortError>;
     async fn status(&self) -> Result<CoreLifecycle, PortError>;
     fn controller_endpoint(&self) -> Option<String>;
+
+    async fn pid(&self) -> Option<u32> {
+        None
+    }
 }
 
 /// Proves that the controller is ready without exposing an HTTP client or

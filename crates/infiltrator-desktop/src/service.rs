@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::error::PortError;
 use mihomo_platform::desktop::ProcessCoreController;
-use mihomo_platform::traits::CoreController;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
 
@@ -71,10 +71,6 @@ impl ServiceManager {
         }
     }
 
-    pub fn controller(&self) -> Arc<dyn CoreController> {
-        self.controller.clone()
-    }
-
     /// 0.30 process port. New application code should consume this trait
     /// object instead of the legacy `mihomo-platform` controller trait.
     pub fn core_process(&self) -> Arc<dyn CoreProcess> {
@@ -85,26 +81,36 @@ impl ServiceManager {
     }
 
     pub async fn is_running(&self) -> bool {
-        self.controller.is_running().await
+        matches!(
+            CoreProcess::status(self.controller.as_ref()).await,
+            Ok(infiltrator_contract::snapshot::CoreLifecycle::Starting)
+                | Ok(infiltrator_contract::snapshot::CoreLifecycle::Ready)
+                | Ok(infiltrator_contract::snapshot::CoreLifecycle::Running)
+        )
     }
 
-    pub async fn start(&self) -> mihomo_api::error::Result<()> {
-        CoreController::start(self.controller.as_ref()).await
+    pub async fn start(&self) -> Result<(), PortError> {
+        CoreProcess::start(self.controller.as_ref()).await
     }
 
-    pub async fn stop(&self) -> mihomo_api::error::Result<()> {
-        CoreController::stop(self.controller.as_ref()).await
+    pub async fn stop(&self) -> Result<(), PortError> {
+        CoreProcess::stop(self.controller.as_ref()).await
     }
 
-    pub async fn restart(&self) -> mihomo_api::error::Result<()> {
-        CoreController::start(self.controller.as_ref()).await
+    pub async fn restart(&self) -> Result<(), PortError> {
+        CoreProcess::start(self.controller.as_ref()).await
     }
 
     pub async fn status(&self) -> mihomo_api::error::Result<ServiceStatus> {
-        if self.controller.is_running().await {
-            Ok(ServiceStatus::Running(std::process::id()))
-        } else {
-            Ok(ServiceStatus::Stopped)
+        match CoreProcess::status(self.controller.as_ref()).await {
+            Ok(infiltrator_contract::snapshot::CoreLifecycle::Starting)
+            | Ok(infiltrator_contract::snapshot::CoreLifecycle::Ready)
+            | Ok(infiltrator_contract::snapshot::CoreLifecycle::Running) => {
+                let pid = CoreProcess::pid(self.controller.as_ref()).await;
+                Ok(ServiceStatus::Running(pid.unwrap_or_else(std::process::id)))
+            }
+            Ok(_) => Ok(ServiceStatus::Stopped),
+            Err(error) => Err(mihomo_api::error::MihomoError::Service(error.to_string())),
         }
     }
 }

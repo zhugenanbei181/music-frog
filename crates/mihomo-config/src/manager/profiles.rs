@@ -3,8 +3,8 @@
 
 use std::path::PathBuf;
 
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
-use mihomo_platform::traits::CredentialStore;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
@@ -18,7 +18,7 @@ use super::subscription_store::{delete_subscription_url, store_subscription_url}
 use crate::profile::Profile;
 use crate::yaml;
 
-impl<S: CredentialStore> ConfigManager<S> {
+impl<S: SecureStore> ConfigManager<S> {
     pub async fn load(&self, profile: &str) -> Result<String> {
         let path = self.existing_profile_yaml_path(profile).await?;
         let content = fs::read_to_string(&path).await?;

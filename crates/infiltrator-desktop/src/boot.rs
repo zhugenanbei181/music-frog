@@ -401,7 +401,7 @@ impl BootEngine for ProductionEngine<'_> {
         let service_manager = ServiceManager::new(binary, config_path);
         let endpoints = Arc::new(ProfileEndpointSource::new(cm.clone()));
         let session = Arc::new(CoreSession::new(
-            service_manager.controller(),
+            service_manager.core_process(),
             endpoints.clone(),
             Arc::new(MihomoVersionProbe::new(endpoints.clone())),
         ));

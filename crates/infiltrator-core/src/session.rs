@@ -10,9 +10,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::traits::{CoreController, CredentialStore};
 use tokio::time::{MissedTickBehavior, interval};
 use yaml_rust2::YamlLoader;
 
@@ -111,11 +113,11 @@ pub struct ControllerEndpoint {
 /// profile's `external-controller` via the manager (normalization and port
 /// fallback included) and parses the top-level `secret` key, which no
 /// frontend resolved before this session layer existed.
-pub struct ProfileEndpointSource<S: CredentialStore> {
+pub struct ProfileEndpointSource<S: SecureStore> {
     config: Arc<ConfigManager<S>>,
 }
 
-impl<S: CredentialStore> ProfileEndpointSource<S> {
+impl<S: SecureStore> ProfileEndpointSource<S> {
     pub fn new(config: Arc<ConfigManager<S>>) -> Self {
         Self { config }
     }
@@ -142,7 +144,7 @@ impl<S: CredentialStore> ProfileEndpointSource<S> {
 }
 
 #[async_trait]
-impl<S: CredentialStore> EndpointSource for ProfileEndpointSource<S> {
+impl<S: SecureStore> EndpointSource for ProfileEndpointSource<S> {
     async fn resolve(&self) -> std::result::Result<ControllerEndpoint, SessionError> {
         let url = self
             .config
@@ -165,18 +167,18 @@ pub trait ReadinessProbe: Send + Sync {
 /// Production probe: resolve the endpoint, build a client, ask for the core
 /// version. Endpoint resolution happens per probe so port rotation is picked
 /// up immediately.
-pub struct MihomoVersionProbe<S: CredentialStore> {
+pub struct MihomoVersionProbe<S: SecureStore> {
     endpoints: Arc<ProfileEndpointSource<S>>,
 }
 
-impl<S: CredentialStore> MihomoVersionProbe<S> {
+impl<S: SecureStore> MihomoVersionProbe<S> {
     pub fn new(endpoints: Arc<ProfileEndpointSource<S>>) -> Self {
         Self { endpoints }
     }
 }
 
 #[async_trait]
-impl<S: CredentialStore> ReadinessProbe for MihomoVersionProbe<S> {
+impl<S: SecureStore> ReadinessProbe for MihomoVersionProbe<S> {
     async fn probe(&self) -> SessionResult<()> {
         let endpoint = self.endpoints.resolve().await?;
         let client = MihomoClient::new(&endpoint.url, endpoint.secret)
@@ -198,11 +200,11 @@ struct SessionState {
 
 /// Single owner of core lifecycle state for all frontends.
 ///
-/// Platform process handling stays behind [`CoreController`]; everything
+/// Platform process handling stays behind [`CoreProcess`]; everything
 /// above it — status machine, generation protocol, readiness, endpoint
 /// resolution — is shared here so no frontend re-derives core truth.
 pub struct CoreSession {
-    controller: Arc<dyn CoreController>,
+    controller: Arc<dyn CoreProcess>,
     endpoints: Arc<dyn EndpointSource>,
     probe: Arc<dyn ReadinessProbe>,
     state: std::sync::RwLock<SessionState>,
@@ -210,7 +212,7 @@ pub struct CoreSession {
 
 impl CoreSession {
     pub fn new(
-        controller: Arc<dyn CoreController>,
+        controller: Arc<dyn CoreProcess>,
         endpoints: Arc<dyn EndpointSource>,
         probe: Arc<dyn ReadinessProbe>,
     ) -> Self {
@@ -252,15 +254,6 @@ impl CoreSession {
     /// Resolve the controller endpoint for the current profile.
     pub async fn endpoint(&self) -> SessionResult<ControllerEndpoint> {
         self.endpoints.resolve().await
-    }
-
-    /// Build an API client for the current endpoint. This is the only
-    /// sanctioned construction path; per-frontend client caches are
-    /// superseded by it.
-    pub async fn client(&self) -> SessionResult<MihomoClient> {
-        let endpoint = self.endpoints.resolve().await?;
-        MihomoClient::new(&endpoint.url, endpoint.secret)
-            .map_err(|err| SessionError::Probe(err.to_string()))
     }
 
     /// Start the core: bump the generation (invalidating in-flight work),
@@ -306,7 +299,11 @@ impl CoreSession {
         loop {
             self.check_generation(generation)?;
 
-            if !self.controller.is_running().await {
+            let process_alive = matches!(
+                self.controller.status().await,
+                Ok(CoreLifecycle::Starting) | Ok(CoreLifecycle::Ready) | Ok(CoreLifecycle::Running)
+            );
+            if !process_alive {
                 let reason = "core process exited while waiting for readiness".to_string();
                 self.mark_failed(reason.clone());
                 return Err(SessionError::ProcessExited);
@@ -395,10 +392,10 @@ mod tests {
     }
 
     #[async_trait]
-    impl CoreController for MockController {
-        async fn start(&self) -> mihomo_api::error::Result<()> {
+    impl CoreProcess for MockController {
+        async fn start(&self) -> std::result::Result<(), infiltrator_ports::error::PortError> {
             if self.fail_start.load(Ordering::SeqCst) {
-                return Err(mihomo_api::error::MihomoError::Service(
+                return Err(infiltrator_ports::error::PortError::Failed(
                     "start rejected".into(),
                 ));
             }
@@ -406,16 +403,22 @@ mod tests {
             Ok(())
         }
 
-        async fn stop(&self) -> mihomo_api::error::Result<()> {
+        async fn stop(&self) -> std::result::Result<(), infiltrator_ports::error::PortError> {
             self.running.store(false, Ordering::SeqCst);
             Ok(())
         }
 
-        async fn is_running(&self) -> bool {
-            self.running.load(Ordering::SeqCst)
+        async fn status(
+            &self,
+        ) -> std::result::Result<CoreLifecycle, infiltrator_ports::error::PortError> {
+            Ok(if self.running.load(Ordering::SeqCst) {
+                CoreLifecycle::Running
+            } else {
+                CoreLifecycle::Stopped
+            })
         }
 
-        fn controller_url(&self) -> Option<String> {
+        fn controller_endpoint(&self) -> Option<String> {
             None
         }
     }
@@ -477,8 +480,12 @@ mod tests {
     }
 
     #[async_trait]
-    impl CredentialStore for MockStore {
-        async fn get(&self, service: &str, key: &str) -> mihomo_api::error::Result<Option<String>> {
+    impl SecureStore for MockStore {
+        async fn get(
+            &self,
+            service: &str,
+            key: &str,
+        ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
             Ok(self
                 .entries
                 .lock()
@@ -492,7 +499,7 @@ mod tests {
             service: &str,
             key: &str,
             value: &str,
-        ) -> mihomo_api::error::Result<()> {
+        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -500,7 +507,11 @@ mod tests {
             Ok(())
         }
 
-        async fn delete(&self, service: &str, key: &str) -> mihomo_api::error::Result<()> {
+        async fn delete(
+            &self,
+            service: &str,
+            key: &str,
+        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -510,7 +521,7 @@ mod tests {
     }
 
     fn session_with(
-        controller: Arc<dyn CoreController>,
+        controller: Arc<dyn CoreProcess>,
         probe: Arc<dyn ReadinessProbe>,
     ) -> CoreSession {
         CoreSession::new(controller, Arc::new(StaticEndpoints), probe)

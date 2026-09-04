@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, anyhow};
 use log::{info, warn};
-use mihomo_config::manager::paths::resolve_configs_dir;
+use mihomo_config::manager::paths::resolve_configs_dir_in;
 
 use dav_client::client::WebDavClient;
 use mihomo_platform::paths::get_home_dir;
@@ -50,9 +50,9 @@ pub async fn run_sync_tick<C: AdminApiContext>(
         .context("Failed to create WebDAV client")?;
 
     // 定位数据目录：sync 扫描根必须与 profile 存储目录一致（云同步重定向）。
-    let local_root = resolve_configs_dir(configs_dir)
-        .map_err(|e| anyhow!("Failed to resolve configs directory: {}", e))?;
     let home = get_home_dir().map_err(|e| anyhow!("Failed to get home directory: {}", e))?;
+    let local_root = resolve_configs_dir_in(configs_dir, &home)
+        .map_err(|e| anyhow!("Failed to resolve configs directory: {}", e))?;
 
     // 确保本地目录存在
     if !local_root.exists() {

@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::session::{ControllerEndpoint, EndpointSource, ReadinessProbe};
+use infiltrator_ports::core_process::CoreProcess;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -16,11 +17,11 @@ struct MockController {
 }
 
 #[async_trait]
-impl mihomo_platform::traits::CoreController for MockController {
-    async fn start(&self) -> mihomo_api::error::Result<()> {
+impl CoreProcess for MockController {
+    async fn start(&self) -> std::result::Result<(), infiltrator_ports::error::PortError> {
         if self.fail_starts_left.load(Ordering::SeqCst) > 0 {
             self.fail_starts_left.fetch_sub(1, Ordering::SeqCst);
-            return Err(mihomo_api::error::MihomoError::Service(
+            return Err(infiltrator_ports::error::PortError::Failed(
                 "start rejected".into(),
             ));
         }
@@ -28,16 +29,25 @@ impl mihomo_platform::traits::CoreController for MockController {
         Ok(())
     }
 
-    async fn stop(&self) -> mihomo_api::error::Result<()> {
+    async fn stop(&self) -> std::result::Result<(), infiltrator_ports::error::PortError> {
         self.running.store(false, Ordering::SeqCst);
         Ok(())
     }
 
-    async fn is_running(&self) -> bool {
-        self.running.load(Ordering::SeqCst)
+    async fn status(
+        &self,
+    ) -> std::result::Result<
+        infiltrator_contract::snapshot::CoreLifecycle,
+        infiltrator_ports::error::PortError,
+    > {
+        Ok(if self.running.load(Ordering::SeqCst) {
+            infiltrator_contract::snapshot::CoreLifecycle::Running
+        } else {
+            infiltrator_contract::snapshot::CoreLifecycle::Stopped
+        })
     }
 
-    fn controller_url(&self) -> Option<String> {
+    fn controller_endpoint(&self) -> Option<String> {
         None
     }
 }
@@ -91,8 +101,12 @@ struct MockStore {
 }
 
 #[async_trait]
-impl CredentialStore for MockStore {
-    async fn get(&self, service: &str, key: &str) -> mihomo_api::error::Result<Option<String>> {
+impl SecureStore for MockStore {
+    async fn get(
+        &self,
+        service: &str,
+        key: &str,
+    ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
         Ok(self
             .entries
             .lock()
@@ -106,7 +120,7 @@ impl CredentialStore for MockStore {
         service: &str,
         key: &str,
         value: &str,
-    ) -> mihomo_api::error::Result<()> {
+    ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
         self.entries
             .lock()
             .expect("store lock")
@@ -114,7 +128,11 @@ impl CredentialStore for MockStore {
         Ok(())
     }
 
-    async fn delete(&self, service: &str, key: &str) -> mihomo_api::error::Result<()> {
+    async fn delete(
+        &self,
+        service: &str,
+        key: &str,
+    ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
         self.entries
             .lock()
             .expect("store lock")
@@ -518,7 +536,9 @@ async fn fidelity_rewrite_anchors_preserves_comments() {
 
     // Verify rewritten anchors & aliases
     assert!(disk.contains("&tenant_a_catchall MATCH,DIRECT"));
-    assert!(disk.contains("&tenant_a_hk_01 { name: \"HK-01\", type: ss, server: 1.1.1.1, port: 443 }"));
+    assert!(
+        disk.contains("&tenant_a_hk_01 { name: \"HK-01\", type: ss, server: 1.1.1.1, port: 443 }")
+    );
     assert!(disk.contains("- *tenant_a_hk_01"));
 
     // Verify 100% comment retention

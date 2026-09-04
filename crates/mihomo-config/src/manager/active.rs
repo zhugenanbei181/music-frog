@@ -3,14 +3,14 @@
 
 use std::path::PathBuf;
 
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
-use mihomo_platform::traits::CredentialStore;
 use tokio::fs;
 
 use super::ConfigManager;
 use super::paths::sanitized_profile_key;
 
-impl<S: CredentialStore> ConfigManager<S> {
+impl<S: SecureStore> ConfigManager<S> {
     pub async fn set_current(&self, profile: &str) -> Result<()> {
         self.existing_profile_yaml_path(profile).await?;
 

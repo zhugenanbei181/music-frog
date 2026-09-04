@@ -1,7 +1,11 @@
 use crate::runtime::AndroidBridgeAdapter;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::data_dir::DataDirProvider;
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::Result;
 use mihomo_platform::android_bridge::AndroidBridge;
-use mihomo_platform::traits::{CoreController, CredentialStore, DataDirProvider};
 
 pub struct AndroidApi<B>
 where
@@ -21,39 +25,55 @@ where
     }
 
     pub fn controller_url(&self) -> Option<String> {
-        self.adapter.controller_url()
+        CoreProcess::controller_endpoint(&self.adapter)
     }
 
-    pub async fn core_start(&self) -> Result<()> {
-        self.adapter.start().await
+    pub async fn core_start(&self) -> std::result::Result<(), PortError> {
+        CoreProcess::start(&self.adapter).await
     }
 
-    pub async fn core_stop(&self) -> Result<()> {
-        self.adapter.stop().await
+    pub async fn core_stop(&self) -> std::result::Result<(), PortError> {
+        CoreProcess::stop(&self.adapter).await
     }
 
-    pub async fn core_is_running(&self) -> bool {
-        self.adapter.is_running().await
+    pub async fn core_is_running(&self) -> std::result::Result<bool, PortError> {
+        Ok(matches!(
+            CoreProcess::status(&self.adapter).await?,
+            CoreLifecycle::Starting | CoreLifecycle::Ready | CoreLifecycle::Running
+        ))
     }
 
-    pub async fn credential_get(&self, service: &str, key: &str) -> Result<Option<String>> {
-        self.adapter.get(service, key).await
+    pub async fn credential_get(
+        &self,
+        service: &str,
+        key: &str,
+    ) -> std::result::Result<Option<String>, PortError> {
+        SecureStore::get(&self.adapter, service, key).await
     }
 
-    pub async fn credential_set(&self, service: &str, key: &str, value: &str) -> Result<()> {
-        self.adapter.set(service, key, value).await
+    pub async fn credential_set(
+        &self,
+        service: &str,
+        key: &str,
+        value: &str,
+    ) -> std::result::Result<(), PortError> {
+        SecureStore::set(&self.adapter, service, key, value).await
     }
 
-    pub async fn credential_delete(&self, service: &str, key: &str) -> Result<()> {
-        self.adapter.delete(service, key).await
+    pub async fn credential_delete(
+        &self,
+        service: &str,
+        key: &str,
+    ) -> std::result::Result<(), PortError> {
+        SecureStore::delete(&self.adapter, service, key).await
     }
 
     pub fn data_dir(&self) -> Option<std::path::PathBuf> {
-        self.adapter.data_dir()
+        DataDirProvider::data_dir(&self.adapter)
     }
 
     pub fn cache_dir(&self) -> Option<std::path::PathBuf> {
-        self.adapter.cache_dir()
+        DataDirProvider::cache_dir(&self.adapter)
     }
 
     pub async fn vpn_start(&self) -> Result<bool> {
@@ -169,11 +189,11 @@ mod tests {
     #[tokio::test]
     async fn test_android_api_core_flow() {
         let api = AndroidApi::new(TestBridge::new());
-        assert!(!api.core_is_running().await);
+        assert!(!api.core_is_running().await.unwrap());
         api.core_start().await.expect("start ok");
-        assert!(api.core_is_running().await);
+        assert!(api.core_is_running().await.unwrap());
         api.core_stop().await.expect("stop ok");
-        assert!(!api.core_is_running().await);
+        assert!(!api.core_is_running().await.unwrap());
     }
 
     #[test]
@@ -355,11 +375,11 @@ mod tests {
     async fn test_core_restart_flow() {
         let api = AndroidApi::new(TestBridge::new());
         api.core_start().await.unwrap();
-        assert!(api.core_is_running().await);
+        assert!(api.core_is_running().await.unwrap());
         api.core_stop().await.unwrap();
-        assert!(!api.core_is_running().await);
+        assert!(!api.core_is_running().await.unwrap());
         api.core_start().await.unwrap();
-        assert!(api.core_is_running().await);
+        assert!(api.core_is_running().await.unwrap());
     }
 
     #[tokio::test]

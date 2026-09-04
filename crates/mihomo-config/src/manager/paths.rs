@@ -5,8 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use mihomo_api::error::{MihomoError, Result};
-use mihomo_platform::paths::get_home_dir;
-use mihomo_platform::traits::CredentialStore;
+use infiltrator_ports::secure_store::SecureStore;
 use tokio::fs;
 
 use super::ConfigManager;
@@ -14,16 +13,7 @@ use super::ConfigManager;
 /// 环境变量形式的 configs 目录覆盖，优先级高于 settings 的 `configs_dir`。
 pub const CONFIGS_DIR_ENV: &str = "INFILTRATOR_CONFIGS_DIR";
 
-/// 解析 configs（profiles yaml）存储目录。
-/// 优先级：[`CONFIGS_DIR_ENV`] > `explicit`（settings 的 `configs_dir`）> `<home>/configs`。
-/// 空串/纯空白视为未设置并落到下一优先级；前导 `~` 展开为用户主目录；
-/// 相对路径按 home 拼接（与默认值 `<home>/configs` 同一基准）。
-/// 只解析路径：不创建目录、不要求目录存在（目录创建归 doctor fix 与既有 save 流程）。
-pub fn resolve_configs_dir(explicit: Option<&str>) -> Result<PathBuf> {
-    resolve_configs_dir_in(explicit, &get_home_dir()?)
-}
-
-/// 同 [`resolve_configs_dir`]，但 home 由调用方提供（`with_home*` 构造路径）。
+/// 由调用方提供 home，解析 env/settings 目录重定向。
 pub fn resolve_configs_dir_in(explicit: Option<&str>, home: &Path) -> Result<PathBuf> {
     let env_value = std::env::var(CONFIGS_DIR_ENV).ok();
     for candidate in [env_value.as_deref(), explicit] {
@@ -64,7 +54,7 @@ fn expand_tilde(path: &str) -> Result<PathBuf> {
     })
 }
 
-impl<S: CredentialStore> ConfigManager<S> {
+impl<S: SecureStore> ConfigManager<S> {
     /// 以规范化的 config 目录为根构造 profile 的 yaml 路径：
     /// 先校验、再做字符级消毒，最后验证结果仍落在规范基目录内。
     pub(super) async fn profile_yaml_path(&self, profile: &str) -> Result<PathBuf> {
@@ -150,8 +140,9 @@ pub(super) fn sanitized_profile_key(profile: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mihomo_platform::TEST_LOCK;
     use tempfile::TempDir;
+
+    static TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
     // 环境变量是进程级全局状态：所有涉及 configs 目录解析的测试都必须持有
     // TEST_LOCK 串行执行，避免互相串扰（与仓库既有 env 测试做法一致）。
@@ -279,7 +270,8 @@ mod tests {
         let cloud = temp_dir.path().join("cloud").join("sync");
 
         set_env(cloud.to_str().unwrap());
-        let manager = crate::manager::ConfigManager::with_home(home.clone()).unwrap();
+        let manager = crate::manager::ConfigManager::with_home_and_store(home.clone(), TestStore)
+            .unwrap();
         clear_env();
 
         assert_eq!(manager.config_dir, cloud);
@@ -292,18 +284,54 @@ mod tests {
         let _guard = test_lock().await;
         clear_env();
         let temp_dir = TempDir::new().unwrap();
-        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
-
-        let manager = crate::manager::ConfigManager::with_configs_dir(Some("cloud/profiles"));
+        let manager = crate::manager::ConfigManager::with_home_configs_dir_and_store(
+            temp_dir.path().to_path_buf(),
+            Some("cloud/profiles"),
+            TestStore,
+        );
         assert!(manager.is_ok());
         let manager = manager.unwrap();
         assert_eq!(manager.config_dir, temp_dir.path().join("cloud/profiles"));
         assert_eq!(manager.settings_file, temp_dir.path().join("config.toml"));
 
         // 空白值等价于未设置。
-        let manager = crate::manager::ConfigManager::with_configs_dir(Some("  ")).unwrap();
+        let manager = crate::manager::ConfigManager::with_home_configs_dir_and_store(
+            temp_dir.path().to_path_buf(),
+            Some("  "),
+            TestStore,
+        )
+        .unwrap();
         assert_eq!(manager.config_dir, temp_dir.path().join("configs"));
 
-        mihomo_platform::paths::clear_home_dir_override();
+    }
+
+    struct TestStore;
+
+    #[async_trait::async_trait]
+    impl SecureStore for TestStore {
+        async fn get(
+            &self,
+            _namespace: &str,
+            _key: &str,
+        ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
+            Ok(None)
+        }
+
+        async fn set(
+            &self,
+            _namespace: &str,
+            _key: &str,
+            _value: &str,
+        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+            Ok(())
+        }
+
+        async fn delete(
+            &self,
+            _namespace: &str,
+            _key: &str,
+        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+            Ok(())
+        }
     }
 }

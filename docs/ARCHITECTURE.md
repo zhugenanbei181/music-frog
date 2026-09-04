@@ -40,7 +40,7 @@ and sync          (REST / WebSocket)
 
 ### 导入规范：单一权威路径（2026-08-29，2026-08-30 全仓强制）
 
-- 全仓（业务代码与测试）**禁止一切 re-export 转发层**：`pub use`、`pub(crate) use`、`pub use x::*`（glob）一律不得出现；crate 根与 crate 内子模块一律 `pub mod` 直接暴露，调用方从**定义模块**的规范路径导入。一个事实只允许一个 Rust 路径。例如 `mihomo_api::client::MihomoClient`、`mihomo_api::error::MihomoError`、`mihomo_config::manager::ConfigManager`、`mihomo_platform::traits::CoreController`、`mihomo_platform::paths::get_home_dir`、`mihomo_version::manager::VersionManager`、`infiltrator_core::settings::AppSettings`、`infiltrator_desktop::runtime::MihomoRuntime`、`infiltrator_admin::admin_api::state::AdminApiContext`。
+- 全仓（业务代码与测试）**禁止一切 re-export 转发层**：`pub use`、`pub(crate) use`、`pub use x::*`（glob）一律不得出现；crate 根与 crate 内子模块一律 `pub mod` 直接暴露，调用方从**定义模块**的规范路径导入。一个事实只允许一个 Rust 路径。例如 `mihomo_api::client::MihomoClient`、`mihomo_api::error::MihomoError`、`mihomo_config::manager::ConfigManager`、`infiltrator_ports::core_process::CoreProcess`、`mihomo_platform::paths::get_home_dir`、`mihomo_version::manager::VersionManager`、`infiltrator_core::settings::AppSettings`、`infiltrator_desktop::runtime::MihomoRuntime`、`infiltrator_admin::admin_api::state::AdminApiContext`。
 - **禁止 `use ... as 别名`**：同名冲突一律用完整路径书写（如 `axum::extract::State`、`mihomo_config::profile::Profile`）。唯一豁免是 `use Trait as _;` 匿名 trait 导入——它不绑定新名字，不算别名。
 - 两项例外（白名单同时登记在 `scripts/quality/import-guard.py`）：`infiltrator_http::reqwest` 是依赖版本收敛点（全 workspace 统一 reqwest 版本），不是名字转发；`infiltrator-android/src/lib.rs` 与其 `uniffi_api.rs` 的导出面属 UniFFI FFI 表面，随 FFI 专项另行处理。
 - 机械化强制：`scripts/quality/import-guard.py --mode enforce`（CI `test.yml` 执行），违规即红；新增公开类型时直接在定义模块登记，不得为省事加转发——避免同一类型出现两个可用路径后调用方随机分叉。

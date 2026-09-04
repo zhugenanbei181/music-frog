@@ -5,14 +5,44 @@
 mod tests {
     use crate::manager::ConfigManager;
     use crate::profile::Profile;
-    use mihomo_platform::traits::CredentialStore;
+    use infiltrator_ports::secure_store::SecureStore;
     use std::path::PathBuf;
     use tempfile::TempDir;
     use tokio::fs;
 
-    async fn setup_test_manager(temp_dir: &TempDir) -> ConfigManager {
+    struct TestStore;
+
+    #[async_trait::async_trait]
+    impl SecureStore for TestStore {
+        async fn get(
+            &self,
+            _namespace: &str,
+            _key: &str,
+        ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
+            Ok(None)
+        }
+
+        async fn set(
+            &self,
+            _namespace: &str,
+            _key: &str,
+            _value: &str,
+        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+            Ok(())
+        }
+
+        async fn delete(
+            &self,
+            _namespace: &str,
+            _key: &str,
+        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+            Ok(())
+        }
+    }
+
+    async fn setup_test_manager(temp_dir: &TempDir) -> ConfigManager<TestStore> {
         let home = temp_dir.path().to_path_buf();
-        ConfigManager::with_home(home).unwrap()
+        ConfigManager::with_home_and_store(home, TestStore).unwrap()
     }
 
     #[tokio::test]
@@ -364,22 +394,32 @@ external-controller: http://127.0.0.1:9090
         }
 
         #[async_trait]
-        impl CredentialStore for MockStore {
+        impl SecureStore for MockStore {
             async fn get(
                 &self,
                 _svc: &str,
                 key: &str,
-            ) -> mihomo_api::error::Result<Option<String>> {
+            ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError>
+            {
                 Ok(self.data.lock().unwrap().get(key).cloned())
             }
-            async fn set(&self, _svc: &str, key: &str, val: &str) -> mihomo_api::error::Result<()> {
+            async fn set(
+                &self,
+                _svc: &str,
+                key: &str,
+                val: &str,
+            ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
                 self.data
                     .lock()
                     .unwrap()
                     .insert(key.to_string(), val.to_string());
                 Ok(())
             }
-            async fn delete(&self, _svc: &str, key: &str) -> mihomo_api::error::Result<()> {
+            async fn delete(
+                &self,
+                _svc: &str,
+                key: &str,
+            ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
                 self.data.lock().unwrap().remove(key);
                 Ok(())
             }

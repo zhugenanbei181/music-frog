@@ -3,12 +3,13 @@
 //!
 //! 约束：解析优先级为 `INFILTRATOR_CONFIGS_DIR` env、`AppSettings.configs_dir`、
 //! `<home>/configs` 依次回退，前两级比较在 `mihomo-config` 内部完成；settings
-//! 读不到（无 home、路径推导失败、文件损坏）时按未设置处理，行为必须与
-//! `ConfigManager::new()` 完全一致。
+//! 读不到（无 home、路径推导失败、文件损坏）时按未设置处理。
 
 use std::path::PathBuf;
 
 use infiltrator_core::error::InfiltratorError;
+use mihomo_platform::paths::get_home_dir;
+use mihomo_platform::traits::DefaultCredentialStore;
 use mihomo_config::manager::ConfigManager;
 
 /// settings 的 `configs_dir` 覆盖；任何读取失败一律回退 `None`。
@@ -22,16 +23,23 @@ async fn settings_configs_dir() -> Option<String> {
 }
 
 /// 构造感知 settings `configs_dir` 的 [`ConfigManager`]（env 优先级不变）。
-pub async fn config_manager() -> Result<ConfigManager, InfiltratorError> {
+pub async fn config_manager() -> Result<ConfigManager<DefaultCredentialStore>, InfiltratorError> {
+    let home = get_home_dir().map_err(InfiltratorError::from)?;
     let configs_dir = settings_configs_dir().await;
-    ConfigManager::with_configs_dir(configs_dir.as_deref()).map_err(InfiltratorError::from)
+    ConfigManager::with_home_configs_dir_and_store(
+        home,
+        configs_dir.as_deref(),
+        DefaultCredentialStore::default(),
+    )
+    .map_err(InfiltratorError::from)
 }
 
 /// 解析后的 configs 目录（env > settings 字段 > `<home>/configs`），供
 /// profile_options / 快照 / MRS 扫描等需要目录本身（而非 manager）的路径用，
 /// 避免与 [`config_manager`] 的解析结果分叉。
 pub async fn configs_dir() -> Result<PathBuf, InfiltratorError> {
+    let home = get_home_dir().map_err(InfiltratorError::from)?;
     let configs_dir = settings_configs_dir().await;
-    mihomo_config::manager::paths::resolve_configs_dir(configs_dir.as_deref())
+    mihomo_config::manager::paths::resolve_configs_dir_in(configs_dir.as_deref(), &home)
         .map_err(InfiltratorError::from)
 }

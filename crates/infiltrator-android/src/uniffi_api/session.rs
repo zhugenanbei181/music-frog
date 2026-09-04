@@ -4,6 +4,7 @@
 
 use std::sync::{Arc, Mutex, OnceLock};
 
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::{
     ApplyError, ApplyParams, ApplyStrategy, SessionConfigReloader, apply_current_profile,
 };
@@ -12,11 +13,12 @@ use infiltrator_core::session::{
     CoreSession, CoreStatus, MihomoVersionProbe, ProfileEndpointSource, READINESS_TIMEOUT,
     SessionError,
 };
-#[cfg(not(target_os = "android"))]
-use mihomo_api::error::MihomoError;
+use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::android_bridge::get_android_bridge;
-use mihomo_platform::traits::{CoreController, CredentialStore, DefaultCredentialStore};
+use mihomo_platform::traits::DefaultCredentialStore;
 
 #[cfg(target_os = "android")]
 use mihomo_platform::android::AndroidCoreController;
@@ -39,7 +41,7 @@ pub(super) struct SharedCore {
 /// mihomo_platform's [`AndroidCoreController`], which delegates to the
 /// globally registered JNI bridge (survives bridge re-registration).
 #[cfg(target_os = "android")]
-fn platform_core_controller() -> Arc<dyn CoreController> {
+fn platform_core_controller() -> Arc<dyn CoreProcess> {
     Arc::new(AndroidCoreController)
 }
 
@@ -51,38 +53,59 @@ struct BridgeCoreController;
 
 #[cfg(not(target_os = "android"))]
 #[async_trait::async_trait]
-impl CoreController for BridgeCoreController {
-    async fn start(&self) -> mihomo_api::error::Result<()> {
+impl CoreProcess for BridgeCoreController {
+    async fn start(&self) -> std::result::Result<(), PortError> {
         let bridge = get_android_bridge().ok_or_else(|| {
-            MihomoError::Service("Android bridge is not configured (core start)".into())
+            PortError::Failed("Android bridge is not configured (core start)".into())
         })?;
-        bridge.core_start().await
+        bridge
+            .core_start()
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
     }
 
-    async fn stop(&self) -> mihomo_api::error::Result<()> {
+    async fn stop(&self) -> std::result::Result<(), PortError> {
         let bridge = get_android_bridge().ok_or_else(|| {
-            MihomoError::Service("Android bridge is not configured (core stop)".into())
+            PortError::Failed("Android bridge is not configured (core stop)".into())
         })?;
-        bridge.core_stop().await
+        bridge
+            .core_stop()
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
     }
 
-    async fn is_running(&self) -> bool {
-        platform_core_is_running().await
+    async fn status(&self) -> std::result::Result<CoreLifecycle, PortError> {
+        let running = get_android_bridge()
+            .ok_or_else(|| PortError::Failed("Android bridge is not configured".into()))?
+            .core_is_running()
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))?;
+        Ok(if running {
+            CoreLifecycle::Running
+        } else {
+            CoreLifecycle::Stopped
+        })
     }
 
-    fn controller_url(&self) -> Option<String> {
+    fn controller_endpoint(&self) -> Option<String> {
         get_android_bridge().and_then(|bridge| bridge.core_controller_url())
     }
 }
 
 #[cfg(not(target_os = "android"))]
-fn platform_core_controller() -> Arc<dyn CoreController> {
+fn platform_core_controller() -> Arc<dyn CoreProcess> {
     Arc::new(BridgeCoreController)
 }
 
 #[cfg(target_os = "android")]
 async fn platform_core_is_running() -> bool {
-    AndroidCoreController.is_running().await
+    match get_android_bridge() {
+        Some(bridge) => bridge.core_is_running().await.unwrap_or_else(|error| {
+            log::warn!("android core is_running failed: {error}");
+            false
+        }),
+        None => false,
+    }
 }
 
 #[cfg(not(target_os = "android"))]
@@ -180,7 +203,7 @@ async fn legacy_bridge_restart() {
 
 /// Undo a `set_current` after a failed apply so the active-profile metadata
 /// matches the config the core is running again.
-async fn restore_current_profile<S: CredentialStore>(
+async fn restore_current_profile<S: SecureStore>(
     config: &ConfigManager<S>,
     previous: Option<String>,
 ) -> Result<(), String> {

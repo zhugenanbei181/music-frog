@@ -11,7 +11,6 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::Result;
 use mihomo_platform::android_bridge::AndroidBridge;
-use mihomo_platform::traits::{CoreController, CredentialStore, DataDirProvider};
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -47,66 +46,6 @@ where
 
     pub async fn tun_is_enabled(&self) -> Result<bool> {
         self.bridge.tun_is_enabled().await
-    }
-}
-
-#[async_trait]
-impl<B> CoreController for AndroidBridgeAdapter<B>
-where
-    B: AndroidBridge,
-{
-    async fn start(&self) -> Result<()> {
-        self.bridge.core_start().await
-    }
-
-    async fn stop(&self) -> Result<()> {
-        self.bridge.core_stop().await
-    }
-
-    async fn is_running(&self) -> bool {
-        self.bridge.core_is_running().await.unwrap_or_else(|err| {
-            log::warn!("android core is_running failed: {err}");
-            false
-        })
-    }
-
-    fn controller_url(&self) -> Option<String> {
-        self.bridge.core_controller_url()
-    }
-
-    async fn pid(&self) -> Option<u32> {
-        None
-    }
-}
-
-#[async_trait]
-impl<B> CredentialStore for AndroidBridgeAdapter<B>
-where
-    B: AndroidBridge,
-{
-    async fn get(&self, service: &str, key: &str) -> Result<Option<String>> {
-        self.bridge.credential_get(service, key).await
-    }
-
-    async fn set(&self, service: &str, key: &str, value: &str) -> Result<()> {
-        self.bridge.credential_set(service, key, value).await
-    }
-
-    async fn delete(&self, service: &str, key: &str) -> Result<()> {
-        self.bridge.credential_delete(service, key).await
-    }
-}
-
-impl<B> DataDirProvider for AndroidBridgeAdapter<B>
-where
-    B: AndroidBridge,
-{
-    fn data_dir(&self) -> Option<PathBuf> {
-        self.bridge.data_dir()
-    }
-
-    fn cache_dir(&self) -> Option<PathBuf> {
-        self.bridge.cache_dir()
     }
 }
 
@@ -260,15 +199,15 @@ where
         Self { adapter }
     }
 
-    pub fn controller(&self) -> &dyn CoreController {
+    pub fn controller(&self) -> &dyn CoreProcess {
         &self.adapter
     }
 
-    pub fn credential_store(&self) -> &dyn CredentialStore {
+    pub fn credential_store(&self) -> &dyn SecureStore {
         &self.adapter
     }
 
-    pub fn data_dirs(&self) -> &dyn DataDirProvider {
+    pub fn data_dirs(&self) -> &dyn PortDataDirProvider {
         &self.adapter
     }
 }
@@ -382,11 +321,20 @@ mod tests {
     #[tokio::test]
     async fn test_adapter_core_cycle() {
         let adapter = AndroidBridgeAdapter::new(TestBridge::new());
-        assert!(!adapter.is_running().await);
+        assert!(matches!(
+            CoreProcess::status(&adapter).await.unwrap(),
+            CoreLifecycle::Stopped
+        ));
         adapter.start().await.expect("start ok");
-        assert!(adapter.is_running().await);
+        assert!(matches!(
+            CoreProcess::status(&adapter).await.unwrap(),
+            CoreLifecycle::Running
+        ));
         adapter.stop().await.expect("stop ok");
-        assert!(!adapter.is_running().await);
+        assert!(matches!(
+            CoreProcess::status(&adapter).await.unwrap(),
+            CoreLifecycle::Stopped
+        ));
     }
 
     #[tokio::test]
@@ -407,7 +355,7 @@ mod tests {
         let adapter = AndroidBridgeAdapter::new(TestBridge::new());
         let runtime = AndroidRuntime::new(adapter);
         assert_eq!(
-            runtime.controller().controller_url(),
+            runtime.controller().controller_endpoint(),
             Some("http://127.0.0.1:9090".to_string())
         );
         assert_eq!(runtime.data_dirs().data_dir(), Some(PathBuf::from("data")));

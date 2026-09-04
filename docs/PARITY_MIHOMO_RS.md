@@ -24,7 +24,7 @@ crates.io/Homebrew 发行（产品形态不同）。内核下载无校验和是�
 | 任务 | 交付物 | 验收 |
 | --- | --- | --- |
 | A. doctor 门面 | `infiltrator-core/src/doctor/{mod,checks,fixes,pidfile}.rs` + `bootstrap.rs`；9 项检查（id 与上游对齐）、4 项保守修复、`DoctorEnv` 路径注入、`exit_code`、explain 元数据、`run_with/fix_with` 过滤器 | `nextest -p infiltrator-core` 260 绿；clippy 零警告；守卫 0 违规 |
-| B. configs_dir 直通 | `AppSettings.configs_dir`（serde 向后兼容）；`mihomo-config` `resolve_configs_dir[_in]`、`ConfigManager::with_configs_dir[_and_store]`；`~` 展开、相对路径按 home 拼接 | `nextest -p mihomo-config -p infiltrator-core` 309 绿；env 测试持 `TEST_LOCK` 串行 |
+| B. configs_dir 直通 | `AppSettings.configs_dir`（serde 向后兼容）；`mihomo-config` `resolve_configs_dir_in`、`ConfigManager::with_home_configs_dir_and_store`；`~` 展开、相对路径按显式 home 拼接 | `nextest -p mihomo-config -p infiltrator-core`；env 测试持对应测试锁串行 |
 
 ### 第 2 波（并行）
 

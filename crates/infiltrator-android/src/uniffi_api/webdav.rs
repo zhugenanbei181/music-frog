@@ -9,8 +9,9 @@ use infiltrator_core::settings::{
     AppSettings, clear_webdav_password, load_settings, load_settings_hydrated_with_store,
     save_settings, save_webdav_password, settings_path,
 };
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_platform::paths::get_home_dir;
-use mihomo_platform::traits::{CredentialStore, DefaultCredentialStore};
+use mihomo_platform::traits::DefaultCredentialStore;
 use state_store::StateStore;
 use sync_engine::{SyncPlanner, executor::SyncExecutor};
 
@@ -133,7 +134,7 @@ async fn load_webdav_settings() -> Result<WebDavSettings, FfiStatus> {
 /// 同 [`load_webdav_settings`]，但 home 与 keyring 凭据存储均由调用方注入
 /// （测试注入临时目录 + 内存实现，避免触碰全局 home override 与真实
 /// OS keyring）。
-async fn load_webdav_settings_in<S: CredentialStore>(
+async fn load_webdav_settings_in<S: SecureStore>(
     home: &std::path::Path,
     store: &S,
 ) -> Result<WebDavSettings, FfiStatus> {
@@ -150,7 +151,7 @@ async fn save_webdav_settings(settings: WebDavSettings) -> Result<WebDavSettings
 /// 密码只进 OS keyring：空串=清除条目，非空=写入；keyring 写失败时整体
 /// 不落盘，保持「settings 文件 + keyring」状态一致（避免其他字段更新而
 /// 凭据悄悄丢失，与 iced 桌面端保存语义一致）。
-async fn save_webdav_settings_in<S: CredentialStore>(
+async fn save_webdav_settings_in<S: SecureStore>(
     home: &std::path::Path,
     settings: WebDavSettings,
     store: &S,
@@ -216,7 +217,7 @@ async fn sync_webdav_now() -> Result<WebDavSyncSummary, FfiStatus> {
 
 /// 同 [`sync_webdav_now`]，但 home 与 keyring 凭据存储由调用方注入。
 /// 密码经水合加载从 OS keyring 取回（settings.toml 已不携带明文）。
-async fn sync_webdav_now_in<S: CredentialStore>(
+async fn sync_webdav_now_in<S: SecureStore>(
     home: &std::path::Path,
     store: &S,
 ) -> Result<WebDavSyncSummary, FfiStatus> {
@@ -292,7 +293,7 @@ async fn load_app_settings_in(home: &std::path::Path) -> Result<AppSettings, Ffi
 /// 水合加载：[`load_app_settings_in`] 之后把 OS keyring 中的 WebDAV 密码
 /// （`webdav:password`）填回 `settings.webdav.password` 内存镜像。
 /// password 的序列化被 core 跳过，因此水合值不会落盘。
-async fn load_hydrated_app_settings_in<S: CredentialStore>(
+async fn load_hydrated_app_settings_in<S: SecureStore>(
     home: &std::path::Path,
     store: &S,
 ) -> Result<AppSettings, FfiStatus> {
@@ -370,8 +371,12 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl CredentialStore for MemoryStore {
-        async fn get(&self, service: &str, key: &str) -> mihomo_api::error::Result<Option<String>> {
+    impl SecureStore for MemoryStore {
+        async fn get(
+            &self,
+            service: &str,
+            key: &str,
+        ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
             Ok(self.peek(service, key))
         }
 
@@ -380,7 +385,7 @@ mod tests {
             service: &str,
             key: &str,
             value: &str,
-        ) -> mihomo_api::error::Result<()> {
+        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -388,7 +393,11 @@ mod tests {
             Ok(())
         }
 
-        async fn delete(&self, service: &str, key: &str) -> mihomo_api::error::Result<()> {
+        async fn delete(
+            &self,
+            service: &str,
+            key: &str,
+        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
             self.entries
                 .lock()
                 .expect("store lock")

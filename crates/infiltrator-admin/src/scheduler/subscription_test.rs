@@ -19,6 +19,7 @@ mod tests {
     use mihomo_config::manager::ConfigManager;
     use mihomo_config::profile::Profile;
     use mihomo_platform::TEST_LOCK;
+    use mihomo_platform::traits::DefaultCredentialStore;
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
@@ -152,7 +153,11 @@ mod tests {
         mihomo_platform::paths::clear_home_dir_override();
         mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
-        let manager = ConfigManager::new().unwrap();
+        let manager = ConfigManager::with_home_and_store(
+            temp_dir.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        )
+        .unwrap();
 
         let ctx = MockContext {
             notifications: Arc::new(Mutex::new(vec![])),
@@ -218,7 +223,11 @@ mod tests {
         mihomo_platform::paths::clear_home_dir_override();
         mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
-        let manager = ConfigManager::new().unwrap();
+        let manager = ConfigManager::with_home_and_store(
+            temp_dir.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        )
+        .unwrap();
 
         let profile_name = "test-schedule".to_string();
         let configs_dir = temp_dir.path().join("configs");
@@ -304,7 +313,11 @@ mod tests {
             .await;
         let subscription_url = format!("{}/sub", server.url());
 
-        let manager = ConfigManager::new().unwrap();
+        let manager = ConfigManager::with_home_and_store(
+            temp_dir.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        )
+        .unwrap();
         let profile_name = "job-lifecycle".to_string();
         let configs_dir = temp_dir.path().join("configs");
         let _ = std::fs::create_dir_all(&configs_dir);
@@ -431,7 +444,7 @@ mod tests {
     /// 在重定向目录预置一个 auto-update 已启用、立即到期的 profile，
     /// 返回（profile 名, yaml 路径）。
     async fn seed_due_profile(
-        manager: &ConfigManager,
+        manager: &ConfigManager<mihomo_platform::traits::DefaultCredentialStore>,
         cloud: &std::path::Path,
         name: &str,
         url: String,

@@ -1,8 +1,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use async_trait::async_trait;
-use mihomo_api::error::{MihomoError, Result};
-use mihomo_platform::traits::CoreController;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::error::PortError;
 
 use super::{Lifecycle, run_lifecycle, status_message};
 
@@ -27,30 +28,32 @@ impl MockController {
 }
 
 #[async_trait]
-impl CoreController for MockController {
-    async fn start(&self) -> Result<()> {
+impl CoreProcess for MockController {
+    async fn start(&self) -> Result<(), PortError> {
         if self.is_running() {
-            return Err(MihomoError::Service(
-                "Service is already running".to_string(),
-            ));
+            return Err(PortError::Failed("Service is already running".to_string()));
         }
         self.running.store(true, Ordering::SeqCst);
         Ok(())
     }
 
-    async fn stop(&self) -> Result<()> {
+    async fn stop(&self) -> Result<(), PortError> {
         if !self.is_running() {
-            return Err(MihomoError::Service("Service is not running".to_string()));
+            return Err(PortError::Failed("Service is not running".to_string()));
         }
         self.running.store(false, Ordering::SeqCst);
         Ok(())
     }
 
-    async fn is_running(&self) -> bool {
-        self.running.load(Ordering::SeqCst)
+    async fn status(&self) -> Result<CoreLifecycle, PortError> {
+        Ok(if self.is_running() {
+            CoreLifecycle::Running
+        } else {
+            CoreLifecycle::Stopped
+        })
     }
 
-    fn controller_url(&self) -> Option<String> {
+    fn controller_endpoint(&self) -> Option<String> {
         None
     }
 

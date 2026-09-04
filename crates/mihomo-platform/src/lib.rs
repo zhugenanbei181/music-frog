@@ -9,13 +9,12 @@ pub mod instance_lock;
 pub mod interface_watcher;
 pub mod package_verifier;
 pub mod paths;
-pub mod ports_adapter;
 pub mod power;
 pub mod sandbox_validator;
 pub mod target_matrix;
 pub mod traits;
 
-use crate::traits::DataDirProvider;
+use infiltrator_ports::data_dir::DataDirProvider;
 
 /// Shared test lock for cross-crate synchronization of global state (e.g. HOME_DIR_OVERRIDE).
 /// Using tokio's Mutex to allow holding across .await points.

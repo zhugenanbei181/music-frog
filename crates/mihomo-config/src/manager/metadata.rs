@@ -2,8 +2,8 @@
 //! [`Profile`] metadata fields, plus small typed TOML value setters.
 
 use chrono::{DateTime, Utc};
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
-use mihomo_platform::traits::CredentialStore;
 
 use super::subscription_store::{load_subscription_url, store_subscription_url, subscription_key};
 use crate::profile::Profile;
@@ -20,7 +20,7 @@ pub(super) fn ensure_table(
     }
 }
 
-pub(super) async fn apply_profile_metadata<S: CredentialStore>(
+pub(super) async fn apply_profile_metadata<S: SecureStore>(
     credential_store: &S,
     profile: &mut Profile,
     table: &toml::map::Map<String, toml::Value>,

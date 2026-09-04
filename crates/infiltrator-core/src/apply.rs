@@ -20,9 +20,9 @@ use std::path::Path;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::traits::CredentialStore;
 use tokio::io::AsyncWriteExt;
 use yaml_rust2::{Yaml, YamlLoader};
 
@@ -258,7 +258,7 @@ async fn start_and_check(
 /// config before [`ApplyError::RolledBack`] is returned. If the core was not
 /// running, restoring the file is enough — the session keeps its `Failed`
 /// state and the next explicit start picks up the restored config.
-pub async fn apply_current_profile<S: CredentialStore>(
+pub async fn apply_current_profile<S: SecureStore>(
     session: &CoreSession,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
@@ -367,7 +367,7 @@ pub async fn apply_current_profile<S: CredentialStore>(
 // ---- SourceDoc Fidelity Track Integration ----------------------------------
 
 /// Apply a [`SourceDoc`] as the current profile through the full CORE-004 transaction.
-pub async fn apply_current_profile_doc<S: CredentialStore>(
+pub async fn apply_current_profile_doc<S: SecureStore>(
     session: &CoreSession,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
@@ -384,7 +384,7 @@ pub async fn apply_current_profile_doc<S: CredentialStore>(
 /// invokes `edit_fn(&mut doc)`, renders the spliced document, and applies it
 /// through the CORE-004 transaction. Untouched comments, anchors, formatting,
 /// and line endings remain 100% preserved.
-pub async fn apply_profile_edit<S: CredentialStore, F>(
+pub async fn apply_profile_edit<S: SecureStore, F>(
     session: &CoreSession,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
@@ -405,15 +405,14 @@ where
     let mut doc = SourceDoc::parse(&content).map_err(|err| {
         ApplyError::Validation(format!("failed to parse profile for editing: {err}"))
     })?;
-    edit_fn(&mut doc)
-        .map_err(|err| ApplyError::Validation(format!("YAML edit failed: {err}")))?;
+    edit_fn(&mut doc).map_err(|err| ApplyError::Validation(format!("YAML edit failed: {err}")))?;
     let new_content = doc.render();
     apply_current_profile(session, config, reloader, &new_content, params).await
 }
 
 /// Update a top-level scalar configuration key (`mode`, `log-level`, `mixed-port`, etc.)
 /// in the current profile while preserving 100% of existing comments, anchors, and formatting.
-pub async fn apply_profile_set_scalar<S: CredentialStore>(
+pub async fn apply_profile_set_scalar<S: SecureStore>(
     session: &CoreSession,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
@@ -433,7 +432,7 @@ pub async fn apply_profile_set_scalar<S: CredentialStore>(
 
 /// Append a rule to the `rules` section of the current profile while preserving
 /// 100% of existing comments, anchors, and formatting.
-pub async fn apply_profile_append_rule<S: CredentialStore>(
+pub async fn apply_profile_append_rule<S: SecureStore>(
     session: &CoreSession,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
@@ -452,7 +451,7 @@ pub async fn apply_profile_append_rule<S: CredentialStore>(
 
 /// Remove a rule from the `rules` section of the current profile while preserving
 /// 100% of existing comments, anchors, and formatting.
-pub async fn apply_profile_remove_rule<S: CredentialStore>(
+pub async fn apply_profile_remove_rule<S: SecureStore>(
     session: &CoreSession,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
@@ -471,7 +470,7 @@ pub async fn apply_profile_remove_rule<S: CredentialStore>(
 
 /// Rewrite anchor namespaces in the current profile while preserving 100% of
 /// existing comments and formatting.
-pub async fn apply_profile_rewrite_anchors<S: CredentialStore>(
+pub async fn apply_profile_rewrite_anchors<S: SecureStore>(
     session: &CoreSession,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
@@ -495,7 +494,7 @@ pub async fn apply_profile_rewrite_anchors<S: CredentialStore>(
 /// the [`SourceDoc`] fidelity path (preserving 100% of comments and anchors).
 /// If the mixin contains complex structural edits that require AST merge,
 /// falls back to full merge.
-pub async fn apply_profile_mixin_fidelity<S: CredentialStore>(
+pub async fn apply_profile_mixin_fidelity<S: SecureStore>(
     session: &CoreSession,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,

@@ -41,7 +41,11 @@ async fn fresh_home_bootstrap_creates_dir_config_and_controller() {
             .contains("external-controller")
     );
 
-    let manager = ConfigManager::with_home(dir.path().to_path_buf()).unwrap();
+    let manager = ConfigManager::with_home_and_store(
+        dir.path().to_path_buf(),
+        mihomo_platform::traits::DefaultCredentialStore::default(),
+    )
+    .unwrap();
     let profile_path = manager.get_current_path().await.unwrap();
     assert!(profile_path.is_file());
     assert!(manager.get_external_controller().await.is_ok());
@@ -73,7 +77,11 @@ async fn bootstrap_is_idempotent_on_initialized_home() {
     if !rerun_flapped {
         assert!(!second.any_executed());
     }
-    let manager = ConfigManager::with_home(dir.path().to_path_buf()).unwrap();
+    let manager = ConfigManager::with_home_and_store(
+        dir.path().to_path_buf(),
+        mihomo_platform::traits::DefaultCredentialStore::default(),
+    )
+    .unwrap();
     assert!(manager.get_external_controller().await.is_ok());
 }
 
@@ -84,7 +92,11 @@ async fn bootstrap_repairs_missing_external_controller() {
 
     // Rewrite the profile without external-controller; the next bootstrap
     // must derive a fresh endpoint and write it back.
-    let manager = ConfigManager::with_home(dir.path().to_path_buf()).unwrap();
+    let manager = ConfigManager::with_home_and_store(
+        dir.path().to_path_buf(),
+        mihomo_platform::traits::DefaultCredentialStore::default(),
+    )
+    .unwrap();
     manager.save("default", "port: 7890\n").await.unwrap();
 
     let report = ensure_bootstrap_at(dir.path()).await.unwrap();

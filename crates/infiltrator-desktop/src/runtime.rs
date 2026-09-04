@@ -8,6 +8,7 @@ use infiltrator_core::session::{
 use mihomo_api::client::MihomoClient;
 use mihomo_api::proxy::{manager::ProxyManager, types::ProxyGroup};
 use mihomo_config::manager::ConfigManager;
+use mihomo_platform::traits::DefaultCredentialStore;
 use mihomo_version::manager::VersionManager;
 use reqwest::{Client, header::ACCEPT_ENCODING};
 use serde::Serialize;
@@ -20,7 +21,7 @@ use crate::service::{ServiceManager, ServiceStatus};
 use crate::version;
 
 pub struct MihomoRuntime {
-    config_manager: Arc<ConfigManager>,
+    config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
     pub config_path: PathBuf,
     pub binary_path: PathBuf,
     pub controller_url: String,
@@ -43,7 +44,7 @@ impl MihomoRuntime {
     /// settings `configs_dir` 覆盖；env（`INFILTRATOR_CONFIGS_DIR`）的更高
     /// 优先级在 `ConfigManager::with_configs_dir` 内部保持不变。settings
     /// 读不到（无 home / 文件缺失或损坏）按未设置处理，行为与
-    /// `ConfigManager::new()` 完全一致。
+    /// 显式注入 home 和默认 secure store，行为与默认安装目录一致。
     async fn settings_configs_dir() -> Option<String> {
         let home = mihomo_platform::paths::get_home_dir().ok()?;
         let path = infiltrator_core::settings::settings_path(&home).ok()?;
@@ -60,7 +61,12 @@ impl MihomoRuntime {
         data_dir: &Path,
     ) -> anyhow::Result<Self> {
         let configs_dir = Self::settings_configs_dir().await;
-        let cm = Arc::new(ConfigManager::with_configs_dir(configs_dir.as_deref())?);
+        let home = mihomo_platform::paths::get_home_dir()?;
+        let cm = Arc::new(ConfigManager::with_home_configs_dir_and_store(
+            home,
+            configs_dir.as_deref(),
+            DefaultCredentialStore::default(),
+        )?);
 
         cm.ensure_default_config().await?;
         cm.ensure_proxy_ports().await?;
@@ -73,7 +79,7 @@ impl MihomoRuntime {
 
         let endpoints = Arc::new(ProfileEndpointSource::new(cm.clone()));
         let session = Arc::new(CoreSession::new(
-            service_manager.controller(),
+            service_manager.core_process(),
             endpoints.clone(),
             Arc::new(MihomoVersionProbe::new(endpoints.clone())),
         ));

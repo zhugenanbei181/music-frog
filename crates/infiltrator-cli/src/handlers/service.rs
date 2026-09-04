@@ -1,6 +1,7 @@
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::bootstrap;
+use infiltrator_ports::core_process::CoreProcess;
 use mihomo_platform::desktop::ProcessCoreController;
-use mihomo_platform::traits::CoreController;
 
 use crate::commands::ServiceAction;
 use crate::context::Runtime;
@@ -51,31 +52,55 @@ pub(crate) async fn build_controller(runtime: &Runtime) -> anyhow::Result<Proces
     ))
 }
 
-/// Lifecycle state machine over any [`CoreController`] so tests can inject a
+/// Lifecycle state machine over any [`CoreProcess`] so tests can inject a
 /// mock instead of a real core process.
 pub(crate) async fn run_lifecycle(
     action: Lifecycle,
-    controller: &dyn CoreController,
+    controller: &dyn CoreProcess,
 ) -> anyhow::Result<String> {
     match action {
         Lifecycle::Start => {
-            controller.start().await?;
+            controller
+                .start()
+                .await
+                .map_err(|error| anyhow::anyhow!(error))?;
             Ok("Service started".to_string())
         }
         Lifecycle::Stop => {
-            controller.stop().await?;
+            controller
+                .stop()
+                .await
+                .map_err(|error| anyhow::anyhow!(error))?;
             Ok("Service stopped".to_string())
         }
         Lifecycle::Restart => {
-            if controller.is_running().await {
-                controller.stop().await?;
+            if matches!(
+                controller
+                    .status()
+                    .await
+                    .map_err(|error| anyhow::anyhow!(error))?,
+                CoreLifecycle::Starting | CoreLifecycle::Ready | CoreLifecycle::Running
+            ) {
+                controller
+                    .stop()
+                    .await
+                    .map_err(|error| anyhow::anyhow!(error))?;
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
-            controller.start().await?;
+            controller
+                .start()
+                .await
+                .map_err(|error| anyhow::anyhow!(error))?;
             Ok("Service restarted".to_string())
         }
         Lifecycle::Status => Ok(status_message(
-            controller.is_running().await,
+            matches!(
+                controller
+                    .status()
+                    .await
+                    .map_err(|error| anyhow::anyhow!(error))?,
+                CoreLifecycle::Starting | CoreLifecycle::Ready | CoreLifecycle::Running
+            ),
             controller.pid().await,
         )),
     }

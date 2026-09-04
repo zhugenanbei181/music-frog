@@ -6,6 +6,7 @@ use infiltrator_core::settings::{AppSettings, load_settings, save_settings, sett
 use mihomo_api::client::MihomoClient;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::paths::get_home_dir;
+use mihomo_platform::traits::DefaultCredentialStore;
 use mihomo_version::manager::VersionManager;
 
 /// Per-invocation runtime context: the resolved home directory plus the
@@ -42,8 +43,14 @@ impl Runtime {
     /// ConfigManager following the full configs-directory resolution chain:
     /// `INFILTRATOR_CONFIGS_DIR` env > `settings.configs_dir` >
     /// `<home>/configs`.
-    pub fn config_manager(&self) -> mihomo_api::error::Result<ConfigManager> {
-        ConfigManager::with_configs_dir(self.settings.configs_dir.as_deref())
+    pub fn config_manager(
+        &self,
+    ) -> mihomo_api::error::Result<ConfigManager<DefaultCredentialStore>> {
+        ConfigManager::with_home_configs_dir_and_store(
+            self.home.clone(),
+            self.settings.configs_dir.as_deref(),
+            DefaultCredentialStore::default(),
+        )
     }
 
     pub fn version_manager(&self) -> mihomo_api::error::Result<VersionManager> {

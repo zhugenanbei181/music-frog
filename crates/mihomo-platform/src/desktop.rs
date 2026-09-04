@@ -1,4 +1,9 @@
 use async_trait::async_trait;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::data_dir::DataDirProvider;
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::secure_store::SecureStore;
 use std::path::PathBuf;
 
 #[cfg(windows)]
@@ -8,8 +13,6 @@ use mihomo_api::error::{MihomoError, Result};
 use tokio::time::Duration;
 
 use crate::paths::get_home_dir;
-use crate::traits::{CoreController, CredentialStore, DataDirProvider};
-
 pub struct ProcessCoreController {
     binary_path: PathBuf,
     config_path: PathBuf,
@@ -75,17 +78,35 @@ impl ProcessCoreController {
     }
 }
 
+fn map_port_error(error: MihomoError) -> PortError {
+    match error {
+        MihomoError::Io(error) => PortError::Io(error.to_string()),
+        MihomoError::Http(error) => PortError::Network(error.to_string()),
+        MihomoError::WebSocket(error) => PortError::Network(error.to_string()),
+        MihomoError::NotFound(message) => PortError::NotFound(message),
+        MihomoError::Config(message) | MihomoError::YamlEmit(message) => PortError::Failed(message),
+        other => PortError::Failed(other.to_string()),
+    }
+}
+
 #[async_trait]
-impl CoreController for ProcessCoreController {
-    async fn start(&self) -> Result<()> {
-        if self.is_running().await {
-            return Err(MihomoError::Service(
-                "Service is already running".to_string(),
-            ));
+impl CoreProcess for ProcessCoreController {
+    async fn start(&self) -> std::result::Result<(), PortError> {
+        if self
+            .read_running_pid()
+            .await
+            .map_err(map_port_error)?
+            .is_some()
+        {
+            return Err(PortError::Failed("Service is already running".to_string()));
         }
 
-        let spawned = process::spawn_daemon(&self.binary_path, &self.config_path).await?;
-        process::write_pid_file(&self.pid_file, spawned.pid).await?;
+        let spawned = process::spawn_daemon(&self.binary_path, &self.config_path)
+            .await
+            .map_err(map_port_error)?;
+        process::write_pid_file(&self.pid_file, spawned.pid)
+            .await
+            .map_err(map_port_error)?;
 
         // CORE-002 (Windows): keep the kill-on-close Job Object handle alive
         // for the controller's lifetime. Replacing a previous handle on restart
@@ -103,32 +124,49 @@ impl CoreController for ProcessCoreController {
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         if !process::is_process_alive(spawned.pid) {
-            process::remove_pid_file(&self.pid_file).await?;
-            return Err(MihomoError::Service("Service failed to start".to_string()));
+            process::remove_pid_file(&self.pid_file)
+                .await
+                .map_err(map_port_error)?;
+            return Err(PortError::Failed("Service failed to start".to_string()));
         }
 
         Ok(())
     }
 
-    async fn stop(&self) -> Result<()> {
-        let pid = process::read_pid_file(&self.pid_file).await?;
+    async fn stop(&self) -> std::result::Result<(), PortError> {
+        let pid = process::read_pid_file(&self.pid_file)
+            .await
+            .map_err(map_port_error)?;
 
         if !process::is_process_alive(pid) {
-            process::remove_pid_file(&self.pid_file).await?;
-            return Err(MihomoError::Service("Service is not running".to_string()));
+            process::remove_pid_file(&self.pid_file)
+                .await
+                .map_err(map_port_error)?;
+            return Err(PortError::Failed("Service is not running".to_string()));
         }
 
-        process::kill_process(pid)?;
-        process::remove_pid_file(&self.pid_file).await?;
+        process::kill_process(pid).map_err(map_port_error)?;
+        process::remove_pid_file(&self.pid_file)
+            .await
+            .map_err(map_port_error)?;
 
         Ok(())
     }
 
-    async fn is_running(&self) -> bool {
-        self.read_running_pid().await.ok().flatten().is_some()
+    async fn status(&self) -> std::result::Result<CoreLifecycle, PortError> {
+        if self
+            .read_running_pid()
+            .await
+            .map_err(map_port_error)?
+            .is_some()
+        {
+            Ok(CoreLifecycle::Running)
+        } else {
+            Ok(CoreLifecycle::Stopped)
+        }
     }
 
-    fn controller_url(&self) -> Option<String> {
+    fn controller_endpoint(&self) -> Option<String> {
         None
     }
 
@@ -152,11 +190,15 @@ impl Default for KeyringCredentialStore {
 }
 
 #[async_trait]
-impl CredentialStore for KeyringCredentialStore {
-    async fn get(&self, service: &str, key: &str) -> Result<Option<String>> {
+impl SecureStore for KeyringCredentialStore {
+    async fn get(
+        &self,
+        service: &str,
+        key: &str,
+    ) -> std::result::Result<Option<String>, PortError> {
         let service = service.to_string();
         let key = key.to_string();
-        tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || -> std::result::Result<Option<String>, PortError> {
             let entry = match keyring::Entry::new(&service, &key) {
                 Ok(entry) => entry,
                 Err(err) => {
@@ -173,38 +215,43 @@ impl CredentialStore for KeyringCredentialStore {
             }
         })
         .await
-        .map_err(|e| MihomoError::Config(format!("Keyring task failed: {e}")))?
+        .map_err(|e| PortError::Failed(format!("Keyring task failed: {e}")))?
     }
 
-    async fn set(&self, service: &str, key: &str, value: &str) -> Result<()> {
+    async fn set(
+        &self,
+        service: &str,
+        key: &str,
+        value: &str,
+    ) -> std::result::Result<(), PortError> {
         let service = service.to_string();
         let key = key.to_string();
         let value = value.to_string();
-        tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || -> std::result::Result<(), PortError> {
             let entry = keyring::Entry::new(&service, &key)
-                .map_err(|err| MihomoError::Config(format!("Keyring init failed: {err}")))?;
+                .map_err(|err| PortError::Failed(format!("Keyring init failed: {err}")))?;
             entry
                 .set_password(&value)
-                .map_err(|err| MihomoError::Config(format!("Keyring set failed: {err}")))?;
+                .map_err(|err| PortError::Failed(format!("Keyring set failed: {err}")))?;
             Ok(())
         })
         .await
-        .map_err(|e| MihomoError::Config(format!("Keyring task failed: {e}")))?
+        .map_err(|e| PortError::Failed(format!("Keyring task failed: {e}")))?
     }
 
-    async fn delete(&self, service: &str, key: &str) -> Result<()> {
+    async fn delete(&self, service: &str, key: &str) -> std::result::Result<(), PortError> {
         let service = service.to_string();
         let key = key.to_string();
-        tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || -> std::result::Result<(), PortError> {
             let entry = keyring::Entry::new(&service, &key)
-                .map_err(|err| MihomoError::Config(format!("Keyring init failed: {err}")))?;
+                .map_err(|err| PortError::Failed(format!("Keyring init failed: {err}")))?;
             entry
                 .delete_credential()
-                .map_err(|err| MihomoError::Config(format!("Keyring delete failed: {err}")))?;
+                .map_err(|err| PortError::Failed(format!("Keyring delete failed: {err}")))?;
             Ok(())
         })
         .await
-        .map_err(|e| MihomoError::Config(format!("Keyring task failed: {e}")))?
+        .map_err(|e| PortError::Failed(format!("Keyring task failed: {e}")))?
     }
 }
 

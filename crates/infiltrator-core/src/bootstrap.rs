@@ -8,6 +8,7 @@
 
 use std::path::Path;
 
+use infiltrator_ports::secure_store::SecureStore;
 use serde::Serialize;
 
 #[cfg(test)]
@@ -97,8 +98,8 @@ pub async fn ensure_bootstrap_at(home: &Path) -> anyhow::Result<BootstrapReport>
     Ok(BootstrapReport { steps })
 }
 
-async fn configs_dir_of(
-    manager: &mihomo_config::manager::ConfigManager,
+async fn configs_dir_of<S: SecureStore>(
+    manager: &mihomo_config::manager::ConfigManager<S>,
 ) -> anyhow::Result<std::path::PathBuf> {
     let profile_path = manager.get_current_path().await?;
     profile_path

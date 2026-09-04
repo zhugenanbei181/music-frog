@@ -1,14 +1,14 @@
 //! Default-config bootstrap and proxy-port conflict repair for the active
 //! profile.
 
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
-use mihomo_platform::traits::CredentialStore;
 
 use super::ConfigManager;
 use crate::port::{find_available_port, is_port_available};
 use crate::yaml;
 
-impl<S: CredentialStore> ConfigManager<S> {
+impl<S: SecureStore> ConfigManager<S> {
     /// Ensure a default config file exists, create one if it doesn't
     pub async fn ensure_default_config(&self) -> Result<()> {
         let profile = self.get_current().await?;

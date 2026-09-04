@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use infiltrator_core::settings::{self, AppSettings};
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::paths::get_home_dir;
+use mihomo_platform::traits::DefaultCredentialStore;
 
 /// home → settings.toml → load_settings。settings 尚未落盘时返回默认值。
 async fn load_app_settings() -> anyhow::Result<AppSettings> {
@@ -15,22 +16,28 @@ async fn load_app_settings() -> anyhow::Result<AppSettings> {
 
 /// settings 感知的 ConfigManager 构造：home → settings.toml →
 /// load_settings → `with_configs_dir(settings.configs_dir)`。
-/// settings.configs_dir 为 None 时与 `ConfigManager::new()` 行为一致；
+/// settings.configs_dir 为 None 时使用 `<home>/configs`；
 /// `INFILTRATOR_CONFIGS_DIR` 环境变量仍优先于 settings 字段
-/// （优先级解析见 `mihomo_config::manager::paths::resolve_configs_dir`）。
-pub(crate) async fn app_config_manager() -> anyhow::Result<ConfigManager> {
+/// （优先级解析见 `mihomo_config::manager::paths::resolve_configs_dir_in`）。
+pub(crate) async fn app_config_manager(
+) -> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
+    let home = get_home_dir()?;
     let settings = load_app_settings().await?;
-    Ok(ConfigManager::with_configs_dir(
+    Ok(ConfigManager::with_home_configs_dir_and_store(
+        home,
         settings.configs_dir.as_deref(),
+        DefaultCredentialStore::default(),
     )?)
 }
 
 /// configs 目录路径解析，优先级与 [`app_config_manager`] 一致
 /// （env > settings.configs_dir > `<home>/configs`）。
 pub(crate) async fn app_configs_dir() -> anyhow::Result<PathBuf> {
+    let home = get_home_dir()?;
     let settings = load_app_settings().await?;
-    Ok(mihomo_config::manager::paths::resolve_configs_dir(
+    Ok(mihomo_config::manager::paths::resolve_configs_dir_in(
         settings.configs_dir.as_deref(),
+        &home,
     )?)
 }
 
