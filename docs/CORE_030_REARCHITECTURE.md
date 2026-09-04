@@ -6,12 +6,16 @@
 
 ### 当前 0.30 进度
 
+- [x] `release/0.20` 已冻结为提交 `9c187b2`，并从该点创建 `codex/0.30`。
 - [x] `infiltrator-domain`：提取生命周期状态机，依赖树无 Tokio。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
-- [x] `infiltrator-ports`：落下 Core process、secure store、data store 和 capability provider 端口。
-- [x] application actor/facade 第一批生命周期 seam：single-flight、adopt、bounded contract events。
+- [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。
+- [x] application actor/facade 第一批生命周期与 Overview seam：single-flight、adopt、bounded contract events、模式回读和运行态快照。
+- [x] Bevy Overview 已改为消费 application snapshot；UI crate 不再直连 `mihomo-api`、Reqwest 或 Tokio。
+- [x] Desktop/Android 已把 Core process、secure store、data-dir 和 readiness 组合到 host adapter 端口。
 - [ ] application actor/facade 覆盖全部 use-case，并统一前端命令与领域快照通道。
-- [ ] Desktop/Android/iOS host adapter 完成组合根接入。
+- [ ] application 从 `mihomo-api` 具体实现中脱离；标准 adapter 下沉到独立 composition/outbound 组合根。
+- [ ] Iced、Admin、Android FFI 完成同一 application facade 接入；补建 `infiltrator-ios` host crate。
 - [ ] 全端删除对具体 Mihomo client、Reqwest 和 Tokio channel 的公开/直接依赖。
 
 ## 1. 版本切线
@@ -67,7 +71,7 @@ Iced / Bevy / Compose / Admin REST / CLI
 | UI surface | `infiltrator-iced`、`infiltrator-bevy-ui` | 只消费 contract/application facade |
 | Bevy 组件库 | `infiltrator-bevy-widgets` | 继续只依赖 Bevy，不依赖业务 crate |
 
-第一阶段不要求一次性改完所有 crate 名称。先在现有 `infiltrator-core` 内建立 `domain`、`ports`、`application` 边界，验证后再抽成独立 crate。
+第一阶段已经把最小 `domain`、`contract`、`ports`、`application` crate 抽出并验证；剩余 use-case 按垂直切片迁移，不再为保留旧 API 额外制造兼容层。
 
 ## 3. Tokio 边界
 

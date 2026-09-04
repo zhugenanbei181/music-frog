@@ -49,7 +49,7 @@ and sync          (REST / WebSocket)
 
 - Tokio 继续是 native workspace 的唯一异步执行器，但它只属于 application/runtime 和具体 outbound/host adapter；不进入纯领域层和跨端 contract。
 - `async fn` 本身不是前端耦合；真正禁止的是公开 `tokio::sync::*`、`JoinHandle`、`Runtime`、Reqwest 类型和 `MihomoClient`。
-- Bevy ECS 不是控制面的底层 executor。长耗时 controller、进程、下载和同步任务由一个 Core actor/runtime 管理，Bevy 只接收有界 snapshot/event 投影。
+- Bevy ECS 不是控制面的底层 executor。长耗时 controller、进程、下载和同步任务由 application/host 的 Core actor/runtime 管理，Bevy 只接收有界 snapshot/event 投影。
 - 0.30 的 scheduler 属于 application/runtime；它可以继续使用 Tokio，但不能成为 domain API 的一部分。
 
 ## 2. 分层与当前 crate 归属
@@ -66,7 +66,7 @@ and sync          (REST / WebSocket)
 | External dashboard | ~~`webui/mihomo-manager-ui/dist`~~ | 已于 release/0.20 退役 | MusicFrog 自己的配置事实 |
 | Sync | `mihomo-dav-sync/*` | WebDAV 传输、索引、状态、冲突处理 | 页面私有同步协议 |
 
-当前依赖图仍有收敛空间：多个上层 crate 同时依赖 `mihomo-api`、`mihomo-config`、`mihomo-platform`，Iced 还持有较大的 `AppState`，Bevy 目前也有临时的直接 controller pump。0.30 不保留这些直接依赖：先建立 application/contract/ports seam，再一次性迁移调用方。
+当前依赖图仍有收敛空间：多个上层 crate 同时依赖 `mihomo-api`、`mihomo-config`、`mihomo-platform`，Iced 还持有较大的 `AppState`，application 的标准 Overview 构造仍是临时 outbound seam。Bevy UI 已经只依赖 application/contract；0.30 下一步是把 application 的具体 adapter 构造下沉到 composition root，并迁移 Iced/Admin/Android FFI。
 
 ## 3. taskmanager 参照下的求同存异
 

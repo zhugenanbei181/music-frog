@@ -34,8 +34,8 @@ but `bevy_ui_widgets` (official unstyled widgets) plus our own
   `projection.rs` is the pure data seam: a zero-bevy
   `OverviewProjection` (typed Running/Stopped/Unavailable tri-state),
   the `OverviewSource` trait, and the switchable `DemoOverviewSource`
-  fixture. **No live mihomo-api transport yet** — the data pump is the
-  next slice; until then the page renders the injected fixture.
+  fixture. The live controller is an application-owned pump; this crate
+  only drains neutral snapshots and maps them into the projection.
 - **Refresh seam**: the page self-registers one observer (bind hook on
   the page root, once per world). An `OverviewProjectionUpdated`
   trigger restamps text contents, inks, pill selection and the card fill
@@ -56,9 +56,10 @@ but `bevy_ui_widgets` (official unstyled widgets) plus our own
   (windowed); headless runs carry the seeds as inert components. `accesskit`
   is a direct dependency for the node/role vocabulary (bevy_a11y 0.19 no
   longer re-exports it; 0.24.1 matches the locked bevy resolution).
-- Dependency whitelist: locked bevy (`=0.19.1`) + `infiltrator-bevy-widgets`
-  + the accesskit vocabulary crate. Business crates are deliberately absent
-  until the shared contract seam (BEVY-M2).
+- Dependency whitelist: locked bevy (`=0.19.1`) +
+  `infiltrator-bevy-widgets` + `infiltrator-contract` +
+  `infiltrator-application` + the accesskit vocabulary crate. Low-level
+  `mihomo-api`, Reqwest and Tokio types do not enter this frontend crate.
 - `infiltrator_bevy_ui::run()` launches the windowed shell.
 
 ## Verify

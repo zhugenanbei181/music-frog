@@ -8,6 +8,7 @@
 use bevy::app::{App, Plugin};
 use bevy::ecs::event::Event;
 use bevy::ecs::resource::Resource;
+use infiltrator_application::core_application::CoreApplication;
 use std::sync::{Arc, Mutex};
 
 use infiltrator_contract::command::{CommandIntent, ProxyMode};
@@ -192,6 +193,32 @@ impl UiCommandSink for DemoCommandSink {
     }
 }
 
+/// Production sink that hands business commands to the shared application
+/// service. Presentation-only commands are intentionally ignored here; their
+/// state belongs to the Bevy scene rather than the core.
+#[derive(Clone)]
+pub struct ApplicationCommandSink {
+    application: Arc<CoreApplication>,
+}
+
+impl ApplicationCommandSink {
+    pub fn new(application: Arc<CoreApplication>) -> Self {
+        Self { application }
+    }
+
+    pub fn application(&self) -> &Arc<CoreApplication> {
+        &self.application
+    }
+}
+
+impl UiCommandSink for ApplicationCommandSink {
+    fn submit(&self, command: UiCommand) {
+        if let Some(intent) = command.to_intent() {
+            self.application.dispatch(intent);
+        }
+    }
+}
+
 /// Plugin installing the command sink handle into the Bevy App.
 pub struct CommandPumpPlugin {
     sink: Arc<dyn UiCommandSink>,
@@ -201,6 +228,13 @@ impl CommandPumpPlugin {
     /// Create plugin with the given command sink implementation.
     pub fn new(sink: Arc<dyn UiCommandSink>) -> Self {
         Self { sink }
+    }
+
+    /// Create a production command pump backed by the shared application
+    /// service. The application owns execution and runtime details; Bevy
+    /// only emits the UI-local command vocabulary.
+    pub fn for_application(application: Arc<CoreApplication>) -> Self {
+        Self::new(Arc::new(ApplicationCommandSink::new(application)))
     }
 }
 

@@ -16,9 +16,10 @@ surface**：它的上限包含移动端。iced 是 winit 桌面方案，没有 A
 - **bevy 锁定 `=0.19.1`**：精确到 patch，与 taskmanager 同锁。升级属于架构与发布
   评审事项（bevy 0.19 已把 UI 布局与渲染拆开，`bevy_ui` 单独只排版不上屏，必须闭合
   `bevy_ui_render`）。
-- **依赖白名单**：`infiltrator-bevy-widgets` 只依赖 bevy；`infiltrator-bevy-ui` 只
-  依赖 bevy + widgets 层。业务 crate（`infiltrator-core`、`mihomo-*`）在共享
-  contract seam（BEVY-005）落地前**不得**进入白名单。
+- **依赖白名单**：`infiltrator-bevy-widgets` 只依赖 bevy；`infiltrator-bevy-ui` 依赖
+  bevy + widgets + `infiltrator-contract` + `infiltrator-application`，但不依赖
+  `infiltrator-core`、`mihomo-api`、Reqwest 或 Tokio。具体 Mihomo adapter 由 application
+  的 composition seam 提供，不能进入页面与 projection 模块。
 - **feature 闭包两段式声明**：`[dependencies]` 空特征基座声明 + per-target 表持有
   真实闭包（bevy derive 宏按 `::bevy::…` 路径扫描普通依赖表，只写 target 表会
   unresolved）。`default-features` 全关（无音频/gilrs/3D/动态链接）；`multi_threaded`
@@ -51,7 +52,7 @@ feature 用途，代码零导入）。iced 的 wgpu 栈升级越过 naga 27 后�
 | crate | 职责 | 依赖 |
 | --- | --- | --- |
 | `infiltrator-bevy-widgets` | 业务无关控件层：token/主题、排版角色、pill 按钮、surface 卡片；未来扩展 checkbox/radio/scrollarea/slider/text_input/menu | 仅 bevy |
-| `infiltrator-bevy-ui` | 前端壳：窗口组合（`DefaultPlugins`）、`ShellPlugin`、路由与页面（M2 起） | bevy + widgets 层 |
+| `infiltrator-bevy-ui` | 前端壳：窗口组合（`DefaultPlugins`）、`ShellPlugin`、路由与页面；消费 contract/application 投影 | bevy + widgets + contract/application |
 
 `WidgetsPlugin` 是唯一安装点：注入 `UiPalette` 资源、排版盖章观察者、控件换肤系统。
 `ShellPlugin` 无窗口基础设施，`MinimalPlugins` 无头测试跑的是真实 shell。
@@ -75,9 +76,10 @@ feature 用途，代码零导入）。iced 的 wgpu 栈升级越过 naga 27 后�
 text_input 官方原语实证不可无头组合（驱动路径全依赖窗口 KeyboardInput/picking/IME），
 自研纯核状态机 + 场景适配器；图标位图缝（Lucide SVG → 64px RGBA PNG → tinted
 ImageNode，永不走字形码位）；路由（`ContentSlot` 有界替换、幂等）+ Overview 页
-（三态 typed 投影）；**真实数据泵**（`MihomoOverviewSource`：mihomo-api 轮询 +
-有界通道 + 每帧排水 + Drop 即停；模式切换 PATCH + 回读验证；`INFILTRATOR_BEVY_CONTROLLER`
-配置缺省回退 demo；真内核 v1.19.18 实测 `docs/screenshots/bevy/overview-live.png`）；
+（三态 typed 投影）；**真实数据泵**（`MihomoOverviewSource`：application-owned
+`OverviewReader` 轮询 + 有界通道 + 每帧排水 + Drop 即停；模式切换 PATCH + 回读验证；
+`INFILTRATOR_BEVY_CONTROLLER` 配置缺省回退 demo；真内核 v1.19.18 实测
+`docs/screenshots/bevy/overview-live.png`）；
 bsn 机械守卫（`scripts/quality/bevy_bsn_guard.py`，已接 CI）；`aarch64-linux-android`
 交叉 check 全绿。
 

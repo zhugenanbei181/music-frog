@@ -3,6 +3,7 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreEvent, CoreLifecycle, CoreSnapshot};
 use infiltrator_domain::core_state::{CoreEvent as DomainEvent, CoreState, CoreStateMachine};
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::overview::OverviewReader;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
@@ -17,6 +18,7 @@ struct StateMirror {
 struct Inner {
     process: Arc<dyn CoreProcess>,
     readiness: Arc<dyn CoreReadiness>,
+    overview: Option<Arc<dyn OverviewReader>>,
     operation: tokio::sync::Mutex<()>,
     state: RwLock<StateMirror>,
     next_request_id: AtomicU64,
@@ -36,10 +38,31 @@ pub struct CoreApplication {
 
 impl CoreApplication {
     pub fn new(process: Arc<dyn CoreProcess>, readiness: Arc<dyn CoreReadiness>) -> Self {
+        Self::build(process, readiness, None)
+    }
+
+    /// Construct the application with the optional Overview port wired in.
+    /// This keeps mode-changing commands on the same application seam while
+    /// allowing hosts that do not expose a controller to use lifecycle-only
+    /// operation.
+    pub fn new_with_overview(
+        process: Arc<dyn CoreProcess>,
+        readiness: Arc<dyn CoreReadiness>,
+        overview: Arc<dyn OverviewReader>,
+    ) -> Self {
+        Self::build(process, readiness, Some(overview))
+    }
+
+    fn build(
+        process: Arc<dyn CoreProcess>,
+        readiness: Arc<dyn CoreReadiness>,
+        overview: Option<Arc<dyn OverviewReader>>,
+    ) -> Self {
         Self {
             inner: Arc::new(Inner {
                 process,
                 readiness,
+                overview,
                 operation: tokio::sync::Mutex::new(()),
                 state: RwLock::new(StateMirror {
                     state: CoreState::Idle { generation: 0 },
@@ -58,16 +81,45 @@ impl CoreApplication {
         self.execute_with_id(request_id, intent).await
     }
 
-    /// Schedule a command on the application's Tokio runtime and return only
-    /// its correlation id. Completion/failure is observed through
-    /// [`Self::drain_events`]. This method must be called from a running Tokio
-    /// runtime; frontends that own the runtime can instead use [`Self::execute`].
+    /// Schedule a command on the application's private executor and return
+    /// only its correlation id. Completion/failure is observed through
+    /// [`Self::drain_events`]. If the caller already runs inside Tokio, the
+    /// task is attached to that runtime; otherwise the application creates a
+    /// current-thread runtime on a detached worker thread. The caller
+    /// therefore never needs to own or name an executor.
     pub fn dispatch(&self, intent: CommandIntent) -> RequestId {
         let request_id = self.allocate_request_id();
         let application = self.clone();
-        tokio::spawn(async move {
-            let _ = application.execute_with_id(request_id, intent).await;
-        });
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            std::mem::drop(handle.spawn(async move {
+                let _ = application.execute_with_id(request_id, intent).await;
+            }));
+        } else {
+            let fallback = application.clone();
+            let kind = intent.kind();
+            let _ = std::thread::Builder::new()
+                .name("infiltrator-application".to_owned())
+                .spawn(move || {
+                    let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                    else {
+                        fallback.push_event(CoreEvent::CommandFailed {
+                            request_id,
+                            kind,
+                            failure: Failure::new(
+                                ErrorCode::Internal,
+                                "application runtime initialization failed",
+                                true,
+                            ),
+                        });
+                        return;
+                    };
+                    runtime.block_on(async move {
+                        let _ = fallback.execute_with_id(request_id, intent).await;
+                    });
+                });
+        }
         request_id
     }
 
@@ -125,6 +177,7 @@ impl CoreApplication {
             CommandIntent::StartCore => self.start_locked().await,
             CommandIntent::StopCore => self.stop_locked().await,
             CommandIntent::RestartCore => self.restart_locked().await,
+            CommandIntent::SetProxyMode { mode } => self.set_mode_locked(mode).await,
             unsupported => Err(Failure::unsupported(format!(
                 "command `{}` is not wired into the 0.30 application yet",
                 command_name(&unsupported)
@@ -147,6 +200,31 @@ impl CoreApplication {
                     failure,
                 }
             }
+        }
+    }
+
+    async fn set_mode_locked(
+        &self,
+        wanted: infiltrator_contract::command::ProxyMode,
+    ) -> Result<(), Failure> {
+        let Some(overview) = self.inner.overview.as_ref() else {
+            return Err(Failure::unsupported(
+                "proxy mode control is not configured for this host",
+            ));
+        };
+        let actual = overview.set_mode(wanted).await.map_err(Failure::from)?;
+        if actual == wanted {
+            Ok(())
+        } else {
+            Err(Failure::new(
+                ErrorCode::InvalidState,
+                format!(
+                    "controller retained proxy mode `{}` instead of `{}`",
+                    actual.to_wire(),
+                    wanted.to_wire()
+                ),
+                false,
+            ))
         }
     }
 
@@ -316,9 +394,10 @@ fn snapshot_from_state(state: &CoreState, revision: u64) -> CoreSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::command::CommandResult;
+    use infiltrator_contract::command::{CommandResult, ProxyMode};
     use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
     use infiltrator_ports::error::PortError;
+    use infiltrator_ports::overview::{OverviewReader, OverviewSample};
     use std::sync::atomic::AtomicBool;
 
     struct FakeProcess {
@@ -371,6 +450,23 @@ mod tests {
                 Ok(endpoint) => Ok(endpoint.clone()),
                 Err(error) => Err(error.clone()),
             }
+        }
+    }
+
+    struct FakeOverview {
+        mode: Result<ProxyMode, PortError>,
+    }
+
+    #[async_trait::async_trait]
+    impl OverviewReader for FakeOverview {
+        async fn sample(&self) -> Result<OverviewSample, PortError> {
+            Err(PortError::Failed(
+                "sample not needed in this test".to_string(),
+            ))
+        }
+
+        async fn set_mode(&self, _mode: ProxyMode) -> Result<ProxyMode, PortError> {
+            self.mode.clone()
         }
     }
 
@@ -518,5 +614,55 @@ mod tests {
         assert!(app.adopt_if_running().await.expect("adopt succeeds"));
         assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
         assert_eq!(app.snapshot().generation, 1);
+    }
+
+    #[tokio::test]
+    async fn mode_commands_use_the_injected_overview_port() {
+        let app = CoreApplication::new_with_overview(
+            Arc::new(FakeProcess {
+                running: AtomicBool::new(true),
+                fail_start: false,
+                fail_stop: false,
+            }),
+            Arc::new(FakeReadiness {
+                endpoint: Ok("http://127.0.0.1:9090".to_string()),
+            }),
+            Arc::new(FakeOverview {
+                mode: Ok(ProxyMode::Global),
+            }),
+        );
+
+        let result = app
+            .execute(CommandIntent::SetProxyMode {
+                mode: ProxyMode::Global,
+            })
+            .await;
+        assert!(matches!(result, CommandResult::Completed { .. }));
+    }
+
+    #[test]
+    fn dispatch_does_not_require_a_caller_owned_runtime() {
+        let app = application(
+            FakeProcess {
+                running: AtomicBool::new(false),
+                fail_start: false,
+                fail_stop: false,
+            },
+            Ok("http://127.0.0.1:9090".to_string()),
+        );
+
+        assert_eq!(app.dispatch(CommandIntent::StartCore), RequestId(1));
+        for _ in 0..100 {
+            if app
+                .drain_events()
+                .iter()
+                .any(|event| matches!(event, CoreEvent::CommandCompleted { .. }))
+            {
+                assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        panic!("dispatched command did not complete without a caller runtime");
     }
 }
