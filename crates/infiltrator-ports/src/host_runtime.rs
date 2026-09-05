@@ -2,6 +2,7 @@
 
 use crate::core_lifecycle::CoreLifecyclePort;
 use crate::runtime_gateway::ManagedRuntime;
+use crate::service_mode::ServiceModePort;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -24,5 +25,10 @@ pub trait HostRuntime: ManagedRuntime {
     fn controller_url(&self) -> String;
     fn core_binary_path(&self) -> PathBuf;
     fn tun_service_status(&self) -> TunServiceStatus;
+    /// Optional typed privileged-service adapter. Legacy/mobile hosts may
+    /// omit it and continue to report an explicit unsupported state.
+    fn service_mode_port(&self) -> Option<Arc<dyn ServiceModePort>> {
+        None
+    }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;
 }

@@ -189,6 +189,8 @@ impl std::fmt::Debug for Message {
             Message::TunServiceStatusLoaded(Err(error)) => write!(f, "TunServiceStatusLoaded(Err({:?}))", error),
             Message::TunServiceInstalled(Ok(_)) => write!(f, "TunServiceInstalled(Ok)"),
             Message::TunServiceInstalled(Err(error)) => write!(f, "TunServiceInstalled(Err({:?}))", error),
+            Message::ServiceModePrepared(Ok(snapshot)) => write!(f, "ServiceModePrepared(Ok({:?}))", snapshot),
+            Message::ServiceModePrepared(Err(error)) => write!(f, "ServiceModePrepared(Err({:?}))", error),
             Message::SetTunStack(s) => write!(f, "SetTunStack({})", s),
             Message::SetTunAutoRoute(a) => write!(f, "SetTunAutoRoute({})", a),
             Message::SetTunStrictRoute(s) => write!(f, "SetTunStrictRoute({})", s),

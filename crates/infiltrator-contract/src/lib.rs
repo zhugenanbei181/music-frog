@@ -12,6 +12,7 @@ pub mod error;
 pub mod intent;
 pub mod snapshot;
 pub mod session;
+pub mod service_mode;
 pub mod surface_snapshot;
 pub mod sync;
 pub mod version;

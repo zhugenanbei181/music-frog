@@ -14,6 +14,7 @@ pub mod process_enumerator;
 pub mod proxy;
 pub mod runtime;
 pub mod service;
+pub mod service_mode;
 pub mod storage;
 pub mod surface;
 pub mod shortcut_manager;

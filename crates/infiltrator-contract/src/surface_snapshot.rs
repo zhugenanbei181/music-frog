@@ -7,6 +7,7 @@
 use crate::capability::CapabilitySnapshot;
 use crate::command::ProxyMode;
 use crate::controller::ControllerAuthSnapshot;
+use crate::service_mode::ServiceModeSnapshot;
 use crate::error::Failure;
 use crate::snapshot::{CoreLifecycle, CoreSnapshot};
 use crate::surface::{HostKind, SurfaceKind};
@@ -396,6 +397,9 @@ pub struct SurfaceSnapshot {
     /// Controller authentication status without exposing the secret.
     #[serde(default)]
     pub controller_auth: ControllerAuthSnapshot,
+    /// Dynamic host privilege/service status for TUN ownership.
+    #[serde(default)]
+    pub service_mode: ServiceModeSnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -432,6 +436,7 @@ impl SurfaceSnapshot {
             pages: SurfacePages::unavailable(failure),
             versions: CoreVersionSnapshot::default(),
             controller_auth: ControllerAuthSnapshot::default(),
+            service_mode: ServiceModeSnapshot::default(),
         }
     }
 

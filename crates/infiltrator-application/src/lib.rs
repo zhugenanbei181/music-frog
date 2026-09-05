@@ -18,6 +18,7 @@ pub mod proxy_application;
 pub mod routing_application;
 pub mod runtime_query_application;
 pub mod settings_application;
+pub mod service_mode_application;
 pub mod snapshot_application;
 pub mod surface_application;
 pub mod surface_reader;

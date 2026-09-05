@@ -7,6 +7,8 @@ use crate::types::runtime::{RuntimeConfig, RuntimePatchSnapshot};
 use iced::Task;
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
+use infiltrator_application::service_mode_application::ServiceModeApplication;
 use crate::host::tun_service::TunServiceManager;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_shared::locales::Localizer;
@@ -90,7 +92,19 @@ impl AppState {
         self.editor.is_saving_tun = false;
         let binary = runtime.core_binary_path();
         self.runtime.tun_service_status = Some(status);
+        self.runtime.service_mode = legacy_service_snapshot(status);
         self.runtime.is_installing_tun_service = true;
+        if let Some(service_mode) = runtime.service_mode_port() {
+            return Task::perform(
+                async move {
+                    ServiceModeApplication::new(service_mode)
+                        .prepare()
+                        .await
+                        .map_err(|failure| InfiltratorError::Privilege(failure.message))
+                },
+                Message::ServiceModePrepared,
+            );
+        }
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || match status {
@@ -334,6 +348,23 @@ impl AppState {
                     }
                 }
             }
+            Message::ServiceModePrepared(result) => {
+                self.runtime.is_installing_tun_service = false;
+                match result {
+                    Ok(snapshot) => {
+                        self.runtime.service_mode = snapshot;
+                        self.runtime.tun_service_status = Some(tun_status(snapshot.state));
+                        self.patch_tun_enabled(true)
+                    }
+                    Err(error) => {
+                        self.set_error(&error);
+                        Task::done(Message::ShowToast(
+                            error.to_string(),
+                            crate::types::app::ToastStatus::Error,
+                        ))
+                    }
+                }
+            }
             Message::SetTunStack(stack) => {
                 let Some(rt) = self.runtime.runtime.clone() else {
                     return self.runtime_unavailable("修改 TUN 堆栈");
@@ -425,5 +456,30 @@ impl AppState {
             },
             other => self.update_core_rules(other),
         }
+    }
+}
+
+fn tun_status(state: ServiceModeState) -> TunServiceStatus {
+    match state {
+        ServiceModeState::Ready => TunServiceStatus::InstalledAndRunning,
+        ServiceModeState::InstalledStopped => TunServiceStatus::InstalledStopped,
+        ServiceModeState::NotInstalled => TunServiceStatus::NotInstalled,
+        ServiceModeState::MissingPrivilege => TunServiceStatus::MissingPrivilege,
+        ServiceModeState::Unsupported | ServiceModeState::Unavailable => {
+            TunServiceStatus::Unsupported
+        }
+    }
+}
+
+fn legacy_service_snapshot(status: TunServiceStatus) -> ServiceModeSnapshot {
+    ServiceModeSnapshot {
+        platform: Default::default(),
+        state: match status {
+            TunServiceStatus::InstalledAndRunning => ServiceModeState::Ready,
+            TunServiceStatus::InstalledStopped => ServiceModeState::InstalledStopped,
+            TunServiceStatus::NotInstalled => ServiceModeState::NotInstalled,
+            TunServiceStatus::MissingPrivilege => ServiceModeState::MissingPrivilege,
+            TunServiceStatus::Unsupported => ServiceModeState::Unsupported,
+        },
     }
 }

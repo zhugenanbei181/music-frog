@@ -51,6 +51,7 @@ use infiltrator_contract::version::{
     CoreReleaseChannel, CoreVersionSnapshot,
 };
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
+use infiltrator_contract::service_mode::{ServiceModePlatform, ServiceModeSnapshot, ServiceModeState};
 
 fn create_test_app() -> App {
     let mut app = App::new();
@@ -356,6 +357,10 @@ fn settings_page_in_place_update() {
         controller_auth: ControllerAuthSnapshot {
             status: ControllerAuthStatus::Secured,
         },
+        service_mode: ServiceModeSnapshot {
+            platform: ServiceModePlatform::LinuxPolkit,
+            state: ServiceModeState::Ready,
+        },
     };
 
     app.world_mut()
@@ -393,6 +398,10 @@ fn settings_page_in_place_update() {
         .iter(world)
         .find(|(_, l)| l.0 == SettingsLineKind::ControllerAuth);
     assert_eq!(auth_text.unwrap().0.0, "已保护 · Bearer");
+    let service_text = lines
+        .iter(world)
+        .find(|(_, l)| l.0 == SettingsLineKind::ServiceMode);
+    assert_eq!(service_text.unwrap().0.0, "Linux Polkit · ready");
 }
 
 #[test]

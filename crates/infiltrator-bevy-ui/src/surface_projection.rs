@@ -398,12 +398,14 @@ pub(super) fn settings_projection(
             core_versions: snapshot.versions.clone(),
             core_integrity: snapshot.versions.verification.clone(),
             controller_auth: snapshot.controller_auth,
+            service_mode: snapshot.service_mode,
         })
         .unwrap_or_else(|| {
             let mut projection = empty_settings();
             projection.core_versions = snapshot.versions.clone();
             projection.core_integrity = snapshot.versions.verification.clone();
             projection.controller_auth = snapshot.controller_auth;
+            projection.service_mode = snapshot.service_mode;
             projection
         })
 }

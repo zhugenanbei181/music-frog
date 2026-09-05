@@ -13,15 +13,65 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::version::{CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot};
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::command::CoreLogLevel;
+use infiltrator_contract::service_mode::{
+    ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
+};
+
+pub(super) fn controller_settings_card(
+    projection: &SettingsProjection,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let ctrl_port_str = format!("127.0.0.1:{}", projection.controller_port);
+    surface_scene(
+        vec![
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    padding: UiRect::bottom(Val::Px(space::S8)),
+                }
+                Children [
+                    ( Text({ "外部控制器与核心 (Controller)".to_owned() }) TextRole(Role::BodyStrong) ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(space::S8),
+                }
+                Children [
+                    (
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            padding: UiRect::all(Val::Px(space::S8)),
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.surface_elevated })
+                        Children [
+                            ( Text({ "外部控制端口 (External Controller API)".to_owned() }) TextRole(Role::Body) ),
+                            ( Text(ctrl_port_str) SettingsLine(SettingsLineKind::ControllerPort) TextRole(Role::Mono) ),
+                        ]
+                    ),
+                    ( { core_log_level_row_scene(projection, palette) } ),
+                ]
+            }),
+        ],
+        palette,
+    )
+}
 
 use super::{
     CoreLogLevelButton, CoreRollbackAvailability, CoreRollbackButton, CoreRollbackButtonLabel,
-    SettingsLine, SettingsLineKind, SettingsProjection,
+    ServiceModeAvailability, ServiceModeButton, ServiceModeButtonLabel, SettingsLine,
+    SettingsLineKind, SettingsProjection,
 };
 
 pub(super) fn core_rollback_row_scene(
@@ -209,4 +259,69 @@ fn core_log_level_button_scene(
             ( Text({ level.as_str().to_uppercase() }) TextRole(Role::Caption) ),
         ]
     }
+}
+
+pub(super) fn service_mode_row_scene(
+    snapshot: &ServiceModeSnapshot,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let ready = snapshot.state == ServiceModeState::Ready;
+    let status = format_service_mode(snapshot);
+    let label = if ready { "已就绪" } else { "准备服务模式" };
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect::all(Val::Px(space::S8)),
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ palette.surface_elevated })
+        Children [
+            (
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(space::S4),
+                }
+                Children [
+                    ( Text({ "特权服务模式 (Service Mode)".to_owned() }) TextRole(Role::Body) ),
+                    ( Text(status) SettingsLine(SettingsLineKind::ServiceMode) TextRole(Role::Mono) ),
+                ]
+            ),
+            (
+                Node {
+                    min_height: px(palette.control_height_px),
+                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                }
+                BackgroundColor({ if ready { palette.surface_elevated } else { palette.accent } })
+                ServiceModeButton
+                ServiceModeAvailability({ !ready })
+                Button
+                Children [
+                    ( Text({ label.to_owned() }) ServiceModeButtonLabel TextRole(Role::BodyStrong) ),
+                ]
+            ),
+        ]
+    })
+}
+
+pub(super) fn format_service_mode(snapshot: &ServiceModeSnapshot) -> String {
+    let platform = match snapshot.platform {
+        ServiceModePlatform::WindowsService => "Windows Service",
+        ServiceModePlatform::LinuxPolkit => "Linux Polkit",
+        ServiceModePlatform::MacosLaunchd => "macOS launchd",
+        ServiceModePlatform::Unsupported => "Unsupported host",
+    };
+    let state = match snapshot.state {
+        ServiceModeState::Ready => "ready",
+        ServiceModeState::InstalledStopped => "installed · stopped",
+        ServiceModeState::NotInstalled => "not installed",
+        ServiceModeState::MissingPrivilege => "missing privilege",
+        ServiceModeState::Unavailable => "unavailable",
+        ServiceModeState::Unsupported => "unsupported",
+    };
+    format!("{platform} · {state}")
 }

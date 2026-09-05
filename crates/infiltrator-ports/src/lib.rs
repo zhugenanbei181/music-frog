@@ -21,6 +21,7 @@ pub mod public_ip_probe;
 pub mod profile_store;
 pub mod profile_reset;
 pub mod secure_store;
+pub mod service_mode;
 pub mod snapshot_store;
 pub mod settings_store;
 pub mod subscription_source;

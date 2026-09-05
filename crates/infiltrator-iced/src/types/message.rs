@@ -144,6 +144,9 @@ pub enum Message {
         Result<infiltrator_ports::host_runtime::TunServiceStatus, InfiltratorError>,
     ),
     TunServiceInstalled(Result<(), InfiltratorError>),
+    ServiceModePrepared(
+        Result<infiltrator_contract::service_mode::ServiceModeSnapshot, InfiltratorError>,
+    ),
     SetTunStack(String),
     SetTunAutoRoute(bool),
     SetTunStrictRoute(bool),

@@ -92,6 +92,7 @@ impl AppState {
                 core_versions: Default::default(),
                 core_integrity: Default::default(),
                 controller_auth: Default::default(),
+                service_mode: Default::default(),
                 download_progress: 0.0,
                 download_stats: None,
                 core_download_token: 0,

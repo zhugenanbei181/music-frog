@@ -14,6 +14,9 @@ use iced::widget::{
 };
 use iced::{Alignment, Color, Element, Length, Theme, border};
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
+use infiltrator_contract::service_mode::{
+    ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
+};
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot,
 };
@@ -218,6 +221,7 @@ fn tun_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'
     });
 
     let dns_hijack_active = !state.editor.tun_form.dns_hijack.trim().is_empty();
+    let service_mode = format_service_mode(&state.runtime.service_mode);
 
     card(
         Some(lang.tr("tun_mode").to_string()),
@@ -230,6 +234,11 @@ fn tun_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'
                 icon_button(Icon::RefreshCw, 14.0, Message::RefreshTunServiceStatus),
                 Space::new().width(theme::SP_SM),
                 text_btn(if state.runtime.is_installing_tun_service { lang.tr("settings_tun_preparing").to_string() } else { lang.tr("settings_tun_prepare_btn").to_string() }, style_ghost, (!state.runtime.is_installing_tun_service).then_some(Message::InstallTunService)),
+            ].align_y(Alignment::Center),
+            row![
+                text("Service mode").size(13).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                Space::new().width(Length::Fill),
+                secondary_text(service_mode),
             ].align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
             row![
@@ -410,6 +419,24 @@ fn format_controller_auth(snapshot: &ControllerAuthSnapshot) -> String {
         ControllerAuthStatus::Missing => "missing secret".to_owned(),
         ControllerAuthStatus::Unavailable => "host unavailable".to_owned(),
     }
+}
+
+fn format_service_mode(snapshot: &ServiceModeSnapshot) -> String {
+    let platform = match snapshot.platform {
+        ServiceModePlatform::WindowsService => "Windows Service",
+        ServiceModePlatform::LinuxPolkit => "Linux Polkit",
+        ServiceModePlatform::MacosLaunchd => "macOS launchd",
+        ServiceModePlatform::Unsupported => "Unsupported host",
+    };
+    let state = match snapshot.state {
+        ServiceModeState::Ready => "ready",
+        ServiceModeState::InstalledStopped => "installed · stopped",
+        ServiceModeState::NotInstalled => "not installed",
+        ServiceModeState::MissingPrivilege => "missing privilege",
+        ServiceModeState::Unavailable => "unavailable",
+        ServiceModeState::Unsupported => "unsupported",
+    };
+    format!("{platform} · {state}")
 }
 
 fn hotkeys_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {

@@ -108,6 +108,8 @@ python3 scripts/quality/kernel-rollback-guard.py --mode enforce
 python3 scripts/quality/controller-auth-guard.py --mode enforce
 # DUAL-01-08 内核日志等级 live PATCH、回读与双端控件守卫
 python3 scripts/quality/core-log-level-guard.py --mode enforce
+# DUAL-01-09 Windows Service / Linux Polkit / macOS launchd 服务模式守卫
+python3 scripts/quality/service-mode-guard.py --mode enforce
 ```
 
 ---

@@ -39,6 +39,7 @@ pub struct MihomoRuntime {
     application: Arc<CoreApplication>,
     _watchdog: infiltrator_composition::CoreWatchdogHandle,
     apply_guard: Arc<tokio::sync::Mutex<()>>,
+    service_mode: Arc<crate::service_mode::DesktopServiceMode>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -86,6 +87,7 @@ impl MihomoRuntime {
         let geoip_candidates = collect_geoip_candidates(&binary, bundled_candidates);
         ensure_geoip_database(&config_path, &geoip_candidates).await?;
         let service_manager = ServiceManager::new(binary.clone(), config_path.clone());
+        let service_mode = Arc::new(crate::service_mode::DesktopServiceMode::new(binary.clone()));
 
         let endpoints = Arc::new(ProfileEndpointSource::new(cm.clone()));
         let endpoint = endpoints
@@ -125,6 +127,7 @@ impl MihomoRuntime {
             application,
             _watchdog: watchdog,
             apply_guard: Arc::new(tokio::sync::Mutex::new(())),
+            service_mode,
         })
     }
 
@@ -221,6 +224,7 @@ impl MihomoRuntime {
             Arc::new(self.client.clone()),
             surface,
             sample_interval,
+            self.binary_path.clone(),
         )
         .await
     }
@@ -541,6 +545,10 @@ impl HostRuntime for MihomoRuntime {
             }
             crate::tun_service::ServiceModeStatus::Unsupported => TunServiceStatus::Unsupported,
         }
+    }
+
+    fn service_mode_port(&self) -> Option<Arc<dyn infiltrator_ports::service_mode::ServiceModePort>> {
+        Some(self.service_mode.clone())
     }
 
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {

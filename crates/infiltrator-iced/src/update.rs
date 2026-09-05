@@ -36,6 +36,7 @@ impl AppState {
                 | Message::SetSystemProxy(_)
                 | Message::SetCoreLogLevel(_)
                 | Message::CoreLogLevelFinished(_, _)
+                | Message::ServiceModePrepared(_)
                 | Message::SetProxyMode(_)
                 | Message::SetTunEnabled(_)
                 | Message::SetTunStack(_)

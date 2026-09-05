@@ -12,9 +12,9 @@ use crate::profile_application::ProfileApplication;
 use crate::routing_application::RoutingApplication;
 use crate::settings_application::SettingsApplication;
 use crate::snapshot_application::SnapshotApplication;
+use crate::service_mode_application::ServiceModeApplication;
 use crate::version_application::VersionApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
-use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
@@ -30,6 +30,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+#[path = "surface_reader_services.rs"]
+mod surface_reader_services;
+
 /// Application facades required to expose the page read model.
 #[derive(Clone)]
 pub struct ApplicationSurfaceReader {
@@ -43,6 +46,7 @@ pub struct ApplicationSurfaceReader {
     snapshots: Option<SnapshotApplication>,
     versions: Option<VersionApplication>,
     endpoint_source: Option<Arc<dyn EndpointSource>>,
+    service_mode: Option<ServiceModeApplication>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -61,6 +65,7 @@ impl ApplicationSurfaceReader {
             snapshots: None,
             versions: None,
             endpoint_source: None,
+            service_mode: None,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -117,6 +122,11 @@ impl ApplicationSurfaceReader {
         self
     }
 
+    pub fn with_service_mode(mut self, service_mode: ServiceModeApplication) -> Self {
+        self.service_mode = Some(service_mode);
+        self
+    }
+
     pub fn core(&self) -> &Arc<CoreApplication> {
         &self.core
     }
@@ -159,27 +169,6 @@ impl ApplicationSurfaceReader {
         snapshot
     }
 
-    async fn read_controller_auth(&self) -> ControllerAuthSnapshot {
-        let Some(source) = &self.endpoint_source else {
-            return ControllerAuthSnapshot::default();
-        };
-        match source.resolve().await {
-            Ok(endpoint) => ControllerAuthSnapshot {
-                status: if endpoint
-                    .secret
-                    .as_deref()
-                    .is_some_and(|secret| !secret.trim().is_empty())
-                {
-                    ControllerAuthStatus::Secured
-                } else {
-                    ControllerAuthStatus::Missing
-                },
-            },
-            Err(_) => ControllerAuthSnapshot {
-                status: ControllerAuthStatus::Unavailable,
-            },
-        }
-    }
 }
 
 #[async_trait::async_trait]
@@ -191,6 +180,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let revision = core.revision.max(1);
         let versions = self.read_versions().await;
         let controller_auth = self.read_controller_auth().await;
+        let service_mode = self.read_service_mode().await;
         let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
 
         pages.overview =
@@ -347,6 +337,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             pages,
             versions,
             controller_auth,
+            service_mode,
         })
     }
 }
@@ -700,6 +691,7 @@ mod tests {
     };
     use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
     use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
+    use infiltrator_ports::service_mode::ServiceModePort;
     use infiltrator_ports::version::{VersionPort, VersionProgressSink};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -758,6 +750,26 @@ mod tests {
                 url: "http://127.0.0.1:9090".to_owned(),
                 secret: Some("generated-by-host".to_owned()),
             })
+        }
+    }
+
+    struct TestServiceMode;
+
+    #[async_trait]
+    impl ServiceModePort for TestServiceMode {
+        async fn snapshot(
+            &self,
+        ) -> Result<infiltrator_contract::service_mode::ServiceModeSnapshot, PortError> {
+            Ok(infiltrator_contract::service_mode::ServiceModeSnapshot {
+                platform: infiltrator_contract::service_mode::ServiceModePlatform::LinuxPolkit,
+                state: infiltrator_contract::service_mode::ServiceModeState::Ready,
+            })
+        }
+
+        async fn prepare(
+            &self,
+        ) -> Result<infiltrator_contract::service_mode::ServiceModeSnapshot, PortError> {
+            self.snapshot().await
         }
     }
 
@@ -826,7 +838,8 @@ mod tests {
                 .with_versions(VersionApplication::new(Arc::new(TestVersions {
                     calls: calls.clone(),
                 })))
-                .with_endpoint_source(Arc::new(TestEndpoint));
+                .with_endpoint_source(Arc::new(TestEndpoint))
+                .with_service_mode(ServiceModeApplication::new(Arc::new(TestServiceMode)));
 
         let first = reader.read().await.expect("first surface read");
         let second = reader.read().await.expect("cached surface read");
@@ -841,6 +854,10 @@ mod tests {
         assert_eq!(
             first.controller_auth.status,
             infiltrator_contract::controller::ControllerAuthStatus::Secured
+        );
+        assert_eq!(
+            first.service_mode.state,
+            infiltrator_contract::service_mode::ServiceModeState::Ready
         );
         assert!(first.versions.channels.iter().all(|channel| matches!(
             channel.status,

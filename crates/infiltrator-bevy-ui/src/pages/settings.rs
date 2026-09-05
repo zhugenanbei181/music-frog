@@ -38,6 +38,7 @@ use infiltrator_contract::version::{
 };
 use infiltrator_contract::controller::ControllerAuthSnapshot;
 use infiltrator_contract::command::CoreLogLevel;
+use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
@@ -82,6 +83,8 @@ pub enum SettingsLineKind {
     CoreRollback,
     /// Controller secret/header injection status.
     ControllerAuth,
+    /// Host-owned privileged service mode status.
+    ServiceMode,
 }
 
 /// Marker for "Save Settings" button.
@@ -106,6 +109,18 @@ pub struct CoreRollbackButtonLabel;
 pub struct CoreLogLevelButton {
     pub level: CoreLogLevel,
 }
+
+/// Marker for the host-owned privileged service-mode action.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ServiceModeButton;
+
+/// Live availability attached to the service-mode control.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ServiceModeAvailability(pub bool);
+
+/// Marker for the mutable service-mode button label.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ServiceModeButtonLabel;
 
 /// Marker for "Prepare TUN Permission" button in the alert banner.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -138,6 +153,7 @@ pub struct SettingsProjection {
     pub core_versions: CoreVersionSnapshot,
     pub core_integrity: CoreArtifactVerification,
     pub controller_auth: ControllerAuthSnapshot,
+    pub service_mode: ServiceModeSnapshot,
 }
 
 impl SettingsProjection {
@@ -156,6 +172,7 @@ impl SettingsProjection {
             core_versions: CoreVersionSnapshot::default(),
             core_integrity: Default::default(),
             controller_auth: Default::default(),
+            service_mode: Default::default(),
         }
     }
 }
@@ -191,7 +208,7 @@ pub fn settings_page(projection: &SettingsProjection, palette: &UiPalette) -> im
             ( { header_card_scene(summary, palette) } ),
             ( { general_card_scene(projection, palette) } ),
             ( { tun_settings_card(projection, palette) } ),
-            ( { controller_settings_card(projection, palette) } ),
+            ( { settings_core::controller_settings_card(projection, palette) } ),
         ]
     }
 }
@@ -536,6 +553,7 @@ pub fn general_card_scene(
                     ),
                     ( { settings_core::core_rollback_row_scene(projection, palette) } ),
                     ( { settings_core::controller_auth_row_scene(&projection.controller_auth, palette) } ),
+                    ( { settings_core::service_mode_row_scene(&projection.service_mode, palette) } ),
                     (
                         Node {
                             width: percent(100),
@@ -672,52 +690,6 @@ fn tun_settings_card(projection: &SettingsProjection, palette: &UiPalette) -> im
     )
 }
 
-fn controller_settings_card(
-    projection: &SettingsProjection,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
-    let ctrl_port_str = format!("127.0.0.1:{}", projection.controller_port);
-
-    surface_scene(
-        vec![
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "外部控制器与核心 (Controller)".to_owned() }) TextRole(Role::BodyStrong) ),
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "外部控制端口 (External Controller API)".to_owned() }) TextRole(Role::Body) ),
-                            ( Text(ctrl_port_str) SettingsLine(SettingsLineKind::ControllerPort) TextRole(Role::Mono) ),
-                        ]
-                    ),
-                    ( { settings_core::core_log_level_row_scene(projection, palette) } ),
-                ]
-            }),
-        ],
-        palette,
-    )
-}
-
 // ---- Observer & Update Hook -----------------------------------------------
 
 fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
@@ -740,6 +712,8 @@ pub(crate) fn on_settings_action_activated(
     rollback_buttons: Query<(), With<CoreRollbackButton>>,
     rollback_available: Query<&CoreRollbackAvailability, With<CoreRollbackButton>>,
     log_level_buttons: Query<&CoreLogLevelButton>,
+    service_buttons: Query<(), With<ServiceModeButton>>,
+    service_available: Query<&ServiceModeAvailability, With<ServiceModeButton>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -773,6 +747,12 @@ pub(crate) fn on_settings_action_activated(
         handle.submit(UiCommand::RollbackCore);
     } else if let Ok(button) = log_level_buttons.get(activate.entity) {
         handle.submit(UiCommand::SetCoreLogLevel(button.level));
+    } else if service_buttons.contains(activate.entity)
+        && service_available
+            .get(activate.entity)
+            .is_ok_and(|availability| availability.0)
+    {
+        handle.submit(UiCommand::PrepareServiceMode);
     }
 }
 
@@ -785,13 +765,15 @@ pub(crate) fn apply_settings_projection(
         &mut Text,
         Option<&SettingsLine>,
         Option<&CoreRollbackButtonLabel>,
+        Option<&ServiceModeButtonLabel>,
     )>,
     mut rollback_buttons: Query<&mut CoreRollbackAvailability, With<CoreRollbackButton>>,
     mut log_level_buttons: Query<(&mut BackgroundColor, &CoreLogLevelButton)>,
+    mut service_buttons: Query<&mut ServiceModeAvailability, With<ServiceModeButton>>,
 ) {
     let projection = &update.0;
 
-    for (mut text, line, rollback_label) in &mut lines {
+    for (mut text, line, rollback_label, service_label) in &mut lines {
         if let Some(line) = line {
             match line.0 {
             SettingsLineKind::Summary => {
@@ -831,6 +813,9 @@ pub(crate) fn apply_settings_projection(
             SettingsLineKind::ControllerAuth => {
                 text.0 = settings_core::format_controller_auth(&projection.controller_auth);
             }
+            SettingsLineKind::ServiceMode => {
+                text.0 = settings_core::format_service_mode(&projection.service_mode);
+            }
             }
         }
         if rollback_label.is_some() {
@@ -840,11 +825,22 @@ pub(crate) fn apply_settings_projection(
                 "不可用".to_owned()
             };
         }
+        if service_label.is_some() {
+            text.0 = if projection.service_mode.state == ServiceModeState::Ready {
+                "已就绪".to_owned()
+            } else {
+                "准备服务模式".to_owned()
+            };
+        }
     }
 
     let rollback_available = projection.core_versions.rollback.target.is_some();
     for mut availability in &mut rollback_buttons {
         availability.0 = rollback_available;
+    }
+    let service_ready = projection.service_mode.state == ServiceModeState::Ready;
+    for mut availability in &mut service_buttons {
+        availability.0 = !service_ready;
     }
     let active_level = CoreLogLevel::parse(&projection.log_level);
     for (mut background, button) in &mut log_level_buttons {

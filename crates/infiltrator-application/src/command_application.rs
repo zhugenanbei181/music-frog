@@ -21,6 +21,7 @@ use crate::profile_application::ProfileApplication;
 use crate::routing_application::RoutingApplication;
 use crate::runtime_query_application::RuntimeQueryApplication;
 use crate::settings_application::SettingsApplication;
+use crate::service_mode_application::ServiceModeApplication;
 use crate::snapshot_application::SnapshotApplication;
 use crate::sync_application::SyncApplication;
 use crate::version_application::VersionApplication;
@@ -45,6 +46,7 @@ pub struct CommandApplication {
     settings: Option<SettingsApplication>,
     snapshots: Option<SnapshotApplication>,
     versions: Option<VersionApplication>,
+    service_mode: Option<ServiceModeApplication>,
 }
 
 impl CommandApplication {
@@ -99,6 +101,11 @@ impl CommandApplication {
 
     pub fn with_versions(mut self, application: VersionApplication) -> Self {
         self.versions = Some(application);
+        self
+    }
+
+    pub fn with_service_mode(mut self, application: ServiceModeApplication) -> Self {
+        self.service_mode = Some(application);
         self
     }
 
@@ -208,6 +215,7 @@ impl CommandApplication {
                     .await
             }
             CommandIntent::RollbackCore => self.versions()?.rollback().await.map(|_| ()),
+            CommandIntent::PrepareServiceMode => self.service_mode()?.prepare().await.map(|_| ()),
             CommandIntent::CheckUpdates => {
                 let settings = self.settings()?.load().await?;
                 let channel = parse_release_channel(&settings.core_channel)?;
@@ -313,6 +321,12 @@ impl CommandApplication {
         self.versions
             .clone()
             .ok_or_else(|| missing("version application"))
+    }
+
+    fn service_mode(&self) -> Result<ServiceModeApplication, Failure> {
+        self.service_mode
+            .clone()
+            .ok_or_else(|| missing("service mode application"))
     }
 }
 

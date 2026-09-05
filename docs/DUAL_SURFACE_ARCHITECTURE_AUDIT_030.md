@@ -82,6 +82,7 @@
 - `DUAL-01-06` 已完成本地版本历史栈和双端回滚 contract：候选 binary 先通过 `-v` 检查，版本指针以原子写入更新且不覆盖 profile 元数据；运行中重启与发行包证据仍未冒充 `host-verified`。
 - `DUAL-01-07` 已完成 controller secret 自动生成/复用、EndpointSource 私有传递、REST/WebSocket Bearer 注入和双端脱敏认证状态投影；真实发行包 controller 启动与跨平台权限 smoke 仍未冒充 `host-verified`。
 - `DUAL-01-08` 已完成 CoreLogLevel 的 shared command、PATCH 后回读、Iced Logs/Settings 和 Bevy Settings 双端控件；invalid/stopped 与 readback mismatch 均 fail closed，真实 mihomo controller smoke 仍未冒充 `host-verified`。
+- `DUAL-01-09` 已完成 ServiceModeSnapshot/Port/Application、desktop 平台映射、post-check 和双端 Settings action；Linux Polkit argv、Windows `sc.exe` 与 macOS launchd/typed unsupported 均保留明确边界，真实授权发行包证据仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

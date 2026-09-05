@@ -33,8 +33,15 @@ pub fn core_application(
     // Keep the Bevy command seam live in the desktop composition: version
     // rollback is an application use-case, not a UI-local file operation.
     let versions = VersionApplication::new(std::sync::Arc::new(crate::storage::version()?));
+    let service_mode = infiltrator_application::service_mode_application::ServiceModeApplication::new(
+        std::sync::Arc::new(crate::service_mode::DesktopServiceMode::new(
+            service.binary_path().to_path_buf(),
+        )),
+    );
     application.install_command_handler(std::sync::Arc::new(
-        CommandApplication::new().with_versions(versions),
+        CommandApplication::new()
+            .with_versions(versions)
+            .with_service_mode(service_mode),
     ));
     Ok(application)
 }

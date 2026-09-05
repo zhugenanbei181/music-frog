@@ -10,6 +10,7 @@ use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::routing_application::RoutingApplication;
 use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_application::service_mode_application::ServiceModeApplication;
 use infiltrator_application::snapshot_application::SnapshotApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
@@ -53,6 +54,7 @@ pub async fn application_surface_reader(
     core: Arc<CoreApplication>,
     gateway: Arc<dyn RuntimeGateway>,
     surface: SurfaceKind,
+    binary_path: std::path::PathBuf,
 ) -> anyhow::Result<ApplicationSurfaceReader> {
     let profile_store = crate::storage::profile_store().await?;
     let configuration_store = Arc::clone(&profile_store);
@@ -69,6 +71,10 @@ pub async fn application_surface_reader(
     );
     let versions = VersionApplication::new(Arc::new(crate::storage::version()?));
     let endpoint_source = Arc::new(crate::storage::endpoint_source().await?);
+    let service_mode =
+        ServiceModeApplication::new(Arc::new(crate::service_mode::DesktopServiceMode::new(
+            binary_path,
+        )));
 
     Ok(
         ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
@@ -81,7 +87,8 @@ pub async fn application_surface_reader(
             .with_settings(settings)
             .with_snapshots(snapshots)
             .with_versions(versions)
-            .with_endpoint_source(endpoint_source),
+            .with_endpoint_source(endpoint_source)
+            .with_service_mode(service_mode),
     )
 }
 
@@ -91,8 +98,10 @@ pub async fn surface_pump(
     gateway: Arc<dyn RuntimeGateway>,
     surface: SurfaceKind,
     sample_interval: Duration,
+    binary_path: std::path::PathBuf,
 ) -> anyhow::Result<SurfacePump> {
-    let reader = application_surface_reader(Arc::clone(&core), gateway, surface).await?;
+    let reader =
+        application_surface_reader(Arc::clone(&core), gateway, surface, binary_path).await?;
     let runtime = infiltrator_composition::tokio_application_runtime()
         .map_err(|error| anyhow::anyhow!(error))?;
     let initial = infiltrator_contract::surface_snapshot::SurfaceSnapshot::unavailable(

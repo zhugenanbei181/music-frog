@@ -36,6 +36,8 @@ REQUIRED_INTENTS = {
     "StartCore",
     "StopCore",
     "RestartCore",
+    "PrepareServiceMode",
+    "SetCoreLogLevel",
     "SwitchProfile",
     "SetProxyMode",
     "SelectProxyNode",

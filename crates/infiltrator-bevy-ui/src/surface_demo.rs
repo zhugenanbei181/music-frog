@@ -89,6 +89,7 @@ pub(super) fn snapshot_from_overview(
         pages,
         versions: infiltrator_contract::version::CoreVersionSnapshot::default(),
         controller_auth: infiltrator_contract::controller::ControllerAuthSnapshot::default(),
+        service_mode: infiltrator_contract::service_mode::ServiceModeSnapshot::default(),
     }
 }
 
@@ -114,6 +115,7 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         pages,
         versions: infiltrator_contract::version::CoreVersionSnapshot::default(),
         controller_auth: infiltrator_contract::controller::ControllerAuthSnapshot::default(),
+        service_mode: infiltrator_contract::service_mode::ServiceModeSnapshot::default(),
     }
 }
 
@@ -248,6 +250,7 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         core_versions: Default::default(),
         core_integrity: Default::default(),
         controller_auth: Default::default(),
+        service_mode: Default::default(),
     }
 }
 
