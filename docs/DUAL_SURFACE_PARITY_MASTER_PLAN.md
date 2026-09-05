@@ -1,6 +1,8 @@
 # MusicFrog Infiltrator: 双端（Iced & Bevy UI）同步演进与成熟 Mihomo 全景并集主控规范 (Dual-Surface Parity Master Plan)
 
-本文档是 MusicFrog Infiltrator 项目的最高战略主控台账，旨在确立 **Iced（成熟桌面端）** 与 **Bevy UI（桌面+移动统一跨平台战略端）** 的**严格同步演进机制**，并全面对标业界最成熟客户端（Clash Verge Rev、Mihomo Party、Flclash、Clash Nyanpasu、Surge），以其**最完善功能组的数学并集（Union）**作为最终目标。
+本文档是 MusicFrog Infiltrator 项目的最高战略主控台账，旨在确立 **Iced（成熟桌面端）** 与 **Bevy UI（桌面+移动统一跨平台战略端）** 的**严格同步演进机制**，并全面对标业界成熟 Mihomo 客户端，以其**最完善功能组的能力并集（Union）**作为最终目标。
+
+> **状态声明（2026-09-05）**：本文的 15×15（225 项）是目标与执行台账，不等同于已完成。0.30 当前已确认核心分层原则成立，但双端 live parity 尚未完成：Bevy 非 Overview 页面仍在从 demo projection 迁移，Iced 仍包含桌面组合职责。真实审计见 [DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md](DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md)。
 
 ---
 
@@ -14,14 +16,14 @@
 
 ```
                ┌────────────────────────────────────────────────────────┐
-               │           共享核心层与状态机 (100% 逻辑下沉)            │
-               │   infiltrator-core / mihomo-platform / mihomo-config   │
+               │       共享应用层与跨端状态机（单一事实源）              │
+               │  infiltrator-application / domain / contract / ports  │
                └──────────────────────────┬─────────────────────────────┘
                                           │
                                           ▼
                ┌────────────────────────────────────────────────────────┐
-               │           共享契约与视图模型 (UI-Agnostic Seam)         │
-               │   infiltrator-shared (DomainState, Actions, I18n)      │
+               │       共享契约与能力模型（UI-Agnostic Seam）            │
+               │  CommandIntent / Snapshot / Event / Capability         │
                └──────────────┬──────────────────────────┬──────────────┘
                               │                          │
                               ▼                          ▼
@@ -34,23 +36,28 @@
                           └────────────────┬─────────────────┘
                                            ▼
                ┌────────────────────────────────────────────────────────┐
-               │         双端对齐自动化测试与视觉回归门禁 (CI Guard)        │
-               │  headless tests / parity-guard.py / golden snapshots │
+               │ composition roots + host/outbound adapters             │
+               │ mihomo-api / config / version / desktop / android / ios│
+               └────────────────────────────────────────────────────────┘
+                                           ▼
+               ┌────────────────────────────────────────────────────────┐
+               │ 双端行为、视觉与宿主证据门禁                           │
+               │ headless tests / parity guard / live smoke / snapshots  │
                └────────────────────────────────────────────────────────┘
 ```
 
 1.  **业务逻辑 100% 下沉与 ViewModel 契约化**：
     *   严禁在 UI crate 中编写业务调度、网络请求或配置组装。
-    *   所有业务状态机收敛于 `infiltrator-core` 与 `mihomo-platform`；
-    *   双端共享只读视图状态（`DomainState`）与命令意图（`CommandIntent`），由 `infiltrator-shared` 集中管理。
+    *   业务状态机收敛于 `infiltrator-domain` 与 `infiltrator-application`；平台和传输实现留在 ports 之后的 adapter；
+    *   双端共享 `CommandIntent`、typed result、snapshot、event、capability 和 revision/generation；`infiltrator-shared` 只承载确实属于展示共享的主题、本地化和格式化资源。
 2.  **单向命令总线与事件广播标准化**：
-    *   Iced 的 `Message` 与 Bevy 的 `UiAction` 背后直接派发相同的领域命令（Domain Command），交由相同的异步运行时处理；
+    *   Iced 的 `Message` 与 Bevy 的 `UiCommand` 只做 toolkit 映射，背后派发相同的 `CommandIntent`，由同一个 application/core 事实源处理；
     *   底层遥测流（WebSocket 流量、连接流、日志）统一推入无锁缓冲区，双端同频消费。
 3.  **设计系统与组件库 1:1 镜像对齐**：
     *   统一 Design Tokens：两端色彩阶梯（主色、警示色、背景层级）、间距（4/8/12/16/24px）、圆角（4/8/12px）与排版数值镜像一致；
     *   基础控件 1:1 对应：虚拟视口列表（`VirtualList` ↔ `list/scroll_core`）、折线图（`Waveform` ↔ `chart::bezier`）、抽屉与模态层（`connection_drawer` ↔ `drawer/adaptive_modal`）、极简小窗（`mini_hud` ↔ `desktop::mini_hud`）。
 4.  **双端无头测试与自动化对齐门禁**：
-    *   开发静态门禁工具 `scripts/quality/parity-guard.py`，确保双端路由定义、页面覆盖与命令枚举严格匹配；
+    *   开发静态门禁工具，确保双端路由、页面投影、intent、能力/错误状态与测试覆盖匹配；
     *   双端具备无头自动化测试矩阵（`tests/gui/iced_*` 与 `tests/headless/*`），保障相同用户交互在两端产生一致的内核行为；
     *   定期运行视觉比对脚本，保障 11 个页面在桌面与自适应视口下的视觉层次统一。
 
@@ -67,11 +74,17 @@
 
 **本项目目标：将上述所有竞品的最完善能力求“全功能并集（Union）”，并在 Iced 与 Bevy UI 中全量镜像对齐！**
 
+### 2.1 Mihomo 能力基线
+
+能力规划先以 Mihomo 官方配置与 API 面为边界，再决定客户端增强项：配置面覆盖 DNS、Tun/listeners、出站协议、代理组、路由规则、规则集合、子规则和流量隧道；API 面覆盖日志、流量、内存、版本、缓存、运行配置、重启/升级、代理组、代理、providers、规则、连接、DNS、存储和 debug。客户端负责可理解地编辑、验证、回滚和观测，不在 Rust UI 层重新实现 Mihomo 的协议内核。
+
+参考：[Mihomo 配置文档](https://wiki.metacubex.one/config/)、[Mihomo API 文档](https://wiki.metacubex.one/api/)、[Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev)、[FlClash](https://github.com/chen08209/FlClash)。
+
 ---
 
 ## 三、15 大业务组 × 15 项全景深度功能清单（225 项双端深度对标并集）
 
-为彻底消除表面化对齐，本项目确立 **15 大核心业务组 × 15 项深度能力（共 225 项具体工程指标）**，要求 `infiltrator-iced` 与 `infiltrator-bevy-ui` 协同攻坚、共同对齐：
+为彻底消除表面化对齐，本项目确立 **15 大核心业务组 × 15 项深度能力（共 225 项具体工程指标）**，要求 `infiltrator-iced` 与 `infiltrator-bevy-ui` 协同攻坚、共同对齐。每项的编号为 `DUAL-组号-项号`，每项都必须同时具备 shared/application、Iced、Bevy、双端测试和适用宿主证据；单端完成不计入完成。
 
 ### 组 01：Core 运行时、进程守护与内核多版本交付 (Runtime & Lifecycle)
 1. **多代际内核会话状态机**：Session Token 隔离、Generation 递增与孤儿进程自动清理。
@@ -370,29 +383,25 @@
 双端演进划分为 4 个推进批次，每批次以**双端同步验收**为准入条件：
 
 ```
-Wave 1: 双端框架与核心主干对齐 [已交付]
-  ├─ 11 页面统一路由打通 (Route::ALL) 与 RouteHistory 进退栈
-  ├─ 核心生命周期、系统代理与 TUN 主大卡
-  └─ 基础节点卡片、并发测速流控与分组选择
+Wave 1: 双端框架与核心主干对齐 [骨架已交付，双端 live parity 未验收]
+  ├─ Bevy 11 页面路由/场景骨架与 RouteHistory 已存在
+  ├─ Iced 桌面流程已具备；Bevy 对应 live application projection 待补齐
+  └─ 核心生命周期、系统代理、TUN、节点和测速按 shared contract 收口
 
-Wave 2: 核心遥测、透视与诊断闭环 [已交付]
-  ├─ 真实双通道流量波形 (GPU Bezier / Canvas) 与动态拓扑链
-  ├─ 交互式 Live Rule Tracer 分流沙盒 (双端挂载)
-  ├─ 连接审计深度透视抽屉 (DNS/TCP/TLS/TTFB 瀑布流与一键加规则)
-  └─ 独立桌面 Mini HUD (260x90 悬浮小窗) & Ctrl+K 全键盘命令面板
+Wave 2: 核心遥测、透视与诊断闭环 [Overview 已有 live slice，其余待双端验收]
+  ├─ Bevy Overview 已通过 application-owned pump 接入真实数据
+  ├─ 连接、日志、DNS、Doctor、Tracer 的 Bevy live projection 待补齐
+  └─ 波形、拓扑、Mini HUD、Command Palette 以双端测试和宿主证据重新验收
 
-Wave 3: 高级扩展、配置工程与应用分流 [已交付]
-  ├─ 系统进程枚举、图标提取与应用级分流 (Per-App 3 态网格)
-  ├─ 多订阅节点聚合器 (Profile Aggregator 港日美新自动成组)
-  ├─ 配置快照历史可视化 Diff 比对与秒级回滚
-  ├─ QuickJS 扩展脚本沙箱调试控制台 (预设、熔断与日志回显)
-  └─ 自定义节点表单向导与通用 URI 编解码引擎
+Wave 3: 高级扩展、配置工程与应用分流 [目标已定义，未计入完成]
+  ├─ Iced 现有能力先抽成 shared/application + UI adapter
+  ├─ Bevy 同批次接入 live projection、命令结果和错误状态
+  └─ 聚合器、AST/Diff、脚本、应用分流必须各自完成双端测试
 
-Wave 4: 规则集深度治理、云端同步与多模态大一统 [进行中]
-  ├─ [已交付] MRS 二进制规则集高性能索引与外部 Provider 解构 (双端挂载)
-  ├─ [已交付] WebDAV / Gist 字段级三向冲突合并 (3-Way Merge 场景与双端对齐)
-  ├─ [已交付] 桌面 64px 紧凑导轨模式 (Rail Mode) 与双端自适应断点
-  └─ [演进中] 移动端触控手势实机闭环与低功耗 Reactive 调步
+Wave 4: 规则集深度治理、云端同步与多模态大一统 [0.30 当前主线]
+  ├─ 先完成 A-01 ~ A-05 架构闸门
+  ├─ MRS、WebDAV、Rail 和响应式能力按两端 live parity 重新记账
+  └─ 移动触控、VPN host、低功耗调度进入 Bevy mobile + Android host 联合验收
 ```
 
 ---
@@ -403,9 +412,9 @@ Wave 4: 规则集深度治理、云端同步与多模态大一统 [进行中]
 
 | 文档路径 | 当前状态与问题 | 治理方案与收敛动作 | 权威定位与维护原则 |
 | :--- | :--- | :--- | :--- |
-| **`docs/DUAL_SURFACE_PARITY_MASTER_PLAN.md`** | **[新设立]** | **全仓最高主控台账**：纳管双端同步策略、10 大业务组功能并集清单、UI 表现清单与 Wave 路线图。 | **唯一权威主纲**，所有其他前端与差距文档均向其链接收敛。 |
+| **`docs/DUAL_SURFACE_PARITY_MASTER_PLAN.md`** | **[当前主控]** | **全仓最高主控台账**：纳管双端同步策略、15 大业务组/225 项功能并集、UI 表现清单与 Wave 路线图。 | **唯一权威主纲**，所有其他前端与差距文档均向其链接收敛。 |
 | **`docs/FRONTENDS.md`** | 描述多端关系，但提及已退役的 Tauri，且描述 Bevy UI 滞后跟随。 | 更新内容：声明 Tauri 退役；确立 Iced 与 Bevy UI 为双主干同步表面；链接至主控规范。 | 多前端架构边界与跨端决策标记（shared/local）的权威定义。 |
-| **`docs/FUNCTIONAL_MAP.md`** | 列出功能域与 owner，仍有少量旧 surface 描述。 | 刷新表格：将 owner 和入口聚焦于 `infiltrator-core`、`Iced` 和 `Bevy UI` 双端。 | 业务功能唯一 Rust owner 的权威检索入口。 |
+| **`docs/FUNCTIONAL_MAP.md`** | 列出功能域与 owner；双端对等规则已写入，但 live parity 需以审计台账为准。 | owner 聚焦于 domain/application/ports，入口聚焦于 Iced 与 Bevy UI 双端。 | 业务功能唯一 Rust owner 的权威检索入口。 |
 | **`docs/ICED_CORE_MATURITY_GAPS.md`** | 仅记录 Iced 的 4 维度与 Wave 1~5 落地项，与 Bevy 隔离。 | 头部增补索引指引：明确本台账为 Master Plan 在 Iced 前端的具体落地执行切片。 | Iced 侧代码实现、组件与测试证据的追溯台账。 |
 | **`docs/BEVY_CORE_MATURITY_GAPS.md`** | 记录 Bevy 的 10 维度 150 项工程缺口，未显式与 Iced 对齐。 | 头部增补索引指引：明确 10 维度与 Master Plan 10 大业务组 1:1 对齐，作为 Bevy 落地切片。 | Bevy 侧场景、组件与无头测试证据的追溯台账。 |
 | **`docs/MATURITY_GAP_ANALYSIS.md`** | 记录 10×10 内核与协议差距，偏重后端逻辑。 | 明确其定位为“核心层成熟度台账”，将 UI 表现层与双端同步要求引流至 Master Plan。 | `infiltrator-core` 与 `mihomo-*` 协议与配置 AST 的底层权威台账。 |
