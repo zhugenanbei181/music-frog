@@ -46,6 +46,9 @@ use infiltrator_bevy_ui::pages::sync::{
 };
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
+use infiltrator_contract::version::{
+    CoreChannelSnapshot, CoreChannelStatus, CoreRelease, CoreReleaseChannel, CoreVersionSnapshot,
+};
 
 fn create_test_app() -> App {
     let mut app = App::new();
@@ -328,6 +331,19 @@ fn settings_page_in_place_update() {
         tun_stack: "System (Native Stack)".to_owned(),
         controller_port: 9099,
         log_level: "debug".to_owned(),
+        core_channel: "alpha".to_owned(),
+        core_versions: CoreVersionSnapshot {
+            revision: 1,
+            channels: vec![CoreChannelSnapshot {
+                channel: CoreReleaseChannel::Alpha,
+                status: CoreChannelStatus::Ready {
+                    release: CoreRelease {
+                        version: "Prerelease-Alpha".to_owned(),
+                        release_date: "2026-09-05".to_owned(),
+                    },
+                },
+            }],
+        },
     };
 
     app.world_mut()
@@ -346,6 +362,16 @@ fn settings_page_in_place_update() {
         .iter(world)
         .find(|(_, l)| l.0 == SettingsLineKind::ControllerPort);
     assert_eq!(ctrl_text.unwrap().0.0, "127.0.0.1:9099");
+
+    let channel_text = lines
+        .iter(world)
+        .find(|(_, l)| l.0 == SettingsLineKind::CoreChannel);
+    assert_eq!(channel_text.unwrap().0.0, "内核通道: alpha");
+
+    let versions_text = lines
+        .iter(world)
+        .find(|(_, l)| l.0 == SettingsLineKind::CoreVersions);
+    assert_eq!(versions_text.unwrap().0.0, "alpha=Prerelease-Alpha");
 }
 
 #[test]

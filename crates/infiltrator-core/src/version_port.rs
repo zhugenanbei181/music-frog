@@ -110,8 +110,8 @@ fn to_progress(progress: DownloadProgress) -> VersionDownloadProgress {
 fn to_channel(channel: CoreReleaseChannel) -> Channel {
     match channel {
         CoreReleaseChannel::Stable => Channel::Stable,
-        CoreReleaseChannel::Beta => Channel::Beta,
-        CoreReleaseChannel::Nightly => Channel::Nightly,
+        CoreReleaseChannel::Alpha => Channel::Alpha,
+        CoreReleaseChannel::MetaCore => Channel::MetaCore,
     }
 }
 

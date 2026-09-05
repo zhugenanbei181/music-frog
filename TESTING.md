@@ -98,6 +98,8 @@ python3 scripts/quality/session-guard.py --mode enforce
 python3 scripts/quality/hot-reload-guard.py --mode enforce
 # DUAL-01-03 崩溃自愈看门狗、指数退避与熔断守卫
 python3 scripts/quality/crash-watchdog-guard.py --mode enforce
+# DUAL-01-04 Stable / Alpha / Meta-Core 通道探测与双 UI 投影守卫
+python3 scripts/quality/core-channel-guard.py --mode enforce
 ```
 
 ---

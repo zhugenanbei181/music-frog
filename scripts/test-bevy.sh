@@ -25,3 +25,4 @@ python3 "$repo_root/scripts/quality/parity-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/session-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/hot-reload-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/crash-watchdog-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/core-channel-guard.py" --mode enforce

@@ -2,8 +2,8 @@
 
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::version::{
-    CoreRelease, CoreReleaseChannel, CoreReleaseSummary, InstalledCoreVersion,
-    VersionDownloadProgress,
+    CoreChannelSnapshot, CoreChannelStatus, CoreRelease, CoreReleaseChannel, CoreReleaseSummary,
+    CoreVersionSnapshot, InstalledCoreVersion, VersionDownloadProgress,
 };
 use infiltrator_ports::version::{VersionPort, VersionProgressSink};
 use std::sync::Arc;
@@ -24,6 +24,25 @@ impl VersionApplication {
 
     pub async fn latest(&self, channel: CoreReleaseChannel) -> Result<CoreRelease, Failure> {
         self.port.latest(channel).await.map_err(Failure::from)
+    }
+
+    /// Probe all official channels independently. A failure in Alpha must not
+    /// hide a usable Stable or Meta-Core result from either UI surface.
+    pub async fn probe_channels(&self) -> CoreVersionSnapshot {
+        let probes = futures_util::future::join_all(CoreReleaseChannel::ALL.into_iter().map(
+            |channel| async move {
+                let status = match self.latest(channel).await {
+                    Ok(release) => CoreChannelStatus::Ready { release },
+                    Err(failure) => CoreChannelStatus::Failed { failure },
+                };
+                CoreChannelSnapshot { channel, status }
+            },
+        ))
+        .await;
+        CoreVersionSnapshot {
+            revision: 1,
+            channels: probes,
+        }
     }
 
     pub async fn list_releases(&self, limit: usize) -> Result<Vec<CoreReleaseSummary>, Failure> {
@@ -60,5 +79,82 @@ impl VersionProgressSink for QuietVersionProgress {
 
     fn is_cancelled(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use infiltrator_contract::version::CoreChannelStatus;
+    use infiltrator_ports::error::PortError;
+
+    struct FakeVersionPort;
+
+    #[async_trait]
+    impl VersionPort for FakeVersionPort {
+        async fn list_installed(&self) -> Result<Vec<InstalledCoreVersion>, PortError> {
+            Ok(Vec::new())
+        }
+
+        async fn latest(&self, channel: CoreReleaseChannel) -> Result<CoreRelease, PortError> {
+            match channel {
+                CoreReleaseChannel::Stable => Ok(CoreRelease {
+                    version: "v1.19.30".to_owned(),
+                    release_date: "2026-08-16".to_owned(),
+                }),
+                CoreReleaseChannel::Alpha => Err(PortError::Network(
+                    "Prerelease-Alpha temporarily unavailable".to_owned(),
+                )),
+                CoreReleaseChannel::MetaCore => Ok(CoreRelease {
+                    version: "v1.19.29".to_owned(),
+                    release_date: "2026-07-18".to_owned(),
+                }),
+            }
+        }
+
+        async fn list_releases(&self, _limit: usize) -> Result<Vec<CoreReleaseSummary>, PortError> {
+            Ok(Vec::new())
+        }
+
+        async fn install(
+            &self,
+            _version: String,
+            _progress: Arc<dyn VersionProgressSink>,
+        ) -> Result<(), PortError> {
+            Ok(())
+        }
+
+        async fn activate(&self, _version: &str) -> Result<(), PortError> {
+            Ok(())
+        }
+
+        async fn uninstall(&self, _version: &str) -> Result<(), PortError> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn channel_probe_keeps_successes_when_one_channel_fails() {
+        let application = VersionApplication::new(Arc::new(FakeVersionPort));
+        let snapshot = application.probe_channels().await;
+
+        assert_eq!(snapshot.revision, 1);
+        assert_eq!(snapshot.channels.len(), 3);
+        assert_eq!(snapshot.channels[0].channel, CoreReleaseChannel::Stable);
+        assert!(matches!(
+            snapshot.channels[0].status,
+            CoreChannelStatus::Ready { .. }
+        ));
+        assert_eq!(snapshot.channels[1].channel, CoreReleaseChannel::Alpha);
+        assert!(matches!(
+            snapshot.channels[1].status,
+            CoreChannelStatus::Failed { .. }
+        ));
+        assert_eq!(snapshot.channels[2].channel, CoreReleaseChannel::MetaCore);
+        assert!(matches!(
+            snapshot.channels[2].status,
+            CoreChannelStatus::Ready { .. }
+        ));
     }
 }

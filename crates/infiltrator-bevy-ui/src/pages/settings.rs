@@ -33,6 +33,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::tabs::segmented_control_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::version::{CoreChannelStatus, CoreVersionSnapshot};
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
@@ -64,6 +65,10 @@ pub enum SettingsLineKind {
     ControllerPort,
     /// Log level text.
     LogLevel,
+    /// Selected core release channel.
+    CoreChannel,
+    /// Latest result of the three-channel probe.
+    CoreVersions,
 }
 
 /// Marker for "Save Settings" button.
@@ -97,6 +102,8 @@ pub struct SettingsProjection {
     pub tun_stack: String,
     pub controller_port: u16,
     pub log_level: String,
+    pub core_channel: String,
+    pub core_versions: CoreVersionSnapshot,
 }
 
 impl SettingsProjection {
@@ -111,6 +118,8 @@ impl SettingsProjection {
             tun_stack: "gVisor (高性能用户态协议栈)".to_owned(),
             controller_port: 9090,
             log_level: "info".to_owned(),
+            core_channel: "stable".to_owned(),
+            core_versions: CoreVersionSnapshot::default(),
         }
     }
 }
@@ -448,6 +457,8 @@ pub fn general_card_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mixed_port_str = format!("端口: {}", projection.mixed_port);
+    let core_channel_str = format!("内核通道: {}", projection.core_channel);
+    let core_versions_str = format_core_versions(&projection.core_versions);
 
     surface_scene(
         vec![
@@ -472,6 +483,34 @@ pub fn general_card_scene(
                     ( { close_to_tray_toggle_row_scene(true, palette) } ),
                     ( { system_notifications_toggle_row_scene(true, palette) } ),
                     ( { checkbox_scene("允许局域网连接 (Allow LAN)".to_owned(), projection.allow_lan, palette) } ),
+                    (
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            padding: UiRect::all(Val::Px(space::S8)),
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.surface_elevated })
+                        Children [
+                            ( Text({ "内核版本通道 (Core Channel)".to_owned() }) TextRole(Role::Body) ),
+                            ( Text(core_channel_str) SettingsLine(SettingsLineKind::CoreChannel) TextRole(Role::BodyStrong) ),
+                        ]
+                    ),
+                    (
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            padding: UiRect::all(Val::Px(space::S8)),
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.surface_elevated })
+                        Children [
+                            ( Text({ "在线通道探测 (Online Probe)".to_owned() }) TextRole(Role::Body) ),
+                            ( Text(core_versions_str) SettingsLine(SettingsLineKind::CoreVersions) TextRole(Role::Mono) ),
+                        ]
+                    ),
                     (
                         Node {
                             width: percent(100),
@@ -531,6 +570,25 @@ pub fn general_card_scene(
         ],
         palette,
     )
+}
+
+fn format_core_versions(snapshot: &CoreVersionSnapshot) -> String {
+    if snapshot.channels.is_empty() {
+        return "未探测".to_owned();
+    }
+    snapshot
+        .channels
+        .iter()
+        .map(|channel| match &channel.status {
+            CoreChannelStatus::Ready { release } => {
+                format!("{}={}", channel.channel.as_str(), release.version)
+            }
+            CoreChannelStatus::Failed { .. } => {
+                format!("{}=不可用", channel.channel.as_str())
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
 
 fn tun_settings_card(projection: &SettingsProjection, palette: &UiPalette) -> impl Scene + use<> {
@@ -706,6 +764,12 @@ pub(crate) fn apply_settings_projection(
             }
             SettingsLineKind::LogLevel => {
                 text.0 = projection.log_level.to_uppercase();
+            }
+            SettingsLineKind::CoreChannel => {
+                text.0 = format!("内核通道: {}", projection.core_channel);
+            }
+            SettingsLineKind::CoreVersions => {
+                text.0 = format_core_versions(&projection.core_versions);
             }
         }
     }

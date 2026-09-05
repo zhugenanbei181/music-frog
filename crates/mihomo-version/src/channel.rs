@@ -5,16 +5,16 @@ use std::str::FromStr;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Channel {
     Stable,
-    Beta,
-    Nightly,
+    Alpha,
+    MetaCore,
 }
 
 impl Channel {
     pub fn as_str(&self) -> &str {
         match self {
             Channel::Stable => "stable",
-            Channel::Beta => "beta",
-            Channel::Nightly => "nightly",
+            Channel::Alpha => "alpha",
+            Channel::MetaCore => "meta-core",
         }
     }
 }
@@ -23,10 +23,10 @@ impl FromStr for Channel {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
+        match s.trim().to_ascii_lowercase().as_str() {
             "stable" => Ok(Channel::Stable),
-            "beta" => Ok(Channel::Beta),
-            "nightly" | "alpha" => Ok(Channel::Nightly),
+            "alpha" | "pre-release" | "prerelease" => Ok(Channel::Alpha),
+            "meta" | "meta-core" | "metacore" | "nightly" => Ok(Channel::MetaCore),
             _ => Err(format!("Invalid channel: {}", s)),
         }
     }
@@ -117,25 +117,29 @@ pub const GITHUB_API_BASE: &str = "https://api.github.com";
 /// - [`Channel::Stable`]: `fetch_latest` does not use a list at all — it goes
 ///   through `releases/latest`, which never contains prereleases. If a caller
 ///   nonetheless passes a list, the newest entry is returned unchanged.
-/// - [`Channel::Beta`]: the **first entry with `prerelease == true`**. The
-///   previous implementation relied on `?prerelease=true`, a query parameter
-///   the GitHub API silently ignores, so "beta" was effectively identical to
-///   "newest release of any kind" — including stable ones.
-/// - [`Channel::Nightly`] (alpha): the **first list entry**, of any kind — the
-///   newest published release (stable, beta or alpha) is by definition the
-///   freshest build.
+/// - [`Channel::Alpha`]: the release tagged `Prerelease-Alpha`, which tracks
+///   the upstream Alpha branch rather than treating an arbitrary prerelease
+///   as the newest build.
+/// - [`Channel::MetaCore`]: the latest published Meta-branch release. Mihomo
+///   publishes this through the normal stable release feed, but the separate
+///   channel keeps the product's stable and Meta-Core choices explicit.
 ///
-/// Returns `None` when no entry matches (empty list, or a Beta query over a
+/// Returns `None` when no entry matches (empty list, or a channel query over a
 /// list that contains only stable releases).
 pub fn pick_release(
     releases: &[serde_json::Value],
     channel: Channel,
 ) -> Option<&serde_json::Value> {
     match channel {
-        Channel::Stable | Channel::Nightly => releases.first(),
-        Channel::Beta => releases
+        Channel::Stable | Channel::MetaCore => releases
             .iter()
-            .find(|release| release["prerelease"].as_bool() == Some(true)),
+            .find(|release| release["prerelease"].as_bool() != Some(true)),
+        Channel::Alpha => releases.iter().find(|release| {
+            release["tag_name"]
+                .as_str()
+                .is_some_and(|tag| tag.eq_ignore_ascii_case("Prerelease-Alpha"))
+                || release["prerelease"].as_bool() == Some(true)
+        }),
     }
 }
 
@@ -146,11 +150,13 @@ pub async fn fetch_latest_from(base_url: &str, channel: Channel) -> Result<Chann
     let url = match channel {
         // `/releases/latest` excludes prereleases by definition, so the
         // Stable channel needs no client-side filtering (unchanged behavior).
-        Channel::Stable => format!("{base_url}/repos/MetaCubeX/mihomo/releases/latest"),
-        // The GitHub API has no server-side prerelease filter, so fetch a
-        // small window and let `pick_release` do the channel selection.
-        Channel::Beta | Channel::Nightly => {
-            format!("{base_url}/repos/MetaCubeX/mihomo/releases?per_page=10")
+        Channel::Stable | Channel::MetaCore => {
+            format!("{base_url}/repos/MetaCubeX/mihomo/releases/latest")
+        }
+        // Alpha is published as a named prerelease. Using the tag endpoint
+        // avoids selecting an unrelated prerelease from another branch.
+        Channel::Alpha => {
+            format!("{base_url}/repos/MetaCubeX/mihomo/releases/tags/Prerelease-Alpha")
         }
     };
 
@@ -172,19 +178,40 @@ pub async fn fetch_latest_from(base_url: &str, channel: Channel) -> Result<Chann
     let data: serde_json::Value = resp.json().await?;
 
     let (version, date) = match channel {
-        Channel::Stable => (
-            data["tag_name"].as_str().unwrap_or("").to_string(),
-            data["published_at"].as_str().unwrap_or("").to_string(),
-        ),
-        Channel::Beta | Channel::Nightly => {
+        Channel::Stable | Channel::MetaCore => {
+            let version = data["tag_name"].as_str().unwrap_or("");
+            if version.is_empty() || data["prerelease"].as_bool() == Some(true) {
+                return Err(mihomo_api::error::MihomoError::Version(format!(
+                    "no suitable published release found for channel {}",
+                    channel.as_str()
+                )));
+            }
+            (
+                version.to_string(),
+                data["published_at"].as_str().unwrap_or("").to_string(),
+            )
+        }
+        Channel::Alpha => {
             let empty = Vec::new();
             let releases = data.as_array().unwrap_or(&empty);
-            let release = pick_release(releases, channel).ok_or_else(|| {
-                mihomo_api::error::MihomoError::Version(format!(
-                    "no suitable release found for channel {}",
-                    channel.as_str()
-                ))
-            })?;
+            let release = if releases.is_empty() {
+                if !data["tag_name"]
+                    .as_str()
+                    .is_some_and(|tag| tag.eq_ignore_ascii_case("Prerelease-Alpha"))
+                {
+                    return Err(mihomo_api::error::MihomoError::Version(
+                        "no suitable release found for channel alpha".to_string(),
+                    ));
+                }
+                &data
+            } else {
+                pick_release(releases, channel).ok_or_else(|| {
+                    mihomo_api::error::MihomoError::Version(format!(
+                        "no suitable release found for channel {}",
+                        channel.as_str()
+                    ))
+                })?
+            };
             (
                 release["tag_name"].as_str().unwrap_or("").to_string(),
                 release["published_at"].as_str().unwrap_or("").to_string(),
@@ -244,13 +271,13 @@ mod tests {
     }
 
     #[test]
-    fn test_channel_beta_as_str() {
-        assert_eq!(Channel::Beta.as_str(), "beta");
+    fn test_channel_alpha_as_str() {
+        assert_eq!(Channel::Alpha.as_str(), "alpha");
     }
 
     #[test]
-    fn test_channel_nightly_as_str() {
-        assert_eq!(Channel::Nightly.as_str(), "nightly");
+    fn test_channel_meta_core_as_str() {
+        assert_eq!(Channel::MetaCore.as_str(), "meta-core");
     }
 
     #[test]
@@ -261,18 +288,17 @@ mod tests {
     }
 
     #[test]
-    fn test_channel_from_str_beta() {
-        assert_eq!(Channel::from_str("beta"), Ok(Channel::Beta));
-        assert_eq!(Channel::from_str("Beta"), Ok(Channel::Beta));
-        assert_eq!(Channel::from_str("BETA"), Ok(Channel::Beta));
+    fn test_channel_from_str_alpha() {
+        assert_eq!(Channel::from_str("alpha"), Ok(Channel::Alpha));
+        assert_eq!(Channel::from_str("Alpha"), Ok(Channel::Alpha));
+        assert_eq!(Channel::from_str("pre-release"), Ok(Channel::Alpha));
     }
 
     #[test]
-    fn test_channel_from_str_nightly() {
-        assert_eq!(Channel::from_str("nightly"), Ok(Channel::Nightly));
-        assert_eq!(Channel::from_str("Nightly"), Ok(Channel::Nightly));
-        assert_eq!(Channel::from_str("alpha"), Ok(Channel::Nightly));
-        assert_eq!(Channel::from_str("Alpha"), Ok(Channel::Nightly));
+    fn test_channel_from_str_meta_core() {
+        assert_eq!(Channel::from_str("meta"), Ok(Channel::MetaCore));
+        assert_eq!(Channel::from_str("Meta-Core"), Ok(Channel::MetaCore));
+        assert_eq!(Channel::from_str("metacore"), Ok(Channel::MetaCore));
     }
 
     #[test]
@@ -395,59 +421,59 @@ mod tests {
     }
 
     #[test]
-    fn pick_release_beta_skips_stable_and_selects_prerelease() {
+    fn pick_release_alpha_selects_prerelease() {
         let releases = vec![
             list_release("v1.19.18", false),
             list_release("v1.19.1-beta", true),
             list_release("v1.19.0", false),
         ];
-        let picked = pick_release(&releases, Channel::Beta).unwrap();
+        let picked = pick_release(&releases, Channel::Alpha).unwrap();
         assert_eq!(picked["tag_name"].as_str(), Some("v1.19.1-beta"));
     }
 
     #[test]
-    fn pick_release_beta_selects_first_prerelease_when_multiple() {
+    fn pick_release_alpha_selects_first_prerelease_when_multiple() {
         let releases = vec![
             list_release("v1.19.18", false),
             list_release("v1.19.2-beta", true),
             list_release("v1.19.1-beta", true),
         ];
-        let picked = pick_release(&releases, Channel::Beta).unwrap();
+        let picked = pick_release(&releases, Channel::Alpha).unwrap();
         assert_eq!(picked["tag_name"].as_str(), Some("v1.19.2-beta"));
     }
 
     #[test]
-    fn pick_release_beta_returns_none_without_prereleases() {
+    fn pick_release_alpha_returns_none_without_prereleases() {
         let releases = vec![
             list_release("v1.19.18", false),
             list_release("v1.19.17", false),
         ];
-        assert!(pick_release(&releases, Channel::Beta).is_none());
+        assert!(pick_release(&releases, Channel::Alpha).is_none());
     }
 
     #[test]
-    fn pick_release_beta_returns_none_on_empty_list() {
+    fn pick_release_alpha_returns_none_on_empty_list() {
         let releases: Vec<serde_json::Value> = vec![];
-        assert!(pick_release(&releases, Channel::Beta).is_none());
+        assert!(pick_release(&releases, Channel::Alpha).is_none());
     }
 
     #[test]
-    fn pick_release_nightly_takes_newest_of_any_kind() {
+    fn pick_release_meta_core_takes_latest_stable() {
         let releases = vec![
             list_release("v1.19.18", false),
             list_release("v1.19.1-beta", true),
         ];
-        let picked = pick_release(&releases, Channel::Nightly).unwrap();
+        let picked = pick_release(&releases, Channel::MetaCore).unwrap();
         assert_eq!(picked["tag_name"].as_str(), Some("v1.19.18"));
     }
 
     #[test]
-    fn pick_release_nightly_takes_prerelease_when_newest() {
+    fn pick_release_alpha_accepts_named_prerelease() {
         let releases = vec![
             list_release("v1.19.2-alpha-abc", true),
             list_release("v1.19.1", false),
         ];
-        let picked = pick_release(&releases, Channel::Nightly).unwrap();
+        let picked = pick_release(&releases, Channel::Alpha).unwrap();
         assert_eq!(picked["tag_name"].as_str(), Some("v1.19.2-alpha-abc"));
     }
 
@@ -462,23 +488,26 @@ mod tests {
     }
 
     #[test]
-    fn pick_release_beta_ignores_missing_prerelease_field() {
+    fn pick_release_alpha_ignores_missing_prerelease_field() {
         // A payload without a `prerelease` field must not be treated as a
         // prerelease (absence != true).
         let releases = vec![
             serde_json::json!({"tag_name": "v1.19.18"}),
             list_release("v1.19.1-beta", true),
         ];
-        let picked = pick_release(&releases, Channel::Beta).unwrap();
+        let picked = pick_release(&releases, Channel::Alpha).unwrap();
         assert_eq!(picked["tag_name"].as_str(), Some("v1.19.1-beta"));
     }
 
     // ---- [缺口28] fetch_latest_from over a mock GitHub API ----
 
-    async fn mock_releases_server(body: serde_json::Value) -> mockito::ServerGuard {
+    async fn mock_alpha_server(body: serde_json::Value) -> mockito::ServerGuard {
         let mut server = mockito::Server::new_async().await;
         server
-            .mock("GET", "/repos/MetaCubeX/mihomo/releases?per_page=10")
+            .mock(
+                "GET",
+                "/repos/MetaCubeX/mihomo/releases/tags/Prerelease-Alpha",
+            )
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(body.to_string())
@@ -488,43 +517,42 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fetch_latest_beta_picks_prerelease_over_http() {
-        let server = mock_releases_server(serde_json::json!([
-            list_release("v1.19.18", false),
-            list_release("v1.19.1-beta", true),
-        ]))
-        .await;
+    async fn fetch_latest_alpha_picks_named_prerelease_over_http() {
+        let server = mock_alpha_server(list_release("Prerelease-Alpha", true)).await;
 
-        let info = fetch_latest_from(&server.url(), Channel::Beta)
+        let info = fetch_latest_from(&server.url(), Channel::Alpha)
             .await
             .unwrap();
-        assert_eq!(info.channel, Channel::Beta);
-        assert_eq!(info.version, "v1.19.1-beta");
+        assert_eq!(info.channel, Channel::Alpha);
+        assert_eq!(info.version, "Prerelease-Alpha");
     }
 
     #[tokio::test]
-    async fn fetch_latest_beta_errors_when_only_stable_releases() {
-        let server =
-            mock_releases_server(serde_json::json!([list_release("v1.19.18", false),])).await;
+    async fn fetch_latest_alpha_rejects_a_non_alpha_release() {
+        let server = mock_alpha_server(list_release("v1.19.18", false)).await;
 
-        let err = fetch_latest_from(&server.url(), Channel::Beta)
+        let err = fetch_latest_from(&server.url(), Channel::Alpha)
             .await
             .unwrap_err();
         assert!(err.to_string().contains("no suitable release"), "{err}");
     }
 
     #[tokio::test]
-    async fn fetch_latest_nightly_takes_newest_over_http() {
-        let server = mock_releases_server(serde_json::json!([
-            list_release("v1.19.2-alpha-cb6ac1e", true),
-            list_release("v1.19.18", false),
-        ]))
-        .await;
+    async fn fetch_latest_meta_core_uses_published_meta_release_over_http() {
+        let mut server = mockito::Server::new_async().await;
+        server
+            .mock("GET", "/repos/MetaCubeX/mihomo/releases/latest")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(list_release("v1.19.30", false).to_string())
+            .create_async()
+            .await;
 
-        let info = fetch_latest_from(&server.url(), Channel::Nightly)
+        let info = fetch_latest_from(&server.url(), Channel::MetaCore)
             .await
             .unwrap();
-        assert_eq!(info.version, "v1.19.2-alpha-cb6ac1e");
+        assert_eq!(info.channel, Channel::MetaCore);
+        assert_eq!(info.version, "v1.19.30");
     }
 
     #[tokio::test]
@@ -564,7 +592,7 @@ mod tests {
             .create_async()
             .await;
 
-        let err = fetch_latest_from(&server.url(), Channel::Nightly)
+        let err = fetch_latest_from(&server.url(), Channel::Alpha)
             .await
             .unwrap_err();
         assert!(err.to_string().contains("503"), "{err}");

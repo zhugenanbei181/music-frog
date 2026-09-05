@@ -394,6 +394,12 @@ pub(super) fn settings_projection(
             tun_stack: value.tun_stack,
             controller_port: value.controller_port,
             log_level: value.log_level,
+            core_channel: value.core_channel,
+            core_versions: snapshot.versions.clone(),
         })
-        .unwrap_or_else(empty_settings)
+        .unwrap_or_else(|| {
+            let mut projection = empty_settings();
+            projection.core_versions = snapshot.versions.clone();
+            projection
+        })
 }

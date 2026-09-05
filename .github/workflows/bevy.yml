@@ -24,6 +24,8 @@ on:
       - "scripts/quality/parity-guard.py"
       - "scripts/quality/session-guard.py"
       - "scripts/quality/hot-reload-guard.py"
+      - "scripts/quality/crash-watchdog-guard.py"
+      - "scripts/quality/core-channel-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -43,6 +45,8 @@ on:
       - "scripts/quality/parity-guard.py"
       - "scripts/quality/session-guard.py"
       - "scripts/quality/hot-reload-guard.py"
+      - "scripts/quality/crash-watchdog-guard.py"
+      - "scripts/quality/core-channel-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -112,6 +116,9 @@ jobs:
 
       - name: Enforce DUAL-01-03 crash watchdog semantics
         run: python3 scripts/quality/crash-watchdog-guard.py --mode enforce
+
+      - name: Enforce DUAL-01-04 core channel semantics
+        run: python3 scripts/quality/core-channel-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

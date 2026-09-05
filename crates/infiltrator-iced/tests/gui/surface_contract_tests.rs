@@ -9,6 +9,9 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
 use infiltrator_contract::snapshot::{CoreWatchdogState, CoreWatchdogSnapshot};
+use infiltrator_contract::version::{
+    CoreChannelSnapshot, CoreChannelStatus, CoreRelease, CoreReleaseChannel, CoreVersionSnapshot,
+};
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
@@ -103,6 +106,31 @@ fn shared_watchdog_snapshot_updates_the_iced_diagnostics_projection() {
     assert_eq!(
         state.diag.crash_watchdog.last_crash_summary.as_deref(),
         Some("core exited")
+    );
+}
+
+#[test]
+fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
+    let (mut state, _) = AppState::new();
+    let mut snapshot = snapshot(5);
+    snapshot.versions = CoreVersionSnapshot {
+        revision: 1,
+        channels: vec![CoreChannelSnapshot {
+            channel: CoreReleaseChannel::MetaCore,
+            status: CoreChannelStatus::Ready {
+                release: CoreRelease {
+                    version: "v1.19.30".to_owned(),
+                    release_date: "2026-08-16".to_owned(),
+                },
+            },
+        }],
+    };
+
+    assert!(state.apply_shared_surface_snapshot(snapshot));
+    assert_eq!(state.runtime.core_versions.revision, 1);
+    assert_eq!(
+        state.runtime.core_versions.channels[0].channel,
+        CoreReleaseChannel::MetaCore
     );
 }
 

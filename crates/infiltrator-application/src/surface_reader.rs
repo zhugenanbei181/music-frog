@@ -12,10 +12,12 @@ use crate::profile_application::ProfileApplication;
 use crate::routing_application::RoutingApplication;
 use crate::settings_application::SettingsApplication;
 use crate::snapshot_application::SnapshotApplication;
+use crate::version_application::VersionApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
+use infiltrator_contract::version::{CoreChannelStatus, CoreVersionSnapshot};
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::rules::RuleEntry;
@@ -23,7 +25,8 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::surface::SurfaceReader;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 /// Application facades required to expose the page read model.
 #[derive(Clone)]
@@ -36,6 +39,8 @@ pub struct ApplicationSurfaceReader {
     routing: Option<RoutingApplication>,
     settings: Option<SettingsApplication>,
     snapshots: Option<SnapshotApplication>,
+    versions: Option<VersionApplication>,
+    version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
 }
@@ -51,6 +56,8 @@ impl ApplicationSurfaceReader {
             routing: None,
             settings: None,
             snapshots: None,
+            versions: None,
+            version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
         }
@@ -96,8 +103,51 @@ impl ApplicationSurfaceReader {
         self
     }
 
+    pub fn with_versions(mut self, versions: VersionApplication) -> Self {
+        self.versions = Some(versions);
+        self
+    }
+
     pub fn core(&self) -> &Arc<CoreApplication> {
         &self.core
+    }
+
+    async fn read_versions(&self) -> CoreVersionSnapshot {
+        let Some(versions) = &self.versions else {
+            return CoreVersionSnapshot::default();
+        };
+        if let Some((probed_at, snapshot)) = self
+            .version_cache
+            .lock()
+            .expect("version cache lock")
+            .as_ref()
+            .cloned()
+        {
+            let has_ready_channel = snapshot
+                .channels
+                .iter()
+                .any(|channel| matches!(channel.status, CoreChannelStatus::Ready { .. }));
+            let ttl = if has_ready_channel {
+                Duration::from_secs(600)
+            } else {
+                Duration::from_secs(30)
+            };
+            if probed_at.elapsed() < ttl {
+                return snapshot;
+            }
+        }
+
+        let next_revision = self
+            .version_cache
+            .lock()
+            .expect("version cache lock")
+            .as_ref()
+            .map_or(1, |(_, snapshot)| snapshot.revision.saturating_add(1));
+        let mut snapshot = versions.probe_channels().await;
+        snapshot.revision = next_revision;
+        *self.version_cache.lock().expect("version cache lock") =
+            Some((Instant::now(), snapshot.clone()));
+        snapshot
     }
 }
 
@@ -108,6 +158,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
     ) -> Result<surface_snapshot::SurfaceSnapshot, infiltrator_ports::error::PortError> {
         let core = self.core.snapshot();
         let revision = core.revision.max(1);
+        let versions = self.read_versions().await;
         let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
 
         pages.overview =
@@ -262,6 +313,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             capabilities: self.capabilities.clone(),
             failure: None,
             pages,
+            versions,
         })
     }
 }
@@ -571,7 +623,7 @@ fn build_settings_page(
     settings: Option<&Result<infiltrator_domain::settings::AppSettings, Failure>>,
     runtime_config: Option<&Result<infiltrator_domain::runtime::ConfigSnapshot, PortError>>,
 ) -> surface_snapshot::PageData<surface_snapshot::SettingsPageSnapshot> {
-    let _settings = match settings {
+    let settings = match settings {
         Some(Ok(settings)) => settings,
         Some(Err(error)) => {
             return surface_snapshot::PageData::failed(Failure::new(
@@ -599,5 +651,136 @@ fn build_settings_page(
             .map(|value| value.log_level.clone())
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| "info".to_owned()),
+        core_channel: settings.core_channel.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use infiltrator_contract::snapshot::CoreLifecycle;
+    use infiltrator_contract::version::{CoreRelease, CoreReleaseChannel};
+    use infiltrator_ports::application_runtime::{
+        ApplicationFuture, ApplicationRuntime, ApplicationSleep,
+    };
+    use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+    use infiltrator_ports::version::{VersionPort, VersionProgressSink};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct TestRuntime;
+
+    impl ApplicationRuntime for TestRuntime {
+        fn block_on(&self, future: ApplicationFuture) {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("test runtime")
+                .block_on(future);
+        }
+
+        fn sleep(&self, duration: Duration) -> ApplicationSleep<'_> {
+            Box::pin(tokio::time::sleep(duration))
+        }
+    }
+
+    struct TestProcess;
+
+    #[async_trait]
+    impl CoreProcess for TestProcess {
+        async fn start(&self) -> Result<(), PortError> {
+            Ok(())
+        }
+
+        async fn stop(&self) -> Result<(), PortError> {
+            Ok(())
+        }
+
+        async fn status(&self) -> Result<CoreLifecycle, PortError> {
+            Ok(CoreLifecycle::Stopped)
+        }
+
+        fn controller_endpoint(&self) -> Option<String> {
+            Some("http://127.0.0.1:9090".to_owned())
+        }
+    }
+
+    struct TestReadiness;
+
+    #[async_trait]
+    impl CoreReadiness for TestReadiness {
+        async fn probe(&self) -> Result<String, PortError> {
+            Ok("http://127.0.0.1:9090".to_owned())
+        }
+    }
+
+    struct TestVersions {
+        calls: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl VersionPort for TestVersions {
+        async fn list_installed(
+            &self,
+        ) -> Result<Vec<infiltrator_contract::version::InstalledCoreVersion>, PortError> {
+            Ok(Vec::new())
+        }
+
+        async fn latest(&self, channel: CoreReleaseChannel) -> Result<CoreRelease, PortError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(CoreRelease {
+                version: format!("{}-v1.0.0", channel.as_str()),
+                release_date: "2026-09-05".to_owned(),
+            })
+        }
+
+        async fn list_releases(
+            &self,
+            _limit: usize,
+        ) -> Result<Vec<infiltrator_contract::version::CoreReleaseSummary>, PortError> {
+            Ok(Vec::new())
+        }
+
+        async fn install(
+            &self,
+            _version: String,
+            _progress: Arc<dyn VersionProgressSink>,
+        ) -> Result<(), PortError> {
+            Ok(())
+        }
+
+        async fn activate(&self, _version: &str) -> Result<(), PortError> {
+            Ok(())
+        }
+
+        async fn uninstall(&self, _version: &str) -> Result<(), PortError> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn surface_reader_publishes_and_caches_all_core_channel_results() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let core = Arc::new(CoreApplication::new(
+            Arc::new(TestProcess),
+            Arc::new(TestReadiness),
+            Arc::new(TestRuntime),
+        ));
+        let reader =
+            ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
+                .with_versions(VersionApplication::new(Arc::new(TestVersions {
+                    calls: calls.clone(),
+                })));
+
+        let first = reader.read().await.expect("first surface read");
+        let second = reader.read().await.expect("cached surface read");
+        assert_eq!(first.versions.channels.len(), 3);
+        assert_eq!(first.versions.revision, 1);
+        assert_eq!(second.versions.revision, 1);
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
+        assert!(first.versions.channels.iter().all(|channel| matches!(
+            channel.status,
+            infiltrator_contract::version::CoreChannelStatus::Ready { .. }
+        )));
+    }
 }

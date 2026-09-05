@@ -13,6 +13,7 @@ use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::snapshot_application::SnapshotApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
@@ -66,6 +67,7 @@ pub async fn application_surface_reader(
         snapshot_profile_store,
         Arc::new(crate::storage::snapshot_store().await?),
     );
+    let versions = VersionApplication::new(Arc::new(crate::storage::version()?));
 
     Ok(
         ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
@@ -76,7 +78,8 @@ pub async fn application_surface_reader(
             .with_doctor(doctor)
             .with_routing(routing)
             .with_settings(settings)
-            .with_snapshots(snapshots),
+            .with_snapshots(snapshots)
+            .with_versions(versions),
     )
 }
 

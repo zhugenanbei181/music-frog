@@ -29,7 +29,7 @@ use infiltrator_domain::runtime::{
 };
 use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
-use infiltrator_contract::version::InstalledCoreVersion;
+use infiltrator_contract::version::{CoreVersionSnapshot, InstalledCoreVersion};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -91,6 +91,8 @@ pub struct RuntimeState {
     pub installed_kernels: Vec<InstalledCoreVersion>,
     pub latest_core_version: Option<String>,
     pub core_channel: String,
+    /// Shared online probe result for Stable, Alpha and Meta-Core.
+    pub core_versions: CoreVersionSnapshot,
     pub download_progress: f32,
     pub download_stats: Option<crate::types::app::CoreDownloadProgress>,
     pub core_download_token: u64,
@@ -380,6 +382,7 @@ impl AppState {
         self.runtime.proxy_mode = snapshot.core.proxy_mode.map(|mode| mode.to_wire().to_owned());
         self.runtime.runtime_generation = snapshot.core.generation;
         self.runtime.core_session_token = snapshot.core.session_token;
+        self.runtime.core_versions = snapshot.versions.clone();
         self.diag.crash_watchdog.shared = snapshot.core.watchdog.clone();
         self.diag.crash_watchdog.last_crash_summary = snapshot
             .core

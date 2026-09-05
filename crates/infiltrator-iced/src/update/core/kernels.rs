@@ -71,8 +71,8 @@ fn version_application() -> Result<infiltrator_application::version_application:
 
 fn parse_release_channel(value: &str) -> CoreReleaseChannel {
     match value.trim().to_ascii_lowercase().as_str() {
-        "beta" => CoreReleaseChannel::Beta,
-        "nightly" | "alpha" => CoreReleaseChannel::Nightly,
+        "alpha" | "pre-release" | "prerelease" => CoreReleaseChannel::Alpha,
+        "meta" | "meta-core" | "metacore" | "nightly" => CoreReleaseChannel::MetaCore,
         _ => CoreReleaseChannel::Stable,
     }
 }
@@ -114,7 +114,13 @@ impl AppState {
             Message::SetCoreChannel(channel) => {
                 if matches!(
                     channel.trim().to_ascii_lowercase().as_str(),
-                    "stable" | "beta" | "nightly" | "alpha"
+                    "stable"
+                        | "alpha"
+                        | "pre-release"
+                        | "prerelease"
+                        | "meta"
+                        | "meta-core"
+                        | "metacore"
                 ) {
                     self.runtime.core_channel = channel.to_ascii_lowercase();
                 }

@@ -9,6 +9,7 @@ use crate::command::ProxyMode;
 use crate::error::Failure;
 use crate::snapshot::{CoreLifecycle, CoreSnapshot};
 use crate::surface::{HostKind, SurfaceKind};
+use crate::version::CoreVersionSnapshot;
 use serde::{Deserialize, Serialize};
 
 /// Canonical page vocabulary shared by the two primary UI surfaces.
@@ -324,6 +325,8 @@ pub struct SettingsPageSnapshot {
     pub tun_stack: String,
     pub controller_port: u16,
     pub log_level: String,
+    #[serde(default)]
+    pub core_channel: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -386,6 +389,9 @@ pub struct SurfaceSnapshot {
     pub capabilities: CapabilitySnapshot,
     pub failure: Option<Failure>,
     pub pages: SurfacePages,
+    /// Independent online core-channel probe results shared by both UIs.
+    #[serde(default)]
+    pub versions: CoreVersionSnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -420,6 +426,7 @@ impl SurfaceSnapshot {
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             failure: Some(failure.clone()),
             pages: SurfacePages::unavailable(failure),
+            versions: CoreVersionSnapshot::default(),
         }
     }
 

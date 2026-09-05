@@ -397,8 +397,10 @@ fn parse_routing_rule(value: &str) -> Result<AppRoutingRule, Failure> {
 fn parse_release_channel(value: &str) -> Result<CoreReleaseChannel, Failure> {
     match value.trim().to_ascii_lowercase().as_str() {
         "stable" => Ok(CoreReleaseChannel::Stable),
-        "beta" => Ok(CoreReleaseChannel::Beta),
-        "nightly" | "alpha" => Ok(CoreReleaseChannel::Nightly),
+        "alpha" | "pre-release" | "prerelease" => Ok(CoreReleaseChannel::Alpha),
+        "meta" | "meta-core" | "metacore" | "nightly" => {
+            Ok(CoreReleaseChannel::MetaCore)
+        }
         _ => Err(Failure::new(
             ErrorCode::InvalidInput,
             format!("unknown core release channel {value}"),

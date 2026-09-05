@@ -87,6 +87,7 @@ pub(super) fn snapshot_from_overview(
             )
         }),
         pages,
+        versions: infiltrator_contract::version::CoreVersionSnapshot::default(),
     }
 }
 
@@ -110,6 +111,7 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         capabilities: CapabilitySnapshot::new(HostKind::Desktop, 1, Vec::new()),
         failure: None,
         pages,
+        versions: infiltrator_contract::version::CoreVersionSnapshot::default(),
     }
 }
 
@@ -240,6 +242,8 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         tun_stack: String::new(),
         controller_port: 0,
         log_level: String::new(),
+        core_channel: String::new(),
+        core_versions: Default::default(),
     }
 }
 
@@ -499,6 +503,7 @@ impl From<SettingsProjection> for surface_snapshot::SettingsPageSnapshot {
             tun_stack: value.tun_stack,
             controller_port: value.controller_port,
             log_level: value.log_level,
+            core_channel: value.core_channel,
         }
     }
 }

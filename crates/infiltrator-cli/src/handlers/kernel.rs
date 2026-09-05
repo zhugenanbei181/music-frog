@@ -29,8 +29,10 @@ pub(crate) async fn handle(action: KernelAction) -> anyhow::Result<()> {
 pub(crate) fn split_target(target: &str) -> Option<CoreReleaseChannel> {
     match target.trim().to_ascii_lowercase().as_str() {
         "stable" => Some(CoreReleaseChannel::Stable),
-        "beta" => Some(CoreReleaseChannel::Beta),
-        "nightly" | "alpha" => Some(CoreReleaseChannel::Nightly),
+        "alpha" | "pre-release" | "prerelease" => Some(CoreReleaseChannel::Alpha),
+        "meta" | "meta-core" | "metacore" | "nightly" => {
+            Some(CoreReleaseChannel::MetaCore)
+        }
         _ => None,
     }
 }
@@ -156,9 +158,9 @@ mod tests {
     fn channel_targets_are_recognized_case_insensitively() {
         assert_eq!(split_target("stable"), Some(CoreReleaseChannel::Stable));
         assert_eq!(split_target("Stable"), Some(CoreReleaseChannel::Stable));
-        assert_eq!(split_target("beta"), Some(CoreReleaseChannel::Beta));
-        assert_eq!(split_target("alpha"), Some(CoreReleaseChannel::Nightly));
-        assert_eq!(split_target("nightly"), Some(CoreReleaseChannel::Nightly));
+        assert_eq!(split_target("alpha"), Some(CoreReleaseChannel::Alpha));
+        assert_eq!(split_target("meta-core"), Some(CoreReleaseChannel::MetaCore));
+        assert_eq!(split_target("nightly"), Some(CoreReleaseChannel::MetaCore));
     }
 
     #[test]
