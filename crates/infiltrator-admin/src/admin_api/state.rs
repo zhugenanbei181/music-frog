@@ -9,6 +9,7 @@ use std::{
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
+use infiltrator_application::network_application::NetworkApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::sync_application::SyncApplication;
@@ -31,6 +32,11 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn subscription_source(&self) -> anyhow::Result<Arc<dyn SubscriptionSource>>;
     async fn sync_application(&self) -> anyhow::Result<SyncApplication>;
     async fn version_application(&self) -> anyhow::Result<VersionApplication>;
+    /// Public-egress probe owned by the host composition; the REST adapter
+    /// never constructs an HTTP client itself.
+    async fn network_application(&self) -> anyhow::Result<NetworkApplication> {
+        Err(anyhow::anyhow!("public IP probe is unavailable in this host"))
+    }
 
     async fn rebuild_runtime(&self) -> anyhow::Result<()>;
     async fn profile_controller_url(&self) -> anyhow::Result<Option<String>>;

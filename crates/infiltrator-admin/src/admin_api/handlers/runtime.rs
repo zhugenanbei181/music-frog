@@ -8,27 +8,16 @@ use axum::{
     http::StatusCode,
     response::sse::{Event, KeepAlive, Sse},
 };
-use infiltrator_http::reqwest;
 use log::warn;
 use infiltrator_domain::runtime::{ConnectionsResponse, MemoryData};
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
 use futures_util::StreamExt;
-use serde::Deserialize;
 
 use crate::admin_api::events::{AdminEvent, EVENT_RUNTIME_CHANGED};
 use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
 
 use super::proxies::normalize_proxy_mode;
-
-#[derive(Deserialize)]
-struct IpApiResponse {
-    ip: Option<String>,
-    #[serde(rename = "country_name")]
-    country_name: Option<String>,
-    region: Option<String>,
-    city: Option<String>,
-}
 
 pub async fn get_runtime_status_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
@@ -188,37 +177,22 @@ pub async fn get_runtime_memory_http<C: AdminApiContext>(
 }
 
 pub async fn get_runtime_ip_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuntimeIpCheckResponse>, ApiError> {
-    let client = reqwest::Client::builder()
-        .no_proxy()
-        .timeout(Duration::from_secs(6))
-        .build()
-        .map_err(|e| ApiError::internal(format!("build ip client failed: {e}")))?;
-    let response = client
-        .get("https://ipapi.co/json/")
-        .send()
+    let snapshot = state
+        .ctx
+        .network_application()
         .await
-        .map_err(|e| ApiError::internal(format!("ip check request failed: {e}")))?;
-    if !response.status().is_success() {
-        return Err(ApiError::internal(format!(
-            "ip check failed: {}",
-            response.status()
-        )));
-    }
-    let payload: IpApiResponse = response
-        .json()
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .probe_public_ip(None)
         .await
-        .map_err(|e| ApiError::internal(format!("decode ip response failed: {e}")))?;
-    let ip = payload
-        .ip
-        .ok_or_else(|| ApiError::internal("ip missing from response"))?;
+        .map_err(|failure| ApiError::internal(failure.message))?;
 
     Ok(Json(RuntimeIpCheckResponse {
-        ip,
-        country: payload.country_name,
-        region: payload.region,
-        city: payload.city,
+        ip: snapshot.ip,
+        country: snapshot.country,
+        region: snapshot.region,
+        city: snapshot.city,
     }))
 }
 

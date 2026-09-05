@@ -31,6 +31,7 @@ use infiltrator_application::configuration_application::ConfigurationApplication
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
+use infiltrator_application::network_application::NetworkApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
@@ -474,6 +475,12 @@ impl AdminApiContext for IcedAdminContext {
     async fn version_application(&self) -> anyhow::Result<VersionApplication> {
         let version = infiltrator_desktop::storage::version()?;
         Ok(VersionApplication::new(Arc::new(version)))
+    }
+
+    async fn network_application(&self) -> anyhow::Result<NetworkApplication> {
+        Ok(NetworkApplication::new(Arc::new(
+            infiltrator_desktop::storage::public_ip_probe(),
+        )))
     }
 
     async fn webdav_password(&self) -> Option<String> {

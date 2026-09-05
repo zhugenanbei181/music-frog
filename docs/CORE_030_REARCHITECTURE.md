@@ -33,7 +33,7 @@
 - [x] `ProfileStore` 已成为配置持久化 port；Iced profile/config flows 不再持有 `ConfigManager`，`mihomo-config` 负责把 keyring、TOML 和文件 CRUD 转换为 domain values。
 - [x] `ProfileApplication` 已覆盖 profile 列表、详情、切换、保存、删除、metadata、订阅导入/更新；`SubscriptionSource` 将 HTTP/sidecar 适配留在 core adapter，前端不再调用 `infiltrator-core::profiles`。
 - [x] `ConfigurationApplication` 已统一 DNS、Fake-IP、TUN、rules、provider、sniffer 的 profile YAML 读写；Iced production 已移除 core/Reqwest 直连，Iced 的文件、订阅、快照与 Admin API 走 desktop host adapter。
-- [x] `NetworkApplication` / `PublicIpProbe` 已统一出口 IP 探测，页面不再直接构造 Reqwest；Fake-IP cache 作为独立 host IO adapter 保留。
+- [x] `NetworkApplication` / `PublicIpProbe` 已统一出口 IP 探测，Iced、Admin 和 Android 页面不再直接构造 Reqwest；Fake-IP cache 作为独立 host IO adapter 保留。
 - [x] `RoutingApplication` / `AppRoutingStore` 已统一 Android 应用路由配置与 Iced 桌面模式/进程规则持久化；Android 自身包排除仍留在 Android host 规则内。
 - [x] `DoctorApplication` / `DoctorPort` 已统一 doctor 检查、修复、解释和 bootstrap 结果；跨端结果落在 contract，core 只提供 Mihomo doctor host adapter，Admin、CLI、Android FFI 已接入。
 - [x] `ProxyApplication`、`ConnectionApplication`、`RuntimeQueryApplication` 已覆盖 CLI 的节点/分组、连接关闭/流式观察和 logs/traffic/memory 查询；CLI handler 不再直接调用 Mihomo manager。

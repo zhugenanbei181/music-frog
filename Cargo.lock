@@ -4927,7 +4927,6 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-domain",
- "infiltrator-http",
  "infiltrator-ports",
  "infiltrator-shared",
  "log",
