@@ -1,4 +1,4 @@
-//! Admin-side scheduling built on the unified core [`JobScheduler`].
+//! Admin-side scheduling for periodic host-triggered work.
 //!
 //! Subscription auto-update is a set of per-profile periodic jobs: every
 //! profile with auto-update enabled owns one job named
@@ -11,7 +11,7 @@
 //! calls the pre-existing per-profile update logic in
 //! [`subscription::run_profile_subscription_tick`]; single-flight execution
 //! and failure counters (run_count / failure_count / last_error, surfaced by
-//! [`JobScheduler::snapshot`] and logged per failure by the core scheduler)
+//! [`JobScheduler::snapshot`] and logged per failure by the scheduler)
 //! come for free.
 //!
 //! The one-shot actions (manual `update-now`, bulk update, WebDAV sync-now)
@@ -27,7 +27,6 @@
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use infiltrator_core::scheduler::JobScheduler;
 use log::warn;
 use tokio::sync::watch;
 use tokio::time::{Instant, interval};
@@ -35,6 +34,9 @@ use tokio::time::{Instant, interval};
 use self::sync::run_sync_tick;
 use crate::admin_api::state::AdminApiContext;
 
+use self::job_scheduler::JobScheduler;
+
+mod job_scheduler;
 pub mod subscription;
 pub mod sync;
 

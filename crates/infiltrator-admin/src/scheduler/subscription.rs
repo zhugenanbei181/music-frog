@@ -26,7 +26,7 @@ pub(crate) struct SubscriptionUpdateResult {
 }
 
 /// Periodic tick for one profile's subscription auto-update job on the
-/// unified [`JobScheduler`](infiltrator_core::scheduler::JobScheduler).
+/// unified host [`JobScheduler`](super::job_scheduler::JobScheduler).
 ///
 /// The update logic itself is untouched; this only replaces the trigger
 /// shell of the former hourly sweep. Metadata is re-read on every run so a

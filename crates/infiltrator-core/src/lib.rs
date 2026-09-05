@@ -15,7 +15,6 @@ pub mod profile_options_io;
 pub mod profile_store_io;
 pub mod profile_reset;
 pub mod public_ip_io;
-pub mod scheduler;
 pub mod settings_io;
 pub mod settings_store;
 pub mod smoke_e2e;

@@ -24,7 +24,7 @@
 - `infiltrator-domain` 只放纯规则、模型和计算；`infiltrator-contract` 只放跨端可序列化结果；`infiltrator-ports` 只放能力边界；`infiltrator-application` 只编排 use-case。
 - 文件、HTTP、mihomo client、keyring、Tokio executor 和 OS/VPN 生命周期必须在 host/composition/outbound adapter；inbound surface 不得自行构造它们。
 - 每个已迁移垂直切片必须同时落下 application facade、port、具体 adapter、跨端接入和行为测试；只搬模块不算完成。
-- 当前优先收口 profile reset、Fake-IP cache、订阅 source；随后统一 WebDAV application，再处理 command facade 与版本/调度器 facade。
+- 当前优先收口 profile reset、Fake-IP cache、订阅 source；随后统一 WebDAV application，再处理 command facade 与版本 facade；周期调度器归 host scheduling，不进入 core/domain。
 
 ---
 
@@ -60,7 +60,7 @@
 - [x] **T02-07 [P1] YAML 注释与锚点 100% 保真 AST**：将 `yaml_ast` 全面接入 `apply` 写入事务，替代易抹除注释的 serde 全序列化。
 - [x] **T02-08 [P1] 配置语法实时预检与错误高亮**：在应用配置前调用 mihomo 内置预检逻辑，语法错误在编辑器底部展示精确行号与原因。
 - [x] **T02-09 [P2] 自动快照历史智能剪枝**：每次 Apply 成功自动备份 snapshot（保留最近 20 份），按时间与哈希去重并自动修剪。
-- [x] **T02-10 [P1] 订阅更新并发与定时调度优化**：基于 `infiltrator-core::scheduler` 实现定时轮询、网络失败指数退避与单飞防重入。
+- [x] **T02-10 [P1] 订阅更新并发与定时调度优化**：基于 `infiltrator-admin::scheduler::job_scheduler` 实现定时轮询、网络失败指数退避与单飞防重入；周期触发属于 host，不进入业务 core。
 
 ---
 

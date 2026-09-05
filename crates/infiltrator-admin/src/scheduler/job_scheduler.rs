@@ -1,7 +1,9 @@
-//! Unified periodic job scheduler (FUNC-006).
+//! Admin host periodic job scheduler (FUNC-006).
 //!
-//! [`JobScheduler`] owns the named periodic jobs that touch the mihomo core
-//! (status refreshes, provider updates, latency probes, ...). Each job:
+//! [`JobScheduler`] owns named periodic jobs that trigger application use
+//! cases (subscription updates, sync, and future admin maintenance). The
+//! scheduler is host infrastructure; it does not own business state. Each
+//! job:
 //!
 //! - fires immediately on registration and then once per `interval`
 //!   (tokio's first interval tick completes at once);
@@ -215,6 +217,7 @@ impl JobScheduler {
     }
 
     /// Whether a job of this name is currently registered.
+    #[cfg(test)]
     pub fn is_active(&self, name: &str) -> bool {
         self.jobs
             .lock()
