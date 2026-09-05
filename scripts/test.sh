@@ -21,6 +21,7 @@ python3 scripts/quality/core-log-level-guard.py --mode enforce
 python3 scripts/quality/service-mode-guard.py --mode enforce
 python3 scripts/quality/process-exit-guard.py --mode enforce
 python3 scripts/quality/port-conflict-guard.py --mode enforce
+python3 scripts/quality/core-resource-guard.py --mode enforce
 
 nextest_mode=()
 if [[ $# -eq 1 ]]; then

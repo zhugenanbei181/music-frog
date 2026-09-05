@@ -7,6 +7,7 @@
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
+use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::routing_application::RoutingApplication;
@@ -74,6 +75,7 @@ pub async fn application_surface_reader(
     let endpoint_source = Arc::new(crate::storage::endpoint_source().await?);
     let port_conflicts =
         PortConflictApplication::new(Arc::new(crate::storage::port_conflict()?));
+    let resources = ResourceApplication::new(gateway.clone());
     let service_mode =
         ServiceModeApplication::new(Arc::new(crate::service_mode::DesktopServiceMode::new(
             binary_path,
@@ -83,6 +85,7 @@ pub async fn application_surface_reader(
         ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
             .with_capabilities(desktop_capabilities())
             .with_gateway(gateway)
+            .with_resources(resources)
             .with_profiles(profile)
             .with_configuration(configuration)
             .with_doctor(doctor)

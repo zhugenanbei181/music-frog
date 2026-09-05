@@ -20,6 +20,7 @@ use mihomo_version::manager::VersionManager;
 use reqwest::{Client, header::ACCEPT_ENCODING};
 use serde::Serialize;
 use serde_json::json;
+use sysinfo::{Pid, ProcessesToUpdate, System};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use yaml_rust2::{Yaml, YamlLoader};
@@ -420,6 +421,28 @@ impl RuntimeGateway for MihomoRuntime {
             .get_memory()
             .await
             .map(Into::into)
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn get_cpu_percent(&self) -> Result<Option<f32>, PortError> {
+        let pid = match self
+            .service_manager
+            .status()
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))?
+        {
+            ServiceStatus::Running(pid) => pid,
+            ServiceStatus::Stopped => return Ok(None),
+        };
+        let mut system = System::new();
+        system.refresh_processes(ProcessesToUpdate::All, true);
+        Ok(system.process(Pid::from_u32(pid)).map(|process| process.cpu_usage()))
+    }
+
+    async fn trigger_gc(&self) -> Result<(), PortError> {
+        self.client
+            .trigger_gc()
+            .await
             .map_err(|error| PortError::Network(error.to_string()))
     }
 

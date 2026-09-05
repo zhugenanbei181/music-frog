@@ -18,6 +18,7 @@ use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
+use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot,
 };
@@ -282,6 +283,10 @@ fn kernel_management_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool
     )));
     kernel_rows = kernel_rows.push(secondary_text(format!("Artifact integrity: {integrity}")));
     kernel_rows = kernel_rows.push(secondary_text(format!("Controller auth: {controller_auth}")));
+    kernel_rows = kernel_rows.push(secondary_text(format!(
+        "Core resources: {}",
+        format_core_resources(&state.runtime.core_resources)
+    )));
     kernel_rows = kernel_rows.push(
         row![
             text("Core log level").size(13),
@@ -480,6 +485,30 @@ fn format_port_conflicts(snapshot: &PortConflictSnapshot) -> String {
         })
         .collect::<Vec<_>>()
         .join(" · ")
+}
+
+fn format_core_resources(snapshot: &CoreResourceSnapshot) -> String {
+    let memory = snapshot.memory_bytes.map_or_else(
+        || "memory=?".to_owned(),
+        |bytes| format!("memory={:.1} MiB", bytes as f64 / 1_048_576.0),
+    );
+    let cpu = snapshot
+        .cpu_percent
+        .map_or_else(|| "cpu=?".to_owned(), |percent| format!("cpu={percent:.1}%"));
+    let gc = match &snapshot.gc {
+        CoreGcStatus::Unknown => "gc=not sampled".to_owned(),
+        CoreGcStatus::NotNeeded => "gc=not needed".to_owned(),
+        CoreGcStatus::Triggered { after_bytes, .. } => after_bytes.map_or_else(
+            || "gc=triggered".to_owned(),
+            |bytes| format!("gc=triggered, after={:.1} MiB", bytes as f64 / 1_048_576.0),
+        ),
+        CoreGcStatus::Failed { failure } => format!(
+            "gc=failed ({})",
+            crate::utils::sanitize_ui_text(&failure.message)
+        ),
+        CoreGcStatus::Unsupported => "gc=unsupported".to_owned(),
+    };
+    format!("{memory} · {cpu} · limit=512 MiB · {gc}")
 }
 
 fn hotkeys_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {

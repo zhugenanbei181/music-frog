@@ -114,6 +114,8 @@ python3 scripts/quality/service-mode-guard.py --mode enforce
 python3 scripts/quality/process-exit-guard.py --mode enforce
 # DUAL-01-11 7890/9090 端口冲突探测、安全避让与 owner 证据守卫
 python3 scripts/quality/port-conflict-guard.py --mode enforce
+# DUAL-01-12 512 MiB 内存软限、CPU 观测与 GC 状态守卫
+python3 scripts/quality/core-resource-guard.py --mode enforce
 ```
 
 ---

@@ -40,6 +40,7 @@ use infiltrator_contract::controller::ControllerAuthSnapshot;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
+use infiltrator_contract::resources::CoreResourceSnapshot;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
@@ -88,6 +89,8 @@ pub enum SettingsLineKind {
     ServiceMode,
     /// Mixed/controller port conflict observation.
     PortConflicts,
+    /// Core memory/CPU and automatic GC state.
+    CoreResources,
 }
 
 /// Marker for "Save Settings" button.
@@ -162,6 +165,7 @@ pub struct SettingsProjection {
     pub controller_auth: ControllerAuthSnapshot,
     pub service_mode: ServiceModeSnapshot,
     pub port_conflicts: PortConflictSnapshot,
+    pub core_resources: CoreResourceSnapshot,
 }
 
 impl SettingsProjection {
@@ -182,6 +186,7 @@ impl SettingsProjection {
             controller_auth: Default::default(),
             service_mode: Default::default(),
             port_conflicts: Default::default(),
+            core_resources: Default::default(),
         }
     }
 }
@@ -521,7 +526,7 @@ pub fn general_card_scene(
     let mixed_port_str = format!("端口: {}", projection.mixed_port);
     let core_channel_str = format!("内核通道: {}", projection.core_channel);
     let core_versions_str = settings_core::format_core_versions(&projection.core_versions);
-    let core_integrity_str = format_integrity(&projection.core_integrity);
+    let core_integrity_str = settings_core::format_integrity(&projection.core_integrity);
 
     surface_scene(
         vec![
@@ -564,6 +569,7 @@ pub fn general_card_scene(
                     ( { settings_core::controller_auth_row_scene(&projection.controller_auth, palette) } ),
                     ( { settings_core::service_mode_row_scene(&projection.service_mode, palette) } ),
                     ( { settings_core::port_conflicts_row_scene(&projection.port_conflicts, palette) } ),
+                    ( { settings_core::core_resources_row_scene(&projection.core_resources, palette) } ),
                     (
                         Node {
                             width: percent(100),
@@ -651,10 +657,6 @@ pub fn general_card_scene(
         ],
         palette,
     )
-}
-
-fn format_integrity(verification: &CoreArtifactVerification) -> String {
-    settings_core::format_integrity(verification)
 }
 
 fn tun_settings_card(projection: &SettingsProjection, palette: &UiPalette) -> impl Scene + use<> {
@@ -811,17 +813,10 @@ pub(crate) fn apply_settings_projection(
                 text.0 = settings_core::format_core_versions(&projection.core_versions);
             }
             SettingsLineKind::CoreIntegrity => {
-                text.0 = format_integrity(&projection.core_integrity);
+                text.0 = settings_core::format_integrity(&projection.core_integrity);
             }
             SettingsLineKind::CoreRollback => {
-                text.0 = projection
-                    .core_versions
-                    .rollback
-                    .target
-                    .as_deref()
-                    .map_or_else(|| "没有可回滚的本地内核".to_owned(), |version| {
-                        format!("可回滚至 {version}")
-                    });
+                text.0 = settings_core::format_rollback_target(&projection.core_versions);
             }
             SettingsLineKind::ControllerAuth => {
                 text.0 = settings_core::format_controller_auth(&projection.controller_auth);
@@ -831,6 +826,9 @@ pub(crate) fn apply_settings_projection(
             }
             SettingsLineKind::PortConflicts => {
                 text.0 = settings_core::format_port_conflicts(&projection.port_conflicts);
+            }
+            SettingsLineKind::CoreResources => {
+                text.0 = settings_core::format_core_resources(&projection.core_resources);
             }
             }
         }

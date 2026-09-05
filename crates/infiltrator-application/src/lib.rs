@@ -14,6 +14,7 @@ pub mod overview;
 pub mod network_application;
 pub mod profile_application;
 pub mod profile_reset_application;
+pub mod resource_application;
 pub mod port_conflict_application;
 pub mod proxy_application;
 pub mod routing_application;

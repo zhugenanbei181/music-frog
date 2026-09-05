@@ -7,6 +7,7 @@ use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::runtime::{
     ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider,
 };
+use infiltrator_contract::capability::Capability;
 use crate::error::PortError;
 use std::collections::HashMap;
 
@@ -46,6 +47,17 @@ pub trait RuntimeGateway: Send + Sync {
     async fn flush_fakeip_cache(&self) -> Result<(), PortError>;
     async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError>;
     async fn get_memory(&self) -> Result<MemoryData, PortError>;
+    /// Host-side CPU usage for the running core, when the platform exposes it.
+    async fn get_cpu_percent(&self) -> Result<Option<f32>, PortError> {
+        Ok(None)
+    }
+    /// Ask the running core to perform its supported active garbage collection.
+    async fn trigger_gc(&self) -> Result<(), PortError> {
+        Err(PortError::unsupported(
+            Capability::CoreLifecycle,
+            "core garbage collection is not supported by this gateway",
+        ))
+    }
     async fn close_connection(&self, id: &str) -> Result<(), PortError>;
     async fn close_all_connections(&self) -> Result<(), PortError>;
 

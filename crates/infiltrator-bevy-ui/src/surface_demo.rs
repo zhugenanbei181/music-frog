@@ -91,6 +91,7 @@ pub(super) fn snapshot_from_overview(
         controller_auth: infiltrator_contract::controller::ControllerAuthSnapshot::default(),
         service_mode: infiltrator_contract::service_mode::ServiceModeSnapshot::default(),
         port_conflicts: infiltrator_contract::port_conflict::PortConflictSnapshot::default(),
+        resources: infiltrator_contract::resources::CoreResourceSnapshot::default(),
     }
 }
 
@@ -118,6 +119,7 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         controller_auth: infiltrator_contract::controller::ControllerAuthSnapshot::default(),
         service_mode: infiltrator_contract::service_mode::ServiceModeSnapshot::default(),
         port_conflicts: infiltrator_contract::port_conflict::PortConflictSnapshot::default(),
+        resources: infiltrator_contract::resources::CoreResourceSnapshot::default(),
     }
 }
 
@@ -254,6 +256,7 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         controller_auth: Default::default(),
         service_mode: Default::default(),
         port_conflicts: Default::default(),
+        core_resources: Default::default(),
     }
 }
 

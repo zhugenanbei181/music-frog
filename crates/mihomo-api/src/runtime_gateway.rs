@@ -102,6 +102,12 @@ impl RuntimeGateway for MihomoClient {
             .map_err(network_error)
     }
 
+    async fn trigger_gc(&self) -> Result<(), PortError> {
+        MihomoClient::trigger_gc(self)
+            .await
+            .map_err(network_error)
+    }
+
     async fn close_connection(&self, id: &str) -> Result<(), PortError> {
         MihomoClient::close_connection(self, id)
             .await

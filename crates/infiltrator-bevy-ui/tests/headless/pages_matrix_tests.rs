@@ -53,6 +53,7 @@ use infiltrator_contract::version::{
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::service_mode::{ServiceModePlatform, ServiceModeSnapshot, ServiceModeState};
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
+use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
 
 fn create_test_app() -> App {
     let mut app = App::new();
@@ -373,6 +374,12 @@ fn settings_page_in_place_update() {
                 can_release: true,
             }],
         },
+        core_resources: CoreResourceSnapshot {
+            memory_bytes: Some(400 * 1024 * 1024),
+            cpu_percent: Some(12.5),
+            memory_soft_limit_bytes: 512 * 1024 * 1024,
+            gc: CoreGcStatus::NotNeeded,
+        },
     };
 
     app.world_mut()
@@ -418,6 +425,10 @@ fn settings_page_in_place_update() {
         .iter(world)
         .find(|(_, l)| l.0 == SettingsLineKind::PortConflicts);
     assert!(ports_text.unwrap().0.0.contains("external-controller 9090"));
+    let resources_text = lines
+        .iter(world)
+        .find(|(_, l)| l.0 == SettingsLineKind::CoreResources);
+    assert!(resources_text.unwrap().0.0.contains("内存=400.0 MiB"));
 }
 
 #[test]

@@ -17,6 +17,8 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::command::CoreLogLevel;
+    use infiltrator_contract::resources::{CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus};
+    use crate::resource_application::ResourceApplication;
     use infiltrator_domain::proxy::Proxy;
     use infiltrator_domain::runtime::{
         ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
@@ -25,10 +27,13 @@ mod tests {
     use infiltrator_ports::runtime_gateway::{RuntimeStreamEvent, RuntimeGateway};
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct TestGateway {
         level: Arc<Mutex<String>>,
         apply_patch: bool,
+        memory_bytes: Arc<Mutex<u64>>,
+        gc_calls: Arc<AtomicUsize>,
     }
 
     #[async_trait]
@@ -38,6 +43,13 @@ mod tests {
                 mode: "rule".to_owned(),
                 log_level: self.level.lock().expect("level lock").clone(),
                 ..ConfigSnapshot::default()
+            })
+        }
+
+        async fn get_memory(&self) -> Result<MemoryData, PortError> {
+            Ok(MemoryData {
+                in_use: *self.memory_bytes.lock().expect("memory lock"),
+                os_limit: 0,
             })
         }
 
@@ -97,12 +109,14 @@ mod tests {
             Ok(())
         }
 
-        async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-            Ok(ConnectionSnapshot::default())
+        async fn trigger_gc(&self) -> Result<(), PortError> {
+            self.gc_calls.fetch_add(1, Ordering::SeqCst);
+            *self.memory_bytes.lock().expect("memory lock") = 400 * 1024 * 1024;
+            Ok(())
         }
 
-        async fn get_memory(&self) -> Result<MemoryData, PortError> {
-            Ok(MemoryData::default())
+        async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
+            Ok(ConnectionSnapshot::default())
         }
 
         async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
@@ -142,6 +156,8 @@ mod tests {
         let gateway = Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
             apply_patch: true,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
         });
         RuntimeQueryApplication::new(gateway.clone())
             .set_core_log_level(CoreLogLevel::Debug)
@@ -155,6 +171,8 @@ mod tests {
         let gateway = Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
             apply_patch: false,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
         });
         let failure = RuntimeQueryApplication::new(gateway)
             .set_core_log_level(CoreLogLevel::Debug)
@@ -164,6 +182,26 @@ mod tests {
             failure.code,
             infiltrator_contract::error::ErrorCode::InvalidState
         );
+    }
+
+    #[tokio::test]
+    async fn resource_poll_triggers_gc_once_when_memory_exceeds_soft_limit() {
+        let memory = Arc::new(Mutex::new(CORE_MEMORY_SOFT_LIMIT_BYTES + 1));
+        let gc_calls = Arc::new(AtomicUsize::new(0));
+        let gateway = Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            apply_patch: true,
+            memory_bytes: memory,
+            gc_calls: gc_calls.clone(),
+        });
+        let application = ResourceApplication::new(gateway);
+        let first = application.poll().await.unwrap();
+        assert!(matches!(first.gc, CoreGcStatus::Triggered { .. }));
+        assert_eq!(gc_calls.load(Ordering::SeqCst), 1);
+
+        let second = application.poll().await.unwrap();
+        assert!(matches!(second.gc, CoreGcStatus::NotNeeded));
+        assert_eq!(gc_calls.load(Ordering::SeqCst), 1);
     }
 }
 

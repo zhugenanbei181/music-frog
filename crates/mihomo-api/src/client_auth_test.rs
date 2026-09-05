@@ -57,3 +57,21 @@ async fn test_patch_config_changes_log_level_and_surfaces_rejection() {
     assert!(client.patch_config(json!({ "log-level": "trace" })).await.is_err());
     rejected.assert_async().await;
 }
+
+#[tokio::test]
+async fn test_trigger_gc_uses_authenticated_debug_endpoint() {
+    let mut server = Server::new_async().await;
+    let mock = server
+        .mock("PUT", "/debug/gc")
+        .match_header("authorization", "Bearer generated-by-host")
+        .with_status(204)
+        .create_async()
+        .await;
+    let client = MihomoClient::new(
+        &server.url(),
+        Some("generated-by-host".to_owned()),
+    )
+    .unwrap();
+    client.trigger_gc().await.unwrap();
+    mock.assert_async().await;
+}

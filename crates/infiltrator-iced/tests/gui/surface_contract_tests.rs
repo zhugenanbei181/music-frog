@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::service_mode::{ServiceModePlatform, ServiceModeSnapshot, ServiceModeState};
+use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
 use infiltrator_contract::snapshot::{CoreWatchdogState, CoreWatchdogSnapshot};
@@ -123,6 +124,15 @@ fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
         platform: ServiceModePlatform::LinuxPolkit,
         state: ServiceModeState::Ready,
     };
+    snapshot.resources = CoreResourceSnapshot {
+        memory_bytes: Some(512 * 1024 * 1024 + 1),
+        cpu_percent: Some(12.5),
+        memory_soft_limit_bytes: 512 * 1024 * 1024,
+        gc: CoreGcStatus::Triggered {
+            before_bytes: 512 * 1024 * 1024 + 1,
+            after_bytes: Some(400 * 1024 * 1024),
+        },
+    };
     snapshot.versions = CoreVersionSnapshot {
         revision: 1,
         channels: vec![CoreChannelSnapshot {
@@ -165,6 +175,10 @@ fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
         ControllerAuthStatus::Secured
     );
     assert_eq!(state.runtime.service_mode.state, ServiceModeState::Ready);
+    assert_eq!(
+        state.runtime.core_resources.cpu_percent,
+        Some(12.5)
+    );
 }
 
 struct TokioRuntime(tokio::runtime::Runtime);

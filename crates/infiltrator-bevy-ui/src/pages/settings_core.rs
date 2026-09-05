@@ -23,6 +23,7 @@ use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
+use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
 
 pub(super) fn controller_settings_card(
     projection: &SettingsProjection,
@@ -192,6 +193,16 @@ pub(super) fn format_core_versions(snapshot: &CoreVersionSnapshot) -> String {
         })
         .collect::<Vec<_>>()
         .join(" · ")
+}
+
+pub(super) fn format_rollback_target(snapshot: &CoreVersionSnapshot) -> String {
+    snapshot
+        .rollback
+        .target
+        .as_deref()
+        .map_or_else(|| "没有可回滚的本地内核".to_owned(), |version| {
+            format!("可回滚至 {version}")
+        })
 }
 
 pub(super) fn core_log_level_row_scene(
@@ -399,4 +410,49 @@ pub(super) fn format_port_conflicts(snapshot: &PortConflictSnapshot) -> String {
         })
         .collect::<Vec<_>>()
         .join(" · ")
+}
+
+pub(super) fn core_resources_row_scene(
+    snapshot: &CoreResourceSnapshot,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let status = format_core_resources(snapshot);
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect::all(Val::Px(space::S8)),
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ palette.surface_elevated })
+        Children [
+            ( Text({ "内核资源 (Core Resources)".to_owned() }) TextRole(Role::Body) ),
+            ( Text(status) SettingsLine(SettingsLineKind::CoreResources) TextRole(Role::Mono) ),
+        ]
+    })
+}
+
+pub(super) fn format_core_resources(snapshot: &CoreResourceSnapshot) -> String {
+    let memory = snapshot.memory_bytes.map_or_else(
+        || "内存=?".to_owned(),
+        |bytes| format!("内存={:.1} MiB", bytes as f64 / 1_048_576.0),
+    );
+    let cpu = snapshot
+        .cpu_percent
+        .map_or_else(|| "CPU=?".to_owned(), |percent| format!("CPU={percent:.1}%"));
+    let gc = match &snapshot.gc {
+        CoreGcStatus::Unknown => "GC=未采样".to_owned(),
+        CoreGcStatus::NotNeeded => "GC=无需执行".to_owned(),
+        CoreGcStatus::Triggered { after_bytes, .. } => after_bytes.map_or_else(
+            || "GC=已触发".to_owned(),
+            |bytes| format!("GC=已触发，之后={:.1} MiB", bytes as f64 / 1_048_576.0),
+        ),
+        CoreGcStatus::Failed { failure } => format!(
+            "GC=失败 ({})",
+            infiltrator_bevy_widgets::desktop::ClipboardPayload::sanitize_text(&failure.message)
+        ),
+        CoreGcStatus::Unsupported => "GC=不支持".to_owned(),
+    };
+    format!("{memory} · {cpu} · 上限=512 MiB · {gc}")
 }

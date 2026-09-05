@@ -94,6 +94,7 @@ impl AppState {
                 controller_auth: Default::default(),
                 service_mode: Default::default(),
                 port_conflicts: Default::default(),
+                core_resources: Default::default(),
                 download_progress: 0.0,
                 download_stats: None,
                 core_download_token: 0,

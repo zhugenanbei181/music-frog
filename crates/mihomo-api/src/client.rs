@@ -424,6 +424,14 @@ impl MihomoClient {
         Ok(resp.json().await?)
     }
 
+    /// Trigger Mihomo's active garbage collector.
+    pub async fn trigger_gc(&self) -> Result<()> {
+        let url = self.build_url("/debug/gc")?;
+        let req = self.add_auth(self.client.put(url));
+        req.send().await?.error_for_status()?;
+        Ok(())
+    }
+
     pub async fn get_connections(&self) -> Result<ConnectionsResponse> {
         let url = self.build_url("/connections")?;
         log::debug!("Fetching connections from: {}", url);

@@ -10,6 +10,7 @@ use crate::core_application::CoreApplication;
 use crate::doctor_application::DoctorApplication;
 use crate::profile_application::ProfileApplication;
 use crate::port_conflict_application::PortConflictApplication;
+use crate::resource_application::ResourceApplication;
 use crate::routing_application::RoutingApplication;
 use crate::settings_application::SettingsApplication;
 use crate::snapshot_application::SnapshotApplication;
@@ -49,6 +50,7 @@ pub struct ApplicationSurfaceReader {
     endpoint_source: Option<Arc<dyn EndpointSource>>,
     service_mode: Option<ServiceModeApplication>,
     port_conflicts: Option<PortConflictApplication>,
+    resources: Option<ResourceApplication>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -69,6 +71,7 @@ impl ApplicationSurfaceReader {
             endpoint_source: None,
             service_mode: None,
             port_conflicts: None,
+            resources: None,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -135,6 +138,11 @@ impl ApplicationSurfaceReader {
         self
     }
 
+    pub fn with_resources(mut self, resources: ResourceApplication) -> Self {
+        self.resources = Some(resources);
+        self
+    }
+
     pub fn core(&self) -> &Arc<CoreApplication> {
         &self.core
     }
@@ -190,6 +198,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let controller_auth = self.read_controller_auth().await;
         let service_mode = self.read_service_mode().await;
         let port_conflicts = self.read_port_conflicts().await;
+        let resources = self.read_resources().await;
         let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
 
         pages.overview =
@@ -348,6 +357,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             controller_auth,
             service_mode,
             port_conflicts,
+            resources,
         })
     }
 }

@@ -44,4 +44,13 @@ impl ApplicationSurfaceReader {
             None => Default::default(),
         }
     }
+
+    pub(super) async fn read_resources(
+        &self,
+    ) -> infiltrator_contract::resources::CoreResourceSnapshot {
+        match &self.resources {
+            Some(application) => application.poll().await.unwrap_or_default(),
+            None => Default::default(),
+        }
+    }
 }
