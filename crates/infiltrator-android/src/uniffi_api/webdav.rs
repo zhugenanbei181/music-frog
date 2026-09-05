@@ -20,8 +20,7 @@ use infiltrator_domain::settings::WebDavConfig;
 use infiltrator_ports::secure_store::SecureStore;
 use crate::host_support::{
     build_settings_application, build_sync_application, get_runtime,
-    map_application_failure, clear_webdav_password as clear_host_webdav_password,
-    save_webdav_password as save_host_webdav_password,
+    map_application_failure,
 };
 #[cfg(test)]
 use crate::host_support::map_anyhow_error;
@@ -163,9 +162,9 @@ async fn save_webdav_settings(settings: WebDavSettings) -> Result<WebDavSettings
         .await
         .map_err(map_application_failure)?;
     if settings.password.is_empty() {
-        clear_host_webdav_password().await;
+        crate::host_support::clear_webdav_password().await;
     } else {
-        save_host_webdav_password(&settings.password)
+        crate::host_support::save_webdav_password(&settings.password)
             .await
             ?;
     }

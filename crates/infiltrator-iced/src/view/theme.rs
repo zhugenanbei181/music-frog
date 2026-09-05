@@ -720,15 +720,19 @@ mod tests {
 
     #[test]
     fn test_floating_shadows() {
-        assert!(LIGHT.floating_shadow.blur_radius > LIGHT.card_shadow.blur_radius);
-        assert!(DARK.floating_shadow.blur_radius > DARK.card_shadow.blur_radius);
-        assert!(FOREST.floating_shadow.blur_radius > FOREST.card_shadow.blur_radius);
-        assert!(AMOLED.floating_shadow.blur_radius > AMOLED.card_shadow.blur_radius);
+        const {
+            assert!(LIGHT.floating_shadow.blur_radius > LIGHT.card_shadow.blur_radius);
+            assert!(DARK.floating_shadow.blur_radius > DARK.card_shadow.blur_radius);
+            assert!(FOREST.floating_shadow.blur_radius > FOREST.card_shadow.blur_radius);
+            assert!(AMOLED.floating_shadow.blur_radius > AMOLED.card_shadow.blur_radius);
+        }
 
-        assert!(LIGHT.floating_shadow.color.a > LIGHT.card_shadow.color.a);
-        assert!(DARK.floating_shadow.color.a > DARK.card_shadow.color.a);
-        assert!(FOREST.floating_shadow.color.a > FOREST.card_shadow.color.a);
-        assert!(AMOLED.floating_shadow.color.a > AMOLED.card_shadow.color.a);
+        const {
+            assert!(LIGHT.floating_shadow.color.a > LIGHT.card_shadow.color.a);
+            assert!(DARK.floating_shadow.color.a > DARK.card_shadow.color.a);
+            assert!(FOREST.floating_shadow.color.a > FOREST.card_shadow.color.a);
+            assert!(AMOLED.floating_shadow.color.a > AMOLED.card_shadow.color.a);
+        }
     }
 
     #[test]

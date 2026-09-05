@@ -8,7 +8,7 @@ use super::support::{TempHome, block_on, feed, fresh_state, list_profiles, subsc
 use crate::types::app::{ConfirmAction, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
-use infiltrator_core::settings_io as settings;
+use infiltrator_core::settings_io;
 use infiltrator_domain::settings::AppSettings;
 
 /// Journey 12 — 通知事件面：SubscriptionAutoUpdated Ok → toast + 系统通知
@@ -67,8 +67,8 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
     // A used app directory: settings, logs, two profiles (one current).
     let settings = AppSettings::default();
     block_on(async {
-        let path = settings::settings_path(&home).unwrap();
-        settings::save_settings(&path, &settings).await.unwrap();
+        let path = settings_io::settings_path(&home).unwrap();
+        settings_io::save_settings(&path, &settings).await.unwrap();
     });
     std::fs::create_dir_all(home.join("logs")).unwrap();
     std::fs::write(home.join("logs/app-2026-08-31.log"), "old logs").unwrap();
@@ -175,13 +175,13 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
     assert!(state.profile.is_saving_app_settings);
     let saved = block_on(async {
         let base_dir = mihomo_platform::paths::get_home_dir().unwrap();
-        let path = settings::settings_path(&base_dir).unwrap();
-        let mut stored = settings::load_settings(&path).await.unwrap_or_default();
+        let path = settings_io::settings_path(&base_dir).unwrap();
+        let mut stored = settings_io::load_settings(&path).await.unwrap_or_default();
         stored.language = state.shell.lang.clone();
         stored.theme = "light".into();
         stored.editor_path = None;
-        settings::save_settings(&path, &stored).await.unwrap();
-        settings::load_settings(&path).await.unwrap()
+        settings_io::save_settings(&path, &stored).await.unwrap();
+        settings_io::load_settings(&path).await.unwrap()
     });
     let units = feed(&mut state, Message::AppSettingsSaved(Ok(())));
     assert!(!state.profile.is_saving_app_settings);

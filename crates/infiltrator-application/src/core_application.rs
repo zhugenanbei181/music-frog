@@ -1,8 +1,7 @@
-use futures_util::lock::Mutex as AsyncMutex;
 use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreEvent, CoreLifecycle, CoreSnapshot};
-use infiltrator_domain::core_state::{CoreEvent as DomainEvent, CoreState, CoreStateMachine};
+use infiltrator_domain::core_state::{CoreState, CoreStateMachine};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
@@ -48,7 +47,7 @@ struct Inner {
     runtime: Arc<dyn ApplicationRuntime>,
     command_handler: RwLock<Option<Arc<dyn CommandHandler>>>,
     dispatch_tx: std::sync::mpsc::SyncSender<DispatchedCommand>,
-    operation: AsyncMutex<()>,
+    operation: futures_util::lock::Mutex<()>,
     state: RwLock<StateMirror>,
     next_request_id: AtomicU64,
     events: Mutex<VecDeque<CoreEvent>>,
@@ -150,7 +149,7 @@ impl CoreApplication {
             runtime: Arc::clone(&runtime),
             command_handler: RwLock::new(None),
             dispatch_tx,
-            operation: AsyncMutex::new(()),
+            operation: futures_util::lock::Mutex::new(()),
             state: RwLock::new(StateMirror {
                 state: CoreState::Idle { generation: 0 },
                 revision: 0,
@@ -253,18 +252,20 @@ impl CoreApplication {
             return Ok(false);
         }
 
-        self.apply_domain_event(DomainEvent::StartRequested);
+        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartRequested);
         match self
             .wait_for_readiness(self.inner.readiness_policy.timeout)
             .await
         {
             Ok(endpoint) => {
-                self.apply_domain_event(DomainEvent::ReadinessSuccess(endpoint));
+        self.apply_domain_event(
+            infiltrator_domain::core_state::CoreEvent::ReadinessSuccess(endpoint),
+        );
                 Ok(true)
             }
             Err(error) => {
                 let message = error.to_string();
-                self.apply_domain_event(DomainEvent::StartFailed(message));
+        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartFailed(message));
                 Err(Failure::from(error))
             }
         }
@@ -353,10 +354,12 @@ impl CoreApplication {
             return Err(invalid_state_failure("start"));
         }
 
-        self.apply_domain_event(DomainEvent::StartRequested);
+        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartRequested);
         if let Err(error) = self.inner.process.start().await {
             let message = error.to_string();
-            self.apply_domain_event(DomainEvent::StartFailed(message.clone()));
+            self.apply_domain_event(
+                infiltrator_domain::core_state::CoreEvent::StartFailed(message.clone()),
+            );
             return Err(Failure::from(error));
         }
 
@@ -365,12 +368,16 @@ impl CoreApplication {
             .await
         {
             Ok(endpoint) => {
-                self.apply_domain_event(DomainEvent::ReadinessSuccess(endpoint));
+                self.apply_domain_event(
+                    infiltrator_domain::core_state::CoreEvent::ReadinessSuccess(endpoint),
+                );
                 Ok(())
             }
             Err(error) => {
                 let message = error.to_string();
-                self.apply_domain_event(DomainEvent::StartFailed(message));
+                self.apply_domain_event(
+                    infiltrator_domain::core_state::CoreEvent::StartFailed(message),
+                );
                 Err(Failure::from(error))
             }
         }
@@ -381,14 +388,14 @@ impl CoreApplication {
             return Err(invalid_state_failure("stop"));
         }
 
-        self.apply_domain_event(DomainEvent::StopRequested);
+        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StopRequested);
         if let Err(error) = self.inner.process.stop().await {
             let message = error.to_string();
-            self.apply_domain_event(DomainEvent::StopFailed(message));
+            self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StopFailed(message));
             return Err(Failure::from(error));
         }
 
-        self.apply_domain_event(DomainEvent::StopCompleted);
+        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StopCompleted);
         Ok(())
     }
 
@@ -414,7 +421,7 @@ impl CoreApplication {
             .clone()
     }
 
-    fn apply_domain_event(&self, event: DomainEvent) {
+    fn apply_domain_event(&self, event: infiltrator_domain::core_state::CoreEvent) {
         let snapshot = {
             let mut mirror = self.inner.state.write().expect("core state lock");
             let (state, warning) = CoreStateMachine::step(&mirror.state, event);

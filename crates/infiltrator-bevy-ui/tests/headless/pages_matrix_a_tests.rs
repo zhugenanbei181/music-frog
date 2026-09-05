@@ -15,8 +15,12 @@ use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand
 use infiltrator_bevy_ui::pages::connections::*;
 use infiltrator_bevy_ui::pages::logs::*;
 use infiltrator_bevy_ui::pages::profiles::*;
+use infiltrator_bevy_ui::pages::profiles_import::{
+    ChooseLocalFileButton, ImportLocalFileButton, ProfilesImportRoot, SaveUserAgentButton,
+};
 use infiltrator_bevy_ui::pages::proxies::*;
 use infiltrator_bevy_ui::pages::rules::*;
+use infiltrator_bevy_ui::pages::rules_mrs::{RulesMrsRoot, UnpackRuleProviderButton};
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::button::ControlVisual;

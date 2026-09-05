@@ -35,8 +35,6 @@ use infiltrator_bevy_widgets::theme::space;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
 
-pub use crate::pages::rules_mrs::{RulesMrsRoot, UnpackRuleProviderButton, rules_mrs_scene};
-
 /// Root marker on the Rules page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 #[component(on_insert = bind_rules_page)]

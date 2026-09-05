@@ -9,7 +9,7 @@
 use anyhow::{Result, anyhow};
 use infiltrator_domain::subscription::{
     CheckedSubscriptionUrl, SubscriptionFetchOptions, SubscriptionUserInfo, UserAgentCatalog,
-    WafChallengeDetector as DomainWafChallengeDetector, WafDiagnostic, WafResponseMetadata,
+    WafDiagnostic, WafResponseMetadata,
     decode_subscription_bytes, parse_subscription_userinfo, strip_utf8_bom,
 };
 use infiltrator_http::HttpClient;
@@ -106,7 +106,7 @@ pub async fn fetch_subscription_with_info(
     let decoded_bytes = decode_subscription_bytes(bytes, encoding)?;
     let text = String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
 
-    if DomainWafChallengeDetector::is_html_disguised(&text) {
+    if infiltrator_domain::subscription::WafChallengeDetector::is_html_disguised(&text) {
         return Err(anyhow!(
             "订阅返回了 HTML 网页内容而非节点配置，可能已被防爬/5秒盾拦截或套餐已过期"
         ));
@@ -192,7 +192,7 @@ pub async fn fetch_subscription_advanced(
         let text =
             String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
 
-        if DomainWafChallengeDetector::is_html_disguised(&text) {
+        if infiltrator_domain::subscription::WafChallengeDetector::is_html_disguised(&text) {
             let diag = WafChallengeDetector::inspect_response(200, &HeaderMap::new(), &text);
             last_err = anyhow!("订阅返回了网页 HTML 内容: {}", diag.summary);
             continue;
@@ -264,10 +264,14 @@ impl WafChallengeDetector {
                 .and_then(|v| v.to_str().ok())
                 .and_then(|v| v.parse::<u64>().ok()),
         };
-        DomainWafChallengeDetector::inspect_response(status_code, &metadata, body_sample)
+        infiltrator_domain::subscription::WafChallengeDetector::inspect_response(
+            status_code,
+            &metadata,
+            body_sample,
+        )
     }
 
     pub fn is_html_disguised(body: &str) -> bool {
-        DomainWafChallengeDetector::is_html_disguised(body)
+        infiltrator_domain::subscription::WafChallengeDetector::is_html_disguised(body)
     }
 }

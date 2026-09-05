@@ -1,6 +1,5 @@
 //! Adapter from the concrete doctor implementation to the application port.
 
-use infiltrator_contract::doctor as contract;
 use infiltrator_ports::doctor::DoctorPort;
 use infiltrator_ports::error::PortError;
 use std::path::PathBuf;
@@ -25,23 +24,23 @@ impl MihomoDoctor {
 
 #[async_trait::async_trait]
 impl DoctorPort for MihomoDoctor {
-    async fn run(&self, filter: Option<String>) -> Result<contract::DoctorReport, PortError> {
+    async fn run(&self, filter: Option<String>) -> Result<infiltrator_contract::doctor::DoctorReport, PortError> {
         Ok(convert_report(
             crate::doctor::run_with(&self.environment, filter.as_deref()).await,
         ))
     }
 
-    async fn fix(&self, filter: Option<String>) -> Result<contract::DoctorFixReport, PortError> {
+    async fn fix(&self, filter: Option<String>) -> Result<infiltrator_contract::doctor::DoctorFixReport, PortError> {
         crate::doctor::fix_with(&self.environment, filter.as_deref())
             .await
             .map(convert_fix_report)
             .map_err(adapter_error)
     }
 
-    fn list_checks(&self) -> Vec<contract::DoctorCheckMeta> {
+    fn list_checks(&self) -> Vec<infiltrator_contract::doctor::DoctorCheckMeta> {
         crate::doctor::list_checks()
             .iter()
-            .map(|meta| contract::DoctorCheckMeta {
+            .map(|meta| infiltrator_contract::doctor::DoctorCheckMeta {
                 id: meta.id.to_owned(),
                 category: meta.category.to_owned(),
                 summary: meta.summary.to_owned(),
@@ -54,9 +53,9 @@ impl DoctorPort for MihomoDoctor {
             .collect()
     }
 
-    fn explain(&self, check_id: &str) -> Result<contract::DoctorCheckMeta, PortError> {
+    fn explain(&self, check_id: &str) -> Result<infiltrator_contract::doctor::DoctorCheckMeta, PortError> {
         let meta = crate::doctor::explain_check(check_id).map_err(adapter_error)?;
-        Ok(contract::DoctorCheckMeta {
+        Ok(infiltrator_contract::doctor::DoctorCheckMeta {
             id: meta.id.to_owned(),
             category: meta.category.to_owned(),
             summary: meta.summary.to_owned(),
@@ -68,7 +67,7 @@ impl DoctorPort for MihomoDoctor {
         })
     }
 
-    async fn bootstrap(&self) -> Result<contract::BootstrapReport, PortError> {
+    async fn bootstrap(&self) -> Result<infiltrator_contract::doctor::BootstrapReport, PortError> {
         crate::bootstrap::ensure_bootstrap_at(self.environment.home())
             .await
             .map(convert_bootstrap_report)
@@ -80,21 +79,21 @@ fn adapter_error(error: impl std::fmt::Display) -> PortError {
     PortError::Failed(error.to_string())
 }
 
-fn convert_report(report: crate::doctor::DoctorReport) -> contract::DoctorReport {
-    contract::DoctorReport {
+fn convert_report(report: crate::doctor::DoctorReport) -> infiltrator_contract::doctor::DoctorReport {
+    infiltrator_contract::doctor::DoctorReport {
         started_at: report.started_at,
         finished_at: report.finished_at,
         checks: report
             .checks
             .into_iter()
-            .map(|check| contract::DoctorCheckResult {
+            .map(|check| infiltrator_contract::doctor::DoctorCheckResult {
                 id: check.id,
                 category: check.category,
                 status: match check.status {
-                    crate::doctor::DoctorStatus::Pass => contract::DoctorStatus::Pass,
-                    crate::doctor::DoctorStatus::Warn => contract::DoctorStatus::Warn,
-                    crate::doctor::DoctorStatus::Fail => contract::DoctorStatus::Fail,
-                    crate::doctor::DoctorStatus::Skip => contract::DoctorStatus::Skip,
+                    crate::doctor::DoctorStatus::Pass => infiltrator_contract::doctor::DoctorStatus::Pass,
+                    crate::doctor::DoctorStatus::Warn => infiltrator_contract::doctor::DoctorStatus::Warn,
+                    crate::doctor::DoctorStatus::Fail => infiltrator_contract::doctor::DoctorStatus::Fail,
+                    crate::doctor::DoctorStatus::Skip => infiltrator_contract::doctor::DoctorStatus::Skip,
                 },
                 summary: check.summary,
                 detail: check.detail,
@@ -104,12 +103,12 @@ fn convert_report(report: crate::doctor::DoctorReport) -> contract::DoctorReport
     }
 }
 
-fn convert_fix_report(report: crate::doctor::DoctorFixReport) -> contract::DoctorFixReport {
-    contract::DoctorFixReport {
+fn convert_fix_report(report: crate::doctor::DoctorFixReport) -> infiltrator_contract::doctor::DoctorFixReport {
+    infiltrator_contract::doctor::DoctorFixReport {
         actions: report
             .actions
             .into_iter()
-            .map(|action| contract::DoctorFixAction {
+            .map(|action| infiltrator_contract::doctor::DoctorFixAction {
                 id: action.id,
                 summary: action.summary,
             })
@@ -119,12 +118,12 @@ fn convert_fix_report(report: crate::doctor::DoctorFixReport) -> contract::Docto
 
 fn convert_bootstrap_report(
     report: crate::bootstrap::BootstrapReport,
-) -> contract::BootstrapReport {
-    contract::BootstrapReport {
+) -> infiltrator_contract::doctor::BootstrapReport {
+    infiltrator_contract::doctor::BootstrapReport {
         steps: report
             .steps
             .into_iter()
-            .map(|step| contract::BootstrapStep {
+            .map(|step| infiltrator_contract::doctor::BootstrapStep {
                 id: step.id.to_owned(),
                 executed: step.executed,
                 detail: step.detail,

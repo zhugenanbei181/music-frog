@@ -11,7 +11,8 @@ use crate::types::rules::{RuleBadgeKind, RuleRenderItem, RulesJsonTab, RulesLoad
 use crate::types::runtime::RebuildFlowState;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_domain::rules::{self as domain_rules, RuleEntry};
+use infiltrator_domain::rules;
+use infiltrator_domain::rules::RuleEntry;
 
 impl AppState {
     fn split_rule_parts(rule: &str) -> (String, String, String) {
@@ -120,9 +121,9 @@ impl AppState {
             }
             Message::RunRulesTracer => {
                 let input = self.editor.rules_tracer_input.trim();
-                let ctx = domain_rules::TrafficContext::from_query(input);
+                let ctx = rules::TrafficContext::from_query(input);
                 self.editor.rules_tracer_result =
-                    domain_rules::trace_rules(&self.editor.rules, &ctx).map(Into::into);
+                    rules::trace_rules(&self.editor.rules, &ctx).map(Into::into);
                 Task::none()
             }
             Message::UpdateNewRuleType(t) => {
@@ -170,9 +171,9 @@ impl AppState {
                 save_task(
                     runtime,
                     move |content| {
-                        let mut rules = domain_rules::load_rules_from_yaml(content)?;
+                        let mut rules = rules::load_rules_from_yaml(content)?;
                         rules.insert(0, entry);
-                        domain_rules::apply_rules_to_yaml(content, &rules)
+                        rules::apply_rules_to_yaml(content, &rules)
                     },
                     Message::RuleAdded,
                 )
@@ -283,10 +284,10 @@ impl AppState {
                         let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
-                        let rules = domain_rules::extract_rules_from_doc(&doc)
+                        let rules = rules::extract_rules_from_doc(&doc)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let rule_providers =
-                            domain_rules::extract_rule_providers_from_doc(&doc)
+                            rules::extract_rule_providers_from_doc(&doc)
                                 .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let proxy_providers =
                             infiltrator_domain::proxy_providers::extract_proxy_providers_from_doc(
@@ -470,7 +471,7 @@ impl AppState {
             }
             Message::ApplyGameRoutingPresets => {
                 let target = self.editor.new_rule_target.clone();
-                let presets = domain_rules::game_routing_presets(&target);
+                let presets = rules::game_routing_presets(&target);
                 for preset in presets.into_iter().rev() {
                     self.editor.rules.insert(0, preset);
                 }
@@ -511,7 +512,7 @@ impl AppState {
                 self.begin_save_phase("Rules");
                 save_task(
                     self.runtime.runtime.clone(),
-                    move |content| domain_rules::apply_rules_to_yaml(content, &rules),
+                    move |content| rules::apply_rules_to_yaml(content, &rules),
                     Message::RulesSaved,
                 )
             }
@@ -617,7 +618,7 @@ impl AppState {
                             "DOMAIN-KEYWORD,google".to_string(),
                             "DOMAIN-KEYWORD,youtube".to_string(),
                         ];
-                        let diff = domain_rules::diff_rule_provider_contents(
+                        let diff = rules::diff_rule_provider_contents(
                             &provider_name,
                             &local_rules,
                             &remote_rules,
@@ -644,7 +645,7 @@ impl AppState {
                     format!("DOMAIN-SUFFIX,{}", name.to_lowercase()),
                     format!("DOMAIN-KEYWORD,{}", name.to_lowercase()),
                 ];
-                let unpacked = domain_rules::unpack_provider_rules_to_custom(
+                let unpacked = rules::unpack_provider_rules_to_custom(
                     &sample_rules,
                     "PROXY",
                 );

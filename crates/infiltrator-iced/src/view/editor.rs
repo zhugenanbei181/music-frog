@@ -554,6 +554,24 @@ fn build_history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, 
         .into()
 }
 
+fn snip_btn<'a>(label: &'static str, snippet: &'static str) -> Element<'a, Message> {
+    button(text(label).size(10).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }))
+        .padding([2, 6])
+        .style(|t: &Theme, status| {
+            let tk = tokens(t);
+            button::Style {
+                background: match status {
+                    button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
+                    _ => Some(tk.chip_bg.into()),
+                },
+                border: Border { radius: border::Radius::from(theme::R_CHIP), width: 1.0, color: tk.card_border },
+                ..Default::default()
+            }
+        })
+        .on_press(Message::InsertYamlSnippet(snippet))
+        .into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -597,22 +615,4 @@ mod tests {
         state.editor.syntax_error_line = Some(14);
         let _v = view(&state);
     }
-}
-
-fn snip_btn<'a>(label: &'static str, snippet: &'static str) -> Element<'a, Message> {
-    button(text(label).size(10).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }))
-        .padding([2, 6])
-        .style(|t: &Theme, status| {
-            let tk = tokens(t);
-            button::Style {
-                background: match status {
-                    button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
-                    _ => Some(tk.chip_bg.into()),
-                },
-                border: Border { radius: border::Radius::from(theme::R_CHIP), width: 1.0, color: tk.card_border },
-                ..Default::default()
-            }
-        })
-        .on_press(Message::InsertYamlSnippet(snippet))
-        .into()
 }

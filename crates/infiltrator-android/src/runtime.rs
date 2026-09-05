@@ -6,7 +6,7 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_process::CoreProcess;
-use infiltrator_ports::data_dir::DataDirProvider as PortDataDirProvider;
+use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::Result;
@@ -133,7 +133,7 @@ where
     }
 }
 
-impl<B> PortDataDirProvider for AndroidBridgeAdapter<B>
+impl<B> DataDirProvider for AndroidBridgeAdapter<B>
 where
     B: AndroidBridge,
 {
@@ -207,7 +207,7 @@ where
         &self.adapter
     }
 
-    pub fn data_dirs(&self) -> &dyn PortDataDirProvider {
+    pub fn data_dirs(&self) -> &dyn DataDirProvider {
         &self.adapter
     }
 }

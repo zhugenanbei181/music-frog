@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use infiltrator_domain::rules::{RuleEntry as DomainRuleEntry, RuleProviders};
+use infiltrator_domain::rules::RuleProviders;
 
 use crate::host_support::{
     build_configuration_application, get_runtime, map_application_failure,
@@ -65,7 +65,7 @@ pub async fn rules_list() -> RulesResult {
 pub async fn rules_save(rules: Vec<RuleEntryRecord>) -> RulesResult {
     get_runtime()
         .spawn(async move {
-            let core_rules: Vec<DomainRuleEntry> =
+            let core_rules: Vec<infiltrator_domain::rules::RuleEntry> =
                 rules.iter().map(record_to_core_rule).collect();
             let application = match build_configuration_application().await {
                 Ok(application) => application,
@@ -165,15 +165,15 @@ pub async fn rule_providers_save(json: String) -> RuleProvidersResult {
         })
 }
 
-fn core_rule_to_record(entry: DomainRuleEntry) -> RuleEntryRecord {
+fn core_rule_to_record(entry: infiltrator_domain::rules::RuleEntry) -> RuleEntryRecord {
     RuleEntryRecord {
         rule: entry.rule,
         enabled: entry.enabled,
     }
 }
 
-fn record_to_core_rule(entry: &RuleEntryRecord) -> DomainRuleEntry {
-    DomainRuleEntry {
+fn record_to_core_rule(entry: &RuleEntryRecord) -> infiltrator_domain::rules::RuleEntry {
+    infiltrator_domain::rules::RuleEntry {
         rule: entry.rule.trim().to_string(),
         enabled: entry.enabled,
     }

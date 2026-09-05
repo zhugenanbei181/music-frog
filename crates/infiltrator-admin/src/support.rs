@@ -20,7 +20,7 @@ use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::sync_application::SyncApplication;
 #[cfg(test)]
 use infiltrator_application::version_application::VersionApplication;
-use infiltrator_core::settings_io as settings;
+use infiltrator_core::settings_io;
 use infiltrator_domain::settings::AppSettings;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
@@ -29,8 +29,8 @@ use mihomo_platform::paths::get_home_dir;
 /// home → settings.toml → load_settings。settings 尚未落盘时返回默认值。
 async fn load_app_settings() -> anyhow::Result<AppSettings> {
     let home = get_home_dir()?;
-    let settings_file = settings::settings_path(&home)?;
-    settings::load_settings(&settings_file).await
+    let settings_file = settings_io::settings_path(&home)?;
+    settings_io::load_settings(&settings_file).await
 }
 
 /// settings 感知的 ConfigManager 构造：home → settings.toml →
@@ -139,7 +139,7 @@ pub(crate) mod test_env {
 #[cfg(test)]
 mod tests {
     use super::{app_config_manager, app_configs_dir, test_env};
-    use infiltrator_core::settings_io as settings;
+    use infiltrator_core::settings_io;
     use infiltrator_domain::settings::AppSettings;
     use mihomo_platform::TEST_LOCK;
 
@@ -151,7 +151,7 @@ mod tests {
             configs_dir: Some(configs_dir.to_string_lossy().into_owned()),
             ..AppSettings::default()
         };
-        settings::save_settings(&settings::settings_path(home).unwrap(), &settings)
+        settings_io::save_settings(&settings_io::settings_path(home).unwrap(), &settings)
             .await
             .unwrap();
     }

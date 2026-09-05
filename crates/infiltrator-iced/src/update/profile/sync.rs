@@ -8,10 +8,7 @@ use iced::futures::SinkExt;
 use iced::{Task, stream};
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::sync::{
-    SyncConflict as ContractSyncConflict, SyncProgress as ContractSyncProgress,
-    SyncTransferReport,
-};
+use infiltrator_contract::sync::SyncTransferReport;
 use infiltrator_domain::settings::WebDavConfig;
 use infiltrator_ports::sync::SyncProgressSink;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -36,7 +33,7 @@ impl IcedSyncProgressSink {
 }
 
 impl SyncProgressSink for IcedSyncProgressSink {
-    fn progress(&self, progress: ContractSyncProgress) {
+    fn progress(&self, progress: infiltrator_contract::sync::SyncProgress) {
         if let Ok(mut output) = self.output.lock() {
             let _ = output.try_send(Message::SyncProgress(SyncProgress {
                 phase: progress.phase,
@@ -86,7 +83,9 @@ fn transfer_to_summary(report: SyncTransferReport) -> SyncSummary {
     }
 }
 
-fn contract_conflict_to_ui(conflict: ContractSyncConflict) -> SyncConflict {
+fn contract_conflict_to_ui(
+    conflict: infiltrator_contract::sync::SyncConflict,
+) -> SyncConflict {
     SyncConflict {
         profile: conflict.profile,
         remote_path: conflict.remote_path.into(),
