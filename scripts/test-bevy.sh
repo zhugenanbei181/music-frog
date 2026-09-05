@@ -35,3 +35,4 @@ python3 "$repo_root/scripts/quality/process-exit-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/port-conflict-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/core-resource-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/offline-startup-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/lifecycle-sync-guard.py" --mode enforce

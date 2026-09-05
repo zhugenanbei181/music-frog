@@ -49,6 +49,31 @@ impl Default for CoreWatchdogSnapshot {
     }
 }
 
+/// Minimal lifecycle read model shared by every inbound surface. It is
+/// derived from [`CoreSnapshot`] so lifecycle, generation, session identity
+/// and failure cannot drift between UI implementations.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CoreLifecycleSnapshot {
+    pub lifecycle: CoreLifecycle,
+    pub generation: u64,
+    #[serde(default)]
+    pub session_token: Option<SessionToken>,
+    pub revision: u64,
+    pub failure: Option<Failure>,
+}
+
+impl Default for CoreLifecycleSnapshot {
+    fn default() -> Self {
+        Self {
+            lifecycle: CoreLifecycle::Stopped,
+            generation: 0,
+            session_token: None,
+            revision: 0,
+            failure: None,
+        }
+    }
+}
+
 /// A read-only Core projection. Secrets and client objects never cross this
 /// boundary.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -71,6 +96,18 @@ pub struct CoreSnapshot {
     /// Crash recovery state owned by the shared application, not by either UI.
     #[serde(default)]
     pub watchdog: CoreWatchdogSnapshot,
+}
+
+impl CoreSnapshot {
+    pub fn lifecycle_snapshot(&self) -> CoreLifecycleSnapshot {
+        CoreLifecycleSnapshot {
+            lifecycle: self.lifecycle.clone(),
+            generation: self.generation,
+            session_token: self.session_token,
+            revision: self.revision,
+            failure: self.failure.clone(),
+        }
+    }
 }
 
 /// Result of a user-requested public-egress probe.

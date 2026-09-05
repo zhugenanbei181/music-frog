@@ -2,7 +2,7 @@ use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{
-    CoreEvent, CoreLifecycle, CoreSnapshot, CoreWatchdogSnapshot,
+    CoreEvent, CoreLifecycle, CoreLifecycleSnapshot, CoreSnapshot, CoreWatchdogSnapshot,
 };
 use infiltrator_domain::core_state::{CoreState, CoreStateMachine};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
@@ -594,6 +594,10 @@ impl CoreLifecyclePort for CoreApplication {
 
     fn session_token(&self) -> Option<SessionToken> {
         CoreApplication::session_token(self)
+    }
+
+    fn lifecycle_snapshot(&self) -> CoreLifecycleSnapshot {
+        self.snapshot().lifecycle_snapshot()
     }
 
     async fn start(&self) -> Result<u64, infiltrator_ports::error::PortError> {

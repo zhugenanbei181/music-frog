@@ -5,12 +5,14 @@ use bevy::app::App;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{
-    DemoSurfaceSource, SurfaceSnapshotUpdated, SurfaceSource, SurfaceStatusBanner,
-    overview_projection,
+    DemoSurfaceSource, LatestCoreLifecycle, LatestSurfaceSnapshot, SurfaceSnapshotUpdated,
+    SurfaceSource, SurfaceStatusBanner, core_lifecycle_projection, overview_projection,
 };
 use infiltrator_bevy_widgets::theme::LightDark;
 use infiltrator_contract::session::SessionToken;
-use infiltrator_contract::snapshot::{CoreWatchdogState, CoreWatchdogSnapshot};
+use infiltrator_contract::snapshot::{
+    CoreLifecycle, CoreWatchdogSnapshot, CoreWatchdogState,
+};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 
 use crate::support::{headless_plugins, page_root, subtree_has_text};
@@ -111,6 +113,35 @@ fn shared_snapshot_reaches_all_eleven_page_lanes() {
             .trigger(SurfaceSnapshotUpdated(snapshot.clone()));
         app.update();
     }
+}
+
+#[test]
+fn shared_core_lifecycle_projection_tracks_session_generation_and_revision() {
+    let mut app = app_with_shared_source();
+    let initial = app
+        .world()
+        .resource::<LatestCoreLifecycle>()
+        .0
+        .clone();
+    assert_eq!(initial.lifecycle, CoreLifecycle::Running);
+    assert_eq!(initial.generation, 1);
+    assert_eq!(initial.session_token.map(|token| token.value()), Some(42));
+    assert_eq!(initial.revision, 42);
+
+    let mut next = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    next.revision = 43;
+    next.core.revision = 43;
+    next.core.lifecycle = CoreLifecycle::Stopped;
+    next.core.session_token = None;
+    let expected = core_lifecycle_projection(&next);
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(next));
+    app.update();
+
+    assert_eq!(app.world().resource::<LatestCoreLifecycle>().0, expected);
+    assert_eq!(expected.lifecycle, CoreLifecycle::Stopped);
+    assert_eq!(expected.revision, 43);
 }
 
 #[test]

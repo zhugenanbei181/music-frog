@@ -352,4 +352,20 @@ mod tests {
             })
         );
     }
+
+    #[test]
+    fn lifecycle_commands_share_the_core_application_intents() {
+        assert_eq!(
+            UiCommand::StartCore.to_intent(),
+            Some(CommandIntent::StartCore)
+        );
+        assert_eq!(
+            UiCommand::StopCore.to_intent(),
+            Some(CommandIntent::StopCore)
+        );
+        assert_eq!(
+            UiCommand::RestartCore.to_intent(),
+            Some(CommandIntent::RestartCore)
+        );
+    }
 }

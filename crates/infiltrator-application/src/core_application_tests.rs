@@ -228,6 +228,11 @@ async fn lifecycle_commands_publish_only_contract_values() {
     );
     assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
     assert_eq!(app.snapshot().generation, 1);
+    let lifecycle = app.lifecycle_snapshot();
+    assert_eq!(lifecycle.lifecycle, CoreLifecycle::Running);
+    assert_eq!(lifecycle.generation, 1);
+    assert_eq!(lifecycle.session_token, app.snapshot().session_token);
+    assert_eq!(lifecycle.revision, app.snapshot().revision);
     let first_session = app
         .snapshot()
         .session_token

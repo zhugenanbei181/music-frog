@@ -2,6 +2,7 @@
 //! snapshot and the profile-rebuild flow state.
 
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RuntimeStreamKind {
@@ -27,6 +28,26 @@ pub enum RuntimeStatus {
     Starting,
     Running,
     Error(InfiltratorError),
+}
+
+impl RuntimeStatus {
+    /// Toolkit adapter from the shared lifecycle snapshot. The Iced runtime
+    /// status remains a local rendering type; lifecycle truth stays in the
+    /// application-owned CoreSnapshot.
+    pub fn from_core_snapshot(snapshot: &CoreSnapshot) -> Self {
+        match snapshot.lifecycle {
+            CoreLifecycle::Stopped => Self::Stopped,
+            CoreLifecycle::Starting | CoreLifecycle::Stopping => Self::Starting,
+            CoreLifecycle::Ready | CoreLifecycle::Running => Self::Running,
+            CoreLifecycle::Failed => Self::Error(InfiltratorError::Mihomo(
+                snapshot
+                    .failure
+                    .as_ref()
+                    .map(|failure| failure.message.clone())
+                    .unwrap_or_else(|| "core lifecycle failed".to_owned()),
+            )),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]

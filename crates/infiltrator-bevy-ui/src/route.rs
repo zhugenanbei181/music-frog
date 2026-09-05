@@ -49,7 +49,8 @@ use crate::pages::sync::{SyncProjectionUpdated, sync_page};
 use crate::projection::{OverviewProjection, OverviewSource, SourceKind};
 use crate::surface::{
     DemoSurfaceSource, LatestSurfaceSnapshot, LegacyOverviewSurfaceSource, SurfaceOverviewAdapter,
-    SurfaceSnapshotUpdated, SurfaceSource, UnavailableSurfaceSource, app_routing_projection,
+    LatestCoreLifecycle, SurfaceSnapshotUpdated, SurfaceSource, UnavailableSurfaceSource,
+    app_routing_projection, core_lifecycle_projection,
     connections_projection, dns_projection, doctor_projection, logs_projection,
     overview_projection, profiles_projection, proxies_projection, rules_projection,
     settings_projection, status_banner_scene, sync_projection,
@@ -300,9 +301,11 @@ impl Plugin for PagesPlugin {
         app.init_resource::<TrafficHistory>();
         app.insert_resource(OverviewSourceHandle(Arc::clone(&self.overview_source)));
         app.insert_resource(SurfaceSourceHandle(Arc::clone(&self.surface_source)));
-        app.insert_resource(LatestSurfaceSnapshot(
-            self.surface_source.surface_snapshot(),
-        ));
+        let initial_snapshot = self.surface_source.surface_snapshot();
+        app.insert_resource(LatestCoreLifecycle(core_lifecycle_projection(
+            &initial_snapshot,
+        )));
+        app.insert_resource(LatestSurfaceSnapshot(initial_snapshot));
         app.add_observer(on_content_slot_added);
         app.add_observer(sync_route);
         app.add_observer(apply_surface_snapshot);
@@ -517,6 +520,7 @@ fn apply_surface_snapshot(
         return;
     }
     commands.insert_resource(LatestSurfaceSnapshot(snapshot.clone()));
+    commands.insert_resource(LatestCoreLifecycle(core_lifecycle_projection(&snapshot)));
     trigger_page_projection_events(&snapshot, &mut commands);
     commands.trigger(SurfaceStatusChanged(snapshot));
 }

@@ -12,7 +12,10 @@ use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
 use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
-use infiltrator_contract::snapshot::{CoreWatchdogState, CoreWatchdogSnapshot};
+use infiltrator_contract::snapshot::{
+    CoreLifecycle, CoreWatchdogSnapshot, CoreWatchdogState,
+};
+use crate::types::runtime::RuntimeStatus;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
     CoreReleaseChannel, CoreRollbackSnapshot, CoreVersionSnapshot,
@@ -126,6 +129,41 @@ fn offline_startup_snapshot_updates_the_iced_runtime_projection() {
         state.runtime.offline_startup.state,
         infiltrator_contract::offline_startup::OfflineStartupState::Degraded
     );
+}
+
+#[test]
+fn shared_core_lifecycle_snapshot_drives_iced_status_for_every_phase() {
+    let (mut state, _) = AppState::new();
+    let phases = [
+        (CoreLifecycle::Starting, "starting"),
+        (CoreLifecycle::Ready, "running"),
+        (CoreLifecycle::Running, "running"),
+        (CoreLifecycle::Stopping, "starting"),
+        (CoreLifecycle::Stopped, "stopped"),
+        (CoreLifecycle::Failed, "failed"),
+    ];
+
+    for (revision, (lifecycle, expected)) in phases.into_iter().enumerate() {
+        let mut snapshot = snapshot((revision + 1) as u64);
+        snapshot.core.lifecycle = lifecycle.clone();
+        if expected == "failed" {
+            snapshot.core.failure = Some(Failure::new(
+                ErrorCode::Internal,
+                "shared lifecycle failure",
+                true,
+            ));
+        }
+        assert!(state.apply_shared_surface_snapshot(snapshot));
+        assert_eq!(state.runtime.core_lifecycle.lifecycle, lifecycle);
+        assert_eq!(state.runtime.core_lifecycle.revision, (revision + 1) as u64);
+        match expected {
+            "starting" => assert!(matches!(state.runtime.status, RuntimeStatus::Starting)),
+            "running" => assert!(matches!(state.runtime.status, RuntimeStatus::Running)),
+            "stopped" => assert!(matches!(state.runtime.status, RuntimeStatus::Stopped)),
+            "failed" => assert!(matches!(state.runtime.status, RuntimeStatus::Error(_))),
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[test]

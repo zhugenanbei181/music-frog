@@ -1,7 +1,7 @@
 use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::session::SessionToken;
-use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use std::time::Duration;
 
 /// Application-facing lifecycle capability used by config transactions and
@@ -11,6 +11,19 @@ pub trait CoreLifecyclePort: Send + Sync {
     fn lifecycle(&self) -> CoreLifecycle;
     fn generation(&self) -> u64;
     fn session_token(&self) -> Option<SessionToken>;
+
+    /// Canonical lifecycle read model consumed by both UI adapters. Legacy
+    /// hosts get a safe projection from the primitive methods; the shared
+    /// CoreApplication supplies its real revision/failure fields.
+    fn lifecycle_snapshot(&self) -> CoreLifecycleSnapshot {
+        CoreLifecycleSnapshot {
+            lifecycle: self.lifecycle(),
+            generation: self.generation(),
+            session_token: self.session_token(),
+            revision: 0,
+            failure: None,
+        }
+    }
 
     async fn start(&self) -> Result<u64, PortError>;
     async fn stop(&self) -> Result<(), PortError>;

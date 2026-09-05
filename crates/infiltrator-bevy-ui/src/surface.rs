@@ -17,6 +17,7 @@ use bevy::ui::prelude::{BackgroundColor, FlexDirection, Node, Overflow, Val, per
 use bevy::ui::widget::Text;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
 use std::sync::Arc;
@@ -52,6 +53,17 @@ pub struct SurfaceSnapshotUpdated(pub surface_snapshot::SurfaceSnapshot);
 /// tests can assert revision and status propagation.
 #[derive(Resource, Clone, Debug, PartialEq)]
 pub struct LatestSurfaceSnapshot(pub surface_snapshot::SurfaceSnapshot);
+
+/// Bevy's lifecycle adapter is kept separately from page projections so all
+/// scenes can observe the same generation/session fencing data.
+#[derive(Resource, Clone, Debug, PartialEq, Eq)]
+pub struct LatestCoreLifecycle(pub CoreLifecycleSnapshot);
+
+pub fn core_lifecycle_projection(
+    snapshot: &surface_snapshot::SurfaceSnapshot,
+) -> CoreLifecycleSnapshot {
+    snapshot.core.lifecycle_snapshot()
+}
 
 /// Non-success status banner attached to a page root. Data pages never turn
 /// an unavailable or failed source into a visually empty success state.

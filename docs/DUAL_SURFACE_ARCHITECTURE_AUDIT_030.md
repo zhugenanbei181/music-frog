@@ -87,6 +87,7 @@
 - `DUAL-01-11` 已完成 7890/9090 目标端口的 shared observation、owner parser、配置避让和双端 repair action；未确认的第三方 PID 不会被 UI 直接终止，跨平台真实占用/发行包证据仍未冒充 `host-verified`。
 - `DUAL-01-12` 已完成 512 MiB 软限、application GC cooldown、Mihomo `/memory`/`/debug/gc`、desktop CPU adapter 和双端资源投影；高内存发行包压测及移动端 GC 能力仍未冒充 `host-verified`。
 - `DUAL-01-13` 已完成本地 profile/core 预校验、offline-first retry/materialize、GeoIP 本地复制与缺失降级；`OfflineStartupSnapshot` 经 application surface reader 同步到 Iced/Bevy，Android/iOS bridge 只提供 typed host evidence，真实断网发行包 smoke 仍未冒充 `host-verified`。
+- `DUAL-01-14` 已完成 `CoreLifecycleSnapshot` 与 `CoreLifecyclePort` 统一生命周期读模型；Iced 全阶段映射、Bevy `LatestCoreLifecycle` resource 和两端生命周期/会话测试均已闭环，真实双 UI 同屏宿主 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 
