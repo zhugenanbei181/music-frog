@@ -42,10 +42,13 @@ use crate::route::{PageRoot, Route};
 
 #[path = "settings_core.rs"]
 mod settings_core;
+#[path = "settings_tun.rs"]
+mod settings_tun;
 
 pub use settings_core::{
     CoreLogLevelButton, ProbeTunMtuButton, SettingsLine, SettingsLineKind, SettingsProjection,
-    TunStackButton, TunStackButtonAvailability,
+    TunEnableToggle, TunRouteToggle, TunRouteToggleKind, TunStackButton,
+    TunStackButtonAvailability,
 };
 
 /// Root marker on the Settings page scene.
@@ -596,8 +599,10 @@ fn tun_settings_card(projection: &SettingsProjection, palette: &UiPalette) -> im
                     row_gap: Val::Px(space::S8),
                 }
                 Children [
-                    ( { checkbox_scene("启用 TUN 虚拟网卡接管 (Enable TUN Device)".to_owned(), projection.tun_enabled, palette) } ),
+                    ( { settings_core::tun_enable_toggle_scene(projection.tun_enabled, palette) } ),
                     ( { settings_core::tun_stack_selector_scene(projection, palette) } ),
+                    ( { settings_core::tun_route_toggle_scene(settings_core::TunRouteToggleKind::AutoRoute, "自动路由 (Auto Route)", projection.tun_auto_route, palette) } ),
+                    ( { settings_core::tun_route_toggle_scene(settings_core::TunRouteToggleKind::StrictRoute, "严格路由 (Strict Route)", projection.tun_strict_route, palette) } ),
                     ( { settings_core::mtu_row_scene(&projection.mtu, palette) } ),
                     (
                         Node {
@@ -631,6 +636,9 @@ fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(apply_settings_projection);
     commands.add_observer(on_settings_action_activated);
     commands.add_observer(settings_core::on_mtu_probe_activated);
+    commands.add_observer(settings_core::on_tun_route_changed);
+    commands.add_observer(settings_core::on_tun_enabled_changed);
+    commands.add_observer(settings_tun::apply_tun_toggle_projection);
 }
 
 #[allow(clippy::too_many_arguments)]

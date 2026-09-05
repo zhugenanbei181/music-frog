@@ -329,6 +329,10 @@ pub struct SettingsPageSnapshot {
     pub allow_lan: bool,
     pub tun_enabled: bool,
     pub tun_stack: String,
+    #[serde(default)]
+    pub tun_auto_route: bool,
+    #[serde(default)]
+    pub tun_strict_route: bool,
     pub controller_port: u16,
     pub log_level: String,
     #[serde(default)]

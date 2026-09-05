@@ -39,6 +39,7 @@ on:
       - "scripts/quality/lifecycle-matrix-guard.py"
       - "scripts/quality/tun-stack-guard.py"
       - "scripts/quality/mtu-negotiation-guard.py"
+      - "scripts/quality/tun-routing-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -183,6 +184,9 @@ jobs:
 
       - name: Enforce DUAL-02-02 adaptive MTU semantics
         run: python3 scripts/quality/mtu-negotiation-guard.py --mode enforce
+
+      - name: Enforce DUAL-02-03 strict-route semantics
+        run: python3 scripts/quality/tun-routing-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

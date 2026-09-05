@@ -763,6 +763,8 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::RepairDoctorIssue { .. } => "repair_doctor_issue",
         CommandIntent::RepairAllDoctorIssues => "repair_all_doctor_issues",
         CommandIntent::ToggleTun { .. } => "toggle_tun",
+        CommandIntent::SetTunAutoRoute { .. } => "set_tun_auto_route",
+        CommandIntent::SetTunStrictRoute { .. } => "set_tun_strict_route",
         CommandIntent::SetSystemProxy { .. } => "set_system_proxy",
         CommandIntent::ToggleAppRouting { .. } => "toggle_app_routing",
         CommandIntent::SetAppRoutingMode { .. } => "set_app_routing_mode",

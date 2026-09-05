@@ -253,6 +253,21 @@ impl CommandApplication {
                     .set_tun_stack(stack)
                     .await
             }
+            CommandIntent::ToggleTun { enabled } => {
+                RuntimeQueryApplication::new(self.runtime()?)
+                    .set_tun_enabled(enabled)
+                    .await
+            }
+            CommandIntent::SetTunAutoRoute { enabled } => {
+                RuntimeQueryApplication::new(self.runtime()?)
+                    .set_tun_auto_route(enabled)
+                    .await
+            }
+            CommandIntent::SetTunStrictRoute { enabled } => {
+                RuntimeQueryApplication::new(self.runtime()?)
+                    .set_tun_strict_route(enabled)
+                    .await
+            }
             CommandIntent::ProbeTunMtu => {
                 let runtime = self.runtime()?.clone();
                 let snapshot = self.mtu()?.probe_and_apply(runtime).await;
@@ -275,7 +290,6 @@ impl CommandApplication {
             | CommandIntent::ClearLogs
             | CommandIntent::SetLogLevelFilter { .. }
             | CommandIntent::TestDnsLatency
-            | CommandIntent::ToggleTun { .. }
             | CommandIntent::SetSystemProxy { .. }
             | CommandIntent::ToggleIncludeSystemApps { .. }
             | CommandIntent::ResolveConflictKeepLocal

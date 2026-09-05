@@ -39,3 +39,4 @@ python3 "$repo_root/scripts/quality/lifecycle-sync-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/lifecycle-matrix-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/tun-stack-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/mtu-negotiation-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/tun-routing-guard.py" --mode enforce

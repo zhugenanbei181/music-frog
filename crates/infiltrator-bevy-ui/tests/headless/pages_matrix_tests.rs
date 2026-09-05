@@ -335,6 +335,8 @@ fn settings_page_in_place_update() {
         allow_lan: true,
         tun_enabled: true,
         tun_stack: "System (Native Stack)".to_owned(),
+        tun_auto_route: true,
+        tun_strict_route: true,
         controller_port: 9099,
         log_level: "debug".to_owned(),
         core_channel: "alpha".to_owned(),

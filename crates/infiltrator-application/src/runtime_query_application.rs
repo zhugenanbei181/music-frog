@@ -34,6 +34,8 @@ mod tests {
         level: Arc<Mutex<String>>,
         tun_stack: Arc<Mutex<String>>,
         tun_mtu: Arc<Mutex<Option<u32>>>,
+        tun_routing: Arc<Mutex<(bool, bool)>>,
+        tun_enabled: Arc<Mutex<bool>>,
         apply_patch: bool,
         memory_bytes: Arc<Mutex<u64>>,
         gc_calls: Arc<AtomicUsize>,
@@ -45,13 +47,17 @@ mod tests {
             Ok(ConfigSnapshot {
                 mode: "rule".to_owned(),
                 log_level: self.level.lock().expect("level lock").clone(),
-                tun: Some(infiltrator_domain::runtime::TunSnapshot {
-                    enable: true,
-                    stack: self.tun_stack.lock().expect("stack lock").clone(),
-                    auto_route: true,
-                    strict_route: false,
-                    mtu: *self.tun_mtu.lock().expect("tun mtu lock"),
-                }),
+                tun: {
+                    let (auto_route, strict_route) =
+                        *self.tun_routing.lock().expect("tun routing lock");
+                    Some(infiltrator_domain::runtime::TunSnapshot {
+                        enable: *self.tun_enabled.lock().expect("tun enabled lock"),
+                        stack: self.tun_stack.lock().expect("stack lock").clone(),
+                        auto_route,
+                        strict_route,
+                        mtu: *self.tun_mtu.lock().expect("tun mtu lock"),
+                    })
+                },
                 ..ConfigSnapshot::default()
             })
         }
@@ -87,6 +93,24 @@ mod tests {
                     .and_then(|value| value.as_u64())
             {
                 *self.tun_mtu.lock().expect("tun mtu lock") = Some(mtu as u32);
+            }
+            if self.apply_patch
+                && let Some(tun) = updates.get("tun")
+            {
+                if let Some(enabled) = tun.get("enable").and_then(|value| value.as_bool()) {
+                    *self.tun_enabled.lock().expect("tun enabled lock") = enabled;
+                }
+                let mut routing = self.tun_routing.lock().expect("tun routing lock");
+                if let Some(auto_route) = tun.get("auto-route").and_then(|value| value.as_bool())
+                {
+                    routing.0 = auto_route;
+                }
+                if let Some(strict_route) = tun
+                    .get("strict-route")
+                    .and_then(|value| value.as_bool())
+                {
+                    routing.1 = strict_route;
+                }
             }
             Ok(())
         }
@@ -183,6 +207,8 @@ mod tests {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
             tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -200,6 +226,8 @@ mod tests {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
             tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
             apply_patch: false,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -222,6 +250,8 @@ mod tests {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
             tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
             apply_patch: true,
             memory_bytes: memory,
             gc_calls: gc_calls.clone(),
@@ -243,6 +273,8 @@ mod tests {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: stack.clone(),
             tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -257,6 +289,8 @@ mod tests {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
             tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -277,6 +311,8 @@ mod tests {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
             tun_mtu: tun_mtu.clone(),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -294,6 +330,8 @@ mod tests {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
             tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -307,6 +345,8 @@ mod tests {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
             tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
             apply_patch: false,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -315,6 +355,73 @@ mod tests {
         .await
         .expect_err("ignored patch must fail readback");
         assert_eq!(failure.code, infiltrator_contract::error::ErrorCode::InvalidState);
+    }
+
+    #[tokio::test]
+    async fn strict_route_enables_auto_route_and_auto_route_off_clears_strict_route() {
+        let routing = Arc::new(Mutex::new((false, false)));
+        let gateway = Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: routing.clone(),
+            tun_enabled: Arc::new(Mutex::new(true)),
+            apply_patch: true,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
+        });
+        let application = RuntimeQueryApplication::new(gateway);
+
+        application
+            .set_tun_strict_route(true)
+            .await
+            .expect("strict route should enable auto route");
+        assert_eq!(*routing.lock().expect("routing lock"), (true, true));
+
+        application
+            .set_tun_auto_route(false)
+            .await
+            .expect("auto route disable should clear strict route");
+        assert_eq!(*routing.lock().expect("routing lock"), (false, false));
+    }
+
+    #[tokio::test]
+    async fn tun_routing_readback_mismatch_is_not_reported_as_success() {
+        let gateway = Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((false, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
+            apply_patch: false,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
+        });
+        let failure = RuntimeQueryApplication::new(gateway)
+            .set_tun_strict_route(true)
+            .await
+            .expect_err("ignored strict-route patch must fail readback");
+        assert_eq!(failure.code, infiltrator_contract::error::ErrorCode::InvalidState);
+    }
+
+    #[tokio::test]
+    async fn tun_enable_patch_is_read_back_before_success() {
+        let enabled = Arc::new(Mutex::new(true));
+        let gateway = Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: enabled.clone(),
+            apply_patch: true,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
+        });
+        RuntimeQueryApplication::new(gateway)
+            .set_tun_enabled(false)
+            .await
+            .expect("TUN enable readback should match");
+        assert!(!*enabled.lock().expect("tun enabled lock"));
     }
 }
 
@@ -332,6 +439,29 @@ impl RuntimeQueryApplication {
             .set_proxy_mode(mode)
             .await
             .map_err(Failure::from)
+    }
+
+    /// Toggle the controller-owned TUN ingress and verify the live value.
+    pub async fn set_tun_enabled(&self, enabled: bool) -> Result<(), Failure> {
+        self.gateway
+            .patch_config(serde_json::json!({ "tun": { "enable": enabled } }))
+            .await
+            .map_err(Failure::from)?;
+        let observed = self.gateway.get_config().await.map_err(Failure::from)?;
+        let observed_enabled = observed.tun.as_ref().map(|tun| tun.enable);
+        if observed_enabled != Some(enabled) {
+            return Err(Failure::new(
+                infiltrator_contract::error::ErrorCode::InvalidState,
+                format!(
+                    "TUN enable readback mismatch: requested {enabled}, observed {}",
+                    observed_enabled
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "missing".to_owned())
+                ),
+                true,
+            ));
+        }
+        Ok(())
     }
 
     /// Apply a core log-level change live and read it back before reporting
@@ -424,6 +554,62 @@ impl RuntimeQueryApplication {
                     observed_mtu
                         .map(|value| value.to_string())
                         .unwrap_or_else(|| "missing".to_owned())
+                ),
+                true,
+            ));
+        }
+        Ok(())
+    }
+
+    /// Enable/disable automatic route installation while preserving the
+    /// strict-route invariant. Turning auto-route off also clears strict
+    /// route because Mihomo only applies strict routing with auto-route.
+    pub async fn set_tun_auto_route(&self, enabled: bool) -> Result<(), Failure> {
+        let (_, strict_route) = self.current_tun_routing().await?;
+        self.set_tun_routing(enabled, enabled && strict_route).await
+    }
+
+    /// Enable/disable strict route enforcement. Enabling strict route also
+    /// enables auto-route in the same PATCH so traffic cannot pass through an
+    /// invalid intermediate configuration.
+    pub async fn set_tun_strict_route(&self, enabled: bool) -> Result<(), Failure> {
+        let (auto_route, _) = self.current_tun_routing().await?;
+        self.set_tun_routing(auto_route || enabled, enabled).await
+    }
+
+    async fn current_tun_routing(&self) -> Result<(bool, bool), Failure> {
+        let config = self.gateway.get_config().await.map_err(Failure::from)?;
+        config
+            .tun
+            .map(|tun| (tun.auto_route, tun.strict_route))
+            .ok_or_else(|| {
+                Failure::new(
+                    infiltrator_contract::error::ErrorCode::NotReady,
+                    "TUN configuration is unavailable",
+                    true,
+                )
+            })
+    }
+
+    async fn set_tun_routing(&self, auto_route: bool, strict_route: bool) -> Result<(), Failure> {
+        self.gateway
+            .patch_config(serde_json::json!({
+                "tun": {
+                    "auto-route": auto_route,
+                    "strict-route": strict_route,
+                }
+            }))
+            .await
+            .map_err(Failure::from)?;
+        let observed = self.gateway.get_config().await.map_err(Failure::from)?;
+        let observed = observed
+            .tun
+            .map(|tun| (tun.auto_route, tun.strict_route));
+        if observed != Some((auto_route, strict_route)) {
+            return Err(Failure::new(
+                infiltrator_contract::error::ErrorCode::InvalidState,
+                format!(
+                    "TUN routing readback mismatch: requested auto-route={auto_route}, strict-route={strict_route}; observed {observed:?}"
                 ),
                 true,
             ));

@@ -13,6 +13,9 @@ use infiltrator_contract::tun::{TunStack, TunStackAvailability};
 use infiltrator_contract::mtu::{
     MtuNegotiationSnapshot, PhysicalMtuSnapshot,
 };
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::surface_snapshot::{PageData, SettingsPageSnapshot, SurfaceSnapshot};
+use infiltrator_contract::error::{ErrorCode, Failure};
 
 #[test]
 fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
@@ -136,6 +139,34 @@ fn test_tun_mtu_probe_result_updates_the_shared_iced_state() {
         .probe_result_summary
         .as_deref()
         .is_some_and(|summary| summary.contains("wlan0")));
+}
+
+#[test]
+fn test_shared_surface_route_flags_update_the_iced_projection() {
+    let (mut state, _) = AppState::new();
+    let mut snapshot = SurfaceSnapshot::unavailable(
+        SurfaceKind::IcedDesktop,
+        HostKind::Desktop,
+        Failure::new(ErrorCode::NotReady, "test snapshot", true),
+    );
+    snapshot.revision = 1;
+    snapshot.pages.settings = PageData::ready(SettingsPageSnapshot {
+        autostart: false,
+        system_proxy: false,
+        mixed_port: 7890,
+        allow_lan: false,
+        tun_enabled: true,
+        tun_stack: "system".to_owned(),
+        tun_auto_route: true,
+        tun_strict_route: true,
+        controller_port: 9090,
+        log_level: "info".to_owned(),
+        core_channel: "stable".to_owned(),
+    });
+
+    assert!(state.apply_shared_surface_snapshot(snapshot));
+    assert!(state.editor.tun_auto_route);
+    assert!(state.editor.tun_strict_route);
 }
 
 #[test]

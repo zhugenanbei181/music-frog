@@ -6,7 +6,7 @@
 
 use bevy::scene::{Scene, bsn};
 use bevy::ecs::component::Component;
-use bevy::ecs::hierarchy::Children;
+use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
@@ -16,7 +16,8 @@ use bevy::ui::prelude::{
     percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, Button, ValueChange};
+use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
@@ -96,6 +97,23 @@ pub struct TunStackButtonAvailability(pub bool);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProbeTunMtuButton;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TunRouteToggleKind {
+    #[default]
+    AutoRoute,
+    StrictRoute,
+}
+
+/// Parent marker for a route checkbox. The official checkbox child remains
+/// responsible for focus and ValueChange semantics; this marker identifies
+/// which shared command the parent row represents.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TunRouteToggle(pub TunRouteToggleKind);
+
+/// Parent marker for the TUN ingress checkbox.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TunEnableToggle;
+
 /// Snapshot of the shared Settings domain used by both scene and observer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SettingsProjection {
@@ -105,6 +123,8 @@ pub struct SettingsProjection {
     pub allow_lan: bool,
     pub tun_enabled: bool,
     pub tun_stack: String,
+    pub tun_auto_route: bool,
+    pub tun_strict_route: bool,
     pub controller_port: u16,
     pub log_level: String,
     pub core_channel: String,
@@ -127,6 +147,8 @@ impl SettingsProjection {
             allow_lan: false,
             tun_enabled: true,
             tun_stack: "gVisor (高性能用户态协议栈)".to_owned(),
+            tun_auto_route: true,
+            tun_strict_route: false,
             controller_port: 9090,
             log_level: "info".to_owned(),
             core_channel: "stable".to_owned(),
@@ -464,6 +486,37 @@ pub(super) fn mtu_row_scene(
     })
 }
 
+pub(super) fn tun_route_toggle_scene(
+    kind: TunRouteToggleKind,
+    label: &str,
+    checked: bool,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            padding: UiRect::horizontal(Val::Px(space::S4)),
+        }
+        TunRouteToggle(kind)
+        Children [
+            ( { checkbox_scene(label.to_owned(), checked, palette) } ),
+        ]
+    })
+}
+
+pub(super) fn tun_enable_toggle_scene(checked: bool, palette: &UiPalette) -> Box<dyn Scene> {
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            padding: UiRect::horizontal(Val::Px(space::S4)),
+        }
+        TunEnableToggle
+        Children [
+            ( { checkbox_scene("启用 TUN 虚拟网卡接管 (Enable TUN Device)".to_owned(), checked, palette) } ),
+        ]
+    })
+}
+
 pub(super) fn format_mtu(snapshot: &MtuNegotiationSnapshot) -> String {
     match &snapshot.state {
         MtuProbeState::Unknown => "未探测".to_owned(),
@@ -500,6 +553,47 @@ pub(super) fn on_mtu_probe_activated(
         && let Some(handle) = handle
     {
         handle.submit(UiCommand::ProbeTunMtu);
+    }
+}
+
+pub(super) fn on_tun_route_changed(
+    change: On<ValueChange<bool>>,
+    parents: Query<&ChildOf>,
+    toggles: Query<&TunRouteToggle>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    let Ok(parent) = parents.get(change.source) else {
+        return;
+    };
+    let Ok(toggle) = toggles.get(parent.0) else {
+        return;
+    };
+    let command = match toggle.0 {
+        TunRouteToggleKind::AutoRoute => UiCommand::SetTunAutoRoute(change.value),
+        TunRouteToggleKind::StrictRoute => UiCommand::SetTunStrictRoute(change.value),
+    };
+    handle.submit(command);
+}
+
+pub(super) fn on_tun_enabled_changed(
+    change: On<ValueChange<bool>>,
+    parents: Query<&ChildOf>,
+    toggles: Query<(), With<TunEnableToggle>>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    let Ok(parent) = parents.get(change.source) else {
+        return;
+    };
+    if toggles.get(parent.0).is_ok() {
+        handle.submit(UiCommand::ToggleTun {
+            enabled: change.value,
+        });
     }
 }
 

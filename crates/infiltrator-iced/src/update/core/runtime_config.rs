@@ -72,12 +72,13 @@ impl AppState {
         let generation = rt.generation();
         self.runtime.tun_enabled = Some(enabled);
         self.refresh_tray();
+        let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
+            rt.clone();
         Task::perform(
-            async move {
-                rt.patch_config(serde_json::json!({ "tun": { "enable": enabled } }))
-                    .await
-                    .map_err(|error| InfiltratorError::Internal(error.to_string()))
-            },
+            async move { RuntimeQueryApplication::new(gateway)
+                .set_tun_enabled(enabled)
+                .await
+                .map_err(|failure| InfiltratorError::Config(failure.message)) },
             move |result| Message::RuntimePatchResult(result, token, generation),
         )
     }
@@ -466,12 +467,16 @@ impl AppState {
                 let token = self.begin_runtime_patch();
                 let generation = rt.generation();
                 self.editor.tun_auto_route = enabled;
+                if !enabled {
+                    self.editor.tun_strict_route = false;
+                }
+                let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
+                    rt.clone();
                 Task::perform(
-                    async move {
-                        rt.patch_config(serde_json::json!({ "tun": { "auto-route": enabled } }))
-                            .await
-                            .map_err(|error| InfiltratorError::Internal(error.to_string()))
-                    },
+                    async move { RuntimeQueryApplication::new(gateway)
+                        .set_tun_auto_route(enabled)
+                        .await
+                        .map_err(|failure| InfiltratorError::Config(failure.message)) },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )
             }
@@ -482,12 +487,16 @@ impl AppState {
                 let token = self.begin_runtime_patch();
                 let generation = rt.generation();
                 self.editor.tun_strict_route = enabled;
+                if enabled {
+                    self.editor.tun_auto_route = true;
+                }
+                let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
+                    rt.clone();
                 Task::perform(
-                    async move {
-                        rt.patch_config(serde_json::json!({ "tun": { "strict-route": enabled } }))
-                            .await
-                            .map_err(|error| InfiltratorError::Internal(error.to_string()))
-                    },
+                    async move { RuntimeQueryApplication::new(gateway)
+                        .set_tun_strict_route(enabled)
+                        .await
+                        .map_err(|failure| InfiltratorError::Config(failure.message)) },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )
             }

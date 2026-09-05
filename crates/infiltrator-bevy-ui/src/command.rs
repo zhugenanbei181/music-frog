@@ -31,6 +31,10 @@ pub enum UiCommand {
     SetCoreLogLevel(CoreLogLevel),
     /// Change Mihomo's live TUN protocol stack.
     SetTunStack(TunStack),
+    /// Toggle Mihomo automatic route installation.
+    SetTunAutoRoute(bool),
+    /// Toggle Mihomo strict route enforcement.
+    SetTunStrictRoute(bool),
     /// Probe the physical link and negotiate the virtual TUN MTU.
     ProbeTunMtu,
     /// Switch core proxy mode (Rule / Global / Direct).
@@ -113,6 +117,12 @@ impl UiCommand {
                 Some(CommandIntent::SetCoreLogLevel { level: *level })
             }
             Self::SetTunStack(stack) => Some(CommandIntent::SetTunStack { stack: *stack }),
+            Self::SetTunAutoRoute(enabled) => {
+                Some(CommandIntent::SetTunAutoRoute { enabled: *enabled })
+            }
+            Self::SetTunStrictRoute(enabled) => {
+                Some(CommandIntent::SetTunStrictRoute { enabled: *enabled })
+            }
             Self::ProbeTunMtu => Some(CommandIntent::ProbeTunMtu),
             Self::SetProxyMode(mode) => Some(CommandIntent::SetProxyMode { mode: *mode }),
             Self::SelectProxyNode { group, node } => Some(CommandIntent::SelectProxyNode {
@@ -367,6 +377,14 @@ mod tests {
         assert_eq!(
             UiCommand::ProbeTunMtu.to_intent(),
             Some(CommandIntent::ProbeTunMtu)
+        );
+        assert_eq!(
+            UiCommand::SetTunAutoRoute(false).to_intent(),
+            Some(CommandIntent::SetTunAutoRoute { enabled: false })
+        );
+        assert_eq!(
+            UiCommand::SetTunStrictRoute(true).to_intent(),
+            Some(CommandIntent::SetTunStrictRoute { enabled: true })
         );
     }
 

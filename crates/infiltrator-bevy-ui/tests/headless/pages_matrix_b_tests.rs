@@ -9,7 +9,8 @@ use std::sync::Arc;
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
-use bevy::ui_widgets::Activate;
+use bevy::ui::Checked;
+use bevy::ui_widgets::{Activate, ValueChange};
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::pages::app_routing::*;
@@ -565,6 +566,8 @@ fn test_settings_projection_in_place_update() {
     updated.mixed_port = 7899;
     updated.controller_port = 9191;
     updated.log_level = "debug".to_owned();
+    updated.tun_auto_route = false;
+    updated.tun_strict_route = true;
     updated.offline_startup = OfflineStartupSnapshot::ready(LocalAssetStatus::Missing);
     updated.mtu = MtuNegotiationSnapshot::ready(
         2,
@@ -587,6 +590,29 @@ fn test_settings_projection_in_place_update() {
     assert!(subtree_has_text(app.world(), root, "离线优先"));
     assert!(subtree_has_text(app.world(), root, "可启动但已降级"));
     assert!(subtree_has_text(app.world(), root, "physical=1500"));
+
+    let route_sources: Vec<(TunRouteToggleKind, Entity)> = {
+        let mut toggles = app
+            .world_mut()
+            .query::<(&TunRouteToggle, &bevy::ecs::hierarchy::Children)>();
+        toggles
+            .iter(app.world())
+            .map(|(toggle, children)| {
+                (
+                    toggle.0,
+                    *children.iter().next().expect("route toggle checkbox"),
+                )
+            })
+            .collect()
+    };
+    for (kind, source) in route_sources {
+        let checked = app.world().get::<Checked>(source).is_some();
+        assert_eq!(
+            checked,
+            matches!(kind, TunRouteToggleKind::StrictRoute),
+            "route checkbox should follow the shared projection"
+        );
+    }
 }
 
 #[test]
@@ -604,6 +630,70 @@ fn test_settings_mtu_probe_submits_shared_application_command() {
     app.update();
 
     assert_eq!(sink.submitted(), vec![UiCommand::ProbeTunMtu]);
+}
+
+#[test]
+fn test_settings_tun_route_checkboxes_submit_shared_commands() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Settings);
+
+    let mut toggles = app
+        .world_mut()
+        .query::<(&TunRouteToggle, &bevy::ecs::hierarchy::Children)>();
+    let sources: Vec<(TunRouteToggleKind, Entity)> = toggles
+        .iter(app.world())
+        .map(|(toggle, children)| {
+            let source = children.iter().next().expect("route toggle checkbox");
+            (toggle.0, *source)
+        })
+        .collect();
+
+    for (kind, source) in sources {
+        let value = match kind {
+            TunRouteToggleKind::AutoRoute => false,
+            TunRouteToggleKind::StrictRoute => true,
+        };
+        app.world_mut().commands().trigger(ValueChange {
+            source,
+            value,
+            is_final: true,
+        });
+        app.update();
+    }
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::SetTunAutoRoute(false), UiCommand::SetTunStrictRoute(true)]
+    );
+}
+
+#[test]
+fn test_settings_tun_enable_checkbox_submits_shared_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Settings);
+
+    let source = {
+        let mut toggles = app
+            .world_mut()
+            .query::<(&TunEnableToggle, &bevy::ecs::hierarchy::Children)>();
+        *toggles
+            .single(app.world())
+            .expect("TUN enable toggle")
+            .1
+            .iter()
+            .next()
+            .expect("TUN enable checkbox")
+    };
+    app.world_mut().commands().trigger(ValueChange {
+        source,
+        value: false,
+        is_final: true,
+    });
+    app.update();
+
+    assert_eq!(sink.submitted(), vec![UiCommand::ToggleTun { enabled: false }]);
 }
 
 #[test]

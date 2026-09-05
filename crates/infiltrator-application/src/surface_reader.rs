@@ -722,6 +722,12 @@ fn build_settings_page(
         tun_stack: config
             .and_then(|value| value.tun.as_ref())
             .map_or_else(String::new, |tun| tun.stack.clone()),
+        tun_auto_route: config
+            .and_then(|value| value.tun.as_ref())
+            .is_some_and(|tun| tun.auto_route),
+        tun_strict_route: config
+            .and_then(|value| value.tun.as_ref())
+            .is_some_and(|tun| tun.strict_route),
         controller_port: 0,
         log_level: config
             .map(|value| value.log_level.clone())

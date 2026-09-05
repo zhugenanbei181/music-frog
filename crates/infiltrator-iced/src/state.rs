@@ -409,6 +409,10 @@ impl AppState {
         self.runtime.core_session_token = snapshot.core.session_token;
         self.runtime.core_versions = snapshot.versions.clone();
         self.runtime.core_integrity = snapshot.versions.verification.clone();
+        if let Some(settings) = snapshot.pages.settings.data.as_ref() {
+            self.editor.tun_auto_route = settings.tun_auto_route;
+            self.editor.tun_strict_route = settings.tun_strict_route;
+        }
         self.runtime.controller_auth = snapshot.controller_auth;
         self.runtime.service_mode = snapshot.service_mode;
         self.runtime.port_conflicts = snapshot.port_conflicts.clone();

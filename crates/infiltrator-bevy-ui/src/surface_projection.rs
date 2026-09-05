@@ -392,6 +392,8 @@ pub(super) fn settings_projection(
             allow_lan: value.allow_lan,
             tun_enabled: value.tun_enabled,
             tun_stack: value.tun_stack,
+            tun_auto_route: value.tun_auto_route,
+            tun_strict_route: value.tun_strict_route,
             controller_port: value.controller_port,
             log_level: value.log_level,
             core_channel: value.core_channel,

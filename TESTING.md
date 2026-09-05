@@ -126,6 +126,8 @@ python3 scripts/quality/lifecycle-matrix-guard.py --mode enforce
 python3 scripts/quality/tun-stack-guard.py --mode enforce
 # DUAL-02-02 物理/虚拟网卡 MTU 自适应协商与 live readback 守卫
 python3 scripts/quality/mtu-negotiation-guard.py --mode enforce
+# DUAL-02-03 strict-route/auto-route 全局流量接管与回读守卫
+python3 scripts/quality/tun-routing-guard.py --mode enforce
 ```
 
 ---

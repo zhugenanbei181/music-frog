@@ -234,6 +234,16 @@ fn tun_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'
     });
 
     let dns_hijack_active = !state.editor.tun_form.dns_hijack.trim().is_empty();
+    let auto_route = if state.runtime.runtime.is_some() {
+        state.editor.tun_auto_route
+    } else {
+        state.editor.tun_form.auto_route
+    };
+    let strict_route = if state.runtime.runtime.is_some() {
+        state.editor.tun_strict_route
+    } else {
+        state.editor.tun_form.strict_route
+    };
     let service_mode = format_service_mode(&state.runtime.service_mode);
 
     card(
@@ -264,8 +274,8 @@ fn tun_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'
                 Space::new().width(Length::Fill),
                 text_input("1500", &state.editor.tun_form.mtu).on_input(Message::UpdateTunFormMtu).width(Length::Fixed(120.0)).padding([6, 10]).size(12).font(MONO).style(form_input_style),
             ].align_y(Alignment::Center),
-            form_toggle_row(lang.tr("tun_auto_route").to_string(), state.editor.tun_auto_route || state.editor.tun_form.auto_route, Message::SetTunAutoRoute),
-            form_toggle_row(lang.tr("tun_strict_route").to_string(), state.editor.tun_strict_route || state.editor.tun_form.strict_route, Message::SetTunStrictRoute),
+            form_toggle_row(lang.tr("tun_auto_route").to_string(), auto_route, Message::SetTunAutoRoute),
+            form_toggle_row(lang.tr("tun_strict_route").to_string(), strict_route, Message::SetTunStrictRoute),
             form_toggle_row(lang.tr("settings_dns_hijack").to_string(), dns_hijack_active, |on| Message::UpdateTunFormDnsHijack(if on { "any:53".to_string() } else { String::new() })),
         ].spacing(theme::SP_SM),
     )
