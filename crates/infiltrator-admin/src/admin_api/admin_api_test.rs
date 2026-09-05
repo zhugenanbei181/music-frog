@@ -12,10 +12,15 @@ mod tests {
     };
     use infiltrator_core::settings_io::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY};
     use infiltrator_domain::settings::AppSettings;
+    use infiltrator_contract::version::{
+        CoreRelease, CoreReleaseChannel, CoreReleaseSummary, InstalledCoreVersion,
+    };
     use mihomo_api::client::MihomoClient;
     use mihomo_platform::TEST_LOCK;
     use mihomo_platform::defaults::DefaultCredentialStore;
     use infiltrator_ports::runtime_gateway::RuntimeGateway;
+    use infiltrator_ports::error::PortError;
+    use infiltrator_ports::version::{VersionPort, VersionProgressSink};
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt; // for `oneshot`, `ready`, and `call`
 
@@ -38,6 +43,7 @@ mod tests {
         settings: Arc<Mutex<AppSettings>>,
         /// 内存版 WebDAV 密码库（替代真实 OS keyring，测试零外部依赖）。
         secrets: Arc<Mutex<std::collections::HashMap<String, String>>>,
+        version: Option<infiltrator_application::version_application::VersionApplication>,
     }
 
     /// 内存密码库的键：service/key 拼接，语义与真实 keyring 一致。
@@ -104,7 +110,10 @@ mod tests {
             &self,
         ) -> anyhow::Result<infiltrator_application::version_application::VersionApplication>
         {
-            crate::support::version_application()
+            self.version
+                .clone()
+                .map(Ok)
+                .unwrap_or_else(crate::support::version_application)
         }
 
         async fn profile_controller_url(&self) -> anyhow::Result<Option<String>> {
@@ -211,6 +220,7 @@ mod tests {
             runtime_url,
             settings: Arc::new(Mutex::new(AppSettings::default())),
             secrets: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            version: None,
         };
         let secrets = ctx.secrets.clone();
         let bus = events::AdminEventBus::new();
@@ -224,10 +234,82 @@ mod tests {
             runtime_url: None,
             settings: Arc::new(Mutex::new(AppSettings::default())),
             secrets: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            version: None,
         };
         let bus = events::AdminEventBus::new();
         let state = AdminApiState::with_auth_token(ctx, bus, token);
         router(state)
+    }
+
+    struct StaticVersionPort {
+        home: std::path::PathBuf,
+    }
+
+    #[async_trait::async_trait]
+    impl VersionPort for StaticVersionPort {
+        async fn list_installed(&self) -> Result<Vec<InstalledCoreVersion>, PortError> {
+            Ok(vec![InstalledCoreVersion {
+                version: "v1.20.0".to_string(),
+                path: self
+                    .home
+                    .join("versions/v1.20.0/mihomo")
+                    .to_string_lossy()
+                    .into_owned(),
+                is_default: true,
+            }])
+        }
+
+        async fn latest(&self, _channel: CoreReleaseChannel) -> Result<CoreRelease, PortError> {
+            Ok(CoreRelease {
+                version: "v1.20.0".to_string(),
+                release_date: "2026-01-01T00:00:00Z".to_string(),
+            })
+        }
+
+        async fn list_releases(
+            &self,
+            _limit: usize,
+        ) -> Result<Vec<CoreReleaseSummary>, PortError> {
+            Ok(Vec::new())
+        }
+
+        async fn install(
+            &self,
+            _version: String,
+            _progress: Arc<dyn VersionProgressSink>,
+        ) -> Result<(), PortError> {
+            Ok(())
+        }
+
+        async fn activate(&self, version: &str) -> Result<(), PortError> {
+            std::fs::create_dir_all(&self.home).map_err(|error| PortError::Io(error.to_string()))?;
+            std::fs::write(
+                self.home.join("config.toml"),
+                format!("version = \"{version}\"\n"),
+            )
+            .map_err(|error| PortError::Io(error.to_string()))?;
+            Ok(())
+        }
+
+        async fn uninstall(&self, _version: &str) -> Result<(), PortError> {
+            Ok(())
+        }
+    }
+
+    fn setup_app_with_static_version(home: &std::path::Path) -> axum::Router {
+        let ctx = MockContext {
+            rebuild_count: Arc::new(Mutex::new(0)),
+            runtime_url: None,
+            settings: Arc::new(Mutex::new(AppSettings::default())),
+            secrets: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            version: Some(infiltrator_application::version_application::VersionApplication::new(
+                Arc::new(StaticVersionPort {
+                    home: home.to_path_buf(),
+                }),
+            )),
+        };
+        let bus = events::AdminEventBus::new();
+        router(AdminApiState::new(ctx, bus))
     }
 
     #[tokio::test]
@@ -723,7 +805,8 @@ mod tests {
     #[tokio::test]
     async fn test_get_latest_stable_core_route() {
         let _guard = TEST_LOCK.lock().await;
-        let app = setup_app();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let app = setup_app_with_static_version(temp_dir.path());
         let response = app
             .oneshot(
                 Request::builder()
@@ -750,7 +833,7 @@ mod tests {
         plant_runnable_fake_binary(temp_dir.path(), version);
         mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
 
-        let app = setup_app();
+        let app = setup_app_with_static_version(temp_dir.path());
         let response = app
             .clone()
             .oneshot(

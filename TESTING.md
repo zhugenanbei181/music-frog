@@ -32,6 +32,8 @@
   | infiltrator-ports | 1 |
   | **全仓自动化测试总计** | **2021** |
 
+版本 Admin 路由测试使用注入的静态 `VersionPort`，不依赖当天的 GitHub release 内容或外网状态。
+
 - **代码洁净度**：全工作空间必须保持 **0 编译警告** (`cargo check --workspace` 无任何输出)。
 - **测试可靠性**：环境敏感型测试必须在固定 4 个 nextest 测试进程并发下保持
   **100% 成功率**。
