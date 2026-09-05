@@ -39,7 +39,6 @@ use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
 use infiltrator_ports::subscription_source::SubscriptionSource;
-use mihomo_version::manager::VersionManager;
 
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
@@ -489,10 +488,11 @@ impl AdminApiContext for IcedAdminContext {
         if let Some(runtime) = self.shared.take_runtime() {
             let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
         }
-        let vm = VersionManager::new().map_err(|e| anyhow!(e.to_string()))?;
-        let data_dir = infiltrator_desktop::storage::home_dir()?;
-        let (rebuilt, _rotated) =
-            infiltrator_desktop::boot::bootstrap_host_runtime(&vm, true, &[], &data_dir).await?;
+        let (rebuilt, _rotated) = infiltrator_desktop::boot::bootstrap_host_runtime_from_current_home(
+            true,
+            &[],
+        )
+        .await?;
         self.shared.set_runtime(Some(rebuilt.clone()));
         self.shared
             .send(AdminHostCommand::RuntimeResynced(Ok(rebuilt)));

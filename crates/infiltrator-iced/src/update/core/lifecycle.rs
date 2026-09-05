@@ -9,7 +9,6 @@ use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_shared::autostart;
 use infiltrator_shared::locales::Localizer;
-use mihomo_version::manager::VersionManager;
 
 impl AppState {
     pub fn cancel_all_tasks(&mut self) {
@@ -32,18 +31,12 @@ impl AppState {
                 let lifecycle_token = self.runtime.lifecycle_token;
                 Task::perform(
                     async {
-                        let vm = VersionManager::new()
-                            .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
-                        let data_dir = infiltrator_desktop::storage::home_dir()
-                            .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
                         let candidates = vec![];
                         // Boot retry loop: up to 3 attempts with controller
                         // port rotation between attempts (ledger §1.2).
-                        let outcome = infiltrator_desktop::boot::bootstrap_host_runtime(
-                            &vm,
+                        let outcome = infiltrator_desktop::boot::bootstrap_host_runtime_from_current_home(
                             true,
                             &candidates,
-                            &data_dir,
                         )
                         .await
                         .map_err(|e: anyhow::Error| {

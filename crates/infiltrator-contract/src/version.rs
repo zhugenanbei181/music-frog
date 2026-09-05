@@ -11,6 +11,14 @@ pub enum CoreReleaseChannel {
 }
 
 impl CoreReleaseChannel {
+    pub fn parse(raw: &str) -> Self {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "beta" => Self::Beta,
+            "nightly" | "alpha" => Self::Nightly,
+            _ => Self::Stable,
+        }
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Stable => "stable",

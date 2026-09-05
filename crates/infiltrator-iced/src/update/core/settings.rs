@@ -8,7 +8,7 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_domain::settings::AppSettings;
-use std::str::FromStr;
+use infiltrator_contract::version::CoreReleaseChannel;
 
 impl AppState {
     /// Mirror a loaded [`AppSettings`] snapshot onto the UI state fields.
@@ -31,10 +31,9 @@ impl AppState {
         self.profile.webdav_sync_interval_mins = settings.webdav.sync_interval_mins.to_string();
         self.profile.webdav_sync_on_startup = settings.webdav.sync_on_startup;
         self.runtime.runtime_auto_refresh = settings.runtime_panel.auto_refresh;
-        self.runtime.core_channel =
-            mihomo_version::channel::Channel::from_str(&settings.core_channel)
-                .map(|channel| channel.as_str().to_string())
-                .unwrap_or_else(|_| "stable".to_string());
+        self.runtime.core_channel = CoreReleaseChannel::parse(&settings.core_channel)
+            .as_str()
+            .to_string();
         self.runtime.proxy_delay_sort =
             Self::normalize_delay_sort_key(&settings.runtime_panel.delay_sort).to_string();
         self.runtime.proxy_sort_by_delay = self.runtime.proxy_delay_sort.starts_with("delay_");

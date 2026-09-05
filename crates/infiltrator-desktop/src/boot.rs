@@ -169,6 +169,18 @@ pub async fn bootstrap_host_runtime(
     Ok((Arc::new(outcome.runtime), outcome.rotated))
 }
 
+/// Desktop composition entry point used by UI/admin callers. Version
+/// manager construction and home resolution stay inside the desktop host;
+/// callers only choose the bundled-core policy and optional packaged paths.
+pub async fn bootstrap_host_runtime_from_current_home(
+    use_bundled: bool,
+    bundled_candidates: &[PathBuf],
+) -> anyhow::Result<(Arc<dyn HostRuntime>, bool)> {
+    let vm = VersionManager::new()?;
+    let data_dir = crate::storage::home_dir()?;
+    bootstrap_host_runtime(&vm, use_bundled, bundled_candidates, &data_dir).await
+}
+
 /// [`bootstrap_with_retry`] with explicit retry behavior (tests, rebuild
 /// flows that need different timings).
 pub async fn bootstrap_with_retry_opts(

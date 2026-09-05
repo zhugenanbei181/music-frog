@@ -21,6 +21,7 @@
 - [x] `CommandApplication` 扩展 handler 已接入 profile、proxy、doctor、routing、sync、settings、connection；Bevy 提供显式 handler 启动入口，未具备宿主 port 的系统能力保留 typed unsupported。
 - [x] `SnapshotApplication` / `SnapshotStore` 已统一快照创建、列表、读取和恢复；文件路径安全在 core adapter，恢复复用 profile application 的 apply 事务。
 - [x] `VersionApplication` / `VersionPort` 已统一版本查询、远端 release、下载进度/取消、激活和卸载；具体 manager 只在 core adapter 与 desktop boot composition 出现。
+- [x] Iced 的启动、重建和 settings channel 规范化已移出版本实现：UI 只调用 desktop boot composition 与 contract `CoreReleaseChannel`，生产依赖不再包含 `mihomo-version`。
 - [x] 标准 Mihomo Overview adapter 已移入 `infiltrator-composition`；application 不再直接构造 `MihomoClient`。
 - [x] profile-options 仍由 host adapter 持有 sidecar IO，rules、DNS、Fake-IP、TUN、proxy-provider、sniffer 的 profile YAML 读写已统一收敛到 `infiltrator-application::configuration_application`；domain 只保留 schema、校验和内存 YAML 变换。
 - [x] `AppSettings` / WebDAV / runtime-panel schema 已移入 `infiltrator-domain::settings`；keyring、TOML 和 ConfigManager 读写集中在 `settings_io`。

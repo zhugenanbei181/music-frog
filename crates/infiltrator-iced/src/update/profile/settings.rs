@@ -7,7 +7,7 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::settings::{AppSettings, WebDavConfig};
-use std::str::FromStr;
+use infiltrator_contract::version::CoreReleaseChannel;
 
 impl AppState {
     pub(super) fn update_settings(&mut self, message: Message) -> Task<Message> {
@@ -155,8 +155,8 @@ impl AppState {
     }
 
     fn profile_core_channel(&self) -> String {
-        mihomo_version::channel::Channel::from_str(&self.runtime.core_channel)
-            .map(|channel| channel.as_str().to_string())
-            .unwrap_or_else(|_| "stable".to_string())
+        CoreReleaseChannel::parse(&self.runtime.core_channel)
+            .as_str()
+            .to_string()
     }
 }

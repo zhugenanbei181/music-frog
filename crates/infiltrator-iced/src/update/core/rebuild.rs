@@ -9,7 +9,6 @@ use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
-use mihomo_version::manager::VersionManager;
 
 impl AppState {
     fn active_rebuild_label(&self) -> String {
@@ -82,15 +81,10 @@ impl AppState {
                     .get_current()
                     .await
                     .map_err(infiltrator_contract::error::from_mihomo)?;
-                let vm = VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
-                let data_dir = infiltrator_desktop::storage::home_dir()
-                    .map_err(infiltrator_contract::error::from_mihomo)?;
                 let candidates = vec![];
-                match infiltrator_desktop::boot::bootstrap_host_runtime(
-                    &vm,
+                match infiltrator_desktop::boot::bootstrap_host_runtime_from_current_home(
                     true,
                     &candidates,
-                    &data_dir,
                 )
                 .await
                 {
