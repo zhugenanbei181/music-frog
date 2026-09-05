@@ -1,16 +1,26 @@
 use crate::context::Runtime;
 use crate::output::{print_info, print_success};
+use futures_util::StreamExt;
+use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
 
 /// Stream controller logs until Ctrl-C (or the controller closes the stream).
 pub(crate) async fn logs(level: Option<&str>) -> anyhow::Result<()> {
     let runtime = Runtime::detect().await?;
-    let client = runtime.api_client().await?;
-    let mut receiver = client.stream_logs(level).await?;
+    let application = runtime.runtime_query_application().await?;
+    let mut events = application
+        .logs(level.map(str::to_owned))
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
     print_info("Streaming controller logs; press Ctrl-C to stop");
     loop {
         tokio::select! {
-            line = receiver.recv() => match line {
-                Some(line) => println!("{}", format_log_line(&line)),
+            event = events.next() => match event {
+                Some(RuntimeStreamEvent::Item(line)) => println!("{}", format_log_line(&line)),
+                Some(RuntimeStreamEvent::Failed(error)) => return Err(anyhow::anyhow!(error)),
+                Some(RuntimeStreamEvent::Reconnecting(error)) => {
+                    print_info(&format!("log stream reconnecting: {error}"));
+                }
+                Some(RuntimeStreamEvent::Connecting | RuntimeStreamEvent::Connected) => {}
                 None => break,
             },
             _ = tokio::signal::ctrl_c() => break,
@@ -22,15 +32,23 @@ pub(crate) async fn logs(level: Option<&str>) -> anyhow::Result<()> {
 /// Stream live traffic rates until Ctrl-C.
 pub(crate) async fn traffic() -> anyhow::Result<()> {
     let runtime = Runtime::detect().await?;
-    let client = runtime.api_client().await?;
-    let mut receiver = client.stream_traffic().await?;
+    let application = runtime.runtime_query_application().await?;
+    let mut events = application
+        .traffic()
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
     print_info("Streaming traffic; press Ctrl-C to stop");
     loop {
         tokio::select! {
-            sample = receiver.recv() => match sample {
-                Some(sample) => {
+            event = events.next() => match event {
+                Some(RuntimeStreamEvent::Item(sample)) => {
                     println!("↑ {}  ↓ {}", format_bytes(sample.up), format_bytes(sample.down));
                 }
+                Some(RuntimeStreamEvent::Failed(error)) => return Err(anyhow::anyhow!(error)),
+                Some(RuntimeStreamEvent::Reconnecting(error)) => {
+                    print_info(&format!("traffic stream reconnecting: {error}"));
+                }
+                Some(RuntimeStreamEvent::Connecting | RuntimeStreamEvent::Connected) => {}
                 None => break,
             },
             _ = tokio::signal::ctrl_c() => break,
@@ -42,8 +60,12 @@ pub(crate) async fn traffic() -> anyhow::Result<()> {
 /// Print the current core memory usage and exit.
 pub(crate) async fn memory() -> anyhow::Result<()> {
     let runtime = Runtime::detect().await?;
-    let client = runtime.api_client().await?;
-    let memory = client.get_memory().await?;
+    let memory = runtime
+        .runtime_query_application()
+        .await?
+        .memory()
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
     print_success(&format!(
         "memory in use: {} (system limit: {})",
         format_bytes(memory.in_use),

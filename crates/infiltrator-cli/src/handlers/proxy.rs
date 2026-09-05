@@ -1,4 +1,4 @@
-use mihomo_api::proxy::manager::ProxyManager;
+use infiltrator_application::proxy_application::ProxyNode;
 
 use crate::commands::ProxyAction;
 use crate::context::Runtime;
@@ -6,11 +6,13 @@ use crate::output::{print_info, print_success, print_table};
 
 pub(crate) async fn handle(action: ProxyAction) -> anyhow::Result<()> {
     let runtime = Runtime::detect().await?;
-    let client = runtime.api_client().await?;
-    let manager = ProxyManager::new(client.clone());
+    let application = runtime.proxy_application().await?;
     match action {
         ProxyAction::List => {
-            let nodes = manager.list_proxies().await?;
+            let nodes = application
+                .list_nodes()
+                .await
+                .map_err(|failure| anyhow::anyhow!(failure.message))?;
             if nodes.is_empty() {
                 print_info("No proxy nodes found");
             } else {
@@ -19,7 +21,10 @@ pub(crate) async fn handle(action: ProxyAction) -> anyhow::Result<()> {
             }
         }
         ProxyAction::Groups => {
-            let groups = manager.list_groups().await?;
+            let groups = application
+                .list_groups()
+                .await
+                .map_err(|failure| anyhow::anyhow!(failure.message))?;
             if groups.is_empty() {
                 print_info("No proxy groups found");
             } else {
@@ -28,7 +33,10 @@ pub(crate) async fn handle(action: ProxyAction) -> anyhow::Result<()> {
             }
         }
         ProxyAction::Switch { group, proxy } => {
-            manager.switch(&group, &proxy).await?;
+            application
+                .switch(&group, &proxy)
+                .await
+                .map_err(|failure| anyhow::anyhow!(failure.message))?;
             print_success(&format!("Group '{group}' switched to '{proxy}'"));
         }
         ProxyAction::Test {
@@ -36,11 +44,17 @@ pub(crate) async fn handle(action: ProxyAction) -> anyhow::Result<()> {
             url,
             timeout_ms,
         } => {
-            let delay = client.test_delay(&name, &url, timeout_ms).await?;
+            let delay = application
+                .test_delay(&name, &url, timeout_ms)
+                .await
+                .map_err(|failure| anyhow::anyhow!(failure.message))?;
             print_success(&format!("{name}: {delay} ms"));
         }
         ProxyAction::Current { group } => {
-            let current = manager.get_current(&group).await?;
+            let current = application
+                .current(&group)
+                .await
+                .map_err(|failure| anyhow::anyhow!(failure.message))?;
             println!("group: {group}");
             println!("current: {current}");
         }
@@ -48,7 +62,7 @@ pub(crate) async fn handle(action: ProxyAction) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn node_row(node: &mihomo_api::proxy::manager::ProxyNode) -> Vec<String> {
+fn node_row(node: &ProxyNode) -> Vec<String> {
     vec![
         node.name.clone(),
         node.proxy_type.clone(),
@@ -69,11 +83,10 @@ fn group_row(group: &infiltrator_domain::proxy::ProxyGroup) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use mihomo_api::client::MihomoClient;
-    use mihomo_api::proxy::manager::ProxyNode;
+    use infiltrator_application::proxy_application::ProxyNode;
     use infiltrator_domain::proxy::ProxyGroup;
 
-    use super::{ProxyManager, group_row, node_row};
+    use super::{group_row, node_row};
 
     fn sample_node() -> ProxyNode {
         ProxyNode {
@@ -115,12 +128,4 @@ mod tests {
         assert_eq!(row[2], "2");
     }
 
-    /// Keeps the MihomoClient import meaningful: handlers build the manager
-    /// from one client and reuse the client for delay tests.
-    #[test]
-    fn client_is_clonable_for_reuse() {
-        let client = MihomoClient::new("http://127.0.0.1:9090", None).unwrap();
-        let _manager = ProxyManager::new(client.clone());
-        drop(client);
-    }
 }

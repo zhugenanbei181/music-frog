@@ -90,8 +90,13 @@ fn status_labels_match_severity() {
 
 #[test]
 fn explanation_renders_known_check_and_rejects_unknown_id() {
-    let text = render_explanation("config.current_yaml").unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let application = DoctorApplication::new(std::sync::Arc::new(MihomoDoctor::with_home(
+        temp.path().to_path_buf(),
+    )));
+    let info = application.explain("config.current_yaml").unwrap();
+    let text = render_explanation(&info);
     assert!(text.contains("config.current_yaml"));
     assert!(text.contains("hint:"));
-    assert!(render_explanation("no.such_check").is_err());
+    assert!(application.explain("no.such_check").is_err());
 }

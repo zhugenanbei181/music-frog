@@ -1,5 +1,7 @@
-use mihomo_api::connection::manager::ConnectionManager;
+use futures_util::StreamExt;
+use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_domain::runtime::Connection;
+use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
 
 use crate::commands::ConnectionAction;
 use crate::context::Runtime;
@@ -7,7 +9,7 @@ use crate::output::{self, print_info, print_success, print_table};
 
 /// Filters accepted by `connection list`; all are substrings matched
 /// case-sensitively against the connection metadata, mirroring the
-/// `ConnectionManager::filter_by_*` semantics.
+/// application-level connection filtering semantics.
 pub(crate) struct ListFilters {
     host: Option<String>,
     process: Option<String>,
@@ -16,8 +18,7 @@ pub(crate) struct ListFilters {
 
 pub(crate) async fn handle(action: ConnectionAction) -> anyhow::Result<()> {
     let runtime = Runtime::detect().await?;
-    let client = runtime.api_client().await?;
-    let manager = ConnectionManager::new(client);
+    let application = runtime.connection_application().await?;
     match action {
         ConnectionAction::List {
             host,
@@ -30,28 +31,31 @@ pub(crate) async fn handle(action: ConnectionAction) -> anyhow::Result<()> {
                 process,
                 rule,
             };
-            list(&manager, filters, json).await?
+            list(&application, filters, json).await?
         }
-        ConnectionAction::Stats => stats(&manager).await?,
-        ConnectionAction::Stream => stream(&manager).await?,
+        ConnectionAction::Stats => stats(&application).await?,
+        ConnectionAction::Stream => stream(&application).await?,
         ConnectionAction::Close {
             id,
             all,
             host,
             process,
-        } => close(&manager, id, all, host, process).await?,
+        } => close(&application, id, all, host, process).await?,
     }
     Ok(())
 }
 
-async fn list(manager: &ConnectionManager, filters: ListFilters, json: bool) -> anyhow::Result<()> {
+async fn list(
+    application: &ConnectionApplication,
+    filters: ListFilters,
+    json: bool,
+) -> anyhow::Result<()> {
     let connections = apply_filters(
-        manager
-            .list()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect(),
+        application
+            .snapshot()
+            .await
+            .map_err(|failure| anyhow::anyhow!(failure.message))?
+            .connections,
         &filters,
     );
     if json {
@@ -117,26 +121,37 @@ pub(crate) fn process_name(path: &str) -> String {
         .to_string()
 }
 
-async fn stats(manager: &ConnectionManager) -> anyhow::Result<()> {
-    let (download_total, upload_total, count) = manager.get_statistics().await?;
-    println!("connections: {count}");
-    println!("upload total: {upload_total}");
-    println!("download total: {download_total}");
+async fn stats(application: &ConnectionApplication) -> anyhow::Result<()> {
+    let snapshot = application
+        .snapshot()
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
+    println!("connections: {}", snapshot.connections.len());
+    println!("upload total: {}", snapshot.upload_total);
+    println!("download total: {}", snapshot.download_total);
     Ok(())
 }
 
-async fn stream(manager: &ConnectionManager) -> anyhow::Result<()> {
-    let mut receiver = manager.stream().await?;
+async fn stream(application: &ConnectionApplication) -> anyhow::Result<()> {
+    let mut events = application
+        .stream()
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
     print_info("Streaming connections; press Ctrl-C to stop");
     loop {
         tokio::select! {
-            snapshot = receiver.recv() => match snapshot {
-                Some(snapshot) => println!(
+            event = events.next() => match event {
+                Some(RuntimeStreamEvent::Item(snapshot)) => println!(
                     "connections: {}  ↑ {}  ↓ {}",
                     snapshot.connections.len(),
                     snapshot.upload_total,
                     snapshot.download_total,
                 ),
+                Some(RuntimeStreamEvent::Failed(error)) => return Err(anyhow::anyhow!(error)),
+                Some(RuntimeStreamEvent::Reconnecting(error)) => {
+                    print_info(&format!("connection stream reconnecting: {error}"));
+                }
+                Some(RuntimeStreamEvent::Connecting | RuntimeStreamEvent::Connected) => {}
                 None => break,
             },
             _ = tokio::signal::ctrl_c() => break,
@@ -147,25 +162,37 @@ async fn stream(manager: &ConnectionManager) -> anyhow::Result<()> {
 
 /// Exactly one selector is guaranteed by the clap ArgGroup.
 async fn close(
-    manager: &ConnectionManager,
+    application: &ConnectionApplication,
     id: Option<String>,
     all: bool,
     host: Option<String>,
     process: Option<String>,
 ) -> anyhow::Result<()> {
     if let Some(id) = id {
-        manager.close(&id).await?;
+        application
+            .close(&id)
+            .await
+            .map_err(|failure| anyhow::anyhow!(failure.message))?;
         print_success(&format!("Closed connection {}", short_id(&id)));
     } else if all {
-        manager.close_all().await?;
+        application
+            .close_all()
+            .await
+            .map_err(|failure| anyhow::anyhow!(failure.message))?;
         print_success("Closed all connections");
     } else if let Some(host) = host {
-        let count = manager.close_by_host(&host).await?;
+        let count = application
+            .close_by_host(&host)
+            .await
+            .map_err(|failure| anyhow::anyhow!(failure.message))?;
         print_success(&format!(
             "Closed {count} connections matching host '{host}'"
         ));
     } else if let Some(process) = process {
-        let count = manager.close_by_process(&process).await?;
+        let count = application
+            .close_by_process(&process)
+            .await
+            .map_err(|failure| anyhow::anyhow!(failure.message))?;
         print_success(&format!(
             "Closed {count} connections matching process '{process}'"
         ));

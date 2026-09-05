@@ -5023,6 +5023,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap",
+ "futures-util",
  "infiltrator-application",
  "infiltrator-contract",
  "infiltrator-core",

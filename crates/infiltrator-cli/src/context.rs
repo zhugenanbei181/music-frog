@@ -2,14 +2,18 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_core::settings_store::FileSettingsStore;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::proxy_application::ProxyApplication;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::endpoint::EndpointSource as _;
 use infiltrator_ports::subscription_source::SubscriptionSource;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
@@ -120,6 +124,25 @@ impl Runtime {
         let source = ProfileEndpointSource::new(Arc::new(self.config_manager()?));
         let endpoint = source.resolve().await?;
         Ok(MihomoClient::new(&endpoint.url, endpoint.secret)?)
+    }
+
+    /// Controller gateway for application services. The concrete client is
+    /// assembled here, at the CLI composition root; handlers only receive
+    /// runtime-neutral application facades.
+    pub async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
+        Ok(Arc::new(self.api_client().await?))
+    }
+
+    pub async fn proxy_application(&self) -> anyhow::Result<ProxyApplication> {
+        Ok(ProxyApplication::new(self.runtime_gateway().await?))
+    }
+
+    pub async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
+        Ok(ConnectionApplication::new(self.runtime_gateway().await?))
+    }
+
+    pub async fn runtime_query_application(&self) -> anyhow::Result<RuntimeQueryApplication> {
+        Ok(RuntimeQueryApplication::new(self.runtime_gateway().await?))
     }
 
     /// Apply `update` to the in-memory settings and persist them to the

@@ -7,6 +7,7 @@
 pub mod core_application;
 pub mod cache_application;
 pub mod command_application;
+pub mod connection_application;
 pub mod configuration_application;
 pub mod doctor_application;
 pub mod overview;
@@ -15,6 +16,7 @@ pub mod profile_application;
 pub mod profile_reset_application;
 pub mod proxy_application;
 pub mod routing_application;
+pub mod runtime_query_application;
 pub mod settings_application;
 pub mod snapshot_application;
 pub mod sync_application;

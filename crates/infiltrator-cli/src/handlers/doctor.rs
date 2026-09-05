@@ -1,15 +1,16 @@
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_contract::doctor::{DoctorFixReport, DoctorReport, DoctorStatus};
-use infiltrator_core::doctor_port::MihomoDoctor;
 
 use crate::commands::DoctorAction;
 use crate::handlers::EXIT_OK;
 use crate::output::{self, print_info, print_table};
 
 pub(crate) async fn handle(action: DoctorAction) -> anyhow::Result<i32> {
+    let runtime = crate::context::Runtime::detect().await?;
+    let application = runtime.doctor_application();
     match action {
         DoctorAction::Run { only, json } => {
-            let report = run_report(only.as_deref()).await?;
+            let report = run_report(&application, only.as_deref()).await?;
             if json {
                 output::print_json(&report)?;
             } else {
@@ -18,7 +19,7 @@ pub(crate) async fn handle(action: DoctorAction) -> anyhow::Result<i32> {
             Ok(if report.has_failures() { 1 } else { 0 })
         }
         DoctorAction::Fix { only, json } => {
-            let report = fix_report(only.as_deref()).await?;
+            let report = fix_report(&application, only.as_deref()).await?;
             if json {
                 output::print_json(&report)?;
             } else if report.actions.is_empty() {
@@ -34,7 +35,6 @@ pub(crate) async fn handle(action: DoctorAction) -> anyhow::Result<i32> {
             Ok(EXIT_OK)
         }
         DoctorAction::List { json } => {
-            let application = doctor_application()?;
             if json {
                 output::print_json(&application.list_checks())?;
             } else {
@@ -56,7 +56,10 @@ pub(crate) async fn handle(action: DoctorAction) -> anyhow::Result<i32> {
             Ok(EXIT_OK)
         }
         DoctorAction::Explain { check_id } => {
-            print!("{}", render_explanation(&check_id)?);
+            let info = application
+                .explain(&check_id)
+                .map_err(|failure| anyhow::anyhow!(failure.message))?;
+            print!("{}", render_explanation(&info));
             Ok(EXIT_OK)
         }
     }
@@ -64,24 +67,24 @@ pub(crate) async fn handle(action: DoctorAction) -> anyhow::Result<i32> {
 
 /// Detect the real installation and run the filtered checks. A detection
 /// failure surfaces as an error so the dispatcher maps it to exit code 2.
-async fn run_report(only: Option<&str>) -> anyhow::Result<DoctorReport> {
-    doctor_application()?
+async fn run_report(
+    application: &DoctorApplication,
+    only: Option<&str>,
+) -> anyhow::Result<DoctorReport> {
+    application
         .run(only.map(str::to_owned))
         .await
         .map_err(|failure| anyhow::anyhow!(failure.message))
 }
 
-async fn fix_report(only: Option<&str>) -> anyhow::Result<DoctorFixReport> {
-    doctor_application()?
+async fn fix_report(
+    application: &DoctorApplication,
+    only: Option<&str>,
+) -> anyhow::Result<DoctorFixReport> {
+    application
         .fix(only.map(str::to_owned))
         .await
         .map_err(|failure| anyhow::anyhow!(failure.message))
-}
-
-fn doctor_application() -> anyhow::Result<DoctorApplication> {
-    Ok(DoctorApplication::new(std::sync::Arc::new(
-        MihomoDoctor::detect()?,
-    )))
 }
 
 pub(crate) fn status_label(status: &DoctorStatus) -> &'static str {
@@ -133,11 +136,8 @@ fn print_report(report: &DoctorReport) {
     }
 }
 
-pub(crate) fn render_explanation(check_id: &str) -> anyhow::Result<String> {
-    let info = doctor_application()?
-        .explain(check_id)
-        .map_err(|failure| anyhow::anyhow!(failure.message))?;
-    Ok(format!(
+pub(crate) fn render_explanation(info: &infiltrator_contract::doctor::DoctorCheckMeta) -> String {
+    format!(
         "{}\nid: {}\ncategory: {}\nfixable: {}\ndefault: {}\nwhy: {}\nfail means: {}\nhint: {}\n",
         info.summary,
         info.id,
@@ -147,7 +147,7 @@ pub(crate) fn render_explanation(check_id: &str) -> anyhow::Result<String> {
         info.why,
         info.fail_means,
         info.hint,
-    ))
+    )
 }
 
 fn yes_no(flag: bool) -> &'static str {
