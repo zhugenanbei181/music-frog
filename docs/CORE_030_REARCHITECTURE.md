@@ -41,6 +41,7 @@
 - [x] `SyncApplication` / `SyncPort` 已统一 WebDAV 测试、全量同步以及 Iced 上传/下载的 transport seam；进度/取消/冲突结果均用 contract，冲突键 diff 已移入 domain，冲突副本读写和路径沙箱也由 core adapter 承担。
 - [x] Admin 周期调度已从 `infiltrator-core` legacy module 移入 Admin host scheduling；调度器只触发 application use-case，不进入业务 contract 或 domain。
 - [x] Iced runtime handle 已收敛为 `HostRuntime` trait object；desktop 的具体 `MihomoRuntime` 只在 boot composition 中构造，UI 仅消费 gateway、generation、apply 与 typed host capability。
+- [x] Iced 视图测试、application/desktop 测试和 platform interface diff 已按业务边界拆分；test-layout、line-budget、import、Bevy BSN 和 core-boundary guard 均可 enforce 通过。
 - [x] `InfiltratorError` 已移入 `infiltrator-contract`；Mihomo/IO 适配通过显式边界转换，不再从 core 暴露 transport error 类型。
 - [x] profile projection (`ProfileInfo` / `ProfileDetail`) 与 profile name 校验已移入 `infiltrator-domain::profiles`。
 - [x] subscription 的 URL 校验、内容解码、userinfo/配额、UA、WAF 分类和安全审计已移入 `infiltrator-domain::subscription`；HTTP 重试、响应体上限和 HeaderMap 转换集中在 `infiltrator-core::subscription_io`。
