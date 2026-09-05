@@ -8,3 +8,6 @@ description = "Stable cross-surface commands, snapshots, events, capabilities, a
 [dependencies]
 anyhow = { workspace = true }
 serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

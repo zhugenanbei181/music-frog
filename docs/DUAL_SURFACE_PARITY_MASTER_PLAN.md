@@ -4,6 +4,12 @@
 
 > **状态声明（2026-09-05）**：本文的 15×15（225 项）是目标与执行台账，不等同于已完成。0.30 的 A-01～A-05 架构前置闸门已经完成：两条 UI 都有 shared surface bridge、明确的 host/composition 入口，Bevy 生产路由不再使用 demo projection；225 项业务能力仍必须逐项完成双端 live parity 与宿主证据。真实审计见 [DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md](DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md)。
 
+### 当前逐项交付
+
+| 项目 | 状态 | 已闭环内容 | 证据边界 |
+| --- | --- | --- | --- |
+| `DUAL-01-01` 多代际内核会话状态机 | `host-verified`（desktop Linux） | `SessionToken` + generation 进入 domain reducer、CoreSnapshot、application/lifecycle port；旧会话事件和两端旧 surface snapshot 均拒绝；desktop PID 记录按可执行文件校验后回收，Linux PDEATHSIG/Windows Job Object 继续兜底 | contract/domain/application/platform、Iced/Bevy session-aware 测试；Android/iOS 由 native host 持有进程，`cleanup_orphaned` 明确为安全 no-op |
+
 ---
 
 ## 一、双端同步推进战略定调与工程原则

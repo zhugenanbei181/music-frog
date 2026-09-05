@@ -106,12 +106,12 @@ fn build_surface_stream(
 
 impl SurfaceModel {
     /// Apply only newer revisions. A delayed task or stale host event can
-    /// never overwrite a newer projection.
+    /// never overwrite a newer projection or a newer core session.
     pub fn apply(&mut self, snapshot: SurfaceSnapshot) -> bool {
         if self
             .latest
             .as_ref()
-            .is_some_and(|current| snapshot.revision <= current.revision)
+            .is_some_and(|current| !snapshot.is_newer_than(current))
         {
             return false;
         }

@@ -1,5 +1,6 @@
 use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreEvent, CoreLifecycle, CoreSnapshot};
 use infiltrator_domain::core_state::{CoreState, CoreStateMachine};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
@@ -17,6 +18,7 @@ const EVENT_CAPACITY: usize = 256;
 const DISPATCH_CAPACITY: usize = 256;
 const DEFAULT_READINESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 const DEFAULT_READINESS_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+static NEXT_SESSION_NAMESPACE: AtomicU64 = AtomicU64::new(1);
 
 /// Readiness retry policy expressed entirely in standard-library values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,6 +52,8 @@ struct Inner {
     operation: futures_util::lock::Mutex<()>,
     state: RwLock<StateMirror>,
     next_request_id: AtomicU64,
+    session_namespace: u64,
+    next_session_sequence: AtomicU64,
     events: Mutex<VecDeque<CoreEvent>>,
 }
 
@@ -141,6 +145,9 @@ impl CoreApplication {
         runtime: Arc<dyn ApplicationRuntime>,
     ) -> Self {
         let (dispatch_tx, dispatch_rx) = std::sync::mpsc::sync_channel(DISPATCH_CAPACITY);
+        let session_namespace = NEXT_SESSION_NAMESPACE
+            .fetch_add(1, Ordering::Relaxed)
+            .max(1);
         let inner = Arc::new(Inner {
             process,
             readiness,
@@ -155,6 +162,8 @@ impl CoreApplication {
                 revision: 0,
             }),
             next_request_id: AtomicU64::new(1),
+            session_namespace,
+            next_session_sequence: AtomicU64::new(1),
             events: Mutex::new(VecDeque::with_capacity(EVENT_CAPACITY)),
         });
         spawn_dispatch_worker(Arc::downgrade(&inner), dispatch_rx, runtime);
@@ -231,6 +240,25 @@ impl CoreApplication {
         self.snapshot().generation
     }
 
+    /// Identity of the active core session. Unlike generation, this also
+    /// separates sessions created by different application instances.
+    pub fn session_token(&self) -> Option<SessionToken> {
+        self.snapshot().session_token
+    }
+
+    /// Reject delayed work that belongs to a previous core session.
+    pub fn check_session(&self, session_token: SessionToken) -> Result<(), Failure> {
+        if self.session_token() == Some(session_token) {
+            Ok(())
+        } else {
+            Err(Failure::new(
+                ErrorCode::InvalidState,
+                "stale core session token",
+                false,
+            ))
+        }
+    }
+
     /// Drain a bounded batch of application events for a frame-driven or FFI
     /// surface. The queue drops the oldest event when it reaches capacity.
     pub fn drain_events(&self) -> Vec<CoreEvent> {
@@ -252,20 +280,31 @@ impl CoreApplication {
             return Ok(false);
         }
 
-        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartRequested);
+        let session_token = self.allocate_session_token();
+        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartRequested {
+            session_token,
+        });
         match self
-            .wait_for_readiness(self.inner.readiness_policy.timeout)
+            .wait_for_readiness(session_token, self.inner.readiness_policy.timeout)
             .await
         {
             Ok(endpoint) => {
-        self.apply_domain_event(
-            infiltrator_domain::core_state::CoreEvent::ReadinessSuccess(endpoint),
-        );
+                self.apply_domain_event(
+                    infiltrator_domain::core_state::CoreEvent::ReadinessSuccess {
+                        session_token,
+                        endpoint,
+                    },
+                );
                 Ok(true)
             }
             Err(error) => {
                 let message = error.to_string();
-        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartFailed(message));
+                self.apply_domain_event(
+                    infiltrator_domain::core_state::CoreEvent::StartFailed {
+                        session_token,
+                        error: message,
+                    },
+                );
                 Err(Failure::from(error))
             }
         }
@@ -273,6 +312,17 @@ impl CoreApplication {
 
     fn allocate_request_id(&self) -> RequestId {
         RequestId::new(self.inner.next_request_id.fetch_add(1, Ordering::Relaxed))
+    }
+
+    fn allocate_session_token(&self) -> SessionToken {
+        let sequence = self
+            .inner
+            .next_session_sequence
+            .fetch_add(1, Ordering::Relaxed)
+            .max(1);
+        SessionToken::new(
+            (u128::from(self.inner.session_namespace) << 64) | u128::from(sequence),
+        )
     }
 
     async fn execute_with_id(&self, request_id: RequestId, intent: CommandIntent) -> CommandResult {
@@ -354,29 +404,51 @@ impl CoreApplication {
             return Err(invalid_state_failure("start"));
         }
 
-        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartRequested);
+        let session_token = self.allocate_session_token();
+        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartRequested {
+            session_token,
+        });
+        if let Err(error) = self.inner.process.cleanup_orphaned().await {
+            let message = error.to_string();
+            self.apply_domain_event(
+                infiltrator_domain::core_state::CoreEvent::StartFailed {
+                    session_token,
+                    error: message,
+                },
+            );
+            return Err(Failure::from(error));
+        }
         if let Err(error) = self.inner.process.start().await {
             let message = error.to_string();
             self.apply_domain_event(
-                infiltrator_domain::core_state::CoreEvent::StartFailed(message.clone()),
+                infiltrator_domain::core_state::CoreEvent::StartFailed {
+                    session_token,
+                    error: message.clone(),
+                },
             );
             return Err(Failure::from(error));
         }
 
         match self
-            .wait_for_readiness(self.inner.readiness_policy.timeout)
+            .wait_for_readiness(session_token, self.inner.readiness_policy.timeout)
             .await
         {
             Ok(endpoint) => {
                 self.apply_domain_event(
-                    infiltrator_domain::core_state::CoreEvent::ReadinessSuccess(endpoint),
+                    infiltrator_domain::core_state::CoreEvent::ReadinessSuccess {
+                        session_token,
+                        endpoint,
+                    },
                 );
                 Ok(())
             }
             Err(error) => {
                 let message = error.to_string();
                 self.apply_domain_event(
-                    infiltrator_domain::core_state::CoreEvent::StartFailed(message),
+                    infiltrator_domain::core_state::CoreEvent::StartFailed {
+                        session_token,
+                        error: message,
+                    },
                 );
                 Err(Failure::from(error))
             }
@@ -388,14 +460,26 @@ impl CoreApplication {
             return Err(invalid_state_failure("stop"));
         }
 
-        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StopRequested);
+        let Some(session_token) = self.session_token() else {
+            return Err(invalid_state_failure("stop"));
+        };
+        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StopRequested {
+            session_token,
+        });
         if let Err(error) = self.inner.process.stop().await {
             let message = error.to_string();
-            self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StopFailed(message));
+            self.apply_domain_event(
+                infiltrator_domain::core_state::CoreEvent::StopFailed {
+                    session_token,
+                    error: message,
+                },
+            );
             return Err(Failure::from(error));
         }
 
-        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StopCompleted);
+        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StopCompleted {
+            session_token,
+        });
         Ok(())
     }
 
@@ -445,10 +529,16 @@ impl CoreApplication {
 
     async fn wait_for_readiness(
         &self,
+        session_token: SessionToken,
         timeout: std::time::Duration,
     ) -> Result<String, infiltrator_ports::error::PortError> {
         let deadline = std::time::Instant::now() + timeout;
         loop {
+            if self.session_token() != Some(session_token) {
+                return Err(infiltrator_ports::error::PortError::Failed(
+                    "stale core session token".to_string(),
+                ));
+            }
             match self.inner.process.status().await {
                 Ok(CoreLifecycle::Starting)
                 | Ok(CoreLifecycle::Ready)
@@ -485,6 +575,10 @@ impl CoreLifecyclePort for CoreApplication {
 
     fn generation(&self) -> u64 {
         CoreApplication::generation(self)
+    }
+
+    fn session_token(&self) -> Option<SessionToken> {
+        CoreApplication::session_token(self)
     }
 
     async fn start(&self) -> Result<u64, infiltrator_ports::error::PortError> {
@@ -533,7 +627,28 @@ impl CoreLifecyclePort for CoreApplication {
                 "stale application generation".to_string(),
             ));
         }
-        self.wait_for_readiness(timeout).await.map(|_| ())
+        let Some(session_token) = self.session_token() else {
+            return Err(infiltrator_ports::error::PortError::Failed(
+                "core session is not active".to_string(),
+            ));
+        };
+        self.wait_for_readiness(session_token, timeout).await.map(|_| ())
+    }
+
+    async fn wait_for_ready_session(
+        &self,
+        generation: u64,
+        session_token: SessionToken,
+        timeout: std::time::Duration,
+    ) -> Result<(), infiltrator_ports::error::PortError> {
+        if self.generation() != generation {
+            return Err(infiltrator_ports::error::PortError::Failed(
+                "stale application generation".to_string(),
+            ));
+        }
+        self.check_session(session_token)
+            .map_err(|failure| infiltrator_ports::error::PortError::Failed(failure.message))?;
+        self.wait_for_readiness(session_token, timeout).await.map(|_| ())
     }
 }
 
@@ -605,15 +720,34 @@ fn invalid_state_failure(operation: &str) -> Failure {
 }
 
 fn snapshot_from_state(state: &CoreState, revision: u64) -> CoreSnapshot {
-    let (lifecycle, generation, failure) = match state {
-        CoreState::Idle { generation } => (CoreLifecycle::Stopped, *generation, None),
-        CoreState::Starting { generation } => (CoreLifecycle::Starting, *generation, None),
-        CoreState::Running { generation, .. } => (CoreLifecycle::Running, *generation, None),
-        CoreState::Reloading { generation, .. } => (CoreLifecycle::Ready, *generation, None),
-        CoreState::Stopping { generation } => (CoreLifecycle::Stopping, *generation, None),
-        CoreState::Failed { generation, error } => (
+    let (lifecycle, generation, session_token, failure) = match state {
+        CoreState::Idle { generation } => (CoreLifecycle::Stopped, *generation, None, None),
+        CoreState::Starting {
+            generation,
+            session_token,
+        } => (CoreLifecycle::Starting, *generation, Some(*session_token), None),
+        CoreState::Running {
+            generation,
+            session_token,
+            ..
+        } => (CoreLifecycle::Running, *generation, Some(*session_token), None),
+        CoreState::Reloading {
+            generation,
+            session_token,
+            ..
+        } => (CoreLifecycle::Ready, *generation, Some(*session_token), None),
+        CoreState::Stopping {
+            generation,
+            session_token,
+        } => (CoreLifecycle::Stopping, *generation, Some(*session_token), None),
+        CoreState::Failed {
+            generation,
+            session_token,
+            error,
+        } => (
             CoreLifecycle::Failed,
             *generation,
+            Some(*session_token),
             Some(Failure::new(ErrorCode::Internal, error.clone(), false)),
         ),
     };
@@ -621,6 +755,7 @@ fn snapshot_from_state(state: &CoreState, revision: u64) -> CoreSnapshot {
     CoreSnapshot {
         lifecycle,
         generation,
+        session_token,
         revision,
         proxy_mode: None,
         core_version: None,

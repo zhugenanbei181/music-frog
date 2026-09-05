@@ -9,6 +9,7 @@ use infiltrator_bevy_ui::surface::{
     overview_projection,
 };
 use infiltrator_bevy_widgets::theme::LightDark;
+use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 
 use crate::support::{headless_plugins, page_root, subtree_has_text};
@@ -44,6 +45,7 @@ fn app_with_shared_source() -> App {
     snapshot.origin = SurfaceOrigin::Live;
     snapshot.revision = 42;
     snapshot.core.revision = 42;
+    snapshot.core.session_token = Some(SessionToken::new(42));
     snapshot.core.core_version = Some("live-contract-test".to_owned());
     snapshot.pages.proxies.data.as_mut().unwrap().active_exit = "live-proxy".to_owned();
     snapshot.pages.profiles.data.as_mut().unwrap().profiles[0].name = "live-profile".to_owned();
@@ -149,4 +151,41 @@ fn live_snapshot_reconciles_an_initial_unavailable_banner() {
         &mut app,
         infiltrator_contract::surface_snapshot::PageId::Proxies
     ));
+}
+
+#[test]
+fn stale_session_snapshot_cannot_replace_a_newer_bevy_projection() {
+    let source = DemoSurfaceSource::running();
+    let mut snapshot = source.surface_snapshot();
+    snapshot.origin = SurfaceOrigin::Live;
+    snapshot.generation = 4;
+    snapshot.core.generation = 4;
+    snapshot.core.session_token = Some(SessionToken::new(40));
+    snapshot.revision = 10;
+    snapshot.core.revision = 10;
+
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins(ShellPlugin::new_with_width(LightDark::Dark, 1180.0));
+    app.add_plugins(PagesPlugin::new_surface(StaticSurface {
+        snapshot: snapshot.clone(),
+    }));
+    app.update();
+
+    let mut stale = snapshot;
+    stale.core.session_token = Some(SessionToken::new(39));
+    stale.revision = 11;
+    stale.core.revision = 11;
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(stale));
+    app.update();
+    assert_eq!(
+        app.world()
+            .resource::<infiltrator_bevy_ui::surface::LatestSurfaceSnapshot>()
+            .0
+            .core
+            .session_token,
+        Some(SessionToken::new(40))
+    );
 }

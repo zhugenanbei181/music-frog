@@ -22,6 +22,7 @@ on:
       - "scripts/quality/bevy_bsn_guard.py"
       - "scripts/quality/core-boundary-guard.py"
       - "scripts/quality/parity-guard.py"
+      - "scripts/quality/session-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -39,6 +40,7 @@ on:
       - "scripts/quality/bevy_bsn_guard.py"
       - "scripts/quality/core-boundary-guard.py"
       - "scripts/quality/parity-guard.py"
+      - "scripts/quality/session-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -99,6 +101,9 @@ jobs:
 
       - name: Enforce dual-surface parity
         run: python3 scripts/quality/parity-guard.py --mode enforce
+
+      - name: Enforce DUAL-01-01 session semantics
+        run: python3 scripts/quality/session-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

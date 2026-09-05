@@ -92,6 +92,8 @@ INFILTRATOR_CAPTURE_SCENARIOS=proxies-dark bash scripts/capture-iced.sh
 python3 scripts/quality/test-layout-guard.py
 # 业务源码行数红线（非注释 ≤800 行/文件；report 模式仅列违规清单）
 python3 scripts/quality/line-guard.py --mode report
+# DUAL-01-01 会话 token / generation / orphan ownership 守卫
+python3 scripts/quality/session-guard.py --mode enforce
 ```
 
 ---

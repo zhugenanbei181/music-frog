@@ -507,8 +507,15 @@ fn trigger_page_projection_events(
     commands.trigger(SettingsProjectionUpdated(settings_projection(snapshot)));
 }
 
-fn apply_surface_snapshot(update: On<SurfaceSnapshotUpdated>, mut commands: Commands) {
+fn apply_surface_snapshot(
+    update: On<SurfaceSnapshotUpdated>,
+    latest: Res<LatestSurfaceSnapshot>,
+    mut commands: Commands,
+) {
     let snapshot = update.0.clone();
+    if !snapshot.is_newer_than(&latest.0) {
+        return;
+    }
     commands.insert_resource(LatestSurfaceSnapshot(snapshot.clone()));
     trigger_page_projection_events(&snapshot, &mut commands);
     commands.trigger(SurfaceStatusChanged(snapshot));

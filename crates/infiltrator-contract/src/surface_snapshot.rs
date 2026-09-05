@@ -405,6 +405,7 @@ impl SurfaceSnapshot {
             core: CoreSnapshot {
                 lifecycle: CoreLifecycle::Starting,
                 generation: 0,
+                session_token: None,
                 revision: 0,
                 proxy_mode: Some(ProxyMode::Rule),
                 core_version: None,
@@ -423,6 +424,23 @@ impl SurfaceSnapshot {
 
     pub fn page_status(&self, page: PageId) -> &PageStatus {
         self.pages.status(page)
+    }
+
+    /// Whether this snapshot belongs to a newer, still-valid core session.
+    /// Generation orders restarts; the token fences delayed events from an
+    /// older session even when their transport revision happens to be larger.
+    pub fn is_newer_than(&self, current: &Self) -> bool {
+        if self.generation != current.generation {
+            return self.generation > current.generation;
+        }
+        match (self.core.session_token, current.core.session_token) {
+            (Some(_), None) => true,
+            // A stopped snapshot has no active token but is still the valid
+            // terminal state of the current generation.
+            (None, Some(_)) => self.revision > current.revision,
+            (Some(next), Some(previous)) if next != previous => false,
+            _ => self.revision > current.revision,
+        }
     }
 }
 
@@ -443,5 +461,39 @@ mod tests {
         let page = PageData::<String>::unavailable(failure.clone());
         assert!(page.data.is_none());
         assert_eq!(page.status, PageStatus::Unavailable { failure });
+    }
+
+    #[test]
+    fn session_token_fences_old_snapshots_even_with_a_larger_revision() {
+        let mut current = SurfaceSnapshot::unavailable(
+            SurfaceKind::BevyDesktop,
+            HostKind::Desktop,
+            Failure::unsupported("not ready"),
+        );
+        current.generation = 4;
+        current.core.generation = 4;
+        current.core.session_token = Some(crate::session::SessionToken::new(40));
+        current.revision = 10;
+        current.core.revision = 10;
+
+        let mut stale = current.clone();
+        stale.core.session_token = Some(crate::session::SessionToken::new(39));
+        stale.revision = 11;
+        stale.core.revision = 11;
+        assert!(!stale.is_newer_than(&current));
+
+        let mut next = current.clone();
+        next.generation = 5;
+        next.core.generation = 5;
+        next.core.session_token = Some(crate::session::SessionToken::new(50));
+        next.revision = 1;
+        next.core.revision = 1;
+        assert!(next.is_newer_than(&current));
+
+        let mut stopped = current.clone();
+        stopped.core.session_token = None;
+        stopped.revision = 11;
+        stopped.core.revision = 11;
+        assert!(stopped.is_newer_than(&current));
     }
 }

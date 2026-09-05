@@ -10,6 +10,12 @@ pub trait CoreProcess: Send + Sync {
     async fn status(&self) -> Result<CoreLifecycle, PortError>;
     fn controller_endpoint(&self) -> Option<String>;
 
+    /// Reconcile a process record left by a previous host instance. A host
+    /// without a process table (Android/iOS bridge) may safely return `None`.
+    async fn cleanup_orphaned(&self) -> Result<Option<u32>, PortError> {
+        Ok(None)
+    }
+
     async fn pid(&self) -> Option<u32> {
         None
     }

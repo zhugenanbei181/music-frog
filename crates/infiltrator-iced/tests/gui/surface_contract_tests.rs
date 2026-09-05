@@ -26,6 +26,14 @@ fn snapshot(revision: u64) -> SurfaceSnapshot {
     value
 }
 
+fn session_snapshot(revision: u64, generation: u64, token: u128) -> SurfaceSnapshot {
+    let mut value = snapshot(revision);
+    value.generation = generation;
+    value.core.generation = generation;
+    value.core.session_token = Some(infiltrator_contract::session::SessionToken::new(token));
+    value
+}
+
 #[test]
 fn stale_surface_events_are_rejected() {
     let mut model = SurfaceModel::default();
@@ -36,6 +44,23 @@ fn stale_surface_events_are_rejected() {
         model.page_status(PageId::Overview),
         Some(PageStatus::Unavailable { .. })
     ));
+}
+
+#[test]
+fn stale_session_snapshot_is_rejected_even_with_a_larger_revision() {
+    let mut model = SurfaceModel::default();
+    assert!(model.apply(session_snapshot(2, 4, 40)));
+    assert!(!model.apply(session_snapshot(3, 4, 39)));
+    assert_eq!(model.revision(), 2);
+    assert_eq!(
+        model
+            .latest()
+            .and_then(|snapshot| snapshot.core.session_token)
+            .map(|token| token.value()),
+        Some(40)
+    );
+    assert!(model.apply(session_snapshot(1, 5, 50)));
+    assert_eq!(model.revision(), 1);
 }
 
 struct TokioRuntime(tokio::runtime::Runtime);

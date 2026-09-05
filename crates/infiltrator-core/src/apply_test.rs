@@ -56,6 +56,7 @@ impl CoreProcess for MockController {
 struct TestLifecycleState {
     lifecycle: CoreLifecycle,
     generation: u64,
+    session_token: Option<infiltrator_contract::session::SessionToken>,
 }
 
 struct TestLifecycle {
@@ -72,6 +73,7 @@ impl TestLifecycle {
             state: Mutex::new(TestLifecycleState {
                 lifecycle: CoreLifecycle::Stopped,
                 generation: 0,
+                session_token: None,
             }),
         }
     }
@@ -82,6 +84,10 @@ impl TestLifecycle {
 
     fn generation(&self) -> u64 {
         self.state.lock().expect("lifecycle lock").generation
+    }
+
+    fn session_token(&self) -> Option<infiltrator_contract::session::SessionToken> {
+        self.state.lock().expect("lifecycle lock").session_token
     }
 
     fn set_status(&self, lifecycle: CoreLifecycle) {
@@ -99,11 +105,18 @@ impl CoreLifecyclePort for TestLifecycle {
         self.generation()
     }
 
+    fn session_token(&self) -> Option<infiltrator_contract::session::SessionToken> {
+        TestLifecycle::session_token(self)
+    }
+
     async fn start(&self) -> Result<u64, infiltrator_ports::error::PortError> {
         let generation = {
             let mut state = self.state.lock().expect("lifecycle lock");
             state.generation += 1;
             state.lifecycle = CoreLifecycle::Starting;
+            state.session_token = Some(infiltrator_contract::session::SessionToken::new(
+                state.generation as u128,
+            ));
             state.generation
         };
         CoreProcess::start(self.controller.as_ref()).await?;
@@ -117,6 +130,7 @@ impl CoreLifecyclePort for TestLifecycle {
             return Err(error);
         }
         self.set_status(CoreLifecycle::Stopped);
+        self.state.lock().expect("lifecycle lock").session_token = None;
         Ok(())
     }
 

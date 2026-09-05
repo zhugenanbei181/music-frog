@@ -61,6 +61,7 @@ impl AppState {
             runtime: crate::state::RuntimeState {
                 runtime: None,
                 runtime_generation: 0,
+                core_session_token: None,
                 lifecycle_token: 0,
                 status: RuntimeStatus::Stopped,
                 proxy_mode: None,

@@ -5,8 +5,6 @@ use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use std::path::PathBuf;
-
-#[cfg(windows)]
 use std::sync::Mutex;
 
 use mihomo_api::error::{MihomoError, Result};
@@ -17,6 +15,10 @@ pub struct ProcessCoreController {
     binary_path: PathBuf,
     config_path: PathBuf,
     pid_file: PathBuf,
+    /// PID owned by this controller instance. A different live PID in the
+    /// record is treated as a candidate orphan after the instance lock is
+    /// reacquired by a new host process.
+    owned_pid: Mutex<Option<u32>>,
     // CORE-002: Windows-only guard. Holds the kill-on-close Job Object handle
     // for the currently spawned core. The handle is deliberately never closed
     // while this process lives (see `process::JobObjectHandle`), so when the
@@ -36,6 +38,7 @@ impl ProcessCoreController {
             binary_path,
             config_path,
             pid_file,
+            owned_pid: Mutex::new(None),
             #[cfg(windows)]
             job: Mutex::new(None),
         }
@@ -48,6 +51,7 @@ impl ProcessCoreController {
             binary_path,
             config_path,
             pid_file,
+            owned_pid: Mutex::new(None),
             #[cfg(windows)]
             job: Mutex::new(None),
         }
@@ -58,6 +62,7 @@ impl ProcessCoreController {
             binary_path,
             config_path,
             pid_file,
+            owned_pid: Mutex::new(None),
             #[cfg(windows)]
             job: Mutex::new(None),
         }
@@ -92,6 +97,7 @@ fn map_port_error(error: MihomoError) -> PortError {
 #[async_trait]
 impl CoreProcess for ProcessCoreController {
     async fn start(&self) -> std::result::Result<(), PortError> {
+        self.cleanup_orphaned().await?;
         if self
             .read_running_pid()
             .await
@@ -104,9 +110,18 @@ impl CoreProcess for ProcessCoreController {
         let spawned = process::spawn_daemon(&self.binary_path, &self.config_path)
             .await
             .map_err(map_port_error)?;
-        process::write_pid_file(&self.pid_file, spawned.pid)
-            .await
-            .map_err(map_port_error)?;
+        *self
+            .owned_pid
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(spawned.pid);
+        if let Err(error) = process::write_pid_file(&self.pid_file, spawned.pid).await {
+            let _ = process::kill_process(spawned.pid);
+            *self
+                .owned_pid
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+            return Err(map_port_error(error));
+        }
 
         // CORE-002 (Windows): keep the kill-on-close Job Object handle alive
         // for the controller's lifetime. Replacing a previous handle on restart
@@ -127,6 +142,10 @@ impl CoreProcess for ProcessCoreController {
             process::remove_pid_file(&self.pid_file)
                 .await
                 .map_err(map_port_error)?;
+            *self
+                .owned_pid
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
             return Err(PortError::Failed("Service failed to start".to_string()));
         }
 
@@ -142,6 +161,10 @@ impl CoreProcess for ProcessCoreController {
             process::remove_pid_file(&self.pid_file)
                 .await
                 .map_err(map_port_error)?;
+            *self
+                .owned_pid
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
             return Err(PortError::Failed("Service is not running".to_string()));
         }
 
@@ -149,6 +172,10 @@ impl CoreProcess for ProcessCoreController {
         process::remove_pid_file(&self.pid_file)
             .await
             .map_err(map_port_error)?;
+        *self
+            .owned_pid
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
 
         Ok(())
     }
@@ -168,6 +195,46 @@ impl CoreProcess for ProcessCoreController {
 
     fn controller_endpoint(&self) -> Option<String> {
         None
+    }
+
+    async fn cleanup_orphaned(&self) -> std::result::Result<Option<u32>, PortError> {
+        let pid = match process::read_pid_file(&self.pid_file).await {
+            Ok(pid) => pid,
+            Err(MihomoError::NotFound(_)) => return Ok(None),
+            Err(error) => return Err(map_port_error(error)),
+        };
+        let owned_pid = *self
+            .owned_pid
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if owned_pid == Some(pid) {
+            return Ok(None);
+        }
+
+        if process::is_process_alive(pid) {
+            if !process::process_matches_binary(pid, &self.binary_path) {
+                return Err(PortError::Failed(format!(
+                    "refusing to kill unrelated process {pid} recorded in mihomo.pid"
+                )));
+            }
+            process::kill_process(pid).map_err(map_port_error)?;
+            log::warn!("reclaimed orphaned mihomo process {pid}");
+            for _ in 0..20 {
+                if !process::is_process_alive(pid) {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            if process::is_process_alive(pid) {
+                return Err(PortError::Failed(format!(
+                    "orphaned mihomo process {pid} did not exit after cleanup"
+                )));
+            }
+        }
+        process::remove_pid_file(&self.pid_file)
+            .await
+            .map_err(map_port_error)?;
+        Ok(Some(pid))
     }
 
     async fn pid(&self) -> Option<u32> {
@@ -275,7 +342,7 @@ mod process {
     use std::fs::OpenOptions;
     use std::path::{Path, PathBuf};
     use std::process::{Command, Stdio};
-    use sysinfo::{Pid, ProcessesToUpdate, System};
+    use sysinfo::{Pid, ProcessStatus, ProcessesToUpdate, System};
     use tokio::fs;
 
     #[cfg(target_os = "linux")]
@@ -544,7 +611,29 @@ mod process {
     pub fn is_process_alive(pid: u32) -> bool {
         let mut system = System::new();
         system.refresh_processes(ProcessesToUpdate::All, true);
-        system.process(Pid::from_u32(pid)).is_some()
+        system
+            .process(Pid::from_u32(pid))
+            .is_some_and(|process| {
+                !matches!(process.status(), ProcessStatus::Zombie | ProcessStatus::Dead)
+            })
+    }
+
+    pub fn process_matches_binary(pid: u32, binary: &Path) -> bool {
+        let mut system = System::new();
+        system.refresh_processes(ProcessesToUpdate::All, true);
+        let Some(process) = system.process(Pid::from_u32(pid)) else {
+            return false;
+        };
+        let Some(actual) = process.exe() else {
+            return false;
+        };
+        let Ok(expected) = std::fs::canonicalize(binary) else {
+            return false;
+        };
+        let Ok(actual) = std::fs::canonicalize(actual) else {
+            return false;
+        };
+        actual == expected
     }
 
     pub async fn read_pid_file(path: &Path) -> Result<u32> {
@@ -580,6 +669,7 @@ mod process {
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::process;
+    use infiltrator_ports::core_process::CoreProcess;
     use std::os::unix::process::CommandExt;
     use std::process::Command;
 
@@ -686,6 +776,87 @@ mod tests {
         assert_eq!(pid, 4242);
         process::remove_pid_file(&pid_file).await.expect("remove");
         assert!(process::read_pid_file(&pid_file).await.is_err());
+    }
+
+    /// A new host instance must reclaim a live core record left by a crashed
+    /// instance, but only after verifying that the PID belongs to the expected
+    /// executable. This is the non-Linux fallback for the kernel death signal.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn cleanup_orphaned_reclaims_a_live_expected_process() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut child = Command::new("sleep")
+            .arg("60")
+            .spawn()
+            .expect("spawn fake orphan");
+        let pid = child.id();
+        let binary = std::fs::read_link(format!("/proc/{pid}/exe"))
+            .expect("read fake orphan executable");
+        let pid_file = dir.path().join("mihomo.pid");
+        process::write_pid_file(&pid_file, pid)
+            .await
+            .expect("write orphan pid");
+
+        let controller = super::ProcessCoreController::with_pid_file(
+            binary,
+            dir.path().join("config.yaml"),
+            pid_file.clone(),
+        );
+        let reclaimed = CoreProcess::cleanup_orphaned(&controller)
+            .await
+            .expect("cleanup orphan");
+        assert_eq!(reclaimed, Some(pid));
+        let _ = child.wait();
+        assert!(!pid_file.exists());
+        assert!(!process::is_process_alive(pid));
+    }
+
+    #[tokio::test]
+    async fn cleanup_orphaned_removes_a_dead_pid_record() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let pid_file = dir.path().join("mihomo.pid");
+        process::write_pid_file(&pid_file, u32::MAX)
+            .await
+            .expect("write stale pid");
+        let controller = super::ProcessCoreController::with_pid_file(
+            dir.path().join("mihomo"),
+            dir.path().join("config.yaml"),
+            pid_file.clone(),
+        );
+        assert_eq!(
+            CoreProcess::cleanup_orphaned(&controller)
+                .await
+                .expect("cleanup stale pid"),
+            Some(u32::MAX)
+        );
+        assert!(!pid_file.exists());
+    }
+
+    #[tokio::test]
+    async fn cleanup_orphaned_refuses_an_unrelated_live_process() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut child = Command::new("sleep")
+            .arg("60")
+            .spawn()
+            .expect("spawn unrelated process");
+        let pid = child.id();
+        let pid_file = dir.path().join("mihomo.pid");
+        process::write_pid_file(&pid_file, pid)
+            .await
+            .expect("write unrelated pid");
+        let controller = super::ProcessCoreController::with_pid_file(
+            std::env::current_exe().expect("test executable"),
+            dir.path().join("config.yaml"),
+            pid_file.clone(),
+        );
+        let error = CoreProcess::cleanup_orphaned(&controller)
+            .await
+            .expect_err("unrelated process must be refused");
+        assert!(error.to_string().contains("unrelated process"));
+        assert!(process::is_process_alive(pid));
+        child.kill().expect("kill unrelated process");
+        let _ = child.wait();
+        let _ = process::remove_pid_file(&pid_file).await;
     }
 
     /// Compile-time guarantee that the pre_exec closure satisfies the

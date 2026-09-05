@@ -40,6 +40,9 @@ use std::time::Instant;
 pub struct RuntimeState {
     pub runtime: Option<Arc<dyn HostRuntime>>,
     pub runtime_generation: u64,
+    /// Session identity paired with `runtime_generation`; delayed UI results
+    /// must match both before changing a projection.
+    pub core_session_token: Option<infiltrator_contract::session::SessionToken>,
     pub lifecycle_token: u64,
     pub status: RuntimeStatus,
     pub proxies: HashMap<String, Proxy>,
@@ -376,6 +379,7 @@ impl AppState {
         }
         self.runtime.proxy_mode = snapshot.core.proxy_mode.map(|mode| mode.to_wire().to_owned());
         self.runtime.runtime_generation = snapshot.core.generation;
+        self.runtime.core_session_token = snapshot.core.session_token;
         self.diag.traffic = Some(infiltrator_domain::runtime::TrafficData {
             up: snapshot.core.upload_bps.max(0.0) as u64,
             down: snapshot.core.download_bps.max(0.0) as u64,

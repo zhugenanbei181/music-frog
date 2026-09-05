@@ -5057,6 +5057,7 @@ version = "0.30.0"
 dependencies = [
  "anyhow",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -5137,6 +5138,7 @@ dependencies = [
  "base64",
  "chrono",
  "flate2",
+ "infiltrator-contract",
  "regex",
  "ring",
  "serde",

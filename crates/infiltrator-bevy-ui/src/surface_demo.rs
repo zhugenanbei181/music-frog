@@ -25,6 +25,7 @@ pub(super) fn snapshot_from_overview(
             OverviewState::Unavailable => CoreLifecycle::Failed,
         },
         generation: 1,
+        session_token: None,
         revision: 1,
         proxy_mode: Some(overview.mode),
         core_version: overview.core_version.clone(),

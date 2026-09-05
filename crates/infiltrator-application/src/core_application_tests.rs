@@ -51,6 +51,45 @@ struct FakeReadiness {
     endpoint: Result<String, PortError>,
 }
 
+struct CleanupTrackingProcess {
+    running: AtomicBool,
+    cleanup_called: AtomicBool,
+}
+
+#[async_trait::async_trait]
+impl CoreProcess for CleanupTrackingProcess {
+    async fn start(&self) -> Result<(), PortError> {
+        assert!(
+            self.cleanup_called.load(Ordering::SeqCst),
+            "application must reconcile orphan state before starting"
+        );
+        self.running.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn stop(&self) -> Result<(), PortError> {
+        self.running.store(false, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn status(&self) -> Result<CoreLifecycle, PortError> {
+        Ok(if self.running.load(Ordering::SeqCst) {
+            CoreLifecycle::Running
+        } else {
+            CoreLifecycle::Stopped
+        })
+    }
+
+    fn controller_endpoint(&self) -> Option<String> {
+        Some("http://127.0.0.1:9090".to_string())
+    }
+
+    async fn cleanup_orphaned(&self) -> Result<Option<u32>, PortError> {
+        self.cleanup_called.store(true, Ordering::SeqCst);
+        Ok(Some(4242))
+    }
+}
+
 #[async_trait::async_trait]
 impl CoreReadiness for FakeReadiness {
     async fn probe(&self) -> Result<String, PortError> {
@@ -149,6 +188,11 @@ async fn lifecycle_commands_publish_only_contract_values() {
     );
     assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
     assert_eq!(app.snapshot().generation, 1);
+    let first_session = app
+        .snapshot()
+        .session_token
+        .expect("running core must expose a session token");
+    assert!(first_session.is_valid());
     assert_eq!(app.snapshot().revision, 2);
 
     let events = app.drain_events();
@@ -172,6 +216,16 @@ async fn lifecycle_commands_publish_only_contract_values() {
     );
     assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Stopped);
     assert_eq!(app.snapshot().generation, 1);
+    assert!(app.snapshot().session_token.is_none());
+
+    let restarted = app.execute(CommandIntent::StartCore).await;
+    assert!(matches!(restarted, CommandResult::Completed { .. }));
+    let second_session = app
+        .snapshot()
+        .session_token
+        .expect("restarted core must expose a session token");
+    assert_ne!(first_session, second_session);
+    assert_eq!(app.snapshot().generation, 2);
 }
 
 #[tokio::test]
@@ -264,6 +318,7 @@ async fn adopt_checks_host_status_without_starting_the_process() {
     assert!(app.adopt_if_running().await.expect("adopt succeeds"));
     assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
     assert_eq!(app.snapshot().generation, 1);
+    assert!(app.snapshot().session_token.is_some());
 }
 
 #[tokio::test]
@@ -310,6 +365,56 @@ async fn non_lifecycle_commands_use_the_installed_handler() {
             request_id: RequestId(1)
         }
     );
+}
+
+#[tokio::test]
+async fn stale_session_tokens_are_rejected_after_stop_and_restart() {
+    let app = application(
+        FakeProcess {
+            running: AtomicBool::new(false),
+            fail_start: false,
+            fail_stop: false,
+        },
+        Ok("http://127.0.0.1:9090".to_string()),
+    );
+
+    app.execute(CommandIntent::StartCore).await;
+    let old_token = app.session_token().expect("session token after start");
+    assert!(app.check_session(old_token).is_ok());
+
+    app.execute(CommandIntent::StopCore).await;
+    assert!(app.check_session(old_token).is_err());
+
+    app.execute(CommandIntent::StartCore).await;
+    let new_token = app.session_token().expect("session token after restart");
+    assert_ne!(old_token, new_token);
+    assert!(app.check_session(old_token).is_err());
+    assert!(app.check_session(new_token).is_ok());
+}
+
+#[tokio::test]
+async fn start_reconciles_orphan_state_before_spawning_a_new_session() {
+    let process = Arc::new(CleanupTrackingProcess {
+        running: AtomicBool::new(false),
+        cleanup_called: AtomicBool::new(false),
+    });
+    let app = CoreApplication::new_with_policy(
+        process.clone(),
+        Arc::new(FakeReadiness {
+            endpoint: Ok("http://127.0.0.1:9090".to_string()),
+        }),
+        ReadinessPolicy {
+            timeout: std::time::Duration::from_millis(100),
+            poll_interval: std::time::Duration::from_millis(1),
+        },
+        runtime(),
+    );
+
+    let result = app.execute(CommandIntent::StartCore).await;
+    assert!(matches!(result, CommandResult::Completed { .. }));
+    assert!(process.cleanup_called.load(Ordering::SeqCst));
+    assert_eq!(app.snapshot().generation, 1);
+    assert!(app.snapshot().session_token.is_some());
 }
 
 #[test]

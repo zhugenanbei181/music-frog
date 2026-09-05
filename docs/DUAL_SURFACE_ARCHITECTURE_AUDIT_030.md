@@ -74,6 +74,7 @@
 - 日志流和 Doctor 结果按事件/命令生命周期更新，不能由遥测轮询伪造成功数据。
 - Iced 仍可使用 Iced toolkit 自身的 executor；这不等于 application/domain 获得 Tokio 依赖。
 - 业务功能完成度继续以 [双端主控计划](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 的 `parity-ready` / `host-verified` 口径记账。
+- `DUAL-01-01` 已按 desktop Linux host evidence 完成；后续项目必须沿用同一 token/generation 和 orphan ownership 语义，不得重新引入页面私有生命周期。
 
 ## 0.30 架构收口顺序
 
@@ -128,6 +129,7 @@ shared contract/application behavior
 python3 scripts/quality/core-boundary-guard.py --mode enforce
 python3 scripts/quality/doc-link-guard.py --mode enforce
 python3 scripts/quality/import-guard.py --mode enforce
+python3 scripts/quality/session-guard.py --mode enforce
 ```
 
 这些命令只能证明底层依赖边界，没有证明双端页面已具备真实数据。因此它们必须与 live projection、双端行为测试和宿主 smoke 一起使用。

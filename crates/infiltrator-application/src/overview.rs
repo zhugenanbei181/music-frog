@@ -163,6 +163,7 @@ fn initial_snapshot() -> CoreSnapshot {
     CoreSnapshot {
         lifecycle: CoreLifecycle::Starting,
         generation: 0,
+        session_token: None,
         revision: 0,
         proxy_mode: Some(ProxyMode::Rule),
         core_version: None,
@@ -235,6 +236,7 @@ fn pump_loop(
                     CoreSnapshot {
                         lifecycle: sample.lifecycle,
                         generation: 1,
+                        session_token: None,
                         revision,
                         proxy_mode: mode,
                         core_version: version.clone(),
@@ -252,6 +254,7 @@ fn pump_loop(
                     CoreSnapshot {
                         lifecycle: CoreLifecycle::Failed,
                         generation: 1,
+                        session_token: None,
                         revision,
                         proxy_mode: mode,
                         core_version: version.clone(),

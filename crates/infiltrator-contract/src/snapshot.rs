@@ -1,5 +1,6 @@
 use crate::command::{CommandKind, ProxyMode, RequestId};
 use crate::error::Failure;
+use crate::session::SessionToken;
 use serde::{Deserialize, Serialize};
 
 /// Stable lifecycle vocabulary for REST, UI projection, and FFI.
@@ -19,6 +20,10 @@ pub enum CoreLifecycle {
 pub struct CoreSnapshot {
     pub lifecycle: CoreLifecycle,
     pub generation: u64,
+    /// Identity of the currently active core session. It is absent while
+    /// stopped; a new start always receives a fresh token.
+    #[serde(default)]
+    pub session_token: Option<SessionToken>,
     pub revision: u64,
     pub proxy_mode: Option<ProxyMode>,
     pub core_version: Option<String>,

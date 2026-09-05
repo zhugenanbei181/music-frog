@@ -202,8 +202,11 @@ async fn reload_and_check(
 ) -> Result<ApplyOutcome, String> {
     reloader.reload(path).await?;
     let generation = session.generation();
+    let session_token = session
+        .session_token()
+        .ok_or_else(|| "core session token is unavailable after reload".to_string())?;
     session
-        .wait_for_ready(generation, params.health_timeout)
+        .wait_for_ready_session(generation, session_token, params.health_timeout)
         .await
         .map_err(|err| format!("core unhealthy after reload: {err}"))?;
     Ok(ApplyOutcome {
@@ -220,8 +223,11 @@ async fn restart_and_check(
         .restart()
         .await
         .map_err(|error| ApplyError::Lifecycle(error.to_string()))?;
+    let session_token = session.session_token().ok_or_else(|| {
+        ApplyError::Lifecycle("core session token is unavailable after restart".to_string())
+    })?;
     session
-        .wait_for_ready(generation, params.restart_timeout)
+        .wait_for_ready_session(generation, session_token, params.restart_timeout)
         .await
         .map_err(|error| ApplyError::Lifecycle(error.to_string()))?;
     Ok(ApplyOutcome {
@@ -238,8 +244,11 @@ async fn start_and_check(
         .start()
         .await
         .map_err(|error| ApplyError::Lifecycle(error.to_string()))?;
+    let session_token = session.session_token().ok_or_else(|| {
+        ApplyError::Lifecycle("core session token is unavailable after start".to_string())
+    })?;
     session
-        .wait_for_ready(generation, params.restart_timeout)
+        .wait_for_ready_session(generation, session_token, params.restart_timeout)
         .await
         .map_err(|error| ApplyError::Lifecycle(error.to_string()))?;
     Ok(ApplyOutcome {
