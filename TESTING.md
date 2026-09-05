@@ -110,6 +110,8 @@ python3 scripts/quality/controller-auth-guard.py --mode enforce
 python3 scripts/quality/core-log-level-guard.py --mode enforce
 # DUAL-01-09 Windows Service / Linux Polkit / macOS launchd 服务模式守卫
 python3 scripts/quality/service-mode-guard.py --mode enforce
+# DUAL-01-10 SIGINT/SIGTERM/Ctrl+C 退出清理守卫
+python3 scripts/quality/process-exit-guard.py --mode enforce
 ```
 
 ---

@@ -33,6 +33,15 @@ pub fn run_with_surface_pump(pump: SurfacePump) -> iced::Result {
 }
 
 fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
+    let _termination_handler = match infiltrator_desktop::exit_cleanup::install() {
+        Ok(handler) => Some(handler),
+        Err(error) => {
+            eprintln!("failed to install process termination cleanup: {error}");
+            None
+        }
+    };
+    let exit_cleanup: std::sync::Arc<dyn Fn() + Send + Sync> =
+        std::sync::Arc::new(infiltrator_desktop::exit_cleanup::run_now);
     let log_dir = infiltrator_desktop::storage::home_dir().unwrap_or_else(|_| std::env::temp_dir());
     let _ = std::fs::create_dir_all(&log_dir);
     let crash_log_path = log_dir.join("infiltrator_crash.log");
@@ -52,6 +61,7 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
 
     panic::set_hook(Box::new(move |info| {
         let _ = infiltrator_desktop::proxy::apply_system_proxy(None);
+        infiltrator_desktop::exit_cleanup::run_now();
         let message = info.to_string();
         if let Ok(mut file) = File::create(&crash_log_path) {
             let _ = file.write_all(message.as_bytes());
@@ -65,6 +75,7 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
         if let Some(bridge) = surface_bridge.clone() {
             state.attach_surface_bridge(bridge);
         }
+        state.attach_exit_cleanup(exit_cleanup.clone());
         (state, task)
     };
 

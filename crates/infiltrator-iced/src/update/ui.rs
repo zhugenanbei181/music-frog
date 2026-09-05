@@ -233,6 +233,9 @@ impl AppState {
                 // Release the admin web server and the shared runtime snapshot
                 // before the loop unwinds.
                 self.shell.admin_server.shutdown();
+                if let Some(cleanup) = &self.exit_cleanup {
+                    cleanup();
+                }
                 let rt = self.take_app_runtime();
                 Task::perform(
                     async move {

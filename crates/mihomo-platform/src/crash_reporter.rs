@@ -12,6 +12,19 @@ type CleanupHookFn = Box<dyn Fn() + Send + Sync + 'static>;
 static CLEANUP_HOOKS: Mutex<Vec<(&'static str, CleanupHookFn)>> = Mutex::new(Vec::new());
 static CLEANUP_PERFORMED: AtomicBool = AtomicBool::new(false);
 
+/// Owns the signal-listener thread for one host process. Dropping it stops
+/// future cleanup dispatches; the process remains responsible for retaining
+/// the handle until its UI/host lifetime ends.
+pub struct TerminationHandler {
+    stop: Arc<AtomicBool>,
+}
+
+impl Drop for TerminationHandler {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+    }
+}
+
 /// Returns the uptime of the current process in seconds.
 pub fn get_uptime_secs() -> u64 {
     PROCESS_START_TIME
@@ -830,6 +843,37 @@ impl CleanExitHook {
         if let Ok(mut hooks) = CLEANUP_HOOKS.lock() {
             hooks.clear();
         }
+    }
+
+    /// Install SIGINT/SIGTERM (or Ctrl+C on Windows) handling without running
+    /// non-async-signal-safe cleanup inside the OS handler. The signal hook
+    /// only wakes a dedicated thread; that thread runs the registered hooks,
+    /// then exits with the conventional `128 + signal` status.
+    pub fn install_termination_handlers() -> anyhow::Result<TerminationHandler> {
+        #[cfg(unix)]
+        let mut signals = signal_hook::iterator::Signals::new([
+            signal_hook::consts::SIGINT,
+            signal_hook::consts::SIGTERM,
+        ])?;
+        #[cfg(windows)]
+        let mut signals = signal_hook::iterator::Signals::new([signal_hook::consts::SIGINT])?;
+        #[cfg(not(any(unix, windows)))]
+        let mut signals = signal_hook::iterator::Signals::new([signal_hook::consts::SIGINT])?;
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_for_thread = Arc::clone(&stop);
+        std::thread::Builder::new()
+            .name("infiltrator-exit-cleanup".to_owned())
+            .spawn(move || {
+                if let Some(signal) = signals.forever().next() {
+                    if stop_for_thread.load(Ordering::Acquire) {
+                        return;
+                    }
+                    CleanExitHook::run_emergency_cleanup();
+                    std::process::exit(128 + signal);
+                }
+            })?;
+        Ok(TerminationHandler { stop })
     }
 
     /// Installs a panic hook that automatically records a sanitized crash dump

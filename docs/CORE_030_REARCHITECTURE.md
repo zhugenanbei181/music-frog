@@ -21,6 +21,7 @@
 - [x] `DUAL-01-07`：bootstrap 缺少 controller secret 时用 OS CSPRNG 自动生成并写入 profile；EndpointSource 只向 outbound adapter 提供私有 secret，Mihomo REST/WebSocket 统一注入 Bearer header，shared surface 只发布脱敏认证状态。
 - [x] `DUAL-01-08`：CoreLogLevel 通过 RuntimeGateway 进入 live `PATCH /configs`，application 读回 Mihomo 配置后才报告成功；Iced 与 Bevy 均提供 debug/info/warn/error 控件和失败时的非乐观状态。
 - [x] `DUAL-01-09`：特权服务模式进入 ServiceModeSnapshot/Port/Application；desktop adapter 汇总 Windows Service、Linux Polkit、macOS launchd 状态和 post-check，Iced/Bevy 共享准备命令，未打包 helper 的 macOS 路径保持 typed unsupported。
+- [x] `DUAL-01-10`：CleanExitHook 提供 SIGINT/SIGTERM/Ctrl+C 的统一 termination handler；desktop host 注册代理/TUN 清理钩子，Iced 的正常退出、panic 与信号路径都复用同一清理入口，Bevy host 只消费 host 提供的 cleanup handle。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

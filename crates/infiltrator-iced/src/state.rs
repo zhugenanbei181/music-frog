@@ -373,6 +373,9 @@ pub struct AppState {
     /// Optional application pump bridge installed by a desktop/mobile
     /// composition root. `None` keeps the existing pull-free test/demo app.
     pub surface_bridge: Option<crate::surface::SurfaceBridge>,
+    /// Host-provided process-exit cleanup callback. The UI knows only this
+    /// zero-argument seam; OS signal and proxy/TUN details stay in the host.
+    pub exit_cleanup: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 impl AppState {
@@ -418,6 +421,10 @@ impl AppState {
     /// starts. The update loop only receives typed `Message` values afterward.
     pub fn attach_surface_bridge(&mut self, bridge: crate::surface::SurfaceBridge) {
         self.surface_bridge = Some(bridge);
+    }
+
+    pub fn attach_exit_cleanup(&mut self, cleanup: Arc<dyn Fn() + Send + Sync>) {
+        self.exit_cleanup = Some(cleanup);
     }
 
     /// Single choke point for `error_msg`: raw error chains can embed

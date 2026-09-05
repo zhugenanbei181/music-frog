@@ -31,6 +31,7 @@ on:
       - "scripts/quality/controller-auth-guard.py"
       - "scripts/quality/core-log-level-guard.py"
       - "scripts/quality/service-mode-guard.py"
+      - "scripts/quality/process-exit-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -57,6 +58,7 @@ on:
       - "scripts/quality/controller-auth-guard.py"
       - "scripts/quality/core-log-level-guard.py"
       - "scripts/quality/service-mode-guard.py"
+      - "scripts/quality/process-exit-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -144,6 +146,9 @@ jobs:
 
       - name: Enforce DUAL-01-09 service-mode semantics
         run: python3 scripts/quality/service-mode-guard.py --mode enforce
+
+      - name: Enforce DUAL-01-10 process-exit cleanup semantics
+        run: python3 scripts/quality/process-exit-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

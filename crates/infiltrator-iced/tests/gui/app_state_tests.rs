@@ -19,6 +19,8 @@ use infiltrator_domain::rules::RuleEntry;
 use infiltrator_shared::locales::{Lang, Localizer};
 use infiltrator_domain::runtime::TrafficData;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[test]
 fn test_route_navigation() {
@@ -571,4 +573,17 @@ fn connections_pagination_windows_and_clamps() {
     let _ = state.update(Message::ConnectionsNextPage);
     let _ = state.update(Message::UpdateRuntimeConnectionSort("host_asc".into()));
     assert_eq!(state.diag.connections_page, 0);
+}
+
+#[test]
+fn process_exit_uses_the_host_cleanup_callback_before_shutdown_task() {
+    let (mut state, _) = AppState::new();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let callback_calls = Arc::clone(&calls);
+    state.attach_exit_cleanup(Arc::new(move || {
+        callback_calls.fetch_add(1, Ordering::SeqCst);
+    }));
+
+    let _ = state.update(Message::Exit);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
 }

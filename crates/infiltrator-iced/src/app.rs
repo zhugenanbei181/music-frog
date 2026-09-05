@@ -400,6 +400,7 @@ impl AppState {
             app_routing: Default::default(),
             surface: Default::default(),
             surface_bridge: None,
+            exit_cleanup: None,
         }
     }
 

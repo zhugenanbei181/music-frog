@@ -5,6 +5,7 @@ pub mod crash;
 pub mod composition;
 pub mod deadlock_detector;
 pub mod display_adapter;
+pub mod exit_cleanup;
 pub mod editor;
 pub mod graceful_reboot;
 pub mod host;
