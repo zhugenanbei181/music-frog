@@ -23,6 +23,7 @@ on:
       - "scripts/quality/core-boundary-guard.py"
       - "scripts/quality/parity-guard.py"
       - "scripts/quality/session-guard.py"
+      - "scripts/quality/hot-reload-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -41,6 +42,7 @@ on:
       - "scripts/quality/core-boundary-guard.py"
       - "scripts/quality/parity-guard.py"
       - "scripts/quality/session-guard.py"
+      - "scripts/quality/hot-reload-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -104,6 +106,9 @@ jobs:
 
       - name: Enforce DUAL-01-01 session semantics
         run: python3 scripts/quality/session-guard.py --mode enforce
+
+      - name: Enforce DUAL-01-02 hot reload semantics
+        run: python3 scripts/quality/hot-reload-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

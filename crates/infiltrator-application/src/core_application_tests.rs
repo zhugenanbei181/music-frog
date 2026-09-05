@@ -3,6 +3,7 @@ use infiltrator_contract::command::{CommandResult, ProxyMode};
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
@@ -415,6 +416,34 @@ async fn start_reconciles_orphan_state_before_spawning_a_new_session() {
     assert!(process.cleanup_called.load(Ordering::SeqCst));
     assert_eq!(app.snapshot().generation, 1);
     assert!(app.snapshot().session_token.is_some());
+}
+
+#[tokio::test]
+async fn hot_reload_fences_to_the_current_session_without_bumping_generation() {
+    let app = application(
+        FakeProcess {
+            running: AtomicBool::new(false),
+            fail_start: false,
+            fail_stop: false,
+        },
+        Ok("http://127.0.0.1:9090".to_string()),
+    );
+    app.execute(CommandIntent::StartCore).await;
+    let before = app.snapshot();
+    let token = CoreLifecyclePort::begin_reload(&app).expect("begin reload");
+    assert_eq!(Some(token), before.session_token);
+    assert_eq!(app.snapshot().generation, before.generation);
+    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Ready);
+
+    CoreLifecyclePort::complete_reload(&app, token).expect("complete reload");
+    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
+    assert_eq!(app.snapshot().generation, before.generation);
+
+    let token = CoreLifecyclePort::begin_reload(&app).expect("begin second reload");
+    CoreLifecyclePort::fail_reload(&app, token, "invalid config".to_string())
+        .expect("record reload failure");
+    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
+    assert_eq!(app.snapshot().session_token, Some(token));
 }
 
 #[test]

@@ -171,7 +171,14 @@ fn unsupported(reason: &'static str) -> Availability {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_application::core_application::{CoreApplication, ReadinessPolicy};
+    use infiltrator_contract::command::{CommandIntent, CommandResult};
+    use infiltrator_ports::application_runtime::{
+        ApplicationFuture, ApplicationRuntime, ApplicationSleep,
+    };
+    use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
     use infiltrator_ports::core_process::CoreProcess;
+    use infiltrator_ports::core_process::CoreReadiness;
     use std::sync::Mutex;
 
     struct FakeBridge {
@@ -250,5 +257,58 @@ mod tests {
             capabilities.availability(Capability::Tun),
             Availability::Unsupported { .. }
         ));
+    }
+
+    struct ReadyProbe;
+
+    #[async_trait]
+    impl CoreReadiness for ReadyProbe {
+        async fn probe(&self) -> Result<String, PortError> {
+            Ok("http://127.0.0.1:9090".to_owned())
+        }
+    }
+
+    struct TokioTestRuntime(tokio::runtime::Runtime);
+
+    impl ApplicationRuntime for TokioTestRuntime {
+        fn block_on(&self, future: ApplicationFuture) {
+            self.0.block_on(future);
+        }
+
+        fn sleep(&self, duration: std::time::Duration) -> ApplicationSleep<'_> {
+            Box::pin(tokio::time::sleep(duration))
+        }
+    }
+
+    #[tokio::test]
+    async fn ios_host_composition_preserves_hot_reload_session_identity() {
+        let adapter = IosHostAdapter::new(FakeBridge {
+            running: Mutex::new(false),
+        });
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+        let app = CoreApplication::new_with_policy(
+            Arc::new(adapter),
+            Arc::new(ReadyProbe),
+            ReadinessPolicy {
+                timeout: std::time::Duration::from_secs(1),
+                poll_interval: std::time::Duration::from_millis(1),
+            },
+            Arc::new(TokioTestRuntime(runtime)),
+        );
+
+        assert!(matches!(
+            app.execute(CommandIntent::StartCore).await,
+            CommandResult::Completed { .. }
+        ));
+        let before = app.snapshot();
+        let token = CoreLifecyclePort::begin_reload(&app).expect("begin iOS reload");
+        CoreLifecyclePort::complete_reload(&app, token).expect("complete iOS reload");
+        let after = app.snapshot();
+        assert_eq!(after.generation, before.generation);
+        assert_eq!(after.session_token, before.session_token);
+        assert_eq!(after.lifecycle, CoreLifecycle::Running);
     }
 }

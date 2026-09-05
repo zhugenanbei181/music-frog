@@ -305,6 +305,7 @@ async fn hot_reload_success_keeps_generation_and_updates_file() {
         .wait_for_ready(generation, Duration::from_secs(5))
         .await
         .expect("ready");
+    let session_token = f.session.session_token().expect("session token");
 
     let outcome = apply_current_profile(
         &f.session,
@@ -318,6 +319,7 @@ async fn hot_reload_success_keeps_generation_and_updates_file() {
 
     assert_eq!(outcome.method, ApplyMethod::HotReload);
     assert_eq!(outcome.generation, generation);
+    assert_eq!(outcome.session_token, session_token);
     assert_eq!(file_content(&f.config).await, NEW);
     assert_eq!(f.session.status(), CoreLifecycle::Ready);
     assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 1);
@@ -332,6 +334,7 @@ async fn reload_failure_falls_back_to_restart() {
         .await
         .expect("ready");
     let before = f.session.generation();
+    let old_session = f.session.session_token().expect("old session token");
 
     let outcome = apply_current_profile(
         &f.session,
@@ -345,6 +348,7 @@ async fn reload_failure_falls_back_to_restart() {
 
     assert_eq!(outcome.method, ApplyMethod::Restart);
     assert!(outcome.generation > before);
+    assert_ne!(outcome.session_token, old_session);
     assert_eq!(file_content(&f.config).await, NEW);
     assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 1);
 }

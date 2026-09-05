@@ -75,6 +75,7 @@
 - Iced 仍可使用 Iced toolkit 自身的 executor；这不等于 application/domain 获得 Tokio 依赖。
 - 业务功能完成度继续以 [双端主控计划](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 的 `parity-ready` / `host-verified` 口径记账。
 - `DUAL-01-01` 已按 desktop Linux host evidence 完成；后续项目必须沿用同一 token/generation 和 orphan ownership 语义，不得重新引入页面私有生命周期。
+- `DUAL-01-02` 已完成 desktop Linux、Android 和 iOS host composition contract evidence：热重载不创建新 generation，失败恢复到同一 session 的 Running；发布版本仍需连接真实 controller 做 smoke。
 
 ## 0.30 架构收口顺序
 

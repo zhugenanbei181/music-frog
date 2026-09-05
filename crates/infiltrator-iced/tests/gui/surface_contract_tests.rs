@@ -63,6 +63,17 @@ fn stale_session_snapshot_is_rejected_even_with_a_larger_revision() {
     assert_eq!(model.revision(), 1);
 }
 
+#[test]
+fn hot_reload_snapshot_keeps_the_session_identity_and_generation() {
+    let mut model = SurfaceModel::default();
+    assert!(model.apply(session_snapshot(2, 4, 40)));
+    assert!(model.apply(session_snapshot(3, 4, 40)));
+    let latest = model.latest().expect("hot reload snapshot");
+    assert_eq!(latest.revision, 3);
+    assert_eq!(latest.generation, 4);
+    assert_eq!(latest.core.session_token.map(|token| token.value()), Some(40));
+}
+
 struct TokioRuntime(tokio::runtime::Runtime);
 
 impl ApplicationRuntime for TokioRuntime {

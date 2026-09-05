@@ -155,7 +155,7 @@ impl MihomoClient {
             req = req.json(&json!({ "path": path }));
         }
         let req = self.add_auth(req);
-        req.send().await?;
+        req.send().await?.error_for_status()?;
         Ok(())
     }
 
@@ -735,6 +735,43 @@ mod tests {
 
         mock.assert_async().await;
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_reload_config_uses_force_query_path_and_auth() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("PUT", "/configs")
+            .match_query("force=true")
+            .match_header("authorization", "Bearer test-secret")
+            .match_body(mockito::Matcher::JsonString(
+                json!({ "path": "/tmp/profile.yaml" }).to_string(),
+            ))
+            .with_status(204)
+            .create_async()
+            .await;
+
+        let client = MihomoClient::new(&server.url(), Some("test-secret".to_string())).unwrap();
+        client
+            .reload_config(Some("/tmp/profile.yaml"))
+            .await
+            .expect("mihomo hot reload request");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_reload_config_surfaces_controller_rejection() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("PUT", "/configs")
+            .match_query("force=true")
+            .with_status(400)
+            .create_async()
+            .await;
+
+        let client = MihomoClient::new(&server.url(), None).unwrap();
+        assert!(client.reload_config(None).await.is_err());
+        mock.assert_async().await;
     }
 
     #[tokio::test]

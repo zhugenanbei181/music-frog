@@ -189,3 +189,37 @@ fn stale_session_snapshot_cannot_replace_a_newer_bevy_projection() {
         Some(SessionToken::new(40))
     );
 }
+
+#[test]
+fn hot_reload_snapshot_keeps_bevy_generation_and_session_identity() {
+    let source = DemoSurfaceSource::running();
+    let mut snapshot = source.surface_snapshot();
+    snapshot.origin = SurfaceOrigin::Live;
+    snapshot.generation = 4;
+    snapshot.core.generation = 4;
+    snapshot.core.session_token = Some(SessionToken::new(40));
+    snapshot.revision = 10;
+    snapshot.core.revision = 10;
+
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins(ShellPlugin::new_with_width(LightDark::Dark, 1180.0));
+    app.add_plugins(PagesPlugin::new_surface(StaticSurface {
+        snapshot: snapshot.clone(),
+    }));
+    app.update();
+
+    snapshot.revision = 11;
+    snapshot.core.revision = 11;
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(snapshot));
+    app.update();
+    let latest = &app
+        .world()
+        .resource::<infiltrator_bevy_ui::surface::LatestSurfaceSnapshot>()
+        .0;
+    assert_eq!(latest.revision, 11);
+    assert_eq!(latest.generation, 4);
+    assert_eq!(latest.core.session_token, Some(SessionToken::new(40)));
+}

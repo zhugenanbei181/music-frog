@@ -28,6 +28,7 @@ use yaml_rust2::{Yaml, YamlLoader};
 
 use infiltrator_domain::yaml_edit::SourceDoc;
 use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::session::SessionToken;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
@@ -75,6 +76,9 @@ pub struct ApplyOutcome {
     pub method: ApplyMethod,
     /// Session generation the caller must capture for subsequent work.
     pub generation: u64,
+    /// Session identity paired with the generation. A hot reload keeps it;
+    /// a restart returns the newly-created one.
+    pub session_token: SessionToken,
 }
 
 /// Errors with transaction semantics. `RolledBack` means the new config is
@@ -200,18 +204,29 @@ async fn reload_and_check(
     path: &Path,
     params: &ApplyParams,
 ) -> Result<ApplyOutcome, String> {
-    reloader.reload(path).await?;
-    let generation = session.generation();
     let session_token = session
-        .session_token()
-        .ok_or_else(|| "core session token is unavailable after reload".to_string())?;
-    session
+        .begin_reload()
+        .map_err(|error| format!("core cannot begin hot reload: {error}"))?;
+    if let Err(error) = reloader.reload(path).await {
+        let _ = session.fail_reload(session_token, error.clone());
+        return Err(error);
+    }
+    let generation = session.generation();
+    if let Err(error) = session
         .wait_for_ready_session(generation, session_token, params.health_timeout)
         .await
-        .map_err(|err| format!("core unhealthy after reload: {err}"))?;
+    {
+        let cause = format!("core unhealthy after reload: {error}");
+        let _ = session.fail_reload(session_token, cause.clone());
+        return Err(cause);
+    }
+    session
+        .complete_reload(session_token)
+        .map_err(|error| format!("core reload completion was rejected: {error}"))?;
     Ok(ApplyOutcome {
         method: ApplyMethod::HotReload,
         generation,
+        session_token,
     })
 }
 
@@ -233,6 +248,7 @@ async fn restart_and_check(
     Ok(ApplyOutcome {
         method: ApplyMethod::Restart,
         generation,
+        session_token,
     })
 }
 
@@ -254,6 +270,7 @@ async fn start_and_check(
     Ok(ApplyOutcome {
         method: ApplyMethod::Restart,
         generation,
+        session_token,
     })
 }
 

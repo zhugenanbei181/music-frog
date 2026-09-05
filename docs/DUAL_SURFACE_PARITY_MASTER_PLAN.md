@@ -9,6 +9,7 @@
 | 项目 | 状态 | 已闭环内容 | 证据边界 |
 | --- | --- | --- | --- |
 | `DUAL-01-01` 多代际内核会话状态机 | `host-verified`（desktop Linux） | `SessionToken` + generation 进入 domain reducer、CoreSnapshot、application/lifecycle port；旧会话事件和两端旧 surface snapshot 均拒绝；desktop PID 记录按可执行文件校验后回收，Linux PDEATHSIG/Windows Job Object 继续兜底 | contract/domain/application/platform、Iced/Bevy session-aware 测试；Android/iOS 由 native host 持有进程，`cleanup_orphaned` 明确为安全 no-op |
+| `DUAL-01-02` 平滑配置热重载 | `host-verified`（desktop Linux + Android/iOS host composition） | `PUT /configs?force=true` 严格检查 HTTP 状态；application 以同一 `SessionToken` 进入/完成/失败 reload 事务，generation 不变；失败自动回退 restart；Iced/Bevy 均只接受同代同会话的新 revision | contract/domain/application/ports/core、Mihomo API、Iced/Bevy headless、Android/iOS host composition 测试；真实 controller/发行版打包 smoke 仍按发布流水线复核 |
 
 ---
 

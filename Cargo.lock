@@ -5209,6 +5209,7 @@ name = "infiltrator-ios"
 version = "0.30.0"
 dependencies = [
  "async-trait",
+ "infiltrator-application",
  "infiltrator-contract",
  "infiltrator-ports",
  "tokio",

@@ -94,6 +94,8 @@ python3 scripts/quality/test-layout-guard.py
 python3 scripts/quality/line-guard.py --mode report
 # DUAL-01-01 会话 token / generation / orphan ownership 守卫
 python3 scripts/quality/session-guard.py --mode enforce
+# DUAL-01-02 配置热重载事务、双 UI 与移动 host composition 守卫
+python3 scripts/quality/hot-reload-guard.py --mode enforce
 ```
 
 ---

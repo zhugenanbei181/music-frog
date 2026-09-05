@@ -617,6 +617,49 @@ impl CoreLifecyclePort for CoreApplication {
         }
     }
 
+    fn begin_reload(&self) -> Result<SessionToken, infiltrator_ports::error::PortError> {
+        let CoreState::Running {
+            session_token, ..
+        } = self.current_state()
+        else {
+            return Err(infiltrator_ports::error::PortError::Failed(
+                "core is not running for hot reload".to_string(),
+            ));
+        };
+        self.apply_domain_event(
+            infiltrator_domain::core_state::CoreEvent::ReloadRequested { session_token },
+        );
+        Ok(session_token)
+    }
+
+    fn complete_reload(
+        &self,
+        session_token: SessionToken,
+    ) -> Result<(), infiltrator_ports::error::PortError> {
+        self.check_session(session_token)
+            .map_err(|failure| infiltrator_ports::error::PortError::Failed(failure.message))?;
+        self.apply_domain_event(
+            infiltrator_domain::core_state::CoreEvent::ReloadSuccess { session_token },
+        );
+        Ok(())
+    }
+
+    fn fail_reload(
+        &self,
+        session_token: SessionToken,
+        error: String,
+    ) -> Result<(), infiltrator_ports::error::PortError> {
+        self.check_session(session_token)
+            .map_err(|failure| infiltrator_ports::error::PortError::Failed(failure.message))?;
+        self.apply_domain_event(
+            infiltrator_domain::core_state::CoreEvent::ReloadFailed {
+                session_token,
+                error,
+            },
+        );
+        Ok(())
+    }
+
     async fn wait_for_ready(
         &self,
         generation: u64,

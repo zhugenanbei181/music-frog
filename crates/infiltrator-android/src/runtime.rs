@@ -215,7 +215,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_application::core_application::{CoreApplication, ReadinessPolicy};
+    use infiltrator_contract::command::{CommandIntent, CommandResult};
+    use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+    use infiltrator_ports::core_process::CoreReadiness;
     use std::collections::HashMap;
+    use std::sync::Arc;
     use std::sync::Mutex;
 
     struct TestBridge {
@@ -363,5 +368,41 @@ mod tests {
             runtime.data_dirs().cache_dir(),
             Some(PathBuf::from("cache"))
         );
+    }
+
+    struct ReadyProbe;
+
+    #[async_trait]
+    impl CoreReadiness for ReadyProbe {
+        async fn probe(&self) -> std::result::Result<String, PortError> {
+            Ok("http://127.0.0.1:9090".to_string())
+        }
+    }
+
+    #[tokio::test]
+    async fn android_host_composition_preserves_hot_reload_session_identity() {
+        let adapter = AndroidBridgeAdapter::new(TestBridge::new());
+        let runtime = infiltrator_composition::tokio_application_runtime().expect("runtime");
+        let app = CoreApplication::new_with_policy(
+            Arc::new(adapter),
+            Arc::new(ReadyProbe),
+            ReadinessPolicy {
+                timeout: std::time::Duration::from_secs(1),
+                poll_interval: std::time::Duration::from_millis(1),
+            },
+            runtime,
+        );
+
+        assert!(matches!(
+            app.execute(CommandIntent::StartCore).await,
+            CommandResult::Completed { .. }
+        ));
+        let before = app.snapshot();
+        let token = CoreLifecyclePort::begin_reload(&app).expect("begin Android reload");
+        CoreLifecyclePort::complete_reload(&app, token).expect("complete Android reload");
+        let after = app.snapshot();
+        assert_eq!(after.generation, before.generation);
+        assert_eq!(after.session_token, before.session_token);
+        assert_eq!(after.lifecycle, CoreLifecycle::Running);
     }
 }

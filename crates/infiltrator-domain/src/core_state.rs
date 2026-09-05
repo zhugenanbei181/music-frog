@@ -62,7 +62,6 @@ pub enum CoreEvent {
     },
     ReloadSuccess {
         session_token: SessionToken,
-        endpoint: String,
     },
     ReloadFailed {
         session_token: SessionToken,
@@ -175,17 +174,16 @@ impl CoreStateMachine {
                 CoreState::Reloading {
                     generation,
                     session_token,
-                    ..
+                    endpoint,
                 },
                 CoreEvent::ReloadSuccess {
                     session_token: event_token,
-                    endpoint,
                 },
             ) if session_token == &event_token => (
                 CoreState::Running {
                     generation: *generation,
                     session_token: *session_token,
-                    endpoint,
+                    endpoint: endpoint.clone(),
                 },
                 None,
             ),
@@ -374,7 +372,6 @@ mod tests {
             &state,
             CoreEvent::ReloadSuccess {
                 session_token,
-                endpoint: "http://127.0.0.1:8081".to_string(),
             },
         );
         assert_eq!(
@@ -382,7 +379,7 @@ mod tests {
             CoreState::Running {
                 generation: 1,
                 session_token,
-                endpoint: "http://127.0.0.1:8081".to_string(),
+                endpoint: "http://127.0.0.1:8080".to_string(),
             }
         );
 

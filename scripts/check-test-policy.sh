@@ -40,8 +40,10 @@ require_text ".github/workflows/test.yml" "bash scripts/test.sh"
 require_text ".github/workflows/test.yml" "line-guard.py"
 require_text "scripts/test.sh" "parity-guard.py"
 require_text "scripts/test.sh" "session-guard.py"
+require_text "scripts/test.sh" "hot-reload-guard.py"
 require_text ".github/workflows/test.yml" "parity-guard.py"
 require_text ".github/workflows/test.yml" "session-guard.py"
+require_text ".github/workflows/test.yml" "hot-reload-guard.py"
 require_text "TESTING.md" "line-guard.py"
 
 if [[ "$failed" -ne 0 ]]; then
