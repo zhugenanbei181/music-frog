@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::error::Failure;
+use crate::tun::TunStack;
 
 /// Correlates an asynchronous command with its result and events.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -99,6 +100,7 @@ pub enum CommandIntent {
     PrepareServiceMode,
     RepairPortConflicts,
     SetCoreLogLevel { level: CoreLogLevel },
+    SetTunStack { stack: TunStack },
     SwitchProfile { profile_id: String },
     SetProxyMode { mode: ProxyMode },
     SelectProxyNode { group: String, node: String },
@@ -166,7 +168,7 @@ impl CommandIntent {
             Self::StartCore | Self::StopCore | Self::RestartCore => CommandKind::CoreLifecycle,
             Self::PrepareServiceMode => CommandKind::Network,
             Self::RepairPortConflicts => CommandKind::Network,
-            Self::SetCoreLogLevel { .. } => CommandKind::Runtime,
+            Self::SetCoreLogLevel { .. } | Self::SetTunStack { .. } => CommandKind::Runtime,
             Self::SwitchProfile { .. }
             | Self::UpdateProfile { .. }
             | Self::DeleteProfile { .. }

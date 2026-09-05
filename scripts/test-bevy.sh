@@ -37,3 +37,4 @@ python3 "$repo_root/scripts/quality/core-resource-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/offline-startup-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/lifecycle-sync-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/lifecycle-matrix-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/tun-stack-guard.py" --mode enforce

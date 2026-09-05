@@ -9,7 +9,8 @@ use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ui::BorderRadius;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, FlexDirection, FlexWrap, JustifyContent, Node, UiRect, Val,
+    percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -28,6 +29,7 @@ use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
 use infiltrator_contract::offline_startup::{
     LocalAssetStatus, OfflineStartupSnapshot, OfflineStartupState, StartupRemoteDependency,
 };
+use infiltrator_contract::tun::TunStack;
 
 /// Marker for text lines updated by the Settings projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -65,6 +67,66 @@ pub enum SettingsLineKind {
     PortConflicts,
     /// Core memory/CPU and automatic GC state.
     CoreResources,
+}
+
+/// Marker carrying the live Mihomo log-level choice.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CoreLogLevelButton {
+    pub level: CoreLogLevel,
+}
+
+/// Marker carrying the shared TUN stack choice.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TunStackButton {
+    pub stack: TunStack,
+}
+
+/// Live availability for a TUN stack control; current LWIP stays disabled.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TunStackButtonAvailability(pub bool);
+
+/// Snapshot of the shared Settings domain used by both scene and observer.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SettingsProjection {
+    pub autostart: bool,
+    pub system_proxy: bool,
+    pub mixed_port: u16,
+    pub allow_lan: bool,
+    pub tun_enabled: bool,
+    pub tun_stack: String,
+    pub controller_port: u16,
+    pub log_level: String,
+    pub core_channel: String,
+    pub core_versions: CoreVersionSnapshot,
+    pub core_integrity: CoreArtifactVerification,
+    pub controller_auth: ControllerAuthSnapshot,
+    pub service_mode: ServiceModeSnapshot,
+    pub port_conflicts: PortConflictSnapshot,
+    pub core_resources: CoreResourceSnapshot,
+    pub offline_startup: OfflineStartupSnapshot,
+}
+
+impl SettingsProjection {
+    pub fn demo() -> Self {
+        Self {
+            autostart: true,
+            system_proxy: true,
+            mixed_port: 7890,
+            allow_lan: false,
+            tun_enabled: true,
+            tun_stack: "gVisor (高性能用户态协议栈)".to_owned(),
+            controller_port: 9090,
+            log_level: "info".to_owned(),
+            core_channel: "stable".to_owned(),
+            core_versions: CoreVersionSnapshot::default(),
+            core_integrity: Default::default(),
+            controller_auth: Default::default(),
+            service_mode: Default::default(),
+            port_conflicts: Default::default(),
+            core_resources: Default::default(),
+            offline_startup: Default::default(),
+        }
+    }
 }
 
 pub(super) fn controller_settings_card(
@@ -113,9 +175,8 @@ pub(super) fn controller_settings_card(
 }
 
 use super::{
-    CoreLogLevelButton, CoreRollbackAvailability, CoreRollbackButton, CoreRollbackButtonLabel,
-    ServiceModeAvailability, ServiceModeButton, ServiceModeButtonLabel, SettingsProjection,
-    PortConflictButton,
+    CoreRollbackAvailability, CoreRollbackButton, CoreRollbackButtonLabel, PortConflictButton,
+    ServiceModeAvailability, ServiceModeButton, ServiceModeButtonLabel,
 };
 
 pub(super) fn core_rollback_row_scene(
@@ -311,6 +372,66 @@ fn core_log_level_button_scene(
         Button
         Children [
             ( Text({ level.as_str().to_uppercase() }) TextRole(Role::Caption) ),
+        ]
+    }
+}
+
+pub(super) fn tun_stack_selector_scene(
+    projection: &SettingsProjection,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let active = TunStack::parse(&projection.tun_stack);
+    let buttons: Vec<Box<dyn Scene>> = TunStack::ALL
+        .into_iter()
+        .map(|stack| Box::new(tun_stack_button_scene(stack, active, palette)) as Box<dyn Scene>)
+        .collect();
+    let controls: Box<dyn Scene> = Box::new(bsn! {
+        Node {
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(space::S4),
+            flex_wrap: FlexWrap::Wrap,
+            row_gap: Val::Px(space::S4),
+        }
+        Children [ { buttons } ]
+    });
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(space::S4),
+        }
+        Children [
+            ( Text({ "TUN 协议栈 (Protocol Stack)".to_owned() }) TextRole(Role::Body) ),
+            ( { controls } ),
+        ]
+    })
+}
+
+fn tun_stack_button_scene(
+    stack: TunStack,
+    active: Option<TunStack>,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let available = stack.is_live_supported();
+    let label = if available {
+        stack.label().to_owned()
+    } else {
+        "LWIP (参考 / Reference-only)".to_owned()
+    };
+    bsn! {
+        Node {
+            min_height: px(palette.control_height_px),
+            padding: UiRect::horizontal(Val::Px(space::S8)),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ if available && active == Some(stack) { palette.accent } else { palette.surface_elevated } })
+        TunStackButton { stack }
+        TunStackButtonAvailability(available)
+        Button
+        Children [
+            ( Text(label) TextRole(Role::Caption) ),
         ]
     }
 }

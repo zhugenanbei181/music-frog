@@ -104,6 +104,10 @@ def check_page_vocabulary(violations: list[str]) -> None:
         else:
             page_text = bevy_page.read_text(encoding="utf-8")
             projection_decl = page_text if name != "Overview" else bevy_surface + projection_text
+            if name == "Settings":
+                settings_core = ROOT / "crates/infiltrator-bevy-ui/src/pages/settings_core.rs"
+                if settings_core.exists():
+                    projection_decl += settings_core.read_text(encoding="utf-8")
             if not re.search(rf"pub struct {name}Projection\b", projection_decl):
                 fail(violations, f"Bevy page projection missing: {name}")
             if not re.search(rf"pub struct {name}ProjectionUpdated\b", page_text):

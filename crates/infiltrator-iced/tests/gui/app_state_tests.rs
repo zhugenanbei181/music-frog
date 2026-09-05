@@ -499,6 +499,7 @@ fn test_p0_runtime_patch_failure_restores_the_previous_snapshot() {
         proxy_mode: Some("rule".to_string()),
         tun_enabled: Some(false),
         tun_stack: "gvisor".to_string(),
+        tun_stack_selector: "gvisor".to_string(),
         tun_auto_route: true,
         tun_strict_route: false,
         sniffer_enabled: true,

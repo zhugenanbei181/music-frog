@@ -28,7 +28,7 @@ pub fn core_application(
     let application = CoreApplication::new_with_overview(
         service.core_process(),
         std::sync::Arc::new(ControllerReadiness::new(controller_url, secret)),
-        std::sync::Arc::new(ControllerOverviewReader::new(client)),
+        std::sync::Arc::new(ControllerOverviewReader::new(client.clone())),
         runtime,
     );
     // Keep the Bevy command seam live in the desktop composition: version
@@ -44,6 +44,7 @@ pub fn core_application(
     ));
     application.install_command_handler(std::sync::Arc::new(
         CommandApplication::new()
+            .with_runtime(std::sync::Arc::new(client.clone()))
             .with_versions(versions)
             .with_service_mode(service_mode)
             .with_port_conflicts(port_conflicts),

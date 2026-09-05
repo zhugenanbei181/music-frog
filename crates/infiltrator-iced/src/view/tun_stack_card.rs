@@ -8,6 +8,7 @@ use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
+use infiltrator_contract::tun::TunStack;
 
 pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let tun_cfg = &state.runtime.tun_stack_config;
@@ -26,27 +27,30 @@ pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     .style(style_accent)
     .on_press_maybe((!tun_cfg.is_probing_mtu).then_some(Message::ProbeOptimalMtu));
 
-    let active_stack = if tun_cfg.active_stack.is_empty() {
-        "gvisor"
-    } else {
-        &tun_cfg.active_stack
-    };
+    let active_stack = TunStack::parse(&tun_cfg.active_stack).unwrap_or_default();
 
     let stack_pills = row![
         button(text(lang.tr("tun_stack_gvisor").to_string()).size(11))
             .padding([4, 8])
-            .style(if active_stack == "gvisor" { style_accent } else { style_ghost })
-            .on_press(Message::SelectTunStack("gvisor".to_string())),
+            .style(if active_stack == TunStack::Gvisor { style_accent } else { style_ghost })
+            .on_press(Message::SetTunStack(TunStack::Gvisor.as_str().to_owned())),
         Space::new().width(theme::SP_XS),
         button(text(lang.tr("tun_stack_system").to_string()).size(11))
             .padding([4, 8])
-            .style(if active_stack == "system" { style_accent } else { style_ghost })
-            .on_press(Message::SelectTunStack("system".to_string())),
+            .style(if active_stack == TunStack::System { style_accent } else { style_ghost })
+            .on_press(Message::SetTunStack(TunStack::System.as_str().to_owned())),
         Space::new().width(theme::SP_XS),
         button(text(lang.tr("tun_stack_mixed").to_string()).size(11))
             .padding([4, 8])
-            .style(if active_stack == "mixed" { style_accent } else { style_ghost })
-            .on_press(Message::SelectTunStack("mixed".to_string())),
+            .style(if active_stack == TunStack::Mixed { style_accent } else { style_ghost })
+            .on_press(Message::SetTunStack(TunStack::Mixed.as_str().to_owned())),
+        Space::new().width(theme::SP_XS),
+        button(text("LWIP (Reference-only)").size(11))
+            .padding([4, 8])
+            .style(style_ghost)
+            .on_press_maybe(TunStack::Lwip
+                .is_live_supported()
+                .then_some(Message::SetTunStack(TunStack::Lwip.as_str().to_owned()))),
     ]
     .align_y(Alignment::Center);
 
@@ -58,7 +62,7 @@ pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
 
     let mtu_row = row![
         text(format!("Negotiated MTU: {mtu_val} bytes")).size(12).font(MONO).width(Length::Fill),
-        badge(format!("Driver: {active_stack}"), BadgeKind::Accent),
+        badge(format!("Driver: {}", active_stack.as_str()), BadgeKind::Accent),
     ]
     .align_y(Alignment::Center);
 

@@ -9,6 +9,7 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::ApplyTransactionStage;
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_contract::tun::{TunStack, TunStackAvailability};
 
 #[test]
 fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
@@ -66,6 +67,16 @@ fn test_advancement_w5_2_latency_time_series_and_stability_radar() {
 fn test_advancement_w5_3_tun_multi_stack_and_mtu_negotiation() {
     let (mut state, _) = AppState::new();
 
+    let options = TunStack::options();
+    assert_eq!(options.len(), 4);
+    assert!(options[..3]
+        .iter()
+        .all(|option| matches!(&option.availability, TunStackAvailability::Supported)));
+    assert!(matches!(
+        &options[3].availability,
+        TunStackAvailability::ReferenceOnly { .. }
+    ));
+
     // Default stack
     assert!(state.runtime.tun_stack_config.active_stack.is_empty());
 
@@ -76,6 +87,13 @@ fn test_advancement_w5_3_tun_multi_stack_and_mtu_negotiation() {
     // Select mixed stack
     let _ = state.update(Message::SelectTunStack("mixed".to_string()));
     assert_eq!(state.runtime.tun_stack_config.active_stack, "mixed");
+
+    let _ = state.update(Message::SetTunStack("lwip".to_string()));
+    assert!(state
+        .shell
+        .error_msg
+        .as_deref()
+        .is_some_and(|message| message.contains("reference-only")));
 
     // Probe optimal MTU
     let _ = state.update(Message::ProbeOptimalMtu);

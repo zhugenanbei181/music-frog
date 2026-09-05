@@ -89,6 +89,7 @@
 - `DUAL-01-13` 已完成本地 profile/core 预校验、offline-first retry/materialize、GeoIP 本地复制与缺失降级；`OfflineStartupSnapshot` 经 application surface reader 同步到 Iced/Bevy，Android/iOS bridge 只提供 typed host evidence，真实断网发行包 smoke 仍未冒充 `host-verified`。
 - `DUAL-01-14` 已完成 `CoreLifecycleSnapshot` 与 `CoreLifecyclePort` 统一生命周期读模型；Iced 全阶段映射、Bevy `LatestCoreLifecycle` resource 和两端生命周期/会话测试均已闭环，真实双 UI 同屏宿主 smoke 仍未冒充 `host-verified`。
 - `DUAL-01-15` 已完成双端 headless lifecycle matrix：失败启动、未知 owner 端口冲突、平滑停止和停止后的清理/会话状态均有明确断言；真实 GUI/发行包故障注入仍未冒充 `host-verified`。
+- `DUAL-02-01` 已完成四项 TUN stack shared catalog、前三项 live PATCH+回读和 LWIP `ReferenceOnly` fail-closed；Iced/Bevy 控件与 desktop/Android/iOS command composition 已同步，真实 TUN/VPN 发行包 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

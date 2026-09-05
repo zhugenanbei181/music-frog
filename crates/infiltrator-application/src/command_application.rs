@@ -240,6 +240,11 @@ impl CommandApplication {
                     .set_core_log_level(level)
                     .await
             }
+            CommandIntent::SetTunStack { stack } => {
+                RuntimeQueryApplication::new(self.runtime()?)
+                    .set_tun_stack(stack)
+                    .await
+            }
             CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore

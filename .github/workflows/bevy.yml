@@ -37,6 +37,7 @@ on:
       - "scripts/quality/offline-startup-guard.py"
       - "scripts/quality/lifecycle-sync-guard.py"
       - "scripts/quality/lifecycle-matrix-guard.py"
+      - "scripts/quality/tun-stack-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -69,6 +70,7 @@ on:
       - "scripts/quality/offline-startup-guard.py"
       - "scripts/quality/lifecycle-sync-guard.py"
       - "scripts/quality/lifecycle-matrix-guard.py"
+      - "scripts/quality/tun-stack-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -174,6 +176,9 @@ jobs:
 
       - name: Enforce DUAL-01-15 lifecycle matrix semantics
         run: python3 scripts/quality/lifecycle-matrix-guard.py --mode enforce
+
+      - name: Enforce DUAL-02-01 TUN stack semantics
+        run: python3 scripts/quality/tun-stack-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

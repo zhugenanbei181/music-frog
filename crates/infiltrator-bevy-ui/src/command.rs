@@ -12,6 +12,7 @@ use infiltrator_application::core_application::CoreApplication;
 use std::sync::{Arc, Mutex};
 
 use infiltrator_contract::command::{CommandIntent, CoreLogLevel, ProxyMode};
+use infiltrator_contract::tun::TunStack;
 
 /// All user action commands emitted from Bevy UI pages and controls.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,6 +29,8 @@ pub enum UiCommand {
     RepairPortConflicts,
     /// Change Mihomo's live core log verbosity.
     SetCoreLogLevel(CoreLogLevel),
+    /// Change Mihomo's live TUN protocol stack.
+    SetTunStack(TunStack),
     /// Switch core proxy mode (Rule / Global / Direct).
     SetProxyMode(ProxyMode),
     /// Select a specific proxy node in a policy group.
@@ -107,6 +110,7 @@ impl UiCommand {
             Self::SetCoreLogLevel(level) => {
                 Some(CommandIntent::SetCoreLogLevel { level: *level })
             }
+            Self::SetTunStack(stack) => Some(CommandIntent::SetTunStack { stack: *stack }),
             Self::SetProxyMode(mode) => Some(CommandIntent::SetProxyMode { mode: *mode }),
             Self::SelectProxyNode { group, node } => Some(CommandIntent::SelectProxyNode {
                 group: group.clone(),
@@ -349,6 +353,12 @@ mod tests {
             UiCommand::SetCoreLogLevel(CoreLogLevel::Debug).to_intent(),
             Some(CommandIntent::SetCoreLogLevel {
                 level: CoreLogLevel::Debug,
+            })
+        );
+        assert_eq!(
+            UiCommand::SetTunStack(TunStack::Mixed).to_intent(),
+            Some(CommandIntent::SetTunStack {
+                stack: TunStack::Mixed,
             })
         );
     }

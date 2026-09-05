@@ -2,6 +2,7 @@
 
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::command::{CoreLogLevel, ProxyMode};
+use infiltrator_contract::tun::TunStack;
 use infiltrator_domain::runtime::{MemoryData, TrafficData};
 use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
 use std::sync::Arc;
@@ -31,6 +32,7 @@ mod tests {
 
     struct TestGateway {
         level: Arc<Mutex<String>>,
+        tun_stack: Arc<Mutex<String>>,
         apply_patch: bool,
         memory_bytes: Arc<Mutex<u64>>,
         gc_calls: Arc<AtomicUsize>,
@@ -42,6 +44,12 @@ mod tests {
             Ok(ConfigSnapshot {
                 mode: "rule".to_owned(),
                 log_level: self.level.lock().expect("level lock").clone(),
+                tun: Some(infiltrator_domain::runtime::TunSnapshot {
+                    enable: true,
+                    stack: self.tun_stack.lock().expect("stack lock").clone(),
+                    auto_route: true,
+                    strict_route: false,
+                }),
                 ..ConfigSnapshot::default()
             })
         }
@@ -61,6 +69,14 @@ mod tests {
                 && let Some(level) = updates.get("log-level").and_then(|value| value.as_str())
             {
                 *self.level.lock().expect("level lock") = level.to_owned();
+            }
+            if self.apply_patch
+                && let Some(stack) = updates
+                    .get("tun")
+                    .and_then(|value| value.get("stack"))
+                    .and_then(|value| value.as_str())
+            {
+                *self.tun_stack.lock().expect("stack lock") = stack.to_owned();
             }
             Ok(())
         }
@@ -155,6 +171,7 @@ mod tests {
     async fn core_log_level_patch_is_read_back_before_success() {
         let gateway = Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -170,6 +187,7 @@ mod tests {
     async fn core_log_level_readback_mismatch_is_not_reported_as_success() {
         let gateway = Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
             apply_patch: false,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -190,6 +208,7 @@ mod tests {
         let gc_calls = Arc::new(AtomicUsize::new(0));
         let gateway = Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
             apply_patch: true,
             memory_bytes: memory,
             gc_calls: gc_calls.clone(),
@@ -202,6 +221,38 @@ mod tests {
         let second = application.poll().await.unwrap();
         assert!(matches!(second.gc, CoreGcStatus::NotNeeded));
         assert_eq!(gc_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn tun_stack_patch_is_read_back_and_reference_only_lwip_is_rejected() {
+        let stack = Arc::new(Mutex::new("gvisor".to_owned()));
+        let gateway = Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: stack.clone(),
+            apply_patch: true,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
+        });
+        RuntimeQueryApplication::new(gateway)
+            .set_tun_stack(TunStack::Mixed)
+            .await
+            .unwrap();
+        assert_eq!(stack.lock().unwrap().as_str(), "mixed");
+
+        let failure = RuntimeQueryApplication::new(Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            apply_patch: true,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
+        }))
+        .set_tun_stack(TunStack::Lwip)
+        .await
+        .unwrap_err();
+        assert_eq!(
+            failure.code,
+            infiltrator_contract::error::ErrorCode::Unsupported
+        );
     }
 }
 
@@ -237,6 +288,41 @@ impl RuntimeQueryApplication {
                     "core log level readback mismatch: requested {}, observed {}",
                     level.as_str(),
                     observed.log_level
+                ),
+                true,
+            ));
+        }
+        Ok(())
+    }
+
+    /// Apply one of Mihomo's live TUN stack values and verify the controller
+    /// readback. Reference-only catalog entries are rejected before I/O.
+    pub async fn set_tun_stack(&self, stack: TunStack) -> Result<(), Failure> {
+        if !stack.is_live_supported() {
+            return Err(Failure::unsupported(format!(
+                "TUN stack {} is reference-only and not accepted by Mihomo",
+                stack.as_str()
+            )));
+        }
+        self.gateway
+            .patch_config(serde_json::json!({ "tun": { "stack": stack.as_str() } }))
+            .await
+            .map_err(Failure::from)?;
+        let observed = self.gateway.get_config().await.map_err(Failure::from)?;
+        let observed_stack = observed
+            .tun
+            .as_ref()
+            .and_then(|tun| TunStack::parse(&tun.stack));
+        if observed_stack != Some(stack) {
+            return Err(Failure::new(
+                infiltrator_contract::error::ErrorCode::InvalidState,
+                format!(
+                    "TUN stack readback mismatch: requested {}, observed {}",
+                    stack.as_str(),
+                    observed
+                        .tun
+                        .map(|tun| tun.stack)
+                        .unwrap_or_else(|| "missing".to_owned())
                 ),
                 true,
             ));

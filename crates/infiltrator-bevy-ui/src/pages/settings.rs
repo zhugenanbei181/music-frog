@@ -14,7 +14,7 @@ use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::ecs::system::{ParamSet, Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn, template_value};
 use bevy::text::TextColor;
@@ -33,15 +33,9 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::tabs::segmented_control_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::version::{
-    CoreArtifactVerification, CoreVersionSnapshot,
-};
-use infiltrator_contract::controller::ControllerAuthSnapshot;
 use infiltrator_contract::command::CoreLogLevel;
-use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
-use infiltrator_contract::port_conflict::PortConflictSnapshot;
-use infiltrator_contract::resources::CoreResourceSnapshot;
-use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
+use infiltrator_contract::service_mode::ServiceModeState;
+use infiltrator_contract::tun::TunStack;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
@@ -49,7 +43,10 @@ use crate::route::{PageRoot, Route};
 #[path = "settings_core.rs"]
 mod settings_core;
 
-pub use settings_core::{SettingsLine, SettingsLineKind};
+pub use settings_core::{
+    CoreLogLevelButton, SettingsLine, SettingsLineKind, SettingsProjection, TunStackButton,
+    TunStackButtonAvailability,
+};
 
 /// Root marker on the Settings page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -76,12 +73,6 @@ pub struct CoreRollbackAvailability(pub bool);
 /// Marker for the rollback button's mutable label.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CoreRollbackButtonLabel;
-
-/// Marker carrying the live Mihomo log-level choice.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct CoreLogLevelButton {
-    pub level: CoreLogLevel,
-}
 
 /// Marker for the host-owned privileged service-mode action.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -114,51 +105,6 @@ pub struct CloseToTrayToggle;
 /// Marker for "System Notifications" toggle button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SystemNotificationsToggle;
-
-/// Snapshot of the Settings domain.
-#[derive(Clone, Debug, PartialEq)]
-pub struct SettingsProjection {
-    pub autostart: bool,
-    pub system_proxy: bool,
-    pub mixed_port: u16,
-    pub allow_lan: bool,
-    pub tun_enabled: bool,
-    pub tun_stack: String,
-    pub controller_port: u16,
-    pub log_level: String,
-    pub core_channel: String,
-    pub core_versions: CoreVersionSnapshot,
-    pub core_integrity: CoreArtifactVerification,
-    pub controller_auth: ControllerAuthSnapshot,
-    pub service_mode: ServiceModeSnapshot,
-    pub port_conflicts: PortConflictSnapshot,
-    pub core_resources: CoreResourceSnapshot,
-    pub offline_startup: OfflineStartupSnapshot,
-}
-
-impl SettingsProjection {
-    /// Believable demo fixture for the Settings page.
-    pub fn demo() -> Self {
-        Self {
-            autostart: true,
-            system_proxy: true,
-            mixed_port: 7890,
-            allow_lan: false,
-            tun_enabled: true,
-            tun_stack: "gVisor (高性能用户态协议栈)".to_owned(),
-            controller_port: 9090,
-            log_level: "info".to_owned(),
-            core_channel: "stable".to_owned(),
-            core_versions: CoreVersionSnapshot::default(),
-            core_integrity: Default::default(),
-            controller_auth: Default::default(),
-            service_mode: Default::default(),
-            port_conflicts: Default::default(),
-            core_resources: Default::default(),
-            offline_startup: Default::default(),
-        }
-    }
-}
 
 /// The typed event dispatched when settings data updates.
 #[derive(Event, Clone, Debug, PartialEq)]
@@ -651,6 +597,7 @@ fn tun_settings_card(projection: &SettingsProjection, palette: &UiPalette) -> im
                 }
                 Children [
                     ( { checkbox_scene("启用 TUN 虚拟网卡接管 (Enable TUN Device)".to_owned(), projection.tun_enabled, palette) } ),
+                    ( { settings_core::tun_stack_selector_scene(projection, palette) } ),
                     (
                         Node {
                             width: percent(100),
@@ -694,6 +641,8 @@ pub(crate) fn on_settings_action_activated(
     rollback_buttons: Query<(), With<CoreRollbackButton>>,
     rollback_available: Query<&CoreRollbackAvailability, With<CoreRollbackButton>>,
     log_level_buttons: Query<&CoreLogLevelButton>,
+    tun_stack_buttons: Query<&TunStackButton>,
+    tun_stack_available: Query<&TunStackButtonAvailability, With<TunStackButton>>,
     service_buttons: Query<(), With<ServiceModeButton>>,
     service_available: Query<&ServiceModeAvailability, With<ServiceModeButton>>,
     port_buttons: Query<(), With<PortConflictButton>>,
@@ -730,6 +679,13 @@ pub(crate) fn on_settings_action_activated(
         handle.submit(UiCommand::RollbackCore);
     } else if let Ok(button) = log_level_buttons.get(activate.entity) {
         handle.submit(UiCommand::SetCoreLogLevel(button.level));
+    } else if tun_stack_buttons.contains(activate.entity)
+        && tun_stack_available
+            .get(activate.entity)
+            .is_ok_and(|availability| availability.0)
+        && let Ok(button) = tun_stack_buttons.get(activate.entity)
+    {
+        handle.submit(UiCommand::SetTunStack(button.stack));
     } else if service_buttons.contains(activate.entity)
         && service_available
             .get(activate.entity)
@@ -741,7 +697,7 @@ pub(crate) fn on_settings_action_activated(
     }
 }
 
-#[allow(clippy::type_complexity)]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 pub(crate) fn apply_settings_projection(
     update: On<SettingsProjectionUpdated>,
     palette: Res<UiPalette>,
@@ -753,7 +709,14 @@ pub(crate) fn apply_settings_projection(
         Option<&ServiceModeButtonLabel>,
     )>,
     mut rollback_buttons: Query<&mut CoreRollbackAvailability, With<CoreRollbackButton>>,
-    mut log_level_buttons: Query<(&mut BackgroundColor, &CoreLogLevelButton)>,
+    mut button_queries: ParamSet<(
+        Query<(&mut BackgroundColor, &CoreLogLevelButton)>,
+        Query<(
+            &mut BackgroundColor,
+            &mut TunStackButtonAvailability,
+            &TunStackButton,
+        )>,
+    )>,
     mut service_buttons: Query<&mut ServiceModeAvailability, With<ServiceModeButton>>,
 ) {
     let projection = &update.0;
@@ -830,8 +793,18 @@ pub(crate) fn apply_settings_projection(
         availability.0 = !service_ready;
     }
     let active_level = CoreLogLevel::parse(&projection.log_level);
-    for (mut background, button) in &mut log_level_buttons {
+    for (mut background, button) in &mut button_queries.p0() {
         background.0 = if active_level == Some(button.level) {
+            palette.accent
+        } else {
+            palette.surface_elevated
+        };
+    }
+
+    let active_stack = TunStack::parse(&projection.tun_stack);
+    for (mut background, mut availability, button) in &mut button_queries.p1() {
+        availability.0 = button.stack.is_live_supported();
+        background.0 = if availability.0 && active_stack == Some(button.stack) {
             palette.accent
         } else {
             palette.surface_elevated

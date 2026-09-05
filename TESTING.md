@@ -122,6 +122,8 @@ python3 scripts/quality/offline-startup-guard.py --mode enforce
 python3 scripts/quality/lifecycle-sync-guard.py --mode enforce
 # DUAL-01-15 失败启动/端口冲突/平滑停止无头矩阵守卫
 python3 scripts/quality/lifecycle-matrix-guard.py --mode enforce
+# DUAL-02-01 TUN gVisor/System/Mixed/LWIP 安全目录与 live apply 守卫
+python3 scripts/quality/tun-stack-guard.py --mode enforce
 ```
 
 ---

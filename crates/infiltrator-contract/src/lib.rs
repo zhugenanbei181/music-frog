@@ -18,6 +18,7 @@ pub mod session;
 pub mod service_mode;
 pub mod surface_snapshot;
 pub mod sync;
+pub mod tun;
 pub mod version;
 pub mod surface;
 
@@ -25,6 +26,7 @@ pub mod surface;
 mod tests {
     use super::capability::{Availability, Capability, CapabilitySnapshot, CapabilityStatus};
     use super::command::{CommandIntent, CommandKind, CoreLogLevel, ProxyMode};
+    use super::tun::TunStack;
     use super::surface::HostKind;
 
     #[test]
@@ -45,6 +47,13 @@ mod tests {
         assert_eq!(
             CommandIntent::SetCoreLogLevel {
                 level: CoreLogLevel::Debug
+            }
+            .kind(),
+            CommandKind::Runtime
+        );
+        assert_eq!(
+            CommandIntent::SetTunStack {
+                stack: TunStack::Mixed
             }
             .kind(),
             CommandKind::Runtime

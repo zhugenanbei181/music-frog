@@ -27,6 +27,7 @@
 - [x] `DUAL-01-13`：离线启动先校验本地 profile 与 core binary；生产 retry/materialize 走 `bootstrap_offline`，GeoIP 只复制已有本地资产，缺失时报告 degraded 而不访问网络；desktop、Android、iOS 与两端 UI 共享 `OfflineStartupSnapshot`。
 - [x] `DUAL-01-14`：`CoreApplication`/`CoreLifecyclePort` 发布统一 `CoreLifecycleSnapshot`；Iced 从 shared snapshot 映射本地状态，Bevy 保持独立的同值 lifecycle resource，所有 Start/Stop/Restart 仍经同一 application intent。
 - [x] `DUAL-01-15`：Iced 与 Bevy 均完成失败启动、端口冲突、平滑停止的 headless lifecycle matrix；workspace nextest 对 shared/application、两端 adapter 与宿主 contract 一并验收。
+- [x] `DUAL-02-01`：TUN stack 进入 shared `TunStack` 四项目录；gVisor/System/Mixed 经 RuntimeGateway live PATCH+回读，LWIP 按当前 Mihomo 官方 top-level TUN 规范保持 `ReferenceOnly`，Iced/Bevy 同步展示且不可误下发。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

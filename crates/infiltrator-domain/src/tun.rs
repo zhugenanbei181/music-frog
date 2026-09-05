@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, anyhow};
+use infiltrator_contract::tun::TunStack;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 
@@ -97,8 +98,8 @@ fn apply_tun_config(doc: &mut Value, config: &TunConfig) -> Result<()> {
 
 fn validate_tun_config(config: &TunConfig) -> Result<()> {
     if let Some(stack) = config.stack.as_ref() {
-        let lower = stack.trim().to_ascii_lowercase();
-        if lower != "system" && lower != "gvisor" {
+        let parsed = TunStack::parse(stack);
+        if parsed.is_none_or(|value| !value.is_live_supported()) {
             return Err(anyhow!("unsupported tun stack: {}", stack));
         }
     }
@@ -182,6 +183,17 @@ mod tests {
         // Should preserve existing values
         assert_eq!(config.stack, Some("system".to_string()));
         assert_eq!(config.mtu, Some(1400));
+    }
+
+    #[test]
+    fn test_validate_tun_accepts_all_current_mihomo_stacks() {
+        for stack in ["gvisor", "system", "mixed"] {
+            let config = TunConfig {
+                stack: Some(stack.to_owned()),
+                ..TunConfig::default()
+            };
+            assert!(validate_tun_config(&config).is_ok(), "{stack}");
+        }
     }
 
     #[test]

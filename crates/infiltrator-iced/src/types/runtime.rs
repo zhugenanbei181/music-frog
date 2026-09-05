@@ -81,6 +81,7 @@ pub struct RuntimePatchSnapshot {
     pub proxy_mode: Option<String>,
     pub tun_enabled: Option<bool>,
     pub tun_stack: String,
+    pub tun_stack_selector: String,
     pub tun_auto_route: bool,
     pub tun_strict_route: bool,
     pub sniffer_enabled: bool,

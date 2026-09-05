@@ -6,6 +6,7 @@
 //! but do not construct `MihomoClient` themselves.
 
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::overview::{OverviewConfig, OverviewPump, UnavailableOverviewReader};
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_ios::{IosBridge, IosHostAdapter};
@@ -114,12 +115,19 @@ where
     let client =
         MihomoClient::new(&controller_url, secret.clone()).map_err(|error| error.to_string())?;
     let runtime = tokio_application_runtime()?;
-    Ok(CoreApplication::new_with_overview(
+    let application = CoreApplication::new_with_overview(
         std::sync::Arc::new(IosHostAdapter::new(bridge)),
-        std::sync::Arc::new(ControllerReadiness::new(controller_url, secret)),
-        std::sync::Arc::new(ControllerOverviewReader::new(client)),
+        std::sync::Arc::new(ControllerReadiness::new(
+            controller_url.clone(),
+            secret.clone(),
+        )),
+        std::sync::Arc::new(ControllerOverviewReader::new(client.clone())),
         runtime,
-    ))
+    );
+    application.install_command_handler(std::sync::Arc::new(
+        CommandApplication::new().with_runtime(std::sync::Arc::new(client)),
+    ));
+    Ok(application)
 }
 
 /// Compose the iOS native host's local-only startup proof for either UI.

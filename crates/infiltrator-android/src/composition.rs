@@ -1,6 +1,7 @@
 //! Android host/application composition for the 0.30 seam.
 
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_ports::core_process::CoreReadiness;
@@ -38,13 +39,29 @@ where
         controller_url.clone(),
         secret.clone(),
     ));
-    let reader: Arc<dyn OverviewReader> = match MihomoClient::new(&controller_url, secret.clone()) {
-        Ok(client) => Arc::new(ControllerOverviewReader::new(client)),
-        Err(error) => Arc::new(UnavailableOverviewReader::new(PortError::Network(
-            error.to_string(),
-        ))),
+    let (reader, gateway): (
+        Arc<dyn OverviewReader>,
+        Option<Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway>>,
+    ) = match MihomoClient::new(&controller_url, secret.clone()) {
+        Ok(client) => (
+            Arc::new(ControllerOverviewReader::new(client.clone())) as Arc<dyn OverviewReader>,
+            Some(Arc::new(client)
+                as Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway>),
+        ),
+        Err(error) => (
+            Arc::new(UnavailableOverviewReader::new(PortError::Network(
+                error.to_string(),
+            ))) as Arc<dyn OverviewReader>,
+            None,
+        ),
     };
     let runtime = infiltrator_composition::tokio_application_runtime()
         .expect("Tokio application runtime must be constructible");
-    CoreApplication::new_with_overview(process, readiness, reader, runtime)
+    let application = CoreApplication::new_with_overview(process, readiness, reader, runtime);
+    if let Some(gateway) = gateway {
+        application.install_command_handler(Arc::new(
+            CommandApplication::new().with_runtime(gateway),
+        ));
+    }
+    application
 }

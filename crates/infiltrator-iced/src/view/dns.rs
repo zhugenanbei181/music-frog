@@ -260,7 +260,7 @@ fn tun_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
         form_toggle_row("enable", state.editor.tun_form.enable, Message::UpdateTunFormEnable),
         row![
             text("stack").size(13).width(Length::Fixed(150.0)).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
-            pick_list(&["gvisor", "system"][..], if state.editor.tun_form.stack == "gvisor" || state.editor.tun_form.stack == "system" { Some(state.editor.tun_form.stack.as_str()) } else { None }, |v| Message::UpdateTunFormStack(v.to_string())).width(Length::Fixed(180.0)).style(form_pick_style),
+            pick_list(&["gvisor", "system", "mixed"][..], if ["gvisor", "system", "mixed"].contains(&state.editor.tun_form.stack.as_str()) { Some(state.editor.tun_form.stack.as_str()) } else { None }, |v| Message::UpdateTunFormStack(v.to_string())).width(Length::Fixed(180.0)).style(form_pick_style),
         ].align_y(Alignment::Center),
         form_field_label("mtu".to_string()),
         text_input("1500", &state.editor.tun_form.mtu).on_input(Message::UpdateTunFormMtu).padding([8, 12]).size(12).font(MONO).style(form_input_style),

@@ -7,6 +7,8 @@ use crate::types::runtime::{RuntimeConfig, RuntimePatchSnapshot};
 use iced::Task;
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::tun::TunStack;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
 use infiltrator_application::service_mode_application::ServiceModeApplication;
 use crate::host::tun_service::TunServiceManager;
@@ -30,6 +32,7 @@ impl AppState {
                     proxy_mode: self.runtime.proxy_mode.clone(),
                     tun_enabled: self.runtime.tun_enabled,
                     tun_stack: self.editor.tun_stack.clone(),
+                    tun_stack_selector: self.runtime.tun_stack_config.active_stack.clone(),
                     tun_auto_route: self.editor.tun_auto_route,
                     tun_strict_route: self.editor.tun_strict_route,
                     sniffer_enabled: self.editor.sniffer_enabled,
@@ -45,6 +48,7 @@ impl AppState {
             self.runtime.proxy_mode = previous.proxy_mode;
             self.runtime.tun_enabled = previous.tun_enabled;
             self.editor.tun_stack = previous.tun_stack;
+            self.runtime.tun_stack_config.active_stack = previous.tun_stack_selector;
             self.editor.tun_auto_route = previous.tun_auto_route;
             self.editor.tun_strict_route = previous.tun_strict_route;
             self.editor.sniffer_enabled = previous.sniffer_enabled;
@@ -412,17 +416,45 @@ impl AppState {
                 }
             }
             Message::SetTunStack(stack) => {
+                let parsed = match TunStack::parse(&stack) {
+                    Some(stack) if stack.is_live_supported() => stack,
+                    Some(stack) => {
+                        let error = InfiltratorError::Config(format!(
+                            "TUN stack {} is reference-only",
+                            stack.as_str()
+                        ));
+                        self.set_error(&error);
+                        return Task::done(Message::ShowToast(
+                            error.to_string(),
+                            crate::types::app::ToastStatus::Error,
+                        ));
+                    }
+                    None => {
+                        let error = InfiltratorError::Config(
+                            "unsupported tun stack: expected gvisor, system, or mixed".to_owned(),
+                        );
+                        self.set_error(&error);
+                        return Task::done(Message::ShowToast(
+                            error.to_string(),
+                            crate::types::app::ToastStatus::Error,
+                        ));
+                    }
+                };
                 let Some(rt) = self.runtime.runtime.clone() else {
                     return self.runtime_unavailable("修改 TUN 堆栈");
                 };
                 let token = self.begin_runtime_patch();
                 let generation = rt.generation();
-                self.editor.tun_stack = stack.clone();
+                self.editor.tun_stack = parsed.as_str().to_owned();
+                self.runtime.tun_stack_config.active_stack = parsed.as_str().to_owned();
+                let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
+                    rt.clone();
                 Task::perform(
                     async move {
-                        rt.patch_config(serde_json::json!({ "tun": { "stack": stack } }))
+                        RuntimeQueryApplication::new(gateway)
+                            .set_tun_stack(parsed)
                             .await
-                            .map_err(|error| InfiltratorError::Internal(error.to_string()))
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )

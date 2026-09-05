@@ -23,6 +23,7 @@ use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::version::CoreRollbackSnapshot;
 use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
+use infiltrator_contract::tun::TunStack;
 
 use crate::support::*;
 
@@ -575,6 +576,57 @@ fn test_settings_projection_in_place_update() {
     assert!(subtree_has_text(app.world(), root, "DEBUG"));
     assert!(subtree_has_text(app.world(), root, "离线优先"));
     assert!(subtree_has_text(app.world(), root, "可启动但已降级"));
+}
+
+#[test]
+fn test_settings_tun_stack_catalog_has_three_live_values_and_safe_lwip() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Settings);
+
+    let mut buttons = app
+        .world_mut()
+        .query::<(
+            Entity,
+            &TunStackButton,
+            &TunStackButtonAvailability,
+        )>();
+    let entries: Vec<(Entity, TunStack, bool)> = buttons
+        .iter(app.world())
+        .map(|(entity, button, availability)| (entity, button.stack, availability.0))
+        .collect();
+    assert_eq!(entries.len(), TunStack::ALL.len());
+    assert!(entries
+        .iter()
+        .any(|(_, stack, available)| *stack == TunStack::Gvisor && *available));
+    assert!(entries
+        .iter()
+        .any(|(_, stack, available)| *stack == TunStack::System && *available));
+    assert!(entries
+        .iter()
+        .any(|(_, stack, available)| *stack == TunStack::Mixed && *available));
+    let (lwip_entity, _, lwip_availability) = entries
+        .iter()
+        .find(|(_, stack, _)| *stack == TunStack::Lwip)
+        .expect("LWIP reference entry");
+    assert!(!lwip_availability);
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: *lwip_entity });
+    app.update();
+    assert!(sink.submitted().is_empty(), "reference-only LWIP is inert");
+
+    let (mixed_entity, _, mixed_availability) = entries
+        .iter()
+        .find(|(_, stack, _)| *stack == TunStack::Mixed)
+        .expect("Mixed button");
+    assert!(*mixed_availability);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: *mixed_entity });
+    app.update();
+    assert_eq!(sink.submitted(), vec![UiCommand::SetTunStack(TunStack::Mixed)]);
 }
 
 // ===========================================================================

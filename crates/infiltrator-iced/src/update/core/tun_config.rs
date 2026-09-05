@@ -11,6 +11,7 @@ use crate::types::runtime::RebuildFlowState;
 use iced::Task;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::tun::TunStack;
 
 impl AppState {
     pub(super) fn ensure_tun_editor_loaded(&mut self) {
@@ -44,12 +45,22 @@ impl AppState {
     fn tun_patch_from_form(
         &self,
     ) -> Result<infiltrator_domain::tun::TunConfigPatch, InfiltratorError> {
-        let stack = self.editor.tun_form.stack.trim().to_ascii_lowercase();
-        if !stack.is_empty() && stack != "system" && stack != "gvisor" {
-            return Err(InfiltratorError::Config(
-                "stack must be system or gvisor".to_string(),
-            ));
-        }
+        let stack_text = self.editor.tun_form.stack.trim();
+        let stack = if stack_text.is_empty() {
+            None
+        } else {
+            let parsed = TunStack::parse(stack_text).ok_or_else(|| {
+                InfiltratorError::Config(
+                    "unsupported tun stack: expected gvisor, system, mixed, or lwip".to_owned(),
+                )
+            })?;
+            if !parsed.is_live_supported() {
+                return Err(InfiltratorError::Config(
+                    "unsupported tun stack: lwip is reference-only".to_owned(),
+                ));
+            }
+            Some(parsed.as_str().to_owned())
+        };
 
         let mtu_text = self.editor.tun_form.mtu.trim();
         let mtu = if mtu_text.is_empty() {
@@ -67,7 +78,7 @@ impl AppState {
 
         Ok(infiltrator_domain::tun::TunConfigPatch {
             enable: Some(self.editor.tun_form.enable),
-            stack: if stack.is_empty() { None } else { Some(stack) },
+            stack,
             mtu,
             dns_hijack: Some(Self::split_list_field(&self.editor.tun_form.dns_hijack)),
             auto_route: Some(self.editor.tun_form.auto_route),
