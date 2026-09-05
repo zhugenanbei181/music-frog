@@ -27,16 +27,30 @@ pub enum AppRoutingMode {
     BypassSelected,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AppRoutingRule {
+    #[default]
+    Proxy,
+    Direct,
+    Block,
+}
+
 /// Per-app routing configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppRoutingConfig {
     pub mode: AppRoutingMode,
     #[serde(default)]
     pub packages: HashSet<String>,
+    #[serde(default)]
+    pub rules: HashMap<String, AppRoutingRule>,
 }
 
 impl AppRoutingConfig {
     pub fn should_proxy(&self, package: &str) -> bool {
+        if let Some(rule) = self.rules.get(package) {
+            return matches!(rule, AppRoutingRule::Proxy);
+        }
         match self.mode {
             AppRoutingMode::ProxyAll => true,
             AppRoutingMode::ProxySelected => self.packages.contains(package),
@@ -48,10 +62,23 @@ impl AppRoutingConfig {
         match self.mode {
             AppRoutingMode::ProxyAll => None,
             AppRoutingMode::ProxySelected => {
-                if self.packages.is_empty() {
+                if self.packages.is_empty() && self.rules.is_empty() {
                     None
                 } else {
-                    Some(self.packages.iter().cloned().collect())
+                    Some(
+                        self.packages
+                            .iter()
+                            .cloned()
+                            .chain(
+                                self.rules
+                                    .iter()
+                                    .filter_map(|(package, rule)| {
+                                        matches!(rule, AppRoutingRule::Proxy)
+                                            .then_some(package.clone())
+                                    }),
+                            )
+                            .collect(),
+                    )
                 }
             }
             AppRoutingMode::BypassSelected => None,
@@ -61,10 +88,24 @@ impl AppRoutingConfig {
     pub fn get_disallowed_packages(&self) -> Option<Vec<String>> {
         match self.mode {
             AppRoutingMode::BypassSelected => {
-                if self.packages.is_empty() {
+                if self.packages.is_empty()
+                    && !self
+                        .rules
+                        .values()
+                        .any(|rule| matches!(rule, AppRoutingRule::Direct | AppRoutingRule::Block))
+                {
                     None
                 } else {
-                    Some(self.packages.iter().cloned().collect())
+                    Some(
+                        self.packages
+                            .iter()
+                            .cloned()
+                            .chain(self.rules.iter().filter_map(|(package, rule)| {
+                                matches!(rule, AppRoutingRule::Direct | AppRoutingRule::Block)
+                                    .then_some(package.clone())
+                            }))
+                            .collect(),
+                    )
                 }
             }
             _ => None,

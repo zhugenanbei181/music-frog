@@ -1,5 +1,4 @@
 use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_core::bootstrap;
 use infiltrator_ports::core_process::CoreProcess;
 use mihomo_platform::desktop::ProcessCoreController;
 
@@ -32,7 +31,11 @@ async fn lifecycle(action: Lifecycle) -> anyhow::Result<()> {
     if matches!(action, Lifecycle::Start | Lifecycle::Restart) {
         // mihomo-rs parity: `service start` creates the default profile and
         // controller settings on first launch instead of failing.
-        bootstrap::ensure_bootstrap().await?;
+        runtime
+            .doctor_application()
+            .bootstrap()
+            .await
+            .map_err(|failure| anyhow::anyhow!(failure.message))?;
     }
     let controller = build_controller(&runtime).await?;
     let message = run_lifecycle(action, &controller).await?;

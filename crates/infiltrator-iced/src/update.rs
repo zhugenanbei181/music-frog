@@ -19,6 +19,17 @@ impl AppState {
         // because the demo keeps `AppState::runtime` unset).
         if self.shell.demo {
             match message {
+                Message::SetAppRoutingMode(mode) => {
+                    self.app_routing.mode = mode;
+                    return Task::none();
+                }
+                Message::SetAppRouteRule { process, rule } => {
+                    self.app_routing.custom_rules.insert(process, rule);
+                    return Task::none();
+                }
+                Message::RefreshAppRoutingProcesses
+                | Message::AppRoutingConfigLoaded(_)
+                | Message::AppRoutingPersisted(_) => return Task::none(),
                 Message::StartProxy
                 | Message::StopProxy
                 | Message::FetchIpInfo
@@ -97,6 +108,8 @@ impl AppState {
             | Message::FormatYamlEditor
             | Message::RefreshAppRoutingProcesses
             | Message::AppRoutingProcessesLoaded(_)
+            | Message::AppRoutingConfigLoaded(_)
+            | Message::AppRoutingPersisted(_)
             | Message::SetAppRoutingFilter(_)
             | Message::SetAppRoutingMode(_)
             | Message::SetAppRouteRule { .. }

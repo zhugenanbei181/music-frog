@@ -405,6 +405,8 @@ pub enum Message {
     // App Routing (应用分流)
     RefreshAppRoutingProcesses,
     AppRoutingProcessesLoaded(Vec<infiltrator_desktop::process_enumerator::ExtendedProcessInfo>),
+    AppRoutingConfigLoaded(Result<infiltrator_domain::app_routing::AppRoutingConfig, InfiltratorError>),
+    AppRoutingPersisted(Result<(), InfiltratorError>),
     SetAppRoutingFilter(String),
     SetAppRoutingMode(super::app_routing::AppRoutingMode),
     SetAppRouteRule { process: String, rule: super::app_routing::AppRouteRule },

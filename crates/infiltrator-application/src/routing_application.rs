@@ -1,7 +1,7 @@
 //! Per-app routing use-cases over the routing persistence port.
 
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_domain::app_routing::{AppRoutingConfig, AppRoutingMode};
+use infiltrator_domain::app_routing::{AppRoutingConfig, AppRoutingMode, AppRoutingRule};
 use infiltrator_ports::app_routing_store::AppRoutingStore;
 use std::sync::Arc;
 
@@ -48,6 +48,20 @@ impl RoutingApplication {
         };
         self.save(&config)?;
         Ok(selected)
+    }
+
+    pub fn set_rule(&self, package: &str, rule: AppRoutingRule) -> Result<(), Failure> {
+        let package = package.trim();
+        if package.is_empty() {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                "package name is empty",
+                false,
+            ));
+        }
+        let mut config = self.load()?;
+        config.rules.insert(package.to_string(), rule);
+        self.save(&config)
     }
 
     pub fn allowed_packages(&self) -> Result<Option<Vec<String>>, Failure> {

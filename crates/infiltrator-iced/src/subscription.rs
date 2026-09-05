@@ -125,7 +125,7 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                                 if output
                                     .try_send(Message::RuntimeStreamTrafficReceived(
                                         input.generation,
-                                        data.into(),
+                                        data,
                                     ))
                                     .is_err()
                                 {
@@ -149,7 +149,7 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                                 if output
                                     .try_send(Message::RuntimeStreamConnectionsReceived(
                                         input.generation,
-                                        snapshot.into(),
+                                        snapshot,
                                     ))
                                     .is_err()
                                 {

@@ -326,13 +326,50 @@ impl AppState {
             }
             Message::RefreshAppRoutingProcesses => {
                 self.app_routing.is_refreshing = true;
-                Task::perform(async {
-                    infiltrator_desktop::process_enumerator::enumerate_extended_processes().unwrap_or_default()
-                }, Message::AppRoutingProcessesLoaded)
+                let processes = Task::perform(
+                    async {
+                        infiltrator_desktop::process_enumerator::enumerate_extended_processes()
+                            .unwrap_or_default()
+                    },
+                    Message::AppRoutingProcessesLoaded,
+                );
+                let config = Task::perform(
+                    async {
+                        crate::routing_application::application()
+                            .await?
+                            .load()
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
+                    },
+                    Message::AppRoutingConfigLoaded,
+                );
+                Task::batch(vec![processes, config])
             }
             Message::AppRoutingProcessesLoaded(procs) => {
                 self.app_routing.is_refreshing = false;
                 self.app_routing.processes = procs;
+                Task::none()
+            }
+            Message::AppRoutingConfigLoaded(result) => match result {
+                Ok(config) => {
+                    self.app_routing.mode = crate::routing_application::mode_from_domain(config.mode);
+                    self.app_routing.custom_rules = config
+                        .rules
+                        .into_iter()
+                        .map(|(package, rule)| {
+                            (package, crate::routing_application::rule_from_domain(rule))
+                        })
+                        .collect();
+                    Task::none()
+                }
+                Err(error) => {
+                    self.set_error(&error);
+                    Task::none()
+                }
+            },
+            Message::AppRoutingPersisted(result) => {
+                if let Err(error) = result {
+                    self.set_error(&error);
+                }
                 Task::none()
             }
             Message::SetAppRoutingFilter(q) => {
@@ -341,11 +378,30 @@ impl AppState {
             }
             Message::SetAppRoutingMode(m) => {
                 self.app_routing.mode = m;
-                Task::none()
+                let mode = crate::routing_application::mode_to_domain(m);
+                Task::perform(
+                    async move {
+                        crate::routing_application::application()
+                            .await?
+                            .set_mode(mode)
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
+                    },
+                    Message::AppRoutingPersisted,
+                )
             }
             Message::SetAppRouteRule { process, rule } => {
+                let package = process.clone();
                 self.app_routing.custom_rules.insert(process, rule);
-                Task::none()
+                let domain_rule = crate::routing_application::rule_to_domain(rule);
+                Task::perform(
+                    async move {
+                        crate::routing_application::application()
+                            .await?
+                            .set_rule(&package, domain_rule)
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
+                    },
+                    Message::AppRoutingPersisted,
+                )
             }
             Message::SetAppRoutingCategory(cat) => {
                 self.app_routing.selected_category = cat;

@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_core::settings_store::FileSettingsStore;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::sync_application::SyncApplication;
@@ -88,6 +89,12 @@ impl Runtime {
 
     pub fn subscription_source(&self) -> impl SubscriptionSource {
         infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients()
+    }
+
+    pub fn doctor_application(&self) -> DoctorApplication {
+        DoctorApplication::new(Arc::new(
+            infiltrator_core::doctor_port::MihomoDoctor::with_home(self.home.clone()),
+        ))
     }
 
     pub fn sync_application(&self) -> anyhow::Result<SyncApplication> {

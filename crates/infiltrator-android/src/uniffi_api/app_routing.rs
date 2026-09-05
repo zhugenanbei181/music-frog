@@ -82,6 +82,7 @@ pub fn app_routing_save(mode: AppRoutingMode, packages: Vec<String>) -> FfiStatu
     let config = DomainAppRoutingConfig {
         mode: mode.into(),
         packages: packages.into_iter().collect(),
+        ..DomainAppRoutingConfig::default()
     };
     match routing_application().and_then(|application| {
         application

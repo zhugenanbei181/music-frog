@@ -3,6 +3,7 @@
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
+use infiltrator_ports::app_routing_store::AppRoutingStore;
 use infiltrator_ports::doctor::DoctorPort;
 use infiltrator_ports::profile_reset::ProfileResetPort;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -69,6 +70,10 @@ pub fn profile_reset() -> impl ProfileResetPort {
 
 pub fn fake_ip_cache() -> impl FakeIpCachePort {
     infiltrator_core::fake_ip_cache_io::FileFakeIpCache::current()
+}
+
+pub fn app_routing_store() -> anyhow::Result<impl AppRoutingStore> {
+    infiltrator_core::app_routing_io::FileAppRoutingStore::current()
 }
 
 pub async fn reset_profiles_to_default() -> anyhow::Result<()> {
