@@ -5,7 +5,7 @@ use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 
 pub async fn application() -> Result<RoutingApplication, InfiltratorError> {
-    let store = infiltrator_desktop::storage::app_routing_store()
+    let store = crate::host::storage::app_routing_store()
         .map_err(|error| InfiltratorError::Config(error.to_string()))?;
     Ok(RoutingApplication::new(std::sync::Arc::new(store)))
 }

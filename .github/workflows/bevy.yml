@@ -21,6 +21,7 @@ on:
       - "rust-toolchain.toml"
       - "scripts/quality/bevy_bsn_guard.py"
       - "scripts/quality/core-boundary-guard.py"
+      - "scripts/quality/parity-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -37,6 +38,7 @@ on:
       - "rust-toolchain.toml"
       - "scripts/quality/bevy_bsn_guard.py"
       - "scripts/quality/core-boundary-guard.py"
+      - "scripts/quality/parity-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -94,6 +96,9 @@ jobs:
 
       - name: Enforce 0.30 core boundaries
         run: python3 scripts/quality/core-boundary-guard.py --mode enforce
+
+      - name: Enforce dual-surface parity
+        run: python3 scripts/quality/parity-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

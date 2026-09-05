@@ -34,14 +34,14 @@ impl AppState {
                         let candidates = vec![];
                         // Boot retry loop: up to 3 attempts with controller
                         // port rotation between attempts (ledger §1.2).
-                        let outcome = infiltrator_desktop::boot::bootstrap_host_runtime_from_current_home(
+                        let outcome = crate::host::boot::bootstrap_host_runtime_from_current_home(
                             true,
                             &candidates,
                         )
                         .await
                         .map_err(|e: anyhow::Error| {
                             if let Some(boot_error) =
-                                e.downcast_ref::<infiltrator_desktop::boot::BootError>()
+                                e.downcast_ref::<crate::host::boot::BootError>()
                             {
                                 InfiltratorError::Mihomo(format!(
                                     "启动失败（已尝试控制端口 {:?}）: {}",

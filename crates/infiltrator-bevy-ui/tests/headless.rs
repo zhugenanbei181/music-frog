@@ -24,3 +24,6 @@ mod responsive_ui_tests;
 
 #[path = "headless/command_palette_tests.rs"]
 mod command_palette_tests;
+
+#[path = "headless/surface_tests.rs"]
+mod surface_tests;

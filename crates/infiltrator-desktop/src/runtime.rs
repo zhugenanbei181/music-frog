@@ -205,6 +205,23 @@ impl MihomoRuntime {
         self.client.clone()
     }
 
+    /// Compose the complete 11-page surface reader for an inbound UI. The
+    /// returned pump owns only runtime-neutral snapshots; all concrete
+    /// storage/controller details stay in this desktop host.
+    pub async fn surface_pump(
+        &self,
+        surface: infiltrator_contract::surface::SurfaceKind,
+        sample_interval: std::time::Duration,
+    ) -> anyhow::Result<infiltrator_application::surface_application::SurfacePump> {
+        crate::surface::surface_pump(
+            self.application.clone(),
+            Arc::new(self.client.clone()),
+            surface,
+            sample_interval,
+        )
+        .await
+    }
+
     pub async fn summary(&self) -> anyhow::Result<MihomoSummary> {
         let profile = self.config_manager.get_current().await?;
         let mode = self.read_mode(&profile).await?;

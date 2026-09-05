@@ -1,7 +1,7 @@
 # 0.30 双 UI 底层架构审计
 
 审计日期：2026-09-05  
-审计分支：`main`（本地 `e78b36a`）  
+审计分支：`main`（A-01～A-05 架构前置工作树）
 审计范围：`infiltrator-application`、`infiltrator-contract`、`infiltrator-ports`、`infiltrator-composition`、`infiltrator-desktop`、`infiltrator-iced`、`infiltrator-bevy-ui`、`infiltrator-bevy-widgets`
 
 ## 结论
@@ -9,7 +9,8 @@
 结论必须分成两层说：
 
 1. **核心分层原则已经清楚**：领域、契约、端口、应用、组合根和宿主适配器的方向已经成立；`infiltrator-application` 的生产代码没有直接依赖 Tokio，Bevy UI 也没有直接依赖 Tokio、Reqwest 或 Mihomo client。
-2. **两个 UI 还没有达到“实现完成且进度对等”**：Iced 仍是“UI + 桌面产品组合”的合体，Bevy 目前只有 Overview 接入真实 application 数据泵，其他业务页仍以 demo projection 挂载。因此现在可以确认的是**目标架构**，不能确认的是**双端功能落地完成**。
+2. **A-01～A-05 架构前置现已完成**：Iced 有明确的 desktop composition/host namespace，11 页 shared surface contract 已落地，Bevy 生产路由不再制造 demo projection，真实 desktop reader/pump 已可组合，parity guard 与双端交付模板已进入 CI。
+3. **功能成熟度仍然不能冒充完成**：日志/Doctor 等页面在没有对应事件或用户触发结果时显示 typed `loading`，225 项业务清单仍须逐项完成 shared、Iced、Bevy 和宿主验收；架构前置完成不等于 225 项完成。
 
 这不是否定现有工作，而是把“架构已成立”和“产品已完成”从同一个状态中拆开。后续所有 0.30 任务都以本文件和 [双端主控计划](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 为准。
 
@@ -57,12 +58,22 @@
 - `infiltrator-bevy-ui` 的生产依赖和源码不直接构造 `MihomoClient`、Reqwest 或 Tokio；`controller` 通过 application-owned Overview pump 接入。
 - Bevy 的命令入口已经存在：页面提交 `UiCommand`，生产 sink 转为 `CommandIntent`，再交给 `CoreApplication`。
 
-### 尚未通过项
+### A-01～A-05 验收状态
 
-1. **Bevy 业务页还不是 live surface**。`route.rs` 在 `Proxies`、`Profiles`、`Rules`、`Connections`、`Logs`、`Dns`、`Doctor`、`AppRouting`、`Sync`、`Settings` 路由直接使用各自的 `Projection::demo()`；这些页的命令按钮有入口，但页面投影尚未由真实 application snapshot/event 驱动。
-2. **Iced 仍包含桌面组合职责**。生产 crate 直接持有 `tokio`、`infiltrator-desktop`、`infiltrator-admin`，启动入口还负责单实例、崩溃清理、文件系统、托盘和 Admin server glue。这些能力本身合理，但它不是“纯 UI crate”，应在模块/组合层明确标注，最终把产品启动组合从 view/update 中抽出。
-3. **Iced 与 Bevy 的页面状态模型尚未完全同源**。Iced 主要以 `AppState`/`Message` 驱动，Bevy 主要以各页私有 `Projection`/`UiCommand` 驱动；两者都能映射到部分 contract，但还没有一套覆盖 11 个页面的 shared page snapshot/event vocabulary。
-4. **现有主控计划部分状态过满**。它是 225 项目标清单，不是 225 项已完成证明；Wave 和“已交付”文字必须以双端 live 行为、测试和视觉证据重新核验。
+| 闸门 | 状态 | 代码/文档证据 |
+| --- | --- | --- |
+| A-01 Iced host/composition split | `parity-ready` | `infiltrator-iced::desktop_composition` + `infiltrator-iced::host`；UI 模块不再直接触达 desktop/admin concrete path；`run_with_surface_pump` 是显式组合入口 |
+| A-02 11-page shared contract | `parity-ready` | `infiltrator-contract::surface_snapshot`、`infiltrator-ports::surface`、Iced `SurfaceModel`/`SurfaceBridge`、Bevy `SurfaceSource`/`SurfaceDrainPlugin` |
+| A-03 Bevy live source | `parity-ready` | `ApplicationSurfaceReader`、`SurfacePump`、desktop composition、Bevy `SurfaceDrainPlugin`；生产 route 无 `Projection::demo()` |
+| A-04 fail-closed parity guard | `parity-ready` | `scripts/quality/parity-guard.py` 已接入 workspace/Bevy/test CI 入口 |
+| A-05 delivery template | `parity-ready` | `docs/DUAL_SURFACE_DELIVERY_TEMPLATE.md`，每项强制 shared + Iced + Bevy + tests + host evidence |
+
+### 后续功能开放项
+
+- 225 项业务项的 live 数据与实际交互仍需逐项接入 `ApplicationSurfaceReader`/事件流，并完成两端 headless/host evidence。
+- 日志流和 Doctor 结果按事件/命令生命周期更新，不能由遥测轮询伪造成功数据。
+- Iced 仍可使用 Iced toolkit 自身的 executor；这不等于 application/domain 获得 Tokio 依赖。
+- 业务功能完成度继续以 [双端主控计划](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 的 `parity-ready` / `host-verified` 口径记账。
 
 ## 0.30 架构收口顺序
 
@@ -120,4 +131,3 @@ python3 scripts/quality/import-guard.py --mode enforce
 ```
 
 这些命令只能证明底层依赖边界，没有证明双端页面已具备真实数据。因此它们必须与 live projection、双端行为测试和宿主 smoke 一起使用。
-

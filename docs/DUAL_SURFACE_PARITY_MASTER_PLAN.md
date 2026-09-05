@@ -2,7 +2,7 @@
 
 本文档是 MusicFrog Infiltrator 项目的最高战略主控台账，旨在确立 **Iced（成熟桌面端）** 与 **Bevy UI（桌面+移动统一跨平台战略端）** 的**严格同步演进机制**，并全面对标业界成熟 Mihomo 客户端，以其**最完善功能组的能力并集（Union）**作为最终目标。
 
-> **状态声明（2026-09-05）**：本文的 15×15（225 项）是目标与执行台账，不等同于已完成。0.30 当前已确认核心分层原则成立，但双端 live parity 尚未完成：Bevy 非 Overview 页面仍在从 demo projection 迁移，Iced 仍包含桌面组合职责。真实审计见 [DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md](DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md)。
+> **状态声明（2026-09-05）**：本文的 15×15（225 项）是目标与执行台账，不等同于已完成。0.30 的 A-01～A-05 架构前置闸门已经完成：两条 UI 都有 shared surface bridge、明确的 host/composition 入口，Bevy 生产路由不再使用 demo projection；225 项业务能力仍必须逐项完成双端 live parity 与宿主证据。真实审计见 [DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md](DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md)。
 
 ---
 
@@ -383,14 +383,14 @@
 双端演进划分为 4 个推进批次，每批次以**双端同步验收**为准入条件：
 
 ```
-Wave 1: 双端框架与核心主干对齐 [骨架已交付，双端 live parity 未验收]
+Wave 1: 双端框架与核心主干对齐 [A-01～A-05 架构前置已验收，业务 parity 持续]
   ├─ Bevy 11 页面路由/场景骨架与 RouteHistory 已存在
-  ├─ Iced 桌面流程已具备；Bevy 对应 live application projection 待补齐
+  ├─ Iced 与 Bevy 均可由 host 注入同一个 application-owned surface pump
   └─ 核心生命周期、系统代理、TUN、节点和测速按 shared contract 收口
 
-Wave 2: 核心遥测、透视与诊断闭环 [Overview 已有 live slice，其余待双端验收]
-  ├─ Bevy Overview 已通过 application-owned pump 接入真实数据
-  ├─ 连接、日志、DNS、Doctor、Tracer 的 Bevy live projection 待补齐
+Wave 2: 核心遥测、透视与诊断闭环 [shared surface 已接通，业务项逐项验收]
+  ├─ Bevy 11 页与 Iced surface model 已接入 typed snapshot/event/status 边界
+  ├─ 连接、日志、DNS、Doctor、Tracer 的具体 live 数据仍按业务项补齐
   └─ 波形、拓扑、Mini HUD、Command Palette 以双端测试和宿主证据重新验收
 
 Wave 3: 高级扩展、配置工程与应用分流 [目标已定义，未计入完成]
@@ -398,8 +398,8 @@ Wave 3: 高级扩展、配置工程与应用分流 [目标已定义，未计入�
   ├─ Bevy 同批次接入 live projection、命令结果和错误状态
   └─ 聚合器、AST/Diff、脚本、应用分流必须各自完成双端测试
 
-Wave 4: 规则集深度治理、云端同步与多模态大一统 [0.30 当前主线]
-  ├─ 先完成 A-01 ~ A-05 架构闸门
+Wave 4: 规则集深度治理、云端同步与多模态大一统 [A-01～A-05 后的 0.30 当前主线]
+  ├─ shared surface 架构前置已完成，按 DUAL 项目进入双端实现
   ├─ MRS、WebDAV、Rail 和响应式能力按两端 live parity 重新记账
   └─ 移动触控、VPN host、低功耗调度进入 Bevy mobile + Android host 联合验收
 ```

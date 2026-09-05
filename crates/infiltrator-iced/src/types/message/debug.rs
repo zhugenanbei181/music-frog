@@ -4,6 +4,11 @@ impl std::fmt::Debug for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Message::Noop => write!(f, "Noop"),
+            Message::SurfaceSnapshotUpdated(snapshot) => write!(
+                f,
+                "SurfaceSnapshotUpdated(revision={}, generation={})",
+                snapshot.revision, snapshot.generation
+            ),
             Message::Navigate(route) => write!(f, "Navigate({:?})", route),
             Message::NavigateBack => write!(f, "NavigateBack"),
             Message::NavigateForward => write!(f, "NavigateForward"),

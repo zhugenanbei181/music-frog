@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
 if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--no-run" ) ]]; then
   echo "usage: bash scripts/test.sh [--no-run]" >&2
   exit 2
 fi
+
+python3 scripts/quality/parity-guard.py --mode enforce
 
 nextest_mode=()
 if [[ $# -eq 1 ]]; then

@@ -4,7 +4,9 @@
 
 本文件定义底层重整的目标边界和验收规则。具体实现流水写入本地 `TODO.md`，功能归属仍以 `FUNCTIONAL_MAP.md` 为准。
 
-双 UI 的实际落地状态另见 [DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md](DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md)：核心分层原则已成立，但 Bevy 非 Overview 页面和 Iced 的桌面组合拆分仍属于 0.30 开放项；不要把本文件的目标边界误读为双端功能已完成。
+双 UI 的实际落地状态另见 [DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md](DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md)：核心分层和 A-01～A-05 前置边界已成立；Bevy 非 Overview 的具体 live 能力和 225 项业务功能仍在后续推进，不要把本文件的目标边界误读为双端功能已完成。
+
+截至 2026-09-05，A-01～A-05 已完成为架构前置：shared 11-page surface contract、application `SurfacePump`、desktop reader composition、Iced host namespace、Bevy live source adapter、fail-closed parity guard 和双端交付模板均已落地。后续开放项是 225 项具体业务能力，不再修改这组前置边界。
 
 ### 当前 0.30 进度
 

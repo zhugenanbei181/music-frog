@@ -102,9 +102,9 @@ impl AppState {
                         // 失败则整体不落盘，保持「settings 文件 + keyring」
                         // 状态一致（避免其他字段更新而凭据悄悄丢失）。
                         if webdav_password.is_empty() {
-                            infiltrator_desktop::storage::clear_webdav_password().await;
+                            crate::host::storage::clear_webdav_password().await;
                         } else {
-                            infiltrator_desktop::storage::save_webdav_password(&webdav_password)
+                            crate::host::storage::save_webdav_password(&webdav_password)
                                 .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         }

@@ -318,6 +318,9 @@ impl From<ConfigResponse> for infiltrator_domain::runtime::ConfigSnapshot {
     fn from(value: ConfigResponse) -> Self {
         Self {
             mode: value.mode,
+            mixed_port: value.mixed_port,
+            log_level: value.log_level,
+            allow_lan: value.allow_lan,
             tun: value.tun.map(|tun| infiltrator_domain::runtime::TunSnapshot {
                 enable: tun.enable,
                 stack: tun.stack,

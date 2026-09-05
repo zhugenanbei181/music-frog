@@ -31,6 +31,8 @@ pub type SubscriptionUpdateOutcomes = Result<Vec<(String, Result<(), String>)>, 
 #[derive(Clone)]
 pub enum Message {
     Noop,
+    /// Shared 11-page application snapshot delivered by a host source.
+    SurfaceSnapshotUpdated(Box<infiltrator_contract::surface_snapshot::SurfaceSnapshot>),
     Navigate(Route),
     NavigateBack,
     NavigateForward,
@@ -404,13 +406,13 @@ pub enum Message {
     FormatYamlEditor,
     // App Routing (应用分流)
     RefreshAppRoutingProcesses,
-    AppRoutingProcessesLoaded(Vec<infiltrator_desktop::process_enumerator::ExtendedProcessInfo>),
+    AppRoutingProcessesLoaded(Vec<crate::host::process_enumerator::ExtendedProcessInfo>),
     AppRoutingConfigLoaded(Result<infiltrator_domain::app_routing::AppRoutingConfig, InfiltratorError>),
     AppRoutingPersisted(Result<(), InfiltratorError>),
     SetAppRoutingFilter(String),
     SetAppRoutingMode(super::app_routing::AppRoutingMode),
     SetAppRouteRule { process: String, rule: super::app_routing::AppRouteRule },
-    SetAppRoutingCategory(Option<infiltrator_desktop::process_enumerator::ProcessCategory>),
+    SetAppRoutingCategory(Option<crate::host::process_enumerator::ProcessCategory>),
     // Proxy Group Reorder (策略组重排)
     MoveProxyGroupUp(String),
     MoveProxyGroupDown(String),

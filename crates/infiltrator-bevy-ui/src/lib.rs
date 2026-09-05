@@ -31,12 +31,13 @@ pub mod projection;
 pub mod route;
 pub mod shell_scene;
 pub mod shortcuts;
+pub mod surface;
 
 use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};
 use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
-use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::command_application::CommandHandler;
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_bevy_widgets::theme::LightDark;
 use std::sync::Arc;
 
@@ -67,7 +68,40 @@ pub fn run() {
 /// facade; Bevy never needs to construct a Tokio runtime or a concrete HTTP
 /// client for command dispatch.
 pub fn run_with_application(application: Arc<CoreApplication>) {
-    run_with_command_sink(Arc::new(command::ApplicationCommandSink::new(application)));
+    run_with_command_sink_and_surface(
+        Arc::new(command::ApplicationCommandSink::new(application)),
+        None,
+        None,
+    );
+}
+
+/// Launch with both the shared command service and the complete 11-page
+/// application-owned surface source. Desktop/mobile composition roots should
+/// use this entry once they have wired `SurfaceReader` ports.
+pub fn run_with_application_and_surface(
+    application: Arc<CoreApplication>,
+    source: Arc<dyn surface::SurfaceSource>,
+) {
+    run_with_command_sink_and_surface(
+        Arc::new(command::ApplicationCommandSink::new(application)),
+        Some(source),
+        None,
+    );
+}
+
+/// Launch with a concrete application surface pump and install its bounded
+/// frame drain. This is the preferred desktop/mobile composition entry; the
+/// erased variant above remains useful for pull-only embedders.
+pub fn run_with_application_surface_pump(
+    application: Arc<CoreApplication>,
+    source: surface::ApplicationSurfaceSource,
+) {
+    let drain = surface::SurfaceDrainPlugin::new(&source);
+    run_with_command_sink_and_surface(
+        Arc::new(command::ApplicationCommandSink::new(application)),
+        Some(Arc::new(source)),
+        Some(drain),
+    );
 }
 
 /// Launch the shell with the lifecycle application plus an explicitly
@@ -85,6 +119,14 @@ pub fn run_with_application_and_handler(
 /// Launch the windowed shell with an arbitrary command sink. This is useful
 /// for native composition roots and for deterministic demo/test hosts.
 pub fn run_with_command_sink(sink: Arc<dyn UiCommandSink>) {
+    run_with_command_sink_and_surface(sink, None, None);
+}
+
+fn run_with_command_sink_and_surface(
+    sink: Arc<dyn UiCommandSink>,
+    surface_source: Option<Arc<dyn surface::SurfaceSource>>,
+    surface_drain: Option<surface::SurfaceDrainPlugin>,
+) {
     let skin = capture::skin_from_env().unwrap_or(LightDark::Dark);
     let (width, height) = capture::window_size_from_env().unwrap_or((1180, 760));
     let marker = capture::marker_path_from_env();
@@ -103,20 +145,25 @@ pub fn run_with_command_sink(sink: Arc<dyn UiCommandSink>) {
     app.add_plugins(app::ShellPlugin::new_with_width(skin, width as f32));
     app.add_plugins(command::CommandPumpPlugin::new(sink));
     // The route + page bootstrap: without it the content slot stays empty in
-    // the windowed run (headless tests add PagesPlugin explicitly, which is
-    // why this regression only shows up on screen). The configured
-    // controller swaps the demo fixture for the live pump; unset env keeps
-    // the demo default.
-    let live_controller = controller.is_some();
-    match controller {
-        Some(config) => {
-            let source = controller::MihomoOverviewSource::spawn(config);
-            app.add_plugins(controller::PumpDrainPlugin::new(&source));
-            app.add_plugins(route::PagesPlugin::new(source));
-        }
-        None => {
-            app.add_plugins(route::PagesPlugin::default());
-        }
+    // the windowed run (headless tests add PagesPlugin explicitly). A host
+    // composed surface source is authoritative; controller-only capture is
+    // an Overview-only compatibility path; the no-controller launcher is an
+    // explicit demo composition.
+    let live_controller = surface_source.is_some() || controller.is_some();
+    if let Some(source) = surface_source {
+        app.add_plugins(route::PagesPlugin::new_surface_arc(source));
+        // The source itself may own a complete application pump. The drain
+        // plugin is installed by the composition helper below when the
+        // concrete type is available; an erased source remains pull-only.
+    } else if let Some(config) = controller {
+        let source = controller::MihomoOverviewSource::spawn(config);
+        app.add_plugins(controller::PumpDrainPlugin::new(&source));
+        app.add_plugins(route::PagesPlugin::new(source));
+    } else {
+        app.add_plugins(route::PagesPlugin::demo());
+    }
+    if let Some(drain) = surface_drain {
+        app.add_plugins(drain);
     }
     if let Some(path) = marker {
         // Live runs gate the readiness marker on the pump's first delivered

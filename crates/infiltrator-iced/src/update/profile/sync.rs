@@ -49,7 +49,7 @@ impl SyncProgressSink for IcedSyncProgressSink {
 }
 
 pub(super) fn sync_application() -> Result<SyncApplication, InfiltratorError> {
-    let port = infiltrator_desktop::storage::sync()
+    let port = crate::host::storage::sync()
         .map_err(|error| InfiltratorError::Sync(error.to_string()))?;
     Ok(SyncApplication::new(Arc::new(port)))
 }

@@ -1,0 +1,447 @@
+//! The page-level read model shared by every UI surface.
+//!
+//! This module deliberately contains product data, not widget data. Iced,
+//! Bevy, Compose, Admin and CLI adapters may project these values differently,
+//! but they must not invent a second business-facing page state model.
+
+use crate::capability::CapabilitySnapshot;
+use crate::command::ProxyMode;
+use crate::error::Failure;
+use crate::snapshot::{CoreLifecycle, CoreSnapshot};
+use crate::surface::{HostKind, SurfaceKind};
+use serde::{Deserialize, Serialize};
+
+/// Canonical page vocabulary shared by the two primary UI surfaces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PageId {
+    Overview,
+    Proxies,
+    Profiles,
+    Rules,
+    Connections,
+    Logs,
+    Dns,
+    Doctor,
+    AppRouting,
+    Sync,
+    Settings,
+}
+
+impl PageId {
+    pub const ALL: [Self; 11] = [
+        Self::Overview,
+        Self::Proxies,
+        Self::Profiles,
+        Self::Rules,
+        Self::Connections,
+        Self::Logs,
+        Self::Dns,
+        Self::Doctor,
+        Self::AppRouting,
+        Self::Sync,
+        Self::Settings,
+    ];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Overview => "overview",
+            Self::Proxies => "proxies",
+            Self::Profiles => "profiles",
+            Self::Rules => "rules",
+            Self::Connections => "connections",
+            Self::Logs => "logs",
+            Self::Dns => "dns",
+            Self::Doctor => "doctor",
+            Self::AppRouting => "app_routing",
+            Self::Sync => "sync",
+            Self::Settings => "settings",
+        }
+    }
+}
+
+/// State of one page read model. `Unavailable` is different from an empty
+/// result: a surface must tell the user why a host capability is absent.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PageStatus {
+    Loading,
+    Ready,
+    Empty,
+    Unavailable { failure: Failure },
+    Failed { failure: Failure },
+}
+
+/// Whether a surface snapshot is an explicit fixture or a host/application
+/// observation. This is data, not something a UI may infer from empty fields.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SurfaceOrigin {
+    Demo,
+    Live,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PageData<T> {
+    pub status: PageStatus,
+    pub data: Option<T>,
+}
+
+impl<T> PageData<T> {
+    pub fn loading() -> Self {
+        Self {
+            status: PageStatus::Loading,
+            data: None,
+        }
+    }
+
+    pub fn ready(data: T) -> Self {
+        Self {
+            status: PageStatus::Ready,
+            data: Some(data),
+        }
+    }
+
+    pub fn empty(data: T) -> Self {
+        Self {
+            status: PageStatus::Empty,
+            data: Some(data),
+        }
+    }
+
+    pub fn unavailable(failure: Failure) -> Self {
+        Self {
+            status: PageStatus::Unavailable { failure },
+            data: None,
+        }
+    }
+
+    pub fn failed(failure: Failure) -> Self {
+        Self {
+            status: PageStatus::Failed { failure },
+            data: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OverviewPageSnapshot {
+    pub proxy_mode: Option<ProxyMode>,
+    pub upload_bps: f64,
+    pub download_bps: f64,
+    pub active_connections: u32,
+    pub memory_bytes: Option<u64>,
+    pub core_version: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProxyNodeSnapshot {
+    pub name: String,
+    pub node_type: String,
+    pub delay_ms: Option<u32>,
+    pub selected: bool,
+    pub favorite: bool,
+    pub features: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProxyGroupSnapshot {
+    pub name: String,
+    pub group_type: String,
+    pub current: String,
+    pub expanded: bool,
+    pub proxies: Vec<ProxyNodeSnapshot>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProxiesPageSnapshot {
+    pub groups: Vec<ProxyGroupSnapshot>,
+    pub testing: bool,
+    pub active_exit: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProfileSnapshot {
+    pub id: String,
+    pub name: String,
+    pub url: String,
+    pub updated_at: String,
+    pub upload_bytes: u64,
+    pub download_bytes: u64,
+    pub total_bytes: u64,
+    pub is_active: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProfilesPageSnapshot {
+    pub profiles: Vec<ProfileSnapshot>,
+    pub auto_update_interval_hours: u32,
+    pub updating: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RuleSnapshot {
+    pub id: usize,
+    pub rule_type: String,
+    pub payload: String,
+    pub proxy: String,
+    pub hit_count: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RuleProviderSnapshot {
+    pub name: String,
+    pub rule_count: usize,
+    pub behavior: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RulesPageSnapshot {
+    pub total_rules: usize,
+    pub default_action: String,
+    pub providers: Vec<RuleProviderSnapshot>,
+    pub rules: Vec<RuleSnapshot>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ConnectionSnapshot {
+    pub id: String,
+    pub host: String,
+    pub process: String,
+    pub rule: String,
+    pub chain: String,
+    pub upload_bps: f64,
+    pub download_bps: f64,
+    pub upload_total: u64,
+    pub download_total: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ConnectionsPageSnapshot {
+    pub total_connections: usize,
+    pub total_upload_bytes: u64,
+    pub total_download_bytes: u64,
+    pub connections: Vec<ConnectionSnapshot>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogSnapshot {
+    pub timestamp: String,
+    pub level: String,
+    pub tag: String,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogsPageSnapshot {
+    pub total_entries: usize,
+    pub active_level: Option<String>,
+    pub entries: Vec<LogSnapshot>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DnsServerSnapshot {
+    pub address: String,
+    pub protocol: String,
+    pub latency_ms: Option<u32>,
+    pub is_fallback: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DnsPageSnapshot {
+    pub mode: String,
+    pub cache_entries: usize,
+    pub fake_ip_range: String,
+    pub servers: Vec<DnsServerSnapshot>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DoctorCheckSnapshot {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    pub state: String,
+    pub detail: String,
+    pub fix_available: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DoctorPageSnapshot {
+    pub overall_healthy: bool,
+    pub last_run: String,
+    pub checks: Vec<DoctorCheckSnapshot>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AppSnapshot {
+    pub id: String,
+    pub name: String,
+    pub process_name: String,
+    pub rule: String,
+    pub is_system: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AppRoutingPageSnapshot {
+    pub mode: String,
+    pub include_system: bool,
+    pub apps: Vec<AppSnapshot>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyncConflictSnapshot {
+    pub remote_device: String,
+    pub conflict_time: String,
+    pub conflicting_keys: Vec<(String, String, String)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SnapshotItemSnapshot {
+    pub id: String,
+    pub timestamp: String,
+    pub device: String,
+    pub size_bytes: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyncPageSnapshot {
+    pub status: String,
+    pub server_url: String,
+    pub username: String,
+    pub last_sync: Option<String>,
+    pub auto_sync: bool,
+    pub conflict: Option<SyncConflictSnapshot>,
+    pub snapshots: Vec<SnapshotItemSnapshot>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SettingsPageSnapshot {
+    pub autostart: bool,
+    pub system_proxy: bool,
+    pub mixed_port: u16,
+    pub allow_lan: bool,
+    pub tun_enabled: bool,
+    pub tun_stack: String,
+    pub controller_port: u16,
+    pub log_level: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SurfacePages {
+    pub overview: PageData<OverviewPageSnapshot>,
+    pub proxies: PageData<ProxiesPageSnapshot>,
+    pub profiles: PageData<ProfilesPageSnapshot>,
+    pub rules: PageData<RulesPageSnapshot>,
+    pub connections: PageData<ConnectionsPageSnapshot>,
+    pub logs: PageData<LogsPageSnapshot>,
+    pub dns: PageData<DnsPageSnapshot>,
+    pub doctor: PageData<DoctorPageSnapshot>,
+    pub app_routing: PageData<AppRoutingPageSnapshot>,
+    pub sync: PageData<SyncPageSnapshot>,
+    pub settings: PageData<SettingsPageSnapshot>,
+}
+
+impl SurfacePages {
+    pub fn unavailable(failure: Failure) -> Self {
+        Self {
+            overview: PageData::unavailable(failure.clone()),
+            proxies: PageData::unavailable(failure.clone()),
+            profiles: PageData::unavailable(failure.clone()),
+            rules: PageData::unavailable(failure.clone()),
+            connections: PageData::unavailable(failure.clone()),
+            logs: PageData::unavailable(failure.clone()),
+            dns: PageData::unavailable(failure.clone()),
+            doctor: PageData::unavailable(failure.clone()),
+            app_routing: PageData::unavailable(failure.clone()),
+            sync: PageData::unavailable(failure.clone()),
+            settings: PageData::unavailable(failure),
+        }
+    }
+
+    pub fn status(&self, page: PageId) -> &PageStatus {
+        match page {
+            PageId::Overview => &self.overview.status,
+            PageId::Proxies => &self.proxies.status,
+            PageId::Profiles => &self.profiles.status,
+            PageId::Rules => &self.rules.status,
+            PageId::Connections => &self.connections.status,
+            PageId::Logs => &self.logs.status,
+            PageId::Dns => &self.dns.status,
+            PageId::Doctor => &self.doctor.status,
+            PageId::AppRouting => &self.app_routing.status,
+            PageId::Sync => &self.sync.status,
+            PageId::Settings => &self.settings.status,
+        }
+    }
+}
+
+/// One canonical read model consumed by every inbound surface.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SurfaceSnapshot {
+    pub surface: SurfaceKind,
+    pub origin: SurfaceOrigin,
+    pub generation: u64,
+    pub revision: u64,
+    pub core: CoreSnapshot,
+    pub capabilities: CapabilitySnapshot,
+    pub failure: Option<Failure>,
+    pub pages: SurfacePages,
+}
+
+/// Surface-level event vocabulary. Toolkit adapters may translate this into
+/// an Iced message, Bevy trigger, Compose state update, or REST stream item.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum SurfaceEvent {
+    SnapshotUpdated(SurfaceSnapshot),
+}
+
+impl SurfaceSnapshot {
+    pub fn unavailable(surface: SurfaceKind, host: HostKind, failure: Failure) -> Self {
+        Self {
+            surface,
+            origin: SurfaceOrigin::Live,
+            generation: 0,
+            revision: 0,
+            core: CoreSnapshot {
+                lifecycle: CoreLifecycle::Starting,
+                generation: 0,
+                revision: 0,
+                proxy_mode: Some(ProxyMode::Rule),
+                core_version: None,
+                sampled_at_epoch_ms: None,
+                failure: Some(failure.clone()),
+                upload_bps: 0.0,
+                download_bps: 0.0,
+                active_connections: 0,
+                memory_bytes: None,
+            },
+            capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
+            failure: Some(failure.clone()),
+            pages: SurfacePages::unavailable(failure),
+        }
+    }
+
+    pub fn page_status(&self, page: PageId) -> &PageStatus {
+        self.pages.status(page)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn page_vocabulary_has_exactly_eleven_entries() {
+        assert_eq!(PageId::ALL.len(), 11);
+        assert_eq!(PageId::ALL[0].as_str(), "overview");
+        assert_eq!(PageId::ALL[10].as_str(), "settings");
+    }
+
+    #[test]
+    fn unavailable_is_not_an_empty_page() {
+        let failure = Failure::unsupported("host did not provide this capability");
+        let page = PageData::<String>::unavailable(failure.clone());
+        assert!(page.data.is_none());
+        assert_eq!(page.status, PageStatus::Unavailable { failure });
+    }
+}

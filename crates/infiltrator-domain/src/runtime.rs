@@ -9,6 +9,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ConfigSnapshot {
     pub mode: String,
+    #[serde(default)]
+    pub mixed_port: u16,
+    #[serde(default)]
+    pub log_level: String,
+    #[serde(default)]
+    pub allow_lan: bool,
     pub tun: Option<TunSnapshot>,
     pub dns: Option<DnsSnapshot>,
     pub sniffer: Option<SnifferSnapshot>,

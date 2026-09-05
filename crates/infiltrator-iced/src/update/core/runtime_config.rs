@@ -7,7 +7,7 @@ use crate::types::runtime::{RuntimeConfig, RuntimePatchSnapshot};
 use iced::Task;
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_desktop::tun_service::TunServiceManager;
+use crate::host::tun_service::TunServiceManager;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_shared::locales::Localizer;
 

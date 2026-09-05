@@ -177,7 +177,7 @@ impl AppState {
                     async move {
                         let cm = crate::configs_dir::config_manager().await?;
                         let application = ProfileApplication::new(cm);
-                        let source = infiltrator_desktop::storage::subscription_source();
+                        let source = crate::host::storage::subscription_source();
                         application
                             .update_subscription(&source, &profile_name)
                             .await
@@ -239,7 +239,7 @@ impl AppState {
                             .list_profiles()
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                        let source = infiltrator_desktop::storage::subscription_source();
+                        let source = crate::host::storage::subscription_source();
                         let now = Utc::now();
                         let mut updated_names = Vec::new();
                         let mut active_updated = false;
@@ -349,7 +349,7 @@ impl AppState {
                             .list_profiles()
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                        let source = infiltrator_desktop::storage::subscription_source();
+                        let source = crate::host::storage::subscription_source();
                         let mut outcomes = Vec::new();
 
                         for profile in profiles {

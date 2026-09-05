@@ -21,3 +21,4 @@ for crate_name in "${crates[@]}"; do
 done
 
 python3 "$repo_root/scripts/quality/bevy_bsn_guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/parity-guard.py" --mode enforce

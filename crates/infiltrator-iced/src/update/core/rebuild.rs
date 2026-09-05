@@ -82,7 +82,7 @@ impl AppState {
                     .await
                     .map_err(infiltrator_contract::error::from_mihomo)?;
                 let candidates = vec![];
-                match infiltrator_desktop::boot::bootstrap_host_runtime_from_current_home(
+                match crate::host::boot::bootstrap_host_runtime_from_current_home(
                     true,
                     &candidates,
                 )

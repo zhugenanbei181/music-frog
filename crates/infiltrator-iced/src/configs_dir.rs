@@ -11,7 +11,7 @@ use infiltrator_ports::profile_store::ProfileStore;
 
 /// Construct the host's profile persistence port.
 pub async fn config_manager() -> Result<Arc<dyn ProfileStore>, InfiltratorError> {
-    infiltrator_desktop::storage::profile_store()
+    crate::host::storage::profile_store()
         .await
         .map_err(|error| InfiltratorError::Config(error.to_string()))
 }

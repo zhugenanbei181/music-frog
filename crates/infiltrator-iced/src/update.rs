@@ -94,6 +94,10 @@ impl AppState {
         }
 
         match message {
+            Message::SurfaceSnapshotUpdated(snapshot) => {
+                self.apply_shared_surface_snapshot(*snapshot);
+                Task::none()
+            }
             // UI & Navigation
             Message::ToggleCommandPalette
             | Message::OpenCommandPalette

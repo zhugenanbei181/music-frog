@@ -48,3 +48,6 @@ mod iced_six_advancements_wave4_tests;
 
 #[path = "../tests/gui/iced_six_advancements_wave5_tests.rs"]
 mod iced_six_advancements_wave5_tests;
+
+#[path = "../tests/gui/surface_contract_tests.rs"]
+mod surface_contract_tests;

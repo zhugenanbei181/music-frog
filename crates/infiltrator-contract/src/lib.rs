@@ -10,6 +10,7 @@ pub mod doctor;
 pub mod error;
 pub mod intent;
 pub mod snapshot;
+pub mod surface_snapshot;
 pub mod sync;
 pub mod version;
 pub mod surface;

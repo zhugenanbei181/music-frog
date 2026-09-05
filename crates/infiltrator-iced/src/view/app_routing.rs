@@ -11,7 +11,7 @@ use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_desktop::process_enumerator::ProcessCategory;
+use crate::host::process_enumerator::ProcessCategory;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn category_badge_kind(cat: ProcessCategory) -> BadgeKind {

@@ -211,6 +211,12 @@ impl AppState {
             subs.push(crate::admin_server::admin_commands_subscription(rx));
         }
 
+        // 1c. Shared application surface snapshots. The desktop/mobile
+        // composition owns the pump; Iced only drains typed messages.
+        if let Some(bridge) = &self.surface_bridge {
+            subs.push(bridge.subscription());
+        }
+
         // 2. Scheduled subscription auto-update checks
         subs.push(Subscription::run(|| {
             stream::channel(

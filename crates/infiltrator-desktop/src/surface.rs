@@ -1,0 +1,108 @@
+//! Desktop composition for the complete shared UI surface.
+//!
+//! This module is intentionally outside both UI crates. It assembles concrete
+//! desktop storage/controller adapters into the runtime-neutral
+//! `ApplicationSurfaceReader` and `SurfacePump` consumed by Iced or Bevy.
+
+use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::doctor_application::DoctorApplication;
+use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::routing_application::RoutingApplication;
+use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_application::snapshot_application::SnapshotApplication;
+use infiltrator_application::surface_application::SurfacePump;
+use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_contract::capability::{
+    Availability, Capability, CapabilitySnapshot, CapabilityStatus,
+};
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use std::sync::Arc;
+use std::time::Duration;
+
+/// Desktop capabilities exposed to either UI surface.
+pub fn desktop_capabilities() -> CapabilitySnapshot {
+    let entries = [
+        Capability::CoreLifecycle,
+        Capability::Profiles,
+        Capability::ProxyMode,
+        Capability::Connections,
+        Capability::Logs,
+        Capability::Dns,
+        Capability::Tun,
+        Capability::SystemProxy,
+        Capability::Autostart,
+        Capability::CoreVersionInstall,
+        Capability::WebDavSync,
+        Capability::AppRouting,
+    ]
+    .into_iter()
+    .map(|capability| CapabilityStatus {
+        capability,
+        availability: Availability::Supported,
+    })
+    .collect();
+    CapabilitySnapshot::new(HostKind::Desktop, 0, entries)
+}
+
+/// Assemble all currently available desktop application facades into one
+/// surface reader. No UI toolkit appears in this function.
+pub async fn application_surface_reader(
+    core: Arc<CoreApplication>,
+    gateway: Arc<dyn RuntimeGateway>,
+    surface: SurfaceKind,
+) -> anyhow::Result<ApplicationSurfaceReader> {
+    let profile_store = crate::storage::profile_store().await?;
+    let configuration_store = Arc::clone(&profile_store);
+    let snapshot_profile_store = Arc::clone(&profile_store);
+    let profile = ProfileApplication::new(profile_store);
+    let configuration = ConfigurationApplication::new(configuration_store);
+    let settings_store = crate::storage::settings_store().await?;
+    let settings = SettingsApplication::new(settings_store);
+    let doctor = DoctorApplication::new(Arc::new(crate::storage::doctor()?));
+    let routing = RoutingApplication::new(Arc::new(crate::storage::app_routing_store()?));
+    let snapshots = SnapshotApplication::new(
+        snapshot_profile_store,
+        Arc::new(crate::storage::snapshot_store().await?),
+    );
+
+    Ok(
+        ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
+            .with_capabilities(desktop_capabilities())
+            .with_gateway(gateway)
+            .with_profiles(profile)
+            .with_configuration(configuration)
+            .with_doctor(doctor)
+            .with_routing(routing)
+            .with_settings(settings)
+            .with_snapshots(snapshots),
+    )
+}
+
+/// Spawn the bounded desktop surface pump used by frame-driven UI hosts.
+pub async fn surface_pump(
+    core: Arc<CoreApplication>,
+    gateway: Arc<dyn RuntimeGateway>,
+    surface: SurfaceKind,
+    sample_interval: Duration,
+) -> anyhow::Result<SurfacePump> {
+    let reader = application_surface_reader(Arc::clone(&core), gateway, surface).await?;
+    let runtime = infiltrator_composition::tokio_application_runtime()
+        .map_err(|error| anyhow::anyhow!(error))?;
+    let initial = infiltrator_contract::surface_snapshot::SurfaceSnapshot::unavailable(
+        surface,
+        HostKind::Desktop,
+        infiltrator_contract::error::Failure::new(
+            infiltrator_contract::error::ErrorCode::NotReady,
+            "waiting for the first desktop surface snapshot",
+            true,
+        ),
+    );
+    Ok(SurfacePump::spawn(
+        Arc::new(reader),
+        sample_interval,
+        runtime,
+        initial,
+    ))
+}

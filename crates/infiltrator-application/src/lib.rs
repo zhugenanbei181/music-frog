@@ -19,6 +19,8 @@ pub mod routing_application;
 pub mod runtime_query_application;
 pub mod settings_application;
 pub mod snapshot_application;
+pub mod surface_application;
+pub mod surface_reader;
 pub mod sync_application;
 pub mod version_application;
 

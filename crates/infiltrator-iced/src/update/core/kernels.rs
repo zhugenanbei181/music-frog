@@ -285,7 +285,7 @@ impl AppState {
                             .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
                         }
 
-                        infiltrator_desktop::proxy::apply_system_proxy(None)
+                        crate::host::desktop::apply_system_proxy(None)
                             .map_err(|error| InfiltratorError::Privilege(error.to_string()))?;
                         infiltrator_shared::autostart::set_autostart_enabled(
                             crate::AUTOSTART_REG_NAME,
@@ -293,14 +293,14 @@ impl AppState {
                         )
                         .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
 
-                        let home = infiltrator_desktop::storage::home_dir()
+                        let home = crate::host::storage::home_dir()
                             .map_err(infiltrator_contract::error::from_mihomo)?;
 
                         // 必须趁 settings.toml 还在时解析 configs 目录
                         // （settings 的 configs_dir 可指向云同步目录）并枚举
                         // profile 名清 keyring；settings 一旦先删，云目录里的
                         // cache.db / geoip / options / snapshots 就会整体漏删。
-                        let manager = infiltrator_desktop::storage::profile_store().await.ok();
+                        let manager = crate::host::storage::profile_store().await.ok();
                         let configs_dir = manager.as_ref().map(|m| m.config_dir().to_path_buf());
                         if let Some(manager) = &manager {
                             match manager.list_profiles().await {
@@ -336,7 +336,7 @@ impl AppState {
                         // 纯文件系统清理：settings/config.toml 删除失败整体
                         // 报错；目录/日志失败只记 warning（契约见模块文档）。
                         let warnings = tokio::task::spawn_blocking(move || {
-                            infiltrator_desktop::storage::factory_reset(
+                            crate::host::storage::factory_reset(
                                 &home,
                                 configs_dir.as_deref(),
                             )
@@ -350,7 +350,7 @@ impl AppState {
 
                         // settings 已删，configs 回落 `<home>/configs`：重建
                         // default 配置与当前指针，落出厂态。
-                        infiltrator_desktop::storage::reset_profiles_to_default()
+                        crate::host::storage::reset_profiles_to_default()
                             .await
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         Ok(())

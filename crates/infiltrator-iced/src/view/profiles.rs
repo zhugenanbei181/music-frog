@@ -19,7 +19,7 @@ use iced::widget::{
 };
 use iced::{border, Alignment, Border, Color, Element, Length, Theme};
 use infiltrator_domain::profiles::ProfileInfo;
-use infiltrator_desktop::clipboard_helper::ClipboardHelper;
+use crate::host::clipboard_helper::ClipboardHelper;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Human-readable byte size (B / KB / MB / GB / TB), formatted with two decimals above 1 KB.

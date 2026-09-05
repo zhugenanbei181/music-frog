@@ -53,7 +53,7 @@ impl AppState {
                                 "内核运行时不能直接覆盖当前配置，请先停止内核后再导入".to_string(),
                             ));
                         }
-                        let source = infiltrator_desktop::storage::subscription_source();
+                        let source = crate::host::storage::subscription_source();
                         ProfileApplication::new(cm)
                             .import_subscription(&source, &profile_name, &url)
                             .await

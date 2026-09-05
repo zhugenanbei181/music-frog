@@ -328,7 +328,7 @@ impl AppState {
                 self.app_routing.is_refreshing = true;
                 let processes = Task::perform(
                     async {
-                        infiltrator_desktop::process_enumerator::enumerate_extended_processes()
+                        crate::host::process_enumerator::enumerate_extended_processes()
                             .unwrap_or_default()
                     },
                     Message::AppRoutingProcessesLoaded,
@@ -705,7 +705,7 @@ impl AppState {
                         } else {
                             String::new()
                         };
-                        infiltrator_desktop::proxy::apply_system_proxy_with_bypass(
+                        crate::host::desktop::apply_system_proxy_with_bypass(
                             if enabled {
                                 Some(endpoint.as_str())
                             } else {

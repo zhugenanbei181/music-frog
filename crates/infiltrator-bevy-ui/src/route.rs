@@ -12,6 +12,7 @@
 //!   transitions in one frame queue despawn before spawn to cleanly converge on
 //!   one active page tree without leaked entities.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use bevy::app::{App, Plugin, Update};
@@ -27,28 +28,32 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{CommandsSceneExt, Scene};
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_contract::surface_snapshot::PageStatus;
 
 use crate::app::{ContentSlot, SidebarFoot};
 use crate::history::TrafficHistory;
-use crate::pages::app_routing::{
-    AppRoutingProjection, AppRoutingProjectionUpdated, app_routing_page,
-};
-use crate::pages::connections::{
-    ConnectionsProjection, ConnectionsProjectionUpdated, connections_page,
-};
-use crate::pages::dns::{DnsProjection, DnsProjectionUpdated, dns_page};
-use crate::pages::doctor::{DoctorProjection, DoctorProjectionUpdated, doctor_page};
-use crate::pages::logs::{LogsProjection, LogsProjectionUpdated, logs_page};
+use crate::pages::app_routing::{AppRoutingProjectionUpdated, app_routing_page};
+use crate::pages::connections::{ConnectionsProjectionUpdated, connections_page};
+use crate::pages::dns::{DnsProjectionUpdated, dns_page};
+use crate::pages::doctor::{DoctorProjectionUpdated, doctor_page};
+use crate::pages::logs::{LogsProjectionUpdated, logs_page};
 use crate::pages::overview::{
     LastOverviewProjection, OverviewProjectionUpdated, banner_note, overview_page,
     replay_projection_after_theme, reskin_overview_tokens, sync_overview_responsive,
 };
-use crate::pages::profiles::{ProfilesProjection, ProfilesProjectionUpdated, profiles_page};
-use crate::pages::proxies::{ProxiesProjection, ProxiesProjectionUpdated, proxies_page};
-use crate::pages::rules::{RulesProjection, RulesProjectionUpdated, rules_page};
-use crate::pages::settings::{SettingsProjection, SettingsProjectionUpdated, settings_page};
-use crate::pages::sync::{SyncProjection, SyncProjectionUpdated, sync_page};
+use crate::pages::profiles::{ProfilesProjectionUpdated, profiles_page};
+use crate::pages::proxies::{ProxiesProjectionUpdated, proxies_page};
+use crate::pages::rules::{RulesProjectionUpdated, rules_page};
+use crate::pages::settings::{SettingsProjectionUpdated, settings_page};
+use crate::pages::sync::{SyncProjectionUpdated, sync_page};
 use crate::projection::{OverviewProjection, OverviewSource, SourceKind};
+use crate::surface::{
+    DemoSurfaceSource, LatestSurfaceSnapshot, LegacyOverviewSurfaceSource, SurfaceOverviewAdapter,
+    SurfaceSnapshotUpdated, SurfaceSource, UnavailableSurfaceSource, app_routing_projection,
+    connections_projection, dns_projection, doctor_projection, logs_projection,
+    overview_projection, profiles_projection, proxies_projection, rules_projection,
+    settings_projection, status_banner_scene, sync_projection,
+};
 
 /// The app's pages. New pages append a variant and an arm in
 /// [`page_scene`] — never a second mount path.
@@ -226,30 +231,60 @@ pub struct ActiveRoute(pub Option<Route>);
 #[derive(Resource, Clone)]
 pub struct OverviewSourceHandle(pub Arc<dyn OverviewSource>);
 
+/// The complete shared surface source. The old Overview handle remains a
+/// compatibility seam for Overview-specific tests and UI chrome; pages use
+/// this source for all 11 projections.
+#[derive(Resource, Clone)]
+pub struct SurfaceSourceHandle(pub Arc<dyn SurfaceSource>);
+
 /// Installs routing and the first page. Reads the shell ([`ContentSlot`],
 /// [`UiPalette`]) — add it after [`ShellPlugin`](crate::app::ShellPlugin).
 /// The default source is the demo fixture; inject any [`OverviewSource`]
 /// with [`PagesPlugin::new`].
 pub struct PagesPlugin {
-    source: Arc<dyn OverviewSource>,
+    overview_source: Arc<dyn OverviewSource>,
+    surface_source: Arc<dyn SurfaceSource>,
 }
 
 impl PagesPlugin {
-    /// Inject a projection source (tests use this for stub sources and
-    /// non-default fixture states; the live core pump plugs in here in
-    /// the next slice).
+    /// Inject an Overview source. Demo sources receive the complete demo
+    /// snapshot; live Overview-only sources receive typed unavailable state
+    /// for pages that have not been composed.
     pub fn new(source: impl OverviewSource + 'static) -> Self {
+        let overview_source: Arc<dyn OverviewSource> = Arc::new(source);
+        let surface_source: Arc<dyn SurfaceSource> = Arc::new(
+            LegacyOverviewSurfaceSource::from_arc(Arc::clone(&overview_source)),
+        );
         Self {
-            source: Arc::new(source),
+            overview_source,
+            surface_source,
         }
+    }
+
+    /// Inject the complete application-owned surface source. This is the
+    /// production entry for a host that has composed all page readers.
+    pub fn new_surface(source: impl SurfaceSource + 'static) -> Self {
+        Self::new_surface_arc(Arc::new(source))
+    }
+
+    pub fn new_surface_arc(source: Arc<dyn SurfaceSource>) -> Self {
+        let overview_source: Arc<dyn OverviewSource> =
+            Arc::new(SurfaceOverviewAdapter(Arc::clone(&source)));
+        Self {
+            overview_source,
+            surface_source: source,
+        }
+    }
+
+    /// Explicit deterministic demo composition for screenshot/test hosts.
+    pub fn demo() -> Self {
+        Self::new_surface(DemoSurfaceSource::running())
     }
 }
 
 impl Default for PagesPlugin {
     fn default() -> Self {
-        Self {
-            source: Arc::new(crate::projection::DemoOverviewSource::running()),
-        }
+        Self::new_surface(UnavailableSurfaceSource::default())
     }
 }
 
@@ -263,9 +298,16 @@ impl Plugin for PagesPlugin {
         // mount scene. The demo fixture ignores it (its trend is the
         // synthetic series — see `history`).
         app.init_resource::<TrafficHistory>();
-        app.insert_resource(OverviewSourceHandle(Arc::clone(&self.source)));
+        app.insert_resource(OverviewSourceHandle(Arc::clone(&self.overview_source)));
+        app.insert_resource(SurfaceSourceHandle(Arc::clone(&self.surface_source)));
+        app.insert_resource(LatestSurfaceSnapshot(
+            self.surface_source.surface_snapshot(),
+        ));
         app.add_observer(on_content_slot_added);
         app.add_observer(sync_route);
+        app.add_observer(apply_surface_snapshot);
+        app.add_observer(reconcile_surface_status);
+        app.add_observer(on_page_root_added);
         app.add_observer(on_navigate_back);
         app.add_observer(on_navigate_forward);
         // The Overview page's per-frame token reskin (banner / dot / mode
@@ -336,27 +378,140 @@ fn on_content_slot_added(_ready: On<Add, ContentSlot>, mut commands: Commands) {
     commands.trigger(RouteChanged(initial));
 }
 
+/// Render a typed status banner for a page whose shared source is loading,
+/// empty, unavailable, or failed. Ready pages stay visually unchanged.
+fn on_page_root_added(
+    trigger: On<Add, PageRoot>,
+    roots: Query<&PageRoot>,
+    latest: Res<LatestSurfaceSnapshot>,
+    palette: Res<UiPalette>,
+    mut commands: Commands,
+) {
+    let entity = trigger.event().entity;
+    let Ok(root) = roots.get(entity) else {
+        return;
+    };
+    let page = page_id_for_route(root.0);
+    let status = latest.0.page_status(page).clone();
+    if matches!(
+        status,
+        infiltrator_contract::surface_snapshot::PageStatus::Ready
+    ) {
+        return;
+    }
+    commands
+        .spawn_scene(status_banner_scene(page, &status, &palette))
+        .insert(ChildOf(entity));
+}
+
+#[derive(Event, Clone, Debug, PartialEq)]
+struct SurfaceStatusChanged(pub infiltrator_contract::surface_snapshot::SurfaceSnapshot);
+
+/// Reconcile the status banner after a live snapshot replaces the initial
+/// placeholder. A page keeps exactly one banner for each non-ready status;
+/// Ready removes it, and a changed failure/loading message replaces it.
+fn reconcile_surface_status(
+    update: On<SurfaceStatusChanged>,
+    roots: Query<(Entity, &PageRoot)>,
+    banners: Query<(Entity, &crate::surface::SurfaceStatusBanner)>,
+    palette: Res<UiPalette>,
+    mut commands: Commands,
+) {
+    let snapshot = &update.0;
+    let mut retained_pages = HashSet::new();
+    for (entity, banner) in &banners {
+        let wanted = snapshot.page_status(banner.page);
+        if matches!(wanted, PageStatus::Ready) || wanted != &banner.status {
+            commands.entity(entity).despawn_children();
+            commands.entity(entity).despawn();
+        } else {
+            retained_pages.insert(banner.page);
+        }
+    }
+
+    for (root_entity, root) in &roots {
+        let page = page_id_for_route(root.0);
+        let status = snapshot.page_status(page);
+        if !matches!(status, PageStatus::Ready) && !retained_pages.contains(&page) {
+            commands
+                .spawn_scene(status_banner_scene(page, status, &palette))
+                .insert(ChildOf(root_entity));
+        }
+    }
+}
+
+const fn page_id_for_route(route: Route) -> infiltrator_contract::surface_snapshot::PageId {
+    use infiltrator_contract::surface_snapshot::PageId;
+    match route {
+        Route::Overview => PageId::Overview,
+        Route::Proxies => PageId::Proxies,
+        Route::Profiles => PageId::Profiles,
+        Route::Rules => PageId::Rules,
+        Route::Connections => PageId::Connections,
+        Route::Logs => PageId::Logs,
+        Route::Dns => PageId::Dns,
+        Route::Doctor => PageId::Doctor,
+        Route::AppRouting => PageId::AppRouting,
+        Route::Sync => PageId::Sync,
+        Route::Settings => PageId::Settings,
+    }
+}
+
 /// The route → scene table. The only place that knows which page backs
 /// which route.
 fn page_scene(
     route: Route,
-    projection: &OverviewProjection,
+    snapshot: &infiltrator_contract::surface_snapshot::SurfaceSnapshot,
     history: &TrafficHistory,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
+    let projection = overview_projection(snapshot);
     match route {
-        Route::Overview => Box::new(overview_page(projection, history, palette)),
-        Route::Proxies => Box::new(proxies_page(&ProxiesProjection::demo(), palette)),
-        Route::Profiles => Box::new(profiles_page(&ProfilesProjection::demo(), palette)),
-        Route::Rules => Box::new(rules_page(&RulesProjection::demo(), palette)),
-        Route::Connections => Box::new(connections_page(&ConnectionsProjection::demo(), palette)),
-        Route::Logs => Box::new(logs_page(&LogsProjection::demo(), palette)),
-        Route::Dns => Box::new(dns_page(&DnsProjection::demo(), palette)),
-        Route::Doctor => Box::new(doctor_page(&DoctorProjection::demo(), palette)),
-        Route::AppRouting => Box::new(app_routing_page(&AppRoutingProjection::demo(), palette)),
-        Route::Sync => Box::new(sync_page(&SyncProjection::demo(), palette)),
-        Route::Settings => Box::new(settings_page(&SettingsProjection::demo(), palette)),
+        Route::Overview => Box::new(overview_page(&projection, history, palette)),
+        Route::Proxies => Box::new(proxies_page(&proxies_projection(snapshot), palette)),
+        Route::Profiles => Box::new(profiles_page(&profiles_projection(snapshot), palette)),
+        Route::Rules => Box::new(rules_page(&rules_projection(snapshot), palette)),
+        Route::Connections => {
+            Box::new(connections_page(&connections_projection(snapshot), palette))
+        }
+        Route::Logs => Box::new(logs_page(&logs_projection(snapshot), palette)),
+        Route::Dns => Box::new(dns_page(&dns_projection(snapshot), palette)),
+        Route::Doctor => Box::new(doctor_page(&doctor_projection(snapshot), palette)),
+        Route::AppRouting => Box::new(app_routing_page(&app_routing_projection(snapshot), palette)),
+        Route::Sync => Box::new(sync_page(&sync_projection(snapshot), palette)),
+        Route::Settings => Box::new(settings_page(&settings_projection(snapshot), palette)),
     }
+}
+
+/// Fan one shared snapshot into the page-local render projections. This is
+/// the only place where the Bevy page event vocabulary is derived from the
+/// cross-surface contract.
+fn trigger_page_projection_events(
+    snapshot: &infiltrator_contract::surface_snapshot::SurfaceSnapshot,
+    commands: &mut Commands,
+) {
+    commands.trigger(OverviewProjectionUpdated(overview_projection(snapshot)));
+    commands.trigger(ProxiesProjectionUpdated(proxies_projection(snapshot)));
+    commands.trigger(ProfilesProjectionUpdated(profiles_projection(snapshot)));
+    commands.trigger(RulesProjectionUpdated(rules_projection(snapshot)));
+    commands.trigger(ConnectionsProjectionUpdated(connections_projection(
+        snapshot,
+    )));
+    commands.trigger(LogsProjectionUpdated(logs_projection(snapshot)));
+    commands.trigger(DnsProjectionUpdated(dns_projection(snapshot)));
+    commands.trigger(DoctorProjectionUpdated(doctor_projection(snapshot)));
+    commands.trigger(AppRoutingProjectionUpdated(app_routing_projection(
+        snapshot,
+    )));
+    commands.trigger(SyncProjectionUpdated(sync_projection(snapshot)));
+    commands.trigger(SettingsProjectionUpdated(settings_projection(snapshot)));
+}
+
+fn apply_surface_snapshot(update: On<SurfaceSnapshotUpdated>, mut commands: Commands) {
+    let snapshot = update.0.clone();
+    commands.insert_resource(LatestSurfaceSnapshot(snapshot.clone()));
+    trigger_page_projection_events(&snapshot, &mut commands);
+    commands.trigger(SurfaceStatusChanged(snapshot));
 }
 
 /// The router: bounded replacement of the page subtree below the
@@ -370,7 +525,7 @@ fn sync_route(
     active: Option<Res<ActiveRoute>>,
     mut history: Option<ResMut<RouteHistory>>,
     palette: Res<UiPalette>,
-    source: Res<OverviewSourceHandle>,
+    source: Res<SurfaceSourceHandle>,
     history_ring: Res<TrafficHistory>,
     mut commands: Commands,
 ) {
@@ -384,48 +539,14 @@ fn sync_route(
     if let Some(ref mut h) = history {
         h.push(route);
     }
-    let projection = source.0.current();
-    let scene = page_scene(route, &projection, &history_ring, &palette);
+    let snapshot = source.0.surface_snapshot();
+    let scene = page_scene(route, &snapshot, &history_ring, &palette);
     commands.entity(slot).despawn_children();
     commands.spawn_scene(scene).insert(ChildOf(slot));
     // First paint: queued after the spawn command, so the page's child
     // lines exist when the freshly bound observer dispatches (the bind
     // hook itself fires at the root insert — before the children do).
-    match route {
-        Route::Overview => {
-            commands.trigger(OverviewProjectionUpdated(projection));
-        }
-        Route::Proxies => {
-            commands.trigger(ProxiesProjectionUpdated(ProxiesProjection::demo()));
-        }
-        Route::Profiles => {
-            commands.trigger(ProfilesProjectionUpdated(ProfilesProjection::demo()));
-        }
-        Route::Rules => {
-            commands.trigger(RulesProjectionUpdated(RulesProjection::demo()));
-        }
-        Route::Connections => {
-            commands.trigger(ConnectionsProjectionUpdated(ConnectionsProjection::demo()));
-        }
-        Route::Logs => {
-            commands.trigger(LogsProjectionUpdated(LogsProjection::demo()));
-        }
-        Route::Dns => {
-            commands.trigger(DnsProjectionUpdated(DnsProjection::demo()));
-        }
-        Route::Doctor => {
-            commands.trigger(DoctorProjectionUpdated(DoctorProjection::demo()));
-        }
-        Route::AppRouting => {
-            commands.trigger(AppRoutingProjectionUpdated(AppRoutingProjection::demo()));
-        }
-        Route::Sync => {
-            commands.trigger(SyncProjectionUpdated(SyncProjection::demo()));
-        }
-        Route::Settings => {
-            commands.trigger(SettingsProjectionUpdated(SettingsProjection::demo()));
-        }
-    }
+    trigger_page_projection_events(&snapshot, &mut commands);
     commands.insert_resource(ActiveRoute(Some(route)));
 }
 

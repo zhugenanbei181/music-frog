@@ -355,9 +355,47 @@ pub struct AppState {
     pub diag: DiagnosticsState,
     pub shell: ShellState,
     pub app_routing: crate::types::app_routing::AppRoutingState,
+    /// Canonical cross-surface snapshot cache. Existing Elm fields are local
+    /// render/update projections and must not become a second shared source.
+    pub surface: crate::surface::SurfaceModel,
+    /// Optional application pump bridge installed by a desktop/mobile
+    /// composition root. `None` keeps the existing pull-free test/demo app.
+    pub surface_bridge: Option<crate::surface::SurfaceBridge>,
 }
 
 impl AppState {
+    /// Apply the shared page read model as a monotonic render cache. The
+    /// existing Elm fields remain toolkit-local projections; stale host
+    /// events cannot overwrite a newer shared revision.
+    pub fn apply_shared_surface_snapshot(
+        &mut self,
+        snapshot: infiltrator_contract::surface_snapshot::SurfaceSnapshot,
+    ) -> bool {
+        if !self.surface.apply(snapshot.clone()) {
+            return false;
+        }
+        self.runtime.proxy_mode = snapshot.core.proxy_mode.map(|mode| mode.to_wire().to_owned());
+        self.runtime.runtime_generation = snapshot.core.generation;
+        self.diag.traffic = Some(infiltrator_domain::runtime::TrafficData {
+            up: snapshot.core.upload_bps.max(0.0) as u64,
+            down: snapshot.core.download_bps.max(0.0) as u64,
+        });
+        self.diag.memory = snapshot
+            .core
+            .memory_bytes
+            .map(|in_use| infiltrator_domain::runtime::MemoryData {
+                in_use,
+                os_limit: 0,
+            });
+        true
+    }
+
+    /// Attach the host-composed shared surface input before the Iced runtime
+    /// starts. The update loop only receives typed `Message` values afterward.
+    pub fn attach_surface_bridge(&mut self, bridge: crate::surface::SurfaceBridge) {
+        self.surface_bridge = Some(bridge);
+    }
+
     /// Single choke point for `error_msg`: raw error chains can embed
     /// subscription query tokens or the controller secret, so the text is
     /// redacted here before any view can render it (CORE-001).

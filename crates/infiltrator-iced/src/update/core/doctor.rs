@@ -34,7 +34,7 @@ impl AppState {
                 let base = self.admin_api_base();
                 Task::perform(
                     async move {
-                        infiltrator_desktop::admin_client::AdminApiClient::new(base)
+                        crate::host::admin_client::AdminApiClient::new(base)
                             .map_err(|e| InfiltratorError::Internal(e.to_string()))?
                             .get::<DoctorReport>("/api/doctor")
                             .await
@@ -62,7 +62,7 @@ impl AppState {
                 let base = self.admin_api_base();
                 Task::perform(
                     async move {
-                        infiltrator_desktop::admin_client::AdminApiClient::new(base)
+                        crate::host::admin_client::AdminApiClient::new(base)
                             .map_err(|e| InfiltratorError::Internal(e.to_string()))?
                             .post::<DoctorFixReport, _>("/api/doctor/fix", &serde_json::json!({}))
                             .await
@@ -98,7 +98,7 @@ impl AppState {
                 let base = self.admin_api_base();
                 Task::perform(
                     async move {
-                        infiltrator_desktop::admin_client::AdminApiClient::new(base)
+                        crate::host::admin_client::AdminApiClient::new(base)
                             .map_err(|e| InfiltratorError::Internal(e.to_string()))?
                             .post::<BootstrapReport, _>("/api/bootstrap", &serde_json::json!({}))
                             .await

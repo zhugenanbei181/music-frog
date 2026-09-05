@@ -5,7 +5,7 @@ use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::settings::AppSettings;
 
 async fn application() -> Result<SettingsApplication, InfiltratorError> {
-    let store = infiltrator_desktop::storage::settings_store()
+    let store = crate::host::storage::settings_store()
         .await
         .map_err(|error| InfiltratorError::Config(error.to_string()))?;
     Ok(SettingsApplication::new(store))

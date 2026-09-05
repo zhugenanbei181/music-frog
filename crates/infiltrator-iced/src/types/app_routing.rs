@@ -1,6 +1,6 @@
 //! Per-App Split Tunneling and Process Routing types for the Iced desktop client.
 
-use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
+use crate::host::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

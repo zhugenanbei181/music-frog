@@ -15,6 +15,7 @@ pub mod proxy;
 pub mod runtime;
 pub mod service;
 pub mod storage;
+pub mod surface;
 pub mod shortcut_manager;
 pub mod tray_badge;
 pub mod tray_event;

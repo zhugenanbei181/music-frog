@@ -1,0 +1,152 @@
+//! Contract-level proof that one shared surface snapshot fans out to every
+//! Bevy page projection without a production demo fallback.
+
+use bevy::app::App;
+use infiltrator_bevy_ui::app::ShellPlugin;
+use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
+use infiltrator_bevy_ui::surface::{
+    DemoSurfaceSource, SurfaceSnapshotUpdated, SurfaceSource, SurfaceStatusBanner,
+    overview_projection,
+};
+use infiltrator_bevy_widgets::theme::LightDark;
+use infiltrator_contract::surface_snapshot::SurfaceOrigin;
+
+use crate::support::{headless_plugins, page_root, subtree_has_text};
+
+struct StaticSurface {
+    snapshot: infiltrator_contract::surface_snapshot::SurfaceSnapshot,
+}
+
+fn has_status_banner(app: &mut App, page: infiltrator_contract::surface_snapshot::PageId) -> bool {
+    let mut query = app.world_mut().query::<&SurfaceStatusBanner>();
+    query.iter(app.world()).any(|banner| banner.page == page)
+}
+
+impl infiltrator_bevy_ui::projection::OverviewSource for StaticSurface {
+    fn current(&self) -> infiltrator_bevy_ui::projection::OverviewProjection {
+        overview_projection(&self.snapshot)
+    }
+
+    fn kind(&self) -> infiltrator_bevy_ui::projection::SourceKind {
+        infiltrator_bevy_ui::projection::SourceKind::LiveCore
+    }
+}
+
+impl SurfaceSource for StaticSurface {
+    fn surface_snapshot(&self) -> infiltrator_contract::surface_snapshot::SurfaceSnapshot {
+        self.snapshot.clone()
+    }
+}
+
+fn app_with_shared_source() -> App {
+    let source = DemoSurfaceSource::running();
+    let mut snapshot = source.surface_snapshot();
+    snapshot.origin = SurfaceOrigin::Live;
+    snapshot.revision = 42;
+    snapshot.core.revision = 42;
+    snapshot.core.core_version = Some("live-contract-test".to_owned());
+    snapshot.pages.proxies.data.as_mut().unwrap().active_exit = "live-proxy".to_owned();
+    snapshot.pages.profiles.data.as_mut().unwrap().profiles[0].name = "live-profile".to_owned();
+    snapshot.pages.rules.data.as_mut().unwrap().default_action = "live-rule".to_owned();
+    snapshot
+        .pages
+        .connections
+        .data
+        .as_mut()
+        .unwrap()
+        .connections[0]
+        .host = "live-host".to_owned();
+    snapshot.pages.logs.data.as_mut().unwrap().entries[0].message = "live-log".to_owned();
+    snapshot.pages.dns.data.as_mut().unwrap().fake_ip_range = "live-dns".to_owned();
+    snapshot.pages.doctor.data.as_mut().unwrap().last_run = "live-doctor".to_owned();
+    snapshot.pages.app_routing.data.as_mut().unwrap().apps[0].name = "live-app".to_owned();
+    snapshot.pages.sync.data.as_mut().unwrap().server_url = "live-sync".to_owned();
+    snapshot.pages.settings.data.as_mut().unwrap().tun_stack = "live-settings".to_owned();
+
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins(ShellPlugin::new_with_width(LightDark::Dark, 1180.0));
+    app.add_plugins(PagesPlugin::new_surface(StaticSurface { snapshot }));
+    app.update();
+    app
+}
+
+#[test]
+fn shared_snapshot_reaches_all_eleven_page_lanes() {
+    let mut app = app_with_shared_source();
+    let snapshot = app
+        .world()
+        .resource::<infiltrator_bevy_ui::surface::LatestSurfaceSnapshot>()
+        .0
+        .clone();
+    assert_eq!(snapshot.revision, 42);
+    assert_eq!(snapshot.origin, SurfaceOrigin::Live);
+
+    for (route, marker) in [
+        (Route::Overview, "live-contract-test"),
+        (Route::Proxies, "live-proxy"),
+        (Route::Profiles, "live-profile"),
+        (Route::Rules, "live-rule"),
+        (Route::Connections, "live-host"),
+        (Route::Logs, "live-log"),
+        (Route::Dns, "live-dns"),
+        (Route::Doctor, "live-doctor"),
+        (Route::AppRouting, "live-app"),
+        (Route::Sync, "live-sync"),
+        (Route::Settings, "live-settings"),
+    ] {
+        app.world_mut().commands().trigger(RouteChanged(route));
+        app.update();
+        let (root, mounted) = page_root(app.world_mut());
+        assert_eq!(mounted, route);
+        assert!(
+            subtree_has_text(app.world(), root, marker),
+            "shared live marker {marker:?} did not reach {route:?}"
+        );
+        app.world_mut()
+            .commands()
+            .trigger(SurfaceSnapshotUpdated(snapshot.clone()));
+        app.update();
+    }
+}
+
+#[test]
+fn live_snapshot_reconciles_an_initial_unavailable_banner() {
+    let source = DemoSurfaceSource::running();
+    let mut initial = source.surface_snapshot();
+    initial.pages.proxies = infiltrator_contract::surface_snapshot::PageData::unavailable(
+        infiltrator_contract::error::Failure::new(
+            infiltrator_contract::error::ErrorCode::NotReady,
+            "waiting for proxy reader",
+            true,
+        ),
+    );
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins(ShellPlugin::new_with_width(LightDark::Dark, 1180.0));
+    app.add_plugins(PagesPlugin::new_surface(StaticSurface {
+        snapshot: initial.clone(),
+    }));
+    app.update();
+    app.world_mut()
+        .commands()
+        .trigger(RouteChanged(Route::Proxies));
+    app.update();
+    assert!(has_status_banner(
+        &mut app,
+        infiltrator_contract::surface_snapshot::PageId::Proxies
+    ));
+
+    initial.revision = initial.revision.saturating_add(1);
+    initial.core.revision = initial.revision;
+    initial.pages.proxies = source.surface_snapshot().pages.proxies;
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(initial));
+    app.update();
+    app.update();
+    assert!(!has_status_banner(
+        &mut app,
+        infiltrator_contract::surface_snapshot::PageId::Proxies
+    ));
+}

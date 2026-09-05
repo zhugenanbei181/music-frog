@@ -93,6 +93,11 @@ jobs:
       - name: Enforce 0.30 core boundaries
         run: python3 scripts/quality/core-boundary-guard.py --mode enforce
 
+      # 双 UI 架构前置守卫：页面、intent、共享投影、demo 泄漏和交付模板
+      # 任一不完整都 fail closed。
+      - name: Enforce dual-surface parity
+        run: python3 scripts/quality/parity-guard.py --mode enforce
+
       # Bevy UI bsn! 场景法守卫（BEVY-004）：两个 bevy crate 的生产代码里 UI 树
       # 只能在 bsn! 场景内声明并经 spawn_scene 挂载；豁免（Camera2d/Observer）
       # 与规则明细见 scripts/quality/bevy_bsn_guard.py 与 docs/BEVY_UI_FRONTEND.md。

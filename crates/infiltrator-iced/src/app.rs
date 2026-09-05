@@ -68,7 +68,7 @@ impl AppState {
                 tun_enabled: None,
                 tun_service_status: None,
                 is_installing_tun_service: false,
-                system_proxy_enabled: infiltrator_desktop::proxy::read_system_proxy_state()
+                system_proxy_enabled: crate::host::desktop::read_system_proxy_state()
                     .map(|s| s.enabled)
                     .unwrap_or(false),
                 system_proxy_pending: false,
@@ -393,6 +393,8 @@ impl AppState {
                 uwp_loopback: Default::default(),
             },
             app_routing: Default::default(),
+            surface: Default::default(),
+            surface_bridge: None,
         }
     }
 

@@ -16,6 +16,12 @@ use infiltrator_contract::command::{CommandIntent, ProxyMode};
 /// All user action commands emitted from Bevy UI pages and controls.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UiCommand {
+    /// Start the shared core lifecycle.
+    StartCore,
+    /// Stop the shared core lifecycle.
+    StopCore,
+    /// Restart the shared core lifecycle.
+    RestartCore,
     /// Switch core proxy mode (Rule / Global / Direct).
     SetProxyMode(ProxyMode),
     /// Select a specific proxy node in a policy group.
@@ -46,6 +52,10 @@ pub enum UiCommand {
     ClearDnsCache,
     /// Test DNS server latency.
     TestDnsLatency,
+    /// Toggle the host-owned TUN/VPN capability.
+    ToggleTun { enabled: bool },
+    /// Toggle the host-owned system proxy capability.
+    SetSystemProxy { enabled: bool },
     /// Run full system doctor diagnostics.
     RunDoctorDiagnostics,
     /// Repair a specific doctor issue by check ID.
@@ -72,10 +82,8 @@ pub enum UiCommand {
     RestoreSnapshot { id: String },
     /// Update a core or UI setting.
     UpdateSetting { key: String, value: String },
-    /// Request core restart.
-    RestartCore,
-    /// Request core stop.
-    StopCore,
+    /// Check for a new core release.
+    CheckUpdates,
 }
 
 impl UiCommand {
@@ -83,6 +91,9 @@ impl UiCommand {
     /// presentation actions intentionally return `None`.
     pub fn to_intent(&self) -> Option<CommandIntent> {
         match self {
+            Self::StartCore => Some(CommandIntent::StartCore),
+            Self::StopCore => Some(CommandIntent::StopCore),
+            Self::RestartCore => Some(CommandIntent::RestartCore),
             Self::SetProxyMode(mode) => Some(CommandIntent::SetProxyMode { mode: *mode }),
             Self::SelectProxyNode { group, node } => Some(CommandIntent::SelectProxyNode {
                 group: group.clone(),
@@ -111,6 +122,10 @@ impl UiCommand {
             }),
             Self::ClearDnsCache => Some(CommandIntent::ClearDnsCache),
             Self::TestDnsLatency => Some(CommandIntent::TestDnsLatency),
+            Self::ToggleTun { enabled } => Some(CommandIntent::ToggleTun { enabled: *enabled }),
+            Self::SetSystemProxy { enabled } => {
+                Some(CommandIntent::SetSystemProxy { enabled: *enabled })
+            }
             Self::RunDoctorDiagnostics => Some(CommandIntent::RunDoctorDiagnostics),
             Self::RepairDoctorIssue { check_id } => Some(CommandIntent::RepairDoctorIssue {
                 check_id: check_id.clone(),
@@ -139,8 +154,7 @@ impl UiCommand {
                 key: key.clone(),
                 value: value.clone(),
             }),
-            Self::RestartCore => Some(CommandIntent::RestartCore),
-            Self::StopCore => Some(CommandIntent::StopCore),
+            Self::CheckUpdates => Some(CommandIntent::CheckUpdates),
         }
     }
 }
