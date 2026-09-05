@@ -115,6 +115,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn validate_current_profile_is_local_and_fail_closed() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir).await;
+        manager.save("default", "mode: rule\n").await.unwrap();
+        manager.validate_current_profile().await.unwrap();
+
+        fs::write(
+            manager.config_dir.join("default.yaml"),
+            "invalid: yaml: [",
+        )
+        .await
+        .unwrap();
+        assert!(manager.validate_current_profile().await.is_err());
+    }
+
+    #[tokio::test]
     async fn test_load_nonexistent_profile() {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;

@@ -9,6 +9,7 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::service_mode::{ServiceModePlatform, ServiceModeSnapshot, ServiceModeState};
 use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
 use infiltrator_contract::snapshot::{CoreWatchdogState, CoreWatchdogSnapshot};
@@ -110,6 +111,20 @@ fn shared_watchdog_snapshot_updates_the_iced_diagnostics_projection() {
     assert_eq!(
         state.diag.crash_watchdog.last_crash_summary.as_deref(),
         Some("core exited")
+    );
+}
+
+#[test]
+fn offline_startup_snapshot_updates_the_iced_runtime_projection() {
+    let (mut state, _) = AppState::new();
+    let mut snapshot = snapshot(5);
+    snapshot.offline_startup = OfflineStartupSnapshot::ready(LocalAssetStatus::Missing);
+
+    assert!(state.apply_shared_surface_snapshot(snapshot));
+    assert!(state.runtime.offline_startup.is_offline_startable());
+    assert_eq!(
+        state.runtime.offline_startup.state,
+        infiltrator_contract::offline_startup::OfflineStartupState::Degraded
     );
 }
 

@@ -17,6 +17,7 @@ pub mod endpoint;
 pub mod error;
 pub mod host_runtime;
 pub mod overview;
+pub mod offline_startup;
 pub mod public_ip_probe;
 pub mod profile_store;
 pub mod profile_reset;

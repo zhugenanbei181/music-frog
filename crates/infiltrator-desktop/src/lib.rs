@@ -11,6 +11,7 @@ pub mod graceful_reboot;
 pub mod host;
 pub mod log_formatter;
 pub mod notify;
+pub mod offline_startup;
 pub mod process_enumerator;
 pub mod port_conflict;
 pub mod proxy;

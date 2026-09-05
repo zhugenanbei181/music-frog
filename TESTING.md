@@ -116,6 +116,8 @@ python3 scripts/quality/process-exit-guard.py --mode enforce
 python3 scripts/quality/port-conflict-guard.py --mode enforce
 # DUAL-01-12 512 MiB 内存软限、CPU 观测与 GC 状态守卫
 python3 scripts/quality/core-resource-guard.py --mode enforce
+# DUAL-01-13 本地配置/core 预校验与 offline-first 启动守卫
+python3 scripts/quality/offline-startup-guard.py --mode enforce
 ```
 
 ---

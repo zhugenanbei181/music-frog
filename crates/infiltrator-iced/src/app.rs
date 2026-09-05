@@ -95,6 +95,7 @@ impl AppState {
                 service_mode: Default::default(),
                 port_conflicts: Default::default(),
                 core_resources: Default::default(),
+                offline_startup: Default::default(),
                 download_progress: 0.0,
                 download_stats: None,
                 core_download_token: 0,

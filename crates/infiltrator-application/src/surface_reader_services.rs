@@ -53,4 +53,13 @@ impl ApplicationSurfaceReader {
             None => Default::default(),
         }
     }
+
+    pub(super) async fn read_offline_startup(
+        &self,
+    ) -> infiltrator_contract::offline_startup::OfflineStartupSnapshot {
+        match &self.offline_startup {
+            Some(application) => application.snapshot().await,
+            None => Default::default(),
+        }
+    }
 }

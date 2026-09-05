@@ -2,7 +2,7 @@
 //! "启动引导 3 次重试，失败轮换 external-controller 端口；就绪等待 15s；
 //! rebuild 等端口释放 5s").
 //!
-//! [`MihomoRuntime::bootstrap`] is a single shot: once it spawns the core it
+//! [`MihomoRuntime::bootstrap_offline`] is a single shot: once it spawns the core it
 //! never returns a handle on failure, and the application deliberately has no
 //! `Drop`-stop — a readiness timeout would leave an unmanaged mihomo holding
 //! the controller port and poisoning every later attempt. So the retry loop
@@ -13,15 +13,15 @@
 //! ServiceManager, CoreApplication, readiness) and **owns its process**: on
 //! failure the session is stopped explicitly under a timeout. Once an attempt
 //! proves the core startable and ready, `materialize` runs the real
-//! `MihomoRuntime::bootstrap`, which attaches to the now-running core (fast
-//! path) and produces the full-fidelity runtime — geoip ensure, endpoint
-//! resolve and client construction all stay in the one authoritative place.
+//! `MihomoRuntime::bootstrap_offline`, which attaches to the now-running core
+//! (fast path) and produces the full-fidelity runtime. Local config and asset
+//! checks stay authoritative; remote enrichment is post-start only.
 //!
 //! Deliberate policy decisions:
 //! - Readiness/start/resolve-binary failures are retryable; profile
 //!   (config-content) failures are not — rotating a port cannot fix YAML.
 //! - `materialize` failure is fatal: the core is healthy, killing it to retry
-//!   a geoip download would only destroy a good process.
+//!   a local attach would only destroy a good process.
 //! - Proxy ports (mixed-port etc.) are never rotated: a silent change would
 //!   repoint the user's system proxy. Only `external-controller` rotates,
 //!   via the existing [`mihomo_config`] rotation (it picks its own port, so
@@ -389,6 +389,9 @@ impl BootEngine for ProductionEngine<'_> {
         cm.ensure_default_config().await.map_err(|error| {
             AttemptFailure::new(anyhow!("prepare default profile: {error}"), None, false)
         })?;
+        cm.validate_current_profile().await.map_err(|error| {
+            AttemptFailure::new(anyhow!("validate local profile: {error}"), None, false)
+        })?;
         cm.ensure_proxy_ports().await.map_err(|error| {
             AttemptFailure::new(anyhow!("prepare proxy ports: {error}"), None, false)
         })?;
@@ -497,7 +500,7 @@ impl BootEngine for ProductionEngine<'_> {
     }
 
     async fn materialize(&self) -> anyhow::Result<MihomoRuntime> {
-        MihomoRuntime::bootstrap(
+        MihomoRuntime::bootstrap_offline(
             self.vm,
             self.use_bundled,
             self.bundled_candidates,
@@ -726,7 +729,7 @@ mod tests {
     #[tokio::test]
     async fn materialize_failure_is_fatal_and_keeps_tried_ports() {
         // First attempt fails (retryable), second proves ready, materialize
-        // blows up: the loop must surface the geoip error, not retry.
+        // blows up: the loop must surface the local validation error, not retry.
         let engine = MockEngine::new(vec![
             ScriptedAttempt::Fail {
                 retryable: true,
@@ -735,12 +738,12 @@ mod tests {
             },
             ScriptedAttempt::Ok,
         ])
-        .with_materialize_error("geoip download failed");
+        .with_materialize_error("local startup validation failed");
 
         let error = run(&engine, 3).await.expect_err("materialize fatal");
         let boot_error = error.downcast_ref::<BootError>().expect("BootError");
         assert_eq!(boot_error.tried, vec![TEST_PORT]);
-        assert!(boot_error.source.to_string().contains("geoip"));
+        assert!(boot_error.source.to_string().contains("local startup"));
         assert_eq!(engine.attempts_run.load(Ordering::SeqCst), 2);
     }
 

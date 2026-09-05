@@ -41,12 +41,15 @@ use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::resources::CoreResourceSnapshot;
+use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
 
 #[path = "settings_core.rs"]
 mod settings_core;
+
+pub use settings_core::{SettingsLine, SettingsLineKind};
 
 /// Root marker on the Settings page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -56,42 +59,6 @@ pub struct SettingsPageRoot;
 /// Once-per-world guard preventing duplicate observer registration.
 #[derive(Resource)]
 struct SettingsPageBound;
-
-/// Marker for text lines updated by the projection observer.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SettingsLine(pub SettingsLineKind);
-
-/// Different text lines on the settings page.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum SettingsLineKind {
-    /// Overview summary.
-    #[default]
-    Summary,
-    /// Mixed port text.
-    MixedPort,
-    /// TUN stack text.
-    TunStack,
-    /// Controller port text.
-    ControllerPort,
-    /// Log level text.
-    LogLevel,
-    /// Selected core release channel.
-    CoreChannel,
-    /// Latest result of the three-channel probe.
-    CoreVersions,
-    /// Latest archive-integrity result.
-    CoreIntegrity,
-    /// Locally available core rollback target.
-    CoreRollback,
-    /// Controller secret/header injection status.
-    ControllerAuth,
-    /// Host-owned privileged service mode status.
-    ServiceMode,
-    /// Mixed/controller port conflict observation.
-    PortConflicts,
-    /// Core memory/CPU and automatic GC state.
-    CoreResources,
-}
 
 /// Marker for "Save Settings" button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -166,6 +133,7 @@ pub struct SettingsProjection {
     pub service_mode: ServiceModeSnapshot,
     pub port_conflicts: PortConflictSnapshot,
     pub core_resources: CoreResourceSnapshot,
+    pub offline_startup: OfflineStartupSnapshot,
 }
 
 impl SettingsProjection {
@@ -187,6 +155,7 @@ impl SettingsProjection {
             service_mode: Default::default(),
             port_conflicts: Default::default(),
             core_resources: Default::default(),
+            offline_startup: Default::default(),
         }
     }
 }
@@ -566,6 +535,7 @@ pub fn general_card_scene(
                         ]
                     ),
                     ( { settings_core::core_rollback_row_scene(projection, palette) } ),
+                    ( { settings_core::offline_startup_row_scene(&projection.offline_startup, palette) } ),
                     ( { settings_core::controller_auth_row_scene(&projection.controller_auth, palette) } ),
                     ( { settings_core::service_mode_row_scene(&projection.service_mode, palette) } ),
                     ( { settings_core::port_conflicts_row_scene(&projection.port_conflicts, palette) } ),
@@ -793,6 +763,9 @@ pub(crate) fn apply_settings_projection(
             match line.0 {
             SettingsLineKind::Summary => {
                 text.0 = "系统与内核全局设置 · 统一策略中枢".to_owned();
+            }
+            SettingsLineKind::OfflineStartup => {
+                text.0 = settings_core::format_offline_startup(&projection.offline_startup);
             }
             SettingsLineKind::MixedPort => {
                 text.0 = format!("端口: {}", projection.mixed_port);

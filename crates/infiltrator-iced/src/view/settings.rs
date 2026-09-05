@@ -19,6 +19,9 @@ use infiltrator_contract::service_mode::{
 };
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::offline_startup::{
+    LocalAssetStatus, OfflineStartupSnapshot, OfflineStartupState, StartupRemoteDependency,
+};
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot,
 };
@@ -273,6 +276,7 @@ fn kernel_management_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool
     let channel_probe = format_core_versions(&state.runtime.core_versions);
     let integrity = format_integrity(&state.runtime.core_integrity);
     let controller_auth = format_controller_auth(&state.runtime.controller_auth);
+    let offline_startup = format_offline_startup(&state.runtime.offline_startup);
     let selected_log_level = CORE_LOG_LEVEL_OPTIONS
         .iter()
         .find(|option| option.value == state.diag.log_level)
@@ -283,6 +287,9 @@ fn kernel_management_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool
     )));
     kernel_rows = kernel_rows.push(secondary_text(format!("Artifact integrity: {integrity}")));
     kernel_rows = kernel_rows.push(secondary_text(format!("Controller auth: {controller_auth}")));
+    kernel_rows = kernel_rows.push(secondary_text(format!(
+        "Offline startup: {offline_startup}"
+    )));
     kernel_rows = kernel_rows.push(secondary_text(format!(
         "Core resources: {}",
         format_core_resources(&state.runtime.core_resources)
@@ -509,6 +516,41 @@ fn format_core_resources(snapshot: &CoreResourceSnapshot) -> String {
         CoreGcStatus::Unsupported => "gc=unsupported".to_owned(),
     };
     format!("{memory} · {cpu} · limit=512 MiB · {gc}")
+}
+
+fn format_offline_startup(snapshot: &OfflineStartupSnapshot) -> String {
+    let state = match snapshot.state {
+        OfflineStartupState::Unknown => "not probed",
+        OfflineStartupState::Checking => "checking",
+        OfflineStartupState::Ready => "offline-ready",
+        OfflineStartupState::Degraded => "offline-ready · degraded",
+        OfflineStartupState::Blocked => "blocked",
+    };
+    let config = if snapshot.config_valid {
+        "config=valid"
+    } else {
+        "config=invalid"
+    };
+    let binary = if snapshot.binary_available {
+        "core=available"
+    } else {
+        "core=missing"
+    };
+    let geoip = match snapshot.geoip {
+        LocalAssetStatus::NotRequired => "geoip=not-required",
+        LocalAssetStatus::Available => "geoip=local",
+        LocalAssetStatus::Missing => "geoip=missing",
+    };
+    let remote = match snapshot.remote_dependency {
+        StartupRemoteDependency::Optional => "remote=optional",
+    };
+    let failure = snapshot.failure.as_ref().map_or_else(String::new, |failure| {
+        format!(
+            " · {}",
+            crate::utils::sanitize_ui_text(&failure.message)
+        )
+    });
+    format!("offline-first · {state} · {config} · {binary} · {geoip} · {remote}{failure}")
 }
 
 fn hotkeys_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {

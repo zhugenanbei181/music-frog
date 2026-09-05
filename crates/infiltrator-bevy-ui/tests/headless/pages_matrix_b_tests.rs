@@ -22,6 +22,7 @@ use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::version::CoreRollbackSnapshot;
+use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
 
 use crate::support::*;
 
@@ -562,6 +563,7 @@ fn test_settings_projection_in_place_update() {
     updated.mixed_port = 7899;
     updated.controller_port = 9191;
     updated.log_level = "debug".to_owned();
+    updated.offline_startup = OfflineStartupSnapshot::ready(LocalAssetStatus::Missing);
 
     app.world_mut()
         .commands()
@@ -571,6 +573,8 @@ fn test_settings_projection_in_place_update() {
     assert!(subtree_has_text(app.world(), root, "端口: 7899"));
     assert!(subtree_has_text(app.world(), root, "127.0.0.1:9191"));
     assert!(subtree_has_text(app.world(), root, "DEBUG"));
+    assert!(subtree_has_text(app.world(), root, "离线优先"));
+    assert!(subtree_has_text(app.world(), root, "可启动但已降级"));
 }
 
 // ===========================================================================

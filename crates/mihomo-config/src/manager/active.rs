@@ -91,4 +91,12 @@ impl<S: SecureStore> ConfigManager<S> {
         let profile = self.get_current().await?;
         Ok(self.config_dir.join(format!("{}.yaml", profile)))
     }
+
+    /// Validate the active profile before any core process is started.  This
+    /// is intentionally local-only and is the first gate of offline boot.
+    pub async fn validate_current_profile(&self) -> Result<()> {
+        let profile = self.get_current().await?;
+        let content = self.load(&profile).await?;
+        crate::yaml::validate(&content)
+    }
 }

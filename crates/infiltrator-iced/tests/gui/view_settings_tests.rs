@@ -67,3 +67,17 @@ fn test_settings_view_render() {
     state2.shell.lang = "en-US".to_string();
     let _view_en: Element<'_, Message> = view(&state2);
 }
+
+#[test]
+fn test_offline_startup_status_is_rendered_without_claiming_geoip_ready() {
+    let (mut state, _) = AppState::new();
+    state.runtime.offline_startup =
+        infiltrator_contract::offline_startup::OfflineStartupSnapshot::ready(
+            infiltrator_contract::offline_startup::LocalAssetStatus::Missing,
+        );
+    let status = format_offline_startup(&state.runtime.offline_startup);
+    assert!(status.contains("offline-first"));
+    assert!(status.contains("offline-ready · degraded"));
+    assert!(status.contains("geoip=missing"));
+    let _card = kernel_management_card(&state, &Lang("en-US"), false, None);
+}

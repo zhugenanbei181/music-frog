@@ -7,6 +7,7 @@
 
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::overview::{OverviewConfig, OverviewPump, UnavailableOverviewReader};
+use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_ios::{IosBridge, IosHostAdapter};
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
@@ -119,6 +120,14 @@ where
         std::sync::Arc::new(ControllerOverviewReader::new(client)),
         runtime,
     ))
+}
+
+/// Compose the iOS native host's local-only startup proof for either UI.
+pub fn ios_offline_startup_application<B>(bridge: B) -> OfflineStartupApplication
+where
+    B: IosBridge + 'static,
+{
+    OfflineStartupApplication::new(Arc::new(IosHostAdapter::new(bridge)))
 }
 
 /// Assemble the iOS application together with its host scheduler. Native

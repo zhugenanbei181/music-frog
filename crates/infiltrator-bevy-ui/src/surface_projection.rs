@@ -401,6 +401,7 @@ pub(super) fn settings_projection(
             service_mode: snapshot.service_mode,
             port_conflicts: snapshot.port_conflicts.clone(),
             core_resources: snapshot.resources.clone(),
+            offline_startup: snapshot.offline_startup.clone(),
         })
         .unwrap_or_else(|| {
             let mut projection = empty_settings();
@@ -410,6 +411,7 @@ pub(super) fn settings_projection(
             projection.service_mode = snapshot.service_mode;
             projection.port_conflicts = snapshot.port_conflicts.clone();
             projection.core_resources = snapshot.resources.clone();
+            projection.offline_startup = snapshot.offline_startup.clone();
             projection
         })
 }

@@ -11,6 +11,7 @@ use crate::service_mode::ServiceModeSnapshot;
 use crate::port_conflict::PortConflictSnapshot;
 use crate::resources::CoreResourceSnapshot;
 use crate::error::Failure;
+use crate::offline_startup::OfflineStartupSnapshot;
 use crate::snapshot::{CoreLifecycle, CoreSnapshot};
 use crate::surface::{HostKind, SurfaceKind};
 use crate::version::CoreVersionSnapshot;
@@ -408,6 +409,9 @@ pub struct SurfaceSnapshot {
     /// Current core memory/CPU observation and soft-quota GC state.
     #[serde(default)]
     pub resources: CoreResourceSnapshot,
+    /// Local-only startup proof; remote enhancement remains optional.
+    #[serde(default)]
+    pub offline_startup: OfflineStartupSnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -447,6 +451,7 @@ impl SurfaceSnapshot {
             service_mode: ServiceModeSnapshot::default(),
             port_conflicts: PortConflictSnapshot::default(),
             resources: CoreResourceSnapshot::default(),
+            offline_startup: OfflineStartupSnapshot::default(),
         }
     }
 
@@ -523,5 +528,19 @@ mod tests {
         stopped.revision = 11;
         stopped.core.revision = 11;
         assert!(stopped.is_newer_than(&current));
+    }
+
+    #[test]
+    fn unavailable_surface_defaults_to_offline_first_without_claiming_ready() {
+        let snapshot = SurfaceSnapshot::unavailable(
+            SurfaceKind::IcedDesktop,
+            HostKind::Desktop,
+            Failure::unsupported("not composed"),
+        );
+        assert_eq!(
+            snapshot.offline_startup.policy,
+            crate::offline_startup::StartupNetworkPolicy::OfflineFirst
+        );
+        assert!(!snapshot.offline_startup.is_offline_startable());
     }
 }

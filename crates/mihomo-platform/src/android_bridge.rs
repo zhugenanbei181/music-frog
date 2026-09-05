@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use mihomo_api::error::Result;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock, RwLock};
@@ -16,6 +17,13 @@ pub trait AndroidBridge: Send + Sync {
 
     fn data_dir(&self) -> Option<PathBuf>;
     fn cache_dir(&self) -> Option<PathBuf>;
+
+    /// Native code may report its local packaged-core/config preflight. The
+    /// conservative default keeps older bridges compatible and never claims
+    /// offline readiness without host evidence.
+    fn offline_startup_snapshot(&self) -> OfflineStartupSnapshot {
+        OfflineStartupSnapshot::default()
+    }
 
     async fn vpn_start(&self) -> Result<bool>;
     async fn vpn_stop(&self) -> Result<bool>;
@@ -60,6 +68,10 @@ impl AndroidBridge for Box<dyn AndroidBridge> {
 
     fn cache_dir(&self) -> Option<PathBuf> {
         self.as_ref().cache_dir()
+    }
+
+    fn offline_startup_snapshot(&self) -> OfflineStartupSnapshot {
+        self.as_ref().offline_startup_snapshot()
     }
 
     async fn vpn_start(&self) -> Result<bool> {
@@ -119,6 +131,10 @@ impl AndroidBridge for Arc<dyn AndroidBridge> {
 
     fn cache_dir(&self) -> Option<PathBuf> {
         self.as_ref().cache_dir()
+    }
+
+    fn offline_startup_snapshot(&self) -> OfflineStartupSnapshot {
+        self.as_ref().offline_startup_snapshot()
     }
 
     async fn vpn_start(&self) -> Result<bool> {

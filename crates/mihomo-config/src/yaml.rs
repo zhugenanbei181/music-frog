@@ -1,7 +1,8 @@
 use mihomo_api::error::{MihomoError, Result};
 use yaml_rust2::{Yaml, YamlEmitter, YamlLoader};
 
-pub(crate) fn validate(content: &str) -> Result<()> {
+/// Parse a profile without performing any network or core-controller work.
+pub fn validate(content: &str) -> Result<()> {
     let _ = load_yaml(content)?;
     Ok(())
 }

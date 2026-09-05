@@ -8,6 +8,7 @@ use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::Result;
 use mihomo_platform::android_bridge::AndroidBridge;
@@ -54,6 +55,21 @@ where
     B: AndroidBridge,
 {
     AndroidBridgeAdapter::new(bridge)
+}
+
+#[async_trait]
+impl<B> OfflineStartupPort for AndroidBridgeAdapter<B>
+where
+    B: AndroidBridge,
+{
+    async fn validate_offline_startup(
+        &self,
+    ) -> std::result::Result<infiltrator_contract::offline_startup::OfflineStartupSnapshot, PortError>
+    {
+        // The Android host owns the APK ABI binary and sandbox paths. Rust
+        // consumes its typed local proof and never performs a remote probe.
+        Ok(self.bridge.offline_startup_snapshot())
+    }
 }
 
 fn map_port_error(error: mihomo_api::error::MihomoError) -> PortError {
@@ -302,6 +318,14 @@ mod tests {
             self.cache_dir.clone()
         }
 
+        fn offline_startup_snapshot(
+            &self,
+        ) -> infiltrator_contract::offline_startup::OfflineStartupSnapshot {
+            infiltrator_contract::offline_startup::OfflineStartupSnapshot::ready(
+                infiltrator_contract::offline_startup::LocalAssetStatus::Available,
+            )
+        }
+
         async fn vpn_start(&self) -> Result<bool> {
             Ok(true)
         }
@@ -367,6 +391,25 @@ mod tests {
         assert_eq!(
             runtime.data_dirs().cache_dir(),
             Some(PathBuf::from("cache"))
+        );
+    }
+
+    #[tokio::test]
+    async fn android_host_exposes_offline_first_startup_evidence() {
+        let adapter = AndroidBridgeAdapter::new(TestBridge::new());
+        let snapshot = infiltrator_application::offline_startup_application::OfflineStartupApplication::new(
+            Arc::new(adapter),
+        )
+        .snapshot()
+        .await;
+        assert!(snapshot.is_offline_startable());
+        assert_eq!(
+            snapshot.policy,
+            infiltrator_contract::offline_startup::StartupNetworkPolicy::OfflineFirst
+        );
+        assert_eq!(
+            snapshot.remote_dependency,
+            infiltrator_contract::offline_startup::StartupRemoteDependency::Optional
         );
     }
 

@@ -12,6 +12,7 @@ pub mod resources;
 pub mod doctor;
 pub mod error;
 pub mod intent;
+pub mod offline_startup;
 pub mod snapshot;
 pub mod session;
 pub mod service_mode;

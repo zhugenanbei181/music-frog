@@ -10,6 +10,7 @@ use infiltrator_ports::application_runtime::{
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::port_conflict::PortConflictPort;
+use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::service_mode::ServiceModePort;
 use infiltrator_ports::version::{VersionPort, VersionProgressSink};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -119,6 +120,19 @@ impl PortConflictPort for TestPortConflicts {
     }
 }
 
+struct TestOfflineStartup;
+
+#[async_trait]
+impl OfflineStartupPort for TestOfflineStartup {
+    async fn validate_offline_startup(
+        &self,
+    ) -> Result<infiltrator_contract::offline_startup::OfflineStartupSnapshot, PortError> {
+        Ok(infiltrator_contract::offline_startup::OfflineStartupSnapshot::ready(
+            infiltrator_contract::offline_startup::LocalAssetStatus::Available,
+        ))
+    }
+}
+
 struct TestVersions {
     calls: Arc<AtomicUsize>,
 }
@@ -185,7 +199,8 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
         })))
         .with_endpoint_source(Arc::new(TestEndpoint))
         .with_service_mode(ServiceModeApplication::new(Arc::new(TestServiceMode)))
-        .with_port_conflicts(PortConflictApplication::new(Arc::new(TestPortConflicts)));
+        .with_port_conflicts(PortConflictApplication::new(Arc::new(TestPortConflicts)))
+        .with_offline_startup(OfflineStartupApplication::new(Arc::new(TestOfflineStartup)));
 
     let first = reader.read().await.expect("first surface read");
     let second = reader.read().await.expect("cached surface read");
@@ -204,6 +219,11 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
     );
     assert!(first.port_conflicts.has_conflicts());
     assert_eq!(first.port_conflicts.conflicts[0].owner_pid, Some(4242));
+    assert!(first.offline_startup.is_offline_startable());
+    assert_eq!(
+        first.offline_startup.geoip,
+        infiltrator_contract::offline_startup::LocalAssetStatus::Available
+    );
     assert!(first.versions.channels.iter().all(|channel| matches!(
         channel.status,
         infiltrator_contract::version::CoreChannelStatus::Ready { .. }

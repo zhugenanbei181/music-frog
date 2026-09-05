@@ -24,6 +24,7 @@
 - [x] `DUAL-01-10`：CleanExitHook 提供 SIGINT/SIGTERM/Ctrl+C 的统一 termination handler；desktop host 注册代理/TUN 清理钩子，Iced 的正常退出、panic 与信号路径都复用同一清理入口，Bevy host 只消费 host 提供的 cleanup handle。
 - [x] `DUAL-01-11`：端口冲突进入 PortConflictSnapshot/PortConflictPort/Application；desktop 负责 PID 观测与 ConfigManager 安全避让，Iced/Bevy 使用相同 repair intent，不从 UI 直接 kill 未确认进程。
 - [x] `DUAL-01-12`：CoreResourceSnapshot/ResourceApplication 固定 512 MiB 软限和 30 秒 GC 冷却；Mihomo `/memory` 与 `/debug/gc` 由 RuntimeGateway 提供，desktop host 补 CPU 观测，Iced/Bevy 只消费资源与回收状态。
+- [x] `DUAL-01-13`：离线启动先校验本地 profile 与 core binary；生产 retry/materialize 走 `bootstrap_offline`，GeoIP 只复制已有本地资产，缺失时报告 degraded 而不访问网络；desktop、Android、iOS 与两端 UI 共享 `OfflineStartupSnapshot`。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

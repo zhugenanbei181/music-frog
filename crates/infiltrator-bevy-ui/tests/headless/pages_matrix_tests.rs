@@ -54,6 +54,7 @@ use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthSta
 use infiltrator_contract::service_mode::{ServiceModePlatform, ServiceModeSnapshot, ServiceModeState};
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
 
 fn create_test_app() -> App {
     let mut app = App::new();
@@ -380,6 +381,7 @@ fn settings_page_in_place_update() {
             memory_soft_limit_bytes: 512 * 1024 * 1024,
             gc: CoreGcStatus::NotNeeded,
         },
+        offline_startup: OfflineStartupSnapshot::ready(LocalAssetStatus::Available),
     };
 
     app.world_mut()
@@ -403,6 +405,11 @@ fn settings_page_in_place_update() {
         .iter(world)
         .find(|(_, l)| l.0 == SettingsLineKind::CoreChannel);
     assert_eq!(channel_text.unwrap().0.0, "内核通道: alpha");
+
+    let offline_text = lines
+        .iter(world)
+        .find(|(_, l)| l.0 == SettingsLineKind::OfflineStartup);
+    assert!(offline_text.unwrap().0.0.contains("离线优先"));
 
     let versions_text = lines
         .iter(world)

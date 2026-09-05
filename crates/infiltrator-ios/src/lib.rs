@@ -16,6 +16,7 @@ use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::secure_store::SecureStore;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -36,6 +37,12 @@ pub trait IosBridge: Send + Sync {
 
     fn data_dir(&self) -> Option<PathBuf>;
     fn cache_dir(&self) -> Option<PathBuf>;
+
+    /// Native Swift code supplies local packaged-core/config evidence. The
+    /// default is conservative and never claims readiness without evidence.
+    fn offline_startup_snapshot(&self) -> infiltrator_contract::offline_startup::OfflineStartupSnapshot {
+        Default::default()
+    }
 }
 
 /// Host adapter shared by the Rust application and an injected native iOS
@@ -61,6 +68,12 @@ impl IosHostAdapter {
 
     pub fn controller_url(&self) -> Option<String> {
         self.bridge.core_controller_url()
+    }
+
+    pub fn offline_startup_snapshot(
+        &self,
+    ) -> infiltrator_contract::offline_startup::OfflineStartupSnapshot {
+        self.bridge.offline_startup_snapshot()
     }
 }
 
@@ -109,6 +122,15 @@ impl DataDirProvider for IosHostAdapter {
 
     fn cache_dir(&self) -> Option<PathBuf> {
         self.bridge.cache_dir()
+    }
+}
+
+#[async_trait]
+impl OfflineStartupPort for IosHostAdapter {
+    async fn validate_offline_startup(
+        &self,
+    ) -> Result<infiltrator_contract::offline_startup::OfflineStartupSnapshot, PortError> {
+        Ok(self.bridge.offline_startup_snapshot())
     }
 }
 
@@ -233,6 +255,14 @@ mod tests {
         fn cache_dir(&self) -> Option<PathBuf> {
             None
         }
+
+        fn offline_startup_snapshot(
+            &self,
+        ) -> infiltrator_contract::offline_startup::OfflineStartupSnapshot {
+            infiltrator_contract::offline_startup::OfflineStartupSnapshot::ready(
+                infiltrator_contract::offline_startup::LocalAssetStatus::Available,
+            )
+        }
     }
 
     #[tokio::test]
@@ -257,6 +287,27 @@ mod tests {
             capabilities.availability(Capability::Tun),
             Availability::Unsupported { .. }
         ));
+    }
+
+    #[tokio::test]
+    async fn ios_host_exposes_offline_first_startup_evidence() {
+        let adapter = IosHostAdapter::new(FakeBridge {
+            running: Mutex::new(false),
+        });
+        let snapshot = infiltrator_application::offline_startup_application::OfflineStartupApplication::new(
+            Arc::new(adapter),
+        )
+        .snapshot()
+        .await;
+        assert!(snapshot.is_offline_startable());
+        assert_eq!(
+            snapshot.policy,
+            infiltrator_contract::offline_startup::StartupNetworkPolicy::OfflineFirst
+        );
+        assert_eq!(
+            snapshot.remote_dependency,
+            infiltrator_contract::offline_startup::StartupRemoteDependency::Optional
+        );
     }
 
     struct ReadyProbe;

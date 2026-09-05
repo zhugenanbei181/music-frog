@@ -16,6 +16,7 @@ use crate::settings_application::SettingsApplication;
 use crate::snapshot_application::SnapshotApplication;
 use crate::service_mode_application::ServiceModeApplication;
 use crate::version_application::VersionApplication;
+use crate::offline_startup_application::OfflineStartupApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -51,6 +52,7 @@ pub struct ApplicationSurfaceReader {
     service_mode: Option<ServiceModeApplication>,
     port_conflicts: Option<PortConflictApplication>,
     resources: Option<ResourceApplication>,
+    offline_startup: Option<OfflineStartupApplication>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -72,6 +74,7 @@ impl ApplicationSurfaceReader {
             service_mode: None,
             port_conflicts: None,
             resources: None,
+            offline_startup: None,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -143,6 +146,11 @@ impl ApplicationSurfaceReader {
         self
     }
 
+    pub fn with_offline_startup(mut self, startup: OfflineStartupApplication) -> Self {
+        self.offline_startup = Some(startup);
+        self
+    }
+
     pub fn core(&self) -> &Arc<CoreApplication> {
         &self.core
     }
@@ -199,6 +207,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let service_mode = self.read_service_mode().await;
         let port_conflicts = self.read_port_conflicts().await;
         let resources = self.read_resources().await;
+        let offline_startup = self.read_offline_startup().await;
         let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
 
         pages.overview =
@@ -358,6 +367,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             service_mode,
             port_conflicts,
             resources,
+            offline_startup,
         })
     }
 }

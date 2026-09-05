@@ -15,6 +15,7 @@ use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::service_mode_application::ServiceModeApplication;
 use infiltrator_application::snapshot_application::SnapshotApplication;
 use infiltrator_application::surface_application::SurfacePump;
+use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::capability::{
@@ -76,6 +77,13 @@ pub async fn application_surface_reader(
     let port_conflicts =
         PortConflictApplication::new(Arc::new(crate::storage::port_conflict()?));
     let resources = ResourceApplication::new(gateway.clone());
+    let config_path = infiltrator_core::settings_io::app_config_manager()
+        .await?
+        .get_current_path()
+        .await?;
+    let offline_startup = OfflineStartupApplication::new(Arc::new(
+        crate::offline_startup::offline_startup_port(&config_path, &binary_path),
+    ));
     let service_mode =
         ServiceModeApplication::new(Arc::new(crate::service_mode::DesktopServiceMode::new(
             binary_path,
@@ -86,6 +94,7 @@ pub async fn application_surface_reader(
             .with_capabilities(desktop_capabilities())
             .with_gateway(gateway)
             .with_resources(resources)
+            .with_offline_startup(offline_startup)
             .with_profiles(profile)
             .with_configuration(configuration)
             .with_doctor(doctor)

@@ -72,6 +72,28 @@ impl MihomoRuntime {
         bundled_candidates: &[PathBuf],
         data_dir: &Path,
     ) -> anyhow::Result<Self> {
+        Self::bootstrap_with_geoip(vm, use_bundled, bundled_candidates, data_dir, true).await
+    }
+
+    /// Production boot path used by the retrying host.  It never downloads
+    /// GeoIP or probes a remote release/auth service before the local core is
+    /// attached; remote enrichment may happen after the surface is live.
+    pub async fn bootstrap_offline(
+        vm: &VersionManager,
+        use_bundled: bool,
+        bundled_candidates: &[PathBuf],
+        data_dir: &Path,
+    ) -> anyhow::Result<Self> {
+        Self::bootstrap_with_geoip(vm, use_bundled, bundled_candidates, data_dir, false).await
+    }
+
+    async fn bootstrap_with_geoip(
+        vm: &VersionManager,
+        use_bundled: bool,
+        bundled_candidates: &[PathBuf],
+        data_dir: &Path,
+        allow_network: bool,
+    ) -> anyhow::Result<Self> {
         let configs_dir = Self::settings_configs_dir().await;
         let home = mihomo_platform::paths::get_home_dir()?;
         let cm = Arc::new(ConfigManager::with_home_configs_dir_and_store(
@@ -81,12 +103,17 @@ impl MihomoRuntime {
         )?);
 
         cm.ensure_default_config().await?;
+        cm.validate_current_profile().await?;
         cm.ensure_proxy_ports().await?;
         let controller_url = cm.ensure_external_controller().await?;
         let config_path = cm.get_current_path().await?;
         let binary = version::resolve_binary(vm, use_bundled, bundled_candidates, data_dir).await?;
         let geoip_candidates = collect_geoip_candidates(&binary, bundled_candidates);
-        ensure_geoip_database(&config_path, &geoip_candidates).await?;
+        if allow_network {
+            ensure_geoip_database(&config_path, &geoip_candidates).await?;
+        } else {
+            ensure_geoip_database_offline(&config_path, &geoip_candidates).await?;
+        }
         let service_manager = ServiceManager::new(binary.clone(), config_path.clone());
         let service_mode = Arc::new(crate::service_mode::DesktopServiceMode::new(binary.clone()));
 
@@ -701,6 +728,40 @@ async fn ensure_geoip_database(
         last_err.unwrap_or_else(|| "未知错误".to_string()),
         geoip_path.display()
     ))
+}
+
+/// Local-only GeoIP preparation for the first boot. A missing database is a
+/// visible degradation handled by the shared startup snapshot; it is never a
+/// reason to block a valid local profile or to start an HTTP request.
+async fn ensure_geoip_database_offline(
+    config_path: &Path,
+    geoip_candidates: &[PathBuf],
+) -> anyhow::Result<()> {
+    let content = tokio::fs::read_to_string(config_path).await?;
+    if !content.to_ascii_uppercase().contains("GEOIP") {
+        return Ok(());
+    }
+
+    let config_dir = config_path
+        .parent()
+        .ok_or_else(|| anyhow!("配置目录不存在"))?;
+    let geoip_path = config_dir.join("geoip.metadb");
+    if tokio::fs::metadata(&geoip_path)
+        .await
+        .is_ok_and(|meta| meta.len() >= GEOIP_MIN_SIZE)
+    {
+        return Ok(());
+    }
+
+    if try_copy_geoip_candidates(geoip_candidates, &geoip_path).await? {
+        return Ok(());
+    }
+
+    log::warn!(
+        "offline bootstrap: local GeoIP database unavailable at {}; continuing without network",
+        geoip_path.display()
+    );
+    Ok(())
 }
 
 fn build_geoip_url_list() -> Vec<String> {

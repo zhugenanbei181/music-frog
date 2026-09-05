@@ -184,6 +184,22 @@ mode: rule
         unsafe { std::env::remove_var("MIHOMO_GEOIP_URL") };
     }
 
+    #[tokio::test]
+    async fn offline_geoip_missing_is_non_fatal_and_does_not_write_or_download() {
+        let dir = tempfile::TempDir::new().expect("temp dir");
+        let config_path = dir.path().join("default.yaml");
+        tokio::fs::write(&config_path, "geoip: true\nmode: rule\n")
+            .await
+            .expect("config");
+        let target = dir.path().join("geoip.metadb");
+
+        ensure_geoip_database_offline(&config_path, &[])
+            .await
+            .expect("offline preparation is best effort");
+
+        assert!(!target.exists());
+    }
+
     #[test]
     fn test_mihomo_summary_serialization() {
         let summary = MihomoSummary {

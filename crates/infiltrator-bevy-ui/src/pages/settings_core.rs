@@ -5,6 +5,7 @@
 //! business decision into the widget layer.
 
 use bevy::scene::{Scene, bsn};
+use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ui::BorderRadius;
 use bevy::ui::prelude::{
@@ -24,6 +25,47 @@ use infiltrator_contract::service_mode::{
 };
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::offline_startup::{
+    LocalAssetStatus, OfflineStartupSnapshot, OfflineStartupState, StartupRemoteDependency,
+};
+
+/// Marker for text lines updated by the Settings projection observer.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SettingsLine(pub SettingsLineKind);
+
+/// Different text lines on the settings page.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SettingsLineKind {
+    /// Overview summary.
+    #[default]
+    Summary,
+    /// Local-only boot preflight and optional remote-dependency status.
+    OfflineStartup,
+    /// Mixed port text.
+    MixedPort,
+    /// TUN stack text.
+    TunStack,
+    /// Controller port text.
+    ControllerPort,
+    /// Log level text.
+    LogLevel,
+    /// Selected core release channel.
+    CoreChannel,
+    /// Latest result of the three-channel probe.
+    CoreVersions,
+    /// Latest archive-integrity result.
+    CoreIntegrity,
+    /// Locally available core rollback target.
+    CoreRollback,
+    /// Controller secret/header injection status.
+    ControllerAuth,
+    /// Host-owned privileged service mode status.
+    ServiceMode,
+    /// Mixed/controller port conflict observation.
+    PortConflicts,
+    /// Core memory/CPU and automatic GC state.
+    CoreResources,
+}
 
 pub(super) fn controller_settings_card(
     projection: &SettingsProjection,
@@ -72,8 +114,8 @@ pub(super) fn controller_settings_card(
 
 use super::{
     CoreLogLevelButton, CoreRollbackAvailability, CoreRollbackButton, CoreRollbackButtonLabel,
-    ServiceModeAvailability, ServiceModeButton, ServiceModeButtonLabel, SettingsLine,
-    SettingsLineKind, SettingsProjection, PortConflictButton,
+    ServiceModeAvailability, ServiceModeButton, ServiceModeButtonLabel, SettingsProjection,
+    PortConflictButton,
 };
 
 pub(super) fn core_rollback_row_scene(
@@ -431,6 +473,58 @@ pub(super) fn core_resources_row_scene(
             ( Text(status) SettingsLine(SettingsLineKind::CoreResources) TextRole(Role::Mono) ),
         ]
     })
+}
+
+pub(super) fn offline_startup_row_scene(
+    snapshot: &OfflineStartupSnapshot,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let status = format_offline_startup(snapshot);
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect::all(Val::Px(space::S8)),
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ palette.surface_elevated })
+        Children [
+            ( Text({ "离线启动 (Offline-first)".to_owned() }) TextRole(Role::Body) ),
+            ( Text(status) SettingsLine(SettingsLineKind::OfflineStartup) TextRole(Role::Mono) ),
+        ]
+    })
+}
+
+pub(super) fn format_offline_startup(snapshot: &OfflineStartupSnapshot) -> String {
+    let state = match snapshot.state {
+        OfflineStartupState::Unknown => "未探测",
+        OfflineStartupState::Checking => "校验中",
+        OfflineStartupState::Ready => "可离线启动",
+        OfflineStartupState::Degraded => "可启动但已降级",
+        OfflineStartupState::Blocked => "已阻断",
+    };
+    let config = if snapshot.config_valid { "有效" } else { "无效" };
+    let binary = if snapshot.binary_available {
+        "可用"
+    } else {
+        "缺失"
+    };
+    let geoip = match snapshot.geoip {
+        LocalAssetStatus::NotRequired => "不需要",
+        LocalAssetStatus::Available => "本地可用",
+        LocalAssetStatus::Missing => "缺失",
+    };
+    let remote = match snapshot.remote_dependency {
+        StartupRemoteDependency::Optional => "远端可选",
+    };
+    let failure = snapshot.failure.as_ref().map_or_else(String::new, |failure| {
+        format!(
+            " · {}",
+            infiltrator_bevy_widgets::desktop::ClipboardPayload::sanitize_text(&failure.message)
+        )
+    });
+    format!("离线优先 · {state} · 配置={config} · 内核={binary} · GeoIP={geoip} · {remote}{failure}")
 }
 
 pub(super) fn format_core_resources(snapshot: &CoreResourceSnapshot) -> String {

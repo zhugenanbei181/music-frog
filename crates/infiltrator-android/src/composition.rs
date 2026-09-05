@@ -2,6 +2,7 @@
 
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
+use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::OverviewReader;
@@ -12,6 +13,14 @@ use mihomo_platform::android_bridge::AndroidBridge;
 use std::sync::Arc;
 
 use crate::runtime::AndroidBridgeAdapter;
+
+/// Compose the Android host's local-only startup proof for either UI surface.
+pub fn offline_startup_application<B>(bridge: B) -> OfflineStartupApplication
+where
+    B: AndroidBridge + 'static,
+{
+    OfflineStartupApplication::new(Arc::new(AndroidBridgeAdapter::new(bridge)))
+}
 
 /// Assemble the shared application service with Android's bridge-backed Core
 /// process port and the Mihomo controller readiness adapter.

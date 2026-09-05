@@ -34,6 +34,7 @@ on:
       - "scripts/quality/process-exit-guard.py"
       - "scripts/quality/port-conflict-guard.py"
       - "scripts/quality/core-resource-guard.py"
+      - "scripts/quality/offline-startup-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -63,6 +64,7 @@ on:
       - "scripts/quality/process-exit-guard.py"
       - "scripts/quality/port-conflict-guard.py"
       - "scripts/quality/core-resource-guard.py"
+      - "scripts/quality/offline-startup-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -159,6 +161,9 @@ jobs:
 
       - name: Enforce DUAL-01-12 core resource quota semantics
         run: python3 scripts/quality/core-resource-guard.py --mode enforce
+
+      - name: Enforce DUAL-01-13 offline-first startup semantics
+        run: python3 scripts/quality/offline-startup-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
