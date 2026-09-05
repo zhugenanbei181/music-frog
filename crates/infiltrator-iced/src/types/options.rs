@@ -131,7 +131,7 @@ impl MrsProviderDetail {
 }
 
 /// Computed local-vs-remote top-level diff for one sync conflict, fed by
-/// `sync_engine::conflict_resolution::diff_yaml_configs` and rendered as
+/// `infiltrator_domain::sync::diff_yaml_configs` and rendered as
 /// per-key pick rows on the Sync page.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncDiffBundle {

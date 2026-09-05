@@ -49,7 +49,7 @@ pub async fn open_profile_in_editor_http<C: AdminApiContext>(
     Json(payload): Json<OpenProfilePayload>,
 ) -> Result<StatusCode, ApiError> {
     let name = ensure_valid_profile_name(&payload.name)?;
-    let _ = state
+    state
         .ctx
         .open_profile_in_editor(&name)
         .await

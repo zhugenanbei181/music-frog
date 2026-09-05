@@ -3,7 +3,8 @@
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::sync::SyncReport;
 use infiltrator_domain::settings::WebDavConfig;
-use infiltrator_ports::sync::{SyncPort, SyncRequest};
+use infiltrator_contract::sync::SyncTransferReport;
+use infiltrator_ports::sync::{SyncPort, SyncProgressSink, SyncRequest, SyncTransferRequest};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -47,6 +48,41 @@ impl SyncApplication {
             .await
             .map_err(Failure::from)
     }
+
+    pub async fn upload(
+        &self,
+        config: WebDavConfig,
+        configs_dir: Option<String>,
+        observer: Arc<dyn SyncProgressSink>,
+    ) -> Result<SyncTransferReport, Failure> {
+        self.port
+            .upload(SyncTransferRequest {
+                config,
+                configs_dir,
+                runtime_present: false,
+                observer,
+            })
+            .await
+            .map_err(Failure::from)
+    }
+
+    pub async fn download(
+        &self,
+        config: WebDavConfig,
+        configs_dir: Option<String>,
+        runtime_present: bool,
+        observer: Arc<dyn SyncProgressSink>,
+    ) -> Result<SyncTransferReport, Failure> {
+        self.port
+            .download(SyncTransferRequest {
+                config,
+                configs_dir,
+                runtime_present,
+                observer,
+            })
+            .await
+            .map_err(Failure::from)
+    }
 }
 
 #[cfg(test)]
@@ -70,6 +106,20 @@ mod tests {
                 total_actions: 2,
                 ..SyncReport::default()
             })
+        }
+
+        async fn upload(
+            &self,
+            _request: SyncTransferRequest,
+        ) -> Result<SyncTransferReport, PortError> {
+            Ok(SyncTransferReport::default())
+        }
+
+        async fn download(
+            &self,
+            _request: SyncTransferRequest,
+        ) -> Result<SyncTransferReport, PortError> {
+            Ok(SyncTransferReport::default())
         }
     }
 

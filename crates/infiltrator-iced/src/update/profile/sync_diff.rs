@@ -1,5 +1,5 @@
 //! Sync-conflict key-level diff merge. The diff itself comes from
-//! `sync_engine::conflict_resolution::diff_yaml_configs`; the user then picks
+//! `infiltrator_domain::sync::diff_yaml_configs`; the user then picks
 //! local/remote per top-level key and the merged document commits through the
 //! shared apply transaction.
 //!
@@ -46,7 +46,7 @@ impl AppState {
                             .await
                             .map_err(|error| InfiltratorError::Io(error.to_string()))?;
                         let summary =
-                            sync_engine::conflict_resolution::diff_yaml_configs(&local, &remote)
+                            infiltrator_domain::sync::diff_yaml_configs(&local, &remote)
                                 .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         Ok(SyncDiffBundle {
                             profile: conflict.profile,

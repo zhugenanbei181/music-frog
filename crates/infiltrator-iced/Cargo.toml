@@ -38,8 +38,6 @@ infiltrator-desktop = { path = "../infiltrator-desktop" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-admin = { path = "../infiltrator-admin" }
 mihomo-version = { path = "../mihomo-version" }
-dav-client = { path = "../mihomo-dav-sync/dav-client" }
-sync-engine = { path = "../mihomo-dav-sync/sync-engine" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }

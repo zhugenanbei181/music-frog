@@ -4,17 +4,94 @@
 use crate::state::AppState;
 use crate::types::app::{SyncConflict, SyncProgress, SyncSummary, ToastStatus};
 use crate::types::message::Message;
-use dav_client::{DavClient, client::WebDavClient};
 use iced::futures::SinkExt;
 use iced::{Task, stream};
+use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::sync::{
+    SyncConflict as ContractSyncConflict, SyncProgress as ContractSyncProgress,
+    SyncTransferReport,
+};
+use infiltrator_domain::settings::WebDavConfig;
+use infiltrator_ports::sync::SyncProgressSink;
 use infiltrator_shared::locales::{Lang, Localizer};
-use infiltrator_domain::sandbox::{PathValidationResult, SandboxValidator};
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tokio::io::AsyncWriteExt;
+
+struct IcedSyncProgressSink {
+    output: std::sync::Mutex<iced::futures::channel::mpsc::Sender<Message>>,
+    cancel: Arc<AtomicBool>,
+}
+
+impl IcedSyncProgressSink {
+    fn new(
+        output: iced::futures::channel::mpsc::Sender<Message>,
+        cancel: Arc<AtomicBool>,
+    ) -> Self {
+        Self {
+            output: std::sync::Mutex::new(output),
+            cancel,
+        }
+    }
+}
+
+impl SyncProgressSink for IcedSyncProgressSink {
+    fn progress(&self, progress: ContractSyncProgress) {
+        if let Ok(mut output) = self.output.lock() {
+            let _ = output.try_send(Message::SyncProgress(SyncProgress {
+                phase: progress.phase,
+                current: progress.current as usize,
+                total: progress.total as usize,
+            }));
+        }
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.cancel.load(Ordering::Acquire)
+    }
+}
+
+fn sync_application() -> Result<SyncApplication, InfiltratorError> {
+    let port = infiltrator_desktop::storage::sync()
+        .map_err(|error| InfiltratorError::Sync(error.to_string()))?;
+    Ok(SyncApplication::new(Arc::new(port)))
+}
+
+fn webdav_config(
+    enabled: bool,
+    url: String,
+    username: String,
+    password: String,
+) -> WebDavConfig {
+    WebDavConfig {
+        enabled,
+        url,
+        username,
+        password,
+        ..WebDavConfig::default()
+    }
+}
+
+fn transfer_to_summary(report: SyncTransferReport) -> SyncSummary {
+    SyncSummary {
+        uploaded: report.uploaded as usize,
+        downloaded: report.downloaded as usize,
+        conflicts: report.conflicts as usize,
+        active_profile_changed: report.active_profile_changed,
+        conflict_files: report
+            .conflict_files
+            .into_iter()
+            .map(contract_conflict_to_ui)
+            .collect(),
+    }
+}
+
+fn contract_conflict_to_ui(conflict: ContractSyncConflict) -> SyncConflict {
+    SyncConflict {
+        profile: conflict.profile,
+        remote_path: conflict.remote_path.into(),
+    }
+}
 
 impl AppState {
     pub(super) fn update_sync(&mut self, message: Message) -> Task<Message> {
@@ -27,20 +104,18 @@ impl AppState {
                     self.profile.sync_from_tick = false;
                     return Task::none();
                 }
-                let url = self.profile.webdav_url.clone();
-                let user = self.profile.webdav_user.clone();
-                let pass = self.profile.webdav_pass.clone();
-                // 客户端在 spawn 前构造（测试注入点：指向本地桩服务器）。
-                // 构造失败不 spawn worker，直接走 SyncFinished 错误臂 ——
-                // toast/清理/通知语义与原先 worker 内构造失败完全等价。
-                let client = match WebDavClient::new(&url, &user, &pass) {
-                    Ok(client) => client,
-                    Err(e) => {
-                        return Task::done(Message::SyncFinished(Err(InfiltratorError::Sync(
-                            e.to_string(),
-                        ))));
+                let application = match sync_application() {
+                    Ok(application) => application,
+                    Err(error) => {
+                        return Task::done(Message::SyncFinished(Err(error)));
                     }
                 };
+                let config = webdav_config(
+                    self.profile.webdav_enabled,
+                    self.profile.webdav_url.clone(),
+                    self.profile.webdav_user.clone(),
+                    self.profile.webdav_pass.clone(),
+                );
                 let cancel = Arc::new(AtomicBool::new(false));
                 self.profile.sync_cancel = Some(cancel.clone());
                 self.profile.is_syncing = true;
@@ -48,43 +123,20 @@ impl AppState {
                 let operation = stream::channel(
                     100,
                     move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                        let observer = Arc::new(IcedSyncProgressSink::new(
+                            output.clone(),
+                            cancel.clone(),
+                        ));
                         let result = async {
-                            let cm = crate::configs_dir::config_manager().await?;
-                            let profiles =
-                                cm.list_profiles().await.map_err(infiltrator_contract::error::from_mihomo)?;
-                            let total = profiles.len();
-                            let _ = output.try_send(Message::SyncProgress(SyncProgress {
-                                phase: "上传配置".to_string(),
-                                current: 0,
-                                total,
-                            }));
-
-                            let mut uploaded = 0usize;
-                            for profile in profiles {
-                                check_cancelled(&cancel)?;
-                                let content = tokio::fs::read_to_string(&profile.path)
-                                    .await
-                                    .map_err(|e| InfiltratorError::Io(e.to_string()))?;
-                                check_cancelled(&cancel)?;
-                                client
-                                    .put(
-                                        &format!("{}.yaml", profile.name),
-                                        content.as_bytes(),
-                                        None,
-                                    )
-                                    .await
-                                    .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
-                                uploaded += 1;
-                                let _ = output.try_send(Message::SyncProgress(SyncProgress {
-                                    phase: "上传配置".to_string(),
-                                    current: uploaded,
-                                    total,
-                                }));
-                            }
-                            Ok(SyncSummary {
-                                uploaded,
-                                ..SyncSummary::default()
-                            })
+                            let configs_dir = crate::configs_dir::configs_dir()
+                                .await?
+                                .to_string_lossy()
+                                .into_owned();
+                            application
+                                .upload(config, Some(configs_dir), observer)
+                                .await
+                                .map(transfer_to_summary)
+                                .map_err(|failure| InfiltratorError::Sync(failure.message))
                         }
                         .await;
                         let _ = output.send(Message::SyncFinished(result)).await;
@@ -96,19 +148,18 @@ impl AppState {
                 if self.profile.is_syncing {
                     return Task::none();
                 }
-                let url = self.profile.webdav_url.clone();
-                let user = self.profile.webdav_user.clone();
-                let pass = self.profile.webdav_pass.clone();
-                // 同 SyncUpload：客户端在 spawn 前构造（测试注入点），
-                // 构造失败提前定论并走同一 SyncFinished 错误臂。
-                let client = match WebDavClient::new(&url, &user, &pass) {
-                    Ok(client) => client,
-                    Err(e) => {
-                        return Task::done(Message::SyncFinished(Err(InfiltratorError::Sync(
-                            e.to_string(),
-                        ))));
+                let application = match sync_application() {
+                    Ok(application) => application,
+                    Err(error) => {
+                        return Task::done(Message::SyncFinished(Err(error)));
                     }
                 };
+                let config = webdav_config(
+                    self.profile.webdav_enabled,
+                    self.profile.webdav_url.clone(),
+                    self.profile.webdav_user.clone(),
+                    self.profile.webdav_pass.clone(),
+                );
                 let cancel = Arc::new(AtomicBool::new(false));
                 self.profile.sync_cancel = Some(cancel.clone());
                 self.profile.is_syncing = true;
@@ -117,131 +168,25 @@ impl AppState {
                 let operation = stream::channel(
                     100,
                     move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                        let observer = Arc::new(IcedSyncProgressSink::new(
+                            output.clone(),
+                            cancel.clone(),
+                        ));
                         let result = async {
-                            let files = client
-                                .list("")
+                            let configs_dir = crate::configs_dir::configs_dir()
+                                .await?
+                                .to_string_lossy()
+                                .into_owned();
+                            application
+                                .download(
+                                    config,
+                                    Some(configs_dir),
+                                    runtime_present,
+                                    observer,
+                                )
                                 .await
-                                .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
-                            let mut remote_profiles = Vec::new();
-                            let mut remote_names = HashSet::new();
-                            for file in files {
-                                if let Some(profile_name) = safe_remote_profile_name(&file.path)? {
-                                    if !remote_names.insert(profile_name.clone()) {
-                                        return Err(InfiltratorError::Sync(format!(
-                                            "远端配置路径映射冲突: {}",
-                                            profile_name
-                                        )));
-                                    }
-                                    remote_profiles.push((file.path, profile_name));
-                                }
-                            }
-                            // 沙箱根必须与 manager 的 configs 目录解析一致
-                            //（env > settings `configs_dir`），否则重定向后
-                            // 下载写入会被判定越界。
-                            let config_root = crate::configs_dir::configs_dir().await?;
-                            let sandbox = SandboxValidator::new(config_root.clone());
-                            let manager = crate::configs_dir::config_manager().await?;
-                            let active_profile = manager
-                                .get_current()
-                                .await
-                                .map_err(infiltrator_contract::error::from_mihomo)?;
-                            let total = remote_profiles.len();
-                            let _ = output.try_send(Message::SyncProgress(SyncProgress {
-                                phase: "下载配置".to_string(),
-                                current: 0,
-                                total,
-                            }));
-
-                            let mut downloaded = 0usize;
-                            let mut conflicts = 0usize;
-                            let mut conflict_files = Vec::new();
-                            let mut active_profile_changed = false;
-                            let mut processed = 0usize;
-                            for (remote_path, profile_name) in remote_profiles {
-                                check_cancelled(&cancel)?;
-                                let content = client
-                                    .get(&remote_path)
-                                    .await
-                                    .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
-                                let content = String::from_utf8(content).map_err(|error| {
-                                    InfiltratorError::Config(format!(
-                                        "远端配置 {} 不是 UTF-8 YAML: {error}",
-                                        remote_path
-                                    ))
-                                })?;
-                                infiltrator_domain::config::validate_yaml(&content)
-                                    .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                                let path = config_root.join(format!("{profile_name}.yaml"));
-                                if sandbox.validate_path(&path) != PathValidationResult::Allowed {
-                                    return Err(InfiltratorError::Sync(format!(
-                                        "远端配置目标超出本地配置目录: {}",
-                                        path.display()
-                                    )));
-                                }
-                                match tokio::fs::read_to_string(&path).await {
-                                    Ok(local) if local == content => {
-                                        processed += 1;
-                                        let _ =
-                                            output.try_send(Message::SyncProgress(SyncProgress {
-                                                phase: "下载配置".to_string(),
-                                                current: processed,
-                                                total,
-                                            }));
-                                        continue;
-                                    }
-                                    Ok(_) => {
-                                        let conflict_path = conflict_backup_path(&path);
-                                        atomic_write_file(&conflict_path, content.as_bytes())
-                                            .await?;
-                                        conflicts += 1;
-                                        conflict_files.push(SyncConflict {
-                                            profile: profile_name.clone(),
-                                            remote_path: conflict_path,
-                                        });
-                                        processed += 1;
-                                        let _ =
-                                            output.try_send(Message::SyncProgress(SyncProgress {
-                                                phase: "下载配置".to_string(),
-                                                current: processed,
-                                                total,
-                                            }));
-                                        continue;
-                                    }
-                                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                                    Err(error) => {
-                                        return Err(InfiltratorError::Io(error.to_string()));
-                                    }
-                                }
-                                check_cancelled(&cancel)?;
-                                manager
-                                    .save(&profile_name, &content)
-                                    .await
-                                    .map_err(infiltrator_contract::error::from_mihomo)?;
-                                let is_active = active_profile == profile_name;
-                                if is_active {
-                                    active_profile_changed = true;
-                                }
-                                if !is_active || !runtime_present {
-                                    manager
-                                        .clear_backup(&profile_name)
-                                        .await
-                                        .map_err(infiltrator_contract::error::from_mihomo)?;
-                                }
-                                downloaded += 1;
-                                processed += 1;
-                                let _ = output.try_send(Message::SyncProgress(SyncProgress {
-                                    phase: "下载配置".to_string(),
-                                    current: processed,
-                                    total,
-                                }));
-                            }
-                            Ok(SyncSummary {
-                                downloaded,
-                                conflicts,
-                                active_profile_changed,
-                                conflict_files,
-                                ..SyncSummary::default()
-                            })
+                                .map(transfer_to_summary)
+                                .map_err(|failure| InfiltratorError::Sync(failure.message))
                         }
                         .await;
                         let _ = output.send(Message::SyncFinished(result)).await;
@@ -465,16 +410,15 @@ impl AppState {
                     ));
                 }
                 self.profile.is_testing_webdav = true;
+                let application = match sync_application() {
+                    Ok(application) => application,
+                    Err(error) => {
+                        return Task::done(Message::WebDavConnectionTested(Err(error)));
+                    }
+                };
+                let config = webdav_config(true, url, user, pass);
                 Task::perform(
-                    async move {
-                        let client = WebDavClient::new(&url, &user, &pass)
-                            .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
-                        client
-                            .list("")
-                            .await
-                            .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
-                        Ok(())
-                    },
+                    async move { application.test(config).await.map(|_| ()).map_err(|failure| InfiltratorError::Sync(failure.message)) },
                     Message::WebDavConnectionTested,
                 )
             }
@@ -506,90 +450,4 @@ impl AppState {
             other => self.update_sync_diff(other),
         }
     }
-}
-
-fn check_cancelled(cancel: &AtomicBool) -> Result<(), InfiltratorError> {
-    if cancel.load(Ordering::Acquire) {
-        Err(InfiltratorError::Sync("同步已取消".to_string()))
-    } else {
-        Ok(())
-    }
-}
-
-fn safe_remote_profile_name(remote_path: &str) -> Result<Option<String>, InfiltratorError> {
-    let trimmed = remote_path.trim_matches('/');
-    if remote_path.contains('\\')
-        || remote_path.contains("://")
-        || trimmed.split('/').any(|part| part == "..")
-    {
-        return Err(InfiltratorError::Sync(format!(
-            "拒绝不安全的远端配置路径: {remote_path}"
-        )));
-    }
-    let Some(file_name) = trimmed.rsplit('/').next() else {
-        return Ok(None);
-    };
-    if !file_name.ends_with(".yaml") && !file_name.ends_with(".yml") {
-        return Ok(None);
-    }
-    if file_name == ".yaml" || file_name == ".yml" || file_name.contains("..") {
-        return Err(InfiltratorError::Sync(format!(
-            "拒绝不安全的远端配置路径: {remote_path}"
-        )));
-    }
-    let profile_name = file_name
-        .rsplit_once('.')
-        .map(|(name, _)| name)
-        .unwrap_or_default();
-    infiltrator_domain::profiles::sanitize_profile_name(profile_name)
-        .map(Some)
-        .map_err(|error| InfiltratorError::Config(error.to_string()))
-}
-
-fn conflict_backup_path(path: &Path) -> PathBuf {
-    let stem = path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or("profile");
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or_default();
-    path.with_file_name(format!("{stem}.remote-conflict-{stamp}.yaml"))
-}
-
-async fn atomic_write_file(path: &Path, content: &[u8]) -> Result<(), InfiltratorError> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| InfiltratorError::Io(format!("路径没有父目录: {}", path.display())))?;
-    tokio::fs::create_dir_all(parent)
-        .await
-        .map_err(infiltrator_contract::error::from_mihomo)?;
-    let temp = path.with_file_name(format!(
-        ".{}.sync-tmp",
-        path.file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("profile")
-    ));
-    let result = async {
-        let mut file = tokio::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp)
-            .await?;
-        file.write_all(content).await?;
-        file.sync_all().await?;
-        drop(file);
-        #[cfg(windows)]
-        if tokio::fs::try_exists(path).await? {
-            tokio::fs::remove_file(path).await?;
-        }
-        tokio::fs::rename(&temp, path).await?;
-        Ok::<(), std::io::Error>(())
-    }
-    .await;
-    if result.is_err() {
-        let _ = tokio::fs::remove_file(&temp).await;
-    }
-    result.map_err(|error| InfiltratorError::Io(error.to_string()))
 }

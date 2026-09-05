@@ -40,6 +40,7 @@ pub mod redact;
 pub mod script_engine;
 pub mod settings;
 pub mod snapshots;
+pub mod sync;
 pub mod sniffer;
 pub mod sub_rules;
 pub mod subscription;

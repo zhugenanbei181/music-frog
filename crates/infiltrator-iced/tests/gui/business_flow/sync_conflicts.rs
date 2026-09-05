@@ -23,7 +23,7 @@ use axum::response::{IntoResponse, Response};
 use infiltrator_contract::error::InfiltratorError;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
-use sync_engine::conflict_resolution::diff_yaml_configs;
+use infiltrator_domain::sync::diff_yaml_configs;
 use tokio::sync::oneshot;
 
 // ---------------------------------------------------------------------------
