@@ -42,6 +42,7 @@ impl VersionApplication {
         CoreVersionSnapshot {
             revision: 1,
             channels: probes,
+            verification: self.port.verification(),
         }
     }
 

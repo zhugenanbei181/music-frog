@@ -2,8 +2,8 @@
 
 use async_trait::async_trait;
 use infiltrator_contract::version::{
-    CoreRelease, CoreReleaseChannel, CoreReleaseSummary, InstalledCoreVersion,
-    VersionDownloadProgress,
+    CoreArtifactVerification, CoreRelease, CoreReleaseChannel, CoreReleaseSummary,
+    InstalledCoreVersion, VersionDownloadProgress,
 };
 use std::sync::Arc;
 
@@ -26,4 +26,10 @@ pub trait VersionPort: Send + Sync {
     ) -> Result<(), PortError>;
     async fn activate(&self, version: &str) -> Result<(), PortError>;
     async fn uninstall(&self, version: &str) -> Result<(), PortError>;
+
+    /// Latest install-integrity result. Lightweight adapters that do not
+    /// retain installation state safely report `Unknown`.
+    fn verification(&self) -> CoreArtifactVerification {
+        CoreArtifactVerification::Unknown
+    }
 }

@@ -10,7 +10,8 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
 use infiltrator_contract::snapshot::{CoreWatchdogState, CoreWatchdogSnapshot};
 use infiltrator_contract::version::{
-    CoreChannelSnapshot, CoreChannelStatus, CoreRelease, CoreReleaseChannel, CoreVersionSnapshot,
+    CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
+    CoreReleaseChannel, CoreVersionSnapshot,
 };
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
@@ -124,6 +125,9 @@ fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
                 },
             },
         }],
+        verification: CoreArtifactVerification::Verified {
+            version: "v1.19.30".to_owned(),
+        },
     };
 
     assert!(state.apply_shared_surface_snapshot(snapshot));
@@ -131,6 +135,12 @@ fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
     assert_eq!(
         state.runtime.core_versions.channels[0].channel,
         CoreReleaseChannel::MetaCore
+    );
+    assert_eq!(
+        state.runtime.core_integrity,
+        CoreArtifactVerification::Verified {
+            version: "v1.19.30".to_owned(),
+        }
     );
 }
 

@@ -33,7 +33,9 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::tabs::segmented_control_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::version::{CoreChannelStatus, CoreVersionSnapshot};
+use infiltrator_contract::version::{
+    CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot,
+};
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
@@ -69,6 +71,8 @@ pub enum SettingsLineKind {
     CoreChannel,
     /// Latest result of the three-channel probe.
     CoreVersions,
+    /// Latest archive-integrity result.
+    CoreIntegrity,
 }
 
 /// Marker for "Save Settings" button.
@@ -104,6 +108,7 @@ pub struct SettingsProjection {
     pub log_level: String,
     pub core_channel: String,
     pub core_versions: CoreVersionSnapshot,
+    pub core_integrity: CoreArtifactVerification,
 }
 
 impl SettingsProjection {
@@ -120,6 +125,7 @@ impl SettingsProjection {
             log_level: "info".to_owned(),
             core_channel: "stable".to_owned(),
             core_versions: CoreVersionSnapshot::default(),
+            core_integrity: Default::default(),
         }
     }
 }
@@ -459,6 +465,7 @@ pub fn general_card_scene(
     let mixed_port_str = format!("端口: {}", projection.mixed_port);
     let core_channel_str = format!("内核通道: {}", projection.core_channel);
     let core_versions_str = format_core_versions(&projection.core_versions);
+    let core_integrity_str = format_integrity(&projection.core_integrity);
 
     surface_scene(
         vec![
@@ -495,6 +502,20 @@ pub fn general_card_scene(
                         Children [
                             ( Text({ "内核版本通道 (Core Channel)".to_owned() }) TextRole(Role::Body) ),
                             ( Text(core_channel_str) SettingsLine(SettingsLineKind::CoreChannel) TextRole(Role::BodyStrong) ),
+                        ]
+                    ),
+                    (
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            padding: UiRect::all(Val::Px(space::S8)),
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.surface_elevated })
+                        Children [
+                            ( Text({ "制品完整性 (SHA-256)".to_owned() }) TextRole(Role::Body) ),
+                            ( Text(core_integrity_str) SettingsLine(SettingsLineKind::CoreIntegrity) TextRole(Role::Mono) ),
                         ]
                     ),
                     (
@@ -589,6 +610,21 @@ fn format_core_versions(snapshot: &CoreVersionSnapshot) -> String {
         })
         .collect::<Vec<_>>()
         .join(" · ")
+}
+
+fn format_integrity(verification: &CoreArtifactVerification) -> String {
+    match verification {
+        CoreArtifactVerification::Unknown => "未校验".to_owned(),
+        CoreArtifactVerification::Verified { version } => {
+            format!("已验证 ({version})")
+        }
+        CoreArtifactVerification::Rejected { version, failure } => {
+            format!(
+                "已拒绝 ({version}: {})",
+                infiltrator_bevy_widgets::desktop::ClipboardPayload::sanitize_text(&failure.message)
+            )
+        }
+    }
 }
 
 fn tun_settings_card(projection: &SettingsProjection, palette: &UiPalette) -> impl Scene + use<> {
@@ -770,6 +806,9 @@ pub(crate) fn apply_settings_projection(
             }
             SettingsLineKind::CoreVersions => {
                 text.0 = format_core_versions(&projection.core_versions);
+            }
+            SettingsLineKind::CoreIntegrity => {
+                text.0 = format_integrity(&projection.core_integrity);
             }
         }
     }

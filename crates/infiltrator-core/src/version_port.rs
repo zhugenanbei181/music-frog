@@ -1,8 +1,8 @@
 //! Adapter from the concrete mihomo-version manager to the version port.
 
 use infiltrator_contract::version::{
-    CoreRelease, CoreReleaseChannel, CoreReleaseSummary, InstalledCoreVersion,
-    VersionDownloadProgress,
+    CoreArtifactVerification, CoreRelease, CoreReleaseChannel, CoreReleaseSummary,
+    InstalledCoreVersion, VersionDownloadProgress,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::version::{VersionPort, VersionProgressSink};
@@ -11,14 +11,23 @@ use mihomo_version::download::DownloadProgress;
 use mihomo_version::manager::VersionManager;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::{Mutex, OnceLock};
 
 pub struct MihomoVersionPort {
     manager: VersionManager,
+    verification: Arc<Mutex<CoreArtifactVerification>>,
 }
+
+static LAST_VERIFICATION: OnceLock<Arc<Mutex<CoreArtifactVerification>>> = OnceLock::new();
 
 impl MihomoVersionPort {
     pub fn new(manager: VersionManager) -> Self {
-        Self { manager }
+        Self {
+            manager,
+            verification: LAST_VERIFICATION
+                .get_or_init(|| Arc::new(Mutex::new(CoreArtifactVerification::Unknown)))
+                .clone(),
+        }
     }
 
     pub fn current() -> anyhow::Result<Self> {
@@ -81,14 +90,30 @@ impl VersionPort for MihomoVersionPort {
         version: String,
         progress: Arc<dyn VersionProgressSink>,
     ) -> Result<(), PortError> {
-        self.manager
+        let result = self
+            .manager
             .install_with_progress_and_cancel(
                 &version,
                 |item| progress.progress(to_progress(item)),
                 || progress.is_cancelled(),
             )
             .await
-            .map_err(version_error)
+            .map_err(version_error);
+        let verification = match &result {
+            Ok(()) => CoreArtifactVerification::Verified {
+                version: version.clone(),
+            },
+            Err(error) => CoreArtifactVerification::Rejected {
+                version,
+                failure: infiltrator_contract::error::Failure::new(
+                    infiltrator_contract::error::ErrorCode::Internal,
+                    error.to_string(),
+                    true,
+                ),
+            },
+        };
+        *self.verification.lock().expect("version verification lock") = verification;
+        result
     }
 
     async fn activate(&self, version: &str) -> Result<(), PortError> {
@@ -97,6 +122,13 @@ impl VersionPort for MihomoVersionPort {
 
     async fn uninstall(&self, version: &str) -> Result<(), PortError> {
         self.manager.uninstall(version).await.map_err(version_error)
+    }
+
+    fn verification(&self) -> CoreArtifactVerification {
+        self.verification
+            .lock()
+            .expect("version verification lock")
+            .clone()
     }
 }
 

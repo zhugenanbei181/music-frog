@@ -43,11 +43,13 @@ require_text "scripts/test.sh" "session-guard.py"
 require_text "scripts/test.sh" "hot-reload-guard.py"
 require_text "scripts/test.sh" "crash-watchdog-guard.py"
 require_text "scripts/test.sh" "core-channel-guard.py"
+require_text "scripts/test.sh" "kernel-integrity-guard.py"
 require_text ".github/workflows/test.yml" "parity-guard.py"
 require_text ".github/workflows/test.yml" "session-guard.py"
 require_text ".github/workflows/test.yml" "hot-reload-guard.py"
 require_text ".github/workflows/test.yml" "crash-watchdog-guard.py"
 require_text ".github/workflows/test.yml" "core-channel-guard.py"
+require_text ".github/workflows/test.yml" "kernel-integrity-guard.py"
 require_text "TESTING.md" "line-guard.py"
 
 if [[ "$failed" -ne 0 ]]; then

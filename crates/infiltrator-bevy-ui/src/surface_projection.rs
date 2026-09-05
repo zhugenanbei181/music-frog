@@ -396,10 +396,12 @@ pub(super) fn settings_projection(
             log_level: value.log_level,
             core_channel: value.core_channel,
             core_versions: snapshot.versions.clone(),
+            core_integrity: snapshot.versions.verification.clone(),
         })
         .unwrap_or_else(|| {
             let mut projection = empty_settings();
             projection.core_versions = snapshot.versions.clone();
+            projection.core_integrity = snapshot.versions.verification.clone();
             projection
         })
 }

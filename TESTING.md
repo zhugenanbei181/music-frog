@@ -100,6 +100,8 @@ python3 scripts/quality/hot-reload-guard.py --mode enforce
 python3 scripts/quality/crash-watchdog-guard.py --mode enforce
 # DUAL-01-04 Stable / Alpha / Meta-Core 通道探测与双 UI 投影守卫
 python3 scripts/quality/core-channel-guard.py --mode enforce
+# DUAL-01-05 官方 SHA256 digest gate 与完整性投影守卫
+python3 scripts/quality/kernel-integrity-guard.py --mode enforce
 ```
 
 ---

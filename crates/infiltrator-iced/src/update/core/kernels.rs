@@ -6,7 +6,9 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::{Task, stream};
-use infiltrator_contract::version::{CoreReleaseChannel, VersionDownloadProgress};
+use infiltrator_contract::version::{
+    CoreArtifactVerification, CoreReleaseChannel, VersionDownloadProgress,
+};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_ports::version::VersionProgressSink;
@@ -196,8 +198,19 @@ impl AppState {
                 self.runtime.is_downloading_core = false;
                 self.refresh_tray();
                 match result {
-                    Ok(_) => Task::done(Message::LoadKernels),
+                    Ok(version) => {
+                        self.runtime.core_integrity = CoreArtifactVerification::Verified { version };
+                        Task::done(Message::LoadKernels)
+                    }
                     Err(e) => {
+                        self.runtime.core_integrity = CoreArtifactVerification::Rejected {
+                            version: "unknown".to_owned(),
+                            failure: infiltrator_contract::error::Failure::new(
+                                infiltrator_contract::error::ErrorCode::Internal,
+                                e.to_string(),
+                                true,
+                            ),
+                        };
                         self.set_error(&e);
                         let cancelled = e.to_string().contains("下载已取消");
                         Task::done(Message::ShowToast(

@@ -90,6 +90,7 @@ impl AppState {
                 latest_core_version: None,
                 core_channel: "stable".to_string(),
                 core_versions: Default::default(),
+                core_integrity: Default::default(),
                 download_progress: 0.0,
                 download_stats: None,
                 core_download_token: 0,

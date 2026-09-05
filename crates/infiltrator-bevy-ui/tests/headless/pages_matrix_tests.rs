@@ -47,7 +47,8 @@ use infiltrator_bevy_ui::pages::sync::{
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
 use infiltrator_contract::version::{
-    CoreChannelSnapshot, CoreChannelStatus, CoreRelease, CoreReleaseChannel, CoreVersionSnapshot,
+    CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
+    CoreReleaseChannel, CoreVersionSnapshot,
 };
 
 fn create_test_app() -> App {
@@ -343,6 +344,12 @@ fn settings_page_in_place_update() {
                     },
                 },
             }],
+            verification: CoreArtifactVerification::Verified {
+                version: "v1.19.30".to_owned(),
+            },
+        },
+        core_integrity: CoreArtifactVerification::Verified {
+            version: "v1.19.30".to_owned(),
         },
     };
 
@@ -372,6 +379,11 @@ fn settings_page_in_place_update() {
         .iter(world)
         .find(|(_, l)| l.0 == SettingsLineKind::CoreVersions);
     assert_eq!(versions_text.unwrap().0.0, "alpha=Prerelease-Alpha");
+
+    let integrity_text = lines
+        .iter(world)
+        .find(|(_, l)| l.0 == SettingsLineKind::CoreIntegrity);
+    assert_eq!(integrity_text.unwrap().0.0, "已验证 (v1.19.30)");
 }
 
 #[test]

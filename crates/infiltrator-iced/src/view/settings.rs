@@ -13,7 +13,9 @@ use iced::widget::{
     Space, button, column, container, pick_list, progress_bar, row, text, text_input,
 };
 use iced::{Alignment, Color, Element, Length, Theme, border};
-use infiltrator_contract::version::{CoreChannelStatus, CoreVersionSnapshot};
+use infiltrator_contract::version::{
+    CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot,
+};
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -243,10 +245,12 @@ fn tun_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'
 fn kernel_management_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool, selected_core_channel: Option<SettingsChoice>) -> Element<'a, Message> {
     let mut kernel_rows = column![].spacing(theme::SP_SM);
     let channel_probe = format_core_versions(&state.runtime.core_versions);
+    let integrity = format_integrity(&state.runtime.core_integrity);
 
     kernel_rows = kernel_rows.push(secondary_text(format!(
         "Online channels: {channel_probe}"
     )));
+    kernel_rows = kernel_rows.push(secondary_text(format!("Artifact integrity: {integrity}")));
 
     if let Some(latest) = &state.runtime.latest_core_version {
         kernel_rows = kernel_rows.push(
@@ -340,6 +344,21 @@ fn format_core_versions(snapshot: &CoreVersionSnapshot) -> String {
         })
         .collect::<Vec<_>>()
         .join(" · ")
+}
+
+fn format_integrity(verification: &CoreArtifactVerification) -> String {
+    match verification {
+        CoreArtifactVerification::Unknown => "not verified".to_owned(),
+        CoreArtifactVerification::Verified { version } => {
+            format!("verified ({version})")
+        }
+        CoreArtifactVerification::Rejected { version, failure } => {
+            format!(
+                "rejected ({version}: {})",
+                crate::utils::sanitize_ui_text(&failure.message)
+            )
+        }
+    }
 }
 
 fn hotkeys_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {

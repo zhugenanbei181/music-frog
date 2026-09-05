@@ -16,6 +16,7 @@
 - [x] `DUAL-01-02`：配置热重载通过 `CoreLifecyclePort` 进入同 session reload 事务，HTTP `force=true` 拒绝非成功状态，失败自动回退 restart；desktop/Android/iOS host composition 均有 session-preserving evidence。
 - [x] `DUAL-01-03`：崩溃看门狗策略已从 application 拆出到纯 domain policy，host scheduler 每 250ms 探活，100ms 首次重试、指数退避和三次熔断均进入统一 CoreSnapshot；Iced/Bevy/Android/iOS contract evidence 已覆盖。
 - [x] `DUAL-01-04`：Stable/Alpha/Meta-Core 三通道版本探测进入 contract、application surface reader 和 desktop version port；Alpha 使用命名的 `Prerelease-Alpha` release，Meta-Core 保留独立语义并映射官方 Meta 发布 feed。
+- [x] `DUAL-01-05`：版本下载在解压和落盘前执行官方 SHA256 digest gate，`MihomoVersionPort` 将 Verified/Rejected 完整性状态提供给 shared surface；Iced/Bevy Settings 同步展示，不把“下载成功”误报为“制品已验证”。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

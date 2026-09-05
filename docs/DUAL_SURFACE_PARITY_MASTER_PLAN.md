@@ -12,6 +12,7 @@
 | `DUAL-01-02` 平滑配置热重载 | `parity-ready` | `PUT /configs?force=true` 严格检查 HTTP 状态；application 以同一 `SessionToken` 进入/完成/失败 reload 事务，generation 不变；失败自动回退 restart；Iced/Bevy 均只接受同代同会话的新 revision | contract/domain/application/ports/core、Mihomo API、Iced/Bevy headless、Android/iOS host composition contract 测试；真实 controller/发行版打包 smoke 尚未计入 |
 | `DUAL-01-03` 崩溃自愈看门狗 | `parity-ready` | shared/domain 定义 100ms 首次重试、指数退避与 3 次熔断；application 探测异常退出、串行重启并产生新 session；250ms host scheduler 将恢复动作接入 desktop/Android/iOS；Iced/Bevy Doctor 均展示同一状态 | contract/domain/application/ports、composition scheduler、Iced/Bevy projection/scene/headless、Android/iOS host contract 测试；真实发行包内异常退出 smoke 尚未计入 |
 | `DUAL-01-04` 内核多通道版本交付 | `parity-ready` | contract 固定 `Stable / Alpha / Meta-Core` 三值；Alpha 严格探测 `Prerelease-Alpha`，Meta-Core 使用官方 Meta 发布 feed；application 并行探测且按通道保留失败；surface reader 以缓存结果分发到两端；Iced/Bevy Settings 同时显示选中通道与三通道结果 | `mihomo-version` 官方 API mock、application partial-failure 测试、desktop version-port composition、Iced/Bevy headless 投影测试；Android/iOS 的 CoreVersionInstall 仍按宿主包能力声明 unsupported，真实发行包 smoke 尚未计入 |
+| `DUAL-01-05` 内核二进制 SHA256 校验 | `parity-ready` | 下载链在任何解压/写盘前要求官方 release `sha256:<64 hex>` digest；缺失、格式错误和篡改均 fail-closed；最近一次 Verified/Rejected 结果进入 shared version snapshot，Iced/Bevy Settings 同步展示 | `mihomo-version` verify/download/manager tests、MihomoVersionPort integrity state、application surface cache、Iced/Bevy headless projection；真实发行包签名/供应链审计尚未计入 `host-verified` |
 
 ---
 

@@ -57,11 +57,22 @@ pub struct CoreChannelSnapshot {
     pub status: CoreChannelStatus,
 }
 
+/// Integrity result of the most recent core artifact installation attempt.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CoreArtifactVerification {
+    #[default]
+    Unknown,
+    Verified { version: String },
+    Rejected { version: String, failure: Failure },
+}
+
 /// Bounded result of one online probe across all supported core channels.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CoreVersionSnapshot {
     pub revision: u64,
     pub channels: Vec<CoreChannelSnapshot>,
+    #[serde(default)]
+    pub verification: CoreArtifactVerification,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
