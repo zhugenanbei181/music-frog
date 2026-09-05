@@ -5047,6 +5047,7 @@ dependencies = [
  "infiltrator-application",
  "infiltrator-ios",
  "infiltrator-ports",
+ "log",
  "mihomo-api",
  "tokio",
 ]

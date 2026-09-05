@@ -43,9 +43,32 @@ impl AppState {
                 ))
             }
             Message::CheckCrashWatchdog => {
-                self.diag.crash_watchdog.is_orphaned_detected = false;
-                self.diag.crash_watchdog.last_crash_summary =
-                    Some("No crashes detected in current session".into());
+                let watchdog = &self.diag.crash_watchdog.shared;
+                self.diag.crash_watchdog.last_crash_summary = watchdog
+                    .last_error
+                    .as_ref()
+                    .map(|failure| crate::utils::sanitize_ui_text(&failure.message))
+                    .or_else(|| Some("No crashes detected in current session".into()));
+                self.diag.crash_watchdog.recovery_status = Some(match &watchdog.state {
+                    infiltrator_contract::snapshot::CoreWatchdogState::Idle => {
+                        "Watchdog is monitoring the active core session".into()
+                    }
+                    infiltrator_contract::snapshot::CoreWatchdogState::Waiting {
+                        attempt,
+                        retry_in_ms,
+                    } => format!(
+                        "Automatic restart attempt {attempt} is scheduled in {retry_in_ms} ms"
+                    ),
+                    infiltrator_contract::snapshot::CoreWatchdogState::Restarting { attempt } => {
+                        format!("Automatic restart attempt {attempt} is in progress")
+                    }
+                    infiltrator_contract::snapshot::CoreWatchdogState::Recovered { attempts } => {
+                        format!("Core recovered after {attempts} restart attempt(s)")
+                    }
+                    infiltrator_contract::snapshot::CoreWatchdogState::Tripped { attempts } => {
+                        format!("Automatic recovery is suspended after {attempts} failed attempt(s)")
+                    }
+                });
                 Task::none()
             }
             Message::RecoverOrphanedState => {
@@ -58,7 +81,9 @@ impl AppState {
             }
             Message::ExportCrashDiagnostics => {
                 let path = "/tmp/infiltrator_crash_diagnostics.json".to_string();
-                let _ = std::fs::write(&path, "{\"status\": \"clean\", \"session_uptime\": 3600}");
+                let payload = serde_json::to_string_pretty(&self.diag.crash_watchdog.shared)
+                    .unwrap_or_else(|_| "{}".to_string());
+                let _ = std::fs::write(&path, payload);
                 self.diag.crash_watchdog.exported_log_path = Some(path.clone());
                 Task::done(Message::ShowToast(
                     format!("Exported diagnostics: {path}"),

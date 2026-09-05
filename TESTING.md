@@ -96,6 +96,8 @@ python3 scripts/quality/line-guard.py --mode report
 python3 scripts/quality/session-guard.py --mode enforce
 # DUAL-01-02 配置热重载事务、双 UI 与移动 host composition 守卫
 python3 scripts/quality/hot-reload-guard.py --mode enforce
+# DUAL-01-03 崩溃自愈看门狗、指数退避与熔断守卫
+python3 scripts/quality/crash-watchdog-guard.py --mode enforce
 ```
 
 ---

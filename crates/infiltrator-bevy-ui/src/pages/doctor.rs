@@ -26,6 +26,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -57,6 +58,8 @@ pub enum DoctorLineKind {
     Summary,
     /// Last diagnostic run time.
     LastRun,
+    /// Shared core crash-watchdog status.
+    Watchdog,
 }
 
 /// Marker for a check item's status text and color.
@@ -127,6 +130,7 @@ pub struct DoctorProjection {
     pub overall_healthy: bool,
     pub last_run: String,
     pub checks: Vec<DoctorCheckItem>,
+    pub watchdog: CoreWatchdogSnapshot,
 }
 
 impl DoctorProjection {
@@ -185,6 +189,7 @@ impl DoctorProjection {
                     fix_available: false,
                 },
             ],
+            watchdog: CoreWatchdogSnapshot::default(),
         }
     }
 
@@ -213,6 +218,7 @@ pub fn doctor_page(projection: &DoctorProjection, palette: &UiPalette) -> impl S
         projection.checks.len()
     );
     let last_run_str = format!("最近诊断: {}", projection.last_run);
+    let watchdog_str = watchdog_status_text(&projection.watchdog);
 
     let check_scenes: Vec<Box<dyn Scene>> = projection
         .checks
@@ -235,13 +241,18 @@ pub fn doctor_page(projection: &DoctorProjection, palette: &UiPalette) -> impl S
         PageRoot(Route::Doctor)
         DoctorPageRoot
         Children [
-            ( { header_card_scene(summary, last_run_str, palette) } ),
+            ( { header_card_scene(summary, last_run_str, watchdog_str, palette) } ),
             ( { checks_container_scene(check_scenes, palette) } ),
         ]
     }
 }
 
-fn header_card_scene(summary: String, last_run: String, palette: &UiPalette) -> impl Scene + use<> {
+fn header_card_scene(
+    summary: String,
+    last_run: String,
+    watchdog: String,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
     header_a11y.set_label("自愈诊断概览");
 
@@ -270,6 +281,7 @@ fn header_card_scene(summary: String, last_run: String, palette: &UiPalette) -> 
                             Children [
                                 ( Text(summary) DoctorLine(DoctorLineKind::Summary) TextRole(Role::Heading) ),
                                 ( Text(last_run) DoctorLine(DoctorLineKind::LastRun) TextRole(Role::Caption) ),
+                                ( Text(watchdog) DoctorLine(DoctorLineKind::Watchdog) TextRole(Role::Caption) ),
                             ]
                         ),
                     ]
@@ -316,6 +328,25 @@ fn header_card_scene(summary: String, last_run: String, palette: &UiPalette) -> 
         })],
         palette,
     )
+}
+
+fn watchdog_status_text(snapshot: &CoreWatchdogSnapshot) -> String {
+    match &snapshot.state {
+        CoreWatchdogState::Idle => "核心看门狗：待机".to_owned(),
+        CoreWatchdogState::Waiting {
+            attempt,
+            retry_in_ms,
+        } => format!("核心看门狗：第 {attempt} 次重启将在 {retry_in_ms} ms 后执行"),
+        CoreWatchdogState::Restarting { attempt } => {
+            format!("核心看门狗：正在执行第 {attempt} 次重启")
+        }
+        CoreWatchdogState::Recovered { attempts } => {
+            format!("核心看门狗：已恢复（重启 {attempts} 次）")
+        }
+        CoreWatchdogState::Tripped { attempts } => {
+            format!("核心看门狗：熔断（已失败 {attempts} 次）")
+        }
+    }
 }
 
 fn checks_container_scene(
@@ -463,6 +494,9 @@ pub(crate) fn apply_doctor_projection(
             }
             DoctorLineKind::LastRun => {
                 text.0 = format!("最近诊断: {}", projection.last_run);
+            }
+            DoctorLineKind::Watchdog => {
+                text.0 = watchdog_status_text(&projection.watchdog);
             }
         }
     }

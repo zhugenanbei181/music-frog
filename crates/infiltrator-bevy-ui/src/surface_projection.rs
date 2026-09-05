@@ -7,7 +7,7 @@ use super::surface_demo::{
 use crate::pages::app_routing::{AppItem, AppRouteRule, AppRoutingMode};
 use crate::pages::connections::ConnectionItem;
 use crate::pages::dns::{DnsMode, DnsServerItem};
-use crate::pages::doctor::{DoctorCheckItem, DoctorCheckState};
+use crate::pages::doctor::{DoctorCheckItem, DoctorCheckState, DoctorProjection};
 use crate::pages::logs::{LogEntry, LogLevel};
 use crate::pages::profiles::ProfileItem;
 use crate::pages::proxies::{ProxyGroup, ProxyNode};
@@ -264,6 +264,7 @@ pub(super) fn dns_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> Dn
 }
 
 pub(super) fn doctor_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> DoctorProjection {
+    let watchdog = snapshot.core.watchdog.clone();
     snapshot
         .pages
         .doctor
@@ -272,6 +273,7 @@ pub(super) fn doctor_projection(snapshot: &surface_snapshot::SurfaceSnapshot) ->
         .map(|value| DoctorProjection {
             overall_healthy: value.overall_healthy,
             last_run: value.last_run.clone(),
+            watchdog: watchdog.clone(),
             checks: value
                 .checks
                 .iter()
@@ -289,7 +291,11 @@ pub(super) fn doctor_projection(snapshot: &surface_snapshot::SurfaceSnapshot) ->
                 })
                 .collect(),
         })
-        .unwrap_or_else(empty_doctor)
+        .unwrap_or_else(|| {
+            let mut projection = empty_doctor();
+            projection.watchdog = watchdog;
+            projection
+        })
 }
 
 pub(super) fn app_routing_projection(

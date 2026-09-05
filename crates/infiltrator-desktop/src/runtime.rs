@@ -37,6 +37,7 @@ pub struct MihomoRuntime {
     service_manager: ServiceManager,
     endpoints: Arc<ProfileEndpointSource<DefaultCredentialStore>>,
     application: Arc<CoreApplication>,
+    _watchdog: infiltrator_composition::CoreWatchdogHandle,
     apply_guard: Arc<tokio::sync::Mutex<()>>,
 }
 
@@ -110,6 +111,7 @@ impl MihomoRuntime {
                 .await
                 .map_err(|error| anyhow!(error.to_string()))?;
         }
+        let watchdog = infiltrator_composition::spawn_core_watchdog(application.clone());
         let client = MihomoClient::new(&endpoint.url, endpoint.secret.clone())?;
 
         Ok(Self {
@@ -121,6 +123,7 @@ impl MihomoRuntime {
             service_manager,
             endpoints,
             application,
+            _watchdog: watchdog,
             apply_guard: Arc::new(tokio::sync::Mutex::new(())),
         })
     }

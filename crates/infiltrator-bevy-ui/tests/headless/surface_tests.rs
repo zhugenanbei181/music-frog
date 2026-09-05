@@ -10,6 +10,7 @@ use infiltrator_bevy_ui::surface::{
 };
 use infiltrator_bevy_widgets::theme::LightDark;
 use infiltrator_contract::session::SessionToken;
+use infiltrator_contract::snapshot::{CoreWatchdogState, CoreWatchdogSnapshot};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 
 use crate::support::{headless_plugins, page_root, subtree_has_text};
@@ -222,4 +223,24 @@ fn hot_reload_snapshot_keeps_bevy_generation_and_session_identity() {
     assert_eq!(latest.revision, 11);
     assert_eq!(latest.generation, 4);
     assert_eq!(latest.core.session_token, Some(SessionToken::new(40)));
+}
+
+#[test]
+fn shared_watchdog_snapshot_reaches_the_bevy_doctor_projection() {
+    let source = DemoSurfaceSource::running();
+    let mut snapshot = source.surface_snapshot();
+    snapshot.origin = SurfaceOrigin::Live;
+    snapshot.core.watchdog = CoreWatchdogSnapshot {
+        state: CoreWatchdogState::Tripped { attempts: 3 },
+        session_token: Some(SessionToken::new(41)),
+        consecutive_failures: 3,
+        last_error: None,
+    };
+
+    let projection = infiltrator_bevy_ui::surface::doctor_projection(&snapshot);
+    assert_eq!(
+        projection.watchdog.state,
+        CoreWatchdogState::Tripped { attempts: 3 }
+    );
+    assert_eq!(projection.watchdog.session_token, Some(SessionToken::new(41)));
 }

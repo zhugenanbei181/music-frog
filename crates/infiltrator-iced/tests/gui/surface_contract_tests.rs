@@ -3,10 +3,12 @@
 
 use crate::surface::SurfaceBridge;
 use crate::surface::SurfaceModel;
+use crate::state::AppState;
 use async_trait::async_trait;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
+use infiltrator_contract::snapshot::{CoreWatchdogState, CoreWatchdogSnapshot};
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
@@ -72,6 +74,36 @@ fn hot_reload_snapshot_keeps_the_session_identity_and_generation() {
     assert_eq!(latest.revision, 3);
     assert_eq!(latest.generation, 4);
     assert_eq!(latest.core.session_token.map(|token| token.value()), Some(40));
+}
+
+#[test]
+fn shared_watchdog_snapshot_updates_the_iced_diagnostics_projection() {
+    let (mut state, _) = AppState::new();
+    let mut snapshot = snapshot(4);
+    snapshot.core.session_token = Some(infiltrator_contract::session::SessionToken::new(42));
+    snapshot.core.watchdog = CoreWatchdogSnapshot {
+        state: CoreWatchdogState::Waiting {
+            attempt: 2,
+            retry_in_ms: 200,
+        },
+        session_token: snapshot.core.session_token,
+        consecutive_failures: 2,
+        last_error: Some(Failure::new(ErrorCode::Internal, "core exited", true)),
+    };
+
+    assert!(state.apply_shared_surface_snapshot(snapshot));
+    assert_eq!(
+        state.diag.crash_watchdog.shared.state,
+        CoreWatchdogState::Waiting {
+            attempt: 2,
+            retry_in_ms: 200,
+        }
+    );
+    assert_eq!(state.diag.crash_watchdog.shared.consecutive_failures, 2);
+    assert_eq!(
+        state.diag.crash_watchdog.last_crash_summary.as_deref(),
+        Some("core exited")
+    );
 }
 
 struct TokioRuntime(tokio::runtime::Runtime);

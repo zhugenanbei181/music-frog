@@ -415,6 +415,7 @@ impl SurfaceSnapshot {
                 download_bps: 0.0,
                 active_connections: 0,
                 memory_bytes: None,
+                watchdog: Default::default(),
             },
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             failure: Some(failure.clone()),

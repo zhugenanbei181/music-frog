@@ -76,6 +76,7 @@
 - 业务功能完成度继续以 [双端主控计划](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 的 `parity-ready` / `host-verified` 口径记账。
 - `DUAL-01-01` 已按 desktop Linux host evidence 完成；后续项目必须沿用同一 token/generation 和 orphan ownership 语义，不得重新引入页面私有生命周期。
 - `DUAL-01-02` 已完成 desktop Linux、Android 和 iOS host composition contract evidence：热重载不创建新 generation，失败恢复到同一 session 的 Running；发布版本仍需连接真实 controller 做 smoke。
+- `DUAL-01-03` 已完成 shared/application、Iced、Bevy 和 host scheduler contract evidence：异常退出进入 Waiting，按指数退避重启，连续失败后 Tripped；真实发行包/真实 mihomo 异常退出恢复仍未计入 `host-verified`。
 
 ## 0.30 架构收口顺序
 

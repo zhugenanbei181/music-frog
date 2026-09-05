@@ -47,5 +47,6 @@ pub mod subscription;
 pub mod traffic_audit;
 pub mod tun;
 pub mod vector_clock;
+pub mod watchdog;
 pub mod zeroize_guard;
 pub mod yaml_edit;

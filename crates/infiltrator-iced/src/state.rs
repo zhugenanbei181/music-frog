@@ -380,6 +380,13 @@ impl AppState {
         self.runtime.proxy_mode = snapshot.core.proxy_mode.map(|mode| mode.to_wire().to_owned());
         self.runtime.runtime_generation = snapshot.core.generation;
         self.runtime.core_session_token = snapshot.core.session_token;
+        self.diag.crash_watchdog.shared = snapshot.core.watchdog.clone();
+        self.diag.crash_watchdog.last_crash_summary = snapshot
+            .core
+            .watchdog
+            .last_error
+            .as_ref()
+            .map(|failure| crate::utils::sanitize_ui_text(&failure.message));
         self.diag.traffic = Some(infiltrator_domain::runtime::TrafficData {
             up: snapshot.core.upload_bps.max(0.0) as u64,
             down: snapshot.core.download_bps.max(0.0) as u64,

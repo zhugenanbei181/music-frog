@@ -9,6 +9,7 @@ pub mod app_routing_store;
 pub mod fake_ip_cache;
 pub mod core_lifecycle;
 pub mod core_process;
+pub mod core_watchdog;
 pub mod data_dir;
 pub mod data_store;
 pub mod doctor;

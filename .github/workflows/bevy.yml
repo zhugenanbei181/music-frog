@@ -110,6 +110,9 @@ jobs:
       - name: Enforce DUAL-01-02 hot reload semantics
         run: python3 scripts/quality/hot-reload-guard.py --mode enforce
 
+      - name: Enforce DUAL-01-03 crash watchdog semantics
+        run: python3 scripts/quality/crash-watchdog-guard.py --mode enforce
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:

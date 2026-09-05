@@ -1,7 +1,9 @@
 use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::session::SessionToken;
-use infiltrator_contract::snapshot::{CoreEvent, CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::snapshot::{
+    CoreEvent, CoreLifecycle, CoreSnapshot, CoreWatchdogSnapshot,
+};
 use infiltrator_domain::core_state::{CoreState, CoreStateMachine};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
@@ -13,6 +15,9 @@ use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::command_application::CommandHandler;
+
+#[path = "core_watchdog.rs"]
+mod watchdog_runtime;
 
 const EVENT_CAPACITY: usize = 256;
 const DISPATCH_CAPACITY: usize = 256;
@@ -51,6 +56,7 @@ struct Inner {
     dispatch_tx: std::sync::mpsc::SyncSender<DispatchedCommand>,
     operation: futures_util::lock::Mutex<()>,
     state: RwLock<StateMirror>,
+    watchdog: Mutex<watchdog_runtime::WatchdogRuntime>,
     next_request_id: AtomicU64,
     session_namespace: u64,
     next_session_sequence: AtomicU64,
@@ -161,6 +167,7 @@ impl CoreApplication {
                 state: CoreState::Idle { generation: 0 },
                 revision: 0,
             }),
+            watchdog: Mutex::new(watchdog_runtime::WatchdogRuntime::default()),
             next_request_id: AtomicU64::new(1),
             session_namespace,
             next_session_sequence: AtomicU64::new(1),
@@ -232,7 +239,8 @@ impl CoreApplication {
     /// Return the latest immutable contract projection.
     pub fn snapshot(&self) -> CoreSnapshot {
         let mirror = self.inner.state.read().expect("core state lock");
-        snapshot_from_state(&mirror.state, mirror.revision)
+        let watchdog = self.watchdog_snapshot();
+        snapshot_from_state(&mirror.state, mirror.revision, watchdog)
     }
 
     /// Current lifecycle generation used to fence delayed surface work.
@@ -404,6 +412,11 @@ impl CoreApplication {
             return Err(invalid_state_failure("start"));
         }
 
+        // A manual start begins a fresh watchdog window. The recovery path
+        // marks itself `Restarting` before calling this method, so its retry
+        // counters remain intact until the new session is proven ready.
+        self.reset_watchdog_for_start();
+
         let session_token = self.allocate_session_token();
         self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartRequested {
             session_token,
@@ -480,6 +493,7 @@ impl CoreApplication {
         self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StopCompleted {
             session_token,
         });
+        self.reset_watchdog_after_stop();
         Ok(())
     }
 
@@ -514,7 +528,8 @@ impl CoreApplication {
             if let Some(warning) = warning {
                 log::warn!(target: "infiltrator-application", "core domain transition warning: {warning}");
             }
-            snapshot_from_state(&mirror.state, mirror.revision)
+            let watchdog = self.watchdog_snapshot();
+            snapshot_from_state(&mirror.state, mirror.revision, watchdog)
         };
         self.push_event(CoreEvent::SnapshotUpdated(snapshot));
     }
@@ -762,7 +777,11 @@ fn invalid_state_failure(operation: &str) -> Failure {
     )
 }
 
-fn snapshot_from_state(state: &CoreState, revision: u64) -> CoreSnapshot {
+fn snapshot_from_state(
+    state: &CoreState,
+    revision: u64,
+    watchdog: CoreWatchdogSnapshot,
+) -> CoreSnapshot {
     let (lifecycle, generation, session_token, failure) = match state {
         CoreState::Idle { generation } => (CoreLifecycle::Stopped, *generation, None, None),
         CoreState::Starting {
@@ -808,6 +827,7 @@ fn snapshot_from_state(state: &CoreState, revision: u64) -> CoreSnapshot {
         download_bps: 0.0,
         active_connections: 0,
         memory_bytes: None,
+        watchdog,
     }
 }
 

@@ -406,6 +406,7 @@ fn doctor_page_in_place_update() {
             detail: "Interface down".to_owned(),
             fix_available: true,
         }],
+        watchdog: Default::default(),
     };
 
     app.world_mut()

@@ -89,4 +89,6 @@ pub struct CrashWatchdogState {
     pub last_crash_summary: Option<String>,
     pub recovery_status: Option<String>,
     pub exported_log_path: Option<String>,
+    /// Canonical crash-recovery state from the shared Core snapshot.
+    pub shared: infiltrator_contract::snapshot::CoreWatchdogSnapshot,
 }

@@ -41,6 +41,7 @@ pub(super) fn snapshot_from_overview(
         download_bps: overview.download_bps,
         active_connections: overview.active_connections,
         memory_bytes: overview.memory_bytes,
+        watchdog: Default::default(),
     };
     let overview_data = surface_snapshot::OverviewPageSnapshot {
         proxy_mode: Some(overview.mode),
@@ -205,6 +206,7 @@ pub(crate) fn empty_doctor() -> DoctorProjection {
         overall_healthy: false,
         last_run: "—".to_owned(),
         checks: Vec::new(),
+        watchdog: Default::default(),
     }
 }
 

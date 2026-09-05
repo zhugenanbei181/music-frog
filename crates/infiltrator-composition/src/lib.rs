@@ -11,12 +11,47 @@ use infiltrator_ios::{IosBridge, IosHostAdapter};
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
+use infiltrator_ports::core_watchdog::CoreWatchdogPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::OverviewReader;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::readiness::ControllerReadiness;
 use std::sync::Arc;
+use std::time::Duration;
+
+/// The watchdog probes process liveness four times per second. This keeps a
+/// dead core inside the three-second recovery budget without busy spinning.
+pub const CORE_WATCHDOG_POLL_INTERVAL: Duration = Duration::from_millis(250);
+
+/// Owns the host scheduler task that drives the application watchdog.
+/// Dropping it aborts the task so a closed host cannot keep probing a core.
+pub struct CoreWatchdogHandle {
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl Drop for CoreWatchdogHandle {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
+}
+
+/// Start the concrete scheduler at a composition root. The application still
+/// owns the process probe, state machine, backoff and restart transaction;
+/// Tokio appears only here as the host scheduler implementation.
+pub fn spawn_core_watchdog(application: Arc<CoreApplication>) -> CoreWatchdogHandle {
+    let task = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(CORE_WATCHDOG_POLL_INTERVAL);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            interval.tick().await;
+            if let Err(error) = application.watchdog_tick().await {
+                log::warn!("core watchdog poll failed: {error}");
+            }
+        }
+    });
+    CoreWatchdogHandle { task }
+}
 
 /// Tokio-backed implementation of the runtime capability required by the
 /// application layer. Tokio is deliberately constructed here, at a
@@ -84,4 +119,20 @@ where
         std::sync::Arc::new(ControllerOverviewReader::new(client)),
         runtime,
     ))
+}
+
+/// Assemble the iOS application together with its host scheduler. Native
+/// callers that want automatic crash recovery should retain the returned
+/// handle for as long as the app/extension owns the core session.
+pub fn ios_core_application_with_watchdog<B>(
+    bridge: B,
+    controller_url: impl Into<String>,
+    secret: Option<String>,
+) -> Result<(Arc<CoreApplication>, CoreWatchdogHandle), String>
+where
+    B: IosBridge + 'static,
+{
+    let application = Arc::new(ios_core_application(bridge, controller_url, secret)?);
+    let watchdog = spawn_core_watchdog(application.clone());
+    Ok((application, watchdog))
 }

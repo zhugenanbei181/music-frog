@@ -177,6 +177,7 @@ fn initial_snapshot() -> CoreSnapshot {
         download_bps: 0.0,
         active_connections: 0,
         memory_bytes: None,
+        watchdog: Default::default(),
     }
 }
 
@@ -246,6 +247,7 @@ fn pump_loop(
                         download_bps,
                         active_connections: sample.active_connections,
                         memory_bytes,
+                        watchdog: Default::default(),
                     }
                 }
                 Err(error) => {
@@ -264,6 +266,7 @@ fn pump_loop(
                         download_bps: 0.0,
                         active_connections: 0,
                         memory_bytes,
+                        watchdog: Default::default(),
                     }
                 }
             };

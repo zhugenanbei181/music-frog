@@ -40,6 +40,7 @@ pub(crate) struct SharedCore {
     pub(crate) application: CoreApplication,
     pub(crate) endpoints: Arc<dyn EndpointSource>,
     config: Arc<ConfigManager<DefaultCredentialStore>>,
+    pub(crate) _watchdog: infiltrator_composition::CoreWatchdogHandle,
 }
 
 /// Adapts the endpoint-aware readiness probe to the 0.30 application port.
@@ -159,10 +160,12 @@ pub(crate) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
         infiltrator_composition::tokio_application_runtime()
             .map_err(|error| FfiStatus::err(FfiErrorCode::Unknown, error))?,
     );
+    let watchdog = infiltrator_composition::spawn_core_watchdog(Arc::new(application.clone()));
     let core = Arc::new(SharedCore {
         application,
         endpoints: endpoints as Arc<dyn EndpointSource>,
         config,
+        _watchdog: watchdog,
     });
     let mut guard = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     if let Some(existing) = guard.as_ref() {

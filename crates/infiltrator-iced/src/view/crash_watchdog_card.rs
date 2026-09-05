@@ -7,6 +7,7 @@ use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_contract::snapshot::CoreWatchdogState;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
@@ -48,10 +49,48 @@ pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
         ]
         .align_y(Alignment::Center)
     } else {
+        let (label, kind, detail) = match &dog.shared.state {
+            CoreWatchdogState::Idle => (
+                "Healthy",
+                BadgeKind::Success,
+                lang.tr("crash_watchdog_clean").to_string(),
+            ),
+            CoreWatchdogState::Waiting {
+                attempt,
+                retry_in_ms,
+            } => (
+                "Recovery pending",
+                BadgeKind::Warning,
+                format!("Automatic core restart attempt {attempt} in {retry_in_ms} ms"),
+            ),
+            CoreWatchdogState::Restarting { attempt } => (
+                "Restarting",
+                BadgeKind::Warning,
+                format!("Automatic core restart attempt {attempt} is in progress"),
+            ),
+            CoreWatchdogState::Recovered { attempts } => (
+                "Recovered",
+                BadgeKind::Success,
+                format!("Core recovered after {attempts} restart attempt(s)"),
+            ),
+            CoreWatchdogState::Tripped { attempts } => (
+                "Circuit open",
+                BadgeKind::Danger,
+                format!("Automatic recovery stopped after {attempts} failed attempt(s)"),
+            ),
+        };
         row![
-            badge("Clean".to_string(), BadgeKind::Success),
+            badge(label.to_string(), kind),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("crash_watchdog_clean").to_string()).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(detail)
+                .size(12)
+                .style(move |t: &Theme| text::Style {
+                    color: Some(match kind {
+                        BadgeKind::Danger => tokens(t).danger,
+                        BadgeKind::Warning => tokens(t).warning,
+                        _ => tokens(t).text_secondary,
+                    }),
+                }),
         ]
         .align_y(Alignment::Center)
     };

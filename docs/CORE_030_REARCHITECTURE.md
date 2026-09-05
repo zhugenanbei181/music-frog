@@ -14,6 +14,7 @@
 - [x] `infiltrator-domain`：提取生命周期状态机，依赖树无 Tokio。
 - [x] `DUAL-01-01`：Core session token 与 generation 已进入生命周期 reducer、application/lifecycle port 和双端 snapshot fencing；desktop orphan ownership 具备可执行文件校验与平台级父死清理。
 - [x] `DUAL-01-02`：配置热重载通过 `CoreLifecyclePort` 进入同 session reload 事务，HTTP `force=true` 拒绝非成功状态，失败自动回退 restart；desktop/Android/iOS host composition 均有 session-preserving evidence。
+- [x] `DUAL-01-03`：崩溃看门狗策略已从 application 拆出到纯 domain policy，host scheduler 每 250ms 探活，100ms 首次重试、指数退避和三次熔断均进入统一 CoreSnapshot；Iced/Bevy/Android/iOS contract evidence 已覆盖。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

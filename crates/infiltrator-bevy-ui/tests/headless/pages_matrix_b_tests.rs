@@ -19,6 +19,7 @@ use infiltrator_bevy_ui::pages::settings::*;
 use infiltrator_bevy_ui::pages::sync::*;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
+use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
 
 use crate::support::*;
 
@@ -290,6 +291,15 @@ fn test_doctor_projection_in_place_update() {
     updated.last_run = "2026-09-02 12:00:00".to_owned();
     updated.checks[0].state = DoctorCheckState::Fail;
     updated.checks[0].detail = "TUN 接口 utun9 意外掉线".to_owned();
+    updated.watchdog = CoreWatchdogSnapshot {
+        state: CoreWatchdogState::Waiting {
+            attempt: 2,
+            retry_in_ms: 200,
+        },
+        session_token: None,
+        consecutive_failures: 2,
+        last_error: None,
+    };
 
     app.world_mut()
         .commands()
@@ -307,6 +317,11 @@ fn test_doctor_projection_in_place_update() {
         "最近诊断: 2026-09-02 12:00:00"
     ));
     assert!(subtree_has_text(app.world(), root, "异常 (FAIL)"));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "核心看门狗：第 2 次重启将在 200 ms 后执行"
+    ));
     assert!(subtree_has_text(
         app.world(),
         root,
