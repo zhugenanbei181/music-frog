@@ -120,7 +120,7 @@ pub enum AdminHostCommand {
     /// Core version data changed; refresh the kernel list.
     CoreVersionsChanged,
     /// Open a native file dialog on the main thread and report the pick back.
-    PickEditorPath(Arc<tokio::sync::oneshot::Sender<Option<String>>>),
+    PickEditorPath(Arc<iced::futures::channel::oneshot::Sender<Option<String>>>),
 }
 
 impl std::fmt::Debug for AdminHostCommand {
@@ -583,7 +583,7 @@ impl AdminApiContext for IcedAdminContext {
     }
 
     async fn pick_editor_path(&self) -> Option<String> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
+        let (tx, rx) = iced::futures::channel::oneshot::channel();
         self.shared
             .send(AdminHostCommand::PickEditorPath(Arc::new(tx)));
         // The dialog runs on the main thread; give the user ample time.
