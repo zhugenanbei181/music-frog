@@ -266,6 +266,28 @@ where
         }
         Ok(report)
     }
+
+    async fn read_conflict(
+        &self,
+        configs_dir: String,
+        remote_path: String,
+    ) -> Result<String, PortError> {
+        let path = validate_conflict_path(&configs_dir, &remote_path)?;
+        tokio::fs::read_to_string(path)
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))
+    }
+
+    async fn delete_conflict(
+        &self,
+        configs_dir: String,
+        remote_path: String,
+    ) -> Result<(), PortError> {
+        let path = validate_conflict_path(&configs_dir, &remote_path)?;
+        tokio::fs::remove_file(path)
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))
+    }
 }
 
 impl<S: SecureStore> FileWebDavSync<S> {
@@ -304,6 +326,19 @@ impl<S: SecureStore> FileWebDavSync<S> {
 fn resolve_configs_dir(configs_dir: Option<&str>, home: &Path) -> Result<PathBuf, PortError> {
     mihomo_config::manager::paths::resolve_configs_dir_in(configs_dir, home)
         .map_err(|error| PortError::Io(error.to_string()))
+}
+
+fn validate_conflict_path(configs_dir: &str, remote_path: &str) -> Result<PathBuf, PortError> {
+    let root = std::fs::canonicalize(configs_dir)
+        .map_err(|error| PortError::Io(format!("配置目录不可用: {error}")))?;
+    let path = std::fs::canonicalize(remote_path)
+        .map_err(|error| PortError::Io(format!("冲突文件不可用: {error}")))?;
+    if !path.starts_with(&root) {
+        return Err(PortError::Failed(format!(
+            "冲突文件超出配置目录: {remote_path}"
+        )));
+    }
+    Ok(path)
 }
 
 #[derive(Clone, Copy)]

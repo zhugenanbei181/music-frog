@@ -51,7 +51,7 @@ impl SyncProgressSink for IcedSyncProgressSink {
     }
 }
 
-fn sync_application() -> Result<SyncApplication, InfiltratorError> {
+pub(super) fn sync_application() -> Result<SyncApplication, InfiltratorError> {
     let port = infiltrator_desktop::storage::sync()
         .map_err(|error| InfiltratorError::Sync(error.to_string()))?;
     Ok(SyncApplication::new(Arc::new(port)))
@@ -311,9 +311,7 @@ impl AppState {
                 let runtime = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
-                        let content = tokio::fs::read_to_string(&conflict.remote_path)
-                            .await
-                            .map_err(|error| InfiltratorError::Io(error.to_string()))?;
+                        let content = read_conflict_file(&conflict).await?;
                         infiltrator_domain::config::validate_yaml(&content)
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         crate::update::core::profile_apply::save_profile_content(
@@ -323,9 +321,7 @@ impl AppState {
                             infiltrator_domain::apply::ApplyStrategy::PreferReload,
                         )
                         .await?;
-                        tokio::fs::remove_file(&conflict.remote_path)
-                            .await
-                            .map_err(|error| InfiltratorError::Io(error.to_string()))?;
+                        delete_conflict_file(&conflict).await?;
                         Ok(conflict.profile)
                     },
                     Message::SyncConflictResolved,
@@ -367,9 +363,7 @@ impl AppState {
                 };
                 Task::perform(
                     async move {
-                        tokio::fs::remove_file(&conflict.remote_path)
-                            .await
-                            .map_err(|error| InfiltratorError::Io(error.to_string()))?;
+                        delete_conflict_file(&conflict).await?;
                         Ok(conflict.profile)
                     },
                     Message::SyncConflictDismissed,
@@ -450,4 +444,26 @@ impl AppState {
             other => self.update_sync_diff(other),
         }
     }
+}
+
+async fn read_conflict_file(conflict: &SyncConflict) -> Result<String, InfiltratorError> {
+    let configs_dir = crate::configs_dir::configs_dir().await?;
+    sync_application()?
+        .read_conflict(
+            configs_dir.to_string_lossy().into_owned(),
+            conflict.remote_path.to_string_lossy().into_owned(),
+        )
+        .await
+        .map_err(|failure| InfiltratorError::Io(failure.message))
+}
+
+async fn delete_conflict_file(conflict: &SyncConflict) -> Result<(), InfiltratorError> {
+    let configs_dir = crate::configs_dir::configs_dir().await?;
+    sync_application()?
+        .delete_conflict(
+            configs_dir.to_string_lossy().into_owned(),
+            conflict.remote_path.to_string_lossy().into_owned(),
+        )
+        .await
+        .map_err(|failure| InfiltratorError::Io(failure.message))
 }

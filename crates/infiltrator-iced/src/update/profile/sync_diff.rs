@@ -11,6 +11,7 @@
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use crate::types::app::SyncConflict;
 use crate::types::options::{SyncDiffBundle, SyncDiffState};
 use iced::Task;
 use infiltrator_domain::apply::ApplyStrategy;
@@ -42,9 +43,7 @@ impl AppState {
                             .load(&conflict.profile)
                             .await
                             .map_err(infiltrator_contract::error::from_mihomo)?;
-                        let remote = tokio::fs::read_to_string(&conflict.remote_path)
-                            .await
-                            .map_err(|error| InfiltratorError::Io(error.to_string()))?;
+                        let remote = read_conflict_file(&conflict).await?;
                         let summary =
                             infiltrator_domain::sync::diff_yaml_configs(&local, &remote)
                                 .map_err(|error| InfiltratorError::Config(error.to_string()))?;
@@ -134,9 +133,7 @@ impl AppState {
                             .load(&conflict.profile)
                             .await
                             .map_err(infiltrator_contract::error::from_mihomo)?;
-                        let remote = tokio::fs::read_to_string(&conflict.remote_path)
-                            .await
-                            .map_err(|error| InfiltratorError::Io(error.to_string()))?;
+                        let remote = read_conflict_file(&conflict).await?;
                         let merged = infiltrator_domain::mixin::merge_yaml_key_picks(
                             &local,
                             &remote,
@@ -153,9 +150,7 @@ impl AppState {
                             ApplyStrategy::PreferReload,
                         )
                         .await?;
-                        tokio::fs::remove_file(&conflict.remote_path)
-                            .await
-                            .map_err(|error| InfiltratorError::Io(error.to_string()))?;
+                        delete_conflict_file(&conflict).await?;
                         Ok(conflict.profile)
                     },
                     Message::SyncDiffMerged,
@@ -191,4 +186,26 @@ impl AppState {
             _ => Task::none(),
         }
     }
+}
+
+async fn read_conflict_file(conflict: &SyncConflict) -> Result<String, InfiltratorError> {
+    let configs_dir = crate::configs_dir::configs_dir().await?;
+    super::sync::sync_application()?
+        .read_conflict(
+            configs_dir.to_string_lossy().into_owned(),
+            conflict.remote_path.to_string_lossy().into_owned(),
+        )
+        .await
+        .map_err(|failure| InfiltratorError::Io(failure.message))
+}
+
+async fn delete_conflict_file(conflict: &SyncConflict) -> Result<(), InfiltratorError> {
+    let configs_dir = crate::configs_dir::configs_dir().await?;
+    super::sync::sync_application()?
+        .delete_conflict(
+            configs_dir.to_string_lossy().into_owned(),
+            conflict.remote_path.to_string_lossy().into_owned(),
+        )
+        .await
+        .map_err(|failure| InfiltratorError::Io(failure.message))
 }

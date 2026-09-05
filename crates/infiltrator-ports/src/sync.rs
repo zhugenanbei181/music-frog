@@ -34,4 +34,29 @@ pub trait SyncPort: Send + Sync {
         &self,
         request: SyncTransferRequest,
     ) -> Result<SyncTransferReport, PortError>;
+
+    /// Read a conflict file after validating that it stays inside the
+    /// resolved configs directory supplied by the host/application.
+    async fn read_conflict(
+        &self,
+        configs_dir: String,
+        remote_path: String,
+    ) -> Result<String, PortError> {
+        let _ = (configs_dir, remote_path);
+        Err(PortError::Failed(
+            "sync conflict reads are not supported by this adapter".to_string(),
+        ))
+    }
+
+    /// Remove a conflict file after the host adapter validates its path.
+    async fn delete_conflict(
+        &self,
+        configs_dir: String,
+        remote_path: String,
+    ) -> Result<(), PortError> {
+        let _ = (configs_dir, remote_path);
+        Err(PortError::Failed(
+            "sync conflict deletion is not supported by this adapter".to_string(),
+        ))
+    }
 }

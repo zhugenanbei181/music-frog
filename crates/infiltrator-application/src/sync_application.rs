@@ -83,6 +83,28 @@ impl SyncApplication {
             .await
             .map_err(Failure::from)
     }
+
+    pub async fn read_conflict(
+        &self,
+        configs_dir: String,
+        remote_path: String,
+    ) -> Result<String, Failure> {
+        self.port
+            .read_conflict(configs_dir, remote_path)
+            .await
+            .map_err(Failure::from)
+    }
+
+    pub async fn delete_conflict(
+        &self,
+        configs_dir: String,
+        remote_path: String,
+    ) -> Result<(), Failure> {
+        self.port
+            .delete_conflict(configs_dir, remote_path)
+            .await
+            .map_err(Failure::from)
+    }
 }
 
 #[cfg(test)]
@@ -120,6 +142,22 @@ mod tests {
             _request: SyncTransferRequest,
         ) -> Result<SyncTransferReport, PortError> {
             Ok(SyncTransferReport::default())
+        }
+
+        async fn read_conflict(
+            &self,
+            _configs_dir: String,
+            _remote_path: String,
+        ) -> Result<String, PortError> {
+            Ok("mode: rule\n".to_string())
+        }
+
+        async fn delete_conflict(
+            &self,
+            _configs_dir: String,
+            _remote_path: String,
+        ) -> Result<(), PortError> {
+            Ok(())
         }
     }
 
