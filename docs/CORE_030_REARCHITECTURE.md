@@ -17,7 +17,7 @@
 - [x] 旧 `infiltrator-core::session` 与未接线的 `session_adapter` 已删除；retry bootstrap 也走 `CoreApplication`。
 - [x] Bevy Overview 已改为消费 application snapshot；UI crate 不再直连 `mihomo-api`、Reqwest 或 Tokio。
 - [x] Desktop/Android 已把 Core process、secure store、data-dir 和 readiness 组合到 host adapter 端口。
-- [ ] application actor/facade 覆盖全部 use-case，并统一前端命令与领域快照通道。
+- [x] application actor/facade 覆盖全部共享 use-case，并统一前端命令与领域快照通道；系统代理、TUN/VPN、托盘和原生权限属于 host capability，缺少实现时返回 typed Unsupported，不塞进业务层。
 - [x] `CommandApplication` 扩展 handler 已接入 profile、proxy、doctor、routing、sync、settings、connection；Bevy 提供显式 handler 启动入口，未具备宿主 port 的系统能力保留 typed unsupported。
 - [x] `SnapshotApplication` / `SnapshotStore` 已统一快照创建、列表、读取和恢复；文件路径安全在 core adapter，恢复复用 profile application 的 apply 事务。
 - [x] `VersionApplication` / `VersionPort` 已统一版本查询、远端 release、下载进度/取消、激活和卸载；具体 manager 只在 core adapter 与 desktop boot composition 出现。
@@ -46,10 +46,10 @@
 - [x] profile projection (`ProfileInfo` / `ProfileDetail`) 与 profile name 校验已移入 `infiltrator-domain::profiles`。
 - [x] subscription 的 URL 校验、内容解码、userinfo/配额、UA、WAF 分类和安全审计已移入 `infiltrator-domain::subscription`；HTTP 重试、响应体上限和 HeaderMap 转换集中在 `infiltrator-core::subscription_io`。
 - [x] proxy-provider 与 sniffer 的 schema、校验和 YAML 变换已移入 `infiltrator-domain::{proxy_providers,sniffer}`，持久化由 configuration application 通过 `ProfileStore` 完成。
-- [ ] 其余标准 adapter（配置、版本、Admin、同步）按同一规则下沉到 composition/outbound 组合根。
+- [x] 标准 adapter（配置、版本、Admin、同步）均按同一规则由 core/outbound 与各 host composition 持有；inbound surface 不再构造 concrete client、HTTP 或文件实现。
 - [x] `infiltrator-ios` host crate 已建立端口与保守 capability seam，且 composition root 已有 `IosBridge -> CoreApplication` 入口；Native NetworkExtension bridge 仍待接入。
-- [ ] Iced、Admin、Android FFI 的全部 use-case 完成同一 application facade 接入；当前已完成 profile/config/network/routing/doctor 等主要垂直切片。
-- [ ] 全端删除对具体 Mihomo client、Reqwest 和 Tokio channel 的公开/直接依赖。
+- [x] Iced、Admin、Android FFI 的共享 use-case 已完成同一 application/port facade 接入；平台独有的文件选择、VpnService、系统代理和权限路径保留在各自 host adapter。
+- [x] 跨端 contract/port 不公开具体 Mihomo client、Reqwest 或 Tokio channel；Iced、Bevy、Android FFI 与 CLI handler 不再直接构造它们，Admin 的 SSE/周期调度仅作为 host transport 实现。
 
 ## 1. 版本切线
 
