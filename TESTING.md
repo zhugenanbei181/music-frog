@@ -10,7 +10,7 @@
 
   | Crate / test target | 测试数（`cargo nextest list --workspace`） |
   | :--- | ---: |
-  | infiltrator-core | 131 |
+  | infiltrator-core | 127 |
   | infiltrator-domain | 419 |
   | infiltrator-application | 20 |
   | infiltrator-ios | 2 |
@@ -18,10 +18,10 @@
   | infiltrator-desktop | 197 |
   | mihomo-version | 87 |
   | mihomo-config | 72 |
-  | infiltrator-admin | 75 |
+  | infiltrator-admin | 81 |
   | mihomo-api | 69 |
   | infiltrator-shared | 54 |
-  | infiltrator-cli | 50 |
+  | infiltrator-cli | 49 |
   | infiltrator-android | 49 |
   | mihomo-platform + self-healing state machine | 79 |
   | mihomo-dav-sync (sync-engine 27 + dav-client 7 + state-store 7) | 41 |
@@ -30,7 +30,7 @@
   | infiltrator-bevy-widgets + headless | 237 |
   | infiltrator-contract | 4 |
   | infiltrator-ports | 1 |
-  | **全仓自动化测试总计** | **2020** |
+  | **全仓自动化测试总计** | **2021** |
 
 - **代码洁净度**：全工作空间必须保持 **0 编译警告** (`cargo check --workspace` 无任何输出)。
 - **测试可靠性**：环境敏感型测试必须在固定 4 个 nextest 测试进程并发下保持

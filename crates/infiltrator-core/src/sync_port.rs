@@ -444,3 +444,65 @@ async fn atomic_write_file(path: &Path, content: &[u8]) -> Result<(), PortError>
     }
     result.map_err(|error| PortError::Io(error.to_string()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use infiltrator_ports::sync::SyncPort;
+
+    #[tokio::test]
+    async fn conflict_file_access_reads_and_deletes_inside_the_config_root() {
+        let temp = tempfile::tempdir().expect("temp root");
+        let root = temp.path().join("configs");
+        tokio::fs::create_dir_all(&root).await.expect("config root");
+        let conflict = root.join("demo.remote-conflict.yaml");
+        tokio::fs::write(&conflict, "mode: rule\n")
+            .await
+            .expect("conflict file");
+
+        let adapter = FileWebDavSync::new(
+            temp.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        );
+        let content = adapter
+            .read_conflict(
+                root.to_string_lossy().into_owned(),
+                conflict.to_string_lossy().into_owned(),
+            )
+            .await
+            .expect("read conflict");
+        assert_eq!(content, "mode: rule\n");
+        adapter
+            .delete_conflict(
+                root.to_string_lossy().into_owned(),
+                conflict.to_string_lossy().into_owned(),
+            )
+            .await
+            .expect("delete conflict");
+        assert!(!conflict.exists());
+    }
+
+    #[tokio::test]
+    async fn conflict_file_access_rejects_a_file_outside_the_config_root() {
+        let temp = tempfile::tempdir().expect("temp root");
+        let root = temp.path().join("configs");
+        let outside = temp.path().join("outside.yaml");
+        tokio::fs::create_dir_all(&root).await.expect("config root");
+        tokio::fs::write(&outside, "mode: direct\n")
+            .await
+            .expect("outside file");
+
+        let adapter = FileWebDavSync::new(
+            temp.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        );
+        let error = adapter
+            .read_conflict(
+                root.to_string_lossy().into_owned(),
+                outside.to_string_lossy().into_owned(),
+            )
+            .await
+            .expect_err("outside conflict must be rejected");
+        assert!(error.to_string().contains("超出配置目录"));
+    }
+}
