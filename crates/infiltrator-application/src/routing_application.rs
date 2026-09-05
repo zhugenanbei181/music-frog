@@ -50,6 +50,24 @@ impl RoutingApplication {
         Ok(selected)
     }
 
+    pub fn set_package_enabled(&self, package: &str, enabled: bool) -> Result<(), Failure> {
+        if package.trim().is_empty() {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                "package name is empty",
+                false,
+            ));
+        }
+        let mut config = self.load()?;
+        let package = package.trim().to_string();
+        if enabled {
+            config.packages.insert(package);
+        } else {
+            config.packages.remove(&package);
+        }
+        self.save(&config)
+    }
+
     pub fn set_rule(&self, package: &str, rule: AppRoutingRule) -> Result<(), Failure> {
         let package = package.trim();
         if package.is_empty() {

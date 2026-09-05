@@ -12,6 +12,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, RwLock};
 
+use crate::command_application::CommandHandler;
+
 const EVENT_CAPACITY: usize = 256;
 const DISPATCH_CAPACITY: usize = 256;
 const DEFAULT_READINESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
@@ -44,6 +46,7 @@ struct Inner {
     overview: Option<Arc<dyn OverviewReader>>,
     readiness_policy: ReadinessPolicy,
     runtime: Arc<dyn ApplicationRuntime>,
+    command_handler: RwLock<Option<Arc<dyn CommandHandler>>>,
     dispatch_tx: std::sync::mpsc::SyncSender<DispatchedCommand>,
     operation: AsyncMutex<()>,
     state: RwLock<StateMirror>,
@@ -145,6 +148,7 @@ impl CoreApplication {
             overview,
             readiness_policy,
             runtime: Arc::clone(&runtime),
+            command_handler: RwLock::new(None),
             dispatch_tx,
             operation: AsyncMutex::new(()),
             state: RwLock::new(StateMirror {
@@ -156,6 +160,19 @@ impl CoreApplication {
         });
         spawn_dispatch_worker(Arc::downgrade(&inner), dispatch_rx, runtime);
         Self { inner }
+    }
+
+    /// Install the non-lifecycle command facade used by a full product
+    /// composition. Lifecycle and proxy-mode commands remain owned by this
+    /// application; every other intent is delegated to the handler or
+    /// rejected with a typed Unsupported failure.
+    pub fn install_command_handler(&self, handler: Arc<dyn CommandHandler>) {
+        let mut slot = self
+            .inner
+            .command_handler
+            .write()
+            .expect("command handler lock");
+        *slot = Some(handler);
     }
 
     /// Execute a command and await its terminal result. The returned values
@@ -267,10 +284,21 @@ impl CoreApplication {
             CommandIntent::StopCore => self.stop_locked().await,
             CommandIntent::RestartCore => self.restart_locked().await,
             CommandIntent::SetProxyMode { mode } => self.set_mode_locked(mode).await,
-            unsupported => Err(Failure::unsupported(format!(
-                "command `{}` is not wired into the 0.30 application yet",
-                command_name(&unsupported)
-            ))),
+            unsupported => {
+                let handler = self
+                    .inner
+                    .command_handler
+                    .read()
+                    .expect("command handler lock")
+                    .clone();
+                match handler {
+                    Some(handler) => handler.handle(unsupported).await,
+                    None => Err(Failure::unsupported(format!(
+                        "command `{}` has no application command handler",
+                        command_name(&unsupported)
+                    ))),
+                }
+            }
         };
 
         match outcome {
@@ -667,6 +695,23 @@ mod tests {
         mode: Result<ProxyMode, PortError>,
     }
 
+    struct FakeCommandHandler;
+
+    impl crate::command_application::CommandHandler for FakeCommandHandler {
+        fn handle(
+            &self,
+            intent: infiltrator_contract::command::CommandIntent,
+        ) -> crate::command_application::CommandFuture {
+            Box::pin(async move {
+                if matches!(intent, infiltrator_contract::command::CommandIntent::ClearLogs) {
+                    Ok(())
+                } else {
+                    Err(Failure::unsupported("fake handler rejected command"))
+                }
+            })
+        }
+    }
+
     struct TestRuntime;
 
     impl ApplicationRuntime for TestRuntime {
@@ -874,6 +919,27 @@ mod tests {
             })
             .await;
         assert!(matches!(result, CommandResult::Completed { .. }));
+    }
+
+    #[tokio::test]
+    async fn non_lifecycle_commands_use_the_installed_handler() {
+        let app = application(
+            FakeProcess {
+                running: AtomicBool::new(false),
+                fail_start: false,
+                fail_stop: false,
+            },
+            Ok("http://127.0.0.1:9090".to_string()),
+        );
+        app.install_command_handler(Arc::new(FakeCommandHandler));
+
+        let result = app.execute(CommandIntent::ClearLogs).await;
+        assert_eq!(
+            result,
+            CommandResult::Completed {
+                request_id: RequestId(1)
+            }
+        );
     }
 
     #[test]

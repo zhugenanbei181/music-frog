@@ -36,6 +36,7 @@ use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};
 use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::command_application::CommandHandler;
 use infiltrator_bevy_widgets::theme::LightDark;
 use std::sync::Arc;
 
@@ -67,6 +68,18 @@ pub fn run() {
 /// client for command dispatch.
 pub fn run_with_application(application: Arc<CoreApplication>) {
     run_with_command_sink(Arc::new(command::ApplicationCommandSink::new(application)));
+}
+
+/// Launch the shell with the lifecycle application plus an explicitly
+/// composed command facade. The handler is installed before Bevy starts, so
+/// non-lifecycle intents are executed by application use-cases instead of
+/// being dropped at the UI boundary.
+pub fn run_with_application_and_handler(
+    application: Arc<CoreApplication>,
+    handler: Arc<dyn CommandHandler>,
+) {
+    application.install_command_handler(handler);
+    run_with_application(application);
 }
 
 /// Launch the windowed shell with an arbitrary command sink. This is useful
