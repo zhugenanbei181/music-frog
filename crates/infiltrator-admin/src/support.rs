@@ -3,6 +3,21 @@
 #[cfg(test)]
 use std::path::PathBuf;
 
+#[cfg(test)]
+use std::sync::Arc;
+
+#[cfg(test)]
+use infiltrator_application::cache_application::CacheApplication;
+#[cfg(test)]
+use infiltrator_application::configuration_application::ConfigurationApplication;
+#[cfg(test)]
+use infiltrator_application::doctor_application::DoctorApplication;
+#[cfg(test)]
+use infiltrator_application::profile_application::ProfileApplication;
+#[cfg(test)]
+use infiltrator_application::profile_reset_application::ProfileResetApplication;
+#[cfg(test)]
+use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_core::settings_io as settings;
 use infiltrator_domain::settings::AppSettings;
 use mihomo_config::manager::ConfigManager;
@@ -29,6 +44,52 @@ pub(crate) async fn app_config_manager() -> anyhow::Result<ConfigManager<Default
         settings.configs_dir.as_deref(),
         DefaultCredentialStore::default(),
     )?)
+}
+
+#[cfg(test)]
+pub(crate) async fn profile_application() -> anyhow::Result<ProfileApplication> {
+    Ok(ProfileApplication::new(infiltrator_core::profile_store_io::open().await?))
+}
+
+#[cfg(test)]
+pub(crate) async fn configuration_application() -> anyhow::Result<ConfigurationApplication> {
+    Ok(ConfigurationApplication::new(
+        infiltrator_core::profile_store_io::open().await?,
+    ))
+}
+
+#[cfg(test)]
+pub(crate) fn doctor_application() -> anyhow::Result<DoctorApplication> {
+    let doctor = infiltrator_core::doctor_port::MihomoDoctor::detect()?;
+    Ok(DoctorApplication::new(Arc::new(doctor)))
+}
+
+#[cfg(test)]
+pub(crate) fn profile_reset_application() -> ProfileResetApplication {
+    ProfileResetApplication::new(Arc::new(
+        infiltrator_core::profile_reset::FileProfileReset::current(),
+    ))
+}
+
+#[cfg(test)]
+pub(crate) fn cache_application() -> CacheApplication {
+    CacheApplication::new(Arc::new(
+        infiltrator_core::fake_ip_cache_io::FileFakeIpCache::current(),
+    ))
+}
+
+#[cfg(test)]
+pub(crate) fn subscription_source() -> Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource>
+{
+    Arc::new(
+        infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients(),
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn sync_application() -> anyhow::Result<SyncApplication> {
+    let sync = infiltrator_core::sync_port::FileWebDavSync::current()?;
+    Ok(SyncApplication::new(Arc::new(sync)))
 }
 
 /// configs 目录路径解析，优先级与 [`app_config_manager`] 一致

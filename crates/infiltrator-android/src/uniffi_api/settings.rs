@@ -2,11 +2,10 @@
 //! (servers, enhanced mode, fallback filter) and Fake-IP configuration
 //! (range, filter list, cache store) plus cache clearing.
 
-use infiltrator_core::fake_ip_cache_io::clear_fake_ip_cache;
 use infiltrator_domain::{dns, fake_ip};
 
 use super::support::{
-    build_configuration_application, get_runtime, map_anyhow_error, map_application_failure,
+    build_configuration_application, cache_application, get_runtime, map_application_failure,
     normalize_optional_string, sanitize_list,
 };
 use crate::ffi::{FfiBoolResult, FfiErrorCode, FfiStatus};
@@ -164,7 +163,7 @@ pub async fn fake_ip_settings_save(patch: FakeIpSettingsPatch) -> FakeIpSettings
 pub async fn fake_ip_cache_clear() -> FfiBoolResult {
     get_runtime()
         .spawn(async move {
-            match clear_fake_ip_cache().await.map_err(map_anyhow_error) {
+            match cache_application().clear_fake_ip().await.map_err(map_application_failure) {
                 Ok(removed) => FfiBoolResult::ok(removed),
                 Err(status) => FfiBoolResult {
                     status,

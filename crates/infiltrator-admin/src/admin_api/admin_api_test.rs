@@ -55,6 +55,61 @@ mod tests {
 
     #[async_trait::async_trait]
     impl AdminApiContext for MockContext {
+        async fn profile_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::profile_application::ProfileApplication> {
+            crate::support::profile_application().await
+        }
+
+        async fn configuration_application(
+            &self,
+        ) -> anyhow::Result<
+            infiltrator_application::configuration_application::ConfigurationApplication,
+        > {
+            crate::support::configuration_application().await
+        }
+
+        async fn doctor_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::doctor_application::DoctorApplication> {
+            crate::support::doctor_application()
+        }
+
+        async fn profile_reset_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::profile_reset_application::ProfileResetApplication>
+        {
+            Ok(crate::support::profile_reset_application())
+        }
+
+        async fn cache_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::cache_application::CacheApplication> {
+            Ok(crate::support::cache_application())
+        }
+
+        async fn subscription_source(
+            &self,
+        ) -> anyhow::Result<
+            Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource>,
+        > {
+            Ok(crate::support::subscription_source())
+        }
+
+        async fn sync_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::sync_application::SyncApplication> {
+            crate::support::sync_application()
+        }
+
+        async fn profile_controller_url(&self) -> anyhow::Result<Option<String>> {
+            Ok(crate::support::app_config_manager()
+                .await?
+                .get_external_controller()
+                .await
+                .ok())
+        }
+
         async fn rebuild_runtime(&self) -> anyhow::Result<()> {
             let mut count = self.rebuild_count.lock().unwrap_or_else(|e| e.into_inner());
             *count += 1;

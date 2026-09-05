@@ -1,8 +1,6 @@
 use anyhow::anyhow;
 use chrono::Utc;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_core::subscription_io::HttpSubscriptionSource;
-use infiltrator_http::HttpClient;
 use log::{info, warn};
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_ports::subscription_source::SubscriptionSource;
@@ -40,8 +38,6 @@ pub(crate) struct SubscriptionUpdateResult {
 pub(super) async fn run_profile_subscription_tick<C: AdminApiContext>(
     ctx: &C,
     profile_name: &str,
-    client: &HttpClient,
-    raw_client: &HttpClient,
 ) -> Result<(), String> {
     let application = ctx
         .profile_application()
@@ -70,9 +66,12 @@ pub(super) async fn run_profile_subscription_tick<C: AdminApiContext>(
         return Ok(());
     }
 
-    let source = HttpSubscriptionSource::new(client, raw_client);
-    match update_profile_subscription_with_retry(&application, &source, &profile.name, 3)
-    .await
+    let source = ctx
+        .subscription_source()
+        .await
+        .map_err(|error| format!("打开订阅 source 失败: {error}"))?;
+    match update_profile_subscription_with_retry(&application, source.as_ref(), &profile.name, 3)
+        .await
     {
         Ok(needs_rebuild) => {
             if needs_rebuild && let Err(err) = ctx.rebuild_runtime().await {
@@ -104,8 +103,6 @@ pub(super) async fn run_profile_subscription_tick<C: AdminApiContext>(
 
 pub async fn update_all_subscriptions<C: AdminApiContext>(
     ctx: &C,
-    client: &HttpClient,
-    raw_client: &HttpClient,
 ) -> anyhow::Result<SubscriptionUpdateSummary> {
     let application = ctx.profile_application().await?;
     let profiles = application
@@ -150,7 +147,7 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
     let max_concurrent = 5usize;
     let mut join_set: JoinSet<anyhow::Result<SubscriptionUpdateResult>> = JoinSet::new();
 
-    let source = Arc::new(HttpSubscriptionSource::new(client, raw_client));
+    let source = ctx.subscription_source().await?;
     for profile in profiles_to_update {
         // Wait for available slot if we've reached max concurrency
         while join_set.len() >= max_concurrent {

@@ -28,14 +28,12 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use infiltrator_core::scheduler::JobScheduler;
-use infiltrator_http::{HttpClient, build_http_client, build_raw_http_client};
 use log::warn;
 use tokio::sync::watch;
 use tokio::time::{Instant, interval};
 
 use self::sync::run_sync_tick;
 use crate::admin_api::state::AdminApiContext;
-use crate::support::app_config_manager;
 
 pub mod subscription;
 pub mod sync;
@@ -57,16 +55,6 @@ pub(crate) fn subscription_job_name(profile_name: &str) -> String {
     format!("{SUBSCRIPTION_JOB_PREFIX}{profile_name}")
 }
 
-/// Shared HTTP clients for the subscription job closures, built once.
-fn subscription_http_clients() -> &'static (HttpClient, HttpClient) {
-    static CLIENTS: OnceLock<(HttpClient, HttpClient)> = OnceLock::new();
-    CLIENTS.get_or_init(|| {
-        let client = build_http_client();
-        let raw_client = build_raw_http_client(&client);
-        (client, raw_client)
-    })
-}
-
 /// Register (or replace) the periodic update job of one profile.
 ///
 /// `interval` is the tick cadence; production callers derive it from the
@@ -81,19 +69,12 @@ pub(crate) fn schedule_profile_update_job<C: AdminApiContext>(
 ) {
     debug_assert!(interval > Duration::ZERO, "job interval must be non-zero");
     let name = subscription_job_name(profile_name);
-    let (client, raw_client) = &subscription_http_clients();
     let ctx = ctx.clone();
     let profile = profile_name.to_string();
-    let client = client.clone();
-    let raw_client = raw_client.clone();
     subscription_jobs().spawn_job(&name, interval, move || {
         let ctx = ctx.clone();
         let profile = profile.clone();
-        let client = client.clone();
-        let raw_client = raw_client.clone();
-        async move {
-            subscription::run_profile_subscription_tick(&ctx, &profile, &client, &raw_client).await
-        }
+        async move { subscription::run_profile_subscription_tick(&ctx, &profile).await }
     });
     log::info!("scheduled subscription auto-update job `{name}` (interval {interval:?})");
 }
@@ -145,17 +126,20 @@ pub(crate) fn cancel_all_profile_jobs() {
 /// Runs at admin server startup so profiles configured before this boot keep
 /// updating; later metadata changes flow through [`sync_profile_job`].
 pub(crate) async fn seed_subscription_jobs<C: AdminApiContext>(ctx: &C) {
-    let manager = match app_config_manager().await {
-        Ok(manager) => manager,
+    let application = match ctx.profile_application().await {
+        Ok(application) => application,
         Err(err) => {
-            warn!("subscription job seed failed to open config manager: {err}");
+            warn!("subscription job seed failed to open profile application: {err}");
             return;
         }
     };
-    let profiles = match manager.list_profiles().await {
+    let profiles = match application.list_profiles().await {
         Ok(profiles) => profiles,
         Err(err) => {
-            warn!("subscription job seed failed to list profiles: {err:#}");
+            warn!(
+                "subscription job seed failed to list profiles: {}",
+                err.message
+            );
             return;
         }
     };

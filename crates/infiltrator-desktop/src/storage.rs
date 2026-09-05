@@ -2,11 +2,14 @@
 
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::snapshots::SnapshotMeta;
+use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
+use infiltrator_ports::doctor::DoctorPort;
+use infiltrator_ports::profile_reset::ProfileResetPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::public_ip_probe::PublicIpProbe;
 use infiltrator_ports::settings_store::SettingsStore;
 use infiltrator_ports::subscription_source::SubscriptionSource;
-use infiltrator_ports::doctor::DoctorPort;
+use infiltrator_ports::sync::SyncPort;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -18,6 +21,14 @@ pub async fn profile_store() -> anyhow::Result<Arc<dyn ProfileStore>> {
     infiltrator_core::profile_store_io::open().await
 }
 
+pub async fn profile_controller_url() -> anyhow::Result<String> {
+    let manager = infiltrator_core::settings_io::app_config_manager().await?;
+    manager
+        .get_external_controller()
+        .await
+        .map_err(|error| anyhow::anyhow!(error.to_string()))
+}
+
 pub async fn settings_store() -> anyhow::Result<Arc<dyn SettingsStore>> {
     let store = infiltrator_core::settings_store::for_current_home()?;
     Ok(Arc::new(store))
@@ -25,6 +36,11 @@ pub async fn settings_store() -> anyhow::Result<Arc<dyn SettingsStore>> {
 
 pub async fn save_webdav_password(password: &str) -> anyhow::Result<()> {
     infiltrator_core::host_io::save_webdav_password(password).await
+}
+
+pub async fn webdav_password() -> Option<String> {
+    let store = settings_store().await.ok()?;
+    store.load_hydrated().await.ok()?.webdav.password.into()
 }
 
 pub async fn clear_webdav_password() {
@@ -35,12 +51,24 @@ pub fn subscription_source() -> impl SubscriptionSource {
     infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients()
 }
 
+pub fn sync() -> anyhow::Result<impl SyncPort> {
+    infiltrator_core::sync_port::FileWebDavSync::current()
+}
+
 pub fn public_ip_probe() -> impl PublicIpProbe {
     infiltrator_core::public_ip_io::HttpPublicIpProbe::with_default_client()
 }
 
 pub fn doctor() -> anyhow::Result<impl DoctorPort> {
     infiltrator_core::doctor_port::MihomoDoctor::detect()
+}
+
+pub fn profile_reset() -> impl ProfileResetPort {
+    infiltrator_core::profile_reset::FileProfileReset::current()
+}
+
+pub fn fake_ip_cache() -> impl FakeIpCachePort {
+    infiltrator_core::fake_ip_cache_io::FileFakeIpCache::current()
 }
 
 pub async fn reset_profiles_to_default() -> anyhow::Result<()> {

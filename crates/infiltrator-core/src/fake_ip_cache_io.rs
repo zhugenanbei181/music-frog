@@ -1,8 +1,34 @@
 //! Host filesystem adapter for the Mihomo Fake-IP cache.
 
 use anyhow::Context;
+use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
+use infiltrator_ports::error::PortError;
+
+pub struct FileFakeIpCache;
+
+impl FileFakeIpCache {
+    pub fn current() -> Self {
+        Self
+    }
+}
+
+#[async_trait::async_trait]
+impl FakeIpCachePort for FileFakeIpCache {
+    async fn clear(&self) -> Result<bool, PortError> {
+        clear_fake_ip_cache_impl()
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))
+    }
+}
 
 pub async fn clear_fake_ip_cache() -> anyhow::Result<bool> {
+    FileFakeIpCache::current()
+        .clear()
+        .await
+        .map_err(|error| anyhow::anyhow!(error.to_string()))
+}
+
+async fn clear_fake_ip_cache_impl() -> anyhow::Result<bool> {
     let manager = crate::settings_io::app_config_manager()
         .await
         .context("init config manager")?;

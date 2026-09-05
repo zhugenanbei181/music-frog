@@ -5,14 +5,17 @@
 //! about an executor, task handles, or concrete Mihomo clients.
 
 pub mod core_application;
+pub mod cache_application;
 pub mod configuration_application;
 pub mod doctor_application;
 pub mod overview;
 pub mod network_application;
 pub mod profile_application;
+pub mod profile_reset_application;
 pub mod proxy_application;
 pub mod routing_application;
 pub mod settings_application;
+pub mod sync_application;
 
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use std::future::Future;

@@ -19,6 +19,13 @@
    - 严格按 Phase 01 → Phase 10 的依赖顺序推进。
    - 每项任务完成后必须在此勾选 `[x]`，且必须同时具备 **「代码实现 + 强类型状态机 + 单元/集成测试 + 截图/平台验证证据」**。
 
+### 0.30 结构重整执行规则（2026-09-04）
+
+- `infiltrator-domain` 只放纯规则、模型和计算；`infiltrator-contract` 只放跨端可序列化结果；`infiltrator-ports` 只放能力边界；`infiltrator-application` 只编排 use-case。
+- 文件、HTTP、mihomo client、keyring、Tokio executor 和 OS/VPN 生命周期必须在 host/composition/outbound adapter；inbound surface 不得自行构造它们。
+- 每个已迁移垂直切片必须同时落下 application facade、port、具体 adapter、跨端接入和行为测试；只搬模块不算完成。
+- 当前优先收口 profile reset、Fake-IP cache、订阅 source；随后统一 WebDAV application，再处理 command facade 与版本/调度器 facade。
+
 ---
 
 ## 阶段与任务追踪矩阵 (10 Phases × 10 Tasks)

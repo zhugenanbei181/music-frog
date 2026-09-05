@@ -103,7 +103,7 @@ async fn show(runtime: &Runtime, name: Option<String>) -> anyhow::Result<()> {
 /// use-case and the host HTTP adapter.
 async fn import(runtime: &Runtime, name: &str, url: &str) -> anyhow::Result<()> {
     let profile_name = infiltrator_domain::profiles::sanitize_profile_name(name)?;
-    let source = infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients();
+    let source = runtime.subscription_source();
     runtime
         .profile_application()?
         .import_subscription(&source, &profile_name, url)

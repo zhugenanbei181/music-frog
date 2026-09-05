@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+dav-client = { path = "../mihomo-dav-sync/dav-client" }
 infiltrator-contract = { path = "../infiltrator-contract" }
 brotli = { workspace = true }
 chrono = { workspace = true }
@@ -22,11 +23,13 @@ ring = "0.17"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
+state-store = { path = "../mihomo-dav-sync/state-store" }
 sha2 = { workspace = true }
 sysinfo = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 toml = { workspace = true }
+sync-engine = { path = "../mihomo-dav-sync/sync-engine" }
 yaml-rust2 = { workspace = true }
 regex = { workspace = true }
 base64 = "0.22"

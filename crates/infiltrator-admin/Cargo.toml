@@ -11,7 +11,6 @@ chrono = { workspace = true }
 futures-util = { workspace = true }
 infiltrator-application = { path = "../infiltrator-application" }
 infiltrator-contract = { path = "../infiltrator-contract" }
-dav-client = { path = "../mihomo-dav-sync/dav-client" }
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-http = { path = "../infiltrator-http" }
@@ -23,8 +22,6 @@ mihomo-platform = { path = "../mihomo-platform" }
 mihomo-version = { path = "../mihomo-version" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-state-store = { path = "../mihomo-dav-sync/state-store" }
-sync-engine = { path = "../mihomo-dav-sync/sync-engine" }
 tokio = { workspace = true }
 tokio-stream = { workspace = true, features = ["sync"] }
 tower-http = { workspace = true, features = ["fs"] }

@@ -4,7 +4,6 @@
 //! `/admin/api/sniffer`, `/admin/api/rules`, `/admin/api/tun`).
 
 use axum::Json;
-use infiltrator_core::fake_ip_cache_io;
 use infiltrator_domain::rules::{RuleProvidersPayload, RulesPayload};
 use infiltrator_domain::{dns, fake_ip, proxy_providers, tun};
 
@@ -80,9 +79,16 @@ pub async fn save_fake_ip_config_http<C: AdminApiContext>(
 }
 
 pub async fn flush_fake_ip_cache_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<CacheFlushResponse>, ApiError> {
-    let removed = fake_ip_cache_io::clear_fake_ip_cache().await?;
+    let removed = state
+        .ctx
+        .cache_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .clear_fake_ip()
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
     Ok(Json(CacheFlushResponse { removed }))
 }
 

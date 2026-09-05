@@ -20,3 +20,4 @@ pub mod settings_io;
 pub mod settings_store;
 pub mod smoke_e2e;
 pub mod subscription_io;
+pub mod sync_port;

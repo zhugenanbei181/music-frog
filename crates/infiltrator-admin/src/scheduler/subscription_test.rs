@@ -16,7 +16,6 @@ mod tests {
     use infiltrator_core::settings_io::{save_settings, settings_path};
     use infiltrator_domain::settings::AppSettings;
     use infiltrator_domain::subscription::mask_subscription_url;
-    use infiltrator_http::HttpClient;
     use mihomo_config::manager::ConfigManager;
     use mihomo_config::profile::Profile;
     use mihomo_platform::TEST_LOCK;
@@ -34,6 +33,65 @@ mod tests {
 
     #[async_trait::async_trait]
     impl AdminApiContext for MockContext {
+        async fn profile_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::profile_application::ProfileApplication> {
+            crate::support::profile_application().await
+        }
+
+        async fn configuration_application(
+            &self,
+        ) -> anyhow::Result<
+            infiltrator_application::configuration_application::ConfigurationApplication,
+        > {
+            crate::support::configuration_application().await
+        }
+
+        async fn doctor_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::doctor_application::DoctorApplication> {
+            crate::support::doctor_application()
+        }
+
+        async fn profile_reset_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::profile_reset_application::ProfileResetApplication>
+        {
+            Ok(crate::support::profile_reset_application())
+        }
+
+        async fn cache_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::cache_application::CacheApplication> {
+            Ok(crate::support::cache_application())
+        }
+
+        async fn subscription_source(
+            &self,
+        ) -> anyhow::Result<
+            Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource>,
+        > {
+            Ok(crate::support::subscription_source())
+        }
+
+        async fn sync_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::sync_application::SyncApplication> {
+            crate::support::sync_application()
+        }
+
+        async fn profile_controller_url(&self) -> anyhow::Result<Option<String>> {
+            Ok(None)
+        }
+
+        async fn webdav_password(&self) -> Option<String> {
+            None
+        }
+
+        async fn set_webdav_password(&self, _password: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+
         async fn notify_subscription_update(
             &self,
             profile: String,
@@ -133,10 +191,7 @@ mod tests {
         let ctx = MockContext {
             notifications: Arc::new(Mutex::new(vec![])),
         };
-        let client = HttpClient::new();
-        let raw_client = HttpClient::new();
-
-        let result = update_all_subscriptions(&ctx, &client, &raw_client).await;
+        let result = update_all_subscriptions(&ctx).await;
 
         assert!(result.is_ok());
         let summary = result.unwrap();
@@ -164,9 +219,6 @@ mod tests {
         let ctx = MockContext {
             notifications: Arc::new(Mutex::new(vec![])),
         };
-        let client = HttpClient::new();
-        let raw_client = HttpClient::new();
-
         let configs_dir = temp_dir.path().join("configs");
         let _ = std::fs::create_dir_all(&configs_dir);
 
@@ -193,7 +245,7 @@ mod tests {
             profiles.len()
         );
 
-        let result = update_all_subscriptions(&ctx, &client, &raw_client).await;
+        let result = update_all_subscriptions(&ctx).await;
 
         assert!(result.is_ok());
         let summary = result.unwrap();
@@ -488,10 +540,7 @@ mod tests {
         let ctx = MockContext {
             notifications: Arc::new(Mutex::new(vec![])),
         };
-        let client = HttpClient::new();
-        let raw_client = HttpClient::new();
-
-        let result = run_profile_subscription_tick(&ctx, &profile_name, &client, &raw_client).await;
+        let result = run_profile_subscription_tick(&ctx, &profile_name).await;
         assert!(result.is_ok(), "tick failed: {:?}", result.err());
 
         let updated = std::fs::read_to_string(&profile_path).unwrap();
@@ -534,10 +583,7 @@ mod tests {
         let ctx = MockContext {
             notifications: Arc::new(Mutex::new(vec![])),
         };
-        let client = HttpClient::new();
-        let raw_client = HttpClient::new();
-
-        let summary = update_all_subscriptions(&ctx, &client, &raw_client)
+        let summary = update_all_subscriptions(&ctx)
             .await
             .unwrap();
         assert_eq!(summary.total, 1);

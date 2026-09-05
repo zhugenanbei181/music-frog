@@ -5,16 +5,12 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use axum::{Json, http::StatusCode};
 use chrono::Utc;
-use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_domain::profiles::{ProfileDetail, ProfileInfo, sanitize_profile_name};
-use infiltrator_http::HttpClient;
 use log::info;
 
 use crate::admin_api::events::{AdminEvent, EVENT_PROFILES_CHANGED};
 use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState, RebuildStatus};
-use crate::support::app_config_manager;
-
 use super::{schedule_core_restart, schedule_rebuild};
 
 pub async fn list_profiles_http<C: AdminApiContext>(
@@ -74,8 +70,6 @@ pub async fn import_profile_http<C: AdminApiContext>(
     let (profile, rebuild_scheduled) = import_profile_from_url_internal(
         &state.ctx,
         &state.rebuild_status,
-        &state.http_client,
-        &state.raw_http_client,
         &profile_name,
         &payload.url,
         payload.activate.unwrap_or(false),
@@ -99,22 +93,19 @@ pub async fn save_profile_http<C: AdminApiContext>(
         return Err(ApiError::bad_request(err.to_string()));
     }
 
-    let manager = app_config_manager()
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
-    let current_before = manager.get_current().await.ok();
-    let is_current = current_before.as_deref() == Some(&name);
-    let controller_before = if is_current || payload.activate.unwrap_or(false) {
-        manager.get_external_controller().await.ok()
-    } else {
-        None
-    };
-
     let application = state
         .ctx
         .profile_application()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+    let current_before = application.current_profile().await.ok();
+    let is_current = current_before.as_deref() == Some(&name);
+    let controller_before = if is_current || payload.activate.unwrap_or(false) {
+        state.ctx.profile_controller_url().await.ok().flatten()
+    } else {
+        None
+    };
+
     application
         .save_profile(&name, &payload.content)
         .await
@@ -131,11 +122,11 @@ pub async fn save_profile_http<C: AdminApiContext>(
             .map_err(|failure| ApiError::bad_request(failure.message))?;
         schedule_rebuild(&state.ctx, &state.rebuild_status, "save-activate");
         rebuild_scheduled = true;
-        controller_url = manager.get_external_controller().await.ok();
-    } else if manager.get_current().await.ok().as_deref() == Some(&name) {
+        controller_url = state.ctx.profile_controller_url().await.ok().flatten();
+    } else if application.current_profile().await.ok().as_deref() == Some(&name) {
         schedule_rebuild(&state.ctx, &state.rebuild_status, "save-current");
         rebuild_scheduled = true;
-        controller_url = manager.get_external_controller().await.ok();
+        controller_url = state.ctx.profile_controller_url().await.ok().flatten();
     }
     if controller_url.is_some() {
         controller_changed = Some(controller_before != controller_url);
@@ -159,9 +150,14 @@ pub async fn save_profile_http<C: AdminApiContext>(
 pub async fn clear_profiles_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
-    infiltrator_core::profile_reset::reset_profiles_to_default()
+    state
+        .ctx
+        .profile_reset_application()
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .reset_to_default()
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
     let application = state
         .ctx
         .profile_application()
@@ -173,11 +169,8 @@ pub async fn clear_profiles_http<C: AdminApiContext>(
         .map_err(|failure| ApiError::internal(failure.message))?;
     // All previous profiles (and their auto-update jobs) are gone.
     crate::scheduler::cancel_all_profile_jobs();
-    let manager = app_config_manager()
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut info = profile;
-    info.controller_url = manager.get_external_controller().await.ok();
+    info.controller_url = state.ctx.profile_controller_url().await.ok().flatten();
     schedule_rebuild(&state.ctx, &state.rebuild_status, "profiles-clear");
     state
         .events
@@ -323,9 +316,13 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
         .load_profile_info(&profile_name)
         .await
         .map_err(|failure| ApiError::bad_request(failure.message))?;
-    let source = HttpSubscriptionSource::new(&state.http_client, &state.raw_http_client);
+    let source = state
+        .ctx
+        .subscription_source()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
     application
-        .update_subscription(&source, &profile_name)
+        .update_subscription(source.as_ref(), &profile_name)
         .await
         .map_err(|failure| {
             if failure.code == infiltrator_contract::error::ErrorCode::Configuration {
@@ -356,11 +353,7 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
 pub async fn update_all_profiles_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<ProfilesUpdateAllResponse>, ApiError> {
-    let summary = crate::scheduler::subscription::update_all_subscriptions(
-        &state.ctx,
-        &state.http_client,
-        &state.raw_http_client,
-    )
+    let summary = crate::scheduler::subscription::update_all_subscriptions(&state.ctx)
     .await
     .map_err(|e| ApiError::internal(e.to_string()))?;
 
@@ -394,8 +387,6 @@ async fn switch_profile_internal<C: AdminApiContext>(
 async fn import_profile_from_url_internal<C: AdminApiContext>(
     ctx: &C,
     rebuild_status: &Arc<RebuildStatus>,
-    client: &HttpClient,
-    raw_client: &HttpClient,
     name: &str,
     url: &str,
     activate: bool,
@@ -411,10 +402,10 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
         "admin import profile start: name={} url={}",
         profile_name, masked_url
     );
-    let source = HttpSubscriptionSource::new(client, raw_client);
     let application = ctx.profile_application().await?;
+    let source = ctx.subscription_source().await?;
     let mut info = application
-        .import_subscription(&source, &profile_name, source_url)
+        .import_subscription(source.as_ref(), &profile_name, source_url)
         .await
         .map_err(|failure| anyhow!(failure.message))?;
 
@@ -442,8 +433,7 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
     );
 
     if activate {
-        let manager = app_config_manager().await?;
-        info.controller_url = manager.get_external_controller().await.ok();
+        info.controller_url = ctx.profile_controller_url().await.ok().flatten();
     }
     Ok((info, rebuild_scheduled))
 }

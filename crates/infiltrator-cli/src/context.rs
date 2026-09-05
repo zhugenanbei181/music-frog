@@ -4,8 +4,10 @@ use std::sync::Arc;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_core::settings_store::FileSettingsStore;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::endpoint::EndpointSource as _;
+use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
@@ -53,14 +55,6 @@ impl Runtime {
         SettingsApplication::new(Arc::new(FileSettingsStore::for_home(self.home.clone())))
     }
 
-    pub async fn webdav_password(&self) -> String {
-        self.settings_application()
-            .load_hydrated()
-            .await
-            .map(|settings| settings.webdav.password)
-            .unwrap_or_default()
-    }
-
     /// ConfigManager following the full configs-directory resolution chain:
     /// `INFILTRATOR_CONFIGS_DIR` env > `settings.configs_dir` >
     /// `<home>/configs`.
@@ -90,6 +84,18 @@ impl Runtime {
 
     pub fn profile_application(&self) -> mihomo_api::error::Result<ProfileApplication> {
         Ok(ProfileApplication::new(Arc::new(self.config_manager()?)))
+    }
+
+    pub fn subscription_source(&self) -> impl SubscriptionSource {
+        infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients()
+    }
+
+    pub fn sync_application(&self) -> anyhow::Result<SyncApplication> {
+        let sync = infiltrator_core::sync_port::FileWebDavSync::new(
+            self.home.clone(),
+            DefaultCredentialStore::default(),
+        );
+        Ok(SyncApplication::new(Arc::new(sync)))
     }
 
     /// Controller API client for the current profile. Endpoint URL and secret

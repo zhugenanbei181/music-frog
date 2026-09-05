@@ -49,7 +49,7 @@ pub async fn open_profile_in_editor_http<C: AdminApiContext>(
     Json(payload): Json<OpenProfilePayload>,
 ) -> Result<StatusCode, ApiError> {
     let name = ensure_valid_profile_name(&payload.name)?;
-    state
+    let _ = state
         .ctx
         .open_profile_in_editor(&name)
         .await
@@ -176,21 +176,21 @@ pub async fn sync_webdav_now_http<C: AdminApiContext>(
         return Err(ApiError::bad_request("WebDAV 同步未开启"));
     }
 
-    // 手动触发同步逻辑
-    let summary = crate::scheduler::sync::run_sync_tick(
-        &state.ctx,
-        &settings.webdav,
-        settings.configs_dir.as_deref(),
-    )
-    .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    let report = state
+        .ctx
+        .sync_application()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .sync(settings.webdav, settings.configs_dir)
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
 
     state.events.publish(AdminEvent::new(EVENT_WEBDAV_SYNCED));
 
     Ok(Json(serde_json::json!({
-        "success_count": summary.success_count,
-        "failed_count": summary.failed_count,
-        "total_actions": summary.total_actions,
+        "success_count": report.success_count,
+        "failed_count": report.failed_count,
+        "total_actions": report.total_actions,
     })))
 }
 
@@ -198,24 +198,16 @@ pub async fn test_webdav_conn_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
     Json(payload): Json<WebDavConfig>,
 ) -> Result<StatusCode, ApiError> {
-    use dav_client::DavClient;
-    use dav_client::client::WebDavClient;
-
     // GET 不再回传明文密码，客户端回传的 password 常为空：此时回退 keyring
     // 里保存的凭据，保持「测试连接」对已配置账号可用。
-    let password = if payload.password.is_empty() {
-        state.ctx.webdav_password().await.unwrap_or_default()
-    } else {
-        payload.password
-    };
-
-    let dav = WebDavClient::new(&payload.url, &payload.username, &password)
-        .map_err(|e| ApiError::bad_request(format!("无效的配置: {e}")))?;
-
-    // 尝试 list 根目录来测试连接
-    dav.list("/")
+    state
+        .ctx
+        .sync_application()
         .await
-        .map_err(|e| ApiError::bad_request(format!("连接测试失败: {e}")))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .test(payload)
+        .await
+        .map_err(|failure| ApiError::bad_request(failure.message))?;
 
     Ok(StatusCode::OK)
 }

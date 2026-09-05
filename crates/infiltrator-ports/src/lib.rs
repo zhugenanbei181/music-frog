@@ -6,6 +6,7 @@
 pub mod capability_provider;
 pub mod application_runtime;
 pub mod app_routing_store;
+pub mod fake_ip_cache;
 pub mod core_lifecycle;
 pub mod core_process;
 pub mod data_dir;
@@ -17,10 +18,12 @@ pub mod host_runtime;
 pub mod overview;
 pub mod public_ip_probe;
 pub mod profile_store;
+pub mod profile_reset;
 pub mod secure_store;
 pub mod settings_store;
 pub mod subscription_source;
 pub mod runtime_gateway;
+pub mod sync;
 
 #[cfg(test)]
 mod tests {

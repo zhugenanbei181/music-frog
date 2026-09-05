@@ -7,9 +7,12 @@ use std::{
 };
 
 use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_http::{HttpClient, build_http_client, build_raw_http_client};
+use infiltrator_application::profile_reset_application::ProfileResetApplication;
+use infiltrator_application::sync_application::SyncApplication;
+use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 use super::events::AdminEventBus;
@@ -19,22 +22,16 @@ use infiltrator_domain::settings::AppSettings;
 
 #[async_trait::async_trait]
 pub trait AdminApiContext: Clone + Send + Sync + 'static {
-    async fn profile_application(&self) -> anyhow::Result<ProfileApplication> {
-        let store = infiltrator_core::profile_store_io::open().await?;
-        Ok(ProfileApplication::new(store))
-    }
-
-    async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication> {
-        let store = infiltrator_core::profile_store_io::open().await?;
-        Ok(ConfigurationApplication::new(store))
-    }
-
-    async fn doctor_application(&self) -> anyhow::Result<DoctorApplication> {
-        let doctor = infiltrator_core::doctor_port::MihomoDoctor::detect()?;
-        Ok(DoctorApplication::new(Arc::new(doctor)))
-    }
+    async fn profile_application(&self) -> anyhow::Result<ProfileApplication>;
+    async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication>;
+    async fn doctor_application(&self) -> anyhow::Result<DoctorApplication>;
+    async fn profile_reset_application(&self) -> anyhow::Result<ProfileResetApplication>;
+    async fn cache_application(&self) -> anyhow::Result<CacheApplication>;
+    async fn subscription_source(&self) -> anyhow::Result<Arc<dyn SubscriptionSource>>;
+    async fn sync_application(&self) -> anyhow::Result<SyncApplication>;
 
     async fn rebuild_runtime(&self) -> anyhow::Result<()>;
+    async fn profile_controller_url(&self) -> anyhow::Result<Option<String>>;
     /// Restart the running core so config-level changes take effect, keeping
     /// the same runtime object. Defaults to a full [`Self::rebuild_runtime`];
     /// hosts owning a live `infiltrator_application::CoreApplication` override
@@ -70,26 +67,13 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     fn supports_system_proxy_control(&self) -> bool;
     fn supports_autostart_control(&self) -> bool;
 
-    /// 读取 OS keyring 中的 WebDAV 密码（`webdav:password`）。宿主默认走
-    /// [`mihomo_platform::defaults::DefaultCredentialStore`]，可覆盖注入内存
-    /// 实现以便测试；读取失败归一为 `None`，调用方无需处理错误。
-    async fn webdav_password(&self) -> Option<String> {
-        infiltrator_core::settings_io::load_webdav_password(
-            &mihomo_platform::defaults::DefaultCredentialStore::default(),
-        )
-        .await
-    }
+    /// Read the host credential used by WebDAV. The REST layer never chooses
+    /// a keyring implementation; each host supplies this capability.
+    async fn webdav_password(&self) -> Option<String>;
 
-    /// 把 WebDAV 密码写入 OS keyring。失败返回 `Err`（调用方应让保存请求
-    /// 失败，避免「其余设置已更新而凭据丢失」的不一致）。宿主可覆盖注入
-    /// 测试实现。
-    async fn set_webdav_password(&self, password: &str) -> anyhow::Result<()> {
-        infiltrator_core::settings_io::save_webdav_password(
-            &mihomo_platform::defaults::DefaultCredentialStore::default(),
-            password,
-        )
-        .await
-    }
+    /// Persist the host credential used by WebDAV. A failed write must abort
+    /// the settings update so the file and keyring cannot diverge silently.
+    async fn set_webdav_password(&self, password: &str) -> anyhow::Result<()>;
 }
 
 #[derive(Default)]
@@ -196,8 +180,6 @@ impl RuntimeTrafficState {
 #[derive(Clone)]
 pub struct AdminApiState<C> {
     pub ctx: C,
-    pub http_client: HttpClient,
-    pub raw_http_client: HttpClient,
     pub rebuild_status: Arc<RebuildStatus>,
     pub runtime_traffic: Arc<Mutex<RuntimeTrafficState>>,
     pub events: AdminEventBus,
@@ -215,8 +197,6 @@ impl<C: AdminApiContext> AdminApiState<C> {
     }
 
     pub fn with_auth_token(ctx: C, events: AdminEventBus, auth_token: Option<String>) -> Self {
-        let http_client = build_http_client();
-        let raw_http_client = build_raw_http_client(&http_client);
         let rebuild_status = Arc::new(RebuildStatus::default());
         let runtime_traffic = Arc::new(Mutex::new(RuntimeTrafficState::default()));
         let auth_token = auth_token
@@ -224,8 +204,6 @@ impl<C: AdminApiContext> AdminApiState<C> {
             .filter(|t| !t.is_empty());
         Self {
             ctx,
-            http_client,
-            raw_http_client,
             rebuild_status,
             runtime_traffic,
             events,

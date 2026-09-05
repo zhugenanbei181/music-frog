@@ -1,22 +1,20 @@
 //! WebDAV backup surface: credential/settings storage and validation plus
 //! the on-demand sync run driven by the sync engine planner/executor.
 
-use std::path::PathBuf;
+use std::sync::Arc;
 
-use dav_client::DavClient;
-use dav_client::client::WebDavClient;
+use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_core::settings_io::{
     clear_webdav_password, load_settings, load_settings_hydrated_with_store, save_settings,
     save_webdav_password, settings_path,
 };
+use infiltrator_core::sync_port::FileWebDavSync;
 use infiltrator_domain::settings::{AppSettings, WebDavConfig};
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
-use state_store::StateStore;
-use sync_engine::{SyncPlanner, executor::SyncExecutor};
 
-use super::support::{get_runtime, map_anyhow_error, map_mihomo_error};
+use super::support::{get_runtime, map_anyhow_error, map_application_failure, map_mihomo_error};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
 // --- WebDAV API ---
@@ -182,26 +180,19 @@ async fn save_webdav_settings_in<S: SecureStore>(
 
 async fn test_webdav_settings(settings: WebDavSettings) -> FfiStatus {
     crate::tls::ensure_rustls_provider();
-    let config = webdav_settings_to_core(settings);
-    if let Err(status) = validate_webdav_config(&config) {
-        return status;
-    }
-    let dav = match WebDavClient::new(&config.url, &config.username, &config.password) {
-        Ok(client) => client,
-        Err(err) => {
-            return FfiStatus::err(
-                FfiErrorCode::InvalidInput,
-                format!("invalid WebDAV config: {err}"),
-            );
-        }
+    let home = match get_home_dir() {
+        Ok(home) => home,
+        Err(err) => return map_mihomo_error(err),
     };
-    match dav.list("/").await {
-        Ok(_) => FfiStatus::ok(),
-        Err(err) => FfiStatus::err(
-            FfiErrorCode::Network,
-            format!("connection test failed: {err}"),
-        ),
-    }
+    let application = SyncApplication::new(Arc::new(FileWebDavSync::new(
+        home,
+        DefaultCredentialStore::default(),
+    )));
+    application
+        .test(webdav_settings_to_core(settings))
+        .await
+        .map(|_| FfiStatus::ok())
+        .unwrap_or_else(map_application_failure)
 }
 
 #[derive(Debug, Default)]
@@ -213,73 +204,32 @@ struct WebDavSyncSummary {
 
 async fn sync_webdav_now() -> Result<WebDavSyncSummary, FfiStatus> {
     let home = get_home_dir().map_err(map_mihomo_error)?;
-    sync_webdav_now_in(&home, &DefaultCredentialStore::default()).await
+    sync_webdav_now_in(&home, DefaultCredentialStore::default()).await
 }
 
 /// 同 [`sync_webdav_now`]，但 home 与 keyring 凭据存储由调用方注入。
 /// 密码经水合加载从 OS keyring 取回（settings.toml 已不携带明文）。
-async fn sync_webdav_now_in<S: SecureStore>(
+async fn sync_webdav_now_in<S: SecureStore + 'static>(
     home: &std::path::Path,
-    store: &S,
+    store: S,
 ) -> Result<WebDavSyncSummary, FfiStatus> {
     crate::tls::ensure_rustls_provider();
-    let settings = load_hydrated_app_settings_in(home, store).await?;
+    let settings = load_hydrated_app_settings_in(home, &store).await?;
     if !settings.webdav.enabled {
         return Err(FfiStatus::err(FfiErrorCode::NotReady, "WebDAV is disabled"));
     }
-    // 本地同步根跟随 configs 目录重定向（env > settings.configs_dir > home/configs）。
-    let local_root = mihomo_config::manager::paths::resolve_configs_dir_in(
-        settings.configs_dir.as_deref(),
-        home,
-    )
-    .map_err(map_mihomo_error)?;
-    run_webdav_sync(&settings.webdav, local_root, home).await
-}
-
-async fn run_webdav_sync(
-    config: &WebDavConfig,
-    local_root: PathBuf,
-    home: &std::path::Path,
-) -> Result<WebDavSyncSummary, FfiStatus> {
-    validate_webdav_config(config)?;
-    let dav =
-        WebDavClient::new(&config.url, &config.username, &config.password).map_err(|err| {
-            FfiStatus::err(
-                FfiErrorCode::InvalidInput,
-                format!("invalid WebDAV config: {err}"),
-            )
-        })?;
-
-    if !local_root.exists() {
-        tokio::fs::create_dir_all(&local_root)
-            .await
-            .map_err(|e| FfiStatus::err(FfiErrorCode::Io, e.to_string()))?;
-    }
-    let db_path = home.join("sync_state.db").to_string_lossy().to_string();
-    let store = StateStore::new(&db_path).await.map_err(map_anyhow_error)?;
-
-    let planner = SyncPlanner::new(local_root, "/".to_string(), &dav, &store);
-    let actions = planner.build_plan().await.map_err(map_anyhow_error)?;
-
-    if actions.is_empty() {
-        return Ok(WebDavSyncSummary::default());
-    }
-
-    let executor = SyncExecutor::new(&dav, &store);
-    let total_actions = actions.len();
-    let mut success_count = 0usize;
-    let mut failed_count = 0usize;
-    for action in actions {
-        match executor.execute(action).await {
-            Ok(()) => success_count = success_count.saturating_add(1),
-            Err(_) => failed_count = failed_count.saturating_add(1),
-        }
-    }
-
+    let application = SyncApplication::new(Arc::new(FileWebDavSync::new(
+        home.to_path_buf(),
+        store,
+    )));
+    let report = application
+        .sync(settings.webdav, settings.configs_dir)
+        .await
+        .map_err(map_application_failure)?;
     Ok(WebDavSyncSummary {
-        success_count,
-        failed_count,
-        total_actions,
+        success_count: report.success_count as usize,
+        failed_count: report.failed_count as usize,
+        total_actions: report.total_actions as usize,
     })
 }
 
@@ -325,18 +275,6 @@ fn webdav_settings_to_core(settings: WebDavSettings) -> WebDavConfig {
         sync_interval_mins: settings.sync_interval_mins,
         sync_on_startup: settings.sync_on_startup,
     }
-}
-
-fn validate_webdav_config(
-    config: &WebDavConfig,
-) -> Result<(), FfiStatus> {
-    if config.url.trim().is_empty() {
-        return Err(FfiStatus::err(
-            FfiErrorCode::InvalidInput,
-            "WebDAV URL is empty",
-        ));
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -504,7 +442,7 @@ mod tests {
         let home = make_test_home("sync-disabled");
         let store = MemoryStore::default();
         // 未保存过任何设置：webdav.enabled 缺省 false。
-        let err = sync_webdav_now_in(&home, &store)
+        let err = sync_webdav_now_in(&home, store)
             .await
             .expect_err("disabled webdav must fail the sync");
         assert_eq!(err.code, FfiErrorCode::NotReady);

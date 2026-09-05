@@ -19,7 +19,6 @@ use crate::admin_api::models::{
     ApiError, ProfilesUpdateAllResponse, WebhookPayload, WebhookResponse,
 };
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
-use crate::support::app_config_manager;
 
 pub async fn handle_webhook_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
@@ -103,13 +102,15 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
             .ok_or_else(|| ApiError::bad_request("Profile name is required"))?;
 
         let name = ensure_valid_profile_name(profile_candidate)?;
-        let manager = app_config_manager()
+        let application = state
+            .ctx
+            .profile_application()
             .await
             .map_err(|e| ApiError::internal(e.to_string()))?;
-        manager
-            .set_current(&name)
+        application
+            .select_profile(&name)
             .await
-            .map_err(|e| ApiError::bad_request(e.to_string()))?;
+            .map_err(|failure| ApiError::bad_request(failure.message))?;
         schedule_core_restart(&state.ctx, &state.rebuild_status, "webhook-switch-profile");
         state
             .events
@@ -202,11 +203,7 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
         || raw_action == "UpdateSubscriptions"
         || raw_action == "UpdateAll"
     {
-        let summary = crate::scheduler::subscription::update_all_subscriptions(
-            &state.ctx,
-            &state.http_client,
-            &state.raw_http_client,
-        )
+        let summary = crate::scheduler::subscription::update_all_subscriptions(&state.ctx)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
         state

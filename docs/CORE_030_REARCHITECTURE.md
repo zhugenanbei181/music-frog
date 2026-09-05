@@ -32,6 +32,7 @@
 - [x] `NetworkApplication` / `PublicIpProbe` 已统一出口 IP 探测，页面不再直接构造 Reqwest；Fake-IP cache 作为独立 host IO adapter 保留。
 - [x] `RoutingApplication` / `AppRoutingStore` 已统一应用路由配置的加载、保存、模式和包开关；Android 自身包排除仍留在 Android host 规则内。
 - [x] `DoctorApplication` / `DoctorPort` 已统一 doctor 检查、修复、解释和 bootstrap 结果；跨端结果落在 contract，core 只提供 Mihomo doctor host adapter，Admin、CLI、Android FFI 已接入。
+- [ ] `SyncApplication` / `SyncPort` 统一 WebDAV 全量同步与测试；Admin、Android、CLI 正在迁移，Iced 的上传/下载/冲突流仍待拆成同一套 port 能力。
 - [x] Iced runtime handle 已收敛为 `HostRuntime` trait object；desktop 的具体 `MihomoRuntime` 只在 boot composition 中构造，UI 仅消费 gateway、generation、apply 与 typed host capability。
 - [x] `InfiltratorError` 已移入 `infiltrator-contract`；Mihomo/IO 适配通过显式边界转换，不再从 core 暴露 transport error 类型。
 - [x] profile projection (`ProfileInfo` / `ProfileDetail`) 与 profile name 校验已移入 `infiltrator-domain::profiles`。

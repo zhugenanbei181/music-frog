@@ -26,14 +26,18 @@ use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
 use infiltrator_admin::admin_api::state::AdminApiContext;
+use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_admin::servers::AdminServerHandle;
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_version::manager::VersionManager;
 
 use crate::state::AppState;
@@ -440,6 +444,39 @@ impl AdminApiContext for IcedAdminContext {
     async fn doctor_application(&self) -> anyhow::Result<DoctorApplication> {
         let doctor = infiltrator_desktop::storage::doctor()?;
         Ok(DoctorApplication::new(Arc::new(doctor)))
+    }
+
+    async fn profile_controller_url(&self) -> anyhow::Result<Option<String>> {
+        Ok(infiltrator_desktop::storage::profile_controller_url()
+            .await
+            .ok())
+    }
+
+    async fn profile_reset_application(&self) -> anyhow::Result<ProfileResetApplication> {
+        let reset = infiltrator_desktop::storage::profile_reset();
+        Ok(ProfileResetApplication::new(Arc::new(reset)))
+    }
+
+    async fn cache_application(&self) -> anyhow::Result<CacheApplication> {
+        let cache = infiltrator_desktop::storage::fake_ip_cache();
+        Ok(CacheApplication::new(Arc::new(cache)))
+    }
+
+    async fn subscription_source(&self) -> anyhow::Result<Arc<dyn SubscriptionSource>> {
+        Ok(Arc::new(infiltrator_desktop::storage::subscription_source()))
+    }
+
+    async fn sync_application(&self) -> anyhow::Result<SyncApplication> {
+        let sync = infiltrator_desktop::storage::sync()?;
+        Ok(SyncApplication::new(Arc::new(sync)))
+    }
+
+    async fn webdav_password(&self) -> Option<String> {
+        infiltrator_desktop::storage::webdav_password().await
+    }
+
+    async fn set_webdav_password(&self, password: &str) -> anyhow::Result<()> {
+        infiltrator_desktop::storage::save_webdav_password(password).await
     }
 
     async fn rebuild_runtime(&self) -> anyhow::Result<()> {
