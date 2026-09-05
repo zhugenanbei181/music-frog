@@ -776,5 +776,5 @@ pub fn build_smooth_area(points: &[Point], height: f32) -> canvas::Path {
 }
 
 #[cfg(test)]
-#[path = "traffic_tests.rs"]
+#[path = "../../../tests/gui/view_runtime_traffic_tests.rs"]
 mod tests;

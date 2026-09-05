@@ -701,7 +701,7 @@ pub fn row_card_surface(t: &Theme) -> container::Style {
 }
 
 #[cfg(test)]
-#[path = "components/tests.rs"]
+#[path = "../../tests/gui/view_components_tests.rs"]
 mod tests;
 
 /// Compact icon button for the responsive rail mode sidebar.
