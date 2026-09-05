@@ -6,15 +6,76 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::{Task, stream};
+use infiltrator_contract::version::{CoreReleaseChannel, VersionDownloadProgress};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::version::VersionProgressSink;
 use infiltrator_shared::locales::Localizer;
-use mihomo_version::channel::{Channel, fetch_latest};
-use mihomo_version::manager::VersionManager;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+struct IcedVersionProgressSink {
+    output: std::sync::Mutex<iced::futures::channel::mpsc::Sender<Message>>,
+    cancel: Arc<AtomicBool>,
+    token: u64,
+    previous: std::sync::Mutex<(Instant, u64)>,
+}
+
+impl IcedVersionProgressSink {
+    fn new(
+        output: iced::futures::channel::mpsc::Sender<Message>,
+        cancel: Arc<AtomicBool>,
+        token: u64,
+    ) -> Self {
+        Self {
+            output: std::sync::Mutex::new(output),
+            cancel,
+            token,
+            previous: std::sync::Mutex::new((Instant::now(), 0)),
+        }
+    }
+}
+
+impl VersionProgressSink for IcedVersionProgressSink {
+    fn progress(&self, progress: VersionDownloadProgress) {
+        let mut previous = self.previous.lock().expect("version progress lock");
+        let now = Instant::now();
+        let elapsed = now.saturating_duration_since(previous.0).as_secs_f64();
+        let speed_bytes = if elapsed > 0.0 {
+            progress.downloaded.saturating_sub(previous.1) as f64 / elapsed
+        } else {
+            0.0
+        } as u64;
+        *previous = (now, progress.downloaded);
+        if let Ok(mut output) = self.output.lock() {
+            let _ = output.try_send(Message::CoreDownloadProgress(
+                crate::types::app::CoreDownloadProgress {
+                    downloaded: progress.downloaded,
+                    total: progress.total,
+                    speed_bytes,
+                },
+                self.token,
+            ));
+        }
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.cancel.load(Ordering::Acquire)
+    }
+}
+
+fn version_application() -> Result<infiltrator_application::version_application::VersionApplication, InfiltratorError> {
+    crate::version_application::application()
+}
+
+fn parse_release_channel(value: &str) -> CoreReleaseChannel {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "beta" => CoreReleaseChannel::Beta,
+        "nightly" | "alpha" => CoreReleaseChannel::Nightly,
+        _ => CoreReleaseChannel::Stable,
+    }
+}
 
 impl AppState {
     /// Kernel download/management. This is the last domain in the
@@ -24,13 +85,13 @@ impl AppState {
         match message {
             Message::CheckCoreUpdate => {
                 self.runtime.is_checking_update = true;
-                let channel =
-                    Channel::from_str(&self.runtime.core_channel).unwrap_or(Channel::Stable);
+                let channel = parse_release_channel(&self.runtime.core_channel);
                 Task::perform(
                     async move {
-                        fetch_latest(channel)
+                        version_application()?
+                            .latest(channel)
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)
+                            .map_err(|failure| InfiltratorError::Download(failure.message))
                             .map(|info| info.version)
                     },
                     Message::CoreUpdateInfo,
@@ -51,7 +112,10 @@ impl AppState {
                 }
             }
             Message::SetCoreChannel(channel) => {
-                if Channel::from_str(&channel).is_ok() {
+                if matches!(
+                    channel.trim().to_ascii_lowercase().as_str(),
+                    "stable" | "beta" | "nightly" | "alpha"
+                ) {
                     self.runtime.core_channel = channel.to_ascii_lowercase();
                 }
                 Task::none()
@@ -65,60 +129,28 @@ impl AppState {
                 let cancel = Arc::new(AtomicBool::new(false));
                 self.runtime.core_download_cancel = Some(cancel.clone());
                 self.runtime.is_downloading_core = true;
+                let application = match version_application() {
+                    Ok(application) => application,
+                    Err(error) => {
+                        return Task::done(Message::CoreDownloadFinished(Err(error), token));
+                    }
+                };
                 let stream = stream::channel(
                     100,
                     move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                        let vm = match VersionManager::new() {
-                            Ok(v) => v,
-                            Err(e) => {
-                                let _ = output.try_send(Message::CoreDownloadFinished(
-                                    Err(infiltrator_contract::error::from_mihomo(e)),
-                                    token,
-                                ));
-                                return;
-                            }
-                        };
-
-                        let mut progress_output = output.clone();
-                        let mut previous_at = std::time::Instant::now();
-                        let mut previous_bytes = 0u64;
-                        let cancel_for_install = cancel.clone();
-                        match vm
-                            .install_with_progress_and_cancel(
-                                &version,
-                                move |progress| {
-                                    let now = std::time::Instant::now();
-                                    let elapsed =
-                                        now.saturating_duration_since(previous_at).as_secs_f64();
-                                    let speed_bytes = if elapsed > 0.0 {
-                                        progress.downloaded.saturating_sub(previous_bytes) as f64
-                                            / elapsed
-                                    } else {
-                                        0.0
-                                    } as u64;
-                                    previous_at = now;
-                                    previous_bytes = progress.downloaded;
-                                    let _ =
-                                        progress_output.try_send(Message::CoreDownloadProgress(
-                                            crate::types::app::CoreDownloadProgress {
-                                                downloaded: progress.downloaded,
-                                                total: progress.total,
-                                                speed_bytes,
-                                            },
-                                            token,
-                                        ));
-                                },
-                                move || cancel_for_install.load(Ordering::Acquire),
-                            )
-                            .await
-                        {
+                        let progress = Arc::new(IcedVersionProgressSink::new(
+                            output.clone(),
+                            cancel,
+                            token,
+                        ));
+                        match application.install(version.clone(), progress).await {
                             Ok(_) => {
                                 let _ = output
                                     .try_send(Message::CoreDownloadFinished(Ok(version), token));
                             }
-                            Err(e) => {
+                            Err(failure) => {
                                 let _ = output.try_send(Message::CoreDownloadFinished(
-                                    Err(infiltrator_contract::error::from_mihomo(e)),
+                                    Err(InfiltratorError::Download(failure.message)),
                                     token,
                                 ));
                             }
@@ -175,11 +207,10 @@ impl AppState {
             }
             Message::LoadKernels => Task::perform(
                 async {
-                    let vm =
-                        VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
-                    vm.list_installed()
+                    version_application()?
+                        .list_installed()
                         .await
-                        .map_err(infiltrator_contract::error::from_mihomo)
+                        .map_err(|failure| InfiltratorError::Download(failure.message))
                 },
                 Message::KernelsLoaded,
             ),
@@ -193,21 +224,19 @@ impl AppState {
             }
             Message::SetDefaultKernel(version) => Task::perform(
                 async move {
-                    let vm =
-                        VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
-                    vm.set_default(&version)
+                    version_application()?
+                        .activate(&version)
                         .await
-                        .map_err(infiltrator_contract::error::from_mihomo)
+                        .map_err(|failure| InfiltratorError::Download(failure.message))
                 },
                 Message::KernelOperationFinished,
             ),
             Message::DeleteKernel(version) => Task::perform(
                 async move {
-                    let vm =
-                        VersionManager::new().map_err(infiltrator_contract::error::from_mihomo)?;
-                    vm.uninstall(&version)
+                    version_application()?
+                        .uninstall(&version)
                         .await
-                        .map_err(infiltrator_contract::error::from_mihomo)
+                        .map_err(|failure| InfiltratorError::Download(failure.message))
                 },
                 Message::KernelOperationFinished,
             ),

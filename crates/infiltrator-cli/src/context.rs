@@ -6,6 +6,7 @@ use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_core::settings_store::FileSettingsStore;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::sync_application::SyncApplication;
+use infiltrator_application::version_application::VersionApplication;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::endpoint::EndpointSource as _;
 use infiltrator_ports::subscription_source::SubscriptionSource;
@@ -71,6 +72,13 @@ impl Runtime {
 
     pub fn version_manager(&self) -> mihomo_api::error::Result<VersionManager> {
         VersionManager::with_home(self.home.clone())
+    }
+
+    pub fn version_application(&self) -> anyhow::Result<VersionApplication> {
+        let version = infiltrator_core::version_port::MihomoVersionPort::with_home(
+            self.home.clone(),
+        )?;
+        Ok(VersionApplication::new(Arc::new(version)))
     }
 
     /// Resolved configs directory (same chain as [`Self::config_manager`]).

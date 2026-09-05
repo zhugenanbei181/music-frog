@@ -18,6 +18,7 @@ pub mod routing_application;
 pub mod settings_application;
 pub mod snapshot_application;
 pub mod sync_application;
+pub mod version_application;
 
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use std::future::Future;

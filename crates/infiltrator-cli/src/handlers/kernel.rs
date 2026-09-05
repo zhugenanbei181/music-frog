@@ -1,7 +1,5 @@
-use std::str::FromStr;
-
-use mihomo_version::channel::{Channel, ReleaseInfo, fetch_releases};
-use mihomo_version::manager::{VersionInfo, VersionManager};
+use infiltrator_application::version_application::{QuietVersionProgress, VersionApplication};
+use infiltrator_contract::version::{CoreReleaseChannel, CoreReleaseSummary, InstalledCoreVersion};
 
 use crate::commands::KernelAction;
 use crate::context::Runtime;
@@ -9,37 +7,50 @@ use crate::output::{self, print_info, print_success, print_table};
 
 pub(crate) async fn handle(action: KernelAction) -> anyhow::Result<()> {
     let runtime = Runtime::detect().await?;
-    let manager = runtime.version_manager()?;
+    let application = runtime.version_application()?;
     match action {
-        KernelAction::Install { target } => install(&manager, &target).await?,
+        KernelAction::Install { target } => install(&application, &target).await?,
         KernelAction::Use { version } => {
-            manager.set_default(&version).await?;
+            application.activate(&version).await.map_err(|failure| anyhow::anyhow!(failure.message))?;
             print_success(&format!("Default kernel version set to {version}"));
         }
-        KernelAction::List { json } => list(&manager, json).await?,
-        KernelAction::ListRemote { limit } => list_remote(limit).await?,
+        KernelAction::List { json } => list(&application, json).await?,
+        KernelAction::ListRemote { limit } => list_remote(&application, limit).await?,
         KernelAction::Uninstall { version } => {
-            manager.uninstall(&version).await?;
+            application.uninstall(&version).await.map_err(|failure| anyhow::anyhow!(failure.message))?;
             print_success(&format!("Uninstalled kernel version {version}"));
         }
-        KernelAction::UpdateStable => update_stable(&manager).await?,
+        KernelAction::UpdateStable => update_stable(&application).await?,
     }
     Ok(())
 }
 
 /// A target is a channel when it parses as one, otherwise a version tag.
-pub(crate) fn split_target(target: &str) -> Option<Channel> {
-    Channel::from_str(target).ok()
+pub(crate) fn split_target(target: &str) -> Option<CoreReleaseChannel> {
+    match target.trim().to_ascii_lowercase().as_str() {
+        "stable" => Some(CoreReleaseChannel::Stable),
+        "beta" => Some(CoreReleaseChannel::Beta),
+        "nightly" | "alpha" => Some(CoreReleaseChannel::Nightly),
+        _ => None,
+    }
 }
 
-async fn install(manager: &VersionManager, target: &str) -> anyhow::Result<()> {
+async fn install(application: &VersionApplication, target: &str) -> anyhow::Result<()> {
     match split_target(target) {
         Some(channel) => {
             print_info(&format!(
                 "Resolving latest {} channel release...",
                 channel.as_str()
             ));
-            let version = manager.install_channel(channel).await?;
+            let version = application
+                .latest(channel)
+                .await
+                .map_err(|failure| anyhow::anyhow!(failure.message))?
+                .version;
+            application
+                .install(version.clone(), std::sync::Arc::new(QuietVersionProgress))
+                .await
+                .map_err(|failure| anyhow::anyhow!(failure.message))?;
             print_success(&format!(
                 "Installed kernel {version} ({} channel)",
                 channel.as_str()
@@ -47,7 +58,10 @@ async fn install(manager: &VersionManager, target: &str) -> anyhow::Result<()> {
         }
         None => {
             print_info(&format!("Installing kernel {target}..."));
-            manager.install(target).await?;
+            application
+                .install(target.to_string(), std::sync::Arc::new(QuietVersionProgress))
+                .await
+                .map_err(|failure| anyhow::anyhow!(failure.message))?;
             print_success(&format!("Installed kernel {target}"));
         }
     }
@@ -56,18 +70,32 @@ async fn install(manager: &VersionManager, target: &str) -> anyhow::Result<()> {
 
 /// `update-stable`: the version crate has no dedicated update entry point, so
 /// update = install latest stable + make it default (mihomo-rs semantics).
-async fn update_stable(manager: &VersionManager) -> anyhow::Result<()> {
+async fn update_stable(application: &VersionApplication) -> anyhow::Result<()> {
     print_info("Resolving latest stable channel release...");
-    let version = manager.install_channel(Channel::Stable).await?;
-    manager.set_default(&version).await?;
+    let version = application
+        .latest(CoreReleaseChannel::Stable)
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))?
+        .version;
+    application
+        .install(version.clone(), std::sync::Arc::new(QuietVersionProgress))
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
+    application
+        .activate(&version)
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
     print_success(&format!(
         "Updated stable kernel to {version} and set it as default"
     ));
     Ok(())
 }
 
-async fn list(manager: &VersionManager, json: bool) -> anyhow::Result<()> {
-    let versions = manager.list_installed().await?;
+async fn list(application: &VersionApplication, json: bool) -> anyhow::Result<()> {
+    let versions = application
+        .list_installed()
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
     if json {
         output::print_json(&versions)?;
         return Ok(());
@@ -81,17 +109,20 @@ async fn list(manager: &VersionManager, json: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn version_row(info: &VersionInfo) -> Vec<String> {
+fn version_row(info: &InstalledCoreVersion) -> Vec<String> {
     vec![
         info.version.clone(),
         (if info.is_default { "yes" } else { "" }).to_string(),
-        info.path.display().to_string(),
+        info.path.clone(),
     ]
 }
 
-async fn list_remote(limit: usize) -> anyhow::Result<()> {
+async fn list_remote(application: &VersionApplication, limit: usize) -> anyhow::Result<()> {
     print_info(&format!("Fetching the {limit} latest upstream releases..."));
-    let releases = fetch_releases(limit).await?;
+    let releases = application
+        .list_releases(limit)
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
     if releases.is_empty() {
         print_info("No upstream releases found");
         return Ok(());
@@ -101,7 +132,7 @@ async fn list_remote(limit: usize) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn release_row(release: &ReleaseInfo) -> Vec<String> {
+fn release_row(release: &CoreReleaseSummary) -> Vec<String> {
     vec![
         release.version.clone(),
         release.name.clone(),
@@ -116,18 +147,18 @@ pub(crate) fn truncate(input: &str, max_chars: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use mihomo_version::channel::Channel;
+    use infiltrator_contract::version::CoreReleaseChannel;
 
     use super::{split_target, truncate, version_row};
-    use mihomo_version::manager::VersionInfo;
+    use infiltrator_contract::version::InstalledCoreVersion;
 
     #[test]
     fn channel_targets_are_recognized_case_insensitively() {
-        assert_eq!(split_target("stable"), Some(Channel::Stable));
-        assert_eq!(split_target("Stable"), Some(Channel::Stable));
-        assert_eq!(split_target("beta"), Some(Channel::Beta));
-        assert_eq!(split_target("alpha"), Some(Channel::Nightly));
-        assert_eq!(split_target("nightly"), Some(Channel::Nightly));
+        assert_eq!(split_target("stable"), Some(CoreReleaseChannel::Stable));
+        assert_eq!(split_target("Stable"), Some(CoreReleaseChannel::Stable));
+        assert_eq!(split_target("beta"), Some(CoreReleaseChannel::Beta));
+        assert_eq!(split_target("alpha"), Some(CoreReleaseChannel::Nightly));
+        assert_eq!(split_target("nightly"), Some(CoreReleaseChannel::Nightly));
     }
 
     #[test]
@@ -145,9 +176,9 @@ mod tests {
 
     #[test]
     fn version_row_marks_the_default() {
-        let info = VersionInfo {
+        let info = InstalledCoreVersion {
             version: "v1.19.18".to_string(),
-            path: "/x/versions/v1.19.18".into(),
+            path: "/x/versions/v1.19.18".to_string(),
             is_default: true,
         };
         let row = version_row(&info);

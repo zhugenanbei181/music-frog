@@ -19,7 +19,6 @@ infiltrator-shared = { path = "../infiltrator-shared" }
 log = { workspace = true }
 mihomo-config = { path = "../mihomo-config" }
 mihomo-platform = { path = "../mihomo-platform" }
-mihomo-version = { path = "../mihomo-version" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }

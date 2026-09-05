@@ -6,6 +6,7 @@
 
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::version::CoreReleaseChannel;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
@@ -21,6 +22,7 @@ use crate::routing_application::RoutingApplication;
 use crate::settings_application::SettingsApplication;
 use crate::snapshot_application::SnapshotApplication;
 use crate::sync_application::SyncApplication;
+use crate::version_application::VersionApplication;
 
 pub type CommandFuture = Pin<Box<dyn Future<Output = Result<(), Failure>> + Send + 'static>>;
 
@@ -41,6 +43,7 @@ pub struct CommandApplication {
     sync: Option<SyncApplication>,
     settings: Option<SettingsApplication>,
     snapshots: Option<SnapshotApplication>,
+    versions: Option<VersionApplication>,
 }
 
 impl CommandApplication {
@@ -90,6 +93,11 @@ impl CommandApplication {
 
     pub fn with_snapshots(mut self, application: SnapshotApplication) -> Self {
         self.snapshots = Some(application);
+        self
+    }
+
+    pub fn with_versions(mut self, application: VersionApplication) -> Self {
+        self.versions = Some(application);
         self
     }
 
@@ -198,6 +206,11 @@ impl CommandApplication {
                     .restore(self.managed_runtime.clone(), &profile, &path)
                     .await
             }
+            CommandIntent::CheckUpdates => {
+                let settings = self.settings()?.load().await?;
+                let channel = parse_release_channel(&settings.core_channel)?;
+                self.versions()?.latest(channel).await.map(|_| ())
+            }
             CommandIntent::UpdateSetting { key, value } => self.update_setting(&key, &value).await,
             CommandIntent::SetProxyMode { mode } => self
                 .runtime()?
@@ -215,7 +228,7 @@ impl CommandApplication {
             | CommandIntent::ToggleIncludeSystemApps { .. }
             | CommandIntent::ResolveConflictKeepLocal
             | CommandIntent::ResolveConflictTakeRemote
-            | CommandIntent::CheckUpdates => Err(unsupported()),
+            => Err(unsupported()),
         }
     }
 
@@ -287,6 +300,12 @@ impl CommandApplication {
         self.snapshots
             .clone()
             .ok_or_else(|| missing("snapshot application"))
+    }
+
+    fn versions(&self) -> Result<VersionApplication, Failure> {
+        self.versions
+            .clone()
+            .ok_or_else(|| missing("version application"))
     }
 }
 
@@ -370,6 +389,19 @@ fn parse_routing_rule(value: &str) -> Result<AppRoutingRule, Failure> {
         _ => Err(Failure::new(
             ErrorCode::InvalidInput,
             format!("unknown app routing rule {value}"),
+            false,
+        )),
+    }
+}
+
+fn parse_release_channel(value: &str) -> Result<CoreReleaseChannel, Failure> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "stable" => Ok(CoreReleaseChannel::Stable),
+        "beta" => Ok(CoreReleaseChannel::Beta),
+        "nightly" | "alpha" => Ok(CoreReleaseChannel::Nightly),
+        _ => Err(Failure::new(
+            ErrorCode::InvalidInput,
+            format!("unknown core release channel {value}"),
             false,
         )),
     }

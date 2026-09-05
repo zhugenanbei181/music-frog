@@ -11,6 +11,7 @@ pub mod error;
 pub mod intent;
 pub mod snapshot;
 pub mod sync;
+pub mod version;
 pub mod surface;
 
 #[cfg(test)]

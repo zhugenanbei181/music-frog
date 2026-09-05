@@ -16,8 +16,7 @@ use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup};
-use mihomo_version::manager::{VersionInfo, VersionManager};
-use std::path::PathBuf;
+use mihomo_version::manager::VersionManager;
 
 /// Journey 8 — 生命周期：StartProxy（无内核二进制）→ ProxyStarted(Err) →
 /// 错误横幅 + Critical 系统通知任务武装（不炸）→ StopProxy → ProxyStopped
@@ -143,11 +142,11 @@ fn kernel_management_round_trip_and_download_progress_tray_throttle() {
 
     // LoadKernels task body for real on an empty store.
     let versions = block_on(async {
-        VersionManager::new()
+        crate::version_application::application()
             .unwrap()
             .list_installed()
             .await
-            .unwrap()
+            .unwrap_or_else(|failure| panic!("list kernels: {}", failure.message))
     });
     assert!(versions.is_empty());
     let units = feed(&mut state, Message::KernelsLoaded(Ok(versions)));
@@ -171,11 +170,11 @@ fn kernel_management_round_trip_and_download_progress_tray_throttle() {
     assert_eq!(units, 1, "result chains LoadKernels");
 
     let versions = block_on(async {
-        VersionManager::new()
+        crate::version_application::application()
             .unwrap()
             .list_installed()
             .await
-            .unwrap()
+            .unwrap_or_else(|failure| panic!("list kernels: {}", failure.message))
     });
     assert_eq!(versions.len(), 1);
     assert!(
@@ -437,14 +436,14 @@ fn kernel_versions_flow_into_the_tray_spec_submenu() {
     let mut state = fresh_state();
     state.shell.lang = "zh-CN".into();
     state.runtime.installed_kernels = vec![
-        VersionInfo {
+        infiltrator_contract::version::InstalledCoreVersion {
             version: "v1.19.18".into(),
-            path: PathBuf::from("/versions/v1.19.18"),
+            path: "/versions/v1.19.18".into(),
             is_default: true,
         },
-        VersionInfo {
+        infiltrator_contract::version::InstalledCoreVersion {
             version: "v1.18.0".into(),
-            path: PathBuf::from("/versions/v1.18.0"),
+            path: "/versions/v1.18.0".into(),
             is_default: false,
         },
     ];

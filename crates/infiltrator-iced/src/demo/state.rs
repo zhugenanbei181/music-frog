@@ -12,7 +12,7 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider, TrafficData};
-use mihomo_version::manager::VersionInfo;
+use infiltrator_contract::version::InstalledCoreVersion;
 use std::path::PathBuf;
 
 impl AppState {
@@ -251,14 +251,14 @@ impl AppState {
             diff.picks.insert("dns".to_string(), true);
         }
         state.runtime.installed_kernels = vec![
-            VersionInfo {
+            InstalledCoreVersion {
                 version: "v1.19.12".to_string(),
-                path: PathBuf::from("/opt/musicfrog-infiltrator/versions/v1.19.12/mihomo"),
+                path: "/opt/musicfrog-infiltrator/versions/v1.19.12/mihomo".to_string(),
                 is_default: true,
             },
-            VersionInfo {
+            InstalledCoreVersion {
                 version: "v1.18.8".to_string(),
-                path: PathBuf::from("/opt/musicfrog-infiltrator/versions/v1.18.8/mihomo"),
+                path: "/opt/musicfrog-infiltrator/versions/v1.18.8/mihomo".to_string(),
                 is_default: false,
             },
         ];

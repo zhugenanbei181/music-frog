@@ -2,7 +2,8 @@
 //! (`/admin/api/core/*`).
 
 use axum::{Json, http::StatusCode};
-use mihomo_version::manager::VersionManager;
+use infiltrator_application::version_application::{QuietVersionProgress, VersionApplication};
+use infiltrator_contract::version::CoreReleaseChannel;
 
 use crate::admin_api::events::{AdminEvent, EVENT_CORE_CHANGED};
 use crate::admin_api::models::*;
@@ -11,16 +12,23 @@ use crate::admin_api::state::{AdminApiContext, AdminApiState};
 use super::schedule_rebuild;
 
 pub async fn list_core_versions_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<CoreVersionsResponse>, ApiError> {
-    let vm = VersionManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
-    let versions = vm
+    let application = state
+        .ctx
+        .version_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    let versions = application
         .list_installed()
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
-    let mut list: Vec<String> = versions.into_iter().map(|v| v.version).collect();
+        .map_err(|failure| ApiError::internal(failure.message))?;
+    let mut list: Vec<String> = versions.iter().map(|version| version.version.clone()).collect();
     sort_versions_desc(&mut list);
-    let current = vm.get_default().await.ok();
+    let current = versions
+        .into_iter()
+        .find(|version| version.is_default)
+        .map(|version| version.version);
     Ok(Json(CoreVersionsResponse {
         current,
         versions: list,
@@ -32,9 +40,13 @@ pub async fn get_latest_stable_core_http<C: AdminApiContext>(
 ) -> Result<Json<CoreLatestStableResponse>, ApiError> {
     let (version, release_date) = state
         .ctx
-        .latest_stable_core()
+        .version_application()
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .latest(CoreReleaseChannel::Stable)
+        .await
+        .map(|release| (release.version, release.release_date))
+        .map_err(|failure| ApiError::internal(failure.message))?;
     Ok(Json(CoreLatestStableResponse {
         version,
         release_date,
@@ -49,8 +61,12 @@ pub async fn download_core_version_http<C: AdminApiContext>(
     if version.is_empty() {
         return Err(ApiError::bad_request("版本不能为空"));
     }
-    let vm = VersionManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
-    let outcome = ensure_core_version_installed(&vm, &version).await?;
+    let application = state
+        .ctx
+        .version_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    let outcome = ensure_core_version_installed(&application, &version).await?;
     state.events.publish(AdminEvent::new(EVENT_CORE_CHANGED));
     Ok(Json(CoreDownloadResponse {
         version,
@@ -62,18 +78,27 @@ pub async fn download_core_version_http<C: AdminApiContext>(
 pub async fn update_stable_core_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<CoreUpdateStableResponse>, ApiError> {
-    let (version, _release_date) = state
+    let release = state
         .ctx
-        .latest_stable_core()
+        .version_application()
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
-    let vm = VersionManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
-    let outcome = ensure_core_version_installed(&vm, &version).await?;
+        .map_err(|error| ApiError::internal(error.to_string()))?
+        .latest(CoreReleaseChannel::Stable)
+        .await
+        .map_err(|failure| ApiError::internal(failure.message))?;
+    let version = release.version;
+    let application = state
+        .ctx
+        .version_application()
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    let outcome = ensure_core_version_installed(&application, &version).await?;
 
     state.ctx.set_use_bundled_core(false).await;
-    vm.set_default(&version)
+    application
+        .activate(&version)
         .await
-        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+        .map_err(|failure| ApiError::bad_request(failure.message))?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "core-update-stable");
     state.ctx.refresh_core_version_info().await;
     state.events.publish(AdminEvent::new(EVENT_CORE_CHANGED));
@@ -94,11 +119,16 @@ pub async fn activate_core_version_http<C: AdminApiContext>(
     if version.is_empty() {
         return Err(ApiError::bad_request("版本不能为空"));
     }
-    let vm = VersionManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
-    state.ctx.set_use_bundled_core(false).await;
-    vm.set_default(version)
+    let application = state
+        .ctx
+        .version_application()
         .await
-        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    state.ctx.set_use_bundled_core(false).await;
+    application
+        .activate(version)
+        .await
+        .map_err(|failure| ApiError::bad_request(failure.message))?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "core-activate");
     state.ctx.refresh_core_version_info().await;
     state.events.publish(AdminEvent::new(EVENT_CORE_CHANGED));
@@ -111,13 +141,13 @@ struct CoreInstallOutcome {
 }
 
 async fn ensure_core_version_installed(
-    vm: &VersionManager,
+    application: &VersionApplication,
     version: &str,
 ) -> Result<CoreInstallOutcome, ApiError> {
-    let installed = vm
+    let installed = application
         .list_installed()
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|failure| ApiError::internal(failure.message))?;
     if installed.iter().any(|item| item.version == version) {
         return Ok(CoreInstallOutcome {
             downloaded: false,
@@ -125,18 +155,21 @@ async fn ensure_core_version_installed(
         });
     }
 
-    if let Err(err) = vm.install_with_progress(version, |_| {}).await {
-        let installed_after = vm
+    if let Err(failure) = application
+        .install(version.to_string(), std::sync::Arc::new(QuietVersionProgress))
+        .await
+    {
+        let installed_after = application
             .list_installed()
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|failure| ApiError::internal(failure.message))?;
         if installed_after.iter().any(|item| item.version == version) {
             return Ok(CoreInstallOutcome {
                 downloaded: false,
                 already_installed: true,
             });
         }
-        return Err(ApiError::bad_request(err.to_string()));
+        return Err(ApiError::bad_request(failure.message));
     }
 
     Ok(CoreInstallOutcome {

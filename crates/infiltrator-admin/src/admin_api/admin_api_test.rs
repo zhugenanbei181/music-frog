@@ -35,8 +35,6 @@ mod tests {
     struct MockContext {
         rebuild_count: Arc<Mutex<usize>>,
         runtime_url: Option<String>,
-        latest_stable_version: String,
-        latest_stable_date: String,
         settings: Arc<Mutex<AppSettings>>,
         /// 内存版 WebDAV 密码库（替代真实 OS keyring，测试零外部依赖）。
         secrets: Arc<Mutex<std::collections::HashMap<String, String>>>,
@@ -102,6 +100,13 @@ mod tests {
             crate::support::sync_application()
         }
 
+        async fn version_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::version_application::VersionApplication>
+        {
+            crate::support::version_application()
+        }
+
         async fn profile_controller_url(&self) -> anyhow::Result<Option<String>> {
             Ok(crate::support::app_config_manager()
                 .await?
@@ -117,12 +122,6 @@ mod tests {
         }
         async fn set_use_bundled_core(&self, _enabled: bool) {}
         async fn refresh_core_version_info(&self) {}
-        async fn latest_stable_core(&self) -> anyhow::Result<(String, String)> {
-            Ok((
-                self.latest_stable_version.clone(),
-                self.latest_stable_date.clone(),
-            ))
-        }
         async fn notify_subscription_update(&self, _p: String, _s: bool, _m: Option<String>) {}
         async fn editor_path(&self) -> Option<String> {
             None
@@ -210,8 +209,6 @@ mod tests {
         let ctx = MockContext {
             rebuild_count: Arc::new(Mutex::new(0)),
             runtime_url,
-            latest_stable_version: "v1.20.0".to_string(),
-            latest_stable_date: "2026-01-01T00:00:00Z".to_string(),
             settings: Arc::new(Mutex::new(AppSettings::default())),
             secrets: Arc::new(Mutex::new(std::collections::HashMap::new())),
         };
@@ -225,8 +222,6 @@ mod tests {
         let ctx = MockContext {
             rebuild_count: Arc::new(Mutex::new(0)),
             runtime_url: None,
-            latest_stable_version: "v1.20.0".to_string(),
-            latest_stable_date: "2026-01-01T00:00:00Z".to_string(),
             settings: Arc::new(Mutex::new(AppSettings::default())),
             secrets: Arc::new(Mutex::new(std::collections::HashMap::new())),
         };

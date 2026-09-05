@@ -4934,7 +4934,6 @@ dependencies = [
  "mihomo-api",
  "mihomo-config",
  "mihomo-platform",
- "mihomo-version",
  "mockito",
  "serde",
  "serde_json",

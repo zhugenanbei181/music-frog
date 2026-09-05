@@ -29,7 +29,7 @@ use infiltrator_domain::runtime::{
 };
 use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
-use mihomo_version::manager::VersionInfo;
+use infiltrator_contract::version::InstalledCoreVersion;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -85,7 +85,7 @@ pub struct RuntimeState {
     pub new_node_credential: String,
     pub new_node_cipher: String,
     pub new_node_tls: bool,
-    pub installed_kernels: Vec<VersionInfo>,
+    pub installed_kernels: Vec<InstalledCoreVersion>,
     pub latest_core_version: Option<String>,
     pub core_channel: String,
     pub download_progress: f32,

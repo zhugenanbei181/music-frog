@@ -18,7 +18,7 @@ use infiltrator_domain::runtime::{
 };
 use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_ports::host_runtime::HostRuntime;
-use mihomo_version::manager::VersionInfo;
+use infiltrator_contract::version::InstalledCoreVersion;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -344,7 +344,7 @@ pub enum Message {
     CloseSyncDiff,
     OpenConfigDirFinished(Result<(), InfiltratorError>),
     LoadKernels,
-    KernelsLoaded(Result<Vec<VersionInfo>, InfiltratorError>),
+    KernelsLoaded(Result<Vec<InstalledCoreVersion>, InfiltratorError>),
     CheckCoreUpdate,
     CoreUpdateInfo(Result<String, InfiltratorError>), // Latest version string
     SetCoreChannel(String),

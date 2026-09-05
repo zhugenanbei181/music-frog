@@ -80,6 +80,13 @@ mod tests {
             crate::support::sync_application()
         }
 
+        async fn version_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::version_application::VersionApplication>
+        {
+            crate::support::version_application()
+        }
+
         async fn profile_controller_url(&self) -> anyhow::Result<Option<String>> {
             Ok(None)
         }
@@ -110,9 +117,6 @@ mod tests {
 
         async fn set_use_bundled_core(&self, _enabled: bool) {}
         async fn refresh_core_version_info(&self) {}
-        async fn latest_stable_core(&self) -> anyhow::Result<(String, String)> {
-            Ok(("v1.20.0".to_string(), "2026-01-01T00:00:00Z".to_string()))
-        }
         async fn editor_path(&self) -> Option<String> {
             None
         }

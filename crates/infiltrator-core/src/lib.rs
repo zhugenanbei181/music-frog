@@ -22,3 +22,4 @@ pub mod smoke_e2e;
 pub mod snapshot_io;
 pub mod subscription_io;
 pub mod sync_port;
+pub mod version_port;

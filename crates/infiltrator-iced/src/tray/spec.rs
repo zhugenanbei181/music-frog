@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 
 use infiltrator_domain::profiles::ProfileInfo;
-use mihomo_version::manager::VersionInfo;
+use infiltrator_contract::version::InstalledCoreVersion;
 
 /// Stable menu action id, shared by the spec builder, both backends and the
 /// update handlers. Never reuse a number; the mapping is part of the contract.
@@ -411,7 +411,7 @@ pub struct TraySpecContext<'a> {
     /// Proxy group snapshots (at most [`TRAY_MAX_GROUPS`], GLOBAL first).
     pub groups: &'a [TrayProxyGroup],
     pub profiles: &'a [ProfileInfo],
-    pub kernels: &'a [VersionInfo],
+    pub kernels: &'a [InstalledCoreVersion],
     pub status: TrayCoreStatus,
     pub core_checking: bool,
     pub core_downloading: bool,

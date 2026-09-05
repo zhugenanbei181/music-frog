@@ -24,6 +24,7 @@ pub mod tray;
 pub mod types;
 pub mod update;
 pub mod utils;
+pub mod version_application;
 pub mod view;
 pub mod view_root;
 

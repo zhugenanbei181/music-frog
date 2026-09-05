@@ -18,6 +18,8 @@ use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
 #[cfg(test)]
 use infiltrator_application::sync_application::SyncApplication;
+#[cfg(test)]
+use infiltrator_application::version_application::VersionApplication;
 use infiltrator_core::settings_io as settings;
 use infiltrator_domain::settings::AppSettings;
 use mihomo_config::manager::ConfigManager;
@@ -90,6 +92,12 @@ pub(crate) fn subscription_source() -> Arc<dyn infiltrator_ports::subscription_s
 pub(crate) fn sync_application() -> anyhow::Result<SyncApplication> {
     let sync = infiltrator_core::sync_port::FileWebDavSync::current()?;
     Ok(SyncApplication::new(Arc::new(sync)))
+}
+
+#[cfg(test)]
+pub(crate) fn version_application() -> anyhow::Result<VersionApplication> {
+    let version = infiltrator_core::version_port::MihomoVersionPort::current()?;
+    Ok(VersionApplication::new(Arc::new(version)))
 }
 
 /// configs 目录路径解析，优先级与 [`app_config_manager`] 一致

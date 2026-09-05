@@ -25,6 +25,7 @@ pub mod settings_store;
 pub mod subscription_source;
 pub mod runtime_gateway;
 pub mod sync;
+pub mod version;
 
 #[cfg(test)]
 mod tests {

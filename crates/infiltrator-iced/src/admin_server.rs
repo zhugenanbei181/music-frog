@@ -33,6 +33,7 @@ use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
+use infiltrator_application::version_application::VersionApplication;
 use infiltrator_admin::servers::AdminServerHandle;
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
 use infiltrator_ports::host_runtime::HostRuntime;
@@ -471,6 +472,11 @@ impl AdminApiContext for IcedAdminContext {
         Ok(SyncApplication::new(Arc::new(sync)))
     }
 
+    async fn version_application(&self) -> anyhow::Result<VersionApplication> {
+        let version = infiltrator_desktop::storage::version()?;
+        Ok(VersionApplication::new(Arc::new(version)))
+    }
+
     async fn webdav_password(&self) -> Option<String> {
         infiltrator_desktop::storage::webdav_password().await
     }
@@ -519,12 +525,6 @@ impl AdminApiContext for IcedAdminContext {
 
     async fn refresh_core_version_info(&self) {
         self.shared.send(AdminHostCommand::CoreVersionsChanged);
-    }
-
-    async fn latest_stable_core(&self) -> anyhow::Result<(String, String)> {
-        let latest =
-            mihomo_version::channel::fetch_latest(mihomo_version::channel::Channel::Stable).await?;
-        Ok((latest.version, latest.release_date))
     }
 
     async fn notify_subscription_update(

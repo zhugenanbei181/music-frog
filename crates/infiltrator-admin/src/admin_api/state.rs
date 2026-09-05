@@ -12,6 +12,7 @@ use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::sync_application::SyncApplication;
+use infiltrator_application::version_application::VersionApplication;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
@@ -29,6 +30,7 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn cache_application(&self) -> anyhow::Result<CacheApplication>;
     async fn subscription_source(&self) -> anyhow::Result<Arc<dyn SubscriptionSource>>;
     async fn sync_application(&self) -> anyhow::Result<SyncApplication>;
+    async fn version_application(&self) -> anyhow::Result<VersionApplication>;
 
     async fn rebuild_runtime(&self) -> anyhow::Result<()>;
     async fn profile_controller_url(&self) -> anyhow::Result<Option<String>>;
@@ -43,7 +45,6 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     }
     async fn set_use_bundled_core(&self, enabled: bool);
     async fn refresh_core_version_info(&self);
-    async fn latest_stable_core(&self) -> anyhow::Result<(String, String)>;
     async fn notify_subscription_update(
         &self,
         profile: String,

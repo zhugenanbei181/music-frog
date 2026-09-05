@@ -17,8 +17,7 @@ use crate::types::app::Route;
 use crate::types::message::Message;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup, ProxyHistory, Shadowsocks};
-use mihomo_version::manager::VersionInfo;
-use std::path::PathBuf;
+use infiltrator_contract::version::InstalledCoreVersion;
 use std::sync::mpsc;
 
 // Pure spec-side coverage (layout, labels, codecs, resolution).
@@ -86,10 +85,10 @@ fn test_profile(name: &str, active: bool, auto_update: bool) -> ProfileInfo {
     profile
 }
 
-fn test_kernel(version: &str, is_default: bool) -> VersionInfo {
-    VersionInfo {
+fn test_kernel(version: &str, is_default: bool) -> InstalledCoreVersion {
+    InstalledCoreVersion {
         version: version.to_string(),
-        path: PathBuf::from(format!("/tmp/kernels/{version}")),
+        path: format!("/tmp/kernels/{version}"),
         is_default,
     }
 }
