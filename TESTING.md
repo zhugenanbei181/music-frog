@@ -104,6 +104,8 @@ python3 scripts/quality/core-channel-guard.py --mode enforce
 python3 scripts/quality/kernel-integrity-guard.py --mode enforce
 # DUAL-01-06 本地内核版本历史、健康检查与双端回滚守卫
 python3 scripts/quality/kernel-rollback-guard.py --mode enforce
+# DUAL-01-07 external-controller secret 生成、Bearer 注入与双端状态守卫
+python3 scripts/quality/controller-auth-guard.py --mode enforce
 ```
 
 ---

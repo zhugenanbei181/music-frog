@@ -50,6 +50,7 @@ use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
     CoreReleaseChannel, CoreVersionSnapshot,
 };
+use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 
 fn create_test_app() -> App {
     let mut app = App::new();
@@ -352,6 +353,9 @@ fn settings_page_in_place_update() {
         core_integrity: CoreArtifactVerification::Verified {
             version: "v1.19.30".to_owned(),
         },
+        controller_auth: ControllerAuthSnapshot {
+            status: ControllerAuthStatus::Secured,
+        },
     };
 
     app.world_mut()
@@ -385,6 +389,10 @@ fn settings_page_in_place_update() {
         .iter(world)
         .find(|(_, l)| l.0 == SettingsLineKind::CoreIntegrity);
     assert_eq!(integrity_text.unwrap().0.0, "已验证 (v1.19.30)");
+    let auth_text = lines
+        .iter(world)
+        .find(|(_, l)| l.0 == SettingsLineKind::ControllerAuth);
+    assert_eq!(auth_text.unwrap().0.0, "已保护 · Bearer");
 }
 
 #[test]

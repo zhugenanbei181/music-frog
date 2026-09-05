@@ -34,8 +34,9 @@ use infiltrator_bevy_widgets::tabs::segmented_control_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::version::{
-    CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot,
+    CoreArtifactVerification, CoreVersionSnapshot,
 };
+use infiltrator_contract::controller::ControllerAuthSnapshot;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
@@ -78,6 +79,8 @@ pub enum SettingsLineKind {
     CoreIntegrity,
     /// Locally available core rollback target.
     CoreRollback,
+    /// Controller secret/header injection status.
+    ControllerAuth,
 }
 
 /// Marker for "Save Settings" button.
@@ -127,6 +130,7 @@ pub struct SettingsProjection {
     pub core_channel: String,
     pub core_versions: CoreVersionSnapshot,
     pub core_integrity: CoreArtifactVerification,
+    pub controller_auth: ControllerAuthSnapshot,
 }
 
 impl SettingsProjection {
@@ -144,6 +148,7 @@ impl SettingsProjection {
             core_channel: "stable".to_owned(),
             core_versions: CoreVersionSnapshot::default(),
             core_integrity: Default::default(),
+            controller_auth: Default::default(),
         }
     }
 }
@@ -482,7 +487,7 @@ pub fn general_card_scene(
 ) -> impl Scene + use<> {
     let mixed_port_str = format!("端口: {}", projection.mixed_port);
     let core_channel_str = format!("内核通道: {}", projection.core_channel);
-    let core_versions_str = format_core_versions(&projection.core_versions);
+    let core_versions_str = settings_core::format_core_versions(&projection.core_versions);
     let core_integrity_str = format_integrity(&projection.core_integrity);
 
     surface_scene(
@@ -523,6 +528,7 @@ pub fn general_card_scene(
                         ]
                     ),
                     ( { settings_core::core_rollback_row_scene(projection, palette) } ),
+                    ( { settings_core::controller_auth_row_scene(&projection.controller_auth, palette) } ),
                     (
                         Node {
                             width: percent(100),
@@ -610,25 +616,6 @@ pub fn general_card_scene(
         ],
         palette,
     )
-}
-
-fn format_core_versions(snapshot: &CoreVersionSnapshot) -> String {
-    if snapshot.channels.is_empty() {
-        return "未探测".to_owned();
-    }
-    snapshot
-        .channels
-        .iter()
-        .map(|channel| match &channel.status {
-            CoreChannelStatus::Ready { release } => {
-                format!("{}={}", channel.channel.as_str(), release.version)
-            }
-            CoreChannelStatus::Failed { .. } => {
-                format!("{}=不可用", channel.channel.as_str())
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" · ")
 }
 
 fn format_integrity(verification: &CoreArtifactVerification) -> String {
@@ -828,7 +815,7 @@ pub(crate) fn apply_settings_projection(
                 text.0 = format!("内核通道: {}", projection.core_channel);
             }
             SettingsLineKind::CoreVersions => {
-                text.0 = format_core_versions(&projection.core_versions);
+                text.0 = settings_core::format_core_versions(&projection.core_versions);
             }
             SettingsLineKind::CoreIntegrity => {
                 text.0 = format_integrity(&projection.core_integrity);
@@ -842,6 +829,9 @@ pub(crate) fn apply_settings_projection(
                     .map_or_else(|| "没有可回滚的本地内核".to_owned(), |version| {
                         format!("可回滚至 {version}")
                     });
+            }
+            SettingsLineKind::ControllerAuth => {
+                text.0 = settings_core::format_controller_auth(&projection.controller_auth);
             }
             }
         }

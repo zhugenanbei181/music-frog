@@ -15,7 +15,8 @@ use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::version::CoreArtifactVerification;
+use infiltrator_contract::version::{CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot};
+use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 
 use super::{
     CoreRollbackAvailability, CoreRollbackButton, CoreRollbackButtonLabel, SettingsLine,
@@ -90,4 +91,53 @@ pub(super) fn format_integrity(verification: &CoreArtifactVerification) -> Strin
             )
         }
     }
+}
+
+pub(super) fn controller_auth_row_scene(
+    snapshot: &ControllerAuthSnapshot,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let status = format_controller_auth(snapshot);
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect::all(Val::Px(space::S8)),
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ palette.surface_elevated })
+        Children [
+            ( Text({ "控制器认证 (Controller Auth)".to_owned() }) TextRole(Role::Body) ),
+            ( Text(status) SettingsLine(SettingsLineKind::ControllerAuth) TextRole(Role::Mono) ),
+        ]
+    })
+}
+
+pub(super) fn format_controller_auth(snapshot: &ControllerAuthSnapshot) -> String {
+    match snapshot.status {
+        ControllerAuthStatus::Unknown => "未探测".to_owned(),
+        ControllerAuthStatus::Secured => "已保护 · Bearer".to_owned(),
+        ControllerAuthStatus::Missing => "缺少 secret".to_owned(),
+        ControllerAuthStatus::Unavailable => "宿主不可用".to_owned(),
+    }
+}
+
+pub(super) fn format_core_versions(snapshot: &CoreVersionSnapshot) -> String {
+    if snapshot.channels.is_empty() {
+        return "未探测".to_owned();
+    }
+    snapshot
+        .channels
+        .iter()
+        .map(|channel| match &channel.status {
+            CoreChannelStatus::Ready { release } => {
+                format!("{}={}", channel.channel.as_str(), release.version)
+            }
+            CoreChannelStatus::Failed { .. } => {
+                format!("{}=不可用", channel.channel.as_str())
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
 }

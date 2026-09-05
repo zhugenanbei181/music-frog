@@ -88,6 +88,7 @@ pub(super) fn snapshot_from_overview(
         }),
         pages,
         versions: infiltrator_contract::version::CoreVersionSnapshot::default(),
+        controller_auth: infiltrator_contract::controller::ControllerAuthSnapshot::default(),
     }
 }
 
@@ -112,6 +113,7 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         failure: None,
         pages,
         versions: infiltrator_contract::version::CoreVersionSnapshot::default(),
+        controller_auth: infiltrator_contract::controller::ControllerAuthSnapshot::default(),
     }
 }
 
@@ -245,6 +247,7 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         core_channel: String::new(),
         core_versions: Default::default(),
         core_integrity: Default::default(),
+        controller_auth: Default::default(),
     }
 }
 

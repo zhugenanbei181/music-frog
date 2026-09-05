@@ -68,6 +68,7 @@ pub async fn application_surface_reader(
         Arc::new(crate::storage::snapshot_store().await?),
     );
     let versions = VersionApplication::new(Arc::new(crate::storage::version()?));
+    let endpoint_source = Arc::new(crate::storage::endpoint_source().await?);
 
     Ok(
         ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
@@ -79,7 +80,8 @@ pub async fn application_surface_reader(
             .with_routing(routing)
             .with_settings(settings)
             .with_snapshots(snapshots)
-            .with_versions(versions),
+            .with_versions(versions)
+            .with_endpoint_source(endpoint_source),
     )
 }
 

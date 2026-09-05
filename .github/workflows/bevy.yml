@@ -28,6 +28,7 @@ on:
       - "scripts/quality/core-channel-guard.py"
       - "scripts/quality/kernel-integrity-guard.py"
       - "scripts/quality/kernel-rollback-guard.py"
+      - "scripts/quality/controller-auth-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -51,6 +52,7 @@ on:
       - "scripts/quality/core-channel-guard.py"
       - "scripts/quality/kernel-integrity-guard.py"
       - "scripts/quality/kernel-rollback-guard.py"
+      - "scripts/quality/controller-auth-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -129,6 +131,9 @@ jobs:
 
       - name: Enforce DUAL-01-06 kernel rollback semantics
         run: python3 scripts/quality/kernel-rollback-guard.py --mode enforce
+
+      - name: Enforce DUAL-01-07 controller auth semantics
+        run: python3 scripts/quality/controller-auth-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

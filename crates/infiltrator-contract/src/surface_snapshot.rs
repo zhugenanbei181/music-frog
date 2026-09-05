@@ -6,6 +6,7 @@
 
 use crate::capability::CapabilitySnapshot;
 use crate::command::ProxyMode;
+use crate::controller::ControllerAuthSnapshot;
 use crate::error::Failure;
 use crate::snapshot::{CoreLifecycle, CoreSnapshot};
 use crate::surface::{HostKind, SurfaceKind};
@@ -392,6 +393,9 @@ pub struct SurfaceSnapshot {
     /// Independent online core-channel probe results shared by both UIs.
     #[serde(default)]
     pub versions: CoreVersionSnapshot,
+    /// Controller authentication status without exposing the secret.
+    #[serde(default)]
+    pub controller_auth: ControllerAuthSnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -427,6 +431,7 @@ impl SurfaceSnapshot {
             failure: Some(failure.clone()),
             pages: SurfacePages::unavailable(failure),
             versions: CoreVersionSnapshot::default(),
+            controller_auth: ControllerAuthSnapshot::default(),
         }
     }
 

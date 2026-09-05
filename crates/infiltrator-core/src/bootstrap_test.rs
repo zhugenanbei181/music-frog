@@ -49,6 +49,15 @@ async fn fresh_home_bootstrap_creates_dir_config_and_controller() {
     let profile_path = manager.get_current_path().await.unwrap();
     assert!(profile_path.is_file());
     assert!(manager.get_external_controller().await.is_ok());
+    let profile = tokio::fs::read_to_string(profile_path).await.unwrap();
+    let document = yaml_rust2::YamlLoader::load_from_str(&profile)
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap();
+    let secret = document["secret"].as_str().unwrap();
+    assert_eq!(secret.len(), 64);
+    assert!(secret.bytes().all(|byte| byte.is_ascii_hexdigit()));
 }
 
 #[tokio::test]

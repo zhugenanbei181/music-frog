@@ -11,6 +11,7 @@ infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
+ring = "0.17"
 serde = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

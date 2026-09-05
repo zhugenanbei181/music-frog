@@ -13,6 +13,7 @@ use iced::widget::{
     Space, button, column, container, pick_list, progress_bar, row, text, text_input,
 };
 use iced::{Alignment, Color, Element, Length, Theme, border};
+use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot,
 };
@@ -246,11 +247,13 @@ fn kernel_management_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool
     let mut kernel_rows = column![].spacing(theme::SP_SM);
     let channel_probe = format_core_versions(&state.runtime.core_versions);
     let integrity = format_integrity(&state.runtime.core_integrity);
+    let controller_auth = format_controller_auth(&state.runtime.controller_auth);
 
     kernel_rows = kernel_rows.push(secondary_text(format!(
         "Online channels: {channel_probe}"
     )));
     kernel_rows = kernel_rows.push(secondary_text(format!("Artifact integrity: {integrity}")));
+    kernel_rows = kernel_rows.push(secondary_text(format!("Controller auth: {controller_auth}")));
     let rollback_target = state.runtime.core_versions.rollback.target.clone();
     kernel_rows = kernel_rows.push(secondary_text(
         rollback_target.as_deref().map_or_else(
@@ -375,6 +378,15 @@ fn format_integrity(verification: &CoreArtifactVerification) -> String {
                 crate::utils::sanitize_ui_text(&failure.message)
             )
         }
+    }
+}
+
+fn format_controller_auth(snapshot: &ControllerAuthSnapshot) -> String {
+    match snapshot.status {
+        ControllerAuthStatus::Unknown => "not probed".to_owned(),
+        ControllerAuthStatus::Secured => "secured · Bearer".to_owned(),
+        ControllerAuthStatus::Missing => "missing secret".to_owned(),
+        ControllerAuthStatus::Unavailable => "host unavailable".to_owned(),
     }
 }
 

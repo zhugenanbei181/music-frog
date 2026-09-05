@@ -6,6 +6,7 @@ use crate::surface::SurfaceModel;
 use crate::state::AppState;
 use async_trait::async_trait;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
 use infiltrator_contract::snapshot::{CoreWatchdogState, CoreWatchdogSnapshot};
@@ -114,6 +115,9 @@ fn shared_watchdog_snapshot_updates_the_iced_diagnostics_projection() {
 fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
     let (mut state, _) = AppState::new();
     let mut snapshot = snapshot(5);
+    snapshot.controller_auth = ControllerAuthSnapshot {
+        status: ControllerAuthStatus::Secured,
+    };
     snapshot.versions = CoreVersionSnapshot {
         revision: 1,
         channels: vec![CoreChannelSnapshot {
@@ -150,6 +154,10 @@ fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
     assert_eq!(
         state.runtime.core_versions.rollback.target.as_deref(),
         Some("v1.19.29")
+    );
+    assert_eq!(
+        state.runtime.controller_auth.status,
+        ControllerAuthStatus::Secured
     );
 }
 

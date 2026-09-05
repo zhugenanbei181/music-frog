@@ -18,6 +18,7 @@
 - [x] `DUAL-01-04`：Stable/Alpha/Meta-Core 三通道版本探测进入 contract、application surface reader 和 desktop version port；Alpha 使用命名的 `Prerelease-Alpha` release，Meta-Core 保留独立语义并映射官方 Meta 发布 feed。
 - [x] `DUAL-01-05`：版本下载在解压和落盘前执行官方 SHA256 digest gate，`MihomoVersionPort` 将 Verified/Rejected 完整性状态提供给 shared surface；Iced/Bevy Settings 同步展示，不把“下载成功”误报为“制品已验证”。
 - [x] `DUAL-01-06`：版本管理器保留有界本地选择历史；回滚先执行候选 binary `-v` 健康检查，再原子更新默认版本且保留现有 profile 元数据；VersionApplication、desktop command handler、Iced 与 Bevy 共享同一 rollback contract。
+- [x] `DUAL-01-07`：bootstrap 缺少 controller secret 时用 OS CSPRNG 自动生成并写入 profile；EndpointSource 只向 outbound adapter 提供私有 secret，Mihomo REST/WebSocket 统一注入 Bearer header，shared surface 只发布脱敏认证状态。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

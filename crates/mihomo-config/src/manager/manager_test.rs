@@ -6,6 +6,8 @@ mod tests {
     use crate::manager::ConfigManager;
     use crate::profile::Profile;
     use infiltrator_ports::secure_store::SecureStore;
+    use infiltrator_ports::endpoint::EndpointSource;
+    use std::sync::Arc;
     use std::path::PathBuf;
     use tempfile::TempDir;
     use tokio::fs;
@@ -340,6 +342,58 @@ external-controller: http://127.0.0.1:9090
         let result = manager.get_external_controller().await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "http://127.0.0.1:9090");
+    }
+
+    #[tokio::test]
+    async fn ensure_external_controller_generates_and_reuses_a_secret() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir).await;
+        manager
+            .save(
+                "default",
+                "port: 7890\nexternal-controller: 127.0.0.1:19090\n",
+            )
+            .await
+            .unwrap();
+
+        manager.ensure_external_controller().await.unwrap();
+        let first = fs::read_to_string(manager.config_dir.join("default.yaml"))
+            .await
+            .unwrap();
+        let first_doc = yaml_rust2::YamlLoader::load_from_str(&first)
+            .unwrap()
+            .remove(0);
+        let first_secret = first_doc["secret"].as_str().unwrap().to_owned();
+        assert_eq!(first_secret.len(), 64);
+        assert!(first_secret.bytes().all(|byte| byte.is_ascii_hexdigit()));
+
+        manager.ensure_external_controller().await.unwrap();
+        let second = fs::read_to_string(manager.config_dir.join("default.yaml"))
+            .await
+            .unwrap();
+        let second_doc = yaml_rust2::YamlLoader::load_from_str(&second)
+            .unwrap()
+            .remove(0);
+        assert_eq!(second_doc["secret"].as_str(), Some(first_secret.as_str()));
+    }
+
+    #[tokio::test]
+    async fn endpoint_source_injects_the_persisted_secret_without_exposing_it_in_contracts() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir).await;
+        manager
+            .save(
+                "default",
+                "port: 7890\nexternal-controller: 127.0.0.1:19091\nsecret: generated-by-host\n",
+            )
+            .await
+            .unwrap();
+        manager.ensure_external_controller().await.unwrap();
+
+        let source = crate::endpoint::ProfileEndpointSource::new(Arc::new(manager));
+        let endpoint = source.resolve().await.unwrap();
+        assert_eq!(endpoint.url, "http://127.0.0.1:19091");
+        assert_eq!(endpoint.secret.as_deref(), Some("generated-by-host"));
     }
 
     #[tokio::test]

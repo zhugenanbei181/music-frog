@@ -5949,6 +5949,7 @@ dependencies = [
  "infiltrator-ports",
  "log",
  "mihomo-api",
+ "ring",
  "serde",
  "tempfile",
  "thiserror 2.0.20",

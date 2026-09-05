@@ -107,9 +107,14 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-bevy-ui/src/pages/settings.rs",
-        "CoreChannelStatus",
         "SettingsLineKind::CoreChannel",
         "SettingsLineKind::CoreVersions",
+        "settings_core::format_core_versions",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/settings_core.rs",
+        "CoreChannelStatus",
         "format_core_versions",
     )
     require(

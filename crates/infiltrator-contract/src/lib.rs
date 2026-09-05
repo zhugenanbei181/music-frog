@@ -5,6 +5,7 @@
 //! UniFFI conversion without exposing Tokio or a concrete HTTP client.
 
 pub mod capability;
+pub mod controller;
 pub mod command;
 pub mod doctor;
 pub mod error;

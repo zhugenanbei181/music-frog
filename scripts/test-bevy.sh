@@ -28,3 +28,4 @@ python3 "$repo_root/scripts/quality/crash-watchdog-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/core-channel-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/kernel-integrity-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/kernel-rollback-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/controller-auth-guard.py" --mode enforce

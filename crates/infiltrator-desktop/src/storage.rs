@@ -2,6 +2,7 @@
 
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::snapshots::SnapshotMeta;
+use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
 use infiltrator_ports::app_routing_store::AppRoutingStore;
 use infiltrator_ports::doctor::DoctorPort;
@@ -35,6 +36,13 @@ pub async fn profile_controller_url() -> anyhow::Result<String> {
 pub async fn settings_store() -> anyhow::Result<Arc<dyn SettingsStore>> {
     let store = infiltrator_core::settings_store::for_current_home()?;
     Ok(Arc::new(store))
+}
+
+pub async fn endpoint_source() -> anyhow::Result<impl EndpointSource> {
+    let manager = infiltrator_core::settings_io::app_config_manager().await?;
+    Ok(mihomo_config::endpoint::ProfileEndpointSource::new(Arc::new(
+        manager,
+    )))
 }
 
 pub async fn save_webdav_password(password: &str) -> anyhow::Result<()> {

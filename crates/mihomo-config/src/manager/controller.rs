@@ -4,6 +4,7 @@
 
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
+use ring::rand::{SecureRandom, SystemRandom};
 
 use super::ConfigManager;
 use crate::port::{find_available_port, is_port_available, parse_port_from_addr};
@@ -69,6 +70,12 @@ impl<S: SecureStore> ConfigManager<S> {
             }
         };
 
+        // Mihomo accepts the generated secret through the profile itself;
+        // every concrete HTTP client then receives it as a Bearer header via
+        // ProfileEndpointSource. Never leave a newly bootstrapped controller
+        // unauthenticated, and never rotate a user-provided non-empty secret.
+        let secret_updated = ensure_controller_secret(&mut config)?;
+
         if needs_update {
             let port = find_available_port(9090).ok_or_else(|| {
                 MihomoError::Config("No available ports found in range 9090-9190".to_string())
@@ -78,13 +85,13 @@ impl<S: SecureStore> ConfigManager<S> {
             log::info!("Setting external-controller to {}", controller_addr);
 
             yaml::set_str(&mut config, "external-controller", &controller_addr)?;
+        }
+
+        if needs_update || secret_updated {
             let updated_content = yaml::to_string(&config)?;
             self.save(&profile, &updated_content).await?;
-
-            Ok(format!("http://{}", controller_addr))
-        } else {
-            self.get_external_controller().await
         }
+        self.get_external_controller().await
     }
 
     /// Forcefully rotate the external-controller port to a new available one.
@@ -111,9 +118,28 @@ impl<S: SecureStore> ConfigManager<S> {
         );
 
         yaml::set_str(&mut config, "external-controller", &controller_addr)?;
+        ensure_controller_secret(&mut config)?;
         let updated_content = yaml::to_string(&config)?;
         self.save(&profile, &updated_content).await?;
 
         Ok(format!("http://{}", controller_addr))
     }
+}
+
+fn ensure_controller_secret(config: &mut yaml_rust2::Yaml) -> Result<bool> {
+    if yaml::get_str(config, "secret").is_some_and(|secret| !secret.trim().is_empty()) {
+        return Ok(false);
+    }
+
+    let mut bytes = [0u8; 32];
+    SystemRandom::new()
+        .fill(&mut bytes)
+        .map_err(|_| MihomoError::Config("unable to generate controller secret".to_owned()))?;
+    let mut secret = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write;
+        let _ = write!(secret, "{byte:02x}");
+    }
+    yaml::set_str(config, "secret", &secret)?;
+    Ok(true)
 }

@@ -14,6 +14,7 @@ use crate::settings_application::SettingsApplication;
 use crate::snapshot_application::SnapshotApplication;
 use crate::version_application::VersionApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
+use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
@@ -22,6 +23,7 @@ use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::surface::SurfaceReader;
 use std::collections::HashMap;
@@ -40,6 +42,7 @@ pub struct ApplicationSurfaceReader {
     settings: Option<SettingsApplication>,
     snapshots: Option<SnapshotApplication>,
     versions: Option<VersionApplication>,
+    endpoint_source: Option<Arc<dyn EndpointSource>>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -57,6 +60,7 @@ impl ApplicationSurfaceReader {
             settings: None,
             snapshots: None,
             versions: None,
+            endpoint_source: None,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -108,6 +112,11 @@ impl ApplicationSurfaceReader {
         self
     }
 
+    pub fn with_endpoint_source(mut self, source: Arc<dyn EndpointSource>) -> Self {
+        self.endpoint_source = Some(source);
+        self
+    }
+
     pub fn core(&self) -> &Arc<CoreApplication> {
         &self.core
     }
@@ -149,6 +158,28 @@ impl ApplicationSurfaceReader {
             Some((Instant::now(), snapshot.clone()));
         snapshot
     }
+
+    async fn read_controller_auth(&self) -> ControllerAuthSnapshot {
+        let Some(source) = &self.endpoint_source else {
+            return ControllerAuthSnapshot::default();
+        };
+        match source.resolve().await {
+            Ok(endpoint) => ControllerAuthSnapshot {
+                status: if endpoint
+                    .secret
+                    .as_deref()
+                    .is_some_and(|secret| !secret.trim().is_empty())
+                {
+                    ControllerAuthStatus::Secured
+                } else {
+                    ControllerAuthStatus::Missing
+                },
+            },
+            Err(_) => ControllerAuthSnapshot {
+                status: ControllerAuthStatus::Unavailable,
+            },
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -159,6 +190,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let core = self.core.snapshot();
         let revision = core.revision.max(1);
         let versions = self.read_versions().await;
+        let controller_auth = self.read_controller_auth().await;
         let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
 
         pages.overview =
@@ -314,6 +346,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             failure: None,
             pages,
             versions,
+            controller_auth,
         })
     }
 }
@@ -666,6 +699,7 @@ mod tests {
         ApplicationFuture, ApplicationRuntime, ApplicationSleep,
     };
     use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+    use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
     use infiltrator_ports::version::{VersionPort, VersionProgressSink};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -712,6 +746,18 @@ mod tests {
     impl CoreReadiness for TestReadiness {
         async fn probe(&self) -> Result<String, PortError> {
             Ok("http://127.0.0.1:9090".to_owned())
+        }
+    }
+
+    struct TestEndpoint;
+
+    #[async_trait]
+    impl EndpointSource for TestEndpoint {
+        async fn resolve(&self) -> Result<ControllerEndpoint, PortError> {
+            Ok(ControllerEndpoint {
+                url: "http://127.0.0.1:9090".to_owned(),
+                secret: Some("generated-by-host".to_owned()),
+            })
         }
     }
 
@@ -779,7 +825,8 @@ mod tests {
             ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
                 .with_versions(VersionApplication::new(Arc::new(TestVersions {
                     calls: calls.clone(),
-                })));
+                })))
+                .with_endpoint_source(Arc::new(TestEndpoint));
 
         let first = reader.read().await.expect("first surface read");
         let second = reader.read().await.expect("cached surface read");
@@ -790,6 +837,10 @@ mod tests {
         assert_eq!(
             first.versions.rollback.target.as_deref(),
             Some("v1.19.29")
+        );
+        assert_eq!(
+            first.controller_auth.status,
+            infiltrator_contract::controller::ControllerAuthStatus::Secured
         );
         assert!(first.versions.channels.iter().all(|channel| matches!(
             channel.status,
