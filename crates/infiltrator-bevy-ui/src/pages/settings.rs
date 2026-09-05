@@ -37,6 +37,7 @@ use infiltrator_contract::version::{
     CoreArtifactVerification, CoreVersionSnapshot,
 };
 use infiltrator_contract::controller::ControllerAuthSnapshot;
+use infiltrator_contract::command::CoreLogLevel;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
@@ -99,6 +100,12 @@ pub struct CoreRollbackAvailability(pub bool);
 /// Marker for the rollback button's mutable label.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CoreRollbackButtonLabel;
+
+/// Marker carrying the live Mihomo log-level choice.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CoreLogLevelButton {
+    pub level: CoreLogLevel,
+}
 
 /// Marker for "Prepare TUN Permission" button in the alert banner.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -670,7 +677,6 @@ fn controller_settings_card(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let ctrl_port_str = format!("127.0.0.1:{}", projection.controller_port);
-    let log_level_str = projection.log_level.to_uppercase();
 
     surface_scene(
         vec![
@@ -704,20 +710,7 @@ fn controller_settings_card(
                             ( Text(ctrl_port_str) SettingsLine(SettingsLineKind::ControllerPort) TextRole(Role::Mono) ),
                         ]
                     ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "核心日志级别 (Core Log Level)".to_owned() }) TextRole(Role::Body) ),
-                            ( Text(log_level_str) SettingsLine(SettingsLineKind::LogLevel) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
+                    ( { settings_core::core_log_level_row_scene(projection, palette) } ),
                 ]
             }),
         ],
@@ -746,6 +739,7 @@ pub(crate) fn on_settings_action_activated(
     notif_toggles: Query<(), With<SystemNotificationsToggle>>,
     rollback_buttons: Query<(), With<CoreRollbackButton>>,
     rollback_available: Query<&CoreRollbackAvailability, With<CoreRollbackButton>>,
+    log_level_buttons: Query<&CoreLogLevelButton>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -777,12 +771,15 @@ pub(crate) fn on_settings_action_activated(
             .is_ok_and(|availability| availability.0)
     {
         handle.submit(UiCommand::RollbackCore);
+    } else if let Ok(button) = log_level_buttons.get(activate.entity) {
+        handle.submit(UiCommand::SetCoreLogLevel(button.level));
     }
 }
 
 #[allow(clippy::type_complexity)]
 pub(crate) fn apply_settings_projection(
     update: On<SettingsProjectionUpdated>,
+    palette: Res<UiPalette>,
     mut last: Option<ResMut<LastSettingsProjection>>,
     mut lines: Query<(
         &mut Text,
@@ -790,6 +787,7 @@ pub(crate) fn apply_settings_projection(
         Option<&CoreRollbackButtonLabel>,
     )>,
     mut rollback_buttons: Query<&mut CoreRollbackAvailability, With<CoreRollbackButton>>,
+    mut log_level_buttons: Query<(&mut BackgroundColor, &CoreLogLevelButton)>,
 ) {
     let projection = &update.0;
 
@@ -847,6 +845,14 @@ pub(crate) fn apply_settings_projection(
     let rollback_available = projection.core_versions.rollback.target.is_some();
     for mut availability in &mut rollback_buttons {
         availability.0 = rollback_available;
+    }
+    let active_level = CoreLogLevel::parse(&projection.log_level);
+    for (mut background, button) in &mut log_level_buttons {
+        background.0 = if active_level == Some(button.level) {
+            palette.accent
+        } else {
+            palette.surface_elevated
+        };
     }
 
     if let Some(ref mut last_proj) = last {

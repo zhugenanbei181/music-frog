@@ -319,9 +319,8 @@ fn mode_command_patches_configs_and_reads_back() {
 }
 
 /// A controller that refuses the mode switch (HTTP 400) delivers the
-/// failure through the typed receipt. `mihomo-api`'s patch is
-/// fire-and-forget, so the pump verifies by readback: `/configs` still
-/// reports `rule`, and the receipt carries the honest refusal.
+/// failure through the typed receipt. The HTTP adapter rejects the non-2xx
+/// response directly, so the receipt carries the honest controller refusal.
 #[test]
 fn refused_mode_patch_answers_err_receipt() {
     let mut server = mockito::Server::new();
@@ -362,8 +361,8 @@ fn refused_mode_patch_answers_err_receipt() {
         .expect("the pump always answers the receipt");
     let reason = receipt.expect_err("a refused switch must arrive as Err");
     assert!(
-        reason.contains("仍为 rule"),
-        "the refusal names the unchanged mode: {reason}"
+        reason.contains("400") || reason.contains("仍为 rule"),
+        "the refusal names the controller rejection: {reason}"
     );
 }
 

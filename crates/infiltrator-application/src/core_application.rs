@@ -737,6 +737,7 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::StartCore => "start_core",
         CommandIntent::StopCore => "stop_core",
         CommandIntent::RestartCore => "restart_core",
+        CommandIntent::SetCoreLogLevel { .. } => "set_core_log_level",
         CommandIntent::SwitchProfile { .. } => "switch_profile",
         CommandIntent::SetProxyMode { .. } => "set_proxy_mode",
         CommandIntent::SelectProxyNode { .. } => "select_proxy_node",

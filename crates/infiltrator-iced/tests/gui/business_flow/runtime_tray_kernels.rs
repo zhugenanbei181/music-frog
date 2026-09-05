@@ -277,6 +277,35 @@ fn kernel_rollback_round_trip_uses_the_shared_operation_path() {
     assert_eq!(after.target, None, "rollback consumes the historical stack");
 }
 
+#[test]
+fn core_log_level_rejects_invalid_or_stopped_updates_without_optimism() {
+    let mut state = fresh_state();
+    assert_eq!(state.diag.log_level, "info");
+
+    assert_eq!(feed(&mut state, Message::SetCoreLogLevel("trace".into())), 0);
+    assert_eq!(state.diag.log_level, "info");
+    assert!(
+        state
+            .shell
+            .error_msg
+            .as_deref()
+            .unwrap_or_default()
+            .contains("unsupported core log level")
+    );
+
+    state.shell.error_msg = None;
+    assert_eq!(feed(&mut state, Message::SetCoreLogLevel("debug".into())), 0);
+    assert_eq!(state.diag.log_level, "info");
+    assert!(
+        state
+            .shell
+            .error_msg
+            .as_deref()
+            .unwrap_or_default()
+            .contains("core is not running")
+    );
+}
+
 #[cfg(unix)]
 fn plant_runnable_fake_binary(home: &std::path::Path, version: &str) {
     use std::os::unix::fs::PermissionsExt;

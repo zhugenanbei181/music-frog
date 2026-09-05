@@ -106,6 +106,8 @@ python3 scripts/quality/kernel-integrity-guard.py --mode enforce
 python3 scripts/quality/kernel-rollback-guard.py --mode enforce
 # DUAL-01-07 external-controller secret 生成、Bearer 注入与双端状态守卫
 python3 scripts/quality/controller-auth-guard.py --mode enforce
+# DUAL-01-08 内核日志等级 live PATCH、回读与双端控件守卫
+python3 scripts/quality/core-log-level-guard.py --mode enforce
 ```
 
 ---

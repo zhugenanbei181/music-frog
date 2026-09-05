@@ -11,7 +11,7 @@ use bevy::ecs::resource::Resource;
 use infiltrator_application::core_application::CoreApplication;
 use std::sync::{Arc, Mutex};
 
-use infiltrator_contract::command::{CommandIntent, ProxyMode};
+use infiltrator_contract::command::{CommandIntent, CoreLogLevel, ProxyMode};
 
 /// All user action commands emitted from Bevy UI pages and controls.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -22,6 +22,8 @@ pub enum UiCommand {
     StopCore,
     /// Restart the shared core lifecycle.
     RestartCore,
+    /// Change Mihomo's live core log verbosity.
+    SetCoreLogLevel(CoreLogLevel),
     /// Switch core proxy mode (Rule / Global / Direct).
     SetProxyMode(ProxyMode),
     /// Select a specific proxy node in a policy group.
@@ -96,6 +98,9 @@ impl UiCommand {
             Self::StartCore => Some(CommandIntent::StartCore),
             Self::StopCore => Some(CommandIntent::StopCore),
             Self::RestartCore => Some(CommandIntent::RestartCore),
+            Self::SetCoreLogLevel(level) => {
+                Some(CommandIntent::SetCoreLogLevel { level: *level })
+            }
             Self::SetProxyMode(mode) => Some(CommandIntent::SetProxyMode { mode: *mode }),
             Self::SelectProxyNode { group, node } => Some(CommandIntent::SelectProxyNode {
                 group: group.clone(),
@@ -333,6 +338,12 @@ mod tests {
         assert_eq!(
             UiCommand::RollbackCore.to_intent(),
             Some(CommandIntent::RollbackCore)
+        );
+        assert_eq!(
+            UiCommand::SetCoreLogLevel(CoreLogLevel::Debug).to_intent(),
+            Some(CommandIntent::SetCoreLogLevel {
+                level: CoreLogLevel::Debug,
+            })
         );
     }
 }

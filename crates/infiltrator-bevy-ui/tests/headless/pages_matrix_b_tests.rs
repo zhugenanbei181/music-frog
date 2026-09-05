@@ -20,6 +20,7 @@ use infiltrator_bevy_ui::pages::sync::*;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
+use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::version::CoreRollbackSnapshot;
 
 use crate::support::*;
@@ -441,6 +442,20 @@ fn test_settings_prepare_tun_and_toggles_submit_commands() {
     });
     app.update();
 
+    let debug_button = {
+        let world = app.world_mut();
+        let mut query = world.query::<(Entity, &CoreLogLevelButton)>();
+        query
+            .iter(world)
+            .find(|(_, button)| button.level == CoreLogLevel::Debug)
+            .map(|(entity, _)| entity)
+            .expect("debug core log level button")
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: debug_button });
+    app.update();
+
     assert_eq!(
         sink.submitted(),
         vec![
@@ -456,6 +471,7 @@ fn test_settings_prepare_tun_and_toggles_submit_commands() {
                 key: "notifications_enabled".to_owned(),
                 value: "toggle".to_owned(),
             },
+            UiCommand::SetCoreLogLevel(CoreLogLevel::Debug),
         ]
     );
 }

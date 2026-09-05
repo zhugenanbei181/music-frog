@@ -127,6 +127,8 @@ pub enum Message {
     RuntimePollFailed(String),
     ClearRuntimeLogs,
     SetLogLevel(String),
+    SetCoreLogLevel(String),
+    CoreLogLevelFinished(Result<(), InfiltratorError>, String),
     CloseConnection(String),
     CloseAllConnections,
     ConnectionsPrevPage,

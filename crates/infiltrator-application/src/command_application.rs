@@ -19,6 +19,7 @@ use std::sync::Arc;
 use crate::doctor_application::DoctorApplication;
 use crate::profile_application::ProfileApplication;
 use crate::routing_application::RoutingApplication;
+use crate::runtime_query_application::RuntimeQueryApplication;
 use crate::settings_application::SettingsApplication;
 use crate::snapshot_application::SnapshotApplication;
 use crate::sync_application::SyncApplication;
@@ -218,6 +219,11 @@ impl CommandApplication {
                 .set_proxy_mode(mode)
                 .await
                 .map_err(Failure::from),
+            CommandIntent::SetCoreLogLevel { level } => {
+                RuntimeQueryApplication::new(self.runtime()?)
+                    .set_core_log_level(level)
+                    .await
+            }
             CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore

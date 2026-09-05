@@ -20,7 +20,7 @@ pub mod surface;
 #[cfg(test)]
 mod tests {
     use super::capability::{Availability, Capability, CapabilitySnapshot, CapabilityStatus};
-    use super::command::{CommandIntent, CommandKind, ProxyMode};
+    use super::command::{CommandIntent, CommandKind, CoreLogLevel, ProxyMode};
     use super::surface::HostKind;
 
     #[test]
@@ -38,6 +38,15 @@ mod tests {
         );
         assert_eq!(CommandIntent::SyncNow.kind(), CommandKind::Sync);
         assert_eq!(CommandIntent::RollbackCore.kind(), CommandKind::Update);
+        assert_eq!(
+            CommandIntent::SetCoreLogLevel {
+                level: CoreLogLevel::Debug
+            }
+            .kind(),
+            CommandKind::Runtime
+        );
+        assert_eq!(CoreLogLevel::parse("warning"), Some(CoreLogLevel::Warn));
+        assert_eq!(CoreLogLevel::parse("trace"), None);
     }
 
     #[test]

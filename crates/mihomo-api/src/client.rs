@@ -163,7 +163,7 @@ impl MihomoClient {
         let url = self.build_url("/configs")?;
         let req = self.client.patch(url).json(&updates);
         let req = self.add_auth(req);
-        req.send().await?;
+        req.send().await?.error_for_status()?;
         Ok(())
     }
 
@@ -527,6 +527,10 @@ impl MihomoClient {
 }
 
 #[cfg(test)]
+#[path = "client_auth_test.rs"]
+mod auth_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use mockito::Server;
@@ -558,26 +562,6 @@ mod tests {
         mock.assert_async().await;
         assert_eq!(version.version, "v1.18.0");
         assert!(!version.premium);
-    }
-
-    #[tokio::test]
-    async fn test_get_version_injects_controller_secret_as_bearer_auth() {
-        let mut server = Server::new_async().await;
-        let mock = server
-            .mock("GET", "/version")
-            .match_header("authorization", "Bearer generated-by-host")
-            .with_status(200)
-            .with_body(json!({ "version": "v1.19.30", "premium": true }).to_string())
-            .create_async()
-            .await;
-
-        let client = MihomoClient::new(
-            &server.url(),
-            Some("generated-by-host".to_owned()),
-        )
-        .unwrap();
-        client.get_version().await.unwrap();
-        mock.assert_async().await;
     }
 
     #[tokio::test]

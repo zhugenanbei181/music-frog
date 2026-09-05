@@ -5,6 +5,8 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::{IpProbeResult, RuntimeStatus, RuntimeStreamKind, RuntimeStreamState};
 use iced::Task;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
+use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::error::InfiltratorError;
 
 impl AppState {
@@ -255,19 +257,41 @@ impl AppState {
                 Task::none()
             }
             Message::SetLogLevel(level) => {
-                self.diag.log_level = level.clone();
-                if let Some(rt) = self.runtime.runtime.clone() {
-                    Task::perform(
-                        async move {
-                            rt.patch_config(serde_json::json!({ "log-level": level }))
-                                .await
-                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
-                        },
-                        Message::OperationResult,
-                    )
-                } else {
-                    Task::none()
+                self.update_core_monitoring(Message::SetCoreLogLevel(level))
+            }
+            Message::SetCoreLogLevel(raw) => {
+                let Some(level) = CoreLogLevel::parse(&raw) else {
+                    let error = InfiltratorError::Internal(format!(
+                        "unsupported core log level: {raw}"
+                    ));
+                    self.set_error(&error);
+                    return Task::none();
+                };
+                let Some(runtime) = self.runtime.runtime.clone() else {
+                    let error = InfiltratorError::Internal(
+                        "core is not running; log level was not changed".to_owned(),
+                    );
+                    self.set_error(&error);
+                    return Task::none();
+                };
+                let previous = self.diag.log_level.clone();
+                self.diag.log_level = level.as_str().to_owned();
+                Task::perform(
+                    async move {
+                        RuntimeQueryApplication::new(runtime)
+                            .set_core_log_level(level)
+                            .await
+                            .map_err(|failure| InfiltratorError::Internal(failure.message))
+                    },
+                    move |result| Message::CoreLogLevelFinished(result, previous),
+                )
+            }
+            Message::CoreLogLevelFinished(result, previous) => {
+                if let Err(error) = result {
+                    self.diag.log_level = previous;
+                    self.set_error(&error);
                 }
+                Task::none()
             }
             Message::CloseConnection(id) => {
                 if let Some(rt) = self.runtime.runtime.clone() {

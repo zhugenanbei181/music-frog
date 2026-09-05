@@ -53,7 +53,7 @@ pub(super) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
         pick_list(
             &["debug", "info", "warning", "error"][..],
             Some(state.diag.log_level.as_str()),
-            |l| Message::SetLogLevel(l.to_string())
+            |l| Message::SetCoreLogLevel(l.to_string())
         )
         .text_size(12)
         .style(form_pick_style),

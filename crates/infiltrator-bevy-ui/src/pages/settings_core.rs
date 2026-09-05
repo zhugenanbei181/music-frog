@@ -17,10 +17,11 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::version::{CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot};
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
+use infiltrator_contract::command::CoreLogLevel;
 
 use super::{
-    CoreRollbackAvailability, CoreRollbackButton, CoreRollbackButtonLabel, SettingsLine,
-    SettingsLineKind, SettingsProjection,
+    CoreLogLevelButton, CoreRollbackAvailability, CoreRollbackButton, CoreRollbackButtonLabel,
+    SettingsLine, SettingsLineKind, SettingsProjection,
 };
 
 pub(super) fn core_rollback_row_scene(
@@ -140,4 +141,72 @@ pub(super) fn format_core_versions(snapshot: &CoreVersionSnapshot) -> String {
         })
         .collect::<Vec<_>>()
         .join(" · ")
+}
+
+pub(super) fn core_log_level_row_scene(
+    projection: &SettingsProjection,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let active = CoreLogLevel::parse(&projection.log_level);
+    let buttons: Vec<Box<dyn Scene>> = CoreLogLevel::ALL
+        .into_iter()
+        .map(|level| Box::new(core_log_level_button_scene(level, active, palette)) as Box<dyn Scene>)
+        .collect();
+    let current = active.map_or_else(
+        || projection.log_level.to_uppercase(),
+        |level| level.as_str().to_uppercase(),
+    );
+    let label: Box<dyn Scene> = Box::new(bsn! {
+        Node {
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(space::S4),
+        }
+        Children [
+            ( Text({ "核心日志级别 (Core Log Level)".to_owned() }) TextRole(Role::Body) ),
+            ( Text({ format!("当前: {current}") }) SettingsLine(SettingsLineKind::LogLevel) TextRole(Role::Mono) ),
+        ]
+    });
+    let controls: Box<dyn Scene> = Box::new(bsn! {
+        Node {
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(space::S4),
+        }
+        Children [ { buttons } ]
+    });
+    let children = vec![label, controls];
+
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect::all(Val::Px(space::S8)),
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ palette.surface_elevated })
+        Children [ { children } ]
+    })
+}
+
+fn core_log_level_button_scene(
+    level: CoreLogLevel,
+    active: Option<CoreLogLevel>,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let selected = active == Some(level);
+    bsn! {
+        Node {
+            min_height: px(palette.control_height_px),
+            padding: UiRect::horizontal(Val::Px(space::S8)),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ if selected { palette.accent } else { palette.surface_elevated } })
+        CoreLogLevelButton { level }
+        Button
+        Children [
+            ( Text({ level.as_str().to_uppercase() }) TextRole(Role::Caption) ),
+        ]
+    }
 }

@@ -21,6 +21,39 @@ pub enum ProxyMode {
     Direct,
 }
 
+/// Log verbosity accepted by Mihomo's live configuration endpoint.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CoreLogLevel {
+    Debug,
+    #[default]
+    Info,
+    Warn,
+    Error,
+}
+
+impl CoreLogLevel {
+    pub const ALL: [Self; 4] = [Self::Debug, Self::Info, Self::Warn, Self::Error];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Debug => "debug",
+            Self::Info => "info",
+            Self::Warn => "warn",
+            Self::Error => "error",
+        }
+    }
+
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "debug" => Some(Self::Debug),
+            "info" => Some(Self::Info),
+            "warn" | "warning" => Some(Self::Warn),
+            "error" | "err" => Some(Self::Error),
+            _ => None,
+        }
+    }
+}
+
 impl ProxyMode {
     pub fn to_wire(self) -> &'static str {
         match self {
@@ -63,6 +96,7 @@ pub enum CommandIntent {
     StartCore,
     StopCore,
     RestartCore,
+    SetCoreLogLevel { level: CoreLogLevel },
     SwitchProfile { profile_id: String },
     SetProxyMode { mode: ProxyMode },
     SelectProxyNode { group: String, node: String },
@@ -128,6 +162,7 @@ impl CommandIntent {
     pub const fn kind(&self) -> CommandKind {
         match self {
             Self::StartCore | Self::StopCore | Self::RestartCore => CommandKind::CoreLifecycle,
+            Self::SetCoreLogLevel { .. } => CommandKind::Runtime,
             Self::SwitchProfile { .. }
             | Self::UpdateProfile { .. }
             | Self::DeleteProfile { .. }

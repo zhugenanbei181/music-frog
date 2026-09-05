@@ -37,6 +37,12 @@ const CORE_CHANNEL_OPTIONS: &[SettingsChoice] = &[
     SettingsChoice { value: "alpha" },
     SettingsChoice { value: "meta-core" },
 ];
+const CORE_LOG_LEVEL_OPTIONS: &[SettingsChoice] = &[
+    SettingsChoice { value: "debug" },
+    SettingsChoice { value: "info" },
+    SettingsChoice { value: "warn" },
+    SettingsChoice { value: "error" },
+];
 
 fn secondary_text(value: impl Into<String>) -> Element<'static, Message> {
     text(value.into()).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }).into()
@@ -248,12 +254,28 @@ fn kernel_management_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool
     let channel_probe = format_core_versions(&state.runtime.core_versions);
     let integrity = format_integrity(&state.runtime.core_integrity);
     let controller_auth = format_controller_auth(&state.runtime.controller_auth);
+    let selected_log_level = CORE_LOG_LEVEL_OPTIONS
+        .iter()
+        .find(|option| option.value == state.diag.log_level)
+        .copied();
 
     kernel_rows = kernel_rows.push(secondary_text(format!(
         "Online channels: {channel_probe}"
     )));
     kernel_rows = kernel_rows.push(secondary_text(format!("Artifact integrity: {integrity}")));
     kernel_rows = kernel_rows.push(secondary_text(format!("Controller auth: {controller_auth}")));
+    kernel_rows = kernel_rows.push(
+        row![
+            text("Core log level").size(13),
+            Space::new().width(Length::Fill),
+            pick_list(CORE_LOG_LEVEL_OPTIONS, selected_log_level, |choice: SettingsChoice| {
+                Message::SetCoreLogLevel(choice.value.to_owned())
+            })
+            .width(Length::Fixed(120.0))
+            .style(form_pick_style),
+        ]
+        .align_y(Alignment::Center),
+    );
     let rollback_target = state.runtime.core_versions.rollback.target.clone();
     kernel_rows = kernel_rows.push(secondary_text(
         rollback_target.as_deref().map_or_else(
