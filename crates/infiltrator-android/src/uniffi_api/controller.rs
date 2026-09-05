@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use infiltrator_contract::command::ProxyMode;
 
-use super::support::{
+use crate::host_support::{
     build_connection_application, build_proxy_application, build_runtime_query_application,
     get_runtime, map_application_failure, network_application,
 };

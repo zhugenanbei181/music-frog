@@ -18,13 +18,13 @@ use infiltrator_domain::settings::AppSettings;
 use infiltrator_domain::settings::WebDavConfig;
 #[cfg(test)]
 use infiltrator_ports::secure_store::SecureStore;
-use super::support::{
+use crate::host_support::{
     build_settings_application, build_sync_application, get_runtime,
     map_application_failure, clear_webdav_password as clear_host_webdav_password,
     save_webdav_password as save_host_webdav_password,
 };
 #[cfg(test)]
-use super::support::map_anyhow_error;
+use crate::host_support::map_anyhow_error;
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
 // --- WebDAV API ---

@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use infiltrator_domain::rules::{RuleEntry as DomainRuleEntry, RuleProviders};
 
-use super::support::{
+use crate::host_support::{
     build_configuration_application, get_runtime, map_application_failure,
 };
 use crate::ffi::{FfiErrorCode, FfiStatus};

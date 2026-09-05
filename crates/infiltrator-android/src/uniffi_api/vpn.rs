@@ -10,8 +10,8 @@ use mihomo_platform::android_bridge::get_android_bridge;
 use infiltrator_domain::{dns, tun};
 
 #[cfg(target_os = "android")]
-use super::support::build_config_manager;
-use super::support::{
+use crate::host_support::build_config_manager;
+use crate::host_support::{
     build_configuration_application, get_runtime, map_application_failure, map_mihomo_error,
     normalize_optional_string,
 };

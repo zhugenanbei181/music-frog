@@ -28,7 +28,7 @@ use mihomo_platform::defaults::DefaultCredentialStore;
 #[cfg(target_os = "android")]
 use mihomo_platform::android::AndroidCoreController;
 
-use crate::uniffi_api::support::{build_config_manager, map_mihomo_error};
+use crate::host_support::{build_config_manager, map_mihomo_error};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
 /// Shared frontend wiring for the mihomo core: the application service plus

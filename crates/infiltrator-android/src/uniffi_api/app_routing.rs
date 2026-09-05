@@ -5,7 +5,7 @@ use infiltrator_domain::app_routing::{
     AppRoutingConfig as DomainAppRoutingConfig, AppRoutingMode as DomainAppRoutingMode,
 };
 
-use super::support::{build_routing_application, map_application_failure};
+use crate::host_support::{build_routing_application, map_application_failure};
 use crate::ffi::FfiStatus;
 
 // --- App Routing API ---

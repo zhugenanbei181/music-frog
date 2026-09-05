@@ -4,7 +4,7 @@
 
 use infiltrator_domain::{dns, fake_ip};
 
-use super::support::{
+use crate::host_support::{
     build_configuration_application, cache_application, get_runtime, map_application_failure,
     normalize_optional_string, sanitize_list,
 };

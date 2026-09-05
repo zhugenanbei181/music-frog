@@ -9,7 +9,7 @@ use infiltrator_contract::doctor::{
     BootstrapStep, DoctorCheckMeta, DoctorCheckResult, DoctorFixAction, DoctorStatus,
 };
 
-use super::support::{doctor_application, get_runtime, map_application_failure};
+use crate::host_support::{doctor_application, get_runtime, map_application_failure};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
 #[derive(Debug, Clone, uniffi::Record)]

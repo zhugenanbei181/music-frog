@@ -10,7 +10,6 @@ mod logs;
 mod profiles;
 mod rules;
 mod settings;
-pub(crate) mod support;
 mod vpn;
 mod webdav;
 
