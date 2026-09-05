@@ -19,6 +19,8 @@
 - [x] Desktop/Android 已把 Core process、secure store、data-dir 和 readiness 组合到 host adapter 端口。
 - [ ] application actor/facade 覆盖全部 use-case，并统一前端命令与领域快照通道。
 - [x] `CommandApplication` 扩展 handler 已接入 profile、proxy、doctor、routing、sync、settings、connection；Bevy 提供显式 handler 启动入口，未具备宿主 port 的系统能力保留 typed unsupported。
+- [x] `SnapshotApplication` / `SnapshotStore` 已统一快照创建、列表、读取和恢复；文件路径安全在 core adapter，恢复复用 profile application 的 apply 事务。
+- [ ] 版本更新 use-case 仍在迁移；具体下载、安装和版本切换不得进入 application production。
 - [x] 标准 Mihomo Overview adapter 已移入 `infiltrator-composition`；application 不再直接构造 `MihomoClient`。
 - [x] profile-options 仍由 host adapter 持有 sidecar IO，rules、DNS、Fake-IP、TUN、proxy-provider、sniffer 的 profile YAML 读写已统一收敛到 `infiltrator-application::configuration_application`；domain 只保留 schema、校验和内存 YAML 变换。
 - [x] `AppSettings` / WebDAV / runtime-panel schema 已移入 `infiltrator-domain::settings`；keyring、TOML 和 ConfigManager 读写集中在 `settings_io`。

@@ -19,6 +19,7 @@ use crate::doctor_application::DoctorApplication;
 use crate::profile_application::ProfileApplication;
 use crate::routing_application::RoutingApplication;
 use crate::settings_application::SettingsApplication;
+use crate::snapshot_application::SnapshotApplication;
 use crate::sync_application::SyncApplication;
 
 pub type CommandFuture = Pin<Box<dyn Future<Output = Result<(), Failure>> + Send + 'static>>;
@@ -39,6 +40,7 @@ pub struct CommandApplication {
     routing: Option<RoutingApplication>,
     sync: Option<SyncApplication>,
     settings: Option<SettingsApplication>,
+    snapshots: Option<SnapshotApplication>,
 }
 
 impl CommandApplication {
@@ -83,6 +85,11 @@ impl CommandApplication {
 
     pub fn with_settings(mut self, application: SettingsApplication) -> Self {
         self.settings = Some(application);
+        self
+    }
+
+    pub fn with_snapshots(mut self, application: SnapshotApplication) -> Self {
+        self.snapshots = Some(application);
         self
     }
 
@@ -181,6 +188,16 @@ impl CommandApplication {
                     .await
                     .map(|_| ())
             }
+            CommandIntent::CreateBackupSnapshot => {
+                self.snapshots()?.create_current().await.map(|_| ())
+            }
+            CommandIntent::RestoreSnapshot { id } => {
+                let profile = self.profile()?.current_profile().await?;
+                let path = std::path::PathBuf::from(id);
+                self.snapshots()?
+                    .restore(self.managed_runtime.clone(), &profile, &path)
+                    .await
+            }
             CommandIntent::UpdateSetting { key, value } => self.update_setting(&key, &value).await,
             CommandIntent::SetProxyMode { mode } => self
                 .runtime()?
@@ -196,10 +213,8 @@ impl CommandApplication {
             | CommandIntent::ToggleTun { .. }
             | CommandIntent::SetSystemProxy { .. }
             | CommandIntent::ToggleIncludeSystemApps { .. }
-            | CommandIntent::CreateBackupSnapshot
             | CommandIntent::ResolveConflictKeepLocal
             | CommandIntent::ResolveConflictTakeRemote
-            | CommandIntent::RestoreSnapshot { .. }
             | CommandIntent::CheckUpdates => Err(unsupported()),
         }
     }
@@ -266,6 +281,12 @@ impl CommandApplication {
 
     fn settings(&self) -> Result<SettingsApplication, Failure> {
         self.settings.clone().ok_or_else(|| missing("settings application"))
+    }
+
+    fn snapshots(&self) -> Result<SnapshotApplication, Failure> {
+        self.snapshots
+            .clone()
+            .ok_or_else(|| missing("snapshot application"))
     }
 }
 

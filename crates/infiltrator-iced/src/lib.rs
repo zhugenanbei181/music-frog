@@ -15,6 +15,7 @@ pub mod demo;
 mod notify;
 pub mod network;
 pub mod routing_application;
+pub mod snapshot_application;
 pub mod state;
 pub mod subscription;
 pub mod settings_store;

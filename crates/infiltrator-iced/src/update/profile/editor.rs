@@ -82,10 +82,11 @@ impl AppState {
                 self.editor.is_loading_snapshots = true;
                 Task::perform(
                     async move {
-                        let configs_dir = crate::configs_dir::configs_dir().await?;
-                        infiltrator_desktop::storage::list_profile_snapshots(&configs_dir, &profile)
+                        crate::snapshot_application::application()
+                            .await?
+                            .list(&profile)
                             .await
-                            .map_err(|error| InfiltratorError::Config(error.to_string()))
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
                     Message::ProfileSnapshotsLoaded,
                 )
@@ -116,29 +117,11 @@ impl AppState {
                 self.editor.is_restoring_snapshot = true;
                 Task::perform(
                     async move {
-                        let home = infiltrator_desktop::storage::home_dir()
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
-                        let snapshot_root = tokio::fs::canonicalize(home.join("configs/snapshots"))
+                        crate::snapshot_application::application()
+                            .await?
+                            .restore(runtime, &profile, &path)
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
-                        let snapshot_path = tokio::fs::canonicalize(&path)
-                            .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
-                        if !snapshot_path.starts_with(&snapshot_root) {
-                            return Err(InfiltratorError::Config(
-                                "拒绝从配置快照目录之外恢复文件".to_string(),
-                            ));
-                        }
-                        let content = infiltrator_desktop::storage::read_profile_snapshot(&snapshot_path)
-                            .await
-                            .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                        crate::update::core::profile_apply::save_profile_content(
-                            runtime,
-                            profile,
-                            content,
-                            ApplyStrategy::PreferReload,
-                        )
-                        .await
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
                     Message::ProfileSnapshotRestored,
                 )

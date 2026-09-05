@@ -11,6 +11,7 @@ use infiltrator_ports::public_ip_probe::PublicIpProbe;
 use infiltrator_ports::settings_store::SettingsStore;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::sync::SyncPort;
+use infiltrator_ports::snapshot_store::SnapshotStore;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -54,6 +55,10 @@ pub fn subscription_source() -> impl SubscriptionSource {
 
 pub fn sync() -> anyhow::Result<impl SyncPort> {
     infiltrator_core::sync_port::FileWebDavSync::current()
+}
+
+pub async fn snapshot_store() -> anyhow::Result<impl SnapshotStore> {
+    infiltrator_core::snapshot_io::FileSnapshotStore::current().await
 }
 
 pub fn public_ip_probe() -> impl PublicIpProbe {
