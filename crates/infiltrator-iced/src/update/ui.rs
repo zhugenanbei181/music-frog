@@ -2,6 +2,7 @@ use crate::state::AppState;
 use crate::types::app::{ConfirmAction, Route, ToastStatus};
 use crate::types::message::Message;
 use iced::{Task, Theme, window};
+use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::error::InfiltratorError;
 use std::path::Path;
 use std::time::Instant;
@@ -683,6 +684,7 @@ impl AppState {
                 self.runtime.system_proxy_pending = true;
                 self.refresh_tray();
                 let runtime = self.runtime.runtime.clone();
+                let proxy_port = self.runtime.system_proxy_port.clone();
                 let bypass = if self.shell.system_proxy_bypass.trim().is_empty() {
                     None
                 } else {
@@ -690,6 +692,11 @@ impl AppState {
                 };
                 Task::perform(
                     async move {
+                        let proxy_port = proxy_port.ok_or_else(|| {
+                            InfiltratorError::Privilege(
+                                "当前宿主未提供系统代理控制能力".to_owned(),
+                            )
+                        })?;
                         let endpoint = if enabled {
                             let runtime = runtime.ok_or_else(|| {
                                 InfiltratorError::Privilege(
@@ -708,22 +715,24 @@ impl AppState {
                         } else {
                             String::new()
                         };
-                        crate::host::desktop::apply_system_proxy_with_bypass(
-                            if enabled {
-                                Some(endpoint.as_str())
-                            } else {
-                                None
-                            },
-                            bypass.as_deref(),
-                        )
-                        .map_err(|e: anyhow::Error| InfiltratorError::Privilege(e.to_string()))
+                        SystemProxyApplication::new(proxy_port)
+                            .set_enabled(
+                                enabled,
+                                enabled.then_some(endpoint),
+                                bypass,
+                            )
+                            .await
+                            .map_err(|failure| InfiltratorError::Privilege(failure.message))
                     },
                     Message::SystemProxySet,
                 )
             }
             Message::SystemProxySet(result) => match result {
-                Ok(_) => {
+                Ok(snapshot) => {
                     self.runtime.system_proxy_pending = false;
+                    self.runtime.system_proxy_enabled = snapshot.is_enabled();
+                    self.runtime.system_proxy = snapshot;
+                    self.refresh_tray();
                     Task::none()
                 }
                 Err(e) => {

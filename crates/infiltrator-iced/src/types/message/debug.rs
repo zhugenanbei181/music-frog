@@ -412,7 +412,9 @@ impl std::fmt::Debug for Message {
             Message::WebDavConnectionTested(Err(error)) => write!(f, "WebDavConnectionTested(Err({:?}))", error),
             Message::SetSystemProxy(b) => write!(f, "SetSystemProxy({})", b),
             Message::UpdateSystemProxyBypass(s) => write!(f, "UpdateSystemProxyBypass({s})"),
-            Message::SystemProxySet(Ok(_)) => write!(f, "SystemProxySet(Ok)"),
+            Message::SystemProxySet(Ok(snapshot)) => {
+                write!(f, "SystemProxySet(Ok(revision={}))", snapshot.revision)
+            }
             Message::SystemProxySet(Err(e)) => write!(f, "SystemProxySet(Err({:?}))", e),
             Message::RequestAdminPrivilege => write!(f, "RequestAdminPrivilege"),
             Message::RequestConfirmation(action) => write!(f, "RequestConfirmation({action:?})"),

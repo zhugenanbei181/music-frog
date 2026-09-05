@@ -4,6 +4,7 @@ use crate::core_lifecycle::CoreLifecyclePort;
 use crate::runtime_gateway::ManagedRuntime;
 use crate::service_mode::ServiceModePort;
 use crate::mtu_probe::MtuProbePort;
+use crate::system_proxy::SystemProxyPort;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -34,6 +35,11 @@ pub trait HostRuntime: ManagedRuntime {
     /// Optional physical-link MTU observer. Mobile hosts may return `None`
     /// until their native bridge exposes the active link facts.
     fn mtu_probe_port(&self) -> Option<Arc<dyn MtuProbePort>> {
+        None
+    }
+    /// Optional host system HTTP/SOCKS proxy controller. Mobile hosts may
+    /// omit it because VPN routing owns process traffic instead.
+    fn system_proxy_port(&self) -> Option<Arc<dyn SystemProxyPort>> {
         None
     }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;

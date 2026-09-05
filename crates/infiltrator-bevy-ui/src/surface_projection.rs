@@ -388,6 +388,7 @@ pub(super) fn settings_projection(
         .map(|value| SettingsProjection {
             autostart: value.autostart,
             system_proxy: value.system_proxy,
+            system_proxy_snapshot: snapshot.system_proxy.clone(),
             mixed_port: value.mixed_port,
             allow_lan: value.allow_lan,
             tun_enabled: value.tun_enabled,

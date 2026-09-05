@@ -71,4 +71,13 @@ impl ApplicationSurfaceReader {
             None => Default::default(),
         }
     }
+
+    pub(super) async fn read_system_proxy(
+        &self,
+    ) -> infiltrator_contract::system_proxy::SystemProxySnapshot {
+        match &self.system_proxy {
+            Some(application) => application.snapshot_cached().await,
+            None => Default::default(),
+        }
+    }
 }

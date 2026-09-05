@@ -39,6 +39,8 @@ use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
+use infiltrator_contract::system_proxy::SystemProxySnapshot;
+use infiltrator_ports::system_proxy::SystemProxyPort;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -56,6 +58,10 @@ pub struct RuntimeState {
     /// rendering compatibility field for existing Iced widgets.
     pub core_lifecycle: CoreLifecycleSnapshot,
     pub mtu: MtuNegotiationSnapshot,
+    pub system_proxy: SystemProxySnapshot,
+    /// Retained independently of the running core so a system proxy can be
+    /// disabled during shutdown/cleanup without a live Mihomo runtime.
+    pub system_proxy_port: Option<Arc<dyn SystemProxyPort>>,
     pub lifecycle_token: u64,
     pub status: RuntimeStatus,
     pub proxies: HashMap<String, Proxy>,
@@ -405,6 +411,14 @@ impl AppState {
         self.runtime.status = RuntimeStatus::from_core_snapshot(&snapshot.core);
         self.runtime.core_lifecycle = snapshot.core.lifecycle_snapshot();
         self.runtime.mtu = snapshot.mtu.clone();
+        self.runtime.system_proxy = snapshot.system_proxy.clone();
+        if matches!(
+            &snapshot.system_proxy.status,
+            infiltrator_contract::system_proxy::SystemProxyStatus::Enabled
+                | infiltrator_contract::system_proxy::SystemProxyStatus::Disabled
+        ) {
+            self.runtime.system_proxy_enabled = snapshot.system_proxy.is_enabled();
+        }
         self.runtime.runtime_generation = snapshot.core.generation;
         self.runtime.core_session_token = snapshot.core.session_token;
         self.runtime.core_versions = snapshot.versions.clone();

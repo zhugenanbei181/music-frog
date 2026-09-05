@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 pub struct ConfigSnapshot {
     pub mode: String,
     #[serde(default)]
+    pub port: u16,
+    #[serde(default)]
     pub mixed_port: u16,
     #[serde(default)]
     pub log_level: String,

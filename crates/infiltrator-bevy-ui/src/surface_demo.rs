@@ -94,6 +94,7 @@ pub(super) fn snapshot_from_overview(
         resources: infiltrator_contract::resources::CoreResourceSnapshot::default(),
         offline_startup: infiltrator_contract::offline_startup::OfflineStartupSnapshot::default(),
         mtu: infiltrator_contract::mtu::MtuNegotiationSnapshot::default(),
+        system_proxy: infiltrator_contract::system_proxy::SystemProxySnapshot::default(),
     }
 }
 
@@ -124,6 +125,7 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         resources: infiltrator_contract::resources::CoreResourceSnapshot::default(),
         offline_startup: infiltrator_contract::offline_startup::OfflineStartupSnapshot::default(),
         mtu: infiltrator_contract::mtu::MtuNegotiationSnapshot::default(),
+        system_proxy: infiltrator_contract::system_proxy::SystemProxySnapshot::default(),
     }
 }
 
@@ -247,7 +249,8 @@ pub(crate) fn empty_sync() -> SyncProjection {
 pub(crate) fn empty_settings() -> SettingsProjection {
     SettingsProjection {
         autostart: false,
-        system_proxy: false,
+            system_proxy: false,
+            system_proxy_snapshot: Default::default(),
         mixed_port: 0,
         allow_lan: false,
             tun_enabled: false,

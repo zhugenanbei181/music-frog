@@ -17,6 +17,7 @@ pub mod mtu;
 pub mod snapshot;
 pub mod session;
 pub mod service_mode;
+pub mod system_proxy;
 pub mod surface_snapshot;
 pub mod sync;
 pub mod tun;

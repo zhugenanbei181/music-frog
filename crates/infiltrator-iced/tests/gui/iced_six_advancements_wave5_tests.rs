@@ -16,6 +16,7 @@ use infiltrator_contract::mtu::{
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageData, SettingsPageSnapshot, SurfaceSnapshot};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::system_proxy::{SystemProxyObservation, SystemProxyStatus};
 
 #[test]
 fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
@@ -167,6 +168,33 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
     assert!(state.apply_shared_surface_snapshot(snapshot));
     assert!(state.editor.tun_auto_route);
     assert!(state.editor.tun_strict_route);
+}
+
+#[test]
+fn test_shared_surface_system_proxy_updates_the_iced_projection() {
+    let (mut state, _) = AppState::new();
+    let mut snapshot = SurfaceSnapshot::unavailable(
+        SurfaceKind::IcedDesktop,
+        HostKind::Desktop,
+        Failure::new(ErrorCode::NotReady, "test snapshot", true),
+    );
+    snapshot.revision = 1;
+    snapshot.system_proxy =
+        infiltrator_contract::system_proxy::SystemProxySnapshot::from_observation(
+            1,
+            SystemProxyObservation {
+                enabled: true,
+                endpoint: Some("127.0.0.1:7890".to_owned()),
+                bypass: Some("localhost".to_owned()),
+            },
+        );
+
+    assert!(state.apply_shared_surface_snapshot(snapshot));
+    assert!(state.runtime.system_proxy_enabled);
+    assert_eq!(
+        state.runtime.system_proxy.status,
+        SystemProxyStatus::Enabled
+    );
 }
 
 #[test]

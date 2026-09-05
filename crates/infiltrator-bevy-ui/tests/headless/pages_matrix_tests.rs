@@ -331,6 +331,7 @@ fn settings_page_in_place_update() {
     let updated = SettingsProjection {
         autostart: false,
         system_proxy: false,
+        system_proxy_snapshot: Default::default(),
         mixed_port: 7895,
         allow_lan: true,
         tun_enabled: true,

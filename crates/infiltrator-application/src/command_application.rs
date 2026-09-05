@@ -27,6 +27,7 @@ use crate::settings_application::SettingsApplication;
 use crate::service_mode_application::ServiceModeApplication;
 use crate::snapshot_application::SnapshotApplication;
 use crate::sync_application::SyncApplication;
+use crate::system_proxy_application::SystemProxyApplication;
 use crate::version_application::VersionApplication;
 
 pub type CommandFuture = Pin<Box<dyn Future<Output = Result<(), Failure>> + Send + 'static>>;
@@ -52,6 +53,7 @@ pub struct CommandApplication {
     service_mode: Option<ServiceModeApplication>,
     port_conflicts: Option<PortConflictApplication>,
     mtu: Option<MtuApplication>,
+    system_proxy: Option<SystemProxyApplication>,
 }
 
 impl CommandApplication {
@@ -121,6 +123,11 @@ impl CommandApplication {
 
     pub fn with_mtu(mut self, application: MtuApplication) -> Self {
         self.mtu = Some(application);
+        self
+    }
+
+    pub fn with_system_proxy(mut self, application: SystemProxyApplication) -> Self {
+        self.system_proxy = Some(application);
         self
     }
 
@@ -284,13 +291,36 @@ impl CommandApplication {
                     )),
                 }
             }
+            CommandIntent::SetSystemProxy { enabled } => {
+                let endpoint = if enabled {
+                    let config = self.runtime()?.get_config().await.map_err(Failure::from)?;
+                    let port = if config.mixed_port > 0 {
+                        config.mixed_port
+                    } else {
+                        config.port
+                    };
+                    (port > 0).then(|| format!("127.0.0.1:{port}")).ok_or_else(|| {
+                            Failure::new(
+                                ErrorCode::NotReady,
+                                "current configuration has no HTTP proxy endpoint",
+                                true,
+                            )
+                        })
+                        .map(Some)?
+                } else {
+                    None
+                };
+                self.system_proxy()?
+                    .set_enabled(enabled, endpoint, None)
+                    .await
+                    .map(|_| ())
+            }
             CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore
             | CommandIntent::ClearLogs
             | CommandIntent::SetLogLevelFilter { .. }
             | CommandIntent::TestDnsLatency
-            | CommandIntent::SetSystemProxy { .. }
             | CommandIntent::ToggleIncludeSystemApps { .. }
             | CommandIntent::ResolveConflictKeepLocal
             | CommandIntent::ResolveConflictTakeRemote
@@ -390,6 +420,14 @@ impl CommandApplication {
         self.mtu
             .clone()
             .ok_or_else(|| missing("MTU application"))
+    }
+
+    fn system_proxy(&self) -> Result<SystemProxyApplication, Failure> {
+        self.system_proxy
+            .clone()
+            .ok_or_else(|| {
+                Failure::unsupported("system proxy control is not composed for this host")
+            })
     }
 }
 

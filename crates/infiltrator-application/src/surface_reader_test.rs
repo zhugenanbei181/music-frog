@@ -12,6 +12,7 @@ use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::port_conflict::PortConflictPort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::mtu_probe::MtuProbePort;
+use infiltrator_ports::system_proxy::SystemProxyPort;
 use infiltrator_ports::service_mode::ServiceModePort;
 use infiltrator_ports::version::{VersionPort, VersionProgressSink};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -151,6 +152,32 @@ impl MtuProbePort for TestMtu {
     }
 }
 
+struct TestSystemProxy {
+    calls: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl SystemProxyPort for TestSystemProxy {
+    async fn snapshot(
+        &self,
+    ) -> Result<infiltrator_contract::system_proxy::SystemProxyObservation, PortError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Ok(infiltrator_contract::system_proxy::SystemProxyObservation {
+            enabled: true,
+            endpoint: Some("127.0.0.1:7890".to_owned()),
+            bypass: Some("localhost".to_owned()),
+        })
+    }
+
+    async fn apply(
+        &self,
+        _endpoint: Option<String>,
+        _bypass: Option<String>,
+    ) -> Result<(), PortError> {
+        Ok(())
+    }
+}
+
 struct TestVersions {
     calls: Arc<AtomicUsize>,
 }
@@ -207,6 +234,7 @@ impl VersionPort for TestVersions {
 async fn surface_reader_publishes_and_caches_all_core_channel_results() {
     let calls = Arc::new(AtomicUsize::new(0));
     let mtu_calls = Arc::new(AtomicUsize::new(0));
+    let proxy_calls = Arc::new(AtomicUsize::new(0));
     let core = Arc::new(CoreApplication::new(
         Arc::new(TestProcess),
         Arc::new(TestReadiness),
@@ -222,6 +250,9 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
         .with_offline_startup(OfflineStartupApplication::new(Arc::new(TestOfflineStartup)))
         .with_mtu(MtuApplication::new(Arc::new(TestMtu {
             calls: mtu_calls.clone(),
+        })))
+        .with_system_proxy(SystemProxyApplication::new(Arc::new(TestSystemProxy {
+            calls: proxy_calls.clone(),
         })));
 
     let first = reader.read().await.expect("first surface read");
@@ -251,6 +282,9 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
     assert_eq!(first.mtu.tun_mtu, Some(1420));
     assert_eq!(first.mtu.applied_tun_mtu, None);
     assert_eq!(mtu_calls.load(Ordering::SeqCst), 1);
+    assert!(first.system_proxy.is_enabled());
+    assert_eq!(first.system_proxy.endpoint.as_deref(), Some("127.0.0.1:7890"));
+    assert_eq!(proxy_calls.load(Ordering::SeqCst), 1);
     assert!(first.versions.channels.iter().all(|channel| matches!(
         channel.status,
         infiltrator_contract::version::CoreChannelStatus::Ready { .. }

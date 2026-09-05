@@ -697,6 +697,37 @@ fn test_settings_tun_enable_checkbox_submits_shared_command() {
 }
 
 #[test]
+fn test_settings_system_proxy_checkbox_submits_shared_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Settings);
+
+    let source = {
+        let mut toggles = app
+            .world_mut()
+            .query::<(&SystemProxyToggle, &bevy::ecs::hierarchy::Children)>();
+        *toggles
+            .single(app.world())
+            .expect("system proxy toggle")
+            .1
+            .iter()
+            .next()
+            .expect("system proxy checkbox")
+    };
+    app.world_mut().commands().trigger(ValueChange {
+        source,
+        value: false,
+        is_final: true,
+    });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::SetSystemProxy { enabled: false }]
+    );
+}
+
+#[test]
 fn test_settings_tun_stack_catalog_has_three_live_values_and_safe_lwip() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_b_app(Arc::clone(&sink));

@@ -605,6 +605,12 @@ impl HostRuntime for MihomoRuntime {
         Some(Arc::new(crate::mtu::DesktopMtuProbe::new()))
     }
 
+    fn system_proxy_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::system_proxy::SystemProxyPort>> {
+        Some(Arc::new(crate::system_proxy::DesktopSystemProxy::new()))
+    }
+
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {
         self.application.clone()
     }

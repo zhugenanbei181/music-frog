@@ -17,6 +17,7 @@ use infiltrator_application::snapshot_application::SnapshotApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::mtu_application::MtuApplication;
+use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::capability::{
@@ -86,6 +87,9 @@ pub async fn application_surface_reader(
         crate::offline_startup::offline_startup_port(&config_path, &binary_path),
     ));
     let mtu = MtuApplication::new(Arc::new(crate::mtu::DesktopMtuProbe::new()));
+    let system_proxy = SystemProxyApplication::new(Arc::new(
+        crate::system_proxy::DesktopSystemProxy::new(),
+    ));
     let service_mode =
         ServiceModeApplication::new(Arc::new(crate::service_mode::DesktopServiceMode::new(
             binary_path,
@@ -98,6 +102,7 @@ pub async fn application_surface_reader(
             .with_resources(resources)
             .with_offline_startup(offline_startup)
             .with_mtu(mtu)
+            .with_system_proxy(system_proxy)
             .with_profiles(profile)
             .with_configuration(configuration)
             .with_doctor(doctor)

@@ -18,6 +18,7 @@ use crate::service_mode_application::ServiceModeApplication;
 use crate::version_application::VersionApplication;
 use crate::offline_startup_application::OfflineStartupApplication;
 use crate::mtu_application::MtuApplication;
+use crate::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -55,6 +56,7 @@ pub struct ApplicationSurfaceReader {
     resources: Option<ResourceApplication>,
     offline_startup: Option<OfflineStartupApplication>,
     mtu: Option<MtuApplication>,
+    system_proxy: Option<SystemProxyApplication>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -78,6 +80,7 @@ impl ApplicationSurfaceReader {
             resources: None,
             offline_startup: None,
             mtu: None,
+            system_proxy: None,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -159,6 +162,11 @@ impl ApplicationSurfaceReader {
         self
     }
 
+    pub fn with_system_proxy(mut self, system_proxy: SystemProxyApplication) -> Self {
+        self.system_proxy = Some(system_proxy);
+        self
+    }
+
     pub fn core(&self) -> &Arc<CoreApplication> {
         &self.core
     }
@@ -216,6 +224,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let port_conflicts = self.read_port_conflicts().await;
         let resources = self.read_resources().await;
         let offline_startup = self.read_offline_startup().await;
+        let system_proxy = self.read_system_proxy().await;
         let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
 
         pages.overview =
@@ -360,7 +369,11 @@ impl SurfaceReader for ApplicationSurfaceReader {
             self.snapshots.as_ref(),
         )
         .await;
-        pages.settings = build_settings_page(hydrated_settings.as_ref(), runtime_config.as_ref());
+        pages.settings = build_settings_page(
+            hydrated_settings.as_ref(),
+            runtime_config.as_ref(),
+            &system_proxy,
+        );
 
         Ok(surface_snapshot::SurfaceSnapshot {
             surface: self.surface,
@@ -378,6 +391,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             resources,
             offline_startup,
             mtu,
+            system_proxy,
         })
     }
 }
@@ -698,6 +712,7 @@ async fn build_sync_page(
 fn build_settings_page(
     settings: Option<&Result<infiltrator_domain::settings::AppSettings, Failure>>,
     runtime_config: Option<&Result<infiltrator_domain::runtime::ConfigSnapshot, PortError>>,
+    system_proxy: &infiltrator_contract::system_proxy::SystemProxySnapshot,
 ) -> surface_snapshot::PageData<surface_snapshot::SettingsPageSnapshot> {
     let settings = match settings {
         Some(Ok(settings)) => settings,
@@ -713,7 +728,7 @@ fn build_settings_page(
     let config = runtime_config.and_then(|result| result.as_ref().ok());
     surface_snapshot::PageData::ready(surface_snapshot::SettingsPageSnapshot {
         autostart: false,
-        system_proxy: false,
+        system_proxy: system_proxy.is_enabled(),
         mixed_port: config.map_or(0, |value| value.mixed_port),
         allow_lan: config.is_some_and(|value| value.allow_lan),
         tun_enabled: config

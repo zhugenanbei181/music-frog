@@ -44,12 +44,14 @@ use crate::route::{PageRoot, Route};
 mod settings_core;
 #[path = "settings_tun.rs"]
 mod settings_tun;
+#[path = "settings_system.rs"]
+mod settings_system;
 
 pub use settings_core::{
     CoreLogLevelButton, ProbeTunMtuButton, SettingsLine, SettingsLineKind, SettingsProjection,
-    TunEnableToggle, TunRouteToggle, TunRouteToggleKind, TunStackButton,
-    TunStackButtonAvailability,
+    TunEnableToggle, TunRouteToggle, TunRouteToggleKind, TunStackButton, TunStackButtonAvailability,
 };
+pub use settings_system::SystemProxyToggle;
 
 /// Root marker on the Settings page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -465,7 +467,7 @@ pub fn general_card_scene(
                 }
                 Children [
                     ( { checkbox_scene("开机自动启动 (Autostart on Boot)".to_owned(), projection.autostart, palette) } ),
-                    ( { checkbox_scene("设置系统代理 (Set System Proxy)".to_owned(), projection.system_proxy, palette) } ),
+                    ( { settings_system::toggle_scene(projection.system_proxy, palette) } ),
                     ( { close_to_tray_toggle_row_scene(true, palette) } ),
                     ( { system_notifications_toggle_row_scene(true, palette) } ),
                     ( { checkbox_scene("允许局域网连接 (Allow LAN)".to_owned(), projection.allow_lan, palette) } ),
@@ -638,6 +640,7 @@ fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(settings_core::on_mtu_probe_activated);
     commands.add_observer(settings_core::on_tun_route_changed);
     commands.add_observer(settings_core::on_tun_enabled_changed);
+    commands.add_observer(settings_system::on_changed);
     commands.add_observer(settings_tun::apply_tun_toggle_projection);
 }
 

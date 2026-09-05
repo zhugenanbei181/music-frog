@@ -64,6 +64,8 @@ impl AppState {
                 core_session_token: None,
                 core_lifecycle: Default::default(),
                 mtu: Default::default(),
+                system_proxy: Default::default(),
+                system_proxy_port: Some(crate::host::desktop::system_proxy_port()),
                 lifecycle_token: 0,
                 status: RuntimeStatus::Stopped,
                 proxy_mode: None,

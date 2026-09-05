@@ -386,6 +386,10 @@ mod tests {
             UiCommand::SetTunStrictRoute(true).to_intent(),
             Some(CommandIntent::SetTunStrictRoute { enabled: true })
         );
+        assert_eq!(
+            UiCommand::SetSystemProxy { enabled: true }.to_intent(),
+            Some(CommandIntent::SetSystemProxy { enabled: true })
+        );
     }
 
     #[test]

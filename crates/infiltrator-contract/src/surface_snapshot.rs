@@ -13,6 +13,7 @@ use crate::resources::CoreResourceSnapshot;
 use crate::error::Failure;
 use crate::offline_startup::OfflineStartupSnapshot;
 use crate::mtu::MtuNegotiationSnapshot;
+use crate::system_proxy::SystemProxySnapshot;
 use crate::snapshot::{CoreLifecycle, CoreSnapshot};
 use crate::surface::{HostKind, SurfaceKind};
 use crate::version::CoreVersionSnapshot;
@@ -420,6 +421,9 @@ pub struct SurfaceSnapshot {
     /// Physical-to-TUN MTU negotiation result.
     #[serde(default)]
     pub mtu: MtuNegotiationSnapshot,
+    /// Host system HTTP/SOCKS proxy state.
+    #[serde(default)]
+    pub system_proxy: SystemProxySnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -461,6 +465,7 @@ impl SurfaceSnapshot {
             resources: CoreResourceSnapshot::default(),
             offline_startup: OfflineStartupSnapshot::default(),
             mtu: MtuNegotiationSnapshot::default(),
+            system_proxy: SystemProxySnapshot::default(),
         }
     }
 

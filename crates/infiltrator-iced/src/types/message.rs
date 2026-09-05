@@ -316,7 +316,9 @@ pub enum Message {
     WebDavConnectionTested(Result<(), InfiltratorError>),
     SetSystemProxy(bool),
     UpdateSystemProxyBypass(String),
-    SystemProxySet(Result<(), InfiltratorError>),
+    SystemProxySet(
+        Result<infiltrator_contract::system_proxy::SystemProxySnapshot, InfiltratorError>,
+    ),
     RequestAdminPrivilege,
     RequestConfirmation(ConfirmAction),
     ConfirmAction,

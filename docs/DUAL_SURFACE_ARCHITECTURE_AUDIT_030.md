@@ -92,6 +92,7 @@
 - `DUAL-02-01` 已完成四项 TUN stack shared catalog、前三项 live PATCH+回读和 LWIP `ReferenceOnly` fail-closed；Iced/Bevy 控件与 desktop/Android/iOS command composition 已同步，真实 TUN/VPN 发行包 smoke 仍未冒充 `host-verified`。
 - `DUAL-02-02` 已完成物理链路 MTU host port、domain 开销/MSS 计算、live `tun.mtu` PATCH+GET readback、5 秒 surface cache 和 Iced/Bevy 双端状态/行为测试；Android/iOS 无 native 链路指标时保持 typed unsupported，真实多网卡漫游、VPN/发行包与移动原生链路 smoke 仍未冒充 `host-verified`。
 - `DUAL-02-03` 已完成 `auto-route`/`strict-route` shared command、Settings snapshot、严格路由依赖自动路由的原子 PATCH+GET readback，以及 Iced/Bevy checkbox 与 projection 同步；真实系统路由表、VPN 权限和泄漏验证仍未冒充 `host-verified`。
+- `DUAL-02-04` 已完成系统代理 shared port/application/snapshot、desktop Windows registry/Linux GNOME-KDE/macOS networksetup 适配、3 秒读取缓存与 Iced/Bevy checkbox/command 投影；真实桌面权限、第三方抢占和发行包 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

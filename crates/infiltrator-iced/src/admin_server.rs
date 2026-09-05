@@ -813,6 +813,11 @@ impl AppState {
             .unwrap_or_else(|| self.runtime.runtime_generation.saturating_add(1));
         self.runtime.tun_service_status =
             runtime.as_ref().map(|runtime| runtime.tun_service_status());
+        if let Some(runtime) = runtime.as_ref()
+            && let Some(proxy) = runtime.system_proxy_port()
+        {
+            self.runtime.system_proxy_port = Some(proxy);
+        }
         self.runtime.runtime = runtime;
         self.shell
             .admin_shared

@@ -32,6 +32,7 @@ pub mod runtime_gateway;
 pub mod sync;
 pub mod surface;
 pub mod version;
+pub mod system_proxy;
 
 #[cfg(test)]
 mod tests {

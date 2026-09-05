@@ -35,6 +35,7 @@ use infiltrator_contract::offline_startup::{
 };
 use infiltrator_contract::tun::TunStack;
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState};
+use infiltrator_contract::system_proxy::SystemProxySnapshot;
 use crate::command::{CommandSinkHandle, UiCommand};
 
 /// Marker for text lines updated by the Settings projection observer.
@@ -119,6 +120,7 @@ pub struct TunEnableToggle;
 pub struct SettingsProjection {
     pub autostart: bool,
     pub system_proxy: bool,
+    pub system_proxy_snapshot: SystemProxySnapshot,
     pub mixed_port: u16,
     pub allow_lan: bool,
     pub tun_enabled: bool,
@@ -143,6 +145,7 @@ impl SettingsProjection {
         Self {
             autostart: true,
             system_proxy: true,
+            system_proxy_snapshot: SystemProxySnapshot::default(),
             mixed_port: 7890,
             allow_lan: false,
             tun_enabled: true,

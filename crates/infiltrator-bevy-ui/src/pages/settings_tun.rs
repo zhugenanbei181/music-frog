@@ -8,12 +8,14 @@ use bevy::ui::Checked;
 use bevy::ui_widgets::Checkbox;
 
 use super::settings_core::{TunEnableToggle, TunRouteToggle, TunRouteToggleKind};
+use super::settings_system::SystemProxyToggle;
 use super::SettingsProjectionUpdated;
 
 pub(super) fn apply_tun_toggle_projection(
     update: bevy::ecs::observer::On<SettingsProjectionUpdated>,
     mut route_toggles: Query<(&TunRouteToggle, &Children)>,
     mut enable_toggles: Query<&Children, With<TunEnableToggle>>,
+    mut system_proxy_toggles: Query<&Children, With<SystemProxyToggle>>,
     checkboxes: Query<(Entity, Has<Checked>), With<Checkbox>>,
     mut commands: Commands,
 ) {
@@ -27,6 +29,9 @@ pub(super) fn apply_tun_toggle_projection(
     }
     for children in &mut enable_toggles {
         restamp_checkbox(&mut commands, &checkboxes, children, projection.tun_enabled);
+    }
+    for children in &mut system_proxy_toggles {
+        restamp_checkbox(&mut commands, &checkboxes, children, projection.system_proxy);
     }
 }
 

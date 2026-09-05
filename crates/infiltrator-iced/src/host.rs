@@ -6,6 +6,10 @@
 //! application/contract values.
 
 pub mod desktop {
+    pub fn system_proxy_port() -> std::sync::Arc<dyn infiltrator_ports::system_proxy::SystemProxyPort> {
+        std::sync::Arc::new(infiltrator_desktop::system_proxy::DesktopSystemProxy::new())
+    }
+
     pub fn read_system_proxy_state() -> anyhow::Result<infiltrator_desktop::proxy::SystemProxyState>
     {
         infiltrator_desktop::proxy::read_system_proxy_state()
