@@ -452,6 +452,7 @@ impl std::fmt::Debug for Message {
             Message::CancelCoreDownload => write!(f, "CancelCoreDownload"),
             Message::DeleteKernel(v) => write!(f, "DeleteKernel({})", v),
             Message::SetDefaultKernel(v) => write!(f, "SetDefaultKernel({})", v),
+            Message::RollbackCore => write!(f, "RollbackCore"),
             Message::KernelOperationFinished(Ok(_)) => write!(f, "KernelOperationFinished(Ok)"),
             Message::KernelOperationFinished(Err(error)) => write!(f, "KernelOperationFinished(Err({:?}))", error),
             Message::FactoryReset => write!(f, "FactoryReset"),

@@ -79,6 +79,7 @@ impl AppState {
                 | Message::CancelCoreDownload
                 | Message::DeleteKernel(_)
                 | Message::SetDefaultKernel(_)
+                | Message::RollbackCore
                 | Message::FactoryReset
                 | Message::OpenConfigDir
                 | Message::RequestAdminPrivilege

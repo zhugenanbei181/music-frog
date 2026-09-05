@@ -102,6 +102,8 @@ python3 scripts/quality/crash-watchdog-guard.py --mode enforce
 python3 scripts/quality/core-channel-guard.py --mode enforce
 # DUAL-01-05 官方 SHA256 digest gate 与完整性投影守卫
 python3 scripts/quality/kernel-integrity-guard.py --mode enforce
+# DUAL-01-06 本地内核版本历史、健康检查与双端回滚守卫
+python3 scripts/quality/kernel-rollback-guard.py --mode enforce
 ```
 
 ---

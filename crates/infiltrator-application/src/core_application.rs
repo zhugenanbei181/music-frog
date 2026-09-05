@@ -764,6 +764,7 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::ResolveConflictKeepLocal => "resolve_conflict_keep_local",
         CommandIntent::ResolveConflictTakeRemote => "resolve_conflict_take_remote",
         CommandIntent::RestoreSnapshot { .. } => "restore_snapshot",
+        CommandIntent::RollbackCore => "rollback_core",
         CommandIntent::UpdateSetting { .. } => "update_setting",
         CommandIntent::CheckUpdates => "check_updates",
     }

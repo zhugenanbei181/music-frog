@@ -90,6 +90,8 @@ pub enum CommandIntent {
     ResolveConflictKeepLocal,
     ResolveConflictTakeRemote,
     RestoreSnapshot { id: String },
+    /// Select the last installed, locally recorded core version.
+    RollbackCore,
     UpdateSetting { key: String, value: String },
     CheckUpdates,
 }
@@ -153,7 +155,9 @@ impl CommandIntent {
             | Self::ResolveConflictKeepLocal
             | Self::ResolveConflictTakeRemote
             | Self::RestoreSnapshot { .. } => CommandKind::Sync,
-            Self::UpdateSetting { .. } | Self::CheckUpdates => CommandKind::Update,
+            Self::RollbackCore | Self::UpdateSetting { .. } | Self::CheckUpdates => {
+                CommandKind::Update
+            }
         }
     }
 }

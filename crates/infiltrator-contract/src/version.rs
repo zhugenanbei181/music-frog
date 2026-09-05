@@ -57,6 +57,18 @@ pub struct CoreChannelSnapshot {
     pub status: CoreChannelStatus,
 }
 
+/// Local version-selection journal shared by every surface.
+///
+/// `target` is the first still-installed, runnable version that the local
+/// rollback action can select. The history is bounded by the host adapter;
+/// it is intentionally metadata only and never contains binary contents.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CoreRollbackSnapshot {
+    pub current: Option<String>,
+    pub target: Option<String>,
+    pub history: Vec<String>,
+}
+
 /// Integrity result of the most recent core artifact installation attempt.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CoreArtifactVerification {
@@ -73,6 +85,8 @@ pub struct CoreVersionSnapshot {
     pub channels: Vec<CoreChannelSnapshot>,
     #[serde(default)]
     pub verification: CoreArtifactVerification,
+    #[serde(default)]
+    pub rollback: CoreRollbackSnapshot,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

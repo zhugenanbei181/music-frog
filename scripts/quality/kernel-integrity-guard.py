@@ -112,7 +112,14 @@ def main() -> int:
         "crates/infiltrator-bevy-ui/src/pages/settings.rs",
         "SettingsLineKind::CoreIntegrity",
         "制品完整性 (SHA-256)",
+        "format_integrity",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/settings_core.rs",
         "CoreArtifactVerification::Verified",
+        "CoreArtifactVerification::Rejected",
+        "sanitize_text",
     )
     require(
         violations,

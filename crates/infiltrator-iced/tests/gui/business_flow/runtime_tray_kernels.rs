@@ -15,6 +15,7 @@ use crate::types::app::CoreDownloadProgress;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::version::CoreRollbackSnapshot;
 use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup};
 use mihomo_version::manager::VersionManager;
 
@@ -242,6 +243,38 @@ fn kernel_management_round_trip_and_download_progress_tray_throttle() {
         state.runtime.download_stats.as_ref().unwrap().downloaded,
         700
     );
+}
+
+/// DUAL-01-06 — 本地版本历史只做默认指针切换：回滚不发网络请求，先由
+/// VersionManager 校验候选 binary，再回灌 Iced 的统一内核操作结果。
+#[cfg(unix)]
+#[test]
+fn kernel_rollback_round_trip_uses_the_shared_operation_path() {
+    let _home = TempHome::acquire("kernel-rollback");
+    let mut state = fresh_state();
+    let manager = VersionManager::new().unwrap();
+    plant_runnable_fake_binary(&_home, "v1.19.28");
+    plant_runnable_fake_binary(&_home, "v1.19.29");
+
+    block_on(manager.set_default("v1.19.28")).unwrap();
+    block_on(manager.set_default("v1.19.29")).unwrap();
+    let before = block_on(manager.rollback_info()).unwrap();
+    assert_eq!(before.current.as_deref(), Some("v1.19.29"));
+    assert_eq!(before.target.as_deref(), Some("v1.19.28"));
+    state.runtime.core_versions.rollback = CoreRollbackSnapshot {
+        current: before.current,
+        target: before.target,
+        history: before.history,
+    };
+
+    assert_eq!(feed(&mut state, Message::RollbackCore), 1);
+    block_on(manager.rollback()).unwrap();
+    assert_eq!(block_on(manager.get_default()).unwrap(), "v1.19.28");
+    assert_eq!(feed(&mut state, Message::KernelOperationFinished(Ok(()))), 1);
+
+    let after = block_on(manager.rollback_info()).unwrap();
+    assert_eq!(after.current.as_deref(), Some("v1.19.28"));
+    assert_eq!(after.target, None, "rollback consumes the historical stack");
 }
 
 #[cfg(unix)]

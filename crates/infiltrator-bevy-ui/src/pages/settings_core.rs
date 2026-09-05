@@ -1,0 +1,93 @@
+//! Bevy Settings scene pieces for local core-version operations.
+//!
+//! Keeping the rollback control beside its projection-specific scene keeps
+//! the main Settings page below the source-size budget without moving any
+//! business decision into the widget layer.
+
+use bevy::scene::{Scene, bsn};
+use bevy::ecs::hierarchy::Children;
+use bevy::ui::BorderRadius;
+use bevy::ui::prelude::{
+    AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, UiRect, Val, percent, px,
+};
+use bevy::ui::widget::Text;
+use bevy::ui_widgets::Button;
+use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::version::CoreArtifactVerification;
+
+use super::{
+    CoreRollbackAvailability, CoreRollbackButton, CoreRollbackButtonLabel, SettingsLine,
+    SettingsLineKind, SettingsProjection,
+};
+
+pub(super) fn core_rollback_row_scene(
+    projection: &SettingsProjection,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let rollback_text = projection
+        .core_versions
+        .rollback
+        .target
+        .as_deref()
+        .map_or_else(|| "没有可回滚的本地内核".to_owned(), |version| {
+            format!("可回滚至 {version}")
+        });
+    let rollback_available = projection.core_versions.rollback.target.is_some();
+    let action: Box<dyn Scene> = Box::new(bsn! {
+        Node {
+            min_height: px(palette.control_height_px),
+            padding: UiRect::horizontal(Val::Px(space::S12)),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ if rollback_available { palette.accent } else { palette.surface_elevated } })
+        CoreRollbackButton
+        CoreRollbackAvailability(rollback_available)
+        Button
+        Children [
+            ( Text({ if rollback_available { "立即回滚".to_owned() } else { "不可用".to_owned() } }) CoreRollbackButtonLabel TextRole(Role::BodyStrong) ),
+        ]
+    });
+
+    let label: Box<dyn Scene> = Box::new(bsn! {
+        Node {
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(space::S4),
+        }
+        Children [
+            ( Text({ "内核版本回滚 (Core Rollback)".to_owned() }) TextRole(Role::Body) ),
+            ( Text(rollback_text) SettingsLine(SettingsLineKind::CoreRollback) TextRole(Role::Mono) ),
+        ]
+    });
+    let children = vec![label, action];
+
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect::all(Val::Px(space::S8)),
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ palette.surface_elevated })
+        Children [ { children } ]
+    })
+}
+
+pub(super) fn format_integrity(verification: &CoreArtifactVerification) -> String {
+    match verification {
+        CoreArtifactVerification::Unknown => "未校验".to_owned(),
+        CoreArtifactVerification::Verified { version } => {
+            format!("已验证 ({version})")
+        }
+        CoreArtifactVerification::Rejected { version, failure } => {
+            format!(
+                "已拒绝 ({version}: {})",
+                infiltrator_bevy_widgets::desktop::ClipboardPayload::sanitize_text(&failure.message)
+            )
+        }
+    }
+}

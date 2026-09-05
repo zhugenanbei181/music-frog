@@ -658,6 +658,7 @@ fn build_settings_page(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::version::CoreRollbackSnapshot;
     use async_trait::async_trait;
     use infiltrator_contract::snapshot::CoreLifecycle;
     use infiltrator_contract::version::{CoreRelease, CoreReleaseChannel};
@@ -756,6 +757,14 @@ mod tests {
         async fn uninstall(&self, _version: &str) -> Result<(), PortError> {
             Ok(())
         }
+
+        async fn rollback_snapshot(&self) -> Result<CoreRollbackSnapshot, PortError> {
+            Ok(CoreRollbackSnapshot {
+                current: Some("v1.19.30".to_owned()),
+                target: Some("v1.19.29".to_owned()),
+                history: vec!["v1.19.29".to_owned()],
+            })
+        }
     }
 
     #[tokio::test]
@@ -778,6 +787,10 @@ mod tests {
         assert_eq!(first.versions.revision, 1);
         assert_eq!(second.versions.revision, 1);
         assert_eq!(calls.load(Ordering::SeqCst), 3);
+        assert_eq!(
+            first.versions.rollback.target.as_deref(),
+            Some("v1.19.29")
+        );
         assert!(first.versions.channels.iter().all(|channel| matches!(
             channel.status,
             infiltrator_contract::version::CoreChannelStatus::Ready { .. }

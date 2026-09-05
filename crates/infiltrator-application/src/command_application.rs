@@ -206,6 +206,7 @@ impl CommandApplication {
                     .restore(self.managed_runtime.clone(), &profile, &path)
                     .await
             }
+            CommandIntent::RollbackCore => self.versions()?.rollback().await.map(|_| ()),
             CommandIntent::CheckUpdates => {
                 let settings = self.settings()?.load().await?;
                 let channel = parse_release_channel(&settings.core_channel)?;

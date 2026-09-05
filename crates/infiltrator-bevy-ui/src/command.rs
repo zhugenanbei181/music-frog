@@ -80,6 +80,8 @@ pub enum UiCommand {
     ResolveConflictTakeRemote,
     /// Restore a specific snapshot.
     RestoreSnapshot { id: String },
+    /// Select the last installed, locally recorded core version.
+    RollbackCore,
     /// Update a core or UI setting.
     UpdateSetting { key: String, value: String },
     /// Check for a new core release.
@@ -150,6 +152,7 @@ impl UiCommand {
             Self::ResolveConflictKeepLocal => Some(CommandIntent::ResolveConflictKeepLocal),
             Self::ResolveConflictTakeRemote => Some(CommandIntent::ResolveConflictTakeRemote),
             Self::RestoreSnapshot { id } => Some(CommandIntent::RestoreSnapshot { id: id.clone() }),
+            Self::RollbackCore => Some(CommandIntent::RollbackCore),
             Self::UpdateSetting { key, value } => Some(CommandIntent::UpdateSetting {
                 key: key.clone(),
                 value: value.clone(),
@@ -326,6 +329,10 @@ mod tests {
             }
             .to_intent(),
             None
+        );
+        assert_eq!(
+            UiCommand::RollbackCore.to_intent(),
+            Some(CommandIntent::RollbackCore)
         );
     }
 }

@@ -251,6 +251,23 @@ fn kernel_management_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool
         "Online channels: {channel_probe}"
     )));
     kernel_rows = kernel_rows.push(secondary_text(format!("Artifact integrity: {integrity}")));
+    let rollback_target = state.runtime.core_versions.rollback.target.clone();
+    kernel_rows = kernel_rows.push(secondary_text(
+        rollback_target.as_deref().map_or_else(
+            || "Rollback: no previous runnable core".to_owned(),
+            |version| format!("Rollback target: {version}"),
+        ),
+    ));
+    if rollback_target.is_some() {
+        kernel_rows = kernel_rows.push(
+            row![
+                secondary_text("Switch to the previous verified local binary"),
+                Space::new().width(Length::Fill),
+                text_btn("Rollback core", style_ghost, Some(Message::RollbackCore)),
+            ]
+            .align_y(Alignment::Center),
+        );
+    }
 
     if let Some(latest) = &state.runtime.latest_core_version {
         kernel_rows = kernel_rows.push(

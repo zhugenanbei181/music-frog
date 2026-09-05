@@ -2,7 +2,7 @@
 
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreRelease, CoreReleaseChannel, CoreReleaseSummary,
-    InstalledCoreVersion, VersionDownloadProgress,
+    CoreRollbackSnapshot, InstalledCoreVersion, VersionDownloadProgress,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::version::{VersionPort, VersionProgressSink};
@@ -122,6 +122,22 @@ impl VersionPort for MihomoVersionPort {
 
     async fn uninstall(&self, version: &str) -> Result<(), PortError> {
         self.manager.uninstall(version).await.map_err(version_error)
+    }
+
+    async fn rollback(&self) -> Result<String, PortError> {
+        self.manager.rollback().await.map_err(version_error)
+    }
+
+    async fn rollback_snapshot(&self) -> Result<CoreRollbackSnapshot, PortError> {
+        self.manager
+            .rollback_info()
+            .await
+            .map(|info| CoreRollbackSnapshot {
+                current: info.current,
+                target: info.target,
+                history: info.history,
+            })
+            .map_err(version_error)
     }
 
     fn verification(&self) -> CoreArtifactVerification {

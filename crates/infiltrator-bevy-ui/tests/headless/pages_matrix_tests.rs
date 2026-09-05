@@ -347,6 +347,7 @@ fn settings_page_in_place_update() {
             verification: CoreArtifactVerification::Verified {
                 version: "v1.19.30".to_owned(),
             },
+            rollback: Default::default(),
         },
         core_integrity: CoreArtifactVerification::Verified {
             version: "v1.19.30".to_owned(),

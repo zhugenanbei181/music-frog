@@ -36,6 +36,7 @@ mod tests {
             CommandKind::CoreLifecycle
         );
         assert_eq!(CommandIntent::SyncNow.kind(), CommandKind::Sync);
+        assert_eq!(CommandIntent::RollbackCore.kind(), CommandKind::Update);
     }
 
     #[test]

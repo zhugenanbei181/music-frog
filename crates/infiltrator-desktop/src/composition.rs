@@ -4,7 +4,9 @@
 //! Tokio-backed application service with a concrete process and controller
 //! adapter. UI crates receive the resulting `CoreApplication` handle.
 
+use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::version_application::VersionApplication;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::readiness::ControllerReadiness;
@@ -22,10 +24,17 @@ pub fn core_application(
     let client = MihomoClient::new(&controller_url, secret.clone())?;
     let runtime = infiltrator_composition::tokio_application_runtime()
         .map_err(|error| anyhow::anyhow!(error))?;
-    Ok(CoreApplication::new_with_overview(
+    let application = CoreApplication::new_with_overview(
         service.core_process(),
         std::sync::Arc::new(ControllerReadiness::new(controller_url, secret)),
         std::sync::Arc::new(ControllerOverviewReader::new(client)),
         runtime,
-    ))
+    );
+    // Keep the Bevy command seam live in the desktop composition: version
+    // rollback is an application use-case, not a UI-local file operation.
+    let versions = VersionApplication::new(std::sync::Arc::new(crate::storage::version()?));
+    application.install_command_handler(std::sync::Arc::new(
+        CommandApplication::new().with_versions(versions),
+    ));
+    Ok(application)
 }

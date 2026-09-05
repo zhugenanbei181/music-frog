@@ -63,6 +63,7 @@ REQUIRED_INTENTS = {
     "ResolveConflictKeepLocal",
     "ResolveConflictTakeRemote",
     "RestoreSnapshot",
+    "RollbackCore",
     "UpdateSetting",
     "CheckUpdates",
 }

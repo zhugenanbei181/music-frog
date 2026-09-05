@@ -13,6 +13,7 @@
 | `DUAL-01-03` 崩溃自愈看门狗 | `parity-ready` | shared/domain 定义 100ms 首次重试、指数退避与 3 次熔断；application 探测异常退出、串行重启并产生新 session；250ms host scheduler 将恢复动作接入 desktop/Android/iOS；Iced/Bevy Doctor 均展示同一状态 | contract/domain/application/ports、composition scheduler、Iced/Bevy projection/scene/headless、Android/iOS host contract 测试；真实发行包内异常退出 smoke 尚未计入 |
 | `DUAL-01-04` 内核多通道版本交付 | `parity-ready` | contract 固定 `Stable / Alpha / Meta-Core` 三值；Alpha 严格探测 `Prerelease-Alpha`，Meta-Core 使用官方 Meta 发布 feed；application 并行探测且按通道保留失败；surface reader 以缓存结果分发到两端；Iced/Bevy Settings 同时显示选中通道与三通道结果 | `mihomo-version` 官方 API mock、application partial-failure 测试、desktop version-port composition、Iced/Bevy headless 投影测试；Android/iOS 的 CoreVersionInstall 仍按宿主包能力声明 unsupported，真实发行包 smoke 尚未计入 |
 | `DUAL-01-05` 内核二进制 SHA256 校验 | `parity-ready` | 下载链在任何解压/写盘前要求官方 release `sha256:<64 hex>` digest；缺失、格式错误和篡改均 fail-closed；最近一次 Verified/Rejected 结果进入 shared version snapshot，Iced/Bevy Settings 同步展示 | `mihomo-version` verify/download/manager tests、MihomoVersionPort integrity state、application surface cache、Iced/Bevy headless projection；真实发行包签名/供应链审计尚未计入 `host-verified` |
+| `DUAL-01-06` 内核版本秒级回滚 | `parity-ready` | 本地保留有界版本历史；回滚不访问网络，先对目标 binary 执行 `-v` 健康检查，再原子更新 `config.toml` 的版本指针并保留 profile 元数据；shared snapshot 暴露当前/目标/历史，Iced 与 Bevy 均提交同一 `RollbackCore` intent | `VersionManager` 历史栈与原子写入测试、VersionApplication/desktop handler、Iced update/view/behavior、Bevy command/scene/headless；当前语义是切换本地默认 binary，真实发行包运行中重启 smoke 尚未计入 `host-verified` |
 
 ---
 

@@ -356,6 +356,7 @@ pub enum Message {
     CancelCoreDownload,
     DeleteKernel(String),
     SetDefaultKernel(String),
+    RollbackCore,
     KernelOperationFinished(Result<(), InfiltratorError>),
     FactoryReset,
     FactoryResetFinished(Result<(), InfiltratorError>),

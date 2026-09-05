@@ -5,12 +5,23 @@ use mihomo_platform::paths::get_home_dir;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::fs;
+use tokio::io::AsyncWriteExt;
+
+const MAX_VERSION_HISTORY: usize = 8;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionInfo {
     pub version: String,
     pub path: PathBuf,
     pub is_default: bool,
+}
+
+/// Persistent version-selection state exposed by the version adapter.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VersionRollbackInfo {
+    pub current: Option<String>,
+    pub target: Option<String>,
+    pub history: Vec<String>,
 }
 
 pub struct VersionManager {
@@ -59,6 +70,7 @@ impl VersionManager {
         F: FnMut(DownloadProgress),
         C: Fn() -> bool,
     {
+        validate_version_label(version)?;
         if is_cancelled() {
             return Err(MihomoError::Version("下载已取消".to_string()));
         }
@@ -192,6 +204,7 @@ impl VersionManager {
     }
 
     pub async fn set_default(&self, version: &str) -> Result<()> {
+        validate_version_label(version)?;
         let version_dir = self.install_dir.join(version);
         if !version_dir.exists() {
             return Err(MihomoError::NotFound(format!(
@@ -211,31 +224,71 @@ impl VersionManager {
         };
         smoke_check_binary(&version_dir.join(binary_name)).await?;
 
-        if let Some(parent) = self.config_file.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-
-        let config = format!("[default]\nversion = \"{}\"\n", version);
-        fs::write(&self.config_file, config).await?;
-
-        Ok(())
+        let mut config = self.read_config().await?;
+        let previous = default_version_from_config(&config);
+        let mut history = version_history_from_config(&config);
+        record_version_transition(&mut history, previous.as_deref(), version);
+        set_default_in_config(&mut config, version, &history)?;
+        self.write_config(&config).await
     }
 
     pub async fn get_default(&self) -> Result<String> {
         if !self.config_file.exists() {
             return Err(MihomoError::NotFound("No default version set".to_string()));
         }
-
-        let content = fs::read_to_string(&self.config_file).await?;
-        let config: toml::Value = toml::from_str(&content)
-            .map_err(|e| MihomoError::Config(format!("Invalid config: {}", e)))?;
-
-        config
-            .get("default")
-            .and_then(|d| d.get("version"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
+        let config = self.read_config().await?;
+        default_version_from_config(&config)
             .ok_or_else(|| MihomoError::Config("No default version in config".to_string()))
+    }
+
+    /// Return the locally recorded default-version history without touching
+    /// the network. Missing or deleted historical binaries are skipped when
+    /// choosing `target`, while the bounded history remains visible for
+    /// diagnostics and future recovery.
+    pub async fn rollback_info(&self) -> Result<VersionRollbackInfo> {
+        let config = self.read_config().await?;
+        let current = default_version_from_config(&config);
+        let history = version_history_from_config(&config);
+        let target = self
+            .find_rollback_target(current.as_deref(), &history)
+            .await;
+        Ok(VersionRollbackInfo {
+            current,
+            target,
+            history,
+        })
+    }
+
+    /// Select the most recent installed historical binary. This operation is
+    /// local and bounded: it validates the candidate with the same `-v`
+    /// smoke check used by installation/default activation, then atomically
+    /// updates only the version-selection fields in the shared config file.
+    pub async fn rollback(&self) -> Result<String> {
+        let mut config = self.read_config().await?;
+        let current = default_version_from_config(&config);
+        let mut history = version_history_from_config(&config);
+        let target = self
+            .find_rollback_target(current.as_deref(), &history)
+            .await
+            .ok_or_else(|| {
+                MihomoError::NotFound("No installed previous core version to roll back to".to_string())
+            })?;
+
+        let binary_name = if cfg!(windows) {
+            "mihomo.exe"
+        } else {
+            "mihomo"
+        };
+        smoke_check_binary(&self.install_dir.join(&target).join(binary_name)).await?;
+
+        // A rollback consumes the selected entry, moving backward through
+        // the stack. The failed/newer version is deliberately not re-added:
+        // this action is recovery, not an undo toggle.
+        history.retain(|item| item != &target && current.as_deref() != Some(item.as_str()));
+        set_default_in_config(&mut config, &target, &history)?;
+        self.write_config(&config).await?;
+        log::info!("rolled back mihomo core from {:?} to {target}", current);
+        Ok(target)
     }
 
     pub async fn get_binary_path(&self, version: Option<&str>) -> Result<PathBuf> {
@@ -244,6 +297,7 @@ impl VersionManager {
         } else {
             self.get_default().await?
         };
+        validate_version_label(&version)?;
 
         let binary_name = if cfg!(windows) {
             "mihomo.exe"
@@ -263,6 +317,7 @@ impl VersionManager {
     }
 
     pub async fn uninstall(&self, version: &str) -> Result<()> {
+        validate_version_label(version)?;
         let version_dir = self.install_dir.join(version);
         if !version_dir.exists() {
             return Err(MihomoError::NotFound(format!(
@@ -281,6 +336,160 @@ impl VersionManager {
         fs::remove_dir_all(version_dir).await?;
         Ok(())
     }
+
+    async fn read_config(&self) -> Result<toml::Value> {
+        if !self.config_file.exists() {
+            return Ok(toml::Value::Table(toml::map::Map::new()));
+        }
+        let content = fs::read_to_string(&self.config_file).await?;
+        toml::from_str(&content)
+            .map_err(|error| MihomoError::Config(format!("Invalid config: {error}")))
+    }
+
+    async fn write_config(&self, config: &toml::Value) -> Result<()> {
+        let content = toml::to_string(config)
+            .map_err(|error| MihomoError::Config(format!("Failed to serialize config: {error}")))?;
+        atomic_write(&self.config_file, content.as_bytes()).await
+    }
+
+    async fn find_rollback_target(&self, current: Option<&str>, history: &[String]) -> Option<String> {
+        let binary_name = if cfg!(windows) {
+            "mihomo.exe"
+        } else {
+            "mihomo"
+        };
+        for version in history {
+            if current == Some(version.as_str()) || validate_version_label(version).is_err() {
+                continue;
+            }
+            let path = self.install_dir.join(version).join(binary_name);
+            if fs::try_exists(&path).await.unwrap_or(false) {
+                return Some(version.clone());
+            }
+        }
+        None
+    }
+}
+
+fn default_version_from_config(config: &toml::Value) -> Option<String> {
+    config
+        .get("default")
+        .and_then(|default| default.get("version"))
+        .and_then(toml::Value::as_str)
+        .map(str::to_owned)
+}
+
+fn version_history_from_config(config: &toml::Value) -> Vec<String> {
+    config
+        .get("default")
+        .and_then(|default| default.get("version_history"))
+        .and_then(toml::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(toml::Value::as_str)
+        .filter(|version| validate_version_label(version).is_ok())
+        .map(str::to_owned)
+        .take(MAX_VERSION_HISTORY)
+        .collect()
+}
+
+fn record_version_transition(history: &mut Vec<String>, previous: Option<&str>, selected: &str) {
+    history.retain(|version| version != selected);
+    if let Some(previous) = previous
+        && previous != selected
+        && validate_version_label(previous).is_ok()
+    {
+        history.retain(|version| version != previous);
+        history.insert(0, previous.to_owned());
+    }
+    history.truncate(MAX_VERSION_HISTORY);
+}
+
+fn set_default_in_config(
+    config: &mut toml::Value,
+    version: &str,
+    history: &[String],
+) -> Result<()> {
+    let root = config.as_table_mut().ok_or_else(|| {
+        MihomoError::Config("version selection config root must be a TOML table".to_string())
+    })?;
+    let default = root
+        .entry("default".to_string())
+        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+    let default = default.as_table_mut().ok_or_else(|| {
+        MihomoError::Config("version selection config.default must be a TOML table".to_string())
+    })?;
+    default.insert(
+        "version".to_string(),
+        toml::Value::String(version.to_owned()),
+    );
+    default.insert(
+        "version_history".to_string(),
+        toml::Value::Array(
+            history
+                .iter()
+                .cloned()
+                .map(toml::Value::String)
+                .collect(),
+        ),
+    );
+    Ok(())
+}
+
+fn validate_version_label(version: &str) -> Result<()> {
+    if version.is_empty()
+        || version == "."
+        || version == ".."
+        || version
+            .chars()
+            .any(|character| character == '/' || character == '\\' || character.is_control())
+    {
+        return Err(MihomoError::Version(format!(
+            "invalid core version label: {version:?}"
+        )));
+    }
+    Ok(())
+}
+
+async fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
+    let parent = path.parent().ok_or_else(|| {
+        MihomoError::Config(format!("version config path has no parent: {}", path.display()))
+    })?;
+    fs::create_dir_all(parent).await?;
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("config.toml");
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    let temporary = parent.join(format!(".{file_name}.version-tmp-{}-{stamp}", std::process::id()));
+
+    let result = async {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .await?;
+        file.write_all(content).await?;
+        file.sync_all().await?;
+        drop(file);
+
+        // `rename` is atomic on Unix. Windows cannot replace an existing
+        // target, so remove only this exact config target as the fallback.
+        #[cfg(windows)]
+        if fs::try_exists(path).await? {
+            fs::remove_file(path).await?;
+        }
+        fs::rename(&temporary, path).await
+    }
+    .await;
+
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary).await;
+    }
+    result.map_err(MihomoError::Io)
 }
 
 /// Post-install health check (CORE-006): the freshly installed binary must
@@ -471,6 +680,89 @@ mod tests {
         let default = manager.get_default().await;
         assert!(default.is_ok());
         assert_eq!(default.unwrap(), "v1.19.0");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn version_selection_preserves_profile_and_rolls_back_without_network() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+        tokio::fs::write(
+            temp_dir.path().join("config.toml"),
+            "[default]\nprofile = \"work\"\n",
+        )
+        .await
+        .unwrap();
+        plant_runnable_fake_binary(temp_dir.path(), "v1.19.28");
+        plant_runnable_fake_binary(temp_dir.path(), "v1.19.29");
+        plant_runnable_fake_binary(temp_dir.path(), "v1.19.30");
+
+        manager.set_default("v1.19.28").await.unwrap();
+        manager.set_default("v1.19.29").await.unwrap();
+        manager.set_default("v1.19.30").await.unwrap();
+
+        let config = tokio::fs::read_to_string(temp_dir.path().join("config.toml"))
+            .await
+            .unwrap();
+        let config: toml::Value = toml::from_str(&config).unwrap();
+        assert_eq!(
+            config["default"]["profile"].as_str(),
+            Some("work"),
+            "version selection must not overwrite profile selection"
+        );
+        assert_eq!(
+            config["default"]["version_history"].as_array(),
+            Some(&vec![
+                toml::Value::String("v1.19.29".to_owned()),
+                toml::Value::String("v1.19.28".to_owned()),
+            ])
+        );
+
+        let info = manager.rollback_info().await.unwrap();
+        assert_eq!(info.current.as_deref(), Some("v1.19.30"));
+        assert_eq!(info.target.as_deref(), Some("v1.19.29"));
+
+        let selected = manager.rollback().await.unwrap();
+        assert_eq!(selected, "v1.19.29");
+        assert_eq!(manager.get_default().await.unwrap(), "v1.19.29");
+        let next = manager.rollback_info().await.unwrap();
+        assert_eq!(next.target.as_deref(), Some("v1.19.28"));
+        assert_eq!(next.history.first().map(String::as_str), Some("v1.19.28"));
+    }
+
+    #[tokio::test]
+    async fn rollback_requires_an_installed_previous_version() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+        let error = manager.rollback().await.unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("No installed previous core version"),
+            "{error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn rollback_health_gate_keeps_current_version_on_bad_candidate() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir);
+        plant_runnable_fake_binary(temp_dir.path(), "v1.19.28");
+        plant_runnable_fake_binary(temp_dir.path(), "v1.19.29");
+        manager.set_default("v1.19.28").await.unwrap();
+        manager.set_default("v1.19.29").await.unwrap();
+
+        tokio::fs::write(
+            temp_dir.path().join("versions/v1.19.28/mihomo"),
+            "#!/bin/sh\nexit 9\n",
+        )
+        .await
+        .unwrap();
+        let error = manager.rollback().await.unwrap_err();
+        assert!(error.to_string().contains("smoke check"), "{error}");
+        assert_eq!(manager.get_default().await.unwrap(), "v1.19.29");
+        assert_eq!(manager.rollback_info().await.unwrap().target.as_deref(), Some("v1.19.28"));
     }
 
     #[tokio::test]

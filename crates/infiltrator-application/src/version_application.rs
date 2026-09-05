@@ -37,12 +37,13 @@ impl VersionApplication {
                 };
                 CoreChannelSnapshot { channel, status }
             },
-        ))
-        .await;
+        ));
+        let (probes, rollback) = futures_util::join!(probes, self.port.rollback_snapshot());
         CoreVersionSnapshot {
             revision: 1,
             channels: probes,
             verification: self.port.verification(),
+            rollback: rollback.unwrap_or_default(),
         }
     }
 
@@ -67,6 +68,10 @@ impl VersionApplication {
 
     pub async fn uninstall(&self, version: &str) -> Result<(), Failure> {
         self.port.uninstall(version).await.map_err(Failure::from)
+    }
+
+    pub async fn rollback(&self) -> Result<String, Failure> {
+        self.port.rollback().await.map_err(Failure::from)
     }
 }
 
@@ -133,6 +138,10 @@ mod tests {
         async fn uninstall(&self, _version: &str) -> Result<(), PortError> {
             Ok(())
         }
+
+        async fn rollback(&self) -> Result<String, PortError> {
+            Ok("v1.19.29".to_owned())
+        }
     }
 
     #[tokio::test]
@@ -157,5 +166,11 @@ mod tests {
             snapshot.channels[2].status,
             CoreChannelStatus::Ready { .. }
         ));
+    }
+
+    #[tokio::test]
+    async fn rollback_is_forwarded_through_the_application_facade() {
+        let application = VersionApplication::new(Arc::new(FakeVersionPort));
+        assert_eq!(application.rollback().await.unwrap(), "v1.19.29");
     }
 }

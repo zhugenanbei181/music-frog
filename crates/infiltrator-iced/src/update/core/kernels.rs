@@ -250,6 +250,16 @@ impl AppState {
                 },
                 Message::KernelOperationFinished,
             ),
+            Message::RollbackCore => Task::perform(
+                async {
+                    version_application()?
+                        .rollback()
+                        .await
+                        .map(|_| ())
+                        .map_err(|failure| InfiltratorError::Download(failure.message))
+                },
+                Message::KernelOperationFinished,
+            ),
             Message::DeleteKernel(version) => Task::perform(
                 async move {
                     version_application()?

@@ -40,6 +40,9 @@ use infiltrator_contract::version::{
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
 
+#[path = "settings_core.rs"]
+mod settings_core;
+
 /// Root marker on the Settings page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 #[component(on_insert = bind_settings_page)]
@@ -73,11 +76,26 @@ pub enum SettingsLineKind {
     CoreVersions,
     /// Latest archive-integrity result.
     CoreIntegrity,
+    /// Locally available core rollback target.
+    CoreRollback,
 }
 
 /// Marker for "Save Settings" button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SaveSettingsButton;
+
+/// Marker for the live local-core rollback action.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CoreRollbackButton;
+
+/// Live availability attached to the rollback control and restamped from the
+/// shared projection so a later surface update can enable the existing node.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CoreRollbackAvailability(pub bool);
+
+/// Marker for the rollback button's mutable label.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CoreRollbackButtonLabel;
 
 /// Marker for "Prepare TUN Permission" button in the alert banner.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -504,6 +522,7 @@ pub fn general_card_scene(
                             ( Text(core_channel_str) SettingsLine(SettingsLineKind::CoreChannel) TextRole(Role::BodyStrong) ),
                         ]
                     ),
+                    ( { settings_core::core_rollback_row_scene(projection, palette) } ),
                     (
                         Node {
                             width: percent(100),
@@ -613,18 +632,7 @@ fn format_core_versions(snapshot: &CoreVersionSnapshot) -> String {
 }
 
 fn format_integrity(verification: &CoreArtifactVerification) -> String {
-    match verification {
-        CoreArtifactVerification::Unknown => "未校验".to_owned(),
-        CoreArtifactVerification::Verified { version } => {
-            format!("已验证 ({version})")
-        }
-        CoreArtifactVerification::Rejected { version, failure } => {
-            format!(
-                "已拒绝 ({version}: {})",
-                infiltrator_bevy_widgets::desktop::ClipboardPayload::sanitize_text(&failure.message)
-            )
-        }
-    }
+    settings_core::format_integrity(verification)
 }
 
 fn tun_settings_card(projection: &SettingsProjection, palette: &UiPalette) -> impl Scene + use<> {
@@ -742,12 +750,15 @@ fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(on_settings_action_activated);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn on_settings_action_activated(
     activate: On<Activate>,
     save_buttons: Query<(), With<SaveSettingsButton>>,
     prepare_buttons: Query<(), With<PrepareTunPermissionButton>>,
     tray_toggles: Query<(), With<CloseToTrayToggle>>,
     notif_toggles: Query<(), With<SystemNotificationsToggle>>,
+    rollback_buttons: Query<(), With<CoreRollbackButton>>,
+    rollback_available: Query<&CoreRollbackAvailability, With<CoreRollbackButton>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -773,6 +784,12 @@ pub(crate) fn on_settings_action_activated(
             key: "notifications_enabled".to_owned(),
             value: "toggle".to_owned(),
         });
+    } else if rollback_buttons.contains(activate.entity)
+        && rollback_available
+            .get(activate.entity)
+            .is_ok_and(|availability| availability.0)
+    {
+        handle.submit(UiCommand::RollbackCore);
     }
 }
 
@@ -780,12 +797,18 @@ pub(crate) fn on_settings_action_activated(
 pub(crate) fn apply_settings_projection(
     update: On<SettingsProjectionUpdated>,
     mut last: Option<ResMut<LastSettingsProjection>>,
-    mut lines: Query<(&mut Text, &SettingsLine)>,
+    mut lines: Query<(
+        &mut Text,
+        Option<&SettingsLine>,
+        Option<&CoreRollbackButtonLabel>,
+    )>,
+    mut rollback_buttons: Query<&mut CoreRollbackAvailability, With<CoreRollbackButton>>,
 ) {
     let projection = &update.0;
 
-    for (mut text, line) in &mut lines {
-        match line.0 {
+    for (mut text, line, rollback_label) in &mut lines {
+        if let Some(line) = line {
+            match line.0 {
             SettingsLineKind::Summary => {
                 text.0 = "系统与内核全局设置 · 统一策略中枢".to_owned();
             }
@@ -810,7 +833,30 @@ pub(crate) fn apply_settings_projection(
             SettingsLineKind::CoreIntegrity => {
                 text.0 = format_integrity(&projection.core_integrity);
             }
+            SettingsLineKind::CoreRollback => {
+                text.0 = projection
+                    .core_versions
+                    .rollback
+                    .target
+                    .as_deref()
+                    .map_or_else(|| "没有可回滚的本地内核".to_owned(), |version| {
+                        format!("可回滚至 {version}")
+                    });
+            }
+            }
         }
+        if rollback_label.is_some() {
+            text.0 = if projection.core_versions.rollback.target.is_some() {
+                "立即回滚".to_owned()
+            } else {
+                "不可用".to_owned()
+            };
+        }
+    }
+
+    let rollback_available = projection.core_versions.rollback.target.is_some();
+    for mut availability in &mut rollback_buttons {
+        availability.0 = rollback_available;
     }
 
     if let Some(ref mut last_proj) = last {

@@ -79,6 +79,7 @@
 - `DUAL-01-03` 已完成 shared/application、Iced、Bevy 和 host scheduler contract evidence：异常退出进入 Waiting，按指数退避重启，连续失败后 Tripped；真实发行包/真实 mihomo 异常退出恢复仍未计入 `host-verified`。
 - `DUAL-01-04` 已完成三通道 shared/application 与两端 Settings contract evidence：Stable、Alpha（`Prerelease-Alpha`）和 Meta-Core 不再互相折叠；桌面 host 注入在线探测，Android/iOS 对核心二进制安装保持 typed unsupported；真实发行包 smoke 尚未计入 `host-verified`。
 - `DUAL-01-05` 已完成下载前 digest gate、安装失败清理和双端完整性状态投影；没有官方 SHA256 或 digest 不匹配时不会解压、写盘或进入版本目录，供应链/发行包证据仍待后续 `host-verified` 流水线。
+- `DUAL-01-06` 已完成本地版本历史栈和双端回滚 contract：候选 binary 先通过 `-v` 检查，版本指针以原子写入更新且不覆盖 profile 元数据；运行中重启与发行包证据仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 
