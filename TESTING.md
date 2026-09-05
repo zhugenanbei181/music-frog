@@ -120,6 +120,8 @@ python3 scripts/quality/core-resource-guard.py --mode enforce
 python3 scripts/quality/offline-startup-guard.py --mode enforce
 # DUAL-01-14 CoreLifecycleSnapshot 双端生命周期同步守卫
 python3 scripts/quality/lifecycle-sync-guard.py --mode enforce
+# DUAL-01-15 失败启动/端口冲突/平滑停止无头矩阵守卫
+python3 scripts/quality/lifecycle-matrix-guard.py --mode enforce
 ```
 
 ---

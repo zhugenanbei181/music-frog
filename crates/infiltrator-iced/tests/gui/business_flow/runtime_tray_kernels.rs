@@ -342,6 +342,52 @@ fn port_conflict_repair_replaces_the_shared_snapshot_without_killing_unknown_pid
     assert!(state.shell.error_msg.is_none());
 }
 
+/// DUAL-01-15 — the Iced headless matrix keeps the three lifecycle failure
+/// boundaries in one user journey: failed start, safe port repair, graceful
+/// stop. Each leg is driven by the same contract message path used by the UI.
+#[test]
+fn dual_surface_headless_lifecycle_matrix_covers_failure_conflict_and_stop() {
+    let mut state = fresh_state();
+    let start_token = state.runtime.lifecycle_token;
+    assert!(feed(&mut state, Message::StartProxy) >= 1);
+    assert_eq!(state.runtime.lifecycle_token, start_token + 1);
+
+    feed(
+        &mut state,
+        Message::ProxyStarted(
+            Err(InfiltratorError::Mihomo("local core refused to start".into())),
+            start_token + 1,
+        ),
+    );
+    assert!(matches!(state.runtime.status, RuntimeStatus::Error(_)));
+
+    state.runtime.port_conflicts = PortConflictSnapshot {
+        revision: 1,
+        conflicts: vec![PortConflict {
+            binding: PortBinding::Controller,
+            port: 9090,
+            available: false,
+            owner_pid: Some(4242),
+            owner_name: Some("unrelated-app".to_owned()),
+            can_release: false,
+        }],
+    };
+    feed(
+        &mut state,
+        Message::PortConflictsRepaired(Ok(PortConflictSnapshot {
+            revision: 2,
+            conflicts: Vec::new(),
+        })),
+    );
+    assert!(!state.runtime.port_conflicts.has_conflicts());
+
+    feed(&mut state, Message::StopProxy);
+    feed(&mut state, Message::ProxyStopped);
+    assert_eq!(state.runtime.status, RuntimeStatus::Stopped);
+    assert!(state.diag.traffic.is_none());
+    assert!(state.diag.logs.is_empty());
+}
+
 #[cfg(unix)]
 fn plant_runnable_fake_binary(home: &std::path::Path, version: &str) {
     use std::os::unix::fs::PermissionsExt;

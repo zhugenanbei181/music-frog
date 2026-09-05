@@ -3,10 +3,12 @@
 
 use bevy::app::App;
 use infiltrator_bevy_ui::app::ShellPlugin;
+use infiltrator_bevy_ui::pages::settings::SettingsProjectionUpdated;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{
     DemoSurfaceSource, LatestCoreLifecycle, LatestSurfaceSnapshot, SurfaceSnapshotUpdated,
     SurfaceSource, SurfaceStatusBanner, core_lifecycle_projection, overview_projection,
+    settings_projection,
 };
 use infiltrator_bevy_widgets::theme::LightDark;
 use infiltrator_contract::session::SessionToken;
@@ -14,6 +16,10 @@ use infiltrator_contract::snapshot::{
     CoreLifecycle, CoreWatchdogSnapshot, CoreWatchdogState,
 };
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
+use infiltrator_contract::port_conflict::{
+    PortBinding, PortConflict, PortConflictSnapshot,
+};
+use infiltrator_contract::error::{ErrorCode, Failure};
 
 use crate::support::{headless_plugins, page_root, subtree_has_text};
 
@@ -142,6 +148,65 @@ fn shared_core_lifecycle_projection_tracks_session_generation_and_revision() {
     assert_eq!(app.world().resource::<LatestCoreLifecycle>().0, expected);
     assert_eq!(expected.lifecycle, CoreLifecycle::Stopped);
     assert_eq!(expected.revision, 43);
+}
+
+#[test]
+fn dual_surface_headless_lifecycle_matrix_covers_failure_conflict_and_stop() {
+    let mut app = app_with_shared_source();
+    let mut failed = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    failed.revision = 43;
+    failed.core.revision = 43;
+    failed.core.lifecycle = CoreLifecycle::Failed;
+    failed.core.failure = Some(Failure::new(
+        ErrorCode::Internal,
+        "simulated core start failure",
+        true,
+    ));
+    failed.port_conflicts = PortConflictSnapshot {
+        revision: 2,
+        conflicts: vec![PortConflict {
+            binding: PortBinding::Controller,
+            port: 9090,
+            available: false,
+            owner_pid: Some(4242),
+            owner_name: Some("unrelated-app".to_owned()),
+            can_release: false,
+        }],
+    };
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(failed.clone()));
+    app.update();
+    assert_eq!(
+        app.world().resource::<LatestCoreLifecycle>().0.lifecycle,
+        CoreLifecycle::Failed
+    );
+
+    app.world_mut().commands().trigger(RouteChanged(Route::Settings));
+    app.update();
+    app.world_mut()
+        .commands()
+        .trigger(SettingsProjectionUpdated(settings_projection(&failed)));
+    app.update();
+    let (root, route) = page_root(app.world_mut());
+    assert_eq!(route, Route::Settings);
+    assert!(subtree_has_text(app.world(), root, "unrelated-app"));
+    assert!(subtree_has_text(app.world(), root, "占用"));
+
+    let mut stopped = failed;
+    stopped.revision = 44;
+    stopped.core.revision = 44;
+    stopped.core.lifecycle = CoreLifecycle::Stopped;
+    stopped.core.session_token = None;
+    stopped.core.failure = None;
+    stopped.port_conflicts = PortConflictSnapshot::default();
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(stopped));
+    app.update();
+    let lifecycle = &app.world().resource::<LatestCoreLifecycle>().0;
+    assert_eq!(lifecycle.lifecycle, CoreLifecycle::Stopped);
+    assert!(lifecycle.session_token.is_none());
 }
 
 #[test]
