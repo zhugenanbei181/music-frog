@@ -601,6 +601,10 @@ impl HostRuntime for MihomoRuntime {
         Some(self.service_mode.clone())
     }
 
+    fn mtu_probe_port(&self) -> Option<Arc<dyn infiltrator_ports::mtu_probe::MtuProbePort>> {
+        Some(Arc::new(crate::mtu::DesktopMtuProbe::new()))
+    }
+
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {
         self.application.clone()
     }

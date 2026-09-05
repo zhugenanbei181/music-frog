@@ -9,6 +9,7 @@ use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
 use infiltrator_contract::tun::TunStack;
+use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState};
 
 pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let tun_cfg = &state.runtime.tun_stack_config;
@@ -54,15 +55,17 @@ pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     ]
     .align_y(Alignment::Center);
 
-    let mtu_val = if tun_cfg.negotiated_mtu == 0 {
-        1420
-    } else {
-        tun_cfg.negotiated_mtu
-    };
+    let mtu_val = state
+        .runtime
+        .mtu
+        .tun_mtu
+        .unwrap_or(tun_cfg.negotiated_mtu.max(1420));
+    let mtu_status = format_mtu_status(&state.runtime.mtu);
 
     let mtu_row = row![
-        text(format!("Negotiated MTU: {mtu_val} bytes")).size(12).font(MONO).width(Length::Fill),
-        badge(format!("Driver: {}", active_stack.as_str()), BadgeKind::Accent),
+            text(format!("Negotiated MTU: {mtu_val} bytes")).size(12).font(MONO).width(Length::Fill),
+            badge(format!("Driver: {}", active_stack.as_str()), BadgeKind::Accent),
+            badge(mtu_status, BadgeKind::Neutral),
     ]
     .align_y(Alignment::Center);
 
@@ -98,4 +101,23 @@ pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         ]
         .spacing(theme::SP_SM),
     )
+}
+
+fn format_mtu_status(snapshot: &MtuNegotiationSnapshot) -> String {
+    match &snapshot.state {
+        MtuProbeState::Unknown => "MTU: not probed".to_owned(),
+        MtuProbeState::Probing => "MTU: probing".to_owned(),
+        MtuProbeState::Ready => snapshot
+            .physical_interface
+            .as_deref()
+            .map_or_else(|| "MTU: negotiated".to_owned(), |name| {
+                if snapshot.applied_tun_mtu == snapshot.tun_mtu {
+                    format!("MTU: {name} / applied")
+                } else {
+                    format!("MTU: {name} / pending")
+                }
+            }),
+        MtuProbeState::Unsupported => "MTU: unsupported".to_owned(),
+        MtuProbeState::Failed { .. } => "MTU: failed".to_owned(),
+    }
 }

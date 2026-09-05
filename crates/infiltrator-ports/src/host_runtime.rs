@@ -3,6 +3,7 @@
 use crate::core_lifecycle::CoreLifecyclePort;
 use crate::runtime_gateway::ManagedRuntime;
 use crate::service_mode::ServiceModePort;
+use crate::mtu_probe::MtuProbePort;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -28,6 +29,11 @@ pub trait HostRuntime: ManagedRuntime {
     /// Optional typed privileged-service adapter. Legacy/mobile hosts may
     /// omit it and continue to report an explicit unsupported state.
     fn service_mode_port(&self) -> Option<Arc<dyn ServiceModePort>> {
+        None
+    }
+    /// Optional physical-link MTU observer. Mobile hosts may return `None`
+    /// until their native bridge exposes the active link facts.
+    fn mtu_probe_port(&self) -> Option<Arc<dyn MtuProbePort>> {
         None
     }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;

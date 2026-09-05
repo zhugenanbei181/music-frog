@@ -62,4 +62,13 @@ impl ApplicationSurfaceReader {
             None => Default::default(),
         }
     }
+
+    pub(super) async fn read_mtu(
+        &self,
+    ) -> infiltrator_contract::mtu::MtuNegotiationSnapshot {
+        match &self.mtu {
+            Some(application) => application.probe_cached().await,
+            None => Default::default(),
+        }
+    }
 }

@@ -13,6 +13,7 @@ pub mod doctor;
 pub mod error;
 pub mod intent;
 pub mod offline_startup;
+pub mod mtu;
 pub mod snapshot;
 pub mod session;
 pub mod service_mode;
@@ -58,6 +59,7 @@ mod tests {
             .kind(),
             CommandKind::Runtime
         );
+        assert_eq!(CommandIntent::ProbeTunMtu.kind(), CommandKind::Network);
         assert_eq!(CoreLogLevel::parse("warning"), Some(CoreLogLevel::Warn));
         assert_eq!(CoreLogLevel::parse("trace"), None);
     }

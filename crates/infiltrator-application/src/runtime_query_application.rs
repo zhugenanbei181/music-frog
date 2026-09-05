@@ -33,6 +33,7 @@ mod tests {
     struct TestGateway {
         level: Arc<Mutex<String>>,
         tun_stack: Arc<Mutex<String>>,
+        tun_mtu: Arc<Mutex<Option<u32>>>,
         apply_patch: bool,
         memory_bytes: Arc<Mutex<u64>>,
         gc_calls: Arc<AtomicUsize>,
@@ -49,6 +50,7 @@ mod tests {
                     stack: self.tun_stack.lock().expect("stack lock").clone(),
                     auto_route: true,
                     strict_route: false,
+                    mtu: *self.tun_mtu.lock().expect("tun mtu lock"),
                 }),
                 ..ConfigSnapshot::default()
             })
@@ -77,6 +79,14 @@ mod tests {
                     .and_then(|value| value.as_str())
             {
                 *self.tun_stack.lock().expect("stack lock") = stack.to_owned();
+            }
+            if self.apply_patch
+                && let Some(mtu) = updates
+                    .get("tun")
+                    .and_then(|value| value.get("mtu"))
+                    .and_then(|value| value.as_u64())
+            {
+                *self.tun_mtu.lock().expect("tun mtu lock") = Some(mtu as u32);
             }
             Ok(())
         }
@@ -172,6 +182,7 @@ mod tests {
         let gateway = Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -188,6 +199,7 @@ mod tests {
         let gateway = Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
             apply_patch: false,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -209,6 +221,7 @@ mod tests {
         let gateway = Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
             apply_patch: true,
             memory_bytes: memory,
             gc_calls: gc_calls.clone(),
@@ -229,6 +242,7 @@ mod tests {
         let gateway = Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: stack.clone(),
+            tun_mtu: Arc::new(Mutex::new(None)),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -242,6 +256,7 @@ mod tests {
         let failure = RuntimeQueryApplication::new(Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -253,6 +268,53 @@ mod tests {
             failure.code,
             infiltrator_contract::error::ErrorCode::Unsupported
         );
+    }
+
+    #[tokio::test]
+    async fn tun_mtu_patch_is_read_back_before_success() {
+        let tun_mtu = Arc::new(Mutex::new(None));
+        let gateway = Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: tun_mtu.clone(),
+            apply_patch: true,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
+        });
+        RuntimeQueryApplication::new(gateway)
+            .set_tun_mtu(1420)
+            .await
+            .expect("MTU readback should match");
+        assert_eq!(*tun_mtu.lock().expect("tun mtu lock"), Some(1420));
+    }
+
+    #[tokio::test]
+    async fn tun_mtu_rejects_out_of_range_and_readback_mismatch() {
+        let failure = RuntimeQueryApplication::new(Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
+            apply_patch: true,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
+        }))
+        .set_tun_mtu(1279)
+        .await
+        .expect_err("out-of-range MTU must fail before I/O");
+        assert_eq!(failure.code, infiltrator_contract::error::ErrorCode::InvalidInput);
+
+        let failure = RuntimeQueryApplication::new(Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
+            apply_patch: false,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
+        }))
+        .set_tun_mtu(1420)
+        .await
+        .expect_err("ignored patch must fail readback");
+        assert_eq!(failure.code, infiltrator_contract::error::ErrorCode::InvalidState);
     }
 }
 
@@ -322,6 +384,45 @@ impl RuntimeQueryApplication {
                     observed
                         .tun
                         .map(|tun| tun.stack)
+                        .unwrap_or_else(|| "missing".to_owned())
+                ),
+                true,
+            ));
+        }
+        Ok(())
+    }
+
+    /// Apply the calculated TUN MTU and verify that the running controller
+    /// reports the same value. This keeps adaptive negotiation from becoming
+    /// a UI-only calculation when the host has a live gateway.
+    pub async fn set_tun_mtu(&self, mtu: u32) -> Result<(), Failure> {
+        if !(infiltrator_contract::mtu::MIN_TUN_MTU_BYTES
+            ..=infiltrator_contract::mtu::MAX_TUN_MTU_BYTES)
+            .contains(&mtu)
+        {
+            return Err(Failure::new(
+                infiltrator_contract::error::ErrorCode::InvalidInput,
+                format!(
+                    "TUN MTU {mtu} is outside the supported range {}..={}",
+                    infiltrator_contract::mtu::MIN_TUN_MTU_BYTES,
+                    infiltrator_contract::mtu::MAX_TUN_MTU_BYTES
+                ),
+                false,
+            ));
+        }
+        self.gateway
+            .patch_config(serde_json::json!({ "tun": { "mtu": mtu } }))
+            .await
+            .map_err(Failure::from)?;
+        let observed = self.gateway.get_config().await.map_err(Failure::from)?;
+        let observed_mtu = observed.tun.as_ref().and_then(|tun| tun.mtu);
+        if observed_mtu != Some(mtu) {
+            return Err(Failure::new(
+                infiltrator_contract::error::ErrorCode::InvalidState,
+                format!(
+                    "TUN MTU readback mismatch: requested {mtu}, observed {}",
+                    observed_mtu
+                        .map(|value| value.to_string())
                         .unwrap_or_else(|| "missing".to_owned())
                 ),
                 true,

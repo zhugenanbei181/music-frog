@@ -7,13 +7,16 @@
 use bevy::scene::{Scene, bsn};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::observer::On;
+use bevy::ecs::query::With;
+use bevy::ecs::system::{Query, Res};
 use bevy::ui::BorderRadius;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, FlexDirection, FlexWrap, JustifyContent, Node, UiRect, Val,
     percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
@@ -30,6 +33,8 @@ use infiltrator_contract::offline_startup::{
     LocalAssetStatus, OfflineStartupSnapshot, OfflineStartupState, StartupRemoteDependency,
 };
 use infiltrator_contract::tun::TunStack;
+use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState};
+use crate::command::{CommandSinkHandle, UiCommand};
 
 /// Marker for text lines updated by the Settings projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -67,6 +72,8 @@ pub enum SettingsLineKind {
     PortConflicts,
     /// Core memory/CPU and automatic GC state.
     CoreResources,
+    /// Physical-link to TUN MTU negotiation state.
+    Mtu,
 }
 
 /// Marker carrying the live Mihomo log-level choice.
@@ -84,6 +91,10 @@ pub struct TunStackButton {
 /// Live availability for a TUN stack control; current LWIP stays disabled.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TunStackButtonAvailability(pub bool);
+
+/// Marker for the physical-link MTU probe action.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProbeTunMtuButton;
 
 /// Snapshot of the shared Settings domain used by both scene and observer.
 #[derive(Clone, Debug, PartialEq)]
@@ -104,6 +115,7 @@ pub struct SettingsProjection {
     pub port_conflicts: PortConflictSnapshot,
     pub core_resources: CoreResourceSnapshot,
     pub offline_startup: OfflineStartupSnapshot,
+    pub mtu: MtuNegotiationSnapshot,
 }
 
 impl SettingsProjection {
@@ -125,6 +137,7 @@ impl SettingsProjection {
             port_conflicts: Default::default(),
             core_resources: Default::default(),
             offline_startup: Default::default(),
+            mtu: Default::default(),
         }
     }
 }
@@ -405,6 +418,89 @@ pub(super) fn tun_stack_selector_scene(
             ( { controls } ),
         ]
     })
+}
+
+pub(super) fn mtu_row_scene(
+    snapshot: &MtuNegotiationSnapshot,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let status = format_mtu(snapshot);
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect::all(Val::Px(space::S8)),
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ palette.surface_elevated })
+        Children [
+            (
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(space::S4),
+                }
+                Children [
+                    ( Text({ "物理/虚拟网卡 MTU (MTU Negotiation)".to_owned() }) TextRole(Role::Body) ),
+                    ( Text(status) SettingsLine(SettingsLineKind::Mtu) TextRole(Role::Mono) ),
+                ]
+            ),
+            (
+                Node {
+                    min_height: px(palette.control_height_px),
+                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                }
+                BackgroundColor({ palette.accent })
+                ProbeTunMtuButton
+                Button
+                Children [
+                    ( Text({ "探测并协商".to_owned() }) TextRole(Role::BodyStrong) ),
+                ]
+            ),
+        ]
+    })
+}
+
+pub(super) fn format_mtu(snapshot: &MtuNegotiationSnapshot) -> String {
+    match &snapshot.state {
+        MtuProbeState::Unknown => "未探测".to_owned(),
+        MtuProbeState::Probing => "探测中".to_owned(),
+        MtuProbeState::Ready => format!(
+            "{}: physical={} → TUN={} · MSS={} · overhead={} · applied={}",
+            snapshot
+                .physical_interface
+                .as_deref()
+                .unwrap_or("active-link"),
+            snapshot.physical_mtu.unwrap_or_default(),
+            snapshot.tun_mtu.unwrap_or_default(),
+            snapshot.tcp_mss.unwrap_or_default(),
+            snapshot.overhead_bytes,
+            snapshot
+                .applied_tun_mtu
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "pending".to_owned())
+        ),
+        MtuProbeState::Unsupported => "宿主不支持".to_owned(),
+        MtuProbeState::Failed { failure } => format!(
+            "失败 ({})",
+            infiltrator_bevy_widgets::desktop::ClipboardPayload::sanitize_text(&failure.message)
+        ),
+    }
+}
+
+pub(super) fn on_mtu_probe_activated(
+    activate: On<Activate>,
+    buttons: Query<(), With<ProbeTunMtuButton>>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    if buttons.contains(activate.entity)
+        && let Some(handle) = handle
+    {
+        handle.submit(UiCommand::ProbeTunMtu);
+    }
 }
 
 fn tun_stack_button_scene(

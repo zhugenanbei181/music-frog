@@ -6,6 +6,7 @@
 
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
 use infiltrator_application::version_application::VersionApplication;
 use mihomo_api::client::MihomoClient;
@@ -45,6 +46,9 @@ pub fn core_application(
     application.install_command_handler(std::sync::Arc::new(
         CommandApplication::new()
             .with_runtime(std::sync::Arc::new(client.clone()))
+            .with_mtu(MtuApplication::new(std::sync::Arc::new(
+                crate::mtu::DesktopMtuProbe::new(),
+            )))
             .with_versions(versions)
             .with_service_mode(service_mode)
             .with_port_conflicts(port_conflicts),

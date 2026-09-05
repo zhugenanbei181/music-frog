@@ -638,6 +638,9 @@ impl std::fmt::Debug for Message {
             Message::SelectTunStack(s) => write!(f, "SelectTunStack({s})"),
             Message::ProbeOptimalMtu => write!(f, "ProbeOptimalMtu"),
             Message::MtuProbed(mtu) => write!(f, "MtuProbed({mtu})"),
+            Message::MtuProbeFinished(completion) => {
+                write!(f, "MtuProbeFinished(revision={})", completion.snapshot.revision)
+            }
             Message::UnpackRuleProviderToCustom(p) => write!(f, "UnpackRuleProviderToCustom({p})"),
             Message::PurgeRuleProviderCache => write!(f, "PurgeRuleProviderCache"),
             Message::TriggerAtomicConfigApply => write!(f, "TriggerAtomicConfigApply"),

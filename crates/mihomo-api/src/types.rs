@@ -56,6 +56,8 @@ pub struct TunConfig {
     pub auto_route: bool,
     #[serde(rename = "strict-route", default)]
     pub strict_route: bool,
+    #[serde(default)]
+    pub mtu: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -326,6 +328,7 @@ impl From<ConfigResponse> for infiltrator_domain::runtime::ConfigSnapshot {
                 stack: tun.stack,
                 auto_route: tun.auto_route,
                 strict_route: tun.strict_route,
+                mtu: tun.mtu,
             }),
             dns: value.dns.map(|dns| infiltrator_domain::runtime::DnsSnapshot {
                 nameserver: dns.nameserver,

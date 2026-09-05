@@ -124,6 +124,8 @@ python3 scripts/quality/lifecycle-sync-guard.py --mode enforce
 python3 scripts/quality/lifecycle-matrix-guard.py --mode enforce
 # DUAL-02-01 TUN gVisor/System/Mixed/LWIP 安全目录与 live apply 守卫
 python3 scripts/quality/tun-stack-guard.py --mode enforce
+# DUAL-02-02 物理/虚拟网卡 MTU 自适应协商与 live readback 守卫
+python3 scripts/quality/mtu-negotiation-guard.py --mode enforce
 ```
 
 ---

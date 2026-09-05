@@ -118,6 +118,7 @@ pub enum CommandIntent {
     RepairDoctorIssue { check_id: String },
     RepairAllDoctorIssues,
     ToggleTun { enabled: bool },
+    ProbeTunMtu,
     SetSystemProxy { enabled: bool },
     ToggleAppRouting { app_id: String, enabled: bool },
     SetAppRoutingMode { mode: String },
@@ -186,6 +187,7 @@ impl CommandIntent {
             | Self::RepairDoctorIssue { .. }
             | Self::RepairAllDoctorIssues => CommandKind::Runtime,
             Self::ToggleTun { .. }
+            | Self::ProbeTunMtu
             | Self::SetSystemProxy { .. }
             | Self::ToggleAppRouting { .. }
             | Self::SetAppRoutingMode { .. }

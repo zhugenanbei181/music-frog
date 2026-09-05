@@ -4,6 +4,7 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
+use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::OverviewReader;
@@ -23,6 +24,15 @@ where
     OfflineStartupApplication::new(Arc::new(AndroidBridgeAdapter::new(bridge)))
 }
 
+/// Compose the Android native physical-link MTU observer. A bridge without
+/// link metrics yields a typed unsupported result rather than a fake value.
+pub fn mtu_application<B>(bridge: B) -> MtuApplication
+where
+    B: AndroidBridge + 'static,
+{
+    MtuApplication::new(Arc::new(AndroidBridgeAdapter::new(bridge)))
+}
+
 /// Assemble the shared application service with Android's bridge-backed Core
 /// process port and the Mihomo controller readiness adapter.
 pub fn core_application<B>(
@@ -34,7 +44,8 @@ where
     B: AndroidBridge + 'static,
 {
     let controller_url = controller_url.into();
-    let process = Arc::new(AndroidBridgeAdapter::new(bridge));
+    let bridge: Arc<dyn AndroidBridge> = Arc::new(bridge);
+    let process = Arc::new(AndroidBridgeAdapter::new(bridge.clone()));
     let readiness: Arc<dyn CoreReadiness> = Arc::new(ControllerReadiness::new(
         controller_url.clone(),
         secret.clone(),
@@ -58,10 +69,11 @@ where
     let runtime = infiltrator_composition::tokio_application_runtime()
         .expect("Tokio application runtime must be constructible");
     let application = CoreApplication::new_with_overview(process, readiness, reader, runtime);
+    let mtu = MtuApplication::new(Arc::new(AndroidBridgeAdapter::new(bridge.clone())));
+    let mut handler = CommandApplication::new().with_mtu(mtu);
     if let Some(gateway) = gateway {
-        application.install_command_handler(Arc::new(
-            CommandApplication::new().with_runtime(gateway),
-        ));
+        handler = handler.with_runtime(gateway);
     }
+    application.install_command_handler(Arc::new(handler));
     application
 }

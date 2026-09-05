@@ -6,6 +6,7 @@
 
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::mtu::MtuProbeState;
 use infiltrator_contract::version::CoreReleaseChannel;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::proxy::Proxy;
@@ -18,6 +19,7 @@ use std::sync::Arc;
 
 use crate::doctor_application::DoctorApplication;
 use crate::profile_application::ProfileApplication;
+use crate::mtu_application::MtuApplication;
 use crate::port_conflict_application::PortConflictApplication;
 use crate::routing_application::RoutingApplication;
 use crate::runtime_query_application::RuntimeQueryApplication;
@@ -49,6 +51,7 @@ pub struct CommandApplication {
     versions: Option<VersionApplication>,
     service_mode: Option<ServiceModeApplication>,
     port_conflicts: Option<PortConflictApplication>,
+    mtu: Option<MtuApplication>,
 }
 
 impl CommandApplication {
@@ -113,6 +116,11 @@ impl CommandApplication {
 
     pub fn with_port_conflicts(mut self, application: PortConflictApplication) -> Self {
         self.port_conflicts = Some(application);
+        self
+    }
+
+    pub fn with_mtu(mut self, application: MtuApplication) -> Self {
+        self.mtu = Some(application);
         self
     }
 
@@ -245,6 +253,22 @@ impl CommandApplication {
                     .set_tun_stack(stack)
                     .await
             }
+            CommandIntent::ProbeTunMtu => {
+                let runtime = self.runtime()?.clone();
+                let snapshot = self.mtu()?.probe_and_apply(runtime).await;
+                match snapshot.state {
+                    MtuProbeState::Ready => Ok(()),
+                    MtuProbeState::Unsupported => Err(Failure::unsupported(
+                        "current host does not expose physical-link MTU probing",
+                    )),
+                    MtuProbeState::Failed { failure } => Err(failure),
+                    MtuProbeState::Unknown | MtuProbeState::Probing => Err(Failure::new(
+                        ErrorCode::InvalidState,
+                        "MTU probe did not reach a terminal state",
+                        true,
+                    )),
+                }
+            }
             CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore
@@ -346,6 +370,12 @@ impl CommandApplication {
         self.port_conflicts
             .clone()
             .ok_or_else(|| missing("port conflict application"))
+    }
+
+    fn mtu(&self) -> Result<MtuApplication, Failure> {
+        self.mtu
+            .clone()
+            .ok_or_else(|| missing("MTU application"))
     }
 }
 

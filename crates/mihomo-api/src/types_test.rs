@@ -173,11 +173,13 @@ mod tests {
                 "mode": "rule",
                 "log-level": "info",
                 "allow-lan": false,
-                "tun": {"enable": true, "stack": "gvisor", "auto-route": true}
+                "tun": {"enable": true, "stack": "gvisor", "auto-route": true, "mtu": 1420}
             }"#,
         )
         .unwrap();
-        assert!(!config.tun.unwrap().strict_route);
+        let tun = config.tun.unwrap();
+        assert!(!tun.strict_route);
+        assert_eq!(tun.mtu, Some(1420));
 
         let connections: crate::types::ConnectionsResponse =
             serde_json::from_str(r#"{"downloadTotal": 0, "uploadTotal": 0, "connections": null}"#)

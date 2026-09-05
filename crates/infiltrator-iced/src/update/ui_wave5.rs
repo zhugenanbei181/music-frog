@@ -5,6 +5,9 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_application::mtu_application::MtuApplication;
+use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState, PhysicalMtuSnapshot};
+use infiltrator_contract::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn update_ui_wave5(&mut self, message: Message) -> Task<Message> {
@@ -74,17 +77,94 @@ impl AppState {
                 Task::none()
             }
             Message::ProbeOptimalMtu => {
+                if self.shell.demo {
+                    let optimal_mtu = 1420u32;
+                    self.runtime.mtu = MtuNegotiationSnapshot::ready(
+                        self.runtime.mtu.revision.saturating_add(1).max(1),
+                        PhysicalMtuSnapshot {
+                            interface: "demo-link".to_owned(),
+                            mtu: 1500,
+                        },
+                        optimal_mtu,
+                        1380,
+                    );
+                    self.runtime.tun_stack_config.negotiated_mtu = optimal_mtu;
+                    self.runtime.tun_stack_config.probe_result_summary =
+                        Some(format!("Optimal MTU: {optimal_mtu} bytes"));
+                    return Task::done(Message::MtuProbed(optimal_mtu));
+                }
+                let Some(runtime) = self.runtime.runtime.clone() else {
+                    return self.runtime_unavailable("探测物理链路 MTU");
+                };
+                let Some(port) = runtime.mtu_probe_port() else {
+                    let error = InfiltratorError::Privilege(
+                        "当前宿主未提供物理链路 MTU 探测能力".to_owned(),
+                    );
+                    self.set_error(&error);
+                    return Task::done(Message::ShowToast(
+                        error.to_string(),
+                        ToastStatus::Error,
+                    ));
+                };
+                let application = MtuApplication::new(port);
+                let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
+                    runtime.clone();
+                let generation = runtime.generation();
+                let session_token = self.runtime.core_session_token;
+                self.runtime.mtu = application.probing_snapshot();
                 self.runtime.tun_stack_config.is_probing_mtu = true;
-                let optimal_mtu = 1420u32;
-                self.runtime.tun_stack_config.negotiated_mtu = optimal_mtu;
-                self.runtime.tun_stack_config.is_probing_mtu = false;
-                self.runtime.tun_stack_config.probe_result_summary =
-                    Some(format!("Optimal MTU: {optimal_mtu} bytes"));
-                Task::done(Message::MtuProbed(optimal_mtu))
+                Task::perform(
+                    async move { application.probe_and_apply(gateway).await },
+                    move |snapshot| {
+                        Message::MtuProbeFinished(crate::types::message::MtuProbeCompletion {
+                            snapshot,
+                            generation,
+                            session_token,
+                        })
+                    },
+                )
             }
             Message::MtuProbed(mtu) => {
                 self.runtime.tun_stack_config.negotiated_mtu = mtu;
                 Task::none()
+            }
+            Message::MtuProbeFinished(completion) => {
+                if completion.generation != self.runtime.runtime_generation
+                    || completion.session_token != self.runtime.core_session_token
+                {
+                    return Task::none();
+                }
+                let snapshot = completion.snapshot;
+                self.runtime.mtu = snapshot.clone();
+                self.runtime.tun_stack_config.is_probing_mtu = false;
+                match &snapshot.state {
+                    MtuProbeState::Ready => {
+                        if let (Some(physical), Some(tun), Some(mss)) = (
+                            snapshot.physical_mtu,
+                            snapshot.tun_mtu,
+                            snapshot.tcp_mss,
+                        ) {
+                            self.runtime.tun_stack_config.negotiated_mtu = tun;
+                            self.runtime.tun_stack_config.probe_result_summary = Some(format!(
+                                "{}: physical {physical} → TUN {tun}, TCP MSS {mss}",
+                                snapshot
+                                    .physical_interface
+                                    .as_deref()
+                                    .unwrap_or("active link")
+                            ));
+                        }
+                        Task::none()
+                    }
+                    MtuProbeState::Unsupported => Task::done(Message::ShowToast(
+                        "当前宿主不支持物理链路 MTU 探测".to_owned(),
+                        ToastStatus::Warning,
+                    )),
+                    MtuProbeState::Failed { failure } => Task::done(Message::ShowToast(
+                        format!("MTU 探测失败: {}", failure.message),
+                        ToastStatus::Error,
+                    )),
+                    MtuProbeState::Unknown | MtuProbeState::Probing => Task::none(),
+                }
             }
             Message::UnpackRuleProviderToCustom(provider_name) => {
                 let unpacked = vec![

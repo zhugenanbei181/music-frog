@@ -44,8 +44,8 @@ use crate::route::{PageRoot, Route};
 mod settings_core;
 
 pub use settings_core::{
-    CoreLogLevelButton, SettingsLine, SettingsLineKind, SettingsProjection, TunStackButton,
-    TunStackButtonAvailability,
+    CoreLogLevelButton, ProbeTunMtuButton, SettingsLine, SettingsLineKind, SettingsProjection,
+    TunStackButton, TunStackButtonAvailability,
 };
 
 /// Root marker on the Settings page scene.
@@ -598,6 +598,7 @@ fn tun_settings_card(projection: &SettingsProjection, palette: &UiPalette) -> im
                 Children [
                     ( { checkbox_scene("启用 TUN 虚拟网卡接管 (Enable TUN Device)".to_owned(), projection.tun_enabled, palette) } ),
                     ( { settings_core::tun_stack_selector_scene(projection, palette) } ),
+                    ( { settings_core::mtu_row_scene(&projection.mtu, palette) } ),
                     (
                         Node {
                             width: percent(100),
@@ -629,6 +630,7 @@ fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.insert_resource(SettingsPageBound);
     commands.add_observer(apply_settings_projection);
     commands.add_observer(on_settings_action_activated);
+    commands.add_observer(settings_core::on_mtu_probe_activated);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -765,6 +767,9 @@ pub(crate) fn apply_settings_projection(
             }
             SettingsLineKind::CoreResources => {
                 text.0 = settings_core::format_core_resources(&projection.core_resources);
+            }
+            SettingsLineKind::Mtu => {
+                text.0 = settings_core::format_mtu(&projection.mtu);
             }
             }
         }

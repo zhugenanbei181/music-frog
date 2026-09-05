@@ -382,6 +382,7 @@ fn settings_page_in_place_update() {
             gc: CoreGcStatus::NotNeeded,
         },
         offline_startup: OfflineStartupSnapshot::ready(LocalAssetStatus::Available),
+        mtu: Default::default(),
     };
 
     app.world_mut()

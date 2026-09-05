@@ -19,6 +19,7 @@ use infiltrator_domain::runtime::{
 use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_contract::version::InstalledCoreVersion;
+use infiltrator_contract::session::SessionToken;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,6 +28,13 @@ use std::time::Instant;
 /// Per-profile outcome list of the tray-driven "update all subscriptions"
 /// entry: `(profile name, update result)` per refreshed subscription.
 pub type SubscriptionUpdateOutcomes = Result<Vec<(String, Result<(), String>)>, InfiltratorError>;
+
+#[derive(Clone)]
+pub struct MtuProbeCompletion {
+    pub snapshot: infiltrator_contract::mtu::MtuNegotiationSnapshot,
+    pub generation: u64,
+    pub session_token: Option<SessionToken>,
+}
 
 #[derive(Clone)]
 pub enum Message {
@@ -519,6 +527,7 @@ pub enum Message {
     SelectTunStack(String),
     ProbeOptimalMtu,
     MtuProbed(u32),
+    MtuProbeFinished(MtuProbeCompletion),
     // Wave 5 Category 4: Rule-Provider Lifecycle & Rule Unpacker
     UnpackRuleProviderToCustom(String),
     PurgeRuleProviderCache,

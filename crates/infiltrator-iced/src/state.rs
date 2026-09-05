@@ -38,6 +38,7 @@ use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
+use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -54,6 +55,7 @@ pub struct RuntimeState {
     /// Exact shared lifecycle read model; `status` remains a coarse legacy
     /// rendering compatibility field for existing Iced widgets.
     pub core_lifecycle: CoreLifecycleSnapshot,
+    pub mtu: MtuNegotiationSnapshot,
     pub lifecycle_token: u64,
     pub status: RuntimeStatus,
     pub proxies: HashMap<String, Proxy>,
@@ -402,6 +404,7 @@ impl AppState {
         self.runtime.proxy_mode = snapshot.core.proxy_mode.map(|mode| mode.to_wire().to_owned());
         self.runtime.status = RuntimeStatus::from_core_snapshot(&snapshot.core);
         self.runtime.core_lifecycle = snapshot.core.lifecycle_snapshot();
+        self.runtime.mtu = snapshot.mtu.clone();
         self.runtime.runtime_generation = snapshot.core.generation;
         self.runtime.core_session_token = snapshot.core.session_token;
         self.runtime.core_versions = snapshot.versions.clone();

@@ -23,6 +23,17 @@ pub struct MssResult {
 pub struct MtuOptimizer;
 
 impl MtuOptimizer {
+    /// Negotiate a TUN MTU and TCP MSS from the active physical link.
+    pub fn negotiate_tun_mtu(physical_mtu: u32) -> (u32, u32) {
+        let tun_mtu = physical_mtu
+            .saturating_sub(infiltrator_contract::mtu::DEFAULT_TUN_OVERHEAD_BYTES)
+            .clamp(
+                infiltrator_contract::mtu::MIN_TUN_MTU_BYTES,
+                infiltrator_contract::mtu::MAX_TUN_MTU_BYTES,
+            );
+        (tun_mtu, tun_mtu.saturating_sub(40))
+    }
+
     /// Calculate TCP MSS based on MTU and IP version
     pub fn calculate_tcp_mss(mtu: u16, version: IpVersion) -> MssResult {
         let (header_overhead, min_mss) = match version {
@@ -93,6 +104,13 @@ mod tests {
         assert_eq!(MtuOptimizer::recommend_tun_mtu(1500, 50), 1450);
         assert_eq!(MtuOptimizer::recommend_tun_mtu(1300, 50), 1280);
         assert_eq!(MtuOptimizer::recommend_tun_mtu(9500, 100), 9000);
+    }
+
+    #[test]
+    fn test_negotiate_tun_mtu_from_physical_link() {
+        assert_eq!(MtuOptimizer::negotiate_tun_mtu(1500), (1420, 1380));
+        assert_eq!(MtuOptimizer::negotiate_tun_mtu(1280), (1280, 1240));
+        assert_eq!(MtuOptimizer::negotiate_tun_mtu(9000), (8920, 8880));
     }
 
     #[test]

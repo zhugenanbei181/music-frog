@@ -31,6 +31,8 @@ pub enum UiCommand {
     SetCoreLogLevel(CoreLogLevel),
     /// Change Mihomo's live TUN protocol stack.
     SetTunStack(TunStack),
+    /// Probe the physical link and negotiate the virtual TUN MTU.
+    ProbeTunMtu,
     /// Switch core proxy mode (Rule / Global / Direct).
     SetProxyMode(ProxyMode),
     /// Select a specific proxy node in a policy group.
@@ -111,6 +113,7 @@ impl UiCommand {
                 Some(CommandIntent::SetCoreLogLevel { level: *level })
             }
             Self::SetTunStack(stack) => Some(CommandIntent::SetTunStack { stack: *stack }),
+            Self::ProbeTunMtu => Some(CommandIntent::ProbeTunMtu),
             Self::SetProxyMode(mode) => Some(CommandIntent::SetProxyMode { mode: *mode }),
             Self::SelectProxyNode { group, node } => Some(CommandIntent::SelectProxyNode {
                 group: group.clone(),
@@ -360,6 +363,10 @@ mod tests {
             Some(CommandIntent::SetTunStack {
                 stack: TunStack::Mixed,
             })
+        );
+        assert_eq!(
+            UiCommand::ProbeTunMtu.to_intent(),
+            Some(CommandIntent::ProbeTunMtu)
         );
     }
 

@@ -24,6 +24,7 @@ use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::version::CoreRollbackSnapshot;
 use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
 use infiltrator_contract::tun::TunStack;
+use infiltrator_contract::mtu::{MtuNegotiationSnapshot, PhysicalMtuSnapshot};
 
 use crate::support::*;
 
@@ -565,6 +566,15 @@ fn test_settings_projection_in_place_update() {
     updated.controller_port = 9191;
     updated.log_level = "debug".to_owned();
     updated.offline_startup = OfflineStartupSnapshot::ready(LocalAssetStatus::Missing);
+    updated.mtu = MtuNegotiationSnapshot::ready(
+        2,
+        PhysicalMtuSnapshot {
+            interface: "eth0".to_owned(),
+            mtu: 1500,
+        },
+        1420,
+        1380,
+    );
 
     app.world_mut()
         .commands()
@@ -576,6 +586,24 @@ fn test_settings_projection_in_place_update() {
     assert!(subtree_has_text(app.world(), root, "DEBUG"));
     assert!(subtree_has_text(app.world(), root, "离线优先"));
     assert!(subtree_has_text(app.world(), root, "可启动但已降级"));
+    assert!(subtree_has_text(app.world(), root, "physical=1500"));
+}
+
+#[test]
+fn test_settings_mtu_probe_submits_shared_application_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Settings);
+
+    let button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<ProbeTunMtuButton>>()
+        .single(app.world())
+        .expect("MTU probe button");
+    app.world_mut().commands().trigger(Activate { entity: button });
+    app.update();
+
+    assert_eq!(sink.submitted(), vec![UiCommand::ProbeTunMtu]);
 }
 
 #[test]

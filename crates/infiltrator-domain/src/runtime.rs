@@ -27,6 +27,8 @@ pub struct TunSnapshot {
     pub stack: String,
     pub auto_route: bool,
     pub strict_route: bool,
+    #[serde(default)]
+    pub mtu: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]

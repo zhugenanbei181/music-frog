@@ -11,6 +11,7 @@ use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::port_conflict::PortConflictPort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
+use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::service_mode::ServiceModePort;
 use infiltrator_ports::version::{VersionPort, VersionProgressSink};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -133,6 +134,23 @@ impl OfflineStartupPort for TestOfflineStartup {
     }
 }
 
+struct TestMtu {
+    calls: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl MtuProbePort for TestMtu {
+    async fn probe_physical_mtu(
+        &self,
+    ) -> Result<infiltrator_contract::mtu::PhysicalMtuSnapshot, PortError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Ok(infiltrator_contract::mtu::PhysicalMtuSnapshot {
+            interface: "eth0".to_owned(),
+            mtu: 1500,
+        })
+    }
+}
+
 struct TestVersions {
     calls: Arc<AtomicUsize>,
 }
@@ -188,6 +206,7 @@ impl VersionPort for TestVersions {
 #[tokio::test]
 async fn surface_reader_publishes_and_caches_all_core_channel_results() {
     let calls = Arc::new(AtomicUsize::new(0));
+    let mtu_calls = Arc::new(AtomicUsize::new(0));
     let core = Arc::new(CoreApplication::new(
         Arc::new(TestProcess),
         Arc::new(TestReadiness),
@@ -200,7 +219,10 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
         .with_endpoint_source(Arc::new(TestEndpoint))
         .with_service_mode(ServiceModeApplication::new(Arc::new(TestServiceMode)))
         .with_port_conflicts(PortConflictApplication::new(Arc::new(TestPortConflicts)))
-        .with_offline_startup(OfflineStartupApplication::new(Arc::new(TestOfflineStartup)));
+        .with_offline_startup(OfflineStartupApplication::new(Arc::new(TestOfflineStartup)))
+        .with_mtu(MtuApplication::new(Arc::new(TestMtu {
+            calls: mtu_calls.clone(),
+        })));
 
     let first = reader.read().await.expect("first surface read");
     let second = reader.read().await.expect("cached surface read");
@@ -224,6 +246,11 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
         first.offline_startup.geoip,
         infiltrator_contract::offline_startup::LocalAssetStatus::Available
     );
+    assert!(first.mtu.is_ready());
+    assert_eq!(first.mtu.physical_interface.as_deref(), Some("eth0"));
+    assert_eq!(first.mtu.tun_mtu, Some(1420));
+    assert_eq!(first.mtu.applied_tun_mtu, None);
+    assert_eq!(mtu_calls.load(Ordering::SeqCst), 1);
     assert!(first.versions.channels.iter().all(|channel| matches!(
         channel.status,
         infiltrator_contract::version::CoreChannelStatus::Ready { .. }

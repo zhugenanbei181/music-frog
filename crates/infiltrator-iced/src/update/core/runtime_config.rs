@@ -16,7 +16,7 @@ use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_shared::locales::Localizer;
 
 impl AppState {
-    fn runtime_unavailable(&mut self, operation: &str) -> Task<Message> {
+    pub(crate) fn runtime_unavailable(&mut self, operation: &str) -> Task<Message> {
         let error = InfiltratorError::Internal(format!("内核未运行，无法{operation}"));
         self.set_error(&error);
         Task::done(Message::ShowToast(

@@ -80,12 +80,16 @@ def main() -> int:
         violations,
         "crates/infiltrator-android/src/composition.rs",
         "Some(Arc::new(client)",
-        "CommandApplication::new().with_runtime",
+        "CommandApplication::new()",
+        "with_mtu(mtu)",
+        "with_runtime(gateway)",
     )
     require(
         violations,
         "crates/infiltrator-composition/src/lib.rs",
-        "CommandApplication::new().with_runtime",
+        "CommandApplication::new()",
+        ".with_runtime(std::sync::Arc::new(client))",
+        ".with_mtu(MtuApplication::new(host))",
         "ios_core_application",
     )
     require(

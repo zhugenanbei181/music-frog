@@ -196,6 +196,7 @@ impl AppState {
             | Message::SelectTunStack(_)
             | Message::ProbeOptimalMtu
             | Message::MtuProbed(_)
+            | Message::MtuProbeFinished(_)
             | Message::UnpackRuleProviderToCustom(_)
             | Message::PurgeRuleProviderCache
             | Message::TriggerAtomicConfigApply

@@ -17,6 +17,10 @@ pub trait AndroidBridge: Send + Sync {
 
     fn data_dir(&self) -> Option<PathBuf>;
     fn cache_dir(&self) -> Option<PathBuf>;
+    /// Active physical-link MTU, when the native Android host exposes it.
+    fn physical_mtu(&self) -> Option<u32> {
+        None
+    }
 
     /// Native code may report its local packaged-core/config preflight. The
     /// conservative default keeps older bridges compatible and never claims
@@ -72,6 +76,10 @@ impl AndroidBridge for Box<dyn AndroidBridge> {
 
     fn offline_startup_snapshot(&self) -> OfflineStartupSnapshot {
         self.as_ref().offline_startup_snapshot()
+    }
+
+    fn physical_mtu(&self) -> Option<u32> {
+        self.as_ref().physical_mtu()
     }
 
     async fn vpn_start(&self) -> Result<bool> {
@@ -135,6 +143,10 @@ impl AndroidBridge for Arc<dyn AndroidBridge> {
 
     fn offline_startup_snapshot(&self) -> OfflineStartupSnapshot {
         self.as_ref().offline_startup_snapshot()
+    }
+
+    fn physical_mtu(&self) -> Option<u32> {
+        self.as_ref().physical_mtu()
     }
 
     async fn vpn_start(&self) -> Result<bool> {

@@ -63,6 +63,7 @@ impl AppState {
                 runtime_generation: 0,
                 core_session_token: None,
                 core_lifecycle: Default::default(),
+                mtu: Default::default(),
                 lifecycle_token: 0,
                 status: RuntimeStatus::Stopped,
                 proxy_mode: None,

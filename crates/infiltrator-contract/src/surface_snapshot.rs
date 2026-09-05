@@ -12,6 +12,7 @@ use crate::port_conflict::PortConflictSnapshot;
 use crate::resources::CoreResourceSnapshot;
 use crate::error::Failure;
 use crate::offline_startup::OfflineStartupSnapshot;
+use crate::mtu::MtuNegotiationSnapshot;
 use crate::snapshot::{CoreLifecycle, CoreSnapshot};
 use crate::surface::{HostKind, SurfaceKind};
 use crate::version::CoreVersionSnapshot;
@@ -412,6 +413,9 @@ pub struct SurfaceSnapshot {
     /// Local-only startup proof; remote enhancement remains optional.
     #[serde(default)]
     pub offline_startup: OfflineStartupSnapshot,
+    /// Physical-to-TUN MTU negotiation result.
+    #[serde(default)]
+    pub mtu: MtuNegotiationSnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -452,6 +456,7 @@ impl SurfaceSnapshot {
             port_conflicts: PortConflictSnapshot::default(),
             resources: CoreResourceSnapshot::default(),
             offline_startup: OfflineStartupSnapshot::default(),
+            mtu: MtuNegotiationSnapshot::default(),
         }
     }
 

@@ -9,6 +9,7 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::overview::{OverviewConfig, OverviewPump, UnavailableOverviewReader};
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
+use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_ios::{IosBridge, IosHostAdapter};
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
@@ -115,8 +116,9 @@ where
     let client =
         MihomoClient::new(&controller_url, secret.clone()).map_err(|error| error.to_string())?;
     let runtime = tokio_application_runtime()?;
+    let host = std::sync::Arc::new(IosHostAdapter::new(bridge));
     let application = CoreApplication::new_with_overview(
-        std::sync::Arc::new(IosHostAdapter::new(bridge)),
+        host.clone(),
         std::sync::Arc::new(ControllerReadiness::new(
             controller_url.clone(),
             secret.clone(),
@@ -125,7 +127,9 @@ where
         runtime,
     );
     application.install_command_handler(std::sync::Arc::new(
-        CommandApplication::new().with_runtime(std::sync::Arc::new(client)),
+        CommandApplication::new()
+            .with_runtime(std::sync::Arc::new(client))
+            .with_mtu(MtuApplication::new(host)),
     ));
     Ok(application)
 }
@@ -136,6 +140,14 @@ where
     B: IosBridge + 'static,
 {
     OfflineStartupApplication::new(Arc::new(IosHostAdapter::new(bridge)))
+}
+
+/// Compose the iOS native physical-link MTU observer for either UI surface.
+pub fn ios_mtu_application<B>(bridge: B) -> MtuApplication
+where
+    B: IosBridge + 'static,
+{
+    MtuApplication::new(Arc::new(IosHostAdapter::new(bridge)))
 }
 
 /// Assemble the iOS application together with its host scheduler. Native

@@ -745,6 +745,7 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::RepairPortConflicts => "repair_port_conflicts",
         CommandIntent::SetCoreLogLevel { .. } => "set_core_log_level",
         CommandIntent::SetTunStack { .. } => "set_tun_stack",
+        CommandIntent::ProbeTunMtu => "probe_tun_mtu",
         CommandIntent::SwitchProfile { .. } => "switch_profile",
         CommandIntent::SetProxyMode { .. } => "set_proxy_mode",
         CommandIntent::SelectProxyNode { .. } => "select_proxy_node",

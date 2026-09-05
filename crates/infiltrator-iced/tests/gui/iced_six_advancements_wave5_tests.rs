@@ -6,10 +6,13 @@
 //! exact string/integer values, and mathematical invariants.
 
 use crate::state::AppState;
-use crate::types::message::Message;
+use crate::types::message::{Message, MtuProbeCompletion};
 use crate::types::runtime::ApplyTransactionStage;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_contract::tun::{TunStack, TunStackAvailability};
+use infiltrator_contract::mtu::{
+    MtuNegotiationSnapshot, PhysicalMtuSnapshot,
+};
 
 #[test]
 fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
@@ -66,6 +69,7 @@ fn test_advancement_w5_2_latency_time_series_and_stability_radar() {
 #[test]
 fn test_advancement_w5_3_tun_multi_stack_and_mtu_negotiation() {
     let (mut state, _) = AppState::new();
+    state.shell.demo = true;
 
     let options = TunStack::options();
     assert_eq!(options.len(), 4);
@@ -88,13 +92,6 @@ fn test_advancement_w5_3_tun_multi_stack_and_mtu_negotiation() {
     let _ = state.update(Message::SelectTunStack("mixed".to_string()));
     assert_eq!(state.runtime.tun_stack_config.active_stack, "mixed");
 
-    let _ = state.update(Message::SetTunStack("lwip".to_string()));
-    assert!(state
-        .shell
-        .error_msg
-        .as_deref()
-        .is_some_and(|message| message.contains("reference-only")));
-
     // Probe optimal MTU
     let _ = state.update(Message::ProbeOptimalMtu);
     assert_eq!(state.runtime.tun_stack_config.negotiated_mtu, 1420);
@@ -102,6 +99,43 @@ fn test_advancement_w5_3_tun_multi_stack_and_mtu_negotiation() {
         state.runtime.tun_stack_config.probe_result_summary.as_deref(),
         Some("Optimal MTU: 1420 bytes")
     );
+
+    state.shell.demo = false;
+    let _ = state.update(Message::SetTunStack("lwip".to_string()));
+    assert!(state
+        .shell
+        .error_msg
+        .as_deref()
+        .is_some_and(|message| message.contains("reference-only")));
+}
+
+#[test]
+fn test_tun_mtu_probe_result_updates_the_shared_iced_state() {
+    let (mut state, _) = AppState::new();
+    let result = MtuNegotiationSnapshot::ready(
+        1,
+        PhysicalMtuSnapshot {
+            interface: "wlan0".to_owned(),
+            mtu: 1500,
+        },
+        1420,
+        1380,
+    );
+    let _ = state.update(Message::MtuProbeFinished(MtuProbeCompletion {
+        snapshot: result,
+        generation: state.runtime.runtime_generation,
+        session_token: state.runtime.core_session_token,
+    }));
+
+    assert!(state.runtime.mtu.is_ready());
+    assert_eq!(state.runtime.mtu.physical_interface.as_deref(), Some("wlan0"));
+    assert_eq!(state.runtime.tun_stack_config.negotiated_mtu, 1420);
+    assert!(state
+        .runtime
+        .tun_stack_config
+        .probe_result_summary
+        .as_deref()
+        .is_some_and(|summary| summary.contains("wlan0")));
 }
 
 #[test]

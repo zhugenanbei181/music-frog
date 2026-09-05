@@ -16,6 +16,7 @@ use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::secure_store::SecureStore;
 use std::path::PathBuf;
@@ -37,6 +38,11 @@ pub trait IosBridge: Send + Sync {
 
     fn data_dir(&self) -> Option<PathBuf>;
     fn cache_dir(&self) -> Option<PathBuf>;
+    /// Active physical-link MTU, when the native NetworkExtension host
+    /// exposes it; absence stays a typed unsupported capability.
+    fn physical_mtu(&self) -> Option<u32> {
+        None
+    }
 
     /// Native Swift code supplies local packaged-core/config evidence. The
     /// default is conservative and never claims readiness without evidence.
@@ -131,6 +137,26 @@ impl OfflineStartupPort for IosHostAdapter {
         &self,
     ) -> Result<infiltrator_contract::offline_startup::OfflineStartupSnapshot, PortError> {
         Ok(self.bridge.offline_startup_snapshot())
+    }
+}
+
+#[async_trait]
+impl MtuProbePort for IosHostAdapter {
+    async fn probe_physical_mtu(
+        &self,
+    ) -> Result<infiltrator_contract::mtu::PhysicalMtuSnapshot, PortError> {
+        self.bridge
+            .physical_mtu()
+            .map(|mtu| infiltrator_contract::mtu::PhysicalMtuSnapshot {
+                interface: "ios-active-link".to_owned(),
+                mtu,
+            })
+            .ok_or_else(|| {
+                PortError::unsupported(
+                    infiltrator_contract::capability::Capability::Tun,
+                    "iOS native bridge does not expose physical MTU",
+                )
+            })
     }
 }
 
@@ -307,6 +333,22 @@ mod tests {
         assert_eq!(
             snapshot.remote_dependency,
             infiltrator_contract::offline_startup::StartupRemoteDependency::Optional
+        );
+    }
+
+    #[tokio::test]
+    async fn ios_host_keeps_mtu_probe_unsupported_without_native_link_metrics() {
+        let adapter = IosHostAdapter::new(FakeBridge {
+            running: Mutex::new(false),
+        });
+        let snapshot = infiltrator_application::mtu_application::MtuApplication::new(Arc::new(
+            adapter,
+        ))
+        .probe()
+        .await;
+        assert_eq!(
+            snapshot.state,
+            infiltrator_contract::mtu::MtuProbeState::Unsupported
         );
     }
 

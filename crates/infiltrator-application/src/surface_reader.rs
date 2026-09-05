@@ -17,6 +17,7 @@ use crate::snapshot_application::SnapshotApplication;
 use crate::service_mode_application::ServiceModeApplication;
 use crate::version_application::VersionApplication;
 use crate::offline_startup_application::OfflineStartupApplication;
+use crate::mtu_application::MtuApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -53,6 +54,7 @@ pub struct ApplicationSurfaceReader {
     port_conflicts: Option<PortConflictApplication>,
     resources: Option<ResourceApplication>,
     offline_startup: Option<OfflineStartupApplication>,
+    mtu: Option<MtuApplication>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -75,6 +77,7 @@ impl ApplicationSurfaceReader {
             port_conflicts: None,
             resources: None,
             offline_startup: None,
+            mtu: None,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -151,6 +154,11 @@ impl ApplicationSurfaceReader {
         self
     }
 
+    pub fn with_mtu(mut self, mtu: MtuApplication) -> Self {
+        self.mtu = Some(mtu);
+        self
+    }
+
     pub fn core(&self) -> &Arc<CoreApplication> {
         &self.core
     }
@@ -224,6 +232,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             Some(gateway) => Some(gateway.get_config().await),
             None => None,
         };
+        let mtu = merge_applied_mtu(self.read_mtu().await, runtime_config.as_ref());
         let runtime_proxies = match &self.gateway {
             Some(gateway) => Some(gateway.get_proxies().await),
             None => None,
@@ -368,6 +377,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             port_conflicts,
             resources,
             offline_startup,
+            mtu,
         })
     }
 }
@@ -378,6 +388,18 @@ fn missing(what: &str) -> Failure {
         format!("{what} is not composed for this host"),
         false,
     )
+}
+
+fn merge_applied_mtu(
+    mut snapshot: infiltrator_contract::mtu::MtuNegotiationSnapshot,
+    runtime_config: Option<&Result<infiltrator_domain::runtime::ConfigSnapshot, PortError>>,
+) -> infiltrator_contract::mtu::MtuNegotiationSnapshot {
+    if let Some(Ok(config)) = runtime_config
+        && let Some(mtu) = config.tun.as_ref().and_then(|tun| tun.mtu)
+    {
+        snapshot.applied_tun_mtu = Some(mtu);
+    }
+    snapshot
 }
 
 fn page_from_result<T, U, E>(

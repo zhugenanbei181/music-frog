@@ -8,6 +8,7 @@ use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::Result;
@@ -69,6 +70,29 @@ where
         // The Android host owns the APK ABI binary and sandbox paths. Rust
         // consumes its typed local proof and never performs a remote probe.
         Ok(self.bridge.offline_startup_snapshot())
+    }
+}
+
+#[async_trait]
+impl<B> MtuProbePort for AndroidBridgeAdapter<B>
+where
+    B: AndroidBridge,
+{
+    async fn probe_physical_mtu(
+        &self,
+    ) -> std::result::Result<infiltrator_contract::mtu::PhysicalMtuSnapshot, PortError> {
+        self.bridge
+            .physical_mtu()
+            .map(|mtu| infiltrator_contract::mtu::PhysicalMtuSnapshot {
+                interface: "android-active-link".to_owned(),
+                mtu,
+            })
+            .ok_or_else(|| {
+                PortError::unsupported(
+                    infiltrator_contract::capability::Capability::Tun,
+                    "Android native bridge does not expose physical MTU",
+                )
+            })
     }
 }
 
@@ -410,6 +434,20 @@ mod tests {
         assert_eq!(
             snapshot.remote_dependency,
             infiltrator_contract::offline_startup::StartupRemoteDependency::Optional
+        );
+    }
+
+    #[tokio::test]
+    async fn android_host_keeps_mtu_probe_unsupported_without_native_link_metrics() {
+        let adapter = AndroidBridgeAdapter::new(TestBridge::new());
+        let snapshot = infiltrator_application::mtu_application::MtuApplication::new(Arc::new(
+            adapter,
+        ))
+        .probe()
+        .await;
+        assert_eq!(
+            snapshot.state,
+            infiltrator_contract::mtu::MtuProbeState::Unsupported
         );
     }
 
