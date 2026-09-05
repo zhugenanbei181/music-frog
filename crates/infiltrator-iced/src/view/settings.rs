@@ -17,6 +17,7 @@ use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthSta
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
+use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot,
 };
@@ -141,6 +142,7 @@ fn inbounds_card<'a>(state: &AppState, lang: &Lang<'_>) -> Element<'a, Message> 
 fn system_proxy_card<'a>(state: &AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'a, Message> {
     const DEFAULT_BYPASS: &str = "localhost;127.*;10.*;192.168.*;*.lan";
     let proxy_mode_options = vec![lang.tr("settings_mode_manual").to_string(), "PAC".to_string()];
+    let port_status = format_port_conflicts(&state.runtime.port_conflicts);
 
     card(
         Some(lang.tr("system_proxy").to_string()),
@@ -155,6 +157,13 @@ fn system_proxy_card<'a>(state: &AppState, lang: &Lang<'a>, _is_en: bool) -> Ele
                 text(lang.tr("settings_proxy_mode").to_string()).size(13).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
                 Space::new().width(Length::Fill),
                 segmented_control(&proxy_mode_options, 0, |_| Message::Noop),
+            ].align_y(Alignment::Center),
+            row![
+                text("Port conflicts").size(13).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                Space::new().width(Length::Fill),
+                secondary_text(port_status),
+                Space::new().width(theme::SP_SM),
+                text_btn("Check & repair", style_ghost, Some(Message::RepairPortConflicts)),
             ].align_y(Alignment::Center),
             column![
                 row![
@@ -437,6 +446,40 @@ fn format_service_mode(snapshot: &ServiceModeSnapshot) -> String {
         ServiceModeState::Unsupported => "unsupported",
     };
     format!("{platform} · {state}")
+}
+
+fn format_port_conflicts(snapshot: &PortConflictSnapshot) -> String {
+    if snapshot.conflicts.is_empty() {
+        return "not probed".to_owned();
+    }
+    snapshot
+        .conflicts
+        .iter()
+        .map(|conflict| {
+            let status = if conflict.available {
+                "available"
+            } else {
+                "occupied"
+            };
+            let owner = conflict.owner_pid.map_or_else(
+                || "unknown owner".to_owned(),
+                |pid| {
+                    let name = conflict
+                        .owner_name
+                        .as_deref()
+                        .map(crate::utils::sanitize_ui_text)
+                        .unwrap_or_else(|| "unknown".to_owned());
+                    format!("{name} pid={pid}")
+                },
+            );
+            format!(
+                "{} {} ({status}, {owner})",
+                conflict.binding.as_str(),
+                conflict.port
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
 
 fn hotkeys_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {

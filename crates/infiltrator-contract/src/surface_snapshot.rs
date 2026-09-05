@@ -8,6 +8,7 @@ use crate::capability::CapabilitySnapshot;
 use crate::command::ProxyMode;
 use crate::controller::ControllerAuthSnapshot;
 use crate::service_mode::ServiceModeSnapshot;
+use crate::port_conflict::PortConflictSnapshot;
 use crate::error::Failure;
 use crate::snapshot::{CoreLifecycle, CoreSnapshot};
 use crate::surface::{HostKind, SurfaceKind};
@@ -400,6 +401,9 @@ pub struct SurfaceSnapshot {
     /// Dynamic host privilege/service status for TUN ownership.
     #[serde(default)]
     pub service_mode: ServiceModeSnapshot,
+    /// Current binding observations for the mixed proxy and controller ports.
+    #[serde(default)]
+    pub port_conflicts: PortConflictSnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -437,6 +441,7 @@ impl SurfaceSnapshot {
             versions: CoreVersionSnapshot::default(),
             controller_auth: ControllerAuthSnapshot::default(),
             service_mode: ServiceModeSnapshot::default(),
+            port_conflicts: PortConflictSnapshot::default(),
         }
     }
 

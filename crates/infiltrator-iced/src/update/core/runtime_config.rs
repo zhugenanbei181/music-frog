@@ -365,6 +365,52 @@ impl AppState {
                     }
                 }
             }
+            Message::RepairPortConflicts => {
+                let application = match crate::port_conflict_application::application() {
+                    Ok(application) => application,
+                    Err(error) => {
+                        self.set_error(&error);
+                        return Task::done(Message::ShowToast(
+                            error.to_string(),
+                            crate::types::app::ToastStatus::Error,
+                        ));
+                    }
+                };
+                Task::perform(
+                    async move {
+                        application
+                            .repair()
+                            .await
+                            .map_err(|failure| InfiltratorError::Privilege(failure.message))
+                    },
+                    Message::PortConflictsRepaired,
+                )
+            }
+            Message::PortConflictsRepaired(result) => {
+                match result {
+                    Ok(snapshot) => {
+                        let had_conflicts = self.runtime.port_conflicts.has_conflicts();
+                        self.runtime.port_conflicts = snapshot;
+                        let message = if had_conflicts && !self.runtime.port_conflicts.has_conflicts()
+                        {
+                            "端口冲突已修复，已安全避让到可用端口"
+                        } else {
+                            "端口检查完成，未执行未确认进程终止"
+                        };
+                        Task::done(Message::ShowToast(
+                            message.to_owned(),
+                            crate::types::app::ToastStatus::Success,
+                        ))
+                    }
+                    Err(error) => {
+                        self.set_error(&error);
+                        Task::done(Message::ShowToast(
+                            error.to_string(),
+                            crate::types::app::ToastStatus::Error,
+                        ))
+                    }
+                }
+            }
             Message::SetTunStack(stack) => {
                 let Some(rt) = self.runtime.runtime.clone() else {
                     return self.runtime_unavailable("修改 TUN 堆栈");

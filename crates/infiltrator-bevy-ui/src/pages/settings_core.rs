@@ -22,6 +22,7 @@ use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
+use infiltrator_contract::port_conflict::PortConflictSnapshot;
 
 pub(super) fn controller_settings_card(
     projection: &SettingsProjection,
@@ -71,7 +72,7 @@ pub(super) fn controller_settings_card(
 use super::{
     CoreLogLevelButton, CoreRollbackAvailability, CoreRollbackButton, CoreRollbackButtonLabel,
     ServiceModeAvailability, ServiceModeButton, ServiceModeButtonLabel, SettingsLine,
-    SettingsLineKind, SettingsProjection,
+    SettingsLineKind, SettingsProjection, PortConflictButton,
 };
 
 pub(super) fn core_rollback_row_scene(
@@ -324,4 +325,78 @@ pub(super) fn format_service_mode(snapshot: &ServiceModeSnapshot) -> String {
         ServiceModeState::Unsupported => "unsupported",
     };
     format!("{platform} · {state}")
+}
+
+pub(super) fn port_conflicts_row_scene(
+    snapshot: &PortConflictSnapshot,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let status = format_port_conflicts(snapshot);
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect::all(Val::Px(space::S8)),
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ palette.surface_elevated })
+        Children [
+            (
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(space::S4),
+                }
+                Children [
+                    ( Text({ "端口冲突 (Port Conflicts)".to_owned() }) TextRole(Role::Body) ),
+                    ( Text(status) SettingsLine(SettingsLineKind::PortConflicts) TextRole(Role::Mono) ),
+                ]
+            ),
+            (
+                Node {
+                    min_height: px(palette.control_height_px),
+                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                }
+                BackgroundColor({ palette.accent })
+                PortConflictButton
+                Button
+                Children [
+                    ( Text({ "检查并避让".to_owned() }) TextRole(Role::BodyStrong) ),
+                ]
+            ),
+        ]
+    })
+}
+
+pub(super) fn format_port_conflicts(snapshot: &PortConflictSnapshot) -> String {
+    if snapshot.conflicts.is_empty() {
+        return "未探测".to_owned();
+    }
+    snapshot
+        .conflicts
+        .iter()
+        .map(|conflict| {
+            let status = if conflict.available {
+                "可用"
+            } else {
+                "占用"
+            };
+            let owner = conflict.owner_pid.map_or_else(
+                || "owner=?".to_owned(),
+                |pid| {
+                    let name = conflict
+                        .owner_name
+                        .as_deref()
+                        .map(infiltrator_bevy_widgets::desktop::ClipboardPayload::sanitize_text)
+                        .unwrap_or_else(|| "unknown".to_owned());
+                    format!("{name} pid={pid}")
+                },
+            );
+            format!("{} {} ({status}, {owner})", conflict.binding.as_str(), conflict.port)
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
 }

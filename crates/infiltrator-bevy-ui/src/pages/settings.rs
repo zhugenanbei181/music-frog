@@ -39,6 +39,7 @@ use infiltrator_contract::version::{
 use infiltrator_contract::controller::ControllerAuthSnapshot;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
+use infiltrator_contract::port_conflict::PortConflictSnapshot;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
@@ -85,6 +86,8 @@ pub enum SettingsLineKind {
     ControllerAuth,
     /// Host-owned privileged service mode status.
     ServiceMode,
+    /// Mixed/controller port conflict observation.
+    PortConflicts,
 }
 
 /// Marker for "Save Settings" button.
@@ -122,6 +125,10 @@ pub struct ServiceModeAvailability(pub bool);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ServiceModeButtonLabel;
 
+/// Marker for the safe port-conflict repair action.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PortConflictButton;
+
 /// Marker for "Prepare TUN Permission" button in the alert banner.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PrepareTunPermissionButton;
@@ -154,6 +161,7 @@ pub struct SettingsProjection {
     pub core_integrity: CoreArtifactVerification,
     pub controller_auth: ControllerAuthSnapshot,
     pub service_mode: ServiceModeSnapshot,
+    pub port_conflicts: PortConflictSnapshot,
 }
 
 impl SettingsProjection {
@@ -173,6 +181,7 @@ impl SettingsProjection {
             core_integrity: Default::default(),
             controller_auth: Default::default(),
             service_mode: Default::default(),
+            port_conflicts: Default::default(),
         }
     }
 }
@@ -554,6 +563,7 @@ pub fn general_card_scene(
                     ( { settings_core::core_rollback_row_scene(projection, palette) } ),
                     ( { settings_core::controller_auth_row_scene(&projection.controller_auth, palette) } ),
                     ( { settings_core::service_mode_row_scene(&projection.service_mode, palette) } ),
+                    ( { settings_core::port_conflicts_row_scene(&projection.port_conflicts, palette) } ),
                     (
                         Node {
                             width: percent(100),
@@ -714,6 +724,7 @@ pub(crate) fn on_settings_action_activated(
     log_level_buttons: Query<&CoreLogLevelButton>,
     service_buttons: Query<(), With<ServiceModeButton>>,
     service_available: Query<&ServiceModeAvailability, With<ServiceModeButton>>,
+    port_buttons: Query<(), With<PortConflictButton>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -753,6 +764,8 @@ pub(crate) fn on_settings_action_activated(
             .is_ok_and(|availability| availability.0)
     {
         handle.submit(UiCommand::PrepareServiceMode);
+    } else if port_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::RepairPortConflicts);
     }
 }
 
@@ -815,6 +828,9 @@ pub(crate) fn apply_settings_projection(
             }
             SettingsLineKind::ServiceMode => {
                 text.0 = settings_core::format_service_mode(&projection.service_mode);
+            }
+            SettingsLineKind::PortConflicts => {
+                text.0 = settings_core::format_port_conflicts(&projection.port_conflicts);
             }
             }
         }

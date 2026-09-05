@@ -97,6 +97,7 @@ pub enum CommandIntent {
     StopCore,
     RestartCore,
     PrepareServiceMode,
+    RepairPortConflicts,
     SetCoreLogLevel { level: CoreLogLevel },
     SwitchProfile { profile_id: String },
     SetProxyMode { mode: ProxyMode },
@@ -164,6 +165,7 @@ impl CommandIntent {
         match self {
             Self::StartCore | Self::StopCore | Self::RestartCore => CommandKind::CoreLifecycle,
             Self::PrepareServiceMode => CommandKind::Network,
+            Self::RepairPortConflicts => CommandKind::Network,
             Self::SetCoreLogLevel { .. } => CommandKind::Runtime,
             Self::SwitchProfile { .. }
             | Self::UpdateProfile { .. }

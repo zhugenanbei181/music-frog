@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use crate::doctor_application::DoctorApplication;
 use crate::profile_application::ProfileApplication;
+use crate::port_conflict_application::PortConflictApplication;
 use crate::routing_application::RoutingApplication;
 use crate::runtime_query_application::RuntimeQueryApplication;
 use crate::settings_application::SettingsApplication;
@@ -47,6 +48,7 @@ pub struct CommandApplication {
     snapshots: Option<SnapshotApplication>,
     versions: Option<VersionApplication>,
     service_mode: Option<ServiceModeApplication>,
+    port_conflicts: Option<PortConflictApplication>,
 }
 
 impl CommandApplication {
@@ -106,6 +108,11 @@ impl CommandApplication {
 
     pub fn with_service_mode(mut self, application: ServiceModeApplication) -> Self {
         self.service_mode = Some(application);
+        self
+    }
+
+    pub fn with_port_conflicts(mut self, application: PortConflictApplication) -> Self {
+        self.port_conflicts = Some(application);
         self
     }
 
@@ -216,6 +223,7 @@ impl CommandApplication {
             }
             CommandIntent::RollbackCore => self.versions()?.rollback().await.map(|_| ()),
             CommandIntent::PrepareServiceMode => self.service_mode()?.prepare().await.map(|_| ()),
+            CommandIntent::RepairPortConflicts => self.port_conflicts()?.repair().await.map(|_| ()),
             CommandIntent::CheckUpdates => {
                 let settings = self.settings()?.load().await?;
                 let channel = parse_release_channel(&settings.core_channel)?;
@@ -327,6 +335,12 @@ impl CommandApplication {
         self.service_mode
             .clone()
             .ok_or_else(|| missing("service mode application"))
+    }
+
+    fn port_conflicts(&self) -> Result<PortConflictApplication, Failure> {
+        self.port_conflicts
+            .clone()
+            .ok_or_else(|| missing("port conflict application"))
     }
 }
 

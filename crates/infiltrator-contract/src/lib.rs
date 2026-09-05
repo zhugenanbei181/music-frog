@@ -7,6 +7,7 @@
 pub mod capability;
 pub mod controller;
 pub mod command;
+pub mod port_conflict;
 pub mod doctor;
 pub mod error;
 pub mod intent;

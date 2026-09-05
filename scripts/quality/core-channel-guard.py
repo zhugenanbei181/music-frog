@@ -67,6 +67,10 @@ def main() -> int:
         "read_versions",
         "CoreChannelStatus::Ready",
         "versions,",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader_test.rs",
         "surface_reader_publishes_and_caches_all_core_channel_results",
     )
     require(

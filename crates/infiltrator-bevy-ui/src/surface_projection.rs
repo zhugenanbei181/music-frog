@@ -399,6 +399,7 @@ pub(super) fn settings_projection(
             core_integrity: snapshot.versions.verification.clone(),
             controller_auth: snapshot.controller_auth,
             service_mode: snapshot.service_mode,
+            port_conflicts: snapshot.port_conflicts.clone(),
         })
         .unwrap_or_else(|| {
             let mut projection = empty_settings();
@@ -406,6 +407,7 @@ pub(super) fn settings_projection(
             projection.core_integrity = snapshot.versions.verification.clone();
             projection.controller_auth = snapshot.controller_auth;
             projection.service_mode = snapshot.service_mode;
+            projection.port_conflicts = snapshot.port_conflicts.clone();
             projection
         })
 }

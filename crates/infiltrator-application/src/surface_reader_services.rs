@@ -35,4 +35,13 @@ impl ApplicationSurfaceReader {
             None => Default::default(),
         }
     }
+
+    pub(super) async fn read_port_conflicts(
+        &self,
+    ) -> infiltrator_contract::port_conflict::PortConflictSnapshot {
+        match &self.port_conflicts {
+            Some(application) => application.snapshot().await.unwrap_or_default(),
+            None => Default::default(),
+        }
+    }
 }

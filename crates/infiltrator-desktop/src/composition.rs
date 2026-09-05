@@ -6,6 +6,7 @@
 
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::port_conflict_application::PortConflictApplication;
 use infiltrator_application::version_application::VersionApplication;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::overview::ControllerOverviewReader;
@@ -38,10 +39,14 @@ pub fn core_application(
             service.binary_path().to_path_buf(),
         )),
     );
+    let port_conflicts = PortConflictApplication::new(std::sync::Arc::new(
+        crate::storage::port_conflict()?,
+    ));
     application.install_command_handler(std::sync::Arc::new(
         CommandApplication::new()
             .with_versions(versions)
-            .with_service_mode(service_mode),
+            .with_service_mode(service_mode)
+            .with_port_conflicts(port_conflicts),
     ));
     Ok(application)
 }

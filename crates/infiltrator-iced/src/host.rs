@@ -134,6 +134,10 @@ pub mod storage {
         infiltrator_desktop::storage::version()
     }
 
+    pub fn port_conflict() -> anyhow::Result<impl infiltrator_ports::port_conflict::PortConflictPort> {
+        infiltrator_desktop::storage::port_conflict()
+    }
+
     pub fn public_ip_probe() -> impl PublicIpProbe {
         infiltrator_desktop::storage::public_ip_probe()
     }

@@ -70,6 +70,10 @@ pub async fn snapshot_store() -> anyhow::Result<impl SnapshotStore> {
     infiltrator_core::snapshot_io::FileSnapshotStore::current().await
 }
 
+pub fn port_conflict() -> anyhow::Result<impl infiltrator_ports::port_conflict::PortConflictPort> {
+    Ok(crate::port_conflict::DesktopPortConflict::new(home_dir()?))
+}
+
 pub fn version() -> anyhow::Result<impl VersionPort> {
     infiltrator_core::version_port::MihomoVersionPort::current()
 }

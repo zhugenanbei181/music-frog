@@ -16,6 +16,7 @@ pub mod desktop_composition;
 pub mod host;
 mod notify;
 pub mod network;
+pub mod port_conflict_application;
 pub mod routing_application;
 pub mod snapshot_application;
 pub mod state;

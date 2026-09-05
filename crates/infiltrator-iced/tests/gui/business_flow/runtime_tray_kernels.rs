@@ -16,6 +16,7 @@ use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::version::CoreRollbackSnapshot;
+use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup};
 use mihomo_version::manager::VersionManager;
 
@@ -304,6 +305,41 @@ fn core_log_level_rejects_invalid_or_stopped_updates_without_optimism() {
             .unwrap_or_default()
             .contains("core is not running")
     );
+}
+
+#[test]
+fn port_conflict_repair_replaces_the_shared_snapshot_without_killing_unknown_pids() {
+    let mut state = fresh_state();
+    state.runtime.port_conflicts = PortConflictSnapshot {
+        revision: 1,
+        conflicts: vec![PortConflict {
+            binding: PortBinding::Controller,
+            port: 9090,
+            available: false,
+            owner_pid: Some(4242),
+            owner_name: Some("unrelated-app".to_owned()),
+            can_release: false,
+        }],
+    };
+    assert_eq!(feed(&mut state, Message::RepairPortConflicts), 1);
+
+    let repaired = PortConflictSnapshot {
+        revision: 2,
+        conflicts: vec![PortConflict {
+            binding: PortBinding::Controller,
+            port: 9091,
+            available: true,
+            owner_pid: None,
+            owner_name: None,
+            can_release: false,
+        }],
+    };
+    assert_eq!(
+        feed(&mut state, Message::PortConflictsRepaired(Ok(repaired))),
+        1
+    );
+    assert!(!state.runtime.port_conflicts.has_conflicts());
+    assert!(state.shell.error_msg.is_none());
 }
 
 #[cfg(unix)]

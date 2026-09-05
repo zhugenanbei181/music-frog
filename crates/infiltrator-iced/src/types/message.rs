@@ -147,6 +147,10 @@ pub enum Message {
     ServiceModePrepared(
         Result<infiltrator_contract::service_mode::ServiceModeSnapshot, InfiltratorError>,
     ),
+    RepairPortConflicts,
+    PortConflictsRepaired(
+        Result<infiltrator_contract::port_conflict::PortConflictSnapshot, InfiltratorError>,
+    ),
     SetTunStack(String),
     SetTunAutoRoute(bool),
     SetTunStrictRoute(bool),

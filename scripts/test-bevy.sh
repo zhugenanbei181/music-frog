@@ -32,3 +32,4 @@ python3 "$repo_root/scripts/quality/controller-auth-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/core-log-level-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/service-mode-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/process-exit-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/port-conflict-guard.py" --mode enforce

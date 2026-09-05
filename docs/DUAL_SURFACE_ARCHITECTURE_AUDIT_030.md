@@ -84,6 +84,7 @@
 - `DUAL-01-08` 已完成 CoreLogLevel 的 shared command、PATCH 后回读、Iced Logs/Settings 和 Bevy Settings 双端控件；invalid/stopped 与 readback mismatch 均 fail closed，真实 mihomo controller smoke 仍未冒充 `host-verified`。
 - `DUAL-01-09` 已完成 ServiceModeSnapshot/Port/Application、desktop 平台映射、post-check 和双端 Settings action；Linux Polkit argv、Windows `sc.exe` 与 macOS launchd/typed unsupported 均保留明确边界，真实授权发行包证据仍未冒充 `host-verified`。
 - `DUAL-01-10` 已完成 termination handler、集中清理钩子、desktop host 注册以及 Iced 正常退出/panic 复用；Bevy 不直接管理 OS signal，而由其 host composition 持有同一 cleanup handle，真实多平台退出 smoke 仍未冒充 `host-verified`。
+- `DUAL-01-11` 已完成 7890/9090 目标端口的 shared observation、owner parser、配置避让和双端 repair action；未确认的第三方 PID 不会被 UI 直接终止，跨平台真实占用/发行包证据仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

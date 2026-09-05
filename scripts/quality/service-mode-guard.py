@@ -116,6 +116,12 @@ def main() -> int:
     )
     require(
         violations,
+        "crates/infiltrator-application/src/surface_reader_test.rs",
+        "TestServiceMode",
+        "ServiceModeState::Ready",
+    )
+    require(
+        violations,
         "crates/infiltrator-desktop/src/surface.rs",
         "ServiceModeApplication",
         "DesktopServiceMode",
@@ -171,12 +177,6 @@ def main() -> int:
         "crates/infiltrator-bevy-ui/src/pages/settings_core.rs",
         "service_mode_row_scene",
         "format_service_mode",
-    )
-    require(
-        violations,
-        "crates/infiltrator-application/src/surface_reader.rs",
-        "TestServiceMode",
-        "ServiceModeState::Ready",
     )
     require(
         violations,

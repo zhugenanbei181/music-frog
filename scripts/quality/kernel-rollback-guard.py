@@ -74,6 +74,11 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-application/src/surface_reader.rs",
+        "with_versions",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader_test.rs",
         "CoreRollbackSnapshot",
         "rollback_snapshot",
         "first.versions.rollback.target",

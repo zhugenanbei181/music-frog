@@ -32,6 +32,7 @@ on:
       - "scripts/quality/core-log-level-guard.py"
       - "scripts/quality/service-mode-guard.py"
       - "scripts/quality/process-exit-guard.py"
+      - "scripts/quality/port-conflict-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -59,6 +60,7 @@ on:
       - "scripts/quality/core-log-level-guard.py"
       - "scripts/quality/service-mode-guard.py"
       - "scripts/quality/process-exit-guard.py"
+      - "scripts/quality/port-conflict-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -149,6 +151,9 @@ jobs:
 
       - name: Enforce DUAL-01-10 process-exit cleanup semantics
         run: python3 scripts/quality/process-exit-guard.py --mode enforce
+
+      - name: Enforce DUAL-01-11 port-conflict semantics
+        run: python3 scripts/quality/port-conflict-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

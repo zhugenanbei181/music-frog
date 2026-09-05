@@ -34,6 +34,7 @@ use infiltrator_contract::version::{
 };
 use infiltrator_contract::controller::ControllerAuthSnapshot;
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
+use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -100,6 +101,7 @@ pub struct RuntimeState {
     pub core_integrity: CoreArtifactVerification,
     pub controller_auth: ControllerAuthSnapshot,
     pub service_mode: ServiceModeSnapshot,
+    pub port_conflicts: PortConflictSnapshot,
     pub download_progress: f32,
     pub download_stats: Option<crate::types::app::CoreDownloadProgress>,
     pub core_download_token: u64,
@@ -396,6 +398,7 @@ impl AppState {
         self.runtime.core_integrity = snapshot.versions.verification.clone();
         self.runtime.controller_auth = snapshot.controller_auth;
         self.runtime.service_mode = snapshot.service_mode;
+        self.runtime.port_conflicts = snapshot.port_conflicts.clone();
         self.diag.crash_watchdog.shared = snapshot.core.watchdog.clone();
         self.diag.crash_watchdog.last_crash_summary = snapshot
             .core

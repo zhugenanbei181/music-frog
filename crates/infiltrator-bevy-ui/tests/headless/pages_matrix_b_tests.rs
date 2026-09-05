@@ -466,6 +466,16 @@ fn test_settings_prepare_tun_and_toggles_submit_commands() {
         .trigger(Activate { entity: service_button });
     app.update();
 
+    let port_button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<PortConflictButton>>()
+        .single(app.world())
+        .expect("port conflict repair button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: port_button });
+    app.update();
+
     assert_eq!(
         sink.submitted(),
         vec![
@@ -483,6 +493,7 @@ fn test_settings_prepare_tun_and_toggles_submit_commands() {
             },
             UiCommand::SetCoreLogLevel(CoreLogLevel::Debug),
             UiCommand::PrepareServiceMode,
+            UiCommand::RepairPortConflicts,
         ]
     );
 }

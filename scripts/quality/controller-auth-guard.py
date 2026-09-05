@@ -81,6 +81,10 @@ def main() -> int:
         "crates/infiltrator-application/src/surface_reader.rs",
         "with_endpoint_source",
         "read_controller_auth",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader_test.rs",
         "ControllerAuthStatus::Secured",
         "first.controller_auth.status",
     )

@@ -12,6 +12,7 @@ pub mod host;
 pub mod log_formatter;
 pub mod notify;
 pub mod process_enumerator;
+pub mod port_conflict;
 pub mod proxy;
 pub mod runtime;
 pub mod service;

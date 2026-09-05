@@ -738,6 +738,7 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::StopCore => "stop_core",
         CommandIntent::RestartCore => "restart_core",
         CommandIntent::PrepareServiceMode => "prepare_service_mode",
+        CommandIntent::RepairPortConflicts => "repair_port_conflicts",
         CommandIntent::SetCoreLogLevel { .. } => "set_core_log_level",
         CommandIntent::SwitchProfile { .. } => "switch_profile",
         CommandIntent::SetProxyMode { .. } => "set_proxy_mode",

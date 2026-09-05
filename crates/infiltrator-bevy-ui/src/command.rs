@@ -24,6 +24,8 @@ pub enum UiCommand {
     RestartCore,
     /// Prepare the host-owned privileged service mode for TUN routing.
     PrepareServiceMode,
+    /// Repair the host-owned mixed/controller port bindings safely.
+    RepairPortConflicts,
     /// Change Mihomo's live core log verbosity.
     SetCoreLogLevel(CoreLogLevel),
     /// Switch core proxy mode (Rule / Global / Direct).
@@ -101,6 +103,7 @@ impl UiCommand {
             Self::StopCore => Some(CommandIntent::StopCore),
             Self::RestartCore => Some(CommandIntent::RestartCore),
             Self::PrepareServiceMode => Some(CommandIntent::PrepareServiceMode),
+            Self::RepairPortConflicts => Some(CommandIntent::RepairPortConflicts),
             Self::SetCoreLogLevel(level) => {
                 Some(CommandIntent::SetCoreLogLevel { level: *level })
             }

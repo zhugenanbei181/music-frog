@@ -6,6 +6,7 @@
 
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::port_conflict_application::PortConflictApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::routing_application::RoutingApplication;
@@ -71,6 +72,8 @@ pub async fn application_surface_reader(
     );
     let versions = VersionApplication::new(Arc::new(crate::storage::version()?));
     let endpoint_source = Arc::new(crate::storage::endpoint_source().await?);
+    let port_conflicts =
+        PortConflictApplication::new(Arc::new(crate::storage::port_conflict()?));
     let service_mode =
         ServiceModeApplication::new(Arc::new(crate::service_mode::DesktopServiceMode::new(
             binary_path,
@@ -88,7 +91,8 @@ pub async fn application_surface_reader(
             .with_snapshots(snapshots)
             .with_versions(versions)
             .with_endpoint_source(endpoint_source)
-            .with_service_mode(service_mode),
+            .with_service_mode(service_mode)
+            .with_port_conflicts(port_conflicts),
     )
 }
 

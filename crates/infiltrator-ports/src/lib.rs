@@ -20,6 +20,7 @@ pub mod overview;
 pub mod public_ip_probe;
 pub mod profile_store;
 pub mod profile_reset;
+pub mod port_conflict;
 pub mod secure_store;
 pub mod service_mode;
 pub mod snapshot_store;

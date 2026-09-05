@@ -52,6 +52,7 @@ use infiltrator_contract::version::{
 };
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::service_mode::{ServiceModePlatform, ServiceModeSnapshot, ServiceModeState};
+use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 
 fn create_test_app() -> App {
     let mut app = App::new();
@@ -361,6 +362,17 @@ fn settings_page_in_place_update() {
             platform: ServiceModePlatform::LinuxPolkit,
             state: ServiceModeState::Ready,
         },
+        port_conflicts: PortConflictSnapshot {
+            revision: 1,
+            conflicts: vec![PortConflict {
+                binding: PortBinding::Controller,
+                port: 9090,
+                available: false,
+                owner_pid: Some(4242),
+                owner_name: Some("mihomo".to_owned()),
+                can_release: true,
+            }],
+        },
     };
 
     app.world_mut()
@@ -402,6 +414,10 @@ fn settings_page_in_place_update() {
         .iter(world)
         .find(|(_, l)| l.0 == SettingsLineKind::ServiceMode);
     assert_eq!(service_text.unwrap().0.0, "Linux Polkit · ready");
+    let ports_text = lines
+        .iter(world)
+        .find(|(_, l)| l.0 == SettingsLineKind::PortConflicts);
+    assert!(ports_text.unwrap().0.0.contains("external-controller 9090"));
 }
 
 #[test]
