@@ -1,14 +1,16 @@
-//! Live mihomo controller passthrough: proxy groups and selection, runtime
-//! mode patch, traffic snapshots, connection listing/closing, and outbound
-//! IP check. Every call resolves the controller through
-//! [`super::support::build_controller_client`].
+//! Android controller surface. Concrete Mihomo HTTP details stay in the
+//! composition helpers; this module only maps application results into FFI
+//! records.
 
 use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use serde::Deserialize;
+use infiltrator_contract::command::ProxyMode;
 
-use super::support::{build_controller_client, get_runtime, map_mihomo_error};
+use super::support::{
+    build_connection_application, build_proxy_application, build_runtime_query_application,
+    get_runtime, map_application_failure, network_application,
+};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
 // --- Proxies API ---
@@ -79,15 +81,6 @@ pub struct IpCheckResult {
 pub struct IpResult {
     pub status: FfiStatus,
     pub value: Option<IpCheckResult>,
-}
-
-#[derive(Deserialize)]
-struct IpApiResponse {
-    ip: Option<String>,
-    #[serde(rename = "country_name")]
-    country_name: Option<String>,
-    region: Option<String>,
-    city: Option<String>,
 }
 
 struct TrafficState {
@@ -214,8 +207,8 @@ pub async fn ip_check() -> IpResult {
 pub async fn connections_list() -> ConnectionsResult {
     get_runtime()
         .spawn(async move {
-            let client = match build_controller_client().await {
-                Ok(client) => client,
+            let application = match build_connection_application().await {
+                Ok(application) => application,
                 Err(status) => {
                     return ConnectionsResult {
                         status,
@@ -225,13 +218,13 @@ pub async fn connections_list() -> ConnectionsResult {
                     };
                 }
             };
-            match client.get_connections().await.map_err(map_mihomo_error) {
+            match application.snapshot().await.map_err(map_application_failure) {
                 Ok(response) => ConnectionsResult {
                     status: FfiStatus::ok(),
                     connections: response
                         .connections
                         .into_iter()
-                        .map(|connection| connection_to_record(connection.into()))
+                        .map(connection_to_record)
                         .collect(),
                     upload_total: response.upload_total,
                     download_total: response.download_total,
@@ -261,15 +254,15 @@ pub async fn connection_close(id: String) -> FfiStatus {
             if connection_id.is_empty() {
                 return FfiStatus::err(FfiErrorCode::InvalidInput, "connection id is empty");
             }
-            let client = match build_controller_client().await {
-                Ok(client) => client,
+            let application = match build_connection_application().await {
+                Ok(application) => application,
                 Err(status) => return status,
             };
-            client
-                .close_connection(&connection_id)
+            application
+                .close(&connection_id)
                 .await
                 .map(|_| FfiStatus::ok())
-                .unwrap_or_else(map_mihomo_error)
+                .unwrap_or_else(map_application_failure)
         })
         .await
         .unwrap_or_else(|e| {
@@ -281,15 +274,15 @@ pub async fn connection_close(id: String) -> FfiStatus {
 pub async fn connections_close_all() -> FfiStatus {
     get_runtime()
         .spawn(async move {
-            let client = match build_controller_client().await {
-                Ok(client) => client,
+            let application = match build_connection_application().await {
+                Ok(application) => application,
                 Err(status) => return status,
             };
-            client
-                .close_all_connections()
+            application
+                .close_all()
                 .await
                 .map(|_| FfiStatus::ok())
-                .unwrap_or_else(map_mihomo_error)
+                .unwrap_or_else(map_application_failure)
         })
         .await
         .unwrap_or_else(|e| {
@@ -300,41 +293,49 @@ pub async fn connections_close_all() -> FfiStatus {
 // --- Internal Helpers ---
 
 async fn proxies_groups_internal() -> Result<Vec<ProxyGroupSummary>, FfiStatus> {
-    let client = build_controller_client().await?;
-    let proxies = client.get_proxies().await.map_err(map_mihomo_error)?;
-    let mut groups: Vec<ProxyGroupSummary> = proxies
-        .into_iter()
-        .filter_map(|(name, info)| {
-            info.all().map(|all| ProxyGroupSummary {
-                name,
-                group_type: info.proxy_type().to_string(),
-                current: Some(info.now().unwrap_or("").to_string()),
-                all: all.to_vec(),
-            })
+    let application = build_proxy_application().await?;
+    application
+        .list_groups()
+        .await
+        .map(|groups| {
+            groups
+                .into_iter()
+                .map(|group| ProxyGroupSummary {
+                    name: group.name,
+                    group_type: "group".to_string(),
+                    current: Some(group.now),
+                    all: group.all,
+                })
+                .collect()
         })
-        .collect();
-    groups.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(groups)
+        .map_err(map_application_failure)
 }
 
 async fn proxy_select_internal(group: &str, server: &str) -> Result<(), FfiStatus> {
-    let client = build_controller_client().await?;
-    client
-        .switch_proxy(group, server)
+    build_proxy_application()
+        .await?
+        .switch(group, server)
         .await
-        .map_err(map_mihomo_error)
+        .map_err(map_application_failure)
 }
 
 async fn config_patch_mode_internal(mode: &str) -> Result<(), FfiStatus> {
-    let client = build_controller_client().await?;
-    // We create a partial config JSON to patch just the mode
-    let patch = serde_json::json!({ "mode": mode });
-    client.patch_config(patch).await.map_err(map_mihomo_error)
+    let mode = ProxyMode::from_wire(mode).ok_or_else(|| {
+        FfiStatus::err(FfiErrorCode::InvalidInput, format!("unsupported proxy mode: {mode}"))
+    })?;
+    build_runtime_query_application()
+        .await?
+        .set_proxy_mode(mode)
+        .await
+        .map_err(map_application_failure)
 }
 
 async fn traffic_snapshot_internal() -> Result<TrafficSnapshot, FfiStatus> {
-    let client = build_controller_client().await?;
-    let snapshot = client.get_connections().await.map_err(map_mihomo_error)?;
+    let snapshot = build_connection_application()
+        .await?
+        .snapshot()
+        .await
+        .map_err(map_application_failure)?;
     Ok(build_traffic_snapshot(
         snapshot.upload_total,
         snapshot.download_total,
@@ -392,44 +393,19 @@ fn build_traffic_snapshot(up_total: u64, down_total: u64, connections: usize) ->
 }
 
 async fn fetch_ip_check() -> Result<IpCheckResult, FfiStatus> {
-    crate::tls::ensure_rustls_provider();
-    let client = reqwest::Client::builder()
-        .no_proxy()
-        .timeout(Duration::from_secs(6))
-        .build()
-        .map_err(|err| map_reqwest_error("build ip client", err))?;
-    let resp = client
-        .get("https://ipapi.co/json/")
-        .send()
+    let snapshot = network_application()
+        .probe_public_ip(None)
         .await
-        .map_err(|err| map_reqwest_error("fetch ip", err))?;
-    if !resp.status().is_success() {
-        return Err(FfiStatus::err(
-            FfiErrorCode::Network,
-            format!("ip check failed: {}", resp.status()),
-        ));
-    }
-    let body: IpApiResponse = resp
-        .json()
-        .await
-        .map_err(|err| map_reqwest_error("decode ip response", err))?;
-    let ip = body
-        .ip
-        .ok_or_else(|| FfiStatus::err(FfiErrorCode::InvalidState, "ip missing from response"))?;
+        .map_err(map_application_failure)?;
     Ok(IpCheckResult {
-        ip,
-        country: body.country_name,
-        region: body.region,
-        city: body.city,
+        ip: snapshot.ip,
+        country: snapshot.country,
+        region: snapshot.region,
+        city: snapshot.city,
     })
 }
 
 fn traffic_state() -> &'static Mutex<TrafficState> {
     static TRAFFIC_STATE: OnceLock<Mutex<TrafficState>> = OnceLock::new();
     TRAFFIC_STATE.get_or_init(|| Mutex::new(TrafficState::new()))
-}
-
-fn map_reqwest_error(context: &str, err: reqwest::Error) -> FfiStatus {
-    let message = format!("{context}: {err}");
-    FfiStatus::err(FfiErrorCode::Network, message)
 }

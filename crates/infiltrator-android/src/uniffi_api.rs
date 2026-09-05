@@ -9,9 +9,8 @@ mod doctor;
 mod logs;
 mod profiles;
 mod rules;
-mod session;
 mod settings;
-mod support;
+pub(crate) mod support;
 mod vpn;
 mod webdav;
 

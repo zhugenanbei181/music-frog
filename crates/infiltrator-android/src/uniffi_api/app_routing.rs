@@ -1,13 +1,11 @@
 //! Per-app routing surface: Android-only presentation plus application-owned
 //! routing preferences.
 
-use infiltrator_application::routing_application::RoutingApplication;
-use infiltrator_core::app_routing_io::FileAppRoutingStore;
 use infiltrator_domain::app_routing::{
     AppRoutingConfig as DomainAppRoutingConfig, AppRoutingMode as DomainAppRoutingMode,
 };
 
-use super::support::{map_anyhow_error, map_application_failure};
+use super::support::{build_routing_application, map_application_failure};
 use crate::ffi::FfiStatus;
 
 // --- App Routing API ---
@@ -53,7 +51,7 @@ pub struct AppRoutingResult {
 
 #[uniffi::export]
 pub fn app_routing_load() -> AppRoutingResult {
-    let application = match routing_application() {
+    let application = match build_routing_application() {
         Ok(application) => application,
         Err(status) => {
             return AppRoutingResult {
@@ -84,7 +82,7 @@ pub fn app_routing_save(mode: AppRoutingMode, packages: Vec<String>) -> FfiStatu
         packages: packages.into_iter().collect(),
         ..DomainAppRoutingConfig::default()
     };
-    match routing_application().and_then(|application| {
+    match build_routing_application().and_then(|application| {
         application
             .save(&config)
             .map_err(map_application_failure)
@@ -96,7 +94,7 @@ pub fn app_routing_save(mode: AppRoutingMode, packages: Vec<String>) -> FfiStatu
 
 #[uniffi::export]
 pub fn app_routing_set_mode(mode: AppRoutingMode) -> FfiStatus {
-    match routing_application().and_then(|application| {
+    match build_routing_application().and_then(|application| {
         application
             .set_mode(mode.into())
             .map_err(map_application_failure)
@@ -114,7 +112,7 @@ pub struct AppRoutingToggleResult {
 
 #[uniffi::export]
 pub fn app_routing_toggle_package(package: String) -> AppRoutingToggleResult {
-    let result = routing_application().and_then(|application| {
+    let result = build_routing_application().and_then(|application| {
         application
             .toggle_package(&package)
             .map_err(map_application_failure)
@@ -133,7 +131,7 @@ pub fn app_routing_toggle_package(package: String) -> AppRoutingToggleResult {
 
 #[uniffi::export]
 pub fn app_routing_get_allowed_packages() -> Vec<String> {
-    match routing_application().and_then(|application| {
+    match build_routing_application().and_then(|application| {
         application
             .allowed_packages()
             .map_err(map_application_failure)
@@ -282,7 +280,7 @@ pub fn app_routing_calculate_dual_app_uid(user_id: u32, app_id: u32) -> u32 {
 #[uniffi::export]
 pub fn app_routing_build_vpn_plan(self_package: String) -> AndroidVpnPerAppPlan {
     let clean_self = self_package.trim().to_string();
-    let config = routing_application()
+    let config = build_routing_application()
         .ok()
         .and_then(|application| application.load().ok())
         .unwrap_or_default();
@@ -345,11 +343,6 @@ pub fn app_routing_build_vpn_plan(self_package: String) -> AndroidVpnPerAppPlan 
         total_selected_count,
         warnings,
     }
-}
-
-fn routing_application() -> Result<RoutingApplication, FfiStatus> {
-    let store = FileAppRoutingStore::current().map_err(map_anyhow_error)?;
-    Ok(RoutingApplication::new(std::sync::Arc::new(store)))
 }
 
 #[uniffi::export]

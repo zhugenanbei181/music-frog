@@ -5,10 +5,17 @@
 use std::sync::OnceLock;
 
 use infiltrator_application::cache_application::CacheApplication;
+use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
+use infiltrator_application::network_application::NetworkApplication;
+use infiltrator_application::proxy_application::ProxyApplication;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
+use infiltrator_application::routing_application::RoutingApplication;
 use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_ports::subscription_source::SubscriptionSource;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
@@ -17,7 +24,7 @@ use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
 use tokio::runtime::Runtime;
 
-use super::session::shared_core;
+use crate::host_session::shared_core;
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use infiltrator_contract::error::{ErrorCode, Failure};
 pub(super) fn get_runtime() -> &'static Runtime {
@@ -86,6 +93,18 @@ pub(super) fn subscription_source() -> impl SubscriptionSource {
     infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients()
 }
 
+pub(crate) async fn save_webdav_password(password: &str) -> Result<(), FfiStatus> {
+    let store = DefaultCredentialStore::default();
+    infiltrator_core::settings_io::save_webdav_password(&store, password)
+        .await
+        .map_err(map_anyhow_error)
+}
+
+pub(crate) async fn clear_webdav_password() {
+    let store = DefaultCredentialStore::default();
+    infiltrator_core::settings_io::clear_webdav_password(&store).await;
+}
+
 pub(super) fn doctor_application() -> Result<DoctorApplication, FfiStatus> {
     let doctor = infiltrator_core::doctor_port::MihomoDoctor::detect()
         .map_err(map_anyhow_error)?;
@@ -98,10 +117,16 @@ pub(super) fn cache_application() -> CacheApplication {
     ))
 }
 
+pub(super) fn build_routing_application() -> Result<RoutingApplication, FfiStatus> {
+    let store = infiltrator_core::app_routing_io::FileAppRoutingStore::current()
+        .map_err(map_anyhow_error)?;
+    Ok(RoutingApplication::new(std::sync::Arc::new(store)))
+}
+
 /// ConfigManager wired for the configs-dir redirect. The `INFILTRATOR_CONFIGS_DIR`
 /// env keeps priority over the settings field inside `resolve_configs_dir_in`;
 /// with no override anywhere this uses `<home>/configs`.
-pub(super) async fn build_config_manager()
+pub(crate) async fn build_config_manager()
 -> Result<ConfigManager<DefaultCredentialStore>, FfiStatus> {
     let home = get_home_dir().map_err(map_mihomo_error)?;
     let override_dir = configs_dir_override().await;
@@ -146,6 +171,40 @@ pub(super) async fn build_controller_client() -> Result<MihomoClient, FfiStatus>
     MihomoClient::new(&controller_url, None).map_err(map_mihomo_error)
 }
 
+/// Build the controller port at the Android composition boundary. FFI
+/// modules consume application facades rather than retaining a concrete
+/// `MihomoClient` or its Tokio receiver types.
+pub(super) async fn build_runtime_gateway() -> Result<std::sync::Arc<dyn RuntimeGateway>, FfiStatus> {
+    Ok(std::sync::Arc::new(build_controller_client().await?))
+}
+
+pub(super) async fn build_proxy_application() -> Result<ProxyApplication, FfiStatus> {
+    Ok(ProxyApplication::new(build_runtime_gateway().await?))
+}
+
+pub(super) async fn build_connection_application() -> Result<ConnectionApplication, FfiStatus> {
+    Ok(ConnectionApplication::new(build_runtime_gateway().await?))
+}
+
+pub(super) async fn build_runtime_query_application() -> Result<RuntimeQueryApplication, FfiStatus> {
+    Ok(RuntimeQueryApplication::new(build_runtime_gateway().await?))
+}
+
+pub(super) fn network_application() -> NetworkApplication {
+    NetworkApplication::new(std::sync::Arc::new(
+        infiltrator_core::public_ip_io::HttpPublicIpProbe::with_geolocation_client(),
+    ))
+}
+
+pub(super) async fn build_sync_application() -> Result<SyncApplication, FfiStatus> {
+    let home = get_home_dir().map_err(map_mihomo_error)?;
+    let sync = infiltrator_core::sync_port::FileWebDavSync::new(
+        home,
+        DefaultCredentialStore::default(),
+    );
+    Ok(SyncApplication::new(std::sync::Arc::new(sync)))
+}
+
 pub(super) fn map_anyhow_error(err: anyhow::Error) -> FfiStatus {
     if let Some(source) = err.downcast_ref::<MihomoError>() {
         return map_mihomo_error_ref(source);
@@ -169,7 +228,7 @@ pub(super) fn map_application_failure(failure: Failure) -> FfiStatus {
     FfiStatus::err(code, failure.message)
 }
 
-pub(super) fn map_mihomo_error(err: MihomoError) -> FfiStatus {
+pub(crate) fn map_mihomo_error(err: MihomoError) -> FfiStatus {
     map_mihomo_error_ref(&err)
 }
 

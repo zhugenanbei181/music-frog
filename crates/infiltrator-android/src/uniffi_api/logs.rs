@@ -3,7 +3,10 @@
 
 use std::sync::{Mutex, OnceLock};
 
-use super::support::{build_controller_client, get_runtime, map_mihomo_error};
+use futures_util::StreamExt;
+use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+
+use super::support::{build_runtime_query_application, get_runtime, map_application_failure};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
 // --- Log Buffer ---
@@ -100,8 +103,8 @@ pub async fn logs_start_streaming() -> FfiStatus {
                 buffer.is_streaming = true;
             }
 
-            let client = match build_controller_client().await {
-                Ok(c) => c,
+            let application = match build_runtime_query_application().await {
+                Ok(application) => application,
                 Err(e) => {
                     let mut buffer = log_buffer().lock().unwrap_or_else(|p| p.into_inner());
                     buffer.is_streaming = false;
@@ -109,18 +112,27 @@ pub async fn logs_start_streaming() -> FfiStatus {
                 }
             };
 
-            let rx = match client.stream_logs(Some("info")).await {
-                Ok(rx) => rx,
+            let mut events = match application.logs(Some("info".to_string())).await {
+                Ok(events) => events,
                 Err(e) => {
                     let mut buffer = log_buffer().lock().unwrap_or_else(|p| p.into_inner());
                     buffer.is_streaming = false;
-                    return map_mihomo_error(e);
+                    return map_application_failure(e);
                 }
             };
 
             tokio::spawn(async move {
-                let mut rx = rx;
-                while let Some(line) = rx.recv().await {
+                while let Some(event) = events.next().await {
+                    let line = match event {
+                        RuntimeStreamEvent::Item(line) => line,
+                        RuntimeStreamEvent::Failed(error) => {
+                            log::warn!("Android log stream failed: {error}");
+                            break;
+                        }
+                        RuntimeStreamEvent::Connecting
+                        | RuntimeStreamEvent::Connected
+                        | RuntimeStreamEvent::Reconnecting(_) => continue,
+                    };
                     if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&line) {
                         let level_str = parsed
                             .get("level")

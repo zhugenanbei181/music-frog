@@ -28,7 +28,7 @@ use mihomo_platform::defaults::DefaultCredentialStore;
 #[cfg(target_os = "android")]
 use mihomo_platform::android::AndroidCoreController;
 
-use super::support::{build_config_manager, map_mihomo_error};
+use crate::uniffi_api::support::{build_config_manager, map_mihomo_error};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 
 /// Shared frontend wiring for the mihomo core: the application service plus
@@ -36,9 +36,9 @@ use crate::ffi::{FfiErrorCode, FfiStatus};
 /// constructed on first use; the controller resolves the Android bridge
 /// dynamically on every call, so a bridge re-registration does not strand
 /// this slot.
-pub(super) struct SharedCore {
-    pub(super) application: CoreApplication,
-    pub(super) endpoints: Arc<dyn EndpointSource>,
+pub(crate) struct SharedCore {
+    pub(crate) application: CoreApplication,
+    pub(crate) endpoints: Arc<dyn EndpointSource>,
     config: Arc<ConfigManager<DefaultCredentialStore>>,
 }
 
@@ -125,7 +125,7 @@ fn platform_core_controller() -> Arc<dyn CoreProcess> {
     Arc::new(BridgeCoreController)
 }
 
-pub(super) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
+pub(crate) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
     static SHARED_CORE: OnceLock<Mutex<Option<Arc<SharedCore>>>> = OnceLock::new();
     let slot = SHARED_CORE.get_or_init(|| Mutex::new(None));
     let cached = {
@@ -239,7 +239,7 @@ async fn restore_current_profile<S: SecureStore>(
 /// profile being applied; it is restored when the transaction rolls back.
 /// When the shared application cannot be constructed, falls back to the legacy
 /// bridge restart so the pre-session behavior is kept.
-pub(super) async fn apply_current_profile_status(previous: Option<String>) -> FfiStatus {
+pub(crate) async fn apply_current_profile_status(previous: Option<String>) -> FfiStatus {
     let core = match shared_core().await {
         Ok(core) => core,
         Err(_) => {

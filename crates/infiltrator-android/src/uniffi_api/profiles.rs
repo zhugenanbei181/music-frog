@@ -4,7 +4,7 @@
 
 use chrono::Utc;
 
-use super::session::apply_current_profile_status;
+use crate::host_session::apply_current_profile_status;
 use super::support::{
     build_config_manager, get_runtime, map_anyhow_error, map_application_failure,
     subscription_source,

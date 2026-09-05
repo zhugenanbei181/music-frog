@@ -36,6 +36,12 @@ pub struct PublicIpSnapshot {
     pub ip: String,
     pub provider: String,
     pub checked_at_epoch_ms: i64,
+    #[serde(default)]
+    pub country: Option<String>,
+    #[serde(default)]
+    pub region: Option<String>,
+    #[serde(default)]
+    pub city: Option<String>,
 }
 
 /// Bounded, surface-neutral events emitted by the application layer.

@@ -2,6 +2,7 @@ pub mod api;
 pub mod composition;
 pub mod domain_snapshot;
 pub mod ffi;
+mod host_session;
 #[cfg(target_os = "android")]
 mod jni_bridge;
 pub mod runtime;
