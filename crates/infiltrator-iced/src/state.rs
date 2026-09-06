@@ -487,6 +487,24 @@ impl AppState {
                 .collect();
             self.shell.uwp_loopback.is_scanning = false;
         }
+        if let Some(settings) = snapshot.pages.settings.data.as_ref() {
+            let pac = &mut self.runtime.pac_manager;
+            pac.snapshot = settings.pac.clone();
+            if !pac.dirty {
+                pac.bypass_subnets = settings.pac.bypass_domains.join(", ");
+                match &settings.pac.state {
+                    infiltrator_contract::pac::PacServiceState::Running { url } => {
+                        pac.is_pac_mode_active = true;
+                        pac.pac_url = url.clone();
+                    }
+                    infiltrator_contract::pac::PacServiceState::Disabled
+                    | infiltrator_contract::pac::PacServiceState::Unavailable { .. } => {
+                        pac.is_pac_mode_active = false;
+                        pac.pac_url.clear();
+                    }
+                }
+            }
+        }
         self.runtime.controller_auth = snapshot.controller_auth;
         self.runtime.service_mode = snapshot.service_mode;
         self.runtime.port_conflicts = snapshot.port_conflicts.clone();

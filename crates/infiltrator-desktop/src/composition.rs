@@ -8,6 +8,7 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
 use infiltrator_application::version_application::VersionApplication;
@@ -45,6 +46,10 @@ pub fn core_application(
     let port_conflicts = PortConflictApplication::new(std::sync::Arc::new(
         crate::storage::port_conflict()?,
     ));
+    let pac = PacApplication::new(
+        std::sync::Arc::new(client.clone()),
+        std::sync::Arc::new(crate::pac_service::DesktopPacServicePort::shared()),
+    );
     application.install_command_handler(std::sync::Arc::new(
         CommandApplication::new()
             .with_runtime(std::sync::Arc::new(client.clone()))
@@ -57,6 +62,7 @@ pub fn core_application(
             .with_uwp_loopback(UwpLoopbackApplication::new(std::sync::Arc::new(
                 crate::uwp_loopback_port::DesktopUwpLoopbackPort,
             )))
+            .with_pac(pac)
             .with_versions(versions)
             .with_service_mode(service_mode)
             .with_port_conflicts(port_conflicts),

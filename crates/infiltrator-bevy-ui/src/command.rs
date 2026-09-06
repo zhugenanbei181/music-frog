@@ -94,6 +94,13 @@ pub enum UiCommand {
     SetUwpAppExemption { sid: String, exempt: bool },
     /// Apply or clear all Windows AppContainer loopback exemptions.
     SetAllUwpExemptions { exempt: bool },
+    /// Generate and apply the shared PAC script/service request.
+    ApplyPac {
+        enabled: bool,
+        bypass_domains: Vec<String>,
+        bypass_lan: bool,
+        minify: bool,
+    },
     /// Run full system doctor diagnostics.
     RunDoctorDiagnostics,
     /// Repair a specific doctor issue by check ID.
@@ -214,6 +221,17 @@ impl UiCommand {
             Self::SetAllUwpExemptions { exempt } => {
                 Some(CommandIntent::SetAllUwpExemptions { exempt: *exempt })
             }
+            Self::ApplyPac {
+                enabled,
+                bypass_domains,
+                bypass_lan,
+                minify,
+            } => Some(CommandIntent::ApplyPac {
+                enabled: *enabled,
+                bypass_domains: bypass_domains.clone(),
+                bypass_lan: *bypass_lan,
+                minify: *minify,
+            }),
             Self::RunDoctorDiagnostics => Some(CommandIntent::RunDoctorDiagnostics),
             Self::RepairDoctorIssue { check_id } => Some(CommandIntent::RepairDoctorIssue {
                 check_id: check_id.clone(),
@@ -492,6 +510,21 @@ mod tests {
         assert_eq!(
             UiCommand::SetAllUwpExemptions { exempt: true }.to_intent(),
             Some(CommandIntent::SetAllUwpExemptions { exempt: true })
+        );
+        assert_eq!(
+            UiCommand::ApplyPac {
+                enabled: true,
+                bypass_domains: vec!["example.com".to_owned()],
+                bypass_lan: true,
+                minify: false,
+            }
+            .to_intent(),
+            Some(CommandIntent::ApplyPac {
+                enabled: true,
+                bypass_domains: vec!["example.com".to_owned()],
+                bypass_lan: true,
+                minify: false,
+            })
         );
     }
 

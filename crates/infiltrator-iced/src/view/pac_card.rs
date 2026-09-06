@@ -43,8 +43,8 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
     .width(Length::Fill)
     .style(form_input_style);
 
-    let url_display = if pac.is_pac_mode_active {
-        "http://127.0.0.1:25211/proxy.pac"
+    let url_display = if pac.is_pac_mode_active && !pac.pac_url.is_empty() {
+        pac.pac_url.as_str()
     } else {
         "Disabled (turn on PAC mode to bind service)"
     };

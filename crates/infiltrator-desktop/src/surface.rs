@@ -17,6 +17,7 @@ use infiltrator_application::snapshot_application::SnapshotApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::mtu_application::MtuApplication;
+use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
@@ -43,6 +44,7 @@ pub fn desktop_capabilities() -> CapabilitySnapshot {
         Capability::LanAccessControl,
         Capability::Ipv6Routing,
         Capability::UwpLoopback,
+        Capability::PacService,
         Capability::Autostart,
         Capability::CoreVersionInstall,
         Capability::WebDavSync,
@@ -103,6 +105,10 @@ pub async fn application_surface_reader(
     let uwp_loopback = UwpLoopbackApplication::new(Arc::new(
         crate::uwp_loopback_port::DesktopUwpLoopbackPort,
     ));
+    let pac = PacApplication::new(
+        gateway.clone(),
+        Arc::new(crate::pac_service::DesktopPacServicePort::shared()),
+    );
     let service_mode =
         ServiceModeApplication::new(Arc::new(crate::service_mode::DesktopServiceMode::new(
             binary_path,
@@ -117,6 +123,7 @@ pub async fn application_surface_reader(
             .with_mtu(mtu)
             .with_system_proxy(system_proxy)
             .with_uwp_loopback(uwp_loopback)
+            .with_pac(pac)
             .with_profiles(profile)
             .with_configuration(configuration)
             .with_doctor(doctor)

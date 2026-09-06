@@ -192,6 +192,7 @@ impl AppState {
             | Message::UpdateCronScheduleHours(_)
             | Message::UpdatePacBypassSubnets(_)
             | Message::CompileAndValidatePac
+            | Message::PacApplied(_)
             | Message::TogglePacMode(_)
             | Message::AuditStaleRules
             | Message::DisableZeroHitRules

@@ -139,6 +139,12 @@ pub enum CommandIntent {
     ScanUwpApps,
     SetUwpAppExemption { sid: String, exempt: bool },
     SetAllUwpExemptions { exempt: bool },
+    ApplyPac {
+        enabled: bool,
+        bypass_domains: Vec<String>,
+        bypass_lan: bool,
+        minify: bool,
+    },
     ToggleAppRouting { app_id: String, enabled: bool },
     SetAppRoutingMode { mode: String },
     ToggleIncludeSystemApps { include: bool },
@@ -216,6 +222,7 @@ impl CommandIntent {
             | Self::ScanUwpApps
             | Self::SetUwpAppExemption { .. }
             | Self::SetAllUwpExemptions { .. }
+            | Self::ApplyPac { .. }
             | Self::ToggleAppRouting { .. }
             | Self::SetAppRoutingMode { .. }
             | Self::ToggleIncludeSystemApps { .. }

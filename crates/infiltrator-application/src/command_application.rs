@@ -30,6 +30,7 @@ use crate::sync_application::SyncApplication;
 use crate::system_proxy_application::SystemProxyApplication;
 use crate::version_application::VersionApplication;
 use crate::uwp_loopback_application::UwpLoopbackApplication;
+use crate::pac_application::PacApplication;
 
 pub type CommandFuture = Pin<Box<dyn Future<Output = Result<(), Failure>> + Send + 'static>>;
 
@@ -56,6 +57,7 @@ pub struct CommandApplication {
     mtu: Option<MtuApplication>,
     system_proxy: Option<SystemProxyApplication>,
     uwp_loopback: Option<UwpLoopbackApplication>,
+    pac: Option<PacApplication>,
 }
 
 impl CommandApplication {
@@ -135,6 +137,11 @@ impl CommandApplication {
 
     pub fn with_uwp_loopback(mut self, application: UwpLoopbackApplication) -> Self {
         self.uwp_loopback = Some(application);
+        self
+    }
+
+    pub fn with_pac(mut self, application: PacApplication) -> Self {
+        self.pac = Some(application);
         self
     }
 
@@ -364,6 +371,21 @@ impl CommandApplication {
                 .set_all(exempt)
                 .await
                 .map(|_| ()),
+            CommandIntent::ApplyPac {
+                enabled,
+                bypass_domains,
+                bypass_lan,
+                minify,
+            } => self
+                .pac()?
+                .apply(infiltrator_contract::pac::PacRequest {
+                    enabled,
+                    bypass_domains,
+                    bypass_lan,
+                    minify,
+                })
+                .await
+                .map(|_| ()),
             CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore
@@ -483,6 +505,12 @@ impl CommandApplication {
         self.uwp_loopback
             .clone()
             .ok_or_else(|| Failure::unsupported("UWP loopback is not configured for this host"))
+    }
+
+    fn pac(&self) -> Result<PacApplication, Failure> {
+        self.pac
+            .clone()
+            .ok_or_else(|| Failure::unsupported("PAC service is not configured for this host"))
     }
 }
 

@@ -661,6 +661,13 @@ impl std::fmt::Debug for Message {
             Message::UpdateCronScheduleHours(h) => write!(f, "UpdateCronScheduleHours({h})"),
             Message::UpdatePacBypassSubnets(s) => write!(f, "UpdatePacBypassSubnets({s})"),
             Message::CompileAndValidatePac => write!(f, "CompileAndValidatePac"),
+            Message::PacApplied(Ok(snapshot)) => write!(
+                f,
+                "PacApplied(Ok(script_bytes={}, revision={}))",
+                snapshot.script_bytes,
+                snapshot.revision
+            ),
+            Message::PacApplied(Err(error)) => write!(f, "PacApplied(Err({error:?}))"),
             Message::TogglePacMode(on) => write!(f, "TogglePacMode({on})"),
             Message::AuditStaleRules => write!(f, "AuditStaleRules"),
             Message::DisableZeroHitRules => write!(f, "DisableZeroHitRules"),

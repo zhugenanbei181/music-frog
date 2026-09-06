@@ -16,6 +16,7 @@ pub mod offline_startup;
 pub mod process_enumerator;
 pub mod port_conflict;
 pub mod proxy;
+pub mod pac_service;
 pub mod runtime;
 pub mod service;
 pub mod service_mode;

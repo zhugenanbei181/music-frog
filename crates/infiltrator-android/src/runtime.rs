@@ -228,6 +228,12 @@ where
                     },
                 },
                 CapabilityStatus {
+                    capability: Capability::PacService,
+                    availability: Availability::Unsupported {
+                        reason: "Android uses VpnService instead of desktop PAC injection".to_owned(),
+                    },
+                },
+                CapabilityStatus {
                     capability: Capability::CoreVersionInstall,
                     availability: Availability::Unsupported {
                         reason: "core binaries are delivered with the APK ABI".to_string(),

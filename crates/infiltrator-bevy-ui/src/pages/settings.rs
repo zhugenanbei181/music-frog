@@ -50,6 +50,8 @@ pub mod settings_system;
 pub mod settings_lan;
 #[path = "settings_ipv6.rs"]
 pub mod settings_ipv6;
+#[path = "settings_pac.rs"]
+pub mod settings_pac;
 #[path = "settings_projection_defaults.rs"]
 mod settings_projection_defaults;
 
@@ -477,6 +479,7 @@ pub fn general_card_scene(
                     ( { close_to_tray_toggle_row_scene(true, palette) } ),
                     ( { system_notifications_toggle_row_scene(true, palette) } ),
                     ( { settings_lan::scene(projection, palette) } ),
+                    ( { settings_pac::scene(projection, palette) } ),
                     (
                         Node {
                             width: percent(100),
@@ -607,6 +610,9 @@ fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(settings_lan::apply_projection);
     commands.add_observer(settings_ipv6::on_changed);
     commands.add_observer(settings_ipv6::apply_projection);
+    commands.add_observer(settings_pac::on_changed);
+    commands.add_observer(settings_pac::on_apply_activated);
+    commands.add_observer(settings_pac::apply_projection);
 }
 
 #[allow(clippy::too_many_arguments)]

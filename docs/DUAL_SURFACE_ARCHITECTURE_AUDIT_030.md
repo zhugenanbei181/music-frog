@@ -99,6 +99,7 @@
 - `DUAL-02-08` 已完成 LAN ACL/auth shared snapshot、纯 domain CIDR/凭据校验、四字段 PATCH+GET readback、密码脱敏与成功清理、Iced/Bevy 安全 draft/Apply projection，以及 desktop/Android `LanAccessControl` 支持和 iOS typed unsupported 证据；真实局域网客户端、凭据轮换、防火墙/移动 VPN ingress 与发行包 smoke 仍未冒充 `host-verified`。
 - `DUAL-02-09` 已完成顶层 Mihomo `ipv6` 策略的 shared snapshot、缺失字段默认 true、live PATCH+GET readback 与 mismatch fail-closed、Iced/Bevy checkbox/上下文投影，以及 desktop/Android 支持和 iOS typed unsupported 证据；宿主全局 IPv6 sysctl、防火墙、双栈公网泄漏与 VPN ingress smoke 仍未冒充 `host-verified`。
 - `DUAL-02-10` 已完成 UWP AppContainer shared snapshot、SID 纯校验、desktop 注册表/`CheckNetIsolation.exe` host port、扫描/单包/bulk application readback、Iced live snapshot 与 Bevy projection/commands；Android/iOS/非 Windows typed unsupported，真实 Windows 商店应用、UAC/企业策略和发行包 smoke 仍未冒充 `host-verified`。
+- `DUAL-02-11` 已完成 PAC shared request/snapshot、live Mihomo 规则读取、domain 脚本编译校验、desktop loopback HTTP 服务和启停 readback、Iced/Bevy Apply/status projection，以及 desktop 支持和 Android/iOS typed unsupported；真实浏览器消费、系统代理联动、跨平台权限和发行包 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

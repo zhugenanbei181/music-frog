@@ -15,6 +15,7 @@ pub enum Capability {
     LanAccessControl,
     Ipv6Routing,
     UwpLoopback,
+    PacService,
     Autostart,
     CoreVersionInstall,
     WebDavSync,

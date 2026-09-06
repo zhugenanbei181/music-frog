@@ -35,6 +35,7 @@ python3 scripts/quality/lan-sharing-guard.py --mode enforce
 python3 scripts/quality/lan-security-guard.py --mode enforce
 python3 scripts/quality/ipv6-routing-guard.py --mode enforce
 python3 scripts/quality/uwp-loopback-guard.py --mode enforce
+python3 scripts/quality/pac-service-guard.py --mode enforce
 
 nextest_mode=()
 if [[ $# -eq 1 ]]; then

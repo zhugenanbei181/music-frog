@@ -225,6 +225,8 @@ pub struct PacManagerConfig {
     pub bypass_subnets: String,
     pub is_pac_mode_active: bool,
     pub last_compile_status: Option<String>,
+    pub snapshot: infiltrator_contract::pac::PacSnapshot,
+    pub dirty: bool,
 }
 
 /// Configuration for LAN proxy sharing and IP access control lists (ACL).

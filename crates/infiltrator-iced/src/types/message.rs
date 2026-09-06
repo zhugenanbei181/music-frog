@@ -525,6 +525,7 @@ pub enum Message {
     // Wave 4 Category 6: PAC Auto-Proxy & Bypass CIDR
     UpdatePacBypassSubnets(String),
     CompileAndValidatePac,
+    PacApplied(Result<infiltrator_contract::pac::PacSnapshot, InfiltratorError>),
     TogglePacMode(bool),
     // Wave 5 Category 1: Rule Hit Counter & Stale Rule Audit
     AuditStaleRules,

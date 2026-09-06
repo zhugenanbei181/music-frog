@@ -18,6 +18,7 @@ impl SettingsProjection {
             lan_bind_address: infiltrator_contract::lan::DEFAULT_BIND_ADDRESS.to_owned(),
             lan_security: Default::default(),
             ipv6_routing: Default::default(),
+            pac: Default::default(),
             tun_enabled: true,
             tun_stack: "gVisor (高性能用户态协议栈)".to_owned(),
             tun_auto_route: true,

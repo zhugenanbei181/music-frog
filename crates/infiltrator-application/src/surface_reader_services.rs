@@ -98,4 +98,11 @@ impl ApplicationSurfaceReader {
             None => Default::default(),
         }
     }
+
+    pub(super) async fn read_pac(&self) -> infiltrator_contract::pac::PacSnapshot {
+        match &self.pac {
+            Some(application) => application.snapshot().await,
+            None => Default::default(),
+        }
+    }
 }

@@ -5,6 +5,7 @@ use crate::runtime_gateway::ManagedRuntime;
 use crate::service_mode::ServiceModePort;
 use crate::mtu_probe::MtuProbePort;
 use crate::system_proxy::SystemProxyPort;
+use crate::pac::PacServicePort;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -40,6 +41,11 @@ pub trait HostRuntime: ManagedRuntime {
     /// Optional host system HTTP/SOCKS proxy controller. Mobile hosts may
     /// omit it because VPN routing owns process traffic instead.
     fn system_proxy_port(&self) -> Option<Arc<dyn SystemProxyPort>> {
+        None
+    }
+    /// Optional local PAC service. Mobile hosts may omit this when they do
+    /// not expose a desktop-style loopback proxy configuration surface.
+    fn pac_service_port(&self) -> Option<Arc<dyn PacServicePort>> {
         None
     }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;

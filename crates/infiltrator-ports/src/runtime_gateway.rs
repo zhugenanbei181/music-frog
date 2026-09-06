@@ -7,6 +7,7 @@ use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::runtime::{
     ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider,
 };
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_contract::capability::Capability;
 use crate::error::PortError;
 use std::collections::HashMap;
@@ -33,6 +34,11 @@ pub type RuntimeStream<T> = BoxStream<'static, RuntimeStreamEvent<T>>;
 pub trait RuntimeGateway: Send + Sync {
     async fn get_config(&self) -> Result<ConfigSnapshot, PortError>;
     async fn patch_config(&self, updates: serde_json::Value) -> Result<(), PortError>;
+    /// Current enabled routing rules used by application-level generators.
+    /// Gateways without a rule listing keep the capability explicitly empty.
+    async fn get_rules(&self) -> Result<Vec<RuleEntry>, PortError> {
+        Ok(Vec::new())
+    }
     async fn set_proxy_mode(
         &self,
         mode: infiltrator_contract::command::ProxyMode,

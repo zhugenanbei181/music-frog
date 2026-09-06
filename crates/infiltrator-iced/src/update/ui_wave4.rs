@@ -5,8 +5,84 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_application::pac_application::PacApplication;
+use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
+use infiltrator_contract::error::InfiltratorError;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
+
+fn split_pac_domains(value: &str) -> Vec<String> {
+    value
+        .split([',', ';', '\n'])
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
 
 impl AppState {
+    fn apply_pac(&mut self) -> Task<Message> {
+        let Some(runtime) = self.runtime.runtime.clone() else {
+            return self.runtime_unavailable("应用 PAC 本地服务");
+        };
+        let Some(service) = runtime.pac_service_port() else {
+            let error = InfiltratorError::Internal(
+                "当前宿主未提供 PAC 本地服务能力".to_owned(),
+            );
+            self.set_error(&error);
+            return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
+        };
+        let request = PacRequest {
+            enabled: self.runtime.pac_manager.is_pac_mode_active,
+            bypass_domains: split_pac_domains(&self.runtime.pac_manager.bypass_subnets),
+            bypass_lan: true,
+            minify: false,
+        };
+        let gateway: std::sync::Arc<dyn RuntimeGateway> = runtime;
+        Task::perform(
+            async move {
+                PacApplication::new(gateway, service)
+                    .apply(request)
+                    .await
+                    .map_err(|failure| InfiltratorError::Internal(failure.message))
+            },
+            Message::PacApplied,
+        )
+    }
+
+    fn apply_demo_pac(&mut self) -> Task<Message> {
+        let config = infiltrator_domain::pac_generator::PacGenerator::new("PROXY 127.0.0.1:7890");
+        let script = config.compile_pac_script(&self.editor.rules);
+        if infiltrator_domain::pac_generator::validate_pac_script(&script).is_ok() {
+            self.runtime.pac_manager.last_compile_status = Some("Valid PAC compiled".into());
+            Task::done(Message::ShowToast(
+                "PAC script compiled successfully".into(),
+                ToastStatus::Success,
+            ))
+        } else {
+            self.runtime.pac_manager.last_compile_status = Some("PAC validation error".into());
+            Task::done(Message::ShowToast(
+                "PAC compilation failed".into(),
+                ToastStatus::Error,
+            ))
+        }
+    }
+
+    fn apply_pac_snapshot(&mut self, snapshot: PacSnapshot) {
+        self.runtime.pac_manager.snapshot = snapshot.clone();
+        self.runtime.pac_manager.bypass_subnets = snapshot.bypass_domains.join(", ");
+        match snapshot.state {
+            PacServiceState::Running { url } => {
+                self.runtime.pac_manager.is_pac_mode_active = true;
+                self.runtime.pac_manager.pac_url = url;
+            }
+            PacServiceState::Disabled | PacServiceState::Unavailable { .. } => {
+                self.runtime.pac_manager.is_pac_mode_active = false;
+                self.runtime.pac_manager.pac_url.clear();
+            }
+        }
+        self.runtime.pac_manager.dirty = false;
+    }
+
     pub(super) fn update_ui_wave4(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::PollNetworkInterfaces => {
@@ -143,35 +219,45 @@ impl AppState {
             }
             Message::UpdatePacBypassSubnets(subnets) => {
                 self.runtime.pac_manager.bypass_subnets = subnets;
+                self.runtime.pac_manager.dirty = true;
                 Task::none()
             }
             Message::CompileAndValidatePac => {
-                let config =
-                    infiltrator_domain::pac_generator::PacGenerator::new("PROXY 127.0.0.1:7890");
-                let script = config.compile_pac_script(&self.editor.rules);
-                if infiltrator_domain::pac_generator::validate_pac_script(&script).is_ok() {
-                    self.runtime.pac_manager.last_compile_status = Some("Valid PAC compiled".into());
-                    Task::done(Message::ShowToast(
-                        "PAC script compiled successfully".into(),
-                        ToastStatus::Success,
-                    ))
+                if self.shell.demo {
+                    self.apply_demo_pac()
                 } else {
-                    self.runtime.pac_manager.last_compile_status =
-                        Some("PAC validation error".into());
-                    Task::done(Message::ShowToast(
-                        "PAC compilation failed".into(),
-                        ToastStatus::Error,
-                    ))
+                    self.apply_pac()
                 }
             }
             Message::TogglePacMode(on) => {
                 self.runtime.pac_manager.is_pac_mode_active = on;
-                self.runtime.pac_manager.pac_url = if on {
-                    "http://127.0.0.1:25211/proxy.pac".into()
+                self.runtime.pac_manager.dirty = true;
+                if self.shell.demo {
+                    self.runtime.pac_manager.pac_url = if on {
+                        "http://127.0.0.1:25211/proxy.pac".into()
+                    } else {
+                        String::new()
+                    };
+                    Task::none()
                 } else {
-                    String::new()
-                };
-                Task::none()
+                    self.apply_pac()
+                }
+            }
+            Message::PacApplied(Ok(snapshot)) => {
+                self.apply_pac_snapshot(snapshot);
+                self.runtime.pac_manager.last_compile_status =
+                    Some("PAC script compiled and service state read back".to_owned());
+                Task::done(Message::ShowToast(
+                    "PAC 脚本已生成，本地服务状态已回读".to_owned(),
+                    ToastStatus::Success,
+                ))
+            }
+            Message::PacApplied(Err(error)) => {
+                let snapshot = self.runtime.pac_manager.snapshot.clone();
+                self.apply_pac_snapshot(snapshot);
+                self.runtime.pac_manager.last_compile_status = Some(error.to_string());
+                self.set_error(&error);
+                Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
             }
             _ => self.update_ui_wave5(message),
         }

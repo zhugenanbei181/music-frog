@@ -196,6 +196,10 @@ pub fn ios_capabilities() -> CapabilitySnapshot {
                 unsupported("Windows AppContainer loopback is not available on iOS"),
             ),
             status(
+                Capability::PacService,
+                unsupported("iOS has no desktop PAC injection surface"),
+            ),
+            status(
                 Capability::Autostart,
                 unsupported("iOS controls app launch"),
             ),

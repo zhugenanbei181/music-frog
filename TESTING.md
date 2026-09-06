@@ -142,6 +142,8 @@ python3 scripts/quality/lan-security-guard.py --mode enforce
 python3 scripts/quality/ipv6-routing-guard.py --mode enforce
 # DUAL-02-10 Windows UWP AppContainer 回环隔离守卫
 python3 scripts/quality/uwp-loopback-guard.py --mode enforce
+# DUAL-02-11 PAC 动态脚本与 loopback 本地服务守卫
+python3 scripts/quality/pac-service-guard.py --mode enforce
 ```
 
 ---

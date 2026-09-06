@@ -168,17 +168,19 @@ impl PacGenerator {
             if trimmed.is_empty() {
                 continue;
             }
+            let escaped_domain = escape_js_string_literal(trimmed);
             if trimmed.contains('*') || trimmed.contains('?') {
                 js_rules.push(format!(
-                    "    if (shExpMatch(host, \"{trimmed}\")) return \"DIRECT\";"
+                    "    if (shExpMatch(host, \"{escaped_domain}\")) return \"DIRECT\";"
                 ));
             } else if let Some(suffix) = trimmed.strip_prefix('.') {
+                let escaped_suffix = escape_js_string_literal(suffix);
                 js_rules.push(format!(
-                    "    if (dnsDomainIs(host, \".{suffix}\") || host === \"{suffix}\") return \"DIRECT\";"
+                    "    if (dnsDomainIs(host, \".{escaped_suffix}\") || host === \"{escaped_suffix}\") return \"DIRECT\";"
                 ));
             } else {
                 js_rules.push(format!(
-                    "    if (dnsDomainIs(host, \".{trimmed}\") || host === \"{trimmed}\") return \"DIRECT\";"
+                    "    if (dnsDomainIs(host, \".{escaped_domain}\") || host === \"{escaped_domain}\") return \"DIRECT\";"
                 ));
             }
         }
@@ -215,9 +217,10 @@ impl PacGenerator {
             };
 
             let directive = self.format_proxy_directive(target_proxy);
+            let escaped_directive = escape_js_string_literal(&directive);
 
             if rule_type == "MATCH" || rule_type == "FINAL" {
-                js_rules.push(format!("    return \"{directive}\";"));
+                js_rules.push(format!("    return \"{escaped_directive}\";"));
                 break;
             }
 
@@ -229,11 +232,12 @@ impl PacGenerator {
             if payload.is_empty() {
                 continue;
             }
+            let escaped_payload = escape_js_string_literal(payload);
 
             match rule_type.as_str() {
                 "DOMAIN" => {
                     js_rules.push(format!(
-                        "    if (host === \"{payload}\") return \"{directive}\";"
+                        "    if (host === \"{escaped_payload}\") return \"{escaped_directive}\";"
                     ));
                 }
                 "DOMAIN-SUFFIX" => {
@@ -243,43 +247,48 @@ impl PacGenerator {
                         format!(".{payload}")
                     };
                     let bare_domain = payload.strip_prefix('.').unwrap_or(payload);
+                    let escaped_dot_pattern = escape_js_string_literal(&dot_pattern);
+                    let escaped_bare_domain = escape_js_string_literal(bare_domain);
                     js_rules.push(format!(
-                        "    if (dnsDomainIs(host, \"{dot_pattern}\") || host === \"{bare_domain}\") return \"{directive}\";"
+                        "    if (dnsDomainIs(host, \"{escaped_dot_pattern}\") || host === \"{escaped_bare_domain}\") return \"{escaped_directive}\";"
                     ));
                 }
                 "DOMAIN-KEYWORD" => {
                     js_rules.push(format!(
-                        "    if (shExpMatch(host, \"*{payload}*\")) return \"{directive}\";"
+                        "    if (shExpMatch(host, \"*{escaped_payload}*\")) return \"{escaped_directive}\";"
                     ));
                 }
                 "DOMAIN-WILDCARD" => {
                     js_rules.push(format!(
-                        "    if (shExpMatch(host, \"{payload}\")) return \"{directive}\";"
+                        "    if (shExpMatch(host, \"{escaped_payload}\")) return \"{escaped_directive}\";"
                     ));
                 }
                 "DOMAIN-REGEX" => {
                     let escaped = escape_regex_for_js_literal(payload);
                     js_rules.push(format!(
-                        "    if (/{escaped}/i.test(host)) return \"{directive}\";"
+                        "    if (/{escaped}/i.test(host)) return \"{escaped_directive}\";"
                     ));
                 }
                 "URL-REGEX" => {
                     let escaped = escape_regex_for_js_literal(payload);
                     js_rules.push(format!(
-                        "    if (/{escaped}/i.test(url)) return \"{directive}\";"
+                        "    if (/{escaped}/i.test(url)) return \"{escaped_directive}\";"
                     ));
                 }
                 "IP-CIDR" | "IP-CIDR6" => {
                     if let Some((ip, prefix_str)) = payload.split_once('/') {
                         let prefix = prefix_str.trim().parse::<u8>().unwrap_or(24);
                         if let Some(netmask) = cidr_to_netmask(prefix) {
+                            let escaped_ip = escape_js_string_literal(ip);
+                            let escaped_netmask = escape_js_string_literal(&netmask);
                             js_rules.push(format!(
-                                "    if (isInNet(dnsResolve(host), \"{ip}\", \"{netmask}\")) return \"{directive}\";"
+                                "    if (isInNet(dnsResolve(host), \"{escaped_ip}\", \"{escaped_netmask}\")) return \"{escaped_directive}\";"
                             ));
                         }
                     } else {
+                        let escaped_ip = escape_js_string_literal(payload);
                         js_rules.push(format!(
-                            "    if (isInNet(dnsResolve(host), \"{payload}\", \"255.255.255.255\")) return \"{directive}\";"
+                            "    if (isInNet(dnsResolve(host), \"{escaped_ip}\", \"255.255.255.255\")) return \"{escaped_directive}\";"
                         ));
                     }
                 }
@@ -493,6 +502,36 @@ fn escape_regex_for_js_literal(regex: &str) -> String {
         }
         out.push(chars[i]);
         i += 1;
+    }
+    out
+}
+
+/// Escapes a value embedded in a JavaScript double-quoted string literal.
+///
+/// PAC rules come from the live Mihomo controller, so rule payloads and proxy
+/// directives must never be able to terminate a generated string and inject
+/// executable JavaScript. Custom rules remain intentionally raw JavaScript and
+/// are handled separately above.
+fn escape_js_string_literal(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 8);
+    for character in value.chars() {
+        match character {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{08}' => out.push_str("\\b"),
+            '\u{0c}' => out.push_str("\\f"),
+            '\u{2028}' => out.push_str("\\u2028"),
+            '\u{2029}' => out.push_str("\\u2029"),
+            character if character.is_control() => {
+                use std::fmt::Write;
+                write!(out, "\\u{:04X}", character as u32)
+                    .expect("writing to an in-memory string cannot fail");
+            }
+            character => out.push(character),
+        }
     }
     out
 }

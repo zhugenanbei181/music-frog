@@ -38,6 +38,7 @@ pub mod runtime;
 pub mod uwp;
 pub mod sandbox;
 pub mod pac_generator;
+pub mod pac_policy;
 pub mod redact;
 pub mod script_engine;
 pub mod settings;

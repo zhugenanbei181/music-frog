@@ -34,6 +34,7 @@ pub mod surface;
 pub mod version;
 pub mod system_proxy;
 pub mod uwp_loopback;
+pub mod pac;
 
 #[cfg(test)]
 mod tests {

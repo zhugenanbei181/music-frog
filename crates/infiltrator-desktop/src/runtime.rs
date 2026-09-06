@@ -14,6 +14,7 @@ use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, Runtime
 use mihomo_api::client::MihomoClient;
 use mihomo_api::proxy::manager::ProxyManager;
 use infiltrator_domain::proxy::ProxyGroup;
+use infiltrator_domain::rules::RuleEntry;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
@@ -42,6 +43,7 @@ pub struct MihomoRuntime {
     _watchdog: infiltrator_composition::CoreWatchdogHandle,
     apply_guard: Arc<tokio::sync::Mutex<()>>,
     service_mode: Arc<crate::service_mode::DesktopServiceMode>,
+    pac_service: Arc<crate::pac_service::DesktopPacServicePort>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -154,6 +156,7 @@ impl MihomoRuntime {
         }
         let watchdog = infiltrator_composition::spawn_core_watchdog(application.clone());
         let client = MihomoClient::new(&endpoint.url, endpoint.secret.clone())?;
+        let pac_service = Arc::new(crate::pac_service::DesktopPacServicePort::shared());
 
         Ok(Self {
             config_manager: cm,
@@ -167,6 +170,7 @@ impl MihomoRuntime {
             _watchdog: watchdog,
             apply_guard: Arc::new(tokio::sync::Mutex::new(())),
             service_mode,
+            pac_service,
         })
     }
 
@@ -356,6 +360,22 @@ impl RuntimeGateway for MihomoRuntime {
         self.client
             .patch_config(updates)
             .await
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn get_rules(&self) -> Result<Vec<RuleEntry>, PortError> {
+        self.client
+            .get_rules()
+            .await
+            .map(|rules| {
+                rules
+                    .into_iter()
+                    .map(|rule| RuleEntry {
+                        rule: format!("{},{},{}", rule.rule_type, rule.payload, rule.proxy),
+                        enabled: true,
+                    })
+                    .collect()
+            })
             .map_err(|error| PortError::Network(error.to_string()))
     }
 
@@ -620,6 +640,12 @@ impl HostRuntime for MihomoRuntime {
         &self,
     ) -> Option<Arc<dyn infiltrator_ports::system_proxy::SystemProxyPort>> {
         Some(Arc::new(crate::system_proxy::DesktopSystemProxy::new()))
+    }
+
+    fn pac_service_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::pac::PacServicePort>> {
+        Some(self.pac_service.clone())
     }
 
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {

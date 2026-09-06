@@ -17,6 +17,7 @@ use crate::snapshot_application::SnapshotApplication;
 use crate::service_mode_application::ServiceModeApplication;
 use crate::version_application::VersionApplication;
 use crate::uwp_loopback_application::UwpLoopbackApplication;
+use crate::pac_application::PacApplication;
 use crate::offline_startup_application::OfflineStartupApplication;
 use crate::mtu_application::MtuApplication;
 use crate::system_proxy_application::SystemProxyApplication;
@@ -59,6 +60,7 @@ pub struct ApplicationSurfaceReader {
     mtu: Option<MtuApplication>,
     system_proxy: Option<SystemProxyApplication>,
     uwp_loopback: Option<UwpLoopbackApplication>,
+    pac: Option<PacApplication>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -84,6 +86,7 @@ impl ApplicationSurfaceReader {
             mtu: None,
             system_proxy: None,
             uwp_loopback: None,
+            pac: None,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -175,6 +178,11 @@ impl ApplicationSurfaceReader {
         self
     }
 
+    pub fn with_pac(mut self, pac: PacApplication) -> Self {
+        self.pac = Some(pac);
+        self
+    }
+
     pub fn core(&self) -> &Arc<CoreApplication> {
         &self.core
     }
@@ -234,6 +242,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let offline_startup = self.read_offline_startup().await;
         let system_proxy = self.read_system_proxy().await;
         let system_proxy_recovery = self.read_system_proxy_recovery();
+        let pac = self.read_pac().await;
         let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
 
         pages.overview =
@@ -386,6 +395,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             hydrated_settings.as_ref(),
             runtime_config.as_ref(),
             &system_proxy,
+            pac,
         );
 
         Ok(surface_snapshot::SurfaceSnapshot {
@@ -729,6 +739,7 @@ fn build_settings_page(
     settings: Option<&Result<infiltrator_domain::settings::AppSettings, Failure>>,
     runtime_config: Option<&Result<infiltrator_domain::runtime::ConfigSnapshot, PortError>>,
     system_proxy: &infiltrator_contract::system_proxy::SystemProxySnapshot,
+    pac: infiltrator_contract::pac::PacSnapshot,
 ) -> surface_snapshot::PageData<surface_snapshot::SettingsPageSnapshot> {
     let settings = match settings {
         Some(Ok(settings)) => settings,
@@ -771,6 +782,7 @@ fn build_settings_page(
                 value.tun.as_ref().is_some_and(|tun| tun.enable),
             ),
         ),
+        pac,
         tun_enabled: config
             .and_then(|value| value.tun.as_ref())
             .is_some_and(|tun| tun.enable),

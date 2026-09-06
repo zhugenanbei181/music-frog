@@ -6,6 +6,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use infiltrator_contract::pac::{PacServiceState, PacSnapshot};
 
 #[test]
 fn test_advancement_w4_1_network_roaming_and_gateway_recovery() {
@@ -128,6 +129,7 @@ fn test_advancement_w4_5_subscription_quota_and_cron_matrix() {
 #[test]
 fn test_advancement_w4_6_pac_auto_proxy_and_bypass_manager() {
     let (mut state, _) = AppState::new();
+    state.shell.demo = true;
 
     // Default PAC state
     assert!(!state.runtime.pac_manager.is_pac_mode_active);
@@ -157,4 +159,30 @@ fn test_advancement_w4_6_pac_auto_proxy_and_bypass_manager() {
     let _ = state.update(Message::TogglePacMode(false));
     assert!(!state.runtime.pac_manager.is_pac_mode_active);
     assert!(state.runtime.pac_manager.pac_url.is_empty());
+}
+
+#[test]
+fn test_pac_live_result_updates_url_and_committed_snapshot() {
+    let (mut state, _) = AppState::new();
+    state.runtime.pac_manager.bypass_subnets = "old.example".to_owned();
+    state.runtime.pac_manager.dirty = true;
+    let snapshot = PacSnapshot {
+        state: PacServiceState::Running {
+            url: "http://127.0.0.1:32000/proxy.pac".to_owned(),
+        },
+        script_bytes: 4096,
+        bypass_domains: vec!["example.com".to_owned()],
+        revision: 5,
+    };
+
+    let _ = state.update(Message::PacApplied(Ok(snapshot)));
+
+    assert!(state.runtime.pac_manager.is_pac_mode_active);
+    assert_eq!(
+        state.runtime.pac_manager.pac_url,
+        "http://127.0.0.1:32000/proxy.pac"
+    );
+    assert_eq!(state.runtime.pac_manager.bypass_subnets, "example.com");
+    assert_eq!(state.runtime.pac_manager.snapshot.script_bytes, 4096);
+    assert!(!state.runtime.pac_manager.dirty);
 }

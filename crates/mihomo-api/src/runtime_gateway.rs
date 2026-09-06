@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_domain::proxy::Proxy;
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{
     ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider,
     TrafficData,
@@ -26,6 +27,21 @@ impl RuntimeGateway for MihomoClient {
     async fn patch_config(&self, updates: Value) -> Result<(), PortError> {
         MihomoClient::patch_config(self, updates)
             .await
+            .map_err(network_error)
+    }
+
+    async fn get_rules(&self) -> Result<Vec<RuleEntry>, PortError> {
+        MihomoClient::get_rules(self)
+            .await
+            .map(|rules| {
+                rules
+                    .into_iter()
+                    .map(|rule| RuleEntry {
+                        rule: format!("{},{},{}", rule.rule_type, rule.payload, rule.proxy),
+                        enabled: true,
+                    })
+                    .collect()
+            })
             .map_err(network_error)
     }
 

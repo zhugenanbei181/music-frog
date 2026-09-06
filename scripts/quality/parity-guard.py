@@ -63,6 +63,7 @@ REQUIRED_INTENTS = {
     "ScanUwpApps",
     "SetUwpAppExemption",
     "SetAllUwpExemptions",
+    "ApplyPac",
     "ToggleAppRouting",
     "SetAppRoutingMode",
     "ToggleIncludeSystemApps",

@@ -14,6 +14,7 @@ pub mod error;
 pub mod intent;
 pub mod lan;
 pub mod ipv6;
+pub mod pac;
 pub mod uwp;
 pub mod offline_startup;
 pub mod mtu;
@@ -68,6 +69,16 @@ mod tests {
         assert_eq!(CommandIntent::ProbeTunMtu.kind(), CommandKind::Network);
         assert_eq!(
             CommandIntent::SetIpv6Routing { enabled: false }.kind(),
+            CommandKind::Network
+        );
+        assert_eq!(
+            CommandIntent::ApplyPac {
+                enabled: true,
+                bypass_domains: Vec::new(),
+                bypass_lan: true,
+                minify: false,
+            }
+            .kind(),
             CommandKind::Network
         );
         assert_eq!(CoreLogLevel::parse("warning"), Some(CoreLogLevel::Warn));
