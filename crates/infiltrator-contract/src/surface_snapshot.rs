@@ -446,6 +446,9 @@ pub struct SurfaceSnapshot {
     /// Physical-link/default-gateway observation and TUN route recovery.
     #[serde(default)]
     pub network_roaming: crate::network_roaming::NetworkRoamingSnapshot,
+    /// Android VpnService permission/foreground/tun2proxy session state.
+    #[serde(default)]
+    pub vpn: crate::vpn::VpnSessionSnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -490,6 +493,7 @@ impl SurfaceSnapshot {
             system_proxy: SystemProxySnapshot::default(),
             system_proxy_recovery: SystemProxyRecoverySnapshot::default(),
             network_roaming: crate::network_roaming::NetworkRoamingSnapshot::default(),
+            vpn: crate::vpn::VpnSessionSnapshot::default(),
         }
     }
 

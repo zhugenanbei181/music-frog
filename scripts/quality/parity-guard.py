@@ -66,6 +66,8 @@ REQUIRED_INTENTS = {
     "ApplyPac",
     "RefreshNetworkRoaming",
     "RepairNetworkRoutes",
+    "StartVpn",
+    "StopVpn",
     "ToggleAppRouting",
     "SetAppRoutingMode",
     "ToggleIncludeSystemApps",

@@ -49,3 +49,4 @@ python3 "$repo_root/scripts/quality/ipv6-routing-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/uwp-loopback-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/pac-service-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/network-roaming-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/vpn-service-guard.py" --mode enforce

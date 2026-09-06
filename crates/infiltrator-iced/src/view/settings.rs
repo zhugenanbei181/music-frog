@@ -715,6 +715,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .push(Space::new().height(10))
         .push(crate::view::net_roam_card::net_roam_card(state, &lang))
         .push(Space::new().height(10))
+        .push(crate::view::vpn_card::vpn_card(state, &lang))
+        .push(Space::new().height(10))
         .push(sniffer_section)
         .push(Space::new().height(10))
         .push(editor_section)

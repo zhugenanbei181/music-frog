@@ -8,6 +8,7 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::error::InfiltratorError;
+#[cfg(not(target_os = "android"))]
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::{
     ApplyError, ApplyParams, EndpointConfigReloader, apply_current_profile,

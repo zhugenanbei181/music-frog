@@ -11,8 +11,10 @@ interface BridgeHost {
     fun dataDir(): String?
     fun cacheDir(): String?
     fun vpnStart(): Boolean
+    fun vpnApplyConfiguration(configJson: String): Boolean
     fun vpnStop(): Boolean
     fun vpnIsRunning(): Boolean
+    fun vpnIsForeground(): Boolean
     fun tunSetEnabled(enabled: Boolean): Boolean
     fun tunIsEnabled(): Boolean
 }

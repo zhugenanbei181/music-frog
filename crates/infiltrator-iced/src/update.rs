@@ -182,6 +182,9 @@ impl AppState {
             | Message::NetworkInterfacesPolled(_)
             | Message::ForceGatewayReconnect
             | Message::NetworkRoamingRepaired(_)
+            | Message::StartVpn
+            | Message::StopVpn
+            | Message::VpnSessionUpdated(_)
             | Message::CheckCrashWatchdog
             | Message::RecoverOrphanedState
             | Message::ExportCrashDiagnostics

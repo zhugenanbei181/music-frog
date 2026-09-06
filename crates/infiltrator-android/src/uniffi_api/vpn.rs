@@ -8,6 +8,10 @@ use serde_yaml_ng::Value;
 use mihomo_platform::android_bridge::get_android_bridge;
 
 use infiltrator_domain::{dns, tun};
+use infiltrator_application::vpn_application::VpnServiceApplication;
+use infiltrator_contract::vpn::VpnSessionState;
+#[cfg(target_os = "android")]
+use infiltrator_contract::vpn::{VpnConfiguration, VpnRoute, VpnStartRequest};
 
 #[cfg(target_os = "android")]
 use crate::host_support::build_config_manager;
@@ -16,71 +20,135 @@ use crate::host_support::{
     normalize_optional_string,
 };
 use crate::ffi::{FfiErrorCode, FfiStatus};
+use crate::vpn_service::AndroidVpnServicePort;
 
 #[uniffi::export]
 pub fn start_vpn(fd: i32) -> FfiStatus {
     log::info!("Rust received VPN File Descriptor: {}", fd);
 
-    // Launch tun2proxy in a background thread.
-    // Use proxy settings from the active profile if available.
     #[cfg(target_os = "android")]
     {
-        let proxy_url = resolve_proxy_url().unwrap_or_else(default_proxy_url);
-        let proxy = match tun2proxy::ArgProxy::try_from(proxy_url.as_str()) {
-            Ok(proxy) => proxy,
-            Err(err) => {
-                return FfiStatus::err(FfiErrorCode::InvalidInput, err.to_string());
-            }
+        if fd <= 0 {
+            return FfiStatus::err(
+                FfiErrorCode::InvalidInput,
+                "VpnService supplied an invalid tunnel file descriptor",
+            );
+        }
+        let proxy_endpoint = resolve_proxy_url().unwrap_or_else(default_proxy_url);
+        let request = match get_runtime().block_on(build_vpn_start_request(fd, proxy_endpoint)) {
+            Ok(request) => request,
+            Err(status) => return status,
         };
-
-        let mut args = tun2proxy::Args::default();
-        args.proxy = proxy;
-        args.tun_fd = Some(fd);
-        args.close_fd_on_drop = Some(true);
-        let mtu = get_runtime()
-            .block_on(async {
-                build_configuration_application()
-                    .await
-                    .ok()?
-                    .load_tun_config()
-                    .await
-                    .ok()
-            })
-            .and_then(|config| config.mtu)
-            .and_then(|value| u16::try_from(value).ok())
-            .unwrap_or(1500);
-
-        let proxy_url_clone = proxy_url.clone();
-        std::thread::spawn(move || {
-            log::info!("Starting tun2proxy for FD {} to {}", fd, proxy_url_clone);
-            let exit_code = tun2proxy::mobile_run(args, mtu, false);
-            if exit_code != 0 {
-                log::error!("tun2proxy exited with code {}", exit_code);
-            }
-        });
+        let application = VpnServiceApplication::new(std::sync::Arc::new(
+            AndroidVpnServicePort::shared(),
+        ));
+        return match get_runtime().block_on(application.start(request)) {
+            Ok(snapshot) if snapshot.is_running() => FfiStatus::ok(),
+            Ok(snapshot) => FfiStatus::err(
+                FfiErrorCode::NotReady,
+                format!("VPN start did not reach foreground Running: {:?}", snapshot.state),
+            ),
+            Err(failure) => map_application_failure(failure),
+        };
     }
 
     #[cfg(not(target_os = "android"))]
-    log::warn!("start_vpn called on non-Android target");
+    FfiStatus::err(
+        FfiErrorCode::NotSupported,
+        "Android VpnService is unavailable on this target",
+    )
+}
 
-    FfiStatus::ok()
+/// Prepare the native Android `VpnService.Builder` before it calls
+/// `Builder.establish()`. The later `start_vpn(fd)` callback only owns the
+/// established TUN descriptor and starts tun2proxy.
+#[uniffi::export]
+pub fn prepare_vpn() -> FfiStatus {
+    #[cfg(target_os = "android")]
+    {
+        let proxy_endpoint = resolve_proxy_url().unwrap_or_else(default_proxy_url);
+        let configuration = match get_runtime().block_on(build_vpn_configuration(proxy_endpoint)) {
+            Ok(configuration) => configuration,
+            Err(status) => return status,
+        };
+        let application = VpnServiceApplication::new(std::sync::Arc::new(
+            AndroidVpnServicePort::shared(),
+        ));
+        return match get_runtime().block_on(application.prepare(configuration)) {
+            Ok(snapshot) if snapshot.foreground => FfiStatus::ok(),
+            Ok(snapshot) => FfiStatus::err(
+                FfiErrorCode::NotReady,
+                format!(
+                    "VPN Builder configuration is not foreground-protected: {:?}",
+                    snapshot.state
+                ),
+            ),
+            Err(failure) => map_application_failure(failure),
+        };
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        FfiStatus::err(
+            FfiErrorCode::NotSupported,
+            "Android VpnService is unavailable on this target",
+        )
+    }
 }
 
 #[uniffi::export]
 pub fn stop_vpn() -> FfiStatus {
     #[cfg(target_os = "android")]
     {
-        let exit_code = tun2proxy::mobile_stop();
-        if exit_code == 0 {
-            return FfiStatus::ok();
-        }
-        return FfiStatus::err(FfiErrorCode::NotReady, "tun2proxy not running");
+        let application = VpnServiceApplication::new(std::sync::Arc::new(
+            AndroidVpnServicePort::shared(),
+        ));
+        return match get_runtime().block_on(application.stop()) {
+            Ok(snapshot)
+                if matches!(
+                    snapshot.state,
+                    VpnSessionState::Stopped | VpnSessionState::Revoked
+                ) => FfiStatus::ok(),
+            Ok(snapshot) => FfiStatus::err(
+                FfiErrorCode::InvalidState,
+                format!("VPN stop did not settle: {:?}", snapshot.state),
+            ),
+            Err(failure) => map_application_failure(failure),
+        };
     }
 
     #[cfg(not(target_os = "android"))]
     {
-        log::warn!("stop_vpn called on non-Android target");
-        FfiStatus::ok()
+        FfiStatus::err(
+            FfiErrorCode::NotSupported,
+            "Android VpnService is unavailable on this target",
+        )
+    }
+}
+
+#[uniffi::export]
+pub fn revoke_vpn() -> FfiStatus {
+    #[cfg(target_os = "android")]
+    {
+        let application = VpnServiceApplication::new(std::sync::Arc::new(
+            AndroidVpnServicePort::shared(),
+        ));
+        return match get_runtime().block_on(application.revoke()) {
+            Ok(snapshot) if snapshot.state == VpnSessionState::Revoked => FfiStatus::ok(),
+            Ok(snapshot) => FfiStatus::err(
+                FfiErrorCode::InvalidState,
+                format!("VPN revoke did not settle: {:?}", snapshot.state),
+            ),
+            Err(failure) => map_application_failure(failure),
+        };
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        FfiStatus::err(
+            FfiErrorCode::NotSupported,
+            "Android VpnService is unavailable on this target",
+        )
     }
 }
 
@@ -116,6 +184,75 @@ pub struct VpnTunSettingsPatch {
 pub struct VpnTunSettingsResult {
     pub status: FfiStatus,
     pub settings: Option<VpnTunSettings>,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct VpnSessionSnapshot {
+    pub state: String,
+    pub foreground: bool,
+    pub mtu: Option<u32>,
+    pub route_count: u32,
+    pub dns_servers: Vec<String>,
+    pub ipv6: bool,
+    pub revision: u64,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct VpnSessionResult {
+    pub status: FfiStatus,
+    pub snapshot: Option<VpnSessionSnapshot>,
+}
+
+#[uniffi::export]
+pub async fn vpn_session_status() -> VpnSessionResult {
+    get_runtime()
+        .spawn(async move {
+            let application = VpnServiceApplication::new(std::sync::Arc::new(
+                AndroidVpnServicePort::shared(),
+            ));
+            let snapshot = application.snapshot().await;
+            let status = match &snapshot.state {
+                VpnSessionState::Unsupported { reason } => {
+                    FfiStatus::err(FfiErrorCode::NotSupported, reason.clone())
+                }
+                VpnSessionState::Failed { failure } => map_application_failure(failure.clone()),
+                _ => FfiStatus::ok(),
+            };
+            VpnSessionResult {
+                status,
+                snapshot: Some(map_vpn_snapshot(snapshot)),
+            }
+        })
+        .await
+        .unwrap_or_else(|error| VpnSessionResult {
+            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {error}")),
+            snapshot: None,
+        })
+}
+
+fn map_vpn_snapshot(
+    snapshot: infiltrator_contract::vpn::VpnSessionSnapshot,
+) -> VpnSessionSnapshot {
+    VpnSessionSnapshot {
+        state: match snapshot.state {
+            VpnSessionState::Idle => "idle",
+            VpnSessionState::PermissionRequired => "permission_required",
+            VpnSessionState::Starting => "starting",
+            VpnSessionState::Running => "running",
+            VpnSessionState::Stopping => "stopping",
+            VpnSessionState::Stopped => "stopped",
+            VpnSessionState::Revoked => "revoked",
+            VpnSessionState::Unsupported { .. } => "unsupported",
+            VpnSessionState::Failed { .. } => "failed",
+        }
+        .to_owned(),
+        foreground: snapshot.foreground,
+        mtu: snapshot.mtu,
+        route_count: u32::try_from(snapshot.route_count).unwrap_or(u32::MAX),
+        dns_servers: snapshot.dns_servers,
+        ipv6: snapshot.ipv6,
+        revision: snapshot.revision,
+    }
 }
 
 #[uniffi::export]
@@ -239,6 +376,65 @@ fn port_from_value(value: &Value) -> Option<u16> {
 #[cfg(target_os = "android")]
 fn default_proxy_url() -> String {
     "socks5://127.0.0.1:7891".to_string()
+}
+
+#[cfg(target_os = "android")]
+async fn build_vpn_start_request(
+    fd: i32,
+    proxy_endpoint: String,
+) -> Result<VpnStartRequest, FfiStatus> {
+    let configuration = build_vpn_configuration(proxy_endpoint).await?;
+    Ok(VpnStartRequest {
+        tun_fd: fd,
+        proxy_endpoint: configuration.proxy_endpoint,
+        mtu: configuration.mtu,
+        routes: configuration.routes,
+        dns_servers: configuration.dns_servers,
+        ipv6: configuration.ipv6,
+        foreground_requested: configuration.foreground_requested,
+    })
+}
+
+#[cfg(target_os = "android")]
+async fn build_vpn_configuration(
+    proxy_endpoint: String,
+) -> Result<VpnConfiguration, FfiStatus> {
+    let settings = load_vpn_tun_settings().await?;
+    let mtu = settings.mtu.unwrap_or(1500);
+    let ipv6 = settings.ipv6.unwrap_or(true);
+    let dns_servers = settings
+        .dns_servers
+        .into_iter()
+        .filter(|server| server.parse::<std::net::IpAddr>().is_ok())
+        .collect::<Vec<_>>();
+    let route_plan = crate::vpn_route::VpnRouteConfig {
+        bypass_lan: false,
+        bypass_china: false,
+        custom_dns: dns_servers.clone(),
+        mtu,
+    }
+    .build_plan();
+    Ok(VpnConfiguration {
+        proxy_endpoint,
+        mtu: route_plan.mtu,
+        routes: route_plan
+            .routes
+            .into_iter()
+            .map(|route| VpnRoute {
+                address: route.ip,
+                prefix: route.prefix,
+                exclude: false,
+            })
+            .chain(route_plan.excluded_routes.into_iter().map(|route| VpnRoute {
+                address: route.ip,
+                prefix: route.prefix,
+                exclude: true,
+            }))
+            .collect(),
+        dns_servers,
+        ipv6,
+        foreground_requested: true,
+    })
 }
 
 async fn load_vpn_tun_settings() -> Result<VpnTunSettings, FfiStatus> {

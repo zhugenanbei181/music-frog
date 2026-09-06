@@ -29,9 +29,26 @@ pub trait AndroidBridge: Send + Sync {
         OfflineStartupSnapshot::default()
     }
 
+    /// Ask the native host to run VpnService.prepare/consent handling and
+    /// promote the service to the foreground. The TUN FD is returned to Rust
+    /// later through the start_vpn callback.
     async fn vpn_start(&self) -> Result<bool>;
+    /// Apply the shared route/DNS/MTU request to the native Builder before
+    /// the established TUN FD is handed back to Rust. Older bridges fall back
+    /// to vpn_start for compatibility, while current hosts should implement
+    /// the explicit JSON configuration callback. The compatibility fallback
+    /// accepts the payload without applying it; current Android hosts must
+    /// override this method to configure Builder routes/DNS/MTU.
+    async fn vpn_apply_configuration(&self, _config_json: &str) -> Result<bool> {
+        Ok(true)
+    }
     async fn vpn_stop(&self) -> Result<bool>;
     async fn vpn_is_running(&self) -> Result<bool>;
+    /// Native readback for foreground-service keepalive. Older bridges fall
+    /// back to their running state until the explicit method is implemented.
+    async fn vpn_is_foreground(&self) -> Result<bool> {
+        self.vpn_is_running().await
+    }
     async fn tun_set_enabled(&self, enabled: bool) -> Result<bool>;
     async fn tun_is_enabled(&self) -> Result<bool>;
 }
@@ -86,12 +103,20 @@ impl AndroidBridge for Box<dyn AndroidBridge> {
         self.as_ref().vpn_start().await
     }
 
+    async fn vpn_apply_configuration(&self, config_json: &str) -> Result<bool> {
+        self.as_ref().vpn_apply_configuration(config_json).await
+    }
+
     async fn vpn_stop(&self) -> Result<bool> {
         self.as_ref().vpn_stop().await
     }
 
     async fn vpn_is_running(&self) -> Result<bool> {
         self.as_ref().vpn_is_running().await
+    }
+
+    async fn vpn_is_foreground(&self) -> Result<bool> {
+        self.as_ref().vpn_is_foreground().await
     }
 
     async fn tun_set_enabled(&self, enabled: bool) -> Result<bool> {
@@ -153,12 +178,20 @@ impl AndroidBridge for Arc<dyn AndroidBridge> {
         self.as_ref().vpn_start().await
     }
 
+    async fn vpn_apply_configuration(&self, config_json: &str) -> Result<bool> {
+        self.as_ref().vpn_apply_configuration(config_json).await
+    }
+
     async fn vpn_stop(&self) -> Result<bool> {
         self.as_ref().vpn_stop().await
     }
 
     async fn vpn_is_running(&self) -> Result<bool> {
         self.as_ref().vpn_is_running().await
+    }
+
+    async fn vpn_is_foreground(&self) -> Result<bool> {
+        self.as_ref().vpn_is_foreground().await
     }
 
     async fn tun_set_enabled(&self, enabled: bool) -> Result<bool> {
@@ -287,8 +320,10 @@ mod tests {
         assert_eq!(bridge.cache_dir().unwrap(), PathBuf::from("cache"));
 
         assert!(bridge.vpn_start().await.unwrap());
+        assert!(bridge.vpn_apply_configuration("{}" ).await.unwrap());
         assert!(bridge.vpn_stop().await.unwrap());
         assert!(bridge.vpn_is_running().await.unwrap());
+        assert!(bridge.vpn_is_foreground().await.unwrap());
         assert!(bridge.tun_set_enabled(true).await.unwrap());
         assert!(bridge.tun_is_enabled().await.unwrap());
 

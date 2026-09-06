@@ -512,6 +512,9 @@ pub enum Message {
     NetworkRoamingRepaired(
         Result<infiltrator_contract::network_roaming::NetworkRoamingSnapshot, InfiltratorError>,
     ),
+    StartVpn,
+    StopVpn,
+    VpnSessionUpdated(Result<infiltrator_contract::vpn::VpnSessionSnapshot, InfiltratorError>),
     // Wave 4 Category 2: Crash Watchdog & Forensics
     CheckCrashWatchdog,
     RecoverOrphanedState,

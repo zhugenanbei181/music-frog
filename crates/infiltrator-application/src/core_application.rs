@@ -775,6 +775,8 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::ApplyPac { .. } => "apply_pac",
         CommandIntent::RefreshNetworkRoaming => "refresh_network_roaming",
         CommandIntent::RepairNetworkRoutes => "repair_network_routes",
+        CommandIntent::StartVpn => "start_vpn",
+        CommandIntent::StopVpn => "stop_vpn",
         CommandIntent::ToggleAppRouting { .. } => "toggle_app_routing",
         CommandIntent::SetAppRoutingMode { .. } => "set_app_routing_mode",
         CommandIntent::ToggleIncludeSystemApps { .. } => "toggle_include_system_apps",

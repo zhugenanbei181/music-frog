@@ -13,6 +13,7 @@ use infiltrator_ports::port_conflict::PortConflictPort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
+use infiltrator_ports::vpn_service::VpnServicePort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
 use infiltrator_ports::service_mode::ServiceModePort;
 use infiltrator_ports::version::{VersionPort, VersionProgressSink};
@@ -161,6 +162,71 @@ struct TestNetworkRoaming {
     calls: Arc<AtomicUsize>,
 }
 
+struct TestVpn;
+
+#[async_trait]
+impl VpnServicePort for TestVpn {
+    async fn request_start(
+        &self,
+    ) -> Result<infiltrator_contract::vpn::VpnSessionSnapshot, PortError> {
+        Ok(infiltrator_contract::vpn::VpnSessionSnapshot {
+            state: infiltrator_contract::vpn::VpnSessionState::Starting,
+            foreground: true,
+            ..Default::default()
+        })
+    }
+
+    async fn prepare(
+        &self,
+        _configuration: infiltrator_contract::vpn::VpnConfiguration,
+    ) -> Result<infiltrator_contract::vpn::VpnSessionSnapshot, PortError> {
+        Ok(infiltrator_contract::vpn::VpnSessionSnapshot {
+            state: infiltrator_contract::vpn::VpnSessionState::Starting,
+            foreground: true,
+            ..Default::default()
+        })
+    }
+
+    async fn start(
+        &self,
+        request: infiltrator_contract::vpn::VpnStartRequest,
+    ) -> Result<infiltrator_contract::vpn::VpnSessionSnapshot, PortError> {
+        Ok(infiltrator_contract::vpn::VpnSessionSnapshot::running(
+            1,
+            request.mtu,
+            request.routes.len(),
+            request.dns_servers,
+            request.ipv6,
+            true,
+        ))
+    }
+
+    async fn stop(&self) -> Result<infiltrator_contract::vpn::VpnSessionSnapshot, PortError> {
+        Ok(infiltrator_contract::vpn::VpnSessionSnapshot {
+            state: infiltrator_contract::vpn::VpnSessionState::Stopped,
+            ..Default::default()
+        })
+    }
+
+    async fn revoke(&self) -> Result<infiltrator_contract::vpn::VpnSessionSnapshot, PortError> {
+        Ok(infiltrator_contract::vpn::VpnSessionSnapshot {
+            state: infiltrator_contract::vpn::VpnSessionState::Revoked,
+            ..Default::default()
+        })
+    }
+
+    async fn snapshot(&self) -> Result<infiltrator_contract::vpn::VpnSessionSnapshot, PortError> {
+        Ok(infiltrator_contract::vpn::VpnSessionSnapshot::running(
+            1,
+            1500,
+            2,
+            vec!["1.1.1.1".to_owned()],
+            true,
+            true,
+        ))
+    }
+}
+
 #[async_trait]
 impl NetworkRoamingPort for TestNetworkRoaming {
     async fn observe(
@@ -298,7 +364,8 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
                 calls: network_calls.clone(),
             }),
             None,
-        ));
+        ))
+        .with_vpn(VpnServiceApplication::new(Arc::new(TestVpn)));
 
     let first = reader.read().await.expect("first surface read");
     let second = reader.read().await.expect("cached surface read");
@@ -335,6 +402,8 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
         Some("eth0")
     );
     assert_eq!(network_calls.load(Ordering::SeqCst), 2);
+    assert!(first.vpn.is_running());
+    assert_eq!(first.vpn.route_count, 2);
     assert!(first.versions.channels.iter().all(|channel| matches!(
         channel.status,
         infiltrator_contract::version::CoreChannelStatus::Ready { .. }

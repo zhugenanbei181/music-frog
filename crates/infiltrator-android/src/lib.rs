@@ -10,6 +10,7 @@ pub mod runtime;
 mod tls;
 mod uniffi_api;
 pub mod vpn_route;
+pub mod vpn_service;
 
 pub use api::AndroidApi;
 pub use ffi::{FfiApi, FfiBoolResult, FfiErrorCode, FfiStatus, FfiStringResult};
@@ -17,6 +18,7 @@ pub use mihomo_platform::android_bridge::{
     AndroidBridge, clear_android_bridge, get_android_bridge, set_android_bridge,
 };
 pub use runtime::{AndroidBridgeAdapter, AndroidRuntime, android_bridge_adapter};
+pub use vpn_service::AndroidVpnServicePort;
 pub use uniffi_api::{
     AndroidAppCategory, AndroidAppInfo, AndroidVpnPerAppPlan, BootstrapResult, BootstrapStepRecord,
     ConnectionRecord, ConnectionsResult, DnsFallbackFilterSettings, DnsSettings, DnsSettingsPatch,
@@ -25,7 +27,8 @@ pub use uniffi_api::{
     FakeIpSettingsPatch, FakeIpSettingsResult, IpCheckResult, IpResult, MobileCloudProvider,
     ProfileSummary, ProfilesResult, ProxyGroupSummary, ProxyGroupsResult, RuleEntryRecord,
     RuleProvidersResult, RulesResult, TrafficResult, TrafficSnapshot, TunStatusResult,
-    VpnTunSettings, VpnTunSettingsPatch, VpnTunSettingsResult, WebDavSettings,
+    VpnSessionResult, VpnSessionSnapshot, VpnTunSettings, VpnTunSettingsPatch,
+    VpnTunSettingsResult, WebDavSettings,
     WebDavSettingsResult, WebDavSyncResult,
 };
 

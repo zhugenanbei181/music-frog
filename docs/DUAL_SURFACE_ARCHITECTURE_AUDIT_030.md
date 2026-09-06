@@ -101,6 +101,7 @@
 - `DUAL-02-10` 已完成 UWP AppContainer shared snapshot、SID 纯校验、desktop 注册表/`CheckNetIsolation.exe` host port、扫描/单包/bulk application readback、Iced live snapshot 与 Bevy projection/commands；Android/iOS/非 Windows typed unsupported，真实 Windows 商店应用、UAC/企业策略和发行包 smoke 仍未冒充 `host-verified`。
 - `DUAL-02-11` 已完成 PAC shared request/snapshot、live Mihomo 规则读取、domain 脚本编译校验、desktop loopback HTTP 服务和启停 readback、Iced/Bevy Apply/status projection，以及 desktop 支持和 Android/iOS typed unsupported；真实浏览器消费、系统代理联动、跨平台权限和发行包 smoke 仍未冒充 `host-verified`。
 - `DUAL-02-12` 已完成物理网卡/默认网关 shared observation、domain 默认路由选择与迁移决策、application TUN auto-route 条件守卫、desktop Linux/macOS/Windows 参数化 route-anchor repair/readback、双 UI Settings 刷新/立即修复投影与行为测试；Android/iOS 在 native VPN/NetworkExtension 路由事实未接入前保持 typed unsupported，真实 Wi-Fi/有线漫游、VPN 泄漏、权限和发行包 smoke 仍未冒充 `host-verified`。
+- `DUAL-02-13` 已完成 `VpnStartRequest/VpnSessionSnapshot`、VpnServicePort/Application、FD/MTU/路由/DNS/前台校验、Android bridge 的 native configuration/foreground seam、tun2proxy start/stop/readback、Android composition、Iced/Bevy Settings 启停投影与行为测试；desktop/iOS 保持 typed unsupported，真实 Android manifest、API 26–35 授权/前台限制、真机流量、断电与 `onRevoke` smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

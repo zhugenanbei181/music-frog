@@ -5,6 +5,7 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::mtu_application::MtuApplication;
+use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::OverviewReader;
@@ -15,6 +16,7 @@ use mihomo_platform::android_bridge::AndroidBridge;
 use std::sync::Arc;
 
 use crate::runtime::AndroidBridgeAdapter;
+use crate::vpn_service::AndroidVpnServicePort;
 
 /// Compose the Android host's local-only startup proof for either UI surface.
 pub fn offline_startup_application<B>(bridge: B) -> OfflineStartupApplication
@@ -70,7 +72,11 @@ where
         .expect("Tokio application runtime must be constructible");
     let application = CoreApplication::new_with_overview(process, readiness, reader, runtime);
     let mtu = MtuApplication::new(Arc::new(AndroidBridgeAdapter::new(bridge.clone())));
-    let mut handler = CommandApplication::new().with_mtu(mtu);
+    let mut handler = CommandApplication::new()
+        .with_mtu(mtu)
+        .with_vpn(VpnServiceApplication::new(Arc::new(
+            AndroidVpnServicePort::shared(),
+        )));
     if let Some(gateway) = gateway {
         handler = handler.with_runtime(gateway);
     }

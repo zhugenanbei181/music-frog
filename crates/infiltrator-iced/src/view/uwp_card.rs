@@ -16,7 +16,10 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
         UwpLoopbackAvailability::Supported => uwp
             .status_message
             .clone()
-            .unwrap_or_else(|| format!("已发现 {} 个 UWP AppContainer", uwp.apps.len())),
+            .unwrap_or_else(|| {
+                lang.tr("uwp_found_count")
+                    .replace("{count}", &uwp.apps.len().to_string())
+            }),
         UwpLoopbackAvailability::Unsupported { reason }
         | UwpLoopbackAvailability::Unavailable { reason } => reason.clone(),
     };

@@ -147,6 +147,8 @@ pub enum CommandIntent {
     },
     RefreshNetworkRoaming,
     RepairNetworkRoutes,
+    StartVpn,
+    StopVpn,
     ToggleAppRouting { app_id: String, enabled: bool },
     SetAppRoutingMode { mode: String },
     ToggleIncludeSystemApps { include: bool },
@@ -227,6 +229,8 @@ impl CommandIntent {
             | Self::ApplyPac { .. }
             | Self::RefreshNetworkRoaming
             | Self::RepairNetworkRoutes
+            | Self::StartVpn
+            | Self::StopVpn
             | Self::ToggleAppRouting { .. }
             | Self::SetAppRoutingMode { .. }
             | Self::ToggleIncludeSystemApps { .. }

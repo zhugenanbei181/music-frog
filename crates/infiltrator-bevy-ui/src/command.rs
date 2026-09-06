@@ -70,6 +70,10 @@ pub enum UiCommand {
     TestDnsLatency,
     /// Toggle the host-owned TUN/VPN capability.
     ToggleTun { enabled: bool },
+    /// Ask the Android host to obtain VpnService consent and start foreground mode.
+    StartVpn,
+    /// Stop the Android VpnService and tun2proxy worker.
+    StopVpn,
     /// Toggle the host-owned system proxy capability.
     SetSystemProxy { enabled: bool },
     /// Apply the live Mihomo LAN listener settings.
@@ -187,6 +191,8 @@ impl UiCommand {
             Self::ClearDnsCache => Some(CommandIntent::ClearDnsCache),
             Self::TestDnsLatency => Some(CommandIntent::TestDnsLatency),
             Self::ToggleTun { enabled } => Some(CommandIntent::ToggleTun { enabled: *enabled }),
+            Self::StartVpn => Some(CommandIntent::StartVpn),
+            Self::StopVpn => Some(CommandIntent::StopVpn),
             Self::SetSystemProxy { enabled } => {
                 Some(CommandIntent::SetSystemProxy { enabled: *enabled })
             }

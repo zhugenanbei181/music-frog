@@ -102,6 +102,14 @@ pub(super) fn snapshot_from_overview(
         } else {
             infiltrator_contract::network_roaming::NetworkRoamingSnapshot::default()
         },
+        vpn: if demo_pages {
+            infiltrator_contract::vpn::VpnSessionSnapshot::unsupported(
+                1,
+                "Android VpnService is not part of the desktop demo host",
+            )
+        } else {
+            infiltrator_contract::vpn::VpnSessionSnapshot::default()
+        },
     }
 }
 
@@ -136,6 +144,10 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         system_proxy_recovery:
             infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot::default(),
         network_roaming: SettingsProjection::demo().network_roaming,
+        vpn: infiltrator_contract::vpn::VpnSessionSnapshot::unsupported(
+            1,
+            "Android VpnService is not part of the desktop demo host",
+        ),
     }
 }
 
@@ -270,6 +282,7 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         ipv6_routing: Default::default(),
         pac: Default::default(),
         network_roaming: Default::default(),
+        vpn: Default::default(),
         tun_enabled: false,
             tun_stack: String::new(),
             tun_auto_route: false,

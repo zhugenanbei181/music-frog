@@ -7,11 +7,13 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
 use infiltrator_application::pac_application::PacApplication;
+use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
     NetworkRoamingStatus,
 };
+use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
@@ -132,6 +134,46 @@ impl AppState {
         self.runtime.pac_manager.dirty = false;
     }
 
+    fn apply_vpn(&mut self, start: bool) -> Task<Message> {
+        if self.shell.demo {
+            let snapshot = VpnSessionSnapshot::unsupported(
+                self.runtime.vpn.revision.saturating_add(1),
+                "Android VpnService is not part of the desktop demo host",
+            );
+            return Task::done(Message::VpnSessionUpdated(Ok(snapshot)));
+        }
+        let Some(runtime) = self.runtime.runtime.clone() else {
+            return self.runtime_unavailable(if start {
+                "申请 Android VPN 服务"
+            } else {
+                "停止 Android VPN 服务"
+            });
+        };
+        let Some(port) = runtime.vpn_service_port() else {
+            let error = InfiltratorError::Internal(
+                "当前宿主未提供 Android VpnService 能力".to_owned(),
+            );
+            return Task::done(Message::VpnSessionUpdated(Err(error)));
+        };
+        let application = VpnServiceApplication::new(port);
+        Task::perform(
+            async move {
+                if start {
+                    application
+                        .request_start()
+                        .await
+                        .map_err(|failure| InfiltratorError::Internal(failure.message))
+                } else {
+                    application
+                        .stop()
+                        .await
+                        .map_err(|failure| InfiltratorError::Internal(failure.message))
+                }
+            },
+            Message::VpnSessionUpdated,
+        )
+    }
+
     pub(super) fn update_ui_wave4(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::PollNetworkInterfaces => {
@@ -209,6 +251,38 @@ impl AppState {
                 ))
             }
             Message::NetworkRoamingRepaired(Err(error)) => {
+                self.set_error(&error);
+                Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
+            }
+            Message::StartVpn => self.apply_vpn(true),
+            Message::StopVpn => self.apply_vpn(false),
+            Message::VpnSessionUpdated(Ok(snapshot)) => {
+                let state = snapshot.state.clone();
+                self.runtime.vpn = snapshot;
+                let (message, status) = match state {
+                    VpnSessionState::PermissionRequired => (
+                        "等待 Android VPN 用户授权".to_owned(),
+                        ToastStatus::Info,
+                    ),
+                    VpnSessionState::Starting => (
+                        "Android VPN 前台服务已启动，等待隧道 FD".to_owned(),
+                        ToastStatus::Info,
+                    ),
+                    VpnSessionState::Running => (
+                        "Android VPN 隧道已启动并完成前台 readback".to_owned(),
+                        ToastStatus::Success,
+                    ),
+                    VpnSessionState::Stopped | VpnSessionState::Revoked => {
+                        ("Android VPN 已停止".to_owned(), ToastStatus::Info)
+                    }
+                    VpnSessionState::Unsupported { reason } => {
+                        (format!("当前宿主不支持 Android VPN: {reason}"), ToastStatus::Info)
+                    }
+                    _ => ("Android VPN 状态已更新".to_owned(), ToastStatus::Info),
+                };
+                Task::done(Message::ShowToast(message, status))
+            }
+            Message::VpnSessionUpdated(Err(error)) => {
                 self.set_error(&error);
                 Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
             }

@@ -49,6 +49,12 @@ impl CapabilityProvider for DesktopHostCapabilities {
                 },
                 supported(Capability::PacService),
                 supported(Capability::NetworkRoaming),
+                CapabilityStatus {
+                    capability: Capability::VpnService,
+                    availability: Availability::Unsupported {
+                        reason: "Android VpnService is a mobile-host capability".to_owned(),
+                    },
+                },
                 supported(Capability::Autostart),
                 supported(Capability::CoreVersionInstall),
                 supported(Capability::WebDavSync),

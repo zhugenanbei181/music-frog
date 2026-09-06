@@ -37,6 +37,7 @@ use infiltrator_bevy_ui::pages::settings::settings_pac::{PacApplyButton, PacBypa
 use infiltrator_bevy_ui::pages::settings::settings_network_roaming::{
     NetworkRoamingRefreshButton, NetworkRoamingRepairButton,
 };
+use infiltrator_bevy_ui::pages::settings::settings_vpn::{VpnStartButton, VpnStopButton};
 use infiltrator_bevy_ui::pages::app_routing_uwp::{UwpAction, UwpActionButton};
 use infiltrator_bevy_ui::pages::sync::*;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
@@ -52,6 +53,7 @@ use infiltrator_contract::system_proxy::{
 };
 use infiltrator_contract::lan::{LanCredentials, LanSecuritySnapshot};
 use infiltrator_contract::pac::{PacServiceState, PacSnapshot};
+use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingSnapshot, NetworkRoamingStatus,
@@ -641,6 +643,46 @@ fn test_settings_network_roaming_projection_and_actions_submit_shared_commands()
     app.world_mut().commands().trigger(Activate { entity: repair });
     app.update();
     assert_eq!(sink.submitted(), vec![UiCommand::RepairNetworkRoutes]);
+}
+
+#[test]
+fn test_settings_vpn_projection_and_actions_submit_shared_commands() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Settings);
+
+    let mut projection = SettingsProjection::demo();
+    projection.vpn = VpnSessionSnapshot {
+        state: VpnSessionState::PermissionRequired,
+        foreground: false,
+        revision: 3,
+        ..VpnSessionSnapshot::default()
+    };
+    app.world_mut()
+        .commands()
+        .trigger(SettingsProjectionUpdated(projection));
+    app.update();
+
+    assert!(subtree_has_text(app.world(), root, "等待 Android VPN 用户授权"));
+
+    let start = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<VpnStartButton>>()
+        .single(app.world())
+        .expect("VPN start button");
+    app.world_mut().commands().trigger(Activate { entity: start });
+    app.update();
+    assert_eq!(sink.submitted(), vec![UiCommand::StartVpn]);
+
+    sink.clear();
+    let stop = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<VpnStopButton>>()
+        .single(app.world())
+        .expect("VPN stop button");
+    app.world_mut().commands().trigger(Activate { entity: stop });
+    app.update();
+    assert_eq!(sink.submitted(), vec![UiCommand::StopVpn]);
 }
 
 #[test]

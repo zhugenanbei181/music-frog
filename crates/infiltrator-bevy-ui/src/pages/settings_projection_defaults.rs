@@ -24,6 +24,10 @@ impl SettingsProjection {
             ipv6_routing: Default::default(),
             pac: Default::default(),
             network_roaming: demo_network_roaming(),
+            vpn: infiltrator_contract::vpn::VpnSessionSnapshot::unsupported(
+                1,
+                "Android VpnService is not part of the desktop demo host",
+            ),
             tun_enabled: true,
             tun_stack: "gVisor (高性能用户态协议栈)".to_owned(),
             tun_auto_route: true,

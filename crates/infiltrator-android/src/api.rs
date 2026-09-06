@@ -88,6 +88,10 @@ where
         self.adapter.vpn_is_running().await
     }
 
+    pub async fn vpn_is_foreground(&self) -> Result<bool> {
+        self.adapter.vpn_is_foreground().await
+    }
+
     pub async fn tun_set_enabled(&self, enabled: bool) -> Result<bool> {
         self.adapter.tun_set_enabled(enabled).await
     }
@@ -209,6 +213,7 @@ mod tests {
         assert!(api.vpn_start().await.unwrap());
         assert!(api.vpn_stop().await.unwrap());
         assert!(!api.vpn_is_running().await.unwrap());
+        assert!(!api.vpn_is_foreground().await.unwrap());
     }
 
     #[tokio::test]

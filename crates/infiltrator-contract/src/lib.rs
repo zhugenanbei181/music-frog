@@ -16,6 +16,7 @@ pub mod lan;
 pub mod ipv6;
 pub mod pac;
 pub mod uwp;
+pub mod vpn;
 pub mod offline_startup;
 pub mod mtu;
 pub mod network_roaming;

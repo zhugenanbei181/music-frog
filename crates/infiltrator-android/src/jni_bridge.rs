@@ -17,6 +17,7 @@ const SIG_STR_STR_BOOL: &str = "(Ljava/lang/String;Ljava/lang/String;)Z";
 const SIG_STR_STR_STR_BOOL: &str = "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z";
 const SIG_STR_STR_STRING: &str = "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
 const SIG_BOOL_BOOL: &str = "(Z)Z";
+const SIG_STRING_BOOL: &str = "(Ljava/lang/String;)Z";
 
 struct JniBridge {
     vm: JavaVM,
@@ -132,6 +133,16 @@ impl JniBridge {
             )))
         }
     }
+
+    fn call_bool_with_string(&self, method: &str, value: &str) -> Result<bool> {
+        let mut env = self.env()?;
+        let value = Self::to_java_string(&mut env, value)?;
+        let args = [JValue::Object(value.as_ref())];
+        env.call_method(self.host.as_obj(), method, SIG_STRING_BOOL, &args)
+            .map_err(|err| map_jni_error(method, err))?
+            .z()
+            .map_err(|err| map_jni_error(method, err))
+    }
 }
 
 #[async_trait::async_trait]
@@ -192,12 +203,20 @@ impl AndroidBridge for JniBridge {
         self.call_bool("vpnStart", SIG_NOARGS_BOOL, &[])
     }
 
+    async fn vpn_apply_configuration(&self, config_json: &str) -> Result<bool> {
+        self.call_bool_with_string("vpnApplyConfiguration", config_json)
+    }
+
     async fn vpn_stop(&self) -> Result<bool> {
         self.call_bool("vpnStop", SIG_NOARGS_BOOL, &[])
     }
 
     async fn vpn_is_running(&self) -> Result<bool> {
         self.call_bool("vpnIsRunning", SIG_NOARGS_BOOL, &[])
+    }
+
+    async fn vpn_is_foreground(&self) -> Result<bool> {
+        self.call_bool("vpnIsForeground", SIG_NOARGS_BOOL, &[])
     }
 
     async fn tun_set_enabled(&self, enabled: bool) -> Result<bool> {

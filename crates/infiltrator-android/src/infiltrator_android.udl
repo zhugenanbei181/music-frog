@@ -3,8 +3,10 @@ namespace infiltrator_android {
   string ping();
   boolean bridge_ready();
   FfiStatus bridge_shutdown();
+  FfiStatus prepare_vpn();
   FfiStatus start_vpn(i32 fd);
   FfiStatus stop_vpn();
+  FfiStatus revoke_vpn();
 
   // Async functions
   [Async]
@@ -71,6 +73,9 @@ namespace infiltrator_android {
 
   [Async]
   VpnTunSettingsResult vpn_tun_settings_save(VpnTunSettingsPatch patch);
+
+  [Async]
+  VpnSessionResult vpn_session_status();
 
   [Async]
   DnsSettingsResult dns_settings();
@@ -255,6 +260,21 @@ dictionary VpnTunSettingsPatch {
 dictionary VpnTunSettingsResult {
   FfiStatus status;
   VpnTunSettings? settings;
+};
+
+dictionary VpnSessionSnapshot {
+  string state;
+  boolean foreground;
+  u32? mtu;
+  u32 route_count;
+  sequence<string> dns_servers;
+  boolean ipv6;
+  u64 revision;
+};
+
+dictionary VpnSessionResult {
+  FfiStatus status;
+  VpnSessionSnapshot? snapshot;
 };
 
 dictionary DnsSettings {

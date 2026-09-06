@@ -204,6 +204,10 @@ pub fn ios_capabilities() -> CapabilitySnapshot {
                 unsupported("iOS NetworkExtension route callbacks are not exposed"),
             ),
             status(
+                Capability::VpnService,
+                unsupported("iOS NetworkExtension VPN host is not wired"),
+            ),
+            status(
                 Capability::Autostart,
                 unsupported("iOS controls app launch"),
             ),

@@ -659,6 +659,17 @@ impl std::fmt::Debug for Message {
             Message::NetworkRoamingRepaired(Err(error)) => {
                 write!(f, "NetworkRoamingRepaired(Err({error:?}))")
             }
+            Message::StartVpn => write!(f, "StartVpn"),
+            Message::StopVpn => write!(f, "StopVpn"),
+            Message::VpnSessionUpdated(Ok(snapshot)) => write!(
+                f,
+                "VpnSessionUpdated(Ok(state={:?}, revision={}))",
+                snapshot.state,
+                snapshot.revision
+            ),
+            Message::VpnSessionUpdated(Err(error)) => {
+                write!(f, "VpnSessionUpdated(Err({error:?}))")
+            }
             Message::CheckCrashWatchdog => write!(f, "CheckCrashWatchdog"),
             Message::RecoverOrphanedState => write!(f, "RecoverOrphanedState"),
             Message::ExportCrashDiagnostics => write!(f, "ExportCrashDiagnostics"),

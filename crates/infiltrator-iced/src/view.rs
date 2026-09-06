@@ -29,6 +29,7 @@ pub mod subrules_builder;
 pub mod uwp_card;
 pub mod crash_watchdog_card;
 pub mod net_roam_card;
+pub mod vpn_card;
 pub mod pac_card;
 pub mod sub_quota_card;
 pub mod web_dash_card;

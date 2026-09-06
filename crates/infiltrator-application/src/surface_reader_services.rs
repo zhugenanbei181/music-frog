@@ -124,4 +124,21 @@ impl ApplicationSurfaceReader {
             },
         }
     }
+
+    pub(super) async fn read_vpn(
+        &self,
+    ) -> infiltrator_contract::vpn::VpnSessionSnapshot {
+        match &self.vpn {
+            Some(application) => application.snapshot().await,
+            None => match self
+                .capabilities
+                .availability(infiltrator_contract::capability::Capability::VpnService)
+            {
+                infiltrator_contract::capability::Availability::Unsupported { reason } => {
+                    infiltrator_contract::vpn::VpnSessionSnapshot::unsupported(0, reason)
+                }
+                _ => Default::default(),
+            },
+        }
+    }
 }

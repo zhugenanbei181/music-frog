@@ -42,6 +42,10 @@ where
         self.bridge.vpn_is_running().await
     }
 
+    pub async fn vpn_is_foreground(&self) -> Result<bool> {
+        self.bridge.vpn_is_foreground().await
+    }
+
     pub async fn tun_set_enabled(&self, enabled: bool) -> Result<bool> {
         self.bridge.tun_set_enabled(enabled).await
     }
@@ -238,6 +242,10 @@ where
                     availability: Availability::Unsupported {
                         reason: "Android native VpnService route callbacks are not exposed".to_owned(),
                     },
+                },
+                CapabilityStatus {
+                    capability: Capability::VpnService,
+                    availability: Availability::Supported,
                 },
                 CapabilityStatus {
                     capability: Capability::CoreVersionInstall,
@@ -444,6 +452,7 @@ mod tests {
         assert!(!adapter
             .capabilities()
             .supports(Capability::NetworkRoaming));
+        assert!(adapter.capabilities().supports(Capability::VpnService));
         assert!(matches!(
             adapter.capabilities().availability(Capability::NetworkRoaming),
             Availability::Unsupported { .. }

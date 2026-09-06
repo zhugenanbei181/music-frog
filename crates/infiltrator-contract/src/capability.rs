@@ -17,6 +17,7 @@ pub enum Capability {
     UwpLoopback,
     PacService,
     NetworkRoaming,
+    VpnService,
     Autostart,
     CoreVersionInstall,
     WebDavSync,

@@ -96,14 +96,25 @@ class MihomoHost(private val context: Context) : BridgeHost {
         return MihomoVpnService.start(context)
     }
 
+    override fun vpnApplyConfiguration(configJson: String): Boolean {
+        return MihomoVpnService.setPendingConfiguration(configJson)
+    }
+
     override fun vpnStop(): Boolean {
+        if (VpnStateManager.vpnState.value == VpnStateManager.VpnState.STOPPING) {
+            return true
+        }
         val stopped = MihomoVpnService.stop(context)
         val coreStopped = coreStop()
         return stopped && coreStopped
     }
 
     override fun vpnIsRunning(): Boolean {
-        return VpnStateManager.vpnState.value == VpnStateManager.VpnState.RUNNING
+        return MihomoVpnService.isRunning()
+    }
+
+    override fun vpnIsForeground(): Boolean {
+        return MihomoVpnService.isForegroundActive()
     }
 
     override fun tunSetEnabled(enabled: Boolean): Boolean {

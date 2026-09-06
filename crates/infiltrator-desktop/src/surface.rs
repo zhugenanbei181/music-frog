@@ -48,6 +48,7 @@ pub fn desktop_capabilities() -> CapabilitySnapshot {
         Capability::UwpLoopback,
         Capability::PacService,
         Capability::NetworkRoaming,
+        Capability::VpnService,
         Capability::Autostart,
         Capability::CoreVersionInstall,
         Capability::WebDavSync,
@@ -59,6 +60,10 @@ pub fn desktop_capabilities() -> CapabilitySnapshot {
         availability: if capability == Capability::UwpLoopback && !cfg!(windows) {
             Availability::Unsupported {
                 reason: "Windows CheckNetIsolation is unavailable on this host".to_owned(),
+            }
+        } else if capability == Capability::VpnService {
+            Availability::Unsupported {
+                reason: "Android VpnService is a mobile-host capability".to_owned(),
             }
         } else {
             Availability::Supported

@@ -68,6 +68,22 @@ fn test_live_network_roaming_snapshot_updates_the_iced_projection_without_fallba
 }
 
 #[test]
+fn test_vpn_session_snapshot_updates_the_iced_projection() {
+    let (mut state, _) = AppState::new();
+    let snapshot = infiltrator_contract::vpn::VpnSessionSnapshot::running(
+        4,
+        1500,
+        2,
+        vec!["1.1.1.1".to_owned()],
+        true,
+        true,
+    );
+    let _ = state.update(Message::VpnSessionUpdated(Ok(snapshot.clone())));
+    assert_eq!(state.runtime.vpn, snapshot);
+    assert!(state.runtime.vpn.is_running());
+}
+
+#[test]
 fn test_advancement_w4_2_crash_watchdog_and_forensics_lifecycle() {
     let (mut state, _) = AppState::new();
 

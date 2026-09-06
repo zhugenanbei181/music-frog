@@ -31,7 +31,10 @@ pub use settings::{
     DnsFallbackFilterSettings, DnsSettings, DnsSettingsPatch, DnsSettingsResult, FakeIpSettings,
     FakeIpSettingsPatch, FakeIpSettingsResult,
 };
-pub use vpn::{TunStatusResult, VpnTunSettings, VpnTunSettingsPatch, VpnTunSettingsResult};
+pub use vpn::{
+    TunStatusResult, VpnSessionResult, VpnSessionSnapshot, VpnTunSettings,
+    VpnTunSettingsPatch, VpnTunSettingsResult,
+};
 pub use webdav::{WebDavSettings, WebDavSettingsResult, WebDavSyncResult};
 
 // Names referenced by the unit tests below via `use super::*`.

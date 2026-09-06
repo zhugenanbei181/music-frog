@@ -118,7 +118,7 @@ bsn 机械守卫（`scripts/quality/bevy_bsn_guard.py`，已接 CI）；`aarch64
 3. **BEVY-014 移动端响应式断点系统 (<600px) 与自适应双模外壳**：
    设立 `MOBILE_PX = 600.0` 与 `TABLET_PX = 1024.0` 响应式断点；在移动端 (<600px) 自动从桌面 240px 左侧 Rail 切换为「顶部状态栏 + 底部 Tab 导航栏 + 抽屉菜单」，并将触控热区由 36px 自动垫高至 48px 无障碍标准。
 4. **BEVY-015 Android VpnService 宿主无感解耦适配器**：
-   建立 `VpnHostAdapter` 纯 Rust 跨平台抽象 trait；Android 端由 Kotlin VpnService 提供 FD，经 UniFFI/JNI 下发至底层 `tun2proxy`；Bevy UI 前端通过事件泵与适配器交互，严禁在 UI 层直接调用 JNI 原始指针，实现宿主与 UI 的物理隔离。
+   由 shared `VpnServicePort`/`VpnServiceApplication` 承载权限、前台、Builder 配置、FD 与 tun2proxy 生命周期；Android 端由 Kotlin VpnService 在 `Builder.establish()` 前经 UniFFI/JNI 接收路由、DNS、MTU，再把 TUN FD 交给 Rust；Bevy UI 前端只通过 shared `StartVpn`/`StopVpn` intent 与快照事件交互，严禁直接调用 JNI，实现宿主与 UI 的物理隔离。
 5. **BEVY-016 动态图表自适应容器宽度与双曲线共用量程渲染**：
    废除硬编码 876px 宽度；改造 `ChartSpec` 支持百分比/弹性容器几何测量，并在上下行双曲线中引入统一动态最大量程归一化，解决上传下载量级悬殊时的视觉错位。
 6. **BEVY-017 节点选择器网格/列表双模与低开销延迟着色**：

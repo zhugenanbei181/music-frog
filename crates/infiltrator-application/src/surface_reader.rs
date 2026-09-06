@@ -21,6 +21,7 @@ use crate::pac_application::PacApplication;
 use crate::offline_startup_application::OfflineStartupApplication;
 use crate::mtu_application::MtuApplication;
 use crate::network_roaming_application::NetworkRoamingApplication;
+use crate::vpn_application::VpnServiceApplication;
 use crate::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -63,6 +64,7 @@ pub struct ApplicationSurfaceReader {
     uwp_loopback: Option<UwpLoopbackApplication>,
     pac: Option<PacApplication>,
     network_roaming: Option<NetworkRoamingApplication>,
+    vpn: Option<VpnServiceApplication>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -90,6 +92,7 @@ impl ApplicationSurfaceReader {
             uwp_loopback: None,
             pac: None,
             network_roaming: None,
+            vpn: None,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -191,6 +194,11 @@ impl ApplicationSurfaceReader {
         self
     }
 
+    pub fn with_vpn(mut self, application: VpnServiceApplication) -> Self {
+        self.vpn = Some(application);
+        self
+    }
+
     pub fn core(&self) -> &Arc<CoreApplication> {
         &self.core
     }
@@ -252,6 +260,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let system_proxy_recovery = self.read_system_proxy_recovery();
         let pac = self.read_pac().await;
         let network_roaming = self.read_network_roaming().await;
+        let vpn = self.read_vpn().await;
         let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
 
         pages.overview =
@@ -426,6 +435,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             system_proxy,
             system_proxy_recovery,
             network_roaming,
+            vpn,
         })
     }
 }

@@ -139,6 +139,7 @@ pub struct SettingsProjection {
     pub ipv6_routing: infiltrator_contract::ipv6::Ipv6RoutingSnapshot,
     pub pac: infiltrator_contract::pac::PacSnapshot,
     pub network_roaming: infiltrator_contract::network_roaming::NetworkRoamingSnapshot,
+    pub vpn: infiltrator_contract::vpn::VpnSessionSnapshot,
     pub tun_enabled: bool,
     pub tun_stack: String,
     pub tun_auto_route: bool,

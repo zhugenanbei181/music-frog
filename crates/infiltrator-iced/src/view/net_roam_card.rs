@@ -46,7 +46,7 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
             )
         })
         .unwrap_or_else(|| "—".to_owned());
-    let status = format_status(&roam.status);
+    let status = format_status(&roam.status, lang);
 
     let details_row = row![
         column![
@@ -55,7 +55,7 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
             row![
                 badge(active_iface.to_string(), BadgeKind::Accent),
                 Space::new().width(theme::SP_XS),
-                badge("Active".to_string(), BadgeKind::Success),
+                badge(lang.tr("net_roam_active_badge").to_string(), BadgeKind::Success),
             ].align_y(Alignment::Center),
         ].width(Length::Fill),
         column![
@@ -76,7 +76,7 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
             row![
                 svg_icons::icon_themed(Icon::Activity, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(format_event(ev)).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
+                text(format_event(ev, lang)).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
             ]
             .align_y(Alignment::Center),
         )
@@ -104,24 +104,31 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
     )
 }
 
-fn format_status(status: &NetworkRoamingStatus) -> String {
+fn format_status(status: &NetworkRoamingStatus, lang: &Lang<'_>) -> String {
     match status {
-        NetworkRoamingStatus::Unknown => "未探测".to_owned(),
-        NetworkRoamingStatus::Stable => "链路稳定".to_owned(),
-        NetworkRoamingStatus::Recovering => "正在修复 TUN 路由".to_owned(),
-        NetworkRoamingStatus::Degraded { reason } => format!("降级 · {reason}"),
-        NetworkRoamingStatus::Unsupported { reason } => format!("宿主不支持 · {reason}"),
-        NetworkRoamingStatus::Failed { failure } => format!("修复失败 · {}", failure.message),
+        NetworkRoamingStatus::Unknown => lang.tr("net_roam_status_unknown").to_string(),
+        NetworkRoamingStatus::Stable => lang.tr("net_roam_status_stable").to_string(),
+        NetworkRoamingStatus::Recovering => lang.tr("net_roam_status_recovering").to_string(),
+        NetworkRoamingStatus::Degraded { reason } => {
+            format!("{} · {reason}", lang.tr("net_roam_status_degraded"))
+        }
+        NetworkRoamingStatus::Unsupported { reason } => {
+            format!("{} · {reason}", lang.tr("net_roam_status_unsupported"))
+        }
+        NetworkRoamingStatus::Failed { failure } => {
+            format!("{} · {}", lang.tr("net_roam_status_failed"), failure.message)
+        }
     }
 }
 
-fn format_event(event: &NetworkRoamingEvent) -> String {
+fn format_event(event: &NetworkRoamingEvent, lang: &Lang<'_>) -> String {
     match event {
         NetworkRoamingEvent::InitialObservation {
             interface,
             gateway_ip,
         } => format!(
-            "已观测 {} / {}",
+            "{} {} / {}",
+            lang.tr("net_roam_event_initial"),
             interface.as_deref().unwrap_or("—"),
             gateway_ip.as_deref().unwrap_or("—")
         ),
@@ -131,21 +138,31 @@ fn format_event(event: &NetworkRoamingEvent) -> String {
             old_gateway_ip,
             new_gateway_ip,
         } => format!(
-            "网关切换 {} → {} ({} → {})",
+            "{} {} → {} ({} → {})",
+            lang.tr("net_roam_event_gateway_changed"),
             old_interface.as_deref().unwrap_or("—"),
             new_interface.as_deref().unwrap_or("—"),
             old_gateway_ip.as_deref().unwrap_or("—"),
             new_gateway_ip.as_deref().unwrap_or("—")
         ),
         NetworkRoamingEvent::InterfaceAddressChanged { interface } => {
-            format!("地址变化 · {interface}")
+            format!("{} · {interface}", lang.tr("net_roam_event_address_changed"))
         }
         NetworkRoamingEvent::RoutesRepaired {
             physical_interface,
             tun_interface,
             detail,
-        } => format!("路由已修复 · {physical_interface} → {tun_interface} · {detail}"),
-        NetworkRoamingEvent::RepairSkipped { reason } => format!("未修复 · {reason}"),
-        NetworkRoamingEvent::RepairFailed { failure } => format!("修复失败 · {}", failure.message),
+        } => format!(
+            "{} · {physical_interface} → {tun_interface} · {detail}",
+            lang.tr("net_roam_event_routes_repaired")
+        ),
+        NetworkRoamingEvent::RepairSkipped { reason } => {
+            format!("{} · {reason}", lang.tr("net_roam_event_repair_skipped"))
+        }
+        NetworkRoamingEvent::RepairFailed { failure } => format!(
+            "{} · {}",
+            lang.tr("net_roam_event_repair_failed"),
+            failure.message
+        ),
     }
 }

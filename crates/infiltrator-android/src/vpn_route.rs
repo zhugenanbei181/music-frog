@@ -85,6 +85,12 @@ pub struct VpnRouteConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VpnRoutePlan {
     pub routes: Vec<CidrRoute>,
+    /// Networks the native Builder should exclude from the VPN when the
+    /// platform exposes `excludeRoute`.
+    pub excluded_routes: Vec<CidrRoute>,
+    /// API level required to apply `excluded_routes` without silently
+    /// proxying the bypass ranges.
+    pub exclude_route_min_api: u32,
     pub dns_servers: Vec<String>,
     pub mtu: u32,
     pub has_private_dns_warning: bool,
@@ -93,20 +99,22 @@ pub struct VpnRoutePlan {
 impl VpnRouteConfig {
     /// Builds the `VpnRoutePlan` depending on the configuration.
     pub fn build_plan(&self) -> VpnRoutePlan {
-        let mut routes = Vec::new();
+        let routes = vec![CidrRoute::new("0.0.0.0", 0), CidrRoute::new("::", 0)];
 
-        if self.bypass_lan || self.bypass_china {
-            // When bypassing, we generate complementary inclusion lists.
-            // Android prior to API 33 does not natively support `excludeRoute`,
-            // so we would generate split routes.
-            // For the sake of the exercise, we insert simulated split routes.
-            routes.push(CidrRoute::new("0.0.0.0", 1));
-            routes.push(CidrRoute::new("128.0.0.0", 1));
-            routes.push(CidrRoute::new("2000::", 3));
-        } else {
-            // Catch-all rules
-            routes.push(CidrRoute::new("0.0.0.0", 0));
-            routes.push(CidrRoute::new("::", 0));
+        // Always express the protected address space as catch-all routes. A
+        // native host with API 33+ applies excluded_routes through
+        // VpnService.Builder.excludeRoute; older hosts must not pretend that
+        // an incomplete split list provides equivalent LAN/China bypass.
+        let mut excluded_routes = Vec::new();
+        if self.bypass_lan {
+            excluded_routes.extend(ChinaIpBypass::lan_and_loopback_cidrs());
+        }
+        if self.bypass_china {
+            for route in ChinaIpBypass::china_cidrs() {
+                if !excluded_routes.contains(&route) {
+                    excluded_routes.push(route);
+                }
+            }
         }
 
         let has_private_dns_warning =
@@ -114,6 +122,8 @@ impl VpnRouteConfig {
 
         VpnRoutePlan {
             routes,
+            excluded_routes,
+            exclude_route_min_api: 33,
             dns_servers: self.custom_dns.clone(),
             mtu: self.mtu,
             has_private_dns_warning,
@@ -187,7 +197,9 @@ mod tests {
             mtu: 1280,
         };
         let plan = config.build_plan();
-        assert!(plan.routes.len() > 2); // Simulated split routes length
+        assert_eq!(plan.routes.len(), 2);
+        assert!(!plan.excluded_routes.is_empty());
+        assert_eq!(plan.exclude_route_min_api, 33);
         assert!(plan.has_private_dns_warning);
     }
 }

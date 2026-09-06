@@ -61,6 +61,7 @@ pub struct RuntimeState {
     pub core_lifecycle: CoreLifecycleSnapshot,
     pub mtu: MtuNegotiationSnapshot,
     pub ipv6_routing: infiltrator_contract::ipv6::Ipv6RoutingSnapshot,
+    pub vpn: infiltrator_contract::vpn::VpnSessionSnapshot,
     pub system_proxy: SystemProxySnapshot,
     pub system_proxy_recovery: SystemProxyRecoverySnapshot,
     /// Retained independently of the running core so a system proxy can be
@@ -428,6 +429,7 @@ impl AppState {
         self.runtime.system_proxy = snapshot.system_proxy.clone();
         self.runtime.system_proxy_recovery = snapshot.system_proxy_recovery.clone();
         self.runtime.network_roaming = snapshot.network_roaming.clone();
+        self.runtime.vpn = snapshot.vpn.clone();
         if matches!(
             &snapshot.system_proxy.status,
             infiltrator_contract::system_proxy::SystemProxyStatus::Enabled

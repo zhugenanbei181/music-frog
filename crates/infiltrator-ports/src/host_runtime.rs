@@ -5,6 +5,7 @@ use crate::runtime_gateway::ManagedRuntime;
 use crate::service_mode::ServiceModePort;
 use crate::mtu_probe::MtuProbePort;
 use crate::network_roaming::NetworkRoamingPort;
+use crate::vpn_service::VpnServicePort;
 use crate::system_proxy::SystemProxyPort;
 use crate::pac::PacServicePort;
 use std::path::PathBuf;
@@ -53,6 +54,11 @@ pub trait HostRuntime: ManagedRuntime {
     /// adapter. Mobile hosts remain explicitly unsupported until their native
     /// VPN bridge exposes equivalent facts and route ownership.
     fn network_roaming_port(&self) -> Option<Arc<dyn NetworkRoamingPort>> {
+        None
+    }
+    /// Optional native VPN service adapter. Desktop/iOS hosts return `None`
+    /// and surface a typed unsupported state instead of emulating Android.
+    fn vpn_service_port(&self) -> Option<Arc<dyn VpnServicePort>> {
         None
     }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;

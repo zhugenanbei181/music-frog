@@ -179,6 +179,9 @@ jobs:
       - name: Enforce DUAL-02-12 network roaming semantics
         run: python3 scripts/quality/network-roaming-guard.py --mode enforce
 
+      - name: Enforce DUAL-02-13 Android VpnService semantics
+        run: python3 scripts/quality/vpn-service-guard.py --mode enforce
+
       # Bevy UI bsn! 场景法守卫（BEVY-004）：两个 bevy crate 的生产代码里 UI 树
       # 只能在 bsn! 场景内声明并经 spawn_scene 挂载；豁免（Camera2d/Observer）
       # 与规则明细见 scripts/quality/bevy_bsn_guard.py 与 docs/BEVY_UI_FRONTEND.md。

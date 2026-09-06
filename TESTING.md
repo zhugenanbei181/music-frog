@@ -146,6 +146,8 @@ python3 scripts/quality/uwp-loopback-guard.py --mode enforce
 python3 scripts/quality/pac-service-guard.py --mode enforce
 # DUAL-02-12 物理网卡漫游、默认网关感知与 TUN 路由修复守卫
 python3 scripts/quality/network-roaming-guard.py --mode enforce
+# DUAL-02-13 Android VpnService 权限、前台保活与隧道 readback 守卫
+python3 scripts/quality/vpn-service-guard.py --mode enforce
 ```
 
 ---
