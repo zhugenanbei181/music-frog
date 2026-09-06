@@ -12,6 +12,7 @@ use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::port_conflict::PortConflictPort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::mtu_probe::MtuProbePort;
+use infiltrator_ports::network_roaming::NetworkRoamingPort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
 use infiltrator_ports::service_mode::ServiceModePort;
 use infiltrator_ports::version::{VersionPort, VersionProgressSink};
@@ -156,6 +157,43 @@ struct TestSystemProxy {
     calls: Arc<AtomicUsize>,
 }
 
+struct TestNetworkRoaming {
+    calls: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl NetworkRoamingPort for TestNetworkRoaming {
+    async fn observe(
+        &self,
+    ) -> Result<infiltrator_contract::network_roaming::NetworkObservation, PortError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Ok(infiltrator_contract::network_roaming::NetworkObservation {
+            interfaces: vec![infiltrator_contract::network_roaming::NetworkInterfaceSnapshot {
+                name: "eth0".to_owned(),
+                kind: infiltrator_contract::network_roaming::NetworkInterfaceKind::Ethernet,
+                is_up: true,
+                is_default_gateway: true,
+                gateway_ip: Some("192.0.2.1".to_owned()),
+                ip_addresses: vec!["192.0.2.10/24".to_owned()],
+                mtu: Some(1500),
+                metric: Some(100),
+                dns_servers: Vec::new(),
+            }],
+            observed_at_epoch_ms: Some(1),
+        })
+    }
+
+    async fn repair(
+        &self,
+        _request: infiltrator_contract::network_roaming::NetworkRoamingRepairRequest,
+    ) -> Result<infiltrator_contract::network_roaming::NetworkRoamingRepairResult, PortError> {
+        Ok(infiltrator_contract::network_roaming::NetworkRoamingRepairResult {
+            route_generation: 1,
+            detail: "test readback".to_owned(),
+        })
+    }
+}
+
 #[async_trait]
 impl SystemProxyPort for TestSystemProxy {
     async fn snapshot(
@@ -235,6 +273,7 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
     let calls = Arc::new(AtomicUsize::new(0));
     let mtu_calls = Arc::new(AtomicUsize::new(0));
     let proxy_calls = Arc::new(AtomicUsize::new(0));
+    let network_calls = Arc::new(AtomicUsize::new(0));
     let core = Arc::new(CoreApplication::new(
         Arc::new(TestProcess),
         Arc::new(TestReadiness),
@@ -253,7 +292,13 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
         })))
         .with_system_proxy(SystemProxyApplication::new(Arc::new(TestSystemProxy {
             calls: proxy_calls.clone(),
-        })));
+        })))
+        .with_network_roaming(NetworkRoamingApplication::new(
+            Arc::new(TestNetworkRoaming {
+                calls: network_calls.clone(),
+            }),
+            None,
+        ));
 
     let first = reader.read().await.expect("first surface read");
     let second = reader.read().await.expect("cached surface read");
@@ -285,6 +330,11 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
     assert!(first.system_proxy.is_enabled());
     assert_eq!(first.system_proxy.endpoint.as_deref(), Some("127.0.0.1:7890"));
     assert_eq!(proxy_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        first.network_roaming.active_interface.as_deref(),
+        Some("eth0")
+    );
+    assert_eq!(network_calls.load(Ordering::SeqCst), 2);
     assert!(first.versions.channels.iter().all(|channel| matches!(
         channel.status,
         infiltrator_contract::version::CoreChannelStatus::Ready { .. }

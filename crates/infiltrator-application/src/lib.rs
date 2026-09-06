@@ -14,6 +14,7 @@ pub mod overview;
 pub mod network_application;
 pub mod offline_startup_application;
 pub mod mtu_application;
+pub mod network_roaming_application;
 pub mod profile_application;
 pub mod profile_reset_application;
 pub mod resource_application;

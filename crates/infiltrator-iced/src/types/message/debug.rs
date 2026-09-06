@@ -648,8 +648,17 @@ impl std::fmt::Debug for Message {
 
             // Wave 4: Network Roaming, Crash Watchdog, Web Dashboard, Log Regex, Quota, PAC
             Message::PollNetworkInterfaces => write!(f, "PollNetworkInterfaces"),
-            Message::NetworkInterfacesPolled(ifaces) => write!(f, "NetworkInterfacesPolled({} ifaces)", ifaces.len()),
+            Message::NetworkInterfacesPolled(snapshot) => write!(f, "NetworkInterfacesPolled({} ifaces, revision={})", snapshot.interfaces.len(), snapshot.revision),
             Message::ForceGatewayReconnect => write!(f, "ForceGatewayReconnect"),
+            Message::NetworkRoamingRepaired(Ok(snapshot)) => write!(
+                f,
+                "NetworkRoamingRepaired(Ok(repairs={}, revision={}))",
+                snapshot.route_repair_count,
+                snapshot.revision
+            ),
+            Message::NetworkRoamingRepaired(Err(error)) => {
+                write!(f, "NetworkRoamingRepaired(Err({error:?}))")
+            }
             Message::CheckCrashWatchdog => write!(f, "CheckCrashWatchdog"),
             Message::RecoverOrphanedState => write!(f, "RecoverOrphanedState"),
             Message::ExportCrashDiagnostics => write!(f, "ExportCrashDiagnostics"),

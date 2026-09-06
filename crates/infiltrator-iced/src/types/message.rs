@@ -507,8 +507,11 @@ pub enum Message {
     ImportEncryptedPackage,
     // Wave 4 Category 1: Network Interface Roaming
     PollNetworkInterfaces,
-    NetworkInterfacesPolled(Vec<super::runtime::NetworkInterfaceItem>),
+    NetworkInterfacesPolled(infiltrator_contract::network_roaming::NetworkRoamingSnapshot),
     ForceGatewayReconnect,
+    NetworkRoamingRepaired(
+        Result<infiltrator_contract::network_roaming::NetworkRoamingSnapshot, InfiltratorError>,
+    ),
     // Wave 4 Category 2: Crash Watchdog & Forensics
     CheckCrashWatchdog,
     RecoverOrphanedState,

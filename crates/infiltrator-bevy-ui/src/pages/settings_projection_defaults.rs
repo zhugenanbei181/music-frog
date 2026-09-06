@@ -5,6 +5,10 @@ use infiltrator_contract::version::CoreVersionSnapshot;
 use infiltrator_contract::system_proxy::{
     SystemProxyRecoverySnapshot, SystemProxySnapshot,
 };
+use infiltrator_contract::network_roaming::{
+    NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent,
+    NetworkRoamingSnapshot, NetworkRoamingStatus,
+};
 
 impl SettingsProjection {
     pub fn demo() -> Self {
@@ -19,6 +23,7 @@ impl SettingsProjection {
             lan_security: Default::default(),
             ipv6_routing: Default::default(),
             pac: Default::default(),
+            network_roaming: demo_network_roaming(),
             tun_enabled: true,
             tun_stack: "gVisor (高性能用户态协议栈)".to_owned(),
             tun_auto_route: true,
@@ -35,5 +40,34 @@ impl SettingsProjection {
             offline_startup: Default::default(),
             mtu: Default::default(),
         }
+    }
+}
+
+fn demo_network_roaming() -> NetworkRoamingSnapshot {
+    NetworkRoamingSnapshot {
+        status: NetworkRoamingStatus::Stable,
+        interfaces: vec![NetworkInterfaceSnapshot {
+            name: "eth0".to_owned(),
+            kind: NetworkInterfaceKind::Ethernet,
+            is_up: true,
+            is_default_gateway: true,
+            gateway_ip: Some("192.168.1.1".to_owned()),
+            ip_addresses: vec!["192.168.1.10/24".to_owned()],
+            mtu: Some(1500),
+            metric: Some(100),
+            dns_servers: vec!["192.168.1.1".to_owned()],
+        }],
+        active_interface: Some("eth0".to_owned()),
+        default_gateway: Some("192.168.1.1".to_owned()),
+        tun_interface: Some("Meta".to_owned()),
+        physical_mtu: Some(1500),
+        recommended_tun_mtu: Some(1420),
+        tcp_mss: Some(1380),
+        last_event: Some(NetworkRoamingEvent::InitialObservation {
+            interface: Some("eth0".to_owned()),
+            gateway_ip: Some("192.168.1.1".to_owned()),
+        }),
+        revision: 1,
+        ..NetworkRoamingSnapshot::default()
     }
 }

@@ -234,6 +234,12 @@ where
                     },
                 },
                 CapabilityStatus {
+                    capability: Capability::NetworkRoaming,
+                    availability: Availability::Unsupported {
+                        reason: "Android native VpnService route callbacks are not exposed".to_owned(),
+                    },
+                },
+                CapabilityStatus {
                     capability: Capability::CoreVersionInstall,
                     availability: Availability::Unsupported {
                         reason: "core binaries are delivered with the APK ABI".to_string(),
@@ -435,6 +441,13 @@ mod tests {
         assert!(!adapter
             .capabilities()
             .supports(Capability::UwpLoopback));
+        assert!(!adapter
+            .capabilities()
+            .supports(Capability::NetworkRoaming));
+        assert!(matches!(
+            adapter.capabilities().availability(Capability::NetworkRoaming),
+            Availability::Unsupported { .. }
+        ));
         let runtime = AndroidRuntime::new(adapter);
         assert_eq!(
             runtime.controller().controller_endpoint(),

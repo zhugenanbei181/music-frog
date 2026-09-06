@@ -48,6 +48,7 @@ on:
       - "scripts/quality/ipv6-routing-guard.py"
       - "scripts/quality/uwp-loopback-guard.py"
       - "scripts/quality/pac-service-guard.py"
+      - "scripts/quality/network-roaming-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -87,6 +88,7 @@ on:
       - "scripts/quality/ipv6-routing-guard.py"
       - "scripts/quality/uwp-loopback-guard.py"
       - "scripts/quality/pac-service-guard.py"
+      - "scripts/quality/network-roaming-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -225,6 +227,9 @@ jobs:
 
       - name: Enforce DUAL-02-11 PAC service semantics
         run: python3 scripts/quality/pac-service-guard.py --mode enforce
+
+      - name: Enforce DUAL-02-12 network roaming semantics
+        run: python3 scripts/quality/network-roaming-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

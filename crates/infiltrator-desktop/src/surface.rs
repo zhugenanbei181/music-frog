@@ -17,6 +17,7 @@ use infiltrator_application::snapshot_application::SnapshotApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::mtu_application::MtuApplication;
+use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
@@ -27,6 +28,7 @@ use infiltrator_contract::capability::{
 };
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::network_roaming::NetworkRoamingPort;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -45,6 +47,7 @@ pub fn desktop_capabilities() -> CapabilitySnapshot {
         Capability::Ipv6Routing,
         Capability::UwpLoopback,
         Capability::PacService,
+        Capability::NetworkRoaming,
         Capability::Autostart,
         Capability::CoreVersionInstall,
         Capability::WebDavSync,
@@ -72,6 +75,7 @@ pub async fn application_surface_reader(
     gateway: Arc<dyn RuntimeGateway>,
     surface: SurfaceKind,
     binary_path: std::path::PathBuf,
+    network_roaming_port: Arc<dyn NetworkRoamingPort>,
 ) -> anyhow::Result<ApplicationSurfaceReader> {
     let profile_store = crate::storage::profile_store().await?;
     let configuration_store = Arc::clone(&profile_store);
@@ -109,6 +113,10 @@ pub async fn application_surface_reader(
         gateway.clone(),
         Arc::new(crate::pac_service::DesktopPacServicePort::shared()),
     );
+    let network_roaming = NetworkRoamingApplication::new(
+        network_roaming_port,
+        Some(gateway.clone()),
+    );
     let service_mode =
         ServiceModeApplication::new(Arc::new(crate::service_mode::DesktopServiceMode::new(
             binary_path,
@@ -124,6 +132,7 @@ pub async fn application_surface_reader(
             .with_system_proxy(system_proxy)
             .with_uwp_loopback(uwp_loopback)
             .with_pac(pac)
+            .with_network_roaming(network_roaming)
             .with_profiles(profile)
             .with_configuration(configuration)
             .with_doctor(doctor)
@@ -144,9 +153,17 @@ pub async fn surface_pump(
     surface: SurfaceKind,
     sample_interval: Duration,
     binary_path: std::path::PathBuf,
+    network_roaming_port: Arc<dyn NetworkRoamingPort>,
 ) -> anyhow::Result<SurfacePump> {
     let reader =
-        application_surface_reader(Arc::clone(&core), gateway, surface, binary_path).await?;
+        application_surface_reader(
+            Arc::clone(&core),
+            gateway,
+            surface,
+            binary_path,
+            network_roaming_port,
+        )
+        .await?;
     let runtime = infiltrator_composition::tokio_application_runtime()
         .map_err(|error| anyhow::anyhow!(error))?;
     let initial = infiltrator_contract::surface_snapshot::SurfaceSnapshot::unavailable(

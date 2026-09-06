@@ -44,6 +44,7 @@ pub struct MihomoRuntime {
     apply_guard: Arc<tokio::sync::Mutex<()>>,
     service_mode: Arc<crate::service_mode::DesktopServiceMode>,
     pac_service: Arc<crate::pac_service::DesktopPacServicePort>,
+    network_roaming_port: Arc<crate::network_roaming::DesktopNetworkRoamingPort>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -157,6 +158,9 @@ impl MihomoRuntime {
         let watchdog = infiltrator_composition::spawn_core_watchdog(application.clone());
         let client = MihomoClient::new(&endpoint.url, endpoint.secret.clone())?;
         let pac_service = Arc::new(crate::pac_service::DesktopPacServicePort::shared());
+        let network_roaming_port = Arc::new(
+            crate::network_roaming::DesktopNetworkRoamingPort::shared(),
+        );
 
         Ok(Self {
             config_manager: cm,
@@ -171,6 +175,7 @@ impl MihomoRuntime {
             apply_guard: Arc::new(tokio::sync::Mutex::new(())),
             service_mode,
             pac_service,
+            network_roaming_port,
         })
     }
 
@@ -268,6 +273,7 @@ impl MihomoRuntime {
             surface,
             sample_interval,
             self.binary_path.clone(),
+            self.network_roaming_port.clone(),
         )
         .await
     }
@@ -646,6 +652,12 @@ impl HostRuntime for MihomoRuntime {
         &self,
     ) -> Option<Arc<dyn infiltrator_ports::pac::PacServicePort>> {
         Some(self.pac_service.clone())
+    }
+
+    fn network_roaming_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::network_roaming::NetworkRoamingPort>> {
+        Some(self.network_roaming_port.clone())
     }
 
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {

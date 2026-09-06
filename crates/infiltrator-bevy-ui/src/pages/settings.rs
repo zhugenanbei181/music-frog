@@ -52,6 +52,8 @@ pub mod settings_lan;
 pub mod settings_ipv6;
 #[path = "settings_pac.rs"]
 pub mod settings_pac;
+#[path = "settings_network_roaming.rs"]
+pub mod settings_network_roaming;
 #[path = "settings_projection_defaults.rs"]
 mod settings_projection_defaults;
 
@@ -480,6 +482,7 @@ pub fn general_card_scene(
                     ( { system_notifications_toggle_row_scene(true, palette) } ),
                     ( { settings_lan::scene(projection, palette) } ),
                     ( { settings_pac::scene(projection, palette) } ),
+                    ( { settings_network_roaming::scene(projection, palette) } ),
                     (
                         Node {
                             width: percent(100),
@@ -613,6 +616,8 @@ fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(settings_pac::on_changed);
     commands.add_observer(settings_pac::on_apply_activated);
     commands.add_observer(settings_pac::apply_projection);
+    commands.add_observer(settings_network_roaming::on_action_activated);
+    commands.add_observer(settings_network_roaming::apply_projection);
 }
 
 #[allow(clippy::too_many_arguments)]

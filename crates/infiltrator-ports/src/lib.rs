@@ -19,6 +19,7 @@ pub mod host_runtime;
 pub mod overview;
 pub mod offline_startup;
 pub mod mtu_probe;
+pub mod network_roaming;
 pub mod public_ip_probe;
 pub mod profile_store;
 pub mod profile_reset;

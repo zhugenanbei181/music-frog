@@ -18,6 +18,7 @@ pub mod pac;
 pub mod uwp;
 pub mod offline_startup;
 pub mod mtu;
+pub mod network_roaming;
 pub mod snapshot;
 pub mod session;
 pub mod service_mode;

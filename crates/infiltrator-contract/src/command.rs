@@ -145,6 +145,8 @@ pub enum CommandIntent {
         bypass_lan: bool,
         minify: bool,
     },
+    RefreshNetworkRoaming,
+    RepairNetworkRoutes,
     ToggleAppRouting { app_id: String, enabled: bool },
     SetAppRoutingMode { mode: String },
     ToggleIncludeSystemApps { include: bool },
@@ -223,6 +225,8 @@ impl CommandIntent {
             | Self::SetUwpAppExemption { .. }
             | Self::SetAllUwpExemptions { .. }
             | Self::ApplyPac { .. }
+            | Self::RefreshNetworkRoaming
+            | Self::RepairNetworkRoutes
             | Self::ToggleAppRouting { .. }
             | Self::SetAppRoutingMode { .. }
             | Self::ToggleIncludeSystemApps { .. }

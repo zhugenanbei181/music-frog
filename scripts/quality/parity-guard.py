@@ -64,6 +64,8 @@ REQUIRED_INTENTS = {
     "SetUwpAppExemption",
     "SetAllUwpExemptions",
     "ApplyPac",
+    "RefreshNetworkRoaming",
+    "RepairNetworkRoutes",
     "ToggleAppRouting",
     "SetAppRoutingMode",
     "ToggleIncludeSystemApps",

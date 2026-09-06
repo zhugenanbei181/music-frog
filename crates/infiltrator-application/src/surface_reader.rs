@@ -20,6 +20,7 @@ use crate::uwp_loopback_application::UwpLoopbackApplication;
 use crate::pac_application::PacApplication;
 use crate::offline_startup_application::OfflineStartupApplication;
 use crate::mtu_application::MtuApplication;
+use crate::network_roaming_application::NetworkRoamingApplication;
 use crate::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -61,6 +62,7 @@ pub struct ApplicationSurfaceReader {
     system_proxy: Option<SystemProxyApplication>,
     uwp_loopback: Option<UwpLoopbackApplication>,
     pac: Option<PacApplication>,
+    network_roaming: Option<NetworkRoamingApplication>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -87,6 +89,7 @@ impl ApplicationSurfaceReader {
             system_proxy: None,
             uwp_loopback: None,
             pac: None,
+            network_roaming: None,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -183,6 +186,11 @@ impl ApplicationSurfaceReader {
         self
     }
 
+    pub fn with_network_roaming(mut self, application: NetworkRoamingApplication) -> Self {
+        self.network_roaming = Some(application);
+        self
+    }
+
     pub fn core(&self) -> &Arc<CoreApplication> {
         &self.core
     }
@@ -243,6 +251,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let system_proxy = self.read_system_proxy().await;
         let system_proxy_recovery = self.read_system_proxy_recovery();
         let pac = self.read_pac().await;
+        let network_roaming = self.read_network_roaming().await;
         let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
 
         pages.overview =
@@ -416,6 +425,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             mtu,
             system_proxy,
             system_proxy_recovery,
+            network_roaming,
         })
     }
 }

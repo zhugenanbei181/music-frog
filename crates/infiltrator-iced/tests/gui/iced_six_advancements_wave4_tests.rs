@@ -11,24 +11,60 @@ use infiltrator_contract::pac::{PacServiceState, PacSnapshot};
 #[test]
 fn test_advancement_w4_1_network_roaming_and_gateway_recovery() {
     let (mut state, _) = AppState::new();
+    state.shell.demo = true;
 
     // Initial state
     assert!(state.runtime.network_roaming.interfaces.is_empty());
-    assert!(state.runtime.network_roaming.active_interface.is_empty());
+    assert!(state.runtime.network_roaming.active_interface.is_none());
 
     // Poll interfaces
     let _ = state.update(Message::PollNetworkInterfaces);
     assert_eq!(state.runtime.network_roaming.interfaces.len(), 2);
-    assert_eq!(state.runtime.network_roaming.active_interface, "eth0");
-    assert_eq!(state.runtime.network_roaming.default_gateway, "192.168.1.1");
-    assert_eq!(state.runtime.network_roaming.optimal_mtu, 1500);
+    assert_eq!(state.runtime.network_roaming.active_interface.as_deref(), Some("eth0"));
+    assert_eq!(state.runtime.network_roaming.default_gateway.as_deref(), Some("192.168.1.1"));
+    assert_eq!(state.runtime.network_roaming.recommended_tun_mtu, Some(1420));
 
     // Force gateway reconnect
     let _ = state.update(Message::ForceGatewayReconnect);
+    assert_eq!(state.runtime.network_roaming.route_repair_count, 1);
+    assert!(matches!(
+        state.runtime.network_roaming.last_event,
+        Some(infiltrator_contract::network_roaming::NetworkRoamingEvent::RoutesRepaired { .. })
+    ));
+}
+
+#[test]
+fn test_live_network_roaming_snapshot_updates_the_iced_projection_without_fallbacks() {
+    let (mut state, _) = AppState::new();
+    let snapshot = infiltrator_contract::network_roaming::NetworkRoamingSnapshot {
+        status: infiltrator_contract::network_roaming::NetworkRoamingStatus::Stable,
+        interfaces: vec![infiltrator_contract::network_roaming::NetworkInterfaceSnapshot {
+            name: "wlan0".to_owned(),
+            kind: infiltrator_contract::network_roaming::NetworkInterfaceKind::Wifi,
+            is_up: true,
+            is_default_gateway: true,
+            gateway_ip: Some("198.51.100.1".to_owned()),
+            ip_addresses: vec!["198.51.100.20/24".to_owned()],
+            mtu: Some(1400),
+            metric: Some(200),
+            dns_servers: Vec::new(),
+        }],
+        active_interface: Some("wlan0".to_owned()),
+        default_gateway: Some("198.51.100.1".to_owned()),
+        physical_mtu: Some(1400),
+        recommended_tun_mtu: Some(1320),
+        tcp_mss: Some(1280),
+        revision: 8,
+        ..Default::default()
+    };
+
+    let _ = state.update(Message::NetworkInterfacesPolled(snapshot.clone()));
+    assert_eq!(state.runtime.network_roaming, snapshot);
     assert_eq!(
-        state.runtime.network_roaming.last_roam_event.as_deref(),
-        Some("Gateway re-synchronized to 192.168.1.1 via eth0")
+        state.runtime.network_roaming.active_interface.as_deref(),
+        Some("wlan0")
     );
+    assert_eq!(state.runtime.network_roaming.physical_mtu, Some(1400));
 }
 
 #[test]

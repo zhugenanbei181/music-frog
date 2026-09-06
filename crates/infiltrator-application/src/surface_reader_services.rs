@@ -105,4 +105,23 @@ impl ApplicationSurfaceReader {
             None => Default::default(),
         }
     }
+
+    pub(super) async fn read_network_roaming(
+        &self,
+    ) -> infiltrator_contract::network_roaming::NetworkRoamingSnapshot {
+        match &self.network_roaming {
+            Some(application) => application.refresh().await,
+            None => match self
+                .capabilities
+                .availability(infiltrator_contract::capability::Capability::NetworkRoaming)
+            {
+                infiltrator_contract::capability::Availability::Unsupported { reason } => {
+                    infiltrator_contract::network_roaming::NetworkRoamingSnapshot::unsupported(
+                        0, reason,
+                    )
+                }
+                _ => Default::default(),
+            },
+        }
+    }
 }

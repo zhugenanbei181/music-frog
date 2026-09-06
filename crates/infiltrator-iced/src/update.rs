@@ -181,6 +181,7 @@ impl AppState {
             | Message::PollNetworkInterfaces
             | Message::NetworkInterfacesPolled(_)
             | Message::ForceGatewayReconnect
+            | Message::NetworkRoamingRepaired(_)
             | Message::CheckCrashWatchdog
             | Message::RecoverOrphanedState
             | Message::ExportCrashDiagnostics

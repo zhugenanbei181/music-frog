@@ -48,6 +48,7 @@ impl CapabilityProvider for DesktopHostCapabilities {
                     },
                 },
                 supported(Capability::PacService),
+                supported(Capability::NetworkRoaming),
                 supported(Capability::Autostart),
                 supported(Capability::CoreVersionInstall),
                 supported(Capability::WebDavSync),

@@ -97,6 +97,11 @@ pub(super) fn snapshot_from_overview(
         system_proxy: infiltrator_contract::system_proxy::SystemProxySnapshot::default(),
         system_proxy_recovery:
             infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot::default(),
+        network_roaming: if demo_pages {
+            SettingsProjection::demo().network_roaming
+        } else {
+            infiltrator_contract::network_roaming::NetworkRoamingSnapshot::default()
+        },
     }
 }
 
@@ -130,6 +135,7 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         system_proxy: infiltrator_contract::system_proxy::SystemProxySnapshot::default(),
         system_proxy_recovery:
             infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot::default(),
+        network_roaming: SettingsProjection::demo().network_roaming,
     }
 }
 
@@ -263,7 +269,8 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         lan_security: Default::default(),
         ipv6_routing: Default::default(),
         pac: Default::default(),
-            tun_enabled: false,
+        network_roaming: Default::default(),
+        tun_enabled: false,
             tun_stack: String::new(),
             tun_auto_route: false,
             tun_strict_route: false,

@@ -7,6 +7,7 @@
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::mtu_application::MtuApplication;
+use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
@@ -50,6 +51,10 @@ pub fn core_application(
         std::sync::Arc::new(client.clone()),
         std::sync::Arc::new(crate::pac_service::DesktopPacServicePort::shared()),
     );
+    let network_roaming = NetworkRoamingApplication::new(
+        std::sync::Arc::new(crate::network_roaming::DesktopNetworkRoamingPort::shared()),
+        Some(std::sync::Arc::new(client.clone())),
+    );
     application.install_command_handler(std::sync::Arc::new(
         CommandApplication::new()
             .with_runtime(std::sync::Arc::new(client.clone()))
@@ -63,6 +68,7 @@ pub fn core_application(
                 crate::uwp_loopback_port::DesktopUwpLoopbackPort,
             )))
             .with_pac(pac)
+            .with_network_roaming(network_roaming)
             .with_versions(versions)
             .with_service_mode(service_mode)
             .with_port_conflicts(port_conflicts),

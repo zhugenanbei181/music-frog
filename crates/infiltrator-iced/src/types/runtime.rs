@@ -135,24 +135,9 @@ pub struct PcapCaptureState {
     pub exported_path: Option<String>,
 }
 
-/// Information about a network interface for roaming self-healing.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct NetworkInterfaceItem {
-    pub name: String,
-    pub is_active: bool,
-    pub gateway_ip: String,
-    pub mtu: u32,
-}
-
-/// State for the Network Interface Roaming and Gateway Recovery detector.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct NetworkRoamingState {
-    pub interfaces: Vec<NetworkInterfaceItem>,
-    pub active_interface: String,
-    pub default_gateway: String,
-    pub optimal_mtu: u32,
-    pub last_roam_event: Option<String>,
-}
+/// Iced's local field is only an adapter alias for the shared contract; it is
+/// not a second network-roaming business model.
+pub type NetworkRoamingState = infiltrator_contract::network_roaming::NetworkRoamingSnapshot;
 
 /// State for structured regex log filtering and sanitized credential redaction.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

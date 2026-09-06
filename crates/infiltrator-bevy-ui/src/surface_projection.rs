@@ -397,6 +397,7 @@ pub(super) fn settings_projection(
             lan_security: value.lan_security.clone(),
             ipv6_routing: value.ipv6_routing,
             pac: value.pac.clone(),
+            network_roaming: snapshot.network_roaming.clone(),
             tun_enabled: value.tun_enabled,
             tun_stack: value.tun_stack,
             tun_auto_route: value.tun_auto_route,
@@ -423,6 +424,7 @@ pub(super) fn settings_projection(
             projection.core_resources = snapshot.resources.clone();
             projection.offline_startup = snapshot.offline_startup.clone();
             projection.mtu = snapshot.mtu.clone();
+            projection.network_roaming = infiltrator_contract::network_roaming::NetworkRoamingSnapshot::default();
             projection
         })
 }

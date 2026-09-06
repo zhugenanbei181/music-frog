@@ -340,6 +340,7 @@ fn settings_page_in_place_update() {
         lan_security: Default::default(),
         ipv6_routing: infiltrator_contract::ipv6::Ipv6RoutingSnapshot::new(1, false, true),
         pac: Default::default(),
+        network_roaming: Default::default(),
         tun_enabled: true,
         tun_stack: "System (Native Stack)".to_owned(),
         tun_auto_route: true,

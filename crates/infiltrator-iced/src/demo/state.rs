@@ -13,6 +13,10 @@ use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider, TrafficData};
 use infiltrator_contract::version::InstalledCoreVersion;
+use infiltrator_contract::network_roaming::{
+    NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
+    NetworkRoamingStatus,
+};
 use std::path::PathBuf;
 
 impl AppState {
@@ -42,6 +46,7 @@ impl AppState {
         state.editor.tun_stack = "gvisor".to_string();
         state.editor.tun_auto_route = true;
         state.editor.tun_strict_route = false;
+        state.runtime.network_roaming = demo_network_roaming_snapshot();
         state.editor.sniffer_enabled = true;
         state.diag.public_ip = Some("203.0.113.7".to_string());
         state.shell.error_msg = None;
@@ -297,5 +302,34 @@ rules:
         );
 
         (state, iced::Task::none())
+    }
+}
+
+fn demo_network_roaming_snapshot() -> NetworkRoamingSnapshot {
+    NetworkRoamingSnapshot {
+        status: NetworkRoamingStatus::Stable,
+        interfaces: vec![NetworkInterfaceSnapshot {
+            name: "eth0".to_owned(),
+            kind: NetworkInterfaceKind::Ethernet,
+            is_up: true,
+            is_default_gateway: true,
+            gateway_ip: Some("192.168.1.1".to_owned()),
+            ip_addresses: vec!["192.168.1.10/24".to_owned()],
+            mtu: Some(1500),
+            metric: Some(100),
+            dns_servers: vec!["192.168.1.1".to_owned()],
+        }],
+        active_interface: Some("eth0".to_owned()),
+        default_gateway: Some("192.168.1.1".to_owned()),
+        tun_interface: Some("Meta".to_owned()),
+        physical_mtu: Some(1500),
+        recommended_tun_mtu: Some(1420),
+        tcp_mss: Some(1380),
+        last_event: Some(NetworkRoamingEvent::InitialObservation {
+            interface: Some("eth0".to_owned()),
+            gateway_ip: Some("192.168.1.1".to_owned()),
+        }),
+        revision: 1,
+        ..NetworkRoamingSnapshot::default()
     }
 }

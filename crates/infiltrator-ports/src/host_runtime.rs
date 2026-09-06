@@ -4,6 +4,7 @@ use crate::core_lifecycle::CoreLifecyclePort;
 use crate::runtime_gateway::ManagedRuntime;
 use crate::service_mode::ServiceModePort;
 use crate::mtu_probe::MtuProbePort;
+use crate::network_roaming::NetworkRoamingPort;
 use crate::system_proxy::SystemProxyPort;
 use crate::pac::PacServicePort;
 use std::path::PathBuf;
@@ -46,6 +47,12 @@ pub trait HostRuntime: ManagedRuntime {
     /// Optional local PAC service. Mobile hosts may omit this when they do
     /// not expose a desktop-style loopback proxy configuration surface.
     fn pac_service_port(&self) -> Option<Arc<dyn PacServicePort>> {
+        None
+    }
+    /// Optional physical-link/default-gateway observer and TUN route repair
+    /// adapter. Mobile hosts remain explicitly unsupported until their native
+    /// VPN bridge exposes equivalent facts and route ownership.
+    fn network_roaming_port(&self) -> Option<Arc<dyn NetworkRoamingPort>> {
         None
     }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;

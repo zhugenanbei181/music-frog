@@ -200,6 +200,10 @@ pub fn ios_capabilities() -> CapabilitySnapshot {
                 unsupported("iOS has no desktop PAC injection surface"),
             ),
             status(
+                Capability::NetworkRoaming,
+                unsupported("iOS NetworkExtension route callbacks are not exposed"),
+            ),
+            status(
                 Capability::Autostart,
                 unsupported("iOS controls app launch"),
             ),
@@ -340,6 +344,11 @@ mod tests {
             Availability::Unsupported { .. }
         ));
         assert!(!capabilities.supports(Capability::UwpLoopback));
+        assert!(!capabilities.supports(Capability::NetworkRoaming));
+        assert!(matches!(
+            capabilities.availability(Capability::NetworkRoaming),
+            Availability::Unsupported { .. }
+        ));
     }
 
     #[tokio::test]

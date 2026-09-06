@@ -427,6 +427,7 @@ impl AppState {
         }
         self.runtime.system_proxy = snapshot.system_proxy.clone();
         self.runtime.system_proxy_recovery = snapshot.system_proxy_recovery.clone();
+        self.runtime.network_roaming = snapshot.network_roaming.clone();
         if matches!(
             &snapshot.system_proxy.status,
             infiltrator_contract::system_proxy::SystemProxyStatus::Enabled

@@ -31,6 +31,7 @@ use crate::system_proxy_application::SystemProxyApplication;
 use crate::version_application::VersionApplication;
 use crate::uwp_loopback_application::UwpLoopbackApplication;
 use crate::pac_application::PacApplication;
+use crate::network_roaming_application::NetworkRoamingApplication;
 
 pub type CommandFuture = Pin<Box<dyn Future<Output = Result<(), Failure>> + Send + 'static>>;
 
@@ -58,6 +59,7 @@ pub struct CommandApplication {
     system_proxy: Option<SystemProxyApplication>,
     uwp_loopback: Option<UwpLoopbackApplication>,
     pac: Option<PacApplication>,
+    network_roaming: Option<NetworkRoamingApplication>,
 }
 
 impl CommandApplication {
@@ -142,6 +144,11 @@ impl CommandApplication {
 
     pub fn with_pac(mut self, application: PacApplication) -> Self {
         self.pac = Some(application);
+        self
+    }
+
+    pub fn with_network_roaming(mut self, application: NetworkRoamingApplication) -> Self {
+        self.network_roaming = Some(application);
         self
     }
 
@@ -386,6 +393,21 @@ impl CommandApplication {
                 })
                 .await
                 .map(|_| ()),
+            CommandIntent::RefreshNetworkRoaming => {
+                let snapshot = self.network_roaming()?.refresh().await;
+                match snapshot.status {
+                    infiltrator_contract::network_roaming::NetworkRoamingStatus::Failed {
+                        failure,
+                    } => Err(failure),
+                    infiltrator_contract::network_roaming::NetworkRoamingStatus::Unsupported {
+                        reason,
+                    } => Err(Failure::unsupported(reason)),
+                    _ => Ok(()),
+                }
+            }
+            CommandIntent::RepairNetworkRoutes => {
+                self.network_roaming()?.force_repair().await.map(|_| ())
+            }
             CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore
@@ -511,6 +533,12 @@ impl CommandApplication {
         self.pac
             .clone()
             .ok_or_else(|| Failure::unsupported("PAC service is not configured for this host"))
+    }
+
+    fn network_roaming(&self) -> Result<NetworkRoamingApplication, Failure> {
+        self.network_roaming.clone().ok_or_else(|| {
+            Failure::unsupported("network roaming is not configured for this host")
+        })
     }
 }
 

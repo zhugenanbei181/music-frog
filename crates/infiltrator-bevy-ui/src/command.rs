@@ -101,6 +101,10 @@ pub enum UiCommand {
         bypass_lan: bool,
         minify: bool,
     },
+    /// Refresh physical-link/default-gateway facts through the shared app.
+    RefreshNetworkRoaming,
+    /// Force a safe TUN route-anchor repair through the shared app.
+    RepairNetworkRoutes,
     /// Run full system doctor diagnostics.
     RunDoctorDiagnostics,
     /// Repair a specific doctor issue by check ID.
@@ -232,6 +236,8 @@ impl UiCommand {
                 bypass_lan: *bypass_lan,
                 minify: *minify,
             }),
+            Self::RefreshNetworkRoaming => Some(CommandIntent::RefreshNetworkRoaming),
+            Self::RepairNetworkRoutes => Some(CommandIntent::RepairNetworkRoutes),
             Self::RunDoctorDiagnostics => Some(CommandIntent::RunDoctorDiagnostics),
             Self::RepairDoctorIssue { check_id } => Some(CommandIntent::RepairDoctorIssue {
                 check_id: check_id.clone(),

@@ -5,8 +5,13 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
+use infiltrator_contract::network_roaming::{
+    NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
+    NetworkRoamingStatus,
+};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
@@ -17,6 +22,50 @@ fn split_pac_domains(value: &str) -> Vec<String> {
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
         .collect()
+}
+
+fn demo_network_roaming_snapshot() -> NetworkRoamingSnapshot {
+    NetworkRoamingSnapshot {
+        status: NetworkRoamingStatus::Stable,
+        interfaces: vec![
+            NetworkInterfaceSnapshot {
+                name: "eth0".to_owned(),
+                kind: NetworkInterfaceKind::Ethernet,
+                is_up: true,
+                is_default_gateway: true,
+                gateway_ip: Some("192.168.1.1".to_owned()),
+                ip_addresses: vec!["192.168.1.10/24".to_owned()],
+                mtu: Some(1500),
+                metric: Some(100),
+                dns_servers: vec!["192.168.1.1".to_owned()],
+            },
+            NetworkInterfaceSnapshot {
+                name: "wlan0".to_owned(),
+                kind: NetworkInterfaceKind::Wifi,
+                is_up: false,
+                is_default_gateway: false,
+                gateway_ip: Some("192.168.2.1".to_owned()),
+                ip_addresses: Vec::new(),
+                mtu: Some(1500),
+                metric: Some(200),
+                dns_servers: Vec::new(),
+            },
+        ],
+        active_interface: Some("eth0".to_owned()),
+        default_gateway: Some("192.168.1.1".to_owned()),
+        previous_interface: None,
+        tun_interface: Some("Meta".to_owned()),
+        physical_mtu: Some(1500),
+        recommended_tun_mtu: Some(1420),
+        tcp_mss: Some(1380),
+        route_repair_count: 0,
+        last_event: Some(NetworkRoamingEvent::InitialObservation {
+            interface: Some("eth0".to_owned()),
+            gateway_ip: Some("192.168.1.1".to_owned()),
+        }),
+        observed_at_epoch_ms: None,
+        revision: 1,
+    }
 }
 
 impl AppState {
@@ -86,37 +135,82 @@ impl AppState {
     pub(super) fn update_ui_wave4(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::PollNetworkInterfaces => {
-                let ifaces = vec![
-                    crate::types::runtime::NetworkInterfaceItem {
-                        name: "eth0".into(),
-                        is_active: true,
-                        gateway_ip: "192.168.1.1".into(),
-                        mtu: 1500,
+                if self.shell.demo {
+                    let snapshot = demo_network_roaming_snapshot();
+                    self.runtime.network_roaming = snapshot.clone();
+                    return Task::done(Message::NetworkInterfacesPolled(snapshot));
+                }
+                let Some(runtime) = self.runtime.runtime.clone() else {
+                    return self.runtime_unavailable("探测物理网卡与默认网关");
+                };
+                let Some(port) = runtime.network_roaming_port() else {
+                    let snapshot = NetworkRoamingSnapshot::unsupported(
+                        self.runtime.network_roaming.revision.saturating_add(1),
+                        "当前宿主未提供物理网卡漫游能力",
+                    );
+                    return Task::done(Message::NetworkInterfacesPolled(snapshot));
+                };
+                let baseline = self.runtime.network_roaming.clone();
+                let gateway: std::sync::Arc<dyn RuntimeGateway> = runtime;
+                Task::perform(
+                    async move {
+                        NetworkRoamingApplication::new(port, Some(gateway))
+                            .refresh_from(Some(baseline))
+                            .await
                     },
-                    crate::types::runtime::NetworkInterfaceItem {
-                        name: "wlan0".into(),
-                        is_active: false,
-                        gateway_ip: "192.168.2.1".into(),
-                        mtu: 1500,
-                    },
-                ];
-                self.runtime.network_roaming.interfaces = ifaces.clone();
-                self.runtime.network_roaming.active_interface = "eth0".into();
-                self.runtime.network_roaming.default_gateway = "192.168.1.1".into();
-                self.runtime.network_roaming.optimal_mtu = 1500;
-                Task::done(Message::NetworkInterfacesPolled(ifaces))
+                    Message::NetworkInterfacesPolled,
+                )
             }
-            Message::NetworkInterfacesPolled(ifaces) => {
-                self.runtime.network_roaming.interfaces = ifaces;
+            Message::NetworkInterfacesPolled(snapshot) => {
+                self.runtime.network_roaming = snapshot.clone();
+                if let NetworkRoamingStatus::Failed { failure } = &snapshot.status {
+                    let error = InfiltratorError::Internal(failure.message.clone());
+                    self.set_error(&error);
+                }
                 Task::none()
             }
             Message::ForceGatewayReconnect => {
-                self.runtime.network_roaming.last_roam_event =
-                    Some("Gateway re-synchronized to 192.168.1.1 via eth0".into());
+                if self.shell.demo {
+                    let mut snapshot = demo_network_roaming_snapshot();
+                    snapshot.route_repair_count = snapshot.route_repair_count.saturating_add(1);
+                    snapshot.last_event = Some(NetworkRoamingEvent::RoutesRepaired {
+                        physical_interface: "eth0".to_owned(),
+                        tun_interface: "Meta".to_owned(),
+                        detail: "demo route readback matched".to_owned(),
+                    });
+                    self.runtime.network_roaming = snapshot.clone();
+                    return Task::done(Message::NetworkRoamingRepaired(Ok(snapshot)));
+                }
+                let Some(runtime) = self.runtime.runtime.clone() else {
+                    return self.runtime_unavailable("修复 TUN 默认网关路由");
+                };
+                let Some(port) = runtime.network_roaming_port() else {
+                    let error = InfiltratorError::Internal(
+                        "当前宿主未提供网卡漫游路由修复能力".to_owned(),
+                    );
+                    return Task::done(Message::NetworkRoamingRepaired(Err(error)));
+                };
+                let gateway: std::sync::Arc<dyn RuntimeGateway> = runtime;
+                Task::perform(
+                    async move {
+                        NetworkRoamingApplication::new(port, Some(gateway))
+                            .force_repair()
+                            .await
+                            .map_err(|failure| InfiltratorError::Internal(failure.message))
+                    },
+                    Message::NetworkRoamingRepaired,
+                )
+            }
+            Message::NetworkRoamingRepaired(Ok(snapshot)) => {
+                self.runtime.network_roaming = snapshot;
                 Task::done(Message::ShowToast(
                     "Network gateway reconnected & routes healed".into(),
                     ToastStatus::Success,
                 ))
+            }
+            Message::NetworkRoamingRepaired(Err(error)) => {
+                self.set_error(&error);
+                Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
             }
             Message::CheckCrashWatchdog => {
                 let watchdog = &self.diag.crash_watchdog.shared;

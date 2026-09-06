@@ -443,6 +443,9 @@ pub struct SurfaceSnapshot {
     /// Startup recovery result for an orphaned system-proxy journal.
     #[serde(default)]
     pub system_proxy_recovery: SystemProxyRecoverySnapshot,
+    /// Physical-link/default-gateway observation and TUN route recovery.
+    #[serde(default)]
+    pub network_roaming: crate::network_roaming::NetworkRoamingSnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -486,6 +489,7 @@ impl SurfaceSnapshot {
             mtu: MtuNegotiationSnapshot::default(),
             system_proxy: SystemProxySnapshot::default(),
             system_proxy_recovery: SystemProxyRecoverySnapshot::default(),
+            network_roaming: crate::network_roaming::NetworkRoamingSnapshot::default(),
         }
     }
 

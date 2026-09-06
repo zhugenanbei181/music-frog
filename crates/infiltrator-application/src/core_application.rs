@@ -773,6 +773,8 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::SetUwpAppExemption { .. } => "set_uwp_app_exemption",
         CommandIntent::SetAllUwpExemptions { .. } => "set_all_uwp_exemptions",
         CommandIntent::ApplyPac { .. } => "apply_pac",
+        CommandIntent::RefreshNetworkRoaming => "refresh_network_roaming",
+        CommandIntent::RepairNetworkRoutes => "repair_network_routes",
         CommandIntent::ToggleAppRouting { .. } => "toggle_app_routing",
         CommandIntent::SetAppRoutingMode { .. } => "set_app_routing_mode",
         CommandIntent::ToggleIncludeSystemApps { .. } => "toggle_include_system_apps",

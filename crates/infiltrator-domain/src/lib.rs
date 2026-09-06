@@ -24,6 +24,7 @@ pub mod lan_security;
 pub mod mrs;
 pub mod mixin;
 pub mod mtu_optimizer;
+pub mod network_roaming;
 pub mod packet_loss_tracker;
 pub mod pcap_exporter;
 pub mod profile_converter;

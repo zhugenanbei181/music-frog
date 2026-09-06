@@ -58,7 +58,10 @@ impl MtuProbePort for DesktopMtuProbe {
     }
 }
 
-fn apply_link_mtu(interfaces: &mut [NetworkInterfaceSnapshot], mtus: &HashMap<String, u32>) {
+pub(crate) fn apply_link_mtu(
+    interfaces: &mut [NetworkInterfaceSnapshot],
+    mtus: &HashMap<String, u32>,
+) {
     for interface in interfaces {
         if let Some(mtu) = mtus.get(&interface.name) {
             interface.mtu = Some(*mtu);
@@ -67,7 +70,7 @@ fn apply_link_mtu(interfaces: &mut [NetworkInterfaceSnapshot], mtus: &HashMap<St
 }
 
 #[allow(clippy::needless_return)]
-fn link_mtu_table() -> HashMap<String, u32> {
+pub(crate) fn link_mtu_table() -> HashMap<String, u32> {
     #[cfg(target_os = "linux")]
     {
         return Command::new("ip")
