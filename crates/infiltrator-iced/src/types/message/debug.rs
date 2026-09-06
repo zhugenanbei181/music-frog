@@ -422,6 +422,11 @@ impl std::fmt::Debug for Message {
                 snapshot.revision,
                 snapshot.repair_count
             ),
+            Message::SystemProxyRecoveryFinished(snapshot) => write!(
+                f,
+                "SystemProxyRecoveryFinished(revision={})",
+                snapshot.revision
+            ),
             Message::RequestAdminPrivilege => write!(f, "RequestAdminPrivilege"),
             Message::RequestConfirmation(action) => write!(f, "RequestConfirmation({action:?})"),
             Message::ConfirmAction => write!(f, "ConfirmAction"),

@@ -132,6 +132,8 @@ python3 scripts/quality/tun-routing-guard.py --mode enforce
 python3 scripts/quality/system-proxy-guard.py --mode enforce
 # DUAL-02-05 系统代理抢占探活、ownership 共享与自动复位守卫
 python3 scripts/quality/system-proxy-watchdog-guard.py --mode enforce
+# DUAL-02-06 系统代理断电/崩溃恢复、owner 判定与正常退出清理守卫
+python3 scripts/quality/system-proxy-recovery-guard.py --mode enforce
 ```
 
 ---

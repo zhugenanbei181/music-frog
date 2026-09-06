@@ -320,6 +320,9 @@ pub enum Message {
         Result<infiltrator_contract::system_proxy::SystemProxySnapshot, InfiltratorError>,
     ),
     SystemProxyReconciled(infiltrator_contract::system_proxy::SystemProxySnapshot),
+    SystemProxyRecoveryFinished(
+        infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot,
+    ),
     RequestAdminPrivilege,
     RequestConfirmation(ConfirmAction),
     ConfirmAction,

@@ -8,7 +8,7 @@ use crate::pages::logs::LogsProjection;
 use crate::pages::profiles::ProfilesProjection;
 use crate::pages::proxies::ProxiesProjection;
 use crate::pages::rules::RulesProjection;
-use crate::pages::settings::SettingsProjection;
+use crate::pages::settings::settings_core::SettingsProjection;
 use crate::pages::sync::{SyncProjection, SyncStatus};
 use crate::projection::OverviewState;
 use infiltrator_contract::capability::CapabilitySnapshot;
@@ -95,6 +95,8 @@ pub(super) fn snapshot_from_overview(
         offline_startup: infiltrator_contract::offline_startup::OfflineStartupSnapshot::default(),
         mtu: infiltrator_contract::mtu::MtuNegotiationSnapshot::default(),
         system_proxy: infiltrator_contract::system_proxy::SystemProxySnapshot::default(),
+        system_proxy_recovery:
+            infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot::default(),
     }
 }
 
@@ -126,6 +128,8 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         offline_startup: infiltrator_contract::offline_startup::OfflineStartupSnapshot::default(),
         mtu: infiltrator_contract::mtu::MtuNegotiationSnapshot::default(),
         system_proxy: infiltrator_contract::system_proxy::SystemProxySnapshot::default(),
+        system_proxy_recovery:
+            infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot::default(),
     }
 }
 
@@ -251,6 +255,7 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         autostart: false,
             system_proxy: false,
             system_proxy_snapshot: Default::default(),
+            system_proxy_recovery: Default::default(),
         mixed_port: 0,
         allow_lan: false,
             tun_enabled: false,

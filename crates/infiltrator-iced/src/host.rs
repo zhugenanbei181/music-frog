@@ -15,16 +15,6 @@ pub mod desktop {
         infiltrator_desktop::proxy::read_system_proxy_state()
     }
 
-    pub fn apply_system_proxy(endpoint: Option<&str>) -> anyhow::Result<()> {
-        infiltrator_desktop::proxy::apply_system_proxy(endpoint)
-    }
-
-    pub fn apply_system_proxy_with_bypass(
-        endpoint: Option<&str>,
-        bypass: Option<&str>,
-    ) -> anyhow::Result<()> {
-        infiltrator_desktop::proxy::apply_system_proxy_with_bypass(endpoint, bypass)
-    }
 }
 
 pub mod process_enumerator {

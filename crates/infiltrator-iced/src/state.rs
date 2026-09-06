@@ -40,6 +40,7 @@ use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_contract::system_proxy::SystemProxySnapshot;
+use infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot;
 use infiltrator_ports::system_proxy::SystemProxyPort;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use std::collections::{HashMap, VecDeque};
@@ -60,6 +61,7 @@ pub struct RuntimeState {
     pub core_lifecycle: CoreLifecycleSnapshot,
     pub mtu: MtuNegotiationSnapshot,
     pub system_proxy: SystemProxySnapshot,
+    pub system_proxy_recovery: SystemProxyRecoverySnapshot,
     /// Retained independently of the running core so a system proxy can be
     /// disabled during shutdown/cleanup without a live Mihomo runtime.
     pub system_proxy_port: Option<Arc<dyn SystemProxyPort>>,
@@ -415,6 +417,7 @@ impl AppState {
         self.runtime.core_lifecycle = snapshot.core.lifecycle_snapshot();
         self.runtime.mtu = snapshot.mtu.clone();
         self.runtime.system_proxy = snapshot.system_proxy.clone();
+        self.runtime.system_proxy_recovery = snapshot.system_proxy_recovery.clone();
         if matches!(
             &snapshot.system_proxy.status,
             infiltrator_contract::system_proxy::SystemProxyStatus::Enabled

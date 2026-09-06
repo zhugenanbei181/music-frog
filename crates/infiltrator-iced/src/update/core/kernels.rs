@@ -297,6 +297,15 @@ impl AppState {
                 self.shell.is_factory_resetting = true;
                 self.shell.admin_server.shutdown();
                 let runtime = self.take_app_runtime();
+                let system_proxy_application = self
+                    .runtime
+                    .system_proxy_application
+                    .clone()
+                    .unwrap_or_else(|| {
+                        infiltrator_application::system_proxy_application::SystemProxyApplication::new(
+                            crate::host::desktop::system_proxy_port(),
+                        )
+                    });
                 self.runtime.status = crate::types::runtime::RuntimeStatus::Stopped;
                 Task::perform(
                     async move {
@@ -314,8 +323,10 @@ impl AppState {
                             .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
                         }
 
-                        crate::host::desktop::apply_system_proxy(None)
-                            .map_err(|error| InfiltratorError::Privilege(error.to_string()))?;
+                        system_proxy_application
+                            .set_enabled(false, None, None)
+                            .await
+                            .map_err(|failure| InfiltratorError::Privilege(failure.message))?;
                         infiltrator_shared::autostart::set_autostart_enabled(
                             crate::AUTOSTART_REG_NAME,
                             false,

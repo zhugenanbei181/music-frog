@@ -16,7 +16,10 @@ use infiltrator_contract::mtu::{
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageData, SettingsPageSnapshot, SurfaceSnapshot};
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::system_proxy::{SystemProxyObservation, SystemProxyStatus};
+use infiltrator_contract::system_proxy::{
+    SystemProxyObservation, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
+    SystemProxyStatus,
+};
 
 #[test]
 fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
@@ -195,6 +198,26 @@ fn test_shared_surface_system_proxy_updates_the_iced_projection() {
         state.runtime.system_proxy.status,
         SystemProxyStatus::Enabled
     );
+}
+
+#[test]
+fn test_system_proxy_recovery_updates_the_iced_projection() {
+    let (mut state, _) = AppState::new();
+    let snapshot = SystemProxyRecoverySnapshot {
+        status: SystemProxyRecoveryStatus::Restored {
+            previous: SystemProxyObservation::default(),
+            restored: SystemProxyObservation::default(),
+        },
+        revision: 7,
+    };
+
+    let _ = state.update(Message::SystemProxyRecoveryFinished(snapshot.clone()));
+
+    assert_eq!(state.runtime.system_proxy_recovery, snapshot);
+    assert!(matches!(
+        state.runtime.system_proxy_recovery.status,
+        SystemProxyRecoveryStatus::Restored { .. }
+    ));
 }
 
 #[test]

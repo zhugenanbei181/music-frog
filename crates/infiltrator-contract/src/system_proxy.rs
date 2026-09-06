@@ -21,6 +21,20 @@ pub struct SystemProxyDesiredState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemProxyRecoveryReport {
+    NotNeeded,
+    Restored {
+        previous: SystemProxyObservation,
+        restored: SystemProxyObservation,
+    },
+    SkippedExternal {
+        expected: SystemProxyDesiredState,
+        observed: SystemProxyObservation,
+    },
+    SkippedLiveOwner { owner_pid: u32 },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SystemProxyStatus {
     Unknown,
     Disabled,
@@ -36,6 +50,37 @@ pub enum SystemProxyOwnership {
     Unmanaged,
     Owned,
     Repaired,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemProxyRecoveryStatus {
+    Unknown,
+    NotNeeded,
+    Restored {
+        previous: SystemProxyObservation,
+        restored: SystemProxyObservation,
+    },
+    SkippedExternal {
+        expected: SystemProxyDesiredState,
+        observed: SystemProxyObservation,
+    },
+    SkippedLiveOwner { owner_pid: u32 },
+    Failed { failure: Failure },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SystemProxyRecoverySnapshot {
+    pub status: SystemProxyRecoveryStatus,
+    pub revision: u64,
+}
+
+impl Default for SystemProxyRecoverySnapshot {
+    fn default() -> Self {
+        Self {
+            status: SystemProxyRecoveryStatus::Unknown,
+            revision: 0,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

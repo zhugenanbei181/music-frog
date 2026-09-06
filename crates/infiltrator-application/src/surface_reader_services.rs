@@ -80,4 +80,13 @@ impl ApplicationSurfaceReader {
             None => Default::default(),
         }
     }
+
+    pub(super) fn read_system_proxy_recovery(
+        &self,
+    ) -> infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot {
+        match &self.system_proxy {
+            Some(application) => application.recovery_snapshot(),
+            None => Default::default(),
+        }
+    }
 }

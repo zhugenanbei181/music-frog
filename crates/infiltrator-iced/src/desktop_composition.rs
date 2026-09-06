@@ -60,7 +60,6 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
     }
 
     panic::set_hook(Box::new(move |info| {
-        let _ = infiltrator_desktop::proxy::apply_system_proxy(None);
         infiltrator_desktop::exit_cleanup::run_now();
         let message = info.to_string();
         if let Ok(mut file) = File::create(&crash_log_path) {

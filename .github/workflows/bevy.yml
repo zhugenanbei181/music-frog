@@ -42,6 +42,7 @@ on:
       - "scripts/quality/tun-routing-guard.py"
       - "scripts/quality/system-proxy-guard.py"
       - "scripts/quality/system-proxy-watchdog-guard.py"
+      - "scripts/quality/system-proxy-recovery-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -75,6 +76,7 @@ on:
       - "scripts/quality/lifecycle-sync-guard.py"
       - "scripts/quality/lifecycle-matrix-guard.py"
       - "scripts/quality/tun-stack-guard.py"
+      - "scripts/quality/system-proxy-recovery-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -195,6 +197,9 @@ jobs:
 
       - name: Enforce DUAL-02-05 system proxy watchdog semantics
         run: python3 scripts/quality/system-proxy-watchdog-guard.py --mode enforce
+
+      - name: Enforce DUAL-02-06 system proxy recovery semantics
+        run: python3 scripts/quality/system-proxy-recovery-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

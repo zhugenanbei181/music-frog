@@ -850,29 +850,54 @@ impl CleanExitHook {
     /// only wakes a dedicated thread; that thread runs the registered hooks,
     /// then exits with the conventional `128 + signal` status.
     pub fn install_termination_handlers() -> anyhow::Result<TerminationHandler> {
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_for_thread = Arc::clone(&stop);
+
         #[cfg(unix)]
         let mut signals = signal_hook::iterator::Signals::new([
             signal_hook::consts::SIGINT,
             signal_hook::consts::SIGTERM,
         ])?;
-        #[cfg(windows)]
-        let mut signals = signal_hook::iterator::Signals::new([signal_hook::consts::SIGINT])?;
         #[cfg(not(any(unix, windows)))]
         let mut signals = signal_hook::iterator::Signals::new([signal_hook::consts::SIGINT])?;
 
-        let stop = Arc::new(AtomicBool::new(false));
-        let stop_for_thread = Arc::clone(&stop);
-        std::thread::Builder::new()
-            .name("infiltrator-exit-cleanup".to_owned())
-            .spawn(move || {
-                if let Some(signal) = signals.forever().next() {
+        #[cfg(not(windows))]
+        {
+            std::thread::Builder::new()
+                .name("infiltrator-exit-cleanup".to_owned())
+                .spawn(move || {
+                    if let Some(signal) = signals.forever().next() {
+                        if stop_for_thread.load(Ordering::Acquire) {
+                            return;
+                        }
+                        CleanExitHook::run_emergency_cleanup();
+                        std::process::exit(128 + signal);
+                    }
+                })?;
+        }
+
+        #[cfg(windows)]
+        {
+            let signal_received = Arc::new(AtomicBool::new(false));
+            signal_hook::flag::register(
+                signal_hook::consts::SIGINT,
+                Arc::clone(&signal_received),
+            )?;
+            std::thread::Builder::new()
+                .name("infiltrator-exit-cleanup".to_owned())
+                .spawn(move || {
+                    while !signal_received.load(Ordering::Acquire)
+                        && !stop_for_thread.load(Ordering::Acquire)
+                    {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
                     if stop_for_thread.load(Ordering::Acquire) {
                         return;
                     }
                     CleanExitHook::run_emergency_cleanup();
-                    std::process::exit(128 + signal);
-                }
-            })?;
+                    std::process::exit(128 + signal_hook::consts::SIGINT);
+                })?;
+        }
         Ok(TerminationHandler { stop })
     }
 

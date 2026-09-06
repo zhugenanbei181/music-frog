@@ -38,8 +38,9 @@ use infiltrator_bevy_ui::pages::proxies::{
 use infiltrator_bevy_ui::pages::rules::{
     RuleHitText, RuleItem, RuleProviderItem, RuleProxyText, RulesProjection, RulesProjectionUpdated,
 };
-use infiltrator_bevy_ui::pages::settings::{
-    SettingsLine, SettingsLineKind, SettingsProjection, SettingsProjectionUpdated,
+use infiltrator_bevy_ui::pages::settings::SettingsProjectionUpdated;
+use infiltrator_bevy_ui::pages::settings::settings_core::{
+    SettingsLine, SettingsLineKind, SettingsProjection,
 };
 use infiltrator_bevy_ui::pages::sync::{
     SnapshotItem, SyncProjection, SyncProjectionUpdated, SyncStatus,
@@ -332,6 +333,7 @@ fn settings_page_in_place_update() {
         autostart: false,
         system_proxy: false,
         system_proxy_snapshot: Default::default(),
+        system_proxy_recovery: Default::default(),
         mixed_port: 7895,
         allow_lan: true,
         tun_enabled: true,

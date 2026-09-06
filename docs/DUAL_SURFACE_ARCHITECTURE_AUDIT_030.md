@@ -94,6 +94,7 @@
 - `DUAL-02-03` 已完成 `auto-route`/`strict-route` shared command、Settings snapshot、严格路由依赖自动路由的原子 PATCH+GET readback，以及 Iced/Bevy checkbox 与 projection 同步；真实系统路由表、VPN 权限和泄漏验证仍未冒充 `host-verified`。
 - `DUAL-02-04` 已完成系统代理 shared port/application/snapshot、desktop Windows registry/Linux GNOME-KDE/macOS networksetup 适配、3 秒读取缓存与 Iced/Bevy checkbox/command 投影；真实桌面权限、第三方抢占和发行包 smoke 仍未冒充 `host-verified`。
 - `DUAL-02-05` 已完成 system proxy desired ownership、host port 共享状态、3 秒 Iced watchdog/Bevy surface reconcile、外部修改自动复位和 repair warning projection；真实第三方抢占与桌面会话恢复 smoke 仍未冒充 `host-verified`。
+- `DUAL-02-06` 已完成 system proxy previous/desired durable journal、owner PID/启动时间判定、启动孤儿恢复的 target-match/readback、外部修改跳过、正常退出恢复与 Iced/Bevy shared recovery projection；Android `VpnService` 与 iOS 无全局代理能力保持 typed unsupported，真实断电/会话注销/发行包恢复 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

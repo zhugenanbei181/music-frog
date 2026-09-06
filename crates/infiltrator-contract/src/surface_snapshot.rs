@@ -14,6 +14,7 @@ use crate::error::Failure;
 use crate::offline_startup::OfflineStartupSnapshot;
 use crate::mtu::MtuNegotiationSnapshot;
 use crate::system_proxy::SystemProxySnapshot;
+use crate::system_proxy::SystemProxyRecoverySnapshot;
 use crate::snapshot::{CoreLifecycle, CoreSnapshot};
 use crate::surface::{HostKind, SurfaceKind};
 use crate::version::CoreVersionSnapshot;
@@ -424,6 +425,9 @@ pub struct SurfaceSnapshot {
     /// Host system HTTP/SOCKS proxy state.
     #[serde(default)]
     pub system_proxy: SystemProxySnapshot,
+    /// Startup recovery result for an orphaned system-proxy journal.
+    #[serde(default)]
+    pub system_proxy_recovery: SystemProxyRecoverySnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -466,6 +470,7 @@ impl SurfaceSnapshot {
             offline_startup: OfflineStartupSnapshot::default(),
             mtu: MtuNegotiationSnapshot::default(),
             system_proxy: SystemProxySnapshot::default(),
+            system_proxy_recovery: SystemProxyRecoverySnapshot::default(),
         }
     }
 

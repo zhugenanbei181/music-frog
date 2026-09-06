@@ -70,6 +70,7 @@ impl AppState {
                 core_lifecycle: Default::default(),
                 mtu: Default::default(),
                 system_proxy: Default::default(),
+                system_proxy_recovery: Default::default(),
                 system_proxy_port: Some(system_proxy_port),
                 system_proxy_application: Some(system_proxy_application),
                 system_proxy_last_repair_count: 0,
@@ -443,10 +444,20 @@ impl AppState {
         if let Some(lang) = lang_override.clone() {
             state.shell.lang = lang;
         }
+        let system_proxy_application = state.runtime.system_proxy_application.clone();
 
         (
             state,
             Task::batch(vec![
+                Task::perform(
+                    async move {
+                        match system_proxy_application {
+                            Some(application) => application.recover_orphaned().await,
+                            None => Default::default(),
+                        }
+                    },
+                    Message::SystemProxyRecoveryFinished,
+                ),
                 Task::perform(
                     async {
                         crate::settings_store::load_hydrated().await

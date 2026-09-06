@@ -31,7 +31,7 @@ use crate::pages::logs::LogsProjection;
 use crate::pages::profiles::ProfilesProjection;
 use crate::pages::proxies::ProxiesProjection;
 use crate::pages::rules::RulesProjection;
-use crate::pages::settings::SettingsProjection;
+use crate::pages::settings::settings_core::SettingsProjection;
 use crate::pages::sync::SyncProjection;
 use crate::projection::{OverviewOrigin, OverviewProjection, OverviewSource, SourceKind};
 use infiltrator_bevy_widgets::palette::UiPalette;

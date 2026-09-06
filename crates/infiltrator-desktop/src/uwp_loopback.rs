@@ -5,7 +5,11 @@
 //! exemptions using `CheckNetIsolation.exe`.
 
 use anyhow::Result;
+#[cfg(windows)]
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
+#[cfg(windows)]
+use std::collections::HashSet;
 use std::fmt;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};

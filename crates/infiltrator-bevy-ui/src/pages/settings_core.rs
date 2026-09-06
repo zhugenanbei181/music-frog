@@ -35,6 +35,7 @@ use infiltrator_contract::offline_startup::{
 };
 use infiltrator_contract::tun::TunStack;
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState};
+use infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot;
 use infiltrator_contract::system_proxy::SystemProxySnapshot;
 use crate::command::{CommandSinkHandle, UiCommand};
 
@@ -123,6 +124,7 @@ pub struct SettingsProjection {
     pub autostart: bool,
     pub system_proxy: bool,
     pub system_proxy_snapshot: SystemProxySnapshot,
+    pub system_proxy_recovery: SystemProxyRecoverySnapshot,
     pub mixed_port: u16,
     pub allow_lan: bool,
     pub tun_enabled: bool,
@@ -148,6 +150,7 @@ impl SettingsProjection {
             autostart: true,
             system_proxy: true,
             system_proxy_snapshot: SystemProxySnapshot::default(),
+            system_proxy_recovery: SystemProxyRecoverySnapshot::default(),
             mixed_port: 7890,
             allow_lan: false,
             tun_enabled: true,

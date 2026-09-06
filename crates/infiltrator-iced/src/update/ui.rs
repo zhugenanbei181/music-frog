@@ -739,6 +739,9 @@ impl AppState {
                 }
             },
             Message::SystemProxyReconciled(snapshot) => self.reconcile_system_proxy(snapshot),
+            Message::SystemProxyRecoveryFinished(snapshot) => {
+                self.finish_system_proxy_recovery(snapshot)
+            }
             Message::RequestAdminPrivilege => {
                 #[cfg(target_os = "windows")]
                 {

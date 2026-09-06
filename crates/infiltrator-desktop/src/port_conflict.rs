@@ -175,13 +175,17 @@ fn parse_netstat_owner(output: &str, port: u16) -> Option<PortOwner> {
     let needle = format!(":{port}");
     output.lines().find_map(|line| {
         let columns: Vec<&str> = line.split_whitespace().collect();
-        (columns.first() == Some(&"TCP")
+        if columns.first() == Some(&"TCP")
             && columns.get(1).is_some_and(|value| value.ends_with(&needle))
-            && columns.get(3) == Some(&"LISTENING"))
-            .then(|| PortOwner {
+            && columns.get(3) == Some(&"LISTENING")
+        {
+            Some(PortOwner {
                 pid: columns.get(4)?.parse().ok()?,
                 name: "unknown".to_owned(),
             })
+        } else {
+            None
+        }
     })
 }
 

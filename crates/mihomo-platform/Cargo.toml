@@ -18,7 +18,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 regex = { workspace = true }
-signal-hook = "0.3"
+signal-hook = { version = "0.3", features = ["iterator"] }
 
 [target.'cfg(windows)'.dependencies]
 keyring = { workspace = true, features = ["windows-native-keyring-store"] }

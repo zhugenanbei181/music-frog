@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 use futures_util::stream::BoxStream;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_core::apply::{
     ApplyOutcome, ApplyParams, EndpointConfigReloader, apply_current_profile,
 };
@@ -94,6 +95,16 @@ impl MihomoRuntime {
         data_dir: &Path,
         allow_network: bool,
     ) -> anyhow::Result<Self> {
+        let recovery = SystemProxyApplication::new(Arc::new(
+            crate::system_proxy::DesktopSystemProxy::new(),
+        ));
+        let recovery_snapshot = recovery.recover_orphaned().await;
+        if !matches!(
+            &recovery_snapshot.status,
+            infiltrator_contract::system_proxy::SystemProxyRecoveryStatus::NotNeeded
+        ) {
+            log::warn!("system proxy startup recovery: {:?}", recovery_snapshot.status);
+        }
         let configs_dir = Self::settings_configs_dir().await;
         let home = mihomo_platform::paths::get_home_dir()?;
         let cm = Arc::new(ConfigManager::with_home_configs_dir_and_store(

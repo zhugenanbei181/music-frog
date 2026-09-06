@@ -1,7 +1,10 @@
 //! System HTTP/SOCKS proxy use-case over a host-owned port.
 
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::system_proxy::{SystemProxyDesiredState, SystemProxyObservation, SystemProxySnapshot};
+use infiltrator_contract::system_proxy::{
+    SystemProxyDesiredState, SystemProxyObservation, SystemProxyRecoveryReport,
+    SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus, SystemProxySnapshot,
+};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::system_proxy::SystemProxyPort;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -17,22 +20,67 @@ pub struct SystemProxyApplication {
     last_snapshot: Arc<Mutex<Option<(Instant, SystemProxySnapshot)>>>,
     desired: Arc<Mutex<Option<SystemProxyDesiredState>>>,
     repair_count: Arc<AtomicU64>,
+    recovery: Arc<Mutex<SystemProxyRecoverySnapshot>>,
 }
 
 impl SystemProxyApplication {
     pub fn new(port: Arc<dyn SystemProxyPort>) -> Self {
         let desired = port.shared_target();
+        let recovery = port.shared_recovery();
         Self {
             port,
             next_revision: Arc::new(AtomicU64::new(1)),
             last_snapshot: Arc::new(Mutex::new(None)),
             desired,
             repair_count: Arc::new(AtomicU64::new(0)),
+            recovery,
         }
     }
 
     pub fn identity(&self) -> usize {
         Arc::as_ptr(&self.port) as *const () as usize
+    }
+
+    pub fn recovery_snapshot(&self) -> SystemProxyRecoverySnapshot {
+        self.recovery
+            .lock()
+            .expect("system proxy recovery lock")
+            .clone()
+    }
+
+    pub async fn recover_orphaned(&self) -> SystemProxyRecoverySnapshot {
+        let revision = self.next_revision.fetch_add(1, Ordering::Relaxed);
+        let status = match self.port.recover_orphaned().await {
+            Ok(SystemProxyRecoveryReport::NotNeeded) => SystemProxyRecoveryStatus::NotNeeded,
+            Ok(SystemProxyRecoveryReport::Restored { previous, restored }) => {
+                SystemProxyRecoveryStatus::Restored { previous, restored }
+            }
+            Ok(SystemProxyRecoveryReport::SkippedExternal { expected, observed }) => {
+                SystemProxyRecoveryStatus::SkippedExternal { expected, observed }
+            }
+            Ok(SystemProxyRecoveryReport::SkippedLiveOwner { owner_pid }) => {
+                SystemProxyRecoveryStatus::SkippedLiveOwner { owner_pid }
+            }
+            Err(error) => SystemProxyRecoveryStatus::Failed {
+                failure: Failure::from(error),
+            },
+        };
+        if status == SystemProxyRecoveryStatus::NotNeeded {
+            let previous = self.recovery_snapshot();
+            if !matches!(
+                previous.status,
+                SystemProxyRecoveryStatus::Unknown | SystemProxyRecoveryStatus::NotNeeded
+            ) {
+                return previous;
+            }
+        }
+        let snapshot = SystemProxyRecoverySnapshot { status, revision };
+        *self.recovery.lock().expect("system proxy recovery lock") = snapshot.clone();
+        snapshot
+    }
+
+    pub async fn clear_recovery(&self) -> Result<(), Failure> {
+        self.port.clear_recovery().await.map_err(Failure::from)
     }
 
     pub async fn snapshot(&self) -> SystemProxySnapshot {
@@ -79,6 +127,43 @@ impl SystemProxyApplication {
             endpoint: endpoint.clone(),
             bypass: bypass.clone(),
         };
+
+        // Disabling is a clean ownership release. Apply and read back first,
+        // then remove the crash-recovery journal; otherwise a crash after a
+        // user-initiated disable could incorrectly restore the old proxy on
+        // the next startup.
+        if !enabled {
+            self.port
+                .apply(None, None)
+                .await
+                .map_err(Failure::from)?;
+            let observation = self.port.snapshot().await.map_err(Failure::from)?;
+            if !target_matches(&target, &observation) {
+                return Err(Failure::new(
+                    ErrorCode::InvalidState,
+                    format!(
+                        "system proxy readback mismatch: requested {:?}, observed {:?}",
+                        target, observation
+                    ),
+                    true,
+                ));
+            }
+            self.port.clear_recovery().await.map_err(Failure::from)?;
+            *self.desired.lock().expect("system proxy target lock") = None;
+            let snapshot = SystemProxySnapshot::from_observation(
+                self.next_revision.fetch_add(1, Ordering::Relaxed),
+                observation,
+            )
+            .with_repair_count(self.repair_count.load(Ordering::Relaxed));
+            self.cache(snapshot.clone());
+            return Ok(snapshot);
+        }
+
+        let previous = self.port.snapshot().await.map_err(Failure::from)?;
+        self.port
+            .arm_recovery(previous, target.clone())
+            .await
+            .map_err(Failure::from)?;
         self.port
             .apply(endpoint, bypass)
             .await
@@ -184,7 +269,8 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::system_proxy::{
-        SystemProxyObservation, SystemProxyOwnership, SystemProxyStatus,
+        SystemProxyObservation, SystemProxyOwnership, SystemProxyRecoveryStatus,
+        SystemProxyStatus,
     };
     use std::sync::atomic::AtomicUsize;
 
@@ -192,13 +278,39 @@ mod tests {
         observation: Mutex<SystemProxyObservation>,
         apply_calls: AtomicUsize,
         snapshot_calls: AtomicUsize,
+        arm_calls: AtomicUsize,
+        clear_calls: AtomicUsize,
         target: Arc<Mutex<Option<SystemProxyDesiredState>>>,
+        recovery_report: Mutex<Option<SystemProxyRecoveryReport>>,
     }
 
     #[async_trait]
     impl SystemProxyPort for TestPort {
         fn shared_target(&self) -> Arc<Mutex<Option<SystemProxyDesiredState>>> {
             self.target.clone()
+        }
+
+        async fn arm_recovery(
+            &self,
+            _previous: SystemProxyObservation,
+            _desired: SystemProxyDesiredState,
+        ) -> Result<(), PortError> {
+            self.arm_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn clear_recovery(&self) -> Result<(), PortError> {
+            self.clear_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn recover_orphaned(&self) -> Result<SystemProxyRecoveryReport, PortError> {
+            Ok(self
+                .recovery_report
+                .lock()
+                .expect("recovery report lock")
+                .take()
+                .unwrap_or(SystemProxyRecoveryReport::NotNeeded))
         }
 
         async fn snapshot(&self) -> Result<SystemProxyObservation, PortError> {
@@ -226,7 +338,10 @@ mod tests {
             observation: Mutex::new(SystemProxyObservation::default()),
             apply_calls: AtomicUsize::new(0),
             snapshot_calls: AtomicUsize::new(0),
+            arm_calls: AtomicUsize::new(0),
+            clear_calls: AtomicUsize::new(0),
             target: Arc::new(Mutex::new(None)),
+            recovery_report: Mutex::new(None),
         });
         let application = SystemProxyApplication::new(port.clone());
         let snapshot = application
@@ -240,6 +355,7 @@ mod tests {
         assert_eq!(snapshot.status, SystemProxyStatus::Enabled);
         assert_eq!(snapshot.ownership, SystemProxyOwnership::Owned);
         assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(port.arm_calls.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
@@ -248,7 +364,10 @@ mod tests {
             observation: Mutex::new(SystemProxyObservation::default()),
             apply_calls: AtomicUsize::new(0),
             snapshot_calls: AtomicUsize::new(0),
+            arm_calls: AtomicUsize::new(0),
+            clear_calls: AtomicUsize::new(0),
             target: Arc::new(Mutex::new(None)),
+            recovery_report: Mutex::new(None),
         });
         let application = SystemProxyApplication::new(port.clone());
         let first = application.snapshot_cached().await;
@@ -264,7 +383,10 @@ mod tests {
             observation: Mutex::new(SystemProxyObservation::default()),
             apply_calls: AtomicUsize::new(0),
             snapshot_calls: AtomicUsize::new(0),
+            arm_calls: AtomicUsize::new(0),
+            clear_calls: AtomicUsize::new(0),
             target: Arc::new(Mutex::new(None)),
+            recovery_report: Mutex::new(None),
         });
         let application = SystemProxyApplication::new(port.clone());
         application
@@ -295,7 +417,10 @@ mod tests {
             observation: Mutex::new(SystemProxyObservation::default()),
             apply_calls: AtomicUsize::new(0),
             snapshot_calls: AtomicUsize::new(0),
+            arm_calls: AtomicUsize::new(0),
+            clear_calls: AtomicUsize::new(0),
             target: Arc::new(Mutex::new(None)),
+            recovery_report: Mutex::new(None),
         });
         let command_application = SystemProxyApplication::new(port.clone());
         let surface_application = SystemProxyApplication::new(port.clone());
@@ -307,5 +432,60 @@ mod tests {
         let snapshot = surface_application.snapshot().await;
         assert_eq!(snapshot.ownership, SystemProxyOwnership::Owned);
         assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn disabling_proxy_releases_ownership_and_clears_recovery() {
+        let port = Arc::new(TestPort {
+            observation: Mutex::new(SystemProxyObservation {
+                enabled: true,
+                endpoint: Some("127.0.0.1:7890".to_owned()),
+                bypass: None,
+            }),
+            apply_calls: AtomicUsize::new(0),
+            snapshot_calls: AtomicUsize::new(0),
+            arm_calls: AtomicUsize::new(0),
+            clear_calls: AtomicUsize::new(0),
+            target: Arc::new(Mutex::new(Some(SystemProxyDesiredState {
+                enabled: true,
+                endpoint: Some("127.0.0.1:7890".to_owned()),
+                bypass: None,
+            }))),
+            recovery_report: Mutex::new(None),
+        });
+        let application = SystemProxyApplication::new(port.clone());
+        let snapshot = application
+            .set_enabled(false, None, None)
+            .await
+            .expect("proxy disable");
+
+        assert_eq!(snapshot.status, SystemProxyStatus::Disabled);
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Unmanaged);
+        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(port.arm_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(port.clear_calls.load(Ordering::SeqCst), 1);
+        assert!(port.target.lock().expect("proxy target lock").is_none());
+    }
+
+    #[tokio::test]
+    async fn application_publishes_typed_startup_recovery_result() {
+        let port = Arc::new(TestPort {
+            observation: Mutex::new(SystemProxyObservation::default()),
+            apply_calls: AtomicUsize::new(0),
+            snapshot_calls: AtomicUsize::new(0),
+            arm_calls: AtomicUsize::new(0),
+            clear_calls: AtomicUsize::new(0),
+            target: Arc::new(Mutex::new(None)),
+            recovery_report: Mutex::new(Some(SystemProxyRecoveryReport::SkippedLiveOwner {
+                owner_pid: 4242,
+            })),
+        });
+        let application = SystemProxyApplication::new(port);
+        let snapshot = application.recover_orphaned().await;
+        assert!(matches!(
+            snapshot.status,
+            SystemProxyRecoveryStatus::SkippedLiveOwner { owner_pid: 4242 }
+        ));
+        assert_eq!(application.recovery_snapshot(), snapshot);
     }
 }

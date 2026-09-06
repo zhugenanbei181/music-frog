@@ -225,6 +225,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let resources = self.read_resources().await;
         let offline_startup = self.read_offline_startup().await;
         let system_proxy = self.read_system_proxy().await;
+        let system_proxy_recovery = self.read_system_proxy_recovery();
         let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
 
         pages.overview =
@@ -392,6 +393,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             offline_startup,
             mtu,
             system_proxy,
+            system_proxy_recovery,
         })
     }
 }

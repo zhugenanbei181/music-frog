@@ -4,9 +4,39 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_contract::system_proxy::{SystemProxyOwnership, SystemProxySnapshot, SystemProxyStatus};
+use infiltrator_contract::system_proxy::{
+    SystemProxyOwnership, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
+    SystemProxySnapshot, SystemProxyStatus,
+};
 
 impl AppState {
+    pub(super) fn finish_system_proxy_recovery(
+        &mut self,
+        snapshot: SystemProxyRecoverySnapshot,
+    ) -> Task<Message> {
+        self.runtime.system_proxy_recovery = snapshot.clone();
+        match &snapshot.status {
+            SystemProxyRecoveryStatus::Restored { .. } => Task::done(Message::ShowToast(
+                "已恢复上次异常退出遗留的系统代理设置".to_owned(),
+                ToastStatus::Warning,
+            )),
+            SystemProxyRecoveryStatus::SkippedExternal { .. } => Task::done(Message::ShowToast(
+                "检测到外部系统代理修改，未覆盖该设置".to_owned(),
+                ToastStatus::Warning,
+            )),
+            SystemProxyRecoveryStatus::Failed { failure } => {
+                self.set_error(&failure.message);
+                Task::done(Message::ShowToast(
+                    format!("系统代理启动恢复失败: {}", failure.message),
+                    ToastStatus::Error,
+                ))
+            }
+            SystemProxyRecoveryStatus::Unknown
+            | SystemProxyRecoveryStatus::NotNeeded
+            | SystemProxyRecoveryStatus::SkippedLiveOwner { .. } => Task::none(),
+        }
+    }
+
     pub(super) fn reconcile_system_proxy(
         &mut self,
         snapshot: SystemProxySnapshot,

@@ -34,6 +34,7 @@ use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::network_application::NetworkApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
+use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_admin::servers::AdminServerHandle;
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
@@ -630,14 +631,22 @@ impl AdminApiContext for IcedAdminContext {
     }
 
     async fn stop_runtime(&self) -> anyhow::Result<()> {
-        if let Some(runtime) = self.shared.take_runtime() {
+        let runtime = self.shared.take_runtime();
+        let proxy_port = runtime
+            .as_ref()
+            .and_then(|runtime| runtime.system_proxy_port())
+            .unwrap_or_else(crate::host::desktop::system_proxy_port);
+        if let Some(runtime) = runtime {
             let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
         }
-        if infiltrator_desktop::proxy::read_system_proxy_state()
+        if crate::host::desktop::read_system_proxy_state()
             .map(|state| state.enabled)
             .unwrap_or(false)
         {
-            let _ = infiltrator_desktop::proxy::apply_system_proxy(None);
+            SystemProxyApplication::new(proxy_port)
+                .set_enabled(false, None, None)
+                .await
+                .map_err(|failure| anyhow!(failure.message))?;
         }
         self.shared.send(AdminHostCommand::RuntimeStopped);
         Ok(())
@@ -652,7 +661,7 @@ impl AdminApiContext for IcedAdminContext {
     }
 
     async fn system_proxy_enabled(&self) -> bool {
-        infiltrator_desktop::proxy::read_system_proxy_state()
+        crate::host::desktop::read_system_proxy_state()
             .map(|state| state.enabled)
             .unwrap_or(false)
     }
@@ -666,9 +675,18 @@ impl AdminApiContext for IcedAdminContext {
             let endpoint = ManagedRuntime::http_proxy_endpoint(runtime.as_ref())
                 .await?
                 .ok_or_else(|| anyhow!("当前配置中未配置代理端口（port/mixed-port）"))?;
-            infiltrator_desktop::proxy::apply_system_proxy(Some(&endpoint))?;
+            let proxy_port = runtime
+                .system_proxy_port()
+                .unwrap_or_else(crate::host::desktop::system_proxy_port);
+            SystemProxyApplication::new(proxy_port)
+                .set_enabled(true, Some(endpoint), None)
+                .await
+                .map_err(|failure| anyhow!(failure.message))?;
         } else {
-            infiltrator_desktop::proxy::apply_system_proxy(None)?;
+            SystemProxyApplication::new(crate::host::desktop::system_proxy_port())
+                .set_enabled(false, None, None)
+                .await
+                .map_err(|failure| anyhow!(failure.message))?;
         }
         Ok(())
     }

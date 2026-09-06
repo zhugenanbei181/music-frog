@@ -7,7 +7,7 @@ use mihomo_platform::crash_reporter::{CleanExitHook, TerminationHandler};
 
 pub fn install() -> anyhow::Result<TerminationHandler> {
     CleanExitHook::register_proxy_restore(|| {
-        let _ = crate::proxy::apply_system_proxy(None);
+        let _ = crate::system_proxy::DesktopSystemProxy::restore_and_clear_sync();
     });
     CleanExitHook::register_tun_route_restore(|| {
         let _ = crate::tun_service::TunServiceManager::stop_service();

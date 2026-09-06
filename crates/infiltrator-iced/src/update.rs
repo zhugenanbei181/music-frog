@@ -220,6 +220,7 @@ impl AppState {
             | Message::SetSystemProxy(_)
             | Message::SystemProxySet(_)
             | Message::SystemProxyReconciled(_)
+            | Message::SystemProxyRecoveryFinished(_)
             | Message::TogglePerfPanel
             | Message::RequestConfirmation(_)
             | Message::ConfirmAction

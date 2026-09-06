@@ -13,7 +13,10 @@ use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::system_proxy::{SystemProxyOwnership, SystemProxySnapshot, SystemProxyStatus};
+use infiltrator_contract::system_proxy::{
+    SystemProxyOwnership, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
+    SystemProxySnapshot, SystemProxyStatus,
+};
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use super::settings_core::{SettingsLine, SettingsLineKind};
@@ -37,6 +40,7 @@ pub(super) fn toggle_scene(checked: bool, palette: &UiPalette) -> Box<dyn Scene>
 
 pub(super) fn status_row(
     snapshot: &SystemProxySnapshot,
+    recovery: &SystemProxyRecoverySnapshot,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
     Box::new(bsn! {
@@ -49,12 +53,25 @@ pub(super) fn status_row(
         bevy::ui::prelude::BackgroundColor({ palette.surface_elevated })
         Children [
             ( Text({ "系统代理状态 (System Proxy Status)".to_owned() }) TextRole(Role::Body) ),
-            ( Text(format_status(snapshot)) SettingsLine(SettingsLineKind::SystemProxy) TextRole(Role::Mono) ),
+            ( Text(format_status(snapshot, recovery)) SettingsLine(SettingsLineKind::SystemProxy) TextRole(Role::Mono) ),
         ]
     })
 }
 
-pub(super) fn format_status(snapshot: &SystemProxySnapshot) -> String {
+pub(super) fn format_status(
+    snapshot: &SystemProxySnapshot,
+    recovery: &SystemProxyRecoverySnapshot,
+) -> String {
+    let recovery_status = match &recovery.status {
+        SystemProxyRecoveryStatus::Restored { .. } => Some("启动已清理孤儿代理"),
+        SystemProxyRecoveryStatus::SkippedExternal { .. } => Some("检测到外部修改，未覆盖"),
+        SystemProxyRecoveryStatus::Failed { .. } => Some("启动恢复失败"),
+        SystemProxyRecoveryStatus::SkippedLiveOwner { .. } => Some("已有实例持有代理"),
+        SystemProxyRecoveryStatus::Unknown | SystemProxyRecoveryStatus::NotNeeded => None,
+    };
+    if let Some(status) = recovery_status {
+        return status.to_owned();
+    }
     match &snapshot.status {
         SystemProxyStatus::Unknown => "未探测".to_owned(),
         SystemProxyStatus::Disabled => "已关闭".to_owned(),
