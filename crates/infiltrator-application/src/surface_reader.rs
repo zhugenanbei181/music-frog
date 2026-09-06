@@ -16,6 +16,7 @@ use crate::settings_application::SettingsApplication;
 use crate::snapshot_application::SnapshotApplication;
 use crate::service_mode_application::ServiceModeApplication;
 use crate::version_application::VersionApplication;
+use crate::uwp_loopback_application::UwpLoopbackApplication;
 use crate::offline_startup_application::OfflineStartupApplication;
 use crate::mtu_application::MtuApplication;
 use crate::system_proxy_application::SystemProxyApplication;
@@ -57,6 +58,7 @@ pub struct ApplicationSurfaceReader {
     offline_startup: Option<OfflineStartupApplication>,
     mtu: Option<MtuApplication>,
     system_proxy: Option<SystemProxyApplication>,
+    uwp_loopback: Option<UwpLoopbackApplication>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -81,6 +83,7 @@ impl ApplicationSurfaceReader {
             offline_startup: None,
             mtu: None,
             system_proxy: None,
+            uwp_loopback: None,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -164,6 +167,11 @@ impl ApplicationSurfaceReader {
 
     pub fn with_system_proxy(mut self, system_proxy: SystemProxyApplication) -> Self {
         self.system_proxy = Some(system_proxy);
+        self
+    }
+
+    pub fn with_uwp_loopback(mut self, uwp_loopback: UwpLoopbackApplication) -> Self {
+        self.uwp_loopback = Some(uwp_loopback);
         self
     }
 
@@ -353,9 +361,13 @@ impl SurfaceReader for ApplicationSurfaceReader {
             pages.doctor = surface_snapshot::PageData::loading();
         }
 
+        let uwp_loopback = self.read_uwp_loopback().await;
         if let Some(routing) = &self.routing {
             pages.app_routing = match routing.load() {
-                Ok(config) => surface_snapshot::PageData::ready(app_routing_page(config)),
+                Ok(config) => surface_snapshot::PageData::ready(app_routing_page(
+                    config,
+                    uwp_loopback.clone(),
+                )),
                 Err(failure) => surface_snapshot::PageData::failed(failure),
             };
         }
@@ -634,6 +646,7 @@ fn dns_protocol(address: &str) -> String {
 
 fn app_routing_page(
     config: infiltrator_domain::app_routing::AppRoutingConfig,
+    uwp_loopback: infiltrator_contract::uwp::UwpLoopbackSnapshot,
 ) -> surface_snapshot::AppRoutingPageSnapshot {
     let mode = match config.mode {
         AppRoutingMode::ProxyAll => "proxy_all",
@@ -670,6 +683,7 @@ fn app_routing_page(
         mode: mode.to_owned(),
         include_system: false,
         apps,
+        uwp_loopback,
     }
 }
 

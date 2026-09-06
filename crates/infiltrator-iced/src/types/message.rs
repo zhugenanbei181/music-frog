@@ -496,9 +496,11 @@ pub enum Message {
     // Wave 3 Category 5: Windows UWP Loopback Utility
     ScanUwpApps,
     UwpAppsLoaded(Vec<super::app::UwpAppItem>),
+    UwpSnapshotLoaded(infiltrator_contract::uwp::UwpLoopbackSnapshot),
     ExemptAllUwpApps,
     ClearAllUwpExemptions,
     ToggleUwpAppExemption(String),
+    UwpExemptionsChanged(Result<infiltrator_contract::uwp::UwpLoopbackSnapshot, InfiltratorError>),
     // Wave 3 Category 6: Encrypted Backup Package
     UpdateEncryptedBackupPassphrase(String),
     ExportEncryptedPackage,

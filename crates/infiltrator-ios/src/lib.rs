@@ -192,6 +192,10 @@ pub fn ios_capabilities() -> CapabilitySnapshot {
                 unsupported("iOS controller gateway is not exposed by the native host"),
             ),
             status(
+                Capability::UwpLoopback,
+                unsupported("Windows AppContainer loopback is not available on iOS"),
+            ),
+            status(
                 Capability::Autostart,
                 unsupported("iOS controls app launch"),
             ),
@@ -331,6 +335,7 @@ mod tests {
             capabilities.availability(Capability::Ipv6Routing),
             Availability::Unsupported { .. }
         ));
+        assert!(!capabilities.supports(Capability::UwpLoopback));
     }
 
     #[tokio::test]

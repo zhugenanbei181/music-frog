@@ -622,9 +622,26 @@ impl std::fmt::Debug for Message {
             Message::GeoDataUpdateFinished(_) => write!(f, "GeoDataUpdateFinished"),
             Message::ScanUwpApps => write!(f, "ScanUwpApps"),
             Message::UwpAppsLoaded(apps) => write!(f, "UwpAppsLoaded({} apps)", apps.len()),
+            Message::UwpSnapshotLoaded(snapshot) => write!(
+                f,
+                "UwpSnapshotLoaded({} packages, revision={})",
+                snapshot.packages.len(),
+                snapshot.revision
+            ),
             Message::ExemptAllUwpApps => write!(f, "ExemptAllUwpApps"),
             Message::ClearAllUwpExemptions => write!(f, "ClearAllUwpExemptions"),
             Message::ToggleUwpAppExemption(sid) => write!(f, "ToggleUwpAppExemption({sid})"),
+            Message::UwpExemptionsChanged(Ok(snapshot)) => write!(
+                f,
+                "UwpExemptionsChanged(Ok({} packages, revision={}))",
+                snapshot.packages.len(),
+                snapshot.revision
+            ),
+            Message::UwpExemptionsChanged(Err(error)) => write!(
+                f,
+                "UwpExemptionsChanged(Err({:?}))",
+                error
+            ),
             Message::UpdateEncryptedBackupPassphrase(_) => write!(f, "UpdateEncryptedBackupPassphrase"),
             Message::ExportEncryptedPackage => write!(f, "ExportEncryptedPackage"),
             Message::ImportEncryptedPackage => write!(f, "ImportEncryptedPackage"),

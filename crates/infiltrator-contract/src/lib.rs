@@ -14,6 +14,7 @@ pub mod error;
 pub mod intent;
 pub mod lan;
 pub mod ipv6;
+pub mod uwp;
 pub mod offline_startup;
 pub mod mtu;
 pub mod snapshot;

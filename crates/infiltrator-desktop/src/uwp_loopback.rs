@@ -410,7 +410,7 @@ impl AppContainerBackend for NativeAppContainerBackend {
         let containers = self.scan_containers()?;
         for container in containers {
             if !container.loopback_exempt {
-                let _ = self.set_exempt(&container.sid, true);
+                self.set_exempt(&container.sid, true)?;
             }
         }
         Ok(())
@@ -486,7 +486,14 @@ where
 
 /// Lists all installed AppContainers.
 pub fn list_app_containers() -> Vec<AppContainerPackage> {
-    with_backend(|b| b.scan_containers()).unwrap_or_default()
+    try_list_app_containers().unwrap_or_default()
+}
+
+/// Lists AppContainers while preserving native command/registry errors for a
+/// typed application adapter. The legacy convenience function above remains
+/// best-effort for callers that intentionally want an empty fallback.
+pub fn try_list_app_containers() -> Result<Vec<AppContainerPackage>> {
+    with_backend(|b| b.scan_containers())
 }
 
 /// Grants or revokes loopback exemption for a specific AppContainer SID.

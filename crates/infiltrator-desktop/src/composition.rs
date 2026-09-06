@@ -8,6 +8,7 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
 use infiltrator_application::version_application::VersionApplication;
 use mihomo_api::client::MihomoClient;
@@ -52,6 +53,9 @@ pub fn core_application(
             )))
             .with_system_proxy(SystemProxyApplication::new(std::sync::Arc::new(
                 crate::system_proxy::DesktopSystemProxy::new(),
+            )))
+            .with_uwp_loopback(UwpLoopbackApplication::new(std::sync::Arc::new(
+                crate::uwp_loopback_port::DesktopUwpLoopbackPort,
             )))
             .with_versions(versions)
             .with_service_mode(service_mode)

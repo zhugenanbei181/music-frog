@@ -28,4 +28,5 @@ pub mod tray_event;
 pub mod tun_service;
 pub mod updater;
 pub mod uwp_loopback;
+pub mod uwp_loopback_port;
 pub mod version;

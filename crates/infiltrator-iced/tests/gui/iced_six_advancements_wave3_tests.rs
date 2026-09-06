@@ -7,6 +7,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::perf::SpeedtestResult;
+use infiltrator_contract::uwp::{UwpLoopbackSnapshot, UwpPackageSnapshot};
 
 #[test]
 fn test_advancement_w3_1_pcap_capture_and_export_lifecycle() {
@@ -140,6 +141,7 @@ fn test_advancement_w3_4_geodata_version_and_updater_workflow() {
 #[test]
 fn test_advancement_w3_5_uwp_loopback_exemption_manager() {
     let (mut state, _) = AppState::new();
+    state.shell.demo = true;
 
     // Initial state
     assert!(state.shell.uwp_loopback.apps.is_empty());
@@ -167,6 +169,31 @@ fn test_advancement_w3_5_uwp_loopback_exemption_manager() {
     let _ = state.update(Message::ToggleUwpAppExemption("S-1-15-2-1".to_string()));
     assert!(state.shell.uwp_loopback.apps[0].is_exempt);
     assert!(!state.shell.uwp_loopback.apps[1].is_exempt);
+}
+
+#[test]
+fn test_uwp_live_snapshot_projects_without_demo_data() {
+    let (mut state, _) = AppState::new();
+    let snapshot = UwpLoopbackSnapshot::supported(
+        4,
+        vec![UwpPackageSnapshot {
+            sid: "S-1-15-2-44".to_owned(),
+            display_name: "Contoso UWP".to_owned(),
+            package_family_name: "Contoso.App".to_owned(),
+            loopback_exempt: true,
+        }],
+    );
+
+    let _ = state.update(Message::UwpSnapshotLoaded(snapshot));
+
+    assert_eq!(state.shell.uwp_loopback.revision, 4);
+    assert!(matches!(
+        state.shell.uwp_loopback.availability,
+        infiltrator_contract::uwp::UwpLoopbackAvailability::Supported
+    ));
+    assert_eq!(state.shell.uwp_loopback.apps.len(), 1);
+    assert_eq!(state.shell.uwp_loopback.apps[0].display_name, "Contoso UWP");
+    assert!(state.shell.uwp_loopback.apps[0].is_exempt);
 }
 
 #[test]

@@ -29,6 +29,7 @@ pub mod surface_reader;
 pub mod sync_application;
 pub mod system_proxy_application;
 pub mod version_application;
+pub mod uwp_loopback_application;
 
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use std::future::Future;

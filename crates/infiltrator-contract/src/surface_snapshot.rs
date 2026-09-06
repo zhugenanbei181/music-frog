@@ -296,6 +296,8 @@ pub struct AppRoutingPageSnapshot {
     pub mode: String,
     pub include_system: bool,
     pub apps: Vec<AppSnapshot>,
+    #[serde(default)]
+    pub uwp_loopback: crate::uwp::UwpLoopbackSnapshot,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

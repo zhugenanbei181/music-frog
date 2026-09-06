@@ -33,6 +33,7 @@ pub mod sync;
 pub mod surface;
 pub mod version;
 pub mod system_proxy;
+pub mod uwp_loopback;
 
 #[cfg(test)]
 mod tests {

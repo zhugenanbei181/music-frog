@@ -540,6 +540,7 @@ fn app_routing_page_in_place_update() {
             rule: AppRouteRule::Block,
             is_system: false,
         }],
+        uwp_loopback: Default::default(),
     };
 
     app.world_mut()

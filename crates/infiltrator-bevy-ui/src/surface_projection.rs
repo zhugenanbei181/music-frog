@@ -313,6 +313,7 @@ pub(super) fn app_routing_projection(
                 _ => AppRoutingMode::ProxyAll,
             },
             include_system: value.include_system,
+            uwp_loopback: value.uwp_loopback.clone(),
             apps: value
                 .apps
                 .iter()

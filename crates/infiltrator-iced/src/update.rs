@@ -170,9 +170,11 @@ impl AppState {
             | Message::GeoDataUpdateFinished(_)
             | Message::ScanUwpApps
             | Message::UwpAppsLoaded(_)
+            | Message::UwpSnapshotLoaded(_)
             | Message::ExemptAllUwpApps
             | Message::ClearAllUwpExemptions
             | Message::ToggleUwpAppExemption(_)
+            | Message::UwpExemptionsChanged(_)
             | Message::UpdateEncryptedBackupPassphrase(_)
             | Message::ExportEncryptedPackage
             | Message::ImportEncryptedPackage

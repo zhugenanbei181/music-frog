@@ -5,8 +5,42 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot};
+
+fn map_uwp_snapshot(
+    target: &mut crate::types::app::UwpLoopbackState,
+    snapshot: UwpLoopbackSnapshot,
+) {
+    target.availability = snapshot.availability.clone();
+    target.revision = snapshot.revision;
+    target.apps = snapshot
+        .packages
+        .into_iter()
+        .map(|package| crate::types::app::UwpAppItem {
+            sid: package.sid,
+            display_name: package.display_name,
+            is_exempt: package.loopback_exempt,
+        })
+        .collect();
+    target.is_scanning = false;
+    target.status_message = Some(match snapshot.availability {
+        UwpLoopbackAvailability::Supported => {
+            format!("已扫描 {} 个 UWP AppContainer", target.apps.len())
+        }
+        UwpLoopbackAvailability::Unsupported { reason }
+        | UwpLoopbackAvailability::Unavailable { reason } => reason,
+    });
+}
+
+fn map_uwp_failure(error: infiltrator_contract::error::Failure) -> infiltrator_contract::error::InfiltratorError {
+    infiltrator_contract::error::InfiltratorError::Internal(error.message)
+}
 
 impl AppState {
+    fn apply_uwp_snapshot(&mut self, snapshot: UwpLoopbackSnapshot) {
+        map_uwp_snapshot(&mut self.shell.uwp_loopback, snapshot);
+    }
+
     pub(super) fn update_ui_wave3(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::TogglePcapCapture => {
@@ -132,6 +166,14 @@ impl AppState {
                 Task::none()
             }
             Message::ScanUwpApps => {
+                if !self.shell.demo {
+                    self.shell.uwp_loopback.is_scanning = true;
+                    let application = crate::host::desktop::uwp_loopback_application();
+                    return Task::perform(
+                        async move { application.snapshot().await },
+                        Message::UwpSnapshotLoaded,
+                    );
+                }
                 self.shell.uwp_loopback.is_scanning = true;
                 let apps = vec![
                     crate::types::app::UwpAppItem {
@@ -156,10 +198,28 @@ impl AppState {
             }
             Message::UwpAppsLoaded(apps) => {
                 self.shell.uwp_loopback.apps = apps;
+                self.shell.uwp_loopback.availability = UwpLoopbackAvailability::Supported;
                 self.shell.uwp_loopback.is_scanning = false;
                 Task::none()
             }
+            Message::UwpSnapshotLoaded(snapshot) => {
+                self.apply_uwp_snapshot(snapshot);
+                Task::none()
+            }
             Message::ExemptAllUwpApps => {
+                if !self.shell.demo {
+                    self.shell.uwp_loopback.is_scanning = true;
+                    let application = crate::host::desktop::uwp_loopback_application();
+                    return Task::perform(
+                        async move {
+                            application
+                                .set_all(true)
+                                .await
+                                .map_err(map_uwp_failure)
+                        },
+                        Message::UwpExemptionsChanged,
+                    );
+                }
                 for app in &mut self.shell.uwp_loopback.apps {
                     app.is_exempt = true;
                 }
@@ -169,6 +229,19 @@ impl AppState {
                 ))
             }
             Message::ClearAllUwpExemptions => {
+                if !self.shell.demo {
+                    self.shell.uwp_loopback.is_scanning = true;
+                    let application = crate::host::desktop::uwp_loopback_application();
+                    return Task::perform(
+                        async move {
+                            application
+                                .set_all(false)
+                                .await
+                                .map_err(map_uwp_failure)
+                        },
+                        Message::UwpExemptionsChanged,
+                    );
+                }
                 for app in &mut self.shell.uwp_loopback.apps {
                     app.is_exempt = false;
                 }
@@ -178,10 +251,49 @@ impl AppState {
                 ))
             }
             Message::ToggleUwpAppExemption(sid) => {
+                if !self.shell.demo {
+                    let Some(app) = self
+                        .shell
+                        .uwp_loopback
+                        .apps
+                        .iter()
+                        .find(|app| app.sid == sid)
+                        .cloned()
+                    else {
+                        return Task::none();
+                    };
+                    self.shell.uwp_loopback.is_scanning = true;
+                    let application = crate::host::desktop::uwp_loopback_application();
+                    return Task::perform(
+                        async move {
+                            application
+                                .set_exempt(&app.sid, !app.is_exempt)
+                                .await
+                                .map_err(map_uwp_failure)
+                        },
+                        Message::UwpExemptionsChanged,
+                    );
+                }
                 if let Some(app) = self.shell.uwp_loopback.apps.iter_mut().find(|a| a.sid == sid) {
                     app.is_exempt = !app.is_exempt;
                 }
                 Task::none()
+            }
+            Message::UwpExemptionsChanged(result) => {
+                self.shell.uwp_loopback.is_scanning = false;
+                match result {
+                    Ok(snapshot) => {
+                        self.apply_uwp_snapshot(snapshot);
+                        Task::done(Message::ShowToast(
+                            "UWP 回环豁免已应用并完成回读".to_owned(),
+                            ToastStatus::Success,
+                        ))
+                    }
+                    Err(error) => {
+                        self.set_error(&error);
+                        Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
+                    }
+                }
             }
             Message::UpdateEncryptedBackupPassphrase(pass) => {
                 self.profile.encrypted_backup.passphrase = pass;

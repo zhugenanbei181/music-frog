@@ -29,6 +29,7 @@ use crate::snapshot_application::SnapshotApplication;
 use crate::sync_application::SyncApplication;
 use crate::system_proxy_application::SystemProxyApplication;
 use crate::version_application::VersionApplication;
+use crate::uwp_loopback_application::UwpLoopbackApplication;
 
 pub type CommandFuture = Pin<Box<dyn Future<Output = Result<(), Failure>> + Send + 'static>>;
 
@@ -54,6 +55,7 @@ pub struct CommandApplication {
     port_conflicts: Option<PortConflictApplication>,
     mtu: Option<MtuApplication>,
     system_proxy: Option<SystemProxyApplication>,
+    uwp_loopback: Option<UwpLoopbackApplication>,
 }
 
 impl CommandApplication {
@@ -128,6 +130,11 @@ impl CommandApplication {
 
     pub fn with_system_proxy(mut self, application: SystemProxyApplication) -> Self {
         self.system_proxy = Some(application);
+        self
+    }
+
+    pub fn with_uwp_loopback(mut self, application: UwpLoopbackApplication) -> Self {
+        self.uwp_loopback = Some(application);
         self
     }
 
@@ -343,6 +350,20 @@ impl CommandApplication {
                 .set_ipv6_routing(enabled)
                 .await
                 .map(|_| ()),
+            CommandIntent::ScanUwpApps => {
+                self.uwp_loopback()?.snapshot().await;
+                Ok(())
+            }
+            CommandIntent::SetUwpAppExemption { sid, exempt } => self
+                .uwp_loopback()?
+                .set_exempt(&sid, exempt)
+                .await
+                .map(|_| ()),
+            CommandIntent::SetAllUwpExemptions { exempt } => self
+                .uwp_loopback()?
+                .set_all(exempt)
+                .await
+                .map(|_| ()),
             CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore
@@ -456,6 +477,12 @@ impl CommandApplication {
             .ok_or_else(|| {
                 Failure::unsupported("system proxy control is not composed for this host")
             })
+    }
+
+    fn uwp_loopback(&self) -> Result<UwpLoopbackApplication, Failure> {
+        self.uwp_loopback
+            .clone()
+            .ok_or_else(|| Failure::unsupported("UWP loopback is not configured for this host"))
     }
 }
 

@@ -89,4 +89,13 @@ impl ApplicationSurfaceReader {
             None => Default::default(),
         }
     }
+
+    pub(super) async fn read_uwp_loopback(
+        &self,
+    ) -> infiltrator_contract::uwp::UwpLoopbackSnapshot {
+        match &self.uwp_loopback {
+            Some(application) => application.snapshot_cached().await,
+            None => Default::default(),
+        }
+    }
 }

@@ -235,6 +235,7 @@ pub(crate) fn empty_app_routing() -> AppRoutingProjection {
         mode: AppRoutingMode::ProxyAll,
         include_system: false,
         apps: Vec::new(),
+        uwp_loopback: Default::default(),
     }
 }
 
@@ -466,6 +467,7 @@ impl From<AppRoutingProjection> for surface_snapshot::AppRoutingPageSnapshot {
                 AppRoutingMode::ProxyList => "bypass_selected".to_owned(),
             },
             include_system: value.include_system,
+            uwp_loopback: value.uwp_loopback,
             apps: value
                 .apps
                 .into_iter()

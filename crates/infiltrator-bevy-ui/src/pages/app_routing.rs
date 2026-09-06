@@ -154,6 +154,7 @@ pub struct AppRoutingProjection {
     pub mode: AppRoutingMode,
     pub include_system: bool,
     pub apps: Vec<AppItem>,
+    pub uwp_loopback: infiltrator_contract::uwp::UwpLoopbackSnapshot,
 }
 
 impl AppRoutingProjection {
@@ -206,6 +207,29 @@ impl AppRoutingProjection {
                     is_system: true,
                 },
             ],
+            uwp_loopback: infiltrator_contract::uwp::UwpLoopbackSnapshot::supported(
+                1,
+                vec![
+                    infiltrator_contract::uwp::UwpPackageSnapshot {
+                        sid: "S-1-15-2-1".to_owned(),
+                        display_name: "Microsoft Store".to_owned(),
+                        package_family_name: "Microsoft.WindowsStore".to_owned(),
+                        loopback_exempt: true,
+                    },
+                    infiltrator_contract::uwp::UwpPackageSnapshot {
+                        sid: "S-1-15-2-2".to_owned(),
+                        display_name: "Xbox App".to_owned(),
+                        package_family_name: "Microsoft.XboxApp".to_owned(),
+                        loopback_exempt: false,
+                    },
+                    infiltrator_contract::uwp::UwpPackageSnapshot {
+                        sid: "S-1-15-2-3".to_owned(),
+                        display_name: "Windows Terminal".to_owned(),
+                        package_family_name: "Microsoft.WindowsTerminal".to_owned(),
+                        loopback_exempt: true,
+                    },
+                ],
+            ),
         }
     }
 }
@@ -252,7 +276,7 @@ pub fn app_routing_page(
         AppRoutingPageRoot
         Children [
             ( { header_card_scene(summary, projection.include_system, palette) } ),
-            ( { crate::pages::app_routing_uwp::uwp_exemption_scene(palette) } ),
+            ( { crate::pages::app_routing_uwp::uwp_exemption_scene(projection, palette) } ),
             ( { apps_container_scene(app_scenes, palette) } ),
         ]
     }
@@ -434,6 +458,8 @@ fn bind_app_routing_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.insert_resource(AppRoutingPageBound);
     commands.add_observer(apply_app_routing_projection);
     commands.add_observer(on_app_routing_action_activated);
+    commands.add_observer(crate::pages::app_routing_uwp::on_action_activated);
+    commands.add_observer(crate::pages::app_routing_uwp::apply_projection);
 }
 
 pub(crate) fn on_app_routing_action_activated(

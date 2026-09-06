@@ -35,6 +35,7 @@ pub mod proxy_nodes;
 pub mod rule_hit_counter;
 pub mod rules;
 pub mod runtime;
+pub mod uwp;
 pub mod sandbox;
 pub mod pac_generator;
 pub mod redact;

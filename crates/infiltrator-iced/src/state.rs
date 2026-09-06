@@ -470,6 +470,23 @@ impl AppState {
                     settings.lan_security.allowed_ips.join(", ");
             }
         }
+        if !self.shell.uwp_loopback.is_scanning
+            && let Some(app_routing) = snapshot.pages.app_routing.data.as_ref()
+        {
+            let uwp = &app_routing.uwp_loopback;
+            self.shell.uwp_loopback.availability = uwp.availability.clone();
+            self.shell.uwp_loopback.revision = uwp.revision;
+            self.shell.uwp_loopback.apps = uwp
+                .packages
+                .iter()
+                .map(|package| crate::types::app::UwpAppItem {
+                    sid: package.sid.clone(),
+                    display_name: package.display_name.clone(),
+                    is_exempt: package.loopback_exempt,
+                })
+                .collect();
+            self.shell.uwp_loopback.is_scanning = false;
+        }
         self.runtime.controller_auth = snapshot.controller_auth;
         self.runtime.service_mode = snapshot.service_mode;
         self.runtime.port_conflicts = snapshot.port_conflicts.clone();

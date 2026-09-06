@@ -88,6 +88,12 @@ pub enum UiCommand {
     },
     /// Toggle Mihomo's top-level IPv6 routing policy.
     SetIpv6Routing { enabled: bool },
+    /// Refresh Windows AppContainer loopback state.
+    ScanUwpApps,
+    /// Toggle one Windows AppContainer loopback exemption.
+    SetUwpAppExemption { sid: String, exempt: bool },
+    /// Apply or clear all Windows AppContainer loopback exemptions.
+    SetAllUwpExemptions { exempt: bool },
     /// Run full system doctor diagnostics.
     RunDoctorDiagnostics,
     /// Repair a specific doctor issue by check ID.
@@ -197,6 +203,16 @@ impl UiCommand {
             }),
             Self::SetIpv6Routing { enabled } => {
                 Some(CommandIntent::SetIpv6Routing { enabled: *enabled })
+            }
+            Self::ScanUwpApps => Some(CommandIntent::ScanUwpApps),
+            Self::SetUwpAppExemption { sid, exempt } => {
+                Some(CommandIntent::SetUwpAppExemption {
+                    sid: sid.clone(),
+                    exempt: *exempt,
+                })
+            }
+            Self::SetAllUwpExemptions { exempt } => {
+                Some(CommandIntent::SetAllUwpExemptions { exempt: *exempt })
             }
             Self::RunDoctorDiagnostics => Some(CommandIntent::RunDoctorDiagnostics),
             Self::RepairDoctorIssue { check_id } => Some(CommandIntent::RepairDoctorIssue {
@@ -471,6 +487,11 @@ mod tests {
         assert_eq!(
             UiCommand::SetIpv6Routing { enabled: false }.to_intent(),
             Some(CommandIntent::SetIpv6Routing { enabled: false })
+        );
+        assert_eq!(UiCommand::ScanUwpApps.to_intent(), Some(CommandIntent::ScanUwpApps));
+        assert_eq!(
+            UiCommand::SetAllUwpExemptions { exempt: true }.to_intent(),
+            Some(CommandIntent::SetAllUwpExemptions { exempt: true })
         );
     }
 

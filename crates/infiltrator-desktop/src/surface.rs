@@ -18,6 +18,7 @@ use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::capability::{
@@ -41,6 +42,7 @@ pub fn desktop_capabilities() -> CapabilitySnapshot {
         Capability::SystemProxy,
         Capability::LanAccessControl,
         Capability::Ipv6Routing,
+        Capability::UwpLoopback,
         Capability::Autostart,
         Capability::CoreVersionInstall,
         Capability::WebDavSync,
@@ -49,7 +51,13 @@ pub fn desktop_capabilities() -> CapabilitySnapshot {
     .into_iter()
     .map(|capability| CapabilityStatus {
         capability,
-        availability: Availability::Supported,
+        availability: if capability == Capability::UwpLoopback && !cfg!(windows) {
+            Availability::Unsupported {
+                reason: "Windows CheckNetIsolation is unavailable on this host".to_owned(),
+            }
+        } else {
+            Availability::Supported
+        },
     })
     .collect();
     CapabilitySnapshot::new(HostKind::Desktop, 0, entries)
@@ -92,6 +100,9 @@ pub async fn application_surface_reader(
     let system_proxy = SystemProxyApplication::new(Arc::new(
         crate::system_proxy::DesktopSystemProxy::new(),
     ));
+    let uwp_loopback = UwpLoopbackApplication::new(Arc::new(
+        crate::uwp_loopback_port::DesktopUwpLoopbackPort,
+    ));
     let service_mode =
         ServiceModeApplication::new(Arc::new(crate::service_mode::DesktopServiceMode::new(
             binary_path,
@@ -105,6 +116,7 @@ pub async fn application_surface_reader(
             .with_offline_startup(offline_startup)
             .with_mtu(mtu)
             .with_system_proxy(system_proxy)
+            .with_uwp_loopback(uwp_loopback)
             .with_profiles(profile)
             .with_configuration(configuration)
             .with_doctor(doctor)

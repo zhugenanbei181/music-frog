@@ -140,6 +140,8 @@ python3 scripts/quality/lan-sharing-guard.py --mode enforce
 python3 scripts/quality/lan-security-guard.py --mode enforce
 # DUAL-02-09 Mihomo IPv6 内核流量策略与 TUN 上下文回读守卫
 python3 scripts/quality/ipv6-routing-guard.py --mode enforce
+# DUAL-02-10 Windows UWP AppContainer 回环隔离守卫
+python3 scripts/quality/uwp-loopback-guard.py --mode enforce
 ```
 
 ---

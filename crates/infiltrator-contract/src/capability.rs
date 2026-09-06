@@ -14,6 +14,7 @@ pub enum Capability {
     SystemProxy,
     LanAccessControl,
     Ipv6Routing,
+    UwpLoopback,
     Autostart,
     CoreVersionInstall,
     WebDavSync,

@@ -7,10 +7,19 @@ use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
+use infiltrator_contract::uwp::UwpLoopbackAvailability;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let uwp = &state.shell.uwp_loopback;
+    let availability = match &uwp.availability {
+        UwpLoopbackAvailability::Supported => uwp
+            .status_message
+            .clone()
+            .unwrap_or_else(|| format!("已发现 {} 个 UWP AppContainer", uwp.apps.len())),
+        UwpLoopbackAvailability::Unsupported { reason }
+        | UwpLoopbackAvailability::Unavailable { reason } => reason.clone(),
+    };
 
     let scan_btn = button(
         row![
@@ -106,6 +115,9 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
                 clear_all_btn,
             ]
             .align_y(Alignment::Center),
+            text(availability).size(11).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
             Space::new().height(theme::SP_XS),
             apps_container,
         ]

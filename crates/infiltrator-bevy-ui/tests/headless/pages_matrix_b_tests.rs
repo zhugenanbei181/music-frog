@@ -33,6 +33,7 @@ use infiltrator_bevy_ui::pages::settings::settings_lan::{
     LanBindAddressField, LanDisallowedIpsField, LanMixedPortField, LanSecurityApplyButton,
     LanSharingApplyButton, LanSharingToggle, LanSkipAuthPrefixesField,
 };
+use infiltrator_bevy_ui::pages::app_routing_uwp::{UwpAction, UwpActionButton};
 use infiltrator_bevy_ui::pages::sync::*;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
@@ -1225,6 +1226,32 @@ fn test_app_routing_page_mounting_and_default_state() {
         "Windows UWP 回环隔离豁免工具 (UWP Loopback Exemption)"
     ));
     assert!(subtree_has_text(app.world(), root, "一键豁免全部 UWP 应用"));
+    assert!(subtree_has_text(app.world(), root, "已扫描 3 个 UWP AppContainer · 已豁免 2 个"));
+}
+
+#[test]
+fn test_app_routing_uwp_actions_submit_shared_commands() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::AppRouting);
+
+    let exempt_all = {
+        let mut actions = app.world_mut().query::<(Entity, &UwpActionButton)>();
+        actions
+            .iter(app.world())
+            .find(|(_, action)| action.0 == UwpAction::ExemptAll)
+            .map(|(entity, _)| entity)
+            .expect("UWP exempt-all action")
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: exempt_all });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::SetAllUwpExemptions { exempt: true }]
+    );
 }
 
 #[test]

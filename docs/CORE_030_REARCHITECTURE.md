@@ -36,6 +36,7 @@
 - [x] `DUAL-02-07`：Mihomo Allow-LAN 的 `allow-lan`、`mixed-port`、`bind-address` 进入 shared `SetLanSharing` intent；application 对端口和 IP/括号 IPv6 做 fail-fast 校验并 PATCH+GET readback，Iced draft/Apply 与 Bevy TextField/Apply observer 同步，ACL/认证不与本项耦合。
 - [x] `DUAL-02-08`：LAN ACL 与 HTTP Basic Authentication 进入 `LanSecuritySnapshot`/`SetLanSecurity`；domain 规范化 CIDR 并校验凭据，application 只在一次 PATCH 后完整回读，密码不进入 snapshot/Debug/serde 输出；Iced/Bevy 同步安全 draft 与成功后清理，desktop/Android 支持 `LanAccessControl`，iOS 在 controller gateway 缺失时 typed unsupported。
 - [x] `DUAL-02-09`：Mihomo 顶层 `ipv6` 内核流量策略进入 `Ipv6RoutingSnapshot`/`SetIpv6Routing`；application 以 PATCH+GET readback、缺失字段默认 true 和 mismatch fail-closed 保证不把未知状态显示为禁用；Iced/Bevy 同步 checkbox 与 TUN 上下文，desktop/Android 支持，iOS 在 controller gateway 缺失时 typed unsupported，宿主全局 sysctl 不冒充已接入。
+- [x] `DUAL-02-10`：Windows UWP 回环隔离进入 `UwpLoopbackSnapshot`/`UwpLoopbackPort`/三类 shared intent；desktop 以注册表扫描与 `CheckNetIsolation.exe` 变更后 readback，Iced/Bevy 同步真实 AppContainer 快照和 bulk/single action，Android/iOS 保持 typed unsupported，非 Windows 空列表不再伪装成功扫描。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

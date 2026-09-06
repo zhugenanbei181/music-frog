@@ -222,6 +222,12 @@ where
                     availability: Availability::Supported,
                 },
                 CapabilityStatus {
+                    capability: Capability::UwpLoopback,
+                    availability: Availability::Unsupported {
+                        reason: "Windows AppContainer loopback is not available on Android".to_owned(),
+                    },
+                },
+                CapabilityStatus {
                     capability: Capability::CoreVersionInstall,
                     availability: Availability::Unsupported {
                         reason: "core binaries are delivered with the APK ABI".to_string(),
@@ -420,6 +426,9 @@ mod tests {
         assert!(adapter
             .capabilities()
             .supports(Capability::Ipv6Routing));
+        assert!(!adapter
+            .capabilities()
+            .supports(Capability::UwpLoopback));
         let runtime = AndroidRuntime::new(adapter);
         assert_eq!(
             runtime.controller().controller_endpoint(),

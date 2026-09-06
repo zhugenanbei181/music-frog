@@ -15,6 +15,12 @@ pub mod desktop {
         infiltrator_desktop::proxy::read_system_proxy_state()
     }
 
+    pub fn uwp_loopback_application() -> infiltrator_application::uwp_loopback_application::UwpLoopbackApplication {
+        infiltrator_application::uwp_loopback_application::UwpLoopbackApplication::new(
+            std::sync::Arc::new(infiltrator_desktop::uwp_loopback_port::DesktopUwpLoopbackPort),
+        )
+    }
+
 }
 
 pub mod process_enumerator {

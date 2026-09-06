@@ -211,6 +211,8 @@ pub struct UwpAppItem {
 #[derive(Debug, Clone, Default)]
 pub struct UwpLoopbackState {
     pub apps: Vec<UwpAppItem>,
+    pub availability: infiltrator_contract::uwp::UwpLoopbackAvailability,
+    pub revision: u64,
     pub search_query: String,
     pub is_scanning: bool,
     pub status_message: Option<String>,

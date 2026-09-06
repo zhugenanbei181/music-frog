@@ -36,6 +36,17 @@ impl CapabilityProvider for DesktopHostCapabilities {
                 supported(Capability::SystemProxy),
                 supported(Capability::LanAccessControl),
                 supported(Capability::Ipv6Routing),
+                CapabilityStatus {
+                    capability: Capability::UwpLoopback,
+                    availability: if cfg!(windows) {
+                        Availability::Supported
+                    } else {
+                        Availability::Unsupported {
+                            reason: "Windows CheckNetIsolation is unavailable on this host"
+                                .to_owned(),
+                        }
+                    },
+                },
                 supported(Capability::Autostart),
                 supported(Capability::CoreVersionInstall),
                 supported(Capability::WebDavSync),

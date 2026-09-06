@@ -136,6 +136,9 @@ pub enum CommandIntent {
         credentials: Option<LanCredentials>,
     },
     SetIpv6Routing { enabled: bool },
+    ScanUwpApps,
+    SetUwpAppExemption { sid: String, exempt: bool },
+    SetAllUwpExemptions { exempt: bool },
     ToggleAppRouting { app_id: String, enabled: bool },
     SetAppRoutingMode { mode: String },
     ToggleIncludeSystemApps { include: bool },
@@ -210,6 +213,9 @@ impl CommandIntent {
             | Self::SetLanSharing { .. }
             | Self::SetLanSecurity { .. }
             | Self::SetIpv6Routing { .. }
+            | Self::ScanUwpApps
+            | Self::SetUwpAppExemption { .. }
+            | Self::SetAllUwpExemptions { .. }
             | Self::ToggleAppRouting { .. }
             | Self::SetAppRoutingMode { .. }
             | Self::ToggleIncludeSystemApps { .. }
