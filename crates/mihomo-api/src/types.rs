@@ -84,6 +84,14 @@ pub struct ConfigResponse {
     pub allow_lan: bool,
     #[serde(rename = "bind-address", default = "default_bind_address")]
     pub bind_address: String,
+    #[serde(rename = "lan-allowed-ips", default)]
+    pub lan_allowed_ips: Vec<String>,
+    #[serde(rename = "lan-disallowed-ips", default)]
+    pub lan_disallowed_ips: Vec<String>,
+    #[serde(rename = "skip-auth-prefixes", default)]
+    pub skip_auth_prefixes: Vec<String>,
+    #[serde(default)]
+    pub authentication: Vec<String>,
     pub tun: Option<TunConfig>,
     pub sniffer: Option<SnifferConfig>,
     pub dns: Option<DnsConfig>,
@@ -331,6 +339,16 @@ impl From<ConfigResponse> for infiltrator_domain::runtime::ConfigSnapshot {
             log_level: value.log_level,
             allow_lan: value.allow_lan,
             bind_address: value.bind_address,
+            lan_allowed_ips: value.lan_allowed_ips,
+            lan_disallowed_ips: value.lan_disallowed_ips,
+            skip_auth_prefixes: value.skip_auth_prefixes,
+            authentication_enabled: !value.authentication.is_empty(),
+            authentication_user_count: value.authentication.len(),
+            authentication_username: value
+                .authentication
+                .first()
+                .and_then(|entry| entry.split_once(':'))
+                .map(|(username, _)| username.to_owned()),
             tun: value.tun.map(|tun| infiltrator_domain::runtime::TunSnapshot {
                 enable: tun.enable,
                 stack: tun.stack,

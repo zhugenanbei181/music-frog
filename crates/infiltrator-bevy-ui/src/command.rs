@@ -12,6 +12,7 @@ use infiltrator_application::core_application::CoreApplication;
 use std::sync::{Arc, Mutex};
 
 use infiltrator_contract::command::{CommandIntent, CoreLogLevel, ProxyMode};
+use infiltrator_contract::lan::LanCredentials;
 use infiltrator_contract::tun::TunStack;
 
 /// All user action commands emitted from Bevy UI pages and controls.
@@ -76,6 +77,14 @@ pub enum UiCommand {
         enabled: bool,
         mixed_port: u16,
         bind_address: String,
+    },
+    /// Apply LAN CIDR ACLs and the in-memory Basic Authentication input.
+    SetLanSecurity {
+        allowed_ips: Vec<String>,
+        disallowed_ips: Vec<String>,
+        skip_auth_prefixes: Vec<String>,
+        authentication_enabled: bool,
+        credentials: Option<LanCredentials>,
     },
     /// Run full system doctor diagnostics.
     RunDoctorDiagnostics,
@@ -170,6 +179,19 @@ impl UiCommand {
                 enabled: *enabled,
                 mixed_port: *mixed_port,
                 bind_address: bind_address.clone(),
+            }),
+            Self::SetLanSecurity {
+                allowed_ips,
+                disallowed_ips,
+                skip_auth_prefixes,
+                authentication_enabled,
+                credentials,
+            } => Some(CommandIntent::SetLanSecurity {
+                allowed_ips: allowed_ips.clone(),
+                disallowed_ips: disallowed_ips.clone(),
+                skip_auth_prefixes: skip_auth_prefixes.clone(),
+                authentication_enabled: *authentication_enabled,
+                credentials: credentials.clone(),
             }),
             Self::RunDoctorDiagnostics => Some(CommandIntent::RunDoctorDiagnostics),
             Self::RepairDoctorIssue { check_id } => Some(CommandIntent::RepairDoctorIssue {
@@ -416,6 +438,29 @@ mod tests {
                 enabled: true,
                 mixed_port: 8080,
                 bind_address: "192.168.1.10".to_owned(),
+            })
+        );
+        assert_eq!(
+            UiCommand::SetLanSecurity {
+                allowed_ips: vec!["192.168.1.0/24".to_owned()],
+                disallowed_ips: vec!["192.168.1.10/32".to_owned()],
+                skip_auth_prefixes: vec!["127.0.0.0/8".to_owned()],
+                authentication_enabled: true,
+                credentials: Some(LanCredentials {
+                    username: "lan-user".to_owned(),
+                    password: "secret-value".to_owned(),
+                }),
+            }
+            .to_intent(),
+            Some(CommandIntent::SetLanSecurity {
+                allowed_ips: vec!["192.168.1.0/24".to_owned()],
+                disallowed_ips: vec!["192.168.1.10/32".to_owned()],
+                skip_auth_prefixes: vec!["127.0.0.0/8".to_owned()],
+                authentication_enabled: true,
+                credentials: Some(LanCredentials {
+                    username: "lan-user".to_owned(),
+                    password: "secret-value".to_owned(),
+                }),
             })
         );
     }

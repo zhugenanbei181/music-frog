@@ -146,6 +146,12 @@ impl AppState {
                             let allow_lan = config.allow_lan;
                             let mixed_port = config.mixed_port;
                             let bind_address = config.bind_address;
+                            let lan_allowed_ips = config.lan_allowed_ips;
+                            let lan_disallowed_ips = config.lan_disallowed_ips;
+                            let skip_auth_prefixes = config.skip_auth_prefixes;
+                            let authentication_enabled = config.authentication_enabled;
+                            let authentication_user_count = config.authentication_user_count;
+                            let authentication_username = config.authentication_username;
                             let (tun_en, tun_st, tun_ar, tun_sr) = config
                                 .tun
                                 .map(|t| (t.enable, t.stack, t.auto_route, t.strict_route))
@@ -167,6 +173,12 @@ impl AppState {
                                 allow_lan,
                                 mixed_port,
                                 bind_address,
+                                lan_allowed_ips,
+                                lan_disallowed_ips,
+                                skip_auth_prefixes,
+                                authentication_enabled,
+                                authentication_user_count,
+                                authentication_username,
                                 script_block_present,
                                 tun_enabled: tun_en,
                                 dns_nameservers: dns,
@@ -191,11 +203,34 @@ impl AppState {
                 match result {
                     Ok(config) => {
                         self.runtime.proxy_mode = Some(config.mode);
-                        self.runtime.lan_sharing.allow_lan = config.allow_lan;
-                        self.runtime.lan_sharing.mixed_port = config.mixed_port;
-                        self.runtime.lan_sharing.bind_address = config.bind_address;
-                        self.runtime.lan_sharing_committed = self.runtime.lan_sharing.clone();
-                        self.runtime.lan_sharing_dirty = false;
+                        let mut lan_committed = self.runtime.lan_sharing_committed.clone();
+                        lan_committed.allow_lan = config.allow_lan;
+                        lan_committed.mixed_port = config.mixed_port;
+                        lan_committed.bind_address = config.bind_address.clone();
+                        self.runtime.lan_sharing_committed = lan_committed.clone();
+                        if !self.runtime.lan_sharing_dirty {
+                            self.runtime.lan_sharing = lan_committed;
+                        }
+
+                        let mut security_committed = self.runtime.lan_security_committed.clone();
+                        security_committed.allowed_ips = config.lan_allowed_ips.join(", ");
+                        security_committed.disallowed_ips =
+                            config.lan_disallowed_ips.join(", ");
+                        security_committed.skip_auth_prefixes =
+                            config.skip_auth_prefixes.join(", ");
+                        security_committed.authentication_enabled = config.authentication_enabled;
+                        security_committed.authentication_user_count =
+                            config.authentication_user_count;
+                        if let Some(username) = config.authentication_username.as_ref() {
+                            security_committed.auth_username = username.clone();
+                        }
+                        security_committed.auth_password.clear();
+                        self.runtime.lan_security_committed = security_committed.clone();
+                        if !self.runtime.lan_security_dirty {
+                            self.runtime.lan_security = security_committed;
+                            self.runtime.lan_sharing.acl_whitelist_cidrs =
+                                self.runtime.lan_security.allowed_ips.clone();
+                        }
                         self.runtime.script_block_present = config.script_block_present;
                         self.runtime.tun_enabled = Some(config.tun_enabled);
                         self.editor.dns_nameservers = config.dns_nameservers;

@@ -20,6 +20,7 @@ pub mod filter;
 pub mod geo_lookup_cache;
 pub mod hosts_engine;
 pub mod idle_connection_sweeper;
+pub mod lan_security;
 pub mod mrs;
 pub mod mixin;
 pub mod mtu_optimizer;

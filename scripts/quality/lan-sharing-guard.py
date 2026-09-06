@@ -71,7 +71,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/runtime_query_application.rs",
+        "crates/infiltrator-application/src/runtime_query_lan.rs",
         "pub async fn set_lan_sharing",
         "canonical_bind_address",
         "bind_address_matches",
@@ -79,6 +79,10 @@ def main() -> int:
         '"mixed-port": mixed_port',
         '"bind-address": bind_address',
         "Allow-LAN readback mismatch",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/runtime_query_application.rs",
         "lan_sharing_patch_is_atomic_and_reads_back_bind_address",
         "lan_sharing_rejects_zero_port_and_invalid_bind_address_before_io",
     )

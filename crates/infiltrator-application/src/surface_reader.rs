@@ -737,6 +737,18 @@ fn build_settings_page(
             || infiltrator_contract::lan::DEFAULT_BIND_ADDRESS.to_owned(),
             |value| value.bind_address.clone(),
         ),
+        lan_security: config.map_or_else(
+            infiltrator_contract::lan::LanSecuritySnapshot::default,
+            |value| infiltrator_contract::lan::LanSecuritySnapshot::new(
+                0,
+                value.lan_allowed_ips.clone(),
+                value.lan_disallowed_ips.clone(),
+                value.skip_auth_prefixes.clone(),
+                value.authentication_enabled,
+                value.authentication_user_count,
+                value.authentication_username.clone(),
+            ),
+        ),
         tun_enabled: config
             .and_then(|value| value.tun.as_ref())
             .is_some_and(|tun| tun.enable),

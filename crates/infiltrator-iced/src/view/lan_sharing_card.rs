@@ -29,21 +29,6 @@ pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
         .width(90)
         .style(form_input_style);
 
-    let acl_input = text_input(
-        "192.168.1.0/24, 10.0.0.0/8",
-        if lan.acl_whitelist_cidrs.is_empty() {
-            "192.168.0.0/16, 10.0.0.0/8"
-        } else {
-            &lan.acl_whitelist_cidrs
-        },
-    )
-    .on_input(Message::UpdateLanAclWhitelist)
-    .padding([6, 10])
-    .size(12)
-    .font(MONO)
-    .width(Length::Fill)
-        .style(form_input_style);
-
     let bind_input = text_input(
         "* or 192.168.1.10 or [::1]",
         &lan.bind_address,
@@ -88,9 +73,6 @@ pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
                 ),
             ]
             .align_y(Alignment::Center),
-            Space::new().height(theme::SP_XS),
-            text(lang.tr("lan_sharing_acl").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
-            acl_input,
         ]
         .spacing(theme::SP_SM),
     )

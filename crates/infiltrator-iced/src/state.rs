@@ -148,6 +148,9 @@ pub struct RuntimeState {
     pub lan_sharing: crate::types::app::LanSharingConfig,
     pub lan_sharing_committed: crate::types::app::LanSharingConfig,
     pub lan_sharing_dirty: bool,
+    pub lan_security: crate::types::app::LanSecurityConfig,
+    pub lan_security_committed: crate::types::app::LanSecurityConfig,
+    pub lan_security_dirty: bool,
     pub tun_stack_config: crate::types::dns::TunStackConfig,
 }
 
@@ -441,6 +444,26 @@ impl AppState {
             self.runtime.lan_sharing_committed = committed.clone();
             if !self.runtime.lan_sharing_dirty {
                 self.runtime.lan_sharing = committed;
+            }
+
+            let mut security_committed = self.runtime.lan_security_committed.clone();
+            security_committed.allowed_ips = settings.lan_security.allowed_ips.join(", ");
+            security_committed.disallowed_ips = settings.lan_security.disallowed_ips.join(", ");
+            security_committed.skip_auth_prefixes =
+                settings.lan_security.skip_auth_prefixes.join(", ");
+            security_committed.authentication_enabled =
+                settings.lan_security.authentication_enabled;
+            security_committed.authentication_user_count =
+                settings.lan_security.authentication_user_count;
+            if let Some(username) = settings.lan_security.authentication_username.as_ref() {
+                security_committed.auth_username = username.clone();
+            }
+            security_committed.auth_password.clear();
+            self.runtime.lan_security_committed = security_committed.clone();
+            if !self.runtime.lan_security_dirty {
+                self.runtime.lan_security = security_committed;
+                self.runtime.lan_sharing.acl_whitelist_cidrs =
+                    settings.lan_security.allowed_ips.join(", ");
             }
         }
         self.runtime.controller_auth = snapshot.controller_auth;

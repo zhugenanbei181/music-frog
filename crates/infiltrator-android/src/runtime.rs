@@ -214,6 +214,10 @@ where
                     },
                 },
                 CapabilityStatus {
+                    capability: Capability::LanAccessControl,
+                    availability: Availability::Supported,
+                },
+                CapabilityStatus {
                     capability: Capability::CoreVersionInstall,
                     availability: Availability::Unsupported {
                         reason: "core binaries are delivered with the APK ABI".to_string(),
@@ -406,6 +410,9 @@ mod tests {
     #[tokio::test]
     async fn test_runtime_accessors() {
         let adapter = AndroidBridgeAdapter::new(TestBridge::new());
+        assert!(adapter
+            .capabilities()
+            .supports(Capability::LanAccessControl));
         let runtime = AndroidRuntime::new(adapter);
         assert_eq!(
             runtime.controller().controller_endpoint(),

@@ -48,6 +48,8 @@ mod settings_tun;
 pub mod settings_system;
 #[path = "settings_lan.rs"]
 pub mod settings_lan;
+#[path = "settings_projection_defaults.rs"]
+mod settings_projection_defaults;
 
 use settings_core::{
     CoreLogLevelButton, SettingsLine, SettingsLineKind, SettingsProjection, TunStackButton,
@@ -646,6 +648,7 @@ fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(settings_tun::apply_tun_toggle_projection);
     commands.add_observer(settings_lan::on_toggle_changed);
     commands.add_observer(settings_lan::on_apply_activated);
+    commands.add_observer(settings_lan::on_security_apply_activated);
     commands.add_observer(settings_lan::apply_projection);
 }
 
@@ -753,6 +756,9 @@ pub(crate) fn apply_settings_projection(
             }
             SettingsLineKind::LanBindAddress => {
                 text.0 = projection.lan_bind_address.clone();
+            }
+            SettingsLineKind::LanSecurity => {
+                text.0 = settings_lan::format_auth_status(&projection.lan_security);
             }
             SettingsLineKind::TunStack => {
                 text.0 = projection.tun_stack.clone();

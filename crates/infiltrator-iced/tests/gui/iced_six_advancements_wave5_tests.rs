@@ -20,7 +20,7 @@ use infiltrator_contract::system_proxy::{
     SystemProxyObservation, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
     SystemProxyStatus,
 };
-use infiltrator_contract::lan::LanSharingSnapshot;
+use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 
 #[test]
 fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
@@ -161,6 +161,7 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
         mixed_port: 7890,
         allow_lan: false,
         lan_bind_address: "*".to_owned(),
+        lan_security: Default::default(),
         tun_enabled: true,
         tun_stack: "system".to_owned(),
         tun_auto_route: true,
@@ -308,6 +309,31 @@ fn test_lan_sharing_readback_updates_the_iced_state() {
 }
 
 #[test]
+fn test_lan_security_readback_updates_iced_acl_and_clears_password() {
+    let (mut state, _) = AppState::new();
+    let generation = state.runtime.runtime_generation;
+    state.runtime.lan_security.auth_password = "temporary-secret".to_owned();
+    let snapshot = LanSecuritySnapshot::new(
+        6,
+        vec!["192.168.1.0/24".to_owned()],
+        vec!["192.168.1.10/32".to_owned()],
+        vec!["127.0.0.0/8".to_owned()],
+        true,
+        1,
+        Some("lan-user".to_owned()),
+    );
+
+    let _ = state.update(Message::LanSecuritySet(Ok(snapshot), generation));
+
+    assert_eq!(state.runtime.lan_security.allowed_ips, "192.168.1.0/24");
+    assert_eq!(state.runtime.lan_security.disallowed_ips, "192.168.1.10/32");
+    assert_eq!(state.runtime.lan_security.auth_username, "lan-user");
+    assert!(state.runtime.lan_security.authentication_enabled);
+    assert!(state.runtime.lan_security.auth_password.is_empty());
+    assert!(!state.runtime.lan_security_dirty);
+}
+
+#[test]
 fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
     let (mut state, _) = AppState::new();
     state.runtime.lan_sharing.bind_address = "192.168.1.10".to_owned();
@@ -325,6 +351,15 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
         mixed_port: 7890,
         allow_lan: false,
         lan_bind_address: "*".to_owned(),
+        lan_security: LanSecuritySnapshot::new(
+            8,
+            vec!["192.168.0.0/16".to_owned()],
+            vec!["192.168.1.10/32".to_owned()],
+            vec!["127.0.0.0/8".to_owned()],
+            true,
+            1,
+            Some("lan-user".to_owned()),
+        ),
         tun_enabled: false,
         tun_stack: String::new(),
         tun_auto_route: false,
@@ -337,4 +372,7 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
     assert!(state.apply_shared_surface_snapshot(snapshot));
     assert_eq!(state.runtime.lan_sharing.bind_address, "192.168.1.10");
     assert_eq!(state.runtime.lan_sharing_committed.bind_address, "*");
+    assert_eq!(state.runtime.lan_security.allowed_ips, "192.168.0.0/16");
+    assert!(state.runtime.lan_security.authentication_enabled);
+    assert_eq!(state.runtime.lan_security.auth_username, "lan-user");
 }

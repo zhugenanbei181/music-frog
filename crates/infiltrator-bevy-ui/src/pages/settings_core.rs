@@ -37,6 +37,7 @@ use infiltrator_contract::tun::TunStack;
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState};
 use infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot;
 use infiltrator_contract::system_proxy::SystemProxySnapshot;
+use infiltrator_contract::lan::LanSecuritySnapshot;
 use crate::command::{CommandSinkHandle, UiCommand};
 
 /// Marker for text lines updated by the Settings projection observer.
@@ -55,6 +56,8 @@ pub enum SettingsLineKind {
     MixedPort,
     /// Mihomo Allow-LAN bind address.
     LanBindAddress,
+    /// Mihomo LAN ACL/authentication status.
+    LanSecurity,
     /// TUN stack text.
     TunStack,
     /// Controller port text.
@@ -130,6 +133,7 @@ pub struct SettingsProjection {
     pub mixed_port: u16,
     pub allow_lan: bool,
     pub lan_bind_address: String,
+    pub lan_security: LanSecuritySnapshot,
     pub tun_enabled: bool,
     pub tun_stack: String,
     pub tun_auto_route: bool,
@@ -145,35 +149,6 @@ pub struct SettingsProjection {
     pub core_resources: CoreResourceSnapshot,
     pub offline_startup: OfflineStartupSnapshot,
     pub mtu: MtuNegotiationSnapshot,
-}
-
-impl SettingsProjection {
-    pub fn demo() -> Self {
-        Self {
-            autostart: true,
-            system_proxy: true,
-            system_proxy_snapshot: SystemProxySnapshot::default(),
-            system_proxy_recovery: SystemProxyRecoverySnapshot::default(),
-            mixed_port: 7890,
-            allow_lan: false,
-            lan_bind_address: infiltrator_contract::lan::DEFAULT_BIND_ADDRESS.to_owned(),
-            tun_enabled: true,
-            tun_stack: "gVisor (高性能用户态协议栈)".to_owned(),
-            tun_auto_route: true,
-            tun_strict_route: false,
-            controller_port: 9090,
-            log_level: "info".to_owned(),
-            core_channel: "stable".to_owned(),
-            core_versions: CoreVersionSnapshot::default(),
-            core_integrity: Default::default(),
-            controller_auth: Default::default(),
-            service_mode: Default::default(),
-            port_conflicts: Default::default(),
-            core_resources: Default::default(),
-            offline_startup: Default::default(),
-            mtu: Default::default(),
-        }
-    }
 }
 
 pub(super) fn controller_settings_card(

@@ -246,3 +246,30 @@ impl Default for LanSharingConfig {
         }
     }
 }
+
+/// Iced-only editable draft for LAN ACL and Basic Authentication settings.
+/// The password is kept in memory and never enters a shared snapshot.
+#[derive(Clone, PartialEq, Eq)]
+pub struct LanSecurityConfig {
+    pub allowed_ips: String,
+    pub disallowed_ips: String,
+    pub skip_auth_prefixes: String,
+    pub authentication_enabled: bool,
+    pub authentication_user_count: usize,
+    pub auth_username: String,
+    pub auth_password: String,
+}
+
+impl Default for LanSecurityConfig {
+    fn default() -> Self {
+        Self {
+            allowed_ips: "192.168.0.0/16,10.0.0.0/8".to_owned(),
+            disallowed_ips: String::new(),
+            skip_auth_prefixes: "127.0.0.0/8,::1/128".to_owned(),
+            authentication_enabled: false,
+            authentication_user_count: 0,
+            auth_username: "musicfrog".to_owned(),
+            auth_password: String::new(),
+        }
+    }
+}

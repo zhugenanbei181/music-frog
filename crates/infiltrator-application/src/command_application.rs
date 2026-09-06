@@ -323,6 +323,22 @@ impl CommandApplication {
                 .set_lan_sharing(enabled, mixed_port, &bind_address)
                 .await
                 .map(|_| ()),
+            CommandIntent::SetLanSecurity {
+                allowed_ips,
+                disallowed_ips,
+                skip_auth_prefixes,
+                authentication_enabled,
+                credentials,
+            } => RuntimeQueryApplication::new(self.runtime()?)
+                .set_lan_security(
+                    &allowed_ips,
+                    &disallowed_ips,
+                    &skip_auth_prefixes,
+                    authentication_enabled,
+                    credentials.as_ref(),
+                )
+                .await
+                .map(|_| ()),
             CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore

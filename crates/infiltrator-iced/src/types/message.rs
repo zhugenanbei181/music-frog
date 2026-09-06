@@ -550,6 +550,17 @@ pub enum Message {
         Result<infiltrator_contract::lan::LanSharingSnapshot, InfiltratorError>,
         u64,
     ),
+    UpdateLanAllowedIps(String),
+    UpdateLanDisallowedIps(String),
+    UpdateLanSkipAuthPrefixes(String),
+    ToggleLanAuthentication(bool),
+    UpdateLanAuthUsername(String),
+    UpdateLanAuthPassword(String),
+    ApplyLanSecurity,
+    LanSecuritySet(
+        Result<infiltrator_contract::lan::LanSecuritySnapshot, InfiltratorError>,
+        u64,
+    ),
 }
 
 mod debug;

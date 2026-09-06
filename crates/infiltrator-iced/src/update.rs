@@ -208,6 +208,14 @@ impl AppState {
             | Message::UpdateLanAclWhitelist(_)
             | Message::ApplyLanSharing
             | Message::LanSharingSet(_, _)
+            | Message::UpdateLanAllowedIps(_)
+            | Message::UpdateLanDisallowedIps(_)
+            | Message::UpdateLanSkipAuthPrefixes(_)
+            | Message::ToggleLanAuthentication(_)
+            | Message::UpdateLanAuthUsername(_)
+            | Message::UpdateLanAuthPassword(_)
+            | Message::ApplyLanSecurity
+            | Message::LanSecuritySet(_, _)
             | Message::Navigate(_)
             | Message::NavigateBack
             | Message::NavigateForward

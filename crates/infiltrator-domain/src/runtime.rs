@@ -19,6 +19,18 @@ pub struct ConfigSnapshot {
     pub allow_lan: bool,
     #[serde(default = "default_bind_address")]
     pub bind_address: String,
+    #[serde(default)]
+    pub lan_allowed_ips: Vec<String>,
+    #[serde(default)]
+    pub lan_disallowed_ips: Vec<String>,
+    #[serde(default)]
+    pub skip_auth_prefixes: Vec<String>,
+    #[serde(default)]
+    pub authentication_enabled: bool,
+    #[serde(default)]
+    pub authentication_user_count: usize,
+    #[serde(default)]
+    pub authentication_username: Option<String>,
     pub tun: Option<TunSnapshot>,
     pub dns: Option<DnsSnapshot>,
     pub sniffer: Option<SnifferSnapshot>,

@@ -202,6 +202,17 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "lan_sharing_bind" => "LAN Bind Address".into(),
         "lan_sharing_apply" => "Apply LAN Listener Settings".into(),
         "lan_sharing_acl" => "Allowed Client IP Whitelist (CIDR)".into(),
+        "lan_security_title" => "LAN ACL & HTTP Basic Authentication".into(),
+        "lan_security_desc" => "Allow only whitelisted networks and optionally require credentials for HTTP/SOCKS/Mixed proxy access.".into(),
+        "lan_security_allowed" => "Allowed Networks (CIDR)".into(),
+        "lan_security_disallowed" => "Denied Networks (CIDR)".into(),
+        "lan_security_skip_auth" => "Authentication Bypass Networks (CIDR)".into(),
+        "lan_security_auth" => "HTTP Basic Authentication".into(),
+        "lan_security_username" => "Username".into(),
+        "lan_security_password" => "Password".into(),
+        "lan_security_enabled" => "Enabled".into(),
+        "lan_security_disabled" => "Disabled".into(),
+        "lan_security_apply" => "Apply ACL & Authentication".into(),
         _ => key.to_string().into(),
     }
 }

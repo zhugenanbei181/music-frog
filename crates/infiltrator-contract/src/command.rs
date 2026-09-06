@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::error::Failure;
+use crate::lan::LanCredentials;
 use crate::tun::TunStack;
 
 /// Correlates an asynchronous command with its result and events.
@@ -127,6 +128,13 @@ pub enum CommandIntent {
         mixed_port: u16,
         bind_address: String,
     },
+    SetLanSecurity {
+        allowed_ips: Vec<String>,
+        disallowed_ips: Vec<String>,
+        skip_auth_prefixes: Vec<String>,
+        authentication_enabled: bool,
+        credentials: Option<LanCredentials>,
+    },
     ToggleAppRouting { app_id: String, enabled: bool },
     SetAppRoutingMode { mode: String },
     ToggleIncludeSystemApps { include: bool },
@@ -199,6 +207,7 @@ impl CommandIntent {
             | Self::ProbeTunMtu
             | Self::SetSystemProxy { .. }
             | Self::SetLanSharing { .. }
+            | Self::SetLanSecurity { .. }
             | Self::ToggleAppRouting { .. }
             | Self::SetAppRoutingMode { .. }
             | Self::ToggleIncludeSystemApps { .. }

@@ -156,6 +156,9 @@ impl AppState {
                 lan_sharing: Default::default(),
                 lan_sharing_committed: Default::default(),
                 lan_sharing_dirty: false,
+                lan_security: Default::default(),
+                lan_security_committed: Default::default(),
+                lan_security_dirty: false,
                 tun_stack_config: Default::default(),
             },
             profile: crate::state::ProfileState {

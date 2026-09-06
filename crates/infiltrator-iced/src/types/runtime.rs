@@ -56,6 +56,12 @@ pub struct RuntimeConfig {
     pub allow_lan: bool,
     pub mixed_port: u16,
     pub bind_address: String,
+    pub lan_allowed_ips: Vec<String>,
+    pub lan_disallowed_ips: Vec<String>,
+    pub skip_auth_prefixes: Vec<String>,
+    pub authentication_enabled: bool,
+    pub authentication_user_count: usize,
+    pub authentication_username: Option<String>,
     /// The core only reports `script` when the loaded profile carries a
     /// top-level `script:` block; without it `mode: script` is invalid.
     pub script_block_present: bool,

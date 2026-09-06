@@ -29,6 +29,7 @@ pub mod surface;
 mod tests {
     use super::capability::{Availability, Capability, CapabilitySnapshot, CapabilityStatus};
     use super::command::{CommandIntent, CommandKind, CoreLogLevel, ProxyMode};
+    use super::lan::LanCredentials;
     use super::tun::TunStack;
     use super::surface::HostKind;
 
@@ -81,5 +82,17 @@ mod tests {
             capabilities.availability(Capability::SystemProxy),
             Availability::Unsupported { .. }
         ));
+    }
+
+    #[test]
+    fn lan_credentials_never_debug_or_serialize_the_password() {
+        let credentials = LanCredentials {
+            username: "lan-user".to_owned(),
+            password: "secret-value".to_owned(),
+        };
+        assert!(!format!("{credentials:?}").contains("secret-value"));
+        let serialized = serde_json::to_string(&credentials).expect("serialize credential input");
+        assert!(serialized.contains("lan-user"));
+        assert!(!serialized.contains("secret-value"));
     }
 }

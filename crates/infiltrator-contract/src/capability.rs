@@ -12,6 +12,7 @@ pub enum Capability {
     Dns,
     Tun,
     SystemProxy,
+    LanAccessControl,
     Autostart,
     CoreVersionInstall,
     WebDavSync,

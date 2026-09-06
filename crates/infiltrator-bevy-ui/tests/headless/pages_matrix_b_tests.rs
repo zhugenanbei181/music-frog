@@ -28,7 +28,9 @@ use infiltrator_bevy_ui::pages::settings::settings_core::{
 };
 use infiltrator_bevy_ui::pages::settings::settings_system::SystemProxyToggle;
 use infiltrator_bevy_ui::pages::settings::settings_lan::{
-    LanBindAddressField, LanMixedPortField, LanSharingApplyButton, LanSharingToggle,
+    LanAllowedIpsField, LanAuthPasswordField, LanAuthUsernameField, LanAuthenticationToggle,
+    LanBindAddressField, LanDisallowedIpsField, LanMixedPortField, LanSecurityApplyButton,
+    LanSharingApplyButton, LanSharingToggle, LanSkipAuthPrefixesField,
 };
 use infiltrator_bevy_ui::pages::sync::*;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
@@ -42,6 +44,8 @@ use infiltrator_contract::mtu::{MtuNegotiationSnapshot, PhysicalMtuSnapshot};
 use infiltrator_contract::system_proxy::{
     SystemProxyDesiredState, SystemProxyObservation, SystemProxyRecoveryStatus,
 };
+use infiltrator_contract::lan::{LanCredentials, LanSecuritySnapshot};
+use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 
 use crate::support::*;
 
@@ -835,6 +839,105 @@ fn test_settings_lan_fields_submit_the_live_listener_intent() {
         .query::<&TextField>()
         .iter(app.world())
         .count();
+}
+
+#[test]
+fn test_settings_lan_security_submits_acl_and_redacted_basic_auth_intent() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Settings);
+
+    let mut projection = SettingsProjection::demo();
+    projection.lan_security = LanSecuritySnapshot::new(
+        5,
+        vec!["192.168.1.0/24".to_owned()],
+        vec!["192.168.1.10/32".to_owned()],
+        vec!["127.0.0.0/8".to_owned()],
+        true,
+        1,
+        Some("lan-user".to_owned()),
+    );
+    app.world_mut()
+        .commands()
+        .trigger(SettingsProjectionUpdated(projection));
+    app.update();
+    assert!(subtree_has_text(app.world(), root, "已启用 · 1 个账号"));
+
+    let password_source = {
+        let mut fields = app
+            .world_mut()
+            .query::<(&LanAuthPasswordField, &bevy::ecs::hierarchy::Children)>();
+        *fields
+            .single(app.world())
+            .expect("LAN password field")
+            .1
+            .iter()
+            .next()
+            .expect("LAN password text field")
+    };
+    app.world_mut()
+        .get_mut::<TextField>(password_source)
+        .expect("LAN password text field state")
+        .0
+        .apply(TextFieldInput::SetText("secret-value".to_owned()));
+
+    let apply_button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<LanSecurityApplyButton>>()
+        .single(app.world())
+        .expect("LAN security apply button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: apply_button });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::SetLanSecurity {
+            allowed_ips: vec!["192.168.1.0/24".to_owned()],
+            disallowed_ips: vec!["192.168.1.10/32".to_owned()],
+            skip_auth_prefixes: vec!["127.0.0.0/8".to_owned()],
+            authentication_enabled: true,
+            credentials: Some(LanCredentials {
+                username: "lan-user".to_owned(),
+                password: "secret-value".to_owned(),
+            }),
+        }]
+    );
+    assert!(!format!("{:?}", sink.submitted()).contains("secret-value"));
+    assert!(app
+        .world()
+        .get::<TextField>(password_source)
+        .expect("password field after submit")
+        .0
+        .text()
+        .is_empty());
+
+    let _ = app
+        .world_mut()
+        .query::<&LanAllowedIpsField>()
+        .single(app.world())
+        .expect("LAN allowed field");
+    let _ = app
+        .world_mut()
+        .query::<&LanDisallowedIpsField>()
+        .single(app.world())
+        .expect("LAN denied field");
+    let _ = app
+        .world_mut()
+        .query::<&LanSkipAuthPrefixesField>()
+        .single(app.world())
+        .expect("LAN skip-auth field");
+    let _ = app
+        .world_mut()
+        .query::<&LanAuthenticationToggle>()
+        .single(app.world())
+        .expect("LAN auth toggle");
+    let _ = app
+        .world_mut()
+        .query::<&LanAuthUsernameField>()
+        .single(app.world())
+        .expect("LAN username field");
 }
 
 #[test]

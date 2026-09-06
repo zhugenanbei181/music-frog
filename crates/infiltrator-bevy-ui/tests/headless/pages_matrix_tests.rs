@@ -337,6 +337,7 @@ fn settings_page_in_place_update() {
         mixed_port: 7895,
         allow_lan: true,
         lan_bind_address: "192.168.1.10".to_owned(),
+        lan_security: Default::default(),
         tun_enabled: true,
         tun_stack: "System (Native Stack)".to_owned(),
         tun_auto_route: true,

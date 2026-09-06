@@ -218,6 +218,17 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "lan_sharing_bind" => "局域网绑定地址 (Bind Address)".into(),
         "lan_sharing_apply" => "应用局域网监听设置".into(),
         "lan_sharing_acl" => "允许接入的客户端 IP 白名单 (CIDR)".into(),
+        "lan_security_title" => "局域网 ACL 与 HTTP 基本认证".into(),
+        "lan_security_desc" => "仅允许白名单网段接入，并可为 HTTP/SOCKS/Mixed 代理启用账号认证".into(),
+        "lan_security_allowed" => "允许网段 (CIDR)".into(),
+        "lan_security_disallowed" => "拒绝网段 (CIDR)".into(),
+        "lan_security_skip_auth" => "免认证网段 (CIDR)".into(),
+        "lan_security_auth" => "HTTP 基本认证".into(),
+        "lan_security_username" => "用户名".into(),
+        "lan_security_password" => "密码".into(),
+        "lan_security_enabled" => "已启用".into(),
+        "lan_security_disabled" => "未启用".into(),
+        "lan_security_apply" => "应用 ACL 与认证设置".into(),
         _ => key.to_string().into(),
     }
 }

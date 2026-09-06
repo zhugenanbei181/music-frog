@@ -701,6 +701,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .push(Space::new().height(10))
         .push(crate::view::lan_sharing_card::lan_sharing_card(state, &lang))
         .push(Space::new().height(10))
+        .push(crate::view::lan_security_card::lan_security_card(state, &lang))
+        .push(Space::new().height(10))
         .push(shell_export_card(&lang))
         .push(Space::new().height(10))
         .push(tun_section)

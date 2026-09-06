@@ -673,6 +673,30 @@ impl std::fmt::Debug for Message {
             Message::LanSharingSet(Err(error), generation) => {
                 write!(f, "LanSharingSet(Err({error:?}), generation={generation})")
             }
+            Message::UpdateLanAllowedIps(value) => write!(f, "UpdateLanAllowedIps({value})"),
+            Message::UpdateLanDisallowedIps(value) => {
+                write!(f, "UpdateLanDisallowedIps({value})")
+            }
+            Message::UpdateLanSkipAuthPrefixes(value) => {
+                write!(f, "UpdateLanSkipAuthPrefixes({value})")
+            }
+            Message::ToggleLanAuthentication(enabled) => {
+                write!(f, "ToggleLanAuthentication({enabled})")
+            }
+            Message::UpdateLanAuthUsername(username) => {
+                write!(f, "UpdateLanAuthUsername({username})")
+            }
+            Message::UpdateLanAuthPassword(_) => write!(f, "UpdateLanAuthPassword(<redacted>)"),
+            Message::ApplyLanSecurity => write!(f, "ApplyLanSecurity"),
+            Message::LanSecuritySet(Ok(snapshot), generation) => write!(
+                f,
+                "LanSecuritySet(Ok(revision={}, auth_users={}, generation={generation}))",
+                snapshot.revision,
+                snapshot.authentication_user_count
+            ),
+            Message::LanSecuritySet(Err(error), generation) => {
+                write!(f, "LanSecuritySet(Err({error:?}), generation={generation})")
+            }
         }
     }
 }

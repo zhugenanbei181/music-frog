@@ -11,6 +11,7 @@ use crate::service_mode::ServiceModeSnapshot;
 use crate::port_conflict::PortConflictSnapshot;
 use crate::resources::CoreResourceSnapshot;
 use crate::error::Failure;
+use crate::lan::LanSecuritySnapshot;
 use crate::offline_startup::OfflineStartupSnapshot;
 use crate::mtu::MtuNegotiationSnapshot;
 use crate::system_proxy::SystemProxySnapshot;
@@ -331,6 +332,8 @@ pub struct SettingsPageSnapshot {
     pub allow_lan: bool,
     #[serde(default = "default_lan_bind_address")]
     pub lan_bind_address: String,
+    #[serde(default)]
+    pub lan_security: LanSecuritySnapshot,
     pub tun_enabled: bool,
     pub tun_stack: String,
     #[serde(default)]

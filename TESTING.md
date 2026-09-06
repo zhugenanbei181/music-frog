@@ -136,6 +136,8 @@ python3 scripts/quality/system-proxy-watchdog-guard.py --mode enforce
 python3 scripts/quality/system-proxy-recovery-guard.py --mode enforce
 # DUAL-02-07 Allow-LAN 混合端口、绑定地址与 live readback 守卫
 python3 scripts/quality/lan-sharing-guard.py --mode enforce
+# DUAL-02-08 LAN CIDR ACL、免认证前缀与 HTTP Basic Auth 守卫
+python3 scripts/quality/lan-security-guard.py --mode enforce
 ```
 
 ---

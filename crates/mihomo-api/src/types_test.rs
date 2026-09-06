@@ -25,8 +25,12 @@ mod tests {
             "mixed-port": 7892,
             "mode": "rule",
             "log-level": "info",
-            "allow-lan": false,
-            "bind-address": "192.168.1.10"
+            "allow-lan": true,
+            "bind-address": "192.168.1.10",
+            "lan-allowed-ips": ["192.168.1.0/24"],
+            "lan-disallowed-ips": ["192.168.1.10/32"],
+            "skip-auth-prefixes": ["127.0.0.0/8"],
+            "authentication": ["lan-user:secret-value"]
         }"#;
         let config: ConfigResponse = serde_json::from_str(json).unwrap();
         assert_eq!(config.port, 7890);
@@ -34,8 +38,17 @@ mod tests {
         assert_eq!(config.mixed_port, 7892);
         assert_eq!(config.mode, "rule");
         assert_eq!(config.log_level, "info");
-        assert!(!config.allow_lan);
+        assert!(config.allow_lan);
         assert_eq!(config.bind_address, "192.168.1.10");
+        assert_eq!(config.lan_allowed_ips, vec!["192.168.1.0/24"]);
+        assert_eq!(config.lan_disallowed_ips, vec!["192.168.1.10/32"]);
+        assert_eq!(config.skip_auth_prefixes, vec!["127.0.0.0/8"]);
+        assert_eq!(config.authentication.len(), 1);
+
+        let domain: infiltrator_domain::runtime::ConfigSnapshot = config.into();
+        assert!(domain.authentication_enabled);
+        assert_eq!(domain.authentication_user_count, 1);
+        assert_eq!(domain.authentication_username.as_deref(), Some("lan-user"));
     }
 
     #[test]

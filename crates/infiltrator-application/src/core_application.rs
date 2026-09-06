@@ -767,6 +767,7 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::SetTunStrictRoute { .. } => "set_tun_strict_route",
         CommandIntent::SetSystemProxy { .. } => "set_system_proxy",
         CommandIntent::SetLanSharing { .. } => "set_lan_sharing",
+        CommandIntent::SetLanSecurity { .. } => "set_lan_security",
         CommandIntent::ToggleAppRouting { .. } => "toggle_app_routing",
         CommandIntent::SetAppRoutingMode { .. } => "set_app_routing_mode",
         CommandIntent::ToggleIncludeSystemApps { .. } => "toggle_include_system_apps",

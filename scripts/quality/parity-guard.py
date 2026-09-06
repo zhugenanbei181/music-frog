@@ -58,6 +58,7 @@ REQUIRED_INTENTS = {
     "ToggleTun",
     "SetSystemProxy",
     "SetLanSharing",
+    "SetLanSecurity",
     "ToggleAppRouting",
     "SetAppRoutingMode",
     "ToggleIncludeSystemApps",

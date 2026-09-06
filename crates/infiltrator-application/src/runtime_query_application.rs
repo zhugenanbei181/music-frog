@@ -2,13 +2,11 @@
 
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::command::{CoreLogLevel, ProxyMode};
-use infiltrator_contract::lan::LanSharingSnapshot;
 use infiltrator_contract::tun::TunStack;
 use infiltrator_domain::runtime::{MemoryData, TrafficData};
 use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
-use std::net::IpAddr;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 
 #[derive(Clone)]
 pub struct RuntimeQueryApplication {
@@ -16,12 +14,16 @@ pub struct RuntimeQueryApplication {
     next_revision: Arc<AtomicU64>,
 }
 
+#[path = "runtime_query_lan.rs"]
+mod runtime_query_lan;
+
 #[cfg(test)]
 #[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::command::CoreLogLevel;
+    use infiltrator_contract::lan::LanCredentials;
     use infiltrator_contract::resources::{CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus};
     use crate::resource_application::ResourceApplication;
     use infiltrator_domain::proxy::Proxy;
@@ -34,27 +36,49 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    #[derive(Clone, Debug)]
+    struct TestLanState {
+        allow_lan: bool,
+        mixed_port: u16,
+        bind_address: String,
+        allowed_ips: Vec<String>,
+        disallowed_ips: Vec<String>,
+        skip_auth_prefixes: Vec<String>,
+        authentication_enabled: bool,
+        authentication_user_count: usize,
+        authentication_username: Option<String>,
+    }
+
     struct TestGateway {
         level: Arc<Mutex<String>>,
         tun_stack: Arc<Mutex<String>>,
         tun_mtu: Arc<Mutex<Option<u32>>>,
         tun_routing: Arc<Mutex<(bool, bool)>>,
         tun_enabled: Arc<Mutex<bool>>,
-        lan: Arc<Mutex<(bool, u16, String)>>,
+        lan: Arc<Mutex<TestLanState>>,
         apply_patch: bool,
         memory_bytes: Arc<Mutex<u64>>,
         gc_calls: Arc<AtomicUsize>,
     }
 
-    fn lan_state() -> Arc<Mutex<(bool, u16, String)>> {
-        Arc::new(Mutex::new((false, 7890, "*".to_owned())))
+    fn lan_state() -> Arc<Mutex<TestLanState>> {
+        Arc::new(Mutex::new(TestLanState {
+            allow_lan: false,
+            mixed_port: 7890,
+            bind_address: "*".to_owned(),
+            allowed_ips: vec!["192.168.0.0/16".to_owned()],
+            disallowed_ips: Vec::new(),
+            skip_auth_prefixes: vec!["127.0.0.0/8".to_owned()],
+            authentication_enabled: false,
+            authentication_user_count: 0,
+            authentication_username: None,
+        }))
     }
 
     #[async_trait]
     impl RuntimeGateway for TestGateway {
         async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
-            let (allow_lan, mixed_port, bind_address) =
-                self.lan.lock().expect("LAN state lock").clone();
+            let lan = self.lan.lock().expect("LAN state lock").clone();
             Ok(ConfigSnapshot {
                 mode: "rule".to_owned(),
                 log_level: self.level.lock().expect("level lock").clone(),
@@ -69,9 +93,15 @@ mod tests {
                         mtu: *self.tun_mtu.lock().expect("tun mtu lock"),
                     })
                 },
-                allow_lan,
-                mixed_port,
-                bind_address,
+                allow_lan: lan.allow_lan,
+                mixed_port: lan.mixed_port,
+                bind_address: lan.bind_address,
+                lan_allowed_ips: lan.allowed_ips,
+                lan_disallowed_ips: lan.disallowed_ips,
+                skip_auth_prefixes: lan.skip_auth_prefixes,
+                authentication_enabled: lan.authentication_enabled,
+                authentication_user_count: lan.authentication_user_count,
+                authentication_username: lan.authentication_username,
                 ..ConfigSnapshot::default()
             })
         }
@@ -96,16 +126,55 @@ mod tests {
                 let mut lan = self.lan.lock().expect("LAN state lock");
                 if let Some(enabled) = updates.get("allow-lan").and_then(|value| value.as_bool())
                 {
-                    lan.0 = enabled;
+                    lan.allow_lan = enabled;
                 }
                 if let Some(port) = updates.get("mixed-port").and_then(|value| value.as_u64()) {
-                    lan.1 = port as u16;
+                    lan.mixed_port = port as u16;
                 }
                 if let Some(bind_address) = updates
                     .get("bind-address")
                     .and_then(|value| value.as_str())
                 {
-                    lan.2 = bind_address.to_owned();
+                    lan.bind_address = bind_address.to_owned();
+                }
+                if let Some(values) = updates
+                    .get("lan-allowed-ips")
+                    .and_then(|value| value.as_array())
+                {
+                    lan.allowed_ips = values
+                        .iter()
+                        .filter_map(|value| value.as_str().map(str::to_owned))
+                        .collect();
+                }
+                if let Some(values) = updates
+                    .get("lan-disallowed-ips")
+                    .and_then(|value| value.as_array())
+                {
+                    lan.disallowed_ips = values
+                        .iter()
+                        .filter_map(|value| value.as_str().map(str::to_owned))
+                        .collect();
+                }
+                if let Some(values) = updates
+                    .get("skip-auth-prefixes")
+                    .and_then(|value| value.as_array())
+                {
+                    lan.skip_auth_prefixes = values
+                        .iter()
+                        .filter_map(|value| value.as_str().map(str::to_owned))
+                        .collect();
+                }
+                if let Some(values) = updates
+                    .get("authentication")
+                    .and_then(|value| value.as_array())
+                {
+                    lan.authentication_enabled = !values.is_empty();
+                    lan.authentication_user_count = values.len();
+                    lan.authentication_username = values
+                        .first()
+                        .and_then(|value| value.as_str())
+                        .and_then(|value| value.split_once(':'))
+                        .map(|(username, _)| username.to_owned());
                 }
             }
             if self.apply_patch
@@ -467,7 +536,7 @@ mod tests {
 
     #[tokio::test]
     async fn lan_sharing_patch_is_atomic_and_reads_back_bind_address() {
-        let lan = Arc::new(Mutex::new((false, 7890, "*".to_owned())));
+        let lan = lan_state();
         let gateway = Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
             tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
@@ -488,10 +557,10 @@ mod tests {
         assert_eq!(snapshot.revision, 1);
         assert_eq!(snapshot.mixed_port, 8080);
         assert_eq!(snapshot.bind_address, "192.168.1.10");
-        assert_eq!(
-            *lan.lock().expect("LAN state lock"),
-            (true, 8080, "192.168.1.10".to_owned())
-        );
+        let lan = lan.lock().expect("LAN state lock");
+        assert!(lan.allow_lan);
+        assert_eq!(lan.mixed_port, 8080);
+        assert_eq!(lan.bind_address, "192.168.1.10");
     }
 
     #[tokio::test]
@@ -523,6 +592,71 @@ mod tests {
             .expect_err("bind-address cannot be a CIDR");
         assert_eq!(
             invalid_address.code,
+            infiltrator_contract::error::ErrorCode::InvalidInput
+        );
+    }
+
+    #[tokio::test]
+    async fn lan_security_patch_reads_back_acl_and_only_exposes_auth_summary() {
+        let gateway = Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
+            apply_patch: true,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
+        });
+        let credentials = LanCredentials {
+            username: "lan-user".to_owned(),
+            password: "not-in-snapshot".to_owned(),
+        };
+        let snapshot = RuntimeQueryApplication::new(gateway)
+            .set_lan_security(
+                &["192.168.1.0/24".to_owned()],
+                &["192.168.1.10/32".to_owned()],
+                &["127.0.0.0/8".to_owned()],
+                true,
+                Some(&credentials),
+            )
+            .await
+            .expect("LAN security readback should match");
+
+        assert_eq!(snapshot.allowed_ips, vec!["192.168.1.0/24"]);
+        assert_eq!(snapshot.disallowed_ips, vec!["192.168.1.10/32"]);
+        assert_eq!(snapshot.skip_auth_prefixes, vec!["127.0.0.0/8"]);
+        assert!(snapshot.authentication_enabled);
+        assert_eq!(snapshot.authentication_user_count, 1);
+        assert!(!format!("{credentials:?}").contains("not-in-snapshot"));
+    }
+
+    #[tokio::test]
+    async fn lan_security_requires_credentials_when_authentication_is_enabled() {
+        let application = RuntimeQueryApplication::new(Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
+            apply_patch: true,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
+        }));
+        let failure = application
+            .set_lan_security(
+                &["192.168.0.0/16".to_owned()],
+                &[],
+                &[],
+                true,
+                None,
+            )
+            .await
+            .expect_err("auth cannot be enabled without credentials");
+        assert_eq!(
+            failure.code,
             infiltrator_contract::error::ErrorCode::InvalidInput
         );
     }
@@ -591,52 +725,6 @@ impl RuntimeQueryApplication {
             ));
         }
         Ok(())
-    }
-
-    /// Apply Mihomo's Allow-LAN listener settings as one live patch and verify
-    /// every field through the controller readback before reporting success.
-    pub async fn set_lan_sharing(
-        &self,
-        enabled: bool,
-        mixed_port: u16,
-        bind_address: &str,
-    ) -> Result<LanSharingSnapshot, Failure> {
-        if enabled && mixed_port == 0 {
-            return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidInput,
-                "Allow-LAN requires a non-zero mixed proxy port",
-                false,
-            ));
-        }
-        let bind_address = canonical_bind_address(bind_address)?;
-        self.gateway
-            .patch_config(serde_json::json!({
-                "allow-lan": enabled,
-                "mixed-port": mixed_port,
-                "bind-address": bind_address,
-            }))
-            .await
-            .map_err(Failure::from)?;
-        let observed = self.gateway.get_config().await.map_err(Failure::from)?;
-        if observed.allow_lan != enabled
-            || observed.mixed_port != mixed_port
-            || !bind_address_matches(&bind_address, &observed.bind_address)
-        {
-            return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidState,
-                format!(
-                    "Allow-LAN readback mismatch: requested enabled={enabled}, mixed-port={mixed_port}, bind-address={bind_address}; observed enabled={}, mixed-port={}, bind-address={}",
-                    observed.allow_lan, observed.mixed_port, observed.bind_address
-                ),
-                true,
-            ));
-        }
-        Ok(LanSharingSnapshot::new(
-            self.next_revision.fetch_add(1, Ordering::Relaxed),
-            observed.allow_lan,
-            observed.mixed_port,
-            canonical_bind_address(&observed.bind_address)?,
-        ))
     }
 
     /// Apply one of Mihomo's live TUN stack values and verify the controller
@@ -785,32 +873,4 @@ impl RuntimeQueryApplication {
             .await
             .map_err(Failure::from)
     }
-}
-
-fn canonical_bind_address(raw: &str) -> Result<String, Failure> {
-    let value = raw.trim();
-    if value == "*" {
-        return Ok(value.to_owned());
-    }
-    let unbracketed = value
-        .strip_prefix('[')
-        .and_then(|value| value.strip_suffix(']'))
-        .unwrap_or(value);
-    let address = unbracketed.parse::<IpAddr>().map_err(|_| {
-        Failure::new(
-            infiltrator_contract::error::ErrorCode::InvalidInput,
-            format!("invalid Mihomo bind-address: {value}"),
-            false,
-        )
-    })?;
-    Ok(match address {
-        IpAddr::V4(address) => address.to_string(),
-        IpAddr::V6(address) => format!("[{address}]"),
-    })
-}
-
-fn bind_address_matches(expected: &str, observed: &str) -> bool {
-    canonical_bind_address(observed)
-        .ok()
-        .is_some_and(|observed| observed == expected)
 }

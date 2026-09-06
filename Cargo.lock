@@ -5140,6 +5140,7 @@ dependencies = [
  "chrono",
  "flate2",
  "infiltrator-contract",
+ "ipnet",
  "regex",
  "ring",
  "serde",

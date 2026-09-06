@@ -34,6 +34,7 @@ pub mod sub_quota_card;
 pub mod web_dash_card;
 pub mod apply_guard_card;
 pub mod lan_sharing_card;
+pub mod lan_security_card;
 pub mod latency_radar_card;
 pub mod provider_unpack_card;
 pub mod rule_hit_card;

@@ -7,6 +7,7 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
+use infiltrator_contract::lan::LanCredentials;
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState, PhysicalMtuSnapshot};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
@@ -34,6 +35,40 @@ impl AppState {
                     .map_err(|failure| InfiltratorError::Config(failure.message))
             },
             move |result| Message::LanSharingSet(result, generation),
+        )
+    }
+
+    fn apply_lan_security(&mut self) -> Task<Message> {
+        if self.shell.demo {
+            return Task::none();
+        }
+        let Some(runtime) = self.runtime.runtime.clone() else {
+            return self.runtime_unavailable("应用局域网 ACL 与认证设置");
+        };
+        let generation = runtime.generation();
+        let desired = self.runtime.lan_security.clone();
+        let allowed_ips = split_cidrs(&desired.allowed_ips);
+        let disallowed_ips = split_cidrs(&desired.disallowed_ips);
+        let skip_auth_prefixes = split_cidrs(&desired.skip_auth_prefixes);
+        let credentials = desired.authentication_enabled.then(|| LanCredentials {
+            username: desired.auth_username.clone(),
+            password: desired.auth_password.clone(),
+        });
+        let gateway: std::sync::Arc<dyn RuntimeGateway> = runtime;
+        Task::perform(
+            async move {
+                RuntimeQueryApplication::new(gateway)
+                    .set_lan_security(
+                        &allowed_ips,
+                        &disallowed_ips,
+                        &skip_auth_prefixes,
+                        desired.authentication_enabled,
+                        credentials.as_ref(),
+                    )
+                    .await
+                    .map_err(|failure| InfiltratorError::Config(failure.message))
+            },
+            move |result| Message::LanSecuritySet(result, generation),
         )
     }
 
@@ -257,8 +292,10 @@ impl AppState {
                 Task::none()
             }
             Message::UpdateLanAclWhitelist(w) => {
-                self.runtime.lan_sharing.acl_whitelist_cidrs = w;
+                self.runtime.lan_sharing.acl_whitelist_cidrs = w.clone();
                 self.runtime.lan_sharing_dirty = true;
+                self.runtime.lan_security.allowed_ips = w;
+                self.runtime.lan_security_dirty = true;
                 Task::none()
             }
             Message::ApplyLanSharing => self.apply_lan_sharing(),
@@ -289,7 +326,86 @@ impl AppState {
                     }
                 }
             }
+            Message::UpdateLanAllowedIps(value) => {
+                self.runtime.lan_security.allowed_ips = value;
+                self.runtime.lan_security_dirty = true;
+                Task::none()
+            }
+            Message::UpdateLanDisallowedIps(value) => {
+                self.runtime.lan_security.disallowed_ips = value;
+                self.runtime.lan_security_dirty = true;
+                Task::none()
+            }
+            Message::UpdateLanSkipAuthPrefixes(value) => {
+                self.runtime.lan_security.skip_auth_prefixes = value;
+                self.runtime.lan_security_dirty = true;
+                Task::none()
+            }
+            Message::ToggleLanAuthentication(enabled) => {
+                self.runtime.lan_security.authentication_enabled = enabled;
+                self.runtime.lan_security_dirty = true;
+                Task::none()
+            }
+            Message::UpdateLanAuthUsername(value) => {
+                self.runtime.lan_security.auth_username = value;
+                self.runtime.lan_security_dirty = true;
+                Task::none()
+            }
+            Message::UpdateLanAuthPassword(value) => {
+                self.runtime.lan_security.auth_password = value;
+                self.runtime.lan_security_dirty = true;
+                Task::none()
+            }
+            Message::ApplyLanSecurity => self.apply_lan_security(),
+            Message::LanSecuritySet(result, generation) => {
+                if generation != self.runtime.runtime_generation {
+                    return Task::none();
+                }
+                match result {
+                    Ok(snapshot) => {
+                        self.runtime.lan_security.allowed_ips = snapshot.allowed_ips.join(", ");
+                        self.runtime.lan_security.disallowed_ips =
+                            snapshot.disallowed_ips.join(", ");
+                        self.runtime.lan_security.skip_auth_prefixes =
+                            snapshot.skip_auth_prefixes.join(", ");
+                        self.runtime.lan_security.authentication_enabled =
+                            snapshot.authentication_enabled;
+                        self.runtime.lan_security.authentication_user_count =
+                            snapshot.authentication_user_count;
+                        if let Some(username) = snapshot.authentication_username {
+                            self.runtime.lan_security.auth_username = username;
+                        }
+                        self.runtime.lan_security.auth_password.clear();
+                        self.runtime.lan_security_committed = self.runtime.lan_security.clone();
+                        self.runtime.lan_security_dirty = false;
+                        self.runtime.lan_sharing.acl_whitelist_cidrs =
+                            self.runtime.lan_security.allowed_ips.clone();
+                        Task::done(Message::ShowToast(
+                            "局域网 ACL 与认证设置已应用并完成回读".to_owned(),
+                            ToastStatus::Success,
+                        ))
+                    }
+                    Err(error) => {
+                        self.runtime.lan_security = self.runtime.lan_security_committed.clone();
+                        self.runtime.lan_security_dirty = false;
+                        self.set_error(&error);
+                        Task::done(Message::ShowToast(
+                            error.to_string(),
+                            ToastStatus::Error,
+                        ))
+                    }
+                }
+            }
             _ => Task::none(),
         }
     }
+}
+
+fn split_cidrs(value: &str) -> Vec<String> {
+    value
+        .split([',', ';', '\n'])
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
