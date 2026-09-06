@@ -115,6 +115,26 @@ pub fn chart_series(origin: OverviewOrigin, history: &TrafficHistory) -> (Vec<f3
     }
 }
 
+/// Prefer the application-owned live waveform when a complete surface source
+/// supplied it. The boolean tells the Bevy chart whether the values are
+/// already Bezier-densified by the shared domain algorithm.
+pub fn chart_inputs(
+    projection: &crate::projection::OverviewProjection,
+    history: &TrafficHistory,
+) -> (Vec<f32>, Vec<f32>, bool) {
+    if projection.origin == OverviewOrigin::LiveCore
+        && projection.traffic_waveform.is_drawable()
+    {
+        let (upload, download) = infiltrator_domain::traffic_waveform::display_series(
+            &projection.traffic_waveform,
+        );
+        (upload, download, false)
+    } else {
+        let (upload, download) = chart_series(projection.origin, history);
+        (upload, download, true)
+    }
+}
+
 /// Double-buffered ring snapshot decoupling async producers from UI render loops.
 #[derive(Clone, Debug)]
 pub struct DoubleBufferedRing<T: Clone> {

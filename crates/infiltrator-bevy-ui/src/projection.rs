@@ -97,6 +97,8 @@ pub struct OverviewProjection {
     /// live pump has read it. The demo fixture carries `None`; the banner
     /// shows the real version only when a real core reported one.
     pub core_version: Option<String>,
+    /// Application-owned live samples used by the shared waveform renderer.
+    pub traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot,
 }
 
 impl OverviewProjection {
@@ -115,6 +117,7 @@ impl OverviewProjection {
             failure: Some(reason.into()),
             origin,
             core_version: None,
+            traffic_waveform: Default::default(),
         }
     }
 
@@ -250,6 +253,7 @@ impl OverviewSource for DemoOverviewSource {
             },
             origin: OverviewOrigin::Demo,
             core_version: None,
+            traffic_waveform: Default::default(),
         }
     }
 

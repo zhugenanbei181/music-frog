@@ -266,6 +266,7 @@ fn projection_from_snapshot(snapshot: CoreSnapshot) -> OverviewProjection {
         failure: snapshot.failure.map(|failure| failure.message),
         origin: OverviewOrigin::LiveCore,
         core_version: snapshot.core_version,
+        traffic_waveform: Default::default(),
     }
 }
 

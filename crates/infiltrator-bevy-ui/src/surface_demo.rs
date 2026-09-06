@@ -119,6 +119,7 @@ pub(super) fn snapshot_from_overview(
                 1,
                 "privileged network regression is a host-test capability",
             ),
+        traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot::default(),
     }
 }
 
@@ -162,6 +163,7 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
                 1,
                 "privileged network regression is a host-test capability",
             ),
+        traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot::default(),
     }
 }
 

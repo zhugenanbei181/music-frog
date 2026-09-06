@@ -293,6 +293,9 @@ fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
 
     let chart = canvas::Canvas::new(TrafficChart {
         history: state.diag.traffic_history.clone(),
+        shared: state.runtime.traffic_waveform.is_drawable().then(|| {
+            state.runtime.traffic_waveform.clone()
+        }),
     })
     .width(Length::Fill)
     .height(Length::Fixed(130.0));

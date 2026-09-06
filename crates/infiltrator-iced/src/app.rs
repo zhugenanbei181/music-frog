@@ -88,6 +88,7 @@ impl AppState {
                         "privileged network regression port is not composed for this host",
                     ),
                 privileged_network_port: None,
+                traffic_waveform: Default::default(),
                 system_proxy: Default::default(),
                 system_proxy_recovery: Default::default(),
                 system_proxy_port: Some(system_proxy_port),

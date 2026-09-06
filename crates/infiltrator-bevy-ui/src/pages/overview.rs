@@ -58,7 +58,7 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::button::ControlVisual;
-use infiltrator_bevy_widgets::chart::{ChartPlate, ChartSpec, chart_scene};
+use infiltrator_bevy_widgets::chart::{ChartPlate, ChartSpec, chart_scene_with_smooth};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::{StatChipValue, stat_chip_scene};
@@ -67,7 +67,7 @@ use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
-use crate::history::{TrafficHistory, chart_series};
+use crate::history::{TrafficHistory, chart_inputs};
 use crate::projection::{OverviewOrigin, OverviewProjection, OverviewState};
 use crate::route::{PageRoot, Route};
 use infiltrator_contract::command::ProxyMode;
@@ -569,7 +569,7 @@ fn traffic_card_scene(
     history: &TrafficHistory,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let (up, down) = chart_series(projection.origin, history);
+    let (up, down, smooth) = chart_inputs(projection, history);
     surface_scene(
         vec![
             Box::new(plain_caption("实时流量".to_owned())),
@@ -577,7 +577,13 @@ fn traffic_card_scene(
                 format_rate(projection.upload_bps),
                 format_rate(projection.download_bps),
             )),
-            Box::new(chart_scene(up, down, CHART_WIDTH_PX, CHART_HEIGHT_PX)),
+            Box::new(chart_scene_with_smooth(
+                up,
+                down,
+                CHART_WIDTH_PX,
+                CHART_HEIGHT_PX,
+                smooth,
+            )),
         ],
         palette,
     )
@@ -787,9 +793,9 @@ pub(crate) fn apply_overview_projection(
     // The trend chart: re-derive the series for this projection's origin
     // and restamp only on an actual change (an unchanged spec must not pay
     // the raster cost every tick — sync_charts keys off `is_changed`).
-    let (up, down) = chart_series(projection.origin, &history);
+    let (up, down, smooth) = chart_inputs(projection, &history);
     let (width, height) = chart_dims();
-    let spec = ChartSpec::new(up, down, width, height);
+    let spec = ChartSpec::new(up, down, width, height).with_smooth(smooth);
     for mut plate in &mut charts {
         if plate.0 != spec {
             plate.0 = spec.clone();

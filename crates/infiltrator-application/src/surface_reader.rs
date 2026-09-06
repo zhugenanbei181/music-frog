@@ -23,6 +23,7 @@ use crate::mtu_application::MtuApplication;
 use crate::network_roaming_application::NetworkRoamingApplication;
 use crate::vpn_application::VpnServiceApplication;
 use crate::privileged_network_application::PrivilegedNetworkApplication;
+use crate::traffic_waveform_application::TrafficWaveformApplication;
 use crate::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -67,6 +68,7 @@ pub struct ApplicationSurfaceReader {
     network_roaming: Option<NetworkRoamingApplication>,
     vpn: Option<VpnServiceApplication>,
     privileged_network: Option<PrivilegedNetworkApplication>,
+    traffic_waveform: TrafficWaveformApplication,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -96,6 +98,7 @@ impl ApplicationSurfaceReader {
             network_roaming: None,
             vpn: None,
             privileged_network: None,
+            traffic_waveform: TrafficWaveformApplication::new(),
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -261,6 +264,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
     ) -> Result<surface_snapshot::SurfaceSnapshot, infiltrator_ports::error::PortError> {
         let core = self.core.snapshot();
         let revision = core.revision.max(1);
+        let traffic_waveform = self.traffic_waveform.record(&core);
         let versions = self.read_versions().await;
         let controller_auth = self.read_controller_auth().await;
         let service_mode = self.read_service_mode().await;
@@ -449,6 +453,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             network_roaming,
             vpn,
             privileged_network,
+            traffic_waveform,
         })
     }
 }

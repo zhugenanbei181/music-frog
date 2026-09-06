@@ -76,6 +76,7 @@ pub(super) fn overview_projection(
         core_version: page
             .and_then(|value| value.core_version.clone())
             .or_else(|| core.core_version.clone()),
+        traffic_waveform: snapshot.traffic_waveform.clone(),
     }
 }
 

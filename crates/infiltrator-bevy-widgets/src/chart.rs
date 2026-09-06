@@ -385,6 +385,19 @@ pub fn chart_scene(
     width_px: f32,
     height_px: f32,
 ) -> impl Scene + use<> {
+    chart_scene_with_smooth(up, down, width_px, height_px, true)
+}
+
+/// Chart scene variant for an adapter that already supplied dense shared
+/// Bezier values. Keeping the flag at the scene boundary avoids smoothing the
+/// same live sample twice.
+pub fn chart_scene_with_smooth(
+    up: Vec<f32>,
+    down: Vec<f32>,
+    width_px: f32,
+    height_px: f32,
+    smooth: bool,
+) -> impl Scene + use<> {
     let width = width_px.round().max(1.0) as u32;
     let height = height_px.round().max(1.0) as u32;
     bsn! {
@@ -397,7 +410,7 @@ pub fn chart_scene(
             flex_shrink: 1.0,
             overflow: Overflow::clip(),
         }
-        ChartPlate({ ChartSpec::new(up, down, width, height) })
+        ChartPlate({ ChartSpec::new(up, down, width, height).with_smooth(smooth) })
     }
 }
 

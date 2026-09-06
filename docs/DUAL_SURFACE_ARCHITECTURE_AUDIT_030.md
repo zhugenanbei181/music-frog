@@ -104,6 +104,7 @@
 - `DUAL-02-13` 已完成 `VpnStartRequest/VpnSessionSnapshot`、VpnServicePort/Application、FD/MTU/路由/DNS/前台校验、Android bridge 的 native configuration/foreground seam、tun2proxy start/stop/readback、Android composition、Iced/Bevy Settings 启停投影与行为测试；desktop/iOS 保持 typed unsupported，真实 Android manifest、API 26–35 授权/前台限制、真机流量、断电与 `onRevoke` smoke 仍未冒充 `host-verified`。
 - `DUAL-02-14` 已完成 `SystemToggleSnapshot/SystemToggleApplication`、Iced 侧栏/设置/Mini HUD 的统一投影与 pending policy、Bevy 侧栏动态 restamp/不可用禁用/Activate command observer，以及两端重复点击与 surface readback 行为测试；真实多会话桌面、移动原生开关联动和发行包视觉/触控 smoke 仍未冒充 `host-verified`。
 - `DUAL-02-15` 已完成 `PrivilegedNetworkRequest/Snapshot/Port/Application`、domain 去重校验、注入/回读/清理/rollback 失败语义、surface typed unsupported、desktop optional host seam、Iced/Bevy Settings action/status projection 与 mock host adapter/headless tests；真实 root/polkit/UAC、Android/iOS 原生授权、系统网络副作用和发行包 smoke 仍未冒充 `host-verified`。
+- `DUAL-03-01` 已完成 `TrafficSample/TrafficWaveformSnapshot`、application bounded live history、generation reset、停止态不追加、domain cubic-Bezier value projection，以及 Bevy chart/Iced Canvas 的 shared live sample adapter 与行为测试；真实 GPU/长时高吞吐/发行包视觉帧率 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

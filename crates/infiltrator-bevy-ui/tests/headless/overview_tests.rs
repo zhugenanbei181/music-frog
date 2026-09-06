@@ -44,6 +44,7 @@ use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{LightDark, Theme};
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 
 /// The demo core's unavailability reason (projection.rs fixture).
 const DEMO_REASON: &str = "demo: external controller unreachable (connection refused)";
@@ -64,6 +65,7 @@ impl OverviewSource for StubSource {
             failure: None,
             origin: OverviewOrigin::Demo,
             core_version: None,
+            traffic_waveform: Default::default(),
         }
     }
 }
@@ -382,6 +384,7 @@ fn projection_updates_restamp_in_place() {
         failure: None,
         origin: OverviewOrigin::Demo,
         core_version: None,
+        traffic_waveform: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -429,6 +432,7 @@ fn projection_updates_restamp_in_place() {
         failure: Some("refused".to_owned()),
         origin: OverviewOrigin::LiveCore,
         core_version: Some("v1.19.18".to_owned()),
+        traffic_waveform: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -688,6 +692,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         failure: None,
         origin: OverviewOrigin::LiveCore,
         core_version: Some("v1.19.18".to_owned()),
+        traffic_waveform: Default::default(),
     }
 }
 
@@ -790,6 +795,42 @@ fn projection_updates_refresh_the_chart_series() {
     assert_eq!((after.0.up, after.0.down), (want_up, want_down));
 }
 
+#[test]
+fn live_surface_waveform_uses_shared_bezier_value_projection() {
+    let mut app = mounted_default();
+    let mut projection = live_projection(5.0, 6.0);
+    projection.traffic_waveform = TrafficWaveformSnapshot {
+        generation: 2,
+        revision: 3,
+        samples: vec![
+            TrafficSample {
+                sampled_at_epoch_ms: Some(1),
+                upload_bps: 1.0,
+                download_bps: 3.0,
+            },
+            TrafficSample {
+                sampled_at_epoch_ms: Some(2),
+                upload_bps: 9.0,
+                download_bps: 6.0,
+            },
+            TrafficSample {
+                sampled_at_epoch_ms: Some(3),
+                upload_bps: 4.0,
+                download_bps: 12.0,
+            },
+        ],
+    };
+    app.world_mut()
+        .commands()
+        .trigger(OverviewProjectionUpdated(projection));
+    app.update();
+
+    let (_, plate) = chart_plate(app.world_mut());
+    assert_eq!(plate.0.up.len(), 9, "three live samples, four Bezier steps");
+    assert_eq!(plate.0.down.len(), 9);
+    assert!(!plate.0.smooth, "shared adapter already densified the values");
+}
+
 /// A `ThemeSwitch` re-rasterizes the chart under the SAME image handle
 /// (chart.rs's write-back contract): entity id stable, asset id stable,
 /// pixels re-derived from the new palette.
@@ -867,6 +908,7 @@ impl OverviewSource for LiveFootStub {
             failure: None,
             origin: OverviewOrigin::LiveCore,
             core_version: self.version.map(str::to_owned),
+            traffic_waveform: Default::default(),
         }
     }
 
@@ -946,6 +988,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         failure: None,
         origin: OverviewOrigin::Demo,
         core_version: None,
+        traffic_waveform: Default::default(),
     };
     app.world_mut()
         .commands()

@@ -449,6 +449,9 @@ pub struct SurfaceSnapshot {
     /// Android VpnService permission/foreground/tun2proxy session state.
     #[serde(default)]
     pub vpn: crate::vpn::VpnSessionSnapshot,
+    /// Bounded live upload/download samples shared by both primary surfaces.
+    #[serde(default)]
+    pub traffic_waveform: crate::traffic_waveform::TrafficWaveformSnapshot,
     /// Host-injected privileged-network regression readback.
     #[serde(default)]
     pub privileged_network: crate::privileged_network::PrivilegedNetworkSnapshot,
@@ -498,6 +501,7 @@ impl SurfaceSnapshot {
             network_roaming: crate::network_roaming::NetworkRoamingSnapshot::default(),
             vpn: crate::vpn::VpnSessionSnapshot::default(),
             privileged_network: crate::privileged_network::PrivilegedNetworkSnapshot::default(),
+            traffic_waveform: crate::traffic_waveform::TrafficWaveformSnapshot::default(),
         }
     }
 

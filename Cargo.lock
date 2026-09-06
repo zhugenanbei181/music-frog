@@ -5002,6 +5002,7 @@ dependencies = [
  "infiltrator-bevy-widgets",
  "infiltrator-composition",
  "infiltrator-contract",
+ "infiltrator-domain",
  "mockito",
  "serde",
  "serde_json",

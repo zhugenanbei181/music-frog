@@ -648,6 +648,7 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
                 failure: None,
                 origin: OverviewOrigin::LiveCore,
                 core_version: Some("v1.19.18".to_owned()),
+                traffic_waveform: Default::default(),
             }
         }
     }

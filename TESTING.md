@@ -152,6 +152,8 @@ python3 scripts/quality/vpn-service-guard.py --mode enforce
 python3 scripts/quality/system-toggle-guard.py --mode enforce
 # DUAL-02-15 特权网络注入、清理与失败回滚无头守卫
 python3 scripts/quality/privileged-network-guard.py --mode enforce
+# DUAL-03-01 双通道实时流量波形与 shared Bezier 守卫
+python3 scripts/quality/traffic-waveform-guard.py --mode enforce
 ```
 
 ---

@@ -51,6 +51,7 @@ pub mod sniffer;
 pub mod sub_rules;
 pub mod subscription;
 pub mod traffic_audit;
+pub mod traffic_waveform;
 pub mod tun;
 pub mod vector_clock;
 pub mod watchdog;

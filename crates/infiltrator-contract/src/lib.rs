@@ -29,6 +29,7 @@ pub mod system_toggle;
 pub mod surface_snapshot;
 pub mod sync;
 pub mod tun;
+pub mod traffic_waveform;
 pub mod version;
 pub mod surface;
 

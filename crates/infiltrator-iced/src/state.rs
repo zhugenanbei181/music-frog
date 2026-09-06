@@ -69,6 +69,7 @@ pub struct RuntimeState {
     pub system_toggles: SystemToggleSnapshot,
     pub privileged_network: PrivilegedNetworkSnapshot,
     pub privileged_network_port: Option<Arc<dyn PrivilegedNetworkPort>>,
+    pub traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot,
     pub system_proxy: SystemProxySnapshot,
     pub system_proxy_recovery: SystemProxyRecoverySnapshot,
     /// Retained independently of the running core so a system proxy can be
@@ -438,6 +439,7 @@ impl AppState {
         self.runtime.network_roaming = snapshot.network_roaming.clone();
         self.runtime.vpn = snapshot.vpn.clone();
         self.runtime.privileged_network = snapshot.privileged_network.clone();
+        self.runtime.traffic_waveform = snapshot.traffic_waveform.clone();
         self.runtime.system_toggles =
             infiltrator_application::system_toggle_application::SystemToggleApplication::from_surface(
                 &snapshot,
