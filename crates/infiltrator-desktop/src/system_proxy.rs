@@ -1,9 +1,13 @@
 //! Desktop system HTTP/SOCKS proxy port.
 
 use async_trait::async_trait;
-use infiltrator_contract::system_proxy::SystemProxyObservation;
+use infiltrator_contract::system_proxy::{SystemProxyDesiredState, SystemProxyObservation};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::system_proxy::SystemProxyPort;
+use std::sync::{Arc, Mutex, OnceLock};
+
+static SHARED_SYSTEM_PROXY_TARGET: OnceLock<Arc<Mutex<Option<SystemProxyDesiredState>>>> =
+    OnceLock::new();
 
 /// Stateless desktop adapter over the OS-specific proxy implementations.
 /// Windows registry, Linux GSettings/KDE/environment and macOS
@@ -19,6 +23,12 @@ impl DesktopSystemProxy {
 
 #[async_trait]
 impl SystemProxyPort for DesktopSystemProxy {
+    fn shared_target(&self) -> Arc<Mutex<Option<SystemProxyDesiredState>>> {
+        SHARED_SYSTEM_PROXY_TARGET
+            .get_or_init(|| Arc::new(Mutex::new(None)))
+            .clone()
+    }
+
     async fn snapshot(&self) -> Result<SystemProxyObservation, PortError> {
         tokio::task::spawn_blocking(crate::proxy::read_system_proxy_state)
             .await

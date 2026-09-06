@@ -1,6 +1,7 @@
 mod ui_wave5;
 mod ui_wave4;
 mod ui_wave3;
+mod system_proxy;
 pub mod core;
 pub mod profile;
 pub mod ui;
@@ -218,6 +219,7 @@ impl AppState {
             | Message::RemoveToast(_)
             | Message::SetSystemProxy(_)
             | Message::SystemProxySet(_)
+            | Message::SystemProxyReconciled(_)
             | Message::TogglePerfPanel
             | Message::RequestConfirmation(_)
             | Message::ConfirmAction

@@ -468,6 +468,7 @@ pub fn general_card_scene(
                 Children [
                     ( { checkbox_scene("开机自动启动 (Autostart on Boot)".to_owned(), projection.autostart, palette) } ),
                     ( { settings_system::toggle_scene(projection.system_proxy, palette) } ),
+                    ( { settings_system::status_row(&projection.system_proxy_snapshot, palette) } ),
                     ( { close_to_tray_toggle_row_scene(true, palette) } ),
                     ( { system_notifications_toggle_row_scene(true, palette) } ),
                     ( { checkbox_scene("允许局域网连接 (Allow LAN)".to_owned(), projection.allow_lan, palette) } ),
@@ -769,6 +770,9 @@ pub(crate) fn apply_settings_projection(
             }
             SettingsLineKind::ControllerAuth => {
                 text.0 = settings_core::format_controller_auth(&projection.controller_auth);
+            }
+            SettingsLineKind::SystemProxy => {
+                text.0 = settings_system::format_status(&projection.system_proxy_snapshot);
             }
             SettingsLineKind::ServiceMode => {
                 text.0 = settings_core::format_service_mode(&projection.service_mode);

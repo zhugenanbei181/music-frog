@@ -319,6 +319,7 @@ pub enum Message {
     SystemProxySet(
         Result<infiltrator_contract::system_proxy::SystemProxySnapshot, InfiltratorError>,
     ),
+    SystemProxyReconciled(infiltrator_contract::system_proxy::SystemProxySnapshot),
     RequestAdminPrivilege,
     RequestConfirmation(ConfirmAction),
     ConfirmAction,

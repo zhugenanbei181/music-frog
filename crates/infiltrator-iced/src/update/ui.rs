@@ -2,7 +2,6 @@ use crate::state::AppState;
 use crate::types::app::{ConfirmAction, Route, ToastStatus};
 use crate::types::message::Message;
 use iced::{Task, Theme, window};
-use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::error::InfiltratorError;
 use std::path::Path;
 use std::time::Instant;
@@ -684,7 +683,7 @@ impl AppState {
                 self.runtime.system_proxy_pending = true;
                 self.refresh_tray();
                 let runtime = self.runtime.runtime.clone();
-                let proxy_port = self.runtime.system_proxy_port.clone();
+                let proxy_application = self.runtime.system_proxy_application.clone();
                 let bypass = if self.shell.system_proxy_bypass.trim().is_empty() {
                     None
                 } else {
@@ -692,7 +691,7 @@ impl AppState {
                 };
                 Task::perform(
                     async move {
-                        let proxy_port = proxy_port.ok_or_else(|| {
+                        let application = proxy_application.ok_or_else(|| {
                             InfiltratorError::Privilege(
                                 "当前宿主未提供系统代理控制能力".to_owned(),
                             )
@@ -715,12 +714,8 @@ impl AppState {
                         } else {
                             String::new()
                         };
-                        SystemProxyApplication::new(proxy_port)
-                            .set_enabled(
-                                enabled,
-                                enabled.then_some(endpoint),
-                                bypass,
-                            )
+                        application
+                            .set_enabled(enabled, enabled.then_some(endpoint), bypass)
                             .await
                             .map_err(|failure| InfiltratorError::Privilege(failure.message))
                     },
@@ -743,6 +738,7 @@ impl AppState {
                     Task::none()
                 }
             },
+            Message::SystemProxyReconciled(snapshot) => self.reconcile_system_proxy(snapshot),
             Message::RequestAdminPrivilege => {
                 #[cfg(target_os = "windows")]
                 {

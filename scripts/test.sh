@@ -29,6 +29,7 @@ python3 scripts/quality/tun-stack-guard.py --mode enforce
 python3 scripts/quality/mtu-negotiation-guard.py --mode enforce
 python3 scripts/quality/tun-routing-guard.py --mode enforce
 python3 scripts/quality/system-proxy-guard.py --mode enforce
+python3 scripts/quality/system-proxy-watchdog-guard.py --mode enforce
 
 nextest_mode=()
 if [[ $# -eq 1 ]]; then

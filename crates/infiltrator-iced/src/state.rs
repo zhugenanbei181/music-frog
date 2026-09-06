@@ -41,6 +41,7 @@ use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_contract::system_proxy::SystemProxySnapshot;
 use infiltrator_ports::system_proxy::SystemProxyPort;
+use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -62,6 +63,8 @@ pub struct RuntimeState {
     /// Retained independently of the running core so a system proxy can be
     /// disabled during shutdown/cleanup without a live Mihomo runtime.
     pub system_proxy_port: Option<Arc<dyn SystemProxyPort>>,
+    pub system_proxy_application: Option<SystemProxyApplication>,
+    pub system_proxy_last_repair_count: u64,
     pub lifecycle_token: u64,
     pub status: RuntimeStatus,
     pub proxies: HashMap<String, Proxy>,

@@ -416,6 +416,12 @@ impl std::fmt::Debug for Message {
                 write!(f, "SystemProxySet(Ok(revision={}))", snapshot.revision)
             }
             Message::SystemProxySet(Err(e)) => write!(f, "SystemProxySet(Err({:?}))", e),
+            Message::SystemProxyReconciled(snapshot) => write!(
+                f,
+                "SystemProxyReconciled(revision={}, repairs={})",
+                snapshot.revision,
+                snapshot.repair_count
+            ),
             Message::RequestAdminPrivilege => write!(f, "RequestAdminPrivilege"),
             Message::RequestConfirmation(action) => write!(f, "RequestConfirmation({action:?})"),
             Message::ConfirmAction => write!(f, "ConfirmAction"),

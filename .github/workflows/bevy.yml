@@ -41,6 +41,7 @@ on:
       - "scripts/quality/mtu-negotiation-guard.py"
       - "scripts/quality/tun-routing-guard.py"
       - "scripts/quality/system-proxy-guard.py"
+      - "scripts/quality/system-proxy-watchdog-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -191,6 +192,9 @@ jobs:
 
       - name: Enforce DUAL-02-04 system proxy semantics
         run: python3 scripts/quality/system-proxy-guard.py --mode enforce
+
+      - name: Enforce DUAL-02-05 system proxy watchdog semantics
+        run: python3 scripts/quality/system-proxy-watchdog-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

@@ -68,6 +68,8 @@ pub enum SettingsLineKind {
     CoreRollback,
     /// Controller secret/header injection status.
     ControllerAuth,
+    /// Host system proxy ownership and reconciliation status.
+    SystemProxy,
     /// Host-owned privileged service mode status.
     ServiceMode,
     /// Mixed/controller port conflict observation.

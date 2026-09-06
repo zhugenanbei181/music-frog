@@ -10,6 +10,16 @@ pub struct SystemProxyObservation {
     pub bypass: Option<String>,
 }
 
+/// The last proxy target confirmed by the application. Host adapters use a
+/// shared store for this value so command and surface compositions can
+/// reconcile the same ownership even when they wrap the port separately.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SystemProxyDesiredState {
+    pub enabled: bool,
+    pub endpoint: Option<String>,
+    pub bypass: Option<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SystemProxyStatus {
     Unknown,
@@ -19,12 +29,25 @@ pub enum SystemProxyStatus {
     Failed { failure: Failure },
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemProxyOwnership {
+    #[default]
+    Unknown,
+    Unmanaged,
+    Owned,
+    Repaired,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SystemProxySnapshot {
     pub status: SystemProxyStatus,
     pub endpoint: Option<String>,
     pub bypass: Option<String>,
     pub revision: u64,
+    #[serde(default)]
+    pub ownership: SystemProxyOwnership,
+    #[serde(default)]
+    pub repair_count: u64,
 }
 
 impl Default for SystemProxySnapshot {
@@ -34,6 +57,8 @@ impl Default for SystemProxySnapshot {
             endpoint: None,
             bypass: None,
             revision: 0,
+            ownership: SystemProxyOwnership::Unknown,
+            repair_count: 0,
         }
     }
 }
@@ -49,6 +74,8 @@ impl SystemProxySnapshot {
             endpoint: observation.endpoint,
             bypass: observation.bypass,
             revision,
+            ownership: SystemProxyOwnership::Unmanaged,
+            repair_count: 0,
         }
     }
 
@@ -73,6 +100,22 @@ impl SystemProxySnapshot {
     pub fn is_enabled(&self) -> bool {
         self.status == SystemProxyStatus::Enabled
     }
+
+    pub fn with_owned(mut self) -> Self {
+        self.ownership = SystemProxyOwnership::Owned;
+        self
+    }
+
+    pub fn with_repaired(mut self, repair_count: u64) -> Self {
+        self.ownership = SystemProxyOwnership::Repaired;
+        self.repair_count = repair_count;
+        self
+    }
+
+    pub fn with_repair_count(mut self, repair_count: u64) -> Self {
+        self.repair_count = repair_count;
+        self
+    }
 }
 
 #[cfg(test)]
@@ -90,6 +133,7 @@ mod tests {
             },
         );
         assert!(snapshot.is_enabled());
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Unmanaged);
         assert_eq!(snapshot.endpoint.as_deref(), Some("127.0.0.1:7890"));
         assert_eq!(snapshot.bypass.as_deref(), Some("localhost"));
     }

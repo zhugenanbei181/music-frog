@@ -41,3 +41,4 @@ python3 "$repo_root/scripts/quality/tun-stack-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/mtu-negotiation-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/tun-routing-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/system-proxy-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/system-proxy-watchdog-guard.py" --mode enforce

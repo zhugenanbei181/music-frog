@@ -5,6 +5,7 @@ use crate::types::message::Message;
 use crate::types::runtime::{RuntimeStatus, RuntimeStreamKind, RuntimeStreamState};
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, stream, window};
+use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
 use futures_util::StreamExt;
@@ -18,6 +19,18 @@ struct RuntimeStreamInput {
     generation: u64,
     gateway: Arc<dyn HostRuntime>,
     log_level: String,
+}
+
+#[derive(Clone)]
+struct SystemProxyWatchdogInput {
+    identity: usize,
+    application: SystemProxyApplication,
+}
+
+impl Hash for SystemProxyWatchdogInput {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.identity.hash(state);
+    }
 }
 
 impl Hash for RuntimeStreamInput {
@@ -189,6 +202,42 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
     Box::pin(channel)
 }
 
+pub(crate) fn system_proxy_watchdog_subscription(
+    application: &Option<SystemProxyApplication>,
+) -> Subscription<Message> {
+    let Some(application) = application else {
+        return Subscription::none();
+    };
+    let input = SystemProxyWatchdogInput {
+        identity: application.identity(),
+        application: application.clone(),
+    };
+    Subscription::run_with(input, build_system_proxy_watchdog)
+}
+
+fn build_system_proxy_watchdog(
+    input: &SystemProxyWatchdogInput,
+) -> BoxStream<'static, Message> {
+    let application = input.application.clone();
+    let channel = stream::channel(
+        16,
+        move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(3));
+            loop {
+                interval.tick().await;
+                let snapshot = application.snapshot().await;
+                if output
+                    .try_send(Message::SystemProxyReconciled(snapshot))
+                    .is_err()
+                {
+                    return;
+                }
+            }
+        },
+    );
+    Box::pin(channel)
+}
+
 fn stream_state(kind: RuntimeStreamKind, generation: u64, state: RuntimeStreamState) -> Message {
     Message::RuntimeStreamStateChanged {
         kind,
@@ -215,6 +264,15 @@ impl AppState {
         // composition owns the pump; Iced only drains typed messages.
         if let Some(bridge) = &self.surface_bridge {
             subs.push(bridge.subscription());
+        }
+
+        // System proxy ownership is host-side state rather than core stream
+        // state. Keep a three-second reconciliation loop even when Mihomo is
+        // stopped so a stale desktop proxy can be restored safely.
+        if !self.shell.demo {
+            subs.push(system_proxy_watchdog_subscription(
+                &self.runtime.system_proxy_application,
+            ));
         }
 
         // 2. Scheduled subscription auto-update checks

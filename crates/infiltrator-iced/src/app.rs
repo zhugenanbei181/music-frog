@@ -56,6 +56,11 @@ impl AppState {
             admin_server_manager.event_bus(),
             admin_command_tx,
         );
+        let system_proxy_port = crate::host::desktop::system_proxy_port();
+        let system_proxy_application =
+            infiltrator_application::system_proxy_application::SystemProxyApplication::new(
+                system_proxy_port.clone(),
+            );
 
         Self {
             runtime: crate::state::RuntimeState {
@@ -65,7 +70,9 @@ impl AppState {
                 core_lifecycle: Default::default(),
                 mtu: Default::default(),
                 system_proxy: Default::default(),
-                system_proxy_port: Some(crate::host::desktop::system_proxy_port()),
+                system_proxy_port: Some(system_proxy_port),
+                system_proxy_application: Some(system_proxy_application),
+                system_proxy_last_repair_count: 0,
                 lifecycle_token: 0,
                 status: RuntimeStatus::Stopped,
                 proxy_mode: None,

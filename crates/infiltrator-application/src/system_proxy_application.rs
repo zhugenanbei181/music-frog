@@ -1,7 +1,7 @@
 //! System HTTP/SOCKS proxy use-case over a host-owned port.
 
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::system_proxy::SystemProxySnapshot;
+use infiltrator_contract::system_proxy::{SystemProxyDesiredState, SystemProxyObservation, SystemProxySnapshot};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::system_proxy::SystemProxyPort;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -15,19 +15,28 @@ pub struct SystemProxyApplication {
     port: Arc<dyn SystemProxyPort>,
     next_revision: Arc<AtomicU64>,
     last_snapshot: Arc<Mutex<Option<(Instant, SystemProxySnapshot)>>>,
+    desired: Arc<Mutex<Option<SystemProxyDesiredState>>>,
+    repair_count: Arc<AtomicU64>,
 }
 
 impl SystemProxyApplication {
     pub fn new(port: Arc<dyn SystemProxyPort>) -> Self {
+        let desired = port.shared_target();
         Self {
             port,
             next_revision: Arc::new(AtomicU64::new(1)),
             last_snapshot: Arc::new(Mutex::new(None)),
+            desired,
+            repair_count: Arc::new(AtomicU64::new(0)),
         }
     }
 
+    pub fn identity(&self) -> usize {
+        Arc::as_ptr(&self.port) as *const () as usize
+    }
+
     pub async fn snapshot(&self) -> SystemProxySnapshot {
-        let snapshot = self.snapshot_fresh().await;
+        let snapshot = self.reconcile_fresh().await;
         self.cache(snapshot.clone());
         snapshot
     }
@@ -65,38 +74,87 @@ impl SystemProxyApplication {
                 true,
             ));
         }
+        let target = SystemProxyDesiredState {
+            enabled,
+            endpoint: endpoint.clone(),
+            bypass: bypass.clone(),
+        };
         self.port
             .apply(endpoint, bypass)
             .await
             .map_err(Failure::from)?;
         let observation = self.port.snapshot().await.map_err(Failure::from)?;
-        if observation.enabled != enabled || (enabled && observation.endpoint.is_none()) {
+        if !target_matches(&target, &observation) {
             return Err(Failure::new(
                 ErrorCode::InvalidState,
                 format!(
-                    "system proxy readback mismatch: requested enabled={enabled}, observed enabled={} endpoint={:?}",
-                    observation.enabled, observation.endpoint
+                    "system proxy readback mismatch: requested {:?}, observed {:?}",
+                    target, observation
                 ),
                 true,
             ));
         }
+        *self.desired.lock().expect("system proxy target lock") = Some(target);
         let snapshot = SystemProxySnapshot::from_observation(
             self.next_revision.fetch_add(1, Ordering::Relaxed),
             observation,
-        );
+        )
+        .with_owned()
+        .with_repair_count(self.repair_count.load(Ordering::Relaxed));
         self.cache(snapshot.clone());
         Ok(snapshot)
     }
 
-    async fn snapshot_fresh(&self) -> SystemProxySnapshot {
+    async fn reconcile_fresh(&self) -> SystemProxySnapshot {
         let revision = self.next_revision.fetch_add(1, Ordering::Relaxed);
-        match self.port.snapshot().await {
-            Ok(observation) => SystemProxySnapshot::from_observation(revision, observation),
+        let observation = match self.port.snapshot().await {
+            Ok(observation) => observation,
             Err(PortError::Unsupported { reason, .. }) => {
-                SystemProxySnapshot::unsupported(revision, reason)
+                return SystemProxySnapshot::unsupported(revision, reason);
             }
-            Err(error) => SystemProxySnapshot::failed(revision, Failure::from(error)),
+            Err(error) => return SystemProxySnapshot::failed(revision, Failure::from(error)),
+        };
+        let target = self
+            .desired
+            .lock()
+            .expect("system proxy target lock")
+            .clone();
+        let Some(target) = target else {
+            return SystemProxySnapshot::from_observation(revision, observation);
+        };
+        let repair_count = self.repair_count.load(Ordering::Relaxed);
+        if target_matches(&target, &observation) {
+            return SystemProxySnapshot::from_observation(revision, observation)
+                .with_owned()
+                .with_repair_count(repair_count);
         }
+
+        if let Err(error) = self
+            .port
+            .apply(target.endpoint.clone(), target.bypass.clone())
+            .await
+        {
+            return SystemProxySnapshot::failed(revision, Failure::from(error));
+        }
+        let repaired = match self.port.snapshot().await {
+            Ok(observation) => observation,
+            Err(error) => return SystemProxySnapshot::failed(revision, Failure::from(error)),
+        };
+        if !target_matches(&target, &repaired) {
+            return SystemProxySnapshot::failed(
+                revision,
+                Failure::new(
+                    ErrorCode::InvalidState,
+                    format!(
+                        "system proxy repair readback mismatch: target {:?}, observed {:?}",
+                        target, repaired
+                    ),
+                    true,
+                ),
+            );
+        }
+        let repair_count = self.repair_count.fetch_add(1, Ordering::Relaxed) + 1;
+        SystemProxySnapshot::from_observation(revision, repaired).with_repaired(repair_count)
     }
 
     fn cache(&self, snapshot: SystemProxySnapshot) {
@@ -107,21 +165,42 @@ impl SystemProxyApplication {
     }
 }
 
+fn target_matches(target: &SystemProxyDesiredState, observation: &SystemProxyObservation) -> bool {
+    if target.enabled != observation.enabled {
+        return false;
+    }
+    if !target.enabled {
+        return true;
+    }
+    target.endpoint == observation.endpoint
+        && target
+            .bypass
+            .as_ref()
+            .is_none_or(|bypass| observation.bypass.as_ref() == Some(bypass))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use infiltrator_contract::system_proxy::{SystemProxyObservation, SystemProxyStatus};
+    use infiltrator_contract::system_proxy::{
+        SystemProxyObservation, SystemProxyOwnership, SystemProxyStatus,
+    };
     use std::sync::atomic::AtomicUsize;
 
     struct TestPort {
         observation: Mutex<SystemProxyObservation>,
         apply_calls: AtomicUsize,
         snapshot_calls: AtomicUsize,
+        target: Arc<Mutex<Option<SystemProxyDesiredState>>>,
     }
 
     #[async_trait]
     impl SystemProxyPort for TestPort {
+        fn shared_target(&self) -> Arc<Mutex<Option<SystemProxyDesiredState>>> {
+            self.target.clone()
+        }
+
         async fn snapshot(&self) -> Result<SystemProxyObservation, PortError> {
             self.snapshot_calls.fetch_add(1, Ordering::SeqCst);
             Ok(self.observation.lock().expect("proxy lock").clone())
@@ -130,11 +209,12 @@ mod tests {
         async fn apply(
             &self,
             endpoint: Option<String>,
-            _bypass: Option<String>,
+            bypass: Option<String>,
         ) -> Result<(), PortError> {
             self.apply_calls.fetch_add(1, Ordering::SeqCst);
             let mut observation = self.observation.lock().expect("proxy lock");
             observation.endpoint = endpoint.clone();
+            observation.bypass = bypass;
             observation.enabled = endpoint.is_some();
             Ok(())
         }
@@ -146,6 +226,7 @@ mod tests {
             observation: Mutex::new(SystemProxyObservation::default()),
             apply_calls: AtomicUsize::new(0),
             snapshot_calls: AtomicUsize::new(0),
+            target: Arc::new(Mutex::new(None)),
         });
         let application = SystemProxyApplication::new(port.clone());
         let snapshot = application
@@ -157,6 +238,7 @@ mod tests {
             .await
             .expect("proxy apply");
         assert_eq!(snapshot.status, SystemProxyStatus::Enabled);
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Owned);
         assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
     }
 
@@ -166,6 +248,7 @@ mod tests {
             observation: Mutex::new(SystemProxyObservation::default()),
             apply_calls: AtomicUsize::new(0),
             snapshot_calls: AtomicUsize::new(0),
+            target: Arc::new(Mutex::new(None)),
         });
         let application = SystemProxyApplication::new(port.clone());
         let first = application.snapshot_cached().await;
@@ -173,5 +256,56 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(port.apply_calls.load(Ordering::SeqCst), 0);
         assert_eq!(port.snapshot_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn application_repairs_external_override_and_reports_one_warning_state() {
+        let port = Arc::new(TestPort {
+            observation: Mutex::new(SystemProxyObservation::default()),
+            apply_calls: AtomicUsize::new(0),
+            snapshot_calls: AtomicUsize::new(0),
+            target: Arc::new(Mutex::new(None)),
+        });
+        let application = SystemProxyApplication::new(port.clone());
+        application
+            .set_enabled(
+                true,
+                Some("127.0.0.1:7890".to_owned()),
+                Some("localhost".to_owned()),
+            )
+            .await
+            .expect("initial proxy apply");
+        *port.observation.lock().expect("proxy lock") = SystemProxyObservation {
+            enabled: true,
+            endpoint: Some("127.0.0.1:9999".to_owned()),
+            bypass: Some("example.com".to_owned()),
+        };
+
+        let snapshot = application.snapshot().await;
+        assert_eq!(snapshot.status, SystemProxyStatus::Enabled);
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Repaired);
+        assert_eq!(snapshot.repair_count, 1);
+        assert_eq!(snapshot.endpoint.as_deref(), Some("127.0.0.1:7890"));
+        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn separate_compositions_share_proxy_ownership_through_the_port() {
+        let port = Arc::new(TestPort {
+            observation: Mutex::new(SystemProxyObservation::default()),
+            apply_calls: AtomicUsize::new(0),
+            snapshot_calls: AtomicUsize::new(0),
+            target: Arc::new(Mutex::new(None)),
+        });
+        let command_application = SystemProxyApplication::new(port.clone());
+        let surface_application = SystemProxyApplication::new(port.clone());
+        command_application
+            .set_enabled(true, Some("127.0.0.1:7890".to_owned()), None)
+            .await
+            .expect("command composition apply");
+
+        let snapshot = surface_application.snapshot().await;
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Owned);
+        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
     }
 }

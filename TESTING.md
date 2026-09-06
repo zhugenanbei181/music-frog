@@ -130,6 +130,8 @@ python3 scripts/quality/mtu-negotiation-guard.py --mode enforce
 python3 scripts/quality/tun-routing-guard.py --mode enforce
 # DUAL-02-04 Windows/Linux/macOS 系统 HTTP/SOCKS 代理注入与回读守卫
 python3 scripts/quality/system-proxy-guard.py --mode enforce
+# DUAL-02-05 系统代理抢占探活、ownership 共享与自动复位守卫
+python3 scripts/quality/system-proxy-watchdog-guard.py --mode enforce
 ```
 
 ---
