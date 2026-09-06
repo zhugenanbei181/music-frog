@@ -394,6 +394,7 @@ pub(super) fn settings_projection(
             allow_lan: value.allow_lan,
             lan_bind_address: value.lan_bind_address.clone(),
             lan_security: value.lan_security.clone(),
+            ipv6_routing: value.ipv6_routing,
             tun_enabled: value.tun_enabled,
             tun_stack: value.tun_stack,
             tun_auto_route: value.tun_auto_route,

@@ -41,6 +41,7 @@ impl AppState {
                 | Message::RepairPortConflicts
                 | Message::PortConflictsRepaired(_)
                 | Message::SetProxyMode(_)
+                | Message::SetIpv6Routing(_)
                 | Message::SetTunEnabled(_)
                 | Message::SetTunStack(_)
                 | Message::SetTunAutoRoute(_)

@@ -17,6 +17,10 @@ pub struct ConfigSnapshot {
     pub log_level: String,
     #[serde(default)]
     pub allow_lan: bool,
+    /// Top-level Mihomo `ipv6`; missing API fields follow Mihomo's documented
+    /// default of allowing IPv6 rather than silently claiming it is disabled.
+    #[serde(default = "default_ipv6_enabled")]
+    pub ipv6: bool,
     #[serde(default = "default_bind_address")]
     pub bind_address: String,
     #[serde(default)]
@@ -39,6 +43,10 @@ pub struct ConfigSnapshot {
 
 fn default_bind_address() -> String {
     "*".to_owned()
+}
+
+fn default_ipv6_enabled() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]

@@ -218,6 +218,10 @@ where
                     availability: Availability::Supported,
                 },
                 CapabilityStatus {
+                    capability: Capability::Ipv6Routing,
+                    availability: Availability::Supported,
+                },
+                CapabilityStatus {
                     capability: Capability::CoreVersionInstall,
                     availability: Availability::Unsupported {
                         reason: "core binaries are delivered with the APK ABI".to_string(),
@@ -413,6 +417,9 @@ mod tests {
         assert!(adapter
             .capabilities()
             .supports(Capability::LanAccessControl));
+        assert!(adapter
+            .capabilities()
+            .supports(Capability::Ipv6Routing));
         let runtime = AndroidRuntime::new(adapter);
         assert_eq!(
             runtime.controller().controller_endpoint(),

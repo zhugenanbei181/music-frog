@@ -138,6 +138,8 @@ python3 scripts/quality/system-proxy-recovery-guard.py --mode enforce
 python3 scripts/quality/lan-sharing-guard.py --mode enforce
 # DUAL-02-08 LAN CIDR ACL、免认证前缀与 HTTP Basic Auth 守卫
 python3 scripts/quality/lan-security-guard.py --mode enforce
+# DUAL-02-09 Mihomo IPv6 内核流量策略与 TUN 上下文回读守卫
+python3 scripts/quality/ipv6-routing-guard.py --mode enforce
 ```
 
 ---

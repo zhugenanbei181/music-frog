@@ -69,6 +69,7 @@ impl AppState {
                 core_session_token: None,
                 core_lifecycle: Default::default(),
                 mtu: Default::default(),
+                ipv6_routing: Default::default(),
                 system_proxy: Default::default(),
                 system_proxy_recovery: Default::default(),
                 system_proxy_port: Some(system_proxy_port),

@@ -59,6 +59,7 @@ REQUIRED_INTENTS = {
     "SetSystemProxy",
     "SetLanSharing",
     "SetLanSecurity",
+    "SetIpv6Routing",
     "ToggleAppRouting",
     "SetAppRoutingMode",
     "ToggleIncludeSystemApps",

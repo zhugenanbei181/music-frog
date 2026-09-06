@@ -86,6 +86,8 @@ pub enum UiCommand {
         authentication_enabled: bool,
         credentials: Option<LanCredentials>,
     },
+    /// Toggle Mihomo's top-level IPv6 routing policy.
+    SetIpv6Routing { enabled: bool },
     /// Run full system doctor diagnostics.
     RunDoctorDiagnostics,
     /// Repair a specific doctor issue by check ID.
@@ -193,6 +195,9 @@ impl UiCommand {
                 authentication_enabled: *authentication_enabled,
                 credentials: credentials.clone(),
             }),
+            Self::SetIpv6Routing { enabled } => {
+                Some(CommandIntent::SetIpv6Routing { enabled: *enabled })
+            }
             Self::RunDoctorDiagnostics => Some(CommandIntent::RunDoctorDiagnostics),
             Self::RepairDoctorIssue { check_id } => Some(CommandIntent::RepairDoctorIssue {
                 check_id: check_id.clone(),
@@ -462,6 +467,10 @@ mod tests {
                     password: "secret-value".to_owned(),
                 }),
             })
+        );
+        assert_eq!(
+            UiCommand::SetIpv6Routing { enabled: false }.to_intent(),
+            Some(CommandIntent::SetIpv6Routing { enabled: false })
         );
     }
 

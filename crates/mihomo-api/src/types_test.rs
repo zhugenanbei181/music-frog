@@ -26,6 +26,7 @@ mod tests {
             "mode": "rule",
             "log-level": "info",
             "allow-lan": true,
+            "ipv6": false,
             "bind-address": "192.168.1.10",
             "lan-allowed-ips": ["192.168.1.0/24"],
             "lan-disallowed-ips": ["192.168.1.10/32"],
@@ -39,6 +40,7 @@ mod tests {
         assert_eq!(config.mode, "rule");
         assert_eq!(config.log_level, "info");
         assert!(config.allow_lan);
+        assert!(!config.ipv6);
         assert_eq!(config.bind_address, "192.168.1.10");
         assert_eq!(config.lan_allowed_ips, vec!["192.168.1.0/24"]);
         assert_eq!(config.lan_disallowed_ips, vec!["192.168.1.10/32"]);
@@ -194,6 +196,7 @@ mod tests {
         .unwrap();
         let tun = config.tun.unwrap();
         assert_eq!(config.bind_address, "*");
+        assert!(config.ipv6, "missing ipv6 follows Mihomo's documented true default");
         assert!(!tun.strict_route);
         assert_eq!(tun.mtu, Some(1420));
 

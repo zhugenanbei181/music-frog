@@ -521,6 +521,7 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
         Message::RuntimeConfigFetched(
             Ok(RuntimeConfig {
                 mode: "global".into(),
+                ipv6_enabled: true,
                 allow_lan: false,
                 mixed_port: 7890,
                 bind_address: "*".into(),
@@ -558,6 +559,7 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
         Message::RuntimeConfigFetched(
             Ok(RuntimeConfig {
                 mode: "direct".into(),
+                ipv6_enabled: true,
                 allow_lan: false,
                 mixed_port: 7890,
                 bind_address: "*".into(),

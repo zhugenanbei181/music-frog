@@ -40,6 +40,7 @@ pub fn desktop_capabilities() -> CapabilitySnapshot {
         Capability::Tun,
         Capability::SystemProxy,
         Capability::LanAccessControl,
+        Capability::Ipv6Routing,
         Capability::Autostart,
         Capability::CoreVersionInstall,
         Capability::WebDavSync,

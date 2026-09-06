@@ -53,6 +53,7 @@ impl RuntimeStatus {
 #[derive(Debug, Clone, Default)]
 pub struct RuntimeConfig {
     pub mode: String,
+    pub ipv6_enabled: bool,
     pub allow_lan: bool,
     pub mixed_port: u16,
     pub bind_address: String,
@@ -88,6 +89,7 @@ pub struct IpProbeResult {
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuntimePatchSnapshot {
     pub proxy_mode: Option<String>,
+    pub ipv6_enabled: bool,
     pub tun_enabled: Option<bool>,
     pub tun_stack: String,
     pub tun_stack_selector: String,

@@ -60,6 +60,7 @@ pub struct RuntimeState {
     /// rendering compatibility field for existing Iced widgets.
     pub core_lifecycle: CoreLifecycleSnapshot,
     pub mtu: MtuNegotiationSnapshot,
+    pub ipv6_routing: infiltrator_contract::ipv6::Ipv6RoutingSnapshot,
     pub system_proxy: SystemProxySnapshot,
     pub system_proxy_recovery: SystemProxyRecoverySnapshot,
     /// Retained independently of the running core so a system proxy can be
@@ -421,6 +422,9 @@ impl AppState {
         self.runtime.status = RuntimeStatus::from_core_snapshot(&snapshot.core);
         self.runtime.core_lifecycle = snapshot.core.lifecycle_snapshot();
         self.runtime.mtu = snapshot.mtu.clone();
+        if let Some(settings) = snapshot.pages.settings.data.as_ref() {
+            self.runtime.ipv6_routing = settings.ipv6_routing;
+        }
         self.runtime.system_proxy = snapshot.system_proxy.clone();
         self.runtime.system_proxy_recovery = snapshot.system_proxy_recovery.clone();
         if matches!(

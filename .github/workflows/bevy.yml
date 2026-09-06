@@ -45,6 +45,7 @@ on:
       - "scripts/quality/system-proxy-recovery-guard.py"
       - "scripts/quality/lan-sharing-guard.py"
       - "scripts/quality/lan-security-guard.py"
+      - "scripts/quality/ipv6-routing-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -81,6 +82,7 @@ on:
       - "scripts/quality/system-proxy-recovery-guard.py"
       - "scripts/quality/lan-sharing-guard.py"
       - "scripts/quality/lan-security-guard.py"
+      - "scripts/quality/ipv6-routing-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -210,6 +212,9 @@ jobs:
 
       - name: Enforce DUAL-02-08 LAN security semantics
         run: python3 scripts/quality/lan-security-guard.py --mode enforce
+
+      - name: Enforce DUAL-02-09 IPv6 routing semantics
+        run: python3 scripts/quality/ipv6-routing-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

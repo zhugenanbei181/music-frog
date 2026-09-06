@@ -22,6 +22,7 @@ use infiltrator_bevy_ui::pages::settings::{
     SaveSettingsButton, ServiceModeButton, SettingsProjectionUpdated,
     SystemNotificationsToggle,
 };
+use infiltrator_bevy_ui::pages::settings::settings_ipv6::Ipv6RoutingToggle;
 use infiltrator_bevy_ui::pages::settings::settings_core::{
     CoreLogLevelButton, ProbeTunMtuButton, SettingsProjection, TunEnableToggle, TunRouteToggle,
     TunRouteToggleKind, TunStackButton, TunStackButtonAvailability,
@@ -45,6 +46,7 @@ use infiltrator_contract::system_proxy::{
     SystemProxyDesiredState, SystemProxyObservation, SystemProxyRecoveryStatus,
 };
 use infiltrator_contract::lan::{LanCredentials, LanSecuritySnapshot};
+use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 
 use crate::support::*;
@@ -938,6 +940,49 @@ fn test_settings_lan_security_submits_acl_and_redacted_basic_auth_intent() {
         .query::<&LanAuthUsernameField>()
         .single(app.world())
         .expect("LAN username field");
+}
+
+#[test]
+fn test_settings_ipv6_routing_projects_and_submits_live_intent() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Settings);
+
+    let mut projection = SettingsProjection::demo();
+    projection.ipv6_routing = Ipv6RoutingSnapshot::new(7, false, true);
+    app.world_mut()
+        .commands()
+        .trigger(SettingsProjectionUpdated(projection));
+    app.update();
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "已禁用 IPv6（防止旁路泄漏） · TUN 已启用"
+    ));
+
+    let source = {
+        let mut toggles = app
+            .world_mut()
+            .query::<(&Ipv6RoutingToggle, &bevy::ecs::hierarchy::Children)>();
+        *toggles
+            .single(app.world())
+            .expect("IPv6 routing toggle")
+            .1
+            .iter()
+            .next()
+            .expect("IPv6 routing checkbox")
+    };
+    app.world_mut().commands().trigger(ValueChange {
+        source,
+        value: true,
+        is_final: true,
+    });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::SetIpv6Routing { enabled: true }]
+    );
 }
 
 #[test]

@@ -145,6 +145,7 @@ pub enum Message {
     FetchIpInfo,
     RuntimeConfigFetched(Result<RuntimeConfig, InfiltratorError>, u64),
     SetProxyMode(String),
+    SetIpv6Routing(bool),
     SetTunEnabled(bool),
     InstallTunService,
     RefreshTunServiceStatus,

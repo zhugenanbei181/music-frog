@@ -97,6 +97,7 @@
 - `DUAL-02-06` 已完成 system proxy previous/desired durable journal、owner PID/启动时间判定、启动孤儿恢复的 target-match/readback、外部修改跳过、正常退出恢复与 Iced/Bevy shared recovery projection；Android `VpnService` 与 iOS 无全局代理能力保持 typed unsupported，真实断电/会话注销/发行包恢复 smoke 仍未冒充 `host-verified`。
 - `DUAL-02-07` 已完成 Allow-LAN 的 shared contract、`allow-lan`/`mixed-port`/`bind-address` 原子 PATCH+GET readback、IP/括号 IPv6 校验、Iced draft/Apply 代际回滚和 Bevy TextField/Apply intent；ACL/HTTP 认证留给下一项，真实多网卡、防火墙、移动 VPN ingress 与发行包 smoke 仍未冒充 `host-verified`。
 - `DUAL-02-08` 已完成 LAN ACL/auth shared snapshot、纯 domain CIDR/凭据校验、四字段 PATCH+GET readback、密码脱敏与成功清理、Iced/Bevy 安全 draft/Apply projection，以及 desktop/Android `LanAccessControl` 支持和 iOS typed unsupported 证据；真实局域网客户端、凭据轮换、防火墙/移动 VPN ingress 与发行包 smoke 仍未冒充 `host-verified`。
+- `DUAL-02-09` 已完成顶层 Mihomo `ipv6` 策略的 shared snapshot、缺失字段默认 true、live PATCH+GET readback 与 mismatch fail-closed、Iced/Bevy checkbox/上下文投影，以及 desktop/Android 支持和 iOS typed unsupported 证据；宿主全局 IPv6 sysctl、防火墙、双栈公网泄漏与 VPN ingress smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

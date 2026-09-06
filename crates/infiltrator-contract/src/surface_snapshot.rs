@@ -334,6 +334,8 @@ pub struct SettingsPageSnapshot {
     pub lan_bind_address: String,
     #[serde(default)]
     pub lan_security: LanSecuritySnapshot,
+    #[serde(default)]
+    pub ipv6_routing: crate::ipv6::Ipv6RoutingSnapshot,
     pub tun_enabled: bool,
     pub tun_stack: String,
     #[serde(default)]

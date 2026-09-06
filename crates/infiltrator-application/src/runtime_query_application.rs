@@ -16,10 +16,11 @@ pub struct RuntimeQueryApplication {
 
 #[path = "runtime_query_lan.rs"]
 mod runtime_query_lan;
+#[path = "runtime_query_ipv6.rs"] mod runtime_query_ipv6;
 
 #[cfg(test)]
 #[allow(clippy::items_after_test_module)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::command::CoreLogLevel;
@@ -37,10 +38,10 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[derive(Clone, Debug)]
-    struct TestLanState {
+    pub(crate) struct TestLanState {
         allow_lan: bool,
         mixed_port: u16,
-        bind_address: String,
+        bind_address: String, ipv6_enabled: bool,
         allowed_ips: Vec<String>,
         disallowed_ips: Vec<String>,
         skip_auth_prefixes: Vec<String>,
@@ -49,23 +50,23 @@ mod tests {
         authentication_username: Option<String>,
     }
 
-    struct TestGateway {
-        level: Arc<Mutex<String>>,
-        tun_stack: Arc<Mutex<String>>,
-        tun_mtu: Arc<Mutex<Option<u32>>>,
-        tun_routing: Arc<Mutex<(bool, bool)>>,
-        tun_enabled: Arc<Mutex<bool>>,
-        lan: Arc<Mutex<TestLanState>>,
-        apply_patch: bool,
-        memory_bytes: Arc<Mutex<u64>>,
-        gc_calls: Arc<AtomicUsize>,
+    pub(crate) struct TestGateway {
+        pub(crate) level: Arc<Mutex<String>>,
+        pub(crate) tun_stack: Arc<Mutex<String>>,
+        pub(crate) tun_mtu: Arc<Mutex<Option<u32>>>,
+        pub(crate) tun_routing: Arc<Mutex<(bool, bool)>>,
+        pub(crate) tun_enabled: Arc<Mutex<bool>>,
+        pub(crate) lan: Arc<Mutex<TestLanState>>,
+        pub(crate) apply_patch: bool,
+        pub(crate) memory_bytes: Arc<Mutex<u64>>,
+        pub(crate) gc_calls: Arc<AtomicUsize>,
     }
 
-    fn lan_state() -> Arc<Mutex<TestLanState>> {
+    pub(crate) fn lan_state() -> Arc<Mutex<TestLanState>> {
         Arc::new(Mutex::new(TestLanState {
             allow_lan: false,
             mixed_port: 7890,
-            bind_address: "*".to_owned(),
+            bind_address: "*".to_owned(), ipv6_enabled: true,
             allowed_ips: vec!["192.168.0.0/16".to_owned()],
             disallowed_ips: Vec::new(),
             skip_auth_prefixes: vec!["127.0.0.0/8".to_owned()],
@@ -79,8 +80,7 @@ mod tests {
     impl RuntimeGateway for TestGateway {
         async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
             let lan = self.lan.lock().expect("LAN state lock").clone();
-            Ok(ConfigSnapshot {
-                mode: "rule".to_owned(),
+            Ok(ConfigSnapshot { mode: "rule".to_owned(),
                 log_level: self.level.lock().expect("level lock").clone(),
                 tun: {
                     let (auto_route, strict_route) =
@@ -93,7 +93,7 @@ mod tests {
                         mtu: *self.tun_mtu.lock().expect("tun mtu lock"),
                     })
                 },
-                allow_lan: lan.allow_lan,
+                allow_lan: lan.allow_lan, ipv6: lan.ipv6_enabled,
                 mixed_port: lan.mixed_port,
                 bind_address: lan.bind_address,
                 lan_allowed_ips: lan.allowed_ips,
@@ -123,7 +123,7 @@ mod tests {
                 *self.level.lock().expect("level lock") = level.to_owned();
             }
             if self.apply_patch {
-                let mut lan = self.lan.lock().expect("LAN state lock");
+                let mut lan = self.lan.lock().expect("LAN state lock"); if let Some(enabled) = updates.get("ipv6").and_then(|value| value.as_bool()) { lan.ipv6_enabled = enabled; }
                 if let Some(enabled) = updates.get("allow-lan").and_then(|value| value.as_bool())
                 {
                     lan.allow_lan = enabled;
@@ -660,6 +660,7 @@ mod tests {
             infiltrator_contract::error::ErrorCode::InvalidInput
         );
     }
+
 }
 
 impl RuntimeQueryApplication {

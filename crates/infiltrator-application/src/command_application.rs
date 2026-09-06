@@ -339,6 +339,10 @@ impl CommandApplication {
                 )
                 .await
                 .map(|_| ()),
+            CommandIntent::SetIpv6Routing { enabled } => RuntimeQueryApplication::new(self.runtime()?)
+                .set_ipv6_routing(enabled)
+                .await
+                .map(|_| ()),
             CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore

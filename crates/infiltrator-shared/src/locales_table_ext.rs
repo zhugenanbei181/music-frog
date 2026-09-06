@@ -229,6 +229,8 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "lan_security_enabled" => "已启用".into(),
         "lan_security_disabled" => "未启用".into(),
         "lan_security_apply" => "应用 ACL 与认证设置".into(),
+        "settings_ipv6_routing" => "允许 IPv6 内核流量".into(),
+        "settings_ipv6_routing_desc" => "关闭后由 Mihomo 内核拒绝 IPv6 流量，降低双栈旁路泄漏风险".into(),
         _ => key.to_string().into(),
     }
 }

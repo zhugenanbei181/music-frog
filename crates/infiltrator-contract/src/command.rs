@@ -135,6 +135,7 @@ pub enum CommandIntent {
         authentication_enabled: bool,
         credentials: Option<LanCredentials>,
     },
+    SetIpv6Routing { enabled: bool },
     ToggleAppRouting { app_id: String, enabled: bool },
     SetAppRoutingMode { mode: String },
     ToggleIncludeSystemApps { include: bool },
@@ -208,6 +209,7 @@ impl CommandIntent {
             | Self::SetSystemProxy { .. }
             | Self::SetLanSharing { .. }
             | Self::SetLanSecurity { .. }
+            | Self::SetIpv6Routing { .. }
             | Self::ToggleAppRouting { .. }
             | Self::SetAppRoutingMode { .. }
             | Self::ToggleIncludeSystemApps { .. }

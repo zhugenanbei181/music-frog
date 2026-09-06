@@ -82,6 +82,8 @@ pub struct ConfigResponse {
     pub log_level: String,
     #[serde(rename = "allow-lan")]
     pub allow_lan: bool,
+    #[serde(default = "default_ipv6_enabled")]
+    pub ipv6: bool,
     #[serde(rename = "bind-address", default = "default_bind_address")]
     pub bind_address: String,
     #[serde(rename = "lan-allowed-ips", default)]
@@ -100,6 +102,10 @@ pub struct ConfigResponse {
 
 fn default_bind_address() -> String {
     "*".to_owned()
+}
+
+fn default_ipv6_enabled() -> bool {
+    true
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -338,6 +344,7 @@ impl From<ConfigResponse> for infiltrator_domain::runtime::ConfigSnapshot {
             mixed_port: value.mixed_port,
             log_level: value.log_level,
             allow_lan: value.allow_lan,
+            ipv6: value.ipv6,
             bind_address: value.bind_address,
             lan_allowed_ips: value.lan_allowed_ips,
             lan_disallowed_ips: value.lan_disallowed_ips,

@@ -182,6 +182,7 @@ impl std::fmt::Debug for Message {
                 )
             }
             Message::SetProxyMode(m) => write!(f, "SetProxyMode({})", m),
+            Message::SetIpv6Routing(enabled) => write!(f, "SetIpv6Routing({enabled})"),
             Message::SetTunEnabled(t) => write!(f, "SetTunEnabled({})", t),
             Message::InstallTunService => write!(f, "InstallTunService"),
             Message::RefreshTunServiceStatus => write!(f, "RefreshTunServiceStatus"),

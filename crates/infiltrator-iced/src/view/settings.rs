@@ -276,6 +276,12 @@ fn tun_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'
             ].align_y(Alignment::Center),
             form_toggle_row(lang.tr("tun_auto_route").to_string(), auto_route, Message::SetTunAutoRoute),
             form_toggle_row(lang.tr("tun_strict_route").to_string(), strict_route, Message::SetTunStrictRoute),
+            form_toggle_row(
+                lang.tr("settings_ipv6_routing").to_string(),
+                state.runtime.ipv6_routing.enabled,
+                Message::SetIpv6Routing,
+            ),
+            secondary_text(lang.tr("settings_ipv6_routing_desc").to_string()),
             form_toggle_row(lang.tr("settings_dns_hijack").to_string(), dns_hijack_active, |on| Message::UpdateTunFormDnsHijack(if on { "any:53".to_string() } else { String::new() })),
         ].spacing(theme::SP_SM),
     )

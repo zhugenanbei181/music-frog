@@ -13,6 +13,7 @@ pub mod doctor;
 pub mod error;
 pub mod intent;
 pub mod lan;
+pub mod ipv6;
 pub mod offline_startup;
 pub mod mtu;
 pub mod snapshot;
@@ -30,6 +31,7 @@ mod tests {
     use super::capability::{Availability, Capability, CapabilitySnapshot, CapabilityStatus};
     use super::command::{CommandIntent, CommandKind, CoreLogLevel, ProxyMode};
     use super::lan::LanCredentials;
+    use super::ipv6::Ipv6RoutingSnapshot;
     use super::tun::TunStack;
     use super::surface::HostKind;
 
@@ -63,6 +65,10 @@ mod tests {
             CommandKind::Runtime
         );
         assert_eq!(CommandIntent::ProbeTunMtu.kind(), CommandKind::Network);
+        assert_eq!(
+            CommandIntent::SetIpv6Routing { enabled: false }.kind(),
+            CommandKind::Network
+        );
         assert_eq!(CoreLogLevel::parse("warning"), Some(CoreLogLevel::Warn));
         assert_eq!(CoreLogLevel::parse("trace"), None);
     }
@@ -94,5 +100,13 @@ mod tests {
         let serialized = serde_json::to_string(&credentials).expect("serialize credential input");
         assert!(serialized.contains("lan-user"));
         assert!(!serialized.contains("secret-value"));
+    }
+
+    #[test]
+    fn ipv6_routing_snapshot_keeps_core_and_tun_context() {
+        let snapshot = Ipv6RoutingSnapshot::new(9, false, true);
+        assert!(!snapshot.enabled);
+        assert!(snapshot.tun_enabled);
+        assert_eq!(snapshot.revision, 9);
     }
 }

@@ -20,6 +20,7 @@ use infiltrator_contract::system_proxy::{
     SystemProxyObservation, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
     SystemProxyStatus,
 };
+use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 
 #[test]
@@ -162,6 +163,7 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
         allow_lan: false,
         lan_bind_address: "*".to_owned(),
         lan_security: Default::default(),
+        ipv6_routing: Ipv6RoutingSnapshot::new(2, false, true),
         tun_enabled: true,
         tun_stack: "system".to_owned(),
         tun_auto_route: true,
@@ -174,6 +176,8 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
     assert!(state.apply_shared_surface_snapshot(snapshot));
     assert!(state.editor.tun_auto_route);
     assert!(state.editor.tun_strict_route);
+    assert!(!state.runtime.ipv6_routing.enabled);
+    assert!(state.runtime.ipv6_routing.tun_enabled);
 }
 
 #[test]
@@ -360,6 +364,7 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
             1,
             Some("lan-user".to_owned()),
         ),
+        ipv6_routing: Default::default(),
         tun_enabled: false,
         tun_stack: String::new(),
         tun_auto_route: false,

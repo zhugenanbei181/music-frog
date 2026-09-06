@@ -749,6 +749,14 @@ fn build_settings_page(
                 value.authentication_username.clone(),
             ),
         ),
+        ipv6_routing: config.map_or_else(
+            infiltrator_contract::ipv6::Ipv6RoutingSnapshot::default,
+            |value| infiltrator_contract::ipv6::Ipv6RoutingSnapshot::new(
+                0,
+                value.ipv6,
+                value.tun.as_ref().is_some_and(|tun| tun.enable),
+            ),
+        ),
         tun_enabled: config
             .and_then(|value| value.tun.as_ref())
             .is_some_and(|tun| tun.enable),

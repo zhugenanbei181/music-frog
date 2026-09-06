@@ -35,6 +35,7 @@ impl CapabilityProvider for DesktopHostCapabilities {
                 supported(Capability::Tun),
                 supported(Capability::SystemProxy),
                 supported(Capability::LanAccessControl),
+                supported(Capability::Ipv6Routing),
                 supported(Capability::Autostart),
                 supported(Capability::CoreVersionInstall),
                 supported(Capability::WebDavSync),

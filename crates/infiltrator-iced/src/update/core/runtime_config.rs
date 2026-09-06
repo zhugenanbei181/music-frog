@@ -30,6 +30,7 @@ impl AppState {
             if self.runtime.pending_runtime_patch.is_none() {
                 self.runtime.pending_runtime_patch = Some(RuntimePatchSnapshot {
                     proxy_mode: self.runtime.proxy_mode.clone(),
+                    ipv6_enabled: self.runtime.ipv6_routing.enabled,
                     tun_enabled: self.runtime.tun_enabled,
                     tun_stack: self.editor.tun_stack.clone(),
                     tun_stack_selector: self.runtime.tun_stack_config.active_stack.clone(),
@@ -46,6 +47,7 @@ impl AppState {
     fn restore_runtime_patch(&mut self) {
         if let Some(previous) = self.runtime.pending_runtime_patch.take() {
             self.runtime.proxy_mode = previous.proxy_mode;
+            self.runtime.ipv6_routing.enabled = previous.ipv6_enabled;
             self.runtime.tun_enabled = previous.tun_enabled;
             self.editor.tun_stack = previous.tun_stack;
             self.runtime.tun_stack_config.active_stack = previous.tun_stack_selector;
@@ -144,6 +146,7 @@ impl AppState {
                                 .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
                             let mode = config.mode;
                             let allow_lan = config.allow_lan;
+                            let ipv6_enabled = config.ipv6;
                             let mixed_port = config.mixed_port;
                             let bind_address = config.bind_address;
                             let lan_allowed_ips = config.lan_allowed_ips;
@@ -170,6 +173,7 @@ impl AppState {
                             let script_block_present = config.script.is_some();
                             Ok(RuntimeConfig {
                                 mode,
+                                ipv6_enabled,
                                 allow_lan,
                                 mixed_port,
                                 bind_address,
@@ -203,6 +207,12 @@ impl AppState {
                 match result {
                     Ok(config) => {
                         self.runtime.proxy_mode = Some(config.mode);
+                        self.runtime.ipv6_routing =
+                            infiltrator_contract::ipv6::Ipv6RoutingSnapshot::new(
+                                0,
+                                config.ipv6_enabled,
+                                config.tun_enabled,
+                            );
                         let mut lan_committed = self.runtime.lan_sharing_committed.clone();
                         lan_committed.allow_lan = config.allow_lan;
                         lan_committed.mixed_port = config.mixed_port;
@@ -280,6 +290,26 @@ impl AppState {
                         rt.set_proxy_mode(proxy_mode)
                             .await
                             .map_err(|error| InfiltratorError::Internal(error.to_string()))
+                    },
+                    move |result| Message::RuntimePatchResult(result, token, generation),
+                )
+            }
+            Message::SetIpv6Routing(enabled) => {
+                let Some(rt) = self.runtime.runtime.clone() else {
+                    return self.runtime_unavailable("修改 IPv6 内核流量策略");
+                };
+                let token = self.begin_runtime_patch();
+                let generation = rt.generation();
+                self.runtime.ipv6_routing.enabled = enabled;
+                let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
+                    rt;
+                Task::perform(
+                    async move {
+                        RuntimeQueryApplication::new(gateway)
+                            .set_ipv6_routing(enabled)
+                            .await
+                            .map(|_| ())
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )

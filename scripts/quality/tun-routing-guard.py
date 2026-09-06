@@ -128,13 +128,17 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/settings.rs",
+        "crates/infiltrator-bevy-ui/src/pages/settings_tun.rs",
         "tun_route_toggle_scene",
         "tun_enable_toggle_scene",
-        "on_tun_route_changed",
-        "on_tun_enabled_changed",
         "projection.tun_auto_route",
         "projection.tun_strict_route",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/settings.rs",
+        "on_tun_route_changed",
+        "on_tun_enabled_changed",
     )
     require(
         violations,

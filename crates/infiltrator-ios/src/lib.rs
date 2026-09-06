@@ -188,6 +188,10 @@ pub fn ios_capabilities() -> CapabilitySnapshot {
                 unsupported("iOS controller gateway is not exposed by the native host"),
             ),
             status(
+                Capability::Ipv6Routing,
+                unsupported("iOS controller gateway is not exposed by the native host"),
+            ),
+            status(
                 Capability::Autostart,
                 unsupported("iOS controls app launch"),
             ),
@@ -320,6 +324,11 @@ mod tests {
         assert!(!capabilities.supports(Capability::LanAccessControl));
         assert!(matches!(
             capabilities.availability(Capability::LanAccessControl),
+            Availability::Unsupported { .. }
+        ));
+        assert!(!capabilities.supports(Capability::Ipv6Routing));
+        assert!(matches!(
+            capabilities.availability(Capability::Ipv6Routing),
             Availability::Unsupported { .. }
         ));
     }

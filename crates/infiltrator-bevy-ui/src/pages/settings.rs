@@ -48,6 +48,8 @@ mod settings_tun;
 pub mod settings_system;
 #[path = "settings_lan.rs"]
 pub mod settings_lan;
+#[path = "settings_ipv6.rs"]
+pub mod settings_ipv6;
 #[path = "settings_projection_defaults.rs"]
 mod settings_projection_defaults;
 
@@ -144,7 +146,7 @@ pub fn settings_page(projection: &SettingsProjection, palette: &UiPalette) -> im
             ( { tun_permission_alert_banner_scene(palette) } ),
             ( { header_card_scene(summary, palette) } ),
             ( { general_card_scene(projection, palette) } ),
-            ( { tun_settings_card(projection, palette) } ),
+            ( { settings_tun::card(projection, palette) } ),
             ( { settings_core::controller_settings_card(projection, palette) } ),
         ]
     }
@@ -584,53 +586,6 @@ pub fn general_card_scene(
     )
 }
 
-fn tun_settings_card(projection: &SettingsProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let stack_str = projection.tun_stack.clone();
-
-    surface_scene(
-        vec![
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "虚拟网卡模式 (TUN Mode)".to_owned() }) TextRole(Role::BodyStrong) ),
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    ( { settings_core::tun_enable_toggle_scene(projection.tun_enabled, palette) } ),
-                    ( { settings_core::tun_stack_selector_scene(projection, palette) } ),
-                    ( { settings_core::tun_route_toggle_scene(settings_core::TunRouteToggleKind::AutoRoute, "自动路由 (Auto Route)", projection.tun_auto_route, palette) } ),
-                    ( { settings_core::tun_route_toggle_scene(settings_core::TunRouteToggleKind::StrictRoute, "严格路由 (Strict Route)", projection.tun_strict_route, palette) } ),
-                    ( { settings_core::mtu_row_scene(&projection.mtu, palette) } ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "TUN 协议栈 (TUN Stack)".to_owned() }) TextRole(Role::Body) ),
-                            ( Text(stack_str) SettingsLine(SettingsLineKind::TunStack) TextRole(Role::Body) ),
-                        ]
-                    ),
-                ]
-            }),
-        ],
-        palette,
-    )
-}
-
 // ---- Observer & Update Hook -----------------------------------------------
 
 fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
@@ -650,6 +605,8 @@ fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(settings_lan::on_apply_activated);
     commands.add_observer(settings_lan::on_security_apply_activated);
     commands.add_observer(settings_lan::apply_projection);
+    commands.add_observer(settings_ipv6::on_changed);
+    commands.add_observer(settings_ipv6::apply_projection);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -760,6 +717,7 @@ pub(crate) fn apply_settings_projection(
             SettingsLineKind::LanSecurity => {
                 text.0 = settings_lan::format_auth_status(&projection.lan_security);
             }
+            SettingsLineKind::Ipv6Routing => {}
             SettingsLineKind::TunStack => {
                 text.0 = projection.tun_stack.clone();
             }

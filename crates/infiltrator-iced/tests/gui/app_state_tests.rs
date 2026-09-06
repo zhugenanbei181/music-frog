@@ -75,6 +75,7 @@ fn test_runtime_config_sync() {
     let _ = state.update(Message::RuntimeConfigFetched(
         Ok(RuntimeConfig {
             mode: "global".into(),
+            ipv6_enabled: false,
             allow_lan: false,
             mixed_port: 7890,
             bind_address: "*".into(),
@@ -98,6 +99,7 @@ fn test_runtime_config_sync() {
     ));
 
     assert_eq!(state.runtime.proxy_mode.as_ref().unwrap(), "global");
+    assert!(!state.runtime.ipv6_routing.enabled);
     assert!(state.runtime.tun_enabled.unwrap());
     assert_eq!(state.editor.dns_nameservers[0], "1.1.1.1");
 }
@@ -506,6 +508,7 @@ fn test_p0_runtime_patch_failure_restores_the_previous_snapshot() {
     state.runtime.proxy_mode = Some("rule".to_string());
     state.runtime.pending_runtime_patch = Some(RuntimePatchSnapshot {
         proxy_mode: Some("rule".to_string()),
+        ipv6_enabled: true,
         tun_enabled: Some(false),
         tun_stack: "gvisor".to_string(),
         tun_stack_selector: "gvisor".to_string(),

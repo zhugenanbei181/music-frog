@@ -58,6 +58,8 @@ pub enum SettingsLineKind {
     LanBindAddress,
     /// Mihomo LAN ACL/authentication status.
     LanSecurity,
+    /// Mihomo top-level IPv6 routing policy.
+    Ipv6Routing,
     /// TUN stack text.
     TunStack,
     /// Controller port text.
@@ -134,6 +136,7 @@ pub struct SettingsProjection {
     pub allow_lan: bool,
     pub lan_bind_address: String,
     pub lan_security: LanSecuritySnapshot,
+    pub ipv6_routing: infiltrator_contract::ipv6::Ipv6RoutingSnapshot,
     pub tun_enabled: bool,
     pub tun_stack: String,
     pub tun_auto_route: bool,
