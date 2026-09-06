@@ -5,6 +5,7 @@ use crate::runtime_gateway::ManagedRuntime;
 use crate::service_mode::ServiceModePort;
 use crate::mtu_probe::MtuProbePort;
 use crate::network_roaming::NetworkRoamingPort;
+use crate::privileged_network::PrivilegedNetworkPort;
 use crate::vpn_service::VpnServicePort;
 use crate::system_proxy::SystemProxyPort;
 use crate::pac::PacServicePort;
@@ -54,6 +55,11 @@ pub trait HostRuntime: ManagedRuntime {
     /// adapter. Mobile hosts remain explicitly unsupported until their native
     /// VPN bridge exposes equivalent facts and route ownership.
     fn network_roaming_port(&self) -> Option<Arc<dyn NetworkRoamingPort>> {
+        None
+    }
+    /// Optional host adapter used only by the privileged network regression
+    /// transaction. No host may claim support without an injected adapter.
+    fn privileged_network_port(&self) -> Option<Arc<dyn PrivilegedNetworkPort>> {
         None
     }
     /// Optional native VPN service adapter. Desktop/iOS hosts return `None`

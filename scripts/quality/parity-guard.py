@@ -68,6 +68,7 @@ REQUIRED_INTENTS = {
     "RepairNetworkRoutes",
     "StartVpn",
     "StopVpn",
+    "RunPrivilegedNetworkRegression",
     "ToggleAppRouting",
     "SetAppRoutingMode",
     "ToggleIncludeSystemApps",

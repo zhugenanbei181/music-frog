@@ -56,6 +56,8 @@ pub mod settings_pac;
 pub mod settings_network_roaming;
 #[path = "settings_vpn.rs"]
 pub mod settings_vpn;
+#[path = "settings_privileged_network.rs"]
+pub mod settings_privileged_network;
 #[path = "settings_projection_defaults.rs"]
 mod settings_projection_defaults;
 
@@ -486,6 +488,7 @@ pub fn general_card_scene(
                     ( { settings_pac::scene(projection, palette) } ),
                     ( { settings_network_roaming::scene(projection, palette) } ),
                     ( { settings_vpn::scene(projection, palette) } ),
+                    ( { settings_privileged_network::scene(projection, palette) } ),
                     (
                         Node {
                             width: percent(100),
@@ -623,6 +626,8 @@ fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(settings_network_roaming::apply_projection);
     commands.add_observer(settings_vpn::on_action_activated);
     commands.add_observer(settings_vpn::apply_projection);
+    commands.add_observer(settings_privileged_network::on_action_activated);
+    commands.add_observer(settings_privileged_network::apply_projection);
 }
 
 #[allow(clippy::too_many_arguments)]

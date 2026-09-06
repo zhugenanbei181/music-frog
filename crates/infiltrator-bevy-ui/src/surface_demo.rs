@@ -114,6 +114,11 @@ pub(super) fn snapshot_from_overview(
         } else {
             infiltrator_contract::vpn::VpnSessionSnapshot::default()
         },
+        privileged_network:
+            infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot::unsupported(
+                1,
+                "privileged network regression is a host-test capability",
+            ),
     }
 }
 
@@ -152,6 +157,11 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
             1,
             "Android VpnService is not part of the desktop demo host",
         ),
+        privileged_network:
+            infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot::unsupported(
+                1,
+                "privileged network regression is a host-test capability",
+            ),
     }
 }
 
@@ -298,6 +308,7 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         pac: Default::default(),
         network_roaming: Default::default(),
         vpn: Default::default(),
+        privileged_network: Default::default(),
         tun_enabled: false,
             tun_stack: String::new(),
             tun_auto_route: false,

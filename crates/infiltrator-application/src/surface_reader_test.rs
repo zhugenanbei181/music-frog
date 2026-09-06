@@ -404,6 +404,10 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
     assert_eq!(network_calls.load(Ordering::SeqCst), 2);
     assert!(first.vpn.is_running());
     assert_eq!(first.vpn.route_count, 2);
+    assert!(matches!(
+        first.privileged_network.state,
+        infiltrator_contract::privileged_network::PrivilegedNetworkState::Unsupported { .. }
+    ));
     assert!(first.versions.channels.iter().all(|channel| matches!(
         channel.status,
         infiltrator_contract::version::CoreChannelStatus::Ready { .. }

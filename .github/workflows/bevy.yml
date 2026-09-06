@@ -51,6 +51,7 @@ on:
       - "scripts/quality/network-roaming-guard.py"
       - "scripts/quality/vpn-service-guard.py"
       - "scripts/quality/system-toggle-guard.py"
+      - "scripts/quality/privileged-network-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -93,6 +94,7 @@ on:
       - "scripts/quality/network-roaming-guard.py"
       - "scripts/quality/vpn-service-guard.py"
       - "scripts/quality/system-toggle-guard.py"
+      - "scripts/quality/privileged-network-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -240,6 +242,9 @@ jobs:
 
       - name: Enforce DUAL-02-14 system toggle parity
         run: python3 scripts/quality/system-toggle-guard.py --mode enforce
+
+      - name: Enforce DUAL-02-15 privileged network regression
+        run: python3 scripts/quality/privileged-network-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

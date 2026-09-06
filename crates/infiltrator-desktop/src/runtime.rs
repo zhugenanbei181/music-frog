@@ -660,6 +660,15 @@ impl HostRuntime for MihomoRuntime {
         Some(self.network_roaming_port.clone())
     }
 
+    fn privileged_network_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::privileged_network::PrivilegedNetworkPort>> {
+        // The regression adapter is deliberately injected by headless hosts;
+        // desktop production must not run destructive privilege probes merely
+        // because a surface was opened.
+        None
+    }
+
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {
         self.application.clone()
     }

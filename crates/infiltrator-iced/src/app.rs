@@ -82,6 +82,12 @@ impl AppState {
                     None,
                     0,
                 ),
+                privileged_network:
+                    infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot::unsupported(
+                        0,
+                        "privileged network regression port is not composed for this host",
+                    ),
+                privileged_network_port: None,
                 system_proxy: Default::default(),
                 system_proxy_recovery: Default::default(),
                 system_proxy_port: Some(system_proxy_port),

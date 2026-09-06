@@ -449,6 +449,9 @@ pub struct SurfaceSnapshot {
     /// Android VpnService permission/foreground/tun2proxy session state.
     #[serde(default)]
     pub vpn: crate::vpn::VpnSessionSnapshot,
+    /// Host-injected privileged-network regression readback.
+    #[serde(default)]
+    pub privileged_network: crate::privileged_network::PrivilegedNetworkSnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -494,6 +497,7 @@ impl SurfaceSnapshot {
             system_proxy_recovery: SystemProxyRecoverySnapshot::default(),
             network_roaming: crate::network_roaming::NetworkRoamingSnapshot::default(),
             vpn: crate::vpn::VpnSessionSnapshot::default(),
+            privileged_network: crate::privileged_network::PrivilegedNetworkSnapshot::default(),
         }
     }
 

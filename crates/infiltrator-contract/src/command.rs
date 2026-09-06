@@ -149,6 +149,7 @@ pub enum CommandIntent {
     RepairNetworkRoutes,
     StartVpn,
     StopVpn,
+    RunPrivilegedNetworkRegression,
     ToggleAppRouting { app_id: String, enabled: bool },
     SetAppRoutingMode { mode: String },
     ToggleIncludeSystemApps { include: bool },
@@ -231,6 +232,7 @@ impl CommandIntent {
             | Self::RepairNetworkRoutes
             | Self::StartVpn
             | Self::StopVpn
+            | Self::RunPrivilegedNetworkRegression
             | Self::ToggleAppRouting { .. }
             | Self::SetAppRoutingMode { .. }
             | Self::ToggleIncludeSystemApps { .. }

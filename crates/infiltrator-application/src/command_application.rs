@@ -33,6 +33,7 @@ use crate::uwp_loopback_application::UwpLoopbackApplication;
 use crate::pac_application::PacApplication;
 use crate::network_roaming_application::NetworkRoamingApplication;
 use crate::vpn_application::VpnServiceApplication;
+use crate::privileged_network_application::PrivilegedNetworkApplication;
 
 pub type CommandFuture = Pin<Box<dyn Future<Output = Result<(), Failure>> + Send + 'static>>;
 
@@ -62,6 +63,7 @@ pub struct CommandApplication {
     pac: Option<PacApplication>,
     network_roaming: Option<NetworkRoamingApplication>,
     vpn: Option<VpnServiceApplication>,
+    privileged_network: Option<PrivilegedNetworkApplication>,
 }
 
 impl CommandApplication {
@@ -156,6 +158,14 @@ impl CommandApplication {
 
     pub fn with_vpn(mut self, application: VpnServiceApplication) -> Self {
         self.vpn = Some(application);
+        self
+    }
+
+    pub fn with_privileged_network(
+        mut self,
+        application: PrivilegedNetworkApplication,
+    ) -> Self {
+        self.privileged_network = Some(application);
         self
     }
 
@@ -426,6 +436,11 @@ impl CommandApplication {
                 }
             }
             CommandIntent::StopVpn => self.vpn()?.stop().await.map(|_| ()),
+            CommandIntent::RunPrivilegedNetworkRegression => self
+                .privileged_network()?
+                .run(infiltrator_contract::privileged_network::PrivilegedNetworkRequest::standard())
+                .await
+                .map(|_| ()),
             CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore
@@ -563,6 +578,12 @@ impl CommandApplication {
         self.vpn
             .clone()
             .ok_or_else(|| Failure::unsupported("VpnService is not configured for this host"))
+    }
+
+    fn privileged_network(&self) -> Result<PrivilegedNetworkApplication, Failure> {
+        self.privileged_network.clone().ok_or_else(|| {
+            Failure::unsupported("privileged network regression is not configured for this host")
+        })
     }
 }
 

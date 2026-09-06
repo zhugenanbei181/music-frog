@@ -34,6 +34,7 @@ pub mod system_toggle_application;
 pub mod version_application;
 pub mod uwp_loopback_application;
 pub mod pac_application;
+pub mod privileged_network_application;
 
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use std::future::Future;

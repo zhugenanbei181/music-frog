@@ -6,13 +6,80 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::mtu_application::MtuApplication;
+use infiltrator_application::privileged_network_application::PrivilegedNetworkApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_contract::lan::LanCredentials;
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState, PhysicalMtuSnapshot};
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::privileged_network::{
+    PrivilegedNetworkRequest, PrivilegedNetworkSnapshot, PrivilegedNetworkState,
+};
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 impl AppState {
+    fn run_privileged_network_regression(&mut self) -> Task<Message> {
+        let Some(runtime) = self.runtime.runtime.clone() else {
+            let snapshot = PrivilegedNetworkSnapshot::unsupported(
+                self.runtime.privileged_network.revision.saturating_add(1),
+                "当前宿主未注入特权网络回归适配器",
+            );
+            return Task::done(Message::PrivilegedNetworkRegressionUpdated(Ok(snapshot)));
+        };
+        let Some(port) = runtime.privileged_network_port() else {
+            let snapshot = PrivilegedNetworkSnapshot::unsupported(
+                self.runtime.privileged_network.revision.saturating_add(1),
+                "当前宿主未注入特权网络回归适配器",
+            );
+            return Task::done(Message::PrivilegedNetworkRegressionUpdated(Ok(snapshot)));
+        };
+        self.runtime.privileged_network = PrivilegedNetworkSnapshot {
+            state: PrivilegedNetworkState::Injecting,
+            operation_count: PrivilegedNetworkRequest::standard().operations.len(),
+            revision: self.runtime.privileged_network.revision.saturating_add(1),
+            ..PrivilegedNetworkSnapshot::default()
+        };
+        let application = PrivilegedNetworkApplication::new(port);
+        Task::perform(
+            async move {
+                application
+                    .run(PrivilegedNetworkRequest::standard())
+                    .await
+                    .map_err(|failure| InfiltratorError::Privilege(failure.message))
+            },
+            Message::PrivilegedNetworkRegressionUpdated,
+        )
+    }
+
+    fn finish_privileged_network_regression(
+        &mut self,
+        result: Result<PrivilegedNetworkSnapshot, InfiltratorError>,
+    ) -> Task<Message> {
+        match result {
+            Ok(snapshot) => {
+                let clean = snapshot.is_clean();
+                self.runtime.privileged_network = snapshot;
+                if clean {
+                    Task::done(Message::ShowToast(
+                        "特权网络回归已注入、回读并完成清理".to_owned(),
+                        ToastStatus::Success,
+                    ))
+                } else {
+                    Task::none()
+                }
+            }
+            Err(error) => {
+                let failure = Failure::new(ErrorCode::Internal, error.to_string(), true);
+                self.runtime.privileged_network = PrivilegedNetworkSnapshot::failed(
+                    self.runtime.privileged_network.revision.saturating_add(1),
+                    failure,
+                );
+                self.set_error(&error);
+                Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
+            }
+        }
+    }
+
     fn apply_lan_sharing(&mut self) -> Task<Message> {
         if self.shell.demo {
             return Task::none();
@@ -74,6 +141,10 @@ impl AppState {
 
     pub(super) fn update_ui_wave5(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::RunPrivilegedNetworkRegression => self.run_privileged_network_regression(),
+            Message::PrivilegedNetworkRegressionUpdated(result) => {
+                self.finish_privileged_network_regression(result)
+            }
             Message::AuditStaleRules => {
                 self.editor.rule_hit_audit.is_auditing = true;
                 let total_rules = self.editor.rules.len();

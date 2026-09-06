@@ -36,6 +36,7 @@ pub mod version;
 pub mod system_proxy;
 pub mod uwp_loopback;
 pub mod pac;
+pub mod privileged_network;
 pub mod vpn_service;
 
 #[cfg(test)]

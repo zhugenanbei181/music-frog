@@ -96,7 +96,9 @@ impl AppState {
                 // Doctor 面板走 loopback HTTP；demo 会话没有内嵌 admin server。
                 | Message::RunDoctor
                 | Message::RunDoctorFix
-                | Message::RunBootstrap => return Task::none(),
+                | Message::RunBootstrap
+                | Message::RunPrivilegedNetworkRegression
+                | Message::PrivilegedNetworkRegressionUpdated(_) => return Task::none(),
                 _ => {}
             }
         }
@@ -185,6 +187,8 @@ impl AppState {
             | Message::StartVpn
             | Message::StopVpn
             | Message::VpnSessionUpdated(_)
+            | Message::RunPrivilegedNetworkRegression
+            | Message::PrivilegedNetworkRegressionUpdated(_)
             | Message::CheckCrashWatchdog
             | Message::RecoverOrphanedState
             | Message::ExportCrashDiagnostics

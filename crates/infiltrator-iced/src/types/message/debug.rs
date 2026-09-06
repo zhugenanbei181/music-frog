@@ -670,6 +670,18 @@ impl std::fmt::Debug for Message {
             Message::VpnSessionUpdated(Err(error)) => {
                 write!(f, "VpnSessionUpdated(Err({error:?}))")
             }
+            Message::RunPrivilegedNetworkRegression => {
+                write!(f, "RunPrivilegedNetworkRegression")
+            }
+            Message::PrivilegedNetworkRegressionUpdated(Ok(snapshot)) => write!(
+                f,
+                "PrivilegedNetworkRegressionUpdated(Ok(state={:?}, revision={}))",
+                snapshot.state,
+                snapshot.revision
+            ),
+            Message::PrivilegedNetworkRegressionUpdated(Err(error)) => {
+                write!(f, "PrivilegedNetworkRegressionUpdated(Err({error:?}))")
+            }
             Message::CheckCrashWatchdog => write!(f, "CheckCrashWatchdog"),
             Message::RecoverOrphanedState => write!(f, "RecoverOrphanedState"),
             Message::ExportCrashDiagnostics => write!(f, "ExportCrashDiagnostics"),

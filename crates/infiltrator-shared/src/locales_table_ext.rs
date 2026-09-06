@@ -155,6 +155,18 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "vpn_status_unsupported" => "宿主不支持".into(),
         "vpn_status_failed" => "失败".into(),
 
+        // Category 8: Privileged network regression
+        "privileged_network_title" => "特权网络无头回归".into(),
+        "privileged_network_desc" => "注入、回读并清理宿主特权网络适配器，失败时验证回滚".into(),
+        "privileged_network_run" => "运行回归".into(),
+        "privileged_network_status_idle" => "未运行".into(),
+        "privileged_network_status_injecting" => "注入中".into(),
+        "privileged_network_status_active" => "已注入".into(),
+        "privileged_network_status_rolling_back" => "回滚清理中".into(),
+        "privileged_network_status_cleaned" => "已清理".into(),
+        "privileged_network_status_unsupported" => "宿主不支持".into(),
+        "privileged_network_status_failed" => "失败".into(),
+
         "uwp_found_count" => "已发现 {count} 个 UWP AppContainer".into(),
 
         // Category 2: Crash Watchdog & Forensic Viewer

@@ -399,6 +399,7 @@ pub(super) fn settings_projection(
             pac: value.pac.clone(),
             network_roaming: snapshot.network_roaming.clone(),
             vpn: snapshot.vpn.clone(),
+            privileged_network: snapshot.privileged_network.clone(),
             tun_enabled: value.tun_enabled,
             tun_stack: value.tun_stack,
             tun_auto_route: value.tun_auto_route,
@@ -427,6 +428,7 @@ pub(super) fn settings_projection(
             projection.mtu = snapshot.mtu.clone();
             projection.network_roaming = snapshot.network_roaming.clone();
             projection.vpn = snapshot.vpn.clone();
+            projection.privileged_network = snapshot.privileged_network.clone();
             projection
         })
 }

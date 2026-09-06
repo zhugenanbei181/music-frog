@@ -141,4 +141,16 @@ impl ApplicationSurfaceReader {
             },
         }
     }
+
+    pub(super) async fn read_privileged_network(
+        &self,
+    ) -> infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot {
+        match &self.privileged_network {
+            Some(application) => application.snapshot().await,
+            None => infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot::unsupported(
+                0,
+                "privileged network regression port is not composed for this host",
+            ),
+        }
+    }
 }

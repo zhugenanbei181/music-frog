@@ -40,6 +40,7 @@ use infiltrator_bevy_ui::pages::settings::settings_network_roaming::{
     NetworkRoamingRefreshButton, NetworkRoamingRepairButton,
 };
 use infiltrator_bevy_ui::pages::settings::settings_vpn::{VpnStartButton, VpnStopButton};
+use infiltrator_bevy_ui::pages::settings::settings_privileged_network::PrivilegedNetworkRunButton;
 use infiltrator_bevy_ui::pages::app_routing_uwp::{UwpAction, UwpActionButton};
 use infiltrator_bevy_ui::pages::sync::*;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
@@ -551,6 +552,28 @@ fn test_sidebar_system_toggles_use_shared_projection_and_commands() {
         ]
     );
 
+}
+
+#[test]
+fn test_privileged_network_regression_button_uses_shared_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Settings);
+
+    let button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<PrivilegedNetworkRunButton>>()
+        .single(app.world())
+        .expect("privileged network regression button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::RunPrivilegedNetworkRegression]
+    );
 }
 
 #[test]

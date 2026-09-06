@@ -342,6 +342,7 @@ fn settings_page_in_place_update() {
         pac: Default::default(),
         network_roaming: Default::default(),
         vpn: Default::default(),
+        privileged_network: Default::default(),
         tun_enabled: true,
         tun_stack: "System (Native Stack)".to_owned(),
         tun_auto_route: true,

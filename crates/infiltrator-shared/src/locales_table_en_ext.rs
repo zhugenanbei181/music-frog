@@ -149,6 +149,18 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "vpn_status_unsupported" => "Host unsupported".into(),
         "vpn_status_failed" => "Failed".into(),
 
+        // Category 8: Privileged network regression
+        "privileged_network_title" => "Privileged Network Headless Regression".into(),
+        "privileged_network_desc" => "Inject, read back, and clean up host privilege adapters; verify rollback on failure.".into(),
+        "privileged_network_run" => "Run Regression".into(),
+        "privileged_network_status_idle" => "Not run".into(),
+        "privileged_network_status_injecting" => "Injecting".into(),
+        "privileged_network_status_active" => "Injected".into(),
+        "privileged_network_status_rolling_back" => "Rolling back".into(),
+        "privileged_network_status_cleaned" => "Cleaned".into(),
+        "privileged_network_status_unsupported" => "Host unsupported".into(),
+        "privileged_network_status_failed" => "Failed".into(),
+
         "uwp_found_count" => "{count} UWP AppContainers found".into(),
 
         // Category 2: Crash Watchdog & Forensic Viewer

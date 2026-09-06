@@ -15,6 +15,7 @@ pub mod intent;
 pub mod lan;
 pub mod ipv6;
 pub mod pac;
+pub mod privileged_network;
 pub mod uwp;
 pub mod vpn;
 pub mod offline_startup;

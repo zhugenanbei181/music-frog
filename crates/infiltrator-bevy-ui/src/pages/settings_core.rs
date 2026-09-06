@@ -140,6 +140,8 @@ pub struct SettingsProjection {
     pub pac: infiltrator_contract::pac::PacSnapshot,
     pub network_roaming: infiltrator_contract::network_roaming::NetworkRoamingSnapshot,
     pub vpn: infiltrator_contract::vpn::VpnSessionSnapshot,
+    pub privileged_network:
+        infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot,
     pub tun_enabled: bool,
     pub tun_stack: String,
     pub tun_auto_route: bool,

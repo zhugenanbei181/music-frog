@@ -515,6 +515,13 @@ pub enum Message {
     StartVpn,
     StopVpn,
     VpnSessionUpdated(Result<infiltrator_contract::vpn::VpnSessionSnapshot, InfiltratorError>),
+    RunPrivilegedNetworkRegression,
+    PrivilegedNetworkRegressionUpdated(
+        Result<
+            infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot,
+            InfiltratorError,
+        >,
+    ),
     // Wave 4 Category 2: Crash Watchdog & Forensics
     CheckCrashWatchdog,
     RecoverOrphanedState,

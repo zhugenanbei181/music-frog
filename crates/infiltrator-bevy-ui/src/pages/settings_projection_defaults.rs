@@ -28,6 +28,11 @@ impl SettingsProjection {
                 1,
                 "Android VpnService is not part of the desktop demo host",
             ),
+            privileged_network:
+                infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot::unsupported(
+                    1,
+                    "privileged network regression is a host-test capability",
+                ),
             tun_enabled: true,
             tun_stack: "gVisor (高性能用户态协议栈)".to_owned(),
             tun_auto_route: true,

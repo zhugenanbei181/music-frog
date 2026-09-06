@@ -27,6 +27,7 @@ pub mod mtu_optimizer;
 pub mod network_roaming;
 pub mod packet_loss_tracker;
 pub mod pcap_exporter;
+pub mod privileged_network_policy;
 pub mod profile_converter;
 pub mod profile_options;
 pub mod profiles;

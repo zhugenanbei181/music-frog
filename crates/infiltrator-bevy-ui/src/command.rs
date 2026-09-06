@@ -74,6 +74,8 @@ pub enum UiCommand {
     StartVpn,
     /// Stop the Android VpnService and tun2proxy worker.
     StopVpn,
+    /// Run the host-injected privileged network transaction and rollback test.
+    RunPrivilegedNetworkRegression,
     /// Toggle the host-owned system proxy capability.
     SetSystemProxy { enabled: bool },
     /// Apply the live Mihomo LAN listener settings.
@@ -193,6 +195,9 @@ impl UiCommand {
             Self::ToggleTun { enabled } => Some(CommandIntent::ToggleTun { enabled: *enabled }),
             Self::StartVpn => Some(CommandIntent::StartVpn),
             Self::StopVpn => Some(CommandIntent::StopVpn),
+            Self::RunPrivilegedNetworkRegression => {
+                Some(CommandIntent::RunPrivilegedNetworkRegression)
+            }
             Self::SetSystemProxy { enabled } => {
                 Some(CommandIntent::SetSystemProxy { enabled: *enabled })
             }
