@@ -43,6 +43,12 @@ impl AppState {
         state.runtime.script_block_present = true;
         state.runtime.system_proxy_enabled = true;
         state.runtime.tun_enabled = Some(false);
+        state.runtime.system_toggles =
+            infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
+                true,
+                Some(false),
+                1,
+            );
         state.editor.tun_stack = "gvisor".to_string();
         state.editor.tun_auto_route = true;
         state.editor.tun_strict_route = false;

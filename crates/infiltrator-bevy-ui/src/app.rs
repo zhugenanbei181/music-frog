@@ -22,6 +22,7 @@ use bevy::ui::prelude::{BackgroundColor, BorderColor, Display, Node, UiRect, Val
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_widgets::WidgetsPlugin;
+use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual, PillLabel};
 use infiltrator_bevy_widgets::icon::IconTint;
 use infiltrator_bevy_widgets::nav::{NavActive, NavLabel, nav_fill, nav_label_ink};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -29,7 +30,10 @@ use infiltrator_bevy_widgets::responsive::{Density, DensitySwitch, ResponsiveCon
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Breakpoint, LightDark, Theme, space};
+use infiltrator_application::system_toggle_application::SystemToggleApplication;
+use infiltrator_contract::system_toggle::SystemToggle;
 
+use crate::command::{CommandSinkHandle, UiCommand};
 use crate::controller::FailureDwell;
 use crate::pages::overview::{OverviewModePill, OverviewProjectionUpdated};
 use crate::projection::OverviewState;
@@ -119,6 +123,14 @@ impl Default for ShellLayoutState {
         Self::from_width(1180.0)
     }
 }
+
+/// The shell-level mirror of the shared system proxy/TUN toggle projection.
+/// PagesPlugin replaces it from each accepted SurfaceSnapshot; ShellPlugin
+/// alone starts in `Unknown` and therefore renders non-actionable controls.
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
+pub struct SidebarToggleProjection(
+    pub infiltrator_contract::system_toggle::SystemToggleSnapshot,
+);
 
 /// Marker for the content region product pages mount into.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -360,6 +372,67 @@ fn on_sidebar_shortcut_tile_activated(
     }
 }
 
+/// Sidebar system-proxy toggle: resolve the desired state through the shared
+/// application policy before sending the UI command.
+fn on_sidebar_system_proxy_activated(
+    activate: On<Activate>,
+    toggles: Query<(), With<SidebarSystemProxyToggle>>,
+    projection: Res<SidebarToggleProjection>,
+    handle: Option<Res<CommandSinkHandle>>,
+    mut commands: Commands,
+) {
+    if toggles.get(activate.entity).is_err() {
+        return;
+    }
+    let desired = !projection
+        .0
+        .state(SystemToggle::SystemProxy)
+        .is_enabled();
+    if SystemToggleApplication::intent(
+        &projection.0,
+        SystemToggle::SystemProxy,
+        desired,
+    )
+    .is_err()
+    {
+        return;
+    }
+    let Some(handle) = handle else {
+        return;
+    };
+    handle.submit(UiCommand::SetSystemProxy { enabled: desired });
+    commands.insert_resource(SidebarToggleProjection(
+        projection
+            .0
+            .clone()
+            .with_pending(SystemToggle::SystemProxy, desired),
+    ));
+}
+
+/// Sidebar TUN toggle, using the same application policy as the Iced switch.
+fn on_sidebar_tun_activated(
+    activate: On<Activate>,
+    toggles: Query<(), With<SidebarTunToggle>>,
+    projection: Res<SidebarToggleProjection>,
+    handle: Option<Res<CommandSinkHandle>>,
+    mut commands: Commands,
+) {
+    if toggles.get(activate.entity).is_err() {
+        return;
+    }
+    let desired = !projection.0.state(SystemToggle::Tun).is_enabled();
+    if SystemToggleApplication::intent(&projection.0, SystemToggle::Tun, desired).is_err() {
+        return;
+    }
+    let Some(handle) = handle else {
+        return;
+    };
+    handle.submit(UiCommand::ToggleTun { enabled: desired });
+    commands.insert_resource(SidebarToggleProjection(
+        projection.0.clone().with_pending(SystemToggle::Tun, desired),
+    ));
+}
+
 /// Mode segment pill observer.
 fn on_mode_pill_activated(
     activate: On<Activate>,
@@ -467,12 +540,15 @@ impl Plugin for ShellPlugin {
 
         app.init_resource::<ModeCommandInFlight>();
         app.init_resource::<PendingModeAck>();
+        app.init_resource::<SidebarToggleProjection>();
         app.add_observer(on_theme_pill_activated);
         app.add_observer(on_density_pill_activated);
         app.add_observer(on_mode_pill_activated);
         app.add_observer(on_bottom_nav_activated);
         app.add_observer(on_sidebar_nav_activated);
         app.add_observer(on_sidebar_shortcut_tile_activated);
+        app.add_observer(on_sidebar_system_proxy_activated);
+        app.add_observer(on_sidebar_tun_activated);
         app.add_observer(on_history_back_activated);
         app.add_observer(on_history_forward_activated);
         app.init_resource::<ClearColor>();
@@ -482,6 +558,7 @@ impl Plugin for ShellPlugin {
             (
                 sync_content_title,
                 sync_sidebar_panel,
+                sync_sidebar_toggle_visuals,
                 sync_sidebar_nav_visuals,
                 sync_bottom_nav_visuals,
                 sync_responsive_shell,
@@ -496,8 +573,16 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn(Camera2d);
 }
 
-fn spawn_shell(mut commands: Commands, palette: Res<UiPalette>) {
-    commands.spawn_scene(shell_scene("MusicFrog Infiltrator".to_string(), &palette));
+fn spawn_shell(
+    mut commands: Commands,
+    palette: Res<UiPalette>,
+    toggles: Res<SidebarToggleProjection>,
+) {
+    commands.spawn_scene(crate::shell_scene::shell_scene_with_toggles(
+        "MusicFrog Infiltrator".to_string(),
+        &toggles.0,
+        &palette,
+    ));
 }
 
 /// Repaint the sidebar rail from the live palette.
@@ -508,6 +593,48 @@ fn sync_sidebar_panel(
     for mut fill in &mut panels {
         if fill.0 != palette.sidebar {
             fill.0 = palette.sidebar;
+        }
+    }
+}
+
+/// Restamp the two compact sidebar controls from the shared projection. A
+/// pending/unknown/unsupported control is visibly non-actionable and cannot
+/// be toggled by the observers above.
+type SidebarToggleQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static mut ControlVisual,
+        &'static Children,
+        Option<&'static SidebarSystemProxyToggle>,
+        Option<&'static SidebarTunToggle>,
+    ),
+>;
+
+fn sync_sidebar_toggle_visuals(
+    projection: Res<SidebarToggleProjection>,
+    mut toggles: SidebarToggleQuery,
+    mut labels: Query<&mut Text, With<PillLabel>>,
+    mut commands: Commands,
+) {
+    for (entity, mut visual, children, proxy_marker, tun_marker) in &mut toggles {
+        let Some(state) = proxy_marker
+            .map(|_| &projection.0.system_proxy)
+            .or_else(|| tun_marker.map(|_| &projection.0.tun))
+        else {
+            continue;
+        };
+        visual.0 = state.is_enabled();
+        for child in children.iter() {
+            if let Ok(mut label) = labels.get_mut(*child) {
+                label.0 = state.compact_label().to_owned();
+            }
+        }
+        if state.can_toggle() {
+            commands.entity(entity).remove::<ButtonDisabled>();
+        } else {
+            commands.entity(entity).insert(ButtonDisabled(true));
         }
     }
 }

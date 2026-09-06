@@ -60,3 +60,29 @@ fn test_sidebar_rail_render_smoke() {
     let _rail = sidebar_rail(&state);
     assert_eq!(RAIL_WIDTH, 64.0);
 }
+
+#[test]
+fn system_toggle_sidebar_uses_shared_pending_policy() {
+    let (mut state, _) = AppState::new();
+    state.runtime.system_proxy_enabled = false;
+    state.runtime.system_toggles =
+        infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
+            false,
+            Some(false),
+            1,
+        );
+
+    let _ = state.update(crate::types::message::Message::SetSystemProxy(true));
+    assert!(matches!(
+        state.runtime.system_toggles.system_proxy,
+        infiltrator_contract::system_toggle::SystemToggleState::Pending { desired: true }
+    ));
+
+    // The Elm update path and the Bevy observer share the same no-reentry
+    // rule: a second click cannot enqueue a conflicting request.
+    let _ = state.update(crate::types::message::Message::SetSystemProxy(false));
+    assert!(matches!(
+        state.runtime.system_toggles.system_proxy,
+        infiltrator_contract::system_toggle::SystemToggleState::Pending { desired: true }
+    ));
+}

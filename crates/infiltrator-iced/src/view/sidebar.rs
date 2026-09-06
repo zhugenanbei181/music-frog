@@ -287,13 +287,13 @@ fn toggles<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let system_proxy = toggle_card(
         Icon::Wifi,
         short_label(&lang.tr("system_proxy")),
-        state.runtime.system_proxy_enabled,
+        state.runtime.system_toggles.system_proxy.is_enabled(),
         Message::SetSystemProxy,
     );
     let tun = toggle_card(
         Icon::Zap,
         short_label(&lang.tr("tun_mode")),
-        state.runtime.tun_enabled.unwrap_or(false),
+        state.runtime.system_toggles.tun.is_enabled(),
         Message::SetTunEnabled,
     );
 

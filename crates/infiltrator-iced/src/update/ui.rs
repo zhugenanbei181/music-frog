@@ -290,11 +290,11 @@ impl AppState {
                     crate::types::app::CommandAction::Navigate(route) => Task::done(Message::Navigate(route)),
                     crate::types::app::CommandAction::SetMode(mode) => Task::done(Message::SetProxyMode(mode)),
                     crate::types::app::CommandAction::ToggleSystemProxy => {
-                        let cur = self.runtime.system_proxy_enabled;
+                        let cur = self.runtime.system_toggles.system_proxy.is_enabled();
                         Task::done(Message::SetSystemProxy(!cur))
                     }
                     crate::types::app::CommandAction::ToggleTun => {
-                        let cur = self.runtime.tun_enabled.unwrap_or(false);
+                        let cur = self.runtime.system_toggles.tun.is_enabled();
                         Task::done(Message::SetTunEnabled(!cur))
                     }
                     crate::types::app::CommandAction::FlushFakeIp => Task::done(Message::FlushFakeIpCache),
@@ -675,69 +675,8 @@ impl AppState {
                 self.shell.system_proxy_bypass = bypass;
                 Task::none()
             }
-            Message::SetSystemProxy(enabled) => {
-                if self.runtime.system_proxy_pending {
-                    return Task::none();
-                }
-                self.runtime.system_proxy_enabled = enabled;
-                self.runtime.system_proxy_pending = true;
-                self.refresh_tray();
-                let runtime = self.runtime.runtime.clone();
-                let proxy_application = self.runtime.system_proxy_application.clone();
-                let bypass = if self.shell.system_proxy_bypass.trim().is_empty() {
-                    None
-                } else {
-                    Some(self.shell.system_proxy_bypass.trim().to_string())
-                };
-                Task::perform(
-                    async move {
-                        let application = proxy_application.ok_or_else(|| {
-                            InfiltratorError::Privilege(
-                                "当前宿主未提供系统代理控制能力".to_owned(),
-                            )
-                        })?;
-                        let endpoint = if enabled {
-                            let runtime = runtime.ok_or_else(|| {
-                                InfiltratorError::Privilege(
-                                    "内核未运行，无法确定系统代理端口".to_string(),
-                                )
-                            })?;
-                            runtime
-                                .http_proxy_endpoint()
-                                .await
-                                .map_err(|error| InfiltratorError::Privilege(error.to_string()))?
-                                .ok_or_else(|| {
-                                    InfiltratorError::Privilege(
-                                        "当前配置未提供 port 或 mixed-port".to_string(),
-                                    )
-                                })?
-                        } else {
-                            String::new()
-                        };
-                        application
-                            .set_enabled(enabled, enabled.then_some(endpoint), bypass)
-                            .await
-                            .map_err(|failure| InfiltratorError::Privilege(failure.message))
-                    },
-                    Message::SystemProxySet,
-                )
-            }
-            Message::SystemProxySet(result) => match result {
-                Ok(snapshot) => {
-                    self.runtime.system_proxy_pending = false;
-                    self.runtime.system_proxy_enabled = snapshot.is_enabled();
-                    self.runtime.system_proxy = snapshot;
-                    self.refresh_tray();
-                    Task::none()
-                }
-                Err(e) => {
-                    self.runtime.system_proxy_pending = false;
-                    self.runtime.system_proxy_enabled = !self.runtime.system_proxy_enabled;
-                    self.refresh_tray();
-                    self.set_error(&e);
-                    Task::none()
-                }
-            },
+            Message::SetSystemProxy(enabled) => self.set_system_proxy(enabled),
+            Message::SystemProxySet(result) => self.finish_system_proxy_set(result),
             Message::SystemProxyReconciled(snapshot) => self.reconcile_system_proxy(snapshot),
             Message::SystemProxyRecoveryFinished(snapshot) => {
                 self.finish_system_proxy_recovery(snapshot)

@@ -94,7 +94,11 @@ pub(super) fn snapshot_from_overview(
         resources: infiltrator_contract::resources::CoreResourceSnapshot::default(),
         offline_startup: infiltrator_contract::offline_startup::OfflineStartupSnapshot::default(),
         mtu: infiltrator_contract::mtu::MtuNegotiationSnapshot::default(),
-        system_proxy: infiltrator_contract::system_proxy::SystemProxySnapshot::default(),
+        system_proxy: if demo_pages {
+            demo_system_proxy()
+        } else {
+            infiltrator_contract::system_proxy::SystemProxySnapshot::default()
+        },
         system_proxy_recovery:
             infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot::default(),
         network_roaming: if demo_pages {
@@ -140,7 +144,7 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         resources: infiltrator_contract::resources::CoreResourceSnapshot::default(),
         offline_startup: infiltrator_contract::offline_startup::OfflineStartupSnapshot::default(),
         mtu: infiltrator_contract::mtu::MtuNegotiationSnapshot::default(),
-        system_proxy: infiltrator_contract::system_proxy::SystemProxySnapshot::default(),
+        system_proxy: demo_system_proxy(),
         system_proxy_recovery:
             infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot::default(),
         network_roaming: SettingsProjection::demo().network_roaming,
@@ -149,6 +153,17 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
             "Android VpnService is not part of the desktop demo host",
         ),
     }
+}
+
+fn demo_system_proxy() -> infiltrator_contract::system_proxy::SystemProxySnapshot {
+    infiltrator_contract::system_proxy::SystemProxySnapshot::from_observation(
+        1,
+        infiltrator_contract::system_proxy::SystemProxyObservation {
+            enabled: true,
+            endpoint: Some("127.0.0.1:7890".to_owned()),
+            bypass: None,
+        },
+    )
 }
 
 fn demo_pages_with_overview(

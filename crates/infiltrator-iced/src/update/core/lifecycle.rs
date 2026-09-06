@@ -140,6 +140,11 @@ impl AppState {
                 self.runtime.proxy_mode = None;
                 self.runtime.script_block_present = false;
                 self.runtime.tun_enabled = None;
+                self.runtime.system_toggles = self
+                    .runtime
+                    .system_toggles
+                    .clone()
+                    .with_tun_readback(None);
                 self.runtime.status = RuntimeStatus::Stopped;
                 self.refresh_tray();
                 Task::none()

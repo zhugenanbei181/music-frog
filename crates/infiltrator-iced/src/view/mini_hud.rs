@@ -105,7 +105,7 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
         Space::new().width(Length::Fill),
         button(
             svg_icons::icon_themed(Icon::Wifi, 12.0, move |t: &Theme| {
-                if state.runtime.system_proxy_enabled {
+                if state.runtime.system_toggles.system_proxy.is_enabled() {
                     tokens(t).accent
                 } else {
                     tokens(t).text_tertiary
@@ -125,11 +125,13 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
                 ..Default::default()
             }
         })
-        .on_press(Message::SetSystemProxy(!state.runtime.system_proxy_enabled)),
+        .on_press(Message::SetSystemProxy(
+            !state.runtime.system_toggles.system_proxy.is_enabled(),
+        )),
         Space::new().width(theme::SP_XS),
         button(
             svg_icons::icon_themed(Icon::Zap, 12.0, move |t: &Theme| {
-                if state.runtime.tun_enabled.unwrap_or(false) {
+                if state.runtime.system_toggles.tun.is_enabled() {
                     tokens(t).success
                 } else {
                     tokens(t).text_tertiary
@@ -149,7 +151,9 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
                 ..Default::default()
             }
         })
-        .on_press(Message::SetTunEnabled(!state.runtime.tun_enabled.unwrap_or(false))),
+        .on_press(Message::SetTunEnabled(
+            !state.runtime.system_toggles.tun.is_enabled(),
+        )),
     ]
     .align_y(Alignment::Center);
 

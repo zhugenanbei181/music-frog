@@ -41,6 +41,7 @@ use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_contract::system_proxy::SystemProxySnapshot;
 use infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot;
+use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_ports::system_proxy::SystemProxyPort;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use std::collections::{HashMap, VecDeque};
@@ -62,6 +63,8 @@ pub struct RuntimeState {
     pub mtu: MtuNegotiationSnapshot,
     pub ipv6_routing: infiltrator_contract::ipv6::Ipv6RoutingSnapshot,
     pub vpn: infiltrator_contract::vpn::VpnSessionSnapshot,
+    /// Shared control state used by sidebar and settings quick toggles.
+    pub system_toggles: SystemToggleSnapshot,
     pub system_proxy: SystemProxySnapshot,
     pub system_proxy_recovery: SystemProxyRecoverySnapshot,
     /// Retained independently of the running core so a system proxy can be
@@ -430,6 +433,10 @@ impl AppState {
         self.runtime.system_proxy_recovery = snapshot.system_proxy_recovery.clone();
         self.runtime.network_roaming = snapshot.network_roaming.clone();
         self.runtime.vpn = snapshot.vpn.clone();
+        self.runtime.system_toggles =
+            infiltrator_application::system_toggle_application::SystemToggleApplication::from_surface(
+                &snapshot,
+            );
         if matches!(
             &snapshot.system_proxy.status,
             infiltrator_contract::system_proxy::SystemProxyStatus::Enabled

@@ -8,11 +8,13 @@ use std::sync::Arc;
 
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::hierarchy::ChildOf;
+use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ui::Checked;
 use infiltrator_bevy_widgets::text_input::TextField;
 use bevy::ui_widgets::{Activate, ValueChange};
-use infiltrator_bevy_ui::app::ShellPlugin;
+use infiltrator_bevy_ui::app::{
+    ShellPlugin, SidebarSystemProxyToggle, SidebarToggleProjection, SidebarTunToggle,
+};
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::pages::app_routing::*;
 use infiltrator_bevy_ui::pages::dns::*;
@@ -42,6 +44,9 @@ use infiltrator_bevy_ui::pages::app_routing_uwp::{UwpAction, UwpActionButton};
 use infiltrator_bevy_ui::pages::sync::*;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
+use infiltrator_bevy_ui::surface::{DemoSurfaceSource, SurfaceSnapshotUpdated, SurfaceSource};
+use infiltrator_bevy_widgets::button::{ControlVisual, PillLabel};
+use bevy::ui::widget::Text;
 use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::version::CoreRollbackSnapshot;
@@ -441,6 +446,111 @@ fn test_settings_page_mounting_and_default_state() {
             .next()
             .is_some()
     );
+}
+
+#[test]
+fn test_sidebar_system_toggles_use_shared_projection_and_commands() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+
+    let proxy = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<SidebarSystemProxyToggle>>()
+        .single(app.world())
+        .expect("sidebar system proxy toggle");
+    let tun = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<SidebarTunToggle>>()
+        .single(app.world())
+        .expect("sidebar TUN toggle");
+
+    assert!(matches!(
+        &app.world()
+            .resource::<SidebarToggleProjection>()
+            .0
+            .system_proxy,
+        infiltrator_contract::system_toggle::SystemToggleState::Enabled
+    ));
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: proxy });
+    app.update();
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::SetSystemProxy { enabled: false }]
+    );
+    assert!(matches!(
+        &app.world()
+            .resource::<SidebarToggleProjection>()
+            .0
+            .system_proxy,
+        infiltrator_contract::system_toggle::SystemToggleState::Pending {
+            desired: false
+        }
+    ));
+
+    // A second activation while the application command is in flight is
+    // fenced instead of producing a duplicate command.
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: proxy });
+    app.update();
+    assert_eq!(sink.submitted().len(), 1);
+
+    let mut next = DemoSurfaceSource::running().surface_snapshot();
+    next.revision = 2;
+    next.system_proxy = infiltrator_contract::system_proxy::SystemProxySnapshot::from_observation(
+        2,
+        infiltrator_contract::system_proxy::SystemProxyObservation {
+            enabled: false,
+            endpoint: None,
+            bypass: None,
+        },
+    );
+    next.pages.settings.data.as_mut().expect("demo settings").tun_enabled = false;
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(next));
+    app.update();
+
+    let proxy_visual = app.world().get::<ControlVisual>(proxy).expect("proxy visual");
+    let tun_visual = app.world().get::<ControlVisual>(tun).expect("tun visual");
+    assert!(!proxy_visual.0);
+    assert!(!tun_visual.0);
+    let proxy_label = app
+        .world()
+        .get::<Children>(proxy)
+        .expect("proxy toggle children")
+        .iter()
+        .find_map(|child| {
+            app.world()
+                .get::<PillLabel>(*child)
+                .and_then(|_| app.world().get::<Text>(*child))
+        })
+        .map(|text| text.0.clone());
+    assert_eq!(proxy_label.as_deref(), Some("关"));
+    assert_eq!(
+        app.world()
+            .resource::<SidebarToggleProjection>()
+            .0
+            .system_proxy
+            .compact_label(),
+        "关"
+    );
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: tun });
+    app.update();
+    assert_eq!(
+        sink.submitted(),
+        vec![
+            UiCommand::SetSystemProxy { enabled: false },
+            UiCommand::ToggleTun { enabled: true },
+        ]
+    );
+
 }
 
 #[test]

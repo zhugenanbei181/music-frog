@@ -33,9 +33,19 @@ use crate::app::{
 use crate::pages::overview::{OverviewModePill, mode_label};
 use crate::route::Route;
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 
 /// The root shell scene.
 pub fn shell_scene(title: String, palette: &UiPalette) -> impl Scene + use<> {
+    shell_scene_with_toggles(title, &SystemToggleSnapshot::default(), palette)
+}
+
+/// Root shell scene with the initial shared system-toggle projection.
+pub fn shell_scene_with_toggles(
+    title: String,
+    toggles: &SystemToggleSnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let window_node = window_semantic_node(&title);
     let region_node = region_semantic_node("核心概览");
     bsn! {
@@ -60,7 +70,7 @@ pub fn shell_scene(title: String, palette: &UiPalette) -> impl Scene + use<> {
                     overflow: Overflow::clip(),
                 }
                 Children [
-                    ( { sidebar_scene(palette) } ),
+                    ( { sidebar_scene_with_toggles(toggles, palette) } ),
                     (
                         Node {
                             flex_grow: 1.0,
@@ -229,6 +239,13 @@ pub fn content_title_row(title: &str, palette: &UiPalette) -> impl Scene + use<>
 
 /// Sidebar scene supporting Standard (240px) and polymorphic Rail/Wide modes.
 pub fn sidebar_scene(palette: &UiPalette) -> impl Scene + use<> {
+    sidebar_scene_with_toggles(&SystemToggleSnapshot::default(), palette)
+}
+
+pub fn sidebar_scene_with_toggles(
+    toggles: &SystemToggleSnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let pill_node = toggle_semantic_node("Toggle color theme");
     let density_node = toggle_semantic_node("Toggle layout density");
     bsn! {
@@ -246,7 +263,7 @@ pub fn sidebar_scene(palette: &UiPalette) -> impl Scene + use<> {
         Children [
             ( { identity_scene(palette) } ),
             ( { mode_segment_scene(ProxyMode::default(), palette) } ),
-            ( { sidebar_system_toggles_scene(palette) } ),
+            ( { sidebar_system_toggles_scene(toggles, palette) } ),
             ( { sidebar_profile_card_scene(palette) } ),
             ( { sidebar_shortcut_matrix_scene(palette) } ),
             ( { sidebar_speed_footer_scene(palette) } ),
@@ -346,8 +363,15 @@ pub fn mode_segment_scene(mode: ProxyMode, palette: &UiPalette) -> impl Scene + 
 }
 
 /// Double system toggle cards in sidebar: 系统代理 and TUN 模式.
-pub fn sidebar_system_toggles_scene(palette: &UiPalette) -> impl Scene + use<> {
+pub fn sidebar_system_toggles_scene(
+    toggles: &SystemToggleSnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let edge = palette.border;
+    let proxy_selected = toggles.system_proxy.is_enabled();
+    let proxy_label = toggles.system_proxy.compact_label().to_owned();
+    let tun_selected = toggles.tun.is_enabled();
+    let tun_label = toggles.tun.compact_label().to_owned();
     bsn! {
         Node {
             width: percent(100),
@@ -378,7 +402,7 @@ pub fn sidebar_system_toggles_scene(palette: &UiPalette) -> impl Scene + use<> {
                         Children [
                             ( { icon_scene(IconId::Network, 14.0, palette.accent) } ),
                             (
-                                { pill_caption_scene("开".to_owned(), true, palette) }
+                                { pill_caption_scene(proxy_label, proxy_selected, palette) }
                                 SidebarSystemProxyToggle
                             ),
                         ]
@@ -413,7 +437,7 @@ pub fn sidebar_system_toggles_scene(palette: &UiPalette) -> impl Scene + use<> {
                         Children [
                             ( { icon_scene(IconId::Zap, 14.0, palette.warning) } ),
                             (
-                                { pill_caption_scene("关".to_owned(), false, palette) }
+                                { pill_caption_scene(tun_label, tun_selected, palette) }
                                 SidebarTunToggle
                             ),
                         ]

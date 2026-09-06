@@ -148,6 +148,8 @@ python3 scripts/quality/pac-service-guard.py --mode enforce
 python3 scripts/quality/network-roaming-guard.py --mode enforce
 # DUAL-02-13 Android VpnService 权限、前台保活与隧道 readback 守卫
 python3 scripts/quality/vpn-service-guard.py --mode enforce
+# DUAL-02-14 Iced/Bevy 系统代理与 TUN 快捷开关对等守卫
+python3 scripts/quality/system-toggle-guard.py --mode enforce
 ```
 
 ---

@@ -61,6 +61,9 @@ impl AppState {
             infiltrator_application::system_proxy_application::SystemProxyApplication::new(
                 system_proxy_port.clone(),
             );
+        let system_proxy_enabled = crate::host::desktop::read_system_proxy_state()
+            .map(|s| s.enabled)
+            .unwrap_or(false);
 
         Self {
             runtime: crate::state::RuntimeState {
@@ -74,6 +77,11 @@ impl AppState {
                     0,
                     "Android VpnService is a mobile-host capability",
                 ),
+                system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
+                    system_proxy_enabled,
+                    None,
+                    0,
+                ),
                 system_proxy: Default::default(),
                 system_proxy_recovery: Default::default(),
                 system_proxy_port: Some(system_proxy_port),
@@ -86,9 +94,7 @@ impl AppState {
                 tun_enabled: None,
                 tun_service_status: None,
                 is_installing_tun_service: false,
-                system_proxy_enabled: crate::host::desktop::read_system_proxy_state()
-                    .map(|s| s.enabled)
-                    .unwrap_or(false),
+                system_proxy_enabled,
                 system_proxy_pending: false,
                 autostart_enabled: autostart::is_autostart_enabled(crate::AUTOSTART_REG_NAME),
                 filter_alive_only: false,

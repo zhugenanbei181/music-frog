@@ -151,7 +151,11 @@ fn system_proxy_card<'a>(state: &AppState, lang: &Lang<'a>, _is_en: bool) -> Ele
     card(
         Some(lang.tr("system_proxy").to_string()),
         column![
-            form_toggle_row(lang.tr("settings_sys_proxy").to_string(), state.runtime.system_proxy_enabled, Message::SetSystemProxy),
+            form_toggle_row(
+                lang.tr("settings_sys_proxy").to_string(),
+                state.runtime.system_toggles.system_proxy.is_enabled(),
+                Message::SetSystemProxy,
+            ),
             row![
                 text(lang.tr("settings_proxy_host").to_string()).size(13).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
                 Space::new().width(Length::Fill),

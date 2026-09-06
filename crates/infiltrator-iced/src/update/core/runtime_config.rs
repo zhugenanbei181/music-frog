@@ -12,8 +12,10 @@ use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
 use infiltrator_application::service_mode_application::ServiceModeApplication;
 use crate::host::tun_service::TunServiceManager;
+use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_shared::locales::Localizer;
+use infiltrator_contract::system_toggle::SystemToggle;
 
 impl AppState {
     pub(crate) fn runtime_unavailable(&mut self, operation: &str) -> Task<Message> {
@@ -49,6 +51,11 @@ impl AppState {
             self.runtime.proxy_mode = previous.proxy_mode;
             self.runtime.ipv6_routing.enabled = previous.ipv6_enabled;
             self.runtime.tun_enabled = previous.tun_enabled;
+            self.runtime.system_toggles = self
+                .runtime
+                .system_toggles
+                .clone()
+                .with_tun_readback(previous.tun_enabled);
             self.editor.tun_stack = previous.tun_stack;
             self.runtime.tun_stack_config.active_stack = previous.tun_stack_selector;
             self.editor.tun_auto_route = previous.tun_auto_route;
@@ -73,6 +80,12 @@ impl AppState {
         let token = self.begin_runtime_patch();
         let generation = rt.generation();
         self.runtime.tun_enabled = Some(enabled);
+        self.runtime.system_toggles = self
+            .runtime
+            .system_toggles
+            .clone()
+            .with_legacy_tun(Some(enabled))
+            .with_pending(SystemToggle::Tun, enabled);
         self.refresh_tray();
         let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
             rt.clone();
@@ -243,6 +256,11 @@ impl AppState {
                         }
                         self.runtime.script_block_present = config.script_block_present;
                         self.runtime.tun_enabled = Some(config.tun_enabled);
+                        self.runtime.system_toggles = self
+                            .runtime
+                            .system_toggles
+                            .clone()
+                            .with_tun_readback(Some(config.tun_enabled));
                         self.editor.dns_nameservers = config.dns_nameservers;
                         self.editor.dns_fallback_servers = config.dns_fallback;
                         self.editor.dns_enhanced_mode = config.dns_enhanced_mode;
@@ -329,6 +347,24 @@ impl AppState {
                 if self.runtime.runtime.is_none() {
                     return self.runtime_unavailable("修改 TUN 状态");
                 }
+                let toggle_snapshot = self
+                    .runtime
+                    .system_toggles
+                    .clone()
+                    .with_legacy_tun(self.runtime.tun_enabled);
+                if let Err(failure) = SystemToggleApplication::intent(
+                    &toggle_snapshot,
+                    SystemToggle::Tun,
+                    enabled,
+                ) {
+                    let error = InfiltratorError::Privilege(failure.message);
+                    self.set_error(&error);
+                    return Task::done(Message::ShowToast(
+                        error.to_string(),
+                        crate::types::app::ToastStatus::Error,
+                    ));
+                }
+                self.runtime.system_toggles = toggle_snapshot;
                 if enabled && let Some(runtime) = self.runtime.runtime.clone() {
                     let status = runtime.tun_service_status();
                     self.runtime.tun_service_status = Some(status);

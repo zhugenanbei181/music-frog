@@ -152,7 +152,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/update/ui.rs",
+        "crates/infiltrator-iced/src/update/system_proxy.rs",
         "proxy_application",
         ".set_enabled(",
         "Message::SystemProxySet",

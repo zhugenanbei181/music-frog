@@ -30,6 +30,7 @@ pub mod surface_application;
 pub mod surface_reader;
 pub mod sync_application;
 pub mod system_proxy_application;
+pub mod system_toggle_application;
 pub mod version_application;
 pub mod uwp_loopback_application;
 pub mod pac_application;

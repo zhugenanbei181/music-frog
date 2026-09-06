@@ -30,7 +30,7 @@ use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::surface_snapshot::PageStatus;
 
-use crate::app::{ContentSlot, SidebarFoot};
+use crate::app::{ContentSlot, SidebarFoot, SidebarToggleProjection};
 use crate::history::TrafficHistory;
 use crate::pages::app_routing::{AppRoutingProjectionUpdated, app_routing_page};
 use crate::pages::connections::{ConnectionsProjectionUpdated, connections_page};
@@ -55,6 +55,7 @@ use crate::surface::{
     overview_projection, profiles_projection, proxies_projection, rules_projection,
     settings_projection, status_banner_scene, sync_projection,
 };
+use infiltrator_application::system_toggle_application::SystemToggleApplication;
 
 /// The app's pages. New pages append a variant and an arm in
 /// [`page_scene`] — never a second mount path.
@@ -305,7 +306,10 @@ impl Plugin for PagesPlugin {
         app.insert_resource(LatestCoreLifecycle(core_lifecycle_projection(
             &initial_snapshot,
         )));
-        app.insert_resource(LatestSurfaceSnapshot(initial_snapshot));
+        app.insert_resource(LatestSurfaceSnapshot(initial_snapshot.clone()));
+        app.insert_resource(SidebarToggleProjection(
+            SystemToggleApplication::from_surface(&initial_snapshot),
+        ));
         app.add_observer(on_content_slot_added);
         app.add_observer(sync_route);
         app.add_observer(apply_surface_snapshot);
@@ -521,6 +525,9 @@ fn apply_surface_snapshot(
     }
     commands.insert_resource(LatestSurfaceSnapshot(snapshot.clone()));
     commands.insert_resource(LatestCoreLifecycle(core_lifecycle_projection(&snapshot)));
+    commands.insert_resource(SidebarToggleProjection(
+        SystemToggleApplication::from_surface(&snapshot),
+    ));
     trigger_page_projection_events(&snapshot, &mut commands);
     commands.trigger(SurfaceStatusChanged(snapshot));
 }

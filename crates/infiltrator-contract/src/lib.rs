@@ -24,6 +24,7 @@ pub mod snapshot;
 pub mod session;
 pub mod service_mode;
 pub mod system_proxy;
+pub mod system_toggle;
 pub mod surface_snapshot;
 pub mod sync;
 pub mod tun;

@@ -292,6 +292,11 @@ impl AppState {
                 self.profile.is_syncing = false;
                 self.profile.sync_progress = None;
                 self.runtime.system_proxy_enabled = false;
+                self.runtime.system_toggles = self
+                    .runtime
+                    .system_toggles
+                    .clone()
+                    .with_system_proxy_readback(false);
                 self.shell.error_msg = None;
                 self.shell.confirmation = None;
                 self.shell.is_factory_resetting = true;
