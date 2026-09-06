@@ -521,6 +521,9 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
         Message::RuntimeConfigFetched(
             Ok(RuntimeConfig {
                 mode: "global".into(),
+                allow_lan: false,
+                mixed_port: 7890,
+                bind_address: "*".into(),
                 script_block_present: true,
                 tun_enabled: false,
                 dns_nameservers: vec!["1.1.1.1".into()],
@@ -549,6 +552,9 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
         Message::RuntimeConfigFetched(
             Ok(RuntimeConfig {
                 mode: "direct".into(),
+                allow_lan: false,
+                mixed_port: 7890,
+                bind_address: "*".into(),
                 script_block_present: false,
                 tun_enabled: false,
                 dns_nameservers: vec![],

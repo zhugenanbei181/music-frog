@@ -543,7 +543,13 @@ pub enum Message {
     // Wave 5 Category 6: LAN Proxy Sharing & Client Access Whitelist
     ToggleLanSharing(bool),
     UpdateLanSharingPort(u16),
+    UpdateLanBindAddress(String),
     UpdateLanAclWhitelist(String),
+    ApplyLanSharing,
+    LanSharingSet(
+        Result<infiltrator_contract::lan::LanSharingSnapshot, InfiltratorError>,
+        u64,
+    ),
 }
 
 mod debug;

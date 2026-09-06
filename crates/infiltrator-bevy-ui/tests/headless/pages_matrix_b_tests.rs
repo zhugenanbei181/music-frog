@@ -10,6 +10,7 @@ use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ui::Checked;
+use infiltrator_bevy_widgets::text_input::TextField;
 use bevy::ui_widgets::{Activate, ValueChange};
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
@@ -26,6 +27,9 @@ use infiltrator_bevy_ui::pages::settings::settings_core::{
     TunRouteToggleKind, TunStackButton, TunStackButtonAvailability,
 };
 use infiltrator_bevy_ui::pages::settings::settings_system::SystemProxyToggle;
+use infiltrator_bevy_ui::pages::settings::settings_lan::{
+    LanBindAddressField, LanMixedPortField, LanSharingApplyButton, LanSharingToggle,
+};
 use infiltrator_bevy_ui::pages::sync::*;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
@@ -774,6 +778,63 @@ fn test_settings_system_proxy_recovery_status_projects_shared_result() {
         .trigger(SettingsProjectionUpdated(projection));
     app.update();
     assert!(subtree_has_text(app.world(), root, "检测到外部修改，未覆盖"));
+}
+
+#[test]
+fn test_settings_lan_fields_submit_the_live_listener_intent() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Settings);
+
+    let mut projection = SettingsProjection::demo();
+    projection.allow_lan = true;
+    projection.mixed_port = 8080;
+    projection.lan_bind_address = "192.168.1.10".to_owned();
+    app.world_mut()
+        .commands()
+        .trigger(SettingsProjectionUpdated(projection));
+    app.update();
+    assert!(subtree_has_text(app.world(), root, "192.168.1.10"));
+
+    let apply_button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<LanSharingApplyButton>>()
+        .single(app.world())
+        .expect("Allow-LAN apply button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: apply_button });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::SetLanSharing {
+            enabled: true,
+            mixed_port: 8080,
+            bind_address: "192.168.1.10".to_owned(),
+        }]
+    );
+
+    let _ = app
+        .world_mut()
+        .query::<&LanSharingToggle>()
+        .single(app.world())
+        .expect("Allow-LAN toggle");
+    let _ = app
+        .world_mut()
+        .query::<&LanMixedPortField>()
+        .single(app.world())
+        .expect("mixed-port field");
+    let _ = app
+        .world_mut()
+        .query::<&LanBindAddressField>()
+        .single(app.world())
+        .expect("bind-address field");
+    let _ = app
+        .world_mut()
+        .query::<&TextField>()
+        .iter(app.world())
+        .count();
 }
 
 #[test]

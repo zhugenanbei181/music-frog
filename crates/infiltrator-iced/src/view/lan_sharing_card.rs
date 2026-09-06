@@ -2,7 +2,9 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{badge, card, form_input_style, toggle_switch, BadgeKind};
+use crate::view::components::{
+    BadgeKind, badge, card, form_input_style, style_ghost, text_btn, toggle_switch,
+};
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
@@ -40,6 +42,17 @@ pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
     .size(12)
     .font(MONO)
     .width(Length::Fill)
+        .style(form_input_style);
+
+    let bind_input = text_input(
+        "* or 192.168.1.10 or [::1]",
+        &lan.bind_address,
+    )
+    .on_input(Message::UpdateLanBindAddress)
+    .padding([6, 10])
+    .size(12)
+    .font(MONO)
+    .width(Length::Fill)
     .style(form_input_style);
 
     card(
@@ -57,6 +70,22 @@ pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
                 port_input,
                 Space::new().width(theme::SP_LG),
                 badge(if lan.allow_lan { "LAN Active" } else { "LAN Disabled" }, if lan.allow_lan { BadgeKind::Success } else { BadgeKind::Neutral }),
+            ]
+            .align_y(Alignment::Center),
+            Space::new().height(theme::SP_XS),
+            row![
+                text(lang.tr("lan_sharing_bind").to_string()).size(11).font(FONT_SEMIBOLD),
+                Space::new().width(theme::SP_SM),
+                bind_input,
+            ]
+            .align_y(Alignment::Center),
+            row![
+                Space::new().width(Length::Fill),
+                text_btn(
+                    lang.tr("lan_sharing_apply").to_string(),
+                    style_ghost,
+                    Some(Message::ApplyLanSharing),
+                ),
             ]
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),

@@ -75,6 +75,9 @@ fn test_runtime_config_sync() {
     let _ = state.update(Message::RuntimeConfigFetched(
         Ok(RuntimeConfig {
             mode: "global".into(),
+            allow_lan: false,
+            mixed_port: 7890,
+            bind_address: "*".into(),
             script_block_present: true,
             tun_enabled: true,
             dns_nameservers: vec!["1.1.1.1".into()],

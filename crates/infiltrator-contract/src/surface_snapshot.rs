@@ -329,6 +329,8 @@ pub struct SettingsPageSnapshot {
     pub system_proxy: bool,
     pub mixed_port: u16,
     pub allow_lan: bool,
+    #[serde(default = "default_lan_bind_address")]
+    pub lan_bind_address: String,
     pub tun_enabled: bool,
     pub tun_stack: String,
     #[serde(default)]
@@ -339,6 +341,10 @@ pub struct SettingsPageSnapshot {
     pub log_level: String,
     #[serde(default)]
     pub core_channel: String,
+}
+
+fn default_lan_bind_address() -> String {
+    crate::lan::DEFAULT_BIND_ADDRESS.to_owned()
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

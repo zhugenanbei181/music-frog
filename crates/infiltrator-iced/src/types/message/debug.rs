@@ -660,7 +660,19 @@ impl std::fmt::Debug for Message {
             Message::ApplyTransactionStageChanged(st) => write!(f, "ApplyTransactionStageChanged({st:?})"),
             Message::ToggleLanSharing(on) => write!(f, "ToggleLanSharing({on})"),
             Message::UpdateLanSharingPort(p) => write!(f, "UpdateLanSharingPort({p})"),
+            Message::UpdateLanBindAddress(address) => {
+                write!(f, "UpdateLanBindAddress({address})")
+            }
             Message::UpdateLanAclWhitelist(w) => write!(f, "UpdateLanAclWhitelist({w})"),
+            Message::ApplyLanSharing => write!(f, "ApplyLanSharing"),
+            Message::LanSharingSet(Ok(snapshot), generation) => write!(
+                f,
+                "LanSharingSet(Ok(revision={}, generation={generation}))",
+                snapshot.revision
+            ),
+            Message::LanSharingSet(Err(error), generation) => {
+                write!(f, "LanSharingSet(Err({error:?}), generation={generation})")
+            }
         }
     }
 }

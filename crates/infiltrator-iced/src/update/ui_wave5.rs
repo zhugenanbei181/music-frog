@@ -6,10 +6,37 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::mtu_application::MtuApplication;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState, PhysicalMtuSnapshot};
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 impl AppState {
+    fn apply_lan_sharing(&mut self) -> Task<Message> {
+        if self.shell.demo {
+            return Task::none();
+        }
+        let Some(runtime) = self.runtime.runtime.clone() else {
+            return self.runtime_unavailable("应用局域网共享设置");
+        };
+        let generation = runtime.generation();
+        let desired = self.runtime.lan_sharing.clone();
+        let gateway: std::sync::Arc<dyn RuntimeGateway> = runtime;
+        Task::perform(
+            async move {
+                RuntimeQueryApplication::new(gateway)
+                    .set_lan_sharing(
+                        desired.allow_lan,
+                        desired.mixed_port,
+                        &desired.bind_address,
+                    )
+                    .await
+                    .map_err(|failure| InfiltratorError::Config(failure.message))
+            },
+            move |result| Message::LanSharingSet(result, generation),
+        )
+    }
+
     pub(super) fn update_ui_wave5(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::AuditStaleRules => {
@@ -213,16 +240,54 @@ impl AppState {
             }
             Message::ToggleLanSharing(on) => {
                 self.runtime.lan_sharing.allow_lan = on;
-                self.runtime.lan_sharing.mixed_port = 7890;
-                Task::none()
+                if self.runtime.lan_sharing.mixed_port == 0 {
+                    self.runtime.lan_sharing.mixed_port = 7890;
+                }
+                self.runtime.lan_sharing_dirty = true;
+                self.apply_lan_sharing()
             }
             Message::UpdateLanSharingPort(p) => {
                 self.runtime.lan_sharing.mixed_port = p;
+                self.runtime.lan_sharing_dirty = true;
+                Task::none()
+            }
+            Message::UpdateLanBindAddress(address) => {
+                self.runtime.lan_sharing.bind_address = address;
+                self.runtime.lan_sharing_dirty = true;
                 Task::none()
             }
             Message::UpdateLanAclWhitelist(w) => {
                 self.runtime.lan_sharing.acl_whitelist_cidrs = w;
+                self.runtime.lan_sharing_dirty = true;
                 Task::none()
+            }
+            Message::ApplyLanSharing => self.apply_lan_sharing(),
+            Message::LanSharingSet(result, generation) => {
+                if generation != self.runtime.runtime_generation {
+                    return Task::none();
+                }
+                match result {
+                    Ok(snapshot) => {
+                        self.runtime.lan_sharing.allow_lan = snapshot.enabled;
+                        self.runtime.lan_sharing.mixed_port = snapshot.mixed_port;
+                        self.runtime.lan_sharing.bind_address = snapshot.bind_address;
+                        self.runtime.lan_sharing_committed = self.runtime.lan_sharing.clone();
+                        self.runtime.lan_sharing_dirty = false;
+                        Task::done(Message::ShowToast(
+                            "局域网监听设置已应用并完成回读".to_owned(),
+                            ToastStatus::Success,
+                        ))
+                    }
+                    Err(error) => {
+                        self.runtime.lan_sharing = self.runtime.lan_sharing_committed.clone();
+                        self.runtime.lan_sharing_dirty = false;
+                        self.set_error(&error);
+                        Task::done(Message::ShowToast(
+                            error.to_string(),
+                            ToastStatus::Error,
+                        ))
+                    }
+                }
             }
             _ => Task::none(),
         }

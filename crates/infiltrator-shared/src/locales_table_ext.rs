@@ -215,6 +215,8 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         }
         "lan_sharing_enable" => "开启局域网共享 (Allow LAN)".into(),
         "lan_sharing_port" => "局域网混合代理端口".into(),
+        "lan_sharing_bind" => "局域网绑定地址 (Bind Address)".into(),
+        "lan_sharing_apply" => "应用局域网监听设置".into(),
         "lan_sharing_acl" => "允许接入的客户端 IP 白名单 (CIDR)".into(),
         _ => key.to_string().into(),
     }

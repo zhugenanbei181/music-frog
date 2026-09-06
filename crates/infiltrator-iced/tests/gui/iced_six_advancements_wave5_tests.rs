@@ -20,6 +20,7 @@ use infiltrator_contract::system_proxy::{
     SystemProxyObservation, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
     SystemProxyStatus,
 };
+use infiltrator_contract::lan::LanSharingSnapshot;
 
 #[test]
 fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
@@ -159,6 +160,7 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
         system_proxy: false,
         mixed_port: 7890,
         allow_lan: false,
+        lan_bind_address: "*".to_owned(),
         tun_enabled: true,
         tun_stack: "system".to_owned(),
         tun_auto_route: true,
@@ -289,4 +291,50 @@ fn test_advancement_w5_6_lan_proxy_sharing_and_access_acl() {
     // Toggle off
     let _ = state.update(Message::ToggleLanSharing(false));
     assert!(!state.runtime.lan_sharing.allow_lan);
+}
+
+#[test]
+fn test_lan_sharing_readback_updates_the_iced_state() {
+    let (mut state, _) = AppState::new();
+    let generation = state.runtime.runtime_generation;
+    let snapshot = LanSharingSnapshot::new(4, true, 8080, "192.168.1.10");
+
+    let _ = state.update(Message::LanSharingSet(Ok(snapshot.clone()), generation));
+
+    assert!(state.runtime.lan_sharing.allow_lan);
+    assert_eq!(state.runtime.lan_sharing.mixed_port, 8080);
+    assert_eq!(state.runtime.lan_sharing.bind_address, "192.168.1.10");
+    assert_eq!(state.runtime.lan_sharing_committed.bind_address, "192.168.1.10");
+}
+
+#[test]
+fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
+    let (mut state, _) = AppState::new();
+    state.runtime.lan_sharing.bind_address = "192.168.1.10".to_owned();
+    state.runtime.lan_sharing_dirty = true;
+
+    let mut snapshot = SurfaceSnapshot::unavailable(
+        SurfaceKind::IcedDesktop,
+        HostKind::Desktop,
+        Failure::new(ErrorCode::NotReady, "test snapshot", true),
+    );
+    snapshot.revision = 1;
+    snapshot.pages.settings = PageData::ready(SettingsPageSnapshot {
+        autostart: false,
+        system_proxy: false,
+        mixed_port: 7890,
+        allow_lan: false,
+        lan_bind_address: "*".to_owned(),
+        tun_enabled: false,
+        tun_stack: String::new(),
+        tun_auto_route: false,
+        tun_strict_route: false,
+        controller_port: 9090,
+        log_level: "info".to_owned(),
+        core_channel: "stable".to_owned(),
+    });
+
+    assert!(state.apply_shared_surface_snapshot(snapshot));
+    assert_eq!(state.runtime.lan_sharing.bind_address, "192.168.1.10");
+    assert_eq!(state.runtime.lan_sharing_committed.bind_address, "*");
 }

@@ -146,6 +146,8 @@ pub struct RuntimeState {
     pub latency_radar: crate::types::runtime::LatencyRadarState,
     pub apply_guard: crate::types::runtime::ApplyTransactionGuardState,
     pub lan_sharing: crate::types::app::LanSharingConfig,
+    pub lan_sharing_committed: crate::types::app::LanSharingConfig,
+    pub lan_sharing_dirty: bool,
     pub tun_stack_config: crate::types::dns::TunStackConfig,
 }
 
@@ -432,6 +434,14 @@ impl AppState {
         if let Some(settings) = snapshot.pages.settings.data.as_ref() {
             self.editor.tun_auto_route = settings.tun_auto_route;
             self.editor.tun_strict_route = settings.tun_strict_route;
+            let mut committed = self.runtime.lan_sharing_committed.clone();
+            committed.allow_lan = settings.allow_lan;
+            committed.mixed_port = settings.mixed_port;
+            committed.bind_address = settings.lan_bind_address.clone();
+            self.runtime.lan_sharing_committed = committed.clone();
+            if !self.runtime.lan_sharing_dirty {
+                self.runtime.lan_sharing = committed;
+            }
         }
         self.runtime.controller_auth = snapshot.controller_auth;
         self.runtime.service_mode = snapshot.service_mode;

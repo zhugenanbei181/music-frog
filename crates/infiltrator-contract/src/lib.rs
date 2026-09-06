@@ -12,6 +12,7 @@ pub mod resources;
 pub mod doctor;
 pub mod error;
 pub mod intent;
+pub mod lan;
 pub mod offline_startup;
 pub mod mtu;
 pub mod snapshot;

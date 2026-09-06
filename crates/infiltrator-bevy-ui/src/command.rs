@@ -71,6 +71,12 @@ pub enum UiCommand {
     ToggleTun { enabled: bool },
     /// Toggle the host-owned system proxy capability.
     SetSystemProxy { enabled: bool },
+    /// Apply the live Mihomo LAN listener settings.
+    SetLanSharing {
+        enabled: bool,
+        mixed_port: u16,
+        bind_address: String,
+    },
     /// Run full system doctor diagnostics.
     RunDoctorDiagnostics,
     /// Repair a specific doctor issue by check ID.
@@ -156,6 +162,15 @@ impl UiCommand {
             Self::SetSystemProxy { enabled } => {
                 Some(CommandIntent::SetSystemProxy { enabled: *enabled })
             }
+            Self::SetLanSharing {
+                enabled,
+                mixed_port,
+                bind_address,
+            } => Some(CommandIntent::SetLanSharing {
+                enabled: *enabled,
+                mixed_port: *mixed_port,
+                bind_address: bind_address.clone(),
+            }),
             Self::RunDoctorDiagnostics => Some(CommandIntent::RunDoctorDiagnostics),
             Self::RepairDoctorIssue { check_id } => Some(CommandIntent::RepairDoctorIssue {
                 check_id: check_id.clone(),
@@ -389,6 +404,19 @@ mod tests {
         assert_eq!(
             UiCommand::SetSystemProxy { enabled: true }.to_intent(),
             Some(CommandIntent::SetSystemProxy { enabled: true })
+        );
+        assert_eq!(
+            UiCommand::SetLanSharing {
+                enabled: true,
+                mixed_port: 8080,
+                bind_address: "192.168.1.10".to_owned(),
+            }
+            .to_intent(),
+            Some(CommandIntent::SetLanSharing {
+                enabled: true,
+                mixed_port: 8080,
+                bind_address: "192.168.1.10".to_owned(),
+            })
         );
     }
 

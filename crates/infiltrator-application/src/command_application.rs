@@ -315,6 +315,14 @@ impl CommandApplication {
                     .await
                     .map(|_| ())
             }
+            CommandIntent::SetLanSharing {
+                enabled,
+                mixed_port,
+                bind_address,
+            } => RuntimeQueryApplication::new(self.runtime()?)
+                .set_lan_sharing(enabled, mixed_port, &bind_address)
+                .await
+                .map(|_| ()),
             CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore

@@ -143,6 +143,9 @@ impl AppState {
                                 .await
                                 .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
                             let mode = config.mode;
+                            let allow_lan = config.allow_lan;
+                            let mixed_port = config.mixed_port;
+                            let bind_address = config.bind_address;
                             let (tun_en, tun_st, tun_ar, tun_sr) = config
                                 .tun
                                 .map(|t| (t.enable, t.stack, t.auto_route, t.strict_route))
@@ -161,6 +164,9 @@ impl AppState {
                             let script_block_present = config.script.is_some();
                             Ok(RuntimeConfig {
                                 mode,
+                                allow_lan,
+                                mixed_port,
+                                bind_address,
                                 script_block_present,
                                 tun_enabled: tun_en,
                                 dns_nameservers: dns,
@@ -185,6 +191,11 @@ impl AppState {
                 match result {
                     Ok(config) => {
                         self.runtime.proxy_mode = Some(config.mode);
+                        self.runtime.lan_sharing.allow_lan = config.allow_lan;
+                        self.runtime.lan_sharing.mixed_port = config.mixed_port;
+                        self.runtime.lan_sharing.bind_address = config.bind_address;
+                        self.runtime.lan_sharing_committed = self.runtime.lan_sharing.clone();
+                        self.runtime.lan_sharing_dirty = false;
                         self.runtime.script_block_present = config.script_block_present;
                         self.runtime.tun_enabled = Some(config.tun_enabled);
                         self.editor.dns_nameservers = config.dns_nameservers;

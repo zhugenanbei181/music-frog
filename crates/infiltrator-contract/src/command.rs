@@ -122,6 +122,11 @@ pub enum CommandIntent {
     SetTunStrictRoute { enabled: bool },
     ProbeTunMtu,
     SetSystemProxy { enabled: bool },
+    SetLanSharing {
+        enabled: bool,
+        mixed_port: u16,
+        bind_address: String,
+    },
     ToggleAppRouting { app_id: String, enabled: bool },
     SetAppRoutingMode { mode: String },
     ToggleIncludeSystemApps { include: bool },
@@ -193,6 +198,7 @@ impl CommandIntent {
             | Self::SetTunStrictRoute { .. }
             | Self::ProbeTunMtu
             | Self::SetSystemProxy { .. }
+            | Self::SetLanSharing { .. }
             | Self::ToggleAppRouting { .. }
             | Self::SetAppRoutingMode { .. }
             | Self::ToggleIncludeSystemApps { .. }

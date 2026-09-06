@@ -46,6 +46,8 @@ pub mod settings_core;
 mod settings_tun;
 #[path = "settings_system.rs"]
 pub mod settings_system;
+#[path = "settings_lan.rs"]
+pub mod settings_lan;
 
 use settings_core::{
     CoreLogLevelButton, SettingsLine, SettingsLineKind, SettingsProjection, TunStackButton,
@@ -470,7 +472,7 @@ pub fn general_card_scene(
                     ( { settings_system::status_row(&projection.system_proxy_snapshot, &projection.system_proxy_recovery, palette) } ),
                     ( { close_to_tray_toggle_row_scene(true, palette) } ),
                     ( { system_notifications_toggle_row_scene(true, palette) } ),
-                    ( { checkbox_scene("允许局域网连接 (Allow LAN)".to_owned(), projection.allow_lan, palette) } ),
+                    ( { settings_lan::scene(projection, palette) } ),
                     (
                         Node {
                             width: percent(100),
@@ -642,6 +644,9 @@ fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(settings_core::on_tun_enabled_changed);
     commands.add_observer(settings_system::on_changed);
     commands.add_observer(settings_tun::apply_tun_toggle_projection);
+    commands.add_observer(settings_lan::on_toggle_changed);
+    commands.add_observer(settings_lan::on_apply_activated);
+    commands.add_observer(settings_lan::apply_projection);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -745,6 +750,9 @@ pub(crate) fn apply_settings_projection(
             }
             SettingsLineKind::MixedPort => {
                 text.0 = format!("端口: {}", projection.mixed_port);
+            }
+            SettingsLineKind::LanBindAddress => {
+                text.0 = projection.lan_bind_address.clone();
             }
             SettingsLineKind::TunStack => {
                 text.0 = projection.tun_stack.clone();

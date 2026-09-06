@@ -199,6 +199,8 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "lan_sharing_desc" => "Allow LAN devices to share proxy connection with strict IP/CIDR access control.".into(),
         "lan_sharing_enable" => "Enable LAN Sharing (Allow LAN)".into(),
         "lan_sharing_port" => "LAN Mixed Proxy Port".into(),
+        "lan_sharing_bind" => "LAN Bind Address".into(),
+        "lan_sharing_apply" => "Apply LAN Listener Settings".into(),
         "lan_sharing_acl" => "Allowed Client IP Whitelist (CIDR)".into(),
         _ => key.to_string().into(),
     }

@@ -43,3 +43,4 @@ python3 "$repo_root/scripts/quality/tun-routing-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/system-proxy-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/system-proxy-watchdog-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/system-proxy-recovery-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/lan-sharing-guard.py" --mode enforce

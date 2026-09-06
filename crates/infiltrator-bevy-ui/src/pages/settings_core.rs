@@ -53,6 +53,8 @@ pub enum SettingsLineKind {
     OfflineStartup,
     /// Mixed port text.
     MixedPort,
+    /// Mihomo Allow-LAN bind address.
+    LanBindAddress,
     /// TUN stack text.
     TunStack,
     /// Controller port text.
@@ -127,6 +129,7 @@ pub struct SettingsProjection {
     pub system_proxy_recovery: SystemProxyRecoverySnapshot,
     pub mixed_port: u16,
     pub allow_lan: bool,
+    pub lan_bind_address: String,
     pub tun_enabled: bool,
     pub tun_stack: String,
     pub tun_auto_route: bool,
@@ -153,6 +156,7 @@ impl SettingsProjection {
             system_proxy_recovery: SystemProxyRecoverySnapshot::default(),
             mixed_port: 7890,
             allow_lan: false,
+            lan_bind_address: infiltrator_contract::lan::DEFAULT_BIND_ADDRESS.to_owned(),
             tun_enabled: true,
             tun_stack: "gVisor (高性能用户态协议栈)".to_owned(),
             tun_auto_route: true,

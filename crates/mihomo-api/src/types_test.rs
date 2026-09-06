@@ -25,7 +25,8 @@ mod tests {
             "mixed-port": 7892,
             "mode": "rule",
             "log-level": "info",
-            "allow-lan": false
+            "allow-lan": false,
+            "bind-address": "192.168.1.10"
         }"#;
         let config: ConfigResponse = serde_json::from_str(json).unwrap();
         assert_eq!(config.port, 7890);
@@ -34,6 +35,7 @@ mod tests {
         assert_eq!(config.mode, "rule");
         assert_eq!(config.log_level, "info");
         assert!(!config.allow_lan);
+        assert_eq!(config.bind_address, "192.168.1.10");
     }
 
     #[test]
@@ -178,6 +180,7 @@ mod tests {
         )
         .unwrap();
         let tun = config.tun.unwrap();
+        assert_eq!(config.bind_address, "*");
         assert!(!tun.strict_route);
         assert_eq!(tun.mtu, Some(1420));
 

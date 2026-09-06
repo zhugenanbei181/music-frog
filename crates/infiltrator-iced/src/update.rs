@@ -204,7 +204,10 @@ impl AppState {
             | Message::ApplyTransactionStageChanged(_)
             | Message::ToggleLanSharing(_)
             | Message::UpdateLanSharingPort(_)
+            | Message::UpdateLanBindAddress(_)
             | Message::UpdateLanAclWhitelist(_)
+            | Message::ApplyLanSharing
+            | Message::LanSharingSet(_, _)
             | Message::Navigate(_)
             | Message::NavigateBack
             | Message::NavigateForward

@@ -392,6 +392,7 @@ pub(super) fn settings_projection(
             system_proxy_recovery: snapshot.system_proxy_recovery.clone(),
             mixed_port: value.mixed_port,
             allow_lan: value.allow_lan,
+            lan_bind_address: value.lan_bind_address.clone(),
             tun_enabled: value.tun_enabled,
             tun_stack: value.tun_stack,
             tun_auto_route: value.tun_auto_route,

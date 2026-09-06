@@ -53,6 +53,9 @@ impl RuntimeStatus {
 #[derive(Debug, Clone, Default)]
 pub struct RuntimeConfig {
     pub mode: String,
+    pub allow_lan: bool,
+    pub mixed_port: u16,
+    pub bind_address: String,
     /// The core only reports `script` when the loaded profile carries a
     /// top-level `script:` block; without it `mode: script` is invalid.
     pub script_block_present: bool,

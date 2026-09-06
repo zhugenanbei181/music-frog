@@ -134,6 +134,8 @@ python3 scripts/quality/system-proxy-guard.py --mode enforce
 python3 scripts/quality/system-proxy-watchdog-guard.py --mode enforce
 # DUAL-02-06 系统代理断电/崩溃恢复、owner 判定与正常退出清理守卫
 python3 scripts/quality/system-proxy-recovery-guard.py --mode enforce
+# DUAL-02-07 Allow-LAN 混合端口、绑定地址与 live readback 守卫
+python3 scripts/quality/lan-sharing-guard.py --mode enforce
 ```
 
 ---

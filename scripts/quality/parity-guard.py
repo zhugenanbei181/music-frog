@@ -57,6 +57,7 @@ REQUIRED_INTENTS = {
     "RepairAllDoctorIssues",
     "ToggleTun",
     "SetSystemProxy",
+    "SetLanSharing",
     "ToggleAppRouting",
     "SetAppRoutingMode",
     "ToggleIncludeSystemApps",

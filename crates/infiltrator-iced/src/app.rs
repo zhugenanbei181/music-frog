@@ -154,6 +154,8 @@ impl AppState {
                 latency_radar: Default::default(),
                 apply_guard: Default::default(),
                 lan_sharing: Default::default(),
+                lan_sharing_committed: Default::default(),
+                lan_sharing_dirty: false,
                 tun_stack_config: Default::default(),
             },
             profile: crate::state::ProfileState {

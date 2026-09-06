@@ -733,6 +733,10 @@ fn build_settings_page(
         system_proxy: system_proxy.is_enabled(),
         mixed_port: config.map_or(0, |value| value.mixed_port),
         allow_lan: config.is_some_and(|value| value.allow_lan),
+        lan_bind_address: config.map_or_else(
+            || infiltrator_contract::lan::DEFAULT_BIND_ADDRESS.to_owned(),
+            |value| value.bind_address.clone(),
+        ),
         tun_enabled: config
             .and_then(|value| value.tun.as_ref())
             .is_some_and(|tun| tun.enable),

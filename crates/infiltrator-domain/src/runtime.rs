@@ -17,10 +17,16 @@ pub struct ConfigSnapshot {
     pub log_level: String,
     #[serde(default)]
     pub allow_lan: bool,
+    #[serde(default = "default_bind_address")]
+    pub bind_address: String,
     pub tun: Option<TunSnapshot>,
     pub dns: Option<DnsSnapshot>,
     pub sniffer: Option<SnifferSnapshot>,
     pub script: Option<serde_json::Value>,
+}
+
+fn default_bind_address() -> String {
+    "*".to_owned()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]

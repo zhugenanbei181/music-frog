@@ -2,14 +2,18 @@
 
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::command::{CoreLogLevel, ProxyMode};
+use infiltrator_contract::lan::LanSharingSnapshot;
 use infiltrator_contract::tun::TunStack;
 use infiltrator_domain::runtime::{MemoryData, TrafficData};
 use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
+use std::net::IpAddr;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Clone)]
 pub struct RuntimeQueryApplication {
     gateway: Arc<dyn RuntimeGateway>,
+    next_revision: Arc<AtomicU64>,
 }
 
 #[cfg(test)]
@@ -36,14 +40,21 @@ mod tests {
         tun_mtu: Arc<Mutex<Option<u32>>>,
         tun_routing: Arc<Mutex<(bool, bool)>>,
         tun_enabled: Arc<Mutex<bool>>,
+        lan: Arc<Mutex<(bool, u16, String)>>,
         apply_patch: bool,
         memory_bytes: Arc<Mutex<u64>>,
         gc_calls: Arc<AtomicUsize>,
     }
 
+    fn lan_state() -> Arc<Mutex<(bool, u16, String)>> {
+        Arc::new(Mutex::new((false, 7890, "*".to_owned())))
+    }
+
     #[async_trait]
     impl RuntimeGateway for TestGateway {
         async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
+            let (allow_lan, mixed_port, bind_address) =
+                self.lan.lock().expect("LAN state lock").clone();
             Ok(ConfigSnapshot {
                 mode: "rule".to_owned(),
                 log_level: self.level.lock().expect("level lock").clone(),
@@ -58,6 +69,9 @@ mod tests {
                         mtu: *self.tun_mtu.lock().expect("tun mtu lock"),
                     })
                 },
+                allow_lan,
+                mixed_port,
+                bind_address,
                 ..ConfigSnapshot::default()
             })
         }
@@ -77,6 +91,22 @@ mod tests {
                 && let Some(level) = updates.get("log-level").and_then(|value| value.as_str())
             {
                 *self.level.lock().expect("level lock") = level.to_owned();
+            }
+            if self.apply_patch {
+                let mut lan = self.lan.lock().expect("LAN state lock");
+                if let Some(enabled) = updates.get("allow-lan").and_then(|value| value.as_bool())
+                {
+                    lan.0 = enabled;
+                }
+                if let Some(port) = updates.get("mixed-port").and_then(|value| value.as_u64()) {
+                    lan.1 = port as u16;
+                }
+                if let Some(bind_address) = updates
+                    .get("bind-address")
+                    .and_then(|value| value.as_str())
+                {
+                    lan.2 = bind_address.to_owned();
+                }
             }
             if self.apply_patch
                 && let Some(stack) = updates
@@ -209,6 +239,7 @@ mod tests {
             tun_mtu: Arc::new(Mutex::new(None)),
             tun_routing: Arc::new(Mutex::new((true, false))),
             tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -228,6 +259,7 @@ mod tests {
             tun_mtu: Arc::new(Mutex::new(None)),
             tun_routing: Arc::new(Mutex::new((true, false))),
             tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
             apply_patch: false,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -252,6 +284,7 @@ mod tests {
             tun_mtu: Arc::new(Mutex::new(None)),
             tun_routing: Arc::new(Mutex::new((true, false))),
             tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
             apply_patch: true,
             memory_bytes: memory,
             gc_calls: gc_calls.clone(),
@@ -275,6 +308,7 @@ mod tests {
             tun_mtu: Arc::new(Mutex::new(None)),
             tun_routing: Arc::new(Mutex::new((true, false))),
             tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -291,6 +325,7 @@ mod tests {
             tun_mtu: Arc::new(Mutex::new(None)),
             tun_routing: Arc::new(Mutex::new((true, false))),
             tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -313,6 +348,7 @@ mod tests {
             tun_mtu: tun_mtu.clone(),
             tun_routing: Arc::new(Mutex::new((true, false))),
             tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -332,6 +368,7 @@ mod tests {
             tun_mtu: Arc::new(Mutex::new(None)),
             tun_routing: Arc::new(Mutex::new((true, false))),
             tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -347,6 +384,7 @@ mod tests {
             tun_mtu: Arc::new(Mutex::new(None)),
             tun_routing: Arc::new(Mutex::new((true, false))),
             tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
             apply_patch: false,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -366,6 +404,7 @@ mod tests {
             tun_mtu: Arc::new(Mutex::new(None)),
             tun_routing: routing.clone(),
             tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -393,6 +432,7 @@ mod tests {
             tun_mtu: Arc::new(Mutex::new(None)),
             tun_routing: Arc::new(Mutex::new((false, false))),
             tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
             apply_patch: false,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -413,6 +453,7 @@ mod tests {
             tun_mtu: Arc::new(Mutex::new(None)),
             tun_routing: Arc::new(Mutex::new((true, false))),
             tun_enabled: enabled.clone(),
+            lan: lan_state(),
             apply_patch: true,
             memory_bytes: Arc::new(Mutex::new(0)),
             gc_calls: Arc::new(AtomicUsize::new(0)),
@@ -423,11 +464,76 @@ mod tests {
             .expect("TUN enable readback should match");
         assert!(!*enabled.lock().expect("tun enabled lock"));
     }
+
+    #[tokio::test]
+    async fn lan_sharing_patch_is_atomic_and_reads_back_bind_address() {
+        let lan = Arc::new(Mutex::new((false, 7890, "*".to_owned())));
+        let gateway = Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan.clone(),
+            apply_patch: true,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
+        });
+        let snapshot = RuntimeQueryApplication::new(gateway)
+            .set_lan_sharing(true, 8080, "192.168.1.10")
+            .await
+            .expect("Allow-LAN readback should match");
+
+        assert!(snapshot.enabled);
+        assert_eq!(snapshot.revision, 1);
+        assert_eq!(snapshot.mixed_port, 8080);
+        assert_eq!(snapshot.bind_address, "192.168.1.10");
+        assert_eq!(
+            *lan.lock().expect("LAN state lock"),
+            (true, 8080, "192.168.1.10".to_owned())
+        );
+    }
+
+    #[tokio::test]
+    async fn lan_sharing_rejects_zero_port_and_invalid_bind_address_before_io() {
+        let gateway = Arc::new(TestGateway {
+            level: Arc::new(Mutex::new("info".to_owned())),
+            tun_stack: Arc::new(Mutex::new("gvisor".to_owned())),
+            tun_mtu: Arc::new(Mutex::new(None)),
+            tun_routing: Arc::new(Mutex::new((true, false))),
+            tun_enabled: Arc::new(Mutex::new(true)),
+            lan: lan_state(),
+            apply_patch: false,
+            memory_bytes: Arc::new(Mutex::new(0)),
+            gc_calls: Arc::new(AtomicUsize::new(0)),
+        });
+        let application = RuntimeQueryApplication::new(gateway);
+        let zero_port = application
+            .set_lan_sharing(true, 0, "*")
+            .await
+            .expect_err("enabled LAN sharing needs a port");
+        assert_eq!(
+            zero_port.code,
+            infiltrator_contract::error::ErrorCode::InvalidInput
+        );
+
+        let invalid_address = application
+            .set_lan_sharing(false, 7890, "192.168.1.0/24")
+            .await
+            .expect_err("bind-address cannot be a CIDR");
+        assert_eq!(
+            invalid_address.code,
+            infiltrator_contract::error::ErrorCode::InvalidInput
+        );
+    }
 }
 
 impl RuntimeQueryApplication {
     pub fn new(gateway: Arc<dyn RuntimeGateway>) -> Self {
-        Self { gateway }
+        Self {
+            gateway,
+            next_revision: Arc::new(AtomicU64::new(1)),
+        }
     }
 
     pub async fn memory(&self) -> Result<MemoryData, Failure> {
@@ -485,6 +591,52 @@ impl RuntimeQueryApplication {
             ));
         }
         Ok(())
+    }
+
+    /// Apply Mihomo's Allow-LAN listener settings as one live patch and verify
+    /// every field through the controller readback before reporting success.
+    pub async fn set_lan_sharing(
+        &self,
+        enabled: bool,
+        mixed_port: u16,
+        bind_address: &str,
+    ) -> Result<LanSharingSnapshot, Failure> {
+        if enabled && mixed_port == 0 {
+            return Err(Failure::new(
+                infiltrator_contract::error::ErrorCode::InvalidInput,
+                "Allow-LAN requires a non-zero mixed proxy port",
+                false,
+            ));
+        }
+        let bind_address = canonical_bind_address(bind_address)?;
+        self.gateway
+            .patch_config(serde_json::json!({
+                "allow-lan": enabled,
+                "mixed-port": mixed_port,
+                "bind-address": bind_address,
+            }))
+            .await
+            .map_err(Failure::from)?;
+        let observed = self.gateway.get_config().await.map_err(Failure::from)?;
+        if observed.allow_lan != enabled
+            || observed.mixed_port != mixed_port
+            || !bind_address_matches(&bind_address, &observed.bind_address)
+        {
+            return Err(Failure::new(
+                infiltrator_contract::error::ErrorCode::InvalidState,
+                format!(
+                    "Allow-LAN readback mismatch: requested enabled={enabled}, mixed-port={mixed_port}, bind-address={bind_address}; observed enabled={}, mixed-port={}, bind-address={}",
+                    observed.allow_lan, observed.mixed_port, observed.bind_address
+                ),
+                true,
+            ));
+        }
+        Ok(LanSharingSnapshot::new(
+            self.next_revision.fetch_add(1, Ordering::Relaxed),
+            observed.allow_lan,
+            observed.mixed_port,
+            canonical_bind_address(&observed.bind_address)?,
+        ))
     }
 
     /// Apply one of Mihomo's live TUN stack values and verify the controller
@@ -633,4 +785,32 @@ impl RuntimeQueryApplication {
             .await
             .map_err(Failure::from)
     }
+}
+
+fn canonical_bind_address(raw: &str) -> Result<String, Failure> {
+    let value = raw.trim();
+    if value == "*" {
+        return Ok(value.to_owned());
+    }
+    let unbracketed = value
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .unwrap_or(value);
+    let address = unbracketed.parse::<IpAddr>().map_err(|_| {
+        Failure::new(
+            infiltrator_contract::error::ErrorCode::InvalidInput,
+            format!("invalid Mihomo bind-address: {value}"),
+            false,
+        )
+    })?;
+    Ok(match address {
+        IpAddr::V4(address) => address.to_string(),
+        IpAddr::V6(address) => format!("[{address}]"),
+    })
+}
+
+fn bind_address_matches(expected: &str, observed: &str) -> bool {
+    canonical_bind_address(observed)
+        .ok()
+        .is_some_and(|observed| observed == expected)
 }

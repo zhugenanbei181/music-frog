@@ -82,10 +82,16 @@ pub struct ConfigResponse {
     pub log_level: String,
     #[serde(rename = "allow-lan")]
     pub allow_lan: bool,
+    #[serde(rename = "bind-address", default = "default_bind_address")]
+    pub bind_address: String,
     pub tun: Option<TunConfig>,
     pub sniffer: Option<SnifferConfig>,
     pub dns: Option<DnsConfig>,
     pub script: Option<serde_json::Value>,
+}
+
+fn default_bind_address() -> String {
+    "*".to_owned()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -324,6 +330,7 @@ impl From<ConfigResponse> for infiltrator_domain::runtime::ConfigSnapshot {
             mixed_port: value.mixed_port,
             log_level: value.log_level,
             allow_lan: value.allow_lan,
+            bind_address: value.bind_address,
             tun: value.tun.map(|tun| infiltrator_domain::runtime::TunSnapshot {
                 enable: tun.enable,
                 stack: tun.stack,

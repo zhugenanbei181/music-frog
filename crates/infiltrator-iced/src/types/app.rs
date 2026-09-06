@@ -226,10 +226,23 @@ pub struct PacManagerConfig {
 }
 
 /// Configuration for LAN proxy sharing and IP access control lists (ACL).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LanSharingConfig {
     pub allow_lan: bool,
     pub mixed_port: u16,
+    pub bind_address: String,
     pub acl_whitelist_cidrs: String,
     pub active_lan_clients_count: usize,
+}
+
+impl Default for LanSharingConfig {
+    fn default() -> Self {
+        Self {
+            allow_lan: false,
+            mixed_port: 7890,
+            bind_address: infiltrator_contract::lan::DEFAULT_BIND_ADDRESS.to_owned(),
+            acl_whitelist_cidrs: String::new(),
+            active_lan_clients_count: 0,
+        }
+    }
 }

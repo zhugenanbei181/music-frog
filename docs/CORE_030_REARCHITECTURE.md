@@ -33,6 +33,7 @@
 - [x] `DUAL-02-04`：系统 HTTP/SOCKS 代理进入 `SystemProxyPort/Application/Snapshot`；desktop 的 Windows registry、Linux GNOME/KDE/GSettings/environment 和 macOS `networksetup` 只实现 host port，Iced/Bevy 通过同一 typed command 与 readback 状态接入。
 - [x] `DUAL-02-05`：系统代理 ownership target 由 host port 共享，application 每 3 秒可 reconcile 外部修改并做 readback；Iced subscription 和 Bevy surface reader 使用同一恢复语义，repair 状态通过 contract 展示而非 UI 私有猜测。
 - [x] `DUAL-02-06`：系统代理变更以 owner PID/启动时间、previous/desired 状态写入 durable atomic journal；启动只对仍匹配本应用 target 的孤儿状态执行恢复并 readback，外部修改 fail-safe 跳过，正常退出复用同一 host cleanup hook；Iced/Bevy 消费共享 recovery snapshot，Android/iOS 保持 typed unsupported。
+- [x] `DUAL-02-07`：Mihomo Allow-LAN 的 `allow-lan`、`mixed-port`、`bind-address` 进入 shared `SetLanSharing` intent；application 对端口和 IP/括号 IPv6 做 fail-fast 校验并 PATCH+GET readback，Iced draft/Apply 与 Bevy TextField/Apply observer 同步，ACL/认证不与本项耦合。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

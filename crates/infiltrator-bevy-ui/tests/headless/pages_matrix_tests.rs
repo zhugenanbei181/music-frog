@@ -336,6 +336,7 @@ fn settings_page_in_place_update() {
         system_proxy_recovery: Default::default(),
         mixed_port: 7895,
         allow_lan: true,
+        lan_bind_address: "192.168.1.10".to_owned(),
         tun_enabled: true,
         tun_stack: "System (Native Stack)".to_owned(),
         tun_auto_route: true,
