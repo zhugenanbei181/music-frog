@@ -135,14 +135,17 @@ fn draw_layer(pixels: &mut [u8], width: u32, height: u32, layer: &ChartLayer) {
         };
         let xa = (a.x.round() as i32).clamp(0, width as i32 - 1);
         let xb = (b.x.round() as i32).clamp(0, width as i32 - 1);
-        let span = (xb - xa).abs().max(1) as f32;
-        for x in xa.min(xb)..=xa.max(xb) {
-            let t = (x - xa).abs() as f32 / span;
-            let y = a.y + (b.y - a.y) * t;
-            let base = y.round() as i32;
-            for dy in 0..LINE_THICKNESS_PX {
-                blend(pixels, width, x, base + dy, layer.line, 1.0);
-            }
+            let span = (xb - xa).abs().max(1) as f32;
+            for x in xa.min(xb)..=xa.max(xb) {
+                let t = (x - xa).abs() as f32 / span;
+                let y = a.y + (b.y - a.y) * t;
+                let base = y.round() as i32;
+                for dy in -2..(LINE_THICKNESS_PX + 2) {
+                    blend(pixels, width, x, base + dy, layer.line, 0.14);
+                }
+                for dy in 0..LINE_THICKNESS_PX {
+                    blend(pixels, width, x, base + dy, layer.line, 1.0);
+                }
         }
     }
 }
@@ -398,8 +401,26 @@ pub fn chart_scene_with_smooth(
     height_px: f32,
     smooth: bool,
 ) -> impl Scene + use<> {
+    chart_scene_with_scale(up, down, width_px, height_px, smooth, None)
+}
+
+/// Chart scene variant that pins the renderer to an application-owned dynamic
+/// absolute max. The widget remains business-agnostic and only receives the
+/// resolved scalar.
+pub fn chart_scene_with_scale(
+    up: Vec<f32>,
+    down: Vec<f32>,
+    width_px: f32,
+    height_px: f32,
+    smooth: bool,
+    scale_max: Option<f32>,
+) -> impl Scene + use<> {
     let width = width_px.round().max(1.0) as u32;
     let height = height_px.round().max(1.0) as u32;
+    let mut spec = ChartSpec::new(up, down, width, height).with_smooth(smooth);
+    if let Some(max) = scale_max.filter(|value| value.is_finite() && *value > 0.0) {
+        spec = spec.with_scale_mode(ScaleMode::Fixed(max));
+    }
     bsn! {
         Node {
             width: percent(100),
@@ -410,7 +431,7 @@ pub fn chart_scene_with_smooth(
             flex_shrink: 1.0,
             overflow: Overflow::clip(),
         }
-        ChartPlate({ ChartSpec::new(up, down, width, height).with_smooth(smooth) })
+        ChartPlate({ spec })
     }
 }
 

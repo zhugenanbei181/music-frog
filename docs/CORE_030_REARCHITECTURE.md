@@ -43,6 +43,7 @@
 - [x] `DUAL-02-14`：系统代理/TUN 快捷开关进入 `SystemToggleSnapshot`/`SystemToggleApplication`；两端侧栏、设置与 Iced Mini HUD 只消费统一 Enabled/Disabled/Pending/Unknown/Unsupported/Failed 状态，重复点击在 shared policy 层被拒绝，Bevy 的 `Activate` 与 Iced 的 Elm message 都落到同一 `SetSystemProxy`/`ToggleTun` intent。
 - [x] `DUAL-02-15`：特权网络回归进入 `PrivilegedNetworkRequest`/`PrivilegedNetworkSnapshot`/`PrivilegedNetworkPort`/`PrivilegedNetworkApplication`；测试 adapter 强制注入、回读、清理与失败回滚，未注入的 desktop/Android/iOS host 显示 typed unsupported，Iced/Bevy Settings 共用 `RunPrivilegedNetworkRegression` intent 与状态投影。
 - [x] `DUAL-03-01`：流量历史进入 `TrafficSample`/`TrafficWaveformSnapshot`/`TrafficWaveformApplication`，按 core generation 有界记录真实 Running/Ready 样本；domain 提供共享双通道 cubic-Bezier 值投影，Bevy chart 和 Iced Canvas 不再各自实现一套实时曲线算法，非有限/停止状态不生成假样本。
+- [x] `DUAL-03-02`：动态流量 scale 进入 `TrafficScaleSnapshot`/`TrafficScaleApplication`；domain 统一峰值、5% headroom、二进制单位和刻度，Bevy/Iced 使用同一绝对 max，图表只对共享密集曲线进行一次平滑并叠加 token glow，零/非有限流量保持安全基线。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

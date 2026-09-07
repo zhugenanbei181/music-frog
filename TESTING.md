@@ -154,6 +154,8 @@ python3 scripts/quality/system-toggle-guard.py --mode enforce
 python3 scripts/quality/privileged-network-guard.py --mode enforce
 # DUAL-03-01 双通道实时流量波形与 shared Bezier 守卫
 python3 scripts/quality/traffic-waveform-guard.py --mode enforce
+# DUAL-03-02 动态量程与 glow 渲染守卫
+python3 scripts/quality/traffic-scale-guard.py --mode enforce
 ```
 
 ---

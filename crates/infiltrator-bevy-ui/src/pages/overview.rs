@@ -58,7 +58,7 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::button::ControlVisual;
-use infiltrator_bevy_widgets::chart::{ChartPlate, ChartSpec, chart_scene_with_smooth};
+use infiltrator_bevy_widgets::chart::{ChartPlate, ChartSpec, chart_scene_with_scale};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::{StatChipValue, stat_chip_scene};
@@ -126,6 +126,8 @@ pub enum OverviewLineKind {
     /// The banner's data-origin note: 演示数据 for the fixture, the live
     /// core's real version for the pump (BEVY-005).
     BannerNote,
+    /// The shared dynamic max and human-readable tick labels.
+    Scale,
 }
 
 /// Which stat a chip in the metrics band stands for; the refresh observer
@@ -569,7 +571,7 @@ fn traffic_card_scene(
     history: &TrafficHistory,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let (up, down, smooth) = chart_inputs(projection, history);
+    let (up, down, smooth, scale) = chart_inputs(projection, history);
     surface_scene(
         vec![
             Box::new(plain_caption("实时流量".to_owned())),
@@ -577,12 +579,14 @@ fn traffic_card_scene(
                 format_rate(projection.upload_bps),
                 format_rate(projection.download_bps),
             )),
-            Box::new(chart_scene_with_smooth(
+            Box::new(scale_line_scene(&scale)),
+            Box::new(chart_scene_with_scale(
                 up,
                 down,
                 CHART_WIDTH_PX,
                 CHART_HEIGHT_PX,
                 smooth,
+                Some(scale.max_bps as f32),
             )),
         ],
         palette,
@@ -601,6 +605,34 @@ fn rates_row_scene(upload: String, download: String) -> impl Scene + use<> {
             ( { rate_line("↓ ", OverviewLineKind::Download, download) } ),
         ]
     }
+}
+
+fn scale_line_scene(
+    scale: &infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
+) -> impl Scene + use<> {
+    let label = format_scale(scale);
+    bsn! {
+        Node {
+            width: percent(100),
+            min_height: px(16.0),
+        }
+        Children [
+            ( Text({ label }) OverviewLine(OverviewLineKind::Scale) TextRole(Role::Mono) ),
+        ]
+    }
+}
+
+fn format_scale(scale: &infiltrator_contract::traffic_scale::TrafficScaleSnapshot) -> String {
+    format!(
+        "scale max={} · ticks={}",
+        scale.format_max(),
+        scale
+            .ticks
+            .iter()
+            .map(|tick| scale.format_tick(*tick))
+            .collect::<Vec<_>>()
+            .join(" / ")
+    )
 }
 
 /// One rate line: the arrow and the mono rate share one marked text so
@@ -766,6 +798,7 @@ pub(crate) fn apply_overview_projection(
             OverviewLineKind::Failure => text.0 = projection.failure_text().to_owned(),
             OverviewLineKind::ModeChip => text.0 = mode_label(projection.mode).to_owned(),
             OverviewLineKind::BannerNote => text.0 = banner_note(projection),
+            OverviewLineKind::Scale => text.0 = format_scale(&projection.traffic_scale),
         }
     }
     for (pill, mut visual) in &mut pills {
@@ -793,9 +826,13 @@ pub(crate) fn apply_overview_projection(
     // The trend chart: re-derive the series for this projection's origin
     // and restamp only on an actual change (an unchanged spec must not pay
     // the raster cost every tick — sync_charts keys off `is_changed`).
-    let (up, down, smooth) = chart_inputs(projection, &history);
+    let (up, down, smooth, scale) = chart_inputs(projection, &history);
     let (width, height) = chart_dims();
-    let spec = ChartSpec::new(up, down, width, height).with_smooth(smooth);
+    let spec = ChartSpec::new(up, down, width, height)
+        .with_smooth(smooth)
+        .with_scale_mode(infiltrator_bevy_widgets::chart::bezier::ScaleMode::Fixed(
+            scale.max_bps as f32,
+        ));
     for mut plate in &mut charts {
         if plate.0 != spec {
             plate.0 = spec.clone();

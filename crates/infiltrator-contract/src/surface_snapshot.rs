@@ -452,6 +452,9 @@ pub struct SurfaceSnapshot {
     /// Bounded live upload/download samples shared by both primary surfaces.
     #[serde(default)]
     pub traffic_waveform: crate::traffic_waveform::TrafficWaveformSnapshot,
+    /// Dynamic shared max/unit/tick scale for the traffic waveform.
+    #[serde(default)]
+    pub traffic_scale: crate::traffic_scale::TrafficScaleSnapshot,
     /// Host-injected privileged-network regression readback.
     #[serde(default)]
     pub privileged_network: crate::privileged_network::PrivilegedNetworkSnapshot,
@@ -502,6 +505,7 @@ impl SurfaceSnapshot {
             vpn: crate::vpn::VpnSessionSnapshot::default(),
             privileged_network: crate::privileged_network::PrivilegedNetworkSnapshot::default(),
             traffic_waveform: crate::traffic_waveform::TrafficWaveformSnapshot::default(),
+            traffic_scale: crate::traffic_scale::TrafficScaleSnapshot::default(),
         }
     }
 

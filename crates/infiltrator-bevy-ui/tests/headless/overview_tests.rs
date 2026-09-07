@@ -66,6 +66,7 @@ impl OverviewSource for StubSource {
             origin: OverviewOrigin::Demo,
             core_version: None,
             traffic_waveform: Default::default(),
+            traffic_scale: Default::default(),
         }
     }
 }
@@ -385,6 +386,7 @@ fn projection_updates_restamp_in_place() {
         origin: OverviewOrigin::Demo,
         core_version: None,
         traffic_waveform: Default::default(),
+        traffic_scale: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -433,6 +435,7 @@ fn projection_updates_restamp_in_place() {
         origin: OverviewOrigin::LiveCore,
         core_version: Some("v1.19.18".to_owned()),
         traffic_waveform: Default::default(),
+        traffic_scale: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -693,6 +696,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         origin: OverviewOrigin::LiveCore,
         core_version: Some("v1.19.18".to_owned()),
         traffic_waveform: Default::default(),
+        traffic_scale: Default::default(),
     }
 }
 
@@ -820,6 +824,14 @@ fn live_surface_waveform_uses_shared_bezier_value_projection() {
             },
         ],
     };
+    projection.traffic_scale = infiltrator_contract::traffic_scale::TrafficScaleSnapshot {
+        peak_bps: 12.0,
+        max_bps: 12.6,
+        unit: infiltrator_contract::traffic_scale::TrafficRateUnit::Bytes,
+        unit_factor: 1.0,
+        ticks: vec![0.0, 0.5, 1.0],
+        revision: 3,
+    };
     app.world_mut()
         .commands()
         .trigger(OverviewProjectionUpdated(projection));
@@ -829,6 +841,11 @@ fn live_surface_waveform_uses_shared_bezier_value_projection() {
     assert_eq!(plate.0.up.len(), 9, "three live samples, four Bezier steps");
     assert_eq!(plate.0.down.len(), 9);
     assert!(!plate.0.smooth, "shared adapter already densified the values");
+    assert!(matches!(
+        plate.0.scale_mode,
+        infiltrator_bevy_widgets::chart::bezier::ScaleMode::Fixed(value)
+            if (value - 12.6).abs() < f32::EPSILON
+    ));
 }
 
 /// A `ThemeSwitch` re-rasterizes the chart under the SAME image handle
@@ -909,6 +926,7 @@ impl OverviewSource for LiveFootStub {
             origin: OverviewOrigin::LiveCore,
             core_version: self.version.map(str::to_owned),
             traffic_waveform: Default::default(),
+            traffic_scale: Default::default(),
         }
     }
 
@@ -989,6 +1007,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         origin: OverviewOrigin::Demo,
         core_version: None,
         traffic_waveform: Default::default(),
+        traffic_scale: Default::default(),
     };
     app.world_mut()
         .commands()

@@ -275,6 +275,23 @@ fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         speed_pill(Icon::ArrowDown, down_speed, |t| tokens(t).accent),
     ]
     .align_y(Alignment::Center);
+    let scale = if state.runtime.traffic_waveform.is_drawable() {
+        state.runtime.traffic_scale.clone()
+    } else {
+        let upload: Vec<f64> = state
+            .diag
+            .traffic_history
+            .iter()
+            .map(|(up, _)| *up as f64)
+            .collect();
+        let download: Vec<f64> = state
+            .diag
+            .traffic_history
+            .iter()
+            .map(|(_, down)| *down as f64)
+            .collect();
+        infiltrator_domain::traffic_scale::compute_from_rates(&upload, &download, 0)
+    };
 
     let card_header = row![
         row![
@@ -286,6 +303,17 @@ fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         ]
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
+        text(format!(
+            "{} {}",
+            lang.tr("overview_scale_max"),
+            scale.format_max()
+        ))
+        .size(10)
+        .font(MONO)
+        .style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }),
+        Space::new().width(theme::SP_SM),
         speed_legend,
     ]
     .align_y(Alignment::Center)
@@ -296,6 +324,7 @@ fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         shared: state.runtime.traffic_waveform.is_drawable().then(|| {
             state.runtime.traffic_waveform.clone()
         }),
+        scale: Some(scale),
     })
     .width(Length::Fill)
     .height(Length::Fixed(130.0));

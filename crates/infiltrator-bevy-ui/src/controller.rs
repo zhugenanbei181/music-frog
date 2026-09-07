@@ -267,6 +267,7 @@ fn projection_from_snapshot(snapshot: CoreSnapshot) -> OverviewProjection {
         origin: OverviewOrigin::LiveCore,
         core_version: snapshot.core_version,
         traffic_waveform: Default::default(),
+        traffic_scale: Default::default(),
     }
 }
 

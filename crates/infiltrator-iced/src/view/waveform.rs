@@ -5,6 +5,7 @@ use iced::{Color, Element, Point, Rectangle, Renderer, Theme, mouse};
 use std::collections::VecDeque;
 
 use crate::view::theme;
+use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 
 // ---------------------------------------------------------------------------
@@ -16,6 +17,7 @@ pub struct TrafficChart {
     /// Complete surface samples, when the application pump supplied them.
     /// `None` keeps the legacy stream path working for the desktop shell.
     pub shared: Option<TrafficWaveformSnapshot>,
+    pub scale: Option<TrafficScaleSnapshot>,
 }
 
 impl<Message> canvas::Program<Message> for TrafficChart {
@@ -66,11 +68,9 @@ impl<Message> canvas::Program<Message> for TrafficChart {
         let curve_count = upload_curve.len().max(download_curve.len());
         let x_step = width / (curve_count.saturating_sub(1).max(1)) as f32;
 
-        let max_speed = upload_raw
-            .iter()
-            .chain(download_raw.iter())
-            .copied()
-            .fold(1.0_f64, f64::max);
+        let max_speed = self
+            .resolved_scale(&upload_raw, &download_raw)
+            .max_bps;
 
         let scale = |speed: f64| {
             let ratio = (speed / max_speed).clamp(0.0, 1.0) as f32;
@@ -104,6 +104,12 @@ impl<Message> canvas::Program<Message> for TrafficChart {
         frame.stroke(
             &down_line,
             canvas::Stroke::default()
+                .with_color(Color { a: 0.16, ..accent })
+                .with_width(7.0),
+        );
+        frame.stroke(
+            &down_line,
+            canvas::Stroke::default()
                 .with_color(accent)
                 .with_width(2.5),
         );
@@ -132,6 +138,12 @@ impl<Message> canvas::Program<Message> for TrafficChart {
                 }
             }
         });
+        frame.stroke(
+            &up_line,
+            canvas::Stroke::default()
+                .with_color(Color { a: 0.14, ..success })
+                .with_width(6.0),
+        );
         frame.stroke(
             &up_line,
             canvas::Stroke::default()
@@ -179,6 +191,12 @@ impl<Message> canvas::Program<Message> for TrafficChart {
 }
 
 impl TrafficChart {
+    fn resolved_scale(&self, upload: &[f64], download: &[f64]) -> TrafficScaleSnapshot {
+        self.scale.clone().unwrap_or_else(|| {
+            infiltrator_domain::traffic_scale::compute_from_rates(upload, download, 0)
+        })
+    }
+
     fn raw_series(&self) -> (Vec<f64>, Vec<f64>) {
         if let Some(shared) = &self.shared
             && shared.is_drawable()
@@ -321,6 +339,7 @@ mod tests {
                     },
                 ],
             }),
+            scale: None,
         };
         let (upload, download) = chart.raw_series();
         let (smooth_upload, smooth_download) =
@@ -329,5 +348,21 @@ mod tests {
         assert_eq!(download, vec![2.0, 5.0]);
         assert_eq!(smooth_upload.len(), 5);
         assert_eq!(smooth_download.len(), 5);
+    }
+
+    #[test]
+    fn canvas_uses_the_application_scale_instead_of_a_fixed_floor() {
+        let chart = TrafficChart {
+            history: VecDeque::from([(1, 2), (3, 5)]),
+            shared: None,
+            scale: Some(
+                infiltrator_domain::traffic_scale::compute_from_peak(20_000.0, 7),
+            ),
+        };
+        let (upload, download) = chart.raw_series();
+        let scale = chart.resolved_scale(&upload, &download);
+        assert_eq!(scale.revision, 7);
+        assert_eq!(scale.peak_bps, 20_000.0);
+        assert!(scale.max_bps > 20_000.0);
     }
 }

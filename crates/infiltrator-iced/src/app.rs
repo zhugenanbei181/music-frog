@@ -89,6 +89,7 @@ impl AppState {
                     ),
                 privileged_network_port: None,
                 traffic_waveform: Default::default(),
+                traffic_scale: Default::default(),
                 system_proxy: Default::default(),
                 system_proxy_recovery: Default::default(),
                 system_proxy_port: Some(system_proxy_port),

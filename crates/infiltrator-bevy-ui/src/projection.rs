@@ -99,6 +99,8 @@ pub struct OverviewProjection {
     pub core_version: Option<String>,
     /// Application-owned live samples used by the shared waveform renderer.
     pub traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot,
+    /// Shared dynamic max/unit/tick scale for the waveform.
+    pub traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
 }
 
 impl OverviewProjection {
@@ -118,6 +120,7 @@ impl OverviewProjection {
             origin,
             core_version: None,
             traffic_waveform: Default::default(),
+            traffic_scale: Default::default(),
         }
     }
 
@@ -254,6 +257,7 @@ impl OverviewSource for DemoOverviewSource {
             origin: OverviewOrigin::Demo,
             core_version: None,
             traffic_waveform: Default::default(),
+            traffic_scale: Default::default(),
         }
     }
 
