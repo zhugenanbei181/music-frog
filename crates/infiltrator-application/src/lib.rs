@@ -39,6 +39,7 @@ pub mod traffic_waveform_application;
 pub mod traffic_scale_application;
 pub mod traffic_topology_application;
 pub mod traffic_topology_navigation_application;
+pub mod active_exit_application;
 
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use std::future::Future;

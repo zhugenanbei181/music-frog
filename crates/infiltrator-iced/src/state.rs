@@ -72,6 +72,7 @@ pub struct RuntimeState {
     pub traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot,
     pub traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
     pub traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot,
+    pub active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot,
     pub system_proxy: SystemProxySnapshot,
     pub system_proxy_recovery: SystemProxyRecoverySnapshot,
     /// Retained independently of the running core so a system proxy can be
@@ -447,6 +448,7 @@ impl AppState {
         self.runtime.traffic_waveform = snapshot.traffic_waveform.clone();
         self.runtime.traffic_scale = snapshot.traffic_scale.clone();
         self.runtime.traffic_topology = snapshot.traffic_topology.clone();
+        self.runtime.active_exit = snapshot.active_exit.clone();
         self.runtime.system_toggles =
             infiltrator_application::system_toggle_application::SystemToggleApplication::from_surface(
                 &snapshot,

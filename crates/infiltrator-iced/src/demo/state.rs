@@ -67,6 +67,8 @@ impl AppState {
         state.runtime.runtime_selected_proxy = "节点选择".to_string();
         state.runtime.traffic_topology =
             infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture();
+        state.runtime.active_exit =
+            infiltrator_contract::active_exit::ActiveExitSnapshot::demo_fixture();
 
         // ---- traffic / memory / connections ----------------------------
         let history = demo_traffic_history();

@@ -79,6 +79,7 @@ pub(super) fn overview_projection(
         traffic_waveform: snapshot.traffic_waveform.clone(),
         traffic_scale: snapshot.traffic_scale.clone(),
         traffic_topology: snapshot.traffic_topology.clone(),
+        active_exit: snapshot.active_exit.clone(),
     }
 }
 

@@ -24,8 +24,9 @@ use infiltrator_bevy_ui::history::{TrafficHistory, chart_series, demo_traffic_se
 use infiltrator_bevy_ui::pages::overview::{
     CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText, OverviewCardState, OverviewChip,
     OverviewChipKind, OverviewLine, OverviewLineKind, OverviewModeChip, OverviewModePill,
-    OverviewProjectionUpdated, OverviewStatusCard, StatusDot, StopButton, SubscriptionQuotaCard,
-    TopologyChainCard, TopologyStageButton, TopologyText, TopologyTextKind, format_memory, format_rate,
+    ActiveExitText, ActiveExitTextKind, OverviewProjectionUpdated, OverviewStatusCard, StatusDot,
+    StopButton, SubscriptionQuotaCard, TopologyChainCard, TopologyStageButton, TopologyText,
+    TopologyTextKind, format_memory, format_rate,
     subscription_quota_scene, topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
@@ -70,6 +71,7 @@ impl OverviewSource for StubSource {
             traffic_waveform: Default::default(),
             traffic_scale: Default::default(),
             traffic_topology: Default::default(),
+            active_exit: Default::default(),
         }
     }
 }
@@ -391,6 +393,7 @@ fn projection_updates_restamp_in_place() {
         traffic_waveform: Default::default(),
         traffic_scale: Default::default(),
         traffic_topology: Default::default(),
+        active_exit: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -441,6 +444,7 @@ fn projection_updates_restamp_in_place() {
         traffic_waveform: Default::default(),
         traffic_scale: Default::default(),
         traffic_topology: Default::default(),
+        active_exit: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -703,6 +707,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         traffic_waveform: Default::default(),
         traffic_scale: Default::default(),
         traffic_topology: Default::default(),
+        active_exit: Default::default(),
     }
 }
 
@@ -934,6 +939,7 @@ impl OverviewSource for LiveFootStub {
             traffic_waveform: Default::default(),
             traffic_scale: Default::default(),
             traffic_topology: Default::default(),
+            active_exit: Default::default(),
         }
     }
 
@@ -1016,6 +1022,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         traffic_waveform: Default::default(),
         traffic_scale: Default::default(),
         traffic_topology: Default::default(),
+        active_exit: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -1364,6 +1371,9 @@ fn test_overview_master_switches_and_exit_node_cards() {
         .collect();
     assert!(exit_texts.iter().any(|t| t.contains("当前主出口节点")));
     assert!(exit_texts.iter().any(|t| t.contains("🇭🇰")));
+    assert!(exit_texts.iter().any(|t| t.contains("香港 IPLC 01")));
+    assert!(exit_texts.iter().any(|t| t.contains("VLESS · Reality")));
+    assert!(exit_texts.iter().any(|t| t.contains("38 ms")));
 
     let mut proxy_query = world.query::<(Entity, &SystemProxyMasterCard)>();
     assert!(
@@ -1376,4 +1386,28 @@ fn test_overview_master_switches_and_exit_node_cards() {
         tun_query.iter(world).next().is_some(),
         "TunMasterCard must be mounted"
     );
+}
+
+#[test]
+fn active_exit_projection_restsamps_facts_and_failure_in_place() {
+    let mut app = mounted_default();
+    let exit_id = {
+        let world = app.world_mut();
+        let mut exits = world.query::<(Entity, &ActiveExitNodeCard)>();
+        exits.single(world).expect("active exit card").0
+    };
+    let mut projection = DemoOverviewSource::running().current();
+    projection.active_exit =
+        infiltrator_contract::active_exit::ActiveExitSnapshot::failed(1, 2, "proxy read failed");
+    app.world_mut()
+        .commands()
+        .trigger(OverviewProjectionUpdated(projection));
+    app.update();
+
+    let world = app.world_mut();
+    let mut facts = world.query::<(&ActiveExitText, &Text)>();
+    assert!(facts.iter(world).any(|(marker, text)| {
+        marker.0 == ActiveExitTextKind::Status && text.0 == "proxy read failed"
+    }));
+    assert!(world.get_entity(exit_id).is_ok(), "exit card stays mounted");
 }

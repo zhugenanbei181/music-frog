@@ -103,6 +103,8 @@ pub struct OverviewProjection {
     pub traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
     /// Shared live routing chain for the Overview topology card.
     pub traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot,
+    /// Shared selected outbound node for the Overview exit card.
+    pub active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot,
 }
 
 impl OverviewProjection {
@@ -124,6 +126,7 @@ impl OverviewProjection {
             traffic_waveform: Default::default(),
             traffic_scale: Default::default(),
             traffic_topology: Default::default(),
+            active_exit: Default::default(),
         }
     }
 
@@ -262,6 +265,7 @@ impl OverviewSource for DemoOverviewSource {
             traffic_waveform: Default::default(),
             traffic_scale: Default::default(),
             traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture(),
+            active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot::demo_fixture(),
         }
     }
 

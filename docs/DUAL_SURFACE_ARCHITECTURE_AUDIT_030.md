@@ -108,6 +108,7 @@
 - `DUAL-03-02` 已完成 `TrafficScaleSnapshot/TrafficScaleApplication`、双通道峰值/单位/headroom/tick policy、ApplicationSurfaceReader scale 输出、Bevy fixed scale/scale line/glow 与 Iced scale label/canvas glow；真实 GPU shader、长时峰值抖动、设备帧率和发行包视觉 smoke 仍未冒充 `host-verified`。
 - `DUAL-03-03` 已完成 `TrafficTopologySnapshot/TrafficTopologyApplication`、domain 五段拓扑推导、真实 connection chain/rule/proxy/config 输入、aggregate flow 约束、Bevy `TopologyPlate` 动态粒子与 in-place restamp、Iced flow Canvas/phase update，以及两端状态/适配行为测试；Mihomo per-edge rate、真实 GPU/长时设备帧率、复杂 relay 与发行包视觉 smoke 仍未冒充 `host-verified`。
 - `DUAL-03-04` 已完成 `TrafficTopologyNavigationTarget/TrafficTopologyNavigationApplication`、Iced stage button→shared page mapping→Elm Navigate、Bevy `TopologyStageButton`→Activate→RouteChanged、drawable gating 与两端导航行为测试；真实触控/读屏手势和发行包导航 smoke 仍未冒充 `host-verified`。
+- `DUAL-03-05` 已完成 `ActiveExitSnapshot/ActiveExitApplication`、domain selected proxy group/node 推导、country code/protocol/delay/alive facts、ApplicationSurfaceReader 输出、Iced 高保真出口卡片、Bevy ActiveExitText in-place projection 与 shared behavior tests；真实 GeoIP/延迟刷新、复杂 relay、GPU/发行包视觉 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

@@ -26,10 +26,11 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
 use crate::pages::overview::{
-    AccentContainerFill, AccentFill, BorderFill, SubscriptionQuotaCard, SurfaceElevatedFill,
-    SurfaceFill, TopologyArrow, TopologyChainCard, TopologyStageButton, TopologyText,
-    TopologyTextKind,
+    AccentContainerFill, AccentFill, ActiveExitText, ActiveExitTextKind, BorderFill,
+    SubscriptionQuotaCard, SurfaceElevatedFill, SurfaceFill, TopologyArrow, TopologyChainCard,
+    TopologyStageButton, TopologyText, TopologyTextKind, active_exit_text_value,
 };
+use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::traffic_topology::{
     TRAFFIC_TOPOLOGY_STAGE_COUNT, TrafficTopologySnapshot, TrafficTopologyStage,
     TrafficTopologyStatus,
@@ -410,10 +411,30 @@ pub fn subscription_quota_scene(palette: &UiPalette) -> impl Scene + use<> {
     )
 }
 
-/// Active exit node card with flag, protocol and latency (BEVY-GAP-019).
+/// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
 pub fn active_exit_node_scene(palette: &UiPalette) -> impl Scene + use<> {
+    active_exit_node_scene_with_snapshot(&ActiveExitSnapshot::demo_fixture(), palette)
+}
+
+/// Active exit node card with flag, protocol, latency and selected group.
+/// Production callers pass the application-owned snapshot.
+pub fn active_exit_node_scene_with_snapshot(
+    snapshot: &ActiveExitSnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let mut a11y = accesskit::Node::new(accesskit::Role::Region);
     a11y.set_label("当前主出口节点");
+    let delay_color = if snapshot.delay_ms.is_some() {
+        palette.success
+    } else {
+        palette.ink_dim
+    };
+    let flag = active_exit_text_value(snapshot, ActiveExitTextKind::Flag);
+    let name = active_exit_text_value(snapshot, ActiveExitTextKind::Name);
+    let protocol = active_exit_text_value(snapshot, ActiveExitTextKind::Protocol);
+    let delay = active_exit_text_value(snapshot, ActiveExitTextKind::Delay);
+    let group = active_exit_text_value(snapshot, ActiveExitTextKind::Group);
+    let status = active_exit_text_value(snapshot, ActiveExitTextKind::Status);
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -450,7 +471,7 @@ pub fn active_exit_node_scene(palette: &UiPalette) -> impl Scene + use<> {
                             BackgroundColor({ palette.accent_container })
                             AccentContainerFill
                             Children [
-                                ( Text({ "38 ms".to_owned() }) TextRole(Role::Caption) TextColor({ palette.success }) ),
+                                ( Text({ delay }) ActiveExitText(ActiveExitTextKind::Delay) TextRole(Role::Caption) TextColor({ delay_color }) ),
                             ]
                         ),
                     ]
@@ -472,8 +493,8 @@ pub fn active_exit_node_scene(palette: &UiPalette) -> impl Scene + use<> {
                                 column_gap: Val::Px(space::S8),
                             }
                             Children [
-                                ( Text({ "🇭🇰".to_owned() }) TextRole(Role::BodyStrong) ),
-                                ( Text({ "香港 IPLC 01 (BGP 专线)".to_owned() }) TextRole(Role::BodyStrong) ),
+                                ( Text({ flag }) ActiveExitText(ActiveExitTextKind::Flag) TextRole(Role::BodyStrong) ),
+                                ( Text({ name }) ActiveExitText(ActiveExitTextKind::Name) TextRole(Role::BodyStrong) ),
                             ]
                         ),
                         (
@@ -482,10 +503,18 @@ pub fn active_exit_node_scene(palette: &UiPalette) -> impl Scene + use<> {
                                 column_gap: Val::Px(space::S6),
                             }
                             Children [
-                                ( Text({ "VLESS · Reality".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
-                                ( { pill_caption_scene("切换节点".to_owned(), false, palette) } ),
+                                ( Text({ protocol }) ActiveExitText(ActiveExitTextKind::Protocol) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
+                                ( Text({ group }) ActiveExitText(ActiveExitTextKind::Group) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
                             ]
                         ),
+                    ]
+                ),
+                (
+                    Node {
+                        width: percent(100),
+                    }
+                    Children [
+                        ( Text({ status }) ActiveExitText(ActiveExitTextKind::Status) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
                     ]
                 ),
             ]

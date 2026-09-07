@@ -56,3 +56,4 @@ python3 "$repo_root/scripts/quality/traffic-waveform-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/traffic-scale-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/traffic-topology-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/traffic-topology-navigation-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/active-exit-guard.py" --mode enforce

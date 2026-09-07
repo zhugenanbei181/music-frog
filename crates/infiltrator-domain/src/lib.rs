@@ -6,6 +6,7 @@
 
 pub mod backoff_strategy;
 pub mod app_routing;
+pub mod active_exit;
 pub mod apply;
 pub mod backup;
 pub mod config;

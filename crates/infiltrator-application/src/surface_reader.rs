@@ -26,6 +26,7 @@ use crate::privileged_network_application::PrivilegedNetworkApplication;
 use crate::traffic_waveform_application::TrafficWaveformApplication;
 use crate::traffic_scale_application::TrafficScaleApplication;
 use crate::traffic_topology_application::TrafficTopologyApplication;
+use crate::active_exit_application::ActiveExitApplication;
 use crate::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -73,6 +74,7 @@ pub struct ApplicationSurfaceReader {
     traffic_waveform: TrafficWaveformApplication,
     traffic_scale: TrafficScaleApplication,
     traffic_topology: TrafficTopologyApplication,
+    active_exit: ActiveExitApplication,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -105,6 +107,7 @@ impl ApplicationSurfaceReader {
             traffic_waveform: TrafficWaveformApplication::new(),
             traffic_scale: TrafficScaleApplication,
             traffic_topology: TrafficTopologyApplication,
+            active_exit: ActiveExitApplication,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -315,6 +318,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             runtime_proxies.as_ref(),
             runtime_connections.as_ref(),
         );
+        let active_exit_snapshot = self.active_exit.project(&core, runtime_proxies.as_ref());
         let runtime_rule_providers = match &self.gateway {
             Some(gateway) => Some(gateway.get_rule_providers().await),
             None => None,
@@ -469,6 +473,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             traffic_waveform,
             traffic_scale,
             traffic_topology,
+            active_exit: active_exit_snapshot,
         })
     }
 }

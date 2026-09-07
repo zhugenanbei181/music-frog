@@ -56,6 +56,7 @@ on:
       - "scripts/quality/traffic-scale-guard.py"
       - "scripts/quality/traffic-topology-guard.py"
       - "scripts/quality/traffic-topology-navigation-guard.py"
+      - "scripts/quality/active-exit-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -103,6 +104,7 @@ on:
       - "scripts/quality/traffic-scale-guard.py"
       - "scripts/quality/traffic-topology-guard.py"
       - "scripts/quality/traffic-topology-navigation-guard.py"
+      - "scripts/quality/active-exit-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -265,6 +267,9 @@ jobs:
 
       - name: Enforce DUAL-03-04 topology drill-down navigation parity
         run: python3 scripts/quality/traffic-topology-navigation-guard.py --mode enforce
+
+      - name: Enforce DUAL-03-05 active exit card parity
+        run: python3 scripts/quality/active-exit-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

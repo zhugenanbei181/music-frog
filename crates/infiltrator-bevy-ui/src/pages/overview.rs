@@ -195,6 +195,21 @@ pub enum TopologyTextKind {
     Badge,
 }
 
+/// Marker on the high-fidelity active-exit card's mutable facts.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ActiveExitText(pub ActiveExitTextKind);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ActiveExitTextKind {
+    #[default]
+    Flag,
+    Name,
+    Protocol,
+    Delay,
+    Group,
+    Status,
+}
+
 /// Marker on the subscription quota card.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SubscriptionQuotaCard;
@@ -442,7 +457,7 @@ pub fn overview_page(
             ( { traffic_card_scene(projection, history, palette) } ),
             ( { chips_row_scene(projection, palette) } ),
             ( { crate::pages::overview_cards::master_switches_scene(palette) } ),
-            ( { crate::pages::overview_cards::active_exit_node_scene(palette) } ),
+            ( { crate::pages::overview_cards::active_exit_node_scene_with_snapshot(&projection.active_exit, palette) } ),
             ( { crate::pages::overview_cards::topology_chain_scene_with_snapshot(&projection.traffic_topology, palette) } ),
             ( { subscription_quota_scene(palette) } ),
         ]
@@ -736,6 +751,81 @@ fn topology_stage_label(
     }
 }
 
+pub(crate) fn active_exit_text_value(
+    snapshot: &infiltrator_contract::active_exit::ActiveExitSnapshot,
+    kind: ActiveExitTextKind,
+) -> String {
+    match kind {
+        ActiveExitTextKind::Flag => active_exit_flag(snapshot.country_code.as_deref()).to_owned(),
+        ActiveExitTextKind::Name => snapshot.name.clone().unwrap_or_else(|| "—".to_owned()),
+        ActiveExitTextKind::Protocol => snapshot
+            .protocol
+            .clone()
+            .unwrap_or_else(|| "not reported".to_owned()),
+        ActiveExitTextKind::Delay => snapshot
+            .delay_ms
+            .map(|delay| format!("{delay} ms"))
+            .unwrap_or_else(|| "—".to_owned()),
+        ActiveExitTextKind::Group => snapshot
+            .group
+            .as_ref()
+            .map(|group| format!("group · {group}"))
+            .unwrap_or_else(|| "group · not reported".to_owned()),
+        ActiveExitTextKind::Status => match snapshot.status {
+            infiltrator_contract::active_exit::ActiveExitStatus::Ready => match snapshot.alive {
+                Some(true) => "selected · alive".to_owned(),
+                Some(false) => "selected · offline".to_owned(),
+                None => "selected · liveness unknown".to_owned(),
+            },
+            infiltrator_contract::active_exit::ActiveExitStatus::Empty => {
+                "no active exit".to_owned()
+            }
+            infiltrator_contract::active_exit::ActiveExitStatus::Unknown => {
+                "active exit pending".to_owned()
+            }
+            infiltrator_contract::active_exit::ActiveExitStatus::Unsupported => snapshot
+                .failure
+                .clone()
+                .unwrap_or_else(|| "active exit unavailable".to_owned()),
+            infiltrator_contract::active_exit::ActiveExitStatus::Failed => snapshot
+                .failure
+                .clone()
+                .unwrap_or_else(|| "active exit read failed".to_owned()),
+        },
+    }
+}
+
+fn active_exit_flag(country_code: Option<&str>) -> &'static str {
+    match country_code.unwrap_or_default().to_ascii_uppercase().as_str() {
+        "HK" => "🇭🇰",
+        "TW" => "🇹🇼",
+        "JP" => "🇯🇵",
+        "US" => "🇺🇸",
+        "SG" => "🇸🇬",
+        "KR" => "🇰🇷",
+        "GB" => "🇬🇧",
+        "DE" => "🇩🇪",
+        "FR" => "🇫🇷",
+        "CA" => "🇨🇦",
+        "AU" => "🇦🇺",
+        "RU" => "🇷🇺",
+        "IN" => "🇮🇳",
+        "NL" => "🇳🇱",
+        "BR" => "🇧🇷",
+        "TR" => "🇹🇷",
+        "AR" => "🇦🇷",
+        "PH" => "🇵🇭",
+        "TH" => "🇹🇭",
+        "MY" => "🇲🇾",
+        "VN" => "🇻🇳",
+        "AE" => "🇦🇪",
+        "CN" => "🇨🇳",
+        "DIRECT" => "⚡",
+        "REJECT" => "🚫",
+        _ => "🌐",
+    }
+}
+
 /// One rate line: the arrow and the mono rate share one marked text so
 /// the refresh observer restamps them together (the arrow keeps the
 /// line's ink — success for uplink, ordinary for downlink).
@@ -910,6 +1000,15 @@ pub(crate) fn apply_overview_projection(
             Without<StatChipValue>,
         ),
     >,
+    mut active_exit_texts: Query<
+        (&mut Text, &mut TextColor, &ActiveExitText),
+        (
+            With<ActiveExitText>,
+            Without<OverviewLine>,
+            Without<TopologyText>,
+            Without<StatChipValue>,
+        ),
+    >,
     mut topology_buttons: Query<&mut TopologyStageButton>,
     groups: Query<&Children>,
     mut charts: Query<&mut ChartPlate>,
@@ -968,6 +1067,19 @@ pub(crate) fn apply_overview_projection(
     }
     for mut button in &mut topology_buttons {
         button.enabled = projection.traffic_topology.is_drawable();
+    }
+    for (mut text, mut ink, marker) in &mut active_exit_texts {
+        let value = active_exit_text_value(&projection.active_exit, marker.0);
+        if text.0 != value {
+            text.0 = value;
+        }
+        if marker.0 == ActiveExitTextKind::Delay {
+            ink.0 = if projection.active_exit.delay_ms.is_some() {
+                palette.success
+            } else {
+                palette.ink_dim
+            };
+        }
     }
     // The trend chart: re-derive the series for this projection's origin
     // and restamp only on an actual change (an unchanged spec must not pay

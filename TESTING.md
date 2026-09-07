@@ -160,6 +160,8 @@ python3 scripts/quality/traffic-scale-guard.py --mode enforce
 python3 scripts/quality/traffic-topology-guard.py --mode enforce
 # DUAL-03-04 拓扑节点下钻导航守卫
 python3 scripts/quality/traffic-topology-navigation-guard.py --mode enforce
+# DUAL-03-05 活动出口节点高保真卡片守卫
+python3 scripts/quality/active-exit-guard.py --mode enforce
 ```
 
 ---
