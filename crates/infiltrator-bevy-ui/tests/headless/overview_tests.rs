@@ -18,13 +18,14 @@ use bevy::scene::ScenePlugin;
 use bevy::text::TextColor;
 use bevy::ui::BackgroundColor;
 use bevy::ui::widget::{ImageNode, Text};
+use bevy::ui_widgets::Activate;
 use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin, SidebarFoot};
 use infiltrator_bevy_ui::history::{TrafficHistory, chart_series, demo_traffic_series};
 use infiltrator_bevy_ui::pages::overview::{
     CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText, OverviewCardState, OverviewChip,
     OverviewChipKind, OverviewLine, OverviewLineKind, OverviewModeChip, OverviewModePill,
     OverviewProjectionUpdated, OverviewStatusCard, StatusDot, StopButton, SubscriptionQuotaCard,
-    TopologyChainCard, TopologyText, TopologyTextKind, format_memory, format_rate,
+    TopologyChainCard, TopologyStageButton, TopologyText, TopologyTextKind, format_memory, format_rate,
     subscription_quota_scene, topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
@@ -1221,6 +1222,62 @@ fn topology_projection_updates_text_and_flow_plate_in_place() {
         .expect("topology plate survives");
     assert_eq!(plate.0.links.len(), 4);
     assert!(plate.0.links.iter().all(|link| link.active_conns == 2));
+}
+
+#[test]
+fn topology_stage_activation_uses_shared_navigation_targets() {
+    let targets = [
+        (
+            infiltrator_contract::traffic_topology::TrafficTopologyStage::Inbound,
+            Route::Settings,
+        ),
+        (
+            infiltrator_contract::traffic_topology::TrafficTopologyStage::Sniffer,
+            Route::Settings,
+        ),
+        (
+            infiltrator_contract::traffic_topology::TrafficTopologyStage::RuleSet,
+            Route::Rules,
+        ),
+        (
+            infiltrator_contract::traffic_topology::TrafficTopologyStage::ProxyGroup,
+            Route::Proxies,
+        ),
+    ];
+    for (stage, target) in targets {
+        let mut app = mounted_default();
+        let button = {
+            let world = app.world_mut();
+            let mut buttons = world.query::<(Entity, &TopologyStageButton)>();
+            buttons
+                .iter(world)
+                .find(|(_, button)| button.stage == stage && button.enabled)
+                .expect("enabled topology stage button")
+                .0
+        };
+        app.world_mut()
+            .commands()
+            .trigger(Activate { entity: button });
+        app.update();
+        assert_eq!(page_root(app.world_mut()).1, target);
+    }
+
+    let mut unavailable = mounted_app_with(StubSource);
+    let button = {
+        let world = unavailable.world_mut();
+        let mut buttons = world.query::<(Entity, &TopologyStageButton)>();
+        buttons
+            .iter(world)
+            .find(|(_, button)| !button.enabled)
+            .expect("unavailable topology stage is gated")
+            .0
+    };
+    unavailable
+        .world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    unavailable.update();
+    assert_eq!(page_root(unavailable.world_mut()).1, Route::Overview);
 }
 
 /// The Overview page mounts the subscription quota card (BEVY-GAP-020)

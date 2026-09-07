@@ -25,6 +25,17 @@ pub enum TrafficTopologyStage {
     Outbound,
 }
 
+/// Semantic destination requested by a topology-node drill-down. Toolkit
+/// route enums stay outside the shared contract; the application maps these
+/// targets to the canonical page vocabulary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrafficTopologyNavigationTarget {
+    Settings,
+    Rules,
+    Proxies,
+}
+
 impl TrafficTopologyStage {
     /// Ordered stages in the user-visible flow.
     pub const ALL: [Self; TRAFFIC_TOPOLOGY_STAGE_COUNT] = [

@@ -56,7 +56,7 @@ use bevy::ui::prelude::{
     Node, Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::chart::{ChartPlate, ChartSpec, chart_scene_with_scale};
 use infiltrator_bevy_widgets::chart::topology::TopologyPlate;
@@ -71,6 +71,7 @@ use infiltrator_bevy_widgets::theme::space;
 use crate::history::{TrafficHistory, chart_inputs};
 use crate::projection::{OverviewOrigin, OverviewProjection, OverviewState};
 use crate::route::{PageRoot, Route};
+use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
 use infiltrator_contract::command::ProxyMode;
 
 /// The trend chart's raster box (ui-side tokens — the widget's pixel box
@@ -175,6 +176,14 @@ pub struct TopologyArrow;
 pub struct TopologyText {
     pub stage: infiltrator_contract::traffic_topology::TrafficTopologyStage,
     pub kind: TopologyTextKind,
+}
+
+/// Click target on one topology stage. The button is intentionally gated by
+/// the shared snapshot's drawable status in the projection observer.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TopologyStageButton {
+    pub stage: infiltrator_contract::traffic_topology::TrafficTopologyStage,
+    pub enabled: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -832,6 +841,32 @@ fn bind_overview_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     let mut commands = world.commands();
     commands.insert_resource(OverviewPageBound);
     commands.add_observer(apply_overview_projection);
+    commands.add_observer(on_topology_stage_activated);
+}
+
+/// Translate a Bevy `Activate` gesture through the shared application
+/// topology-navigation policy and into the shell's typed route event.
+pub(crate) fn on_topology_stage_activated(
+    activate: On<Activate>,
+    buttons: Query<&TopologyStageButton>,
+    mut commands: Commands,
+) {
+    let Ok(button) = buttons.get(activate.entity) else {
+        return;
+    };
+    if !button.enabled {
+        return;
+    }
+    let Some(page) = TrafficTopologyNavigationApplication::page_for_stage(button.stage) else {
+        return;
+    };
+    let route = match page {
+        infiltrator_contract::surface_snapshot::PageId::Settings => Route::Settings,
+        infiltrator_contract::surface_snapshot::PageId::Rules => Route::Rules,
+        infiltrator_contract::surface_snapshot::PageId::Proxies => Route::Proxies,
+        _ => return,
+    };
+    commands.trigger(crate::route::RouteChanged(route));
 }
 
 /// The page's only data-refresh path: restamp texts, inks, pill
@@ -875,6 +910,7 @@ pub(crate) fn apply_overview_projection(
             Without<StatChipValue>,
         ),
     >,
+    mut topology_buttons: Query<&mut TopologyStageButton>,
     groups: Query<&Children>,
     mut charts: Query<&mut ChartPlate>,
     mut topology_charts: Query<&mut TopologyPlate>,
@@ -929,6 +965,9 @@ pub(crate) fn apply_overview_projection(
         if text.0 != value {
             text.0 = value;
         }
+    }
+    for mut button in &mut topology_buttons {
+        button.enabled = projection.traffic_topology.is_drawable();
     }
     // The trend chart: re-derive the series for this projection's origin
     // and restamp only on an actual change (an unchanged spec must not pay

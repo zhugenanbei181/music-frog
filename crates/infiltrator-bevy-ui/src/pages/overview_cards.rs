@@ -14,6 +14,7 @@ use bevy::ui::prelude::{
     Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
+use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::button::pill_caption_scene;
 use infiltrator_bevy_widgets::chart::topology::{
     NodeCategory, TopologyLink, TopologyNode, TopologySpec, topology_scene,
@@ -26,7 +27,8 @@ use infiltrator_bevy_widgets::theme::space;
 
 use crate::pages::overview::{
     AccentContainerFill, AccentFill, BorderFill, SubscriptionQuotaCard, SurfaceElevatedFill,
-    SurfaceFill, TopologyArrow, TopologyChainCard, TopologyText, TopologyTextKind,
+    SurfaceFill, TopologyArrow, TopologyChainCard, TopologyStageButton, TopologyText,
+    TopologyTextKind,
 };
 use infiltrator_contract::traffic_topology::{
     TRAFFIC_TOPOLOGY_STAGE_COUNT, TrafficTopologySnapshot, TrafficTopologyStage,
@@ -232,6 +234,8 @@ fn topology_stage_chip_scene(
             padding: UiRect::all(Val::Px(space::S8)),
             border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
         }
+        TopologyStageButton { stage, enabled: { snapshot.is_drawable() } }
+        Button
         BackgroundColor({ palette.surface_elevated })
         SurfaceElevatedFill
         Children [

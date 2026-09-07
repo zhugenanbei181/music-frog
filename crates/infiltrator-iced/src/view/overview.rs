@@ -18,6 +18,7 @@ use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CHIP, R_CONTR
 use iced::widget::{Space, button, canvas, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
+use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
 use infiltrator_contract::traffic_topology::{TrafficTopologySnapshot, TrafficTopologyStage, TrafficTopologyStatus};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -501,7 +502,27 @@ fn topology_stage_node<'a>(
                 "—".to_owned(),
             )
         });
-    topology_node_box(glyph, label, detail, badge_label, badge_kind, color_fn)
+    let node = topology_node_box(glyph, label, detail, badge_label, badge_kind, color_fn);
+    let Some(route) = topology_route_for_stage(stage) else {
+        return node;
+    };
+    if !snapshot.is_drawable() {
+        return node;
+    }
+    button(node)
+        .width(Length::Fill)
+        .padding(0)
+        .on_press(Message::Navigate(route))
+        .into()
+}
+
+fn topology_route_for_stage(stage: TrafficTopologyStage) -> Option<Route> {
+    match TrafficTopologyNavigationApplication::page_for_stage(stage)? {
+        infiltrator_contract::surface_snapshot::PageId::Settings => Some(Route::Settings),
+        infiltrator_contract::surface_snapshot::PageId::Rules => Some(Route::Rules),
+        infiltrator_contract::surface_snapshot::PageId::Proxies => Some(Route::Proxies),
+        _ => None,
+    }
 }
 
 fn topology_badge(snapshot: &TrafficTopologySnapshot, lang: &Lang<'_>) -> String {
@@ -825,6 +846,30 @@ mod tests {
         assert_eq!(
             topology_badge(&snapshot, &Lang("zh-CN")),
             "topology unavailable"
+        );
+    }
+
+    #[test]
+    fn topology_stage_routes_follow_the_shared_application_mapping() {
+        assert_eq!(
+            topology_route_for_stage(TrafficTopologyStage::Inbound),
+            Some(Route::Settings)
+        );
+        assert_eq!(
+            topology_route_for_stage(TrafficTopologyStage::Sniffer),
+            Some(Route::Settings)
+        );
+        assert_eq!(
+            topology_route_for_stage(TrafficTopologyStage::RuleSet),
+            Some(Route::Rules)
+        );
+        assert_eq!(
+            topology_route_for_stage(TrafficTopologyStage::ProxyGroup),
+            Some(Route::Proxies)
+        );
+        assert_eq!(
+            topology_route_for_stage(TrafficTopologyStage::Outbound),
+            Some(Route::Proxies)
         );
     }
 }
