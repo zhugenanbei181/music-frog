@@ -2,7 +2,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{badge, card, style_accent, BadgeKind};
+use crate::view::components::{BadgeKind, badge, card, style_accent};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::waveform::mini_waveform;
@@ -48,20 +48,42 @@ pub fn latency_radar_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'
 
     let metrics_row = row![
         column![
-            text(lang.tr("latency_radar_avg").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("latency_radar_avg").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(2.0),
-            text(format!("{:.1} ms", radar.avg_ms)).size(14).font(FONT_SEMIBOLD).style(|t: &Theme| text::Style { color: Some(tokens(t).accent) }),
-        ].width(Length::Fill),
+            text(format!("{:.1} ms", radar.avg_ms))
+                .size(14)
+                .font(FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).accent)
+                }),
+        ]
+        .width(Length::Fill),
         column![
-            text(lang.tr("latency_radar_min_max").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("latency_radar_min_max").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(2.0),
-            text(format!("{} - {} ms", radar.min_ms, radar.max_ms)).size(12).font(MONO),
-        ].width(Length::Fill),
+            text(format!("{} - {} ms", radar.min_ms, radar.max_ms))
+                .size(12)
+                .font(MONO),
+        ]
+        .width(Length::Fill),
         column![
-            text(lang.tr("latency_radar_score").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("latency_radar_score").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(2.0),
             badge(stars.to_string(), BadgeKind::Success),
-        ].width(Length::Fill),
+        ]
+        .width(Length::Fill),
     ]
     .align_y(Alignment::Center);
 
@@ -71,7 +93,10 @@ pub fn latency_radar_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'
         Some(lang.tr("latency_radar_title").to_string()),
         column![
             row![
-                text(format!("Node: {node_name}")).size(12).font(FONT_SEMIBOLD).width(Length::Fill),
+                text(format!("Node: {node_name}"))
+                    .size(12)
+                    .font(FONT_SEMIBOLD)
+                    .width(Length::Fill),
                 sample_btn,
             ]
             .align_y(Alignment::Center),
@@ -79,7 +104,11 @@ pub fn latency_radar_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'
             metrics_row,
             Space::new().height(theme::SP_XS),
             row![
-                text("Time-series (last 10 samples):").size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+                text("Time-series (last 10 samples):")
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    }),
                 Space::new().width(theme::SP_SM),
                 sparkline,
             ]

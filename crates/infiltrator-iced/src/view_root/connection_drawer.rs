@@ -8,8 +8,8 @@ use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, progress_bar, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_shared::locales::{Lang, Localizer};
 use infiltrator_domain::runtime::Connection;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
@@ -36,7 +36,9 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         icon_themed(Icon::Activity, 20.0, |t: &Theme| tokens(t).accent),
         Space::new().width(theme::SP_SM),
         column![
-            text(lang.tr("conn_drawer_title")).size(15).font(FONT_SEMIBOLD),
+            text(lang.tr("conn_drawer_title"))
+                .size(15)
+                .font(FONT_SEMIBOLD),
             text(target_host.clone())
                 .size(12)
                 .font(MONO)
@@ -72,10 +74,30 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         .align_y(Alignment::Center),
         Space::new().height(theme::SP_XS),
         column![
-            waterfall_row(lang.tr("conn_drawer_dns_time"), "18 ms", dns_ms / 150.0, |t| tokens(t).accent),
-            waterfall_row(lang.tr("conn_drawer_tcp_time"), "42 ms", tcp_ms / 150.0, |t| tokens(t).accent_soft),
-            waterfall_row(lang.tr("conn_drawer_tls_time"), "68 ms", tls_ms / 150.0, |t| tokens(t).success),
-            waterfall_row(lang.tr("conn_drawer_ttfb_time"), "92 ms", ttfb_ms / 150.0, |t| tokens(t).warning),
+            waterfall_row(
+                lang.tr("conn_drawer_dns_time"),
+                "18 ms",
+                dns_ms / 150.0,
+                |t| tokens(t).accent
+            ),
+            waterfall_row(
+                lang.tr("conn_drawer_tcp_time"),
+                "42 ms",
+                tcp_ms / 150.0,
+                |t| tokens(t).accent_soft
+            ),
+            waterfall_row(
+                lang.tr("conn_drawer_tls_time"),
+                "68 ms",
+                tls_ms / 150.0,
+                |t| tokens(t).success
+            ),
+            waterfall_row(
+                lang.tr("conn_drawer_ttfb_time"),
+                "92 ms",
+                ttfb_ms / 150.0,
+                |t| tokens(t).warning
+            ),
         ]
         .spacing(8),
     ]
@@ -93,9 +115,19 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         .align_y(Alignment::Center),
         Space::new().height(theme::SP_XS),
         row![
-            stat_card(lang.tr("conn_drawer_total_upload"), format_bytes(conn.upload), Icon::ArrowUp, |t| tokens(t).accent),
+            stat_card(
+                lang.tr("conn_drawer_total_upload"),
+                format_bytes(conn.upload),
+                Icon::ArrowUp,
+                |t| tokens(t).accent
+            ),
             Space::new().width(theme::SP_SM),
-            stat_card(lang.tr("conn_drawer_total_download"), format_bytes(conn.download), Icon::ArrowDown, |t| tokens(t).success),
+            stat_card(
+                lang.tr("conn_drawer_total_download"),
+                format_bytes(conn.download),
+                Icon::ArrowDown,
+                |t| tokens(t).success
+            ),
         ],
     ]
     .spacing(6);
@@ -117,15 +149,33 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         ]
         .align_y(Alignment::Center),
         Space::new().height(theme::SP_XS),
-        meta_field_row(lang.tr("conn_drawer_matched_rule"), if conn.rule.is_empty() { "MATCH".to_string() } else { conn.rule.clone() }),
-        meta_field_row(lang.tr("conn_drawer_rule_payload"), if conn.rule_payload.is_empty() { "—".to_string() } else { conn.rule_payload.clone() }),
+        meta_field_row(
+            lang.tr("conn_drawer_matched_rule"),
+            if conn.rule.is_empty() {
+                "MATCH".to_string()
+            } else {
+                conn.rule.clone()
+            }
+        ),
+        meta_field_row(
+            lang.tr("conn_drawer_rule_payload"),
+            if conn.rule_payload.is_empty() {
+                "—".to_string()
+            } else {
+                conn.rule_payload.clone()
+            }
+        ),
         meta_field_row(lang.tr("conn_drawer_proxy_chain"), chain_str),
     ]
     .spacing(6);
 
     // Section 4: Process & Network Stack
     let proc_name = if !meta.process_path.is_empty() {
-        meta.process_path.rsplit(['/', '\\']).next().unwrap_or(&meta.process_path).to_string()
+        meta.process_path
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(&meta.process_path)
+            .to_string()
     } else {
         "—".to_string()
     };
@@ -157,7 +207,9 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
             row![
                 icon_themed(Icon::Trash2, 14.0, |t: &Theme| tokens(t).danger),
                 Space::new().width(theme::SP_XS),
-                text(lang.tr("conn_drawer_close_conn_btn")).size(12).font(FONT_MEDIUM),
+                text(lang.tr("conn_drawer_close_conn_btn"))
+                    .size(12)
+                    .font(FONT_MEDIUM),
             ]
             .align_y(Alignment::Center)
         )
@@ -188,7 +240,9 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
             row![
                 icon_themed(Icon::Copy, 14.0, |t: &Theme| tokens(t).text_secondary),
                 Space::new().width(theme::SP_XS),
-                text(lang.tr("conn_drawer_copy_host_btn")).size(12).font(FONT_MEDIUM),
+                text(lang.tr("conn_drawer_copy_host_btn"))
+                    .size(12)
+                    .font(FONT_MEDIUM),
             ]
             .align_y(Alignment::Center)
         )
@@ -199,10 +253,14 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
             crate::types::app::ToastStatus::Success,
         )),
         Space::new().width(Length::Fill),
-        button(text(lang.tr("conn_drawer_close")).size(12).font(FONT_MEDIUM))
-            .style(style_ghost)
-            .padding([8, 16])
-            .on_press(Message::InspectConnection(None)),
+        button(
+            text(lang.tr("conn_drawer_close"))
+                .size(12)
+                .font(FONT_MEDIUM)
+        )
+        .style(style_ghost)
+        .padding([8, 16])
+        .on_press(Message::InspectConnection(None)),
     ]
     .align_y(Alignment::Center);
 
@@ -245,18 +303,22 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
             }
         });
 
-    container(
-        row![
-            container(Space::new().width(Length::Fill).height(Length::Fill))
-                .width(Length::Fill)
-                .height(Length::Fill),
-            drawer_panel,
-        ]
-    )
+    container(row![
+        container(Space::new().width(Length::Fill).height(Length::Fill))
+            .width(Length::Fill)
+            .height(Length::Fill),
+        drawer_panel,
+    ])
     .width(Length::Fill)
     .height(Length::Fill)
     .style(|_t: &Theme| container::Style {
-        background: Some(Color { a: 0.35, ..Color::BLACK }.into()),
+        background: Some(
+            Color {
+                a: 0.35,
+                ..Color::BLACK
+            }
+            .into(),
+        ),
         ..Default::default()
     })
     .into()
@@ -271,22 +333,34 @@ fn waterfall_row<'a, Message: 'a>(
     let label_s = label.into();
     let val_s = val_str.into();
     row![
-        text(label_s).size(11).width(Length::Fixed(110.0)).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
-        }),
+        text(label_s)
+            .size(11)
+            .width(Length::Fixed(110.0))
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
         container(
-            progress_bar(0.0..=1.0, ratio.clamp(0.05, 1.0))
-                .style(move |t: &Theme| progress_bar::Style {
-                    background: Color { a: 0.15, ..color(t) }.into(),
+            progress_bar(0.0..=1.0, ratio.clamp(0.05, 1.0)).style(move |t: &Theme| {
+                progress_bar::Style {
+                    background: Color {
+                        a: 0.15,
+                        ..color(t)
+                    }
+                    .into(),
                     bar: color(t).into(),
                     border: Border::default(),
-                })
+                }
+            })
         )
         .width(Length::Fill),
         Space::new().width(theme::SP_SM),
-        text(val_s).size(11).font(MONO).width(Length::Fixed(55.0)).style(move |t: &Theme| text::Style {
-            color: Some(color(t)),
-        }),
+        text(val_s)
+            .size(11)
+            .font(MONO)
+            .width(Length::Fixed(55.0))
+            .style(move |t: &Theme| text::Style {
+                color: Some(color(t)),
+            }),
     ]
     .align_y(Alignment::Center)
     .into()
@@ -308,9 +382,12 @@ fn stat_card<'a, Message: 'a>(
                 text(label_s).size(10).style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_tertiary),
                 }),
-                text(val_s).size(14).font(FONT_SEMIBOLD).style(move |t: &Theme| text::Style {
-                    color: Some(color(t)),
-                }),
+                text(val_s)
+                    .size(14)
+                    .font(FONT_SEMIBOLD)
+                    .style(move |t: &Theme| text::Style {
+                        color: Some(color(t)),
+                    }),
             ]
             .spacing(2),
         ]
@@ -333,16 +410,26 @@ fn stat_card<'a, Message: 'a>(
     .into()
 }
 
-fn meta_field_row<'a, Message: 'a>(label: impl Into<String>, val: impl Into<String>) -> Element<'a, Message> {
+fn meta_field_row<'a, Message: 'a>(
+    label: impl Into<String>,
+    val: impl Into<String>,
+) -> Element<'a, Message> {
     let label_s = label.into();
     let val_s = val.into();
     row![
-        text(label_s).size(11).width(Length::Fixed(120.0)).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_tertiary),
-        }),
-        text(val_s).size(11).font(MONO).width(Length::Fill).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_primary),
-        }),
+        text(label_s)
+            .size(11)
+            .width(Length::Fixed(120.0))
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            }),
+        text(val_s)
+            .size(11)
+            .font(MONO)
+            .width(Length::Fill)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary),
+            }),
     ]
     .align_y(Alignment::Center)
     .into()

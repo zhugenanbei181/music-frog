@@ -15,9 +15,9 @@ use super::*;
 use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
+use infiltrator_contract::version::InstalledCoreVersion;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup, ProxyHistory, Shadowsocks};
-use infiltrator_contract::version::InstalledCoreVersion;
 use std::sync::mpsc;
 
 // Pure spec-side coverage (layout, labels, codecs, resolution).

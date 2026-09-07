@@ -1,17 +1,17 @@
 //! Per-App Split Tunneling & Process Routing page (应用级分流控制台).
 
+use crate::host::process_enumerator::ProcessCategory;
 use crate::state::AppState;
 use crate::types::app_routing::{AppRouteRule, AppRoutingMode};
 use crate::types::message::Message;
 use crate::view::components::{
-    BadgeKind, badge, empty_state, modern_scrollable, row_card_surface,
-    search_input, section_header, segmented_control, style_accent,
+    BadgeKind, badge, empty_state, modern_scrollable, row_card_surface, search_input,
+    section_header, segmented_control, style_accent,
 };
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use crate::host::process_enumerator::ProcessCategory;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn category_badge_kind(cat: ProcessCategory) -> BadgeKind {
@@ -45,10 +45,7 @@ fn category_icon(cat: ProcessCategory) -> Icon {
 pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
 
-    let title_line = section_header(
-        &lang.tr("app_routing_title"),
-        None,
-    );
+    let title_line = section_header(&lang.tr("app_routing_title"), None);
 
     let mode_labels = vec![
         lang.tr("app_routing_mode_global").to_string(),
@@ -80,7 +77,9 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     )
     .padding([8, 16])
     .style(style_accent)
-    .on_press_maybe((!state.app_routing.is_refreshing).then_some(Message::RefreshAppRoutingProcesses));
+    .on_press_maybe(
+        (!state.app_routing.is_refreshing).then_some(Message::RefreshAppRoutingProcesses),
+    );
 
     let search_bar = search_input(
         lang.tr("app_routing_search").as_ref(),
@@ -183,12 +182,16 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                         ]
                         .align_y(Alignment::Center),
                         Space::new().height(theme::SP_XS),
-                        text(proc.binary_path.clone().unwrap_or_else(|| proc_name_clone.clone()))
-                            .size(11)
-                            .font(MONO)
-                            .style(|t: &Theme| text::Style {
-                                color: Some(tokens(t).text_secondary),
-                            }),
+                        text(
+                            proc.binary_path
+                                .clone()
+                                .unwrap_or_else(|| proc_name_clone.clone())
+                        )
+                        .size(11)
+                        .font(MONO)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).text_secondary),
+                        }),
                     ]
                     .width(Length::Fill),
                     container(rule_switcher).width(220),

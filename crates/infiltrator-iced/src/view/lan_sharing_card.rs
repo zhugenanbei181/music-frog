@@ -29,37 +29,54 @@ pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
         .width(90)
         .style(form_input_style);
 
-    let bind_input = text_input(
-        "* or 192.168.1.10 or [::1]",
-        &lan.bind_address,
-    )
-    .on_input(Message::UpdateLanBindAddress)
-    .padding([6, 10])
-    .size(12)
-    .font(MONO)
-    .width(Length::Fill)
-    .style(form_input_style);
+    let bind_input = text_input("* or 192.168.1.10 or [::1]", &lan.bind_address)
+        .on_input(Message::UpdateLanBindAddress)
+        .padding([6, 10])
+        .size(12)
+        .font(MONO)
+        .width(Length::Fill)
+        .style(form_input_style);
 
     card(
         Some(lang.tr("lan_sharing_title").to_string()),
         column![
             row![
-                text(lang.tr("lan_sharing_desc").to_string()).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }).width(Length::Fill),
+                text(lang.tr("lan_sharing_desc").to_string())
+                    .size(12)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    })
+                    .width(Length::Fill),
                 toggle,
             ]
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
             row![
-                text(lang.tr("lan_sharing_port").to_string()).size(12).font(FONT_SEMIBOLD),
+                text(lang.tr("lan_sharing_port").to_string())
+                    .size(12)
+                    .font(FONT_SEMIBOLD),
                 Space::new().width(theme::SP_SM),
                 port_input,
                 Space::new().width(theme::SP_LG),
-                badge(if lan.allow_lan { "LAN Active" } else { "LAN Disabled" }, if lan.allow_lan { BadgeKind::Success } else { BadgeKind::Neutral }),
+                badge(
+                    if lan.allow_lan {
+                        "LAN Active"
+                    } else {
+                        "LAN Disabled"
+                    },
+                    if lan.allow_lan {
+                        BadgeKind::Success
+                    } else {
+                        BadgeKind::Neutral
+                    }
+                ),
             ]
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
             row![
-                text(lang.tr("lan_sharing_bind").to_string()).size(11).font(FONT_SEMIBOLD),
+                text(lang.tr("lan_sharing_bind").to_string())
+                    .size(11)
+                    .font(FONT_SEMIBOLD),
                 Space::new().width(theme::SP_SM),
                 bind_input,
             ]

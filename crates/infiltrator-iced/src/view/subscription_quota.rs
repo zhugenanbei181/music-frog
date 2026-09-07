@@ -16,10 +16,7 @@ use infiltrator_shared::locales::{Lang, Localizer};
 /// Overview quota dashboard. Every number is optional in the shared model;
 /// this view renders an em dash or explicit “not reported” when the provider
 /// did not supply it.
-pub fn subscription_quota_card<'a>(
-    state: &'a AppState,
-    lang: &Lang<'a>,
-) -> Element<'a, Message> {
+pub fn subscription_quota_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let snapshot = &state.runtime.subscription_quota;
     let used = snapshot
         .used_bytes
@@ -43,14 +40,14 @@ pub fn subscription_quota_card<'a>(
         .filter(|value| value.is_finite() && *value >= 0.0)
         .map(|value| format!("{value:.1}%"))
         .unwrap_or_else(|| "—".to_owned());
-    let profile = snapshot
-        .profile_name
-        .clone()
-        .unwrap_or_else(|| lang.tr("overview_subscription_quota_no_profile").to_string());
-    let expiry = snapshot
-        .expires_at_label
-        .clone()
-        .unwrap_or_else(|| lang.tr("overview_subscription_quota_expiry_unknown").to_string());
+    let profile = snapshot.profile_name.clone().unwrap_or_else(|| {
+        lang.tr("overview_subscription_quota_no_profile")
+            .to_string()
+    });
+    let expiry = snapshot.expires_at_label.clone().unwrap_or_else(|| {
+        lang.tr("overview_subscription_quota_expiry_unknown")
+            .to_string()
+    });
     let expiry = match snapshot.remaining_days {
         Some(days) if snapshot.expires_at_label.is_some() => format!("{expiry} · {days}d"),
         _ => expiry,
@@ -58,7 +55,10 @@ pub fn subscription_quota_card<'a>(
     let reset = snapshot
         .reset_days
         .map(|days| format!("reset in {days}d"))
-        .unwrap_or_else(|| lang.tr("overview_subscription_quota_reset_unknown").to_string());
+        .unwrap_or_else(|| {
+            lang.tr("overview_subscription_quota_reset_unknown")
+                .to_string()
+        });
     let status = status_label(snapshot, lang);
 
     let progress = usage_bar(snapshot);
@@ -165,7 +165,13 @@ fn usage_bar<'a>(snapshot: &SubscriptionQuotaSnapshot) -> Element<'a, Message> {
         .width(Length::Fill)
         .height(8)
         .style(|t: &Theme| container::Style {
-            background: Some(Color { a: 0.25, ..tokens(t).card_border }.into()),
+            background: Some(
+                Color {
+                    a: 0.25,
+                    ..tokens(t).card_border
+                }
+                .into(),
+            ),
             border: Border {
                 radius: border::Radius::from(4.0),
                 ..Default::default()
@@ -175,18 +181,29 @@ fn usage_bar<'a>(snapshot: &SubscriptionQuotaSnapshot) -> Element<'a, Message> {
         .into()
 }
 
-fn status_label(
-    snapshot: &SubscriptionQuotaSnapshot,
-    lang: &Lang<'_>,
-) -> String {
+fn status_label(snapshot: &SubscriptionQuotaSnapshot, lang: &Lang<'_>) -> String {
     match snapshot.status {
-        SubscriptionQuotaStatus::Ready => lang.tr("overview_subscription_quota_healthy").to_string(),
-        SubscriptionQuotaStatus::Warning => lang.tr("overview_subscription_quota_warning").to_string(),
-        SubscriptionQuotaStatus::Critical => lang.tr("overview_subscription_quota_critical").to_string(),
-        SubscriptionQuotaStatus::Exhausted => lang.tr("overview_subscription_quota_exhausted").to_string(),
-        SubscriptionQuotaStatus::Expired => lang.tr("overview_subscription_quota_expired").to_string(),
-        SubscriptionQuotaStatus::ExpiringSoon => lang.tr("overview_subscription_quota_expiring").to_string(),
-        SubscriptionQuotaStatus::Empty => lang.tr("overview_subscription_quota_no_profile").to_string(),
+        SubscriptionQuotaStatus::Ready => {
+            lang.tr("overview_subscription_quota_healthy").to_string()
+        }
+        SubscriptionQuotaStatus::Warning => {
+            lang.tr("overview_subscription_quota_warning").to_string()
+        }
+        SubscriptionQuotaStatus::Critical => {
+            lang.tr("overview_subscription_quota_critical").to_string()
+        }
+        SubscriptionQuotaStatus::Exhausted => {
+            lang.tr("overview_subscription_quota_exhausted").to_string()
+        }
+        SubscriptionQuotaStatus::Expired => {
+            lang.tr("overview_subscription_quota_expired").to_string()
+        }
+        SubscriptionQuotaStatus::ExpiringSoon => {
+            lang.tr("overview_subscription_quota_expiring").to_string()
+        }
+        SubscriptionQuotaStatus::Empty => lang
+            .tr("overview_subscription_quota_no_profile")
+            .to_string(),
         SubscriptionQuotaStatus::Unknown => "pending".to_owned(),
         SubscriptionQuotaStatus::Unsupported | SubscriptionQuotaStatus::Failed => snapshot
             .failure

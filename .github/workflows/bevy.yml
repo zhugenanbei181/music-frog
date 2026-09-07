@@ -60,6 +60,7 @@ on:
       - "scripts/quality/subscription-quota-guard.py"
       - "scripts/quality/overview-master-switch-guard.py"
       - "scripts/quality/proxy-mode-segment-guard.py"
+      - "scripts/quality/overview-speedtest-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -111,6 +112,7 @@ on:
       - "scripts/quality/subscription-quota-guard.py"
       - "scripts/quality/overview-master-switch-guard.py"
       - "scripts/quality/proxy-mode-segment-guard.py"
+      - "scripts/quality/overview-speedtest-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -285,6 +287,9 @@ jobs:
 
       - name: Enforce DUAL-03-08 Overview proxy mode segment parity
         run: python3 scripts/quality/proxy-mode-segment-guard.py --mode enforce
+
+      - name: Enforce DUAL-03-09 Overview speedtest button parity
+        run: python3 scripts/quality/overview-speedtest-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

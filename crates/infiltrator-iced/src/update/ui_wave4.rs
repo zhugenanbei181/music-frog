@@ -8,13 +8,13 @@ use iced::Task;
 use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::vpn_application::VpnServiceApplication;
-use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
     NetworkRoamingStatus,
 };
+use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
 use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 fn split_pac_domains(value: &str) -> Vec<String> {
@@ -76,9 +76,7 @@ impl AppState {
             return self.runtime_unavailable("应用 PAC 本地服务");
         };
         let Some(service) = runtime.pac_service_port() else {
-            let error = InfiltratorError::Internal(
-                "当前宿主未提供 PAC 本地服务能力".to_owned(),
-            );
+            let error = InfiltratorError::Internal("当前宿主未提供 PAC 本地服务能力".to_owned());
             self.set_error(&error);
             return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
         };
@@ -150,9 +148,8 @@ impl AppState {
             });
         };
         let Some(port) = runtime.vpn_service_port() else {
-            let error = InfiltratorError::Internal(
-                "当前宿主未提供 Android VpnService 能力".to_owned(),
-            );
+            let error =
+                InfiltratorError::Internal("当前宿主未提供 Android VpnService 能力".to_owned());
             return Task::done(Message::VpnSessionUpdated(Err(error)));
         };
         let application = VpnServiceApplication::new(port);
@@ -227,9 +224,8 @@ impl AppState {
                     return self.runtime_unavailable("修复 TUN 默认网关路由");
                 };
                 let Some(port) = runtime.network_roaming_port() else {
-                    let error = InfiltratorError::Internal(
-                        "当前宿主未提供网卡漫游路由修复能力".to_owned(),
-                    );
+                    let error =
+                        InfiltratorError::Internal("当前宿主未提供网卡漫游路由修复能力".to_owned());
                     return Task::done(Message::NetworkRoamingRepaired(Err(error)));
                 };
                 let gateway: std::sync::Arc<dyn RuntimeGateway> = runtime;
@@ -260,10 +256,9 @@ impl AppState {
                 let state = snapshot.state.clone();
                 self.runtime.vpn = snapshot;
                 let (message, status) = match state {
-                    VpnSessionState::PermissionRequired => (
-                        "等待 Android VPN 用户授权".to_owned(),
-                        ToastStatus::Info,
-                    ),
+                    VpnSessionState::PermissionRequired => {
+                        ("等待 Android VPN 用户授权".to_owned(), ToastStatus::Info)
+                    }
                     VpnSessionState::Starting => (
                         "Android VPN 前台服务已启动，等待隧道 FD".to_owned(),
                         ToastStatus::Info,
@@ -275,9 +270,10 @@ impl AppState {
                     VpnSessionState::Stopped | VpnSessionState::Revoked => {
                         ("Android VPN 已停止".to_owned(), ToastStatus::Info)
                     }
-                    VpnSessionState::Unsupported { reason } => {
-                        (format!("当前宿主不支持 Android VPN: {reason}"), ToastStatus::Info)
-                    }
+                    VpnSessionState::Unsupported { reason } => (
+                        format!("当前宿主不支持 Android VPN: {reason}"),
+                        ToastStatus::Info,
+                    ),
                     _ => ("Android VPN 状态已更新".to_owned(), ToastStatus::Info),
                 };
                 Task::done(Message::ShowToast(message, status))
@@ -310,7 +306,9 @@ impl AppState {
                         format!("Core recovered after {attempts} restart attempt(s)")
                     }
                     infiltrator_contract::snapshot::CoreWatchdogState::Tripped { attempts } => {
-                        format!("Automatic recovery is suspended after {attempts} failed attempt(s)")
+                        format!(
+                            "Automatic recovery is suspended after {attempts} failed attempt(s)"
+                        )
                     }
                 });
                 Task::none()

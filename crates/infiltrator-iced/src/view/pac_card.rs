@@ -2,7 +2,9 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{badge, card, form_input_style, style_accent, toggle_switch, BadgeKind};
+use crate::view::components::{
+    BadgeKind, badge, card, form_input_style, style_accent, toggle_switch,
+};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text, text_input};
@@ -54,7 +56,9 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(st.clone()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
+                text(st.clone()).size(11).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).success)
+                }),
             ]
             .align_y(Alignment::Center),
         )
@@ -67,21 +71,50 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
         Some(lang.tr("pac_title").to_string()),
         column![
             row![
-                text(lang.tr("pac_desc").to_string()).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }).width(Length::Fill),
+                text(lang.tr("pac_desc").to_string())
+                    .size(12)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    })
+                    .width(Length::Fill),
                 toggle,
             ]
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
             row![
-                text(format!("{}:", lang.tr("pac_url_label"))).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+                text(format!("{}:", lang.tr("pac_url_label")))
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    }),
                 Space::new().width(theme::SP_SM),
-                text(url_display).size(12).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                text(url_display)
+                    .size(12)
+                    .font(MONO)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_primary)
+                    }),
                 Space::new().width(Length::Fill),
-                badge(if pac.is_pac_mode_active { "PAC Running" } else { "PAC Idle" }, if pac.is_pac_mode_active { BadgeKind::Success } else { BadgeKind::Neutral }),
+                badge(
+                    if pac.is_pac_mode_active {
+                        "PAC Running"
+                    } else {
+                        "PAC Idle"
+                    },
+                    if pac.is_pac_mode_active {
+                        BadgeKind::Success
+                    } else {
+                        BadgeKind::Neutral
+                    }
+                ),
             ]
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
-            text(lang.tr("pac_bypass_cidrs").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("pac_bypass_cidrs").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             bypass_input,
             Space::new().height(theme::SP_XS),
             row![

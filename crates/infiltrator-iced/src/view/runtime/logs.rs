@@ -1,7 +1,9 @@
 //! Runtime page system-logs section: log-level picker, stream badge, log count,
 //! scroll pin/freeze button, clear logs button, and structured log lines.
 
-use iced::widget::{Scrollable, Space, button, column, container, pick_list, row, text, text_input};
+use iced::widget::{
+    Scrollable, Space, button, column, container, pick_list, row, text, text_input,
+};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -10,7 +12,9 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStreamState;
 use crate::view::components::{
-    form_input_style, style_accent, BadgeKind, badge, chip, form_pick_style, icon_button, section_header};
+    BadgeKind, badge, chip, form_input_style, form_pick_style, icon_button, section_header,
+    style_accent,
+};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, MONO, R_CONTROL, SP_MD, SP_SM, SP_XS, tokens};
 
@@ -60,7 +64,13 @@ pub(super) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
         Space::new().width(theme::SP_SM),
         stream_badge(&state.diag.logs_stream_state, &lang),
         Space::new().width(theme::SP_SM),
-        badge(infiltrator_shared::i18n_interpolator::interpolate(&lang.tr("logs_count_unit"), &[("log_count", &log_count.to_string())]), BadgeKind::Neutral),
+        badge(
+            infiltrator_shared::i18n_interpolator::interpolate(
+                &lang.tr("logs_count_unit"),
+                &[("log_count", &log_count.to_string())]
+            ),
+            BadgeKind::Neutral
+        ),
         Space::new().width(theme::SP_SM),
         button(
             row![
@@ -86,7 +96,9 @@ pub(super) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
             text(lang.tr("logs_no_realtime_records").to_string())
                 .size(11)
                 .font(MONO)
-                .style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) })
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary),
+                })
                 .into(),
         ]
     } else {
@@ -117,25 +129,29 @@ pub(super) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
     .style(form_input_style);
 
     column![
-        section_header(lang.tr("runtime_system_logs").as_ref(), Some(logs_trailing.into())),
+        section_header(
+            lang.tr("runtime_system_logs").as_ref(),
+            Some(logs_trailing.into())
+        ),
         Space::new().height(theme::SP_XS),
         regex_bar,
         Space::new().height(theme::SP_SM),
         container(
-            Scrollable::new(
-                column(log_lines).spacing(4).padding(iced::Padding {
-                    top: theme::SP_SM,
-                    right: SCROLL_PAD,
-                    bottom: theme::SP_SM,
-                    left: theme::SP_SM,
-                })
-            )
+            Scrollable::new(column(log_lines).spacing(4).padding(iced::Padding {
+                top: theme::SP_SM,
+                right: SCROLL_PAD,
+                bottom: theme::SP_SM,
+                left: theme::SP_SM,
+            }))
             .id(iced::widget::Id::new("log_scroller"))
             .height(Length::Fixed(260.0))
         )
         .style(|t: &Theme| container::Style {
             background: Some(tokens(t).control_bg.into()),
-            border: Border { radius: border::Radius::from(R_CONTROL), ..Default::default() },
+            border: Border {
+                radius: border::Radius::from(R_CONTROL),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .width(Length::Fill)
@@ -154,7 +170,9 @@ fn render_log_line<'a>(raw_line: &str, theme: &Theme) -> Element<'a, Message> {
         text(format!("[{ts}]"))
             .size(11)
             .font(MONO)
-            .style(move |_t: &Theme| text::Style { color: Some(tk.text_tertiary) })
+            .style(move |_t: &Theme| text::Style {
+                color: Some(tk.text_tertiary),
+            })
             .into()
     } else {
         Space::new().width(0).into()
@@ -169,9 +187,24 @@ fn render_log_line<'a>(raw_line: &str, theme: &Theme) -> Element<'a, Message> {
     if parsed.is_connection {
         let flow_elem: Element<'a, Message> = match (parsed.source, parsed.destination) {
             (Some(src), Some(dst)) => row![
-                text(src).size(11).font(MONO).style(move |_t: &Theme| text::Style { color: Some(tk.text_secondary) }),
-                text(" → ").size(11).font(MONO).style(move |_t: &Theme| text::Style { color: Some(tk.text_tertiary) }),
-                text(dst).size(11).font(MONO).style(move |_t: &Theme| text::Style { color: Some(tk.text_primary) }),
+                text(src)
+                    .size(11)
+                    .font(MONO)
+                    .style(move |_t: &Theme| text::Style {
+                        color: Some(tk.text_secondary)
+                    }),
+                text(" → ")
+                    .size(11)
+                    .font(MONO)
+                    .style(move |_t: &Theme| text::Style {
+                        color: Some(tk.text_tertiary)
+                    }),
+                text(dst)
+                    .size(11)
+                    .font(MONO)
+                    .style(move |_t: &Theme| text::Style {
+                        color: Some(tk.text_primary)
+                    }),
             ]
             .align_y(Alignment::Center)
             .into(),
@@ -179,31 +212,43 @@ fn render_log_line<'a>(raw_line: &str, theme: &Theme) -> Element<'a, Message> {
         };
 
         let rule_elem: Element<'a, Message> = if let Some(rule) = parsed.rule {
-            text(rule).size(11).font(MONO).style(move |_t: &Theme| text::Style { color: Some(tk.accent) }).into()
+            text(rule)
+                .size(11)
+                .font(MONO)
+                .style(move |_t: &Theme| text::Style {
+                    color: Some(tk.accent),
+                })
+                .into()
         } else {
             Space::new().width(0).into()
         };
 
-        let outbound_elem: Element<'a, Message> = match (parsed.outbound_flag, parsed.outbound_node) {
-            (Some(flag), Some(node)) => {
-                let label = if let Some(grp) = parsed.outbound_group {
-                    format!("{flag} {grp}[{node}]")
-                } else {
-                    format!("{flag} {node}")
-                };
-                container(
-                    text(label).size(11).font(MONO).style(move |_t: &Theme| text::Style { color: Some(tk.text_secondary) })
-                )
-                .padding([2, 6])
-                .style(move |_t: &Theme| container::Style {
-                    background: Some(tk.chip_bg.into()),
-                    border: Border { radius: border::Radius::from(4.0), ..Default::default() },
-                    ..Default::default()
-                })
-                .into()
-            }
-            _ => Space::new().width(0).into(),
-        };
+        let outbound_elem: Element<'a, Message> =
+            match (parsed.outbound_flag, parsed.outbound_node) {
+                (Some(flag), Some(node)) => {
+                    let label = if let Some(grp) = parsed.outbound_group {
+                        format!("{flag} {grp}[{node}]")
+                    } else {
+                        format!("{flag} {node}")
+                    };
+                    container(text(label).size(11).font(MONO).style(move |_t: &Theme| {
+                        text::Style {
+                            color: Some(tk.text_secondary),
+                        }
+                    }))
+                    .padding([2, 6])
+                    .style(move |_t: &Theme| container::Style {
+                        background: Some(tk.chip_bg.into()),
+                        border: Border {
+                            radius: border::Radius::from(4.0),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    })
+                    .into()
+                }
+                _ => Space::new().width(0).into(),
+            };
 
         row![
             level_badge,
@@ -232,7 +277,9 @@ fn render_log_line<'a>(raw_line: &str, theme: &Theme) -> Element<'a, Message> {
             text(parsed.message)
                 .size(11)
                 .font(MONO)
-                .style(move |_t: &Theme| text::Style { color: Some(level_color) }),
+                .style(move |_t: &Theme| text::Style {
+                    color: Some(level_color)
+                }),
         ]
         .align_y(Alignment::Center)
         .into()
@@ -255,17 +302,25 @@ pub fn parse_structured_log(raw: &str) -> StructuredLogLine {
     let raw_trimmed = raw.trim();
 
     // 1. Check if raw string is JSON format: {"type":"info","payload":"..."}
-    let (level_from_json, payload_text) = if raw_trimmed.starts_with('{') && raw_trimmed.ends_with('}') {
-        if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw_trimmed) {
-            let lvl = value.get("type").and_then(|v| v.as_str()).map(parse_level_str);
-            let payload = value.get("payload").and_then(|v| v.as_str()).unwrap_or(raw_trimmed).to_string();
-            (lvl, payload)
+    let (level_from_json, payload_text) =
+        if raw_trimmed.starts_with('{') && raw_trimmed.ends_with('}') {
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw_trimmed) {
+                let lvl = value
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .map(parse_level_str);
+                let payload = value
+                    .get("payload")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(raw_trimmed)
+                    .to_string();
+                (lvl, payload)
+            } else {
+                (None, raw_trimmed.to_string())
+            }
         } else {
             (None, raw_trimmed.to_string())
-        }
-    } else {
-        (None, raw_trimmed.to_string())
-    };
+        };
 
     let text_to_parse = payload_text.trim();
 
@@ -305,14 +360,18 @@ pub fn parse_structured_log(raw: &str) -> StructuredLogLine {
 
     let mut protocol = None;
     if rest.starts_with('[')
-        && let Some(close_bracket) = rest.find(']') {
-            let tag = &rest[1..close_bracket];
-            let tag_upper = tag.to_uppercase();
-            if matches!(tag_upper.as_str(), "TCP" | "UDP" | "HTTP" | "HTTPS" | "TLS" | "QUIC" | "DNS" | "SOCKS5" | "ICMP") {
-                protocol = Some(tag_upper);
-                rest = rest[close_bracket + 1..].trim();
-            }
+        && let Some(close_bracket) = rest.find(']')
+    {
+        let tag = &rest[1..close_bracket];
+        let tag_upper = tag.to_uppercase();
+        if matches!(
+            tag_upper.as_str(),
+            "TCP" | "UDP" | "HTTP" | "HTTPS" | "TLS" | "QUIC" | "DNS" | "SOCKS5" | "ICMP"
+        ) {
+            protocol = Some(tag_upper);
+            rest = rest[close_bracket + 1..].trim();
         }
+    }
 
     // Check connection routing line: "... --> ... match ... using ..."
     let arrow_delimiter = if rest.contains("-->") {
@@ -331,7 +390,9 @@ pub fn parse_structured_log(raw: &str) -> StructuredLogLine {
             let source_part = parts[0].trim().to_string();
             let remainder = parts[1].trim();
 
-            let match_idx = remainder.find(" match ").or_else(|| remainder.find(" matched "));
+            let match_idx = remainder
+                .find(" match ")
+                .or_else(|| remainder.find(" matched "));
             if let Some(m_idx) = match_idx {
                 let dest_part = remainder[..m_idx].trim().to_string();
                 let after_match = if remainder[m_idx..].starts_with(" match ") {
@@ -340,7 +401,9 @@ pub fn parse_structured_log(raw: &str) -> StructuredLogLine {
                     &remainder[m_idx + 9..]
                 };
 
-                let using_idx = after_match.find(" using ").or_else(|| after_match.find(" via "));
+                let using_idx = after_match
+                    .find(" using ")
+                    .or_else(|| after_match.find(" via "));
                 let (rule_part, target_part) = if let Some(u_idx) = using_idx {
                     let r = after_match[..u_idx].trim().to_string();
                     let t = if after_match[u_idx..].starts_with(" using ") {
@@ -434,10 +497,18 @@ fn parse_log_level(line: &str) -> LogLevel {
     if upper.starts_with("WARN") || upper.starts_with("[WARN") || upper.starts_with("[WRN") {
         return LogLevel::Warn;
     }
-    if upper.starts_with("DEBUG") || upper.starts_with("DBG") || upper.starts_with("[DEBUG") || upper.starts_with("[DBG") {
+    if upper.starts_with("DEBUG")
+        || upper.starts_with("DBG")
+        || upper.starts_with("[DEBUG")
+        || upper.starts_with("[DBG")
+    {
         return LogLevel::Debug;
     }
-    if upper.starts_with("INFO") || upper.starts_with("INF") || upper.starts_with("[INFO") || upper.starts_with("[INF") {
+    if upper.starts_with("INFO")
+        || upper.starts_with("INF")
+        || upper.starts_with("[INFO")
+        || upper.starts_with("[INF")
+    {
         return LogLevel::Info;
     }
 

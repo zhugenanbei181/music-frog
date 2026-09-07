@@ -7,10 +7,7 @@ fn test_mode_ids() {
     assert_eq!(mode_ids(&state), vec!["rule", "global", "direct"]);
 
     state.runtime.script_block_present = true;
-    assert_eq!(
-        mode_ids(&state),
-        vec!["rule", "global", "direct", "script"]
-    );
+    assert_eq!(mode_ids(&state), vec!["rule", "global", "direct", "script"]);
 }
 
 #[test]

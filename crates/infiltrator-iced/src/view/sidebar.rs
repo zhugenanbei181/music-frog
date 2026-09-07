@@ -12,12 +12,11 @@ use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::view::components::{
-    BadgeKind, badge, card_surface, icon_button, nav_button, segmented_control,
-    toggle_switch,
+    BadgeKind, badge, card_surface, icon_button, nav_button, segmented_control, toggle_switch,
 };
-use crate::view::waveform::mini_waveform;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CARD, R_CONTROL};
+use crate::view::waveform::mini_waveform;
 use iced::widget::{Space, button, column, container, progress_bar, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -124,7 +123,10 @@ pub fn sidebar_rail(state: &AppState) -> Element<'_, Message> {
     .align_x(Alignment::Center);
 
     for route in routes {
-        items = items.push(crate::view::components::nav_rail_icon(route, &state.shell.current_route));
+        items = items.push(crate::view::components::nav_rail_icon(
+            route,
+            &state.shell.current_route,
+        ));
     }
 
     container(items)
@@ -170,9 +172,12 @@ fn header(state: &AppState) -> Element<'_, Message> {
             .style(|t: &Theme| text::Style {
                 color: Some(theme::tokens(t).text_primary)
             }),
-        text(version_str).size(10).font(MONO).style(|t: &Theme| text::Style {
-            color: Some(theme::tokens(t).text_tertiary),
-        }),
+        text(version_str)
+            .size(10)
+            .font(MONO)
+            .style(|t: &Theme| text::Style {
+                color: Some(theme::tokens(t).text_tertiary),
+            }),
     ]
     .spacing(1);
 
@@ -183,19 +188,30 @@ fn header(state: &AppState) -> Element<'_, Message> {
         icon_button(
             Icon::ChevronLeft,
             13.0,
-            if can_back { Message::NavigateBack } else { Message::Noop },
+            if can_back {
+                Message::NavigateBack
+            } else {
+                Message::Noop
+            },
         ),
         icon_button(
             Icon::ChevronRight,
             13.0,
-            if can_fwd { Message::NavigateForward } else { Message::Noop },
+            if can_fwd {
+                Message::NavigateForward
+            } else {
+                Message::Noop
+            },
         ),
     ]
     .spacing(2)
     .align_y(Alignment::Center);
 
     let status_dot = container(Space::new().width(8).height(8)).style(move |t: &Theme| {
-        let is_running = matches!(state.runtime.status, crate::types::runtime::RuntimeStatus::Running);
+        let is_running = matches!(
+            state.runtime.status,
+            crate::types::runtime::RuntimeStatus::Running
+        );
         let col = if is_running {
             theme::tokens(t).success
         } else {
@@ -553,7 +569,11 @@ fn shortcut_tile<'a>(
         Space::new().height(theme::SP_XS),
         text(label.to_string())
             .size(11)
-            .font(if is_active { FONT_SEMIBOLD } else { FONT_MEDIUM })
+            .font(if is_active {
+                FONT_SEMIBOLD
+            } else {
+                FONT_MEDIUM
+            })
             .style(move |t: &Theme| text::Style {
                 color: Some(if is_active {
                     theme::tokens(t).accent
@@ -616,13 +636,9 @@ fn speed_footer<'a>(state: &AppState, _lang: &Lang<'a>) -> Element<'a, Message> 
 
     let waveform = mini_waveform(&samples);
 
-    let content = row![
-        speeds_col,
-        Space::new().width(Length::Fill),
-        waveform,
-    ]
-    .align_y(Alignment::Center)
-    .width(Length::Fill);
+    let content = row![speeds_col, Space::new().width(Length::Fill), waveform,]
+        .align_y(Alignment::Center)
+        .width(Length::Fill);
 
     container(content)
         .width(Length::Fill)

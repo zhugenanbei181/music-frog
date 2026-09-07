@@ -2,7 +2,9 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{badge, card, modern_scrollable, style_accent, style_ghost, BadgeKind};
+use crate::view::components::{
+    BadgeKind, badge, card, modern_scrollable, style_accent, style_ghost,
+};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
@@ -13,13 +15,10 @@ use infiltrator_shared::locales::{Lang, Localizer};
 pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let uwp = &state.shell.uwp_loopback;
     let availability = match &uwp.availability {
-        UwpLoopbackAvailability::Supported => uwp
-            .status_message
-            .clone()
-            .unwrap_or_else(|| {
-                lang.tr("uwp_found_count")
-                    .replace("{count}", &uwp.apps.len().to_string())
-            }),
+        UwpLoopbackAvailability::Supported => uwp.status_message.clone().unwrap_or_else(|| {
+            lang.tr("uwp_found_count")
+                .replace("{count}", &uwp.apps.len().to_string())
+        }),
         UwpLoopbackAvailability::Unsupported { reason }
         | UwpLoopbackAvailability::Unavailable { reason } => reason.clone(),
     };
@@ -74,13 +73,27 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
 
         let item = button(
             row![
-                text(glyph).size(14).font(MONO).style(move |t: &Theme| text::Style {
-                    color: Some(if is_exempt { tokens(t).accent } else { tokens(t).text_tertiary }),
-                }),
+                text(glyph)
+                    .size(14)
+                    .font(MONO)
+                    .style(move |t: &Theme| text::Style {
+                        color: Some(if is_exempt {
+                            tokens(t).accent
+                        } else {
+                            tokens(t).text_tertiary
+                        }),
+                    }),
                 Space::new().width(theme::SP_SM),
                 text(app.display_name.clone()).size(12).font(FONT_MEDIUM),
                 Space::new().width(Length::Fill),
-                badge(if is_exempt { "Exempted" } else { "Isolated" }, if is_exempt { BadgeKind::Success } else { BadgeKind::Neutral }),
+                badge(
+                    if is_exempt { "Exempted" } else { "Isolated" },
+                    if is_exempt {
+                        BadgeKind::Success
+                    } else {
+                        BadgeKind::Neutral
+                    }
+                ),
             ]
             .align_y(Alignment::Center),
         )
@@ -110,7 +123,12 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
         Some(lang.tr("uwp_title").to_string()),
         column![
             row![
-                text(lang.tr("uwp_desc").to_string()).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }).width(Length::Fill),
+                text(lang.tr("uwp_desc").to_string())
+                    .size(12)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    })
+                    .width(Length::Fill),
                 scan_btn,
                 Space::new().width(theme::SP_XS),
                 exempt_all_btn,

@@ -7,13 +7,22 @@ fn test_rebuild_status_badge_kinds() {
     let _ = rebuild_status_badge(&lang_zh, &RebuildFlowState::Idle, "DNS", false, true);
     let _ = rebuild_status_badge(&lang_en, &RebuildFlowState::Idle, "DNS", false, true);
     let _ = rebuild_status_badge(&lang_zh, &RebuildFlowState::Idle, "DNS", true, false);
-    let saving = RebuildFlowState::Saving { label: "DNS".into() };
+    let saving = RebuildFlowState::Saving {
+        label: "DNS".into(),
+    };
     let _ = rebuild_status_badge(&lang_zh, &saving, "DNS", false, false);
-    let rebuilding = RebuildFlowState::Rebuilding { label: "DNS".into() };
+    let rebuilding = RebuildFlowState::Rebuilding {
+        label: "DNS".into(),
+    };
     let _ = rebuild_status_badge(&lang_zh, &rebuilding, "DNS", false, false);
-    let done = RebuildFlowState::Done { label: "DNS".into() };
+    let done = RebuildFlowState::Done {
+        label: "DNS".into(),
+    };
     let _ = rebuild_status_badge(&lang_zh, &done, "DNS", false, false);
-    let failed = RebuildFlowState::Failed { label: "DNS".into(), error: "error".into() };
+    let failed = RebuildFlowState::Failed {
+        label: "DNS".into(),
+        error: "error".into(),
+    };
     let _ = rebuild_status_badge(&lang_zh, &failed, "DNS", false, false);
     let _ = rebuild_status_badge(&lang_zh, &RebuildFlowState::Idle, "DNS", false, false);
 }
@@ -59,7 +68,10 @@ fn test_item_list_mutation() {
     assert_eq!(removed, "223.5.5.5, https://doh.pub/dns-query");
 
     let appended = append_item_to_list(&removed, "tls://223.5.5.5:853");
-    assert_eq!(appended, "223.5.5.5, https://doh.pub/dns-query, tls://223.5.5.5:853");
+    assert_eq!(
+        appended,
+        "223.5.5.5, https://doh.pub/dns-query, tls://223.5.5.5:853"
+    );
 
     let no_dup = append_item_to_list(&appended, "223.5.5.5");
     assert_eq!(no_dup, appended);

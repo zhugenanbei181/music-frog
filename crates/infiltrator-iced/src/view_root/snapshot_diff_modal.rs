@@ -2,7 +2,9 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{badge, icon_button, modern_scrollable, style_accent, style_ghost, BadgeKind};
+use crate::view::components::{
+    BadgeKind, badge, icon_button, modern_scrollable, style_accent, style_ghost,
+};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
@@ -28,11 +30,15 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
     ]
     .align_y(Alignment::Center);
 
-    let subtitle = text(format!("{}: {}", lang.tr("snapshot_diff_compare_with"), snapshot_id))
-        .size(12)
-        .style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
-        });
+    let subtitle = text(format!(
+        "{}: {}",
+        lang.tr("snapshot_diff_compare_with"),
+        snapshot_id
+    ))
+    .size(12)
+    .style(|t: &Theme| text::Style {
+        color: Some(tokens(t).text_secondary),
+    });
 
     let mock_diff_rows = column![
         row![
@@ -143,7 +149,15 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
         .align_x(Alignment::Center)
         .align_y(Alignment::Center)
         .style(|_t: &Theme| container::Style {
-            background: Some(Color { a: 0.50, r: 0.0, g: 0.0, b: 0.0 }.into()),
+            background: Some(
+                Color {
+                    a: 0.50,
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                }
+                .into(),
+            ),
             ..Default::default()
         })
         .into()

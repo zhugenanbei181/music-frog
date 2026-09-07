@@ -102,10 +102,9 @@ impl AppState {
                 }
                 self.diag.last_frame_time = now;
                 if self.runtime.traffic_topology.is_flowing() {
-                    self.diag.topology_flow_phase =
-                        (self.diag.topology_flow_phase
-                            + delta * self.runtime.traffic_topology.flow_speed_hz())
-                        .fract();
+                    self.diag.topology_flow_phase = (self.diag.topology_flow_phase
+                        + delta * self.runtime.traffic_topology.flow_speed_hz())
+                    .fract();
                 } else {
                     self.diag.topology_flow_phase = 0.0;
                 }
@@ -285,18 +284,24 @@ impl AppState {
                 Task::none()
             }
             Message::SelectNextCommand => {
-                self.shell.command_selected_index = self.shell.command_selected_index.saturating_add(1);
+                self.shell.command_selected_index =
+                    self.shell.command_selected_index.saturating_add(1);
                 Task::none()
             }
             Message::SelectPrevCommand => {
-                self.shell.command_selected_index = self.shell.command_selected_index.saturating_sub(1);
+                self.shell.command_selected_index =
+                    self.shell.command_selected_index.saturating_sub(1);
                 Task::none()
             }
             Message::ExecuteCommand(action) => {
                 self.shell.command_palette_open = false;
                 match action {
-                    crate::types::app::CommandAction::Navigate(route) => Task::done(Message::Navigate(route)),
-                    crate::types::app::CommandAction::SetMode(mode) => Task::done(Message::SetProxyMode(mode)),
+                    crate::types::app::CommandAction::Navigate(route) => {
+                        Task::done(Message::Navigate(route))
+                    }
+                    crate::types::app::CommandAction::SetMode(mode) => {
+                        Task::done(Message::SetProxyMode(mode))
+                    }
                     crate::types::app::CommandAction::ToggleSystemProxy => {
                         let cur = self.runtime.system_toggles.system_proxy.is_enabled();
                         Task::done(Message::SetSystemProxy(!cur))
@@ -305,25 +310,37 @@ impl AppState {
                         let cur = self.runtime.system_toggles.tun.is_enabled();
                         Task::done(Message::SetTunEnabled(!cur))
                     }
-                    crate::types::app::CommandAction::FlushFakeIp => Task::done(Message::FlushFakeIpCache),
-                    crate::types::app::CommandAction::SpeedTestAll => Task::done(Message::TestAllProxyDelays),
-                    crate::types::app::CommandAction::CloseAllConnections => Task::done(Message::CloseAllConnections),
-                    crate::types::app::CommandAction::RestartKernel => Task::done(Message::StartProxy),
-                    crate::types::app::CommandAction::SwitchProfile(name) => Task::done(Message::SetActiveProfile(name)),
-                    crate::types::app::CommandAction::ToggleMiniHud => Task::done(Message::ToggleMiniHudMode),
+                    crate::types::app::CommandAction::FlushFakeIp => {
+                        Task::done(Message::FlushFakeIpCache)
+                    }
+                    crate::types::app::CommandAction::SpeedTestAll => {
+                        Task::done(Message::TestAllProxyDelays)
+                    }
+                    crate::types::app::CommandAction::CloseAllConnections => {
+                        Task::done(Message::CloseAllConnections)
+                    }
+                    crate::types::app::CommandAction::RestartKernel => {
+                        Task::done(Message::StartProxy)
+                    }
+                    crate::types::app::CommandAction::SwitchProfile(name) => {
+                        Task::done(Message::SetActiveProfile(name))
+                    }
+                    crate::types::app::CommandAction::ToggleMiniHud => {
+                        Task::done(Message::ToggleMiniHudMode)
+                    }
                 }
             }
             Message::InspectConnection(id) => {
                 self.diag.inspecting_connection_id = id;
                 Task::none()
             }
-            Message::CloseSingleConnection(id) => {
-                Task::done(Message::CloseConnection(id))
-            }
+            Message::CloseSingleConnection(id) => Task::done(Message::CloseConnection(id)),
             Message::InsertYamlSnippet(snip) => {
-                self.editor.editor_content.perform(iced::widget::text_editor::Action::Edit(
-                    iced::widget::text_editor::Edit::Paste(snip.to_string().into()),
-                ));
+                self.editor
+                    .editor_content
+                    .perform(iced::widget::text_editor::Action::Edit(
+                        iced::widget::text_editor::Edit::Paste(snip.to_string().into()),
+                    ));
                 Task::none()
             }
             Message::FormatYamlEditor => {
@@ -331,7 +348,8 @@ impl AppState {
                 if let Ok(val) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&text)
                     && let Ok(formatted) = serde_yaml_ng::to_string(&val)
                 {
-                    self.editor.editor_content = iced::widget::text_editor::Content::with_text(&formatted);
+                    self.editor.editor_content =
+                        iced::widget::text_editor::Content::with_text(&formatted);
                 }
                 Task::none()
             }
@@ -362,7 +380,8 @@ impl AppState {
             }
             Message::AppRoutingConfigLoaded(result) => match result {
                 Ok(config) => {
-                    self.app_routing.mode = crate::routing_application::mode_from_domain(config.mode);
+                    self.app_routing.mode =
+                        crate::routing_application::mode_from_domain(config.mode);
                     self.app_routing.custom_rules = config
                         .rules
                         .into_iter()
@@ -420,9 +439,18 @@ impl AppState {
             }
             Message::MoveProxyGroupUp(name) => {
                 if self.runtime.proxy_group_order.is_empty() {
-                    self.runtime.proxy_group_order = self.runtime.filtered_groups.iter().map(|(n, _)| n.clone()).collect();
+                    self.runtime.proxy_group_order = self
+                        .runtime
+                        .filtered_groups
+                        .iter()
+                        .map(|(n, _)| n.clone())
+                        .collect();
                 }
-                if let Some(idx) = self.runtime.proxy_group_order.iter().position(|n| n == &name)
+                if let Some(idx) = self
+                    .runtime
+                    .proxy_group_order
+                    .iter()
+                    .position(|n| n == &name)
                     && idx > 0
                 {
                     self.runtime.proxy_group_order.swap(idx, idx - 1);
@@ -431,9 +459,18 @@ impl AppState {
             }
             Message::MoveProxyGroupDown(name) => {
                 if self.runtime.proxy_group_order.is_empty() {
-                    self.runtime.proxy_group_order = self.runtime.filtered_groups.iter().map(|(n, _)| n.clone()).collect();
+                    self.runtime.proxy_group_order = self
+                        .runtime
+                        .filtered_groups
+                        .iter()
+                        .map(|(n, _)| n.clone())
+                        .collect();
                 }
-                if let Some(idx) = self.runtime.proxy_group_order.iter().position(|n| n == &name)
+                if let Some(idx) = self
+                    .runtime
+                    .proxy_group_order
+                    .iter()
+                    .position(|n| n == &name)
                     && idx + 1 < self.runtime.proxy_group_order.len()
                 {
                     self.runtime.proxy_group_order.swap(idx, idx + 1);
@@ -457,7 +494,11 @@ impl AppState {
                 let yaml = self.editor.script_sandbox.input_yaml.clone();
                 self.editor.script_sandbox.is_running = true;
                 let engine = infiltrator_domain::script_engine::ScriptEngine::new();
-                match engine.execute_transform_detailed(&script, &yaml, infiltrator_domain::script_engine::HookStage::PreMerge) {
+                match engine.execute_transform_detailed(
+                    &script,
+                    &yaml,
+                    infiltrator_domain::script_engine::HookStage::PreMerge,
+                ) {
                     Ok(res) => {
                         self.editor.script_sandbox.execution_result = Some(res);
                         self.editor.script_sandbox.execution_error = None;
@@ -477,19 +518,22 @@ impl AppState {
                         self.editor.script_sandbox.script_code = "function main(config, profile) {
   auto_country_groups(config);
   return config;
-}".to_string();
+}"
+                        .to_string();
                     }
                     "streaming" => {
                         self.editor.script_sandbox.script_code = "function main(config, profile) {
   streaming_groups(config);
   return config;
-}".to_string();
+}"
+                        .to_string();
                     }
                     "direct" => {
                         self.editor.script_sandbox.script_code = "function main(config, profile) {
   direct_china(config);
   return config;
-}".to_string();
+}"
+                        .to_string();
                     }
                     _ => {}
                 }
@@ -510,23 +554,31 @@ impl AppState {
             }
             Message::RunDnsLeakProbe => {
                 self.diag.is_probing_dns_leak = true;
-                Task::perform(async {
-                    let probe_start = std::time::Instant::now();
-                    let mut ip = "104.28.19.42".to_string();
-                    let country = "US".to_string();
-                    let isp = "Cloudflare".to_string();
-                    if let Ok(snapshot) = crate::network::application().probe_public_ip(None).await {
-                        ip = snapshot.ip;
-                    }
-                    crate::types::dns::DnsLeakReport {
-                        public_ip: ip,
-                        country,
-                        isp,
-                        is_leak_detected: false,
-                        tested_dns_servers: vec!["1.1.1.1:53 (Cloudflare)".into(), "8.8.8.8:53 (Google)".into()],
-                        probe_duration_ms: probe_start.elapsed().as_millis() as u64,
-                    }
-                }, Message::DnsLeakProbeFinished)
+                Task::perform(
+                    async {
+                        let probe_start = std::time::Instant::now();
+                        let mut ip = "104.28.19.42".to_string();
+                        let country = "US".to_string();
+                        let isp = "Cloudflare".to_string();
+                        if let Ok(snapshot) =
+                            crate::network::application().probe_public_ip(None).await
+                        {
+                            ip = snapshot.ip;
+                        }
+                        crate::types::dns::DnsLeakReport {
+                            public_ip: ip,
+                            country,
+                            isp,
+                            is_leak_detected: false,
+                            tested_dns_servers: vec![
+                                "1.1.1.1:53 (Cloudflare)".into(),
+                                "8.8.8.8:53 (Google)".into(),
+                            ],
+                            probe_duration_ms: probe_start.elapsed().as_millis() as u64,
+                        }
+                    },
+                    Message::DnsLeakProbeFinished,
+                )
             }
             Message::DnsLeakProbeFinished(report) => {
                 self.diag.is_probing_dns_leak = false;
@@ -549,7 +601,9 @@ impl AppState {
             }
             Message::ParseAndImportCustomUri => {
                 let uri = self.runtime.custom_node_uri_input.trim();
-                if let Ok(parsed) = infiltrator_domain::profile_converter::ProfileConverter::parse_uri(uri) {
+                if let Ok(parsed) =
+                    infiltrator_domain::profile_converter::ProfileConverter::parse_uri(uri)
+                {
                     self.runtime.custom_node_name_input = parsed.name.clone();
                     self.runtime.custom_node_server_input = parsed.server.clone();
                     self.runtime.custom_node_port_input = parsed.port.to_string();
@@ -577,7 +631,9 @@ impl AppState {
                         servername: Some("example.com".to_string()),
                         ..Default::default()
                     };
-                    self.runtime.custom_node_exported_uri = infiltrator_domain::profile_converter::ProfileConverter::export_uri(&dummy).ok();
+                    self.runtime.custom_node_exported_uri =
+                        infiltrator_domain::profile_converter::ProfileConverter::export_uri(&dummy)
+                            .ok();
                 }
                 Task::none()
             }
@@ -588,11 +644,19 @@ impl AppState {
                 } else {
                     self.runtime.custom_node_name_input.clone()
                 };
-                Task::done(Message::ShowToast(format!("Node '{name}' added"), ToastStatus::Success))
+                Task::done(Message::ShowToast(
+                    format!("Node '{name}' added"),
+                    ToastStatus::Success,
+                ))
             }
             Message::OpenAggregatorModal => {
                 self.profile.aggregator_modal_open = true;
-                self.profile.aggregator_selected_profiles = self.profile.profiles.iter().map(|p| p.name.clone()).collect();
+                self.profile.aggregator_selected_profiles = self
+                    .profile
+                    .profiles
+                    .iter()
+                    .map(|p| p.name.clone())
+                    .collect();
                 self.profile.aggregator_result_summary = None;
                 Task::none()
             }
@@ -601,7 +665,12 @@ impl AppState {
                 Task::none()
             }
             Message::ToggleAggregatorProfileSelection(name) => {
-                if let Some(pos) = self.profile.aggregator_selected_profiles.iter().position(|n| n == &name) {
+                if let Some(pos) = self
+                    .profile
+                    .aggregator_selected_profiles
+                    .iter()
+                    .position(|n| n == &name)
+                {
                     self.profile.aggregator_selected_profiles.remove(pos);
                 } else {
                     self.profile.aggregator_selected_profiles.push(name);
@@ -614,7 +683,10 @@ impl AppState {
             }
             Message::ExecuteProfileAggregation => {
                 let count = self.profile.aggregator_selected_profiles.len();
-                self.profile.aggregator_result_summary = Some(format!("Merged {count} profiles into '{}'", self.profile.aggregator_name_input));
+                self.profile.aggregator_result_summary = Some(format!(
+                    "Merged {count} profiles into '{}'",
+                    self.profile.aggregator_name_input
+                ));
                 Task::none()
             }
             Message::SetConnectionGroupingMode(mode) => {
@@ -628,7 +700,10 @@ impl AppState {
                 };
                 self.editor.rules.push(new_entry);
                 self.editor.rules_dirty = true;
-                Task::done(Message::ShowToast(format!("Added rule: {pattern} -> {target}"), ToastStatus::Success))
+                Task::done(Message::ShowToast(
+                    format!("Added rule: {pattern} -> {target}"),
+                    ToastStatus::Success,
+                ))
             }
             Message::OpenSnapshotDiff(id) => {
                 self.editor.snapshot_diff_modal_open = true;

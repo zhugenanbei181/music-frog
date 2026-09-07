@@ -7,8 +7,8 @@ use super::proxies::{
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_domain::settings::AppSettings;
 use infiltrator_contract::version::CoreReleaseChannel;
+use infiltrator_domain::settings::AppSettings;
 
 impl AppState {
     /// Mirror a loaded [`AppSettings`] snapshot onto the UI state fields.

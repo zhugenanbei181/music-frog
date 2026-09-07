@@ -2,9 +2,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{
-    BadgeKind, badge, card, form_input_style, style_ghost, text_btn,
-};
+use crate::view::components::{BadgeKind, badge, card, form_input_style, style_ghost, text_btn};
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
@@ -22,36 +20,27 @@ pub fn lan_security_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
         lang.tr("lan_security_disabled").to_string()
     };
 
-    let allowed = text_input(
-        "192.168.0.0/16, 10.0.0.0/8",
-        &security.allowed_ips,
-    )
-    .on_input(Message::UpdateLanAllowedIps)
-    .padding([6, 10])
-    .size(12)
-    .font(MONO)
-    .width(Length::Fill)
-    .style(form_input_style);
-    let disallowed = text_input(
-        "192.168.1.10/32",
-        &security.disallowed_ips,
-    )
-    .on_input(Message::UpdateLanDisallowedIps)
-    .padding([6, 10])
-    .size(12)
-    .font(MONO)
-    .width(Length::Fill)
-    .style(form_input_style);
-    let skip_auth = text_input(
-        "127.0.0.0/8, ::1/128",
-        &security.skip_auth_prefixes,
-    )
-    .on_input(Message::UpdateLanSkipAuthPrefixes)
-    .padding([6, 10])
-    .size(12)
-    .font(MONO)
-    .width(Length::Fill)
-    .style(form_input_style);
+    let allowed = text_input("192.168.0.0/16, 10.0.0.0/8", &security.allowed_ips)
+        .on_input(Message::UpdateLanAllowedIps)
+        .padding([6, 10])
+        .size(12)
+        .font(MONO)
+        .width(Length::Fill)
+        .style(form_input_style);
+    let disallowed = text_input("192.168.1.10/32", &security.disallowed_ips)
+        .on_input(Message::UpdateLanDisallowedIps)
+        .padding([6, 10])
+        .size(12)
+        .font(MONO)
+        .width(Length::Fill)
+        .style(form_input_style);
+    let skip_auth = text_input("127.0.0.0/8, ::1/128", &security.skip_auth_prefixes)
+        .on_input(Message::UpdateLanSkipAuthPrefixes)
+        .padding([6, 10])
+        .size(12)
+        .font(MONO)
+        .width(Length::Fill)
+        .style(form_input_style);
     let username = text_input("musicfrog", &security.auth_username)
         .on_input(Message::UpdateLanAuthUsername)
         .padding([6, 10])

@@ -81,7 +81,11 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
         } else {
             lang.tr("runtime_delay_test_all").to_string()
         },
-        if delay_testing { style_ghost } else { style_accent },
+        if delay_testing {
+            style_ghost
+        } else {
+            style_accent
+        },
         (!delay_testing).then_some(Message::TestAllProxyDelays),
     );
 

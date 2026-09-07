@@ -200,7 +200,7 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         let rule = spec.to_rule().unwrap();
         let manager = crate::configs_dir::config_manager().await.unwrap();
         let content = manager.load("alpha").await.unwrap();
-    let (filtered, report) = infiltrator_domain::filter::SubscriptionFilterPipeline::new(rule)
+        let (filtered, report) = infiltrator_domain::filter::SubscriptionFilterPipeline::new(rule)
             .apply_to_yaml(&content)
             .unwrap();
         infiltrator_domain::config::validate_yaml(&filtered).unwrap();

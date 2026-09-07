@@ -23,10 +23,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 color: Some(tokens(t).text_primary),
             }),
         text(lang.tr("sync_hero_desc").to_string())
-        .size(12)
-        .style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
-        }),
+            .size(12)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
     ]
     .spacing(theme::SP_XS);
 
@@ -104,16 +104,15 @@ fn build_status_card<'a>(
     ]
     .align_y(Alignment::Center);
 
-    let progress_or_hint: Element<'_, Message> = if let Some(progress) = &state.profile.sync_progress {
+    let progress_or_hint: Element<'_, Message> = if let Some(progress) =
+        &state.profile.sync_progress
+    {
         let ratio = if progress.total == 0 {
             0.0
         } else {
             (progress.current as f32 / progress.total as f32).clamp(0.0, 1.0)
         };
-        let progress_label = format!(
-            "{} {}/{}",
-            progress.phase, progress.current, progress.total
-        );
+        let progress_label = format!("{} {}/{}", progress.phase, progress.current, progress.total);
         row![
             text(progress_label)
                 .size(11)
@@ -275,11 +274,7 @@ fn build_settings_form<'a>(
     _is_en: bool,
 ) -> Element<'a, Message> {
     let save_settings_btn: Element<'_, Message> = if state.profile.is_saving_app_settings {
-        text_btn(
-            lang.tr("sync_saving").to_string(),
-            style_ghost,
-            None,
-        )
+        text_btn(lang.tr("sync_saving").to_string(), style_ghost, None)
     } else {
         text_btn(
             lang.tr("sync_save_btn").to_string(),
@@ -364,7 +359,11 @@ fn build_settings_form<'a>(
     card(
         None,
         column![
-            form_toggle_row(lang.tr("sync_enable_auto").to_string(), state.profile.webdav_enabled, Message::UpdateWebDavEnabled),
+            form_toggle_row(
+                lang.tr("sync_enable_auto").to_string(),
+                state.profile.webdav_enabled,
+                Message::UpdateWebDavEnabled
+            ),
             Space::new().height(theme::SP_MD),
             column![
                 form_field_label(lang.tr("sync_url").to_string()),
@@ -421,7 +420,11 @@ fn build_settings_form<'a>(
                 column![
                     form_field_label(lang.tr("sync_startup_behavior").to_string()),
                     Space::new().height(theme::SP_XS),
-                    form_toggle_row(lang.tr("sync_autostart_sync").to_string(), state.profile.webdav_sync_on_startup, Message::UpdateWebDavSyncOnStartup),
+                    form_toggle_row(
+                        lang.tr("sync_autostart_sync").to_string(),
+                        state.profile.webdav_sync_on_startup,
+                        Message::UpdateWebDavSyncOnStartup
+                    ),
                 ]
                 .width(Length::FillPortion(1))
                 .spacing(theme::SP_XS),
@@ -436,25 +439,24 @@ fn build_settings_form<'a>(
 fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let enc = &state.profile.encrypted_backup;
 
-    let pass_input = text_input(
-        lang.tr("encpkg_pass_placeholder").as_ref(),
-        &enc.passphrase,
-    )
-    .on_input(Message::UpdateEncryptedBackupPassphrase)
-    .padding([8, 12])
-    .size(12)
-    .secure(true)
-    .font(MONO)
-    .width(Length::Fill)
-    .style(form_input_style);
+    let pass_input = text_input(lang.tr("encpkg_pass_placeholder").as_ref(), &enc.passphrase)
+        .on_input(Message::UpdateEncryptedBackupPassphrase)
+        .padding([8, 12])
+        .size(12)
+        .secure(true)
+        .font(MONO)
+        .width(Length::Fill)
+        .style(form_input_style);
 
     let export_btn = button(
         row![
             svg_icons::icon_themed(Icon::FileText, 14.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("encpkg_btn_export").to_string()).size(12).font(FONT_MEDIUM),
+            text(lang.tr("encpkg_btn_export").to_string())
+                .size(12)
+                .font(FONT_MEDIUM),
         ]
-        .align_y(Alignment::Center)
+        .align_y(Alignment::Center),
     )
     .padding([8, 14])
     .style(style_accent)
@@ -464,9 +466,11 @@ fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
         row![
             svg_icons::icon_themed(Icon::RefreshCw, 14.0, |t: &Theme| tokens(t).text_secondary),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("encpkg_btn_import").to_string()).size(12).font(FONT_MEDIUM),
+            text(lang.tr("encpkg_btn_import").to_string())
+                .size(12)
+                .font(FONT_MEDIUM),
         ]
-        .align_y(Alignment::Center)
+        .align_y(Alignment::Center),
     )
     .padding([8, 14])
     .style(style_ghost)
@@ -477,7 +481,12 @@ fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(format!("Exported: {path}")).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
+                text(format!("Exported: {path}"))
+                    .size(11)
+                    .font(MONO)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).success)
+                    }),
             ]
             .align_y(Alignment::Center),
         )
@@ -489,7 +498,11 @@ fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
     card(
         Some(lang.tr("encpkg_title").to_string()),
         column![
-            text(lang.tr("encpkg_desc").to_string()).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("encpkg_desc").to_string())
+                .size(12)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(theme::SP_XS),
             row![
                 pass_input,
@@ -501,7 +514,7 @@ fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
             .align_y(Alignment::Center),
             feedback,
         ]
-        .spacing(theme::SP_SM)
+        .spacing(theme::SP_SM),
     )
 }
 

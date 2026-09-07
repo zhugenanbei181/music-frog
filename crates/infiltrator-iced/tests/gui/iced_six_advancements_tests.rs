@@ -11,8 +11,8 @@ use crate::types::message::Message;
 use crate::types::options::EditorPane;
 use crate::types::rules::RulesTab;
 use crate::view::virtual_list::VirtualListConfig;
-use infiltrator_domain::rules::RuleEntry;
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
+use infiltrator_domain::rules::RuleEntry;
 
 #[test]
 fn test_advancement_1_live_rule_tracer_contract() {
@@ -48,11 +48,17 @@ fn test_advancement_1_live_rule_tracer_contract() {
     ];
 
     // Scenario A: trace domain match
-    let _ = state.update(Message::UpdateRulesTracerInput("mail.google.com".to_string()));
+    let _ = state.update(Message::UpdateRulesTracerInput(
+        "mail.google.com".to_string(),
+    ));
     assert_eq!(state.editor.rules_tracer_input, "mail.google.com");
     let _ = state.update(Message::RunRulesTracer);
 
-    let (idx0, rule0, target0) = state.editor.rules_tracer_result.clone().expect("match expected");
+    let (idx0, rule0, target0) = state
+        .editor
+        .rules_tracer_result
+        .clone()
+        .expect("match expected");
     assert_eq!(idx0, 0);
     assert_eq!(rule0, "DOMAIN-SUFFIX,google.com");
     assert_eq!(target0, "ProxyGroup");
@@ -60,15 +66,25 @@ fn test_advancement_1_live_rule_tracer_contract() {
     // Scenario B: trace IP match
     let _ = state.update(Message::UpdateRulesTracerInput("1.1.1.1".to_string()));
     let _ = state.update(Message::RunRulesTracer);
-    let (idx1, rule1, target1) = state.editor.rules_tracer_result.clone().expect("IP match expected");
+    let (idx1, rule1, target1) = state
+        .editor
+        .rules_tracer_result
+        .clone()
+        .expect("IP match expected");
     assert_eq!(idx1, 1);
     assert_eq!(rule1, "IP-CIDR,1.1.1.1/32");
     assert_eq!(target1, "DIRECT");
 
     // Scenario C: trace fallback MATCH
-    let _ = state.update(Message::UpdateRulesTracerInput("unknown-domain.xyz".to_string()));
+    let _ = state.update(Message::UpdateRulesTracerInput(
+        "unknown-domain.xyz".to_string(),
+    ));
     let _ = state.update(Message::RunRulesTracer);
-    let (idx_fb, rule_fb, target_fb) = state.editor.rules_tracer_result.clone().expect("fallback expected");
+    let (idx_fb, rule_fb, target_fb) = state
+        .editor
+        .rules_tracer_result
+        .clone()
+        .expect("fallback expected");
     assert_eq!(idx_fb, 3);
     assert_eq!(rule_fb, "MATCH");
     assert_eq!(target_fb, "FallbackProxy");
@@ -264,7 +280,13 @@ fn test_advancement_6_quickjs_script_sandbox_console_lifecycle() {
         state.editor.script_sandbox.selected_preset.as_deref(),
         Some("country")
     );
-    assert!(state.editor.script_sandbox.script_code.contains("auto_country_groups"));
+    assert!(
+        state
+            .editor
+            .script_sandbox
+            .script_code
+            .contains("auto_country_groups")
+    );
 
     // Provide test input YAML with nodes from different regions
     let test_yaml = "proxies:\n  - name: HK-01\n    type: ss\n    server: hk.example.com\n    port: 8388\n  - name: US-01\n    type: ss\n    server: us.example.com\n    port: 8388\n  - name: JP-01\n    type: ss\n    server: jp.example.com\n    port: 8388\n";
@@ -275,7 +297,12 @@ fn test_advancement_6_quickjs_script_sandbox_console_lifecycle() {
 
     // Invariants assertion
     assert!(state.editor.script_sandbox.execution_error.is_none());
-    let res = state.editor.script_sandbox.execution_result.as_ref().expect("Execution result expected");
+    let res = state
+        .editor
+        .script_sandbox
+        .execution_result
+        .as_ref()
+        .expect("Execution result expected");
     assert!(res.success);
     assert!(res.execution_time_ms < 500); // Strict latency SLA
     assert!(res.transformed_yaml.contains("proxy-groups"));

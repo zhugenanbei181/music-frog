@@ -60,7 +60,7 @@ use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::chart::topology::TopologyPlate;
 use infiltrator_bevy_widgets::chart::{ChartPlate, ChartSpec, chart_scene_with_scale};
-use infiltrator_bevy_widgets::icon::IconId;
+use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::{StatChipValue, stat_chip_scene};
 use infiltrator_bevy_widgets::surface::surface_scene;
@@ -311,6 +311,14 @@ pub struct OnAccentText;
 /// observer restamps its `ControlVisual` selected bit (the widget layer's
 /// shared repaint system re-derives the token fill from it). Mounted by
 /// the shell's sidebar segment control.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewSpeedtestButton {
+    pub testing: bool,
+}
+
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewSpeedtestText;
+
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewModePill(pub ProxyMode);
 
@@ -599,8 +607,36 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                 ]
             ),
             (
-                { stop_area_scene(projection, palette) }
+                Node {
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(space::S8),
+                }
+                Children [
+                    ( { speedtest_button_scene(palette) } ),
+                    ( { stop_area_scene(projection, palette) } ),
+                ]
             ),
+        ]
+    }
+}
+
+fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> {
+    bsn! {
+        Node {
+            min_height: px(palette.control_height_px),
+            padding: UiRect::horizontal(Val::Px(space::S12)),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            column_gap: Val::Px(space::S6),
+            flex_shrink: 0.0,
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        BackgroundColor({ palette.accent_container })
+        OverviewSpeedtestButton { testing: false }
+        Button
+        Children [
+            ( { icon_scene(IconId::Zap, 14.0, palette.accent) } ),
+            ( Text({ "一键测速".to_owned() }) OverviewSpeedtestText TextRole(Role::BodyStrong) TextColor({ palette.accent }) ),
         ]
     }
 }
@@ -1109,6 +1145,7 @@ fn bind_overview_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(on_topology_stage_activated);
     commands.add_observer(on_overview_master_switch_activated);
     commands.add_observer(on_overview_mode_segment_activated);
+    commands.add_observer(on_overview_speedtest_activated);
 }
 
 /// Translate a Bevy `Activate` gesture through the shared application
@@ -1136,11 +1173,25 @@ pub(crate) fn on_topology_stage_activated(
     commands.trigger(crate::route::RouteChanged(route));
 }
 
-/// Convert a large Overview switch activation through the same shared toggle
-/// policy used by Settings/sidebar, then submit the resulting application
-/// command to the host sink.
-/// Convert an Overview mode segment pill activation through the shared
-/// ProxyModeApplication policy and submit UiCommand::SetProxyMode to the host sink.
+/// Convert an Overview one-click speedtest button activation into a
+/// UiCommand::TestAllProxyGroups command.
+pub(crate) fn on_overview_speedtest_activated(
+    activate: On<Activate>,
+    buttons: Query<&OverviewSpeedtestButton>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    let Ok(button) = buttons.get(activate.entity) else {
+        return;
+    };
+    if button.testing {
+        return;
+    }
+    handle.submit(UiCommand::TestAllProxyGroups);
+}
+
 pub(crate) fn on_overview_mode_segment_activated(
     activate: On<Activate>,
     buttons: Query<&crate::pages::overview_cards::OverviewModeSegmentPill>,

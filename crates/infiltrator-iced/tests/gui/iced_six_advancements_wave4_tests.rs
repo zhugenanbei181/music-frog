@@ -20,9 +20,18 @@ fn test_advancement_w4_1_network_roaming_and_gateway_recovery() {
     // Poll interfaces
     let _ = state.update(Message::PollNetworkInterfaces);
     assert_eq!(state.runtime.network_roaming.interfaces.len(), 2);
-    assert_eq!(state.runtime.network_roaming.active_interface.as_deref(), Some("eth0"));
-    assert_eq!(state.runtime.network_roaming.default_gateway.as_deref(), Some("192.168.1.1"));
-    assert_eq!(state.runtime.network_roaming.recommended_tun_mtu, Some(1420));
+    assert_eq!(
+        state.runtime.network_roaming.active_interface.as_deref(),
+        Some("eth0")
+    );
+    assert_eq!(
+        state.runtime.network_roaming.default_gateway.as_deref(),
+        Some("192.168.1.1")
+    );
+    assert_eq!(
+        state.runtime.network_roaming.recommended_tun_mtu,
+        Some(1420)
+    );
 
     // Force gateway reconnect
     let _ = state.update(Message::ForceGatewayReconnect);
@@ -38,17 +47,19 @@ fn test_live_network_roaming_snapshot_updates_the_iced_projection_without_fallba
     let (mut state, _) = AppState::new();
     let snapshot = infiltrator_contract::network_roaming::NetworkRoamingSnapshot {
         status: infiltrator_contract::network_roaming::NetworkRoamingStatus::Stable,
-        interfaces: vec![infiltrator_contract::network_roaming::NetworkInterfaceSnapshot {
-            name: "wlan0".to_owned(),
-            kind: infiltrator_contract::network_roaming::NetworkInterfaceKind::Wifi,
-            is_up: true,
-            is_default_gateway: true,
-            gateway_ip: Some("198.51.100.1".to_owned()),
-            ip_addresses: vec!["198.51.100.20/24".to_owned()],
-            mtu: Some(1400),
-            metric: Some(200),
-            dns_servers: Vec::new(),
-        }],
+        interfaces: vec![
+            infiltrator_contract::network_roaming::NetworkInterfaceSnapshot {
+                name: "wlan0".to_owned(),
+                kind: infiltrator_contract::network_roaming::NetworkInterfaceKind::Wifi,
+                is_up: true,
+                is_default_gateway: true,
+                gateway_ip: Some("198.51.100.1".to_owned()),
+                ip_addresses: vec!["198.51.100.20/24".to_owned()],
+                mtu: Some(1400),
+                metric: Some(200),
+                dns_servers: Vec::new(),
+            },
+        ],
         active_interface: Some("wlan0".to_owned()),
         default_gateway: Some("198.51.100.1".to_owned()),
         physical_mtu: Some(1400),
@@ -165,8 +176,14 @@ fn test_advancement_w4_5_subscription_quota_and_cron_matrix() {
 
     // Evaluate subscription quota
     let _ = state.update(Message::EvaluateSubscriptionQuota);
-    assert_eq!(state.profile.quota_schedule.used_bytes, 1024 * 1024 * 1024 * 45);
-    assert_eq!(state.profile.quota_schedule.total_bytes, 1024 * 1024 * 1024 * 100);
+    assert_eq!(
+        state.profile.quota_schedule.used_bytes,
+        1024 * 1024 * 1024 * 45
+    );
+    assert_eq!(
+        state.profile.quota_schedule.total_bytes,
+        1024 * 1024 * 1024 * 100
+    );
     assert_eq!(state.profile.quota_schedule.remaining_percent, 55.0);
     assert_eq!(state.profile.quota_schedule.warning_tier, "Normal");
 

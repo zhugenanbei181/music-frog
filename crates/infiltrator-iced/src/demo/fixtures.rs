@@ -1,9 +1,9 @@
 //! Demo data fixtures: traffic history, mihomo-style logs, connection
 //! snapshots, rules, profiles and the JSON/YAML editor cache contents.
 
+use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata, ConnectionSnapshot};
-use infiltrator_domain::profiles::ProfileInfo;
 use std::collections::VecDeque;
 
 /// 60 samples (the app's own history cap and the chart's `max_points`) of a

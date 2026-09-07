@@ -3,7 +3,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::utils::format_bytes;
-use crate::view::components::{badge, card, style_accent, style_ghost, BadgeKind};
+use crate::view::components::{BadgeKind, badge, card, style_accent, style_ghost};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
@@ -69,23 +69,41 @@ pub fn geodata_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
 
     let databases_row = row![
         column![
-            text(lang.tr("geodata_geoip_status").to_string()).size(12).font(FONT_SEMIBOLD),
+            text(lang.tr("geodata_geoip_status").to_string())
+                .size(12)
+                .font(FONT_SEMIBOLD),
             Space::new().height(2.0),
             row![
                 badge(geoip_ver.to_string(), BadgeKind::Accent),
                 Space::new().width(theme::SP_XS),
-                text(format_bytes(geoip_size)).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
-            ].align_y(Alignment::Center),
-        ].width(Length::Fill),
+                text(format_bytes(geoip_size))
+                    .size(11)
+                    .font(MONO)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    }),
+            ]
+            .align_y(Alignment::Center),
+        ]
+        .width(Length::Fill),
         column![
-            text(lang.tr("geodata_geosite_status").to_string()).size(12).font(FONT_SEMIBOLD),
+            text(lang.tr("geodata_geosite_status").to_string())
+                .size(12)
+                .font(FONT_SEMIBOLD),
             Space::new().height(2.0),
             row![
                 badge(geosite_ver.to_string(), BadgeKind::Success),
                 Space::new().width(theme::SP_XS),
-                text(format_bytes(geosite_size)).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
-            ].align_y(Alignment::Center),
-        ].width(Length::Fill),
+                text(format_bytes(geosite_size))
+                    .size(11)
+                    .font(MONO)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    }),
+            ]
+            .align_y(Alignment::Center),
+        ]
+        .width(Length::Fill),
     ]
     .align_y(Alignment::Center);
 
@@ -94,7 +112,9 @@ pub fn geodata_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(msg.clone()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
+                text(msg.clone()).size(11).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).success)
+                }),
             ]
             .align_y(Alignment::Center),
         )

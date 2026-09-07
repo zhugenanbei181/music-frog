@@ -270,13 +270,11 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             &state.shell.command_query,
         )
         .on_input(Message::SetCommandQuery)
-        .on_submit(
-            if let Some((first_item, _, _)) = filtered_items.first() {
-                Message::ExecuteCommand(first_item.action.clone())
-            } else {
-                Message::Noop
-            }
-        )
+        .on_submit(if let Some((first_item, _, _)) = filtered_items.first() {
+            Message::ExecuteCommand(first_item.action.clone())
+        } else {
+            Message::Noop
+        })
         .padding([8, 12])
         .size(14)
         .width(Length::Fill)
@@ -288,7 +286,10 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
                 icon: tk.text_tertiary,
                 placeholder: tk.text_tertiary,
                 value: tk.text_primary,
-                selection: Color { a: 0.25, ..tk.accent },
+                selection: Color {
+                    a: 0.25,
+                    ..tk.accent
+                },
             }
         }),
         button(icon_themed(Icon::X, 14.0, |t: &Theme| tokens(t).text_tertiary))
@@ -306,7 +307,12 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             container::Style {
                 background: Some(tk.control_bg.into()),
                 border: Border {
-                    radius: border::Radius { top_left: 12.0, top_right: 12.0, bottom_right: 0.0, bottom_left: 0.0 },
+                    radius: border::Radius {
+                        top_left: 12.0,
+                        top_right: 12.0,
+                        bottom_right: 0.0,
+                        bottom_left: 0.0,
+                    },
                     width: 0.0,
                     color: Color::TRANSPARENT,
                 },
@@ -476,7 +482,12 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             container::Style {
                 background: Some(tk.control_bg.into()),
                 border: Border {
-                    radius: border::Radius { top_left: 0.0, top_right: 0.0, bottom_right: 12.0, bottom_left: 12.0 },
+                    radius: border::Radius {
+                        top_left: 0.0,
+                        top_right: 0.0,
+                        bottom_right: 12.0,
+                        bottom_left: 12.0,
+                    },
                     width: 0.0,
                     color: Color::TRANSPARENT,
                 },
@@ -507,12 +518,22 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             }
         });
 
-    container(container(card).center_x(Length::Fill).center_y(Length::Fill))
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(|_t: &Theme| container::Style {
-            background: Some(Color { a: 0.45, ..Color::BLACK }.into()),
-            ..Default::default()
-        })
-        .into()
+    container(
+        container(card)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill),
+    )
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .style(|_t: &Theme| container::Style {
+        background: Some(
+            Color {
+                a: 0.45,
+                ..Color::BLACK
+            }
+            .into(),
+        ),
+        ..Default::default()
+    })
+    .into()
 }

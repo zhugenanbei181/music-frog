@@ -60,17 +60,11 @@ impl<Message> canvas::Program<Message> for TrafficChart {
         }
 
         let (upload_curve, download_curve) =
-            infiltrator_domain::traffic_waveform::smooth_dual_series(
-                &upload_raw,
-                &download_raw,
-                4,
-            );
+            infiltrator_domain::traffic_waveform::smooth_dual_series(&upload_raw, &download_raw, 4);
         let curve_count = upload_curve.len().max(download_curve.len());
         let x_step = width / (curve_count.saturating_sub(1).max(1)) as f32;
 
-        let max_speed = self
-            .resolved_scale(&upload_raw, &download_raw)
-            .max_bps;
+        let max_speed = self.resolved_scale(&upload_raw, &download_raw).max_bps;
 
         let scale = |speed: f64| {
             let ratio = (speed / max_speed).clamp(0.0, 1.0) as f32;
@@ -109,9 +103,7 @@ impl<Message> canvas::Program<Message> for TrafficChart {
         );
         frame.stroke(
             &down_line,
-            canvas::Stroke::default()
-                .with_color(accent)
-                .with_width(2.5),
+            canvas::Stroke::default().with_color(accent).with_width(2.5),
         );
 
         // 3. Upload area fill & glowing curve
@@ -120,10 +112,7 @@ impl<Message> canvas::Program<Message> for TrafficChart {
             for (i, up) in upload_curve.iter().enumerate() {
                 p.line_to(Point::new(i as f32 * x_step, scale(*up as f64)));
             }
-            p.line_to(Point::new(
-                (upload_curve.len() - 1) as f32 * x_step,
-                height,
-            ));
+            p.line_to(Point::new((upload_curve.len() - 1) as f32 * x_step, height));
             p.close();
         });
         frame.fill(&up_path, Color { a: 0.08, ..success });
@@ -155,19 +144,22 @@ impl<Message> canvas::Program<Message> for TrafficChart {
         if let Some(cursor_pos) = cursor.position_in(bounds) {
             let scan_x = cursor_pos.x.clamp(0.0, width);
             let raw_x_step = width / (upload_raw.len() - 1) as f32;
-            let sample_idx = ((scan_x / raw_x_step).round() as usize)
-                .min(upload_raw.len().saturating_sub(1));
+            let sample_idx =
+                ((scan_x / raw_x_step).round() as usize).min(upload_raw.len().saturating_sub(1));
 
-            if let (Some(&up_val), Some(&down_val)) = (
-                upload_raw.get(sample_idx),
-                download_raw.get(sample_idx),
-            ) {
+            if let (Some(&up_val), Some(&down_val)) =
+                (upload_raw.get(sample_idx), download_raw.get(sample_idx))
+            {
                 // Vertical scan line
-                let scan_line = canvas::Path::line(Point::new(scan_x, 0.0), Point::new(scan_x, height));
+                let scan_line =
+                    canvas::Path::line(Point::new(scan_x, 0.0), Point::new(scan_x, height));
                 frame.stroke(
                     &scan_line,
                     canvas::Stroke::default()
-                        .with_color(Color { a: 0.35, ..tk.text_primary })
+                        .with_color(Color {
+                            a: 0.35,
+                            ..tk.text_primary
+                        })
                         .with_width(1.0),
                 );
 
@@ -175,14 +167,8 @@ impl<Message> canvas::Program<Message> for TrafficChart {
                 let down_pt = Point::new(sample_idx as f32 * raw_x_step, scale(down_val));
                 let up_pt = Point::new(sample_idx as f32 * raw_x_step, scale(up_val));
 
-                frame.fill(
-                    &canvas::Path::circle(down_pt, 4.0),
-                    accent,
-                );
-                frame.fill(
-                    &canvas::Path::circle(up_pt, 3.5),
-                    success,
-                );
+                frame.fill(&canvas::Path::circle(down_pt, 4.0), accent);
+                frame.fill(&canvas::Path::circle(up_pt, 3.5), success);
             }
         }
 
@@ -202,7 +188,11 @@ impl TrafficChart {
             && shared.is_drawable()
         {
             return (
-                shared.samples.iter().map(|sample| sample.upload_bps).collect(),
+                shared
+                    .samples
+                    .iter()
+                    .map(|sample| sample.upload_bps)
+                    .collect(),
                 shared
                     .samples
                     .iter()
@@ -281,7 +271,13 @@ impl<Message> canvas::Program<Message> for MiniWaveform {
             p.line_to(Point::new(width, height));
             p.close();
         });
-        frame.fill(&area_path, Color { a: 0.12, ..tk.accent });
+        frame.fill(
+            &area_path,
+            Color {
+                a: 0.12,
+                ..tk.accent
+            },
+        );
 
         let line_path = canvas::Path::new(|p| {
             for (i, &val) in self.samples.iter().enumerate() {
@@ -355,9 +351,9 @@ mod tests {
         let chart = TrafficChart {
             history: VecDeque::from([(1, 2), (3, 5)]),
             shared: None,
-            scale: Some(
-                infiltrator_domain::traffic_scale::compute_from_peak(20_000.0, 7),
-            ),
+            scale: Some(infiltrator_domain::traffic_scale::compute_from_peak(
+                20_000.0, 7,
+            )),
         };
         let (upload, download) = chart.raw_series();
         let scale = chart.resolved_scale(&upload, &download);

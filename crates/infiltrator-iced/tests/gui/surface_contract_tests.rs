@@ -1,21 +1,21 @@
 //! Iced adapter tests for the shared surface revision/status boundary.
 //! test-intent: behavior
 
+use crate::state::AppState;
 use crate::surface::SurfaceBridge;
 use crate::surface::SurfaceModel;
-use crate::state::AppState;
+use crate::types::runtime::RuntimeStatus;
 use async_trait::async_trait;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
-use infiltrator_contract::service_mode::{ServiceModePlatform, ServiceModeSnapshot, ServiceModeState};
-use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
+use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::service_mode::{
+    ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
+};
+use infiltrator_contract::snapshot::{CoreLifecycle, CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
-use infiltrator_contract::snapshot::{
-    CoreLifecycle, CoreWatchdogSnapshot, CoreWatchdogState,
-};
-use crate::types::runtime::RuntimeStatus;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
     CoreReleaseChannel, CoreRollbackSnapshot, CoreVersionSnapshot,
@@ -84,7 +84,10 @@ fn hot_reload_snapshot_keeps_the_session_identity_and_generation() {
     let latest = model.latest().expect("hot reload snapshot");
     assert_eq!(latest.revision, 3);
     assert_eq!(latest.generation, 4);
-    assert_eq!(latest.core.session_token.map(|token| token.value()), Some(40));
+    assert_eq!(
+        latest.core.session_token.map(|token| token.value()),
+        Some(40)
+    );
 }
 
 #[test]
@@ -260,10 +263,7 @@ fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
         ControllerAuthStatus::Secured
     );
     assert_eq!(state.runtime.service_mode.state, ServiceModeState::Ready);
-    assert_eq!(
-        state.runtime.core_resources.cpu_percent,
-        Some(12.5)
-    );
+    assert_eq!(state.runtime.core_resources.cpu_percent, Some(12.5));
 }
 
 struct TokioRuntime(tokio::runtime::Runtime);

@@ -60,3 +60,4 @@ python3 "$repo_root/scripts/quality/active-exit-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/subscription-quota-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/overview-master-switch-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/proxy-mode-segment-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/overview-speedtest-guard.py" --mode enforce

@@ -127,8 +127,20 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
     // 2. Real-time speeds, peaks, and time range selector pills ("1小时", "24小时", "7天", "30天")
     let cur_up = state.diag.traffic.as_ref().map(|t| t.up).unwrap_or(0);
     let cur_down = state.diag.traffic.as_ref().map(|t| t.down).unwrap_or(0);
-    let peak_up = state.diag.traffic_history.iter().map(|(u, _)| *u).max().unwrap_or(0);
-    let peak_down = state.diag.traffic_history.iter().map(|(_, d)| *d).max().unwrap_or(0);
+    let peak_up = state
+        .diag
+        .traffic_history
+        .iter()
+        .map(|(u, _)| *u)
+        .max()
+        .unwrap_or(0);
+    let peak_down = state
+        .diag
+        .traffic_history
+        .iter()
+        .map(|(_, d)| *d)
+        .max()
+        .unwrap_or(0);
 
     let realtime_up_badge = badge(format!("↑ {}/s", format_bytes(cur_up)), BadgeKind::Success);
     let realtime_down_badge = badge(format!("↓ {}/s", format_bytes(cur_down)), BadgeKind::Accent);
@@ -144,7 +156,9 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
     let waiting_note: Element<'a, Message> = if state.diag.traffic.is_none() {
         text(lang.tr("waiting_traffic").to_string())
             .size(11)
-            .style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) })
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            })
             .into()
     } else {
         Space::new().width(0).into()
@@ -169,14 +183,22 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
             theme_tokens.success,
             lang.tr("runtime_stat_up").as_ref(),
             &format!("{}/s", format_bytes(cur_up)),
-            (peak_up > 0).then(|| format!("{}: {}/s", lang.tr("traffic_peak").as_ref(), format_bytes(peak_up))),
+            (peak_up > 0).then(|| format!(
+                "{}: {}/s",
+                lang.tr("traffic_peak").as_ref(),
+                format_bytes(peak_up)
+            )),
         ),
         Space::new().width(SP_LG),
         legend_indicator(
             theme_tokens.accent,
             lang.tr("runtime_stat_down").as_ref(),
             &format!("{}/s", format_bytes(cur_down)),
-            (peak_down > 0).then(|| format!("{}: {}/s", lang.tr("traffic_peak").as_ref(), format_bytes(peak_down))),
+            (peak_down > 0).then(|| format!(
+                "{}: {}/s",
+                lang.tr("traffic_peak").as_ref(),
+                format_bytes(peak_down)
+            )),
         ),
         Space::new().width(SP_MD),
         peak_indicator,
@@ -238,11 +260,7 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
 }
 
 /// Specialized public exit IP tile matching KPI stat card visual styling.
-fn public_ip_tile<'a>(
-    state: &'a AppState,
-    lang: &Lang<'a>,
-    accent: Color,
-) -> Element<'a, Message> {
+fn public_ip_tile<'a>(state: &'a AppState, lang: &Lang<'a>, accent: Color) -> Element<'a, Message> {
     let _is_zh = !lang.0.starts_with("en");
     let icon_chip = container(crate::view::svg_icons::icon(
         Icon::Globe,
@@ -255,15 +273,22 @@ fn public_ip_tile<'a>(
     .align_y(Alignment::Center)
     .style(move |_theme: &Theme| container::Style {
         background: Some(Color { a: 0.14, ..accent }.into()),
-        border: Border { radius: border::Radius::from(theme::R_CONTROL), ..Default::default() },
+        border: Border {
+            radius: border::Radius::from(theme::R_CONTROL),
+            ..Default::default()
+        },
         ..Default::default()
     });
 
     let ip_text = state.diag.public_ip.as_deref().unwrap_or("—");
-    let probe_btn = button(text(lang.tr("traffic_probe_btn").to_string()).size(10).font(theme::FONT_MEDIUM))
-        .padding([2, 6])
-        .style(iced::widget::button::secondary)
-        .on_press(Message::FetchIpInfo);
+    let probe_btn = button(
+        text(lang.tr("traffic_probe_btn").to_string())
+            .size(10)
+            .font(theme::FONT_MEDIUM),
+    )
+    .padding([2, 6])
+    .style(iced::widget::button::secondary)
+    .on_press(Message::FetchIpInfo);
 
     let sub_note = match (
         state.diag.public_ip_provider.as_deref(),
@@ -276,14 +301,18 @@ fn public_ip_tile<'a>(
     }
     .size(10)
     .font(MONO)
-    .style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) });
+    .style(|t: &Theme| text::Style {
+        color: Some(tokens(t).text_tertiary),
+    });
 
     let texts = column![
         row![
             text(lang.tr("runtime_stat_public_ip").to_string())
                 .size(11)
                 .font(theme::FONT_MEDIUM)
-                .style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().width(Length::Fill),
             probe_btn,
         ]
@@ -291,25 +320,35 @@ fn public_ip_tile<'a>(
         text(ip_text.to_string())
             .size(16)
             .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary)
+            }),
         sub_note,
     ]
     .spacing(2)
     .width(Length::Fill);
 
-    container(row![icon_chip, texts].spacing(theme::SP_MD).align_y(Alignment::Center))
-        .width(Length::Fill)
-        .padding(theme::SP_LG)
-        .style(move |t: &Theme| {
-            let tk = tokens(t);
-            container::Style {
-                background: Some(tk.card_bg.into()),
-                border: Border { radius: border::Radius::from(theme::R_CARD), width: 1.0, color: tk.card_border },
-                shadow: tk.card_shadow,
-                ..Default::default()
-            }
-        })
-        .into()
+    container(
+        row![icon_chip, texts]
+            .spacing(theme::SP_MD)
+            .align_y(Alignment::Center),
+    )
+    .width(Length::Fill)
+    .padding(theme::SP_LG)
+    .style(move |t: &Theme| {
+        let tk = tokens(t);
+        container::Style {
+            background: Some(tk.card_bg.into()),
+            border: Border {
+                radius: border::Radius::from(theme::R_CARD),
+                width: 1.0,
+                color: tk.card_border,
+            },
+            shadow: tk.card_shadow,
+            ..Default::default()
+        }
+    })
+    .into()
 }
 
 /// Legend item showing colored bullet, label, current speed and optional peak.
@@ -319,11 +358,15 @@ fn legend_indicator<'a>(
     current_speed: &str,
     peak_speed: Option<String>,
 ) -> Element<'a, Message> {
-    let bullet = container(Space::new().width(8).height(8)).style(move |_t: &Theme| container::Style {
-        background: Some(color.into()),
-        border: Border { radius: border::Radius::from(4.0), ..Default::default() },
-        ..Default::default()
-    });
+    let bullet =
+        container(Space::new().width(8).height(8)).style(move |_t: &Theme| container::Style {
+            background: Some(color.into()),
+            border: Border {
+                radius: border::Radius::from(4.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
 
     let mut content = row![
         bullet,
@@ -331,12 +374,16 @@ fn legend_indicator<'a>(
         text(label.to_string())
             .size(11)
             .font(theme::FONT_MEDIUM)
-            .style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            }),
         Space::new().width(theme::SP_XS),
         text(current_speed.to_string())
             .size(11)
             .font(MONO)
-            .style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary)
+            }),
     ]
     .align_y(Alignment::Center);
 
@@ -345,7 +392,9 @@ fn legend_indicator<'a>(
             text(format!("({peak})"))
                 .size(10)
                 .font(MONO)
-                .style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) }),
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary),
+                }),
         );
     }
 
@@ -353,7 +402,10 @@ fn legend_indicator<'a>(
 }
 
 /// Helper to convert aggregated upload/download counts into sorted rankings with share percentages.
-fn summarize_and_sort_rankings(map: HashMap<String, (u64, u64)>, limit: usize) -> Vec<HostTrafficRank> {
+fn summarize_and_sort_rankings(
+    map: HashMap<String, (u64, u64)>,
+    limit: usize,
+) -> Vec<HostTrafficRank> {
     let grand_total: u64 = map.values().map(|(u, d)| u.saturating_add(*d)).sum();
 
     let mut ranks: Vec<HostTrafficRank> = map
@@ -422,7 +474,11 @@ pub fn compute_dimension_rankings(
                     }),
                 TrafficDimension::Processes => {
                     let p = extract_process_name(&conn.metadata.process_path);
-                    if p.is_empty() { "[System / Unknown]".to_string() } else { p }
+                    if p.is_empty() {
+                        "[System / Unknown]".to_string()
+                    } else {
+                        p
+                    }
                 }
             };
             let entry = map.entry(key).or_insert((0, 0));
@@ -475,7 +531,10 @@ fn render_domain_rankings<'a>(
                         row![
                             dim_selector,
                             Space::new().width(theme::SP_SM),
-                            badge(lang.tr("traffic_multidim_analysis").to_string(), BadgeKind::Neutral),
+                            badge(
+                                lang.tr("traffic_multidim_analysis").to_string(),
+                                BadgeKind::Neutral
+                            ),
                         ]
                         .align_y(Alignment::Center)
                         .into()
@@ -485,7 +544,7 @@ fn render_domain_rankings<'a>(
                 empty_state(
                     Icon::Globe,
                     lang.tr("traffic_no_stats").as_ref(),
-lang.tr("traffic_no_stats_desc").as_ref(),
+                    lang.tr("traffic_no_stats_desc").as_ref(),
                 ),
             ],
         );
@@ -512,21 +571,33 @@ lang.tr("traffic_no_stats_desc").as_ref(),
                     .size(12)
                     .font(FONT_SEMIBOLD)
                     .width(Length::Fill)
-                    .style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
-                text(format!("↑ {} / ↓ {}", format_bytes(rank.upload), format_bytes(rank.download)))
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_primary)
+                    }),
+                text(format!(
+                    "↑ {} / ↓ {}",
+                    format_bytes(rank.upload),
+                    format_bytes(rank.download)
+                ))
+                .size(11)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
                 Space::new().width(theme::SP_MD),
                 text(format!("{total_label} {}", format_bytes(rank.total)))
                     .size(11)
                     .font(MONO)
-                    .style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    }),
                 Space::new().width(theme::SP_MD),
                 text(format!("{:.1}%", rank.share_percent))
                     .size(11)
                     .font(MONO)
-                    .style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_primary)
+                    }),
             ]
             .align_y(Alignment::Center),
             Space::new().height(SP_XS),
@@ -576,13 +647,21 @@ pub fn share_bar<'a, Message: 'a>(percent: f64) -> Element<'a, Message> {
                     let tk = tokens(t);
                     container::Style {
                         background: Some(tk.accent.into()),
-                        border: Border { radius: border::Radius::from(2.0), ..Default::default() },
+                        border: Border {
+                            radius: border::Radius::from(2.0),
+                            ..Default::default()
+                        },
                         ..Default::default()
                     }
                 }),
             container(Space::new().height(Length::Fixed(BAR_HEIGHT)))
-                .width(Length::FillPortion(((1.0 - clamped_ratio) * 1000.0).max(1.0) as u16))
-                .style(|_t: &Theme| container::Style { background: None, ..Default::default() }),
+                .width(Length::FillPortion(
+                    ((1.0 - clamped_ratio) * 1000.0).max(1.0) as u16
+                ))
+                .style(|_t: &Theme| container::Style {
+                    background: None,
+                    ..Default::default()
+                }),
         ]
         .width(Length::Fill)
         .height(Length::Fixed(BAR_HEIGHT)),
@@ -593,7 +672,10 @@ pub fn share_bar<'a, Message: 'a>(percent: f64) -> Element<'a, Message> {
         let tk = tokens(t);
         container::Style {
             background: Some(tk.chip_bg.into()),
-            border: Border { radius: border::Radius::from(2.0), ..Default::default() },
+            border: Border {
+                radius: border::Radius::from(2.0),
+                ..Default::default()
+            },
             ..Default::default()
         }
     })
@@ -645,7 +727,10 @@ impl<Message> canvas::Program<Message> for SmoothTrafficChart {
             frame.stroke(
                 &baseline,
                 canvas::Stroke::default()
-                    .with_color(Color { a: 0.15, ..tk.text_tertiary })
+                    .with_color(Color {
+                        a: 0.15,
+                        ..tk.text_tertiary
+                    })
                     .with_width(1.0),
             );
             return vec![frame.into_geometry()];
@@ -681,7 +766,10 @@ impl<Message> canvas::Program<Message> for SmoothTrafficChart {
             frame.stroke(
                 &grid_line,
                 canvas::Stroke::default()
-                    .with_color(Color { a: 0.08, ..tk.divider })
+                    .with_color(Color {
+                        a: 0.08,
+                        ..tk.divider
+                    })
                     .with_width(1.0),
             );
         }
@@ -706,10 +794,16 @@ impl<Message> canvas::Program<Message> for SmoothTrafficChart {
         let down_area = build_smooth_area(&down_pts, height);
         frame.fill(&down_area, Color { a: 0.12, ..accent });
         let down_curve = build_smooth_path(&down_pts);
-        frame.stroke(&down_curve, canvas::Stroke::default().with_color(accent).with_width(2.5));
+        frame.stroke(
+            &down_curve,
+            canvas::Stroke::default().with_color(accent).with_width(2.5),
+        );
 
         if let Some(&last_pt) = down_pts.last() {
-            frame.fill(&canvas::Path::circle(last_pt, 6.0), Color { a: 0.20, ..accent });
+            frame.fill(
+                &canvas::Path::circle(last_pt, 6.0),
+                Color { a: 0.20, ..accent },
+            );
             frame.fill(&canvas::Path::circle(last_pt, 3.8), accent);
             frame.fill(&canvas::Path::circle(last_pt, 1.8), Color::WHITE);
         }
@@ -718,10 +812,18 @@ impl<Message> canvas::Program<Message> for SmoothTrafficChart {
         let up_area = build_smooth_area(&up_pts, height);
         frame.fill(&up_area, Color { a: 0.08, ..success });
         let up_curve = build_smooth_path(&up_pts);
-        frame.stroke(&up_curve, canvas::Stroke::default().with_color(success).with_width(2.0));
+        frame.stroke(
+            &up_curve,
+            canvas::Stroke::default()
+                .with_color(success)
+                .with_width(2.0),
+        );
 
         if let Some(&last_pt) = up_pts.last() {
-            frame.fill(&canvas::Path::circle(last_pt, 5.0), Color { a: 0.20, ..success });
+            frame.fill(
+                &canvas::Path::circle(last_pt, 5.0),
+                Color { a: 0.20, ..success },
+            );
             frame.fill(&canvas::Path::circle(last_pt, 3.2), success);
             frame.fill(&canvas::Path::circle(last_pt, 1.6), Color::WHITE);
         }
@@ -744,7 +846,11 @@ fn add_smooth_curves(builder: &mut canvas::path::Builder, points: &[Point]) {
         let p0 = if i == 0 { points[0] } else { points[i - 1] };
         let p1 = points[i];
         let p2 = points[i + 1];
-        let p3 = if i + 2 < n { points[i + 2] } else { points[i + 1] };
+        let p3 = if i + 2 < n {
+            points[i + 2]
+        } else {
+            points[i + 1]
+        };
 
         let cp1 = Point::new(p1.x + (p2.x - p0.x) / 6.0, p1.y + (p2.y - p0.y) / 6.0);
         let cp2 = Point::new(p2.x - (p3.x - p1.x) / 6.0, p2.y - (p3.y - p1.y) / 6.0);

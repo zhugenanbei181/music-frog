@@ -11,12 +11,12 @@ use super::proxy_fixtures::demo_proxy_tables;
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
-use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider, TrafficData};
-use infiltrator_contract::version::InstalledCoreVersion;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
     NetworkRoamingStatus,
 };
+use infiltrator_contract::version::InstalledCoreVersion;
+use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider, TrafficData};
 use std::path::PathBuf;
 
 impl AppState {

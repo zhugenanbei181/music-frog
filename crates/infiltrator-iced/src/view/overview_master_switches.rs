@@ -12,10 +12,7 @@ use infiltrator_shared::locales::{Lang, Localizer};
 
 /// The same two primary controls as the sidebar, rendered as Overview cards
 /// and driven by the shared SystemToggleSnapshot.
-pub fn overview_master_switches<'a>(
-    state: &'a AppState,
-    lang: &Lang<'a>,
-) -> Element<'a, Message> {
+pub fn overview_master_switches<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     row![
         switch_card(
             SystemToggle::SystemProxy,

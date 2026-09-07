@@ -21,10 +21,7 @@ struct IcedSyncProgressSink {
 }
 
 impl IcedSyncProgressSink {
-    fn new(
-        output: iced::futures::channel::mpsc::Sender<Message>,
-        cancel: Arc<AtomicBool>,
-    ) -> Self {
+    fn new(output: iced::futures::channel::mpsc::Sender<Message>, cancel: Arc<AtomicBool>) -> Self {
         Self {
             output: std::sync::Mutex::new(output),
             cancel,
@@ -49,17 +46,12 @@ impl SyncProgressSink for IcedSyncProgressSink {
 }
 
 pub(super) fn sync_application() -> Result<SyncApplication, InfiltratorError> {
-    let port = crate::host::storage::sync()
-        .map_err(|error| InfiltratorError::Sync(error.to_string()))?;
+    let port =
+        crate::host::storage::sync().map_err(|error| InfiltratorError::Sync(error.to_string()))?;
     Ok(SyncApplication::new(Arc::new(port)))
 }
 
-fn webdav_config(
-    enabled: bool,
-    url: String,
-    username: String,
-    password: String,
-) -> WebDavConfig {
+fn webdav_config(enabled: bool, url: String, username: String, password: String) -> WebDavConfig {
     WebDavConfig {
         enabled,
         url,
@@ -83,9 +75,7 @@ fn transfer_to_summary(report: SyncTransferReport) -> SyncSummary {
     }
 }
 
-fn contract_conflict_to_ui(
-    conflict: infiltrator_contract::sync::SyncConflict,
-) -> SyncConflict {
+fn contract_conflict_to_ui(conflict: infiltrator_contract::sync::SyncConflict) -> SyncConflict {
     SyncConflict {
         profile: conflict.profile,
         remote_path: conflict.remote_path.into(),
@@ -122,10 +112,8 @@ impl AppState {
                 let operation = stream::channel(
                     100,
                     move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                        let observer = Arc::new(IcedSyncProgressSink::new(
-                            output.clone(),
-                            cancel.clone(),
-                        ));
+                        let observer =
+                            Arc::new(IcedSyncProgressSink::new(output.clone(), cancel.clone()));
                         let result = async {
                             let configs_dir = crate::configs_dir::configs_dir()
                                 .await?
@@ -167,22 +155,15 @@ impl AppState {
                 let operation = stream::channel(
                     100,
                     move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                        let observer = Arc::new(IcedSyncProgressSink::new(
-                            output.clone(),
-                            cancel.clone(),
-                        ));
+                        let observer =
+                            Arc::new(IcedSyncProgressSink::new(output.clone(), cancel.clone()));
                         let result = async {
                             let configs_dir = crate::configs_dir::configs_dir()
                                 .await?
                                 .to_string_lossy()
                                 .into_owned();
                             application
-                                .download(
-                                    config,
-                                    Some(configs_dir),
-                                    runtime_present,
-                                    observer,
-                                )
+                                .download(config, Some(configs_dir), runtime_present, observer)
                                 .await
                                 .map(transfer_to_summary)
                                 .map_err(|failure| InfiltratorError::Sync(failure.message))
@@ -411,7 +392,13 @@ impl AppState {
                 };
                 let config = webdav_config(true, url, user, pass);
                 Task::perform(
-                    async move { application.test(config).await.map(|_| ()).map_err(|failure| InfiltratorError::Sync(failure.message)) },
+                    async move {
+                        application
+                            .test(config)
+                            .await
+                            .map(|_| ())
+                            .map_err(|failure| InfiltratorError::Sync(failure.message))
+                    },
                     Message::WebDavConnectionTested,
                 )
             }

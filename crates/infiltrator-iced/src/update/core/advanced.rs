@@ -36,7 +36,8 @@ impl AppState {
     pub(super) fn map_advanced_error_message(error: &InfiltratorError) -> String {
         let message = error.to_string();
         if message.contains("unsupported tun stack") {
-            return "TUN stack must be gVisor, System, or Mixed; LWIP is reference-only".to_string();
+            return "TUN stack must be gVisor, System, or Mixed; LWIP is reference-only"
+                .to_string();
         }
         if message.contains("unsupported enhanced-mode") {
             return "DNS enhanced mode must be 'fake-ip' or 'redir-host'".to_string();

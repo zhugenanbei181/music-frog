@@ -2,7 +2,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{badge, card, style_accent, BadgeKind};
+use crate::view::components::{BadgeKind, badge, card, style_accent};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
@@ -50,24 +50,43 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
 
     let details_row = row![
         column![
-            text(lang.tr("net_roam_active_iface").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("net_roam_active_iface").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(2.0),
             row![
                 badge(active_iface.to_string(), BadgeKind::Accent),
                 Space::new().width(theme::SP_XS),
-                badge(lang.tr("net_roam_active_badge").to_string(), BadgeKind::Success),
-            ].align_y(Alignment::Center),
-        ].width(Length::Fill),
+                badge(
+                    lang.tr("net_roam_active_badge").to_string(),
+                    BadgeKind::Success
+                ),
+            ]
+            .align_y(Alignment::Center),
+        ]
+        .width(Length::Fill),
         column![
-            text(lang.tr("net_roam_gateway").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("net_roam_gateway").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(2.0),
             text(gateway).size(13).font(MONO),
-        ].width(Length::Fill),
+        ]
+        .width(Length::Fill),
         column![
-            text(lang.tr("net_roam_mtu").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("net_roam_mtu").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(2.0),
             text(mtu).size(13).font(MONO),
-        ].width(Length::Fill),
+        ]
+        .width(Length::Fill),
     ]
     .align_y(Alignment::Center);
 
@@ -76,7 +95,11 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
             row![
                 svg_icons::icon_themed(Icon::Activity, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(format_event(ev, lang)).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
+                text(format_event(ev, lang))
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).success)
+                    }),
             ]
             .align_y(Alignment::Center),
         )
@@ -88,8 +111,17 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
     card(
         Some(lang.tr("net_roam_title").to_string()),
         column![
-            text(lang.tr("net_roam_desc").to_string()).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
-            text(status).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("net_roam_desc").to_string())
+                .size(12)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
+            text(status)
+                .size(11)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(theme::SP_XS),
             details_row,
             Space::new().height(theme::SP_XS),
@@ -116,7 +148,11 @@ fn format_status(status: &NetworkRoamingStatus, lang: &Lang<'_>) -> String {
             format!("{} · {reason}", lang.tr("net_roam_status_unsupported"))
         }
         NetworkRoamingStatus::Failed { failure } => {
-            format!("{} · {}", lang.tr("net_roam_status_failed"), failure.message)
+            format!(
+                "{} · {}",
+                lang.tr("net_roam_status_failed"),
+                failure.message
+            )
         }
     }
 }
@@ -146,7 +182,10 @@ fn format_event(event: &NetworkRoamingEvent, lang: &Lang<'_>) -> String {
             new_gateway_ip.as_deref().unwrap_or("—")
         ),
         NetworkRoamingEvent::InterfaceAddressChanged { interface } => {
-            format!("{} · {interface}", lang.tr("net_roam_event_address_changed"))
+            format!(
+                "{} · {interface}",
+                lang.tr("net_roam_event_address_changed")
+            )
         }
         NetworkRoamingEvent::RoutesRepaired {
             physical_interface,

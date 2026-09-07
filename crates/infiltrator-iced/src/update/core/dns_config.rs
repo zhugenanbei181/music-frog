@@ -39,7 +39,10 @@ impl AppState {
         self.diag.perf_snapshot.dns_with_text_apply_ms = start.elapsed().as_millis();
     }
 
-    pub(super) fn apply_dns_form_from_config(&mut self, config: &infiltrator_domain::dns::DnsConfig) {
+    pub(super) fn apply_dns_form_from_config(
+        &mut self,
+        config: &infiltrator_domain::dns::DnsConfig,
+    ) {
         self.editor.dns_form = DnsFormDraft {
             enable: config.enable.unwrap_or(false),
             nameserver: Self::join_list_field(&config.nameserver),
@@ -241,8 +244,9 @@ impl AppState {
             Message::FakeIpConfigJsonLoaded(result) => {
                 match result {
                     Ok(json) => {
-                        match serde_json::from_str::<infiltrator_domain::fake_ip::FakeIpConfig>(&json)
-                        {
+                        match serde_json::from_str::<infiltrator_domain::fake_ip::FakeIpConfig>(
+                            &json,
+                        ) {
                             Ok(config) => {
                                 self.editor.advanced_configs_loaded_once = true;
                                 self.editor.fake_ip_json_cache = json;

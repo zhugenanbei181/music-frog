@@ -1,2 +1,2 @@
 scenario	page	skin	requested_window	app_pid	window_id	width	height	bytes	sha256	status
-overview-dark	overview	dark	1180x780	871167	2	1268	888	126801	46c5c0d618e1de9782083720923c307283de4c3440eddbb21d92dc2196244592	ok
+overview-dark	overview	dark	1180x780	882147	2	1268	888	129213	8f3c9117ca2ed0771428763370f03c1428b9234b032e880a3f933aaa1d0146ab	ok

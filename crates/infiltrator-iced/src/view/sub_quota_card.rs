@@ -3,7 +3,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::utils::format_bytes;
-use crate::view::components::{badge, card, style_accent, style_ghost, BadgeKind};
+use crate::view::components::{BadgeKind, badge, card, style_accent, style_ghost};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, row, text};
@@ -49,39 +49,81 @@ pub fn sub_quota_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
 
     let quota_metrics = row![
         column![
-            text(lang.tr("sub_quota_used").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("sub_quota_used").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(2.0),
             text(format_bytes(used)).size(13).font(MONO),
-        ].width(Length::Fill),
+        ]
+        .width(Length::Fill),
         column![
-            text(lang.tr("sub_quota_remaining").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("sub_quota_remaining").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(2.0),
-            text(format!("{:.1}% ({})", remaining_pct, format_bytes(total.saturating_sub(used)))).size(13).font(FONT_SEMIBOLD).style(|t: &Theme| text::Style { color: Some(tokens(t).accent) }),
-        ].width(Length::Fill),
+            text(format!(
+                "{:.1}% ({})",
+                remaining_pct,
+                format_bytes(total.saturating_sub(used))
+            ))
+            .size(13)
+            .font(FONT_SEMIBOLD)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).accent)
+            }),
+        ]
+        .width(Length::Fill),
         column![
-            text(lang.tr("sub_quota_cron").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("sub_quota_cron").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(2.0),
             tier_badge,
-        ].width(Length::Fill),
+        ]
+        .width(Length::Fill),
     ]
     .align_y(Alignment::Center);
 
     let interval_pills = row![
-        text("Auto-Update Interval:").size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+        text("Auto-Update Interval:")
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            }),
         Space::new().width(theme::SP_SM),
         button(text("6h").size(11))
             .padding([3, 8])
-            .style(if quota.cron_interval_hours == 6 { style_accent } else { style_ghost })
+            .style(if quota.cron_interval_hours == 6 {
+                style_accent
+            } else {
+                style_ghost
+            })
             .on_press(Message::UpdateCronScheduleHours(6)),
         Space::new().width(theme::SP_XS),
         button(text("12h").size(11))
             .padding([3, 8])
-            .style(if quota.cron_interval_hours == 12 { style_accent } else { style_ghost })
+            .style(if quota.cron_interval_hours == 12 {
+                style_accent
+            } else {
+                style_ghost
+            })
             .on_press(Message::UpdateCronScheduleHours(12)),
         Space::new().width(theme::SP_XS),
         button(text("24h").size(11))
             .padding([3, 8])
-            .style(if quota.cron_interval_hours == 24 || quota.cron_interval_hours == 0 { style_accent } else { style_ghost })
+            .style(
+                if quota.cron_interval_hours == 24 || quota.cron_interval_hours == 0 {
+                    style_accent
+                } else {
+                    style_ghost
+                }
+            )
             .on_press(Message::UpdateCronScheduleHours(24)),
     ]
     .align_y(Alignment::Center);
@@ -89,16 +131,16 @@ pub fn sub_quota_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     card(
         Some(lang.tr("sub_quota_title").to_string()),
         column![
-            text(lang.tr("sub_quota_desc").to_string()).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("sub_quota_desc").to_string())
+                .size(12)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(theme::SP_XS),
             quota_metrics,
             Space::new().height(theme::SP_XS),
-            row![
-                interval_pills,
-                Space::new().width(Length::Fill),
-                eval_btn,
-            ]
-            .align_y(Alignment::Center),
+            row![interval_pills, Space::new().width(Length::Fill), eval_btn,]
+                .align_y(Alignment::Center),
         ]
         .spacing(theme::SP_SM),
     )

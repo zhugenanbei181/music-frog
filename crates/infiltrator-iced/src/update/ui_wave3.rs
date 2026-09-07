@@ -32,7 +32,9 @@ fn map_uwp_snapshot(
     });
 }
 
-fn map_uwp_failure(error: infiltrator_contract::error::Failure) -> infiltrator_contract::error::InfiltratorError {
+fn map_uwp_failure(
+    error: infiltrator_contract::error::Failure,
+) -> infiltrator_contract::error::InfiltratorError {
     infiltrator_contract::error::InfiltratorError::Internal(error.message)
 }
 
@@ -88,10 +90,12 @@ impl AppState {
                 let conds = self.editor.subrule_draft.conditions.join(", ");
                 let target = &self.editor.subrule_draft.target;
                 let formatted_rule = format!("{op}(({conds})),{target}");
-                self.editor.rules.push(infiltrator_domain::rules::RuleEntry {
-                    rule: formatted_rule.clone(),
-                    enabled: true,
-                });
+                self.editor
+                    .rules
+                    .push(infiltrator_domain::rules::RuleEntry {
+                        rule: formatted_rule.clone(),
+                        enabled: true,
+                    });
                 self.editor.rules_dirty = true;
                 Task::done(Message::ShowToast(
                     format!("Inserted: {formatted_rule}"),
@@ -211,12 +215,7 @@ impl AppState {
                     self.shell.uwp_loopback.is_scanning = true;
                     let application = crate::host::desktop::uwp_loopback_application();
                     return Task::perform(
-                        async move {
-                            application
-                                .set_all(true)
-                                .await
-                                .map_err(map_uwp_failure)
-                        },
+                        async move { application.set_all(true).await.map_err(map_uwp_failure) },
                         Message::UwpExemptionsChanged,
                     );
                 }
@@ -233,12 +232,7 @@ impl AppState {
                     self.shell.uwp_loopback.is_scanning = true;
                     let application = crate::host::desktop::uwp_loopback_application();
                     return Task::perform(
-                        async move {
-                            application
-                                .set_all(false)
-                                .await
-                                .map_err(map_uwp_failure)
-                        },
+                        async move { application.set_all(false).await.map_err(map_uwp_failure) },
                         Message::UwpExemptionsChanged,
                     );
                 }
@@ -274,7 +268,13 @@ impl AppState {
                         Message::UwpExemptionsChanged,
                     );
                 }
-                if let Some(app) = self.shell.uwp_loopback.apps.iter_mut().find(|a| a.sid == sid) {
+                if let Some(app) = self
+                    .shell
+                    .uwp_loopback
+                    .apps
+                    .iter_mut()
+                    .find(|a| a.sid == sid)
+                {
                     app.is_exempt = !app.is_exempt;
                 }
                 Task::none()
@@ -307,8 +307,11 @@ impl AppState {
                         ToastStatus::Warning,
                     ));
                 }
-                let dummy_bundle =
-                    infiltrator_domain::backup::BackupBundle::new(vec![], String::new(), String::new());
+                let dummy_bundle = infiltrator_domain::backup::BackupBundle::new(
+                    vec![],
+                    String::new(),
+                    String::new(),
+                );
                 if let Ok(bytes) =
                     infiltrator_domain::backup::export_encrypted_bundle(&dummy_bundle, pass)
                 {

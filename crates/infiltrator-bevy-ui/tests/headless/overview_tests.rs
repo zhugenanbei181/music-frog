@@ -1537,3 +1537,34 @@ fn overview_mode_segment_card_is_mounted_with_four_pills() {
     assert!(modes.contains(&infiltrator_contract::command::ProxyMode::Direct));
     assert!(modes.contains(&infiltrator_contract::command::ProxyMode::Script));
 }
+
+#[test]
+fn overview_speedtest_button_submits_test_all_proxy_groups() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    app.init_asset::<Image>();
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
+    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
+    app.update();
+
+    let button = {
+        let world = app.world_mut();
+        let mut buttons = world.query::<(
+            Entity,
+            &infiltrator_bevy_ui::pages::overview::OverviewSpeedtestButton,
+        )>();
+        buttons
+            .iter(world)
+            .find(|(_, btn)| !btn.testing)
+            .expect("speedtest button mounted")
+            .0
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+    assert!(sink.submitted().contains(&UiCommand::TestAllProxyGroups));
+}

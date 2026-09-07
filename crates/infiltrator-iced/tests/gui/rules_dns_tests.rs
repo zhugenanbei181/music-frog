@@ -319,12 +319,28 @@ fn test_rule_provider_diff_and_unpack_flow() {
         "Classical"
     );
 
-    assert_eq!(crate::view::rules::format_rule_provider_format(&domain_provider), "HTTP");
-    assert_eq!(crate::view::rules::format_rule_provider_format(&ipcidr_provider), "MRS");
-    assert_eq!(crate::view::rules::format_rule_provider_format(&classical_provider), "YAML");
+    assert_eq!(
+        crate::view::rules::format_rule_provider_format(&domain_provider),
+        "HTTP"
+    );
+    assert_eq!(
+        crate::view::rules::format_rule_provider_format(&ipcidr_provider),
+        "MRS"
+    );
+    assert_eq!(
+        crate::view::rules::format_rule_provider_format(&classical_provider),
+        "YAML"
+    );
 
-    let providers = vec![domain_provider.clone(), ipcidr_provider.clone(), classical_provider.clone()];
-    assert_eq!(crate::view::rules::total_external_rules(&providers), 1420 + 850 + 572);
+    let providers = vec![
+        domain_provider.clone(),
+        ipcidr_provider.clone(),
+        classical_provider.clone(),
+    ];
+    assert_eq!(
+        crate::view::rules::total_external_rules(&providers),
+        1420 + 850 + 572
+    );
 
     let _dom_elem = crate::view::rules::rule_provider_row(&domain_provider, &lang);
     let _ipc_elem = crate::view::rules::rule_provider_row(&ipcidr_provider, &lang);

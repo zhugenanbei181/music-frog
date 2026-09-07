@@ -2,7 +2,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{badge, card, style_accent, style_ghost, BadgeKind};
+use crate::view::components::{BadgeKind, badge, card, style_accent, style_ghost};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
@@ -45,7 +45,11 @@ pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
         row![
             badge("Orphaned State".to_string(), BadgeKind::Danger),
             Space::new().width(theme::SP_SM),
-            text("Abnormal termination detected in previous run; proxy settings require cleanup").size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).danger) }),
+            text("Abnormal termination detected in previous run; proxy settings require cleanup")
+                .size(12)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).danger)
+                }),
         ]
         .align_y(Alignment::Center)
     } else {
@@ -82,15 +86,13 @@ pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
         row![
             badge(label.to_string(), kind),
             Space::new().width(theme::SP_SM),
-            text(detail)
-                .size(12)
-                .style(move |t: &Theme| text::Style {
-                    color: Some(match kind {
-                        BadgeKind::Danger => tokens(t).danger,
-                        BadgeKind::Warning => tokens(t).warning,
-                        _ => tokens(t).text_secondary,
-                    }),
+            text(detail).size(12).style(move |t: &Theme| text::Style {
+                color: Some(match kind {
+                    BadgeKind::Danger => tokens(t).danger,
+                    BadgeKind::Warning => tokens(t).warning,
+                    _ => tokens(t).text_secondary,
                 }),
+            }),
         ]
         .align_y(Alignment::Center)
     };
@@ -100,7 +102,12 @@ pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(format!("Exported: {path}")).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
+                text(format!("Exported: {path}"))
+                    .size(11)
+                    .font(MONO)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).success)
+                    }),
             ]
             .align_y(Alignment::Center),
         )
@@ -112,7 +119,11 @@ pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
     card(
         Some(lang.tr("crash_watchdog_title").to_string()),
         column![
-            text(lang.tr("crash_watchdog_desc").to_string()).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("crash_watchdog_desc").to_string())
+                .size(12)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(theme::SP_XS),
             status_row,
             summary_feedback,

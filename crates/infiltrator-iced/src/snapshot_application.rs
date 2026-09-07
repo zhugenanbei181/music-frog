@@ -10,5 +10,8 @@ pub async fn application() -> Result<SnapshotApplication, InfiltratorError> {
     let snapshots = crate::host::storage::snapshot_store()
         .await
         .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-    Ok(SnapshotApplication::new(profiles, std::sync::Arc::new(snapshots)))
+    Ok(SnapshotApplication::new(
+        profiles,
+        std::sync::Arc::new(snapshots),
+    ))
 }

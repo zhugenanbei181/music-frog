@@ -21,9 +21,9 @@ use axum::extract::{Request, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_domain::sync::diff_yaml_configs;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
-use infiltrator_domain::sync::diff_yaml_configs;
 use tokio::sync::oneshot;
 
 // ---------------------------------------------------------------------------
@@ -404,7 +404,7 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
         assert_eq!(units, 1);
         {
             let content = tokio::fs::read_to_string(&conflict_path).await.unwrap();
-        infiltrator_domain::config::validate_yaml(&content).unwrap();
+            infiltrator_domain::config::validate_yaml(&content).unwrap();
             crate::update::core::profile_apply::save_profile_content(
                 None,
                 "alpha".into(),

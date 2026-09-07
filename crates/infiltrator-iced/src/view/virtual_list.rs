@@ -59,7 +59,9 @@ impl VirtualListConfig {
         let first_visible = (clamped_scroll / self.item_height).floor() as usize;
         let visible_count = (self.viewport_height / self.item_height).ceil() as usize + 1;
 
-        let start_index = first_visible.saturating_sub(self.overscan).min(self.total_items);
+        let start_index = first_visible
+            .saturating_sub(self.overscan)
+            .min(self.total_items);
         let end_index = (first_visible
             .saturating_add(visible_count)
             .saturating_add(self.overscan))

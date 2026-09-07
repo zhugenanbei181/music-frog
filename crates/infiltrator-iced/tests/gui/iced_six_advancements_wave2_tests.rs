@@ -87,9 +87,18 @@ fn test_advancement_w2_3_multi_profile_aggregator_workflow() {
     let (mut state, _) = AppState::new();
 
     // Mock active profiles in state
-    let mut p1 = ProfileInfo { name: "Airport-US".to_string(), path: "/tmp/us.yaml".to_string(), ..Default::default() };
+    let mut p1 = ProfileInfo {
+        name: "Airport-US".to_string(),
+        path: "/tmp/us.yaml".to_string(),
+        ..Default::default()
+    };
     p1.subscription_url = Some("https://sub.lan/us".to_string());
-    let mut p2 = ProfileInfo { name: "Airport-HK".to_string(), path: "/tmp/hk.yaml".to_string(), active: true, ..Default::default() };
+    let mut p2 = ProfileInfo {
+        name: "Airport-HK".to_string(),
+        path: "/tmp/hk.yaml".to_string(),
+        active: true,
+        ..Default::default()
+    };
     p2.subscription_url = Some("https://sub.lan/hk".to_string());
     state.profile.profiles = vec![p1, p2];
 

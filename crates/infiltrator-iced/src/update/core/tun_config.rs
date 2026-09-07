@@ -9,9 +9,9 @@ use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use iced::Task;
-use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::tun::TunStack;
+use infiltrator_domain::apply::ApplyStrategy;
 
 impl AppState {
     pub(super) fn ensure_tun_editor_loaded(&mut self) {
@@ -27,7 +27,10 @@ impl AppState {
         self.diag.perf_snapshot.dns_with_text_apply_ms = start.elapsed().as_millis();
     }
 
-    pub(super) fn apply_tun_form_from_config(&mut self, config: &infiltrator_domain::tun::TunConfig) {
+    pub(super) fn apply_tun_form_from_config(
+        &mut self,
+        config: &infiltrator_domain::tun::TunConfig,
+    ) {
         self.editor.tun_form = TunFormDraft {
             enable: config.enable.unwrap_or(false),
             stack: config.stack.clone().unwrap_or_else(|| "gvisor".to_string()),

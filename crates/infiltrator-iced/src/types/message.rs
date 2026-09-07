@@ -9,17 +9,17 @@ use super::rules::{RulesJsonTab, RulesLoadBundle, RulesTab};
 use super::runtime::{IpProbeResult, RuntimeConfig, RuntimeStreamKind, RuntimeStreamState};
 use iced::{widget::text_editor, window};
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::session::SessionToken;
+use infiltrator_contract::version::InstalledCoreVersion;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::proxy::Proxy;
-use infiltrator_domain::settings::AppSettings;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{
     ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
+use infiltrator_domain::settings::AppSettings;
 use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_ports::host_runtime::HostRuntime;
-use infiltrator_contract::version::InstalledCoreVersion;
-use infiltrator_contract::session::SessionToken;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -184,15 +184,7 @@ pub enum Message {
     ProxyProvidersJsonLoaded(Result<String, InfiltratorError>),
     SnifferJsonLoaded(Result<String, InfiltratorError>),
     LoadProviders,
-    ProvidersLoaded(
-        Result<
-            (
-                Vec<ProxyProvider>,
-                Vec<RuleProvider>,
-            ),
-            InfiltratorError,
-        >,
-    ),
+    ProvidersLoaded(Result<(Vec<ProxyProvider>, Vec<RuleProvider>), InfiltratorError>),
     UpdateProxyProvider(String),
     UpdateRuleProvider(String),
     FilterRules(String),
@@ -321,9 +313,7 @@ pub enum Message {
         Result<infiltrator_contract::system_proxy::SystemProxySnapshot, InfiltratorError>,
     ),
     SystemProxyReconciled(infiltrator_contract::system_proxy::SystemProxySnapshot),
-    SystemProxyRecoveryFinished(
-        infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot,
-    ),
+    SystemProxyRecoveryFinished(infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot),
     RequestAdminPrivilege,
     RequestConfirmation(ConfirmAction),
     ConfirmAction,
@@ -432,11 +422,16 @@ pub enum Message {
     // App Routing (应用分流)
     RefreshAppRoutingProcesses,
     AppRoutingProcessesLoaded(Vec<crate::host::process_enumerator::ExtendedProcessInfo>),
-    AppRoutingConfigLoaded(Result<infiltrator_domain::app_routing::AppRoutingConfig, InfiltratorError>),
+    AppRoutingConfigLoaded(
+        Result<infiltrator_domain::app_routing::AppRoutingConfig, InfiltratorError>,
+    ),
     AppRoutingPersisted(Result<(), InfiltratorError>),
     SetAppRoutingFilter(String),
     SetAppRoutingMode(super::app_routing::AppRoutingMode),
-    SetAppRouteRule { process: String, rule: super::app_routing::AppRouteRule },
+    SetAppRouteRule {
+        process: String,
+        rule: super::app_routing::AppRouteRule,
+    },
     SetAppRoutingCategory(Option<crate::host::process_enumerator::ProcessCategory>),
     // Proxy Group Reorder (策略组重排)
     MoveProxyGroupUp(String),
@@ -469,13 +464,19 @@ pub enum Message {
     ExecuteProfileAggregation,
     // Connection Grouping & Quick Rule (Category 4)
     SetConnectionGroupingMode(super::runtime::ConnectionGroupingMode),
-    AddQuickRuleFromConnection { pattern: String, target: String },
+    AddQuickRuleFromConnection {
+        pattern: String,
+        target: String,
+    },
     // Config Snapshot Visual Diff & Rollback (Category 5)
     OpenSnapshotDiff(String),
     CloseSnapshotDiff,
     RollbackToSnapshot(String),
     // Global Hotkey Manager (Category 6)
-    UpdateHotkeyCombo { id: String, combo: String },
+    UpdateHotkeyCombo {
+        id: String,
+        combo: String,
+    },
     ToggleHotkeyEnabled(String),
     // Wave 3 Category 1: PCAP Exporter
     TogglePcapCapture,
@@ -545,7 +546,10 @@ pub enum Message {
     DisableZeroHitRules,
     // Wave 5 Category 2: Latency Time-Series & Stability Radar
     SelectRadarNode(String),
-    RecordRadarLatencySample { node: String, latency_ms: u64 },
+    RecordRadarLatencySample {
+        node: String,
+        latency_ms: u64,
+    },
     // Wave 5 Category 3: TUN Multi-Stack & MTU Negotiator
     SelectTunStack(String),
     ProbeOptimalMtu,

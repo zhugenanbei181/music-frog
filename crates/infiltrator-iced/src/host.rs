@@ -6,7 +6,8 @@
 //! application/contract values.
 
 pub mod desktop {
-    pub fn system_proxy_port() -> std::sync::Arc<dyn infiltrator_ports::system_proxy::SystemProxyPort> {
+    pub fn system_proxy_port()
+    -> std::sync::Arc<dyn infiltrator_ports::system_proxy::SystemProxyPort> {
         std::sync::Arc::new(infiltrator_desktop::system_proxy::DesktopSystemProxy::new())
     }
 
@@ -15,12 +16,12 @@ pub mod desktop {
         infiltrator_desktop::proxy::read_system_proxy_state()
     }
 
-    pub fn uwp_loopback_application() -> infiltrator_application::uwp_loopback_application::UwpLoopbackApplication {
+    pub fn uwp_loopback_application()
+    -> infiltrator_application::uwp_loopback_application::UwpLoopbackApplication {
         infiltrator_application::uwp_loopback_application::UwpLoopbackApplication::new(
             std::sync::Arc::new(infiltrator_desktop::uwp_loopback_port::DesktopUwpLoopbackPort),
         )
     }
-
 }
 
 pub mod process_enumerator {
@@ -134,7 +135,8 @@ pub mod storage {
         infiltrator_desktop::storage::version()
     }
 
-    pub fn port_conflict() -> anyhow::Result<impl infiltrator_ports::port_conflict::PortConflictPort> {
+    pub fn port_conflict() -> anyhow::Result<impl infiltrator_ports::port_conflict::PortConflictPort>
+    {
         infiltrator_desktop::storage::port_conflict()
     }
 

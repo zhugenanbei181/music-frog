@@ -6,15 +6,10 @@ use crate::view::components::{BadgeKind, badge, card, style_accent};
 use crate::view::theme::{self, MONO, tokens};
 use iced::widget::{Space, button, column, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::privileged_network::{
-    PrivilegedNetworkSnapshot, PrivilegedNetworkState,
-};
+use infiltrator_contract::privileged_network::{PrivilegedNetworkSnapshot, PrivilegedNetworkState};
 use infiltrator_shared::locales::{Lang, Localizer};
 
-pub fn privileged_network_card<'a>(
-    state: &'a AppState,
-    lang: &Lang<'_>,
-) -> Element<'a, Message> {
+pub fn privileged_network_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let snapshot = &state.runtime.privileged_network;
     let run = button(text(lang.tr("privileged_network_run").to_string()))
         .padding([4, 12])
@@ -54,12 +49,10 @@ fn format_status(state: &PrivilegedNetworkState, lang: &Lang<'_>) -> String {
             lang.tr("privileged_network_status_injecting").to_string()
         }
         PrivilegedNetworkState::Active => lang.tr("privileged_network_status_active").to_string(),
-        PrivilegedNetworkState::RollingBack => {
-            lang.tr("privileged_network_status_rolling_back").to_string()
-        }
-        PrivilegedNetworkState::Cleaned => {
-            lang.tr("privileged_network_status_cleaned").to_string()
-        }
+        PrivilegedNetworkState::RollingBack => lang
+            .tr("privileged_network_status_rolling_back")
+            .to_string(),
+        PrivilegedNetworkState::Cleaned => lang.tr("privileged_network_status_cleaned").to_string(),
         PrivilegedNetworkState::Unsupported { reason } => format!(
             "{} · {reason}",
             lang.tr("privileged_network_status_unsupported")
@@ -92,7 +85,7 @@ mod tests {
         let (mut state, _) = AppState::new();
         let snapshot = PrivilegedNetworkSnapshot::cleaned(2, 3, false);
         let _ = state.update(Message::PrivilegedNetworkRegressionUpdated(Ok(
-            snapshot.clone(),
+            snapshot.clone()
         )));
         assert_eq!(state.runtime.privileged_network, snapshot);
         let lang = Lang(&state.shell.lang);

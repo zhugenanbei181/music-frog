@@ -77,11 +77,12 @@ impl AppState {
                     0,
                     "Android VpnService is a mobile-host capability",
                 ),
-                system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
-                    system_proxy_enabled,
-                    None,
-                    0,
-                ),
+                system_toggles:
+                    infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
+                        system_proxy_enabled,
+                        None,
+                        0,
+                    ),
                 privileged_network:
                     infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot::unsupported(
                         0,
@@ -487,9 +488,7 @@ impl AppState {
                     Message::SystemProxyRecoveryFinished,
                 ),
                 Task::perform(
-                    async {
-                        crate::settings_store::load_hydrated().await
-                    },
+                    async { crate::settings_store::load_hydrated().await },
                     // env 覆写生效时清空回灌快照的 language 字段（仅内存
                     // 快照），apply_loaded_settings 因此保留 env 注入值；
                     // 磁盘上的设置文件不动。

@@ -13,9 +13,9 @@ use crate::types::app::{Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use crate::view;
-use infiltrator_shared::locales::Localizer;
 use iced::widget::{Space, button, column, container, row, stack, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
+use infiltrator_shared::locales::Localizer;
 use std::time::Instant;
 
 impl AppState {
@@ -67,55 +67,57 @@ impl AppState {
         if !self.shell.toasts.is_empty() {
             let mut toast_column = column![].spacing(10);
             for (content, status) in &self.shell.toasts {
-                let (icon, color): (
-                    crate::view::svg_icons::Icon,
-                    fn(&Theme) -> Color,
-                ) = match status {
-                    ToastStatus::Info => (
-                        crate::view::svg_icons::Icon::Activity,
-                        |theme: &Theme| crate::view::theme::tokens(theme).accent,
-                    ),
-                    ToastStatus::Success => (
-                        crate::view::svg_icons::Icon::ListChecks,
-                        |theme: &Theme| crate::view::theme::tokens(theme).success,
-                    ),
-                    ToastStatus::Warning => (
-                        crate::view::svg_icons::Icon::Activity,
-                        |theme: &Theme| crate::view::theme::tokens(theme).warning,
-                    ),
-                    ToastStatus::Error => (
-                        crate::view::svg_icons::Icon::Shield,
-                        |theme: &Theme| crate::view::theme::tokens(theme).danger,
-                    ),
-                };
+                let (icon, color): (crate::view::svg_icons::Icon, fn(&Theme) -> Color) =
+                    match status {
+                        ToastStatus::Info => {
+                            (crate::view::svg_icons::Icon::Activity, |theme: &Theme| {
+                                crate::view::theme::tokens(theme).accent
+                            })
+                        }
+                        ToastStatus::Success => {
+                            (crate::view::svg_icons::Icon::ListChecks, |theme: &Theme| {
+                                crate::view::theme::tokens(theme).success
+                            })
+                        }
+                        ToastStatus::Warning => {
+                            (crate::view::svg_icons::Icon::Activity, |theme: &Theme| {
+                                crate::view::theme::tokens(theme).warning
+                            })
+                        }
+                        ToastStatus::Error => {
+                            (crate::view::svg_icons::Icon::Shield, |theme: &Theme| {
+                                crate::view::theme::tokens(theme).danger
+                            })
+                        }
+                    };
 
                 let toast_row = row![
                     crate::view::svg_icons::icon_themed(icon, 14.0, color),
-                    text(content.clone()).size(13).style(|theme: &Theme| text::Style {
-                        color: Some(crate::view::theme::tokens(theme).overlay_text),
-                    }),
+                    text(content.clone())
+                        .size(13)
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(crate::view::theme::tokens(theme).overlay_text),
+                        }),
                 ]
                 .spacing(10)
                 .align_y(Alignment::Center);
 
-                toast_column = toast_column.push(
-                    container(toast_row)
-                        .padding([10, 18])
-                        .style(move |theme: &Theme| {
-                            let tokens = crate::view::theme::tokens(theme);
-                            container::Style {
-                                background: Some(tokens.overlay.into()),
-                                border: Border {
-                                    radius: 12.0.into(),
-                                    width: 1.0,
-                                    color: color(theme),
-                                },
-                                shadow: tokens.floating_shadow,
-                                text_color: Some(tokens.overlay_text),
-                                ..Default::default()
-                            }
-                        }),
-                );
+                toast_column = toast_column.push(container(toast_row).padding([10, 18]).style(
+                    move |theme: &Theme| {
+                        let tokens = crate::view::theme::tokens(theme);
+                        container::Style {
+                            background: Some(tokens.overlay.into()),
+                            border: Border {
+                                radius: 12.0.into(),
+                                width: 1.0,
+                                color: color(theme),
+                            },
+                            shadow: tokens.floating_shadow,
+                            text_color: Some(tokens.overlay_text),
+                            ..Default::default()
+                        }
+                    },
+                ));
             }
 
             layers.push(
@@ -144,9 +146,7 @@ impl AppState {
                             ),
                             Space::new().width(crate::view::theme::SP_SM),
                             column![
-                                text(title)
-                                    .size(12)
-                                    .font(crate::view::theme::FONT_SEMIBOLD),
+                                text(title).size(12).font(crate::view::theme::FONT_SEMIBOLD),
                                 text(error.clone())
                                     .size(11)
                                     .style(|theme: &Theme| text::Style {
@@ -228,15 +228,13 @@ impl AppState {
                 ),
             };
 
-            let mut info_col = column![text(title)
-                .size(12)
-                .font(crate::view::theme::FONT_SEMIBOLD)];
+            let mut info_col =
+                column![text(title).size(12).font(crate::view::theme::FONT_SEMIBOLD)];
             if !detail.is_empty() {
-                info_col = info_col.push(text(detail).size(11).style(|theme: &Theme| {
-                    text::Style {
+                info_col =
+                    info_col.push(text(detail).size(11).style(|theme: &Theme| text::Style {
                         color: Some(crate::view::theme::tokens(theme).overlay_text_muted),
-                    }
-                }));
+                    }));
             }
             info_col = info_col.spacing(2);
 
@@ -308,9 +306,10 @@ impl AppState {
         }
 
         if let Some(snap_id) = &self.editor.snapshot_diff_selected_id
-            && self.editor.snapshot_diff_modal_open {
-                layers.push(snapshot_diff_modal::snapshot_diff_modal(self, snap_id));
-            }
+            && self.editor.snapshot_diff_modal_open
+        {
+            layers.push(snapshot_diff_modal::snapshot_diff_modal(self, snap_id));
+        }
 
         if self.diag.perf_panel_visible {
             layers.push(

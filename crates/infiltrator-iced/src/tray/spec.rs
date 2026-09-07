@@ -15,8 +15,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 
-use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_contract::version::InstalledCoreVersion;
+use infiltrator_domain::profiles::ProfileInfo;
 
 /// Stable menu action id, shared by the spec builder, both backends and the
 /// update handlers. Never reuse a number; the mapping is part of the contract.

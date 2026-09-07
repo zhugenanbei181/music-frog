@@ -123,7 +123,9 @@ mod backend {
         match notifier.send(&notif) {
             Ok(()) => true,
             Err(e) => {
-                warn_throttled(&format!("Windows WinRT/PowerShell notification dispatch failed: {e}"));
+                warn_throttled(&format!(
+                    "Windows WinRT/PowerShell notification dispatch failed: {e}"
+                ));
                 false
             }
         }

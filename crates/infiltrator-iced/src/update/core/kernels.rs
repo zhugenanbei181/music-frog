@@ -6,10 +6,10 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::{Task, stream};
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreReleaseChannel, VersionDownloadProgress,
 };
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_ports::version::VersionProgressSink;
 use infiltrator_shared::locales::Localizer;
@@ -67,7 +67,8 @@ impl VersionProgressSink for IcedVersionProgressSink {
     }
 }
 
-fn version_application() -> Result<infiltrator_application::version_application::VersionApplication, InfiltratorError> {
+fn version_application()
+-> Result<infiltrator_application::version_application::VersionApplication, InfiltratorError> {
     crate::version_application::application()
 }
 
@@ -146,11 +147,8 @@ impl AppState {
                 let stream = stream::channel(
                     100,
                     move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                        let progress = Arc::new(IcedVersionProgressSink::new(
-                            output.clone(),
-                            cancel,
-                            token,
-                        ));
+                        let progress =
+                            Arc::new(IcedVersionProgressSink::new(output.clone(), cancel, token));
                         match application.install(version.clone(), progress).await {
                             Ok(_) => {
                                 let _ = output
@@ -199,7 +197,8 @@ impl AppState {
                 self.refresh_tray();
                 match result {
                     Ok(version) => {
-                        self.runtime.core_integrity = CoreArtifactVerification::Verified { version };
+                        self.runtime.core_integrity =
+                            CoreArtifactVerification::Verified { version };
                         Task::done(Message::LoadKernels)
                     }
                     Err(e) => {
@@ -381,10 +380,7 @@ impl AppState {
                         // 纯文件系统清理：settings/config.toml 删除失败整体
                         // 报错；目录/日志失败只记 warning（契约见模块文档）。
                         let warnings = tokio::task::spawn_blocking(move || {
-                            crate::host::storage::factory_reset(
-                                &home,
-                                configs_dir.as_deref(),
-                            )
+                            crate::host::storage::factory_reset(&home, configs_dir.as_deref())
                         })
                         .await
                         .map_err(|error| InfiltratorError::Internal(error.to_string()))?
@@ -425,10 +421,7 @@ impl AppState {
                         Task::batch(vec![
                             Task::done(Message::LoadProfiles),
                             Task::done(Message::LoadKernels),
-                            Task::perform(
-                                crate::settings_store::load(),
-                                Message::SettingsLoaded,
-                            ),
+                            Task::perform(crate::settings_store::load(), Message::SettingsLoaded),
                             Task::done(Message::ShowToast(toast_done, ToastStatus::Success)),
                         ])
                     }

@@ -76,7 +76,9 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
         body = body.push(secondary_text(lang.tr("doctor_running_fix").to_string()));
     }
     if doctor.is_bootstrapping {
-        body = body.push(secondary_text(lang.tr("doctor_running_bootstrap").to_string()));
+        body = body.push(secondary_text(
+            lang.tr("doctor_running_bootstrap").to_string(),
+        ));
     }
     if let Some(error) = &doctor.error {
         body = body.push(error_text(error));
@@ -217,13 +219,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .align_y(Alignment::Center);
 
-    let content = column![
-        title,
-        Space::new().height(theme::SP_MD),
-        section(state),
-    ]
-    .spacing(theme::SP_MD)
-    .width(Length::Fill);
+    let content = column![title, Space::new().height(theme::SP_MD), section(state),]
+        .spacing(theme::SP_MD)
+        .width(Length::Fill);
 
     scrollable(content)
         .width(Length::Fill)

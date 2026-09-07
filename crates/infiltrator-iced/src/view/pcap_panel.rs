@@ -3,7 +3,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::utils::format_bytes;
-use crate::view::components::{badge, card, style_accent, style_danger, style_ghost, BadgeKind};
+use crate::view::components::{BadgeKind, badge, card, style_accent, style_danger, style_ghost};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};

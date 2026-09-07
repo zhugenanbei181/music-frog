@@ -82,18 +82,15 @@ impl AppState {
                     .await
                     .map_err(infiltrator_contract::error::from_mihomo)?;
                 let candidates = vec![];
-                match crate::host::boot::bootstrap_host_runtime_from_current_home(
-                    true,
-                    &candidates,
-                )
-                .await
+                match crate::host::boot::bootstrap_host_runtime_from_current_home(true, &candidates)
+                    .await
                 {
-                        Ok((runtime, _rotated)) => {
+                    Ok((runtime, _rotated)) => {
                         manager
                             .clear_backup(&profile)
                             .await
                             .map_err(infiltrator_contract::error::from_mihomo)?;
-                            Ok(runtime)
+                        Ok(runtime)
                     }
                     Err(cause) => {
                         let restored = manager

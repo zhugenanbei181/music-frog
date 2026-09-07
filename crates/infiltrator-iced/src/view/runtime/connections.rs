@@ -9,8 +9,7 @@ use crate::types::message::Message;
 use crate::types::runtime::{ConnectionGroupingMode, RuntimeStreamState};
 use crate::utils::format_bytes;
 use crate::view::components::{
-    modern_scrollable,
-    BadgeKind, badge, chip, empty_state, icon_button, row_card_surface,
+    BadgeKind, badge, chip, empty_state, icon_button, modern_scrollable, row_card_surface,
     search_input, section_header, segmented_control, status_dot, style_danger, style_ghost,
     text_btn,
 };
@@ -18,8 +17,8 @@ use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_shared::locales::{Lang, Localizer};
 use infiltrator_domain::runtime::Connection;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Extract clean executable/binary name from a system process path.
 pub fn extract_process_name(path: &str) -> String {
@@ -27,10 +26,7 @@ pub fn extract_process_name(path: &str) -> String {
     if trimmed.is_empty() {
         return String::new();
     }
-    let filename = trimmed
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(trimmed);
+    let filename = trimmed.rsplit(['/', '\\']).next().unwrap_or(trimmed);
     let name = filename.strip_suffix(".exe").unwrap_or(filename);
     name.to_string()
 }
@@ -53,9 +49,15 @@ pub fn outbound_target_info(conn: &Connection) -> (String, BadgeKind) {
         });
 
     let target_upper = target.to_uppercase();
-    let kind = if target_upper == "DIRECT" || target.contains("\u{76f4}\u{8fde}") || target_upper == "DIRECT" {
+    let kind = if target_upper == "DIRECT"
+        || target.contains("\u{76f4}\u{8fde}")
+        || target_upper == "DIRECT"
+    {
         BadgeKind::Success
-    } else if target_upper == "REJECT" || target.contains("\u{62d2}\u{7edd}") || target_upper == "REJECT" {
+    } else if target_upper == "REJECT"
+        || target.contains("\u{62d2}\u{7edd}")
+        || target_upper == "REJECT"
+    {
         BadgeKind::Danger
     } else {
         BadgeKind::Accent
@@ -81,7 +83,10 @@ pub fn filter_connection(conn: &Connection, query: &str) -> bool {
         || meta.network.to_lowercase().contains(&query_lower)
         || conn.rule.to_lowercase().contains(&query_lower)
         || conn.rule_payload.to_lowercase().contains(&query_lower)
-        || conn.chains.iter().any(|c| c.to_lowercase().contains(&query_lower))
+        || conn
+            .chains
+            .iter()
+            .any(|c| c.to_lowercase().contains(&query_lower))
 }
 
 /// Sort connection list according to user-selected sort key.
@@ -144,8 +149,14 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         Some(c) => (c.upload_total, c.download_total),
         None => (0, 0),
     };
-    let upload_badge = badge(format!("↑ {}", format_bytes(upload_total)), BadgeKind::Success);
-    let download_badge = badge(format!("↓ {}", format_bytes(download_total)), BadgeKind::Accent);
+    let upload_badge = badge(
+        format!("↑ {}", format_bytes(upload_total)),
+        BadgeKind::Success,
+    );
+    let download_badge = badge(
+        format!("↓ {}", format_bytes(download_total)),
+        BadgeKind::Accent,
+    );
 
     // 3. Close all connections button (Icon::Trash2 + danger style)
     let close_all_btn = button(
@@ -268,7 +279,10 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
     .width(Length::Fill);
 
     let mut connections_section = column![
-        section_header(lang.tr("runtime_connections_title").as_ref(), Some(header_trailing.into())),
+        section_header(
+            lang.tr("runtime_connections_title").as_ref(),
+            Some(header_trailing.into())
+        ),
         Space::new().height(theme::SP_MD),
         filter_bar,
         Space::new().height(theme::SP_MD),
@@ -295,35 +309,59 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 "",
             ));
         } else if state.diag.connection_grouping_mode == ConnectionGroupingMode::ByProcess {
-            let mut proc_map: std::collections::HashMap<String, (usize, u64, u64)> = std::collections::HashMap::new();
+            let mut proc_map: std::collections::HashMap<String, (usize, u64, u64)> =
+                std::collections::HashMap::new();
             for conn in &sorted_conns {
                 let name = extract_process_name(&conn.metadata.process_path);
-                let entry = proc_map.entry(if name.is_empty() { "unknown".to_string() } else { name }).or_insert((0, 0, 0));
+                let entry = proc_map
+                    .entry(if name.is_empty() {
+                        "unknown".to_string()
+                    } else {
+                        name
+                    })
+                    .or_insert((0, 0, 0));
                 entry.0 += 1;
                 entry.1 += conn.upload;
                 entry.2 += conn.download;
             }
             let mut grouped_list = column![].spacing(theme::SP_SM);
             let mut sorted_procs: Vec<_> = proc_map.into_iter().collect();
-            sorted_procs.sort_by_key(|item| std::cmp::Reverse(item.1 .1));
+            sorted_procs.sort_by_key(|item| std::cmp::Reverse(item.1.1));
             for (proc_name, (cnt, up, down)) in sorted_procs {
                 let proc_card = container(
                     row![
                         svg_icons::icon_themed(Icon::Activity, 16.0, |t: &Theme| tokens(t).accent),
                         Space::new().width(theme::SP_MD),
-                        text(proc_name).size(13).font(FONT_SEMIBOLD).width(Length::Fill),
+                        text(proc_name)
+                            .size(13)
+                            .font(FONT_SEMIBOLD)
+                            .width(Length::Fill),
                         badge(format!("{cnt} connections"), BadgeKind::Neutral),
                         Space::new().width(theme::SP_MD),
-                        text(format!("↑ {} / ↓ {}", format_bytes(up), format_bytes(down))).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
-                    ].align_y(Alignment::Center)
-                ).padding([10, 16]).style(row_card_surface);
+                        text(format!("↑ {} / ↓ {}", format_bytes(up), format_bytes(down)))
+                            .size(11)
+                            .font(MONO)
+                            .style(|t: &Theme| text::Style {
+                                color: Some(tokens(t).text_secondary)
+                            }),
+                    ]
+                    .align_y(Alignment::Center),
+                )
+                .padding([10, 16])
+                .style(row_card_surface);
                 grouped_list = grouped_list.push(proc_card);
             }
-            connections_section = connections_section.push(modern_scrollable(grouped_list).height(Length::Fill));
+            connections_section =
+                connections_section.push(modern_scrollable(grouped_list).height(Length::Fill));
         } else if state.diag.connection_grouping_mode == ConnectionGroupingMode::ByHost {
-            let mut host_map: std::collections::HashMap<String, (usize, u64, u64)> = std::collections::HashMap::new();
+            let mut host_map: std::collections::HashMap<String, (usize, u64, u64)> =
+                std::collections::HashMap::new();
             for conn in &sorted_conns {
-                let h = if !conn.metadata.host.is_empty() { conn.metadata.host.clone() } else { conn.metadata.destination_ip.clone() };
+                let h = if !conn.metadata.host.is_empty() {
+                    conn.metadata.host.clone()
+                } else {
+                    conn.metadata.destination_ip.clone()
+                };
                 let entry = host_map.entry(h).or_insert((0, 0, 0));
                 entry.0 += 1;
                 entry.1 += conn.upload;
@@ -331,7 +369,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
             }
             let mut grouped_list = column![].spacing(theme::SP_SM);
             let mut sorted_hosts: Vec<_> = host_map.into_iter().collect();
-            sorted_hosts.sort_by_key(|item| std::cmp::Reverse(item.1 .1));
+            sorted_hosts.sort_by_key(|item| std::cmp::Reverse(item.1.1));
             for (h_name, (cnt, up, down)) in sorted_hosts {
                 let host_card = container(
                     row![
@@ -340,12 +378,21 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                         text(h_name).size(13).font(MONO).width(Length::Fill),
                         badge(format!("{cnt} conns"), BadgeKind::Neutral),
                         Space::new().width(theme::SP_MD),
-                        text(format!("↑ {} / ↓ {}", format_bytes(up), format_bytes(down))).size(11).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
-                    ].align_y(Alignment::Center)
-                ).padding([10, 16]).style(row_card_surface);
+                        text(format!("↑ {} / ↓ {}", format_bytes(up), format_bytes(down)))
+                            .size(11)
+                            .font(MONO)
+                            .style(|t: &Theme| text::Style {
+                                color: Some(tokens(t).text_secondary)
+                            }),
+                    ]
+                    .align_y(Alignment::Center),
+                )
+                .padding([10, 16])
+                .style(row_card_surface);
                 grouped_list = grouped_list.push(host_card);
             }
-            connections_section = connections_section.push(modern_scrollable(grouped_list).height(Length::Fill));
+            connections_section =
+                connections_section.push(modern_scrollable(grouped_list).height(Length::Fill));
         } else {
             // Windowed rendering: only current window items are instantiated into widgets
             let total = sorted_conns.len();
@@ -371,10 +418,8 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
 
                 // Headline row: status dot, optional process chip, destination domain/IP,
                 // protocol chip, outbound target badge, monospace traffic counts, kill button
-                let mut headline_items: Vec<Element<'_, Message>> = vec![
-                    status_dot(true),
-                    Space::new().width(theme::SP_SM).into(),
-                ];
+                let mut headline_items: Vec<Element<'_, Message>> =
+                    vec![status_dot(true), Space::new().width(theme::SP_SM).into()];
 
                 if !process_name.is_empty() {
                     headline_items.push(chip(process_name));

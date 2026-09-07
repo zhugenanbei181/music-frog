@@ -5,6 +5,7 @@
 //! `crate::types::app::Route`, ...). No forwarding layer is allowed here.
 
 pub mod app;
+pub mod app_routing;
 pub mod dns;
 pub mod doctor;
 pub mod editor;
@@ -13,4 +14,3 @@ pub mod options;
 pub mod perf;
 pub mod rules;
 pub mod runtime;
-pub mod app_routing;

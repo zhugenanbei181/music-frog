@@ -55,7 +55,11 @@ pub fn web_dash_card<'a>(_state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     card(
         Some(lang.tr("web_dash_title").to_string()),
         column![
-            text(lang.tr("web_dash_desc").to_string()).size(12).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text(lang.tr("web_dash_desc").to_string())
+                .size(12)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             Space::new().height(theme::SP_XS),
             row![
                 metacubexd_btn,

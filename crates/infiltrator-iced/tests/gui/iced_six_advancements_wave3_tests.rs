@@ -38,7 +38,8 @@ fn test_advancement_w3_1_pcap_capture_and_export_lifecycle() {
     );
 
     // Verify written file exists on disk
-    let file_bytes = std::fs::read("/tmp/infiltrator_capture.pcap").expect("PCAP file must be written");
+    let file_bytes =
+        std::fs::read("/tmp/infiltrator_capture.pcap").expect("PCAP file must be written");
     assert!(file_bytes.len() >= 24); // PCAP global header is 24 bytes
 }
 
@@ -55,7 +56,9 @@ fn test_advancement_w3_2_subrules_logical_builder_workflow() {
     assert_eq!(state.editor.subrule_draft.operator, "OR");
 
     // Add condition
-    let _ = state.update(Message::AddSubRuleCondition("DOMAIN-KEYWORD,netflix".to_string()));
+    let _ = state.update(Message::AddSubRuleCondition(
+        "DOMAIN-KEYWORD,netflix".to_string(),
+    ));
     assert_eq!(state.editor.subrule_draft.conditions.len(), 3);
     assert_eq!(
         state.editor.subrule_draft.conditions[2],
@@ -149,9 +152,15 @@ fn test_advancement_w3_5_uwp_loopback_exemption_manager() {
     // Scan apps
     let _ = state.update(Message::ScanUwpApps);
     assert_eq!(state.shell.uwp_loopback.apps.len(), 3);
-    assert_eq!(state.shell.uwp_loopback.apps[0].display_name, "Microsoft Store");
+    assert_eq!(
+        state.shell.uwp_loopback.apps[0].display_name,
+        "Microsoft Store"
+    );
     assert_eq!(state.shell.uwp_loopback.apps[1].display_name, "Xbox App");
-    assert_eq!(state.shell.uwp_loopback.apps[2].display_name, "Windows Terminal");
+    assert_eq!(
+        state.shell.uwp_loopback.apps[2].display_name,
+        "Windows Terminal"
+    );
 
     // Exempt all
     let _ = state.update(Message::ExemptAllUwpApps);
@@ -206,7 +215,9 @@ fn test_advancement_w3_6_encrypted_backup_package_lifecycle() {
 
     // Provide passphrase
     let passphrase = "MySecretMasterPassphrase2026";
-    let _ = state.update(Message::UpdateEncryptedBackupPassphrase(passphrase.to_string()));
+    let _ = state.update(Message::UpdateEncryptedBackupPassphrase(
+        passphrase.to_string(),
+    ));
     assert_eq!(state.profile.encrypted_backup.passphrase, passphrase);
 
     // Export encrypted package
@@ -217,6 +228,7 @@ fn test_advancement_w3_6_encrypted_backup_package_lifecycle() {
     );
 
     // Verify written package file
-    let enc_bytes = std::fs::read("/tmp/infiltrator_backup.encpkg").expect("Encrypted file must be written");
+    let enc_bytes =
+        std::fs::read("/tmp/infiltrator_backup.encpkg").expect("Encrypted file must be written");
     assert!(!enc_bytes.is_empty());
 }

@@ -2,18 +2,54 @@ use super::*;
 
 #[test]
 fn test_semantic_badge_kind_mapping() {
-    assert_eq!(semantic_badge_kind("DOMAIN", RuleBadgeKind::Domain), BadgeKind::Accent);
-    assert_eq!(semantic_badge_kind("DOMAIN-SUFFIX", RuleBadgeKind::Domain), BadgeKind::Accent);
-    assert_eq!(semantic_badge_kind("DOMAIN-KEYWORD", RuleBadgeKind::Domain), BadgeKind::Accent);
-    assert_eq!(semantic_badge_kind("IP-CIDR", RuleBadgeKind::Ip), BadgeKind::Warning);
-    assert_eq!(semantic_badge_kind("IP-CIDR6", RuleBadgeKind::Ip), BadgeKind::Warning);
-    assert_eq!(semantic_badge_kind("IP-ASN", RuleBadgeKind::Ip), BadgeKind::Warning);
-    assert_eq!(semantic_badge_kind("GEOIP", RuleBadgeKind::Ip), BadgeKind::Neutral);
-    assert_eq!(semantic_badge_kind("GEOSITE", RuleBadgeKind::Other), BadgeKind::Neutral);
-    assert_eq!(semantic_badge_kind("MATCH", RuleBadgeKind::Other), BadgeKind::Neutral);
-    assert_eq!(semantic_badge_kind("CUSTOM", RuleBadgeKind::Domain), BadgeKind::Accent);
-    assert_eq!(semantic_badge_kind("CUSTOM", RuleBadgeKind::Ip), BadgeKind::Warning);
-    assert_eq!(semantic_badge_kind("CUSTOM", RuleBadgeKind::Other), BadgeKind::Neutral);
+    assert_eq!(
+        semantic_badge_kind("DOMAIN", RuleBadgeKind::Domain),
+        BadgeKind::Accent
+    );
+    assert_eq!(
+        semantic_badge_kind("DOMAIN-SUFFIX", RuleBadgeKind::Domain),
+        BadgeKind::Accent
+    );
+    assert_eq!(
+        semantic_badge_kind("DOMAIN-KEYWORD", RuleBadgeKind::Domain),
+        BadgeKind::Accent
+    );
+    assert_eq!(
+        semantic_badge_kind("IP-CIDR", RuleBadgeKind::Ip),
+        BadgeKind::Warning
+    );
+    assert_eq!(
+        semantic_badge_kind("IP-CIDR6", RuleBadgeKind::Ip),
+        BadgeKind::Warning
+    );
+    assert_eq!(
+        semantic_badge_kind("IP-ASN", RuleBadgeKind::Ip),
+        BadgeKind::Warning
+    );
+    assert_eq!(
+        semantic_badge_kind("GEOIP", RuleBadgeKind::Ip),
+        BadgeKind::Neutral
+    );
+    assert_eq!(
+        semantic_badge_kind("GEOSITE", RuleBadgeKind::Other),
+        BadgeKind::Neutral
+    );
+    assert_eq!(
+        semantic_badge_kind("MATCH", RuleBadgeKind::Other),
+        BadgeKind::Neutral
+    );
+    assert_eq!(
+        semantic_badge_kind("CUSTOM", RuleBadgeKind::Domain),
+        BadgeKind::Accent
+    );
+    assert_eq!(
+        semantic_badge_kind("CUSTOM", RuleBadgeKind::Ip),
+        BadgeKind::Warning
+    );
+    assert_eq!(
+        semantic_badge_kind("CUSTOM", RuleBadgeKind::Other),
+        BadgeKind::Neutral
+    );
 }
 
 #[test]
@@ -30,8 +66,20 @@ fn test_display_rule_type_formatting() {
 fn test_rule_hit_stats_matching() {
     let stats_map = {
         let mut map = HashMap::new();
-        map.insert("domainsuffix:google.com".to_string(), RuleHitStats { count: 5, is_recent: true });
-        map.insert("match:".to_string(), RuleHitStats { count: 12, is_recent: true });
+        map.insert(
+            "domainsuffix:google.com".to_string(),
+            RuleHitStats {
+                count: 5,
+                is_recent: true,
+            },
+        );
+        map.insert(
+            "match:".to_string(),
+            RuleHitStats {
+                count: 12,
+                is_recent: true,
+            },
+        );
         map
     };
 

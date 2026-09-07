@@ -2,7 +2,9 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{form_input_style, icon_button, kbd_badge, style_accent, style_ghost};
+use crate::view::components::{
+    form_input_style, icon_button, kbd_badge, style_accent, style_ghost,
+};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text, text_input};
@@ -79,10 +81,13 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 color: Some(tokens(t).text_secondary),
             }),
         Space::new().height(2.0),
-        text_input("vless / ss / hysteria2 / trojan", &state.runtime.custom_node_type_input)
-            .padding([6, 10])
-            .size(12)
-            .style(form_input_style),
+        text_input(
+            "vless / ss / hysteria2 / trojan",
+            &state.runtime.custom_node_type_input
+        )
+        .padding([6, 10])
+        .size(12)
+        .style(form_input_style),
     ]
     .width(Length::FillPortion(1));
 
@@ -152,34 +157,39 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
     ]
     .width(Length::Fill);
 
-    let export_section: Element<'_, Message> = if let Some(uri) = &state.runtime.custom_node_exported_uri {
-        container(
-            row![
-                text(uri.clone()).size(11).font(MONO).width(Length::Fill).style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary),
-                }),
-                Space::new().width(theme::SP_SM),
-                kbd_badge("URI"),
-            ]
-            .align_y(Alignment::Center),
-        )
-        .padding([8, 12])
-        .style(|t: &Theme| {
-            let tk = tokens(t);
-            container::Style {
-                background: Some(tk.control_bg.into()),
-                border: Border {
-                    radius: border::Radius::from(theme::R_CONTROL),
-                    width: 1.0,
-                    color: tk.card_border,
-                },
-                ..Default::default()
-            }
-        })
-        .into()
-    } else {
-        Element::from(Space::new().height(0))
-    };
+    let export_section: Element<'_, Message> =
+        if let Some(uri) = &state.runtime.custom_node_exported_uri {
+            container(
+                row![
+                    text(uri.clone())
+                        .size(11)
+                        .font(MONO)
+                        .width(Length::Fill)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).text_primary),
+                        }),
+                    Space::new().width(theme::SP_SM),
+                    kbd_badge("URI"),
+                ]
+                .align_y(Alignment::Center),
+            )
+            .padding([8, 12])
+            .style(|t: &Theme| {
+                let tk = tokens(t);
+                container::Style {
+                    background: Some(tk.control_bg.into()),
+                    border: Border {
+                        radius: border::Radius::from(theme::R_CONTROL),
+                        width: 1.0,
+                        color: tk.card_border,
+                    },
+                    ..Default::default()
+                }
+            })
+            .into()
+        } else {
+            Element::from(Space::new().height(0))
+        };
 
     let actions = row![
         button(text(lang.tr("btn_cancel").to_string()).size(12))
@@ -232,7 +242,15 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         .align_x(Alignment::Center)
         .align_y(Alignment::Center)
         .style(|_t: &Theme| container::Style {
-            background: Some(Color { a: 0.50, r: 0.0, g: 0.0, b: 0.0 }.into()),
+            background: Some(
+                Color {
+                    a: 0.50,
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                }
+                .into(),
+            ),
             ..Default::default()
         })
         .into()

@@ -2,7 +2,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{badge, card, style_accent, BadgeKind};
+use crate::view::components::{BadgeKind, badge, card, style_accent};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, row, text};
@@ -34,7 +34,9 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     )
     .padding([6, 14])
     .style(style_accent)
-    .on_press_maybe((!res.is_running && !target.is_empty()).then(|| Message::RunNodeSpeedtest(target.clone())));
+    .on_press_maybe(
+        (!res.is_running && !target.is_empty()).then(|| Message::RunNodeSpeedtest(target.clone())),
+    );
 
     let metric_content: Element<'_, Message> = if res.bandwidth_mbps > 0.0 {
         let tier_badge = match res.tier.as_str() {
@@ -45,19 +47,45 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
 
         row![
             column![
-                text(lang.tr("speedtest_bandwidth").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
-                text(format!("{:.1} Mbps", res.bandwidth_mbps)).size(16).font(FONT_SEMIBOLD).style(|t: &Theme| text::Style { color: Some(tokens(t).accent) }),
-            ].width(Length::Fill),
+                text(lang.tr("speedtest_bandwidth").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    }),
+                text(format!("{:.1} Mbps", res.bandwidth_mbps))
+                    .size(16)
+                    .font(FONT_SEMIBOLD)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).accent)
+                    }),
+            ]
+            .width(Length::Fill),
             column![
-                text(lang.tr("speedtest_jitter").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+                text(lang.tr("speedtest_jitter").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    }),
                 text(format!("{:.1} ms", res.jitter_ms)).size(14).font(MONO),
-            ].width(Length::Fill),
+            ]
+            .width(Length::Fill),
             column![
-                text(lang.tr("speedtest_packet_loss").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
-                text(format!("{:.1}%", res.packet_loss_percent)).size(14).font(MONO),
-            ].width(Length::Fill),
+                text(lang.tr("speedtest_packet_loss").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    }),
+                text(format!("{:.1}%", res.packet_loss_percent))
+                    .size(14)
+                    .font(MONO),
+            ]
+            .width(Length::Fill),
             column![
-                text(lang.tr("speedtest_stability").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+                text(lang.tr("speedtest_stability").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    }),
                 tier_badge,
             ],
         ]
@@ -65,9 +93,22 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         .into()
     } else {
         row![
-            text(format!("Node: {}", if target.is_empty() { "No node selected" } else { &target })).size(12).font(FONT_MEDIUM),
+            text(format!(
+                "Node: {}",
+                if target.is_empty() {
+                    "No node selected"
+                } else {
+                    &target
+                }
+            ))
+            .size(12)
+            .font(FONT_MEDIUM),
             Space::new().width(Length::Fill),
-            text("Click to run bandwidth and packet loss benchmark").size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }),
+            text("Click to run bandwidth and packet loss benchmark")
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
         ]
         .align_y(Alignment::Center)
         .into()
@@ -77,7 +118,13 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         Some(lang.tr("speedtest_title").to_string()),
         column![
             row![
-                text(format!("Target: {}", if target.is_empty() { "None" } else { &target })).size(12).font(MONO).width(Length::Fill),
+                text(format!(
+                    "Target: {}",
+                    if target.is_empty() { "None" } else { &target }
+                ))
+                .size(12)
+                .font(MONO)
+                .width(Length::Fill),
                 run_btn,
             ]
             .align_y(Alignment::Center),

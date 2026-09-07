@@ -41,9 +41,15 @@ impl<Message> canvas::Program<Message> for TopologyFlowCanvas {
             let end = Point::new(x_at(index + 1) - 7.0, center_y);
             let path = canvas::Path::line(start, end);
             let color = if link.active {
-                Color { a: 0.28, ..tokens.accent }
+                Color {
+                    a: 0.28,
+                    ..tokens.accent
+                }
             } else {
-                Color { a: 0.65, ..tokens.card_border }
+                Color {
+                    a: 0.65,
+                    ..tokens.card_border
+                }
             };
             frame.stroke(
                 &path,
@@ -58,7 +64,10 @@ impl<Message> canvas::Program<Message> for TopologyFlowCanvas {
                     let point = Point::new(x, center_y);
                     frame.fill(
                         &canvas::Path::circle(point, 5.5),
-                        Color { a: 0.16, ..tokens.accent },
+                        Color {
+                            a: 0.16,
+                            ..tokens.accent
+                        },
                     );
                     frame.fill(&canvas::Path::circle(point, 2.4), tokens.accent);
                 }

@@ -8,20 +8,18 @@
 use crate::state::AppState;
 use crate::types::message::{Message, MtuProbeCompletion};
 use crate::types::runtime::ApplyTransactionStage;
-use infiltrator_domain::rules::RuleEntry;
-use infiltrator_contract::tun::{TunStack, TunStackAvailability};
-use infiltrator_contract::mtu::{
-    MtuNegotiationSnapshot, PhysicalMtuSnapshot,
-};
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
+use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
+use infiltrator_contract::mtu::{MtuNegotiationSnapshot, PhysicalMtuSnapshot};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageData, SettingsPageSnapshot, SurfaceSnapshot};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::system_proxy::{
     SystemProxyObservation, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
     SystemProxyStatus,
 };
-use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
-use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
+use infiltrator_contract::tun::{TunStack, TunStackAvailability};
+use infiltrator_domain::rules::RuleEntry;
 
 #[test]
 fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
@@ -29,10 +27,22 @@ fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
 
     // Populate test rules
     state.editor.rules = vec![
-        RuleEntry { rule: "DOMAIN-SUFFIX,google.com,Proxy".into(), enabled: true },
-        RuleEntry { rule: "DOMAIN-SUFFIX,facebook.com,Proxy".into(), enabled: true },
-        RuleEntry { rule: "DOMAIN-KEYWORD,youtube,Proxy".into(), enabled: true },
-        RuleEntry { rule: "IP-CIDR,1.1.1.1/32,DIRECT".into(), enabled: true },
+        RuleEntry {
+            rule: "DOMAIN-SUFFIX,google.com,Proxy".into(),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: "DOMAIN-SUFFIX,facebook.com,Proxy".into(),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: "DOMAIN-KEYWORD,youtube,Proxy".into(),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: "IP-CIDR,1.1.1.1/32,DIRECT".into(),
+            enabled: true,
+        },
     ];
 
     // Initial audit state
@@ -42,7 +52,10 @@ fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
     // Trigger audit
     let _ = state.update(Message::AuditStaleRules);
     assert_eq!(state.editor.rule_hit_audit.total_rule_hits, 1250);
-    assert_eq!(state.editor.rule_hit_audit.zero_hit_rule_indices, vec![1, 3]);
+    assert_eq!(
+        state.editor.rule_hit_audit.zero_hit_rule_indices,
+        vec![1, 3]
+    );
 
     // Disable stale rules
     let _ = state.update(Message::DisableZeroHitRules);
@@ -82,9 +95,11 @@ fn test_advancement_w5_3_tun_multi_stack_and_mtu_negotiation() {
 
     let options = TunStack::options();
     assert_eq!(options.len(), 4);
-    assert!(options[..3]
-        .iter()
-        .all(|option| matches!(&option.availability, TunStackAvailability::Supported)));
+    assert!(
+        options[..3]
+            .iter()
+            .all(|option| matches!(&option.availability, TunStackAvailability::Supported))
+    );
     assert!(matches!(
         &options[3].availability,
         TunStackAvailability::ReferenceOnly { .. }
@@ -105,17 +120,23 @@ fn test_advancement_w5_3_tun_multi_stack_and_mtu_negotiation() {
     let _ = state.update(Message::ProbeOptimalMtu);
     assert_eq!(state.runtime.tun_stack_config.negotiated_mtu, 1420);
     assert_eq!(
-        state.runtime.tun_stack_config.probe_result_summary.as_deref(),
+        state
+            .runtime
+            .tun_stack_config
+            .probe_result_summary
+            .as_deref(),
         Some("Optimal MTU: 1420 bytes")
     );
 
     state.shell.demo = false;
     let _ = state.update(Message::SetTunStack("lwip".to_string()));
-    assert!(state
-        .shell
-        .error_msg
-        .as_deref()
-        .is_some_and(|message| message.contains("reference-only")));
+    assert!(
+        state
+            .shell
+            .error_msg
+            .as_deref()
+            .is_some_and(|message| message.contains("reference-only"))
+    );
 }
 
 #[test]
@@ -137,14 +158,19 @@ fn test_tun_mtu_probe_result_updates_the_shared_iced_state() {
     }));
 
     assert!(state.runtime.mtu.is_ready());
-    assert_eq!(state.runtime.mtu.physical_interface.as_deref(), Some("wlan0"));
+    assert_eq!(
+        state.runtime.mtu.physical_interface.as_deref(),
+        Some("wlan0")
+    );
     assert_eq!(state.runtime.tun_stack_config.negotiated_mtu, 1420);
-    assert!(state
-        .runtime
-        .tun_stack_config
-        .probe_result_summary
-        .as_deref()
-        .is_some_and(|summary| summary.contains("wlan0")));
+    assert!(
+        state
+            .runtime
+            .tun_stack_config
+            .probe_result_summary
+            .as_deref()
+            .is_some_and(|summary| summary.contains("wlan0"))
+    );
 }
 
 #[test]
@@ -235,7 +261,9 @@ fn test_advancement_w5_4_rule_provider_lifecycle_and_unpack() {
     let initial_count = state.editor.rules.len();
 
     // Unpack provider
-    let _ = state.update(Message::UnpackRuleProviderToCustom("Apple-Provider".to_string()));
+    let _ = state.update(Message::UnpackRuleProviderToCustom(
+        "Apple-Provider".to_string(),
+    ));
     assert_eq!(state.editor.rules.len(), initial_count + 2);
     assert_eq!(
         state.editor.rules[initial_count].rule,
@@ -258,10 +286,7 @@ fn test_advancement_w5_5_config_apply_atomic_transaction_guard() {
     let (mut state, _) = AppState::new();
 
     // Default stage
-    assert_eq!(
-        state.runtime.apply_guard.stage,
-        ApplyTransactionStage::Idle
-    );
+    assert_eq!(state.runtime.apply_guard.stage, ApplyTransactionStage::Idle);
 
     // Trigger atomic apply transaction
     let _ = state.update(Message::TriggerAtomicConfigApply);
@@ -310,7 +335,10 @@ fn test_lan_sharing_readback_updates_the_iced_state() {
     assert!(state.runtime.lan_sharing.allow_lan);
     assert_eq!(state.runtime.lan_sharing.mixed_port, 8080);
     assert_eq!(state.runtime.lan_sharing.bind_address, "192.168.1.10");
-    assert_eq!(state.runtime.lan_sharing_committed.bind_address, "192.168.1.10");
+    assert_eq!(
+        state.runtime.lan_sharing_committed.bind_address,
+        "192.168.1.10"
+    );
 }
 
 #[test]

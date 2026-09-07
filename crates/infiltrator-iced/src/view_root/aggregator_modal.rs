@@ -2,7 +2,9 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{badge, form_input_style, icon_button, modern_scrollable, style_accent, style_ghost, BadgeKind};
+use crate::view::components::{
+    BadgeKind, badge, form_input_style, icon_button, modern_scrollable, style_accent, style_ghost,
+};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text, text_input};
@@ -62,22 +64,28 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
 
         let item_row = button(
             row![
-                text(checkbox_glyph).size(14).font(MONO).style(move |t: &Theme| {
-                    let tk = tokens(t);
-                    text::Style {
-                        color: Some(if is_selected {
-                            tk.accent
-                        } else {
-                            tk.text_tertiary
-                        }),
-                    }
-                }),
+                text(checkbox_glyph)
+                    .size(14)
+                    .font(MONO)
+                    .style(move |t: &Theme| {
+                        let tk = tokens(t);
+                        text::Style {
+                            color: Some(if is_selected {
+                                tk.accent
+                            } else {
+                                tk.text_tertiary
+                            }),
+                        }
+                    }),
                 Space::new().width(theme::SP_SM),
-                text(prof.name.clone()).size(13).font(FONT_MEDIUM).style(|t: &Theme| {
-                    text::Style {
-                        color: Some(tokens(t).text_primary),
-                    }
-                }),
+                text(prof.name.clone())
+                    .size(13)
+                    .font(FONT_MEDIUM)
+                    .style(|t: &Theme| {
+                        text::Style {
+                            color: Some(tokens(t).text_primary),
+                        }
+                    }),
                 Space::new().width(Length::Fill),
                 badge(
                     if prof.subscription_url.is_some() {
@@ -122,48 +130,47 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         profiles_list = profiles_list.push(item_row);
     }
 
-    let summary_section: Element<'_, Message> = if let Some(summary) =
-        &state.profile.aggregator_result_summary
-    {
-        container(
-            row![
-                svg_icons::icon_themed(Icon::ListChecks, 16.0, |t: &Theme| tokens(t).success),
-                Space::new().width(theme::SP_SM),
-                text(summary.clone())
-                    .size(12)
-                    .font(FONT_MEDIUM)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).success),
-                    }),
-            ]
-            .align_y(Alignment::Center),
-        )
-        .padding([8, 12])
-        .style(|t: &Theme| {
-            let tk = tokens(t);
-            container::Style {
-                background: Some(
-                    Color {
-                        a: 0.10,
-                        ..tk.success
-                    }
-                    .into(),
-                ),
-                border: Border {
-                    radius: border::Radius::from(theme::R_CONTROL),
-                    width: 1.0,
-                    color: Color {
-                        a: 0.30,
-                        ..tk.success
+    let summary_section: Element<'_, Message> =
+        if let Some(summary) = &state.profile.aggregator_result_summary {
+            container(
+                row![
+                    svg_icons::icon_themed(Icon::ListChecks, 16.0, |t: &Theme| tokens(t).success),
+                    Space::new().width(theme::SP_SM),
+                    text(summary.clone())
+                        .size(12)
+                        .font(FONT_MEDIUM)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).success),
+                        }),
+                ]
+                .align_y(Alignment::Center),
+            )
+            .padding([8, 12])
+            .style(|t: &Theme| {
+                let tk = tokens(t);
+                container::Style {
+                    background: Some(
+                        Color {
+                            a: 0.10,
+                            ..tk.success
+                        }
+                        .into(),
+                    ),
+                    border: Border {
+                        radius: border::Radius::from(theme::R_CONTROL),
+                        width: 1.0,
+                        color: Color {
+                            a: 0.30,
+                            ..tk.success
+                        },
                     },
-                },
-                ..Default::default()
-            }
-        })
-        .into()
-    } else {
-        Element::from(Space::new().height(0))
-    };
+                    ..Default::default()
+                }
+            })
+            .into()
+        } else {
+            Element::from(Space::new().height(0))
+        };
 
     let actions = row![
         button(text(lang.tr("btn_cancel").to_string()).size(12))

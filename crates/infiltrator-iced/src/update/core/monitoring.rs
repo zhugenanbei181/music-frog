@@ -261,9 +261,8 @@ impl AppState {
             }
             Message::SetCoreLogLevel(raw) => {
                 let Some(level) = CoreLogLevel::parse(&raw) else {
-                    let error = InfiltratorError::Internal(format!(
-                        "unsupported core log level: {raw}"
-                    ));
+                    let error =
+                        InfiltratorError::Internal(format!("unsupported core log level: {raw}"));
                     self.set_error(&error);
                     return Task::none();
                 };

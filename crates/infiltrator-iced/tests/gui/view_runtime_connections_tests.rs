@@ -28,7 +28,10 @@ fn make_test_conn(id: &str, host: &str, process: &str, up: u64, down: u64) -> Co
 #[test]
 fn test_extract_process_name() {
     assert_eq!(extract_process_name("/usr/bin/firefox"), "firefox");
-    assert_eq!(extract_process_name("C:\\Program Files\\Zed\\zed-editor.exe"), "zed-editor");
+    assert_eq!(
+        extract_process_name("C:\\Program Files\\Zed\\zed-editor.exe"),
+        "zed-editor"
+    );
     assert_eq!(extract_process_name("zed-editor"), "zed-editor");
     assert_eq!(extract_process_name(""), "");
     assert_eq!(extract_process_name("   "), "");
@@ -89,6 +92,8 @@ fn test_sort_connections() {
 #[test]
 fn test_stream_badge_kinds() {
     let _elem_idle: Element<'_, Message> = stream_badge(&RuntimeStreamState::Idle, &Lang("zh-CN"));
-    let _elem_connected: Element<'_, Message> = stream_badge(&RuntimeStreamState::Connected, &Lang("zh-CN"));
-    let _elem_failed: Element<'_, Message> = stream_badge(&RuntimeStreamState::Failed("err".into()), &Lang("zh-CN"));
+    let _elem_connected: Element<'_, Message> =
+        stream_badge(&RuntimeStreamState::Connected, &Lang("zh-CN"));
+    let _elem_failed: Element<'_, Message> =
+        stream_badge(&RuntimeStreamState::Failed("err".into()), &Lang("zh-CN"));
 }

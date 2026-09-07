@@ -305,23 +305,29 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let syntax_alert: Option<Element<'_, Message>> =
         state.editor.syntax_error.as_ref().map(|msg| {
             let line_badge = state.editor.syntax_error_line.map(|l| {
-                container(
-                    text(format_syntax_line_pill(l))
-                        .size(10)
-                        .font(MONO)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).danger),
-                        }),
-                )
+                container(text(format_syntax_line_pill(l)).size(10).font(MONO).style(
+                    |t: &Theme| text::Style {
+                        color: Some(tokens(t).danger),
+                    },
+                ))
                 .padding([2, 8])
                 .style(|t: &Theme| {
                     let tk = tokens(t);
                     container::Style {
-                        background: Some(Color { a: 0.16, ..tk.danger }.into()),
+                        background: Some(
+                            Color {
+                                a: 0.16,
+                                ..tk.danger
+                            }
+                            .into(),
+                        ),
                         border: Border {
                             radius: border::Radius::from(theme::R_CHIP),
                             width: 1.0,
-                            color: Color { a: 0.35, ..tk.danger },
+                            color: Color {
+                                a: 0.35,
+                                ..tk.danger
+                            },
                         },
                         ..Default::default()
                     }
@@ -361,11 +367,20 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .style(|t: &Theme| {
                     let tk = tokens(t);
                     container::Style {
-                        background: Some(Color { a: 0.10, ..tk.danger }.into()),
+                        background: Some(
+                            Color {
+                                a: 0.10,
+                                ..tk.danger
+                            }
+                            .into(),
+                        ),
                         border: Border {
                             radius: border::Radius::from(theme::R_CONTROL),
                             width: 1.0,
-                            color: Color { a: 0.30, ..tk.danger },
+                            color: Color {
+                                a: 0.30,
+                                ..tk.danger
+                            },
                         },
                         ..Default::default()
                     }
@@ -373,8 +388,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .into()
         });
 
-        let snippets_bar = row![
-        text(lang.tr("yaml_snippets_title").to_string()).size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) }),
+    let snippets_bar = row![
+        text(lang.tr("yaml_snippets_title").to_string())
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary)
+            }),
         Space::new().width(theme::SP_SM),
         snip_btn("+ Shadowsocks", SNIPPET_SS),
         Space::new().width(theme::SP_XS),
@@ -392,10 +411,27 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         Space::new().width(theme::SP_XS),
         snip_btn("+ GEOIP", SNIPPET_RULE_GEOIP),
         Space::new().width(Length::Fill),
-        button(row![icon_themed(Icon::Code2, 12.0, |t: &Theme| tokens(t).accent), Space::new().width(4.0), text(lang.tr("yaml_format_btn").to_string()).size(11).font(FONT_MEDIUM)].align_y(Alignment::Center))
-            .style(style_ghost).padding([3, 8]).on_press(Message::FormatYamlEditor),
-    ].align_y(Alignment::Center);
-    let mut content = column![toolbar, Space::new().height(theme::SP_XS), snippets_bar, Space::new().height(theme::SP_SM)];
+        button(
+            row![
+                icon_themed(Icon::Code2, 12.0, |t: &Theme| tokens(t).accent),
+                Space::new().width(4.0),
+                text(lang.tr("yaml_format_btn").to_string())
+                    .size(11)
+                    .font(FONT_MEDIUM)
+            ]
+            .align_y(Alignment::Center)
+        )
+        .style(style_ghost)
+        .padding([3, 8])
+        .on_press(Message::FormatYamlEditor),
+    ]
+    .align_y(Alignment::Center);
+    let mut content = column![
+        toolbar,
+        Space::new().height(theme::SP_XS),
+        snippets_bar,
+        Space::new().height(theme::SP_SM)
+    ];
     if let Some(alert) = syntax_alert {
         content = content.push(alert).push(Space::new().height(theme::SP_SM));
     }
@@ -404,16 +440,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
     // The Filter pane owns its full-width form; the document panes share the
     // editor + history side panel layout.
-    if state.editor.editor_pane == EditorPane::Filter || state.editor.editor_pane == EditorPane::Script {
+    if state.editor.editor_pane == EditorPane::Filter
+        || state.editor.editor_pane == EditorPane::Script
+    {
         content = content.push(editor);
     } else {
         content = content.push(
-            row![
-                editor,
-                Space::new().width(theme::SP_MD),
-                history_panel
-            ]
-            .height(Length::Fill),
+            row![editor, Space::new().width(theme::SP_MD), history_panel].height(Length::Fill),
         );
     }
     let content = content.spacing(theme::SP_SM);
@@ -438,12 +471,12 @@ fn build_history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, 
     .align_y(Alignment::Center);
 
     if !state.editor.profile_snapshots.is_empty() {
-        history_header = history_header.push(Space::new().width(Length::Fill)).push(
-            badge(
+        history_header = history_header
+            .push(Space::new().width(Length::Fill))
+            .push(badge(
                 format!("{}", state.editor.profile_snapshots.len()),
                 BadgeKind::Neutral,
-            ),
-        );
+            ));
     }
 
     let mut items_col = column![].spacing(theme::SP_SM);
@@ -467,27 +500,28 @@ fn build_history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, 
     } else {
         for snapshot in state.editor.profile_snapshots.iter().take(12) {
             let short_hash = format_short_sha(&snapshot.sha256);
-            let hash_pill = container(
-                text(short_hash)
-                    .size(10)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary),
-                    }),
-            )
-            .padding([2, 6])
-            .style(|t: &Theme| {
-                let tk = tokens(t);
-                container::Style {
-                    background: Some(tk.control_bg.into()),
-                    border: Border {
-                        radius: border::Radius::from(4.0),
-                        width: 1.0,
-                        color: tk.card_border,
-                    },
-                    ..Default::default()
-                }
-            });
+            let hash_pill =
+                container(
+                    text(short_hash)
+                        .size(10)
+                        .font(MONO)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).text_secondary),
+                        }),
+                )
+                .padding([2, 6])
+                .style(|t: &Theme| {
+                    let tk = tokens(t);
+                    container::Style {
+                        background: Some(tk.control_bg.into()),
+                        border: Border {
+                            radius: border::Radius::from(4.0),
+                            width: 1.0,
+                            color: tk.card_border,
+                        },
+                        ..Default::default()
+                    }
+                });
 
             let timestamp_text = text(snapshot.timestamp.format("%m-%d %H:%M").to_string())
                 .size(11)
@@ -514,7 +548,9 @@ fn build_history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, 
 
             let snapshot_card = container(
                 row![
-                    column![timestamp_text, hash_pill].spacing(3).width(Length::Fill),
+                    column![timestamp_text, hash_pill]
+                        .spacing(3)
+                        .width(Length::Fill),
                     restore_btn,
                 ]
                 .spacing(theme::SP_SM)
@@ -555,21 +591,32 @@ fn build_history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, 
 }
 
 fn snip_btn<'a>(label: &'static str, snippet: &'static str) -> Element<'a, Message> {
-    button(text(label).size(10).font(MONO).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) }))
-        .padding([2, 6])
-        .style(|t: &Theme, status| {
-            let tk = tokens(t);
-            button::Style {
-                background: match status {
-                    button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
-                    _ => Some(tk.chip_bg.into()),
-                },
-                border: Border { radius: border::Radius::from(theme::R_CHIP), width: 1.0, color: tk.card_border },
-                ..Default::default()
-            }
-        })
-        .on_press(Message::InsertYamlSnippet(snippet))
-        .into()
+    button(
+        text(label)
+            .size(10)
+            .font(MONO)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
+    )
+    .padding([2, 6])
+    .style(|t: &Theme, status| {
+        let tk = tokens(t);
+        button::Style {
+            background: match status {
+                button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
+                _ => Some(tk.chip_bg.into()),
+            },
+            border: Border {
+                radius: border::Radius::from(theme::R_CHIP),
+                width: 1.0,
+                color: tk.card_border,
+            },
+            ..Default::default()
+        }
+    })
+    .on_press(Message::InsertYamlSnippet(snippet))
+    .into()
 }
 
 #[cfg(test)]

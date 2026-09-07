@@ -383,8 +383,8 @@ pub const AMOLED: Tokens = Tokens {
         ..Color::from_rgb(0.90, 0.92, 0.94)
     },
     success: Color::from_rgb(0.063, 0.725, 0.506), // #10B981
-    warning: Color::from_rgb(0.96, 0.62, 0.15),   // #F59E26
-    danger: Color::from_rgb(0.96, 0.35, 0.32),    // #F55952
+    warning: Color::from_rgb(0.96, 0.62, 0.15),    // #F59E26
+    danger: Color::from_rgb(0.96, 0.35, 0.32),     // #F55952
     chip_bg: Color {
         a: 0.12,
         ..Color::WHITE

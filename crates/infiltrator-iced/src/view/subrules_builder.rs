@@ -2,7 +2,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{badge, card, icon_button, style_accent, style_ghost, BadgeKind};
+use crate::view::components::{BadgeKind, badge, card, icon_button, style_accent, style_ghost};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
@@ -22,17 +22,29 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         Space::new().width(theme::SP_SM),
         button(text("AND").size(11))
             .padding([4, 8])
-            .style(if draft.operator == "AND" { style_accent } else { style_ghost })
+            .style(if draft.operator == "AND" {
+                style_accent
+            } else {
+                style_ghost
+            })
             .on_press(Message::UpdateSubRuleOperator("AND".to_string())),
         Space::new().width(theme::SP_XS),
         button(text("OR").size(11))
             .padding([4, 8])
-            .style(if draft.operator == "OR" { style_accent } else { style_ghost })
+            .style(if draft.operator == "OR" {
+                style_accent
+            } else {
+                style_ghost
+            })
             .on_press(Message::UpdateSubRuleOperator("OR".to_string())),
         Space::new().width(theme::SP_XS),
         button(text("NOT").size(11))
             .padding([4, 8])
-            .style(if draft.operator == "NOT" { style_accent } else { style_ghost })
+            .style(if draft.operator == "NOT" {
+                style_accent
+            } else {
+                style_ghost
+            })
             .on_press(Message::UpdateSubRuleOperator("NOT".to_string())),
     ]
     .align_y(Alignment::Center);
@@ -62,7 +74,9 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         )
         .padding([4, 8])
         .style(style_ghost)
-        .on_press(Message::AddSubRuleCondition("DOMAIN-SUFFIX,google.com".to_string())),
+        .on_press(Message::AddSubRuleCondition(
+            "DOMAIN-SUFFIX,google.com".to_string()
+        )),
         Space::new().width(theme::SP_XS),
         button(
             row![
@@ -89,9 +103,13 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                     color: Some(tokens(t).text_secondary)
                 }),
             Space::new().width(theme::SP_SM),
-            text(preview_text).size(12).font(MONO).width(Length::Fill).style(|t: &Theme| text::Style {
-                color: Some(tokens(t).accent)
-            }),
+            text(preview_text)
+                .size(12)
+                .font(MONO)
+                .width(Length::Fill)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).accent)
+                }),
             button(
                 row![
                     svg_icons::icon_themed(Icon::Plus, 12.0, |t: &Theme| tokens(t).on_accent),

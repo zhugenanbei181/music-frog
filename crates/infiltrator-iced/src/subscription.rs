@@ -3,12 +3,12 @@ use crate::tray::tray_events_subscription;
 use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::types::runtime::{RuntimeStatus, RuntimeStreamKind, RuntimeStreamState};
+use futures_util::StreamExt;
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, stream, window};
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
-use futures_util::StreamExt;
 use std::hash::Hash;
 use std::sync::Arc;
 use std::time::Duration;
@@ -215,9 +215,7 @@ pub(crate) fn system_proxy_watchdog_subscription(
     Subscription::run_with(input, build_system_proxy_watchdog)
 }
 
-fn build_system_proxy_watchdog(
-    input: &SystemProxyWatchdogInput,
-) -> BoxStream<'static, Message> {
+fn build_system_proxy_watchdog(input: &SystemProxyWatchdogInput) -> BoxStream<'static, Message> {
     let application = input.application.clone();
     let channel = stream::channel(
         16,

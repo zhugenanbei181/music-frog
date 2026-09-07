@@ -286,9 +286,8 @@ impl AppState {
 
                         let rules = rules::extract_rules_from_doc(&doc)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        let rule_providers =
-                            rules::extract_rule_providers_from_doc(&doc)
-                                .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        let rule_providers = rules::extract_rule_providers_from_doc(&doc)
+                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let proxy_providers =
                             infiltrator_domain::proxy_providers::extract_proxy_providers_from_doc(
                                 &doc,
@@ -327,10 +326,7 @@ impl AppState {
                                 .get_rule_providers()
                                 .await
                                 .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
-                            Ok((
-                                proxies,
-                                rules,
-                            ))
+                            Ok((proxies, rules))
                         },
                         Message::ProvidersLoaded,
                     ));
@@ -645,10 +641,7 @@ impl AppState {
                     format!("DOMAIN-SUFFIX,{}", name.to_lowercase()),
                     format!("DOMAIN-KEYWORD,{}", name.to_lowercase()),
                 ];
-                let unpacked = rules::unpack_provider_rules_to_custom(
-                    &sample_rules,
-                    "PROXY",
-                );
+                let unpacked = rules::unpack_provider_rules_to_custom(&sample_rules, "PROXY");
                 let count = unpacked.len();
                 self.editor.rules.extend(unpacked);
                 self.editor.rules_dirty = true;

@@ -9,13 +9,13 @@
 //! only fail loudly, never silently corrupt.
 
 use crate::state::AppState;
+use crate::types::app::SyncConflict;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
-use crate::types::app::SyncConflict;
 use crate::types::options::{SyncDiffBundle, SyncDiffState};
 use iced::Task;
-use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::collections::HashSet;
 
@@ -44,9 +44,8 @@ impl AppState {
                             .await
                             .map_err(infiltrator_contract::error::from_mihomo)?;
                         let remote = read_conflict_file(&conflict).await?;
-                        let summary =
-                            infiltrator_domain::sync::diff_yaml_configs(&local, &remote)
-                                .map_err(|error| InfiltratorError::Config(error.to_string()))?;
+                        let summary = infiltrator_domain::sync::diff_yaml_configs(&local, &remote)
+                            .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         Ok(SyncDiffBundle {
                             profile: conflict.profile,
                             remote_path: conflict.remote_path,

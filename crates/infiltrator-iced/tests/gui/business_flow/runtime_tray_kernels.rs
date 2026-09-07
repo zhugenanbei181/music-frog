@@ -15,8 +15,8 @@ use crate::types::app::CoreDownloadProgress;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::version::CoreRollbackSnapshot;
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
+use infiltrator_contract::version::CoreRollbackSnapshot;
 use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup};
 use mihomo_version::manager::VersionManager;
 
@@ -271,7 +271,10 @@ fn kernel_rollback_round_trip_uses_the_shared_operation_path() {
     assert_eq!(feed(&mut state, Message::RollbackCore), 1);
     block_on(manager.rollback()).unwrap();
     assert_eq!(block_on(manager.get_default()).unwrap(), "v1.19.28");
-    assert_eq!(feed(&mut state, Message::KernelOperationFinished(Ok(()))), 1);
+    assert_eq!(
+        feed(&mut state, Message::KernelOperationFinished(Ok(()))),
+        1
+    );
 
     let after = block_on(manager.rollback_info()).unwrap();
     assert_eq!(after.current.as_deref(), Some("v1.19.28"));
@@ -283,7 +286,10 @@ fn core_log_level_rejects_invalid_or_stopped_updates_without_optimism() {
     let mut state = fresh_state();
     assert_eq!(state.diag.log_level, "info");
 
-    assert_eq!(feed(&mut state, Message::SetCoreLogLevel("trace".into())), 0);
+    assert_eq!(
+        feed(&mut state, Message::SetCoreLogLevel("trace".into())),
+        0
+    );
     assert_eq!(state.diag.log_level, "info");
     assert!(
         state
@@ -295,7 +301,10 @@ fn core_log_level_rejects_invalid_or_stopped_updates_without_optimism() {
     );
 
     state.shell.error_msg = None;
-    assert_eq!(feed(&mut state, Message::SetCoreLogLevel("debug".into())), 0);
+    assert_eq!(
+        feed(&mut state, Message::SetCoreLogLevel("debug".into())),
+        0
+    );
     assert_eq!(state.diag.log_level, "info");
     assert!(
         state
@@ -355,7 +364,9 @@ fn dual_surface_headless_lifecycle_matrix_covers_failure_conflict_and_stop() {
     feed(
         &mut state,
         Message::ProxyStarted(
-            Err(InfiltratorError::Mihomo("local core refused to start".into())),
+            Err(InfiltratorError::Mihomo(
+                "local core refused to start".into(),
+            )),
             start_token + 1,
         ),
     );

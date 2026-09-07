@@ -13,7 +13,12 @@ fn test_secondary_text_widget() {
 
 #[test]
 fn test_theme_segmented_control_options() {
-    let options_en = vec!["Light".to_string(), "Dark".to_string(), "Forest".to_string(), "AMOLED".to_string()];
+    let options_en = vec![
+        "Light".to_string(),
+        "Dark".to_string(),
+        "Forest".to_string(),
+        "AMOLED".to_string(),
+    ];
     let _ctrl_light = segmented_control(&options_en, 0, |_| Message::ToggleTheme);
     let _ctrl_dark = segmented_control(&options_en, 1, |_| Message::ToggleTheme);
     let _ctrl_forest = segmented_control(&options_en, 2, |_| Message::ToggleTheme);
@@ -22,7 +27,8 @@ fn test_theme_segmented_control_options() {
 
 #[test]
 fn test_shell_export_row() {
-    let _row: Element<'_, Message> = shell_export_row("Bash", "export http_proxy=...", &Lang("en-US"));
+    let _row: Element<'_, Message> =
+        shell_export_row("Bash", "export http_proxy=...", &Lang("en-US"));
     let _card: Element<'_, Message> = shell_export_card(&Lang("zh-CN"));
 }
 

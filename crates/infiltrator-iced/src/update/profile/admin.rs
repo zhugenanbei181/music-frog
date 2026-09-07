@@ -22,9 +22,7 @@ impl AppState {
             port: self.shell.admin_port,
         };
         Task::perform(
-            async move {
-                crate::settings_store::update(|settings| settings.admin = admin).await
-            },
+            async move { crate::settings_store::update(|settings| settings.admin = admin).await },
             Message::AdminSettingsSaved,
         )
     }

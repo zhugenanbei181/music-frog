@@ -6,8 +6,8 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use iced::widget::text_editor;
-use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_domain::apply::ApplyStrategy;
 
 impl AppState {
     pub(super) fn update_editor(&mut self, message: Message) -> Task<Message> {
@@ -45,7 +45,8 @@ impl AppState {
                         crate::types::options::EditorPane::Filter => {
                             tasks.push(self.ensure_filter_loaded());
                         }
-                        crate::types::options::EditorPane::Profile | crate::types::options::EditorPane::Script => {}
+                        crate::types::options::EditorPane::Profile
+                        | crate::types::options::EditorPane::Script => {}
                     }
                     Task::batch(tasks)
                 }

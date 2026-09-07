@@ -1,10 +1,10 @@
-mod ui_wave5;
-mod ui_wave4;
-mod ui_wave3;
-mod system_proxy;
 pub mod core;
 pub mod profile;
+mod system_proxy;
 pub mod ui;
+mod ui_wave3;
+mod ui_wave4;
+mod ui_wave5;
 
 use crate::state::AppState;
 use crate::types::message::Message;

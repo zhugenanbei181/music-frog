@@ -168,6 +168,8 @@ python3 scripts/quality/subscription-quota-guard.py --mode enforce
 python3 scripts/quality/overview-master-switch-guard.py --mode enforce
 # DUAL-03-08 代理运行模式即时分段控制器守卫
 python3 scripts/quality/proxy-mode-segment-guard.py --mode enforce
+# DUAL-03-09 全局一键并发测速按钮守卫
+python3 scripts/quality/overview-speedtest-guard.py --mode enforce
 ```
 
 ---

@@ -1,21 +1,21 @@
 //! Live runtime configuration: querying the running mihomo for its active
 //! config and patching mode/TUN/sniffer toggles through the REST API.
 
+use crate::host::tun_service::TunServiceManager;
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::{RuntimeConfig, RuntimePatchSnapshot};
 use iced::Task;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
+use infiltrator_application::service_mode_application::ServiceModeApplication;
+use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::tun::TunStack;
-use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
-use infiltrator_application::service_mode_application::ServiceModeApplication;
-use crate::host::tun_service::TunServiceManager;
-use infiltrator_application::system_toggle_application::SystemToggleApplication;
+use infiltrator_contract::system_toggle::SystemToggle;
+use infiltrator_contract::tun::TunStack;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_shared::locales::Localizer;
-use infiltrator_contract::system_toggle::SystemToggle;
 
 impl AppState {
     pub(crate) fn runtime_unavailable(&mut self, operation: &str) -> Task<Message> {
@@ -90,10 +90,12 @@ impl AppState {
         let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
             rt.clone();
         Task::perform(
-            async move { RuntimeQueryApplication::new(gateway)
-                .set_tun_enabled(enabled)
-                .await
-                .map_err(|failure| InfiltratorError::Config(failure.message)) },
+            async move {
+                RuntimeQueryApplication::new(gateway)
+                    .set_tun_enabled(enabled)
+                    .await
+                    .map_err(|failure| InfiltratorError::Config(failure.message))
+            },
             move |result| Message::RuntimePatchResult(result, token, generation),
         )
     }
@@ -132,9 +134,7 @@ impl AppState {
                     TunServiceStatus::NotInstalled | TunServiceStatus::MissingPrivilege => {
                         TunServiceManager::install_service(&binary)
                     }
-                    TunServiceStatus::InstalledAndRunning | TunServiceStatus::Unsupported => {
-                        Ok(())
-                    }
+                    TunServiceStatus::InstalledAndRunning | TunServiceStatus::Unsupported => Ok(()),
                 })
                 .await
                 .map_err(|error| InfiltratorError::Privilege(error.to_string()))?
@@ -174,13 +174,7 @@ impl AppState {
                                 .unwrap_or((false, String::new(), false, false));
                             let (dns, fallback, enhanced) = config
                                 .dns
-                                .map(|d| {
-                                    (
-                                        d.nameserver,
-                                        d.fallback,
-                                        d.enhanced_mode,
-                                    )
-                                })
+                                .map(|d| (d.nameserver, d.fallback, d.enhanced_mode))
                                 .unwrap_or((vec![], vec![], String::new()));
                             let sniff = config.sniffer.map(|s| s.enable).unwrap_or(false);
                             let script_block_present = config.script.is_some();
@@ -237,8 +231,7 @@ impl AppState {
 
                         let mut security_committed = self.runtime.lan_security_committed.clone();
                         security_committed.allowed_ips = config.lan_allowed_ips.join(", ");
-                        security_committed.disallowed_ips =
-                            config.lan_disallowed_ips.join(", ");
+                        security_committed.disallowed_ips = config.lan_disallowed_ips.join(", ");
                         security_committed.skip_auth_prefixes =
                             config.skip_auth_prefixes.join(", ");
                         security_committed.authentication_enabled = config.authentication_enabled;
@@ -319,8 +312,9 @@ impl AppState {
                 let token = self.begin_runtime_patch();
                 let generation = rt.generation();
                 self.runtime.ipv6_routing.enabled = enabled;
-                let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
-                    rt;
+                let gateway: std::sync::Arc<
+                    dyn infiltrator_ports::runtime_gateway::RuntimeGateway,
+                > = rt;
                 Task::perform(
                     async move {
                         RuntimeQueryApplication::new(gateway)
@@ -352,11 +346,9 @@ impl AppState {
                     .system_toggles
                     .clone()
                     .with_legacy_tun(self.runtime.tun_enabled);
-                if let Err(failure) = SystemToggleApplication::intent(
-                    &toggle_snapshot,
-                    SystemToggle::Tun,
-                    enabled,
-                ) {
+                if let Err(failure) =
+                    SystemToggleApplication::intent(&toggle_snapshot, SystemToggle::Tun, enabled)
+                {
                     let error = InfiltratorError::Privilege(failure.message);
                     self.set_error(&error);
                     return Task::done(Message::ShowToast(
@@ -503,31 +495,28 @@ impl AppState {
                     Message::PortConflictsRepaired,
                 )
             }
-            Message::PortConflictsRepaired(result) => {
-                match result {
-                    Ok(snapshot) => {
-                        let had_conflicts = self.runtime.port_conflicts.has_conflicts();
-                        self.runtime.port_conflicts = snapshot;
-                        let message = if had_conflicts && !self.runtime.port_conflicts.has_conflicts()
-                        {
-                            "端口冲突已修复，已安全避让到可用端口"
-                        } else {
-                            "端口检查完成，未执行未确认进程终止"
-                        };
-                        Task::done(Message::ShowToast(
-                            message.to_owned(),
-                            crate::types::app::ToastStatus::Success,
-                        ))
-                    }
-                    Err(error) => {
-                        self.set_error(&error);
-                        Task::done(Message::ShowToast(
-                            error.to_string(),
-                            crate::types::app::ToastStatus::Error,
-                        ))
-                    }
+            Message::PortConflictsRepaired(result) => match result {
+                Ok(snapshot) => {
+                    let had_conflicts = self.runtime.port_conflicts.has_conflicts();
+                    self.runtime.port_conflicts = snapshot;
+                    let message = if had_conflicts && !self.runtime.port_conflicts.has_conflicts() {
+                        "端口冲突已修复，已安全避让到可用端口"
+                    } else {
+                        "端口检查完成，未执行未确认进程终止"
+                    };
+                    Task::done(Message::ShowToast(
+                        message.to_owned(),
+                        crate::types::app::ToastStatus::Success,
+                    ))
                 }
-            }
+                Err(error) => {
+                    self.set_error(&error);
+                    Task::done(Message::ShowToast(
+                        error.to_string(),
+                        crate::types::app::ToastStatus::Error,
+                    ))
+                }
+            },
             Message::SetTunStack(stack) => {
                 let parsed = match TunStack::parse(&stack) {
                     Some(stack) if stack.is_live_supported() => stack,
@@ -560,8 +549,9 @@ impl AppState {
                 let generation = rt.generation();
                 self.editor.tun_stack = parsed.as_str().to_owned();
                 self.runtime.tun_stack_config.active_stack = parsed.as_str().to_owned();
-                let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
-                    rt.clone();
+                let gateway: std::sync::Arc<
+                    dyn infiltrator_ports::runtime_gateway::RuntimeGateway,
+                > = rt.clone();
                 Task::perform(
                     async move {
                         RuntimeQueryApplication::new(gateway)
@@ -582,13 +572,16 @@ impl AppState {
                 if !enabled {
                     self.editor.tun_strict_route = false;
                 }
-                let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
-                    rt.clone();
+                let gateway: std::sync::Arc<
+                    dyn infiltrator_ports::runtime_gateway::RuntimeGateway,
+                > = rt.clone();
                 Task::perform(
-                    async move { RuntimeQueryApplication::new(gateway)
-                        .set_tun_auto_route(enabled)
-                        .await
-                        .map_err(|failure| InfiltratorError::Config(failure.message)) },
+                    async move {
+                        RuntimeQueryApplication::new(gateway)
+                            .set_tun_auto_route(enabled)
+                            .await
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
+                    },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )
             }
@@ -602,13 +595,16 @@ impl AppState {
                 if enabled {
                     self.editor.tun_auto_route = true;
                 }
-                let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
-                    rt.clone();
+                let gateway: std::sync::Arc<
+                    dyn infiltrator_ports::runtime_gateway::RuntimeGateway,
+                > = rt.clone();
                 Task::perform(
-                    async move { RuntimeQueryApplication::new(gateway)
-                        .set_tun_strict_route(enabled)
-                        .await
-                        .map_err(|failure| InfiltratorError::Config(failure.message)) },
+                    async move {
+                        RuntimeQueryApplication::new(gateway)
+                            .set_tun_strict_route(enabled)
+                            .await
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
+                    },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )
             }

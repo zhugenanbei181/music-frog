@@ -429,9 +429,20 @@ fn node_button_style(
         if is_active {
             button::Style {
                 background: Some(tk.accent_soft.into()),
-                border: Border { radius: border::Radius::from(theme::R_CONTROL), width: 1.5, color: tk.accent },
+                border: Border {
+                    radius: border::Radius::from(theme::R_CONTROL),
+                    width: 1.5,
+                    color: tk.accent,
+                },
                 shadow: Shadow {
-                    color: Color { a: if theme::is_amoled(t) { 0.35 } else { glow_alpha }, ..tk.accent },
+                    color: Color {
+                        a: if theme::is_amoled(t) {
+                            0.35
+                        } else {
+                            glow_alpha
+                        },
+                        ..tk.accent
+                    },
                     offset: Vector::new(0.0, 2.0),
                     blur_radius,
                 },
@@ -443,7 +454,11 @@ fn node_button_style(
                     button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
                     _ => Some(tk.card_bg.into()),
                 },
-                border: Border { radius: border::Radius::from(theme::R_CONTROL), width: 1.0, color: tk.card_border },
+                border: Border {
+                    radius: border::Radius::from(theme::R_CONTROL),
+                    width: 1.0,
+                    color: tk.card_border,
+                },
                 shadow: tk.card_shadow,
                 ..Default::default()
             }
@@ -470,7 +485,9 @@ impl NodeMetadata {
                 .map(infiltrator_domain::proxy::Proxy::udp)
                 .unwrap_or(false),
             is_xudp: member_name.to_ascii_lowercase().contains("xudp"),
-            delay: node.and_then(|p| p.history().last().map(|h| h.delay)).filter(|d| *d > 0),
+            delay: node
+                .and_then(|p| p.history().last().map(|h| h.delay))
+                .filter(|d| *d > 0),
             flag: node_flag_emoji(member_name),
             is_favorite: state.runtime.favorite_proxies.contains(member_name),
         }
@@ -478,9 +495,18 @@ impl NodeMetadata {
 }
 
 /// 2-column grid of node cards for one expanded group.
-fn node_grid<'a>(state: &'a AppState, group_name: &str, members: &'a [String]) -> Element<'a, Message> {
+fn node_grid<'a>(
+    state: &'a AppState,
+    group_name: &str,
+    members: &'a [String],
+) -> Element<'a, Message> {
     let is_active = |member: &str| {
-        state.runtime.proxies.get(group_name).and_then(|g| g.now()).is_some_and(|now| now == member)
+        state
+            .runtime
+            .proxies
+            .get(group_name)
+            .and_then(|g| g.now())
+            .is_some_and(|now| now == member)
     };
 
     let mut grid = column![].spacing(theme::SP_SM);
@@ -488,7 +514,12 @@ fn node_grid<'a>(state: &'a AppState, group_name: &str, members: &'a [String]) -
     let mut laid_out = 0usize;
 
     for member in members {
-        cells = cells.push(node_card(state, group_name, member, is_active(member.as_str())));
+        cells = cells.push(node_card(
+            state,
+            group_name,
+            member,
+            is_active(member.as_str()),
+        ));
         laid_out += 1;
         if laid_out.is_multiple_of(NODE_GRID_COLUMNS) {
             grid = grid.push(cells);
@@ -507,93 +538,179 @@ fn node_grid<'a>(state: &'a AppState, group_name: &str, members: &'a [String]) -
 }
 
 /// Compact single-column list of nodes for high-density viewing.
-fn node_compact_list<'a>(state: &'a AppState, group_name: &str, members: &'a [String]) -> Element<'a, Message> {
+fn node_compact_list<'a>(
+    state: &'a AppState,
+    group_name: &str,
+    members: &'a [String],
+) -> Element<'a, Message> {
     let is_active = |member: &str| {
-        state.runtime.proxies.get(group_name).and_then(|g| g.now()).is_some_and(|now| now == member)
+        state
+            .runtime
+            .proxies
+            .get(group_name)
+            .and_then(|g| g.now())
+            .is_some_and(|now| now == member)
     };
 
     let mut list = column![].spacing(theme::SP_XS);
     for member in members {
-        list = list.push(node_compact_row(state, group_name, member, is_active(member.as_str())));
+        list = list.push(node_compact_row(
+            state,
+            group_name,
+            member,
+            is_active(member.as_str()),
+        ));
     }
     list.into()
 }
 
 /// One node card in grid view with flag emoji, protocol/feature chips, latency, and actions.
-fn node_card<'a>(state: &'a AppState, group_name: &str, member_name: &'a str, is_active: bool) -> Element<'a, Message> {
+fn node_card<'a>(
+    state: &'a AppState,
+    group_name: &str,
+    member_name: &'a str,
+    is_active: bool,
+) -> Element<'a, Message> {
     let meta = NodeMetadata::extract(state, member_name);
 
     let mut chips = row![chip(format_protocol_chip(&meta.node_type))].spacing(theme::SP_XS);
-    if meta.udp { chips = chips.push(chip("udp")); }
-    if meta.is_xudp { chips = chips.push(chip("xudp")); }
+    if meta.udp {
+        chips = chips.push(chip("udp"));
+    }
+    if meta.is_xudp {
+        chips = chips.push(chip("xudp"));
+    }
 
-    let star_btn = icon_button(Icon::Pin, 13.0, Message::ToggleFavoriteProxy(member_name.to_string()));
-    let info_btn = icon_button(Icon::Activity, 13.0, Message::InspectProxy(Some(member_name.to_string())));
-    let active_pill = if is_active { active_indicator() } else { Space::new().width(0).into() };
+    let star_btn = icon_button(
+        Icon::Pin,
+        13.0,
+        Message::ToggleFavoriteProxy(member_name.to_string()),
+    );
+    let info_btn = icon_button(
+        Icon::Activity,
+        13.0,
+        Message::InspectProxy(Some(member_name.to_string())),
+    );
+    let active_pill = if is_active {
+        active_indicator()
+    } else {
+        Space::new().width(0).into()
+    };
 
     let body = row![
         text(meta.flag).size(16),
         Space::new().width(theme::SP_XS),
         column![
             row![
-                text(member_name).size(13).font(theme::FONT_SEMIBOLD).style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary),
-                }),
+                text(member_name)
+                    .size(13)
+                    .font(theme::FONT_SEMIBOLD)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_primary),
+                    }),
                 active_pill,
-                if meta.is_favorite { Element::from(badge("★", BadgeKind::Warning)) } else { Element::from(Space::new().width(0)) },
-            ].spacing(theme::SP_XS).align_y(Alignment::Center),
+                if meta.is_favorite {
+                    Element::from(badge("★", BadgeKind::Warning))
+                } else {
+                    Element::from(Space::new().width(0))
+                },
+            ]
+            .spacing(theme::SP_XS)
+            .align_y(Alignment::Center),
             chips,
-        ].spacing(theme::SP_XS).width(Length::Fill),
+        ]
+        .spacing(theme::SP_XS)
+        .width(Length::Fill),
         latency_badge(meta.delay),
         star_btn,
         info_btn,
-    ].spacing(theme::SP_SM).align_y(Alignment::Center).width(Length::Fill);
+    ]
+    .spacing(theme::SP_SM)
+    .align_y(Alignment::Center)
+    .width(Length::Fill);
 
     let mut card_btn = button(container(body).width(Length::Fill).padding([10, 12]))
         .width(Length::FillPortion(1))
         .style(node_button_style(is_active, 0.20, 6.0));
 
     if !is_active {
-        card_btn = card_btn.on_press(Message::SelectProxy(group_name.to_string(), member_name.to_string()));
+        card_btn = card_btn.on_press(Message::SelectProxy(
+            group_name.to_string(),
+            member_name.to_string(),
+        ));
     }
 
     card_btn.into()
 }
 
 /// Compact single-line row representation.
-fn node_compact_row<'a>(state: &'a AppState, group_name: &str, member_name: &'a str, is_active: bool) -> Element<'a, Message> {
+fn node_compact_row<'a>(
+    state: &'a AppState,
+    group_name: &str,
+    member_name: &'a str,
+    is_active: bool,
+) -> Element<'a, Message> {
     let meta = NodeMetadata::extract(state, member_name);
 
     let mut chips = row![chip(format_protocol_chip(&meta.node_type))].spacing(theme::SP_XS);
-    if meta.udp { chips = chips.push(chip("udp")); }
-    if meta.is_xudp { chips = chips.push(chip("xudp")); }
+    if meta.udp {
+        chips = chips.push(chip("udp"));
+    }
+    if meta.is_xudp {
+        chips = chips.push(chip("xudp"));
+    }
 
-    let star_btn = icon_button(Icon::Pin, 12.0, Message::ToggleFavoriteProxy(member_name.to_string()));
-    let info_btn = icon_button(Icon::Activity, 12.0, Message::InspectProxy(Some(member_name.to_string())));
-    let active_pill = if is_active { active_indicator() } else { Space::new().width(0).into() };
+    let star_btn = icon_button(
+        Icon::Pin,
+        12.0,
+        Message::ToggleFavoriteProxy(member_name.to_string()),
+    );
+    let info_btn = icon_button(
+        Icon::Activity,
+        12.0,
+        Message::InspectProxy(Some(member_name.to_string())),
+    );
+    let active_pill = if is_active {
+        active_indicator()
+    } else {
+        Space::new().width(0).into()
+    };
 
     let body = row![
         text(meta.flag).size(14),
         Space::new().width(theme::SP_XS),
-        text(member_name).size(12).font(theme::FONT_SEMIBOLD).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_primary),
-        }),
+        text(member_name)
+            .size(12)
+            .font(theme::FONT_SEMIBOLD)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary),
+            }),
         active_pill,
-        if meta.is_favorite { Element::from(badge("★", BadgeKind::Warning)) } else { Element::from(Space::new().width(0)) },
+        if meta.is_favorite {
+            Element::from(badge("★", BadgeKind::Warning))
+        } else {
+            Element::from(Space::new().width(0))
+        },
         Space::new().width(theme::SP_XS),
         chips,
         Space::new().width(Length::Fill),
         latency_badge(meta.delay),
         star_btn,
         info_btn,
-    ].spacing(theme::SP_SM).align_y(Alignment::Center).width(Length::Fill);
+    ]
+    .spacing(theme::SP_SM)
+    .align_y(Alignment::Center)
+    .width(Length::Fill);
 
     let mut row_btn = button(container(body).width(Length::Fill).padding([6, 10]))
         .width(Length::Fill)
         .style(node_button_style(is_active, 0.16, 4.0));
 
     if !is_active {
-        row_btn = row_btn.on_press(Message::SelectProxy(group_name.to_string(), member_name.to_string()));
+        row_btn = row_btn.on_press(Message::SelectProxy(
+            group_name.to_string(),
+            member_name.to_string(),
+        ));
     }
 
     row_btn.into()
@@ -602,9 +719,12 @@ fn node_compact_row<'a>(state: &'a AppState, group_name: &str, member_name: &'a 
 /// Compact bordered control group for the delay-test endpoint.
 fn delay_test_group<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let label = |key: &'static str| {
-        text(lang.tr(key)).size(11).font(theme::FONT_MEDIUM).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
-        })
+        text(lang.tr(key))
+            .size(11)
+            .font(theme::FONT_MEDIUM)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            })
     };
 
     container(
@@ -627,7 +747,9 @@ fn delay_test_group<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
                 .padding([5, 9])
                 .width(Length::Fixed(76.0))
                 .style(delay_input_style),
-        ].spacing(theme::SP_SM).align_y(Alignment::Center),
+        ]
+        .spacing(theme::SP_SM)
+        .align_y(Alignment::Center),
     )
     .padding(theme::SP_SM)
     .style(delay_group_surface)
@@ -639,7 +761,11 @@ fn delay_group_surface(t: &Theme) -> container::Style {
     let tk = tokens(t);
     container::Style {
         background: Some(tk.control_bg.into()),
-        border: Border { radius: border::Radius::from(theme::R_CONTROL), width: 1.0, color: tk.card_border },
+        border: Border {
+            radius: border::Radius::from(theme::R_CONTROL),
+            width: 1.0,
+            color: tk.card_border,
+        },
         ..Default::default()
     }
 }
@@ -653,11 +779,18 @@ fn delay_input_style(t: &Theme, status: text_input::Status) -> text_input::Style
     };
     text_input::Style {
         background: tk.card_bg.into(),
-        border: Border { radius: border::Radius::from(theme::R_CONTROL), width: border_width, color: border_color },
+        border: Border {
+            radius: border::Radius::from(theme::R_CONTROL),
+            width: border_width,
+            color: border_color,
+        },
         icon: tk.text_tertiary,
         placeholder: tk.text_tertiary,
         value: tk.text_primary,
-        selection: Color { a: 0.25, ..tk.accent },
+        selection: Color {
+            a: 0.25,
+            ..tk.accent
+        },
     }
 }
 
@@ -665,7 +798,10 @@ fn delay_input_style(t: &Theme, status: text_input::Status) -> text_input::Style
 fn pill_surface(t: &Theme) -> container::Style {
     container::Style {
         background: Some(tokens(t).control_bg.into()),
-        border: Border { radius: border::Radius::from(theme::R_CHIP), ..Default::default() },
+        border: Border {
+            radius: border::Radius::from(theme::R_CHIP),
+            ..Default::default()
+        },
         ..Default::default()
     }
 }
@@ -678,7 +814,10 @@ fn ghost_pill(t: &Theme, status: button::Status) -> button::Style {
             button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
             _ => None,
         },
-        border: Border { radius: border::Radius::from(theme::R_CHIP), ..Default::default() },
+        border: Border {
+            radius: border::Radius::from(theme::R_CHIP),
+            ..Default::default()
+        },
         text_color: tk.text_secondary,
         ..Default::default()
     }

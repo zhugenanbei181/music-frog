@@ -8,10 +8,10 @@ use iced::Task;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::privileged_network_application::PrivilegedNetworkApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
-use infiltrator_contract::lan::LanCredentials;
-use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState, PhysicalMtuSnapshot};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::lan::LanCredentials;
+use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState, PhysicalMtuSnapshot};
 use infiltrator_contract::privileged_network::{
     PrivilegedNetworkRequest, PrivilegedNetworkSnapshot, PrivilegedNetworkState,
 };
@@ -93,11 +93,7 @@ impl AppState {
         Task::perform(
             async move {
                 RuntimeQueryApplication::new(gateway)
-                    .set_lan_sharing(
-                        desired.allow_lan,
-                        desired.mixed_port,
-                        &desired.bind_address,
-                    )
+                    .set_lan_sharing(desired.allow_lan, desired.mixed_port, &desired.bind_address)
                     .await
                     .map_err(|failure| InfiltratorError::Config(failure.message))
             },
@@ -161,8 +157,9 @@ impl AppState {
                 self.editor.rule_hit_audit.zero_hit_rule_indices = zero_hits;
                 self.editor.rule_hit_audit.total_rule_hits = 1250;
                 self.editor.rule_hit_audit.is_auditing = false;
-                self.editor.rule_hit_audit.audit_summary =
-                    Some(format!("Audit complete: {count}/{total_rules} rules have 0 hits"));
+                self.editor.rule_hit_audit.audit_summary = Some(format!(
+                    "Audit complete: {count}/{total_rules} rules have 0 hits"
+                ));
                 Task::none()
             }
             Message::DisableZeroHitRules => {
@@ -198,10 +195,20 @@ impl AppState {
                     let sum: u64 = self.runtime.latency_radar.samples.iter().sum();
                     self.runtime.latency_radar.avg_ms =
                         sum as f64 / self.runtime.latency_radar.samples.len() as f64;
-                    self.runtime.latency_radar.min_ms =
-                        *self.runtime.latency_radar.samples.iter().min().unwrap_or(&0);
-                    self.runtime.latency_radar.max_ms =
-                        *self.runtime.latency_radar.samples.iter().max().unwrap_or(&0);
+                    self.runtime.latency_radar.min_ms = *self
+                        .runtime
+                        .latency_radar
+                        .samples
+                        .iter()
+                        .min()
+                        .unwrap_or(&0);
+                    self.runtime.latency_radar.max_ms = *self
+                        .runtime
+                        .latency_radar
+                        .samples
+                        .iter()
+                        .max()
+                        .unwrap_or(&0);
                 }
                 Task::none()
             }
@@ -234,14 +241,12 @@ impl AppState {
                         "当前宿主未提供物理链路 MTU 探测能力".to_owned(),
                     );
                     self.set_error(&error);
-                    return Task::done(Message::ShowToast(
-                        error.to_string(),
-                        ToastStatus::Error,
-                    ));
+                    return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
                 };
                 let application = MtuApplication::new(port);
-                let gateway: std::sync::Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
-                    runtime.clone();
+                let gateway: std::sync::Arc<
+                    dyn infiltrator_ports::runtime_gateway::RuntimeGateway,
+                > = runtime.clone();
                 let generation = runtime.generation();
                 let session_token = self.runtime.core_session_token;
                 self.runtime.mtu = application.probing_snapshot();
@@ -272,11 +277,9 @@ impl AppState {
                 self.runtime.tun_stack_config.is_probing_mtu = false;
                 match &snapshot.state {
                     MtuProbeState::Ready => {
-                        if let (Some(physical), Some(tun), Some(mss)) = (
-                            snapshot.physical_mtu,
-                            snapshot.tun_mtu,
-                            snapshot.tcp_mss,
-                        ) {
+                        if let (Some(physical), Some(tun), Some(mss)) =
+                            (snapshot.physical_mtu, snapshot.tun_mtu, snapshot.tcp_mss)
+                        {
                             self.runtime.tun_stack_config.negotiated_mtu = tun;
                             self.runtime.tun_stack_config.probe_result_summary = Some(format!(
                                 "{}: physical {physical} → TUN {tun}, TCP MSS {mss}",
@@ -390,10 +393,7 @@ impl AppState {
                         self.runtime.lan_sharing = self.runtime.lan_sharing_committed.clone();
                         self.runtime.lan_sharing_dirty = false;
                         self.set_error(&error);
-                        Task::done(Message::ShowToast(
-                            error.to_string(),
-                            ToastStatus::Error,
-                        ))
+                        Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
                     }
                 }
             }
@@ -460,10 +460,7 @@ impl AppState {
                         self.runtime.lan_security = self.runtime.lan_security_committed.clone();
                         self.runtime.lan_security_dirty = false;
                         self.set_error(&error);
-                        Task::done(Message::ShowToast(
-                            error.to_string(),
-                            ToastStatus::Error,
-                        ))
+                        Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
                     }
                 }
             }

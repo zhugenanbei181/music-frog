@@ -26,17 +26,17 @@ use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
 use infiltrator_admin::admin_api::state::AdminApiContext;
+use infiltrator_admin::servers::AdminServerHandle;
 use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
+use infiltrator_application::network_application::NetworkApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
-use infiltrator_application::network_application::NetworkApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::version_application::VersionApplication;
-use infiltrator_admin::servers::AdminServerHandle;
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
@@ -387,10 +387,7 @@ impl IcedAdminContext {
         load_settings_from_disk().await.unwrap_or_default()
     }
 
-    async fn update_settings(
-        &self,
-        apply: impl FnOnce(&mut AppSettings),
-    ) -> anyhow::Result<()> {
+    async fn update_settings(&self, apply: impl FnOnce(&mut AppSettings)) -> anyhow::Result<()> {
         let application = settings_application().await?;
         application
             .update(apply)
@@ -496,11 +493,8 @@ impl AdminApiContext for IcedAdminContext {
         if let Some(runtime) = self.shared.take_runtime() {
             let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
         }
-        let (rebuilt, _rotated) = infiltrator_desktop::boot::bootstrap_host_runtime_from_current_home(
-            true,
-            &[],
-        )
-        .await?;
+        let (rebuilt, _rotated) =
+            infiltrator_desktop::boot::bootstrap_host_runtime_from_current_home(true, &[]).await?;
         self.shared.set_runtime(Some(rebuilt.clone()));
         self.shared
             .send(AdminHostCommand::RuntimeResynced(Ok(rebuilt)));
@@ -603,10 +597,7 @@ impl AdminApiContext for IcedAdminContext {
         self.load_settings().await
     }
 
-    async fn save_app_settings(
-        &self,
-        settings: AppSettings,
-    ) -> anyhow::Result<()> {
+    async fn save_app_settings(&self, settings: AppSettings) -> anyhow::Result<()> {
         save_settings_to_disk(&settings).await?;
         self.shared
             .event_bus()
@@ -808,10 +799,7 @@ impl AppState {
     /// Keep `AppState.runtime` and the admin context's shared snapshot in
     /// sync. Every runtime mutation on the main thread must go through here
     /// (or [`Self::take_app_runtime`]) so the REST context sees the live one.
-    pub(crate) fn sync_runtime_slot(
-        &mut self,
-        runtime: Option<std::sync::Arc<dyn HostRuntime>>,
-    ) {
+    pub(crate) fn sync_runtime_slot(&mut self, runtime: Option<std::sync::Arc<dyn HostRuntime>>) {
         let runtime_changed = match (&self.runtime.runtime, &runtime) {
             (Some(previous), Some(next)) => !std::sync::Arc::ptr_eq(previous, next),
             (None, None) => false,
@@ -849,9 +837,7 @@ impl AppState {
     }
 
     /// Take the runtime for shutdown/teardown, clearing the shared snapshot.
-    pub(crate) fn take_app_runtime(
-        &mut self,
-    ) -> Option<std::sync::Arc<dyn HostRuntime>> {
+    pub(crate) fn take_app_runtime(&mut self) -> Option<std::sync::Arc<dyn HostRuntime>> {
         let taken = self.runtime.runtime.take();
         self.runtime.runtime_generation = self.runtime.runtime_generation.saturating_add(1);
         self.runtime.runtime_patch_token = self.runtime.runtime_patch_token.wrapping_add(1);

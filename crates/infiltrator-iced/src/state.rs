@@ -21,6 +21,21 @@ use crate::types::runtime::{
 };
 use iced::Theme;
 use iced::widget::text_editor;
+use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_contract::controller::ControllerAuthSnapshot;
+use infiltrator_contract::mtu::MtuNegotiationSnapshot;
+use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
+use infiltrator_contract::port_conflict::PortConflictSnapshot;
+use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
+use infiltrator_contract::resources::CoreResourceSnapshot;
+use infiltrator_contract::service_mode::ServiceModeSnapshot;
+use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
+use infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot;
+use infiltrator_contract::system_proxy::SystemProxySnapshot;
+use infiltrator_contract::system_toggle::SystemToggleSnapshot;
+use infiltrator_contract::version::{
+    CoreArtifactVerification, CoreVersionSnapshot, InstalledCoreVersion,
+};
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::rules::RuleEntry;
@@ -29,23 +44,8 @@ use infiltrator_domain::runtime::{
 };
 use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
-use infiltrator_contract::version::{
-    CoreArtifactVerification, CoreVersionSnapshot, InstalledCoreVersion,
-};
-use infiltrator_contract::controller::ControllerAuthSnapshot;
-use infiltrator_contract::service_mode::ServiceModeSnapshot;
-use infiltrator_contract::port_conflict::PortConflictSnapshot;
-use infiltrator_contract::resources::CoreResourceSnapshot;
-use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
-use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
-use infiltrator_contract::mtu::MtuNegotiationSnapshot;
-use infiltrator_contract::system_proxy::SystemProxySnapshot;
-use infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot;
-use infiltrator_contract::system_toggle::SystemToggleSnapshot;
-use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
 use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
-use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -434,7 +434,10 @@ impl AppState {
         if !self.surface.apply(snapshot.clone()) {
             return false;
         }
-        self.runtime.proxy_mode = snapshot.core.proxy_mode.map(|mode| mode.to_wire().to_owned());
+        self.runtime.proxy_mode = snapshot
+            .core
+            .proxy_mode
+            .map(|mode| mode.to_wire().to_owned());
         self.runtime.status = RuntimeStatus::from_core_snapshot(&snapshot.core);
         self.runtime.core_lifecycle = snapshot.core.lifecycle_snapshot();
         self.runtime.mtu = snapshot.mtu.clone();
@@ -549,13 +552,14 @@ impl AppState {
             up: snapshot.core.upload_bps.max(0.0) as u64,
             down: snapshot.core.download_bps.max(0.0) as u64,
         });
-        self.diag.memory = snapshot
-            .core
-            .memory_bytes
-            .map(|in_use| infiltrator_domain::runtime::MemoryData {
-                in_use,
-                os_limit: 0,
-            });
+        self.diag.memory =
+            snapshot
+                .core
+                .memory_bytes
+                .map(|in_use| infiltrator_domain::runtime::MemoryData {
+                    in_use,
+                    os_limit: 0,
+                });
         true
     }
 

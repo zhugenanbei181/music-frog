@@ -6,8 +6,8 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_domain::settings::{AppSettings, WebDavConfig};
 use infiltrator_contract::version::CoreReleaseChannel;
+use infiltrator_domain::settings::{AppSettings, WebDavConfig};
 
 impl AppState {
     pub(super) fn update_settings(&mut self, message: Message) -> Task<Message> {
@@ -106,7 +106,7 @@ impl AppState {
                         } else {
                             crate::host::storage::save_webdav_password(&webdav_password)
                                 .await
-                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                                .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         }
                         let mut settings = crate::settings_store::load()
                             .await
@@ -119,9 +119,7 @@ impl AppState {
                         settings.notifications_enabled = notifications_enabled;
                         settings.close_to_tray = close_to_tray;
                         settings.system_proxy_bypass = system_proxy_bypass;
-                        crate::settings_store::save(&settings)
-                            .await
-                            ?;
+                        crate::settings_store::save(&settings).await?;
                         Ok(())
                     },
                     Message::AppSettingsSaved,

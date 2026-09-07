@@ -5,14 +5,12 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::MrsProviderDetail;
-use infiltrator_domain::runtime::RuleProvider;
-use crate::view::components::{
-    BadgeKind, badge, card, chip, row_card_surface, style_ghost,
-};
+use crate::view::components::{BadgeKind, badge, card, chip, row_card_surface, style_ghost};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_domain::runtime::RuleProvider;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::collections::HashMap;
 
@@ -137,8 +135,8 @@ fn detail_row<'a>(
     .style(style_ghost)
     .on_press(Message::UpdateRuleProvider(detail.name.clone()));
 
-    let actions = row![unpack_btn, Space::new().width(theme::SP_XS), update_btn]
-        .align_y(Alignment::Center);
+    let actions =
+        row![unpack_btn, Space::new().width(theme::SP_XS), update_btn].align_y(Alignment::Center);
 
     let row_content = row![
         container(icon_themed(Icon::Shield, 16.0, |t: &Theme| tokens(t).accent))

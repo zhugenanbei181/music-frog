@@ -6,7 +6,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::utils::format_bytes;
-use crate::view::components::{badge, icon_button, BadgeKind};
+use crate::view::components::{BadgeKind, badge, icon_button};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::waveform::mini_waveform;
@@ -103,15 +103,17 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
     let footer_row = row![
         badge(active_node, BadgeKind::Accent),
         Space::new().width(Length::Fill),
-        button(
-            svg_icons::icon_themed(Icon::Wifi, 12.0, move |t: &Theme| {
+        button(svg_icons::icon_themed(
+            Icon::Wifi,
+            12.0,
+            move |t: &Theme| {
                 if state.runtime.system_toggles.system_proxy.is_enabled() {
                     tokens(t).accent
                 } else {
                     tokens(t).text_tertiary
                 }
-            })
-        )
+            }
+        ))
         .padding([4, 6])
         .style(|t: &Theme, _| {
             let tk = tokens(t);
@@ -129,15 +131,13 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
             !state.runtime.system_toggles.system_proxy.is_enabled(),
         )),
         Space::new().width(theme::SP_XS),
-        button(
-            svg_icons::icon_themed(Icon::Zap, 12.0, move |t: &Theme| {
-                if state.runtime.system_toggles.tun.is_enabled() {
-                    tokens(t).success
-                } else {
-                    tokens(t).text_tertiary
-                }
-            })
-        )
+        button(svg_icons::icon_themed(Icon::Zap, 12.0, move |t: &Theme| {
+            if state.runtime.system_toggles.tun.is_enabled() {
+                tokens(t).success
+            } else {
+                tokens(t).text_tertiary
+            }
+        }))
         .padding([4, 6])
         .style(|t: &Theme, _| {
             let tk = tokens(t);

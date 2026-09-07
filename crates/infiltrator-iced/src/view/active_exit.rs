@@ -56,12 +56,16 @@ pub fn active_exit_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a,
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_primary),
                 }),
-            text(format!("{} {}", lang.tr("overview_active_exit_group"), group))
-                .size(10)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+            text(format!(
+                "{} {}",
+                lang.tr("overview_active_exit_group"),
+                group
+            ))
+            .size(10)
+            .font(MONO)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
         ]
         .spacing(2),
         Space::new().width(Length::Fill),
@@ -106,9 +110,7 @@ fn status_text(snapshot: &ActiveExitSnapshot, lang: &Lang<'_>) -> String {
         ActiveExitStatus::Ready => match snapshot.alive {
             Some(true) => lang.tr("overview_active_exit_alive").to_string(),
             Some(false) => lang.tr("overview_active_exit_offline").to_string(),
-            None => lang
-                .tr("overview_active_exit_liveness_unknown")
-                .to_string(),
+            None => lang.tr("overview_active_exit_liveness_unknown").to_string(),
         },
         ActiveExitStatus::Empty => lang.tr("overview_active_exit_empty").to_string(),
         ActiveExitStatus::Unknown => lang.tr("overview_active_exit_unknown").to_string(),

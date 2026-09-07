@@ -7,23 +7,25 @@ use crate::state::AppState;
 use crate::types::app::{Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
-use crate::view::components::{
-    BadgeKind, badge, card_surface, chip, icon_button, modern_scrollable,
-    premium_card, row_card_surface, section_header, status_dot, style_accent, style_ghost,
-};
-use crate::view::waveform::TrafficChart;
-use crate::view::topology::topology_flow_canvas;
 use crate::view::active_exit::active_exit_card;
-use crate::view::subscription_quota::subscription_quota_card;
+use crate::view::components::{
+    BadgeKind, badge, card_surface, chip, icon_button, modern_scrollable, premium_card,
+    row_card_surface, section_header, status_dot, style_accent, style_ghost,
+};
 use crate::view::overview_master_switches::overview_master_switches;
 use crate::view::overview_mode_segment::overview_mode_segment;
+use crate::view::subscription_quota::subscription_quota_card;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CHIP, R_CONTROL, tokens};
+use crate::view::topology::topology_flow_canvas;
+use crate::view::waveform::TrafficChart;
 use iced::widget::{Space, button, canvas, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_shared::locales::{Lang, Localizer};
 use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
-use infiltrator_contract::traffic_topology::{TrafficTopologySnapshot, TrafficTopologyStage, TrafficTopologyStatus};
+use infiltrator_contract::traffic_topology::{
+    TrafficTopologySnapshot, TrafficTopologyStage, TrafficTopologyStatus,
+};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
@@ -33,6 +35,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         &lang.tr("nav_overview"),
         Some(
             row![
+                overview_speedtest_button(state, &lang),
+                Space::new().width(theme::SP_SM),
                 icon_button(Icon::RefreshCw, 16.0, Message::RefreshRuntimeNow),
                 Space::new().width(theme::SP_SM),
                 icon_button(Icon::Settings, 16.0, Message::Navigate(Route::Settings)),
@@ -57,9 +61,19 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .spacing(theme::SP_LG)
     .width(Length::Fill);
 
-    let content = column![header, hero, mode_segment, stats, masters, traffic, topology, quota, lower_row]
-        .spacing(theme::SP_LG)
-        .max_width(1100);
+    let content = column![
+        header,
+        hero,
+        mode_segment,
+        stats,
+        masters,
+        traffic,
+        topology,
+        quota,
+        lower_row
+    ]
+    .spacing(theme::SP_LG)
+    .max_width(1100);
 
     modern_scrollable(content).height(Length::Fill).into()
 }
@@ -70,6 +84,43 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
 /// Accent hero: status dot + localized status, mode / core-version meta row
 /// and the prominent start/stop control.
+
+pub fn overview_speedtest_button<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
+    let is_testing = state.runtime.runtime_testing_all_delays;
+    let label = if is_testing {
+        "测速中...".to_owned()
+    } else {
+        lang.tr("runtime_delay_test_all").into_owned()
+    };
+    let btn_content = row![
+        icon_themed(Icon::Zap, 14.0, move |t: &Theme| {
+            if is_testing {
+                tokens(t).text_secondary
+            } else {
+                tokens(t).accent
+            }
+        }),
+        Space::new().width(theme::SP_XS),
+        text(label)
+            .size(12)
+            .font(FONT_SEMIBOLD)
+            .style(move |t: &Theme| text::Style {
+                color: Some(if is_testing {
+                    tokens(t).text_secondary
+                } else {
+                    tokens(t).accent
+                }),
+            }),
+    ]
+    .align_y(Alignment::Center);
+
+    button(btn_content)
+        .padding([6, 12])
+        .style(style_ghost)
+        .on_press_maybe((!is_testing).then_some(Message::TestAllProxyDelays))
+        .into()
+}
+
 fn hero_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let running = matches!(state.runtime.status, RuntimeStatus::Running);
     let status_text = match &state.runtime.status {
@@ -83,7 +134,9 @@ fn hero_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         button(
             row![
                 icon_themed(Icon::Plug, 14.0, |t: &Theme| tokens(t).on_accent),
-                text(lang.tr("stop_proxy").into_owned()).size(13).font(FONT_SEMIBOLD),
+                text(lang.tr("stop_proxy").into_owned())
+                    .size(13)
+                    .font(FONT_SEMIBOLD),
             ]
             .spacing(theme::SP_SM)
             .align_y(Alignment::Center),
@@ -96,7 +149,9 @@ fn hero_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         button(
             row![
                 icon_themed(Icon::Zap, 14.0, |t: &Theme| tokens(t).on_accent),
-                text(lang.tr("start_proxy").into_owned()).size(13).font(FONT_SEMIBOLD),
+                text(lang.tr("start_proxy").into_owned())
+                    .size(13)
+                    .font(FONT_SEMIBOLD),
             ]
             .spacing(theme::SP_SM)
             .align_y(Alignment::Center),
@@ -115,7 +170,9 @@ fn hero_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
                 text(status_text.into_owned())
                     .size(22)
                     .font(FONT_SEMIBOLD)
-                    .style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_primary)
+                    }),
                 meta_row(state, lang),
             ]
             .spacing(theme::SP_XS),
@@ -141,16 +198,24 @@ fn meta_row<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
                 row![
                     icon_themed(Icon::Server, 12.0, |t: &Theme| tokens(t).text_secondary),
                     Space::new().width(theme::SP_XS),
-                    text(format!("mihomo {version}")).size(11).font(MONO).style(|t: &Theme| {
-                        text::Style { color: Some(tokens(t).text_secondary) }
-                    }),
+                    text(format!("mihomo {version}"))
+                        .size(11)
+                        .font(MONO)
+                        .style(|t: &Theme| {
+                            text::Style {
+                                color: Some(tokens(t).text_secondary),
+                            }
+                        }),
                 ]
                 .align_y(Alignment::Center),
             )
             .padding([3, 8])
             .style(|t: &Theme| container::Style {
                 background: Some(tokens(t).chip_bg.into()),
-                border: Border { radius: border::Radius::from(R_CHIP), ..Default::default() },
+                border: Border {
+                    radius: border::Radius::from(R_CHIP),
+                    ..Default::default()
+                },
                 ..Default::default()
             }),
         );
@@ -162,16 +227,24 @@ fn meta_row<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
                 row![
                     icon_themed(Icon::Globe, 12.0, |t: &Theme| tokens(t).accent),
                     Space::new().width(theme::SP_XS),
-                    text(exit_node.to_string()).size(11).font(MONO).style(|t: &Theme| {
-                        text::Style { color: Some(tokens(t).text_primary) }
-                    }),
+                    text(exit_node.to_string())
+                        .size(11)
+                        .font(MONO)
+                        .style(|t: &Theme| {
+                            text::Style {
+                                color: Some(tokens(t).text_primary),
+                            }
+                        }),
                 ]
                 .align_y(Alignment::Center),
             )
             .padding([3, 10])
             .style(|t: &Theme| container::Style {
                 background: Some(tokens(t).chip_bg.into()),
-                border: Border { radius: border::Radius::from(R_CHIP), ..Default::default() },
+                border: Border {
+                    radius: border::Radius::from(R_CHIP),
+                    ..Default::default()
+                },
                 ..Default::default()
             }),
         );
@@ -207,24 +280,56 @@ fn default_core_version(state: &AppState) -> Option<String> {
 
 /// 连接数 / 内存 / 上传 / 下载 tiles with mono numerals.
 fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let connections = state.diag.connections.as_ref()
+    let connections = state
+        .diag
+        .connections
+        .as_ref()
         .map(|snapshot| snapshot.connections.len().to_string())
         .unwrap_or_else(|| "—".to_string());
-    let memory = state.diag.memory.as_ref()
+    let memory = state
+        .diag
+        .memory
+        .as_ref()
         .map(|memory| crate::utils::format_bytes(memory.in_use))
         .unwrap_or_else(|| "—".to_string());
-    let upload = state.diag.traffic.as_ref()
+    let upload = state
+        .diag
+        .traffic
+        .as_ref()
         .map(|traffic| format!("{}/s", crate::utils::format_bytes(traffic.up)))
         .unwrap_or_else(|| "—".to_string());
-    let download = state.diag.traffic.as_ref()
+    let download = state
+        .diag
+        .traffic
+        .as_ref()
         .map(|traffic| format!("{}/s", crate::utils::format_bytes(traffic.down)))
         .unwrap_or_else(|| "—".to_string());
 
     row![
-        metric_tile(Icon::Activity, lang.tr("overview_connections").to_string(), connections, |t| tokens(t).accent),
-        metric_tile(Icon::Server, lang.tr("overview_memory").to_string(), memory, |t| tokens(t).warning),
-        metric_tile(Icon::ArrowUp, lang.tr("overview_upload").to_string(), upload, |t| tokens(t).success),
-        metric_tile(Icon::ArrowDown, lang.tr("overview_download").to_string(), download, |t| tokens(t).accent),
+        metric_tile(
+            Icon::Activity,
+            lang.tr("overview_connections").to_string(),
+            connections,
+            |t| tokens(t).accent
+        ),
+        metric_tile(
+            Icon::Server,
+            lang.tr("overview_memory").to_string(),
+            memory,
+            |t| tokens(t).warning
+        ),
+        metric_tile(
+            Icon::ArrowUp,
+            lang.tr("overview_upload").to_string(),
+            upload,
+            |t| tokens(t).success
+        ),
+        metric_tile(
+            Icon::ArrowDown,
+            lang.tr("overview_download").to_string(),
+            download,
+            |t| tokens(t).accent
+        ),
     ]
     .spacing(theme::SP_MD)
     .width(Length::Fill)
@@ -238,13 +343,18 @@ fn metric_tile<'a>(
     color: impl Fn(&Theme) -> Color + Copy + 'a,
 ) -> Element<'a, Message> {
     let icon_chip = container(icon_themed(glyph, 16.0, color))
-        .width(36).height(36)
-        .align_x(Alignment::Center).align_y(Alignment::Center)
+        .width(36)
+        .height(36)
+        .align_x(Alignment::Center)
+        .align_y(Alignment::Center)
         .style(move |t: &Theme| {
             let c = color(t);
             container::Style {
                 background: Some(Color { a: 0.14, ..c }.into()),
-                border: Border { radius: border::Radius::from(R_CONTROL), ..Default::default() },
+                border: Border {
+                    radius: border::Radius::from(R_CONTROL),
+                    ..Default::default()
+                },
                 ..Default::default()
             }
         });
@@ -253,12 +363,18 @@ fn metric_tile<'a>(
         row![
             icon_chip,
             column![
-                text(label).size(11).font(FONT_MEDIUM).style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
-                text(value).size(15).font(MONO).style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary),
-                }),
+                text(label)
+                    .size(11)
+                    .font(FONT_MEDIUM)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary),
+                    }),
+                text(value)
+                    .size(15)
+                    .font(MONO)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_primary),
+                    }),
             ]
             .spacing(2),
         ]
@@ -276,7 +392,10 @@ fn metric_tile<'a>(
 // ---------------------------------------------------------------------------
 
 fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let (up_speed, down_speed) = state.diag.traffic.as_ref()
+    let (up_speed, down_speed) = state
+        .diag
+        .traffic
+        .as_ref()
         .map(|t| (t.up, t.down))
         .unwrap_or((0, 0));
 
@@ -309,8 +428,11 @@ fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
             icon_themed(Icon::Activity, 16.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_SM),
             text(lang.tr("overview_traffic").into_owned())
-                .size(14).font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                .size(14)
+                .font(FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary)
+                }),
         ]
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
@@ -332,21 +454,21 @@ fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
 
     let chart = canvas::Canvas::new(TrafficChart {
         history: state.diag.traffic_history.clone(),
-        shared: state.runtime.traffic_waveform.is_drawable().then(|| {
-            state.runtime.traffic_waveform.clone()
-        }),
+        shared: state
+            .runtime
+            .traffic_waveform
+            .is_drawable()
+            .then(|| state.runtime.traffic_waveform.clone()),
         scale: Some(scale),
     })
     .width(Length::Fill)
     .height(Length::Fixed(130.0));
 
-    container(
-        column![card_header, Space::new().height(theme::SP_MD), chart].spacing(theme::SP_XS),
-    )
-    .width(Length::Fill)
-    .padding(theme::SP_XXL)
-    .style(card_surface)
-    .into()
+    container(column![card_header, Space::new().height(theme::SP_MD), chart].spacing(theme::SP_XS))
+        .width(Length::Fill)
+        .padding(theme::SP_XXL)
+        .style(card_surface)
+        .into()
 }
 
 fn speed_pill<'a>(
@@ -358,9 +480,15 @@ fn speed_pill<'a>(
         row![
             icon_themed(glyph, 13.0, color),
             Space::new().width(theme::SP_XS),
-            text(format!("{}/s", crate::utils::format_bytes(bytes_per_second)))
-                .size(13).font(MONO)
-                .style(move |t: &Theme| text::Style { color: Some(color(t)) }),
+            text(format!(
+                "{}/s",
+                crate::utils::format_bytes(bytes_per_second)
+            ))
+            .size(13)
+            .font(MONO)
+            .style(move |t: &Theme| text::Style {
+                color: Some(color(t))
+            }),
         ]
         .align_y(Alignment::Center),
     )
@@ -392,8 +520,11 @@ fn topology_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Elem
             icon_themed(Icon::Network, 16.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_SM),
             text(lang.tr("overview_topology_title").to_string())
-                .size(14).font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                .size(14)
+                .font(FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary)
+                }),
         ]
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
@@ -565,13 +696,18 @@ fn topology_node_box<'a>(
     color_fn: impl Fn(&Theme) -> Color + Copy + 'a,
 ) -> Element<'a, Message> {
     let icon_part = container(icon_themed(glyph, 14.0, color_fn))
-        .width(26).height(26)
-        .align_x(Alignment::Center).align_y(Alignment::Center)
+        .width(26)
+        .height(26)
+        .align_x(Alignment::Center)
+        .align_y(Alignment::Center)
         .style(move |t: &Theme| {
             let c = color_fn(t);
             container::Style {
                 background: Some(Color { a: 0.14, ..c }.into()),
-                border: Border { radius: border::Radius::from(R_CONTROL), ..Default::default() },
+                border: Border {
+                    radius: border::Radius::from(R_CONTROL),
+                    ..Default::default()
+                },
                 ..Default::default()
             }
         });
@@ -579,9 +715,12 @@ fn topology_node_box<'a>(
     let top_row = row![
         icon_part,
         Space::new().width(theme::SP_XS),
-        text(stage_name).size(11).font(FONT_SEMIBOLD).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
-        }),
+        text(stage_name)
+            .size(11)
+            .font(FONT_SEMIBOLD)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
         Space::new().width(Length::Fill),
         badge(badge_label, badge_kind),
     ]
@@ -605,9 +744,12 @@ fn colored_flow_chip<'a>(
     color_fn: impl Fn(&Theme) -> Color + Copy + 'a,
 ) -> Element<'a, Message> {
     container(
-        text(label).size(12).font(FONT_SEMIBOLD).style(move |t: &Theme| text::Style {
-            color: Some(color_fn(t)),
-        }),
+        text(label)
+            .size(12)
+            .font(FONT_SEMIBOLD)
+            .style(move |t: &Theme| text::Style {
+                color: Some(color_fn(t)),
+            }),
     )
     .padding([3, 10])
     .style(move |t: &Theme| {
@@ -626,10 +768,12 @@ fn colored_flow_chip<'a>(
 }
 
 fn arrow_connector<'a>() -> Element<'a, Message> {
-    container(icon_themed(Icon::ChevronRight, 16.0, |t: &Theme| tokens(t).text_tertiary))
-        .align_x(Alignment::Center)
-        .align_y(Alignment::Center)
-        .into()
+    container(icon_themed(Icon::ChevronRight, 16.0, |t: &Theme| {
+        tokens(t).text_tertiary
+    }))
+    .align_x(Alignment::Center)
+    .align_y(Alignment::Center)
+    .into()
 }
 
 // ---------------------------------------------------------------------------
@@ -637,12 +781,26 @@ fn arrow_connector<'a>() -> Element<'a, Message> {
 // ---------------------------------------------------------------------------
 
 fn current_ip_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'a, Message> {
-    let public_ip_str = state.diag.public_ip.as_deref()
-        .unwrap_or(if state.shell.demo { "203.0.113.7" } else { "—" });
-    let provider_name = state.diag.public_ip_provider.as_deref().unwrap_or("ipapi.is");
+    let public_ip_str = state
+        .diag
+        .public_ip
+        .as_deref()
+        .unwrap_or(if state.shell.demo {
+            "203.0.113.7"
+        } else {
+            "—"
+        });
+    let provider_name = state
+        .diag
+        .public_ip_provider
+        .as_deref()
+        .unwrap_or("ipapi.is");
 
     let copy_msg = Message::ShowToast(
-        infiltrator_shared::i18n_interpolator::interpolate(&lang.tr("overview_copied_ip"), &[("ip", public_ip_str)]),
+        infiltrator_shared::i18n_interpolator::interpolate(
+            &lang.tr("overview_copied_ip"),
+            &[("ip", public_ip_str)],
+        ),
         ToastStatus::Success,
     );
 
@@ -650,7 +808,9 @@ fn current_ip_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> El
         row![
             icon_themed(Icon::Copy, 12.0, |t| tokens(t).text_secondary),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("common_copy").to_string()).size(11).font(FONT_MEDIUM),
+            text(lang.tr("common_copy").to_string())
+                .size(11)
+                .font(FONT_MEDIUM),
         ]
         .align_y(Alignment::Center),
     )
@@ -663,8 +823,11 @@ fn current_ip_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> El
             icon_themed(Icon::Globe, 16.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_SM),
             text(lang.tr("overview_current_ip").to_string())
-                .size(14).font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                .size(14)
+                .font(FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary)
+                }),
         ]
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
@@ -676,9 +839,12 @@ fn current_ip_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> El
     .width(Length::Fill);
 
     let ip_readout_row = row![
-        text(public_ip_str).size(20).font(MONO).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_primary),
-        }),
+        text(public_ip_str)
+            .size(20)
+            .font(MONO)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary),
+            }),
         Space::new().width(Length::Fill),
         copy_btn,
     ]
@@ -687,16 +853,28 @@ fn current_ip_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> El
 
     let meta_text: Element<'a, Message> = if let Some(err) = state.diag.public_ip_error.as_deref() {
         text(format!("{}: {err}", lang.tr("overview_probe_failed")))
-            .size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).danger) })
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).danger),
+            })
             .into()
     } else if let Some(checked_at) = state.diag.public_ip_checked_at.as_deref() {
-        text(format!("{} · {provider_name} · {checked_at}", lang.tr("overview_via_current_proxy")))
-            .size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_secondary) })
-            .into()
+        text(format!(
+            "{} · {provider_name} · {checked_at}",
+            lang.tr("overview_via_current_proxy")
+        ))
+        .size(11)
+        .style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        })
+        .into()
     } else {
         text(lang.tr("overview_probe_source_desc").to_string())
-        .size(11).style(|t: &Theme| text::Style { color: Some(tokens(t).text_tertiary) })
-        .into()
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            })
+            .into()
     };
 
     container(
@@ -725,8 +903,11 @@ fn latency_card<'a>(_state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Elem
             icon_themed(Icon::Activity, 11.0, |t| tokens(t).success),
             Space::new().width(theme::SP_XS),
             text(lang.tr("overview_avg_latency").to_string())
-                .size(11).font(MONO)
-                .style(|t: &Theme| text::Style { color: Some(tokens(t).success) }),
+                .size(11)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).success)
+                }),
         ]
         .align_y(Alignment::Center),
     )
@@ -734,11 +915,20 @@ fn latency_card<'a>(_state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Elem
     .style(|t: &Theme| {
         let tk = tokens(t);
         container::Style {
-            background: Some(Color { a: 0.12, ..tk.success }.into()),
+            background: Some(
+                Color {
+                    a: 0.12,
+                    ..tk.success
+                }
+                .into(),
+            ),
             border: Border {
                 radius: border::Radius::from(R_CHIP),
                 width: 1.0,
-                color: Color { a: 0.25, ..tk.success },
+                color: Color {
+                    a: 0.25,
+                    ..tk.success
+                },
             },
             ..Default::default()
         }
@@ -749,8 +939,11 @@ fn latency_card<'a>(_state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Elem
             icon_themed(Icon::Target, 16.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_SM),
             text(lang.tr("runtime_delay_title").to_string())
-                .size(14).font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style { color: Some(tokens(t).text_primary) }),
+                .size(14)
+                .font(FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary)
+                }),
         ]
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
@@ -769,35 +962,36 @@ fn latency_card<'a>(_state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Elem
     .spacing(theme::SP_SM)
     .width(Length::Fill);
 
-    container(
-        column![card_header, Space::new().height(theme::SP_MD), bars].spacing(theme::SP_XS),
-    )
-    .width(Length::FillPortion(1))
-    .padding(theme::SP_XXL)
-    .style(card_surface)
-    .into()
+    container(column![card_header, Space::new().height(theme::SP_MD), bars].spacing(theme::SP_XS))
+        .width(Length::FillPortion(1))
+        .padding(theme::SP_XXL)
+        .style(card_surface)
+        .into()
 }
 
-fn latency_comparison_bar<'a>(
-    name: &'static str,
-    ms: u32,
-    max_ms: f32,
-) -> Element<'a, Message> {
+fn latency_comparison_bar<'a>(name: &'static str, ms: u32, max_ms: f32) -> Element<'a, Message> {
     let fill_pct = (ms as f32 / max_ms).clamp(0.05, 1.0);
     let fill_portion = (fill_pct * 100.0) as u16;
     let empty_portion = (100 - fill_portion).max(1);
 
     let bar = container(
         row![
-            container(Space::new().width(Length::FillPortion(fill_portion)).height(6))
-                .style(move |t: &Theme| {
-                    let c = theme::latency_color(tokens(t), Some(ms));
-                    container::Style {
-                        background: Some(c.into()),
-                        border: Border { radius: border::Radius::from(3.0), ..Default::default() },
+            container(
+                Space::new()
+                    .width(Length::FillPortion(fill_portion))
+                    .height(6)
+            )
+            .style(move |t: &Theme| {
+                let c = theme::latency_color(tokens(t), Some(ms));
+                container::Style {
+                    background: Some(c.into()),
+                    border: Border {
+                        radius: border::Radius::from(3.0),
                         ..Default::default()
-                    }
-                }),
+                    },
+                    ..Default::default()
+                }
+            }),
             Space::new().width(Length::FillPortion(empty_portion)),
         ]
         .width(Length::Fill)
@@ -809,20 +1003,35 @@ fn latency_comparison_bar<'a>(
         let tk = tokens(t);
         container::Style {
             background: Some(tk.control_bg.into()),
-            border: Border { radius: border::Radius::from(3.0), ..Default::default() },
+            border: Border {
+                radius: border::Radius::from(3.0),
+                ..Default::default()
+            },
             ..Default::default()
         }
     });
 
     row![
-        text(name).size(12).font(FONT_MEDIUM).width(Length::Fixed(80.0)).style(|t: &Theme| {
-            text::Style { color: Some(tokens(t).text_primary) }
-        }),
+        text(name)
+            .size(12)
+            .font(FONT_MEDIUM)
+            .width(Length::Fixed(80.0))
+            .style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_primary),
+                }
+            }),
         bar,
         Space::new().width(theme::SP_MD),
-        text(format!("{ms} ms")).size(12).font(MONO).width(Length::Fixed(55.0)).style(move |t: &Theme| {
-            text::Style { color: Some(theme::latency_color(tokens(t), Some(ms))) }
-        }),
+        text(format!("{ms} ms"))
+            .size(12)
+            .font(MONO)
+            .width(Length::Fixed(55.0))
+            .style(move |t: &Theme| {
+                text::Style {
+                    color: Some(theme::latency_color(tokens(t), Some(ms))),
+                }
+            }),
     ]
     .spacing(theme::SP_SM)
     .align_y(Alignment::Center)
@@ -845,10 +1054,7 @@ mod tests {
 
         snapshot.status = TrafficTopologyStatus::Empty;
         snapshot.active_connections = 0;
-        assert_eq!(
-            topology_badge(&snapshot, &Lang("zh-CN")),
-            "0 连接 · idle"
-        );
+        assert_eq!(topology_badge(&snapshot, &Lang("zh-CN")), "0 连接 · idle");
 
         snapshot.status = TrafficTopologyStatus::Unsupported;
         assert_eq!(
@@ -879,5 +1085,15 @@ mod tests {
             topology_route_for_stage(TrafficTopologyStage::Outbound),
             Some(Route::Proxies)
         );
+    }
+
+    #[test]
+    fn overview_speedtest_button_renders_when_idle_and_testing() {
+        let mut state = AppState::empty();
+        let lang = Lang("zh-CN");
+        let _btn_idle = overview_speedtest_button(&state, &lang);
+
+        state.runtime.runtime_testing_all_delays = true;
+        let _btn_testing = overview_speedtest_button(&state, &lang);
     }
 }
