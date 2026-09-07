@@ -4,8 +4,9 @@ use crate::error::Failure;
 use serde::{Deserialize, Serialize};
 
 /// The system-owned controls exposed in both primary UI sidebars.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SystemToggle {
+    #[default]
     SystemProxy,
     Tun,
 }

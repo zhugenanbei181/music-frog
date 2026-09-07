@@ -283,6 +283,11 @@ fn projection_from_snapshot(snapshot: CoreSnapshot) -> OverviewProjection {
             snapshot.revision.max(1),
             "overview-only controller source does not include profile quota facts",
         ),
+        system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
+            false,
+            None,
+            snapshot.revision.max(1),
+        ),
     }
 }
 

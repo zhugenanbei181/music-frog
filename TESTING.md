@@ -162,6 +162,10 @@ python3 scripts/quality/traffic-topology-guard.py --mode enforce
 python3 scripts/quality/traffic-topology-navigation-guard.py --mode enforce
 # DUAL-03-05 活动出口节点高保真卡片守卫
 python3 scripts/quality/active-exit-guard.py --mode enforce
+# DUAL-03-06 订阅配额与临期动态仪表盘守卫
+python3 scripts/quality/subscription-quota-guard.py --mode enforce
+# DUAL-03-07 Overview 系统代理/TUN 主控大卡守卫
+python3 scripts/quality/overview-master-switch-guard.py --mode enforce
 ```
 
 ---

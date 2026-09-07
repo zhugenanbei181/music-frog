@@ -15,7 +15,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_bevy_widgets::button::pill_caption_scene;
 use infiltrator_bevy_widgets::chart::topology::{
     NodeCategory, TopologyLink, TopologyNode, TopologySpec, topology_scene,
 };
@@ -30,12 +29,14 @@ use crate::pages::overview::{
     SubscriptionQuotaCard, SurfaceElevatedFill, SurfaceFill, TopologyArrow, TopologyChainCard,
     TopologyStageButton, TopologyText, TopologyTextKind, SubscriptionQuotaProgress,
     SubscriptionQuotaText, SubscriptionQuotaTextKind, active_exit_text_value,
-    subscription_quota_text_value,
+    subscription_quota_text_value, OverviewMasterSwitchButton, OverviewMasterSwitchText,
+    OverviewMasterSwitchTextKind, master_switch_text_value,
 };
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::subscription_quota::{
     SubscriptionQuotaSnapshot, SubscriptionQuotaStatus,
 };
+use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::traffic_topology::{
     TRAFFIC_TOPOLOGY_STAGE_COUNT, TrafficTopologySnapshot, TrafficTopologyStage,
     TrafficTopologyStatus,
@@ -571,8 +572,20 @@ pub fn active_exit_node_scene_with_snapshot(
     )
 }
 
-/// Dual system proxy and TUN master switch cards (BEVY-GAP-021).
+/// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
 pub fn master_switches_scene(palette: &UiPalette) -> impl Scene + use<> {
+    master_switches_scene_with_snapshot(
+        &SystemToggleSnapshot::from_legacy(true, Some(false), 1),
+        palette,
+    )
+}
+
+/// Dual system proxy and TUN master switch cards projected from the shared
+/// toggle snapshot. Their action buttons are wired by the Overview observer.
+pub fn master_switches_scene_with_snapshot(
+    snapshot: &SystemToggleSnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     bsn! {
         Node {
             width: percent(100),
@@ -583,11 +596,11 @@ pub fn master_switches_scene(palette: &UiPalette) -> impl Scene + use<> {
         }
         Children [
             (
-                { single_master_card_scene("系统代理 (System Proxy)", "接管系统 HTTP/SOCKS 端口", IconId::Settings, true, palette) }
+                { single_master_card_scene("系统代理 (System Proxy)", "接管系统 HTTP/SOCKS 端口", IconId::Settings, SystemToggle::SystemProxy, snapshot, palette) }
                 SystemProxyMasterCard
             ),
             (
-                { single_master_card_scene("TUN 模式 (TUN Virtual Interface)", "gVisor 虚拟网卡全量接管", IconId::Network, false, palette) }
+                { single_master_card_scene("TUN 模式 (TUN Virtual Interface)", "gVisor 虚拟网卡全量接管", IconId::Network, SystemToggle::Tun, snapshot, palette) }
                 TunMasterCard
             ),
         ]
@@ -598,20 +611,25 @@ fn single_master_card_scene(
     title: &'static str,
     desc: &'static str,
     icon: IconId,
-    enabled: bool,
+    toggle: SystemToggle,
+    snapshot: &SystemToggleSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let status_text = if enabled { "已开启" } else { "已关闭" };
-    let status_color = if enabled {
-        palette.success
-    } else {
-        palette.ink_dim
-    };
-    let dot_color = if enabled {
-        palette.success
-    } else {
-        palette.border
-    };
+    let state = snapshot.state(toggle);
+    let enabled = state.is_enabled();
+    let can_toggle = state.can_toggle();
+    let status_text = master_switch_text_value(
+        snapshot,
+        toggle,
+        OverviewMasterSwitchTextKind::Status,
+    );
+    let action_text = master_switch_text_value(
+        snapshot,
+        toggle,
+        OverviewMasterSwitchTextKind::Action,
+    );
+    let status_color = crate::pages::overview::master_switch_status_color(snapshot, toggle, palette);
+    let dot_color = if enabled { palette.success } else { palette.border };
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -653,7 +671,7 @@ fn single_master_card_scene(
                                     }
                                     BackgroundColor({ dot_color })
                                 ),
-                                ( Text({ status_text.to_owned() }) TextRole(Role::Caption) TextColor({ status_color }) ),
+                                ( Text({ status_text }) OverviewMasterSwitchText { toggle, kind: OverviewMasterSwitchTextKind::Status } TextRole(Role::Caption) TextColor({ status_color }) ),
                             ]
                         ),
                     ]
@@ -666,7 +684,18 @@ fn single_master_card_scene(
                     }
                     Children [
                         ( Text({ desc.to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
-                        ( { pill_caption_scene(if enabled { "关闭".to_owned() } else { "开启".to_owned() }, enabled, palette) } ),
+                        (
+                            Node {
+                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            OverviewMasterSwitchButton { toggle, enabled, can_toggle }
+                            Button
+                            BackgroundColor({ palette.accent_container })
+                            Children [
+                                ( Text({ action_text }) OverviewMasterSwitchText { toggle, kind: OverviewMasterSwitchTextKind::Action } TextRole(Role::Caption) TextColor({ palette.accent }) ),
+                            ]
+                        ),
                     ]
                 ),
             ]

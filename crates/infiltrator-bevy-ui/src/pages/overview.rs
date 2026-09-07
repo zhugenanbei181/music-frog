@@ -47,7 +47,7 @@ use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, ParamSet, Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn, template_value};
 use bevy::text::TextColor;
@@ -72,7 +72,11 @@ use crate::history::{TrafficHistory, chart_inputs};
 use crate::projection::{OverviewOrigin, OverviewProjection, OverviewState};
 use crate::route::{PageRoot, Route};
 use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
+use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
+use crate::command::{CommandSinkHandle, UiCommand};
 
 /// The trend chart's raster box (ui-side tokens — the widget's pixel box
 /// is fixed at mount; a resize is a remount, chart.rs). Height ~140px per
@@ -228,6 +232,28 @@ pub enum SubscriptionQuotaTextKind {
 /// fraction.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SubscriptionQuotaProgress;
+
+/// Mutable status/action text for one Overview master switch.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewMasterSwitchText {
+    pub toggle: SystemToggle,
+    pub kind: OverviewMasterSwitchTextKind,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OverviewMasterSwitchTextKind {
+    #[default]
+    Status,
+    Action,
+}
+
+/// Button target for the large Overview system proxy/TUN controls.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewMasterSwitchButton {
+    pub toggle: SystemToggle,
+    pub enabled: bool,
+    pub can_toggle: bool,
+}
 
 /// Marker on the subscription quota card.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -475,7 +501,7 @@ pub fn overview_page(
             ( { banner_scene(projection, palette) } ),
             ( { traffic_card_scene(projection, history, palette) } ),
             ( { chips_row_scene(projection, palette) } ),
-            ( { crate::pages::overview_cards::master_switches_scene(palette) } ),
+            ( { crate::pages::overview_cards::master_switches_scene_with_snapshot(&projection.system_toggles, palette) } ),
             ( { crate::pages::overview_cards::active_exit_node_scene_with_snapshot(&projection.active_exit, palette) } ),
             ( { crate::pages::overview_cards::topology_chain_scene_with_snapshot(&projection.traffic_topology, palette) } ),
             ( { crate::pages::overview_cards::subscription_quota_scene_with_snapshot(&projection.subscription_quota, palette) } ),
@@ -923,6 +949,47 @@ pub(crate) fn subscription_quota_text_value(
     }
 }
 
+pub(crate) fn master_switch_text_value(
+    snapshot: &SystemToggleSnapshot,
+    toggle: SystemToggle,
+    kind: OverviewMasterSwitchTextKind,
+) -> String {
+    let state = snapshot.state(toggle);
+    match kind {
+        OverviewMasterSwitchTextKind::Status => match state {
+            SystemToggleState::Enabled => "已开启".to_owned(),
+            SystemToggleState::Disabled => "已关闭".to_owned(),
+            SystemToggleState::Pending { .. } => "切换中".to_owned(),
+            SystemToggleState::Unknown => "状态未知".to_owned(),
+            SystemToggleState::Unsupported { failure }
+            | SystemToggleState::Failed { failure } => failure.message.clone(),
+        },
+        OverviewMasterSwitchTextKind::Action => match state {
+            SystemToggleState::Enabled => "关闭".to_owned(),
+            SystemToggleState::Disabled => "开启".to_owned(),
+            SystemToggleState::Pending { .. } => "切换中".to_owned(),
+            SystemToggleState::Unknown
+            | SystemToggleState::Unsupported { .. }
+            | SystemToggleState::Failed { .. } => "不可用".to_owned(),
+        },
+    }
+}
+
+pub(crate) fn master_switch_status_color(
+    snapshot: &SystemToggleSnapshot,
+    toggle: SystemToggle,
+    palette: &UiPalette,
+) -> Color {
+    match snapshot.state(toggle) {
+        SystemToggleState::Enabled => palette.success,
+        SystemToggleState::Pending { .. } => palette.warning,
+        SystemToggleState::Disabled => palette.ink_dim,
+        SystemToggleState::Unknown
+        | SystemToggleState::Unsupported { .. }
+        | SystemToggleState::Failed { .. } => palette.danger,
+    }
+}
+
 /// One rate line: the arrow and the mono rate share one marked text so
 /// the refresh observer restamps them together (the arrow keeps the
 /// line's ink — success for uplink, ordinary for downlink).
@@ -1029,6 +1096,7 @@ fn bind_overview_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.insert_resource(OverviewPageBound);
     commands.add_observer(apply_overview_projection);
     commands.add_observer(on_topology_stage_activated);
+    commands.add_observer(on_overview_master_switch_activated);
 }
 
 /// Translate a Bevy `Activate` gesture through the shared application
@@ -1054,6 +1122,37 @@ pub(crate) fn on_topology_stage_activated(
         _ => return,
     };
     commands.trigger(crate::route::RouteChanged(route));
+}
+
+/// Convert a large Overview switch activation through the same shared toggle
+/// policy used by Settings/sidebar, then submit the resulting application
+/// command to the host sink.
+pub(crate) fn on_overview_master_switch_activated(
+    activate: On<Activate>,
+    buttons: Query<&OverviewMasterSwitchButton>,
+    latest: Res<crate::surface::LatestSurfaceSnapshot>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    let Ok(button) = buttons.get(activate.entity) else {
+        return;
+    };
+    if !button.can_toggle {
+        return;
+    }
+    let shared = SystemToggleApplication::from_surface(&latest.0);
+    let desired = !button.enabled;
+    let Ok(intent) = SystemToggleApplication::intent(&shared, button.toggle, desired) else {
+        return;
+    };
+    let command = match intent {
+        CommandIntent::SetSystemProxy { enabled } => UiCommand::SetSystemProxy { enabled },
+        CommandIntent::ToggleTun { enabled } => UiCommand::ToggleTun { enabled },
+        _ => return,
+    };
+    handle.submit(command);
 }
 
 /// The page's only data-refresh path: restamp texts, inks, pill
@@ -1089,35 +1188,49 @@ pub(crate) fn apply_overview_projection(
     // `Without<OverviewLine>`: chip value texts never carry a line marker,
     // so the two `Text`-mutable queries stay provably disjoint.
     mut values: Query<&mut Text, (With<StatChipValue>, Without<OverviewLine>)>,
-    mut topology_texts: Query<
-        (&mut Text, &TopologyText),
-        (
-            With<TopologyText>,
-            Without<OverviewLine>,
-            Without<StatChipValue>,
-        ),
-    >,
-    mut active_exit_texts: Query<
-        (&mut Text, &mut TextColor, &ActiveExitText),
-        (
-            With<ActiveExitText>,
-            Without<OverviewLine>,
-            Without<TopologyText>,
-            Without<StatChipValue>,
-        ),
-    >,
-    mut quota_texts: Query<
-        (&mut Text, &mut TextColor, &SubscriptionQuotaText),
-        (
-            With<SubscriptionQuotaText>,
-            Without<OverviewLine>,
-            Without<TopologyText>,
-            Without<ActiveExitText>,
-            Without<StatChipValue>,
-        ),
-    >,
-    mut quota_progress: Query<&mut Node, With<SubscriptionQuotaProgress>>,
-    mut topology_buttons: Query<&mut TopologyStageButton>,
+    mut dynamic: ParamSet<(
+        Query<
+            (&mut Text, &TopologyText),
+            (
+                With<TopologyText>,
+                Without<OverviewLine>,
+                Without<StatChipValue>,
+            ),
+        >,
+        Query<
+            (&mut Text, &mut TextColor, &ActiveExitText),
+            (
+                With<ActiveExitText>,
+                Without<OverviewLine>,
+                Without<TopologyText>,
+                Without<StatChipValue>,
+            ),
+        >,
+        Query<
+            (&mut Text, &mut TextColor, &SubscriptionQuotaText),
+            (
+                With<SubscriptionQuotaText>,
+                Without<OverviewLine>,
+                Without<TopologyText>,
+                Without<ActiveExitText>,
+                Without<StatChipValue>,
+            ),
+        >,
+        Query<&mut Node, With<SubscriptionQuotaProgress>>,
+        Query<
+            (&mut Text, &mut TextColor, &OverviewMasterSwitchText),
+            (
+                With<OverviewMasterSwitchText>,
+                Without<OverviewLine>,
+                Without<TopologyText>,
+                Without<ActiveExitText>,
+                Without<SubscriptionQuotaText>,
+                Without<StatChipValue>,
+            ),
+        >,
+        Query<&mut OverviewMasterSwitchButton>,
+        Query<&mut TopologyStageButton>,
+    )>,
     groups: Query<&Children>,
     mut charts: Query<&mut ChartPlate>,
     mut topology_charts: Query<&mut TopologyPlate>,
@@ -1167,42 +1280,85 @@ pub(crate) fn apply_overview_projection(
             }
         }
     }
-    for (mut text, marker) in &mut topology_texts {
-        let value = topology_text_value(&projection.traffic_topology, marker);
-        if text.0 != value {
-            text.0 = value;
+    {
+        let mut topology_texts = dynamic.p0();
+        for (mut text, marker) in &mut topology_texts {
+            let value = topology_text_value(&projection.traffic_topology, marker);
+            if text.0 != value {
+                text.0 = value;
+            }
         }
     }
-    for mut button in &mut topology_buttons {
-        button.enabled = projection.traffic_topology.is_drawable();
+    {
+        let mut active_exit_texts = dynamic.p1();
+        for (mut text, mut ink, marker) in &mut active_exit_texts {
+            let value = active_exit_text_value(&projection.active_exit, marker.0);
+            if text.0 != value {
+                text.0 = value;
+            }
+            if marker.0 == ActiveExitTextKind::Delay {
+                ink.0 = if projection.active_exit.delay_ms.is_some() {
+                    palette.success
+                } else {
+                    palette.ink_dim
+                };
+            }
+        }
     }
-    for (mut text, mut ink, marker) in &mut active_exit_texts {
-        let value = active_exit_text_value(&projection.active_exit, marker.0);
-        if text.0 != value {
-            text.0 = value;
-        }
-        if marker.0 == ActiveExitTextKind::Delay {
-            ink.0 = if projection.active_exit.delay_ms.is_some() {
-                palette.success
-            } else {
-                palette.ink_dim
-            };
+    {
+        let mut quota_texts = dynamic.p2();
+        for (mut text, mut ink, marker) in &mut quota_texts {
+            let value = subscription_quota_text_value(&projection.subscription_quota, marker.0);
+            if text.0 != value {
+                text.0 = value;
+            }
+            if marker.0 == SubscriptionQuotaTextKind::Status {
+                ink.0 = crate::pages::overview_cards::quota_status_color(
+                    projection.subscription_quota.status,
+                    &palette,
+                );
+            }
         }
     }
-    for (mut text, mut ink, marker) in &mut quota_texts {
-        let value = subscription_quota_text_value(&projection.subscription_quota, marker.0);
-        if text.0 != value {
-            text.0 = value;
+    {
+        let mut quota_progress = dynamic.p3();
+        for mut progress in &mut quota_progress {
+            progress.width = percent(projection.subscription_quota.usage_fraction() * 100.0);
         }
-        if marker.0 == SubscriptionQuotaTextKind::Status {
-            ink.0 = crate::pages::overview_cards::quota_status_color(
-                projection.subscription_quota.status,
-                &palette,
+    }
+    {
+        let mut master_texts = dynamic.p4();
+        for (mut text, mut ink, marker) in &mut master_texts {
+            let value = master_switch_text_value(
+                &projection.system_toggles,
+                marker.toggle,
+                marker.kind,
             );
+            if text.0 != value {
+                text.0 = value;
+            }
+            if marker.kind == OverviewMasterSwitchTextKind::Status {
+                ink.0 = master_switch_status_color(
+                    &projection.system_toggles,
+                    marker.toggle,
+                    &palette,
+                );
+            }
         }
     }
-    for mut progress in &mut quota_progress {
-        progress.width = percent(projection.subscription_quota.usage_fraction() * 100.0);
+    {
+        let mut master_buttons = dynamic.p5();
+        for mut button in &mut master_buttons {
+            let state = projection.system_toggles.state(button.toggle);
+            button.enabled = state.is_enabled();
+            button.can_toggle = state.can_toggle();
+        }
+    }
+    {
+        let mut topology_buttons = dynamic.p6();
+        for mut button in &mut topology_buttons {
+            button.enabled = projection.traffic_topology.is_drawable();
+        }
     }
     // The trend chart: re-derive the series for this projection's origin
     // and restamp only on an actual change (an unchanged spec must not pay

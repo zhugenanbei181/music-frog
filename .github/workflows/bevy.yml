@@ -58,6 +58,7 @@ on:
       - "scripts/quality/traffic-topology-navigation-guard.py"
       - "scripts/quality/active-exit-guard.py"
       - "scripts/quality/subscription-quota-guard.py"
+      - "scripts/quality/overview-master-switch-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -107,6 +108,7 @@ on:
       - "scripts/quality/traffic-topology-navigation-guard.py"
       - "scripts/quality/active-exit-guard.py"
       - "scripts/quality/subscription-quota-guard.py"
+      - "scripts/quality/overview-master-switch-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -275,6 +277,9 @@ jobs:
 
       - name: Enforce DUAL-03-06 subscription quota parity
         run: python3 scripts/quality/subscription-quota-guard.py --mode enforce
+
+      - name: Enforce DUAL-03-07 Overview master switch parity
+        run: python3 scripts/quality/overview-master-switch-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

@@ -3,6 +3,7 @@
 //! decoupling, and the theme-flip reskin of every page surface — on
 //! `MinimalPlugins` (no window, no render hardware).
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use bevy::MinimalPlugins;
@@ -24,9 +25,9 @@ use infiltrator_bevy_ui::history::{TrafficHistory, chart_series, demo_traffic_se
 use infiltrator_bevy_ui::pages::overview::{
     CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText, OverviewCardState, OverviewChip,
     OverviewChipKind, OverviewLine, OverviewLineKind, OverviewModeChip, OverviewModePill,
-    ActiveExitText, ActiveExitTextKind, OverviewProjectionUpdated, OverviewStatusCard, StatusDot,
-    StopButton, SubscriptionQuotaCard, TopologyChainCard, TopologyStageButton, TopologyText,
-    TopologyTextKind, format_memory, format_rate,
+    ActiveExitText, ActiveExitTextKind, OverviewMasterSwitchButton, OverviewProjectionUpdated,
+    OverviewStatusCard, StatusDot, StopButton, SubscriptionQuotaCard, TopologyChainCard,
+    TopologyStageButton, TopologyText, TopologyTextKind, format_memory, format_rate,
     subscription_quota_scene, topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
@@ -37,6 +38,7 @@ use infiltrator_bevy_ui::projection::{
     SourceKind,
 };
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
+use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::chart::ChartPlate;
 use infiltrator_bevy_widgets::icon::{IconId, IconPlate};
@@ -73,6 +75,7 @@ impl OverviewSource for StubSource {
             traffic_topology: Default::default(),
             active_exit: Default::default(),
             subscription_quota: Default::default(),
+            system_toggles: Default::default(),
         }
     }
 }
@@ -396,6 +399,7 @@ fn projection_updates_restamp_in_place() {
         traffic_topology: Default::default(),
         active_exit: Default::default(),
         subscription_quota: Default::default(),
+        system_toggles: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -448,6 +452,7 @@ fn projection_updates_restamp_in_place() {
         traffic_topology: Default::default(),
         active_exit: Default::default(),
         subscription_quota: Default::default(),
+        system_toggles: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -712,6 +717,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         traffic_topology: Default::default(),
         active_exit: Default::default(),
         subscription_quota: Default::default(),
+        system_toggles: Default::default(),
     }
 }
 
@@ -945,6 +951,7 @@ impl OverviewSource for LiveFootStub {
             traffic_topology: Default::default(),
             active_exit: Default::default(),
             subscription_quota: Default::default(),
+            system_toggles: Default::default(),
         }
     }
 
@@ -1029,6 +1036,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         traffic_topology: Default::default(),
         active_exit: Default::default(),
         subscription_quota: Default::default(),
+        system_toggles: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -1396,6 +1404,38 @@ fn test_overview_master_switches_and_exit_node_cards() {
         tun_query.iter(world).next().is_some(),
         "TunMasterCard must be mounted"
     );
+}
+
+#[test]
+fn overview_master_switch_uses_shared_toggle_policy_and_command_sink() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    app.init_asset::<Image>();
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
+    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
+    app.update();
+
+    let button = {
+        let world = app.world_mut();
+        let mut buttons = world.query::<(Entity, &OverviewMasterSwitchButton)>();
+        buttons
+            .iter(world)
+            .find(|(_, button)| {
+                button.toggle == infiltrator_contract::system_toggle::SystemToggle::SystemProxy
+                    && button.can_toggle
+                    && button.enabled
+            })
+            .expect("system proxy master switch is enabled and actionable")
+            .0
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+    assert!(sink.submitted().contains(&UiCommand::SetSystemProxy { enabled: false }));
 }
 
 #[test]
