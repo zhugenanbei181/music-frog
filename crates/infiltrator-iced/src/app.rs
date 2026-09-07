@@ -90,6 +90,7 @@ impl AppState {
                 privileged_network_port: None,
                 traffic_waveform: Default::default(),
                 traffic_scale: Default::default(),
+                traffic_topology: Default::default(),
                 system_proxy: Default::default(),
                 system_proxy_recovery: Default::default(),
                 system_proxy_port: Some(system_proxy_port),
@@ -348,6 +349,7 @@ impl AppState {
                 log_level: "info".to_string(),
                 fps: 0,
                 last_frame_time: std::time::Instant::now(),
+                topology_flow_phase: 0.0,
                 perf_snapshot: crate::types::perf::PerfSnapshot::default(),
                 // ui-fix: the debug perf HUD (FPS badge + snapshot panel, rendered
                 // by view_root) starts hidden in production AND demo sessions;

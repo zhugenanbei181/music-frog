@@ -156,6 +156,8 @@ python3 scripts/quality/privileged-network-guard.py --mode enforce
 python3 scripts/quality/traffic-waveform-guard.py --mode enforce
 # DUAL-03-02 动态量程与 glow 渲染守卫
 python3 scripts/quality/traffic-scale-guard.py --mode enforce
+# DUAL-03-03 五段真实分流拓扑与流动链守卫
+python3 scripts/quality/traffic-topology-guard.py --mode enforce
 ```
 
 ---

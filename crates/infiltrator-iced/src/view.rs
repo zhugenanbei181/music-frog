@@ -16,6 +16,7 @@ pub mod svg_icons;
 pub mod sync;
 pub mod sync_diff;
 pub mod theme;
+pub mod topology;
 pub mod waveform;
 pub mod rules_tracer;
 pub mod virtual_list;

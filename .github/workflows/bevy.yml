@@ -54,6 +54,7 @@ on:
       - "scripts/quality/privileged-network-guard.py"
       - "scripts/quality/traffic-waveform-guard.py"
       - "scripts/quality/traffic-scale-guard.py"
+      - "scripts/quality/traffic-topology-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -99,6 +100,7 @@ on:
       - "scripts/quality/privileged-network-guard.py"
       - "scripts/quality/traffic-waveform-guard.py"
       - "scripts/quality/traffic-scale-guard.py"
+      - "scripts/quality/traffic-topology-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -255,6 +257,9 @@ jobs:
 
       - name: Enforce DUAL-03-02 traffic scale parity
         run: python3 scripts/quality/traffic-scale-guard.py --mode enforce
+
+      - name: Enforce DUAL-03-03 traffic topology parity
+        run: python3 scripts/quality/traffic-topology-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

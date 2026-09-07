@@ -362,7 +362,10 @@ impl AppState {
         }));
 
         // 5. 高性能动画订阅：只有正在转场时才开启帧回调
-        if self.shell.transition.start_time.is_some() {
+        if self.shell.transition.start_time.is_some()
+            || (self.shell.current_route == Route::Overview
+                && self.runtime.traffic_topology.is_flowing())
+        {
             subs.push(window::frames().map(Message::TickFrame));
         }
 

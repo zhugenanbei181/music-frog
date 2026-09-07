@@ -650,6 +650,7 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
                 core_version: Some("v1.19.18".to_owned()),
                 traffic_waveform: Default::default(),
                 traffic_scale: Default::default(),
+                traffic_topology: Default::default(),
             }
         }
     }

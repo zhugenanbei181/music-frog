@@ -12,6 +12,7 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::image::Image;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::scene::{Scene, bsn};
+use bevy::time::Time;
 use bevy::ui::prelude::{Node, percent, px};
 use bevy::ui::widget::ImageNode;
 
@@ -94,6 +95,11 @@ pub struct TopologySpec {
     pub links: Vec<TopologyLink>,
     pub width: u32,
     pub height: u32,
+    /// Normalized animation phase for active flow particles.
+    pub flow_phase: f32,
+    /// Adapter-supplied phase speed. Generic widget code does not infer
+    /// network semantics from the link values.
+    pub flow_speed: f32,
 }
 
 impl Default for TopologySpec {
@@ -103,6 +109,8 @@ impl Default for TopologySpec {
             links: Vec::new(),
             width: 320,
             height: 140,
+            flow_phase: 0.0,
+            flow_speed: 1.0,
         }
     }
 }
@@ -119,7 +127,15 @@ impl TopologySpec {
             links,
             width,
             height,
+            flow_phase: 0.0,
+            flow_speed: 1.0,
         }
+    }
+
+    pub fn with_flow(mut self, phase: f32, speed: f32) -> Self {
+        self.flow_phase = phase.fract();
+        self.flow_speed = speed.max(0.0);
+        self
     }
 }
 
@@ -249,7 +265,64 @@ pub fn rasterize_topology(spec: &TopologySpec, palette: &UiPalette) -> Vec<u8> {
         }
     }
 
+    // 3. Draw moving particles only for links with an observed active flow.
+    // The animation is a visual hint over the shared aggregate rate; it is
+    // never emitted for an empty or unavailable topology.
+    for (link_index, link) in spec.links.iter().enumerate() {
+        if !link.highlighted || !link.bandwidth_bps.is_finite() || link.bandwidth_bps <= 0.0 {
+            continue;
+        }
+        let (Some(src), Some(dst)) = (
+            node_map.get(link.source_id.as_str()),
+            node_map.get(link.target_id.as_str()),
+        ) else {
+            continue;
+        };
+        let p0 = PlotPoint::new(src.x_fraction * width as f32, src.y_fraction * height as f32);
+        let p1 = PlotPoint::new(dst.x_fraction * width as f32, dst.y_fraction * height as f32);
+        let dx = (p1.x - p0.x) * 0.5;
+        let segment = CubicBezierSegment::new(
+            p0,
+            PlotPoint::new(p0.x + dx, p0.y),
+            PlotPoint::new(p1.x - dx, p1.y),
+            p1,
+        );
+        let particle_color = crate::chart::to_rgba8(palette.accent);
+        let phase = (spec.flow_phase + link_index as f32 * 0.19).fract();
+        for offset in [0.0_f32, 0.52] {
+            let point = segment.eval((phase + offset).fract());
+            draw_particle(&mut pixels, width, height, point, particle_color);
+        }
+    }
+
     pixels
+}
+
+fn draw_particle(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    point: PlotPoint,
+    color: [u8; 4],
+) {
+    let cx = point.x.round() as i32;
+    let cy = point.y.round() as i32;
+    for radius in [4_i32, 2_i32] {
+        for dy in -radius..=radius {
+            for dx in -radius..=radius {
+                if dx * dx + dy * dy <= radius * radius {
+                    let alpha = if radius == 4 { 0.22 } else { 0.95 };
+                    if cx + dx >= 0
+                        && cy + dy >= 0
+                        && cx + dx < width as i32
+                        && cy + dy < height as i32
+                    {
+                        blend_pixel(pixels, width, cx + dx, cy + dy, color, alpha);
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Convert TopologySpec to GPU Mesh.
@@ -364,6 +437,24 @@ pub fn sync_topology_charts(
                     ..ImageNode::default()
                 });
             }
+        }
+    }
+}
+
+/// Advance only mounted topology plates that have an active observed link.
+/// The page adapter owns whether the plate is mounted; this widget system
+/// owns only the generic phase clock and therefore remains business-agnostic.
+pub fn advance_topology_flow(
+    time: Res<Time>,
+    mut charts: Query<&mut TopologyPlate>,
+) {
+    let dt = time.delta_secs();
+    if dt <= 0.0 {
+        return;
+    }
+    for mut plate in &mut charts {
+        if plate.0.links.iter().any(|link| link.highlighted && link.bandwidth_bps > 0.0) {
+            plate.0.flow_phase = (plate.0.flow_phase + dt * plate.0.flow_speed).fract();
         }
     }
 }

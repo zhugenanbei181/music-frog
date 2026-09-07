@@ -268,6 +268,11 @@ fn projection_from_snapshot(snapshot: CoreSnapshot) -> OverviewProjection {
         core_version: snapshot.core_version,
         traffic_waveform: Default::default(),
         traffic_scale: Default::default(),
+        traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot::unsupported(
+            snapshot.generation,
+            snapshot.revision.max(1),
+            "overview-only controller source does not include topology facts",
+        ),
     }
 }
 

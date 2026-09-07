@@ -53,6 +53,7 @@ pub mod subscription;
 pub mod traffic_audit;
 pub mod traffic_waveform;
 pub mod traffic_scale;
+pub mod traffic_topology;
 pub mod tun;
 pub mod vector_clock;
 pub mod watchdog;

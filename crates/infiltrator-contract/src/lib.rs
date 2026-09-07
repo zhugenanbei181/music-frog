@@ -31,6 +31,7 @@ pub mod sync;
 pub mod tun;
 pub mod traffic_waveform;
 pub mod traffic_scale;
+pub mod traffic_topology;
 pub mod version;
 pub mod surface;
 

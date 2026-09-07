@@ -208,7 +208,11 @@ impl Plugin for WidgetsPlugin {
         app.add_systems(
             Update,
             (
-                chart::topology::sync_topology_charts,
+                (
+                    chart::topology::advance_topology_flow,
+                    chart::topology::sync_topology_charts,
+                )
+                    .chain(),
                 chart::ring_buffer::update_telemetry_cadence,
                 scrollarea::focus_avoidance_auto_scroll_system,
                 responsive::sync_responsive_context_from_window,

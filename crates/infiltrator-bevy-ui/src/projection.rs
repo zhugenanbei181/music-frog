@@ -101,6 +101,8 @@ pub struct OverviewProjection {
     pub traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot,
     /// Shared dynamic max/unit/tick scale for the waveform.
     pub traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
+    /// Shared live routing chain for the Overview topology card.
+    pub traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot,
 }
 
 impl OverviewProjection {
@@ -121,6 +123,7 @@ impl OverviewProjection {
             core_version: None,
             traffic_waveform: Default::default(),
             traffic_scale: Default::default(),
+            traffic_topology: Default::default(),
         }
     }
 
@@ -258,6 +261,7 @@ impl OverviewSource for DemoOverviewSource {
             core_version: None,
             traffic_waveform: Default::default(),
             traffic_scale: Default::default(),
+            traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture(),
         }
     }
 

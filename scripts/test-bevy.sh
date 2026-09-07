@@ -54,3 +54,4 @@ python3 "$repo_root/scripts/quality/system-toggle-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/privileged-network-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/traffic-waveform-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/traffic-scale-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/traffic-topology-guard.py" --mode enforce

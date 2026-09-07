@@ -455,6 +455,9 @@ pub struct SurfaceSnapshot {
     /// Dynamic shared max/unit/tick scale for the traffic waveform.
     #[serde(default)]
     pub traffic_scale: crate::traffic_scale::TrafficScaleSnapshot,
+    /// Live routing chain derived from controller connections/configuration.
+    #[serde(default)]
+    pub traffic_topology: crate::traffic_topology::TrafficTopologySnapshot,
     /// Host-injected privileged-network regression readback.
     #[serde(default)]
     pub privileged_network: crate::privileged_network::PrivilegedNetworkSnapshot,
@@ -506,6 +509,7 @@ impl SurfaceSnapshot {
             privileged_network: crate::privileged_network::PrivilegedNetworkSnapshot::default(),
             traffic_waveform: crate::traffic_waveform::TrafficWaveformSnapshot::default(),
             traffic_scale: crate::traffic_scale::TrafficScaleSnapshot::default(),
+            traffic_topology: crate::traffic_topology::TrafficTopologySnapshot::default(),
         }
     }
 

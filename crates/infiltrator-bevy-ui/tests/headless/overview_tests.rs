@@ -24,7 +24,8 @@ use infiltrator_bevy_ui::pages::overview::{
     CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText, OverviewCardState, OverviewChip,
     OverviewChipKind, OverviewLine, OverviewLineKind, OverviewModeChip, OverviewModePill,
     OverviewProjectionUpdated, OverviewStatusCard, StatusDot, StopButton, SubscriptionQuotaCard,
-    TopologyChainCard, format_memory, format_rate, subscription_quota_scene, topology_chain_scene,
+    TopologyChainCard, TopologyText, TopologyTextKind, format_memory, format_rate,
+    subscription_quota_scene, topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
     ActiveExitNodeCard, SystemProxyMasterCard, TunMasterCard,
@@ -67,6 +68,7 @@ impl OverviewSource for StubSource {
             core_version: None,
             traffic_waveform: Default::default(),
             traffic_scale: Default::default(),
+            traffic_topology: Default::default(),
         }
     }
 }
@@ -387,6 +389,7 @@ fn projection_updates_restamp_in_place() {
         core_version: None,
         traffic_waveform: Default::default(),
         traffic_scale: Default::default(),
+        traffic_topology: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -436,6 +439,7 @@ fn projection_updates_restamp_in_place() {
         core_version: Some("v1.19.18".to_owned()),
         traffic_waveform: Default::default(),
         traffic_scale: Default::default(),
+        traffic_topology: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -697,6 +701,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         core_version: Some("v1.19.18".to_owned()),
         traffic_waveform: Default::default(),
         traffic_scale: Default::default(),
+        traffic_topology: Default::default(),
     }
 }
 
@@ -927,6 +932,7 @@ impl OverviewSource for LiveFootStub {
             core_version: self.version.map(str::to_owned),
             traffic_waveform: Default::default(),
             traffic_scale: Default::default(),
+            traffic_topology: Default::default(),
         }
     }
 
@@ -1008,6 +1014,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         core_version: None,
         traffic_waveform: Default::default(),
         traffic_scale: Default::default(),
+        traffic_topology: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -1107,10 +1114,10 @@ fn overview_page_chips_and_container_responsive_wrapping() {
     }
 }
 
-/// The Overview page mounts the traffic topology chain card (BEVY-GAP-018)
-/// with 4 linked stage chips and connecting arrows (">").
+/// The Overview page mounts the shared five-stage traffic topology card with
+/// a real widget flow plate and four connecting arrows.
 #[test]
-fn test_topology_chain_card_mounts_with_four_stages_and_arrows() {
+fn test_topology_chain_card_mounts_with_five_stages_and_flow_plate() {
     let mut app = mounted_default();
     let world = app.world_mut();
 
@@ -1132,40 +1139,88 @@ fn test_topology_chain_card_mounts_with_four_stages_and_arrows() {
         "card contains title"
     );
     assert!(
-        texts.iter().any(|t| t == "12 连接"),
+        texts.iter().any(|t| t == "12 连接 · flowing"),
         "card contains connection count badge"
     );
 
     // Stage 1: Client / Inbound
     assert!(texts.iter().any(|t| t == "Client / Inbound"));
-    assert!(texts.iter().any(|t| t == "Mixed: 7890"));
+    assert!(texts.iter().any(|t| t == "Mixed :7890"));
     assert!(texts.iter().any(|t| t == "12 conns"));
 
-    // Stage 2: RuleSet
+    // Stage 2: Sniffer
+    assert!(texts.iter().any(|t| t == "Sniffer"));
+    assert!(texts.iter().any(|t| t == "enabled"));
+    assert!(texts.iter().any(|t| t == "On"));
+
+    // Stage 3: RuleSet
     assert!(texts.iter().any(|t| t == "RuleSet"));
     assert!(texts.iter().any(|t| t == "MRS / GeoIP"));
-    assert!(texts.iter().any(|t| t == "Active"));
 
-    // Stage 3: Proxy Group
+    // Stage 4: Proxy Group
     assert!(texts.iter().any(|t| t == "Proxy Group"));
     assert!(texts.iter().any(|t| t == "GLOBAL / PROXIES"));
-    assert!(texts.iter().any(|t| t == "Selector"));
 
-    // Stage 4: Outbound Node
+    // Stage 5: Outbound Node
     assert!(texts.iter().any(|t| t == "Outbound Node"));
     assert!(texts.iter().any(|t| t == "香港 01 · BGP 专线"));
-    assert!(texts.iter().any(|t| t == "38 ms"));
 
     // Connecting arrows
     let arrow_count = texts.iter().filter(|t| t.as_str() == ">").count();
     assert_eq!(
-        arrow_count, 3,
-        "must have exactly 3 connecting arrows between the 4 chips"
+        arrow_count, 4,
+        "must have exactly 4 connecting arrows between the 5 stages"
     );
+
+    let mut plates = world.query::<&infiltrator_bevy_widgets::chart::topology::TopologyPlate>();
+    let plate = plates.single(world).expect("topology flow plate mounted");
+    assert_eq!(plate.0.nodes.len(), 5);
+    assert_eq!(plate.0.links.len(), 4);
+    assert!(plate.0.links.iter().all(|link| link.highlighted));
 
     // Standalone scene creation test
     let palette = UiPalette::new(&Theme::dark());
     let _scene = topology_chain_scene(&palette);
+}
+
+#[test]
+fn topology_projection_updates_text_and_flow_plate_in_place() {
+    let mut app = mounted_default();
+    let plate_id = {
+        let world = app.world_mut();
+        let mut ids = world.query::<(Entity, &infiltrator_bevy_widgets::chart::topology::TopologyPlate)>();
+        ids.single(world).expect("topology plate entity").0
+    };
+
+    let mut topology = infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture();
+    topology.active_connections = 2;
+    topology.flow_bps = 2_048.0;
+    topology.nodes[0].detail = "TUN · gvisor".to_owned();
+    for link in &mut topology.links {
+        link.active_connections = 2;
+        link.flow_bps = 2_048.0;
+    }
+    let mut projection = DemoOverviewSource::running().current();
+    projection.active_connections = 2;
+    projection.traffic_topology = topology;
+    app.world_mut()
+        .commands()
+        .trigger(OverviewProjectionUpdated(projection));
+    app.update();
+
+    let world = app.world_mut();
+    assert!(world.get_entity(plate_id).is_ok(), "flow plate keeps its entity");
+    let mut details = world.query::<(&TopologyText, &Text)>();
+    assert!(details.iter(world).any(|(marker, text)| {
+        marker.stage == infiltrator_contract::traffic_topology::TrafficTopologyStage::Inbound
+            && marker.kind == TopologyTextKind::Detail
+            && text.0 == "TUN · gvisor"
+    }));
+    let plate = world
+        .get::<infiltrator_bevy_widgets::chart::topology::TopologyPlate>(plate_id)
+        .expect("topology plate survives");
+    assert_eq!(plate.0.links.len(), 4);
+    assert!(plate.0.links.iter().all(|link| link.active_conns == 2));
 }
 
 /// The Overview page mounts the subscription quota card (BEVY-GAP-020)

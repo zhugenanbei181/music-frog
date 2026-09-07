@@ -65,6 +65,8 @@ impl AppState {
         state.runtime.filtered_groups = groups;
         state.runtime.runtime_selected_group = "GLOBAL".to_string();
         state.runtime.runtime_selected_proxy = "节点选择".to_string();
+        state.runtime.traffic_topology =
+            infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture();
 
         // ---- traffic / memory / connections ----------------------------
         let history = demo_traffic_history();

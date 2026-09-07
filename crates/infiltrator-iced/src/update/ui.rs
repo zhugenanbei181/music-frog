@@ -101,6 +101,14 @@ impl AppState {
                     self.diag.fps = (1.0 / delta).round().clamp(1.0, 240.0) as u32;
                 }
                 self.diag.last_frame_time = now;
+                if self.runtime.traffic_topology.is_flowing() {
+                    self.diag.topology_flow_phase =
+                        (self.diag.topology_flow_phase
+                            + delta * self.runtime.traffic_topology.flow_speed_hz())
+                        .fract();
+                } else {
+                    self.diag.topology_flow_phase = 0.0;
+                }
 
                 if let (Some(start), Some(route)) =
                     (self.diag.perf_nav_started_at, self.diag.perf_nav_route)

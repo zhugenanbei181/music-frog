@@ -15,6 +15,9 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::button::pill_caption_scene;
+use infiltrator_bevy_widgets::chart::topology::{
+    NodeCategory, TopologyLink, TopologyNode, TopologySpec, topology_scene,
+};
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
@@ -22,8 +25,12 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
 use crate::pages::overview::{
-    AccentContainerFill, AccentFill, BorderFill, MiddleTopologyArrow, SubscriptionQuotaCard,
-    SurfaceElevatedFill, SurfaceFill, TopologyChainCard,
+    AccentContainerFill, AccentFill, BorderFill, SubscriptionQuotaCard, SurfaceElevatedFill,
+    SurfaceFill, TopologyArrow, TopologyChainCard, TopologyText, TopologyTextKind,
+};
+use infiltrator_contract::traffic_topology::{
+    TRAFFIC_TOPOLOGY_STAGE_COUNT, TrafficTopologySnapshot, TrafficTopologyStage,
+    TrafficTopologyStatus,
 };
 
 /// Marker on active exit node card (BEVY-GAP-019).
@@ -38,10 +45,23 @@ pub struct SystemProxyMasterCard;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TunMasterCard;
 
-/// The traffic topology chain card: 4 linked stage chips with connecting arrows (">").
+/// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
 pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
+    topology_chain_scene_with_snapshot(
+        &TrafficTopologySnapshot::demo_fixture(),
+        palette,
+    )
+}
+
+/// The production topology card: five shared stages and a widget-only flow
+/// strip. All displayed facts are supplied by the application snapshot.
+pub fn topology_chain_scene_with_snapshot(
+    snapshot: &TrafficTopologySnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Region);
     header_a11y.set_label("分流网络拓扑");
+    let header = topology_badge(snapshot);
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -78,11 +98,12 @@ pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
                             BackgroundColor({ palette.accent_container })
                             AccentContainerFill
                             Children [
-                                ( Text({ "12 连接".to_owned() }) TextRole(Role::Caption) TextColor({ palette.success }) ),
+                                ( Text({ header }) TopologyText { stage: TrafficTopologyStage::Inbound, kind: TopologyTextKind::HeaderBadge } TextRole(Role::Caption) TextColor({ palette.success }) ),
                             ]
                         ),
                     ]
                 ),
+                ( { topology_flow_scene(snapshot) } ),
                 (
                     Node {
                         width: percent(100),
@@ -96,44 +117,15 @@ pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
                         column_gap: Val::Px(space::S6),
                     }
                     Children [
-                        (
-                            Node {
-                                flex_grow: 1.0,
-                                flex_shrink: 1.0,
-                                flex_basis: px(280.0),
-                                min_width: px(240.0),
-                                flex_direction: FlexDirection::Row,
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::SpaceBetween,
-                                column_gap: Val::Px(space::S4),
-                            }
-                            Children [
-                                ( { topology_stage_chip_scene(IconId::Activity, "Client / Inbound".to_owned(), "12 conns".to_owned(), palette.success, "Mixed: 7890".to_owned(), palette) } ),
-                                ( { topology_arrow_scene(palette) } ),
-                                ( { topology_stage_chip_scene(IconId::FileText, "RuleSet".to_owned(), "Active".to_owned(), palette.accent, "MRS / GeoIP".to_owned(), palette) } ),
-                            ]
-                        ),
-                        (
-                            { topology_arrow_scene(palette) }
-                            MiddleTopologyArrow
-                        ),
-                        (
-                            Node {
-                                flex_grow: 1.0,
-                                flex_shrink: 1.0,
-                                flex_basis: px(280.0),
-                                min_width: px(240.0),
-                                flex_direction: FlexDirection::Row,
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::SpaceBetween,
-                                column_gap: Val::Px(space::S4),
-                            }
-                            Children [
-                                ( { topology_stage_chip_scene(IconId::Settings, "Proxy Group".to_owned(), "Selector".to_owned(), palette.warning, "GLOBAL / PROXIES".to_owned(), palette) } ),
-                                ( { topology_arrow_scene(palette) } ),
-                                ( { topology_stage_chip_scene(IconId::Globe, "Outbound Node".to_owned(), "38 ms".to_owned(), palette.success, "香港 01 · BGP 专线".to_owned(), palette) } ),
-                            ]
-                        ),
+                        ( { topology_stage_chip_scene(snapshot, TrafficTopologyStage::Inbound, IconId::Activity, palette.success, palette) } ),
+                        ( { topology_arrow_scene(palette) } ),
+                        ( { topology_stage_chip_scene(snapshot, TrafficTopologyStage::Sniffer, IconId::Activity, palette.accent, palette) } ),
+                        ( { topology_arrow_scene(palette) } ),
+                        ( { topology_stage_chip_scene(snapshot, TrafficTopologyStage::RuleSet, IconId::FileText, palette.accent, palette) } ),
+                        ( { topology_arrow_scene(palette) } ),
+                        ( { topology_stage_chip_scene(snapshot, TrafficTopologyStage::ProxyGroup, IconId::Settings, palette.warning, palette) } ),
+                        ( { topology_arrow_scene(palette) } ),
+                        ( { topology_stage_chip_scene(snapshot, TrafficTopologyStage::Outbound, IconId::Globe, palette.success, palette) } ),
                     ]
                 ),
             ]
@@ -142,20 +134,99 @@ pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
     )
 }
 
+fn topology_flow_scene(snapshot: &TrafficTopologySnapshot) -> impl Scene + use<> {
+    topology_scene(topology_spec(snapshot))
+}
+
+/// Convert the shared contract into the generic widget graph. The widget
+/// sees only stage/link geometry and aggregate flow metadata; it does not
+/// know Mihomo, connections, or proxy groups.
+pub(crate) fn topology_spec(snapshot: &TrafficTopologySnapshot) -> TopologySpec {
+    let nodes = TrafficTopologyStage::ALL
+        .into_iter()
+        .enumerate()
+        .map(|(index, stage)| {
+            let node = snapshot.node(stage);
+            let mut mapped = TopologyNode::new(
+                stage.as_str(),
+                node.map_or_else(|| stage_label(stage), |node| node.label.clone()),
+                match stage {
+                    TrafficTopologyStage::Inbound => NodeCategory::Inbound,
+                    TrafficTopologyStage::Outbound => NodeCategory::Outbound,
+                    TrafficTopologyStage::ProxyGroup => NodeCategory::Direct,
+                    TrafficTopologyStage::Sniffer | TrafficTopologyStage::RuleSet => {
+                        NodeCategory::Rule
+                    }
+                },
+                index as f32 / (TRAFFIC_TOPOLOGY_STAGE_COUNT - 1) as f32,
+                0.5,
+            );
+            mapped.subtext = node.map_or_else(String::new, |node| node.detail.clone());
+            mapped
+        })
+        .collect();
+
+    let links = if snapshot.is_drawable() {
+        snapshot
+            .links
+            .iter()
+            .map(|link| TopologyLink {
+                source_id: link.from.as_str().to_owned(),
+                target_id: link.to.as_str().to_owned(),
+                bandwidth_bps: if link.flow_bps.is_finite() {
+                    link.flow_bps.max(0.0)
+                } else {
+                    0.0
+                },
+                active_conns: link.active_connections,
+                highlighted: link.active && link.flow_bps.is_finite() && link.flow_bps > 0.0,
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    TopologySpec::new(nodes, links, 860, 52).with_flow(0.0, snapshot.flow_speed_hz())
+}
+
 fn topology_stage_chip_scene(
+    snapshot: &TrafficTopologySnapshot,
+    stage: TrafficTopologyStage,
     icon: IconId,
-    stage_name: String,
-    badge_text: String,
     badge_fg: Color,
-    detail: String,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let (label, detail, badge) = snapshot
+        .node(stage)
+        .map(|node| {
+            let badge = if stage == TrafficTopologyStage::Sniffer {
+                match snapshot.sniffer_enabled {
+                    Some(true) => "On".to_owned(),
+                    Some(false) => "Off".to_owned(),
+                    None => "—".to_owned(),
+                }
+            } else if node.active_connections > 0 {
+                format!("{} conns", node.active_connections)
+            } else {
+                "idle".to_owned()
+            };
+            (node.label.clone(), node.detail.clone(), badge)
+        })
+        .unwrap_or_else(|| {
+            (
+                stage_label(stage),
+                snapshot
+                    .failure
+                    .clone()
+                    .unwrap_or_else(|| "not available".to_owned()),
+                "—".to_owned(),
+            )
+        });
     bsn! {
         Node {
             flex_grow: 1.0,
             flex_shrink: 1.0,
-            flex_basis: px(120.0),
-            min_width: px(100.0),
+            flex_basis: px(140.0),
+            min_width: px(110.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(space::S6),
             padding: UiRect::all(Val::Px(space::S8)),
@@ -179,7 +250,7 @@ fn topology_stage_chip_scene(
                         }
                         Children [
                             ( { icon_scene(icon, 14.0, palette.ink_dim) } ),
-                            ( Text({ stage_name }) TextRole(Role::Caption) ),
+                            ( Text({ label }) TopologyText { stage, kind: TopologyTextKind::Label } TextRole(Role::Caption) ),
                         ]
                     ),
                     (
@@ -190,7 +261,7 @@ fn topology_stage_chip_scene(
                         BackgroundColor({ palette.accent_container })
                         AccentContainerFill
                         Children [
-                            ( Text({ badge_text }) TextRole(Role::Caption) TextColor({ badge_fg }) ),
+                            ( Text({ badge }) TopologyText { stage, kind: TopologyTextKind::Badge } TextRole(Role::Caption) TextColor({ badge_fg }) ),
                         ]
                     ),
                 ]
@@ -204,10 +275,33 @@ fn topology_stage_chip_scene(
                 BackgroundColor({ palette.surface })
                 SurfaceFill
                 Children [
-                    ( Text({ detail }) TextRole(Role::BodyStrong) ),
+                    ( Text({ detail }) TopologyText { stage, kind: TopologyTextKind::Detail } TextRole(Role::BodyStrong) ),
                 ]
             ),
         ]
+    }
+}
+
+fn stage_label(stage: TrafficTopologyStage) -> String {
+    match stage {
+        TrafficTopologyStage::Inbound => "Client / Inbound",
+        TrafficTopologyStage::Sniffer => "Sniffer",
+        TrafficTopologyStage::RuleSet => "RuleSet",
+        TrafficTopologyStage::ProxyGroup => "Proxy Group",
+        TrafficTopologyStage::Outbound => "Outbound Node",
+    }
+    .to_owned()
+}
+
+fn topology_badge(snapshot: &TrafficTopologySnapshot) -> String {
+    match snapshot.status {
+        TrafficTopologyStatus::Ready => {
+            format!("{} 连接 · flowing", snapshot.active_connections)
+        }
+        TrafficTopologyStatus::Empty => "0 连接 · idle".to_owned(),
+        TrafficTopologyStatus::Unknown => "topology pending".to_owned(),
+        TrafficTopologyStatus::Unsupported => "topology unavailable".to_owned(),
+        TrafficTopologyStatus::Failed => "topology read failed".to_owned(),
     }
 }
 
@@ -219,6 +313,7 @@ fn topology_arrow_scene(palette: &UiPalette) -> impl Scene + use<> {
             flex_shrink: 0.0,
             padding: UiRect::horizontal(Val::Px(space::S2)),
         }
+        TopologyArrow
         Children [
             ( Text({ ">".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.ink_dim }) ),
         ]

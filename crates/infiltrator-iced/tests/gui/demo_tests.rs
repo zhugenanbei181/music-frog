@@ -53,6 +53,9 @@ fn demo_fixture_inventory_covers_all_pages() {
     assert_eq!(state.diag.traffic_history.len(), 60);
     assert!(state.diag.traffic.is_some());
     assert!(state.diag.memory.is_some());
+    assert_eq!(state.runtime.traffic_topology.nodes.len(), 5);
+    assert_eq!(state.runtime.traffic_topology.links.len(), 4);
+    assert!(state.runtime.traffic_topology.is_flowing());
     assert_eq!(
         state.diag.connections.as_ref().map(|c| c.connections.len()),
         Some(10)

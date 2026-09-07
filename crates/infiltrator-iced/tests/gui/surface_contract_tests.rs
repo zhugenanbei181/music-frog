@@ -88,6 +88,21 @@ fn hot_reload_snapshot_keeps_the_session_identity_and_generation() {
 }
 
 #[test]
+fn shared_topology_snapshot_reaches_the_iced_runtime_projection() {
+    let (mut state, _) = AppState::new();
+    let mut value = snapshot(6);
+    value.traffic_topology =
+        infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture();
+    value.traffic_topology.revision = 6;
+
+    assert!(state.apply_shared_surface_snapshot(value));
+    assert_eq!(state.runtime.traffic_topology.active_connections, 12);
+    assert_eq!(state.runtime.traffic_topology.nodes.len(), 5);
+    assert_eq!(state.runtime.traffic_topology.links.len(), 4);
+    assert!(state.runtime.traffic_topology.is_flowing());
+}
+
+#[test]
 fn shared_watchdog_snapshot_updates_the_iced_diagnostics_projection() {
     let (mut state, _) = AppState::new();
     let mut snapshot = snapshot(4);

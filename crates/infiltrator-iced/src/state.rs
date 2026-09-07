@@ -71,6 +71,7 @@ pub struct RuntimeState {
     pub privileged_network_port: Option<Arc<dyn PrivilegedNetworkPort>>,
     pub traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot,
     pub traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
+    pub traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot,
     pub system_proxy: SystemProxySnapshot,
     pub system_proxy_recovery: SystemProxyRecoverySnapshot,
     /// Retained independently of the running core so a system proxy can be
@@ -338,6 +339,9 @@ pub struct DiagnosticsState {
     pub log_level: String,
     pub fps: u32,
     pub last_frame_time: Instant,
+    /// Adapter-local phase for the Overview topology flow strip. The shared
+    /// snapshot remains the only source of whether a flow exists.
+    pub topology_flow_phase: f32,
     pub perf_snapshot: PerfSnapshot,
     pub perf_panel_visible: bool,
     pub perf_nav_started_at: Option<Instant>,
@@ -442,6 +446,7 @@ impl AppState {
         self.runtime.privileged_network = snapshot.privileged_network.clone();
         self.runtime.traffic_waveform = snapshot.traffic_waveform.clone();
         self.runtime.traffic_scale = snapshot.traffic_scale.clone();
+        self.runtime.traffic_topology = snapshot.traffic_topology.clone();
         self.runtime.system_toggles =
             infiltrator_application::system_toggle_application::SystemToggleApplication::from_surface(
                 &snapshot,

@@ -59,6 +59,7 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::chart::{ChartPlate, ChartSpec, chart_scene_with_scale};
+use infiltrator_bevy_widgets::chart::topology::TopologyPlate;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::{StatChipValue, stat_chip_scene};
@@ -163,6 +164,27 @@ pub struct TopologyChainCard;
 /// Marker on the middle connecting arrow between stage pairs in the topology chain.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MiddleTopologyArrow;
+
+/// Marker on every topology connector so compact mobile layouts can hide all
+/// connectors without changing the shared five-stage data model.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TopologyArrow;
+
+/// Marker on mutable topology text projected from the shared snapshot.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TopologyText {
+    pub stage: infiltrator_contract::traffic_topology::TrafficTopologyStage,
+    pub kind: TopologyTextKind,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TopologyTextKind {
+    #[default]
+    HeaderBadge,
+    Label,
+    Detail,
+    Badge,
+}
 
 /// Marker on the subscription quota card.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -412,7 +434,7 @@ pub fn overview_page(
             ( { chips_row_scene(projection, palette) } ),
             ( { crate::pages::overview_cards::master_switches_scene(palette) } ),
             ( { crate::pages::overview_cards::active_exit_node_scene(palette) } ),
-            ( { topology_chain_scene(palette) } ),
+            ( { crate::pages::overview_cards::topology_chain_scene_with_snapshot(&projection.traffic_topology, palette) } ),
             ( { subscription_quota_scene(palette) } ),
         ]
     }
@@ -635,6 +657,76 @@ fn format_scale(scale: &infiltrator_contract::traffic_scale::TrafficScaleSnapsho
     )
 }
 
+/// Restamp one topology text from the shared snapshot. The scene remains
+/// mounted while the controller refreshes; only these marked values change.
+pub(crate) fn topology_text_value(
+    snapshot: &infiltrator_contract::traffic_topology::TrafficTopologySnapshot,
+    marker: &TopologyText,
+) -> String {
+    if marker.kind == TopologyTextKind::HeaderBadge {
+        return match snapshot.status {
+            infiltrator_contract::traffic_topology::TrafficTopologyStatus::Ready => {
+                format!("{} 连接 · flowing", snapshot.active_connections)
+            }
+            infiltrator_contract::traffic_topology::TrafficTopologyStatus::Empty => {
+                "0 连接 · idle".to_owned()
+            }
+            infiltrator_contract::traffic_topology::TrafficTopologyStatus::Unknown => {
+                "topology pending".to_owned()
+            }
+            infiltrator_contract::traffic_topology::TrafficTopologyStatus::Unsupported => {
+                "topology unavailable".to_owned()
+            }
+            infiltrator_contract::traffic_topology::TrafficTopologyStatus::Failed => {
+                "topology read failed".to_owned()
+            }
+        };
+    }
+
+    let Some(node) = snapshot.node(marker.stage) else {
+        return match marker.kind {
+            TopologyTextKind::Label => topology_stage_label(marker.stage).to_owned(),
+            TopologyTextKind::Detail => snapshot
+                .failure
+                .clone()
+                .unwrap_or_else(|| "not available".to_owned()),
+            TopologyTextKind::Badge => "—".to_owned(),
+            TopologyTextKind::HeaderBadge => unreachable!(),
+        };
+    };
+    match marker.kind {
+        TopologyTextKind::Label => node.label.clone(),
+        TopologyTextKind::Detail => node.detail.clone(),
+        TopologyTextKind::Badge => {
+            if marker.stage == infiltrator_contract::traffic_topology::TrafficTopologyStage::Sniffer
+            {
+                match snapshot.sniffer_enabled {
+                    Some(true) => "On".to_owned(),
+                    Some(false) => "Off".to_owned(),
+                    None => "—".to_owned(),
+                }
+            } else if node.active_connections > 0 {
+                format!("{} conns", node.active_connections)
+            } else {
+                "idle".to_owned()
+            }
+        }
+        TopologyTextKind::HeaderBadge => unreachable!(),
+    }
+}
+
+fn topology_stage_label(
+    stage: infiltrator_contract::traffic_topology::TrafficTopologyStage,
+) -> &'static str {
+    match stage {
+        infiltrator_contract::traffic_topology::TrafficTopologyStage::Inbound => "Client / Inbound",
+        infiltrator_contract::traffic_topology::TrafficTopologyStage::Sniffer => "Sniffer",
+        infiltrator_contract::traffic_topology::TrafficTopologyStage::RuleSet => "RuleSet",
+        infiltrator_contract::traffic_topology::TrafficTopologyStage::ProxyGroup => "Proxy Group",
+        infiltrator_contract::traffic_topology::TrafficTopologyStage::Outbound => "Outbound Node",
+    }
+}
+
 /// One rate line: the arrow and the mono rate share one marked text so
 /// the refresh observer restamps them together (the arrow keeps the
 /// line's ink — success for uplink, ordinary for downlink).
@@ -752,7 +844,7 @@ fn bind_overview_page(mut world: DeferredWorld<'_>, _context: HookContext) {
 /// live one — and restamp as a compare-and-set component swap, which the
 /// widget layer's `sync_charts` rasterizes into the *same* image handle.
 /// Structurally inert — no spawn, no despawn, no tree rebuild.
-#[allow(clippy::too_many_arguments)] // observer params: the disjoint queries are the API
+#[allow(clippy::too_many_arguments, clippy::type_complexity)] // observer params: disjoint queries are the API
 pub(crate) fn apply_overview_projection(
     update: On<OverviewProjectionUpdated>,
     palette: Res<UiPalette>,
@@ -775,8 +867,17 @@ pub(crate) fn apply_overview_projection(
     // `Without<OverviewLine>`: chip value texts never carry a line marker,
     // so the two `Text`-mutable queries stay provably disjoint.
     mut values: Query<&mut Text, (With<StatChipValue>, Without<OverviewLine>)>,
+    mut topology_texts: Query<
+        (&mut Text, &TopologyText),
+        (
+            With<TopologyText>,
+            Without<OverviewLine>,
+            Without<StatChipValue>,
+        ),
+    >,
     groups: Query<&Children>,
     mut charts: Query<&mut ChartPlate>,
+    mut topology_charts: Query<&mut TopologyPlate>,
 ) {
     let projection = &update.0;
     for (mut text, mut ink, line, semantic) in &mut lines {
@@ -823,6 +924,12 @@ pub(crate) fn apply_overview_projection(
             }
         }
     }
+    for (mut text, marker) in &mut topology_texts {
+        let value = topology_text_value(&projection.traffic_topology, marker);
+        if text.0 != value {
+            text.0 = value;
+        }
+    }
     // The trend chart: re-derive the series for this projection's origin
     // and restamp only on an actual change (an unchanged spec must not pay
     // the raster cost every tick — sync_charts keys off `is_changed`).
@@ -836,6 +943,14 @@ pub(crate) fn apply_overview_projection(
     for mut plate in &mut charts {
         if plate.0 != spec {
             plate.0 = spec.clone();
+        }
+    }
+    for mut plate in &mut topology_charts {
+        let phase = plate.0.flow_phase;
+        let spec = crate::pages::overview_cards::topology_spec(&projection.traffic_topology)
+            .with_flow(phase, projection.traffic_topology.flow_speed_hz());
+        if plate.0 != spec {
+            plate.0 = spec;
         }
     }
     last.0 = Some(projection.clone());
@@ -898,7 +1013,7 @@ pub(crate) fn reskin_overview_tokens(
 /// Sync overview topology chain responsive layout according to layout mode.
 pub fn sync_overview_responsive(
     layout: Option<Res<crate::app::ShellLayoutState>>,
-    mut middle_arrows: Query<&mut Node, With<MiddleTopologyArrow>>,
+    mut arrows: Query<&mut Node, With<TopologyArrow>>,
 ) {
     let Some(layout) = layout else {
         return;
@@ -909,7 +1024,7 @@ pub fn sync_overview_responsive(
     } else {
         Display::Flex
     };
-    for mut node in &mut middle_arrows {
+    for mut node in &mut arrows {
         if node.display != target_display {
             node.display = target_display;
         }

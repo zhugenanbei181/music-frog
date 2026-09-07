@@ -12,11 +12,13 @@ use crate::view::components::{
     premium_card, row_card_surface, section_header, status_dot, style_accent, style_ghost,
 };
 use crate::view::waveform::TrafficChart;
+use crate::view::topology::topology_flow_canvas;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CHIP, R_CONTROL, tokens};
 use iced::widget::{Space, button, canvas, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
+use infiltrator_contract::traffic_topology::{TrafficTopologySnapshot, TrafficTopologyStage, TrafficTopologyStatus};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
@@ -374,9 +376,7 @@ fn speed_pill<'a>(
 // ---------------------------------------------------------------------------
 
 fn topology_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Element<'a, Message> {
-    let conn_count = state.diag.connections.as_ref()
-        .map(|snapshot| snapshot.connections.len())
-        .unwrap_or(0);
+    let topology = &state.runtime.traffic_topology;
 
     let card_header = row![
         row![
@@ -389,54 +389,63 @@ fn topology_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Elem
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
         badge(
-            format!("{conn_count} {}", lang.tr("overview_conn_unit")),
-            if conn_count > 0 { BadgeKind::Success } else { BadgeKind::Neutral },
+            topology_badge(topology, lang),
+            topology_badge_kind(topology),
         ),
     ]
     .align_y(Alignment::Center)
     .width(Length::Fill);
 
-    let inbound_desc = if state.runtime.tun_enabled == Some(true) {
-        "TUN (tun0)".to_string()
-    } else {
-        "Mixed :7890".to_string()
-    };
-
-    let selected_group = if !state.runtime.runtime_selected_group.is_empty() {
-        state.runtime.runtime_selected_group.clone()
-    } else {
-        lang.tr("overview_node_select_title").to_string()
-    };
-
-    let exit_node = state.runtime.proxies.get("GLOBAL")
-        .and_then(|g| g.now())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| "🇺🇸 DMIT".to_string());
-
-    let rule_mode = state.runtime.proxy_mode.as_deref().unwrap_or("rule");
-    let rule_chip_text = format!("RuleSet ({})", mode_label(rule_mode, lang));
-
-    let node_inbound = topology_node_box(
-        Icon::Server, "Client / Inbound", inbound_desc, format!("{conn_count} conns"),
-        BadgeKind::Neutral, |t| tokens(t).text_secondary,
+    let node_inbound = topology_stage_node(
+        topology,
+        TrafficTopologyStage::Inbound,
+        Icon::Server,
+        "Client / Inbound",
+        BadgeKind::Neutral,
+        |t| tokens(t).text_secondary,
     );
-    let node_ruleset = topology_node_box(
-        Icon::Shield, "RuleSet", rule_chip_text, "Active".to_string(),
-        BadgeKind::Accent, |t| tokens(t).accent,
+    let node_sniffer = topology_stage_node(
+        topology,
+        TrafficTopologyStage::Sniffer,
+        Icon::Search,
+        "Sniffer",
+        BadgeKind::Accent,
+        |t| tokens(t).accent,
     );
-    let node_group = topology_node_box(
-        Icon::LayoutGrid, "Proxy Group", selected_group, "Selector".to_string(),
-        BadgeKind::Warning, |t| tokens(t).warning,
+    let node_ruleset = topology_stage_node(
+        topology,
+        TrafficTopologyStage::RuleSet,
+        Icon::Shield,
+        "RuleSet",
+        BadgeKind::Accent,
+        |t| tokens(t).accent,
     );
-    let node_outbound = topology_node_box(
-        Icon::Globe, "Outbound Node", exit_node, format!("{conn_count} conns"),
-        BadgeKind::Success, |t| tokens(t).success,
+    let node_group = topology_stage_node(
+        topology,
+        TrafficTopologyStage::ProxyGroup,
+        Icon::LayoutGrid,
+        "Proxy Group",
+        BadgeKind::Warning,
+        |t| tokens(t).warning,
+    );
+    let node_outbound = topology_stage_node(
+        topology,
+        TrafficTopologyStage::Outbound,
+        Icon::Globe,
+        "Outbound Node",
+        BadgeKind::Success,
+        |t| tokens(t).success,
     );
 
     let flow_row = row![
-        node_inbound, arrow_connector(),
-        node_ruleset, arrow_connector(),
-        node_group, arrow_connector(),
+        node_inbound,
+        arrow_connector(),
+        node_sniffer,
+        arrow_connector(),
+        node_ruleset,
+        arrow_connector(),
+        node_group,
+        arrow_connector(),
         node_outbound,
     ]
     .spacing(theme::SP_SM)
@@ -444,7 +453,13 @@ fn topology_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Elem
     .width(Length::Fill);
 
     container(
-        column![card_header, Space::new().height(theme::SP_MD), flow_row].spacing(theme::SP_XS),
+        column![
+            card_header,
+            Space::new().height(theme::SP_SM),
+            topology_flow_canvas(topology, state.diag.topology_flow_phase),
+            flow_row,
+        ]
+        .spacing(theme::SP_XS),
     )
     .width(Length::Fill)
     .padding(theme::SP_XXL)
@@ -452,9 +467,69 @@ fn topology_card<'a>(state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Elem
     .into()
 }
 
+fn topology_stage_node<'a>(
+    snapshot: &TrafficTopologySnapshot,
+    stage: TrafficTopologyStage,
+    glyph: Icon,
+    fallback_label: &'static str,
+    badge_kind: BadgeKind,
+    color_fn: impl Fn(&Theme) -> Color + Copy + 'a,
+) -> Element<'a, Message> {
+    let (label, detail, badge_label) = snapshot
+        .node(stage)
+        .map(|node| {
+            let badge = if stage == TrafficTopologyStage::Sniffer {
+                match snapshot.sniffer_enabled {
+                    Some(true) => "On".to_owned(),
+                    Some(false) => "Off".to_owned(),
+                    None => "—".to_owned(),
+                }
+            } else if node.active_connections > 0 {
+                format!("{} conns", node.active_connections)
+            } else {
+                "idle".to_owned()
+            };
+            (node.label.clone(), node.detail.clone(), badge)
+        })
+        .unwrap_or_else(|| {
+            (
+                fallback_label.to_owned(),
+                snapshot
+                    .failure
+                    .clone()
+                    .unwrap_or_else(|| "not available".to_owned()),
+                "—".to_owned(),
+            )
+        });
+    topology_node_box(glyph, label, detail, badge_label, badge_kind, color_fn)
+}
+
+fn topology_badge(snapshot: &TrafficTopologySnapshot, lang: &Lang<'_>) -> String {
+    match snapshot.status {
+        TrafficTopologyStatus::Ready => format!(
+            "{} {} · flowing",
+            snapshot.active_connections,
+            lang.tr("overview_conn_unit")
+        ),
+        TrafficTopologyStatus::Empty => format!("0 {} · idle", lang.tr("overview_conn_unit")),
+        TrafficTopologyStatus::Unknown => "topology pending".to_owned(),
+        TrafficTopologyStatus::Unsupported => "topology unavailable".to_owned(),
+        TrafficTopologyStatus::Failed => "topology read failed".to_owned(),
+    }
+}
+
+fn topology_badge_kind(snapshot: &TrafficTopologySnapshot) -> BadgeKind {
+    match snapshot.status {
+        TrafficTopologyStatus::Ready => BadgeKind::Success,
+        TrafficTopologyStatus::Empty | TrafficTopologyStatus::Unknown => BadgeKind::Neutral,
+        TrafficTopologyStatus::Unsupported => BadgeKind::Warning,
+        TrafficTopologyStatus::Failed => BadgeKind::Danger,
+    }
+}
+
 fn topology_node_box<'a>(
     glyph: Icon,
-    stage_name: &'static str,
+    stage_name: String,
     chip_label: String,
     badge_label: String,
     badge_kind: BadgeKind,
@@ -724,4 +799,32 @@ fn latency_comparison_bar<'a>(
     .align_y(Alignment::Center)
     .width(Length::Fill)
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn topology_badge_reflects_the_shared_status_and_count() {
+        let mut snapshot = TrafficTopologySnapshot::demo_fixture();
+        snapshot.active_connections = 3;
+        assert_eq!(
+            topology_badge(&snapshot, &Lang("zh-CN")),
+            "3 连接 · flowing"
+        );
+
+        snapshot.status = TrafficTopologyStatus::Empty;
+        snapshot.active_connections = 0;
+        assert_eq!(
+            topology_badge(&snapshot, &Lang("zh-CN")),
+            "0 连接 · idle"
+        );
+
+        snapshot.status = TrafficTopologyStatus::Unsupported;
+        assert_eq!(
+            topology_badge(&snapshot, &Lang("zh-CN")),
+            "topology unavailable"
+        );
+    }
 }
