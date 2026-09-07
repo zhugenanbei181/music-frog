@@ -28,9 +28,14 @@ use infiltrator_bevy_widgets::theme::space;
 use crate::pages::overview::{
     AccentContainerFill, AccentFill, ActiveExitText, ActiveExitTextKind, BorderFill,
     SubscriptionQuotaCard, SurfaceElevatedFill, SurfaceFill, TopologyArrow, TopologyChainCard,
-    TopologyStageButton, TopologyText, TopologyTextKind, active_exit_text_value,
+    TopologyStageButton, TopologyText, TopologyTextKind, SubscriptionQuotaProgress,
+    SubscriptionQuotaText, SubscriptionQuotaTextKind, active_exit_text_value,
+    subscription_quota_text_value,
 };
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
+use infiltrator_contract::subscription_quota::{
+    SubscriptionQuotaSnapshot, SubscriptionQuotaStatus,
+};
 use infiltrator_contract::traffic_topology::{
     TRAFFIC_TOPOLOGY_STAGE_COUNT, TrafficTopologySnapshot, TrafficTopologyStage,
     TrafficTopologyStatus,
@@ -325,11 +330,28 @@ fn topology_arrow_scene(palette: &UiPalette) -> impl Scene + use<> {
     }
 }
 
-/// The subscription quota card: displays subscription name, expiry date,
-/// used / total data with an accent progress bar.
+/// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
 pub fn subscription_quota_scene(palette: &UiPalette) -> impl Scene + use<> {
+    subscription_quota_scene_with_snapshot(
+        &SubscriptionQuotaSnapshot::demo_fixture(),
+        palette,
+    )
+}
+
+/// Subscription quota dashboard projected from the active profile snapshot.
+pub fn subscription_quota_scene_with_snapshot(
+    snapshot: &SubscriptionQuotaSnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let mut quota_a11y = accesskit::Node::new(accesskit::Role::Region);
     quota_a11y.set_label("订阅配额");
+    let profile = subscription_quota_text_value(snapshot, SubscriptionQuotaTextKind::Profile);
+    let expiry = subscription_quota_text_value(snapshot, SubscriptionQuotaTextKind::Expiry);
+    let metrics = subscription_quota_text_value(snapshot, SubscriptionQuotaTextKind::Metrics);
+    let reset = subscription_quota_text_value(snapshot, SubscriptionQuotaTextKind::Reset);
+    let status = subscription_quota_text_value(snapshot, SubscriptionQuotaTextKind::Status);
+    let status_color = quota_status_color(snapshot.status, palette);
+    let progress_percent = snapshot.usage_fraction() * 100.0;
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -361,7 +383,7 @@ pub fn subscription_quota_scene(palette: &UiPalette) -> impl Scene + use<> {
                         row_gap: Val::Px(space::S4),
                     }
                     Children [
-                        ( Text({ "主力高速订阅 (Primary VIP)".to_owned() }) TextRole(Role::Heading) ),
+                        ( Text({ profile }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Profile) TextRole(Role::Heading) ),
                         (
                             Node {
                                 padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
@@ -370,7 +392,7 @@ pub fn subscription_quota_scene(palette: &UiPalette) -> impl Scene + use<> {
                             BackgroundColor({ palette.accent_container })
                             AccentContainerFill
                             Children [
-                                ( Text({ "2026-10-01 到期".to_owned() }) TextRole(Role::Caption) TextColor({ palette.accent }) ),
+                                ( Text({ expiry }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Expiry) TextRole(Role::Caption) TextColor({ palette.accent }) ),
                             ]
                         ),
                     ]
@@ -381,7 +403,7 @@ pub fn subscription_quota_scene(palette: &UiPalette) -> impl Scene + use<> {
                         align_items: AlignItems::Center,
                     }
                     Children [
-                        ( Text({ "已用: 46.43 GB / 总计: 186.26 GB (24.9%)".to_owned() }) TextRole(Role::Caption) ),
+                        ( Text({ metrics }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Metrics) TextRole(Role::Caption) ),
                     ]
                 ),
                 (
@@ -396,19 +418,45 @@ pub fn subscription_quota_scene(palette: &UiPalette) -> impl Scene + use<> {
                     Children [
                         (
                             Node {
-                                width: percent(25),
+                                width: percent(progress_percent),
                                 height: percent(100),
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
                             }
                             BackgroundColor({ palette.accent })
                             AccentFill
+                            SubscriptionQuotaProgress
                         ),
+                    ]
+                ),
+                (
+                    Node {
+                        width: percent(100),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                    }
+                    Children [
+                        ( Text({ reset }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Reset) TextRole(Role::Caption) ),
+                        ( Text({ status }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Status) TextRole(Role::Caption) TextColor({ status_color }) ),
                     ]
                 ),
             ]
         })],
         palette,
     )
+}
+
+pub(crate) fn quota_status_color(status: SubscriptionQuotaStatus, palette: &UiPalette) -> Color {
+    match status {
+        SubscriptionQuotaStatus::Critical
+        | SubscriptionQuotaStatus::Exhausted
+        | SubscriptionQuotaStatus::Expired => palette.danger,
+        SubscriptionQuotaStatus::Warning | SubscriptionQuotaStatus::ExpiringSoon => palette.warning,
+        SubscriptionQuotaStatus::Ready => palette.success,
+        SubscriptionQuotaStatus::Unknown
+        | SubscriptionQuotaStatus::Empty
+        | SubscriptionQuotaStatus::Unsupported
+        | SubscriptionQuotaStatus::Failed => palette.ink_dim,
+    }
 }
 
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.

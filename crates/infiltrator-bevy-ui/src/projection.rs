@@ -105,6 +105,8 @@ pub struct OverviewProjection {
     pub traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot,
     /// Shared selected outbound node for the Overview exit card.
     pub active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot,
+    /// Shared active subscription quota dashboard.
+    pub subscription_quota: infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot,
 }
 
 impl OverviewProjection {
@@ -127,6 +129,7 @@ impl OverviewProjection {
             traffic_scale: Default::default(),
             traffic_topology: Default::default(),
             active_exit: Default::default(),
+            subscription_quota: Default::default(),
         }
     }
 
@@ -266,6 +269,7 @@ impl OverviewSource for DemoOverviewSource {
             traffic_scale: Default::default(),
             traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture(),
             active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot::demo_fixture(),
+            subscription_quota: infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::demo_fixture(),
         }
     }
 

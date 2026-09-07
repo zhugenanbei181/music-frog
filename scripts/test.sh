@@ -45,6 +45,7 @@ python3 scripts/quality/traffic-scale-guard.py --mode enforce
 python3 scripts/quality/traffic-topology-guard.py --mode enforce
 python3 scripts/quality/traffic-topology-navigation-guard.py --mode enforce
 python3 scripts/quality/active-exit-guard.py --mode enforce
+python3 scripts/quality/subscription-quota-guard.py --mode enforce
 
 nextest_mode=()
 if [[ $# -eq 1 ]]; then

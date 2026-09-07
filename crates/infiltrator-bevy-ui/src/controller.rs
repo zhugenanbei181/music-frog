@@ -278,6 +278,11 @@ fn projection_from_snapshot(snapshot: CoreSnapshot) -> OverviewProjection {
             snapshot.revision.max(1),
             "overview-only controller source does not include proxy facts",
         ),
+        subscription_quota: infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::unsupported(
+            snapshot.generation,
+            snapshot.revision.max(1),
+            "overview-only controller source does not include profile quota facts",
+        ),
     }
 }
 

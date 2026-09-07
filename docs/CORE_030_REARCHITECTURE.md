@@ -47,6 +47,7 @@
 - [x] `DUAL-03-03`：分流拓扑进入 `TrafficTopologySnapshot`/`TrafficTopologyApplication`；domain 从真实 config、connection chain、proxy group 和 aggregate traffic 推导五段 `Inbound→Sniffer→RuleSet→Proxy Group→Outbound`，明确 Empty/Unsupported/Failed，Bevy `TopologyPlate` 与 Iced flow Canvas 共享节点/链路事实，流动粒子只由活动 aggregate flow 驱动。
 - [x] `DUAL-03-04`：拓扑下钻进入 `TrafficTopologyNavigationTarget`/`TrafficTopologyNavigationApplication`；shared application 将节点语义映射到 Settings/Rules/Proxies，Iced 使用按钮→Elm Navigate，Bevy 使用 Button→Activate→RouteChanged，并由 drawable 快照统一 gating。
 - [x] `DUAL-03-05`：活动出口进入 `ActiveExitSnapshot`/`ActiveExitApplication`；domain 从 Mihomo proxy group 的 selected node 推导地区代码、协议、delay 与 alive，ApplicationSurfaceReader 发布单一事实，Iced/Bevy 只做高保真卡片适配并保留 Empty/Unsupported/Failed。
+- [x] `DUAL-03-06`：订阅配额进入 `SubscriptionQuotaSnapshot`/`SubscriptionQuotaApplication`；domain 复用已校验的 active profile `subscription-userinfo` 字段推导使用量、三级预警、过期/临期和到期倒计时，reset 无事实时保持 None，Iced/Bevy 同步展示进度与 typed status。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

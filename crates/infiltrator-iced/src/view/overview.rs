@@ -14,6 +14,7 @@ use crate::view::components::{
 use crate::view::waveform::TrafficChart;
 use crate::view::topology::topology_flow_canvas;
 use crate::view::active_exit::active_exit_card;
+use crate::view::subscription_quota::subscription_quota_card;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CHIP, R_CONTROL, tokens};
 use iced::widget::{Space, button, canvas, column, container, row, text};
@@ -43,6 +44,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let stats = stats_grid(state, &lang);
     let traffic = traffic_card(state, &lang);
     let topology = topology_card(state, &lang, is_en);
+    let quota = subscription_quota_card(state, &lang);
     let lower_row = row![
         active_exit_card(state, &lang),
         current_ip_card(state, &lang, is_en),
@@ -51,7 +53,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .spacing(theme::SP_LG)
     .width(Length::Fill);
 
-    let content = column![header, hero, stats, traffic, topology, lower_row]
+    let content = column![header, hero, stats, traffic, topology, quota, lower_row]
         .spacing(theme::SP_LG)
         .max_width(1100);
 

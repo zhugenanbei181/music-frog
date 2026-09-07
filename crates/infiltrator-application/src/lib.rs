@@ -40,6 +40,7 @@ pub mod traffic_scale_application;
 pub mod traffic_topology_application;
 pub mod traffic_topology_navigation_application;
 pub mod active_exit_application;
+pub mod subscription_quota_application;
 
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use std::future::Future;

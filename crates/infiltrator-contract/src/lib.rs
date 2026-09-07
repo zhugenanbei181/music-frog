@@ -6,6 +6,7 @@
 
 pub mod capability;
 pub mod active_exit;
+pub mod subscription_quota;
 pub mod controller;
 pub mod command;
 pub mod port_conflict;

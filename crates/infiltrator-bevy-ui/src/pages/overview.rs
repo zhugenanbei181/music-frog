@@ -210,6 +210,25 @@ pub enum ActiveExitTextKind {
     Status,
 }
 
+/// Marker on mutable subscription-quota dashboard text.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SubscriptionQuotaText(pub SubscriptionQuotaTextKind);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SubscriptionQuotaTextKind {
+    #[default]
+    Profile,
+    Expiry,
+    Metrics,
+    Reset,
+    Status,
+}
+
+/// Marker on the quota progress fill whose width follows the shared usage
+/// fraction.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SubscriptionQuotaProgress;
+
 /// Marker on the subscription quota card.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SubscriptionQuotaCard;
@@ -459,7 +478,7 @@ pub fn overview_page(
             ( { crate::pages::overview_cards::master_switches_scene(palette) } ),
             ( { crate::pages::overview_cards::active_exit_node_scene_with_snapshot(&projection.active_exit, palette) } ),
             ( { crate::pages::overview_cards::topology_chain_scene_with_snapshot(&projection.traffic_topology, palette) } ),
-            ( { subscription_quota_scene(palette) } ),
+            ( { crate::pages::overview_cards::subscription_quota_scene_with_snapshot(&projection.subscription_quota, palette) } ),
         ]
     }
 }
@@ -826,6 +845,84 @@ fn active_exit_flag(country_code: Option<&str>) -> &'static str {
     }
 }
 
+pub(crate) fn subscription_quota_text_value(
+    snapshot: &infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot,
+    kind: SubscriptionQuotaTextKind,
+) -> String {
+    match kind {
+        SubscriptionQuotaTextKind::Profile => snapshot
+            .profile_name
+            .clone()
+            .unwrap_or_else(|| "no active subscription".to_owned()),
+        SubscriptionQuotaTextKind::Expiry => {
+            let date = snapshot
+                .expires_at_label
+                .clone()
+                .unwrap_or_else(|| "expiry not reported".to_owned());
+            match snapshot.remaining_days {
+                Some(days) if days >= 0 => format!("{date} · {days}d left"),
+                _ => date,
+            }
+        }
+        SubscriptionQuotaTextKind::Metrics => {
+            let used = snapshot
+                .used_bytes
+                .map(format_byte_count)
+                .unwrap_or_else(|| "—".to_owned());
+            let total = snapshot
+                .total_bytes
+                .map(format_byte_count)
+                .unwrap_or_else(|| "—".to_owned());
+            let percent = snapshot
+                .usage_percent
+                .filter(|value| value.is_finite() && *value >= 0.0)
+                .map(|value| format!("{value:.1}%"))
+                .unwrap_or_else(|| "usage unknown".to_owned());
+            format!("used {used} / total {total} · {percent}")
+        }
+        SubscriptionQuotaTextKind::Reset => snapshot
+            .reset_days
+            .map(|days| format!("reset in {days}d"))
+            .unwrap_or_else(|| "reset not reported".to_owned()),
+        SubscriptionQuotaTextKind::Status => match snapshot.status {
+            infiltrator_contract::subscription_quota::SubscriptionQuotaStatus::Unknown => {
+                "quota pending".to_owned()
+            }
+            infiltrator_contract::subscription_quota::SubscriptionQuotaStatus::Ready => {
+                "healthy".to_owned()
+            }
+            infiltrator_contract::subscription_quota::SubscriptionQuotaStatus::Empty => {
+                "quota not reported".to_owned()
+            }
+            infiltrator_contract::subscription_quota::SubscriptionQuotaStatus::Warning => {
+                "warning · above 80%".to_owned()
+            }
+            infiltrator_contract::subscription_quota::SubscriptionQuotaStatus::Critical => {
+                "critical · above 90%".to_owned()
+            }
+            infiltrator_contract::subscription_quota::SubscriptionQuotaStatus::Exhausted => {
+                "exhausted".to_owned()
+            }
+            infiltrator_contract::subscription_quota::SubscriptionQuotaStatus::Expired => {
+                "expired".to_owned()
+            }
+            infiltrator_contract::subscription_quota::SubscriptionQuotaStatus::ExpiringSoon => {
+                "expiring soon".to_owned()
+            }
+            infiltrator_contract::subscription_quota::SubscriptionQuotaStatus::Unsupported => {
+                snapshot
+                    .failure
+                    .clone()
+                    .unwrap_or_else(|| "quota unavailable".to_owned())
+            }
+            infiltrator_contract::subscription_quota::SubscriptionQuotaStatus::Failed => snapshot
+                .failure
+                .clone()
+                .unwrap_or_else(|| "quota read failed".to_owned()),
+        },
+    }
+}
+
 /// One rate line: the arrow and the mono rate share one marked text so
 /// the refresh observer restamps them together (the arrow keeps the
 /// line's ink — success for uplink, ordinary for downlink).
@@ -1009,6 +1106,17 @@ pub(crate) fn apply_overview_projection(
             Without<StatChipValue>,
         ),
     >,
+    mut quota_texts: Query<
+        (&mut Text, &mut TextColor, &SubscriptionQuotaText),
+        (
+            With<SubscriptionQuotaText>,
+            Without<OverviewLine>,
+            Without<TopologyText>,
+            Without<ActiveExitText>,
+            Without<StatChipValue>,
+        ),
+    >,
+    mut quota_progress: Query<&mut Node, With<SubscriptionQuotaProgress>>,
     mut topology_buttons: Query<&mut TopologyStageButton>,
     groups: Query<&Children>,
     mut charts: Query<&mut ChartPlate>,
@@ -1080,6 +1188,21 @@ pub(crate) fn apply_overview_projection(
                 palette.ink_dim
             };
         }
+    }
+    for (mut text, mut ink, marker) in &mut quota_texts {
+        let value = subscription_quota_text_value(&projection.subscription_quota, marker.0);
+        if text.0 != value {
+            text.0 = value;
+        }
+        if marker.0 == SubscriptionQuotaTextKind::Status {
+            ink.0 = crate::pages::overview_cards::quota_status_color(
+                projection.subscription_quota.status,
+                &palette,
+            );
+        }
+    }
+    for mut progress in &mut quota_progress {
+        progress.width = percent(projection.subscription_quota.usage_fraction() * 100.0);
     }
     // The trend chart: re-derive the series for this projection's origin
     // and restamp only on an actual change (an unchanged spec must not pay

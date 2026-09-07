@@ -461,6 +461,9 @@ pub struct SurfaceSnapshot {
     /// Current selected proxy-group outbound node and its available facts.
     #[serde(default)]
     pub active_exit: crate::active_exit::ActiveExitSnapshot,
+    /// Current active subscription usage and expiry facts.
+    #[serde(default)]
+    pub subscription_quota: crate::subscription_quota::SubscriptionQuotaSnapshot,
     /// Host-injected privileged-network regression readback.
     #[serde(default)]
     pub privileged_network: crate::privileged_network::PrivilegedNetworkSnapshot,
@@ -514,6 +517,7 @@ impl SurfaceSnapshot {
             traffic_scale: crate::traffic_scale::TrafficScaleSnapshot::default(),
             traffic_topology: crate::traffic_topology::TrafficTopologySnapshot::default(),
             active_exit: crate::active_exit::ActiveExitSnapshot::default(),
+            subscription_quota: crate::subscription_quota::SubscriptionQuotaSnapshot::default(),
         }
     }
 

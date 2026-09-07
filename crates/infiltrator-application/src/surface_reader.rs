@@ -27,6 +27,7 @@ use crate::traffic_waveform_application::TrafficWaveformApplication;
 use crate::traffic_scale_application::TrafficScaleApplication;
 use crate::traffic_topology_application::TrafficTopologyApplication;
 use crate::active_exit_application::ActiveExitApplication;
+use crate::subscription_quota_application::SubscriptionQuotaApplication;
 use crate::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -75,6 +76,7 @@ pub struct ApplicationSurfaceReader {
     traffic_scale: TrafficScaleApplication,
     traffic_topology: TrafficTopologyApplication,
     active_exit: ActiveExitApplication,
+    subscription_quota: SubscriptionQuotaApplication,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -108,6 +110,7 @@ impl ApplicationSurfaceReader {
             traffic_scale: TrafficScaleApplication,
             traffic_topology: TrafficTopologyApplication,
             active_exit: ActiveExitApplication,
+            subscription_quota: SubscriptionQuotaApplication,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -319,6 +322,13 @@ impl SurfaceReader for ApplicationSurfaceReader {
             runtime_connections.as_ref(),
         );
         let active_exit_snapshot = self.active_exit.project(&core, runtime_proxies.as_ref());
+        let profile_result = match &self.profiles {
+            Some(profiles) => Some(profiles.list_profiles().await),
+            None => None,
+        };
+        let subscription_quota = self
+            .subscription_quota
+            .project(&core, profile_result.as_ref());
         let runtime_rule_providers = match &self.gateway {
             Some(gateway) => Some(gateway.get_rule_providers().await),
             None => None,
@@ -334,16 +344,16 @@ impl SurfaceReader for ApplicationSurfaceReader {
             "Mihomo proxy gateway",
         );
 
-        if let Some(profiles) = &self.profiles {
-            pages.profiles = match profiles.list_profiles().await {
-                Ok(items) if items.is_empty() => {
+        if self.profiles.is_some() {
+            pages.profiles = match profile_result {
+                Some(Ok(items)) if items.is_empty() => {
                     surface_snapshot::PageData::empty(surface_snapshot::ProfilesPageSnapshot {
                         profiles: Vec::new(),
                         auto_update_interval_hours: 0,
                         updating: false,
                     })
                 }
-                Ok(items) => {
+                Some(Ok(items)) => {
                     surface_snapshot::PageData::ready(surface_snapshot::ProfilesPageSnapshot {
                         profiles: items
                             .into_iter()
@@ -365,7 +375,8 @@ impl SurfaceReader for ApplicationSurfaceReader {
                         updating: false,
                     })
                 }
-                Err(failure) => surface_snapshot::PageData::failed(failure),
+                Some(Err(failure)) => surface_snapshot::PageData::failed(failure),
+                None => surface_snapshot::PageData::unavailable(missing("profile application")),
             };
         }
 
@@ -474,6 +485,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             traffic_scale,
             traffic_topology,
             active_exit: active_exit_snapshot,
+            subscription_quota,
         })
     }
 }

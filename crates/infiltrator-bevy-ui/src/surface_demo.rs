@@ -123,6 +123,7 @@ pub(super) fn snapshot_from_overview(
         traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot::default(),
         traffic_topology: overview.traffic_topology.clone(),
         active_exit: overview.active_exit.clone(),
+        subscription_quota: overview.subscription_quota.clone(),
     }
 }
 
@@ -170,6 +171,7 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot::default(),
         traffic_topology: overview.traffic_topology.clone(),
         active_exit: overview.active_exit.clone(),
+        subscription_quota: overview.subscription_quota.clone(),
     }
 }
 

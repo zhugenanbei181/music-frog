@@ -103,6 +103,23 @@ fn shared_topology_snapshot_reaches_the_iced_runtime_projection() {
 }
 
 #[test]
+fn shared_subscription_quota_reaches_the_iced_runtime_projection() {
+    let (mut state, _) = AppState::new();
+    let mut value = snapshot(7);
+    value.subscription_quota =
+        infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::demo_fixture();
+    value.subscription_quota.revision = 7;
+
+    assert!(state.apply_shared_surface_snapshot(value));
+    assert_eq!(
+        state.runtime.subscription_quota.profile_name.as_deref(),
+        Some("主力高速订阅")
+    );
+    assert_eq!(state.runtime.subscription_quota.usage_percent, Some(24.9));
+    assert!(state.runtime.subscription_quota.reset_days.is_none());
+}
+
+#[test]
 fn shared_watchdog_snapshot_updates_the_iced_diagnostics_projection() {
     let (mut state, _) = AppState::new();
     let mut snapshot = snapshot(4);

@@ -92,6 +92,7 @@ impl AppState {
                 traffic_scale: Default::default(),
                 traffic_topology: Default::default(),
                 active_exit: Default::default(),
+                subscription_quota: Default::default(),
                 system_proxy: Default::default(),
                 system_proxy_recovery: Default::default(),
                 system_proxy_port: Some(system_proxy_port),

@@ -80,6 +80,7 @@ pub(super) fn overview_projection(
         traffic_scale: snapshot.traffic_scale.clone(),
         traffic_topology: snapshot.traffic_topology.clone(),
         active_exit: snapshot.active_exit.clone(),
+        subscription_quota: snapshot.subscription_quota.clone(),
     }
 }
 

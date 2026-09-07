@@ -72,6 +72,7 @@ impl OverviewSource for StubSource {
             traffic_scale: Default::default(),
             traffic_topology: Default::default(),
             active_exit: Default::default(),
+            subscription_quota: Default::default(),
         }
     }
 }
@@ -394,6 +395,7 @@ fn projection_updates_restamp_in_place() {
         traffic_scale: Default::default(),
         traffic_topology: Default::default(),
         active_exit: Default::default(),
+        subscription_quota: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -445,6 +447,7 @@ fn projection_updates_restamp_in_place() {
         traffic_scale: Default::default(),
         traffic_topology: Default::default(),
         active_exit: Default::default(),
+        subscription_quota: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -708,6 +711,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         traffic_scale: Default::default(),
         traffic_topology: Default::default(),
         active_exit: Default::default(),
+        subscription_quota: Default::default(),
     }
 }
 
@@ -940,6 +944,7 @@ impl OverviewSource for LiveFootStub {
             traffic_scale: Default::default(),
             traffic_topology: Default::default(),
             active_exit: Default::default(),
+            subscription_quota: Default::default(),
         }
     }
 
@@ -1023,6 +1028,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         traffic_scale: Default::default(),
         traffic_topology: Default::default(),
         active_exit: Default::default(),
+        subscription_quota: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -1309,22 +1315,26 @@ fn test_subscription_quota_card_mounts_with_progress_bar() {
     // Card title
     assert!(texts.iter().any(|t| t == "订阅配额"), "contains 订阅配额");
 
-    // Header: "主力高速订阅 (Primary VIP)" and "2026-10-01 到期"
+    // Header uses the application-owned profile and expiry facts.
     assert!(
-        texts.iter().any(|t| t == "主力高速订阅 (Primary VIP)"),
-        "contains 主力高速订阅 (Primary VIP)"
+        texts.iter().any(|t| t == "主力高速订阅"),
+        "contains active profile name"
     );
     assert!(
-        texts.iter().any(|t| t == "2026-10-01 到期"),
-        "contains 2026-10-01 到期"
+        texts.iter().any(|t| t.contains("2026-10-01") && t.contains("25d")),
+        "contains expiry and remaining days"
     );
 
-    // Subtitle/stats: "已用: 46.43 GB / 总计: 186.26 GB (24.9%)"
+    // Metrics include real used/total bytes and the shared usage percentage.
     assert!(
         texts
             .iter()
-            .any(|t| t == "已用: 46.43 GB / 总计: 186.26 GB (24.9%)"),
+            .any(|t| t.contains("used") && t.contains("24.9%")),
         "contains stats"
+    );
+    assert!(
+        texts.iter().any(|t| t == "reset not reported"),
+        "does not infer a billing reset from expiry"
     );
 
     // Visual progress bar: height ~8px, inner fill width 25% with palette.accent
@@ -1336,7 +1346,7 @@ fn test_subscription_quota_card_mounts_with_progress_bar() {
             let bar_descendants = descendants(world, *e);
             for child in bar_descendants {
                 if let Some(inner_node) = world.get::<bevy::ui::Node>(child)
-                    && inner_node.width == bevy::ui::Val::Percent(25.0)
+                    && matches!(inner_node.width, bevy::ui::Val::Percent(value) if (value - 24.9).abs() < 0.1)
                 {
                     found_bar = true;
                     break;

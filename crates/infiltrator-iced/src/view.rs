@@ -22,6 +22,7 @@ pub mod rules_tracer;
 pub mod virtual_list;
 pub mod app_routing;
 pub mod active_exit;
+pub mod subscription_quota;
 pub mod mini_hud;
 pub mod script_console;
 pub mod geodata_card;

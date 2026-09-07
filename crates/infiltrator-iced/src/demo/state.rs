@@ -69,6 +69,8 @@ impl AppState {
             infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture();
         state.runtime.active_exit =
             infiltrator_contract::active_exit::ActiveExitSnapshot::demo_fixture();
+        state.runtime.subscription_quota =
+            infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::demo_fixture();
 
         // ---- traffic / memory / connections ----------------------------
         let history = demo_traffic_history();
