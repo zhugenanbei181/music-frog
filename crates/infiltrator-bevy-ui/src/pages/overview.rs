@@ -154,10 +154,14 @@ pub enum OverviewChipKind {
     Connections,
     /// Core memory footprint.
     Memory,
+    /// CPU utilization.
+    Cpu,
     /// Uplink rate.
     Upload,
     /// Downlink rate.
     Download,
+    /// Cumulative session total traffic.
+    TotalTraffic,
 }
 
 /// Marker on the status banner root: carries [`OverviewCardState`] (the
@@ -399,6 +403,20 @@ pub fn format_memory(bytes: Option<u64>) -> String {
         .unwrap_or_else(|| "—".to_owned())
 }
 
+/// Format CPU utilization percentage for the CPU chip.
+pub fn format_cpu(percent: Option<f32>) -> String {
+    percent
+        .map(|p| format!("{:.1}%", p))
+        .unwrap_or_else(|| "—".to_owned())
+}
+
+/// Format cumulative session total traffic for the TotalTraffic chip.
+pub fn format_total_traffic(bytes: Option<u64>) -> String {
+    bytes
+        .map(format_byte_count)
+        .unwrap_or_else(|| "—".to_owned())
+}
+
 /// The word the state line shows. The typed tri-state, spelled out
 /// (zh-CN literals — see the module copy note).
 fn state_label(state: OverviewState) -> &'static str {
@@ -427,8 +445,10 @@ fn chip_label(kind: OverviewChipKind) -> &'static str {
     match kind {
         OverviewChipKind::Connections => "连接数",
         OverviewChipKind::Memory => "内存",
+        OverviewChipKind::Cpu => "CPU",
         OverviewChipKind::Upload => "上传",
         OverviewChipKind::Download => "下载",
+        OverviewChipKind::TotalTraffic => "总流量",
     }
 }
 
@@ -1070,8 +1090,11 @@ fn plain_caption(label: String) -> impl Scene + use<> {
 fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Scene + use<> {
     let connections = projection.active_connections.to_string();
     let memory = format_memory(projection.memory_bytes);
+    let cpu = format_cpu(projection.cpu_percent);
     let upload = format_rate(projection.upload_bps);
     let download = format_rate(projection.download_bps);
+    let total = format_total_traffic(projection.total_traffic_bytes);
+
     let connections_node = stat_group_semantic_node(&format!(
         "{} {connections}",
         chip_label(OverviewChipKind::Connections)
@@ -1080,6 +1103,8 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
         "{} {memory}",
         chip_label(OverviewChipKind::Memory)
     ));
+    let cpu_node =
+        stat_group_semantic_node(&format!("{} {cpu}", chip_label(OverviewChipKind::Cpu)));
     let upload_node = stat_group_semantic_node(&format!(
         "{} {upload}",
         chip_label(OverviewChipKind::Upload)
@@ -1088,6 +1113,11 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
         "{} {download}",
         chip_label(OverviewChipKind::Download)
     ));
+    let total_node = stat_group_semantic_node(&format!(
+        "{} {total}",
+        chip_label(OverviewChipKind::TotalTraffic)
+    ));
+
     bsn! {
         Node {
             width: percent(100),
@@ -1111,6 +1141,11 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
                 template_value(memory_node)
             ),
             (
+                { stat_chip_scene(IconId::Settings, chip_label(OverviewChipKind::Cpu).to_owned(), cpu, palette) }
+                OverviewChip(OverviewChipKind::Cpu)
+                template_value(cpu_node)
+            ),
+            (
                 { stat_chip_scene(IconId::ArrowUp, chip_label(OverviewChipKind::Upload).to_owned(), upload, palette) }
                 OverviewChip(OverviewChipKind::Upload)
                 template_value(upload_node)
@@ -1119,6 +1154,11 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
                 { stat_chip_scene(IconId::ArrowDown, chip_label(OverviewChipKind::Download).to_owned(), download, palette) }
                 OverviewChip(OverviewChipKind::Download)
                 template_value(download_node)
+            ),
+            (
+                { stat_chip_scene(IconId::Globe, chip_label(OverviewChipKind::TotalTraffic).to_owned(), total, palette) }
+                OverviewChip(OverviewChipKind::TotalTraffic)
+                template_value(total_node)
             ),
         ]
     }
@@ -1376,8 +1416,10 @@ pub(crate) fn apply_overview_projection(
         let value = match chip.0 {
             OverviewChipKind::Connections => projection.active_connections.to_string(),
             OverviewChipKind::Memory => format_memory(projection.memory_bytes),
+            OverviewChipKind::Cpu => format_cpu(projection.cpu_percent),
             OverviewChipKind::Upload => format_rate(projection.upload_bps),
             OverviewChipKind::Download => format_rate(projection.download_bps),
+            OverviewChipKind::TotalTraffic => format_total_traffic(projection.total_traffic_bytes),
         };
         if let Some(mut node) = semantic {
             node.0.set_label(format!("{} {value}", chip_label(chip.0)));

@@ -170,6 +170,8 @@ python3 scripts/quality/overview-master-switch-guard.py --mode enforce
 python3 scripts/quality/proxy-mode-segment-guard.py --mode enforce
 # DUAL-03-09 全局一键并发测速按钮守卫
 python3 scripts/quality/overview-speedtest-guard.py --mode enforce
+# DUAL-03-10 核心资源 6 项运维网格守卫
+python3 scripts/quality/overview-metrics-grid-guard.py --mode enforce
 ```
 
 ---

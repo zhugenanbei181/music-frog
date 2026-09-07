@@ -654,6 +654,8 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
                 active_exit: Default::default(),
                 subscription_quota: Default::default(),
                 system_toggles: Default::default(),
+                cpu_percent: None,
+                total_traffic_bytes: None,
                 proxy_mode: Default::default(),
             }
         }

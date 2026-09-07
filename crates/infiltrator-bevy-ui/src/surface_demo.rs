@@ -91,7 +91,10 @@ pub(super) fn snapshot_from_overview(
         controller_auth: infiltrator_contract::controller::ControllerAuthSnapshot::default(),
         service_mode: infiltrator_contract::service_mode::ServiceModeSnapshot::default(),
         port_conflicts: infiltrator_contract::port_conflict::PortConflictSnapshot::default(),
-        resources: infiltrator_contract::resources::CoreResourceSnapshot::default(),
+        resources: infiltrator_contract::resources::CoreResourceSnapshot {
+            cpu_percent: Some(2.4),
+            ..Default::default()
+        },
         offline_startup: infiltrator_contract::offline_startup::OfflineStartupSnapshot::default(),
         mtu: infiltrator_contract::mtu::MtuNegotiationSnapshot::default(),
         system_proxy: if demo_pages {
@@ -155,7 +158,10 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         controller_auth: infiltrator_contract::controller::ControllerAuthSnapshot::default(),
         service_mode: infiltrator_contract::service_mode::ServiceModeSnapshot::default(),
         port_conflicts: infiltrator_contract::port_conflict::PortConflictSnapshot::default(),
-        resources: infiltrator_contract::resources::CoreResourceSnapshot::default(),
+        resources: infiltrator_contract::resources::CoreResourceSnapshot {
+            cpu_percent: Some(2.4),
+            ..Default::default()
+        },
         offline_startup: infiltrator_contract::offline_startup::OfflineStartupSnapshot::default(),
         mtu: infiltrator_contract::mtu::MtuNegotiationSnapshot::default(),
         system_proxy: demo_system_proxy(),

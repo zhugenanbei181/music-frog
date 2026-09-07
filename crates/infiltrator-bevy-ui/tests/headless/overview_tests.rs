@@ -76,6 +76,8 @@ impl OverviewSource for StubSource {
             active_exit: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
+            cpu_percent: None,
+            total_traffic_bytes: None,
             proxy_mode: Default::default(),
         }
     }
@@ -401,6 +403,8 @@ fn projection_updates_restamp_in_place() {
         active_exit: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
+        cpu_percent: None,
+        total_traffic_bytes: None,
         proxy_mode: Default::default(),
     };
     app.world_mut()
@@ -455,6 +459,8 @@ fn projection_updates_restamp_in_place() {
         active_exit: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
+        cpu_percent: None,
+        total_traffic_bytes: None,
         proxy_mode: Default::default(),
     };
     app.world_mut()
@@ -517,8 +523,10 @@ fn chips_carry_their_semantic_icon_plates() {
     let expected = [
         (OverviewChipKind::Connections, IconId::Activity),
         (OverviewChipKind::Memory, IconId::Zap),
+        (OverviewChipKind::Cpu, IconId::Settings),
         (OverviewChipKind::Upload, IconId::ArrowUp),
         (OverviewChipKind::Download, IconId::ArrowDown),
+        (OverviewChipKind::TotalTraffic, IconId::Globe),
     ];
     for (kind, want) in expected {
         let (chip_id, _) = mounted
@@ -721,6 +729,8 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         active_exit: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
+        cpu_percent: None,
+        total_traffic_bytes: None,
         proxy_mode: Default::default(),
     }
 }
@@ -959,6 +969,8 @@ impl OverviewSource for LiveFootStub {
             active_exit: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
+            cpu_percent: None,
+            total_traffic_bytes: None,
             proxy_mode: Default::default(),
         }
     }
@@ -1013,11 +1025,13 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         assert_eq!(node.role(), accesskit::Role::Group);
         labels.push((chip.0, node.label().expect("chip group label").to_owned()));
     }
-    assert_eq!(labels.len(), 4, "every chip carries one group node");
+    assert_eq!(labels.len(), 6, "every chip carries one group node");
     assert!(labels.contains(&(OverviewChipKind::Connections, "连接数 12".to_owned())));
     assert!(labels.contains(&(OverviewChipKind::Memory, "内存 96.00 MB".to_owned())));
+    assert!(labels.contains(&(OverviewChipKind::Cpu, "CPU 2.4%".to_owned())));
     assert!(labels.contains(&(OverviewChipKind::Upload, "上传 1.40 MB/s".to_owned())));
     assert!(labels.contains(&(OverviewChipKind::Download, "下载 8.60 MB/s".to_owned())));
+    assert!(labels.contains(&(OverviewChipKind::TotalTraffic, "总流量 98.32 MB".to_owned())));
 
     let mut lines = world.query::<(&OverviewLine, &AccessibilityNode)>();
     let (_, status) = lines
@@ -1045,6 +1059,8 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         active_exit: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
+        cpu_percent: None,
+        total_traffic_bytes: None,
         proxy_mode: Default::default(),
     };
     app.world_mut()
@@ -1130,7 +1146,7 @@ fn overview_page_chips_and_container_responsive_wrapping() {
 
     let mut chips = world.query::<(&OverviewChip, &bevy::ui::Node)>();
     let count = chips.iter(world).count();
-    assert_eq!(count, 4, "exactly four stat chips mounted");
+    assert_eq!(count, 6, "exactly six stat chips mounted");
 
     for (_, node) in chips.iter(world) {
         assert_eq!(
@@ -1567,4 +1583,24 @@ fn overview_speedtest_button_submits_test_all_proxy_groups() {
         .trigger(Activate { entity: button });
     app.update();
     assert!(sink.submitted().contains(&UiCommand::TestAllProxyGroups));
+}
+
+#[test]
+fn overview_six_item_metrics_grid_mounts_and_updates_in_place() {
+    let mut app = mounted_default();
+    let world = app.world_mut();
+    let mut chips_query = world.query::<&infiltrator_bevy_ui::pages::overview::OverviewChip>();
+    let chip_kinds: Vec<infiltrator_bevy_ui::pages::overview::OverviewChipKind> =
+        chips_query.iter(world).map(|c| c.0).collect();
+    assert_eq!(chip_kinds.len(), 6);
+    assert!(
+        chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::Connections)
+    );
+    assert!(chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::Memory));
+    assert!(chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::Cpu));
+    assert!(chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::Upload));
+    assert!(chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::Download));
+    assert!(
+        chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::TotalTraffic)
+    );
 }

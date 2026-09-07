@@ -113,6 +113,7 @@
 - `DUAL-03-07` 已完成 Overview `SystemToggleSnapshot` fan-out、Iced `overview_master_switches`、Bevy `OverviewMasterSwitchButton`/Activate observer、两端动态 status/action restamp 与 shared policy command sink 行为测试；真实桌面权限、Android VPN 原生联动、触控和发行包 smoke 仍未冒充 `host-verified`。
 - `DUAL-03-08` 已完成 Overview `ProxyModeSnapshot`、`ProxyModeApplication`、Iced `overview_mode_segment`、Bevy `OverviewModeSegmentPill`/Activate observer、两端四态分段控制与 shared policy intent 行为测试；真实控制器回读与发行包 smoke 仍未冒充 `host-verified`。
 - `DUAL-03-09` 已完成 Overview 全局一键测速按钮、Iced `overview_speedtest_button`、Bevy `OverviewSpeedtestButton`/Activate observer、两端测速防重入与 shared intent 派发测试；真实并发网络测速与发行包 smoke 仍未冒充 `host-verified`。
+- `DUAL-03-10` 已完成 Overview 6 项运维网格、Iced 6 瓦片 `stats_grid`、Bevy `OverviewChipKind`（Connections/Memory/Cpu/Upload/Download/TotalTraffic）与原地刷新测试；真实长时高吞吐与多会话统计仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

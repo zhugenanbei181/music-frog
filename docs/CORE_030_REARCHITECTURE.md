@@ -51,6 +51,7 @@
 - [x] `DUAL-03-07`：Overview 系统代理/TUN 主控大卡直接消费 `SystemToggleSnapshot`；`SystemToggleApplication` 统一 action policy，Iced/Bevy 只把各自手势适配为相同的 `SetSystemProxy`/`ToggleTun` intent，未知/不可用状态不允许误下发。
 - [x] `DUAL-03-08`：代理运行模式分段器进入 `ProxyModeSnapshot`/`ProxyModeApplication`；四态模式 Rule/Global/Direct/Script 经由 application policy 校验与 Script 门控守卫，Iced/Bevy 共用同一 `SetProxyMode` intent 与四态高亮滑动胶囊。
 - [x] `DUAL-03-09`：全局一键并发测速按钮集成于概览页头部；Bevy 使用 `OverviewSpeedtestButton` 派发 `UiCommand::TestAllProxyGroups`，Iced 使用 `overview_speedtest_button` 派发 `Message::TestAllProxyDelays`，两端均对等具备运行中防重入与状态回显。
+- [x] `DUAL-03-10`：核心运维指标扩充为 6 项网格；Bevy `OverviewChipKind::Cpu`/`OverviewChipKind::TotalTraffic` 与 Iced `stats_grid` 同步覆盖连接、内存、CPU、上行、下行与总流量，支持响应式布局与原地更新。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

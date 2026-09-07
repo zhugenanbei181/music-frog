@@ -298,11 +298,23 @@ fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         .as_ref()
         .map(|traffic| format!("{}/s", crate::utils::format_bytes(traffic.up)))
         .unwrap_or_else(|| "—".to_string());
+    let cpu = state
+        .runtime
+        .core_resources
+        .cpu_percent
+        .map(|p| format!("{:.1}%", p))
+        .unwrap_or_else(|| "—".to_string());
     let download = state
         .diag
         .traffic
         .as_ref()
         .map(|traffic| format!("{}/s", crate::utils::format_bytes(traffic.down)))
+        .unwrap_or_else(|| "—".to_string());
+    let total = state
+        .diag
+        .connections
+        .as_ref()
+        .map(|c| crate::utils::format_bytes(c.download_total + c.upload_total))
         .unwrap_or_else(|| "—".to_string());
 
     row![
@@ -318,6 +330,7 @@ fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
             memory,
             |t| tokens(t).warning
         ),
+        metric_tile(Icon::Zap, "CPU".to_string(), cpu, |t| tokens(t).accent),
         metric_tile(
             Icon::ArrowUp,
             lang.tr("overview_upload").to_string(),
@@ -330,6 +343,8 @@ fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
             download,
             |t| tokens(t).accent
         ),
+        metric_tile(Icon::Globe, "总流量".to_string(), total, |t| tokens(t)
+            .success),
     ]
     .spacing(theme::SP_MD)
     .width(Length::Fill)
