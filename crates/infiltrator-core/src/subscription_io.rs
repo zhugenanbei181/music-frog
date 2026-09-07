@@ -15,7 +15,9 @@ use infiltrator_domain::subscription::{
 use infiltrator_http::HttpClient;
 use infiltrator_http::reqwest::{Response, header::HeaderMap};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::subscription_source::{SubscriptionDocument, SubscriptionSource};
+use infiltrator_ports::subscription_source::{
+    ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
+};
 
 /// 订阅本质上是配置文件；上限只为拦截把下载接口当无限代理用的滥用。
 const MAX_SUBSCRIPTION_BYTES: usize = 32 * 1024 * 1024;
@@ -60,6 +62,181 @@ impl SubscriptionSource for HttpSubscriptionSource {
                 .map_err(|error| PortError::Io(error.to_string()))?;
         Ok(SubscriptionDocument { content, userinfo })
     }
+
+    async fn fetch_conditional(
+        &self,
+        profile: &str,
+        url: &CheckedSubscriptionUrl,
+        headers: &ConditionalFetchHeaders,
+    ) -> Result<ConditionalDocumentResult, PortError> {
+        let res = fetch_subscription_conditional(&self.client, &self.raw_client, url, headers)
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))?;
+        match res {
+            ConditionalDocumentResultIntermediate::NotModified {
+                userinfo,
+                etag,
+                last_modified,
+            } => Ok(ConditionalDocumentResult::NotModified {
+                userinfo,
+                etag,
+                last_modified,
+            }),
+            ConditionalDocumentResultIntermediate::Modified {
+                text,
+                userinfo,
+                etag,
+                last_modified,
+            } => {
+                let content = strip_utf8_bom(&text);
+                let (content, _report) =
+                    crate::profile_options_io::apply_saved_options_for(profile, content)
+                        .await
+                        .map_err(|error| PortError::Io(error.to_string()))?;
+                Ok(ConditionalDocumentResult::Modified {
+                    document: SubscriptionDocument { content, userinfo },
+                    etag,
+                    last_modified,
+                })
+            }
+        }
+    }
+}
+
+enum ConditionalDocumentResultIntermediate {
+    Modified {
+        text: String,
+        userinfo: Option<SubscriptionUserInfo>,
+        etag: Option<String>,
+        last_modified: Option<String>,
+    },
+    NotModified {
+        userinfo: Option<SubscriptionUserInfo>,
+        etag: Option<String>,
+        last_modified: Option<String>,
+    },
+}
+
+async fn fetch_subscription_conditional(
+    client: &HttpClient,
+    raw_client: &HttpClient,
+    url: &CheckedSubscriptionUrl,
+    headers: &ConditionalFetchHeaders,
+) -> Result<ConditionalDocumentResultIntermediate> {
+    let mut req = client.get(url.as_str());
+    if let Some(ref ua) = headers.custom_user_agent {
+        req = req.header("User-Agent", ua.as_str());
+    }
+    if let Some(ref etag) = headers.etag {
+        req = req.header("If-None-Match", etag.as_str());
+    }
+    if let Some(ref ims) = headers.if_modified_since {
+        req = req.header("If-Modified-Since", ims.as_str());
+    }
+
+    let mut resp = req.send().await?;
+    if resp.status().as_u16() == 304 {
+        let userinfo = resp
+            .headers()
+            .get("subscription-userinfo")
+            .and_then(|v| v.to_str().ok())
+            .and_then(parse_subscription_userinfo);
+        let etag = resp
+            .headers()
+            .get("etag")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
+        let last_modified = resp
+            .headers()
+            .get("last-modified")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
+        return Ok(ConditionalDocumentResultIntermediate::NotModified {
+            userinfo,
+            etag,
+            last_modified,
+        });
+    }
+
+    if !resp.status().is_success() {
+        let mut raw_req = raw_client.get(url.as_str());
+        if let Some(ref ua) = headers.custom_user_agent {
+            raw_req = raw_req.header("User-Agent", ua.as_str());
+        }
+        if let Some(ref etag) = headers.etag {
+            raw_req = raw_req.header("If-None-Match", etag.as_str());
+        }
+        if let Some(ref ims) = headers.if_modified_since {
+            raw_req = raw_req.header("If-Modified-Since", ims.as_str());
+        }
+        resp = raw_req.send().await?;
+    }
+
+    if resp.status().as_u16() == 304 {
+        let userinfo = resp
+            .headers()
+            .get("subscription-userinfo")
+            .and_then(|v| v.to_str().ok())
+            .and_then(parse_subscription_userinfo);
+        let etag = resp
+            .headers()
+            .get("etag")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
+        let last_modified = resp
+            .headers()
+            .get("last-modified")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
+        return Ok(ConditionalDocumentResultIntermediate::NotModified {
+            userinfo,
+            etag,
+            last_modified,
+        });
+    }
+
+    if !resp.status().is_success() {
+        let status = resp.status().as_u16();
+        let diag = WafChallengeDetector::inspect_response(status, resp.headers(), "");
+        if diag.is_challenge {
+            return Err(anyhow!("订阅请求被拦截 [{}]: {}", status, diag.summary));
+        }
+        return Err(anyhow!("订阅链接请求失败: HTTP {}", resp.status()));
+    }
+
+    let etag = resp
+        .headers()
+        .get("etag")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    let last_modified = resp
+        .headers()
+        .get("last-modified")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    let userinfo = resp
+        .headers()
+        .get("subscription-userinfo")
+        .and_then(|v| v.to_str().ok())
+        .and_then(parse_subscription_userinfo);
+
+    let encoding = content_encoding(resp.headers());
+    let bytes = read_body_capped(resp).await?;
+    let decoded_bytes = decode_subscription_bytes(bytes, encoding)?;
+    let text = String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
+
+    if infiltrator_domain::subscription::WafChallengeDetector::is_html_disguised(&text) {
+        return Err(anyhow!(
+            "订阅返回了 HTML 网页内容而非节点配置，可能已被防爬/5秒盾拦截或套餐已过期"
+        ));
+    }
+
+    Ok(ConditionalDocumentResultIntermediate::Modified {
+        text,
+        userinfo,
+        etag,
+        last_modified,
+    })
 }
 
 /// Fetch the subscription text through the normal client and retry once with

@@ -430,6 +430,7 @@ external-controller: http://127.0.0.1:9090
             traffic_download: None,
             traffic_total: None,
             expire_at: None,
+            ..Default::default()
         };
 
         let result = manager

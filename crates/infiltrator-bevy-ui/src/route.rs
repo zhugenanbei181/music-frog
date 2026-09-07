@@ -48,12 +48,12 @@ use crate::pages::settings::{SettingsProjectionUpdated, settings_page};
 use crate::pages::sync::{SyncProjectionUpdated, sync_page};
 use crate::projection::{OverviewProjection, OverviewSource, SourceKind};
 use crate::surface::{
-    DemoSurfaceSource, LatestSurfaceSnapshot, LegacyOverviewSurfaceSource, SurfaceOverviewAdapter,
-    LatestCoreLifecycle, SurfaceSnapshotUpdated, SurfaceSource, UnavailableSurfaceSource,
-    app_routing_projection, core_lifecycle_projection,
-    connections_projection, dns_projection, doctor_projection, logs_projection,
-    overview_projection, profiles_projection, proxies_projection, rules_projection,
-    settings_projection, status_banner_scene, sync_projection,
+    DemoSurfaceSource, LatestCoreLifecycle, LatestSurfaceSnapshot, LegacyOverviewSurfaceSource,
+    SurfaceOverviewAdapter, SurfaceSnapshotUpdated, SurfaceSource, UnavailableSurfaceSource,
+    app_routing_projection, connections_projection, core_lifecycle_projection, dns_projection,
+    doctor_projection, logs_projection, overview_projection, profiles_projection,
+    proxies_projection, rules_projection, settings_projection, status_banner_scene,
+    sync_projection,
 };
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
 

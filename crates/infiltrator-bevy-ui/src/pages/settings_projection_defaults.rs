@@ -1,14 +1,12 @@
 //! Default shared Settings projection used by demo and empty compositions.
 
 use super::settings_core::SettingsProjection;
-use infiltrator_contract::version::CoreVersionSnapshot;
-use infiltrator_contract::system_proxy::{
-    SystemProxyRecoverySnapshot, SystemProxySnapshot,
-};
 use infiltrator_contract::network_roaming::{
-    NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent,
-    NetworkRoamingSnapshot, NetworkRoamingStatus,
+    NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
+    NetworkRoamingStatus,
 };
+use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
+use infiltrator_contract::version::CoreVersionSnapshot;
 
 impl SettingsProjection {
     pub fn demo() -> Self {

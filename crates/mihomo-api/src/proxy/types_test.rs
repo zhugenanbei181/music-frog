@@ -203,6 +203,64 @@ mod tests {
     }
 
     #[test]
+    fn five_group_classifications_are_all_recognized() {
+        let json = r#"{
+            "proxies": {
+                "SelectorGroup": {
+                    "type": "Selector",
+                    "name": "SelectorGroup",
+                    "now": "Node-1",
+                    "all": ["Node-1", "Node-2"],
+                    "history": []
+                },
+                "UrlTestGroup": {
+                    "type": "URLTest",
+                    "name": "UrlTestGroup",
+                    "now": "Node-1",
+                    "all": ["Node-1", "Node-2"],
+                    "history": []
+                },
+                "FallbackGroup": {
+                    "type": "Fallback",
+                    "name": "FallbackGroup",
+                    "now": "Node-1",
+                    "all": ["Node-1", "Node-2"],
+                    "history": []
+                },
+                "LoadBalanceGroup": {
+                    "type": "LoadBalance",
+                    "name": "LoadBalanceGroup",
+                    "now": "Node-1",
+                    "all": ["Node-1", "Node-2"],
+                    "history": []
+                },
+                "RelayGroup": {
+                    "type": "Relay",
+                    "name": "RelayGroup",
+                    "now": "Node-1",
+                    "all": ["Node-1", "Node-2"],
+                    "history": []
+                }
+            }
+        }"#;
+        let resp: ProxiesResponse = serde_json::from_str(json).unwrap();
+        for (name, expected_type) in [
+            ("SelectorGroup", "Selector"),
+            ("UrlTestGroup", "URLTest"),
+            ("FallbackGroup", "Fallback"),
+            ("LoadBalanceGroup", "LoadBalance"),
+            ("RelayGroup", "Relay"),
+        ] {
+            let p = resp.proxies.get(name).unwrap_or_else(|| panic!("missing group {name}"));
+            assert!(p.is_group(), "{name} must be recognized as group");
+            assert_eq!(p.proxy_type(), expected_type);
+            assert_eq!(p.name(), name);
+            assert_eq!(p.now(), Some("Node-1"));
+            assert_eq!(p.all().unwrap().len(), 2);
+        }
+    }
+
+    #[test]
     fn non_group_proxy_returns_none_for_group_accessors() {
         // 普通节点不应返回 now / all，防止调用方错误地把节点当组用
         let json = r#"{

@@ -47,15 +47,17 @@ use infiltrator_bevy_ui::pages::sync::{
 };
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
+use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
+use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
+use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
+use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::service_mode::{
+    ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
+};
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
     CoreReleaseChannel, CoreVersionSnapshot,
 };
-use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
-use infiltrator_contract::service_mode::{ServiceModePlatform, ServiceModeSnapshot, ServiceModeState};
-use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
-use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
-use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
 
 fn create_test_app() -> App {
     let mut app = App::new();

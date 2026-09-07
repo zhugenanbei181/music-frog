@@ -21,6 +21,7 @@ use bevy::text::TextColor;
 use bevy::ui::prelude::{BackgroundColor, BorderColor, Display, Node, UiRect, Val, px};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
+use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual, PillLabel};
 use infiltrator_bevy_widgets::icon::IconTint;
@@ -30,7 +31,6 @@ use infiltrator_bevy_widgets::responsive::{Density, DensitySwitch, ResponsiveCon
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Breakpoint, LightDark, Theme, space};
-use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_contract::system_toggle::SystemToggle;
 
 use crate::command::{CommandSinkHandle, UiCommand};
@@ -128,9 +128,7 @@ impl Default for ShellLayoutState {
 /// PagesPlugin replaces it from each accepted SurfaceSnapshot; ShellPlugin
 /// alone starts in `Unknown` and therefore renders non-actionable controls.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
-pub struct SidebarToggleProjection(
-    pub infiltrator_contract::system_toggle::SystemToggleSnapshot,
-);
+pub struct SidebarToggleProjection(pub infiltrator_contract::system_toggle::SystemToggleSnapshot);
 
 /// Marker for the content region product pages mount into.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -384,17 +382,8 @@ fn on_sidebar_system_proxy_activated(
     if toggles.get(activate.entity).is_err() {
         return;
     }
-    let desired = !projection
-        .0
-        .state(SystemToggle::SystemProxy)
-        .is_enabled();
-    if SystemToggleApplication::intent(
-        &projection.0,
-        SystemToggle::SystemProxy,
-        desired,
-    )
-    .is_err()
-    {
+    let desired = !projection.0.state(SystemToggle::SystemProxy).is_enabled();
+    if SystemToggleApplication::intent(&projection.0, SystemToggle::SystemProxy, desired).is_err() {
         return;
     }
     let Some(handle) = handle else {
@@ -429,7 +418,10 @@ fn on_sidebar_tun_activated(
     };
     handle.submit(UiCommand::ToggleTun { enabled: desired });
     commands.insert_resource(SidebarToggleProjection(
-        projection.0.clone().with_pending(SystemToggle::Tun, desired),
+        projection
+            .0
+            .clone()
+            .with_pending(SystemToggle::Tun, desired),
     ));
 }
 

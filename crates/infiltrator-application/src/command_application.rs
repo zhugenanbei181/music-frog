@@ -64,6 +64,8 @@ pub struct CommandApplication {
     network_roaming: Option<NetworkRoamingApplication>,
     vpn: Option<VpnServiceApplication>,
     privileged_network: Option<PrivilegedNetworkApplication>,
+    speedtest: Option<crate::speedtest_application::SpeedtestApplication>,
+    proxy_preferences: Option<crate::proxy_preferences_application::ProxyPreferencesApplication>,
 }
 
 impl CommandApplication {
@@ -169,6 +171,19 @@ impl CommandApplication {
         self
     }
 
+    pub fn with_speedtest(mut self, speedtest: crate::speedtest_application::SpeedtestApplication) -> Self {
+        self.speedtest = Some(speedtest);
+        self
+    }
+
+    pub fn with_proxy_preferences(
+        mut self,
+        preferences: crate::proxy_preferences_application::ProxyPreferencesApplication,
+    ) -> Self {
+        self.proxy_preferences = Some(preferences);
+        self
+    }
+
     pub async fn execute(&self, intent: CommandIntent) -> Result<(), Failure> {
         match intent {
             CommandIntent::SwitchProfile { profile_id } => {
@@ -187,18 +202,86 @@ impl CommandApplication {
                 .switch_proxy(&group, &node)
                 .await
                 .map_err(Failure::from),
-            CommandIntent::TestDelay { group } => {
+            CommandIntent::ToggleProxyGroupExpand { group } => {
+                if let Some(prefs) = &self.proxy_preferences {
+                    prefs.toggle_group_expand(&group);
+                }
+                Ok(())
+            }
+            CommandIntent::SetProxyGroupExpanded { group, expanded } => {
+                if let Some(prefs) = &self.proxy_preferences {
+                    prefs.set_group_expanded(&group, expanded);
+                }
+                Ok(())
+            }
+            CommandIntent::SetProxySortOrder { order } => {
+                if let Some(prefs) = &self.proxy_preferences {
+                    prefs.set_sort_order(order);
+                }
+                Ok(())
+            }
+            CommandIntent::ToggleFilterAlive { enabled } => {
+                if let Some(prefs) = &self.proxy_preferences {
+                    prefs.set_filter_alive(enabled);
+                }
+                Ok(())
+            }
+            CommandIntent::ToggleFavoriteProxy { proxy } => {
+                if let Some(prefs) = &self.proxy_preferences {
+                    prefs.toggle_favorite(&proxy);
+                }
+                Ok(())
+            }
+            CommandIntent::SetProxyCompactView { compact } => {
+                if let Some(prefs) = &self.proxy_preferences {
+                    prefs.set_compact_view(compact);
+                }
+                Ok(())
+            }
+            CommandIntent::ReorderProxyGroups { group_names } => {
+                if let Some(prefs) = &self.proxy_preferences {
+                    prefs.reorder_groups(group_names);
+                }
+                Ok(())
+            }
+            CommandIntent::ResetProxyGroupOrder => {
+                if let Some(prefs) = &self.proxy_preferences {
+                    prefs.reset_group_order();
+                }
+                Ok(())
+            }
+            CommandIntent::TestDelay { group, url, timeout_ms } => {
+                if let Ok(speedtest) = self.speedtest() {
+                    let scope = match group {
+                        Some(g) => infiltrator_contract::speedtest::SpeedtestScope::SingleGroup(g),
+                        None => infiltrator_contract::speedtest::SpeedtestScope::AllGroups,
+                    };
+                    speedtest.test_delays(scope, url, timeout_ms).await?;
+                    return Ok(());
+                }
                 let runtime = self.runtime()?;
                 let proxies = runtime.get_proxies().await.map_err(Failure::from)?;
                 let candidates = delay_candidates(&proxies, group.as_deref())?;
+                let test_url = url.unwrap_or_else(|| DEFAULT_DELAY_TEST_URL.to_string());
+                let timeout = timeout_ms.unwrap_or(DEFAULT_DELAY_TIMEOUT_MS);
                 let _ = crate::proxy_application::test_proxy_delays(
                     runtime,
                     candidates,
-                    DEFAULT_DELAY_TEST_URL.to_string(),
-                    DEFAULT_DELAY_TIMEOUT_MS,
+                    test_url,
+                    timeout,
                     DEFAULT_DELAY_CONCURRENCY,
                 )
                 .await;
+                Ok(())
+            }
+            CommandIntent::RunSpeedtest { node, url } => {
+                let speedtest = self.speedtest()?;
+                speedtest.probe_node_jitter(&node, 5, url, None).await?;
+                Ok(())
+            }
+            CommandIntent::CancelSpeedtest => {
+                let speedtest = self.speedtest()?;
+                speedtest.cancel();
                 Ok(())
             }
             CommandIntent::UpdateProfile { profile_id } => {
@@ -450,7 +533,9 @@ impl CommandApplication {
             | CommandIntent::ToggleIncludeSystemApps { .. }
             | CommandIntent::ResolveConflictKeepLocal
             | CommandIntent::ResolveConflictTakeRemote
-            => Err(unsupported()),
+            | CommandIntent::SimulateRuleTrace { .. }
+            | CommandIntent::ResetRuleHitCounters
+            | CommandIntent::UnpackRuleProvider { .. } => Err(unsupported()),
         }
     }
 
@@ -585,6 +670,10 @@ impl CommandApplication {
             Failure::unsupported("privileged network regression is not configured for this host")
         })
     }
+
+    fn speedtest(&self) -> Result<crate::speedtest_application::SpeedtestApplication, Failure> {
+        self.speedtest.clone().ok_or_else(|| missing("speedtest application"))
+    }
 }
 
 impl CommandHandler for CommandApplication {
@@ -604,10 +693,7 @@ fn delay_candidates(
 ) -> Result<Vec<String>, Failure> {
     let candidates = match group {
         Some(group) => match proxies.get(group) {
-            Some(Proxy::Selector(value))
-            | Some(Proxy::URLTest(value))
-            | Some(Proxy::Fallback(value))
-            | Some(Proxy::LoadBalance(value)) => value.all.clone(),
+            Some(proxy) if proxy.is_group() => proxy.all().unwrap_or_default().to_vec(),
             Some(_) => {
                 return Err(Failure::new(
                     ErrorCode::InvalidInput,
@@ -625,16 +711,7 @@ fn delay_candidates(
         },
         None => proxies
             .values()
-            .filter(|proxy| {
-                !matches!(
-                    proxy,
-                    Proxy::Selector(_)
-                        | Proxy::URLTest(_)
-                        | Proxy::Fallback(_)
-                        | Proxy::LoadBalance(_)
-                        | Proxy::Unknown
-                )
-            })
+            .filter(|proxy| !proxy.is_group() && !matches!(proxy, Proxy::Unknown))
             .map(|proxy| proxy.name().to_string())
             .filter(|name| !name.is_empty())
             .collect(),

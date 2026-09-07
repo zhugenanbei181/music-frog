@@ -109,6 +109,8 @@ pub struct OverviewProjection {
     pub subscription_quota: infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot,
     /// Shared system proxy/TUN state used by Overview master controls.
     pub system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot,
+    /// Shared proxy mode snapshot used by Overview mode segment controls.
+    pub proxy_mode: infiltrator_contract::proxy_mode::ProxyModeSnapshot,
 }
 
 impl OverviewProjection {
@@ -133,6 +135,7 @@ impl OverviewProjection {
             active_exit: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
+            proxy_mode: Default::default(),
         }
     }
 
@@ -270,10 +273,17 @@ impl OverviewSource for DemoOverviewSource {
             core_version: None,
             traffic_waveform: Default::default(),
             traffic_scale: Default::default(),
-            traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture(),
+            traffic_topology:
+                infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture(),
             active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot::demo_fixture(),
-            subscription_quota: infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::demo_fixture(),
-            system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(true, Some(false), 1),
+            subscription_quota:
+                infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::demo_fixture(),
+            system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
+                true,
+                Some(false),
+                1,
+            ),
+            proxy_mode: infiltrator_contract::proxy_mode::ProxyModeSnapshot::demo_fixture(),
         }
     }
 

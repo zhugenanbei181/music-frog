@@ -281,6 +281,7 @@ pub(super) fn demo_profiles() -> Vec<ProfileInfo> {
             traffic_download: Some(94_225_183_607),
             traffic_total: Some(322_122_547_200),
             expire_at: Some(1_811_395_200),
+            ..Default::default()
         },
         ProfileInfo {
             name: "本地配置".to_string(),
@@ -297,6 +298,7 @@ pub(super) fn demo_profiles() -> Vec<ProfileInfo> {
             traffic_download: None,
             traffic_total: None,
             expire_at: None,
+            ..Default::default()
         },
         ProfileInfo {
             name: "备用线路".to_string(),
@@ -313,6 +315,7 @@ pub(super) fn demo_profiles() -> Vec<ProfileInfo> {
             traffic_download: None,
             traffic_total: None,
             expire_at: None,
+            ..Default::default()
         },
     ]
 }

@@ -119,11 +119,15 @@ pub(super) fn snapshot_from_overview(
                 1,
                 "privileged network regression is a host-test capability",
             ),
-        traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot::default(),
+        traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot::default(
+        ),
         traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot::default(),
         traffic_topology: overview.traffic_topology.clone(),
         active_exit: overview.active_exit.clone(),
         subscription_quota: overview.subscription_quota.clone(),
+        yaml_ast_diff: None,
+        script_sandbox: None,
+        speedtest: infiltrator_contract::speedtest::SpeedtestSnapshot::default(),
     }
 }
 
@@ -167,11 +171,15 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
                 1,
                 "privileged network regression is a host-test capability",
             ),
-        traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot::default(),
+        traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot::default(
+        ),
         traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot::default(),
         traffic_topology: overview.traffic_topology.clone(),
         active_exit: overview.active_exit.clone(),
         subscription_quota: overview.subscription_quota.clone(),
+        yaml_ast_diff: None,
+        script_sandbox: None,
+        speedtest: infiltrator_contract::speedtest::SpeedtestSnapshot::default(),
     }
 }
 
@@ -307,7 +315,7 @@ pub(crate) fn empty_sync() -> SyncProjection {
 pub(crate) fn empty_settings() -> SettingsProjection {
     SettingsProjection {
         autostart: false,
-            system_proxy: false,
+        system_proxy: false,
         system_proxy_snapshot: Default::default(),
         system_proxy_recovery: Default::default(),
         mixed_port: 0,
@@ -320,9 +328,9 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         vpn: Default::default(),
         privileged_network: Default::default(),
         tun_enabled: false,
-            tun_stack: String::new(),
-            tun_auto_route: false,
-            tun_strict_route: false,
+        tun_stack: String::new(),
+        tun_auto_route: false,
+        tun_strict_route: false,
         controller_port: 0,
         log_level: String::new(),
         core_channel: String::new(),
@@ -345,7 +353,11 @@ impl From<ProxiesProjection> for surface_snapshot::ProxiesPageSnapshot {
                 .into_iter()
                 .map(|group| surface_snapshot::ProxyGroupSnapshot {
                     name: group.name,
-                    group_type: group.group_type,
+                    group_type: group.group_type.clone(),
+                    classification:
+                        infiltrator_contract::proxies::ProxyGroupClassification::from_str_loose(
+                            &group.group_type,
+                        ),
                     current: group.current,
                     expanded: group.expanded,
                     proxies: group
@@ -364,6 +376,9 @@ impl From<ProxiesProjection> for surface_snapshot::ProxiesPageSnapshot {
                 .collect(),
             testing: value.testing,
             active_exit: value.active_exit,
+            filter_alive: Default::default(),
+            sort_order: Default::default(),
+            compact_view: false,
         }
     }
 }
@@ -415,8 +430,12 @@ impl From<RulesProjection> for surface_snapshot::RulesPageSnapshot {
                     payload: rule.payload,
                     proxy: rule.proxy,
                     hit_count: rule.hit_count,
+                    ..Default::default()
                 })
                 .collect(),
+            tracer: Default::default(),
+            mrs_acceleration: Default::default(),
+            total_hits: 0,
         }
     }
 }

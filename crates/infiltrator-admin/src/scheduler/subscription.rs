@@ -6,11 +6,12 @@ use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use std::sync::Arc;
 use tokio::task::JoinSet;
-use tokio::time::{Duration, sleep};
+use tokio::time::sleep;
 
 use crate::admin_api::state::AdminApiContext;
 use infiltrator_domain::redact::redact_line;
 use infiltrator_domain::subscription::mask_subscription_url;
+use infiltrator_domain::subscription_scheduler_policy::{RetryBackoffPolicy, SubscriptionSchedule};
 
 #[derive(Clone, Debug, Default)]
 pub struct SubscriptionUpdateSummary {
@@ -281,27 +282,29 @@ async fn update_profile_subscription_with_retry(
     application: &ProfileApplication,
     source: &dyn SubscriptionSource,
     profile_name: &str,
-    max_attempts: usize,
+    _max_attempts: usize,
 ) -> anyhow::Result<bool> {
+    // Step 5: Network retry and exponential backoff (30s, 1m, 5m)
+    let policy = if cfg!(test) {
+        RetryBackoffPolicy::test_immediate()
+    } else {
+        RetryBackoffPolicy::default()
+    };
     let mut attempt = 0usize;
-    let mut delay = Duration::from_secs(2);
     loop {
         attempt += 1;
         match update_profile_subscription(application, source, profile_name).await {
             Ok(needs_rebuild) => return Ok(needs_rebuild),
             Err(err) => {
-                if attempt >= max_attempts {
+                if let Some(delay) = policy.delay_for_attempt(attempt) {
+                    warn!(
+                        "subscription update retry: profile={} attempt={} delay={:?} err={:#}",
+                        profile_name, attempt, delay, err
+                    );
+                    sleep(delay).await;
+                } else {
                     return Err(err);
                 }
-                warn!(
-                    "subscription update retry: profile={} attempt={} err={:#}",
-                    profile_name, attempt, err
-                );
-                sleep(delay).await;
-                delay = delay
-                    .checked_mul(2)
-                    .unwrap_or(delay)
-                    .min(Duration::from_secs(30));
             }
         }
     }
@@ -313,11 +316,17 @@ pub(crate) async fn schedule_next_attempt(
     interval_hours: u32,
     now: chrono::DateTime<Utc>,
 ) -> anyhow::Result<()> {
-    let next_update = now + chrono::Duration::hours(interval_hours as i64);
     let mut updated = application
         .load_metadata(profile_name)
         .await
         .map_err(|failure| anyhow!(failure.message))?;
+    let next_update = SubscriptionSchedule::from_metadata(
+        Some(interval_hours),
+        updated.cron_expression.as_deref(),
+    )
+    .ok()
+    .and_then(|sched| sched.next_run(now))
+    .unwrap_or_else(|| now + chrono::Duration::hours(interval_hours as i64));
     updated.next_update = Some(next_update);
     application
         .update_metadata(profile_name, &updated)

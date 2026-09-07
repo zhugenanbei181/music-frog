@@ -42,24 +42,24 @@ use crate::route::{PageRoot, Route};
 
 #[path = "settings_core.rs"]
 pub mod settings_core;
-#[path = "settings_tun.rs"]
-mod settings_tun;
-#[path = "settings_system.rs"]
-pub mod settings_system;
-#[path = "settings_lan.rs"]
-pub mod settings_lan;
 #[path = "settings_ipv6.rs"]
 pub mod settings_ipv6;
-#[path = "settings_pac.rs"]
-pub mod settings_pac;
+#[path = "settings_lan.rs"]
+pub mod settings_lan;
 #[path = "settings_network_roaming.rs"]
 pub mod settings_network_roaming;
-#[path = "settings_vpn.rs"]
-pub mod settings_vpn;
+#[path = "settings_pac.rs"]
+pub mod settings_pac;
 #[path = "settings_privileged_network.rs"]
 pub mod settings_privileged_network;
 #[path = "settings_projection_defaults.rs"]
 mod settings_projection_defaults;
+#[path = "settings_system.rs"]
+pub mod settings_system;
+#[path = "settings_tun.rs"]
+mod settings_tun;
+#[path = "settings_vpn.rs"]
+pub mod settings_vpn;
 
 use settings_core::{
     CoreLogLevelButton, SettingsLine, SettingsLineKind, SettingsProjection, TunStackButton,
@@ -723,64 +723,64 @@ pub(crate) fn apply_settings_projection(
     for (mut text, line, rollback_label, service_label) in &mut lines {
         if let Some(line) = line {
             match line.0 {
-            SettingsLineKind::Summary => {
-                text.0 = "系统与内核全局设置 · 统一策略中枢".to_owned();
-            }
-            SettingsLineKind::OfflineStartup => {
-                text.0 = settings_core::format_offline_startup(&projection.offline_startup);
-            }
-            SettingsLineKind::MixedPort => {
-                text.0 = format!("端口: {}", projection.mixed_port);
-            }
-            SettingsLineKind::LanBindAddress => {
-                text.0 = projection.lan_bind_address.clone();
-            }
-            SettingsLineKind::LanSecurity => {
-                text.0 = settings_lan::format_auth_status(&projection.lan_security);
-            }
-            SettingsLineKind::Ipv6Routing => {}
-            SettingsLineKind::TunStack => {
-                text.0 = projection.tun_stack.clone();
-            }
-            SettingsLineKind::ControllerPort => {
-                text.0 = format!("127.0.0.1:{}", projection.controller_port);
-            }
-            SettingsLineKind::LogLevel => {
-                text.0 = projection.log_level.to_uppercase();
-            }
-            SettingsLineKind::CoreChannel => {
-                text.0 = format!("内核通道: {}", projection.core_channel);
-            }
-            SettingsLineKind::CoreVersions => {
-                text.0 = settings_core::format_core_versions(&projection.core_versions);
-            }
-            SettingsLineKind::CoreIntegrity => {
-                text.0 = settings_core::format_integrity(&projection.core_integrity);
-            }
-            SettingsLineKind::CoreRollback => {
-                text.0 = settings_core::format_rollback_target(&projection.core_versions);
-            }
-            SettingsLineKind::ControllerAuth => {
-                text.0 = settings_core::format_controller_auth(&projection.controller_auth);
-            }
-            SettingsLineKind::SystemProxy => {
-                text.0 = settings_system::format_status(
-                    &projection.system_proxy_snapshot,
-                    &projection.system_proxy_recovery,
-                );
-            }
-            SettingsLineKind::ServiceMode => {
-                text.0 = settings_core::format_service_mode(&projection.service_mode);
-            }
-            SettingsLineKind::PortConflicts => {
-                text.0 = settings_core::format_port_conflicts(&projection.port_conflicts);
-            }
-            SettingsLineKind::CoreResources => {
-                text.0 = settings_core::format_core_resources(&projection.core_resources);
-            }
-            SettingsLineKind::Mtu => {
-                text.0 = settings_core::format_mtu(&projection.mtu);
-            }
+                SettingsLineKind::Summary => {
+                    text.0 = "系统与内核全局设置 · 统一策略中枢".to_owned();
+                }
+                SettingsLineKind::OfflineStartup => {
+                    text.0 = settings_core::format_offline_startup(&projection.offline_startup);
+                }
+                SettingsLineKind::MixedPort => {
+                    text.0 = format!("端口: {}", projection.mixed_port);
+                }
+                SettingsLineKind::LanBindAddress => {
+                    text.0 = projection.lan_bind_address.clone();
+                }
+                SettingsLineKind::LanSecurity => {
+                    text.0 = settings_lan::format_auth_status(&projection.lan_security);
+                }
+                SettingsLineKind::Ipv6Routing => {}
+                SettingsLineKind::TunStack => {
+                    text.0 = projection.tun_stack.clone();
+                }
+                SettingsLineKind::ControllerPort => {
+                    text.0 = format!("127.0.0.1:{}", projection.controller_port);
+                }
+                SettingsLineKind::LogLevel => {
+                    text.0 = projection.log_level.to_uppercase();
+                }
+                SettingsLineKind::CoreChannel => {
+                    text.0 = format!("内核通道: {}", projection.core_channel);
+                }
+                SettingsLineKind::CoreVersions => {
+                    text.0 = settings_core::format_core_versions(&projection.core_versions);
+                }
+                SettingsLineKind::CoreIntegrity => {
+                    text.0 = settings_core::format_integrity(&projection.core_integrity);
+                }
+                SettingsLineKind::CoreRollback => {
+                    text.0 = settings_core::format_rollback_target(&projection.core_versions);
+                }
+                SettingsLineKind::ControllerAuth => {
+                    text.0 = settings_core::format_controller_auth(&projection.controller_auth);
+                }
+                SettingsLineKind::SystemProxy => {
+                    text.0 = settings_system::format_status(
+                        &projection.system_proxy_snapshot,
+                        &projection.system_proxy_recovery,
+                    );
+                }
+                SettingsLineKind::ServiceMode => {
+                    text.0 = settings_core::format_service_mode(&projection.service_mode);
+                }
+                SettingsLineKind::PortConflicts => {
+                    text.0 = settings_core::format_port_conflicts(&projection.port_conflicts);
+                }
+                SettingsLineKind::CoreResources => {
+                    text.0 = settings_core::format_core_resources(&projection.core_resources);
+                }
+                SettingsLineKind::Mtu => {
+                    text.0 = settings_core::format_mtu(&projection.mtu);
+                }
             }
         }
         if rollback_label.is_some() {

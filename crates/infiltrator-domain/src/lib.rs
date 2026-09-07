@@ -8,6 +8,7 @@ pub mod backoff_strategy;
 pub mod app_routing;
 pub mod active_exit;
 pub mod subscription_quota;
+pub mod subscription_scheduler_policy;
 pub mod apply;
 pub mod backup;
 pub mod config;
@@ -61,3 +62,5 @@ pub mod vector_clock;
 pub mod watchdog;
 pub mod zeroize_guard;
 pub mod yaml_edit;
+
+pub mod myers_diff;

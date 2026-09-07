@@ -127,12 +127,9 @@ pub fn chart_inputs(
     bool,
     infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
 ) {
-    if projection.origin == OverviewOrigin::LiveCore
-        && projection.traffic_waveform.is_drawable()
-    {
-        let (upload, download) = infiltrator_domain::traffic_waveform::display_series(
-            &projection.traffic_waveform,
-        );
+    if projection.origin == OverviewOrigin::LiveCore && projection.traffic_waveform.is_drawable() {
+        let (upload, download) =
+            infiltrator_domain::traffic_waveform::display_series(&projection.traffic_waveform);
         (upload, download, false, projection.traffic_scale.clone())
     } else {
         let (upload, download) = chart_series(projection.origin, history);

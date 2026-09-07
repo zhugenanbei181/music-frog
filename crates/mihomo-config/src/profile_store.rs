@@ -77,6 +77,12 @@ where
         concrete.traffic_download = metadata.traffic_download;
         concrete.traffic_total = metadata.traffic_total;
         concrete.expire_at = metadata.expire_at;
+        concrete.user_agent = metadata.user_agent.clone();
+        concrete.etag = metadata.etag.clone();
+        concrete.last_modified = metadata.last_modified.clone();
+        concrete.cron_expression = metadata.cron_expression.clone();
+        concrete.insecure_skip_verify = metadata.insecure_skip_verify;
+        concrete.auto_reload_core = metadata.auto_reload_core;
         ConfigManager::update_profile_metadata(self, profile, &concrete)
             .await
             .map_err(storage_error)
@@ -131,6 +137,13 @@ fn profile_info(profile: Profile) -> ProfileInfo {
         traffic_download: profile.traffic_download,
         traffic_total: profile.traffic_total,
         expire_at: profile.expire_at,
+        user_agent: profile.user_agent.clone(),
+        etag: profile.etag.clone(),
+        last_modified: profile.last_modified.clone(),
+        cron_expression: profile.cron_expression.clone(),
+        insecure_skip_verify: profile.insecure_skip_verify,
+        auto_reload_core: profile.auto_reload_core,
+        ..Default::default()
     }
 }
 
@@ -145,6 +158,13 @@ fn profile_metadata(profile: Profile) -> ProfileMetadata {
         traffic_download: profile.traffic_download,
         traffic_total: profile.traffic_total,
         expire_at: profile.expire_at,
+        user_agent: profile.user_agent,
+        etag: profile.etag,
+        last_modified: profile.last_modified,
+        cron_expression: profile.cron_expression,
+        insecure_skip_verify: profile.insecure_skip_verify,
+        auto_reload_core: profile.auto_reload_core,
+        ..Default::default()
     }
 }
 

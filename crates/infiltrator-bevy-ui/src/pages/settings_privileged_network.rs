@@ -15,9 +15,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::privileged_network::{
-    PrivilegedNetworkSnapshot, PrivilegedNetworkState,
-};
+use infiltrator_contract::privileged_network::{PrivilegedNetworkSnapshot, PrivilegedNetworkState};
 
 use super::SettingsProjectionUpdated;
 use super::settings_core::SettingsProjection;

@@ -135,17 +135,17 @@ fn draw_layer(pixels: &mut [u8], width: u32, height: u32, layer: &ChartLayer) {
         };
         let xa = (a.x.round() as i32).clamp(0, width as i32 - 1);
         let xb = (b.x.round() as i32).clamp(0, width as i32 - 1);
-            let span = (xb - xa).abs().max(1) as f32;
-            for x in xa.min(xb)..=xa.max(xb) {
-                let t = (x - xa).abs() as f32 / span;
-                let y = a.y + (b.y - a.y) * t;
-                let base = y.round() as i32;
-                for dy in -2..(LINE_THICKNESS_PX + 2) {
-                    blend(pixels, width, x, base + dy, layer.line, 0.14);
-                }
-                for dy in 0..LINE_THICKNESS_PX {
-                    blend(pixels, width, x, base + dy, layer.line, 1.0);
-                }
+        let span = (xb - xa).abs().max(1) as f32;
+        for x in xa.min(xb)..=xa.max(xb) {
+            let t = (x - xa).abs() as f32 / span;
+            let y = a.y + (b.y - a.y) * t;
+            let base = y.round() as i32;
+            for dy in -2..(LINE_THICKNESS_PX + 2) {
+                blend(pixels, width, x, base + dy, layer.line, 0.14);
+            }
+            for dy in 0..LINE_THICKNESS_PX {
+                blend(pixels, width, x, base + dy, layer.line, 1.0);
+            }
         }
     }
 }

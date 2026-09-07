@@ -5,6 +5,7 @@
 //! turns their results into the one contract read model consumed by Iced and
 //! Bevy.
 
+use infiltrator_domain::rules::types::parse_rule_str;
 use crate::configuration_application::ConfigurationApplication;
 use crate::core_application::CoreApplication;
 use crate::doctor_application::DoctorApplication;
@@ -334,12 +335,20 @@ impl SurfaceReader for ApplicationSurfaceReader {
             None => None,
         };
 
+        let _proxies_for_tracer = runtime_proxies
+            .as_ref()
+            .and_then(|r| r.as_ref().ok())
+            .cloned();
+
         pages.proxies = page_from_result(
             runtime_proxies,
             |proxies| surface_snapshot::ProxiesPageSnapshot {
                 groups: proxy_groups(&proxies),
                 testing: false,
                 active_exit: active_exit(&proxies),
+                filter_alive: Default::default(),
+                sort_order: Default::default(),
+                compact_view: false,
             },
             "Mihomo proxy gateway",
         );
@@ -416,7 +425,28 @@ impl SurfaceReader for ApplicationSurfaceReader {
             "Mihomo connections gateway",
         );
 
-        pages.rules = build_rules_page(self.configuration.as_ref(), runtime_rule_providers).await;
+        let rule_tracer_snapshot = infiltrator_contract::rule_tracer::RuleTracerSnapshot::ready(
+            core.generation,
+            revision,
+            String::new(),
+            Default::default(),
+            None,
+            0,
+        );
+
+        let mrs_acceleration_snapshot = if let Some(Ok(provs)) = &runtime_rule_providers {
+            crate::mrs_acceleration_application::MrsAccelerationApplication::new().project(&core, Some(provs.as_slice()))
+        } else {
+            infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot::empty(core.generation, revision)
+        };
+
+        pages.rules = build_rules_page(
+            self.configuration.as_ref(),
+            runtime_rule_providers,
+            None,
+            rule_tracer_snapshot,
+            mrs_acceleration_snapshot,
+        ).await;
 
         pages.dns = build_dns_page(self.configuration.as_ref(), runtime_config.as_ref()).await;
 
@@ -486,6 +516,9 @@ impl SurfaceReader for ApplicationSurfaceReader {
             traffic_topology,
             active_exit: active_exit_snapshot,
             subscription_quota,
+            yaml_ast_diff: None,
+            script_sandbox: None,
+            speedtest: Default::default(),
         })
     }
 }
@@ -538,6 +571,7 @@ fn proxy_groups(proxies: &HashMap<String, Proxy>) -> Vec<surface_snapshot::Proxy
             Some(surface_snapshot::ProxyGroupSnapshot {
                 name: name.clone(),
                 group_type: proxy.proxy_type().to_owned(),
+                classification: None,
                 current: current.clone(),
                 expanded: true,
                 proxies: members
@@ -579,6 +613,9 @@ fn active_exit(proxies: &HashMap<String, Proxy>) -> String {
 async fn build_rules_page(
     configuration: Option<&ConfigurationApplication>,
     runtime_providers: Option<Result<Vec<infiltrator_domain::runtime::RuleProvider>, PortError>>,
+    hit_counter: Option<&Arc<Mutex<infiltrator_domain::rule_hit_counter::RuleHitCounter>>>,
+    tracer: infiltrator_contract::rule_tracer::RuleTracerSnapshot,
+    mrs_acceleration: infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
 ) -> surface_snapshot::PageData<surface_snapshot::RulesPageSnapshot> {
     let Some(configuration) = configuration else {
         return surface_snapshot::PageData::unavailable(missing("configuration application"));
@@ -606,11 +643,36 @@ async fn build_rules_page(
         }
         None => Vec::new(),
     };
+
+    let shadow_warnings = infiltrator_domain::rules::analyzer::find_shadowed_rules(&rules);
+    let shadow_map: HashMap<usize, &infiltrator_domain::rules::analyzer::ShadowedRuleWarning> =
+        shadow_warnings.iter().map(|w| (w.index, w)).collect();
+
+    let counter_guard = hit_counter.and_then(|c| c.lock().ok());
+
+    let mut total_hits: u64 = 0;
     let mut entries = rules
         .into_iter()
         .enumerate()
-        .map(|(id, rule)| rule_snapshot(id + 1, rule))
+        .map(|(id, rule)| {
+            let hit = counter_guard
+                .as_ref()
+                .map(|c| c.hit_count_for(&rule.rule))
+                .unwrap_or(0);
+            let last_hit = counter_guard
+                .as_ref()
+                .and_then(|c| c.last_hit_for(&rule.rule));
+            total_hits += hit;
+            rule_snapshot(
+                id + 1,
+                rule,
+                hit,
+                last_hit,
+                shadow_map.get(&id).copied(),
+            )
+        })
         .collect::<Vec<_>>();
+
     let default_action = entries
         .last()
         .map(|entry| entry.proxy.clone())
@@ -622,6 +684,9 @@ async fn build_rules_page(
         default_action,
         providers,
         rules: entries,
+        tracer,
+        mrs_acceleration,
+        total_hits,
     };
     if total_rules == 0 {
         surface_snapshot::PageData::empty(data)
@@ -630,17 +695,36 @@ async fn build_rules_page(
     }
 }
 
-fn rule_snapshot(id: usize, rule: RuleEntry) -> surface_snapshot::RuleSnapshot {
-    let mut parts = rule.rule.splitn(3, ',');
-    let rule_type = parts.next().unwrap_or_default().to_owned();
-    let payload = parts.next().unwrap_or_default().to_owned();
-    let proxy = parts.next().unwrap_or_default().to_owned();
+fn rule_snapshot(
+    id: usize,
+    rule: RuleEntry,
+    hit_count: u64,
+    last_hit_secs: Option<u64>,
+    shadow_warning: Option<&infiltrator_domain::rules::analyzer::ShadowedRuleWarning>,
+) -> surface_snapshot::RuleSnapshot {
+    let (rule_type, payload, proxy, no_resolve) = if let Ok(parsed) = parse_rule_str(&rule.rule) {
+        let name = parsed.rule_type.name().to_string();
+        let payload = parsed.rule_type.payload().unwrap_or("").to_string();
+        (name, payload, parsed.target, parsed.no_resolve)
+    } else {
+        let mut parts = rule.rule.splitn(3, ',');
+        let r_type = parts.next().unwrap_or_default().to_owned();
+        let r_payload = parts.next().unwrap_or_default().to_owned();
+        let r_proxy = parts.next().unwrap_or_default().to_owned();
+        (r_type, r_payload, r_proxy, false)
+    };
+
     surface_snapshot::RuleSnapshot {
         id,
         rule_type,
         payload,
         proxy,
-        hit_count: 0,
+        hit_count,
+        is_enabled: rule.enabled,
+        no_resolve,
+        last_hit_secs,
+        is_shadowed: shadow_warning.is_some(),
+        shadow_reason: shadow_warning.map(|w| w.reason.to_string()),
     }
 }
 

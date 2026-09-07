@@ -4,12 +4,13 @@
 //! the main Settings page below the source-size budget without moving any
 //! business decision into the widget layer.
 
-use bevy::scene::{Scene, bsn};
+use crate::command::{CommandSinkHandle, UiCommand};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
+use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderRadius;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, FlexDirection, FlexWrap, JustifyContent, Node, UiRect, Val,
@@ -22,23 +23,24 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::version::{CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot};
-use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::command::CoreLogLevel;
-use infiltrator_contract::service_mode::{
-    ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
-};
-use infiltrator_contract::port_conflict::PortConflictSnapshot;
-use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
+use infiltrator_contract::lan::LanSecuritySnapshot;
+use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState};
 use infiltrator_contract::offline_startup::{
     LocalAssetStatus, OfflineStartupSnapshot, OfflineStartupState, StartupRemoteDependency,
 };
-use infiltrator_contract::tun::TunStack;
-use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState};
+use infiltrator_contract::port_conflict::PortConflictSnapshot;
+use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::service_mode::{
+    ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
+};
 use infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot;
 use infiltrator_contract::system_proxy::SystemProxySnapshot;
-use infiltrator_contract::lan::LanSecuritySnapshot;
-use crate::command::{CommandSinkHandle, UiCommand};
+use infiltrator_contract::tun::TunStack;
+use infiltrator_contract::version::{
+    CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot,
+};
 
 /// Marker for text lines updated by the Settings projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -140,8 +142,7 @@ pub struct SettingsProjection {
     pub pac: infiltrator_contract::pac::PacSnapshot,
     pub network_roaming: infiltrator_contract::network_roaming::NetworkRoamingSnapshot,
     pub vpn: infiltrator_contract::vpn::VpnSessionSnapshot,
-    pub privileged_network:
-        infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot,
+    pub privileged_network: infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot,
     pub tun_enabled: bool,
     pub tun_stack: String,
     pub tun_auto_route: bool,
@@ -218,9 +219,10 @@ pub(super) fn core_rollback_row_scene(
         .rollback
         .target
         .as_deref()
-        .map_or_else(|| "没有可回滚的本地内核".to_owned(), |version| {
-            format!("可回滚至 {version}")
-        });
+        .map_or_else(
+            || "没有可回滚的本地内核".to_owned(),
+            |version| format!("可回滚至 {version}"),
+        );
     let rollback_available = projection.core_versions.rollback.target.is_some();
     let action: Box<dyn Scene> = Box::new(bsn! {
         Node {
@@ -273,7 +275,9 @@ pub(super) fn format_integrity(verification: &CoreArtifactVerification) -> Strin
         CoreArtifactVerification::Rejected { version, failure } => {
             format!(
                 "已拒绝 ({version}: {})",
-                infiltrator_bevy_widgets::desktop::ClipboardPayload::sanitize_text(&failure.message)
+                infiltrator_bevy_widgets::desktop::ClipboardPayload::sanitize_text(
+                    &failure.message
+                )
             )
         }
     }
@@ -329,13 +333,10 @@ pub(super) fn format_core_versions(snapshot: &CoreVersionSnapshot) -> String {
 }
 
 pub(super) fn format_rollback_target(snapshot: &CoreVersionSnapshot) -> String {
-    snapshot
-        .rollback
-        .target
-        .as_deref()
-        .map_or_else(|| "没有可回滚的本地内核".to_owned(), |version| {
-            format!("可回滚至 {version}")
-        })
+    snapshot.rollback.target.as_deref().map_or_else(
+        || "没有可回滚的本地内核".to_owned(),
+        |version| format!("可回滚至 {version}"),
+    )
 }
 
 pub(super) fn core_log_level_row_scene(
@@ -345,7 +346,9 @@ pub(super) fn core_log_level_row_scene(
     let active = CoreLogLevel::parse(&projection.log_level);
     let buttons: Vec<Box<dyn Scene>> = CoreLogLevel::ALL
         .into_iter()
-        .map(|level| Box::new(core_log_level_button_scene(level, active, palette)) as Box<dyn Scene>)
+        .map(|level| {
+            Box::new(core_log_level_button_scene(level, active, palette)) as Box<dyn Scene>
+        })
         .collect();
     let current = active.map_or_else(
         || projection.log_level.to_uppercase(),
@@ -627,7 +630,11 @@ pub(super) fn service_mode_row_scene(
 ) -> Box<dyn Scene> {
     let ready = snapshot.state == ServiceModeState::Ready;
     let status = format_service_mode(snapshot);
-    let label = if ready { "已就绪" } else { "准备服务模式" };
+    let label = if ready {
+        "已就绪"
+    } else {
+        "准备服务模式"
+    };
     Box::new(bsn! {
         Node {
             width: percent(100),
@@ -754,7 +761,11 @@ pub(super) fn format_port_conflicts(snapshot: &PortConflictSnapshot) -> String {
                     format!("{name} pid={pid}")
                 },
             );
-            format!("{} {} ({status}, {owner})", conflict.binding.as_str(), conflict.port)
+            format!(
+                "{} {} ({status}, {owner})",
+                conflict.binding.as_str(),
+                conflict.port
+            )
         })
         .collect::<Vec<_>>()
         .join(" · ")
@@ -810,7 +821,11 @@ pub(super) fn format_offline_startup(snapshot: &OfflineStartupSnapshot) -> Strin
         OfflineStartupState::Degraded => "可启动但已降级",
         OfflineStartupState::Blocked => "已阻断",
     };
-    let config = if snapshot.config_valid { "有效" } else { "无效" };
+    let config = if snapshot.config_valid {
+        "有效"
+    } else {
+        "无效"
+    };
     let binary = if snapshot.binary_available {
         "可用"
     } else {
@@ -824,13 +839,20 @@ pub(super) fn format_offline_startup(snapshot: &OfflineStartupSnapshot) -> Strin
     let remote = match snapshot.remote_dependency {
         StartupRemoteDependency::Optional => "远端可选",
     };
-    let failure = snapshot.failure.as_ref().map_or_else(String::new, |failure| {
-        format!(
-            " · {}",
-            infiltrator_bevy_widgets::desktop::ClipboardPayload::sanitize_text(&failure.message)
-        )
-    });
-    format!("离线优先 · {state} · 配置={config} · 内核={binary} · GeoIP={geoip} · {remote}{failure}")
+    let failure = snapshot
+        .failure
+        .as_ref()
+        .map_or_else(String::new, |failure| {
+            format!(
+                " · {}",
+                infiltrator_bevy_widgets::desktop::ClipboardPayload::sanitize_text(
+                    &failure.message
+                )
+            )
+        });
+    format!(
+        "离线优先 · {state} · 配置={config} · 内核={binary} · GeoIP={geoip} · {remote}{failure}"
+    )
 }
 
 pub(super) fn format_core_resources(snapshot: &CoreResourceSnapshot) -> String {
@@ -838,9 +860,10 @@ pub(super) fn format_core_resources(snapshot: &CoreResourceSnapshot) -> String {
         || "内存=?".to_owned(),
         |bytes| format!("内存={:.1} MiB", bytes as f64 / 1_048_576.0),
     );
-    let cpu = snapshot
-        .cpu_percent
-        .map_or_else(|| "CPU=?".to_owned(), |percent| format!("CPU={percent:.1}%"));
+    let cpu = snapshot.cpu_percent.map_or_else(
+        || "CPU=?".to_owned(),
+        |percent| format!("CPU={percent:.1}%"),
+    );
     let gc = match &snapshot.gc {
         CoreGcStatus::Unknown => "GC=未采样".to_owned(),
         CoreGcStatus::NotNeeded => "GC=无需执行".to_owned(),

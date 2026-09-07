@@ -410,6 +410,99 @@ pub fn build_mrs_bytes(
     bytes
 }
 
+
+use crate::rules::RuleEntry;
+use std::io::Read;
+
+/// Deconstruct raw MRS binary payload into line items (domains, CIDRs, or classical rules).
+pub fn deconstruct_mrs_payload(bytes: &[u8]) -> Result<Vec<String>> {
+    let report = validate_mrs_bytes(bytes)?;
+    if !report.is_valid {
+        bail!("Cannot deconstruct invalid MRS binary: {:?}", report.errors);
+    }
+    let Some(meta) = report.metadata else {
+        bail!("Missing MRS metadata");
+    };
+
+    let desc_len = u16::from_le_bytes(bytes[14..16].try_into().unwrap()) as usize;
+    let header_len = 16 + desc_len;
+    if bytes.len() < header_len {
+        bail!("Truncated MRS header");
+    }
+    let payload = &bytes[header_len..];
+
+    let compression = CompressionType::detect_payload_compression(payload);
+    let decompressed: Vec<u8> = match compression {
+        CompressionType::Gzip => {
+            let mut decoder = flate2::read::GzDecoder::new(payload);
+            let mut buf = Vec::new();
+            decoder.read_to_end(&mut buf).context("Gzip decompression failed")?;
+            buf
+        }
+        CompressionType::None | CompressionType::Zstd | CompressionType::Unknown(_) => {
+            payload.to_vec()
+        }
+    };
+
+    let text = String::from_utf8_lossy(&decompressed);
+    let mut rules = Vec::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        match meta.behavior {
+            Behavior::Domain => {
+                let rule = if trimmed.starts_with('+') {
+                    format!("DOMAIN-SUFFIX,{}", trimmed.trim_start_matches('+').trim_start_matches('.'))
+                } else if trimmed.starts_with('.') {
+                    format!("DOMAIN-SUFFIX,{}", trimmed.trim_start_matches('.'))
+                } else {
+                    format!("DOMAIN,{trimmed}")
+                };
+                rules.push(rule);
+            }
+            Behavior::IpCidr => {
+                let rule = if trimmed.contains(':') {
+                    format!("IP-CIDR6,{trimmed}")
+                } else {
+                    format!("IP-CIDR,{trimmed}")
+                };
+                rules.push(rule);
+            }
+            Behavior::Classical | Behavior::Unknown(_) => {
+                rules.push(trimmed.to_string());
+            }
+        }
+    }
+
+    Ok(rules)
+}
+
+/// Unpack an entire MRS binary into standard local  records with target outbound.
+pub fn unpack_mrs_to_rule_entries(bytes: &[u8], target: &str) -> Result<Vec<RuleEntry>> {
+    let rules = deconstruct_mrs_payload(bytes)?;
+    Ok(rules
+        .into_iter()
+        .map(|r| {
+            let full_rule = if r.contains(',') {
+                let parts: Vec<&str> = r.split(',').collect();
+                if parts.len() == 2 {
+                    format!("{},{},{}", parts[0], parts[1], target)
+                } else {
+                    format!("{r},{target}")
+                }
+            } else {
+                format!("{r},{target}")
+            };
+            RuleEntry {
+                rule: full_rule,
+                enabled: true,
+            }
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -610,4 +703,51 @@ mod tests {
                 .any(|e| e.contains("Invalid UTF-8 in description"))
         );
     }
+
+    #[test]
+    fn test_deconstruct_domain_mrs_payload() {
+        let payload = b"example.com\n+google.com\n.github.com\n";
+        let bytes = build_mrs_bytes(
+            Behavior::Domain,
+            1,
+            3,
+            "Domain ruleset",
+            payload,
+            Some(MAGIC_STANDARD_MRS),
+        );
+        let rules = deconstruct_mrs_payload(&bytes).expect("deconstruct");
+        assert_eq!(rules.len(), 3);
+        assert_eq!(rules[0], "DOMAIN,example.com");
+        assert_eq!(rules[1], "DOMAIN-SUFFIX,google.com");
+        assert_eq!(rules[2], "DOMAIN-SUFFIX,github.com");
+
+        let entries = unpack_mrs_to_rule_entries(&bytes, "PROXY").expect("unpack");
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].rule, "DOMAIN,example.com,PROXY");
+        assert_eq!(entries[1].rule, "DOMAIN-SUFFIX,google.com,PROXY");
+        assert!(entries[0].enabled);
+    }
+
+    #[test]
+    fn test_deconstruct_ipcidr_mrs_payload() {
+        let payload = b"1.1.1.1/32\n2606:4700::/32\n";
+        let bytes = build_mrs_bytes(
+            Behavior::IpCidr,
+            1,
+            2,
+            "IP CIDR ruleset",
+            payload,
+            Some(MAGIC_STANDARD_MRS),
+        );
+        let rules = deconstruct_mrs_payload(&bytes).expect("deconstruct");
+        assert_eq!(rules.len(), 2);
+        assert_eq!(rules[0], "IP-CIDR,1.1.1.1/32");
+        assert_eq!(rules[1], "IP-CIDR6,2606:4700::/32");
+
+        let entries = unpack_mrs_to_rule_entries(&bytes, "DIRECT").expect("unpack");
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].rule, "IP-CIDR,1.1.1.1/32,DIRECT");
+        assert_eq!(entries[1].rule, "IP-CIDR6,2606:4700::/32,DIRECT");
+    }
+
 }

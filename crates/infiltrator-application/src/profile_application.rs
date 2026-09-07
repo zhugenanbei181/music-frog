@@ -406,6 +406,12 @@ mod tests {
                     expire_at: metadata.expire_at,
                     controller_url: None,
                     controller_changed: None,
+                    user_agent: metadata.user_agent.clone(),
+                    etag: metadata.etag.clone(),
+                    last_modified: metadata.last_modified.clone(),
+                    cron_expression: metadata.cron_expression.clone(),
+                    insecure_skip_verify: metadata.insecure_skip_verify,
+                    auto_reload_core: metadata.auto_reload_core,
                 })
                 .collect())
         }

@@ -18,8 +18,8 @@ use infiltrator_contract::system_proxy::{
     SystemProxySnapshot, SystemProxyStatus,
 };
 
-use crate::command::{CommandSinkHandle, UiCommand};
 use super::settings_core::{SettingsLine, SettingsLineKind};
+use crate::command::{CommandSinkHandle, UiCommand};
 
 /// Parent marker for the host system proxy checkbox.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -77,10 +77,10 @@ pub(super) fn format_status(
         SystemProxyStatus::Disabled => "已关闭".to_owned(),
         SystemProxyStatus::Enabled => match snapshot.ownership {
             SystemProxyOwnership::Repaired => "已自动修复外部修改".to_owned(),
-            SystemProxyOwnership::Owned => snapshot
-                .endpoint
-                .as_deref()
-                .map_or_else(|| "已接管".to_owned(), |endpoint| format!("已接管 {endpoint}")),
+            SystemProxyOwnership::Owned => snapshot.endpoint.as_deref().map_or_else(
+                || "已接管".to_owned(),
+                |endpoint| format!("已接管 {endpoint}"),
+            ),
             _ => "已启用".to_owned(),
         },
         SystemProxyStatus::Unsupported { .. } => "宿主不支持".to_owned(),
@@ -101,6 +101,8 @@ pub(super) fn on_changed(
         return;
     };
     if toggles.get(parent.0).is_ok() {
-        handle.submit(UiCommand::SetSystemProxy { enabled: change.value });
+        handle.submit(UiCommand::SetSystemProxy {
+            enabled: change.value,
+        });
     }
 }

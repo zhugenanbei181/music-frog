@@ -17,8 +17,8 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
-use super::settings_core::{SettingsLine, SettingsLineKind, SettingsProjection};
 use super::SettingsProjectionUpdated;
+use super::settings_core::{SettingsLine, SettingsLineKind, SettingsProjection};
 use crate::command::{CommandSinkHandle, UiCommand};
 
 /// Parent marker for the top-level Mihomo IPv6 policy checkbox.

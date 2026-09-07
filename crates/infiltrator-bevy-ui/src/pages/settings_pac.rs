@@ -8,20 +8,23 @@ use bevy::ecs::query::{Has, With};
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::Checked;
-use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val, percent, px};
+use bevy::ui::prelude::{
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
+    percent, px,
+};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, Checkbox, ValueChange};
 use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
-use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
+use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::pac::{PacServiceState, PacSnapshot};
 
-use super::settings_core::SettingsProjection;
 use super::SettingsProjectionUpdated;
+use super::settings_core::SettingsProjection;
 use crate::command::{CommandSinkHandle, UiCommand};
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

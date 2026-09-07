@@ -21,6 +21,7 @@ pub enum ProxyMode {
     Rule,
     Global,
     Direct,
+    Script,
 }
 
 /// Log verbosity accepted by Mihomo's live configuration endpoint.
@@ -57,11 +58,14 @@ impl CoreLogLevel {
 }
 
 impl ProxyMode {
+    pub const ALL: [Self; 4] = [Self::Rule, Self::Global, Self::Direct, Self::Script];
+
     pub fn to_wire(self) -> &'static str {
         match self {
             Self::Rule => "rule",
             Self::Global => "global",
             Self::Direct => "direct",
+            Self::Script => "script",
         }
     }
 
@@ -70,6 +74,7 @@ impl ProxyMode {
             "rule" => Some(Self::Rule),
             "global" => Some(Self::Global),
             "direct" => Some(Self::Direct),
+            "script" => Some(Self::Script),
             _ => None,
         }
     }
@@ -79,6 +84,7 @@ impl ProxyMode {
             Self::Rule => 0,
             Self::Global => 1,
             Self::Direct => 2,
+            Self::Script => 3,
         }
     }
 
@@ -86,6 +92,7 @@ impl ProxyMode {
         match raw {
             1 => Self::Global,
             2 => Self::Direct,
+            3 => Self::Script,
             _ => Self::Rule,
         }
     }
@@ -105,10 +112,33 @@ pub enum CommandIntent {
     SwitchProfile { profile_id: String },
     SetProxyMode { mode: ProxyMode },
     SelectProxyNode { group: String, node: String },
-    TestDelay { group: Option<String> },
+    TestDelay {
+        group: Option<String>,
+        #[serde(default)]
+        url: Option<String>,
+        #[serde(default)]
+        timeout_ms: Option<u32>,
+    },
+    RunSpeedtest {
+        node: String,
+        #[serde(default)]
+        url: Option<String>,
+    },
+    CancelSpeedtest,
+    ToggleProxyGroupExpand { group: String },
+    SetProxyGroupExpanded { group: String, expanded: bool },
+    SetProxySortOrder { order: crate::proxies::ProxySortOrder },
+    ToggleFilterAlive { enabled: bool },
+    ToggleFavoriteProxy { proxy: String },
+    SetProxyCompactView { compact: bool },
+    ReorderProxyGroups { group_names: Vec<String> },
+    ResetProxyGroupOrder,
     UpdateProfile { profile_id: String },
     DeleteProfile { profile_id: String },
     RefreshRuleProviders,
+    SimulateRuleTrace { query: String },
+    ResetRuleHitCounters,
+    UnpackRuleProvider { provider_name: String },
     CloseConnection { id: String },
     CloseAllConnections,
     ClearLogs,
@@ -203,8 +233,23 @@ impl CommandIntent {
             Self::SwitchProfile { .. }
             | Self::UpdateProfile { .. }
             | Self::DeleteProfile { .. }
-            | Self::RefreshRuleProviders => CommandKind::Profile,
-            Self::SetProxyMode { .. } | Self::SelectProxyNode { .. } | Self::TestDelay { .. } => {
+            | Self::RefreshRuleProviders
+            | Self::UnpackRuleProvider { .. } => CommandKind::Profile,
+            Self::SimulateRuleTrace { .. }
+            | Self::ResetRuleHitCounters => CommandKind::Runtime,
+            Self::SetProxyMode { .. }
+            | Self::SelectProxyNode { .. }
+            | Self::TestDelay { .. }
+            | Self::RunSpeedtest { .. }
+            | Self::CancelSpeedtest
+            | Self::ToggleProxyGroupExpand { .. }
+            | Self::SetProxyGroupExpanded { .. }
+            | Self::SetProxySortOrder { .. }
+            | Self::ToggleFilterAlive { .. }
+            | Self::ToggleFavoriteProxy { .. }
+            | Self::SetProxyCompactView { .. }
+            | Self::ReorderProxyGroups { .. }
+            | Self::ResetProxyGroupOrder => {
                 CommandKind::Proxy
             }
             Self::CloseConnection { .. } | Self::CloseAllConnections | Self::ClearDnsCache => {

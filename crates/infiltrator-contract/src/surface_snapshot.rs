@@ -157,9 +157,19 @@ pub struct ProxyNodeSnapshot {
 pub struct ProxyGroupSnapshot {
     pub name: String,
     pub group_type: String,
+    #[serde(default)]
+    pub classification: Option<crate::proxies::ProxyGroupClassification>,
     pub current: String,
     pub expanded: bool,
     pub proxies: Vec<ProxyNodeSnapshot>,
+}
+
+impl ProxyGroupSnapshot {
+    pub fn resolved_classification(&self) -> crate::proxies::ProxyGroupClassification {
+        self.classification
+            .or_else(|| crate::proxies::ProxyGroupClassification::from_str_loose(&self.group_type))
+            .unwrap_or(crate::proxies::ProxyGroupClassification::Selector)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -167,6 +177,12 @@ pub struct ProxiesPageSnapshot {
     pub groups: Vec<ProxyGroupSnapshot>,
     pub testing: bool,
     pub active_exit: String,
+    #[serde(default)]
+    pub filter_alive: crate::proxies::ProxyFilterAliveSnapshot,
+    #[serde(default)]
+    pub sort_order: crate::proxies::ProxySortOrder,
+    #[serde(default)]
+    pub compact_view: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -188,13 +204,23 @@ pub struct ProfilesPageSnapshot {
     pub updating: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RuleSnapshot {
     pub id: usize,
     pub rule_type: String,
     pub payload: String,
     pub proxy: String,
     pub hit_count: u64,
+    #[serde(default)]
+    pub is_enabled: bool,
+    #[serde(default)]
+    pub no_resolve: bool,
+    #[serde(default)]
+    pub last_hit_secs: Option<u64>,
+    #[serde(default)]
+    pub is_shadowed: bool,
+    #[serde(default)]
+    pub shadow_reason: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -211,6 +237,12 @@ pub struct RulesPageSnapshot {
     pub default_action: String,
     pub providers: Vec<RuleProviderSnapshot>,
     pub rules: Vec<RuleSnapshot>,
+    #[serde(default)]
+    pub tracer: crate::rule_tracer::RuleTracerSnapshot,
+    #[serde(default)]
+    pub mrs_acceleration: crate::mrs_acceleration::MrsAccelerationSnapshot,
+    #[serde(default)]
+    pub total_hits: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -467,6 +499,15 @@ pub struct SurfaceSnapshot {
     /// Host-injected privileged-network regression readback.
     #[serde(default)]
     pub privileged_network: crate::privileged_network::PrivilegedNetworkSnapshot,
+    /// AST configuration diff and snapshot comparison readback.
+    #[serde(default)]
+    pub yaml_ast_diff: Option<crate::yaml_ast_diff::YamlAstDiffSnapshot>,
+    /// Active QuickJS sandbox console and execution telemetry.
+    #[serde(default)]
+    pub script_sandbox: Option<crate::script_sandbox::ScriptSandboxSnapshot>,
+    /// Shared concurrent speedtest, jitter, and packet loss telemetry.
+    #[serde(default)]
+    pub speedtest: crate::speedtest::SpeedtestSnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -518,6 +559,9 @@ impl SurfaceSnapshot {
             traffic_topology: crate::traffic_topology::TrafficTopologySnapshot::default(),
             active_exit: crate::active_exit::ActiveExitSnapshot::default(),
             subscription_quota: crate::subscription_quota::SubscriptionQuotaSnapshot::default(),
+            yaml_ast_diff: None,
+            script_sandbox: None,
+            speedtest: crate::speedtest::SpeedtestSnapshot::default(),
         }
     }
 

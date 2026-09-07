@@ -10,61 +10,60 @@ use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ui::Checked;
-use infiltrator_bevy_widgets::text_input::TextField;
+use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, ValueChange};
 use infiltrator_bevy_ui::app::{
     ShellPlugin, SidebarSystemProxyToggle, SidebarToggleProjection, SidebarTunToggle,
 };
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::pages::app_routing::*;
+use infiltrator_bevy_ui::pages::app_routing_uwp::{UwpAction, UwpActionButton};
 use infiltrator_bevy_ui::pages::dns::*;
 use infiltrator_bevy_ui::pages::doctor::*;
-use infiltrator_bevy_ui::pages::settings::{
-    CloseToTrayToggle, CoreRollbackButton, PortConflictButton, PrepareTunPermissionButton,
-    SaveSettingsButton, ServiceModeButton, SettingsProjectionUpdated,
-    SystemNotificationsToggle,
-};
-use infiltrator_bevy_ui::pages::settings::settings_ipv6::Ipv6RoutingToggle;
 use infiltrator_bevy_ui::pages::settings::settings_core::{
     CoreLogLevelButton, ProbeTunMtuButton, SettingsProjection, TunEnableToggle, TunRouteToggle,
     TunRouteToggleKind, TunStackButton, TunStackButtonAvailability,
 };
-use infiltrator_bevy_ui::pages::settings::settings_system::SystemProxyToggle;
+use infiltrator_bevy_ui::pages::settings::settings_ipv6::Ipv6RoutingToggle;
 use infiltrator_bevy_ui::pages::settings::settings_lan::{
     LanAllowedIpsField, LanAuthPasswordField, LanAuthUsernameField, LanAuthenticationToggle,
     LanBindAddressField, LanDisallowedIpsField, LanMixedPortField, LanSecurityApplyButton,
     LanSharingApplyButton, LanSharingToggle, LanSkipAuthPrefixesField,
 };
-use infiltrator_bevy_ui::pages::settings::settings_pac::{PacApplyButton, PacBypassField};
 use infiltrator_bevy_ui::pages::settings::settings_network_roaming::{
     NetworkRoamingRefreshButton, NetworkRoamingRepairButton,
 };
-use infiltrator_bevy_ui::pages::settings::settings_vpn::{VpnStartButton, VpnStopButton};
+use infiltrator_bevy_ui::pages::settings::settings_pac::{PacApplyButton, PacBypassField};
 use infiltrator_bevy_ui::pages::settings::settings_privileged_network::PrivilegedNetworkRunButton;
-use infiltrator_bevy_ui::pages::app_routing_uwp::{UwpAction, UwpActionButton};
+use infiltrator_bevy_ui::pages::settings::settings_system::SystemProxyToggle;
+use infiltrator_bevy_ui::pages::settings::settings_vpn::{VpnStartButton, VpnStopButton};
+use infiltrator_bevy_ui::pages::settings::{
+    CloseToTrayToggle, CoreRollbackButton, PortConflictButton, PrepareTunPermissionButton,
+    SaveSettingsButton, ServiceModeButton, SettingsProjectionUpdated, SystemNotificationsToggle,
+};
 use infiltrator_bevy_ui::pages::sync::*;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{DemoSurfaceSource, SurfaceSnapshotUpdated, SurfaceSource};
 use infiltrator_bevy_widgets::button::{ControlVisual, PillLabel};
-use bevy::ui::widget::Text;
-use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
+use infiltrator_bevy_widgets::text_input::TextField;
+use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_contract::command::CoreLogLevel;
-use infiltrator_contract::version::CoreRollbackSnapshot;
-use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
-use infiltrator_contract::tun::TunStack;
-use infiltrator_contract::mtu::{MtuNegotiationSnapshot, PhysicalMtuSnapshot};
-use infiltrator_contract::system_proxy::{
-    SystemProxyDesiredState, SystemProxyObservation, SystemProxyRecoveryStatus,
-};
-use infiltrator_contract::lan::{LanCredentials, LanSecuritySnapshot};
-use infiltrator_contract::pac::{PacServiceState, PacSnapshot};
-use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
+use infiltrator_contract::lan::{LanCredentials, LanSecuritySnapshot};
+use infiltrator_contract::mtu::{MtuNegotiationSnapshot, PhysicalMtuSnapshot};
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingSnapshot, NetworkRoamingStatus,
 };
-use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
+use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
+use infiltrator_contract::pac::{PacServiceState, PacSnapshot};
+use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
+use infiltrator_contract::system_proxy::{
+    SystemProxyDesiredState, SystemProxyObservation, SystemProxyRecoveryStatus,
+};
+use infiltrator_contract::tun::TunStack;
+use infiltrator_contract::version::CoreRollbackSnapshot;
+use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
 
 use crate::support::*;
 
@@ -486,9 +485,7 @@ fn test_sidebar_system_toggles_use_shared_projection_and_commands() {
             .resource::<SidebarToggleProjection>()
             .0
             .system_proxy,
-        infiltrator_contract::system_toggle::SystemToggleState::Pending {
-            desired: false
-        }
+        infiltrator_contract::system_toggle::SystemToggleState::Pending { desired: false }
     ));
 
     // A second activation while the application command is in flight is
@@ -509,13 +506,21 @@ fn test_sidebar_system_toggles_use_shared_projection_and_commands() {
             bypass: None,
         },
     );
-    next.pages.settings.data.as_mut().expect("demo settings").tun_enabled = false;
+    next.pages
+        .settings
+        .data
+        .as_mut()
+        .expect("demo settings")
+        .tun_enabled = false;
     app.world_mut()
         .commands()
         .trigger(SurfaceSnapshotUpdated(next));
     app.update();
 
-    let proxy_visual = app.world().get::<ControlVisual>(proxy).expect("proxy visual");
+    let proxy_visual = app
+        .world()
+        .get::<ControlVisual>(proxy)
+        .expect("proxy visual");
     let tun_visual = app.world().get::<ControlVisual>(tun).expect("tun visual");
     assert!(!proxy_visual.0);
     assert!(!tun_visual.0);
@@ -540,9 +545,7 @@ fn test_sidebar_system_toggles_use_shared_projection_and_commands() {
         "关"
     );
 
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: tun });
+    app.world_mut().commands().trigger(Activate { entity: tun });
     app.update();
     assert_eq!(
         sink.submitted(),
@@ -551,7 +554,6 @@ fn test_sidebar_system_toggles_use_shared_projection_and_commands() {
             UiCommand::ToggleTun { enabled: true },
         ]
     );
-
 }
 
 #[test]
@@ -621,9 +623,9 @@ fn test_settings_prepare_tun_and_toggles_submit_commands() {
             .map(|(entity, _)| entity)
             .expect("debug core log level button")
     };
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: debug_button });
+    app.world_mut().commands().trigger(Activate {
+        entity: debug_button,
+    });
     app.update();
 
     let service_button = app
@@ -631,9 +633,9 @@ fn test_settings_prepare_tun_and_toggles_submit_commands() {
         .query_filtered::<Entity, bevy::ecs::query::With<ServiceModeButton>>()
         .single(app.world())
         .expect("service mode button");
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: service_button });
+    app.world_mut().commands().trigger(Activate {
+        entity: service_button,
+    });
     app.update();
 
     let port_button = app
@@ -641,9 +643,9 @@ fn test_settings_prepare_tun_and_toggles_submit_commands() {
         .query_filtered::<Entity, bevy::ecs::query::With<PortConflictButton>>()
         .single(app.world())
         .expect("port conflict repair button");
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: port_button });
+    app.world_mut().commands().trigger(Activate {
+        entity: port_button,
+    });
     app.update();
 
     assert_eq!(
@@ -716,7 +718,9 @@ fn test_settings_core_rollback_button_submits_shared_command() {
         .query_filtered::<Entity, bevy::ecs::query::With<CoreRollbackButton>>()
         .single(app.world())
         .expect("core rollback button");
-    app.world_mut().commands().trigger(Activate { entity: button });
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
     app.update();
 
     assert_eq!(sink.submitted(), vec![UiCommand::RollbackCore]);
@@ -755,15 +759,25 @@ fn test_settings_network_roaming_projection_and_actions_submit_shared_commands()
         .trigger(SettingsProjectionUpdated(projection));
     app.update();
 
-    assert!(subtree_has_text(app.world(), root, "active=eth0 · gateway=192.0.2.1"));
-    assert!(subtree_has_text(app.world(), root, "eth0 [up] gw=192.0.2.1"));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "active=eth0 · gateway=192.0.2.1"
+    ));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "eth0 [up] gw=192.0.2.1"
+    ));
 
     let refresh = app
         .world_mut()
         .query_filtered::<Entity, bevy::ecs::query::With<NetworkRoamingRefreshButton>>()
         .single(app.world())
         .expect("network roaming refresh button");
-    app.world_mut().commands().trigger(Activate { entity: refresh });
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: refresh });
     app.update();
     assert_eq!(sink.submitted(), vec![UiCommand::RefreshNetworkRoaming]);
 
@@ -773,7 +787,9 @@ fn test_settings_network_roaming_projection_and_actions_submit_shared_commands()
         .query_filtered::<Entity, bevy::ecs::query::With<NetworkRoamingRepairButton>>()
         .single(app.world())
         .expect("network roaming repair button");
-    app.world_mut().commands().trigger(Activate { entity: repair });
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: repair });
     app.update();
     assert_eq!(sink.submitted(), vec![UiCommand::RepairNetworkRoutes]);
 }
@@ -796,14 +812,20 @@ fn test_settings_vpn_projection_and_actions_submit_shared_commands() {
         .trigger(SettingsProjectionUpdated(projection));
     app.update();
 
-    assert!(subtree_has_text(app.world(), root, "等待 Android VPN 用户授权"));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "等待 Android VPN 用户授权"
+    ));
 
     let start = app
         .world_mut()
         .query_filtered::<Entity, bevy::ecs::query::With<VpnStartButton>>()
         .single(app.world())
         .expect("VPN start button");
-    app.world_mut().commands().trigger(Activate { entity: start });
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: start });
     app.update();
     assert_eq!(sink.submitted(), vec![UiCommand::StartVpn]);
 
@@ -813,7 +835,9 @@ fn test_settings_vpn_projection_and_actions_submit_shared_commands() {
         .query_filtered::<Entity, bevy::ecs::query::With<VpnStopButton>>()
         .single(app.world())
         .expect("VPN stop button");
-    app.world_mut().commands().trigger(Activate { entity: stop });
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: stop });
     app.update();
     assert_eq!(sink.submitted(), vec![UiCommand::StopVpn]);
 }
@@ -888,7 +912,9 @@ fn test_settings_mtu_probe_submits_shared_application_command() {
         .query_filtered::<Entity, bevy::ecs::query::With<ProbeTunMtuButton>>()
         .single(app.world())
         .expect("MTU probe button");
-    app.world_mut().commands().trigger(Activate { entity: button });
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
     app.update();
 
     assert_eq!(sink.submitted(), vec![UiCommand::ProbeTunMtu]);
@@ -926,7 +952,10 @@ fn test_settings_tun_route_checkboxes_submit_shared_commands() {
 
     assert_eq!(
         sink.submitted(),
-        vec![UiCommand::SetTunAutoRoute(false), UiCommand::SetTunStrictRoute(true)]
+        vec![
+            UiCommand::SetTunAutoRoute(false),
+            UiCommand::SetTunStrictRoute(true)
+        ]
     );
 }
 
@@ -955,7 +984,10 @@ fn test_settings_tun_enable_checkbox_submits_shared_command() {
     });
     app.update();
 
-    assert_eq!(sink.submitted(), vec![UiCommand::ToggleTun { enabled: false }]);
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::ToggleTun { enabled: false }]
+    );
 }
 
 #[test]
@@ -1023,7 +1055,11 @@ fn test_settings_system_proxy_recovery_status_projects_shared_result() {
         .commands()
         .trigger(SettingsProjectionUpdated(projection));
     app.update();
-    assert!(subtree_has_text(app.world(), root, "检测到外部修改，未覆盖"));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "检测到外部修改，未覆盖"
+    ));
 }
 
 #[test]
@@ -1047,9 +1083,9 @@ fn test_settings_lan_fields_submit_the_live_listener_intent() {
         .query_filtered::<Entity, bevy::ecs::query::With<LanSharingApplyButton>>()
         .single(app.world())
         .expect("Allow-LAN apply button");
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: apply_button });
+    app.world_mut().commands().trigger(Activate {
+        entity: apply_button,
+    });
     app.update();
 
     assert_eq!(
@@ -1128,9 +1164,9 @@ fn test_settings_lan_security_submits_acl_and_redacted_basic_auth_intent() {
         .query_filtered::<Entity, bevy::ecs::query::With<LanSecurityApplyButton>>()
         .single(app.world())
         .expect("LAN security apply button");
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: apply_button });
+    app.world_mut().commands().trigger(Activate {
+        entity: apply_button,
+    });
     app.update();
 
     assert_eq!(
@@ -1147,13 +1183,14 @@ fn test_settings_lan_security_submits_acl_and_redacted_basic_auth_intent() {
         }]
     );
     assert!(!format!("{:?}", sink.submitted()).contains("secret-value"));
-    assert!(app
-        .world()
-        .get::<TextField>(password_source)
-        .expect("password field after submit")
-        .0
-        .text()
-        .is_empty());
+    assert!(
+        app.world()
+            .get::<TextField>(password_source)
+            .expect("password field after submit")
+            .0
+            .text()
+            .is_empty()
+    );
 
     let _ = app
         .world_mut()
@@ -1255,9 +1292,9 @@ fn test_settings_pac_projection_and_apply_submit_shared_request() {
         .query_filtered::<Entity, bevy::ecs::query::With<PacApplyButton>>()
         .single(app.world())
         .expect("PAC apply button");
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: apply_button });
+    app.world_mut().commands().trigger(Activate {
+        entity: apply_button,
+    });
     app.update();
 
     assert_eq!(
@@ -1284,34 +1321,36 @@ fn test_settings_tun_stack_catalog_has_three_live_values_and_safe_lwip() {
 
     let mut buttons = app
         .world_mut()
-        .query::<(
-            Entity,
-            &TunStackButton,
-            &TunStackButtonAvailability,
-        )>();
+        .query::<(Entity, &TunStackButton, &TunStackButtonAvailability)>();
     let entries: Vec<(Entity, TunStack, bool)> = buttons
         .iter(app.world())
         .map(|(entity, button, availability)| (entity, button.stack, availability.0))
         .collect();
     assert_eq!(entries.len(), TunStack::ALL.len());
-    assert!(entries
-        .iter()
-        .any(|(_, stack, available)| *stack == TunStack::Gvisor && *available));
-    assert!(entries
-        .iter()
-        .any(|(_, stack, available)| *stack == TunStack::System && *available));
-    assert!(entries
-        .iter()
-        .any(|(_, stack, available)| *stack == TunStack::Mixed && *available));
+    assert!(
+        entries
+            .iter()
+            .any(|(_, stack, available)| *stack == TunStack::Gvisor && *available)
+    );
+    assert!(
+        entries
+            .iter()
+            .any(|(_, stack, available)| *stack == TunStack::System && *available)
+    );
+    assert!(
+        entries
+            .iter()
+            .any(|(_, stack, available)| *stack == TunStack::Mixed && *available)
+    );
     let (lwip_entity, _, lwip_availability) = entries
         .iter()
         .find(|(_, stack, _)| *stack == TunStack::Lwip)
         .expect("LWIP reference entry");
     assert!(!lwip_availability);
 
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: *lwip_entity });
+    app.world_mut().commands().trigger(Activate {
+        entity: *lwip_entity,
+    });
     app.update();
     assert!(sink.submitted().is_empty(), "reference-only LWIP is inert");
 
@@ -1320,11 +1359,14 @@ fn test_settings_tun_stack_catalog_has_three_live_values_and_safe_lwip() {
         .find(|(_, stack, _)| *stack == TunStack::Mixed)
         .expect("Mixed button");
     assert!(*mixed_availability);
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: *mixed_entity });
+    app.world_mut().commands().trigger(Activate {
+        entity: *mixed_entity,
+    });
     app.update();
-    assert_eq!(sink.submitted(), vec![UiCommand::SetTunStack(TunStack::Mixed)]);
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::SetTunStack(TunStack::Mixed)]
+    );
 }
 
 // ===========================================================================
@@ -1516,7 +1558,11 @@ fn test_app_routing_page_mounting_and_default_state() {
         "Windows UWP 回环隔离豁免工具 (UWP Loopback Exemption)"
     ));
     assert!(subtree_has_text(app.world(), root, "一键豁免全部 UWP 应用"));
-    assert!(subtree_has_text(app.world(), root, "已扫描 3 个 UWP AppContainer · 已豁免 2 个"));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "已扫描 3 个 UWP AppContainer · 已豁免 2 个"
+    ));
 }
 
 #[test]

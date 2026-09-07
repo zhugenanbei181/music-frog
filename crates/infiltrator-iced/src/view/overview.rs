@@ -16,6 +16,7 @@ use crate::view::topology::topology_flow_canvas;
 use crate::view::active_exit::active_exit_card;
 use crate::view::subscription_quota::subscription_quota_card;
 use crate::view::overview_master_switches::overview_master_switches;
+use crate::view::overview_mode_segment::overview_mode_segment;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CHIP, R_CONTROL, tokens};
 use iced::widget::{Space, button, canvas, column, container, row, text};
@@ -42,6 +43,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     );
 
     let hero = hero_card(state, &lang);
+    let mode_segment = overview_mode_segment(state, &lang);
     let stats = stats_grid(state, &lang);
     let masters = overview_master_switches(state, &lang);
     let traffic = traffic_card(state, &lang);
@@ -55,7 +57,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .spacing(theme::SP_LG)
     .width(Length::Fill);
 
-    let content = column![header, hero, stats, masters, traffic, topology, quota, lower_row]
+    let content = column![header, hero, mode_segment, stats, masters, traffic, topology, quota, lower_row]
         .spacing(theme::SP_LG)
         .max_width(1100);
 

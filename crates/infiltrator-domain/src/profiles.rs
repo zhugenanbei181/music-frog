@@ -5,9 +5,10 @@
 //! surfaces.
 
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ProfileMetadata {
     pub subscription_url: Option<String>,
     pub auto_update_enabled: bool,
@@ -18,9 +19,16 @@ pub struct ProfileMetadata {
     pub traffic_download: Option<u64>,
     pub traffic_total: Option<u64>,
     pub expire_at: Option<i64>,
+    pub user_agent: Option<String>,
+    pub etag: Option<String>,
+    pub last_modified: Option<String>,
+    pub cron_expression: Option<String>,
+    pub insecure_skip_verify: bool,
+    pub auto_reload_core: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ProfileInfo {
     pub name: String,
     pub active: bool,
@@ -36,6 +44,12 @@ pub struct ProfileInfo {
     pub traffic_download: Option<u64>,
     pub traffic_total: Option<u64>,
     pub expire_at: Option<i64>,
+    pub user_agent: Option<String>,
+    pub etag: Option<String>,
+    pub last_modified: Option<String>,
+    pub cron_expression: Option<String>,
+    pub insecure_skip_verify: bool,
+    pub auto_reload_core: bool,
 }
 
 #[derive(Debug, Serialize)]

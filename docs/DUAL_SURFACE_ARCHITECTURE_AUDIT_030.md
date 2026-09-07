@@ -111,6 +111,7 @@
 - `DUAL-03-05` 已完成 `ActiveExitSnapshot/ActiveExitApplication`、domain selected proxy group/node 推导、country code/protocol/delay/alive facts、ApplicationSurfaceReader 输出、Iced 高保真出口卡片、Bevy ActiveExitText in-place projection 与 shared behavior tests；真实 GeoIP/延迟刷新、复杂 relay、GPU/发行包视觉 smoke 仍未冒充 `host-verified`。
 - `DUAL-03-06` 已完成 `SubscriptionQuotaSnapshot/SubscriptionQuotaApplication`、active profile provider quota 推导、used/total/remaining/expiry/next-update 字段、Warning/Critical/Exhausted/Expired 状态、reset 缺失 fail-closed、ApplicationSurfaceReader wiring、Iced/Bevy Overview quota 卡片与行为测试；真实 provider reset 字段、时钟漂移、长时刷新和发行包视觉 smoke 仍未冒充 `host-verified`。
 - `DUAL-03-07` 已完成 Overview `SystemToggleSnapshot` fan-out、Iced `overview_master_switches`、Bevy `OverviewMasterSwitchButton`/Activate observer、两端动态 status/action restamp 与 shared policy command sink 行为测试；真实桌面权限、Android VPN 原生联动、触控和发行包 smoke 仍未冒充 `host-verified`。
+- `DUAL-03-08` 已完成 Overview `ProxyModeSnapshot`、`ProxyModeApplication`、Iced `overview_mode_segment`、Bevy `OverviewModeSegmentPill`/Activate observer、两端四态分段控制与 shared policy intent 行为测试；真实控制器回读与发行包 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

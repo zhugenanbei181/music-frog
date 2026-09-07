@@ -48,6 +48,14 @@ pub enum UiCommand {
     TestProxyGroup { group: String },
     /// Toggle expand/fold of a proxy group card.
     ToggleProxyGroupExpand { group: String },
+    /// Change the proxy node sorting order.
+    SetProxySortOrder(infiltrator_contract::proxies::ProxySortOrder),
+    /// Toggle Filter Alive (只看可用) mode.
+    ToggleFilterAlive(bool),
+    /// Toggle favorite status of a proxy node.
+    ToggleFavoriteProxy(String),
+    /// Toggle compact list vs grid view for proxy nodes.
+    SetProxyCompactView(bool),
     /// Activate a subscription configuration profile.
     ActivateProfile { id: String },
     /// Trigger an immediate remote update for a profile.
@@ -153,9 +161,7 @@ impl UiCommand {
             Self::RestartCore => Some(CommandIntent::RestartCore),
             Self::PrepareServiceMode => Some(CommandIntent::PrepareServiceMode),
             Self::RepairPortConflicts => Some(CommandIntent::RepairPortConflicts),
-            Self::SetCoreLogLevel(level) => {
-                Some(CommandIntent::SetCoreLogLevel { level: *level })
-            }
+            Self::SetCoreLogLevel(level) => Some(CommandIntent::SetCoreLogLevel { level: *level }),
             Self::SetTunStack(stack) => Some(CommandIntent::SetTunStack { stack: *stack }),
             Self::SetTunAutoRoute(enabled) => {
                 Some(CommandIntent::SetTunAutoRoute { enabled: *enabled })
@@ -169,11 +175,31 @@ impl UiCommand {
                 group: group.clone(),
                 node: node.clone(),
             }),
-            Self::TestAllProxyGroups => Some(CommandIntent::TestDelay { group: None }),
+            Self::TestAllProxyGroups => Some(CommandIntent::TestDelay {
+                group: None,
+                url: None,
+                timeout_ms: None,
+            }),
             Self::TestProxyGroup { group } => Some(CommandIntent::TestDelay {
                 group: Some(group.clone()),
+                url: None,
+                timeout_ms: None,
             }),
-            Self::ToggleProxyGroupExpand { .. } => None,
+            Self::ToggleProxyGroupExpand { group } => Some(CommandIntent::ToggleProxyGroupExpand {
+                group: group.clone(),
+            }),
+            Self::SetProxySortOrder(order) => {
+                Some(CommandIntent::SetProxySortOrder { order: *order })
+            }
+            Self::ToggleFilterAlive(enabled) => {
+                Some(CommandIntent::ToggleFilterAlive { enabled: *enabled })
+            }
+            Self::ToggleFavoriteProxy(proxy) => Some(CommandIntent::ToggleFavoriteProxy {
+                proxy: proxy.clone(),
+            }),
+            Self::SetProxyCompactView(compact) => {
+                Some(CommandIntent::SetProxyCompactView { compact: *compact })
+            }
             Self::ActivateProfile { id } => Some(CommandIntent::SwitchProfile {
                 profile_id: id.clone(),
             }),
@@ -227,12 +253,10 @@ impl UiCommand {
                 Some(CommandIntent::SetIpv6Routing { enabled: *enabled })
             }
             Self::ScanUwpApps => Some(CommandIntent::ScanUwpApps),
-            Self::SetUwpAppExemption { sid, exempt } => {
-                Some(CommandIntent::SetUwpAppExemption {
-                    sid: sid.clone(),
-                    exempt: *exempt,
-                })
-            }
+            Self::SetUwpAppExemption { sid, exempt } => Some(CommandIntent::SetUwpAppExemption {
+                sid: sid.clone(),
+                exempt: *exempt,
+            }),
             Self::SetAllUwpExemptions { exempt } => {
                 Some(CommandIntent::SetAllUwpExemptions { exempt: *exempt })
             }
@@ -449,7 +473,28 @@ mod tests {
                 group: "auto".to_string(),
             }
             .to_intent(),
-            None
+            Some(CommandIntent::ToggleProxyGroupExpand {
+                group: "auto".to_string(),
+            })
+        );
+        assert_eq!(
+            UiCommand::SetProxySortOrder(
+                infiltrator_contract::proxies::ProxySortOrder::LatencyDesc
+            )
+            .to_intent(),
+            Some(CommandIntent::SetProxySortOrder {
+                order: infiltrator_contract::proxies::ProxySortOrder::LatencyDesc,
+            })
+        );
+        assert_eq!(
+            UiCommand::ToggleFilterAlive(true).to_intent(),
+            Some(CommandIntent::ToggleFilterAlive { enabled: true })
+        );
+        assert_eq!(
+            UiCommand::ToggleFavoriteProxy("HK-01".into()).to_intent(),
+            Some(CommandIntent::ToggleFavoriteProxy {
+                proxy: "HK-01".into()
+            })
         );
         assert_eq!(
             UiCommand::RollbackCore.to_intent(),
@@ -523,7 +568,10 @@ mod tests {
             UiCommand::SetIpv6Routing { enabled: false }.to_intent(),
             Some(CommandIntent::SetIpv6Routing { enabled: false })
         );
-        assert_eq!(UiCommand::ScanUwpApps.to_intent(), Some(CommandIntent::ScanUwpApps));
+        assert_eq!(
+            UiCommand::ScanUwpApps.to_intent(),
+            Some(CommandIntent::ScanUwpApps)
+        );
         assert_eq!(
             UiCommand::SetAllUwpExemptions { exempt: true }.to_intent(),
             Some(CommandIntent::SetAllUwpExemptions { exempt: true })

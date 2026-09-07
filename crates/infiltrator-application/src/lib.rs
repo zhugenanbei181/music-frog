@@ -21,6 +21,10 @@ pub mod profile_reset_application;
 pub mod resource_application;
 pub mod port_conflict_application;
 pub mod proxy_application;
+pub mod proxy_preferences_application;
+pub mod speedtest_application;
+pub mod mrs_acceleration_application;
+pub mod proxy_mode_application;
 pub mod routing_application;
 pub mod runtime_query_application;
 pub mod settings_application;
@@ -41,6 +45,7 @@ pub mod traffic_topology_application;
 pub mod traffic_topology_navigation_application;
 pub mod active_exit_application;
 pub mod subscription_quota_application;
+pub mod script_application;
 
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use std::future::Future;

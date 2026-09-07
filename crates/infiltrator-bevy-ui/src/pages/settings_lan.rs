@@ -7,24 +7,26 @@ use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderRadius;
-use bevy::ui::prelude::{AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, UiRect, Val, percent, px};
-use bevy::ui::widget::Text;
 use bevy::ui::Checked;
+use bevy::ui::prelude::{
+    AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, UiRect, Val, percent, px,
+};
+use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, Checkbox, ValueChange};
 use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
+use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, TextFieldState};
 use infiltrator_bevy_widgets::text_input::{
     TextField, password_field_scene, text_field_with_placeholder_scene,
 };
-use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, TextFieldState};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
+use super::SettingsProjectionUpdated;
+use super::settings_core::{SettingsLine, SettingsLineKind, SettingsProjection};
 use crate::command::{CommandSinkHandle, UiCommand};
 use infiltrator_contract::lan::LanCredentials;
-use super::settings_core::{SettingsLine, SettingsLineKind, SettingsProjection};
-use super::SettingsProjectionUpdated;
 
 /// Parent marker for the Allow-LAN checkbox.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -379,13 +381,7 @@ pub(super) fn on_apply_activated(
         .iter()
         .flat_map(|children| children.iter())
         .any(|child| checkboxes.get(*child).is_ok());
-    submit_lan_command(
-        &handle,
-        enabled,
-        &mixed_fields,
-        &bind_fields,
-        &text_fields,
-    );
+    submit_lan_command(&handle, enabled, &mixed_fields, &bind_fields, &text_fields);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -485,11 +481,7 @@ pub(super) fn apply_projection(
         &mut text_fields,
         &projection.mixed_port.to_string(),
     );
-    restamp_field(
-        &bind_fields,
-        &mut text_fields,
-        &projection.lan_bind_address,
-    );
+    restamp_field(&bind_fields, &mut text_fields, &projection.lan_bind_address);
     restamp_field(
         &allowed_fields,
         &mut text_fields,
@@ -520,20 +512,30 @@ fn restamp_field<T: Component>(
             if let Ok(mut text_field) = text_fields.get_mut(*child)
                 && text_field.0.text() != value
             {
-                text_field.0.apply(TextFieldInput::SetText(value.to_owned()));
+                text_field
+                    .0
+                    .apply(TextFieldInput::SetText(value.to_owned()));
             }
         }
     }
 }
 
-fn field_value<T>(fields: &Query<&Children, With<T>>, text_fields: &Query<&TextField>) -> Option<String>
+fn field_value<T>(
+    fields: &Query<&Children, With<T>>,
+    text_fields: &Query<&TextField>,
+) -> Option<String>
 where
     T: Component,
 {
     fields
         .iter()
         .flat_map(|children| children.iter())
-        .find_map(|child| text_fields.get(*child).ok().map(|field| field.0.text().to_owned()))
+        .find_map(|child| {
+            text_fields
+                .get(*child)
+                .ok()
+                .map(|field| field.0.text().to_owned())
+        })
 }
 
 fn submit_lan_command(
@@ -543,8 +545,8 @@ fn submit_lan_command(
     bind_fields: &Query<&Children, With<LanBindAddressField>>,
     text_fields: &Query<&TextField>,
 ) {
-    let Some(mixed_port) = field_value(mixed_fields, text_fields)
-        .and_then(|value| value.trim().parse::<u16>().ok())
+    let Some(mixed_port) =
+        field_value(mixed_fields, text_fields).and_then(|value| value.trim().parse::<u16>().ok())
     else {
         return;
     };
@@ -567,7 +569,9 @@ fn split_values(value: &str) -> Vec<String> {
         .collect()
 }
 
-pub(super) fn format_auth_status(snapshot: &infiltrator_contract::lan::LanSecuritySnapshot) -> String {
+pub(super) fn format_auth_status(
+    snapshot: &infiltrator_contract::lan::LanSecuritySnapshot,
+) -> String {
     if snapshot.authentication_enabled {
         format!("已启用 · {} 个账号", snapshot.authentication_user_count)
     } else {

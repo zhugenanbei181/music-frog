@@ -23,6 +23,7 @@ pub mod virtual_list;
 pub mod app_routing;
 pub mod active_exit;
 pub mod overview_master_switches;
+pub mod overview_mode_segment;
 pub mod subscription_quota;
 pub mod mini_hud;
 pub mod script_console;

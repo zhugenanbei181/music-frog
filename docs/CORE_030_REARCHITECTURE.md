@@ -49,6 +49,7 @@
 - [x] `DUAL-03-05`：活动出口进入 `ActiveExitSnapshot`/`ActiveExitApplication`；domain 从 Mihomo proxy group 的 selected node 推导地区代码、协议、delay 与 alive，ApplicationSurfaceReader 发布单一事实，Iced/Bevy 只做高保真卡片适配并保留 Empty/Unsupported/Failed。
 - [x] `DUAL-03-06`：订阅配额进入 `SubscriptionQuotaSnapshot`/`SubscriptionQuotaApplication`；domain 复用已校验的 active profile `subscription-userinfo` 字段推导使用量、三级预警、过期/临期和到期倒计时，reset 无事实时保持 None，Iced/Bevy 同步展示进度与 typed status。
 - [x] `DUAL-03-07`：Overview 系统代理/TUN 主控大卡直接消费 `SystemToggleSnapshot`；`SystemToggleApplication` 统一 action policy，Iced/Bevy 只把各自手势适配为相同的 `SetSystemProxy`/`ToggleTun` intent，未知/不可用状态不允许误下发。
+- [x] `DUAL-03-08`：代理运行模式分段器进入 `ProxyModeSnapshot`/`ProxyModeApplication`；四态模式 Rule/Global/Direct/Script 经由 application policy 校验与 Script 门控守卫，Iced/Bevy 共用同一 `SetProxyMode` intent 与四态高亮滑动胶囊。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

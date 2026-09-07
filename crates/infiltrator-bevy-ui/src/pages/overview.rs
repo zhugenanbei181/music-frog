@@ -58,8 +58,8 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ControlVisual;
-use infiltrator_bevy_widgets::chart::{ChartPlate, ChartSpec, chart_scene_with_scale};
 use infiltrator_bevy_widgets::chart::topology::TopologyPlate;
+use infiltrator_bevy_widgets::chart::{ChartPlate, ChartSpec, chart_scene_with_scale};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::{StatChipValue, stat_chip_scene};
@@ -68,15 +68,19 @@ use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
+use crate::command::{CommandSinkHandle, UiCommand};
 use crate::history::{TrafficHistory, chart_inputs};
+pub use crate::pages::overview_cards::{
+    OverviewModeSegmentPill, OverviewModeSegmentText, ProxyModeSegmentCard,
+    mode_segmented_controller_scene, mode_segmented_controller_scene_with_snapshot,
+};
 use crate::projection::{OverviewOrigin, OverviewProjection, OverviewState};
 use crate::route::{PageRoot, Route};
-use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
-use infiltrator_contract::command::ProxyMode;
+use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
-use crate::command::{CommandSinkHandle, UiCommand};
 
 /// The trend chart's raster box (ui-side tokens — the widget's pixel box
 /// is fixed at mount; a resize is a remount, chart.rs). Height ~140px per
@@ -404,6 +408,7 @@ pub(crate) fn mode_label(mode: ProxyMode) -> &'static str {
         ProxyMode::Rule => "规则模式",
         ProxyMode::Global => "全局模式",
         ProxyMode::Direct => "直连模式",
+        ProxyMode::Script => "脚本模式",
     }
 }
 
@@ -499,6 +504,7 @@ pub fn overview_page(
         OverviewPageRoot
         Children [
             ( { banner_scene(projection, palette) } ),
+            ( { crate::pages::overview_cards::mode_segmented_controller_scene_with_snapshot(&projection.proxy_mode, palette) } ),
             ( { traffic_card_scene(projection, history, palette) } ),
             ( { chips_row_scene(projection, palette) } ),
             ( { crate::pages::overview_cards::master_switches_scene_with_snapshot(&projection.system_toggles, palette) } ),
@@ -841,7 +847,11 @@ pub(crate) fn active_exit_text_value(
 }
 
 fn active_exit_flag(country_code: Option<&str>) -> &'static str {
-    match country_code.unwrap_or_default().to_ascii_uppercase().as_str() {
+    match country_code
+        .unwrap_or_default()
+        .to_ascii_uppercase()
+        .as_str()
+    {
         "HK" => "🇭🇰",
         "TW" => "🇹🇼",
         "JP" => "🇯🇵",
@@ -961,8 +971,9 @@ pub(crate) fn master_switch_text_value(
             SystemToggleState::Disabled => "已关闭".to_owned(),
             SystemToggleState::Pending { .. } => "切换中".to_owned(),
             SystemToggleState::Unknown => "状态未知".to_owned(),
-            SystemToggleState::Unsupported { failure }
-            | SystemToggleState::Failed { failure } => failure.message.clone(),
+            SystemToggleState::Unsupported { failure } | SystemToggleState::Failed { failure } => {
+                failure.message.clone()
+            }
         },
         OverviewMasterSwitchTextKind::Action => match state {
             SystemToggleState::Enabled => "关闭".to_owned(),
@@ -1097,6 +1108,7 @@ fn bind_overview_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(apply_overview_projection);
     commands.add_observer(on_topology_stage_activated);
     commands.add_observer(on_overview_master_switch_activated);
+    commands.add_observer(on_overview_mode_segment_activated);
 }
 
 /// Translate a Bevy `Activate` gesture through the shared application
@@ -1127,6 +1139,36 @@ pub(crate) fn on_topology_stage_activated(
 /// Convert a large Overview switch activation through the same shared toggle
 /// policy used by Settings/sidebar, then submit the resulting application
 /// command to the host sink.
+/// Convert an Overview mode segment pill activation through the shared
+/// ProxyModeApplication policy and submit UiCommand::SetProxyMode to the host sink.
+pub(crate) fn on_overview_mode_segment_activated(
+    activate: On<Activate>,
+    buttons: Query<&crate::pages::overview_cards::OverviewModeSegmentPill>,
+    latest: Res<crate::surface::LatestSurfaceSnapshot>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    let Ok(button) = buttons.get(activate.entity) else {
+        return;
+    };
+    let shared =
+        infiltrator_application::proxy_mode_application::ProxyModeApplication::from_surface(
+            &latest.0,
+        );
+    let Ok(intent) = infiltrator_application::proxy_mode_application::ProxyModeApplication::intent(
+        &shared, button.0,
+    ) else {
+        return;
+    };
+    let command = match intent {
+        CommandIntent::SetProxyMode { mode } => UiCommand::SetProxyMode(mode),
+        _ => return,
+    };
+    handle.submit(command);
+}
+
 pub(crate) fn on_overview_master_switch_activated(
     activate: On<Activate>,
     buttons: Query<&OverviewMasterSwitchButton>,
@@ -1183,6 +1225,10 @@ pub(crate) fn apply_overview_projection(
         Without<OverviewChip>,
     >,
     mut pills: Query<(&OverviewModePill, &mut ControlVisual)>,
+    mut mode_segment_pills: Query<(
+        &crate::pages::overview_cards::OverviewModeSegmentPill,
+        &mut BackgroundColor,
+    )>,
     mut cards: Query<&mut OverviewCardState, With<OverviewStatusCard>>,
     mut chips: Query<(Entity, &OverviewChip, Option<&mut AccessibilityNode>)>,
     // `Without<OverviewLine>`: chip value texts never carry a line marker,
@@ -1261,6 +1307,17 @@ pub(crate) fn apply_overview_projection(
     for (pill, mut visual) in &mut pills {
         visual.0 = pill.0 == projection.mode;
     }
+    for (pill, mut bg) in &mut mode_segment_pills {
+        let is_current = pill.0 == projection.proxy_mode.current;
+        let selectable = projection.proxy_mode.is_mode_selectable(pill.0);
+        *bg = if is_current {
+            palette.accent.into()
+        } else if selectable {
+            palette.accent_container.into()
+        } else {
+            palette.surface_elevated.into()
+        };
+    }
     for mut card in &mut cards {
         card.0 = projection.state;
     }
@@ -1329,20 +1386,14 @@ pub(crate) fn apply_overview_projection(
     {
         let mut master_texts = dynamic.p4();
         for (mut text, mut ink, marker) in &mut master_texts {
-            let value = master_switch_text_value(
-                &projection.system_toggles,
-                marker.toggle,
-                marker.kind,
-            );
+            let value =
+                master_switch_text_value(&projection.system_toggles, marker.toggle, marker.kind);
             if text.0 != value {
                 text.0 = value;
             }
             if marker.kind == OverviewMasterSwitchTextKind::Status {
-                ink.0 = master_switch_status_color(
-                    &projection.system_toggles,
-                    marker.toggle,
-                    &palette,
-                );
+                ink.0 =
+                    master_switch_status_color(&projection.system_toggles, marker.toggle, &palette);
             }
         }
     }

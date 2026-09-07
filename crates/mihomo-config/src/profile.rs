@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use mihomo_api::error::{MihomoError, Result};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Profile {
     pub name: String,
     pub path: PathBuf,
@@ -21,6 +21,12 @@ pub struct Profile {
     pub traffic_total: Option<u64>,
     /// Plan expiry as a unix timestamp (seconds).
     pub expire_at: Option<i64>,
+    pub user_agent: Option<String>,
+    pub etag: Option<String>,
+    pub last_modified: Option<String>,
+    pub cron_expression: Option<String>,
+    pub insecure_skip_verify: bool,
+    pub auto_reload_core: bool,
 }
 
 impl Profile {
@@ -38,6 +44,12 @@ impl Profile {
             traffic_download: None,
             traffic_total: None,
             expire_at: None,
+            user_agent: None,
+            etag: None,
+            last_modified: None,
+            cron_expression: None,
+            insecure_skip_verify: false,
+            auto_reload_core: true,
         }
     }
 

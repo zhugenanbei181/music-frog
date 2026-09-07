@@ -70,6 +70,30 @@ pub(super) async fn apply_profile_metadata<S: SecureStore>(
         .get("expire_at")
         .and_then(|value| value.as_integer())
         .filter(|value| *value >= 0);
+    profile.user_agent = table
+        .get("user_agent")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string());
+    profile.etag = table
+        .get("etag")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string());
+    profile.last_modified = table
+        .get("last_modified")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string());
+    profile.cron_expression = table
+        .get("cron_expression")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string());
+    profile.insecure_skip_verify = table
+        .get("insecure_skip_verify")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    profile.auto_reload_core = table
+        .get("auto_reload_core")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(true);
 }
 
 fn parse_u64(value: Option<&toml::Value>) -> Option<u64> {

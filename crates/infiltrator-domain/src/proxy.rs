@@ -23,6 +23,7 @@ pub enum Proxy {
     URLTest(ProxyGroup),
     Fallback(ProxyGroup),
     LoadBalance(ProxyGroup),
+    Relay(ProxyGroup),
 
     // Catch-all for unknown types to ensure forward compatibility
     #[serde(other)]
@@ -233,7 +234,7 @@ impl Proxy {
             Proxy::Snell(p) => &p.base.name,
             Proxy::Direct(p) => &p.base.name,
             Proxy::Reject(p) => &p.base.name,
-            Proxy::Selector(p) | Proxy::URLTest(p) | Proxy::Fallback(p) | Proxy::LoadBalance(p) => {
+            Proxy::Selector(p) | Proxy::URLTest(p) | Proxy::Fallback(p) | Proxy::LoadBalance(p) | Proxy::Relay(p) => {
                 &p.name
             }
             Proxy::Unknown => "",
@@ -258,6 +259,7 @@ impl Proxy {
             Proxy::URLTest(_) => "URLTest",
             Proxy::Fallback(_) => "Fallback",
             Proxy::LoadBalance(_) => "LoadBalance",
+            Proxy::Relay(_) => "Relay",
             Proxy::Unknown => "Unknown",
         }
     }
@@ -294,7 +296,7 @@ impl Proxy {
             Proxy::Snell(p) => &p.base.history,
             Proxy::Direct(p) => &p.base.history,
             Proxy::Reject(p) => &p.base.history,
-            Proxy::Selector(p) | Proxy::URLTest(p) | Proxy::Fallback(p) | Proxy::LoadBalance(p) => {
+            Proxy::Selector(p) | Proxy::URLTest(p) | Proxy::Fallback(p) | Proxy::LoadBalance(p) | Proxy::Relay(p) => {
                 &p.history
             }
             Proxy::Unknown => &[],
@@ -303,7 +305,7 @@ impl Proxy {
 
     pub fn all(&self) -> Option<&[String]> {
         match self {
-            Proxy::Selector(p) | Proxy::URLTest(p) | Proxy::Fallback(p) | Proxy::LoadBalance(p) => {
+            Proxy::Selector(p) | Proxy::URLTest(p) | Proxy::Fallback(p) | Proxy::LoadBalance(p) | Proxy::Relay(p) => {
                 Some(&p.all)
             }
             _ => None,
@@ -312,7 +314,7 @@ impl Proxy {
 
     pub fn now(&self) -> Option<&str> {
         match self {
-            Proxy::Selector(p) | Proxy::URLTest(p) | Proxy::Fallback(p) | Proxy::LoadBalance(p) => {
+            Proxy::Selector(p) | Proxy::URLTest(p) | Proxy::Fallback(p) | Proxy::LoadBalance(p) | Proxy::Relay(p) => {
                 Some(&p.now)
             }
             _ => None,
@@ -322,7 +324,7 @@ impl Proxy {
     pub fn is_group(&self) -> bool {
         matches!(
             self,
-            Proxy::Selector(_) | Proxy::URLTest(_) | Proxy::Fallback(_) | Proxy::LoadBalance(_)
+            Proxy::Selector(_) | Proxy::URLTest(_) | Proxy::Fallback(_) | Proxy::LoadBalance(_) | Proxy::Relay(_)
         )
     }
 

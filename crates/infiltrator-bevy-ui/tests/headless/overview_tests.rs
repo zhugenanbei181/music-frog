@@ -21,11 +21,12 @@ use bevy::ui::BackgroundColor;
 use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin, SidebarFoot};
+use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::history::{TrafficHistory, chart_series, demo_traffic_series};
 use infiltrator_bevy_ui::pages::overview::{
-    CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText, OverviewCardState, OverviewChip,
-    OverviewChipKind, OverviewLine, OverviewLineKind, OverviewModeChip, OverviewModePill,
-    ActiveExitText, ActiveExitTextKind, OverviewMasterSwitchButton, OverviewProjectionUpdated,
+    ActiveExitText, ActiveExitTextKind, CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText,
+    OverviewCardState, OverviewChip, OverviewChipKind, OverviewLine, OverviewLineKind,
+    OverviewMasterSwitchButton, OverviewModeChip, OverviewModePill, OverviewProjectionUpdated,
     OverviewStatusCard, StatusDot, StopButton, SubscriptionQuotaCard, TopologyChainCard,
     TopologyStageButton, TopologyText, TopologyTextKind, format_memory, format_rate,
     subscription_quota_scene, topology_chain_scene,
@@ -38,7 +39,6 @@ use infiltrator_bevy_ui::projection::{
     SourceKind,
 };
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
-use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::chart::ChartPlate;
 use infiltrator_bevy_widgets::icon::{IconId, IconPlate};
@@ -76,6 +76,7 @@ impl OverviewSource for StubSource {
             active_exit: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
+            proxy_mode: Default::default(),
         }
     }
 }
@@ -400,6 +401,7 @@ fn projection_updates_restamp_in_place() {
         active_exit: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
+        proxy_mode: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -453,6 +455,7 @@ fn projection_updates_restamp_in_place() {
         active_exit: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
+        proxy_mode: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -718,6 +721,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         active_exit: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
+        proxy_mode: Default::default(),
     }
 }
 
@@ -861,7 +865,10 @@ fn live_surface_waveform_uses_shared_bezier_value_projection() {
     let (_, plate) = chart_plate(app.world_mut());
     assert_eq!(plate.0.up.len(), 9, "three live samples, four Bezier steps");
     assert_eq!(plate.0.down.len(), 9);
-    assert!(!plate.0.smooth, "shared adapter already densified the values");
+    assert!(
+        !plate.0.smooth,
+        "shared adapter already densified the values"
+    );
     assert!(matches!(
         plate.0.scale_mode,
         infiltrator_bevy_widgets::chart::bezier::ScaleMode::Fixed(value)
@@ -952,6 +959,7 @@ impl OverviewSource for LiveFootStub {
             active_exit: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
+            proxy_mode: Default::default(),
         }
     }
 
@@ -1037,6 +1045,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         active_exit: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
+        proxy_mode: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -1210,11 +1219,15 @@ fn topology_projection_updates_text_and_flow_plate_in_place() {
     let mut app = mounted_default();
     let plate_id = {
         let world = app.world_mut();
-        let mut ids = world.query::<(Entity, &infiltrator_bevy_widgets::chart::topology::TopologyPlate)>();
+        let mut ids = world.query::<(
+            Entity,
+            &infiltrator_bevy_widgets::chart::topology::TopologyPlate,
+        )>();
         ids.single(world).expect("topology plate entity").0
     };
 
-    let mut topology = infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture();
+    let mut topology =
+        infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture();
     topology.active_connections = 2;
     topology.flow_bps = 2_048.0;
     topology.nodes[0].detail = "TUN · gvisor".to_owned();
@@ -1231,7 +1244,10 @@ fn topology_projection_updates_text_and_flow_plate_in_place() {
     app.update();
 
     let world = app.world_mut();
-    assert!(world.get_entity(plate_id).is_ok(), "flow plate keeps its entity");
+    assert!(
+        world.get_entity(plate_id).is_ok(),
+        "flow plate keeps its entity"
+    );
     let mut details = world.query::<(&TopologyText, &Text)>();
     assert!(details.iter(world).any(|(marker, text)| {
         marker.stage == infiltrator_contract::traffic_topology::TrafficTopologyStage::Inbound
@@ -1329,7 +1345,9 @@ fn test_subscription_quota_card_mounts_with_progress_bar() {
         "contains active profile name"
     );
     assert!(
-        texts.iter().any(|t| t.contains("2026-10-01") && t.contains("25d")),
+        texts
+            .iter()
+            .any(|t| t.contains("2026-10-01") && t.contains("25d")),
         "contains expiry and remaining days"
     );
 
@@ -1435,7 +1453,10 @@ fn overview_master_switch_uses_shared_toggle_policy_and_command_sink() {
         .commands()
         .trigger(Activate { entity: button });
     app.update();
-    assert!(sink.submitted().contains(&UiCommand::SetSystemProxy { enabled: false }));
+    assert!(
+        sink.submitted()
+            .contains(&UiCommand::SetSystemProxy { enabled: false })
+    );
 }
 
 #[test]
@@ -1460,4 +1481,59 @@ fn active_exit_projection_restsamps_facts_and_failure_in_place() {
         marker.0 == ActiveExitTextKind::Status && text.0 == "proxy read failed"
     }));
     assert!(world.get_entity(exit_id).is_ok(), "exit card stays mounted");
+}
+
+#[test]
+fn overview_mode_segment_uses_shared_policy_and_command_sink() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    app.init_asset::<Image>();
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
+    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
+    app.update();
+
+    let button = {
+        let world = app.world_mut();
+        let mut buttons = world.query::<(
+            Entity,
+            &infiltrator_bevy_ui::pages::overview::OverviewModeSegmentPill,
+        )>();
+        buttons
+            .iter(world)
+            .find(|(_, pill)| pill.0 == infiltrator_contract::command::ProxyMode::Global)
+            .expect("global mode pill mounted")
+            .0
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+    assert!(sink.submitted().contains(&UiCommand::SetProxyMode(
+        infiltrator_contract::command::ProxyMode::Global
+    )));
+}
+
+#[test]
+fn overview_mode_segment_card_is_mounted_with_four_pills() {
+    let mut app = mounted_default();
+    let world = app.world_mut();
+    let mut card_query =
+        world.query::<&infiltrator_bevy_ui::pages::overview::ProxyModeSegmentCard>();
+    assert!(
+        card_query.iter(world).next().is_some(),
+        "ProxyModeSegmentCard must be mounted"
+    );
+
+    let mut pills_query =
+        world.query::<&infiltrator_bevy_ui::pages::overview::OverviewModeSegmentPill>();
+    let modes: Vec<infiltrator_contract::command::ProxyMode> =
+        pills_query.iter(world).map(|p| p.0).collect();
+    assert_eq!(modes.len(), 4);
+    assert!(modes.contains(&infiltrator_contract::command::ProxyMode::Rule));
+    assert!(modes.contains(&infiltrator_contract::command::ProxyMode::Global));
+    assert!(modes.contains(&infiltrator_contract::command::ProxyMode::Direct));
+    assert!(modes.contains(&infiltrator_contract::command::ProxyMode::Script));
 }

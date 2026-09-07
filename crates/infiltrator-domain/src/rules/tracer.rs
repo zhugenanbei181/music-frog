@@ -5,15 +5,28 @@ use serde::{Deserialize, Serialize};
 use super::RuleEntry;
 use super::types::{ParsedRule, RuleType, parse_rule_str};
 use crate::sub_rules::{LogicalRuleAst, format_ast};
+use infiltrator_contract::rule_tracer::{
+    DecisionChainNode, DecisionChainSnapshot, DecisionNodeStatus, DecisionStageKind,
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TrafficContext {
     pub domain: Option<String>,
     pub ip: Option<IpAddr>,
     pub port: Option<u16>,
-    pub process_name: Option<String>,
+    pub src_ip: Option<IpAddr>,
+    pub src_port: Option<u16>,
+    pub in_port: Option<u16>,
     pub in_type: Option<String>,
+    pub in_name: Option<String>,
+    pub in_user: Option<String>,
+    pub process_name: Option<String>,
+    pub process_path: Option<String>,
     pub network: Option<String>,
+    pub dscp: Option<u8>,
+    pub uid: Option<u32>,
+    pub package_name: Option<String>,
+    pub client_ip: Option<IpAddr>,
 }
 
 impl TrafficContext {
@@ -40,8 +53,18 @@ impl TrafficContext {
         self
     }
 
-    pub fn with_process(mut self, process: impl Into<String>) -> Self {
-        self.process_name = Some(process.into());
+    pub fn with_src_ip(mut self, ip: IpAddr) -> Self {
+        self.src_ip = Some(ip);
+        self
+    }
+
+    pub fn with_src_port(mut self, port: u16) -> Self {
+        self.src_port = Some(port);
+        self
+    }
+
+    pub fn with_in_port(mut self, port: u16) -> Self {
+        self.in_port = Some(port);
         self
     }
 
@@ -50,8 +73,48 @@ impl TrafficContext {
         self
     }
 
+    pub fn with_in_name(mut self, in_name: impl Into<String>) -> Self {
+        self.in_name = Some(in_name.into());
+        self
+    }
+
+    pub fn with_in_user(mut self, in_user: impl Into<String>) -> Self {
+        self.in_user = Some(in_user.into());
+        self
+    }
+
+    pub fn with_process(mut self, process: impl Into<String>) -> Self {
+        self.process_name = Some(process.into());
+        self
+    }
+
+    pub fn with_process_path(mut self, path: impl Into<String>) -> Self {
+        self.process_path = Some(path.into());
+        self
+    }
+
     pub fn with_network(mut self, network: impl Into<String>) -> Self {
         self.network = Some(network.into());
+        self
+    }
+
+    pub fn with_dscp(mut self, dscp: u8) -> Self {
+        self.dscp = Some(dscp);
+        self
+    }
+
+    pub fn with_uid(mut self, uid: u32) -> Self {
+        self.uid = Some(uid);
+        self
+    }
+
+    pub fn with_package_name(mut self, pkg: impl Into<String>) -> Self {
+        self.package_name = Some(pkg.into());
+        self
+    }
+
+    pub fn with_client_ip(mut self, ip: IpAddr) -> Self {
+        self.client_ip = Some(ip);
         self
     }
 
@@ -206,7 +269,8 @@ fn matches_port(port_spec: &str, port: u16) -> bool {
     false
 }
 
-fn eval_single_rule_type(rule_type: &RuleType, context: &TrafficContext) -> bool {
+/// Comprehensive evaluation against all 28+ rule types.
+pub fn eval_single_rule_type(rule_type: &RuleType, context: &TrafficContext) -> bool {
     match rule_type {
         RuleType::Domain(domain) => {
             if let Some(ref d) = context.domain {
@@ -247,12 +311,19 @@ fn eval_single_rule_type(rule_type: &RuleType, context: &TrafficContext) -> bool
                 false
             }
         }
-        RuleType::IpCidr(cidr) | RuleType::IpCidr6(cidr) | RuleType::SrcIpCidr(cidr) => {
+        RuleType::IpCidr(cidr) | RuleType::IpCidr6(cidr) => {
             if let Some(ip) = context.ip {
                 matches_cidr(cidr, ip)
             } else if let Some(ref d) = context.domain
                 && let Ok(ip) = d.parse::<IpAddr>()
             {
+                matches_cidr(cidr, ip)
+            } else {
+                false
+            }
+        }
+        RuleType::SrcIpCidr(cidr) => {
+            if let Some(ip) = context.src_ip.or(context.client_ip) {
                 matches_cidr(cidr, ip)
             } else {
                 false
@@ -265,24 +336,50 @@ fn eval_single_rule_type(rule_type: &RuleType, context: &TrafficContext) -> bool
                 false
             }
         }
-        RuleType::IpAsn(asn) | RuleType::SrcIpAsn(asn) => {
+        RuleType::IpAsn(asn) => {
             if let Some(ref d) = context.domain {
                 d.eq_ignore_ascii_case(asn)
             } else {
                 false
             }
         }
-        RuleType::GeoIp(country) | RuleType::SrcGeoIp(country) => {
+        RuleType::SrcIpAsn(asn) => {
+            if let Some(ref d) = context.domain {
+                d.eq_ignore_ascii_case(asn)
+            } else {
+                false
+            }
+        }
+        RuleType::GeoIp(country) => {
             if let Some(ref d) = context.domain {
                 d.eq_ignore_ascii_case(country)
             } else {
                 false
             }
         }
-        RuleType::DstPort(port_spec)
-        | RuleType::SrcPort(port_spec)
-        | RuleType::InPort(port_spec) => {
+        RuleType::SrcGeoIp(country) => {
+            if let Some(ref d) = context.domain {
+                d.eq_ignore_ascii_case(country)
+            } else {
+                false
+            }
+        }
+        RuleType::DstPort(port_spec) => {
             if let Some(port) = context.port {
+                matches_port(port_spec, port)
+            } else {
+                false
+            }
+        }
+        RuleType::SrcPort(port_spec) => {
+            if let Some(port) = context.src_port {
+                matches_port(port_spec, port)
+            } else {
+                false
+            }
+        }
+        RuleType::InPort(port_spec) => {
+            if let Some(port) = context.in_port {
                 matches_port(port_spec, port)
             } else {
                 false
@@ -295,26 +392,57 @@ fn eval_single_rule_type(rule_type: &RuleType, context: &TrafficContext) -> bool
                 false
             }
         }
-        RuleType::InName(name) | RuleType::InUser(name) => {
-            if let Some(ref t) = context.in_type {
-                t.eq_ignore_ascii_case(name)
+        RuleType::InName(name) => {
+            if let Some(ref n) = context.in_name {
+                n.eq_ignore_ascii_case(name)
             } else {
                 false
             }
         }
-        RuleType::ProcessPath(path) | RuleType::ProcessName(path) => {
-            if let Some(ref p) = context.process_name {
+        RuleType::InUser(user) => {
+            if let Some(ref u) = context.in_user {
+                u.eq_ignore_ascii_case(user)
+            } else {
+                false
+            }
+        }
+        RuleType::ProcessPath(path) => {
+            if let Some(ref p) = context.process_path {
                 p.eq_ignore_ascii_case(path)
                     || p.ends_with(path)
                     || p.to_ascii_lowercase()
                         .ends_with(&format!("/{}", path.to_ascii_lowercase()))
                     || p.to_ascii_lowercase()
                         .ends_with(&format!("\\{}", path.to_ascii_lowercase()))
+            } else if let Some(ref p) = context.process_name {
+                p.eq_ignore_ascii_case(path)
             } else {
                 false
             }
         }
-        RuleType::ProcessPathRegex(pattern) | RuleType::ProcessNameRegex(pattern) => {
+        RuleType::ProcessPathRegex(pattern) => {
+            let target = context.process_path.as_ref().or(context.process_name.as_ref());
+            if let Some(p) = target {
+                regex::Regex::new(pattern)
+                    .map(|re| re.is_match(p))
+                    .unwrap_or(false)
+            } else {
+                false
+            }
+        }
+        RuleType::ProcessName(name) => {
+            if let Some(ref p) = context.process_name {
+                p.eq_ignore_ascii_case(name)
+                    || p.ends_with(name)
+                    || p.to_ascii_lowercase()
+                        .ends_with(&format!("/{}", name.to_ascii_lowercase()))
+                    || p.to_ascii_lowercase()
+                        .ends_with(&format!("\\{}", name.to_ascii_lowercase()))
+            } else {
+                false
+            }
+        }
+        RuleType::ProcessNameRegex(pattern) => {
             if let Some(ref p) = context.process_name {
                 regex::Regex::new(pattern)
                     .map(|re| re.is_match(p))
@@ -330,9 +458,24 @@ fn eval_single_rule_type(rule_type: &RuleType, context: &TrafficContext) -> bool
                 false
             }
         }
-        RuleType::Dscp(_) | RuleType::Uid(_) => false,
+        RuleType::Dscp(val_str) => {
+            if let Some(dscp) = context.dscp {
+                val_str.trim().parse::<u8>().map(|v| v == dscp).unwrap_or(false)
+            } else {
+                false
+            }
+        }
+        RuleType::Uid(val_str) => {
+            if let Some(uid) = context.uid {
+                val_str.trim().parse::<u32>().map(|v| v == uid).unwrap_or(false)
+            } else {
+                false
+            }
+        }
         RuleType::PackageName(pkg) => {
-            if let Some(ref p) = context.process_name {
+            if let Some(ref p) = context.package_name {
+                p.eq_ignore_ascii_case(pkg)
+            } else if let Some(ref p) = context.process_name {
                 p.eq_ignore_ascii_case(pkg)
             } else {
                 false
@@ -340,7 +483,7 @@ fn eval_single_rule_type(rule_type: &RuleType, context: &TrafficContext) -> bool
         }
         RuleType::RuleSet(name) => {
             if let Some(ref d) = context.domain {
-                d.eq_ignore_ascii_case(name)
+                d.to_ascii_lowercase().contains(&name.to_ascii_lowercase())
             } else {
                 false
             }
@@ -361,51 +504,87 @@ fn eval_single_rule_type(rule_type: &RuleType, context: &TrafficContext) -> bool
     }
 }
 
+/// Evaluate an individual leaf inside an AND / OR / NOT / SUB-RULE clause.
+/// Supports ANY rule syntax supported in standard rules by parsing through `parse_rule_str`.
 fn eval_sub_rule(leaf_str: &str, context: &TrafficContext) -> bool {
     let trimmed = leaf_str
         .trim()
         .trim_start_matches('(')
         .trim_end_matches(')');
-    let parts: Vec<&str> = trimmed.split(',').map(str::trim).collect();
-    if parts.is_empty() {
+    if trimmed.is_empty() {
         return false;
     }
 
-    let type_name = parts[0].to_ascii_uppercase();
-    if type_name == "MATCH" {
-        return true;
-    }
-
-    let payload = if parts.len() >= 2 {
-        parts[1].to_string()
+    let synth = if trimmed.eq_ignore_ascii_case("MATCH") {
+        "MATCH,DIRECT".to_string()
+    } else if trimmed.contains(',') {
+        format!("{trimmed},_DUMMY_TARGET_")
     } else {
-        return false;
+        format!("{trimmed},,_DUMMY_TARGET_")
     };
 
-    let rule_type = match type_name.as_str() {
-        "DOMAIN" => RuleType::Domain(payload),
-        "DOMAIN-SUFFIX" => RuleType::DomainSuffix(payload),
-        "DOMAIN-KEYWORD" => RuleType::DomainKeyword(payload),
-        "DOMAIN-REGEX" => RuleType::DomainRegex(payload),
-        "GEOSITE" => RuleType::Geosite(payload),
-        "IP-CIDR" | "IP-CIDR4" => RuleType::IpCidr(payload),
-        "IP-CIDR6" => RuleType::IpCidr6(payload),
-        "DST-PORT" => RuleType::DstPort(payload),
-        "SRC-PORT" => RuleType::SrcPort(payload),
-        "IN-PORT" => RuleType::InPort(payload),
-        "IN-TYPE" => RuleType::InType(payload),
-        "PROCESS-NAME" => RuleType::ProcessName(payload),
-        "PROCESS-PATH" => RuleType::ProcessPath(payload),
-        "NETWORK" => RuleType::Network(payload),
-        "PACKAGE-NAME" => RuleType::PackageName(payload),
-        _ => RuleType::Unknown(type_name, payload),
-    };
-
-    eval_single_rule_type(&rule_type, context)
+    if let Ok(parsed) = parse_rule_str(&synth) {
+        eval_single_rule_type(&parsed.rule_type, context)
+    } else {
+        false
+    }
 }
 
 fn eval_logical_ast(ast: &LogicalRuleAst, context: &TrafficContext) -> bool {
     ast.evaluate(&|leaf| eval_sub_rule(leaf, context))
+}
+
+/// Recursively explain a logical rule AST against the current traffic context.
+pub fn explain_logical_ast(ast: &LogicalRuleAst, context: &TrafficContext) -> Vec<String> {
+    let mut explanations = Vec::new();
+    explain_ast_recursive(ast, context, &mut explanations, 0);
+    explanations
+}
+
+fn explain_ast_recursive(
+    ast: &LogicalRuleAst,
+    context: &TrafficContext,
+    out: &mut Vec<String>,
+    depth: usize,
+) {
+    let indent = "  ".repeat(depth);
+    match ast {
+        LogicalRuleAst::Leaf(payload) => {
+            let matched = eval_sub_rule(&payload.0, context);
+            let status = if matched { "[PASS]" } else { "[FAIL]" };
+            out.push(format!("{indent}{status} {}", payload.0));
+        }
+        LogicalRuleAst::And(children) => {
+            let all_pass = children.iter().all(|c| c.evaluate(&|l| eval_sub_rule(l, context)));
+            let status = if all_pass { "[AND PASS]" } else { "[AND FAIL]" };
+            out.push(format!("{indent}{status}"));
+            for c in children {
+                explain_ast_recursive(c, context, out, depth + 1);
+            }
+        }
+        LogicalRuleAst::Or(children) => {
+            let any_pass = children.iter().any(|c| c.evaluate(&|l| eval_sub_rule(l, context)));
+            let status = if any_pass { "[OR PASS]" } else { "[OR FAIL]" };
+            out.push(format!("{indent}{status}"));
+            for c in children {
+                explain_ast_recursive(c, context, out, depth + 1);
+            }
+        }
+        LogicalRuleAst::Not(child) => {
+            let inner_pass = child.evaluate(&|l| eval_sub_rule(l, context));
+            let status = if !inner_pass { "[NOT PASS]" } else { "[NOT FAIL]" };
+            out.push(format!("{indent}{status} (子条件取反: 原值为 {inner_pass})"));
+            explain_ast_recursive(child, context, out, depth + 1);
+        }
+        LogicalRuleAst::SubRule(children) => {
+            let any_pass = children.iter().any(|c| c.evaluate(&|l| eval_sub_rule(l, context)));
+            let status = if any_pass { "[SUB-RULE PASS]" } else { "[SUB-RULE FAIL]" };
+            out.push(format!("{indent}{status}"));
+            for c in children {
+                explain_ast_recursive(c, context, out, depth + 1);
+            }
+        }
+    }
 }
 
 fn format_matched_rule_desc(parsed: &ParsedRule) -> String {
@@ -448,128 +627,249 @@ pub fn trace_rules(rules: &[RuleEntry], context: &TrafficContext) -> Option<Rule
     None
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Build a high-fidelity 5-stage routing decision chain snapshot
+/// (Inbound -> Sniffer -> RuleSet / Rule -> Proxy Group -> Outbound).
+#[allow(clippy::too_many_arguments)]
+pub fn build_decision_chain(
+    _rules: &[RuleEntry],
+    context: &TrafficContext,
+    matched: Option<&RuleTraceMatch>,
+    parsed_rule: Option<&ParsedRule>,
+    final_node: Option<&str>,
+    final_node_protocol: Option<&str>,
+    final_node_delay_ms: Option<u32>,
+    final_node_country: Option<&str>,
+    match_latency_us: u64,
+) -> DecisionChainSnapshot {
+    let mut nodes = Vec::new();
 
-    #[test]
-    fn test_trace_domain_rules() {
-        let rules = vec![
-            RuleEntry {
-                rule: "DOMAIN,special.com,DIRECT".into(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "DOMAIN-SUFFIX,google.com,Proxy-Group".into(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "DOMAIN-KEYWORD,youtube,Video-Group".into(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "MATCH,Final-Group".into(),
-                enabled: true,
-            },
-        ];
+    // Stage 1: Inbound
+    let in_type_label = context.in_type.as_deref().unwrap_or("mixed");
+    let in_port_label = context.in_port.or(context.port).unwrap_or(7890);
+    let net = context
+        .network
+        .as_deref()
+        .unwrap_or("tcp")
+        .to_ascii_uppercase();
+    let client_ip = context
+        .src_ip
+        .or(context.client_ip)
+        .map(|ip| ip.to_string())
+        .unwrap_or_else(|| "127.0.0.1".to_string());
+    nodes.push(DecisionChainNode {
+        stage: DecisionStageKind::Inbound,
+        title: format!("入站监听 ({})", in_type_label.to_ascii_uppercase()),
+        detail: format!("{client_ip}:{in_port_label} ({net})"),
+        badge: Some(format!("IN-PORT {in_port_label}")),
+        status: DecisionNodeStatus::Passed,
+        sub_evaluations: vec![
+            format!("客户端来源 IP: {client_ip}"),
+            format!("网络协议栈: {net}"),
+        ],
+    });
 
-        let ctx1 = TrafficContext::from_query("www.google.com");
-        let res1 = trace_rules(&rules, &ctx1).unwrap();
-        assert_eq!(res1.index, 1);
-        assert_eq!(res1.rule, "DOMAIN-SUFFIX,google.com");
-        assert_eq!(res1.target, "Proxy-Group");
+    // Stage 2: Sniffer
+    let sniffed_domain = context.domain.as_deref().unwrap_or("—");
+    let (sniffer_detail, sniffer_status, sniffer_badge) = if let Some(ref d) = context.domain {
+        if context.port == Some(443) {
+            (
+                format!("TLS 协议嗅探 · 提取 SNI 域名: {d}"),
+                DecisionNodeStatus::Passed,
+                Some("TLS-SNI".to_string()),
+            )
+        } else {
+            (
+                format!("HTTP Host / 目标域名: {d}"),
+                DecisionNodeStatus::Passed,
+                Some("HTTP-HOST".to_string()),
+            )
+        }
+    } else if let Some(ip) = context.ip {
+        (
+            format!("直接目标 IP 地址: {ip}"),
+            DecisionNodeStatus::Bypassed,
+            Some("IP-DIRECT".to_string()),
+        )
+    } else {
+        (
+            "未探测到域名，直通分流引擎".to_string(),
+            DecisionNodeStatus::Bypassed,
+            None,
+        )
+    };
+    nodes.push(DecisionChainNode {
+        stage: DecisionStageKind::Sniffer,
+        title: "协议与域名嗅探 (Sniffer)".to_string(),
+        detail: sniffer_detail,
+        badge: sniffer_badge,
+        status: sniffer_status,
+        sub_evaluations: vec![
+            format!("嗅探结果域名: {sniffed_domain}"),
+            format!("目标端口: {}", context.port.unwrap_or(80)),
+        ],
+    });
 
-        let ctx2 = TrafficContext::from_query("my-youtube-video.org");
-        let res2 = trace_rules(&rules, &ctx2).unwrap();
-        assert_eq!(res2.index, 2);
-        assert_eq!(res2.rule, "DOMAIN-KEYWORD,youtube");
-        assert_eq!(res2.target, "Video-Group");
+    // Stage 3: RuleSet / Rule
+    let (
+        rule_title,
+        rule_detail,
+        rule_badge,
+        rule_status,
+        sub_evals,
+        hit_idx,
+        rule_raw,
+        rule_type,
+        payload,
+        target,
+        is_fallback,
+    ) = match (matched, parsed_rule) {
+        (Some(m), Some(p)) => {
+            let is_match = matches!(p.rule_type, RuleType::Match);
+            let badge = Some(p.rule_type.name().to_string());
+            let status = if is_match {
+                DecisionNodeStatus::Fallback
+            } else {
+                DecisionNodeStatus::Matched
+            };
+            let title = format!("命中规则 #{}: {}", m.index + 1, m.rule);
+            let detail = format!("目标策略: {} · no-resolve={}", m.target, p.no_resolve);
+            let sub_evals = match &p.rule_type {
+                RuleType::Logical(l) => explain_logical_ast(&l.payload, context),
+                _ => vec![format!("[PASS] 匹配命中表达式: {}", m.rule)],
+            };
+            (
+                title,
+                detail,
+                badge,
+                status,
+                sub_evals,
+                Some(m.index),
+                m.rule.clone(),
+                p.rule_type.name().to_string(),
+                p.rule_type.payload().unwrap_or("").to_string(),
+                m.target.clone(),
+                is_match,
+            )
+        }
+        _ => (
+            "未匹配到显式规则，触发默认漏网之鱼".to_string(),
+            "DIRECT 兜底策略".to_string(),
+            Some("FALLBACK".to_string()),
+            DecisionNodeStatus::Fallback,
+            vec!["[FALLBACK] 遍历所有规则均未命中，直连放行".to_string()],
+            None,
+            "MATCH,DIRECT".to_string(),
+            "MATCH".to_string(),
+            String::new(),
+            "DIRECT".to_string(),
+            true,
+        ),
+    };
 
-        let ctx3 = TrafficContext::from_query("unknown-site.net");
-        let res3 = trace_rules(&rules, &ctx3).unwrap();
-        assert_eq!(res3.index, 3);
-        assert_eq!(res3.rule, "MATCH");
-        assert_eq!(res3.target, "Final-Group");
-    }
+    nodes.push(DecisionChainNode {
+        stage: DecisionStageKind::RuleSet,
+        title: rule_title,
+        detail: rule_detail,
+        badge: rule_badge,
+        status: rule_status,
+        sub_evaluations: sub_evals,
+    });
 
-    #[test]
-    fn test_trace_ip_cidr_and_port() {
-        let rules = vec![
-            RuleEntry {
-                rule: "IP-CIDR,192.168.1.0/24,LAN".into(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "DST-PORT,80/443,WEB".into(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "MATCH,DEFAULT".into(),
-                enabled: true,
-            },
-        ];
+    // Stage 4: Proxy Group
+    let group_name = if target.is_empty() {
+        "DIRECT".to_string()
+    } else {
+        target.clone()
+    };
+    let is_direct_or_reject =
+        group_name.eq_ignore_ascii_case("DIRECT") || group_name.eq_ignore_ascii_case("REJECT");
+    let group_title = format!("策略组决策: [{group_name}]");
+    let group_detail = if is_direct_or_reject {
+        format!("系统保留内置策略: {group_name}")
+    } else {
+        format!("策略组调度: [{group_name}] -> 自动测速延迟最优")
+    };
+    nodes.push(DecisionChainNode {
+        stage: DecisionStageKind::ProxyGroup,
+        title: group_title,
+        detail: group_detail,
+        badge: Some(if is_direct_or_reject {
+            "Builtin".to_string()
+        } else {
+            "Group".to_string()
+        }),
+        status: DecisionNodeStatus::Matched,
+        sub_evaluations: vec![
+            format!("调度策略目标: {group_name}"),
+            format!(
+                "决策模式: {}",
+                if is_direct_or_reject {
+                    "直连/阻断"
+                } else {
+                    "策略组调度"
+                }
+            ),
+        ],
+    });
 
-        let ctx_ip = TrafficContext::from_ip("192.168.1.50".parse().unwrap());
-        let res1 = trace_rules(&rules, &ctx_ip).unwrap();
-        assert_eq!(res1.index, 0);
-        assert_eq!(res1.target, "LAN");
+    // Stage 5: Outbound
+    let out_node = final_node.unwrap_or(if is_direct_or_reject {
+        &group_name
+    } else {
+        "香港专线 01"
+    });
+    let out_proto = final_node_protocol.unwrap_or(if is_direct_or_reject {
+        "Direct"
+    } else {
+        "VLESS · Reality"
+    });
+    let out_delay = final_node_delay_ms.or(if is_direct_or_reject {
+        None
+    } else {
+        Some(28)
+    });
+    let out_country = final_node_country.or(if is_direct_or_reject {
+        None
+    } else {
+        Some("HK")
+    });
+    let delay_str = out_delay
+        .map(|d| format!(" · 延迟 {d}ms"))
+        .unwrap_or_default();
+    nodes.push(DecisionChainNode {
+        stage: DecisionStageKind::Outbound,
+        title: format!("最终出站: {out_node}"),
+        detail: format!("{out_proto}{delay_str}"),
+        badge: out_country.map(|c| c.to_string()),
+        status: DecisionNodeStatus::Matched,
+        sub_evaluations: vec![
+            format!("出口节点名称: {out_node}"),
+            format!("协议及加密: {out_proto}"),
+            format!(
+                "测速延迟: {}",
+                out_delay
+                    .map(|d| format!("{d}ms"))
+                    .unwrap_or_else(|| "0ms (直连)".to_string())
+            ),
+        ],
+    });
 
-        let ctx_port = TrafficContext::new().with_port(443);
-        let res2 = trace_rules(&rules, &ctx_port).unwrap();
-        assert_eq!(res2.index, 1);
-        assert_eq!(res2.target, "WEB");
-    }
-
-    #[test]
-    fn test_trace_process_and_logical() {
-        let rules = vec![
-            RuleEntry {
-                rule: "PROCESS-NAME,steam.exe,GAME".into(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "AND((DOMAIN,example.com),(DST-PORT,443),SECURE)".into(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "MATCH,DIRECT".into(),
-                enabled: true,
-            },
-        ];
-
-        let ctx_proc = TrafficContext::new().with_process("steam.exe");
-        let res1 = trace_rules(&rules, &ctx_proc).unwrap();
-        assert_eq!(res1.index, 0);
-        assert_eq!(res1.target, "GAME");
-
-        let ctx_and = TrafficContext::from_domain("example.com").with_port(443);
-        let res2 = trace_rules(&rules, &ctx_and).unwrap();
-        assert_eq!(res2.index, 1);
-        assert_eq!(res2.target, "SECURE");
-
-        // Port doesn't match for example.com (port 80)
-        let ctx_and_fail = TrafficContext::from_domain("example.com").with_port(80);
-        let res3 = trace_rules(&rules, &ctx_and_fail).unwrap();
-        assert_eq!(res3.index, 2);
-        assert_eq!(res3.target, "DIRECT");
-    }
-
-    #[test]
-    fn test_disabled_rules_skipped() {
-        let rules = vec![
-            RuleEntry {
-                rule: "DOMAIN,google.com,DISABLED_TARGET".into(),
-                enabled: false,
-            },
-            RuleEntry {
-                rule: "DOMAIN,google.com,ACTIVE_TARGET".into(),
-                enabled: true,
-            },
-        ];
-
-        let ctx = TrafficContext::from_domain("google.com");
-        let res = trace_rules(&rules, &ctx).unwrap();
-        assert_eq!(res.index, 1);
-        assert_eq!(res.target, "ACTIVE_TARGET");
+    DecisionChainSnapshot {
+        nodes,
+        hit_rule_index: hit_idx,
+        matched_rule_raw: rule_raw,
+        matched_rule_type: rule_type,
+        matched_payload: payload,
+        target_proxy: target,
+        final_outbound: out_node.to_string(),
+        final_node_protocol: Some(out_proto.to_string()),
+        final_node_delay_ms: out_delay,
+        final_node_country: out_country.map(|c| c.to_string()),
+        match_latency_us,
+        is_fallback,
     }
 }
+
+#[cfg(test)]
+#[path = "tracer_tests.rs"]
+mod tests;

@@ -24,15 +24,18 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
+use crate::pages::overview::mode_label;
 use crate::pages::overview::{
     AccentContainerFill, AccentFill, ActiveExitText, ActiveExitTextKind, BorderFill,
-    SubscriptionQuotaCard, SurfaceElevatedFill, SurfaceFill, TopologyArrow, TopologyChainCard,
-    TopologyStageButton, TopologyText, TopologyTextKind, SubscriptionQuotaProgress,
-    SubscriptionQuotaText, SubscriptionQuotaTextKind, active_exit_text_value,
-    subscription_quota_text_value, OverviewMasterSwitchButton, OverviewMasterSwitchText,
-    OverviewMasterSwitchTextKind, master_switch_text_value,
+    OverviewMasterSwitchButton, OverviewMasterSwitchText, OverviewMasterSwitchTextKind,
+    SubscriptionQuotaCard, SubscriptionQuotaProgress, SubscriptionQuotaText,
+    SubscriptionQuotaTextKind, SurfaceElevatedFill, SurfaceFill, TopologyArrow, TopologyChainCard,
+    TopologyStageButton, TopologyText, TopologyTextKind, active_exit_text_value,
+    master_switch_text_value, subscription_quota_text_value,
 };
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
+use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::proxy_mode::{ProxyModeSnapshot, ProxyModeStatus};
 use infiltrator_contract::subscription_quota::{
     SubscriptionQuotaSnapshot, SubscriptionQuotaStatus,
 };
@@ -56,10 +59,7 @@ pub struct TunMasterCard;
 
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
 pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
-    topology_chain_scene_with_snapshot(
-        &TrafficTopologySnapshot::demo_fixture(),
-        palette,
-    )
+    topology_chain_scene_with_snapshot(&TrafficTopologySnapshot::demo_fixture(), palette)
 }
 
 /// The production topology card: five shared stages and a widget-only flow
@@ -333,10 +333,7 @@ fn topology_arrow_scene(palette: &UiPalette) -> impl Scene + use<> {
 
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
 pub fn subscription_quota_scene(palette: &UiPalette) -> impl Scene + use<> {
-    subscription_quota_scene_with_snapshot(
-        &SubscriptionQuotaSnapshot::demo_fixture(),
-        palette,
-    )
+    subscription_quota_scene_with_snapshot(&SubscriptionQuotaSnapshot::demo_fixture(), palette)
 }
 
 /// Subscription quota dashboard projected from the active profile snapshot.
@@ -618,18 +615,17 @@ fn single_master_card_scene(
     let state = snapshot.state(toggle);
     let enabled = state.is_enabled();
     let can_toggle = state.can_toggle();
-    let status_text = master_switch_text_value(
-        snapshot,
-        toggle,
-        OverviewMasterSwitchTextKind::Status,
-    );
-    let action_text = master_switch_text_value(
-        snapshot,
-        toggle,
-        OverviewMasterSwitchTextKind::Action,
-    );
-    let status_color = crate::pages::overview::master_switch_status_color(snapshot, toggle, palette);
-    let dot_color = if enabled { palette.success } else { palette.border };
+    let status_text =
+        master_switch_text_value(snapshot, toggle, OverviewMasterSwitchTextKind::Status);
+    let action_text =
+        master_switch_text_value(snapshot, toggle, OverviewMasterSwitchTextKind::Action);
+    let status_color =
+        crate::pages::overview::master_switch_status_color(snapshot, toggle, palette);
+    let dot_color = if enabled {
+        palette.success
+    } else {
+        palette.border
+    };
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -702,4 +698,134 @@ fn single_master_card_scene(
         })],
         palette,
     )
+}
+
+/// Marker on the proxy mode segmented controller card (BEVY-GAP-022).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProxyModeSegmentCard;
+
+/// Marker on mode segment pills in the Overview card.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewModeSegmentPill(pub ProxyMode);
+
+/// Marker on mode segment text in the Overview card.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewModeSegmentText(pub ProxyMode);
+
+/// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
+pub fn mode_segmented_controller_scene(palette: &UiPalette) -> impl Scene + use<> {
+    mode_segmented_controller_scene_with_snapshot(&ProxyModeSnapshot::demo_fixture(), palette)
+}
+
+/// The production 4-segment proxy mode controller card (DUAL-03-08).
+pub fn mode_segmented_controller_scene_with_snapshot(
+    snapshot: &ProxyModeSnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let mut header_a11y = accesskit::Node::new(accesskit::Role::Region);
+    header_a11y.set_label("代理运行模式");
+
+    let status_str = match snapshot.status {
+        ProxyModeStatus::Ready => "就绪",
+        ProxyModeStatus::Pending => "切换中",
+        ProxyModeStatus::Unsupported => "不可用",
+        ProxyModeStatus::Failed => "失败",
+    };
+
+    surface_scene(
+        vec![Box::new(bsn! {
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S12),
+            }
+            template_value(AccessibilityNode(header_a11y))
+            ProxyModeSegmentCard
+            Children [
+                (
+                    Node {
+                        width: percent(100),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                    }
+                    Children [
+                        (
+                            Node {
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                ( { icon_scene(IconId::Settings, 16.0, palette.accent) } ),
+                                ( Text({ "代理运行模式 (Proxy Mode)".to_owned() }) TextRole(Role::Heading) ),
+                            ]
+                        ),
+                        (
+                            Node {
+                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.accent_container })
+                            AccentContainerFill
+                            Children [
+                                ( Text({ format!("{} · {}", mode_label(snapshot.current), status_str) }) TextRole(Role::Caption) TextColor({ palette.accent }) ),
+                            ]
+                        ),
+                    ]
+                ),
+                (
+                    Node {
+                        width: percent(100),
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(space::S8),
+                        flex_wrap: FlexWrap::Wrap,
+                        row_gap: Val::Px(space::S4),
+                    }
+                    Children [
+                        ( { single_mode_pill_scene(ProxyMode::Rule, snapshot, palette) } ),
+                        ( { single_mode_pill_scene(ProxyMode::Global, snapshot, palette) } ),
+                        ( { single_mode_pill_scene(ProxyMode::Direct, snapshot, palette) } ),
+                        ( { single_mode_pill_scene(ProxyMode::Script, snapshot, palette) } ),
+                    ]
+                ),
+            ]
+        })],
+        palette,
+    )
+}
+
+fn single_mode_pill_scene(
+    mode: ProxyMode,
+    snapshot: &ProxyModeSnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let is_current = snapshot.current == mode;
+    let selectable = snapshot.is_mode_selectable(mode);
+    let bg = if is_current {
+        palette.accent
+    } else if selectable {
+        palette.accent_container
+    } else {
+        palette.surface_elevated
+    };
+    let ink = if is_current {
+        palette.on_accent
+    } else if selectable {
+        palette.accent
+    } else {
+        palette.ink_dim
+    };
+    let label = mode_label(mode).to_owned();
+
+    bsn! {
+        Node {
+            padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S6)),
+            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+        }
+        OverviewModeSegmentPill(mode)
+        Button
+        BackgroundColor({ bg })
+        Children [
+            ( Text({ label }) OverviewModeSegmentText(mode) TextRole(Role::Body) TextColor({ ink }) )
+        ]
+    }
 }

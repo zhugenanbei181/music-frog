@@ -6,7 +6,9 @@ use bevy::ecs::query::{Has, With};
 use bevy::ecs::system::{Commands, Query};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::Checked;
-use bevy::ui::prelude::{AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, UiRect, Val, percent};
+use bevy::ui::prelude::{
+    AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, UiRect, Val, percent,
+};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Checkbox;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -14,10 +16,13 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
-use super::settings_core::{SettingsLine, SettingsLineKind, SettingsProjection, TunEnableToggle, TunRouteToggle, TunRouteToggleKind};
+use super::SettingsProjectionUpdated;
+use super::settings_core::{
+    SettingsLine, SettingsLineKind, SettingsProjection, TunEnableToggle, TunRouteToggle,
+    TunRouteToggleKind,
+};
 use super::settings_ipv6;
 use super::settings_system::SystemProxyToggle;
-use super::SettingsProjectionUpdated;
 
 pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl Scene + use<> {
     let stack_str = projection.tun_stack.clone();
@@ -86,7 +91,12 @@ pub(super) fn apply_tun_toggle_projection(
         restamp_checkbox(&mut commands, &checkboxes, children, projection.tun_enabled);
     }
     for children in &mut system_proxy_toggles {
-        restamp_checkbox(&mut commands, &checkboxes, children, projection.system_proxy);
+        restamp_checkbox(
+            &mut commands,
+            &checkboxes,
+            children,
+            projection.system_proxy,
+        );
     }
 }
 

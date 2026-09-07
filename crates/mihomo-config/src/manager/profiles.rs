@@ -206,6 +206,12 @@ impl<S: SecureStore> ConfigManager<S> {
         set_optional_u64(profile_table, "traffic_download", metadata.traffic_download);
         set_optional_u64(profile_table, "traffic_total", metadata.traffic_total);
         set_optional_i64(profile_table, "expire_at", metadata.expire_at);
+        set_optional_string(profile_table, "user_agent", metadata.user_agent.clone());
+        set_optional_string(profile_table, "etag", metadata.etag.clone());
+        set_optional_string(profile_table, "last_modified", metadata.last_modified.clone());
+        set_optional_string(profile_table, "cron_expression", metadata.cron_expression.clone());
+        set_bool(profile_table, "insecure_skip_verify", metadata.insecure_skip_verify);
+        set_bool(profile_table, "auto_reload_core", metadata.auto_reload_core);
 
         let content = toml::to_string(&settings)
             .map_err(|e| MihomoError::Config(format!("Failed to serialize config: {}", e)))?;

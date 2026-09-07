@@ -11,15 +11,11 @@ use infiltrator_bevy_ui::surface::{
     settings_projection,
 };
 use infiltrator_bevy_widgets::theme::LightDark;
-use infiltrator_contract::session::SessionToken;
-use infiltrator_contract::snapshot::{
-    CoreLifecycle, CoreWatchdogSnapshot, CoreWatchdogState,
-};
-use infiltrator_contract::surface_snapshot::SurfaceOrigin;
-use infiltrator_contract::port_conflict::{
-    PortBinding, PortConflict, PortConflictSnapshot,
-};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
+use infiltrator_contract::session::SessionToken;
+use infiltrator_contract::snapshot::{CoreLifecycle, CoreWatchdogSnapshot, CoreWatchdogState};
+use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 
 use crate::support::{headless_plugins, page_root, subtree_has_text};
 
@@ -124,11 +120,7 @@ fn shared_snapshot_reaches_all_eleven_page_lanes() {
 #[test]
 fn shared_core_lifecycle_projection_tracks_session_generation_and_revision() {
     let mut app = app_with_shared_source();
-    let initial = app
-        .world()
-        .resource::<LatestCoreLifecycle>()
-        .0
-        .clone();
+    let initial = app.world().resource::<LatestCoreLifecycle>().0.clone();
     assert_eq!(initial.lifecycle, CoreLifecycle::Running);
     assert_eq!(initial.generation, 1);
     assert_eq!(initial.session_token.map(|token| token.value()), Some(42));
@@ -182,7 +174,9 @@ fn dual_surface_headless_lifecycle_matrix_covers_failure_conflict_and_stop() {
         CoreLifecycle::Failed
     );
 
-    app.world_mut().commands().trigger(RouteChanged(Route::Settings));
+    app.world_mut()
+        .commands()
+        .trigger(RouteChanged(Route::Settings));
     app.update();
     app.world_mut()
         .commands()
@@ -338,5 +332,8 @@ fn shared_watchdog_snapshot_reaches_the_bevy_doctor_projection() {
         projection.watchdog.state,
         CoreWatchdogState::Tripped { attempts: 3 }
     );
-    assert_eq!(projection.watchdog.session_token, Some(SessionToken::new(41)));
+    assert_eq!(
+        projection.watchdog.session_token,
+        Some(SessionToken::new(41))
+    );
 }

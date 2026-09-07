@@ -7,7 +7,10 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
-use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val, percent, px};
+use bevy::ui::prelude::{
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
+    percent, px,
+};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::icon::IconId;
@@ -156,11 +159,7 @@ pub fn uwp_exemption_scene(
     )
 }
 
-fn action_button(
-    label: &str,
-    action: UwpAction,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
+fn action_button(label: &str, action: UwpAction, palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
         Node {
             min_height: px(palette.control_height_px),
@@ -318,7 +317,11 @@ fn format_status(snapshot: &UwpLoopbackSnapshot) -> String {
                 .iter()
                 .filter(|package| package.loopback_exempt)
                 .count();
-            format!("已扫描 {} 个 UWP AppContainer · 已豁免 {} 个", snapshot.packages.len(), exempt)
+            format!(
+                "已扫描 {} 个 UWP AppContainer · 已豁免 {} 个",
+                snapshot.packages.len(),
+                exempt
+            )
         }
         UwpLoopbackAvailability::Unsupported { reason }
         | UwpLoopbackAvailability::Unavailable { reason } => reason.clone(),

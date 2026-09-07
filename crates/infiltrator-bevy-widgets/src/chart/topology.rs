@@ -278,8 +278,14 @@ pub fn rasterize_topology(spec: &TopologySpec, palette: &UiPalette) -> Vec<u8> {
         ) else {
             continue;
         };
-        let p0 = PlotPoint::new(src.x_fraction * width as f32, src.y_fraction * height as f32);
-        let p1 = PlotPoint::new(dst.x_fraction * width as f32, dst.y_fraction * height as f32);
+        let p0 = PlotPoint::new(
+            src.x_fraction * width as f32,
+            src.y_fraction * height as f32,
+        );
+        let p1 = PlotPoint::new(
+            dst.x_fraction * width as f32,
+            dst.y_fraction * height as f32,
+        );
         let dx = (p1.x - p0.x) * 0.5;
         let segment = CubicBezierSegment::new(
             p0,
@@ -298,13 +304,7 @@ pub fn rasterize_topology(spec: &TopologySpec, palette: &UiPalette) -> Vec<u8> {
     pixels
 }
 
-fn draw_particle(
-    pixels: &mut [u8],
-    width: u32,
-    height: u32,
-    point: PlotPoint,
-    color: [u8; 4],
-) {
+fn draw_particle(pixels: &mut [u8], width: u32, height: u32, point: PlotPoint, color: [u8; 4]) {
     let cx = point.x.round() as i32;
     let cy = point.y.round() as i32;
     for radius in [4_i32, 2_i32] {
@@ -444,16 +444,18 @@ pub fn sync_topology_charts(
 /// Advance only mounted topology plates that have an active observed link.
 /// The page adapter owns whether the plate is mounted; this widget system
 /// owns only the generic phase clock and therefore remains business-agnostic.
-pub fn advance_topology_flow(
-    time: Res<Time>,
-    mut charts: Query<&mut TopologyPlate>,
-) {
+pub fn advance_topology_flow(time: Res<Time>, mut charts: Query<&mut TopologyPlate>) {
     let dt = time.delta_secs();
     if dt <= 0.0 {
         return;
     }
     for mut plate in &mut charts {
-        if plate.0.links.iter().any(|link| link.highlighted && link.bandwidth_bps > 0.0) {
+        if plate
+            .0
+            .links
+            .iter()
+            .any(|link| link.highlighted && link.bandwidth_bps > 0.0)
+        {
             plate.0.flow_phase = (plate.0.flow_phase + dt * plate.0.flow_speed).fract();
         }
     }

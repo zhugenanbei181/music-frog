@@ -750,6 +750,16 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::SetProxyMode { .. } => "set_proxy_mode",
         CommandIntent::SelectProxyNode { .. } => "select_proxy_node",
         CommandIntent::TestDelay { .. } => "test_delay",
+        CommandIntent::RunSpeedtest { .. } => "run_speedtest",
+        CommandIntent::CancelSpeedtest => "cancel_speedtest",
+        CommandIntent::ToggleProxyGroupExpand { .. } => "toggle_proxy_group_expand",
+        CommandIntent::SetProxyGroupExpanded { .. } => "set_proxy_group_expanded",
+        CommandIntent::SetProxySortOrder { .. } => "set_proxy_sort_order",
+        CommandIntent::ToggleFilterAlive { .. } => "toggle_filter_alive",
+        CommandIntent::ToggleFavoriteProxy { .. } => "toggle_favorite_proxy",
+        CommandIntent::SetProxyCompactView { .. } => "set_proxy_compact_view",
+        CommandIntent::ReorderProxyGroups { .. } => "reorder_proxy_groups",
+        CommandIntent::ResetProxyGroupOrder => "reset_proxy_group_order",
         CommandIntent::UpdateProfile { .. } => "update_profile",
         CommandIntent::DeleteProfile { .. } => "delete_profile",
         CommandIntent::RefreshRuleProviders => "refresh_rule_providers",
@@ -789,7 +799,10 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::RestoreSnapshot { .. } => "restore_snapshot",
         CommandIntent::RollbackCore => "rollback_core",
         CommandIntent::UpdateSetting { .. } => "update_setting",
-        CommandIntent::CheckUpdates => "check_updates",
+CommandIntent::CheckUpdates => "check_updates",
+        CommandIntent::SimulateRuleTrace { .. } => "simulate_rule_trace",
+        CommandIntent::ResetRuleHitCounters => "reset_rule_hit_counters",
+        CommandIntent::UnpackRuleProvider { .. } => "unpack_rule_provider",
     }
 }
 

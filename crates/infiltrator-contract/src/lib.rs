@@ -9,6 +9,7 @@ pub mod active_exit;
 pub mod subscription_quota;
 pub mod controller;
 pub mod command;
+pub mod proxy_mode;
 pub mod port_conflict;
 pub mod resources;
 pub mod doctor;
@@ -36,6 +37,13 @@ pub mod traffic_scale;
 pub mod traffic_topology;
 pub mod version;
 pub mod surface;
+pub mod rule_tracer;
+pub mod mrs_acceleration;
+pub mod yaml_ast_diff;
+pub mod script_sandbox;
+pub mod subscription_import;
+pub mod speedtest;
+pub mod proxies;
 
 #[cfg(test)]
 mod tests {

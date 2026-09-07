@@ -268,26 +268,34 @@ fn projection_from_snapshot(snapshot: CoreSnapshot) -> OverviewProjection {
         core_version: snapshot.core_version,
         traffic_waveform: Default::default(),
         traffic_scale: Default::default(),
-        traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot::unsupported(
-            snapshot.generation,
-            snapshot.revision.max(1),
-            "overview-only controller source does not include topology facts",
-        ),
+        traffic_topology:
+            infiltrator_contract::traffic_topology::TrafficTopologySnapshot::unsupported(
+                snapshot.generation,
+                snapshot.revision.max(1),
+                "overview-only controller source does not include topology facts",
+            ),
         active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot::unsupported(
             snapshot.generation,
             snapshot.revision.max(1),
             "overview-only controller source does not include proxy facts",
         ),
-        subscription_quota: infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::unsupported(
-            snapshot.generation,
-            snapshot.revision.max(1),
-            "overview-only controller source does not include profile quota facts",
-        ),
+        subscription_quota:
+            infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::unsupported(
+                snapshot.generation,
+                snapshot.revision.max(1),
+                "overview-only controller source does not include profile quota facts",
+            ),
         system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
             false,
             None,
             snapshot.revision.max(1),
         ),
+        proxy_mode: infiltrator_contract::proxy_mode::ProxyModeSnapshot {
+            current: snapshot.proxy_mode.unwrap_or_default(),
+            script_available: false,
+            status: infiltrator_contract::proxy_mode::ProxyModeStatus::Ready,
+            failure: None,
+        },
     }
 }
 

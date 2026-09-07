@@ -75,7 +75,40 @@ impl RuleHitCounter {
         self.total_hits
     }
 
-    /// Clears all recorded statistics.
+
+
+    /// Records a hit for a specific rule using the current Unix timestamp in seconds.
+    pub fn record_hit_now(&mut self, rule_raw: &str, payload_bytes: u64) {
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        self.record_hit(rule_raw, payload_bytes, now_secs);
+    }
+
+    /// Returns the total hits recorded for a specific rule.
+    pub fn hit_count_for(&self, rule_raw: &str) -> u64 {
+        self.records.get(rule_raw).map(|r| r.hit_count).unwrap_or(0)
+    }
+
+    /// Returns the last hit timestamp in seconds for a specific rule.
+    pub fn last_hit_for(&self, rule_raw: &str) -> Option<u64> {
+        self.records
+            .get(rule_raw)
+            .and_then(|r| if r.last_hit_secs > 0 { Some(r.last_hit_secs) } else { None })
+    }
+
+    /// Records a batch of hits from active connection observations.
+    pub fn record_batch(&mut self, hits: &[(&str, u64)]) {
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        for &(rule, bytes) in hits {
+            self.record_hit(rule, bytes, now_secs);
+        }
+    }
+
     pub fn clear(&mut self) {
         self.records.clear();
         self.total_hits = 0;
