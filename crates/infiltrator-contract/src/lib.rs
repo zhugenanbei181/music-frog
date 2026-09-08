@@ -26,6 +26,7 @@ pub mod public_ip;
 pub mod overview_layout;
 pub mod reconnect_mask;
 pub mod responsive_viewport;
+pub mod overview_matrix;
 pub mod resources;
 pub mod rule_tracer;
 pub mod script_sandbox;

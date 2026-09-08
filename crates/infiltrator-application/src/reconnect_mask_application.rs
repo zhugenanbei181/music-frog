@@ -56,8 +56,7 @@ mod tests {
             memory_bytes: None,
             watchdog: infiltrator_contract::snapshot::CoreWatchdogSnapshot {
                 state: watchdog,
-                failure_count: 0,
-                last_error: None,
+                ..Default::default()
             },
         }
     }

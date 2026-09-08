@@ -1786,3 +1786,12 @@ fn test_overview_responsive_four_tier_viewport_parity() {
     assert_eq!(wide.card_columns, 3);
     assert_eq!(wide.metrics_columns, 6);
 }
+
+#[test]
+fn test_overview_dual_surface_headless_regression_matrix_full_coverage() {
+    let report =
+        infiltrator_contract::overview_matrix::OverviewRegressionMatrixReport::run_deterministic_matrix();
+    assert!(report.is_all_passed());
+    assert_eq!(report.total_scenarios, 14);
+    assert_eq!(report.passed_scenarios, 14);
+}

@@ -29,6 +29,7 @@ pub mod public_ip_application;
 pub mod overview_layout_application;
 pub mod reconnect_mask_application;
 pub mod responsive_viewport_application;
+pub mod overview_matrix_application;
 pub mod resource_application;
 pub mod routing_application;
 pub mod runtime_query_application;
