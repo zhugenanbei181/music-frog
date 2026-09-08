@@ -139,6 +139,7 @@ fn proxies_page_in_place_update() {
         groups: vec![ProxyGroup {
             name: "节点选择 (PROXIES)".to_owned(),
             group_type: "Selector".to_owned(),
+            classification: infiltrator_contract::proxies::ProxyGroupClassification::Selector,
             current: "🇯🇵 日本东京 01 · 专线".to_owned(),
             expanded: true,
             proxies: vec![ProxyNode {

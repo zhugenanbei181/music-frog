@@ -53,6 +53,7 @@
 | `DUAL-03-13` 断线与重载优雅降级蒙版 | `parity-ready` | Overview 断线与配置重载优雅降级统一消费 shared `ReconnectMaskSnapshot`；`ReconnectMaskApplication` 负责看门狗重试、配置平滑热重载与崩溃恢复判定，在核心重启/重载期间界面完整保留上一帧有效事实快照，覆以半透明平滑重载蒙版与重试倒计时 | Bevy OverviewReloadMask scene / projection in-place / headless tests、Iced 重载保护适配、nextest 自动化闭环；真实生产断网拔线/故障注入 smoke 尚未计入 `host-verified` |
 | `DUAL-03-14` 双端全视口响应式表现 1:1 对齐 | `parity-ready` | Overview 视口响应式自适应统一消费 shared `ResponsiveViewportSnapshot`；划分 `Compact`（移动紧凑 1 列卡片/2 列指标）、`Medium`（平板 2 列卡片/3 列指标）、`Expanded`（标准桌面 2 列卡片/6 列指标）与 `Ultra`（宽屏 3 列卡片/6 列指标）四阶断点梯队，Iced 与 Bevy 双端保持 100% 结构层次对齐 | Bevy 4-tier breakpoint headless tests、Iced 响应式栅格、nextest 自动化闭环；真实手机/平板触控设备视觉 smoke 尚未计入 `host-verified` |
 | `DUAL-03-15` 概览双端全景无头行为与回归测试矩阵 | `parity-ready` | Overview 15 项能力建立单一共享回归矩阵契约 `OverviewRegressionMatrixReport`；`OverviewMatrixApplication` 统一执行波形平滑、标尺量程、拓扑链、下钻跳转、出口卡片、配额预警、主控大卡、四态分段、一键测速、6项指标、公网探针、拖拽重排、降级蒙版与响应式视口共 14 场景全覆盖断言 | 自动化测试矩阵 100% 绿灯、nextest 自动化闭环；真实长期无故障运行 smoke 尚未计入 `host-verified` |
+| `DUAL-04-01` 策略组 5 大分类全覆盖 | `parity-ready` | 代理策略组统一使用 shared `ProxyGroupClassification` 强枚举建模（`Selector`、`UrlTest`、`Fallback`、`LoadBalance`、`Relay`）；`ProxyApplication` 校验分类合法性与手动可选性（仅 Selector 接受外部 `PUT /proxies/{group}`，自动组由内核按策略调度），双端根据分类正确渲染语义标签与交互模式 | contract/domain 5分类解析测试、ProxyApplication::list_group_details/switch 校验、Bevy/Iced 策略组卡片分类对齐与 headless tests 已覆盖；真实多级复杂 relay 节点与发行包 smoke 尚未计入 `host-verified` |
 
 ---
 

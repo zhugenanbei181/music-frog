@@ -107,6 +107,7 @@ pub(super) fn proxies_projection(
                 .map(|group| ProxyGroup {
                     name: group.name.clone(),
                     group_type: group.group_type.clone(),
+                    classification: group.resolved_classification(),
                     current: group.current.clone(),
                     expanded: group.expanded,
                     proxies: group

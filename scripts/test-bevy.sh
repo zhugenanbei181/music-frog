@@ -67,3 +67,4 @@ python3 "$repo_root/scripts/quality/overview-card-reorder-guard.py" --mode enfor
 python3 "$repo_root/scripts/quality/overview-reconnect-mask-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/overview-responsive-viewport-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/overview-regression-matrix-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/proxies-five-group-guard.py" --mode enforce

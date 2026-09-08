@@ -177,6 +177,7 @@ python3 scripts/quality/overview-card-reorder-guard.py --mode enforce
 python3 scripts/quality/overview-reconnect-mask-guard.py --mode enforce
 python3 scripts/quality/overview-responsive-viewport-guard.py --mode enforce
 python3 scripts/quality/overview-regression-matrix-guard.py --mode enforce
+python3 scripts/quality/proxies-five-group-guard.py --mode enforce
 ```
 
 ---

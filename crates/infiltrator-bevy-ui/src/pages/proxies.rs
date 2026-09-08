@@ -236,6 +236,7 @@ pub struct ProxyNode {
 pub struct ProxyGroup {
     pub name: String,
     pub group_type: String,
+    pub classification: infiltrator_contract::proxies::ProxyGroupClassification,
     pub current: String,
     pub expanded: bool,
     pub proxies: Vec<ProxyNode>,
@@ -259,6 +260,8 @@ impl ProxiesProjection {
                 ProxyGroup {
                     name: "节点选择 (PROXIES)".to_owned(),
                     group_type: "Selector".to_owned(),
+                    classification:
+                        infiltrator_contract::proxies::ProxyGroupClassification::Selector,
                     current: "🇭🇰 香港 01 · BGP 专线".to_owned(),
                     expanded: true,
                     proxies: vec![
@@ -299,6 +302,8 @@ impl ProxiesProjection {
                 ProxyGroup {
                     name: "自动选择 (AUTO)".to_owned(),
                     group_type: "URLTest".to_owned(),
+                    classification:
+                        infiltrator_contract::proxies::ProxyGroupClassification::UrlTest,
                     current: "🇭🇰 香港 01 · BGP 专线".to_owned(),
                     expanded: true,
                     proxies: vec![
@@ -323,6 +328,8 @@ impl ProxiesProjection {
                 ProxyGroup {
                     name: "国外媒体 (STREAMING)".to_owned(),
                     group_type: "Selector".to_owned(),
+                    classification:
+                        infiltrator_contract::proxies::ProxyGroupClassification::Selector,
                     current: "🇸🇬 新加坡 01 · Anycast".to_owned(),
                     expanded: true,
                     proxies: vec![
