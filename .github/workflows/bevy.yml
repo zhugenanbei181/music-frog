@@ -74,6 +74,10 @@ on:
       - "scripts/quality/proxies-filter-alive-guard.py"
       - "scripts/quality/proxies-sorting-guard.py"
       - "scripts/quality/proxies-favorite-pin-guard.py"
+      - "scripts/quality/proxies-protocol-chips-guard.py"
+      - "scripts/quality/proxies-latency-colors-guard.py"
+      - "scripts/quality/proxies-sparkline-guard.py"
+      - "scripts/quality/proxies-fuzzy-filter-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -139,6 +143,10 @@ on:
       - "scripts/quality/proxies-filter-alive-guard.py"
       - "scripts/quality/proxies-sorting-guard.py"
       - "scripts/quality/proxies-favorite-pin-guard.py"
+      - "scripts/quality/proxies-protocol-chips-guard.py"
+      - "scripts/quality/proxies-latency-colors-guard.py"
+      - "scripts/quality/proxies-sparkline-guard.py"
+      - "scripts/quality/proxies-fuzzy-filter-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -341,6 +349,14 @@ jobs:
         run: python3 scripts/quality/proxies-sorting-guard.py --mode enforce
       - name: Run Proxies Favorite Pin Guard
         run: python3 scripts/quality/proxies-favorite-pin-guard.py --mode enforce
+      - name: Run Proxies Protocol Chips Guard
+        run: python3 scripts/quality/proxies-protocol-chips-guard.py --mode enforce
+      - name: Run Proxies Latency Colors Guard
+        run: python3 scripts/quality/proxies-latency-colors-guard.py --mode enforce
+      - name: Run Proxies Sparkline Guard
+        run: python3 scripts/quality/proxies-sparkline-guard.py --mode enforce
+      - name: Run Proxies Fuzzy Filter Guard
+        run: python3 scripts/quality/proxies-fuzzy-filter-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

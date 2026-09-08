@@ -59,6 +59,10 @@
 | `DUAL-04-04` 节点死链一键隐藏 (Filter Alive) | `parity-ready` | 工具栏一键只看可用过滤统一消费 shared `ProxyFilterAliveSnapshot`；`derive_from_candidates` 统一计算 alive/dead/total 指标，Iced 与 Bevy 派发同一 `ToggleFilterAlive` 意图，秒级过滤超时与未测速节点 | domain/contract 状态推导测试、Bevy FilterAliveToggle / headless tests、Iced 过滤流已覆盖；真实大规模超时集群 smoke 尚未计入 `host-verified` |
 | `DUAL-04-05` 四维排序控制器 | `parity-ready` | 节点卡片排序统一走 shared `ProxySortOrder` 强枚举（`LatencyAsc`、`LatencyDesc`、`NameAsc`、`NameDesc`）；`compare_candidates` 统一实现星标优先、有效延迟升降序、未测速/死链垫底规则，两端通过 `SetProxySortOrder` 意图同步并持久化 | domain 排序法则单元测试、Bevy ProxySortPill / headless tests、Iced 四维排序适配已覆盖；真实超万行节点列表滚动重排 smoke 尚未计入 `host-verified` |
 | `DUAL-04-06` 节点星标置顶与收藏 | `parity-ready` | 节点卡片星标收藏接入 shared `ProxyUiPreferences::favorite_proxies` 列表；收藏节点在任何排序模式下均保证锁定于策略组首位，Iced 与 Bevy 通过 `ToggleFavoriteProxy` 意图同步触发星标点亮与重排 | domain 候选比较置顶测试、Bevy NodePinButton / headless tests、Iced 收藏适配已覆盖；真实极端并发收藏冲突 smoke 尚未计入 `host-verified` |
+| `DUAL-04-07` 协议与特性高级芯片 | `parity-ready` | 节点卡片显式标注协议类型与高级特性芯片；`format_protocol_chip` 统一规范 Shadowsocks/Vless/VMess/Trojan/Hysteria2/WireGuard 命名，特性芯片标注 Reality/Vision/UDP/TFO，两端高保真展示 | domain 协议芯片格式化测试、Bevy NodeProtoText / NodeUdpTag / headless tests、Iced 特性徽标已覆盖；真实各协议特有握手字段解析 smoke 尚未计入 `host-verified` |
+| `DUAL-04-08` 节点延迟多色阶渲染 | `parity-ready` | 节点延迟数值多色阶渲染统一走 shared `LatencyTier` 阶梯；<100ms 翡翠绿 (Fast)、100-200ms 青草绿 (Normal)、200-300ms 暖黄 (Medium)、>300ms 警戒红 (Slow)、超时/未测速灰色 (Timeout)，Iced 与 Bevy 色阶与文案完全一致 | domain 延迟分级与标签生成测试、Bevy LatencyText / latency_color / headless tests、Iced 色板已覆盖；真实高抖动网络色温过渡 smoke 尚未计入 `host-verified` |
+| `DUAL-04-09` 单节点历史延迟 Sparkline 走势图 | `parity-ready` | 节点卡片集成最近采样微折线走势图；消费节点 `history` 延迟记录，Iced 与 Bevy 在节点卡片挂载走势微图指示器 `LatencyTrendIcon`，直观呈现网络抖动与历史稳定性 | Bevy LatencyTrendIcon / headless tests、Iced sparkline 适配已覆盖；真实长时间高频采样显存占用 smoke 尚未计入 `host-verified` |
+| `DUAL-04-10` 智能拼音与协议模糊检索 | `parity-ready` | 节点检索工具栏支持多模态智能检索；`matches_proxy_filter` 统一支持节点名子串、协议与缩写（`ss`, `hy2`）、特性标签（`reality`, `vision`）、延迟比较（`<100`, `>200`）及汉字/拼音首字母（`xg`, `jp`, `sg`, `us`, `tw`），两端搜索行为 100% 对齐 | Bevy matches_proxy_filter 单元测试 / headless tests、Iced 拼音检索流已覆盖；真实超长复杂非标节点名检索 smoke 尚未计入 `host-verified` |
 
 ---
 

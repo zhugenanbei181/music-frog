@@ -1027,3 +1027,46 @@ fn test_proxies_favorite_pin_submits_command() {
             .any(|cmd| matches!(cmd, UiCommand::ToggleFavoriteProxy(_)))
     );
 }
+
+#[test]
+fn test_proxies_advanced_chips_and_color_ladder() {
+    assert_eq!(
+        infiltrator_bevy_ui::pages::proxies_filter::format_protocol_chip("Shadowsocks"),
+        "Shadowsocks"
+    );
+    assert_eq!(
+        infiltrator_bevy_ui::pages::proxies_filter::format_protocol_chip("vless"),
+        "Vless"
+    );
+    assert_eq!(
+        infiltrator_bevy_ui::pages::proxies_filter::format_protocol_chip("hy2"),
+        "Hysteria2"
+    );
+
+    let (label, tier) = infiltrator_bevy_ui::pages::proxies::format_latency(Some(45));
+    assert_eq!(label, "45 ms");
+    assert_eq!(tier, infiltrator_bevy_ui::pages::proxies::LatencyTier::Fast);
+
+    let (label, tier) = infiltrator_bevy_ui::pages::proxies::format_latency(Some(0));
+    assert_eq!(label, "超时");
+    assert_eq!(tier, infiltrator_bevy_ui::pages::proxies::LatencyTier::Timeout);
+}
+
+#[test]
+fn test_proxies_pinyin_fuzzy_and_protocol_filtering() {
+    let node = infiltrator_bevy_ui::pages::proxies::ProxyNode {
+        name: "🇭🇰 香港 01 · BGP 专线".to_owned(),
+        node_type: "VLESS".to_owned(),
+        delay_ms: Some(45),
+        selected: true,
+        favorite: true,
+        features: vec!["Reality".to_owned(), "Vision".to_owned()],
+    };
+
+    assert!(infiltrator_bevy_ui::pages::proxies_filter::matches_proxy_filter(&node, "xg"));
+    assert!(infiltrator_bevy_ui::pages::proxies_filter::matches_proxy_filter(&node, "hk"));
+    assert!(infiltrator_bevy_ui::pages::proxies_filter::matches_proxy_filter(&node, "vless"));
+    assert!(infiltrator_bevy_ui::pages::proxies_filter::matches_proxy_filter(&node, "reality"));
+    assert!(infiltrator_bevy_ui::pages::proxies_filter::matches_proxy_filter(&node, "<100"));
+    assert!(!infiltrator_bevy_ui::pages::proxies_filter::matches_proxy_filter(&node, "日本"));
+}

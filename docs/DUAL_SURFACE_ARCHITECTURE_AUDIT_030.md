@@ -125,6 +125,10 @@
 - `DUAL-04-04` 已完成 节点死链一键隐藏、`ProxyFilterAliveSnapshot`、Bevy `FilterAliveToggle` 与 headless 测试闭环；真实超时网络环境 smoke 仍未冒充 `host-verified`。
 - `DUAL-04-05` 已完成 四维排序控制器、`ProxySortOrder`、Bevy `ProxySortPill` 与 headless 测试闭环；真实大数据集排序渲染 smoke 仍未冒充 `host-verified`。
 - `DUAL-04-06` 已完成 节点星标置顶与收藏、`ProxyUiPreferences::favorite_proxies`、Bevy `NodePinButton` 与 headless 测试闭环；真实用户偏好持久化 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-07` 已完成 协议与特性高级芯片、`format_protocol_chip`、Bevy `NodeProtoText`/`NodeUdpTag` 与 headless 测试闭环；真实协议字段扩展 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-08` 已完成 节点延迟多色阶渲染、`LatencyTier`、`latency_color`、Bevy `LatencyText` 与 headless 测试闭环；真实色阶过渡 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-09` 已完成 单节点历史延迟 Sparkline 走势图、Bevy `LatencyTrendIcon` 与 headless 测试闭环；长时采样显存占用 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-10` 已完成 智能拼音与协议模糊检索、`matches_proxy_filter`、拼音首字母匹配与 headless 测试闭环；真实海量节点搜索 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

@@ -63,6 +63,10 @@
 - [x] `DUAL-04-04`：节点死链一键隐藏进入 `ProxyFilterAliveSnapshot`/`ToggleFilterAlive`；死链过滤算子与 alive/dead 事实计算收敛至 domain/contract，两端状态对等。
 - [x] `DUAL-04-05`：四维排序控制器进入 `ProxySortOrder`/`SetProxySortOrder`；`compare_candidates` 统一星标优先、有效延迟与字母升降序，两端共享 `SetProxySortOrder` 意图。
 - [x] `DUAL-04-06`：节点星标置顶与收藏进入 `ProxyUiPreferences::favorite_proxies`/`ToggleFavoriteProxy`；收藏节点优先级超越常规延迟与字母排序，保证置顶生效。
+- [x] `DUAL-04-07`：协议与特性高级芯片进入 `format_protocol_chip`/`NodeProtoText`；规范 Shadowsocks/Vless/VMess/Trojan/Hysteria2 命名与 Reality/Vision/UDP/TFO 芯片。
+- [x] `DUAL-04-08`：节点延迟多色阶渲染进入 `LatencyTier`/`format_latency`/`latency_color`；五级色梯与文案标准化，两端视觉语义一致。
+- [x] `DUAL-04-09`：单节点历史延迟 Sparkline 走势图进入 `LatencyTrendIcon`/`history`；卡片挂载微折线走势指标，呈现历史波动。
+- [x] `DUAL-04-10`：智能拼音与协议模糊检索进入 `matches_proxy_filter`；汉字/拼音首字母、协议简写、特性标签与延迟数值阈值检索全对齐。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。
