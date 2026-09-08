@@ -116,6 +116,7 @@
 - `DUAL-03-10` 已完成 Overview 6 项运维网格、Iced 6 瓦片 `stats_grid`、Bevy `OverviewChipKind`（Connections/Memory/Cpu/Upload/Download/TotalTraffic）与原地刷新测试；真实长时高吞吐与多会话统计仍未冒充 `host-verified`。
 - `DUAL-03-11` 已完成 Overview 公网 IP 隐私归属探针、`PublicIpProbeSnapshot`、Bevy `PublicIpProbeCard`/`PublicIpRefreshButton` 与 Iced `current_ip_card` 双端对齐及测试闭环；真实全球多节点网络探针与发行包 smoke 仍未冒充 `host-verified`。
 - `DUAL-03-12` 已完成 Overview 8 类卡片模块纵向重排、`OverviewLayoutSnapshot`、`OverviewLayoutApplication`、Bevy `OverviewCardSlot`/Move observer 与 shared intent 行为测试；真实触控长按拖拽视觉动效仍未冒充 `host-verified`。
+- `DUAL-03-13` 已完成 Overview 断线与重载优雅降级蒙版、`ReconnectMaskSnapshot`、`ReconnectMaskApplication`、Bevy `OverviewReloadMask` 原地在席显隐与 headless 测试闭环；真实系统断网/进程异常退出 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

@@ -24,6 +24,7 @@ pub mod proxies;
 pub mod proxy_mode;
 pub mod public_ip;
 pub mod overview_layout;
+pub mod reconnect_mask;
 pub mod resources;
 pub mod rule_tracer;
 pub mod script_sandbox;

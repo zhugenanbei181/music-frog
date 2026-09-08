@@ -226,6 +226,14 @@ pub struct PublicIpProbeCard;
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OverviewCardSlot(pub infiltrator_contract::overview_layout::OverviewCardKind);
 
+/// Marker on the reload / reconnect graceful degradation overlay mask (DUAL-03-13).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewReloadMask;
+
+/// Marker on the text rendered within the reload overlay mask.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewReloadMaskText;
+
 /// Reorder button action on an Overview card slot (Move Up).
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OverviewCardMoveUpButton(pub infiltrator_contract::overview_layout::OverviewCardKind);
@@ -538,6 +546,29 @@ fn card_fill(state: OverviewState, palette: &UiPalette) -> Color {
 
 // ---- scene adapters ---------------------------------------------------------
 
+/// Reload / reconnect graceful degradation overlay mask (DUAL-03-13).
+pub(crate) fn reload_mask_scene(palette: &UiPalette) -> impl Scene + use<> {
+    let scrim = palette.scrim();
+    bsn! {
+        Node {
+            display: Display::None,
+            position_type: bevy::ui::PositionType::Absolute,
+            width: percent(100),
+            height: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(space::S8),
+        }
+        BackgroundColor({ scrim })
+        OverviewReloadMask
+        Children [
+            ( { icon_scene(IconId::Activity, 24.0, palette.accent) } ),
+            ( Text({ "内核重载中 · 保持上一帧快照 (Reloading Core)".to_owned() }) OverviewReloadMaskText TextRole(Role::BodyStrong) TextColor({ palette.on_accent }) ),
+        ]
+    }
+}
+
 /// The Overview page: status banner, live traffic card and the metrics
 /// chip band, filling the shell's content slot. The traffic card's trend
 /// chart seeds from [`chart_series`] — the demo fixture's synthetic waves
@@ -570,6 +601,7 @@ pub fn overview_page(
             ( { crate::pages::overview_cards::public_ip_probe_card_scene_with_snapshot(&projection.public_ip, palette) } ),
             ( { crate::pages::overview_cards::topology_chain_scene_with_snapshot(&projection.traffic_topology, palette) } ),
             ( { crate::pages::overview_cards::subscription_quota_scene_with_snapshot(&projection.subscription_quota, palette) } ),
+            ( { reload_mask_scene(palette) } ),
         ]
     }
 }
@@ -1445,6 +1477,23 @@ pub(crate) fn apply_overview_projection(
     // `Without<OverviewLine>`: chip value texts never carry a line marker,
     // so the two `Text`-mutable queries stay provably disjoint.
     mut values: Query<&mut Text, (With<StatChipValue>, Without<OverviewLine>)>,
+    mut reload_masks: Query<
+        &mut Node,
+        (With<OverviewReloadMask>, Without<SubscriptionQuotaProgress>),
+    >,
+    mut reload_mask_texts: Query<
+        &mut Text,
+        (
+            With<OverviewReloadMaskText>,
+            Without<OverviewLine>,
+            Without<TopologyText>,
+            Without<ActiveExitText>,
+            Without<SubscriptionQuotaText>,
+            Without<OverviewMasterSwitchText>,
+            Without<PublicIpText>,
+            Without<StatChipValue>,
+        ),
+    >,
     mut dynamic: ParamSet<(
         Query<
             (&mut Text, &TopologyText),
@@ -1452,6 +1501,7 @@ pub(crate) fn apply_overview_projection(
                 With<TopologyText>,
                 Without<OverviewLine>,
                 Without<PublicIpText>,
+                Without<OverviewReloadMaskText>,
                 Without<StatChipValue>,
             ),
         >,
@@ -1462,6 +1512,7 @@ pub(crate) fn apply_overview_projection(
                 Without<OverviewLine>,
                 Without<TopologyText>,
                 Without<PublicIpText>,
+                Without<OverviewReloadMaskText>,
                 Without<StatChipValue>,
             ),
         >,
@@ -1473,10 +1524,11 @@ pub(crate) fn apply_overview_projection(
                 Without<TopologyText>,
                 Without<ActiveExitText>,
                 Without<PublicIpText>,
+                Without<OverviewReloadMaskText>,
                 Without<StatChipValue>,
             ),
         >,
-        Query<&mut Node, With<SubscriptionQuotaProgress>>,
+        Query<&mut Node, (With<SubscriptionQuotaProgress>, Without<OverviewReloadMask>)>,
         Query<
             (&mut Text, &mut TextColor, &OverviewMasterSwitchText),
             (
@@ -1486,6 +1538,7 @@ pub(crate) fn apply_overview_projection(
                 Without<ActiveExitText>,
                 Without<SubscriptionQuotaText>,
                 Without<PublicIpText>,
+                Without<OverviewReloadMaskText>,
                 Without<StatChipValue>,
             ),
         >,
@@ -1500,6 +1553,7 @@ pub(crate) fn apply_overview_projection(
                 Without<ActiveExitText>,
                 Without<SubscriptionQuotaText>,
                 Without<OverviewMasterSwitchText>,
+                Without<OverviewReloadMaskText>,
                 Without<StatChipValue>,
             ),
         >,
@@ -1659,6 +1713,25 @@ pub(crate) fn apply_overview_projection(
     // The trend chart: re-derive the series for this projection's origin
     // and restamp only on an actual change (an unchanged spec must not pay
     // the raster cost every tick — sync_charts keys off `is_changed`).
+    let is_mask_active = projection.reconnect_mask.is_active();
+    for mut node in &mut reload_masks {
+        let desired = if is_mask_active {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != desired {
+            node.display = desired;
+        }
+    }
+    if let (true, Some(msg)) = (is_mask_active, &projection.reconnect_mask.message) {
+        for mut text in &mut reload_mask_texts {
+            if text.0 != *msg {
+                text.0 = msg.clone();
+            }
+        }
+    }
+
     let (up, down, smooth, scale) = chart_inputs(projection, &history);
     let (width, height) = chart_dims();
     let spec = ChartSpec::new(up, down, width, height)

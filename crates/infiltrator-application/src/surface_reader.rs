@@ -484,6 +484,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             self.snapshots.as_ref(),
         )
         .await;
+        let reconnect_mask = crate::reconnect_mask_application::ReconnectMaskApplication.project(&core);
         pages.settings = build_settings_page(
             hydrated_settings.as_ref(),
             runtime_config.as_ref(),
@@ -518,6 +519,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             active_exit: active_exit_snapshot,
             public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot::default(),
             overview_layout: Default::default(),
+            reconnect_mask,
             subscription_quota,
             yaml_ast_diff: None,
             script_sandbox: None,

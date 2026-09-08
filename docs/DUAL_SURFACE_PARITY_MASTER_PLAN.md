@@ -50,6 +50,7 @@
 | `DUAL-03-10` 核心资源 6 项运维网格 | `parity-ready` | Overview 运维指标卡片扩展为 6 项完整网格（连接数、内存、CPU、上传、下载、总流量）；Iced stats_grid 与 Bevy chips_row_scene 均消费统一多维事实，支持响应式多列包裹与在席文本刷新 | Bevy OverviewChipKind 6-variant headless tests、Iced 6-tile stats_grid 适配与渲染测试、nextest 自动化闭环；真实长时高吞吐/多会话统计 smoke 尚未计入 `host-verified` |
 | `DUAL-03-11` 公网 IP 隐私归属探针 | `parity-ready` | Overview 公网 IP 探针卡片统一消费 shared `PublicIpProbeSnapshot`；`PublicIpApplication` 负责真实外网出口 IP、归属徽标、ISP 运营商与探针状态推导，Iced 映射 `current_ip_card` 与 `Message::FetchIpInfo`，Bevy 映射 `PublicIpProbeCard` 与 `PublicIpRefreshButton` 触发 `UiCommand::RefreshPublicIpProbe`，两端对等 | Bevy PublicIpProbeCard scene/observer/headless tests、Iced current_ip_card 适配与交互测试、nextest 自动化闭环；真实全球多节点出口探测与发行包 smoke 尚未计入 `host-verified` |
 | `DUAL-03-12` 卡片模块长按纵向拖拽重排 | `parity-ready` | Overview 卡片模块顺序统一消费 shared `OverviewLayoutSnapshot`；`OverviewLayoutApplication` 负责 8 类卡片（模式分段器、流量图、指标网格、主控开关、出口卡片、公网探针、拓扑流动链、配额仪表）排序校验、上移下移与拖拽重排，两端按 `ReorderOverviewCards` / `ResetOverviewCardOrder` 意图同步 | Bevy OverviewCardSlot / 移动动作 scene / headless tests、Iced 动态布局适配、nextest 自动化闭环；真实触摸长按拖拽手势物理 smoke 尚未计入 `host-verified` |
+| `DUAL-03-13` 断线与重载优雅降级蒙版 | `parity-ready` | Overview 断线与配置重载优雅降级统一消费 shared `ReconnectMaskSnapshot`；`ReconnectMaskApplication` 负责看门狗重试、配置平滑热重载与崩溃恢复判定，在核心重启/重载期间界面完整保留上一帧有效事实快照，覆以半透明平滑重载蒙版与重试倒计时 | Bevy OverviewReloadMask scene / projection in-place / headless tests、Iced 重载保护适配、nextest 自动化闭环；真实生产断网拔线/故障注入 smoke 尚未计入 `host-verified` |
 
 ---
 

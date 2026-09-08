@@ -18,6 +18,7 @@ use bevy::image::Image;
 use bevy::scene::ScenePlugin;
 use bevy::text::TextColor;
 use bevy::ui::BackgroundColor;
+use bevy::ui::prelude::{Display, Node};
 use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin, SidebarFoot};
@@ -27,10 +28,10 @@ use infiltrator_bevy_ui::pages::overview::{
     ActiveExitText, ActiveExitTextKind, CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText,
     OverviewCardState, OverviewChip, OverviewChipKind, OverviewLine, OverviewLineKind,
     OverviewMasterSwitchButton, OverviewModeChip, OverviewModePill, OverviewProjectionUpdated,
-    OverviewStatusCard, PublicIpProbeCard, PublicIpRefreshButton, PublicIpText, PublicIpTextKind,
-    StatusDot, StopButton, SubscriptionQuotaCard, TopologyChainCard, TopologyStageButton,
-    TopologyText, TopologyTextKind, format_memory, format_rate, subscription_quota_scene,
-    topology_chain_scene,
+    OverviewReloadMask, OverviewReloadMaskText, OverviewStatusCard, PublicIpProbeCard,
+    PublicIpRefreshButton, PublicIpText, PublicIpTextKind, StatusDot, StopButton,
+    SubscriptionQuotaCard, TopologyChainCard, TopologyStageButton, TopologyText, TopologyTextKind,
+    format_memory, format_rate, subscription_quota_scene, topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
     ActiveExitNodeCard, SystemProxyMasterCard, TunMasterCard,
@@ -77,6 +78,7 @@ impl OverviewSource for StubSource {
             active_exit: Default::default(),
             public_ip: Default::default(),
             layout: Default::default(),
+            reconnect_mask: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
             cpu_percent: None,
@@ -406,6 +408,7 @@ fn projection_updates_restamp_in_place() {
         active_exit: Default::default(),
         public_ip: Default::default(),
         layout: Default::default(),
+        reconnect_mask: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: None,
@@ -464,6 +467,7 @@ fn projection_updates_restamp_in_place() {
         active_exit: Default::default(),
         public_ip: Default::default(),
         layout: Default::default(),
+        reconnect_mask: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: None,
@@ -736,6 +740,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         active_exit: Default::default(),
         public_ip: Default::default(),
         layout: Default::default(),
+        reconnect_mask: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: None,
@@ -978,6 +983,7 @@ impl OverviewSource for LiveFootStub {
             active_exit: Default::default(),
             public_ip: Default::default(),
             layout: Default::default(),
+            reconnect_mask: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
             cpu_percent: None,
@@ -1070,6 +1076,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         active_exit: Default::default(),
         public_ip: Default::default(),
         layout: Default::default(),
+        reconnect_mask: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: None,
@@ -1709,4 +1716,42 @@ fn overview_card_reorder_actions_submit_commands() {
         )
     );
     assert_eq!(items[2], UiCommand::ResetOverviewCardOrder);
+}
+
+#[test]
+fn overview_reload_mask_activates_and_preserves_facts() {
+    let mut app = mounted_default();
+    let mask_entity = {
+        let world = app.world_mut();
+        let mut masks = world.query::<(Entity, &OverviewReloadMask)>();
+        masks.single(world).expect("reload mask").0
+    };
+    assert!(mask_entity != Entity::PLACEHOLDER);
+
+    {
+        let world = app.world_mut();
+        let node = world.get::<Node>(mask_entity).expect("node on mask");
+        assert_eq!(node.display, Display::None);
+    }
+
+    let mut projection = DemoOverviewSource::running().current();
+    projection.reconnect_mask =
+        infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot::reloading(
+            "配置热重载中，保持画面",
+        );
+    app.world_mut()
+        .commands()
+        .trigger(OverviewProjectionUpdated(projection));
+    app.update();
+
+    let world = app.world_mut();
+    let node = world.get::<Node>(mask_entity).expect("node on mask");
+    assert_eq!(node.display, Display::Flex);
+
+    let mut texts = world.query::<(&OverviewReloadMaskText, &Text)>();
+    assert!(
+        texts
+            .iter(world)
+            .any(|(_, text)| text.0 == "配置热重载中，保持画面")
+    );
 }
