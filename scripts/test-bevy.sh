@@ -77,3 +77,8 @@ python3 "$repo_root/scripts/quality/proxies-protocol-chips-guard.py" --mode enfo
 python3 "$repo_root/scripts/quality/proxies-latency-colors-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/proxies-sparkline-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/proxies-fuzzy-filter-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/proxies-node-detail-drawer-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/proxies-group-reorder-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/proxies-compact-view-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/proxies-skeleton-pulse-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/proxies-regression-matrix-guard.py" --mode enforce

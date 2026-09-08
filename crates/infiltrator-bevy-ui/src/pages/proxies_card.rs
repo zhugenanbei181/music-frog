@@ -24,10 +24,12 @@ use infiltrator_bevy_widgets::theme::space;
 
 use crate::pages::proxies::{
     AddCustomNodeButton, DelayTestUrlIndicator, FilterAliveToggle, GroupCurrentText, GroupFoldText,
-    GroupNodesContainer, LatencyText, LatencyTrendIcon, NodeFlagText, NodeNameText, NodePinButton,
-    NodeProtoText, NodeUdpTag, ProxiesLine, ProxiesLineKind, ProxyGroup, ProxyGroupFoldButton,
-    ProxyNode, ProxyNodeButton, ProxySortMode, ProxySortPill, TestAllProxiesButton,
-    TestProxyGroupButton, ToggleViewModeButton, format_latency, latency_color,
+    GroupNodesContainer, LatencySkeletonPulse, LatencyText, LatencyTrendIcon, NodeDetailButton,
+    NodeFlagText, NodeNameText, NodePinButton, NodeProtoText, NodeUdpTag, ProxiesLine,
+    ProxiesLineKind, ProxyGroup, ProxyGroupFoldButton, ProxyGroupMoveDownButton,
+    ProxyGroupMoveUpButton, ProxyNode, ProxyNodeButton, ProxySortMode, ProxySortPill,
+    ResetProxyGroupOrderButton, TestAllProxiesButton, TestProxyGroupButton, ToggleViewModeButton,
+    format_latency, latency_color,
 };
 use crate::pages::proxies_filter::{format_protocol_chip, node_flag};
 
@@ -310,6 +312,29 @@ pub fn header_card_scene(
                                 bottom: { palette.border },
                                 left: { palette.border },
                             }
+                            ResetProxyGroupOrderButton
+                            Button
+                            Children [
+                                ( Text({ "重置排序".to_owned() }) TextRole(Role::BodyStrong) ),
+                            ]
+                        ),
+                        (
+                            Node {
+                                min_height: px(palette.control_height_px),
+                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border: UiRect::all(Val::Px(palette.hairline_px)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                column_gap: Val::Px(space::S4),
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            BorderColor {
+                                top: { palette.border },
+                                right: { palette.border },
+                                bottom: { palette.border },
+                                left: { palette.border },
+                            }
                             ToggleViewModeButton
                             Button
                             Children [
@@ -466,6 +491,17 @@ pub fn proxy_node_scene(
                         TextColor({ if node.favorite { palette.warning } else { palette.ink_dim } })
                     ),
                     (
+                        Text({ "ℹ️".to_owned() })
+                        NodeDetailButton {
+                            group_idx: g_idx,
+                            node_idx: n_idx,
+                            node_name: { name.clone() },
+                        }
+                        Button
+                        TextRole(Role::Caption)
+                        TextColor({ palette.ink_dim })
+                    ),
+                    (
                         Text({ flag.to_owned() })
                         NodeFlagText { group_idx: g_idx, node_idx: n_idx }
                         TextRole(Role::BodyStrong)
@@ -522,6 +558,7 @@ pub fn proxy_node_scene(
                     column_gap: Val::Px(space::S4),
                 }
                 BackgroundColor({ palette.surface })
+                LatencySkeletonPulse { group_idx: g_idx, node_idx: n_idx }
                 Children [
                     (
                         Text({ "📈".to_owned() })
@@ -627,6 +664,42 @@ pub fn group_card_scene(
                                 Button
                                 Children [
                                     ( Text({ "组测速".to_owned() }) TextRole(Role::Caption) ),
+                                ]
+                            ),
+                            (
+                                Node {
+                                    min_height: px(28.0),
+                                    padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S4)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                ProxyGroupMoveUpButton {
+                                    group_idx: { g_idx },
+                                    group_name: { group_name.clone() },
+                                }
+                                Button
+                                Children [
+                                    ( Text({ "▲".to_owned() }) TextRole(Role::Caption) ),
+                                ]
+                            ),
+                            (
+                                Node {
+                                    min_height: px(28.0),
+                                    padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S4)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                ProxyGroupMoveDownButton {
+                                    group_idx: { g_idx },
+                                    group_name: { group_name.clone() },
+                                }
+                                Button
+                                Children [
+                                    ( Text({ "▼".to_owned() }) TextRole(Role::Caption) ),
                                 ]
                             ),
                             (

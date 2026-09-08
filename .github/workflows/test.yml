@@ -247,6 +247,16 @@ jobs:
         run: python3 scripts/quality/proxies-sparkline-guard.py --mode enforce
       - name: Run Proxies Fuzzy Filter Guard
         run: python3 scripts/quality/proxies-fuzzy-filter-guard.py --mode enforce
+      - name: Run Proxies Node Detail Drawer Guard
+        run: python3 scripts/quality/proxies-node-detail-drawer-guard.py --mode enforce
+      - name: Run Proxies Group Reorder Guard
+        run: python3 scripts/quality/proxies-group-reorder-guard.py --mode enforce
+      - name: Run Proxies Compact View Guard
+        run: python3 scripts/quality/proxies-compact-view-guard.py --mode enforce
+      - name: Run Proxies Skeleton Pulse Guard
+        run: python3 scripts/quality/proxies-skeleton-pulse-guard.py --mode enforce
+      - name: Run Proxies Regression Matrix Guard
+        run: python3 scripts/quality/proxies-regression-matrix-guard.py --mode enforce
 
       # Bevy UI bsn! 场景法守卫（BEVY-004）：两个 bevy crate 的生产代码里 UI 树
       # 只能在 bsn! 场景内声明并经 spawn_scene 挂载；豁免（Camera2d/Observer）

@@ -62,6 +62,10 @@ pub enum UiCommand {
     ToggleFavoriteProxy(String),
     /// Toggle compact list vs grid view for proxy nodes.
     SetProxyCompactView(bool),
+    /// Reorder proxy groups by custom order.
+    ReorderProxyGroups { group_names: Vec<String> },
+    /// Reset proxy group custom ordering to default.
+    ResetProxyGroupOrder,
     /// Activate a subscription configuration profile.
     ActivateProfile { id: String },
     /// Trigger an immediate remote update for a profile.
@@ -212,6 +216,12 @@ impl UiCommand {
             Self::SetProxyCompactView(compact) => {
                 Some(CommandIntent::SetProxyCompactView { compact: *compact })
             }
+            Self::ReorderProxyGroups { group_names } => {
+                Some(CommandIntent::ReorderProxyGroups {
+                    group_names: group_names.clone(),
+                })
+            }
+            Self::ResetProxyGroupOrder => Some(CommandIntent::ResetProxyGroupOrder),
             Self::ActivateProfile { id } => Some(CommandIntent::SwitchProfile {
                 profile_id: id.clone(),
             }),

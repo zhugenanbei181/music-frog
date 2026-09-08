@@ -187,6 +187,39 @@ pub struct NodeUdpTag {
     pub node_idx: usize,
 }
 
+/// Marker for the node detail button (DUAL-04-11).
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct NodeDetailButton {
+    pub group_idx: usize,
+    pub node_idx: usize,
+    pub node_name: String,
+}
+
+/// Marker for proxy group move-up button (DUAL-04-12).
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProxyGroupMoveUpButton {
+    pub group_idx: usize,
+    pub group_name: String,
+}
+
+/// Marker for proxy group move-down button (DUAL-04-12).
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProxyGroupMoveDownButton {
+    pub group_idx: usize,
+    pub group_name: String,
+}
+
+/// Marker for resetting custom group order (DUAL-04-12).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ResetProxyGroupOrderButton;
+
+/// Marker for latency test pulsing skeleton placeholder (DUAL-04-14).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LatencySkeletonPulse {
+    pub group_idx: usize,
+    pub node_idx: usize,
+}
+
 /// Classification of latency for color coding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LatencyTier {
@@ -475,6 +508,10 @@ pub(crate) fn on_proxies_action_activated(
     sort_pills: Query<&ProxySortPill>,
     pin_buttons: Query<&NodePinButton>,
     toggle_view_buttons: Query<(), With<ToggleViewModeButton>>,
+    detail_buttons: Query<&NodeDetailButton>,
+    move_up_buttons: Query<&ProxyGroupMoveUpButton>,
+    move_down_buttons: Query<&ProxyGroupMoveDownButton>,
+    reset_order_buttons: Query<(), With<ResetProxyGroupOrderButton>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -503,6 +540,21 @@ pub(crate) fn on_proxies_action_activated(
         handle.submit(UiCommand::ToggleFavoriteProxy(pin.node_name.clone()));
     } else if toggle_view_buttons.contains(activate.entity) {
         handle.submit(UiCommand::SetProxyCompactView(true));
+    } else if let Ok(btn) = detail_buttons.get(activate.entity) {
+        handle.submit(UiCommand::SelectProxyNode {
+            group: "PROXIES".to_owned(),
+            node: btn.node_name.clone(),
+        });
+    } else if let Ok(btn) = move_up_buttons.get(activate.entity) {
+        handle.submit(UiCommand::ReorderProxyGroups {
+            group_names: vec![btn.group_name.clone()],
+        });
+    } else if let Ok(btn) = move_down_buttons.get(activate.entity) {
+        handle.submit(UiCommand::ReorderProxyGroups {
+            group_names: vec![btn.group_name.clone()],
+        });
+    } else if reset_order_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::ResetProxyGroupOrder);
     }
 }
 

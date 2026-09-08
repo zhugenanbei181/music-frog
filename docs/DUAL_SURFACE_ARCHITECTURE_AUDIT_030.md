@@ -129,6 +129,11 @@
 - `DUAL-04-08` 已完成 节点延迟多色阶渲染、`LatencyTier`、`latency_color`、Bevy `LatencyText` 与 headless 测试闭环；真实色阶过渡 smoke 仍未冒充 `host-verified`。
 - `DUAL-04-09` 已完成 单节点历史延迟 Sparkline 走势图、Bevy `LatencyTrendIcon` 与 headless 测试闭环；长时采样显存占用 smoke 仍未冒充 `host-verified`。
 - `DUAL-04-10` 已完成 智能拼音与协议模糊检索、`matches_proxy_filter`、拼音首字母匹配与 headless 测试闭环；真实海量节点搜索 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-11` 已完成 单节点详情下钻抽屉、`ProxyNodeDetail`、Bevy `NodeDetailButton` 与 headless 测试闭环；真实落地反查 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-12` 已完成 策略组自定义拖拽调序、`ReorderProxyGroups`、`ResetProxyGroupOrder`、Bevy `ProxyGroupMoveUpButton`/`ResetProxyGroupOrderButton` 与 headless 测试闭环；真实触控拖拽 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-13` 已完成 节点卡片网格与紧凑列表无缝切换、`SetProxyCompactView`、Bevy `ToggleViewModeButton` 与 headless 测试闭环；超宽屏排版 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-14` 已完成 测速动态脉冲骨架屏占位、`LatencySkeletonPulse` 与 headless 测试闭环；高频刷新显卡着色器 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-15` 已完成 双端代理操作无头行为测试闭环、`ProxyRegressionMatrixReport`、`ProxyMatrixApplication` 与双端 headless 测试闭环；真实生产复杂网络拓扑 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

@@ -65,6 +65,11 @@ python3 scripts/quality/proxies-protocol-chips-guard.py --mode enforce
 python3 scripts/quality/proxies-latency-colors-guard.py --mode enforce
 python3 scripts/quality/proxies-sparkline-guard.py --mode enforce
 python3 scripts/quality/proxies-fuzzy-filter-guard.py --mode enforce
+python3 scripts/quality/proxies-node-detail-drawer-guard.py --mode enforce
+python3 scripts/quality/proxies-group-reorder-guard.py --mode enforce
+python3 scripts/quality/proxies-compact-view-guard.py --mode enforce
+python3 scripts/quality/proxies-skeleton-pulse-guard.py --mode enforce
+python3 scripts/quality/proxies-regression-matrix-guard.py --mode enforce
 
 nextest_mode=()
 if [[ $# -eq 1 ]]; then

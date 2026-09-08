@@ -67,6 +67,11 @@
 - [x] `DUAL-04-08`：节点延迟多色阶渲染进入 `LatencyTier`/`format_latency`/`latency_color`；五级色梯与文案标准化，两端视觉语义一致。
 - [x] `DUAL-04-09`：单节点历史延迟 Sparkline 走势图进入 `LatencyTrendIcon`/`history`；卡片挂载微折线走势指标，呈现历史波动。
 - [x] `DUAL-04-10`：智能拼音与协议模糊检索进入 `matches_proxy_filter`；汉字/拼音首字母、协议简写、特性标签与延迟数值阈值检索全对齐。
+- [x] `DUAL-04-11`：单节点详情下钻抽屉进入 `ProxyNodeDetail`/`NodeDetailButton`；服务器域名、落地 IP、加密方式与 RTT 统计区间双端对齐。
+- [x] `DUAL-04-12`：策略组自定义拖拽调序进入 `custom_group_order`/`ReorderProxyGroups`/`ResetProxyGroupOrder`；支持调整顺序与一键恢复。
+- [x] `DUAL-04-13`：节点卡片网格与紧凑列表无缝切换进入 `compact_view`/`SetProxyCompactView`/`ToggleViewModeButton`；双列与单列高密度即时切换。
+- [x] `DUAL-04-14`：测速动态脉冲骨架屏占位进入 `LatencySkeletonPulse`；测速期间数值呈现骨架占位，测速完毕平滑淡入。
+- [x] `DUAL-04-15`：双端代理操作无头行为测试闭环进入 `ProxyRegressionMatrixReport`/`ProxyMatrixApplication`；15 场景全覆盖断言。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。
