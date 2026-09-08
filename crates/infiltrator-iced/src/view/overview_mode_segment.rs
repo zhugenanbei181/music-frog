@@ -92,17 +92,15 @@ pub fn overview_mode_segment<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'
                 color: Some(tokens(t).text_primary)
             }),
         Space::new().width(Length::Fill),
-        text(
-            lang.tr("overview_current_prefix").replace(
-                "{}",
-                &match current_mode {
-                    ProxyMode::Rule => lang.tr("mode_rule").into_owned(),
-                    ProxyMode::Global => lang.tr("mode_global").into_owned(),
-                    ProxyMode::Direct => lang.tr("mode_direct").into_owned(),
-                    ProxyMode::Script => lang.tr("mode_script").into_owned(),
-                },
-            ),
-        )
+        text(lang.tr("overview_current_prefix").replace(
+            "{}",
+            &match current_mode {
+                ProxyMode::Rule => lang.tr("mode_rule").into_owned(),
+                ProxyMode::Global => lang.tr("mode_global").into_owned(),
+                ProxyMode::Direct => lang.tr("mode_direct").into_owned(),
+                ProxyMode::Script => lang.tr("mode_script").into_owned(),
+            },
+        ),)
         .size(12)
         .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_secondary)

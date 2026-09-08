@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import re
 import sys
 
 
@@ -20,6 +21,12 @@ def require(violations: list[str], path: str, *markers: str) -> None:
     for marker in markers:
         if marker not in text:
             violations.append(f"{path} missing {marker!r}")
+
+
+def require_regex(violations: list[str], path: str, pattern: str) -> None:
+    text = read(path)
+    if re.search(pattern, text, flags=re.DOTALL) is None:
+        violations.append(f"{path} missing regex {pattern!r}")
 
 
 def main() -> int:
@@ -38,8 +45,12 @@ def main() -> int:
         violations,
         "crates/infiltrator-contract/src/command.rs",
         "CoreLogLevel",
-        "SetCoreLogLevel { level: CoreLogLevel }",
         "pub fn parse",
+    )
+    require_regex(
+        violations,
+        "crates/infiltrator-contract/src/command.rs",
+        r"SetCoreLogLevel\s*\{\s*level:\s*CoreLogLevel\s*,?\s*\}",
     )
     require(
         violations,

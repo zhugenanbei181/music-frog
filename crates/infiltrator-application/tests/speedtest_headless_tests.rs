@@ -16,6 +16,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+type DelayFn = dyn Fn(&str, &str, u32) -> Result<u32, PortError> + Send + Sync;
+
 struct MockGateway {
     proxies: HashMap<String, Proxy>,
     delay_count: AtomicUsize,
@@ -23,7 +25,7 @@ struct MockGateway {
     max_concurrency: AtomicUsize,
     last_url: Mutex<String>,
     last_timeout: Mutex<u32>,
-    delay_fn: Box<dyn Fn(&str, &str, u32) -> Result<u32, PortError> + Send + Sync>,
+    delay_fn: Box<DelayFn>,
 }
 
 impl MockGateway {

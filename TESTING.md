@@ -2,6 +2,10 @@
 
 本文档记录了本项目的测试策略、实战经验以及保持卓越工程质量的最佳实践。
 
+> 2026-09-07 Linux x86_64 本地检查点：`bash scripts/test.sh` 实际启动
+> 2,367 项测试，2,367 项通过、0 项跳过。下表是同一工作树的
+> `cargo nextest list --workspace` 快照；测试数量会随代码变化，以命令输出为准。
+
 ## 核心测试指标
 
 本项目致力于维持以下高标准：
@@ -11,32 +15,45 @@
   | Crate / test target | 测试数（`cargo nextest list --workspace`） |
   | :--- | ---: |
   | infiltrator-core | 127 |
-  | infiltrator-domain | 419 |
-  | infiltrator-application | 20 |
-  | infiltrator-ios | 2 |
-  | infiltrator-iced + headless | 255 |
-  | infiltrator-desktop | 197 |
-  | mihomo-version | 87 |
-  | mihomo-config | 72 |
+  | infiltrator-domain | 470 |
+  | infiltrator-application | 118 |
+  | infiltrator-ios | 5 |
+  | infiltrator-iced + headless | 296 |
+  | infiltrator-desktop | 226 |
+  | mihomo-version | 90 |
+  | mihomo-config | 75 |
   | infiltrator-admin | 81 |
-  | mihomo-api | 69 |
+  | mihomo-api | 75 |
   | infiltrator-shared | 54 |
   | infiltrator-cli | 49 |
-  | infiltrator-android | 49 |
-  | mihomo-platform + self-healing state machine | 79 |
+  | infiltrator-android | 55 |
+  | mihomo-platform + self-healing state machine | 82 |
   | mihomo-dav-sync (sync-engine 27 + dav-client 7 + state-store 7) | 41 |
   | infiltrator-http | 7 |
-  | infiltrator-bevy-ui + headless | 171 |
+  | infiltrator-bevy-ui + headless | 217 |
   | infiltrator-bevy-widgets + headless | 237 |
-  | infiltrator-contract | 4 |
+  | infiltrator-contract | 61 |
   | infiltrator-ports | 1 |
-  | **全仓自动化测试总计** | **2021** |
+  | **全仓自动化测试总计** | **2367** |
 
 版本 Admin 路由测试使用注入的静态 `VersionPort`，不依赖当天的 GitHub release 内容或外网状态。
 
 - **代码洁净度**：全工作空间必须保持 **0 编译警告** (`cargo check --workspace` 无任何输出)。
 - **测试可靠性**：环境敏感型测试必须在固定 4 个 nextest 测试进程并发下保持
   **100% 成功率**。
+
+### 当前检查点的明确边界
+
+- 已通过：`bash scripts/test.sh`（2,367/2,367）、`cargo fmt --all -- --check`、
+  `cargo clippy --workspace --all-targets -- -D warnings`，以及脚本中纳管的 DUAL-01～04
+  质量守卫。
+- 尚未通过：`python3 scripts/quality/test-layout-guard.py` 报 20 项生产源码内联测试
+  遗留；`python3 scripts/quality/line-guard.py --mode report` 报 17 个超过 800 非空行的
+ 业务文件。它们是结构性债务，本检查点不将其隐藏为“全绿”。
+- 尚未证明：L3 真实渲染捕获、真实 mihomo core/controller、Android 真机、iOS
+  NetworkExtension，以及 Windows/macOS/Linux 发行包和系统权限/网络副作用 smoke；
+  这些仍按 [平台矩阵](docs/PLATFORM_MATRIX.md) 和 [回归矩阵](docs/TEST_MATRIX.md)
+  单独验收。
 
 ---
 

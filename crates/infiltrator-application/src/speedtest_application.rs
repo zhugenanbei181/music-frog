@@ -496,12 +496,14 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    type DelayFn = dyn Fn(&str, &str, u32) -> Result<u32, PortError> + Send + Sync;
+
     struct TestGateway {
         proxies: HashMap<String, Proxy>,
         delay_probe_count: AtomicUsize,
         active_concurrency: AtomicUsize,
         max_concurrency: AtomicUsize,
-        delay_fn: Box<dyn Fn(&str, &str, u32) -> Result<u32, PortError> + Send + Sync>,
+        delay_fn: Box<DelayFn>,
     }
 
     impl TestGateway {
@@ -802,7 +804,11 @@ mod tests {
         let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(
             move |_node, _url, _timeout| {
                 let idx = p_clone.fetch_add(1, Ordering::SeqCst);
-                if idx % 2 == 0 { Ok(40) } else { Ok(50) }
+                if idx.is_multiple_of(2) {
+                    Ok(40)
+                } else {
+                    Ok(50)
+                }
             },
         ));
 

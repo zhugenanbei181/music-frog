@@ -107,11 +107,22 @@ pub enum CommandIntent {
     RestartCore,
     PrepareServiceMode,
     RepairPortConflicts,
-    SetCoreLogLevel { level: CoreLogLevel },
-    SetTunStack { stack: TunStack },
-    SwitchProfile { profile_id: String },
-    SetProxyMode { mode: ProxyMode },
-    SelectProxyNode { group: String, node: String },
+    SetCoreLogLevel {
+        level: CoreLogLevel,
+    },
+    SetTunStack {
+        stack: TunStack,
+    },
+    SwitchProfile {
+        profile_id: String,
+    },
+    SetProxyMode {
+        mode: ProxyMode,
+    },
+    SelectProxyNode {
+        group: String,
+        node: String,
+    },
     TestDelay {
         group: Option<String>,
         #[serde(default)]
@@ -125,37 +136,76 @@ pub enum CommandIntent {
         url: Option<String>,
     },
     CancelSpeedtest,
-    ToggleProxyGroupExpand { group: String },
-    SetProxyGroupExpanded { group: String, expanded: bool },
-    SetProxySortOrder { order: crate::proxies::ProxySortOrder },
-    ToggleFilterAlive { enabled: bool },
-    ToggleFavoriteProxy { proxy: String },
-    SetProxyCompactView { compact: bool },
-    ReorderProxyGroups { group_names: Vec<String> },
+    ToggleProxyGroupExpand {
+        group: String,
+    },
+    SetProxyGroupExpanded {
+        group: String,
+        expanded: bool,
+    },
+    SetProxySortOrder {
+        order: crate::proxies::ProxySortOrder,
+    },
+    ToggleFilterAlive {
+        enabled: bool,
+    },
+    ToggleFavoriteProxy {
+        proxy: String,
+    },
+    SetProxyCompactView {
+        compact: bool,
+    },
+    ReorderProxyGroups {
+        group_names: Vec<String>,
+    },
     ResetProxyGroupOrder,
-    ReorderOverviewCards { order: Vec<crate::overview_layout::OverviewCardKind> },
+    ReorderOverviewCards {
+        order: Vec<crate::overview_layout::OverviewCardKind>,
+    },
     ResetOverviewCardOrder,
-    UpdateProfile { profile_id: String },
-    DeleteProfile { profile_id: String },
+    UpdateProfile {
+        profile_id: String,
+    },
+    DeleteProfile {
+        profile_id: String,
+    },
     RefreshRuleProviders,
-    SimulateRuleTrace { query: String },
+    SimulateRuleTrace {
+        query: String,
+    },
     ResetRuleHitCounters,
-    UnpackRuleProvider { provider_name: String },
-    CloseConnection { id: String },
+    UnpackRuleProvider {
+        provider_name: String,
+    },
+    CloseConnection {
+        id: String,
+    },
     CloseAllConnections,
     ClearLogs,
-    SetLogLevelFilter { level: Option<String> },
+    SetLogLevelFilter {
+        level: Option<String>,
+    },
     ClearDnsCache,
     TestDnsLatency,
     RunDoctorDiagnostics,
-    RepairDoctorIssue { check_id: String },
+    RepairDoctorIssue {
+        check_id: String,
+    },
     RepairAllDoctorIssues,
-    ToggleTun { enabled: bool },
-    SetTunAutoRoute { enabled: bool },
-    SetTunStrictRoute { enabled: bool },
+    ToggleTun {
+        enabled: bool,
+    },
+    SetTunAutoRoute {
+        enabled: bool,
+    },
+    SetTunStrictRoute {
+        enabled: bool,
+    },
     ProbeTunMtu,
     RefreshPublicIpProbe,
-    SetSystemProxy { enabled: bool },
+    SetSystemProxy {
+        enabled: bool,
+    },
     SetLanSharing {
         enabled: bool,
         mixed_port: u16,
@@ -168,10 +218,17 @@ pub enum CommandIntent {
         authentication_enabled: bool,
         credentials: Option<LanCredentials>,
     },
-    SetIpv6Routing { enabled: bool },
+    SetIpv6Routing {
+        enabled: bool,
+    },
     ScanUwpApps,
-    SetUwpAppExemption { sid: String, exempt: bool },
-    SetAllUwpExemptions { exempt: bool },
+    SetUwpAppExemption {
+        sid: String,
+        exempt: bool,
+    },
+    SetAllUwpExemptions {
+        exempt: bool,
+    },
     ApplyPac {
         enabled: bool,
         bypass_domains: Vec<String>,
@@ -183,18 +240,33 @@ pub enum CommandIntent {
     StartVpn,
     StopVpn,
     RunPrivilegedNetworkRegression,
-    ToggleAppRouting { app_id: String, enabled: bool },
-    SetAppRoutingMode { mode: String },
-    ToggleIncludeSystemApps { include: bool },
-    SetAppRule { app_id: String, rule: String },
+    ToggleAppRouting {
+        app_id: String,
+        enabled: bool,
+    },
+    SetAppRoutingMode {
+        mode: String,
+    },
+    ToggleIncludeSystemApps {
+        include: bool,
+    },
+    SetAppRule {
+        app_id: String,
+        rule: String,
+    },
     SyncNow,
     CreateBackupSnapshot,
     ResolveConflictKeepLocal,
     ResolveConflictTakeRemote,
-    RestoreSnapshot { id: String },
+    RestoreSnapshot {
+        id: String,
+    },
     /// Select the last installed, locally recorded core version.
     RollbackCore,
-    UpdateSetting { key: String, value: String },
+    UpdateSetting {
+        key: String,
+        value: String,
+    },
     CheckUpdates,
 }
 
@@ -254,9 +326,7 @@ impl CommandIntent {
             | Self::ToggleFavoriteProxy { .. }
             | Self::SetProxyCompactView { .. }
             | Self::ReorderProxyGroups { .. }
-            | Self::ResetProxyGroupOrder => {
-                CommandKind::Proxy
-            }
+            | Self::ResetProxyGroupOrder => CommandKind::Proxy,
             Self::CloseConnection { .. } | Self::CloseAllConnections | Self::ClearDnsCache => {
                 CommandKind::Runtime
             }

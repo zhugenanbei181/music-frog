@@ -10,14 +10,22 @@ pub struct ReconnectMaskApplication;
 impl ReconnectMaskApplication {
     pub fn project(&self, core: &CoreSnapshot) -> ReconnectMaskSnapshot {
         match &core.watchdog.state {
-            CoreWatchdogState::Waiting { attempt, retry_in_ms } => {
-                ReconnectMaskSnapshot::reconnecting(*attempt, *retry_in_ms, "看门狗重连中，保留上一帧快照")
-            }
+            CoreWatchdogState::Waiting {
+                attempt,
+                retry_in_ms,
+            } => ReconnectMaskSnapshot::reconnecting(
+                *attempt,
+                *retry_in_ms,
+                "看门狗重连中，保留上一帧快照",
+            ),
             CoreWatchdogState::Restarting { attempt } => {
                 ReconnectMaskSnapshot::reconnecting(*attempt, 0, "核心重启中，平滑重连")
             }
             _ => {
-                if matches!(core.lifecycle, CoreLifecycle::Starting | CoreLifecycle::Stopping) {
+                if matches!(
+                    core.lifecycle,
+                    CoreLifecycle::Starting | CoreLifecycle::Stopping
+                ) {
                     ReconnectMaskSnapshot::reloading("配置重载中，保持上一帧有效快照")
                 } else if core.lifecycle == CoreLifecycle::Failed {
                     ReconnectMaskSnapshot {
@@ -80,7 +88,13 @@ mod tests {
 
     #[test]
     fn watchdog_waiting_yields_reconnecting_mask() {
-        let core = sample_core(CoreLifecycle::Failed, CoreWatchdogState::Waiting { attempt: 2, retry_in_ms: 1000 });
+        let core = sample_core(
+            CoreLifecycle::Failed,
+            CoreWatchdogState::Waiting {
+                attempt: 2,
+                retry_in_ms: 1000,
+            },
+        );
         let mask = ReconnectMaskApplication.project(&core);
         assert!(mask.is_active());
         assert_eq!(mask.status, ReconnectMaskStatus::Reconnecting);

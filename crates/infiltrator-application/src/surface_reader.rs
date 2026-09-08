@@ -484,7 +484,8 @@ impl SurfaceReader for ApplicationSurfaceReader {
             self.snapshots.as_ref(),
         )
         .await;
-        let reconnect_mask = crate::reconnect_mask_application::ReconnectMaskApplication.project(&core);
+        let reconnect_mask =
+            crate::reconnect_mask_application::ReconnectMaskApplication.project(&core);
         pages.settings = build_settings_page(
             hydrated_settings.as_ref(),
             runtime_config.as_ref(),

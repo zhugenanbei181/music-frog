@@ -4,6 +4,23 @@
 
 > 状态依据当前工作树的代码盘点。`已补齐` 只表示入口或主要实现已经出现，不等于完成了跨平台行为、真实 mihomo 和发布验证。
 
+## 2026-09-07 主线稳定检查点
+
+本节记录本次主线收口的实测事实，优先于下方尚未重新审计的历史差距条目：
+
+- `bash scripts/test.sh`：2,367/2,367 通过，0 跳过；包含 Iced、Bevy 和核心/宿主
+  mock/headless 测试。
+- `cargo fmt --all -- --check`：通过。
+- `cargo clippy --workspace --all-targets -- -D warnings`：通过。
+- DUAL-01～04 纳管质量守卫：通过，`parity-guard` 报告 11 页、48 intents、0 violation。
+- 仍有结构债务：测试布局守卫报告 20 项，行数守卫报告 17 个超 800 非空行文件。
+- 仍缺发布级证据：真实 mihomo/controller、L3 像素捕获、真实桌面权限/网络副作用、
+  Android 真机、iOS NetworkExtension，以及 Windows/macOS/Linux 打包 smoke。本次检查
+  不能把 mock/headless 通过写成跨平台发布完成。
+
+下方 D-001～D-012 保留为历史差距索引，其中个别证据仍指向 0.20/WebUI 时代；在单独
+完成 0.30 差距审计前，不应把这些旧行当作当前发布准入结论。
+
 ## 差距列表
 
 | ID | 严重度 | 当前判断 | 证据 | 后续任务 |

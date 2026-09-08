@@ -85,7 +85,10 @@ impl Default for OverviewLayoutSnapshot {
 impl OverviewLayoutSnapshot {
     pub fn new(order: Vec<OverviewCardKind>) -> Self {
         let is_customized = order != OverviewCardKind::DEFAULT_ORDER.to_vec();
-        Self { order, is_customized }
+        Self {
+            order,
+            is_customized,
+        }
     }
 
     /// Explicit fixture for demo/screenshot hosts.

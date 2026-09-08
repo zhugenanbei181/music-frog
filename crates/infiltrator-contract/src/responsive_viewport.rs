@@ -3,7 +3,9 @@
 use serde::{Deserialize, Serialize};
 
 /// Four canonical responsive viewport tiers shared across desktop, tablet, and mobile.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ViewportTier {
     /// Mobile portrait / compact display (< 600px width).

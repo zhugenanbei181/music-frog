@@ -216,11 +216,9 @@ impl UiCommand {
             Self::SetProxyCompactView(compact) => {
                 Some(CommandIntent::SetProxyCompactView { compact: *compact })
             }
-            Self::ReorderProxyGroups { group_names } => {
-                Some(CommandIntent::ReorderProxyGroups {
-                    group_names: group_names.clone(),
-                })
-            }
+            Self::ReorderProxyGroups { group_names } => Some(CommandIntent::ReorderProxyGroups {
+                group_names: group_names.clone(),
+            }),
             Self::ResetProxyGroupOrder => Some(CommandIntent::ResetProxyGroupOrder),
             Self::ActivateProfile { id } => Some(CommandIntent::SwitchProfile {
                 profile_id: id.clone(),

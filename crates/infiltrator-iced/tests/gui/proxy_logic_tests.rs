@@ -379,7 +379,8 @@ fn test_custom_node_modal_interactions() {
 
 #[test]
 fn test_dual_04_proxy_regression_matrix() {
-    let report = infiltrator_contract::proxies::ProxyRegressionMatrixReport::run_deterministic_matrix();
+    let report =
+        infiltrator_contract::proxies::ProxyRegressionMatrixReport::run_deterministic_matrix();
     assert!(report.is_all_passed());
     assert_eq!(report.total_scenarios, 15);
 }

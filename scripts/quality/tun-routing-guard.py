@@ -17,8 +17,11 @@ def read(path: str) -> str:
 
 def require(violations: list[str], path: str, *markers: str) -> None:
     text = read(path)
+    compact_text = " ".join(text.split())
     for marker in markers:
-        if marker not in text:
+        compact_marker = " ".join(marker.split())
+        rustfmt_marker = compact_marker.replace(" }", ", }")
+        if marker not in text and compact_marker not in compact_text and rustfmt_marker not in compact_text:
             violations.append(f"{path} missing {marker!r}")
 
 

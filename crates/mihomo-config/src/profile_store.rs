@@ -143,7 +143,6 @@ fn profile_info(profile: Profile) -> ProfileInfo {
         cron_expression: profile.cron_expression.clone(),
         insecure_skip_verify: profile.insecure_skip_verify,
         auto_reload_core: profile.auto_reload_core,
-        ..Default::default()
     }
 }
 
@@ -164,7 +163,6 @@ fn profile_metadata(profile: Profile) -> ProfileMetadata {
         cron_expression: profile.cron_expression,
         insecure_skip_verify: profile.insecure_skip_verify,
         auto_reload_core: profile.auto_reload_core,
-        ..Default::default()
     }
 }
 

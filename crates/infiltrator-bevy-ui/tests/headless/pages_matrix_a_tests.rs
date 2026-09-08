@@ -1049,7 +1049,10 @@ fn test_proxies_advanced_chips_and_color_ladder() {
 
     let (label, tier) = infiltrator_bevy_ui::pages::proxies::format_latency(Some(0));
     assert_eq!(label, "超时");
-    assert_eq!(tier, infiltrator_bevy_ui::pages::proxies::LatencyTier::Timeout);
+    assert_eq!(
+        tier,
+        infiltrator_bevy_ui::pages::proxies::LatencyTier::Timeout
+    );
 }
 
 #[test]
@@ -1080,8 +1083,15 @@ fn test_proxies_node_detail_drawer_and_group_reorder() {
     // 1. Detail button activation (DUAL-04-11)
     let detail_entity = {
         let world = app.world_mut();
-        let mut query = world.query::<(Entity, &infiltrator_bevy_ui::pages::proxies::NodeDetailButton)>();
-        query.iter(world).next().expect("node detail button mounted").0
+        let mut query = world.query::<(
+            Entity,
+            &infiltrator_bevy_ui::pages::proxies::NodeDetailButton,
+        )>();
+        query
+            .iter(world)
+            .next()
+            .expect("node detail button mounted")
+            .0
     };
 
     app.world_mut().commands().trigger(Activate {
@@ -1097,7 +1107,10 @@ fn test_proxies_node_detail_drawer_and_group_reorder() {
     // 2. Group move up activation (DUAL-04-12)
     let move_up_entity = {
         let world = app.world_mut();
-        let mut query = world.query::<(Entity, &infiltrator_bevy_ui::pages::proxies::ProxyGroupMoveUpButton)>();
+        let mut query = world.query::<(
+            Entity,
+            &infiltrator_bevy_ui::pages::proxies::ProxyGroupMoveUpButton,
+        )>();
         query.iter(world).next().expect("move up button mounted").0
     };
 
@@ -1123,7 +1136,11 @@ fn test_proxies_node_detail_drawer_and_group_reorder() {
     });
     app.update();
 
-    assert!(sink.submitted().iter().any(|cmd| matches!(cmd, UiCommand::ResetProxyGroupOrder)));
+    assert!(
+        sink.submitted()
+            .iter()
+            .any(|cmd| matches!(cmd, UiCommand::ResetProxyGroupOrder))
+    );
 
     // 4. Toggle compact view activation (DUAL-04-13)
     let toggle_view_entity = app
@@ -1137,7 +1154,11 @@ fn test_proxies_node_detail_drawer_and_group_reorder() {
     });
     app.update();
 
-    assert!(sink.submitted().iter().any(|cmd| matches!(cmd, UiCommand::SetProxyCompactView(true))));
+    assert!(
+        sink.submitted()
+            .iter()
+            .any(|cmd| matches!(cmd, UiCommand::SetProxyCompactView(true)))
+    );
 
     // 5. Latency skeleton pulse mounted (DUAL-04-14)
     assert!(
@@ -1150,7 +1171,8 @@ fn test_proxies_node_detail_drawer_and_group_reorder() {
     );
 
     // 6. Full Group 04 regression matrix verification (DUAL-04-15)
-    let report = infiltrator_contract::proxies::ProxyRegressionMatrixReport::run_deterministic_matrix();
+    let report =
+        infiltrator_contract::proxies::ProxyRegressionMatrixReport::run_deterministic_matrix();
     assert!(report.is_all_passed());
     assert_eq!(report.total_scenarios, 15);
 }

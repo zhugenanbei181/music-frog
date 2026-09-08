@@ -465,7 +465,8 @@ impl ProxyRegressionMatrixReport {
                 id: "DUAL-04-01".to_owned(),
                 name: "策略组 5 大分类全覆盖".to_owned(),
                 passed: true,
-                detail: "Selector/URLTest/Fallback/LoadBalance/Relay 强枚举与行为区分正常".to_owned(),
+                detail: "Selector/URLTest/Fallback/LoadBalance/Relay 强枚举与行为区分正常"
+                    .to_owned(),
             },
             ProxyRegressionScenario {
                 id: "DUAL-04-02".to_owned(),
@@ -501,7 +502,8 @@ impl ProxyRegressionMatrixReport {
                 id: "DUAL-04-07".to_owned(),
                 name: "协议与特性高级芯片".to_owned(),
                 passed: true,
-                detail: "format_protocol_chip 命名与 Reality/Vision/UDP/TFO 芯片渲染正常".to_owned(),
+                detail: "format_protocol_chip 命名与 Reality/Vision/UDP/TFO 芯片渲染正常"
+                    .to_owned(),
             },
             ProxyRegressionScenario {
                 id: "DUAL-04-08".to_owned(),
