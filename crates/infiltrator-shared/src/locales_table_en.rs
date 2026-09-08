@@ -689,7 +689,7 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
         "settings_proxy_host" => "Proxy Host".into(),
         "settings_proxy_mode" => "Proxy Mode".into(),
         "settings_add_default_bypass" => "Add Default Proxy Bypass".into(),
-        "settings_lang_label" => "Language / 语言".into(),
+        "settings_lang_label" => "Language".into(),
         "settings_saving" => "Saving...".into(),
         "settings_save_btn" => "Save Settings".into(),
         "settings_reverting" => "Reverting...".into(),

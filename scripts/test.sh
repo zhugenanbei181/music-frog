@@ -10,6 +10,7 @@ if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--no-run" ) ]]; then
 fi
 
 python3 scripts/quality/parity-guard.py --mode enforce
+python3 scripts/quality/i18n-guard.py --mode enforce
 python3 scripts/quality/session-guard.py --mode enforce
 python3 scripts/quality/hot-reload-guard.py --mode enforce
 python3 scripts/quality/crash-watchdog-guard.py --mode enforce

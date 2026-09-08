@@ -4,11 +4,11 @@
 
 > 状态依据当前工作树的代码盘点。`已补齐` 只表示入口或主要实现已经出现，不等于完成了跨平台行为、真实 mihomo 和发布验证。
 
-## 2026-09-07 主线稳定检查点
+## 2026-09-08 主线稳定检查点
 
 本节记录本次主线收口的实测事实，优先于下方尚未重新审计的历史差距条目：
 
-- `bash scripts/test.sh`：2,367/2,367 通过，0 跳过；包含 Iced、Bevy 和核心/宿主
+- `bash scripts/test.sh`：2,371/2,371 通过，0 跳过；包含 Iced、Bevy 和核心/宿主
   mock/headless 测试。
 - `cargo fmt --all -- --check`：通过。
 - `cargo clippy --workspace --all-targets -- -D warnings`：通过。

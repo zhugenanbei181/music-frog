@@ -2,8 +2,8 @@
 
 本文档记录了本项目的测试策略、实战经验以及保持卓越工程质量的最佳实践。
 
-> 2026-09-07 Linux x86_64 本地检查点：`bash scripts/test.sh` 实际启动
-> 2,367 项测试，2,367 项通过、0 项跳过。下表是同一工作树的
+> 2026-09-08 Linux x86_64 本地检查点：`bash scripts/test.sh` 实际启动
+> 2,371 项测试，2,371 项通过、0 项跳过。下表是同一工作树的
 > `cargo nextest list --workspace` 快照；测试数量会随代码变化，以命令输出为准。
 
 ## 核心测试指标
@@ -18,7 +18,7 @@
   | infiltrator-domain | 470 |
   | infiltrator-application | 118 |
   | infiltrator-ios | 5 |
-  | infiltrator-iced + headless | 296 |
+  | infiltrator-iced + headless | 300 |
   | infiltrator-desktop | 226 |
   | mihomo-version | 90 |
   | mihomo-config | 75 |
@@ -34,7 +34,7 @@
   | infiltrator-bevy-widgets + headless | 237 |
   | infiltrator-contract | 61 |
   | infiltrator-ports | 1 |
-  | **全仓自动化测试总计** | **2367** |
+  | **全仓自动化测试总计** | **2371** |
 
 版本 Admin 路由测试使用注入的静态 `VersionPort`，不依赖当天的 GitHub release 内容或外网状态。
 
@@ -44,7 +44,7 @@
 
 ### 当前检查点的明确边界
 
-- 已通过：`bash scripts/test.sh`（2,367/2,367）、`cargo fmt --all -- --check`、
+- 已通过：`bash scripts/test.sh`（2,371/2,371）、`cargo fmt --all -- --check`、
   `cargo clippy --workspace --all-targets -- -D warnings`，以及脚本中纳管的 DUAL-01～04
   质量守卫。
 - 尚未通过：`python3 scripts/quality/test-layout-guard.py` 报 20 项生产源码内联测试

@@ -259,6 +259,9 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "lan_security_apply" => "Apply ACL & Authentication".into(),
         "settings_ipv6_routing" => "Allow IPv6 Kernel Traffic".into(),
         "settings_ipv6_routing_desc" => "When disabled, Mihomo rejects IPv6 traffic to reduce dual-stack bypass leakage.".into(),
+        "common_copy" => "Copy".into(),
+        "overview_current_ip" => "Current Outbound IP".into(),
+        "overview_scale_max" => "Max".into(),
         _ => key.to_string().into(),
     }
 }

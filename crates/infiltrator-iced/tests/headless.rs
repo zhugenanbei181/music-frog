@@ -10,3 +10,6 @@ mod test_support;
 
 #[path = "headless/demo_fixture_tests.rs"]
 mod demo_fixture_tests;
+
+#[path = "headless/i18n_parity_tests.rs"]
+mod i18n_parity_tests;

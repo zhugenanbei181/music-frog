@@ -279,6 +279,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "settings_ipv6_routing_desc" => {
             "关闭后由 Mihomo 内核拒绝 IPv6 流量，降低双栈旁路泄漏风险".into()
         }
+        "common_copy" => "复制".into(),
+        "overview_current_ip" => "当前出口 IP".into(),
+        "overview_scale_max" => "最大".into(),
         _ => key.to_string().into(),
     }
 }
