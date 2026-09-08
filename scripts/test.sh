@@ -53,6 +53,7 @@ python3 scripts/quality/overview-metrics-grid-guard.py --mode enforce
 python3 scripts/quality/overview-ip-probe-guard.py --mode enforce
 python3 scripts/quality/overview-card-reorder-guard.py --mode enforce
 python3 scripts/quality/overview-reconnect-mask-guard.py --mode enforce
+python3 scripts/quality/overview-responsive-viewport-guard.py --mode enforce
 
 nextest_mode=()
 if [[ $# -eq 1 ]]; then

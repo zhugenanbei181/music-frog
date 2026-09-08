@@ -276,6 +276,7 @@ fn projection_from_snapshot(snapshot: CoreSnapshot) -> OverviewProjection {
             ),
         layout: Default::default(),
         reconnect_mask: Default::default(),
+        viewport: Default::default(),
         public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot::unsupported(
             snapshot.generation,
             snapshot.revision.max(1),

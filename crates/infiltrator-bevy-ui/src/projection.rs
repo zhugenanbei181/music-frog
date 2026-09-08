@@ -108,6 +108,7 @@ pub struct OverviewProjection {
     pub public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot,
     pub layout: infiltrator_contract::overview_layout::OverviewLayoutSnapshot,
     pub reconnect_mask: infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot,
+    pub viewport: infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot,
     /// Shared active subscription quota dashboard.
     pub subscription_quota: infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot,
     /// Shared system proxy/TUN state used by Overview master controls.
@@ -143,6 +144,7 @@ impl OverviewProjection {
             public_ip: Default::default(),
             layout: Default::default(),
             reconnect_mask: Default::default(),
+            viewport: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
             proxy_mode: Default::default(),
@@ -291,6 +293,7 @@ impl OverviewSource for DemoOverviewSource {
             public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot::demo_fixture(),
             layout: Default::default(),
             reconnect_mask: Default::default(),
+            viewport: Default::default(),
             subscription_quota:
                 infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::demo_fixture(),
             system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(

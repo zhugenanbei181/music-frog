@@ -55,6 +55,7 @@
 - [x] `DUAL-03-11`：公网 IP 隐私归属探针进入 `PublicIpProbeSnapshot`/`PublicIpApplication`；真实外网出口 IP、国家城市徽标与 ISP 运营商经由 shared contract 发布，Bevy `PublicIpProbeCard`/`PublicIpRefreshButton` 与 Iced `current_ip_card` 均支持一键刷新，派发同一 `RefreshPublicIpProbe` 意图。
 - [x] `DUAL-03-12`：卡片模块顺序进入 `OverviewLayoutSnapshot`/`OverviewLayoutApplication`；支持 8 类概览卡片纵向拖拽与上移下移重排，两端共享 `ReorderOverviewCards` 与 `ResetOverviewCardOrder` 意图，不依赖前端组件私有顺序。
 - [x] `DUAL-03-13`：断线与重载优雅降级进入 `ReconnectMaskSnapshot`/`ReconnectMaskApplication`；核心热重载与看门狗重启期间完整保留最后一帧有效快照，覆以平滑半透明蒙版，两端遵循同一 `preserves_last_frame` 保护策略。
+- [x] `DUAL-03-14`：双端全视口响应式进入 `ResponsiveViewportSnapshot`/`ResponsiveViewportApplication` (`ViewportTier`)；统一 `Compact`/`Medium`/`Expanded`/`Ultra` 四阶视口断点与概览网格列数算法，Iced 与 Bevy 遵循同一响应式规范。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

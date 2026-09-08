@@ -520,6 +520,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot::default(),
             overview_layout: Default::default(),
             reconnect_mask,
+            viewport: Default::default(),
             subscription_quota,
             yaml_ast_diff: None,
             script_sandbox: None,
