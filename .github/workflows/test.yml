@@ -229,6 +229,8 @@ jobs:
         run: python3 scripts/quality/overview-regression-matrix-guard.py --mode enforce
       - name: Run Proxies Five Group Guard
         run: python3 scripts/quality/proxies-five-group-guard.py --mode enforce
+      - name: Run Proxies Group Collapse Guard
+        run: python3 scripts/quality/proxies-group-collapse-guard.py --mode enforce
 
       # Bevy UI bsn! 场景法守卫（BEVY-004）：两个 bevy crate 的生产代码里 UI 树
       # 只能在 bsn! 场景内声明并经 spawn_scene 挂载；豁免（Camera2d/Observer）

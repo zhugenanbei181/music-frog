@@ -120,6 +120,7 @@
 - `DUAL-03-14` 已完成 Overview 四阶全视口响应式对齐、`ResponsiveViewportSnapshot`、`ResponsiveViewportApplication`、双端卡片与网格列数算子及 headless 测试闭环；真实多尺寸物理显示器 smoke 仍未冒充 `host-verified`。
 - `DUAL-03-15` 已完成 Overview 组全景无头回归测试矩阵、`OverviewRegressionMatrixReport`、`OverviewMatrixApplication` 与 14 场景 100% 绿灯验收；长期稳定性 smoke 仍未冒充 `host-verified`。
 - `DUAL-04-01` 已完成 5 大策略组分类强契约、`ProxyGroupClassification`、`ProxyApplication::list_group_details`、Bevy/Iced 分类映射与 headless 测试闭环；真实复杂链式中继网络 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-02` 已完成 策略组展开/折叠状态持久化、`ProxyUiPreferences`、`ProxyPreferencesApplication`、Bevy `ProxyGroupFoldButton` 与 headless 测试闭环；真实长期重启偏好一致性 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

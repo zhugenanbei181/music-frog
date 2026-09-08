@@ -936,3 +936,26 @@ fn test_proxies_favorite_and_features_rendering() {
             .is_some()
     );
 }
+
+#[test]
+fn test_proxies_toggle_group_expand_submits_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink.clone());
+    let _ = navigate_to(&mut app, Route::Proxies);
+
+    let fold_btn = {
+        let world = app.world_mut();
+        let mut buttons = world.query::<(Entity, &ProxyGroupFoldButton)>();
+        buttons.iter(world).next().expect("fold button mounted").0
+    };
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: fold_btn });
+    app.update();
+
+    assert!(sink.submitted().iter().any(|cmd| matches!(
+        cmd,
+        UiCommand::ToggleProxyGroupExpand { group } if !group.is_empty()
+    )));
+}
