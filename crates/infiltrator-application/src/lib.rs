@@ -26,6 +26,7 @@ pub mod proxy_application;
 pub mod proxy_mode_application;
 pub mod proxy_preferences_application;
 pub mod public_ip_application;
+pub mod overview_layout_application;
 pub mod resource_application;
 pub mod routing_application;
 pub mod runtime_query_application;

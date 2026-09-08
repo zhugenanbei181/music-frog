@@ -21,7 +21,7 @@ use bevy::ui::BackgroundColor;
 use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin, SidebarFoot};
-use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand};
+use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::history::{TrafficHistory, chart_series, demo_traffic_series};
 use infiltrator_bevy_ui::pages::overview::{
     ActiveExitText, ActiveExitTextKind, CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText,
@@ -76,6 +76,7 @@ impl OverviewSource for StubSource {
             traffic_topology: Default::default(),
             active_exit: Default::default(),
             public_ip: Default::default(),
+            layout: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
             cpu_percent: None,
@@ -404,6 +405,7 @@ fn projection_updates_restamp_in_place() {
         traffic_topology: Default::default(),
         active_exit: Default::default(),
         public_ip: Default::default(),
+        layout: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: None,
@@ -461,6 +463,7 @@ fn projection_updates_restamp_in_place() {
         traffic_topology: Default::default(),
         active_exit: Default::default(),
         public_ip: Default::default(),
+        layout: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: None,
@@ -732,6 +735,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         traffic_topology: Default::default(),
         active_exit: Default::default(),
         public_ip: Default::default(),
+        layout: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: None,
@@ -973,6 +977,7 @@ impl OverviewSource for LiveFootStub {
             traffic_topology: Default::default(),
             active_exit: Default::default(),
             public_ip: Default::default(),
+            layout: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
             cpu_percent: None,
@@ -1064,6 +1069,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         traffic_topology: Default::default(),
         active_exit: Default::default(),
         public_ip: Default::default(),
+        layout: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: None,
@@ -1675,4 +1681,32 @@ fn overview_public_ip_refresh_button_submits_refresh_command() {
     app.update();
 
     assert!(sink.submitted().contains(&UiCommand::RefreshPublicIpProbe));
+}
+
+#[test]
+fn overview_card_reorder_actions_submit_commands() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    sink.submit(UiCommand::MoveOverviewCardUp(
+        infiltrator_contract::overview_layout::OverviewCardKind::Traffic,
+    ));
+    sink.submit(UiCommand::MoveOverviewCardDown(
+        infiltrator_contract::overview_layout::OverviewCardKind::Metrics,
+    ));
+    sink.submit(UiCommand::ResetOverviewCardOrder);
+
+    let items = sink.submitted();
+    assert_eq!(items.len(), 3);
+    assert_eq!(
+        items[0],
+        UiCommand::MoveOverviewCardUp(
+            infiltrator_contract::overview_layout::OverviewCardKind::Traffic
+        )
+    );
+    assert_eq!(
+        items[1],
+        UiCommand::MoveOverviewCardDown(
+            infiltrator_contract::overview_layout::OverviewCardKind::Metrics
+        )
+    );
+    assert_eq!(items[2], UiCommand::ResetOverviewCardOrder);
 }

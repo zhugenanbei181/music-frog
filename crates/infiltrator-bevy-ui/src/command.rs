@@ -40,6 +40,10 @@ pub enum UiCommand {
     /// Probe the physical link and negotiate the virtual TUN MTU.
     ProbeTunMtu,
     RefreshPublicIpProbe,
+    ReorderOverviewCards { order: Vec<infiltrator_contract::overview_layout::OverviewCardKind> },
+    MoveOverviewCardUp(infiltrator_contract::overview_layout::OverviewCardKind),
+    MoveOverviewCardDown(infiltrator_contract::overview_layout::OverviewCardKind),
+    ResetOverviewCardOrder,
     /// Switch core proxy mode (Rule / Global / Direct).
     SetProxyMode(ProxyMode),
     /// Select a specific proxy node in a policy group.
@@ -173,6 +177,11 @@ impl UiCommand {
             }
             Self::ProbeTunMtu => Some(CommandIntent::ProbeTunMtu),
             Self::RefreshPublicIpProbe => Some(CommandIntent::RefreshPublicIpProbe),
+            Self::ReorderOverviewCards { order } => Some(CommandIntent::ReorderOverviewCards {
+                order: order.clone(),
+            }),
+            Self::ResetOverviewCardOrder => Some(CommandIntent::ResetOverviewCardOrder),
+            Self::MoveOverviewCardUp(_) | Self::MoveOverviewCardDown(_) => None,
             Self::SetProxyMode(mode) => Some(CommandIntent::SetProxyMode { mode: *mode }),
             Self::SelectProxyNode { group, node } => Some(CommandIntent::SelectProxyNode {
                 group: group.clone(),
@@ -522,6 +531,10 @@ mod tests {
         assert_eq!(
             UiCommand::RefreshPublicIpProbe.to_intent(),
             Some(CommandIntent::RefreshPublicIpProbe)
+        );
+        assert_eq!(
+            UiCommand::ResetOverviewCardOrder.to_intent(),
+            Some(CommandIntent::ResetOverviewCardOrder)
         );
         assert_eq!(
             UiCommand::SetTunAutoRoute(false).to_intent(),

@@ -133,6 +133,8 @@ pub enum CommandIntent {
     SetProxyCompactView { compact: bool },
     ReorderProxyGroups { group_names: Vec<String> },
     ResetProxyGroupOrder,
+    ReorderOverviewCards { order: Vec<crate::overview_layout::OverviewCardKind> },
+    ResetOverviewCardOrder,
     UpdateProfile { profile_id: String },
     DeleteProfile { profile_id: String },
     RefreshRuleProviders,
@@ -237,7 +239,9 @@ impl CommandIntent {
             | Self::RefreshRuleProviders
             | Self::UnpackRuleProvider { .. } => CommandKind::Profile,
             Self::SimulateRuleTrace { .. }
-            | Self::ResetRuleHitCounters => CommandKind::Runtime,
+            | Self::ResetRuleHitCounters
+            | Self::ReorderOverviewCards { .. }
+            | Self::ResetOverviewCardOrder => CommandKind::Runtime,
             Self::SetProxyMode { .. }
             | Self::SelectProxyNode { .. }
             | Self::TestDelay { .. }

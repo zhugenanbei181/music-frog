@@ -495,6 +495,8 @@ pub struct SurfaceSnapshot {
     pub active_exit: crate::active_exit::ActiveExitSnapshot,
     #[serde(default)]
     pub public_ip: crate::public_ip::PublicIpProbeSnapshot,
+    #[serde(default)]
+    pub overview_layout: crate::overview_layout::OverviewLayoutSnapshot,
     /// Current active subscription usage and expiry facts.
     #[serde(default)]
     pub subscription_quota: crate::subscription_quota::SubscriptionQuotaSnapshot,
@@ -561,6 +563,7 @@ impl SurfaceSnapshot {
             traffic_topology: crate::traffic_topology::TrafficTopologySnapshot::default(),
             active_exit: crate::active_exit::ActiveExitSnapshot::default(),
             public_ip: crate::public_ip::PublicIpProbeSnapshot::default(),
+            overview_layout: crate::overview_layout::OverviewLayoutSnapshot::default(),
             subscription_quota: crate::subscription_quota::SubscriptionQuotaSnapshot::default(),
             yaml_ast_diff: None,
             script_sandbox: None,

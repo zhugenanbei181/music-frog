@@ -747,6 +747,8 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::SetProxyCompactView { .. } => "set_proxy_compact_view",
         CommandIntent::ReorderProxyGroups { .. } => "reorder_proxy_groups",
         CommandIntent::ResetProxyGroupOrder => "reset_proxy_group_order",
+        CommandIntent::ReorderOverviewCards { .. } => "reorder_overview_cards",
+        CommandIntent::ResetOverviewCardOrder => "reset_overview_card_order",
         CommandIntent::UpdateProfile { .. } => "update_profile",
         CommandIntent::DeleteProfile { .. } => "delete_profile",
         CommandIntent::RefreshRuleProviders => "refresh_rule_providers",

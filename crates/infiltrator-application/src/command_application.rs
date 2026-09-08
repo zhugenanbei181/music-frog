@@ -528,6 +528,8 @@ impl CommandApplication {
                 .await
                 .map(|_| ()),
             CommandIntent::RefreshPublicIpProbe
+            | CommandIntent::ReorderOverviewCards { .. }
+            | CommandIntent::ResetOverviewCardOrder
             | CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore

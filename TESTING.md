@@ -173,6 +173,7 @@ python3 scripts/quality/overview-speedtest-guard.py --mode enforce
 # DUAL-03-10 核心资源 6 项运维网格守卫
 python3 scripts/quality/overview-metrics-grid-guard.py --mode enforce
 python3 scripts/quality/overview-ip-probe-guard.py --mode enforce
+python3 scripts/quality/overview-card-reorder-guard.py --mode enforce
 ```
 
 ---

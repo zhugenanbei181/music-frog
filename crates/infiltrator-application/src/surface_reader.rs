@@ -517,6 +517,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             traffic_topology,
             active_exit: active_exit_snapshot,
             public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot::default(),
+            overview_layout: Default::default(),
             subscription_quota,
             yaml_ast_diff: None,
             script_sandbox: None,

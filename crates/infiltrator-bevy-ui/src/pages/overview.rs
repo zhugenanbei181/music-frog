@@ -222,6 +222,18 @@ pub enum ActiveExitTextKind {
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PublicIpProbeCard;
 
+/// Marker on a reorderable card slot on the Overview page (DUAL-03-12).
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OverviewCardSlot(pub infiltrator_contract::overview_layout::OverviewCardKind);
+
+/// Reorder button action on an Overview card slot (Move Up).
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OverviewCardMoveUpButton(pub infiltrator_contract::overview_layout::OverviewCardKind);
+
+/// Reorder button action on an Overview card slot (Move Down).
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OverviewCardMoveDownButton(pub infiltrator_contract::overview_layout::OverviewCardKind);
+
 /// Marker on the public IP probe refresh button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PublicIpRefreshButton;
@@ -1251,6 +1263,8 @@ fn bind_overview_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(on_overview_mode_segment_activated);
     commands.add_observer(on_overview_speedtest_activated);
     commands.add_observer(on_overview_public_ip_refresh_activated);
+    commands.add_observer(on_overview_card_move_up_activated);
+    commands.add_observer(on_overview_card_move_down_activated);
 }
 
 /// Translate a Bevy `Activate` gesture through the shared application
@@ -1278,8 +1292,35 @@ pub(crate) fn on_topology_stage_activated(
     commands.trigger(crate::route::RouteChanged(route));
 }
 
-/// Convert an Overview public IP refresh button activation into a
-/// UiCommand::RefreshPublicIpProbe command.
+/// Convert an Overview card move up action into a UiCommand::MoveOverviewCardUp.
+pub(crate) fn on_overview_card_move_up_activated(
+    activate: On<Activate>,
+    buttons: Query<&OverviewCardMoveUpButton>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    let Ok(btn) = buttons.get(activate.entity) else {
+        return;
+    };
+    handle.submit(UiCommand::MoveOverviewCardUp(btn.0));
+}
+
+pub(crate) fn on_overview_card_move_down_activated(
+    activate: On<Activate>,
+    buttons: Query<&OverviewCardMoveDownButton>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    let Ok(btn) = buttons.get(activate.entity) else {
+        return;
+    };
+    handle.submit(UiCommand::MoveOverviewCardDown(btn.0));
+}
+
 pub(crate) fn on_overview_public_ip_refresh_activated(
     activate: On<Activate>,
     buttons: Query<&PublicIpRefreshButton>,

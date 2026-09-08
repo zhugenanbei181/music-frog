@@ -81,6 +81,7 @@ pub(super) fn overview_projection(
         traffic_topology: snapshot.traffic_topology.clone(),
         active_exit: snapshot.active_exit.clone(),
         public_ip: snapshot.public_ip.clone(),
+        layout: snapshot.overview_layout.clone(),
         subscription_quota: snapshot.subscription_quota.clone(),
         system_toggles: infiltrator_application::system_toggle_application::SystemToggleApplication::from_surface(snapshot),
         proxy_mode: infiltrator_application::proxy_mode_application::ProxyModeApplication::from_surface(snapshot),
