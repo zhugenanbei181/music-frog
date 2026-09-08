@@ -90,20 +90,14 @@ pub struct SubscriptionImportSnapshot {
 #[serde(rename_all = "snake_case")]
 pub enum SubscriptionUpdateOutcome {
     /// 200 OK: New content downloaded, validated, and committed.
-    Updated {
-        new_bytes: usize,
-        node_count: usize,
-    },
+    Updated { new_bytes: usize, node_count: usize },
     /// 304 Not Modified: Server confirmed configuration is unchanged. Zero traffic used.
     NotModified {
         etag: Option<String>,
         last_modified: Option<String>,
     },
     /// Update failed after network retries.
-    Failed {
-        error: String,
-        attempts: usize,
-    },
+    Failed { error: String, attempts: usize },
 }
 
 /// Traffic metadata advertised via `subscription-userinfo` header.

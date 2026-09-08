@@ -133,10 +133,7 @@ impl SystemProxyApplication {
         // user-initiated disable could incorrectly restore the old proxy on
         // the next startup.
         if !enabled {
-            self.port
-                .apply(None, None)
-                .await
-                .map_err(Failure::from)?;
+            self.port.apply(None, None).await.map_err(Failure::from)?;
             let observation = self.port.snapshot().await.map_err(Failure::from)?;
             if !target_matches(&target, &observation) {
                 return Err(Failure::new(
@@ -269,8 +266,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::system_proxy::{
-        SystemProxyObservation, SystemProxyOwnership, SystemProxyRecoveryStatus,
-        SystemProxyStatus,
+        SystemProxyObservation, SystemProxyOwnership, SystemProxyRecoveryStatus, SystemProxyStatus,
     };
     use std::sync::atomic::AtomicUsize;
 

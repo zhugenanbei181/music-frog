@@ -69,14 +69,9 @@ impl AppRoutingConfig {
                         self.packages
                             .iter()
                             .cloned()
-                            .chain(
-                                self.rules
-                                    .iter()
-                                    .filter_map(|(package, rule)| {
-                                        matches!(rule, AppRoutingRule::Proxy)
-                                            .then_some(package.clone())
-                                    }),
-                            )
+                            .chain(self.rules.iter().filter_map(|(package, rule)| {
+                                matches!(rule, AppRoutingRule::Proxy).then_some(package.clone())
+                            }))
                             .collect(),
                     )
                 }

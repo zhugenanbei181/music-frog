@@ -5,8 +5,7 @@ use infiltrator_contract::command::ProxyMode;
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{
-    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider,
-    TrafficData,
+    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream, RuntimeStreamEvent};
@@ -50,9 +49,7 @@ impl RuntimeGateway for MihomoClient {
     }
 
     async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
-        MihomoClient::get_proxies(self)
-            .await
-            .map_err(network_error)
+        MihomoClient::get_proxies(self).await.map_err(network_error)
     }
 
     async fn switch_proxy(&self, group: &str, proxy: &str) -> Result<(), PortError> {
@@ -61,12 +58,7 @@ impl RuntimeGateway for MihomoClient {
             .map_err(network_error)
     }
 
-    async fn test_delay(
-        &self,
-        proxy: &str,
-        url: &str,
-        timeout_ms: u32,
-    ) -> Result<u32, PortError> {
+    async fn test_delay(&self, proxy: &str, url: &str, timeout_ms: u32) -> Result<u32, PortError> {
         MihomoClient::test_delay(self, proxy, url, timeout_ms)
             .await
             .map_err(network_error)
@@ -119,9 +111,7 @@ impl RuntimeGateway for MihomoClient {
     }
 
     async fn trigger_gc(&self) -> Result<(), PortError> {
-        MihomoClient::trigger_gc(self)
-            .await
-            .map_err(network_error)
+        MihomoClient::trigger_gc(self).await.map_err(network_error)
     }
 
     async fn close_connection(&self, id: &str) -> Result<(), PortError> {
@@ -145,23 +135,17 @@ impl RuntimeGateway for MihomoClient {
     }
 
     async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-        let receiver = self
-            .stream_traffic_events()
-            .await
-            .map_err(network_error)?;
+        let receiver = self.stream_traffic_events().await.map_err(network_error)?;
         Ok(map_stream(receiver, Into::into))
     }
 
-    async fn stream_connections(
-        &self,
-    ) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
+    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
         let receiver = self
             .stream_connections_events()
             .await
             .map_err(network_error)?;
         Ok(map_stream(receiver, Into::into))
     }
-
 }
 
 fn network_error<E: std::fmt::Display>(error: E) -> PortError {

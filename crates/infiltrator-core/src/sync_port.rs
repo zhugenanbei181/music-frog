@@ -9,9 +9,9 @@ use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_ports::sync::{SyncPort, SyncProgressSink, SyncRequest, SyncTransferRequest};
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
+use state_store::StateStore;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use state_store::StateStore;
 use sync_engine::{SyncAction, SyncPlanner, executor::SyncExecutor};
 use tokio::io::AsyncWriteExt;
 
@@ -63,10 +63,7 @@ where
         let password = self.password(&config).await;
         let dav = WebDavClient::new(&config.url, &config.username, &password)
             .map_err(|error| PortError::Failed(format!("invalid WebDAV config: {error}")))?;
-        let local_root = resolve_configs_dir(
-            request.configs_dir.as_deref(),
-            &self.home,
-        )?;
+        let local_root = resolve_configs_dir(request.configs_dir.as_deref(), &self.home)?;
         tokio::fs::create_dir_all(&local_root)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
@@ -108,10 +105,7 @@ where
         Ok(report)
     }
 
-    async fn upload(
-        &self,
-        request: SyncTransferRequest,
-    ) -> Result<SyncTransferReport, PortError> {
+    async fn upload(&self, request: SyncTransferRequest) -> Result<SyncTransferReport, PortError> {
         let SyncTransferRequest {
             config,
             configs_dir,
@@ -303,11 +297,7 @@ impl<S: SecureStore> FileWebDavSync<S> {
         .map_err(|error| PortError::Io(error.to_string()))
     }
 
-    fn client(
-        &self,
-        config: &WebDavConfig,
-        password: &str,
-    ) -> Result<WebDavClient, PortError> {
+    fn client(&self, config: &WebDavConfig, password: &str) -> Result<WebDavClient, PortError> {
         WebDavClient::new(&config.url, &config.username, password)
             .map_err(|error| PortError::Failed(format!("invalid WebDAV config: {error}")))
     }
@@ -354,9 +344,7 @@ fn action_kind(action: &SyncAction) -> SyncActionKind {
         SyncAction::Upload { .. } => SyncActionKind::Upload,
         SyncAction::Download { .. } => SyncActionKind::Download,
         SyncAction::Conflict { .. } => SyncActionKind::Conflict,
-        SyncAction::DeleteRemote { .. } | SyncAction::DeleteLocal { .. } => {
-            SyncActionKind::Other
-        }
+        SyncAction::DeleteRemote { .. } | SyncAction::DeleteLocal { .. } => SyncActionKind::Other,
     }
 }
 
@@ -460,10 +448,8 @@ mod tests {
             .await
             .expect("conflict file");
 
-        let adapter = FileWebDavSync::new(
-            temp.path().to_path_buf(),
-            DefaultCredentialStore::default(),
-        );
+        let adapter =
+            FileWebDavSync::new(temp.path().to_path_buf(), DefaultCredentialStore::default());
         let content = adapter
             .read_conflict(
                 root.to_string_lossy().into_owned(),
@@ -492,10 +478,8 @@ mod tests {
             .await
             .expect("outside file");
 
-        let adapter = FileWebDavSync::new(
-            temp.path().to_path_buf(),
-            DefaultCredentialStore::default(),
-        );
+        let adapter =
+            FileWebDavSync::new(temp.path().to_path_buf(), DefaultCredentialStore::default());
         let error = adapter
             .read_conflict(
                 root.to_string_lossy().into_owned(),

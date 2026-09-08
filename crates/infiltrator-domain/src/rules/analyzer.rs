@@ -1,5 +1,5 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 use super::RuleEntry;
 use super::types::{ParsedRule, RuleType, parse_rule_str};
@@ -348,10 +348,7 @@ impl ProxyGroupTopology {
 
             dep_count.insert(group_name.as_str(), distinct_deps.len());
             for dep in distinct_deps {
-                dependents
-                    .entry(dep)
-                    .or_default()
-                    .push(group_name.as_str());
+                dependents.entry(dep).or_default().push(group_name.as_str());
             }
         }
 
@@ -726,7 +723,8 @@ mod tests {
 
         let all_nodes = vec!["Node-US".to_string(), "Node-HK".to_string()];
 
-        let unreachable = ProxyGroupTopology::find_unreachable_nodes(&groups, "NonExistent", &all_nodes);
+        let unreachable =
+            ProxyGroupTopology::find_unreachable_nodes(&groups, "NonExistent", &all_nodes);
         assert_eq!(unreachable, vec!["Node-US", "Node-HK"]);
     }
 

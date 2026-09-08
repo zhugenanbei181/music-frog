@@ -1,9 +1,9 @@
 //! Pure domain scheduling policy, retry backoff calculation, format detection,
 //! and quota warning evaluation for subscription lifecycles.
 
-use std::time::Duration;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use infiltrator_contract::subscription_import::SubscriptionFormat;
+use std::time::Duration;
 use thiserror::Error;
 
 use crate::subscription::SubscriptionUserInfo;
@@ -156,11 +156,13 @@ fn parse_field(
                 mask |= 1u64 << v;
             }
         } else if let Some(step_str) = item.strip_prefix("*/") {
-            let step: u32 = step_str.parse().map_err(|e| CronParseError::InvalidFieldValue {
-                field: field_name,
-                value: item.to_string(),
-                reason: format!("步长解析失败: {e}"),
-            })?;
+            let step: u32 = step_str
+                .parse()
+                .map_err(|e| CronParseError::InvalidFieldValue {
+                    field: field_name,
+                    value: item.to_string(),
+                    reason: format!("步长解析失败: {e}"),
+                })?;
             if step == 0 {
                 return Err(CronParseError::InvalidFieldValue {
                     field: field_name,
@@ -174,16 +176,20 @@ fn parse_field(
                 v += step;
             }
         } else if let Some((start_s, end_s)) = item.split_once('-') {
-            let start: u32 = start_s.parse().map_err(|e| CronParseError::InvalidFieldValue {
-                field: field_name,
-                value: item.to_string(),
-                reason: format!("范围起始解析失败: {e}"),
-            })?;
-            let end: u32 = end_s.parse().map_err(|e| CronParseError::InvalidFieldValue {
-                field: field_name,
-                value: item.to_string(),
-                reason: format!("范围终止解析失败: {e}"),
-            })?;
+            let start: u32 = start_s
+                .parse()
+                .map_err(|e| CronParseError::InvalidFieldValue {
+                    field: field_name,
+                    value: item.to_string(),
+                    reason: format!("范围起始解析失败: {e}"),
+                })?;
+            let end: u32 = end_s
+                .parse()
+                .map_err(|e| CronParseError::InvalidFieldValue {
+                    field: field_name,
+                    value: item.to_string(),
+                    reason: format!("范围终止解析失败: {e}"),
+                })?;
             if start > end || start < min || end > max {
                 return Err(CronParseError::InvalidFieldValue {
                     field: field_name,
@@ -195,11 +201,13 @@ fn parse_field(
                 mask |= 1u64 << v;
             }
         } else {
-            let val: u32 = item.parse().map_err(|e| CronParseError::InvalidFieldValue {
-                field: field_name,
-                value: item.to_string(),
-                reason: format!("整数解析失败: {e}"),
-            })?;
+            let val: u32 = item
+                .parse()
+                .map_err(|e| CronParseError::InvalidFieldValue {
+                    field: field_name,
+                    value: item.to_string(),
+                    reason: format!("整数解析失败: {e}"),
+                })?;
             if val < min || val > max {
                 return Err(CronParseError::InvalidFieldValue {
                     field: field_name,
@@ -455,6 +463,9 @@ mod tests {
         assert_eq!(FormatDetector::detect(yaml), SubscriptionFormat::ClashYaml);
 
         let ss = "ss://YWVzLTEyOC1nY206cGFzc3dvcmRAMS4yLjMuNDo4MzM4#Test";
-        assert_eq!(FormatDetector::detect(ss), SubscriptionFormat::ShadowsocksUri);
+        assert_eq!(
+            FormatDetector::detect(ss),
+            SubscriptionFormat::ShadowsocksUri
+        );
     }
 }

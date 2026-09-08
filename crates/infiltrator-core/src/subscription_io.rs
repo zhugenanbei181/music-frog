@@ -9,8 +9,8 @@
 use anyhow::{Result, anyhow};
 use infiltrator_domain::subscription::{
     CheckedSubscriptionUrl, SubscriptionFetchOptions, SubscriptionUserInfo, UserAgentCatalog,
-    WafDiagnostic, WafResponseMetadata,
-    decode_subscription_bytes, parse_subscription_userinfo, strip_utf8_bom,
+    WafDiagnostic, WafResponseMetadata, decode_subscription_bytes, parse_subscription_userinfo,
+    strip_utf8_bom,
 };
 use infiltrator_http::HttpClient;
 use infiltrator_http::reqwest::{Response, header::HeaderMap};

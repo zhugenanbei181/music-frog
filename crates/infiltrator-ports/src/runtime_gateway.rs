@@ -1,15 +1,15 @@
 //! Runtime controller operations exposed as a transport-neutral port.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use futures_util::stream::BoxStream;
+use infiltrator_contract::capability::Capability;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::proxy::Proxy;
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{
     ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider,
 };
-use infiltrator_domain::rules::RuleEntry;
-use infiltrator_contract::capability::Capability;
-use crate::error::PortError;
 use std::collections::HashMap;
 
 /// Lifecycle-independent events from a controller stream.

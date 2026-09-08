@@ -869,11 +869,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_speedtester_priority_and_retry() {
-        let tester = BatchSpeedtester::new(
-            2,
-            SpeedtestConfig::default(),
-            Duration::from_secs(1),
-        );
+        let tester = BatchSpeedtester::new(2, SpeedtestConfig::default(), Duration::from_secs(1));
         let (_tx, rx) = watch::channel(false);
 
         let proxies = vec![

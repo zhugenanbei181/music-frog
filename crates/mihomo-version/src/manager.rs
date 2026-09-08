@@ -271,7 +271,9 @@ impl VersionManager {
             .find_rollback_target(current.as_deref(), &history)
             .await
             .ok_or_else(|| {
-                MihomoError::NotFound("No installed previous core version to roll back to".to_string())
+                MihomoError::NotFound(
+                    "No installed previous core version to roll back to".to_string(),
+                )
             })?;
 
         let binary_name = if cfg!(windows) {
@@ -352,7 +354,11 @@ impl VersionManager {
         atomic_write(&self.config_file, content.as_bytes()).await
     }
 
-    async fn find_rollback_target(&self, current: Option<&str>, history: &[String]) -> Option<String> {
+    async fn find_rollback_target(
+        &self,
+        current: Option<&str>,
+        history: &[String],
+    ) -> Option<String> {
         let binary_name = if cfg!(windows) {
             "mihomo.exe"
         } else {
@@ -425,13 +431,7 @@ fn set_default_in_config(
     );
     default.insert(
         "version_history".to_string(),
-        toml::Value::Array(
-            history
-                .iter()
-                .cloned()
-                .map(toml::Value::String)
-                .collect(),
-        ),
+        toml::Value::Array(history.iter().cloned().map(toml::Value::String).collect()),
     );
     Ok(())
 }
@@ -453,7 +453,10 @@ fn validate_version_label(version: &str) -> Result<()> {
 
 async fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
     let parent = path.parent().ok_or_else(|| {
-        MihomoError::Config(format!("version config path has no parent: {}", path.display()))
+        MihomoError::Config(format!(
+            "version config path has no parent: {}",
+            path.display()
+        ))
     })?;
     fs::create_dir_all(parent).await?;
     let file_name = path
@@ -464,7 +467,10 @@ async fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
-    let temporary = parent.join(format!(".{file_name}.version-tmp-{}-{stamp}", std::process::id()));
+    let temporary = parent.join(format!(
+        ".{file_name}.version-tmp-{}-{stamp}",
+        std::process::id()
+    ));
 
     let result = async {
         let mut file = fs::OpenOptions::new()
@@ -762,7 +768,10 @@ mod tests {
         let error = manager.rollback().await.unwrap_err();
         assert!(error.to_string().contains("smoke check"), "{error}");
         assert_eq!(manager.get_default().await.unwrap(), "v1.19.29");
-        assert_eq!(manager.rollback_info().await.unwrap().target.as_deref(), Some("v1.19.28"));
+        assert_eq!(
+            manager.rollback_info().await.unwrap().target.as_deref(),
+            Some("v1.19.28")
+        );
     }
 
     #[tokio::test]

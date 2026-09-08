@@ -127,5 +127,4 @@ mod tests {
         assert_eq!(row[1], "HK-01");
         assert_eq!(row[2], "2");
     }
-
 }

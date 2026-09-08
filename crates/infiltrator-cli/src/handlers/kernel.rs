@@ -11,13 +11,19 @@ pub(crate) async fn handle(action: KernelAction) -> anyhow::Result<()> {
     match action {
         KernelAction::Install { target } => install(&application, &target).await?,
         KernelAction::Use { version } => {
-            application.activate(&version).await.map_err(|failure| anyhow::anyhow!(failure.message))?;
+            application
+                .activate(&version)
+                .await
+                .map_err(|failure| anyhow::anyhow!(failure.message))?;
             print_success(&format!("Default kernel version set to {version}"));
         }
         KernelAction::List { json } => list(&application, json).await?,
         KernelAction::ListRemote { limit } => list_remote(&application, limit).await?,
         KernelAction::Uninstall { version } => {
-            application.uninstall(&version).await.map_err(|failure| anyhow::anyhow!(failure.message))?;
+            application
+                .uninstall(&version)
+                .await
+                .map_err(|failure| anyhow::anyhow!(failure.message))?;
             print_success(&format!("Uninstalled kernel version {version}"));
         }
         KernelAction::UpdateStable => update_stable(&application).await?,
@@ -30,9 +36,7 @@ pub(crate) fn split_target(target: &str) -> Option<CoreReleaseChannel> {
     match target.trim().to_ascii_lowercase().as_str() {
         "stable" => Some(CoreReleaseChannel::Stable),
         "alpha" | "pre-release" | "prerelease" => Some(CoreReleaseChannel::Alpha),
-        "meta" | "meta-core" | "metacore" | "nightly" => {
-            Some(CoreReleaseChannel::MetaCore)
-        }
+        "meta" | "meta-core" | "metacore" | "nightly" => Some(CoreReleaseChannel::MetaCore),
         _ => None,
     }
 }
@@ -61,7 +65,10 @@ async fn install(application: &VersionApplication, target: &str) -> anyhow::Resu
         None => {
             print_info(&format!("Installing kernel {target}..."));
             application
-                .install(target.to_string(), std::sync::Arc::new(QuietVersionProgress))
+                .install(
+                    target.to_string(),
+                    std::sync::Arc::new(QuietVersionProgress),
+                )
                 .await
                 .map_err(|failure| anyhow::anyhow!(failure.message))?;
             print_success(&format!("Installed kernel {target}"));
@@ -159,7 +166,10 @@ mod tests {
         assert_eq!(split_target("stable"), Some(CoreReleaseChannel::Stable));
         assert_eq!(split_target("Stable"), Some(CoreReleaseChannel::Stable));
         assert_eq!(split_target("alpha"), Some(CoreReleaseChannel::Alpha));
-        assert_eq!(split_target("meta-core"), Some(CoreReleaseChannel::MetaCore));
+        assert_eq!(
+            split_target("meta-core"),
+            Some(CoreReleaseChannel::MetaCore)
+        );
         assert_eq!(split_target("nightly"), Some(CoreReleaseChannel::MetaCore));
     }
 

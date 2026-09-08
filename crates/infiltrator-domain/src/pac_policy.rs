@@ -15,7 +15,9 @@ pub fn normalize_bypass_domains(values: &[String]) -> Result<Vec<String>, String
         }
         if domain.len() > 253
             || domain.chars().any(|character| {
-                character.is_control() || character.is_whitespace() || matches!(character, '"' | '\\')
+                character.is_control()
+                    || character.is_whitespace()
+                    || matches!(character, '"' | '\\')
             })
         {
             return Err(format!("invalid PAC bypass pattern: {domain}"));
@@ -34,7 +36,11 @@ mod tests {
 
     #[test]
     fn pac_bypass_patterns_are_normalized_and_deduplicated() {
-        let values = vec![" Example.COM ".to_owned(), "example.com".to_owned(), "*.lan".to_owned()];
+        let values = vec![
+            " Example.COM ".to_owned(),
+            "example.com".to_owned(),
+            "*.lan".to_owned(),
+        ];
         assert_eq!(
             normalize_bypass_domains(&values).expect("valid PAC patterns"),
             vec!["example.com", "*.lan"]

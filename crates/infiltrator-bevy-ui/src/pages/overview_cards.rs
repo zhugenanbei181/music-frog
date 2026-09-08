@@ -28,14 +28,16 @@ use crate::pages::overview::mode_label;
 use crate::pages::overview::{
     AccentContainerFill, AccentFill, ActiveExitText, ActiveExitTextKind, BorderFill,
     OverviewMasterSwitchButton, OverviewMasterSwitchText, OverviewMasterSwitchTextKind,
+    PublicIpProbeCard, PublicIpRefreshButton, PublicIpText, PublicIpTextKind,
     SubscriptionQuotaCard, SubscriptionQuotaProgress, SubscriptionQuotaText,
     SubscriptionQuotaTextKind, SurfaceElevatedFill, SurfaceFill, TopologyArrow, TopologyChainCard,
     TopologyStageButton, TopologyText, TopologyTextKind, active_exit_text_value,
-    master_switch_text_value, subscription_quota_text_value,
+    master_switch_text_value, public_ip_text_value, subscription_quota_text_value,
 };
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::proxy_mode::{ProxyModeSnapshot, ProxyModeStatus};
+use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
 use infiltrator_contract::subscription_quota::{
     SubscriptionQuotaSnapshot, SubscriptionQuotaStatus,
 };
@@ -828,4 +830,136 @@ fn single_mode_pill_scene(
             ( Text({ label }) OverviewModeSegmentText(mode) TextRole(Role::Body) TextColor({ ink }) )
         ]
     }
+}
+
+/// Public IP probe card (BEVY-GAP-023 / DUAL-03-11).
+pub fn public_ip_probe_card_scene(palette: &UiPalette) -> impl Scene + use<> {
+    public_ip_probe_card_scene_with_snapshot(&PublicIpProbeSnapshot::demo_fixture(), palette)
+}
+
+/// Public IP probe card with real IP, location, ISP and refresh affordance.
+pub fn public_ip_probe_card_scene_with_snapshot(
+    snapshot: &PublicIpProbeSnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let mut a11y = accesskit::Node::new(accesskit::Role::Region);
+    a11y.set_label("公网 IP 隐私归属探针");
+    let ip = public_ip_text_value(snapshot, PublicIpTextKind::Ip);
+    let location = public_ip_text_value(snapshot, PublicIpTextKind::Location);
+    let isp = public_ip_text_value(snapshot, PublicIpTextKind::Isp);
+    let provider = public_ip_text_value(snapshot, PublicIpTextKind::Provider);
+    let status = public_ip_text_value(snapshot, PublicIpTextKind::Status);
+
+    surface_scene(
+        vec![Box::new(bsn! {
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S8),
+            }
+            template_value(AccessibilityNode(a11y))
+            PublicIpProbeCard
+            Children [
+                (
+                    Node {
+                        width: percent(100),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                    }
+                    Children [
+                        (
+                            Node {
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                ( { icon_scene(IconId::Globe, 16.0, palette.accent) } ),
+                                ( Text({ "当前公网 IP (Public IP Probe)".to_owned() }) TextRole(Role::Heading) ),
+                            ]
+                        ),
+                        (
+                            Node {
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                (
+                                    Node {
+                                        padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.surface_elevated })
+                                    SurfaceElevatedFill
+                                    Children [
+                                        ( Text({ provider }) PublicIpText(PublicIpTextKind::Provider) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
+                                    ]
+                                ),
+                                (
+                                    Button
+                                    PublicIpRefreshButton
+                                    Node {
+                                        padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        align_items: AlignItems::Center,
+                                        column_gap: Val::Px(space::S4),
+                                    }
+                                    BackgroundColor({ palette.surface_elevated })
+                                    SurfaceElevatedFill
+                                    Children [
+                                        ( { icon_scene(IconId::Activity, 12.0, palette.ink) } ),
+                                        ( Text({ "刷新".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink }) ),
+                                    ]
+                                ),
+                            ]
+                        ),
+                    ]
+                ),
+                (
+                    Node {
+                        width: percent(100),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                        padding: UiRect::all(Val::Px(space::S8)),
+                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    }
+                    BackgroundColor({ palette.surface_elevated })
+                    SurfaceElevatedFill
+                    Children [
+                        (
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S2),
+                            }
+                            Children [
+                                ( Text({ ip }) PublicIpText(PublicIpTextKind::Ip) TextRole(Role::BodyStrong) TextColor({ palette.ink }) ),
+                                (
+                                    Node {
+                                        align_items: AlignItems::Center,
+                                        column_gap: Val::Px(space::S8),
+                                    }
+                                    Children [
+                                        ( Text({ location }) PublicIpText(PublicIpTextKind::Location) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
+                                        ( Text({ "·".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
+                                        ( Text({ isp }) PublicIpText(PublicIpTextKind::Isp) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
+                                    ]
+                                ),
+                            ]
+                        ),
+                        (
+                            Node {
+                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.accent_container })
+                            AccentContainerFill
+                            Children [
+                                ( Text({ status }) PublicIpText(PublicIpTextKind::Status) TextRole(Role::Caption) TextColor({ palette.accent }) ),
+                            ]
+                        ),
+                    ]
+                ),
+            ]
+        })],
+        palette,
+    )
 }

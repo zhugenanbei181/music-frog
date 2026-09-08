@@ -5,10 +5,10 @@
 mod tests {
     use crate::manager::ConfigManager;
     use crate::profile::Profile;
-    use infiltrator_ports::secure_store::SecureStore;
     use infiltrator_ports::endpoint::EndpointSource;
-    use std::sync::Arc;
+    use infiltrator_ports::secure_store::SecureStore;
     use std::path::PathBuf;
+    use std::sync::Arc;
     use tempfile::TempDir;
     use tokio::fs;
 
@@ -121,12 +121,9 @@ mod tests {
         manager.save("default", "mode: rule\n").await.unwrap();
         manager.validate_current_profile().await.unwrap();
 
-        fs::write(
-            manager.config_dir.join("default.yaml"),
-            "invalid: yaml: [",
-        )
-        .await
-        .unwrap();
+        fs::write(manager.config_dir.join("default.yaml"), "invalid: yaml: [")
+            .await
+            .unwrap();
         assert!(manager.validate_current_profile().await.is_err());
     }
 

@@ -18,22 +18,22 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::doctor_application::DoctorApplication;
-use crate::profile_application::ProfileApplication;
 use crate::mtu_application::MtuApplication;
+use crate::network_roaming_application::NetworkRoamingApplication;
+use crate::pac_application::PacApplication;
 use crate::port_conflict_application::PortConflictApplication;
+use crate::privileged_network_application::PrivilegedNetworkApplication;
+use crate::profile_application::ProfileApplication;
 use crate::routing_application::RoutingApplication;
 use crate::runtime_query_application::RuntimeQueryApplication;
-use crate::settings_application::SettingsApplication;
 use crate::service_mode_application::ServiceModeApplication;
+use crate::settings_application::SettingsApplication;
 use crate::snapshot_application::SnapshotApplication;
 use crate::sync_application::SyncApplication;
 use crate::system_proxy_application::SystemProxyApplication;
-use crate::version_application::VersionApplication;
 use crate::uwp_loopback_application::UwpLoopbackApplication;
-use crate::pac_application::PacApplication;
-use crate::network_roaming_application::NetworkRoamingApplication;
+use crate::version_application::VersionApplication;
 use crate::vpn_application::VpnServiceApplication;
-use crate::privileged_network_application::PrivilegedNetworkApplication;
 
 pub type CommandFuture = Pin<Box<dyn Future<Output = Result<(), Failure>> + Send + 'static>>;
 
@@ -163,15 +163,15 @@ impl CommandApplication {
         self
     }
 
-    pub fn with_privileged_network(
-        mut self,
-        application: PrivilegedNetworkApplication,
-    ) -> Self {
+    pub fn with_privileged_network(mut self, application: PrivilegedNetworkApplication) -> Self {
         self.privileged_network = Some(application);
         self
     }
 
-    pub fn with_speedtest(mut self, speedtest: crate::speedtest_application::SpeedtestApplication) -> Self {
+    pub fn with_speedtest(
+        mut self,
+        speedtest: crate::speedtest_application::SpeedtestApplication,
+    ) -> Self {
         self.speedtest = Some(speedtest);
         self
     }
@@ -250,7 +250,11 @@ impl CommandApplication {
                 }
                 Ok(())
             }
-            CommandIntent::TestDelay { group, url, timeout_ms } => {
+            CommandIntent::TestDelay {
+                group,
+                url,
+                timeout_ms,
+            } => {
                 if let Ok(speedtest) = self.speedtest() {
                     let scope = match group {
                         Some(g) => infiltrator_contract::speedtest::SpeedtestScope::SingleGroup(g),
@@ -297,10 +301,7 @@ impl CommandApplication {
             }
             CommandIntent::RefreshRuleProviders => {
                 let runtime = self.runtime()?;
-                let providers = runtime
-                    .get_rule_providers()
-                    .await
-                    .map_err(Failure::from)?;
+                let providers = runtime.get_rule_providers().await.map_err(Failure::from)?;
                 for provider in providers {
                     runtime
                         .update_rule_provider(&provider.name)
@@ -420,7 +421,9 @@ impl CommandApplication {
                     } else {
                         config.port
                     };
-                    (port > 0).then(|| format!("127.0.0.1:{port}")).ok_or_else(|| {
+                    (port > 0)
+                        .then(|| format!("127.0.0.1:{port}"))
+                        .ok_or_else(|| {
                             Failure::new(
                                 ErrorCode::NotReady,
                                 "current configuration has no HTTP proxy endpoint",
@@ -460,10 +463,12 @@ impl CommandApplication {
                 )
                 .await
                 .map(|_| ()),
-            CommandIntent::SetIpv6Routing { enabled } => RuntimeQueryApplication::new(self.runtime()?)
-                .set_ipv6_routing(enabled)
-                .await
-                .map(|_| ()),
+            CommandIntent::SetIpv6Routing { enabled } => {
+                RuntimeQueryApplication::new(self.runtime()?)
+                    .set_ipv6_routing(enabled)
+                    .await
+                    .map(|_| ())
+            }
             CommandIntent::ScanUwpApps => {
                 self.uwp_loopback()?.snapshot().await;
                 Ok(())
@@ -473,11 +478,9 @@ impl CommandApplication {
                 .set_exempt(&sid, exempt)
                 .await
                 .map(|_| ()),
-            CommandIntent::SetAllUwpExemptions { exempt } => self
-                .uwp_loopback()?
-                .set_all(exempt)
-                .await
-                .map(|_| ()),
+            CommandIntent::SetAllUwpExemptions { exempt } => {
+                self.uwp_loopback()?.set_all(exempt).await.map(|_| ())
+            }
             CommandIntent::ApplyPac {
                 enabled,
                 bypass_domains,
@@ -524,7 +527,8 @@ impl CommandApplication {
                 .run(infiltrator_contract::privileged_network::PrivilegedNetworkRequest::standard())
                 .await
                 .map(|_| ()),
-            CommandIntent::StartCore
+            CommandIntent::RefreshPublicIpProbe
+            | CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore
             | CommandIntent::ClearLogs
@@ -553,9 +557,15 @@ impl CommandApplication {
             ));
         }
         let parsed_bool = match key {
-            "notifications_enabled" | "close_to_tray" => Some(value.parse::<bool>().map_err(
-                |_| Failure::new(ErrorCode::InvalidInput, format!("invalid boolean {value}"), false),
-            )?),
+            "notifications_enabled" | "close_to_tray" => {
+                Some(value.parse::<bool>().map_err(|_| {
+                    Failure::new(
+                        ErrorCode::InvalidInput,
+                        format!("invalid boolean {value}"),
+                        false,
+                    )
+                })?)
+            }
             _ => None,
         };
         self.settings()?
@@ -572,7 +582,9 @@ impl CommandApplication {
     }
 
     fn profile(&self) -> Result<ProfileApplication, Failure> {
-        self.profile.clone().ok_or_else(|| missing("profile application"))
+        self.profile
+            .clone()
+            .ok_or_else(|| missing("profile application"))
     }
 
     fn runtime(&self) -> Result<Arc<dyn RuntimeGateway>, Failure> {
@@ -588,11 +600,15 @@ impl CommandApplication {
     }
 
     fn doctor(&self) -> Result<DoctorApplication, Failure> {
-        self.doctor.clone().ok_or_else(|| missing("doctor application"))
+        self.doctor
+            .clone()
+            .ok_or_else(|| missing("doctor application"))
     }
 
     fn routing(&self) -> Result<RoutingApplication, Failure> {
-        self.routing.clone().ok_or_else(|| missing("routing application"))
+        self.routing
+            .clone()
+            .ok_or_else(|| missing("routing application"))
     }
 
     fn sync(&self) -> Result<SyncApplication, Failure> {
@@ -600,7 +616,9 @@ impl CommandApplication {
     }
 
     fn settings(&self) -> Result<SettingsApplication, Failure> {
-        self.settings.clone().ok_or_else(|| missing("settings application"))
+        self.settings
+            .clone()
+            .ok_or_else(|| missing("settings application"))
     }
 
     fn snapshots(&self) -> Result<SnapshotApplication, Failure> {
@@ -628,17 +646,13 @@ impl CommandApplication {
     }
 
     fn mtu(&self) -> Result<MtuApplication, Failure> {
-        self.mtu
-            .clone()
-            .ok_or_else(|| missing("MTU application"))
+        self.mtu.clone().ok_or_else(|| missing("MTU application"))
     }
 
     fn system_proxy(&self) -> Result<SystemProxyApplication, Failure> {
-        self.system_proxy
-            .clone()
-            .ok_or_else(|| {
-                Failure::unsupported("system proxy control is not composed for this host")
-            })
+        self.system_proxy.clone().ok_or_else(|| {
+            Failure::unsupported("system proxy control is not composed for this host")
+        })
     }
 
     fn uwp_loopback(&self) -> Result<UwpLoopbackApplication, Failure> {
@@ -654,9 +668,9 @@ impl CommandApplication {
     }
 
     fn network_roaming(&self) -> Result<NetworkRoamingApplication, Failure> {
-        self.network_roaming.clone().ok_or_else(|| {
-            Failure::unsupported("network roaming is not configured for this host")
-        })
+        self.network_roaming
+            .clone()
+            .ok_or_else(|| Failure::unsupported("network roaming is not configured for this host"))
     }
 
     fn vpn(&self) -> Result<VpnServiceApplication, Failure> {
@@ -672,7 +686,9 @@ impl CommandApplication {
     }
 
     fn speedtest(&self) -> Result<crate::speedtest_application::SpeedtestApplication, Failure> {
-        self.speedtest.clone().ok_or_else(|| missing("speedtest application"))
+        self.speedtest
+            .clone()
+            .ok_or_else(|| missing("speedtest application"))
     }
 }
 
@@ -753,9 +769,7 @@ fn parse_release_channel(value: &str) -> Result<CoreReleaseChannel, Failure> {
     match value.trim().to_ascii_lowercase().as_str() {
         "stable" => Ok(CoreReleaseChannel::Stable),
         "alpha" | "pre-release" | "prerelease" => Ok(CoreReleaseChannel::Alpha),
-        "meta" | "meta-core" | "metacore" | "nightly" => {
-            Ok(CoreReleaseChannel::MetaCore)
-        }
+        "meta" | "meta-core" | "metacore" | "nightly" => Ok(CoreReleaseChannel::MetaCore),
         _ => Err(Failure::new(
             ErrorCode::InvalidInput,
             format!("unknown core release channel {value}"),

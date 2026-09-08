@@ -35,7 +35,7 @@ impl RuntimeQueryApplication {
 #[cfg(test)]
 mod tests {
     use super::RuntimeQueryApplication;
-    use crate::runtime_query_application::tests::{lan_state, TestGateway};
+    use crate::runtime_query_application::tests::{TestGateway, lan_state};
     use std::sync::atomic::AtomicUsize;
     use std::sync::{Arc, Mutex};
 

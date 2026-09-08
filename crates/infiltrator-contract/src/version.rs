@@ -74,8 +74,13 @@ pub struct CoreRollbackSnapshot {
 pub enum CoreArtifactVerification {
     #[default]
     Unknown,
-    Verified { version: String },
-    Rejected { version: String, failure: Failure },
+    Verified {
+        version: String,
+    },
+    Rejected {
+        version: String,
+        failure: Failure,
+    },
 }
 
 /// Bounded result of one online probe across all supported core channels.

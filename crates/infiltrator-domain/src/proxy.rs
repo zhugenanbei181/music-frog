@@ -234,9 +234,11 @@ impl Proxy {
             Proxy::Snell(p) => &p.base.name,
             Proxy::Direct(p) => &p.base.name,
             Proxy::Reject(p) => &p.base.name,
-            Proxy::Selector(p) | Proxy::URLTest(p) | Proxy::Fallback(p) | Proxy::LoadBalance(p) | Proxy::Relay(p) => {
-                &p.name
-            }
+            Proxy::Selector(p)
+            | Proxy::URLTest(p)
+            | Proxy::Fallback(p)
+            | Proxy::LoadBalance(p)
+            | Proxy::Relay(p) => &p.name,
             Proxy::Unknown => "",
         }
     }
@@ -296,27 +298,33 @@ impl Proxy {
             Proxy::Snell(p) => &p.base.history,
             Proxy::Direct(p) => &p.base.history,
             Proxy::Reject(p) => &p.base.history,
-            Proxy::Selector(p) | Proxy::URLTest(p) | Proxy::Fallback(p) | Proxy::LoadBalance(p) | Proxy::Relay(p) => {
-                &p.history
-            }
+            Proxy::Selector(p)
+            | Proxy::URLTest(p)
+            | Proxy::Fallback(p)
+            | Proxy::LoadBalance(p)
+            | Proxy::Relay(p) => &p.history,
             Proxy::Unknown => &[],
         }
     }
 
     pub fn all(&self) -> Option<&[String]> {
         match self {
-            Proxy::Selector(p) | Proxy::URLTest(p) | Proxy::Fallback(p) | Proxy::LoadBalance(p) | Proxy::Relay(p) => {
-                Some(&p.all)
-            }
+            Proxy::Selector(p)
+            | Proxy::URLTest(p)
+            | Proxy::Fallback(p)
+            | Proxy::LoadBalance(p)
+            | Proxy::Relay(p) => Some(&p.all),
             _ => None,
         }
     }
 
     pub fn now(&self) -> Option<&str> {
         match self {
-            Proxy::Selector(p) | Proxy::URLTest(p) | Proxy::Fallback(p) | Proxy::LoadBalance(p) | Proxy::Relay(p) => {
-                Some(&p.now)
-            }
+            Proxy::Selector(p)
+            | Proxy::URLTest(p)
+            | Proxy::Fallback(p)
+            | Proxy::LoadBalance(p)
+            | Proxy::Relay(p) => Some(&p.now),
             _ => None,
         }
     }
@@ -324,7 +332,11 @@ impl Proxy {
     pub fn is_group(&self) -> bool {
         matches!(
             self,
-            Proxy::Selector(_) | Proxy::URLTest(_) | Proxy::Fallback(_) | Proxy::LoadBalance(_) | Proxy::Relay(_)
+            Proxy::Selector(_)
+                | Proxy::URLTest(_)
+                | Proxy::Fallback(_)
+                | Proxy::LoadBalance(_)
+                | Proxy::Relay(_)
         )
     }
 

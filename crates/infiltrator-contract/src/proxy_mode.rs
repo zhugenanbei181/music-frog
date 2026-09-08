@@ -41,7 +41,10 @@ impl ProxyModeSnapshot {
     }
 
     pub fn is_drawable(&self) -> bool {
-        matches!(self.status, ProxyModeStatus::Ready | ProxyModeStatus::Pending)
+        matches!(
+            self.status,
+            ProxyModeStatus::Ready | ProxyModeStatus::Pending
+        )
     }
 
     pub fn is_mode_selectable(&self, mode: ProxyMode) -> bool {

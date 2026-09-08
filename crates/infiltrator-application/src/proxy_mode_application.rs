@@ -36,7 +36,10 @@ impl ProxyModeApplication {
 
     pub fn intent(current: &ProxyModeSnapshot, target: ProxyMode) -> Result<CommandIntent, String> {
         if !current.is_mode_selectable(target) {
-            return Err(format!("proxy mode {:?} is not selectable in state {:?}", target, current.status));
+            return Err(format!(
+                "proxy mode {:?} is not selectable in state {:?}",
+                target, current.status
+            ));
         }
         if current.current == target {
             return Err(format!("proxy mode {:?} is already active", target));
@@ -67,7 +70,9 @@ mod tests {
         // Global accepted
         assert_eq!(
             ProxyModeApplication::intent(&snapshot, ProxyMode::Global),
-            Ok(CommandIntent::SetProxyMode { mode: ProxyMode::Global })
+            Ok(CommandIntent::SetProxyMode {
+                mode: ProxyMode::Global
+            })
         );
     }
 }

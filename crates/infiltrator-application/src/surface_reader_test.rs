@@ -9,14 +9,14 @@ use infiltrator_ports::application_runtime::{
 };
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
-use infiltrator_ports::port_conflict::PortConflictPort;
-use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
-use infiltrator_ports::vpn_service::VpnServicePort;
-use infiltrator_ports::system_proxy::SystemProxyPort;
+use infiltrator_ports::offline_startup::OfflineStartupPort;
+use infiltrator_ports::port_conflict::PortConflictPort;
 use infiltrator_ports::service_mode::ServiceModePort;
+use infiltrator_ports::system_proxy::SystemProxyPort;
 use infiltrator_ports::version::{VersionPort, VersionProgressSink};
+use infiltrator_ports::vpn_service::VpnServicePort;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 struct TestRuntime;
@@ -131,9 +131,11 @@ impl OfflineStartupPort for TestOfflineStartup {
     async fn validate_offline_startup(
         &self,
     ) -> Result<infiltrator_contract::offline_startup::OfflineStartupSnapshot, PortError> {
-        Ok(infiltrator_contract::offline_startup::OfflineStartupSnapshot::ready(
-            infiltrator_contract::offline_startup::LocalAssetStatus::Available,
-        ))
+        Ok(
+            infiltrator_contract::offline_startup::OfflineStartupSnapshot::ready(
+                infiltrator_contract::offline_startup::LocalAssetStatus::Available,
+            ),
+        )
     }
 }
 
@@ -234,17 +236,19 @@ impl NetworkRoamingPort for TestNetworkRoaming {
     ) -> Result<infiltrator_contract::network_roaming::NetworkObservation, PortError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(infiltrator_contract::network_roaming::NetworkObservation {
-            interfaces: vec![infiltrator_contract::network_roaming::NetworkInterfaceSnapshot {
-                name: "eth0".to_owned(),
-                kind: infiltrator_contract::network_roaming::NetworkInterfaceKind::Ethernet,
-                is_up: true,
-                is_default_gateway: true,
-                gateway_ip: Some("192.0.2.1".to_owned()),
-                ip_addresses: vec!["192.0.2.10/24".to_owned()],
-                mtu: Some(1500),
-                metric: Some(100),
-                dns_servers: Vec::new(),
-            }],
+            interfaces: vec![
+                infiltrator_contract::network_roaming::NetworkInterfaceSnapshot {
+                    name: "eth0".to_owned(),
+                    kind: infiltrator_contract::network_roaming::NetworkInterfaceKind::Ethernet,
+                    is_up: true,
+                    is_default_gateway: true,
+                    gateway_ip: Some("192.0.2.1".to_owned()),
+                    ip_addresses: vec!["192.0.2.10/24".to_owned()],
+                    mtu: Some(1500),
+                    metric: Some(100),
+                    dns_servers: Vec::new(),
+                },
+            ],
             observed_at_epoch_ms: Some(1),
         })
     }
@@ -253,10 +257,12 @@ impl NetworkRoamingPort for TestNetworkRoaming {
         &self,
         _request: infiltrator_contract::network_roaming::NetworkRoamingRepairRequest,
     ) -> Result<infiltrator_contract::network_roaming::NetworkRoamingRepairResult, PortError> {
-        Ok(infiltrator_contract::network_roaming::NetworkRoamingRepairResult {
-            route_generation: 1,
-            detail: "test readback".to_owned(),
-        })
+        Ok(
+            infiltrator_contract::network_roaming::NetworkRoamingRepairResult {
+                route_generation: 1,
+                detail: "test readback".to_owned(),
+            },
+        )
     }
 }
 
@@ -395,7 +401,10 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
     assert_eq!(first.mtu.applied_tun_mtu, None);
     assert_eq!(mtu_calls.load(Ordering::SeqCst), 1);
     assert!(first.system_proxy.is_enabled());
-    assert_eq!(first.system_proxy.endpoint.as_deref(), Some("127.0.0.1:7890"));
+    assert_eq!(
+        first.system_proxy.endpoint.as_deref(),
+        Some("127.0.0.1:7890")
+    );
     assert_eq!(proxy_calls.load(Ordering::SeqCst), 1);
     assert_eq!(
         first.network_roaming.active_interface.as_deref(),

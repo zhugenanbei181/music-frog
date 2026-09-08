@@ -41,7 +41,11 @@ fn parse_vless(parsed: &Url) -> Result<ProxyNodeItem> {
     let server = parsed.host_str().unwrap_or_default().to_string();
     let port = parsed.port().unwrap_or(443);
     let uuid = if !parsed.username().is_empty() {
-        Some(urlencoding::decode(parsed.username()).unwrap_or_default().to_string())
+        Some(
+            urlencoding::decode(parsed.username())
+                .unwrap_or_default()
+                .to_string(),
+        )
     } else {
         None
     };
@@ -224,7 +228,11 @@ fn parse_hysteria2(parsed: &Url) -> Result<ProxyNodeItem> {
     let server = parsed.host_str().unwrap_or_default().to_string();
     let port = parsed.port().unwrap_or(443);
     let auth = if !parsed.username().is_empty() {
-        Some(urlencoding::decode(parsed.username()).unwrap_or_default().to_string())
+        Some(
+            urlencoding::decode(parsed.username())
+                .unwrap_or_default()
+                .to_string(),
+        )
     } else {
         None
     };
@@ -348,7 +356,11 @@ fn parse_tuic(parsed: &Url) -> Result<ProxyNodeItem> {
     let server = parsed.host_str().unwrap_or_default().to_string();
     let port = parsed.port().unwrap_or(443);
     let uuid = if !parsed.username().is_empty() {
-        Some(urlencoding::decode(parsed.username()).unwrap_or_default().to_string())
+        Some(
+            urlencoding::decode(parsed.username())
+                .unwrap_or_default()
+                .to_string(),
+        )
     } else {
         None
     };
@@ -477,7 +489,11 @@ fn parse_wireguard(parsed: &Url) -> Result<ProxyNodeItem> {
     let server = parsed.host_str().unwrap_or_default().to_string();
     let port = parsed.port().unwrap_or(51820);
     let private_key = if !parsed.username().is_empty() {
-        Some(urlencoding::decode(parsed.username()).unwrap_or_default().to_string())
+        Some(
+            urlencoding::decode(parsed.username())
+                .unwrap_or_default()
+                .to_string(),
+        )
     } else {
         None
     };
@@ -657,7 +673,11 @@ fn parse_anytls(parsed: &Url) -> Result<ProxyNodeItem> {
     let server = parsed.host_str().unwrap_or_default().to_string();
     let port = parsed.port().unwrap_or(443);
     let auth = if !parsed.username().is_empty() {
-        Some(urlencoding::decode(parsed.username()).unwrap_or_default().to_string())
+        Some(
+            urlencoding::decode(parsed.username())
+                .unwrap_or_default()
+                .to_string(),
+        )
     } else {
         None
     };

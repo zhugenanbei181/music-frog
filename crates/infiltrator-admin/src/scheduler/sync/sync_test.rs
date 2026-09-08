@@ -4,8 +4,8 @@ mod tests {
     use crate::admin_api::state::AdminApiContext;
     use anyhow::anyhow;
     use infiltrator_domain::settings::{AppSettings, WebDavConfig};
-    use mihomo_platform::TEST_LOCK;
     use infiltrator_ports::runtime_gateway::RuntimeGateway;
+    use mihomo_platform::TEST_LOCK;
     use std::sync::Arc;
 
     #[derive(Clone)]
@@ -15,7 +15,8 @@ mod tests {
     impl AdminApiContext for MockContext {
         async fn profile_application(
             &self,
-        ) -> anyhow::Result<infiltrator_application::profile_application::ProfileApplication> {
+        ) -> anyhow::Result<infiltrator_application::profile_application::ProfileApplication>
+        {
             crate::support::profile_application().await
         }
 
@@ -29,14 +30,16 @@ mod tests {
 
         async fn doctor_application(
             &self,
-        ) -> anyhow::Result<infiltrator_application::doctor_application::DoctorApplication> {
+        ) -> anyhow::Result<infiltrator_application::doctor_application::DoctorApplication>
+        {
             crate::support::doctor_application()
         }
 
         async fn profile_reset_application(
             &self,
-        ) -> anyhow::Result<infiltrator_application::profile_reset_application::ProfileResetApplication>
-        {
+        ) -> anyhow::Result<
+            infiltrator_application::profile_reset_application::ProfileResetApplication,
+        > {
             Ok(crate::support::profile_reset_application())
         }
 
@@ -48,9 +51,8 @@ mod tests {
 
         async fn subscription_source(
             &self,
-        ) -> anyhow::Result<
-            Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource>,
-        > {
+        ) -> anyhow::Result<Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource>>
+        {
             Ok(crate::support::subscription_source())
         }
 

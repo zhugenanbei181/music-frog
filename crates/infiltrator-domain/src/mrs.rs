@@ -410,7 +410,6 @@ pub fn build_mrs_bytes(
     bytes
 }
 
-
 use crate::rules::RuleEntry;
 use std::io::Read;
 
@@ -436,7 +435,9 @@ pub fn deconstruct_mrs_payload(bytes: &[u8]) -> Result<Vec<String>> {
         CompressionType::Gzip => {
             let mut decoder = flate2::read::GzDecoder::new(payload);
             let mut buf = Vec::new();
-            decoder.read_to_end(&mut buf).context("Gzip decompression failed")?;
+            decoder
+                .read_to_end(&mut buf)
+                .context("Gzip decompression failed")?;
             buf
         }
         CompressionType::None | CompressionType::Zstd | CompressionType::Unknown(_) => {
@@ -454,7 +455,10 @@ pub fn deconstruct_mrs_payload(bytes: &[u8]) -> Result<Vec<String>> {
         match meta.behavior {
             Behavior::Domain => {
                 let rule = if trimmed.starts_with('+') {
-                    format!("DOMAIN-SUFFIX,{}", trimmed.trim_start_matches('+').trim_start_matches('.'))
+                    format!(
+                        "DOMAIN-SUFFIX,{}",
+                        trimmed.trim_start_matches('+').trim_start_matches('.')
+                    )
                 } else if trimmed.starts_with('.') {
                     format!("DOMAIN-SUFFIX,{}", trimmed.trim_start_matches('.'))
                 } else {
@@ -749,5 +753,4 @@ mod tests {
         assert_eq!(entries[0].rule, "IP-CIDR,1.1.1.1/32,DIRECT");
         assert_eq!(entries[1].rule, "IP-CIDR6,2606:4700::/32,DIRECT");
     }
-
 }

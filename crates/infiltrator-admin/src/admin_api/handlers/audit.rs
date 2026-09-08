@@ -91,15 +91,16 @@ pub(crate) fn analyze_connections_for_audit(
 
         let proc_name = extract_process_name(&conn.metadata.process_path, &conn.metadata.host);
 
-        let stat = process_stats
-            .entry(proc_name.clone())
-            .or_insert_with(|| ProcessStatAccumulator {
-                process_name: proc_name.clone(),
-                upload_bytes: 0,
-                download_bytes: 0,
-                connections_count: 0,
-                direct_connections_count: 0,
-            });
+        let stat =
+            process_stats
+                .entry(proc_name.clone())
+                .or_insert_with(|| ProcessStatAccumulator {
+                    process_name: proc_name.clone(),
+                    upload_bytes: 0,
+                    download_bytes: 0,
+                    connections_count: 0,
+                    direct_connections_count: 0,
+                });
         stat.upload_bytes += conn.upload;
         stat.download_bytes += conn.download;
         stat.connections_count += 1;
@@ -130,8 +131,9 @@ pub(crate) fn analyze_connections_for_audit(
                     conn.metadata.destination_ip, conn.metadata.destination_port
                 )),
                 process_name: Some(proc_name.clone()),
-                recommendation: "Enable Fake-IP or route DNS queries through encrypted upstream DNS / TUN mode"
-                    .to_string(),
+                recommendation:
+                    "Enable Fake-IP or route DNS queries through encrypted upstream DNS / TUN mode"
+                        .to_string(),
             });
         }
 
@@ -171,8 +173,9 @@ pub(crate) fn analyze_connections_for_audit(
                 ),
                 affected_target: Some(conn.metadata.host.clone()),
                 process_name: Some(proc_name.clone()),
-                recommendation: "Use HTTPS/TLS where possible to prevent eavesdropping on plaintext traffic"
-                    .to_string(),
+                recommendation:
+                    "Use HTTPS/TLS where possible to prevent eavesdropping on plaintext traffic"
+                        .to_string(),
             });
         }
     }

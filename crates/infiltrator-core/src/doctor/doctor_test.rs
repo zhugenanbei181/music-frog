@@ -260,8 +260,7 @@ async fn config_checks_follow_settings_configs_dir_redirect() {
         .tempdir()
         .unwrap();
     let cloud = dir.path().join("cloud").join("profiles");
-    let _guard =
-        test_support::RedirectGuard::acquire(dir.path().to_path_buf()).await;
+    let _guard = test_support::RedirectGuard::acquire(dir.path().to_path_buf()).await;
     let env = DoctorEnv::with_home(dir.path().to_path_buf());
     save_settings(
         env.settings_file(),

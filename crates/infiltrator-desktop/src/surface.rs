@@ -6,29 +6,29 @@
 
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::port_conflict_application::PortConflictApplication;
-use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
-use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_application::routing_application::RoutingApplication;
-use infiltrator_application::settings_application::SettingsApplication;
-use infiltrator_application::service_mode_application::ServiceModeApplication;
-use infiltrator_application::snapshot_application::SnapshotApplication;
-use infiltrator_application::surface_application::SurfacePump;
-use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
+use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::pac_application::PacApplication;
+use infiltrator_application::port_conflict_application::PortConflictApplication;
+use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::resource_application::ResourceApplication;
+use infiltrator_application::routing_application::RoutingApplication;
+use infiltrator_application::service_mode_application::ServiceModeApplication;
+use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_application::snapshot_application::SnapshotApplication;
+use infiltrator_application::surface_application::SurfacePump;
+use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -97,8 +97,7 @@ pub async fn application_surface_reader(
     );
     let versions = VersionApplication::new(Arc::new(crate::storage::version()?));
     let endpoint_source = Arc::new(crate::storage::endpoint_source().await?);
-    let port_conflicts =
-        PortConflictApplication::new(Arc::new(crate::storage::port_conflict()?));
+    let port_conflicts = PortConflictApplication::new(Arc::new(crate::storage::port_conflict()?));
     let resources = ResourceApplication::new(gateway.clone());
     let config_path = infiltrator_core::settings_io::app_config_manager()
         .await?
@@ -108,24 +107,19 @@ pub async fn application_surface_reader(
         crate::offline_startup::offline_startup_port(&config_path, &binary_path),
     ));
     let mtu = MtuApplication::new(Arc::new(crate::mtu::DesktopMtuProbe::new()));
-    let system_proxy = SystemProxyApplication::new(Arc::new(
-        crate::system_proxy::DesktopSystemProxy::new(),
-    ));
-    let uwp_loopback = UwpLoopbackApplication::new(Arc::new(
-        crate::uwp_loopback_port::DesktopUwpLoopbackPort,
-    ));
+    let system_proxy =
+        SystemProxyApplication::new(Arc::new(crate::system_proxy::DesktopSystemProxy::new()));
+    let uwp_loopback =
+        UwpLoopbackApplication::new(Arc::new(crate::uwp_loopback_port::DesktopUwpLoopbackPort));
     let pac = PacApplication::new(
         gateway.clone(),
         Arc::new(crate::pac_service::DesktopPacServicePort::shared()),
     );
-    let network_roaming = NetworkRoamingApplication::new(
-        network_roaming_port,
-        Some(gateway.clone()),
-    );
-    let service_mode =
-        ServiceModeApplication::new(Arc::new(crate::service_mode::DesktopServiceMode::new(
-            binary_path,
-        )));
+    let network_roaming =
+        NetworkRoamingApplication::new(network_roaming_port, Some(gateway.clone()));
+    let service_mode = ServiceModeApplication::new(Arc::new(
+        crate::service_mode::DesktopServiceMode::new(binary_path),
+    ));
 
     Ok(
         ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
@@ -160,15 +154,14 @@ pub async fn surface_pump(
     binary_path: std::path::PathBuf,
     network_roaming_port: Arc<dyn NetworkRoamingPort>,
 ) -> anyhow::Result<SurfacePump> {
-    let reader =
-        application_surface_reader(
-            Arc::clone(&core),
-            gateway,
-            surface,
-            binary_path,
-            network_roaming_port,
-        )
-        .await?;
+    let reader = application_surface_reader(
+        Arc::clone(&core),
+        gateway,
+        surface,
+        binary_path,
+        network_roaming_port,
+    )
+    .await?;
     let runtime = infiltrator_composition::tokio_application_runtime()
         .map_err(|error| anyhow::anyhow!(error))?;
     let initial = infiltrator_contract::surface_snapshot::SurfaceSnapshot::unavailable(

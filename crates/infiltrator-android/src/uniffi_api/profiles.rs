@@ -4,12 +4,12 @@
 
 use chrono::Utc;
 
+use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_session::apply_current_profile_status;
 use crate::host_support::{
     build_config_manager, get_runtime, map_anyhow_error, map_application_failure,
     subscription_source,
 };
-use crate::ffi::{FfiErrorCode, FfiStatus};
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_domain::profiles::{ProfileInfo, sanitize_profile_name};
 use std::sync::Arc;

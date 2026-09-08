@@ -2,17 +2,17 @@
 
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::snapshots::SnapshotMeta;
-use infiltrator_ports::endpoint::EndpointSource;
-use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
 use infiltrator_ports::app_routing_store::AppRoutingStore;
 use infiltrator_ports::doctor::DoctorPort;
+use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
 use infiltrator_ports::profile_reset::ProfileResetPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::public_ip_probe::PublicIpProbe;
 use infiltrator_ports::settings_store::SettingsStore;
+use infiltrator_ports::snapshot_store::SnapshotStore;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::sync::SyncPort;
-use infiltrator_ports::snapshot_store::SnapshotStore;
 use infiltrator_ports::version::VersionPort;
 use std::path::Path;
 use std::sync::Arc;
@@ -40,9 +40,9 @@ pub async fn settings_store() -> anyhow::Result<Arc<dyn SettingsStore>> {
 
 pub async fn endpoint_source() -> anyhow::Result<impl EndpointSource> {
     let manager = infiltrator_core::settings_io::app_config_manager().await?;
-    Ok(mihomo_config::endpoint::ProfileEndpointSource::new(Arc::new(
-        manager,
-    )))
+    Ok(mihomo_config::endpoint::ProfileEndpointSource::new(
+        Arc::new(manager),
+    ))
 }
 
 pub async fn save_webdav_password(password: &str) -> anyhow::Result<()> {

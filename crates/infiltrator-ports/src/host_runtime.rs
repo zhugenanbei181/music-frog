@@ -1,14 +1,14 @@
 //! Host-owned runtime handle exposed to inbound surfaces.
 
 use crate::core_lifecycle::CoreLifecyclePort;
-use crate::runtime_gateway::ManagedRuntime;
-use crate::service_mode::ServiceModePort;
 use crate::mtu_probe::MtuProbePort;
 use crate::network_roaming::NetworkRoamingPort;
-use crate::privileged_network::PrivilegedNetworkPort;
-use crate::vpn_service::VpnServicePort;
-use crate::system_proxy::SystemProxyPort;
 use crate::pac::PacServicePort;
+use crate::privileged_network::PrivilegedNetworkPort;
+use crate::runtime_gateway::ManagedRuntime;
+use crate::service_mode::ServiceModePort;
+use crate::system_proxy::SystemProxyPort;
+use crate::vpn_service::VpnServicePort;
 use std::path::PathBuf;
 use std::sync::Arc;
 

@@ -196,7 +196,10 @@ mod tests {
         .unwrap();
         let tun = config.tun.unwrap();
         assert_eq!(config.bind_address, "*");
-        assert!(config.ipv6, "missing ipv6 follows Mihomo's documented true default");
+        assert!(
+            config.ipv6,
+            "missing ipv6 follows Mihomo's documented true default"
+        );
         assert!(!tun.strict_route);
         assert_eq!(tun.mtu, Some(1420));
 

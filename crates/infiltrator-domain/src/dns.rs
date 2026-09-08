@@ -747,7 +747,8 @@ fn validate_server_list(list: Option<&Vec<String>>, name: &str) -> Result<()> {
             if server.trim().is_empty() {
                 return Err(anyhow!("{} contains empty server entry", name));
             }
-            parse_upstream_uri(server).map_err(|e| anyhow!("{} invalid entry '{}': {}", name, server, e))?;
+            parse_upstream_uri(server)
+                .map_err(|e| anyhow!("{} invalid entry '{}': {}", name, server, e))?;
         }
     }
     Ok(())

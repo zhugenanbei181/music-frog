@@ -16,10 +16,7 @@ pub struct PacApplication {
 }
 
 impl PacApplication {
-    pub fn new(
-        gateway: Arc<dyn RuntimeGateway>,
-        service: Arc<dyn PacServicePort>,
-    ) -> Self {
+    pub fn new(gateway: Arc<dyn RuntimeGateway>, service: Arc<dyn PacServicePort>) -> Self {
         Self {
             gateway,
             service,
@@ -53,10 +50,9 @@ impl PacApplication {
     }
 
     pub async fn apply(&self, request: PacRequest) -> Result<PacSnapshot, Failure> {
-        let bypass_domains = infiltrator_domain::pac_policy::normalize_bypass_domains(
-            &request.bypass_domains,
-        )
-        .map_err(|message| Failure::new(ErrorCode::InvalidInput, message, false))?;
+        let bypass_domains =
+            infiltrator_domain::pac_policy::normalize_bypass_domains(&request.bypass_domains)
+                .map_err(|message| Failure::new(ErrorCode::InvalidInput, message, false))?;
         let rules = self.gateway.get_rules().await.map_err(Failure::from)?;
         let config = self.gateway.get_config().await.map_err(Failure::from)?;
         let port = if config.mixed_port > 0 {
@@ -71,12 +67,11 @@ impl PacApplication {
                 true,
             ));
         }
-        let generator = infiltrator_domain::pac_generator::PacGenerator::new(
-            format!("127.0.0.1:{port}"),
-        )
-        .with_bypass_lan(request.bypass_lan)
-        .with_bypass_domains(bypass_domains.clone())
-        .with_minified(request.minify);
+        let generator =
+            infiltrator_domain::pac_generator::PacGenerator::new(format!("127.0.0.1:{port}"))
+                .with_bypass_lan(request.bypass_lan)
+                .with_bypass_domains(bypass_domains.clone())
+                .with_minified(request.minify);
         let script = generator.compile_pac_script(&rules);
         infiltrator_domain::pac_generator::validate_pac_script(&script).map_err(|error| {
             Failure::new(
@@ -87,7 +82,11 @@ impl PacApplication {
         })?;
 
         let state = if request.enabled {
-            let url = self.service.start(script.clone()).await.map_err(Failure::from)?;
+            let url = self
+                .service
+                .start(script.clone())
+                .await
+                .map_err(Failure::from)?;
             let observed = self.service.status().await.map_err(Failure::from)?;
             if observed.as_deref() != Some(url.as_str()) {
                 return Err(Failure::new(
@@ -99,7 +98,13 @@ impl PacApplication {
             PacServiceState::Running { url }
         } else {
             self.service.stop().await.map_err(Failure::from)?;
-            if self.service.status().await.map_err(Failure::from)?.is_some() {
+            if self
+                .service
+                .status()
+                .await
+                .map_err(Failure::from)?
+                .is_some()
+            {
                 return Err(Failure::new(
                     ErrorCode::InvalidState,
                     "PAC service remained active after stop",
@@ -124,10 +129,12 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::pac::PacServiceState;
-    use infiltrator_domain::runtime::{ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData};
+    use infiltrator_domain::runtime::{
+        ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+    };
     use infiltrator_ports::error::PortError;
-    use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
     use infiltrator_ports::pac::PacServicePort;
+    use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
     use std::collections::HashMap;
 
     #[derive(Default)]
@@ -164,28 +171,76 @@ mod tests {
                 ..ConfigSnapshot::default()
             })
         }
-        async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> { Ok(()) }
-        async fn set_proxy_mode(&self, _mode: infiltrator_contract::command::ProxyMode) -> Result<(), PortError> { Ok(()) }
-        async fn get_proxies(&self) -> Result<HashMap<String, infiltrator_domain::proxy::Proxy>, PortError> { Ok(HashMap::new()) }
-        async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> { Ok(()) }
-        async fn test_delay(&self, _proxy: &str, _url: &str, _timeout_ms: u32) -> Result<u32, PortError> { Ok(0) }
-        async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> { Ok(Vec::new()) }
-        async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> { Ok(Vec::new()) }
-        async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> { Ok(()) }
-        async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> { Ok(()) }
-        async fn flush_fakeip_cache(&self) -> Result<(), PortError> { Ok(()) }
-        async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> { Ok(ConnectionSnapshot::default()) }
-        async fn get_memory(&self) -> Result<MemoryData, PortError> { Ok(MemoryData::default()) }
-        async fn close_connection(&self, _id: &str) -> Result<(), PortError> { Ok(()) }
-        async fn close_all_connections(&self) -> Result<(), PortError> { Ok(()) }
-        async fn stream_logs(&self, _level: Option<String>) -> Result<RuntimeStream<String>, PortError> { Ok(Box::pin(futures_util::stream::empty())) }
-        async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> { Ok(Box::pin(futures_util::stream::empty())) }
-        async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> { Ok(Box::pin(futures_util::stream::empty())) }
+        async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
+            Ok(())
+        }
+        async fn set_proxy_mode(
+            &self,
+            _mode: infiltrator_contract::command::ProxyMode,
+        ) -> Result<(), PortError> {
+            Ok(())
+        }
+        async fn get_proxies(
+            &self,
+        ) -> Result<HashMap<String, infiltrator_domain::proxy::Proxy>, PortError> {
+            Ok(HashMap::new())
+        }
+        async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
+            Ok(())
+        }
+        async fn test_delay(
+            &self,
+            _proxy: &str,
+            _url: &str,
+            _timeout_ms: u32,
+        ) -> Result<u32, PortError> {
+            Ok(0)
+        }
+        async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
+            Ok(Vec::new())
+        }
+        async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
+            Ok(Vec::new())
+        }
+        async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
+            Ok(())
+        }
+        async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
+            Ok(())
+        }
+        async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
+            Ok(())
+        }
+        async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
+            Ok(ConnectionSnapshot::default())
+        }
+        async fn get_memory(&self) -> Result<MemoryData, PortError> {
+            Ok(MemoryData::default())
+        }
+        async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
+            Ok(())
+        }
+        async fn close_all_connections(&self) -> Result<(), PortError> {
+            Ok(())
+        }
+        async fn stream_logs(
+            &self,
+            _level: Option<String>,
+        ) -> Result<RuntimeStream<String>, PortError> {
+            Ok(Box::pin(futures_util::stream::empty()))
+        }
+        async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
+            Ok(Box::pin(futures_util::stream::empty()))
+        }
+        async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
+            Ok(Box::pin(futures_util::stream::empty()))
+        }
     }
 
     #[tokio::test]
     async fn pac_application_compiles_live_rules_and_reads_back_service() {
-        let application = PacApplication::new(Arc::new(FakeGateway), Arc::new(FakeService::default()));
+        let application =
+            PacApplication::new(Arc::new(FakeGateway), Arc::new(FakeService::default()));
         let snapshot = application
             .apply(PacRequest {
                 enabled: true,

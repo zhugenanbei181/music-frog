@@ -12,9 +12,9 @@
 
 use crate::client::MihomoClient;
 use crate::error::Result;
-use infiltrator_domain::proxy::Proxy;
 use crate::types::*;
 use async_trait::async_trait;
+use infiltrator_domain::proxy::Proxy;
 use serde_json::Value;
 use std::collections::HashMap;
 use tokio::sync::mpsc::UnboundedReceiver;

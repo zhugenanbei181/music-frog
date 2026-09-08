@@ -4,8 +4,8 @@
 /// Mihomo API 返回的所有代理节点必须能被正确识别并分类为代理节点或策略组。
 #[cfg(test)]
 mod tests {
-    use infiltrator_domain::proxy::Proxy;
     use crate::types::ProxiesResponse;
+    use infiltrator_domain::proxy::Proxy;
 
     // ──────────────────────────────────────────────
     // 反序列化：节点类型识别
@@ -251,7 +251,10 @@ mod tests {
             ("LoadBalanceGroup", "LoadBalance"),
             ("RelayGroup", "Relay"),
         ] {
-            let p = resp.proxies.get(name).unwrap_or_else(|| panic!("missing group {name}"));
+            let p = resp
+                .proxies
+                .get(name)
+                .unwrap_or_else(|| panic!("missing group {name}"));
             assert!(p.is_group(), "{name} must be recognized as group");
             assert_eq!(p.proxy_type(), expected_type);
             assert_eq!(p.name(), name);

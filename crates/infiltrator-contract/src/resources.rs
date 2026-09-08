@@ -14,7 +14,9 @@ pub enum CoreGcStatus {
         before_bytes: u64,
         after_bytes: Option<u64>,
     },
-    Failed { failure: Failure },
+    Failed {
+        failure: Failure,
+    },
     Unsupported,
 }
 

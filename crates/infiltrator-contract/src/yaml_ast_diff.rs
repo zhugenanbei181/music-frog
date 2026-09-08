@@ -50,7 +50,12 @@ pub struct DiffLine {
 }
 
 impl DiffLine {
-    pub fn new(old_line: Option<usize>, new_line: Option<usize>, kind: DiffKind, content: impl Into<String>) -> Self {
+    pub fn new(
+        old_line: Option<usize>,
+        new_line: Option<usize>,
+        kind: DiffKind,
+        content: impl Into<String>,
+    ) -> Self {
         Self {
             old_line,
             new_line,
@@ -159,15 +164,40 @@ impl YamlAstDiffSnapshot {
         let unified_lines = vec![
             DiffLine::new(Some(1), Some(1), DiffKind::Equal, "mixed-port: 7890"),
             DiffLine::new(Some(2), Some(2), DiffKind::Equal, "mode: rule"),
-            DiffLine::new(Some(3), None, DiffKind::Delete, "rules: [DOMAIN-SUFFIX,google.com,DIRECT]"),
-            DiffLine::new(None, Some(3), DiffKind::Insert, "proxies: [SS-Tokyo, VLESS-Reality-US, HK-01]"),
-            DiffLine::new(Some(4), Some(4), DiffKind::Modify, "tun: { enable: false → true, stack: gvisor }"),
+            DiffLine::new(
+                Some(3),
+                None,
+                DiffKind::Delete,
+                "rules: [DOMAIN-SUFFIX,google.com,DIRECT]",
+            ),
+            DiffLine::new(
+                None,
+                Some(3),
+                DiffKind::Insert,
+                "proxies: [SS-Tokyo, VLESS-Reality-US, HK-01]",
+            ),
+            DiffLine::new(
+                Some(4),
+                Some(4),
+                DiffKind::Modify,
+                "tun: { enable: false → true, stack: gvisor }",
+            ),
         ];
 
         let split_rows = vec![
             SplitDiffRow::new(
-                Some(DiffLine::new(Some(1), None, DiffKind::Equal, "mixed-port: 7890")),
-                Some(DiffLine::new(None, Some(1), DiffKind::Equal, "mixed-port: 7890")),
+                Some(DiffLine::new(
+                    Some(1),
+                    None,
+                    DiffKind::Equal,
+                    "mixed-port: 7890",
+                )),
+                Some(DiffLine::new(
+                    None,
+                    Some(1),
+                    DiffKind::Equal,
+                    "mixed-port: 7890",
+                )),
                 DiffKind::Equal,
             ),
             SplitDiffRow::new(
@@ -176,18 +206,38 @@ impl YamlAstDiffSnapshot {
                 DiffKind::Equal,
             ),
             SplitDiffRow::new(
-                Some(DiffLine::new(Some(3), None, DiffKind::Delete, "rules: [DOMAIN-SUFFIX,google.com,DIRECT]")),
+                Some(DiffLine::new(
+                    Some(3),
+                    None,
+                    DiffKind::Delete,
+                    "rules: [DOMAIN-SUFFIX,google.com,DIRECT]",
+                )),
                 None,
                 DiffKind::Delete,
             ),
             SplitDiffRow::new(
                 None,
-                Some(DiffLine::new(None, Some(3), DiffKind::Insert, "proxies: [SS-Tokyo, VLESS-Reality-US, HK-01]")),
+                Some(DiffLine::new(
+                    None,
+                    Some(3),
+                    DiffKind::Insert,
+                    "proxies: [SS-Tokyo, VLESS-Reality-US, HK-01]",
+                )),
                 DiffKind::Insert,
             ),
             SplitDiffRow::new(
-                Some(DiffLine::new(Some(4), None, DiffKind::Modify, "tun: { enable: false, stack: gvisor }")),
-                Some(DiffLine::new(None, Some(4), DiffKind::Modify, "tun: { enable: true, stack: gvisor }")),
+                Some(DiffLine::new(
+                    Some(4),
+                    None,
+                    DiffKind::Modify,
+                    "tun: { enable: false, stack: gvisor }",
+                )),
+                Some(DiffLine::new(
+                    None,
+                    Some(4),
+                    DiffKind::Modify,
+                    "tun: { enable: true, stack: gvisor }",
+                )),
                 DiffKind::Modify,
             ),
         ];

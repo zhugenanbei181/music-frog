@@ -1,11 +1,11 @@
 //! Physical-link to TUN MTU negotiation use-case.
 
+use crate::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
-use crate::runtime_query_application::RuntimeQueryApplication;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -63,13 +63,11 @@ impl MtuApplication {
         let snapshot = self.probe().await;
         let tun_mtu = snapshot.tun_mtu;
         let applied = match (&snapshot.state, tun_mtu) {
-            (MtuProbeState::Ready, Some(tun_mtu)) => {
-                Some(
-                    RuntimeQueryApplication::new(gateway)
-                        .set_tun_mtu(tun_mtu)
-                        .await,
-                )
-            }
+            (MtuProbeState::Ready, Some(tun_mtu)) => Some(
+                RuntimeQueryApplication::new(gateway)
+                    .set_tun_mtu(tun_mtu)
+                    .await,
+            ),
             (MtuProbeState::Ready, None) => Some(Err(Failure::new(
                 infiltrator_contract::error::ErrorCode::InvalidState,
                 "ready MTU probe did not contain a calculated TUN MTU",
@@ -102,8 +100,10 @@ impl MtuApplication {
                         ..=infiltrator_contract::mtu::MAX_TUN_MTU_BYTES)
                         .contains(&physical.mtu) =>
             {
-                let (tun_mtu, tcp_mss) = infiltrator_domain::mtu_optimizer::MtuOptimizer::
-                    negotiate_tun_mtu(physical.mtu);
+                let (tun_mtu, tcp_mss) =
+                    infiltrator_domain::mtu_optimizer::MtuOptimizer::negotiate_tun_mtu(
+                        physical.mtu,
+                    );
                 MtuNegotiationSnapshot::ready(revision, physical, tun_mtu, tcp_mss)
             }
             Ok(_) => MtuNegotiationSnapshot::failed(
@@ -114,18 +114,14 @@ impl MtuApplication {
                     false,
                 ),
             ),
-            Err(PortError::Unsupported { .. }) => {
-                MtuNegotiationSnapshot::unsupported(revision)
-            }
+            Err(PortError::Unsupported { .. }) => MtuNegotiationSnapshot::unsupported(revision),
             Err(error) => MtuNegotiationSnapshot::failed(revision, Failure::from(error)),
         }
     }
 
     fn cache(&self, snapshot: MtuNegotiationSnapshot) {
-        *self
-            .last_snapshot
-            .lock()
-            .expect("MTU snapshot cache lock") = Some((Instant::now(), snapshot));
+        *self.last_snapshot.lock().expect("MTU snapshot cache lock") =
+            Some((Instant::now(), snapshot));
     }
 
     pub fn probing_snapshot(&self) -> MtuNegotiationSnapshot {
@@ -195,7 +191,9 @@ mod tests {
     async fn application_rejects_a_physical_mtu_below_the_safe_tun_floor() {
         let application = MtuApplication::new(Arc::new(InvalidProbe));
         let snapshot = application.probe().await;
-        assert!(matches!(snapshot.state, MtuProbeState::Failed { ref failure }
-            if failure.code == infiltrator_contract::error::ErrorCode::InvalidInput));
+        assert!(
+            matches!(snapshot.state, MtuProbeState::Failed { ref failure }
+            if failure.code == infiltrator_contract::error::ErrorCode::InvalidInput)
+        );
     }
 }

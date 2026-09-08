@@ -107,12 +107,30 @@ pub fn detect_private_ip_collision(fake_ip_cidr: &str) -> Vec<String> {
     };
 
     let private_ranges = [
-        ("10.0.0.0/8", "RFC 1918 Private Class A (10.0.0.0 - 10.255.255.255)"),
-        ("172.16.0.0/12", "RFC 1918 Private Class B (172.16.0.0 - 172.31.255.255)"),
-        ("192.168.0.0/16", "RFC 1918 Private Class C (192.168.0.0 - 192.168.255.255)"),
-        ("127.0.0.0/8", "Loopback Space (127.0.0.0 - 127.255.255.255)"),
-        ("169.254.0.0/16", "Link-Local Space (169.254.0.0 - 169.254.255.255)"),
-        ("224.0.0.0/4", "Multicast Space (224.0.0.0 - 239.255.255.255)"),
+        (
+            "10.0.0.0/8",
+            "RFC 1918 Private Class A (10.0.0.0 - 10.255.255.255)",
+        ),
+        (
+            "172.16.0.0/12",
+            "RFC 1918 Private Class B (172.16.0.0 - 172.31.255.255)",
+        ),
+        (
+            "192.168.0.0/16",
+            "RFC 1918 Private Class C (192.168.0.0 - 192.168.255.255)",
+        ),
+        (
+            "127.0.0.0/8",
+            "Loopback Space (127.0.0.0 - 127.255.255.255)",
+        ),
+        (
+            "169.254.0.0/16",
+            "Link-Local Space (169.254.0.0 - 169.254.255.255)",
+        ),
+        (
+            "224.0.0.0/4",
+            "Multicast Space (224.0.0.0 - 239.255.255.255)",
+        ),
     ];
 
     let mut collisions = Vec::new();
@@ -169,8 +187,8 @@ pub struct FakeIpPool {
     current_cursor: u32,
     capacity: usize,
     domain_to_ip: HashMap<String, (u32, u64)>, // domain -> (ip_num, timestamp)
-    ip_to_domain: HashMap<u32, String>,         // ip_num -> domain
-    lru_queue: VecDeque<u32>,                   // for eviction
+    ip_to_domain: HashMap<u32, String>,        // ip_num -> domain
+    lru_queue: VecDeque<u32>,                  // for eviction
 }
 
 impl FakeIpPool {
@@ -273,7 +291,9 @@ impl FakeIpPool {
     /// based on the filter mode (`blacklist` or `whitelist`) and filter patterns.
     pub fn should_filter(domain: &str, filter_mode: &str, filters: &[String]) -> bool {
         let domain_lower = domain.trim().to_ascii_lowercase();
-        let matches = filters.iter().any(|pattern| match_domain_pattern(&domain_lower, pattern));
+        let matches = filters
+            .iter()
+            .any(|pattern| match_domain_pattern(&domain_lower, pattern));
 
         if filter_mode.eq_ignore_ascii_case("whitelist") {
             // Whitelist: ONLY domains matching the filter list receive Fake-IP.
@@ -376,15 +396,21 @@ fn match_domain_pattern(domain: &str, pattern: &str) -> bool {
     }
 
     if let Some(suffix) = p.strip_prefix("*.")
-        && d.ends_with(suffix) && d.len() > suffix.len() && d[..d.len() - suffix.len()].ends_with('.') {
-            return true;
-        }
+        && d.ends_with(suffix)
+        && d.len() > suffix.len()
+        && d[..d.len() - suffix.len()].ends_with('.')
+    {
+        return true;
+    }
 
     if let Some(suffix) = p.strip_prefix("+.") {
         if d == suffix {
             return true;
         }
-        if d.ends_with(suffix) && d.len() > suffix.len() && d[..d.len() - suffix.len()].ends_with('.') {
+        if d.ends_with(suffix)
+            && d.len() > suffix.len()
+            && d[..d.len() - suffix.len()].ends_with('.')
+        {
             return true;
         }
     }
@@ -396,21 +422,23 @@ fn match_domain_pattern(domain: &str, pattern: &str) -> bool {
 
         // Check first part (must be prefix)
         if let Some(first) = parts.first()
-            && !first.is_empty() {
-                if !cur_d.starts_with(first) {
-                    return false;
-                }
-                cur_d = &cur_d[first.len()..];
+            && !first.is_empty()
+        {
+            if !cur_d.starts_with(first) {
+                return false;
             }
+            cur_d = &cur_d[first.len()..];
+        }
 
         // Check last part (must be suffix)
         if let Some(last) = parts.last()
-            && !last.is_empty() {
-                if !cur_d.ends_with(last) {
-                    return false;
-                }
-                cur_d = &cur_d[..cur_d.len() - last.len()];
+            && !last.is_empty()
+        {
+            if !cur_d.ends_with(last) {
+                return false;
             }
+            cur_d = &cur_d[..cur_d.len() - last.len()];
+        }
 
         // Check middle parts in sequence
         for part in &parts[1..parts.len().saturating_sub(1)] {
@@ -573,7 +601,9 @@ mod tests {
         };
         apply_fake_ip_config(&mut doc, &config).expect("apply fake ip");
         let map = doc.as_mapping().expect("mapping");
-        let dns = map.get(Value::String("dns".to_string())).expect("dns section");
+        let dns = map
+            .get(Value::String("dns".to_string()))
+            .expect("dns section");
         assert_eq!(
             dns.get("fake-ip-filter-mode"),
             Some(&Value::String("whitelist".to_string()))
@@ -641,7 +671,10 @@ mod tests {
     fn test_private_ip_collision_detector() {
         // Standard non-colliding fake-ip range (198.18.0.0/15 RFC 2544)
         let collisions = detect_private_ip_collision("198.18.0.1/16");
-        assert!(collisions.is_empty(), "198.18.0.1/16 should not collide with private LAN");
+        assert!(
+            collisions.is_empty(),
+            "198.18.0.1/16 should not collide with private LAN"
+        );
 
         // Colliding with 192.168.0.0/16
         let collisions = detect_private_ip_collision("192.168.1.0/24");
@@ -699,22 +732,62 @@ mod tests {
         let filters = default_anti_leak_filters();
 
         // Should match wildcard *.lan
-        assert!(FakeIpPool::should_filter("myserver.lan", "blacklist", &filters));
-        assert!(FakeIpPool::should_filter("nas.home.arpa", "blacklist", &filters));
+        assert!(FakeIpPool::should_filter(
+            "myserver.lan",
+            "blacklist",
+            &filters
+        ));
+        assert!(FakeIpPool::should_filter(
+            "nas.home.arpa",
+            "blacklist",
+            &filters
+        ));
         // Should match NTP
-        assert!(FakeIpPool::should_filter("time.apple.com", "blacklist", &filters));
-        assert!(FakeIpPool::should_filter("0.pool.ntp.org", "blacklist", &filters));
+        assert!(FakeIpPool::should_filter(
+            "time.apple.com",
+            "blacklist",
+            &filters
+        ));
+        assert!(FakeIpPool::should_filter(
+            "0.pool.ntp.org",
+            "blacklist",
+            &filters
+        ));
         // Should match STUN
-        assert!(FakeIpPool::should_filter("stun.l.google.com", "blacklist", &filters));
+        assert!(FakeIpPool::should_filter(
+            "stun.l.google.com",
+            "blacklist",
+            &filters
+        ));
         // Regular domains should NOT match
-        assert!(!FakeIpPool::should_filter("github.com", "blacklist", &filters));
-        assert!(!FakeIpPool::should_filter("rust-lang.org", "blacklist", &filters));
+        assert!(!FakeIpPool::should_filter(
+            "github.com",
+            "blacklist",
+            &filters
+        ));
+        assert!(!FakeIpPool::should_filter(
+            "rust-lang.org",
+            "blacklist",
+            &filters
+        ));
 
         // Test prefix match `+.example.com`
         let custom_filters = vec!["+.google.com".to_string()];
-        assert!(FakeIpPool::should_filter("google.com", "blacklist", &custom_filters));
-        assert!(FakeIpPool::should_filter("mail.google.com", "blacklist", &custom_filters));
-        assert!(!FakeIpPool::should_filter("notgoogle.com", "blacklist", &custom_filters));
+        assert!(FakeIpPool::should_filter(
+            "google.com",
+            "blacklist",
+            &custom_filters
+        ));
+        assert!(FakeIpPool::should_filter(
+            "mail.google.com",
+            "blacklist",
+            &custom_filters
+        ));
+        assert!(!FakeIpPool::should_filter(
+            "notgoogle.com",
+            "blacklist",
+            &custom_filters
+        ));
     }
 
     #[test]

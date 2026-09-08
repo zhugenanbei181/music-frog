@@ -284,39 +284,46 @@ impl ConnectionQuery {
         }
 
         if let Some(ref nd) = self.node
-            && conn.outbound_node.as_deref() != Some(nd.as_str()) {
-                return false;
-            }
+            && conn.outbound_node.as_deref() != Some(nd.as_str())
+        {
+            return false;
+        }
 
         if let Some(ref grp) = self.group
-            && conn.rule_group.as_deref() != Some(grp.as_str()) {
-                return false;
-            }
+            && conn.rule_group.as_deref() != Some(grp.as_str())
+        {
+            return false;
+        }
 
         if let Some(pid) = self.pid
-            && conn.pid != Some(pid) {
-                return false;
-            }
+            && conn.pid != Some(pid)
+        {
+            return false;
+        }
 
         if let Some(state) = self.state
-            && conn.state != state {
-                return false;
-            }
+            && conn.state != state
+        {
+            return false;
+        }
 
         if let Some(min_idle) = self.min_idle_secs
-            && conn.idle_duration_secs(now_secs) < min_idle {
-                return false;
-            }
+            && conn.idle_duration_secs(now_secs) < min_idle
+        {
+            return false;
+        }
 
         if let Some(min_bytes) = self.min_total_bytes
-            && conn.total_bytes() < min_bytes {
-                return false;
-            }
+            && conn.total_bytes() < min_bytes
+        {
+            return false;
+        }
 
         if let Some(tag) = self.has_security_tag
-            && !conn.security_tags.contains(&tag) {
-                return false;
-            }
+            && !conn.security_tags.contains(&tag)
+        {
+            return false;
+        }
 
         true
     }
@@ -521,8 +528,7 @@ impl IdleConnectionSweeper {
             .values()
             .filter(|conn| {
                 conn.is_half_closed()
-                    && conn.idle_duration_secs(now_secs)
-                        > self.timeouts.half_closed_timeout_secs
+                    && conn.idle_duration_secs(now_secs) > self.timeouts.half_closed_timeout_secs
             })
             .map(|conn| conn.id.clone())
             .collect()
@@ -819,13 +825,19 @@ mod tests {
 
         // Process quota exceeded (limit = 2)
         let res = sweeper.register_connection(c3);
-        assert!(matches!(res, Err(SweeperError::ProcessQuotaExceeded { .. })));
+        assert!(matches!(
+            res,
+            Err(SweeperError::ProcessQuotaExceeded { .. })
+        ));
 
         // Node quota exceeded (node-us limit = 1)
         let c4 = make_conn("c4", TransportProtocol::Tcp, Some("chrome"), None, 100)
             .with_routing(Some("node-us".to_string()), None);
         let res_node = sweeper.register_connection(c4);
-        assert!(matches!(res_node, Err(SweeperError::NodeQuotaExceeded { .. })));
+        assert!(matches!(
+            res_node,
+            Err(SweeperError::NodeQuotaExceeded { .. })
+        ));
     }
 
     #[test]
@@ -882,11 +894,23 @@ mod tests {
     #[test]
     fn test_query_dsl_and_terminate() {
         let mut sweeper = IdleConnectionSweeper::default_config();
-        let c1 = make_conn("c1", TransportProtocol::Tcp, Some("curl"), Some("api.google.com"), 100)
-            .with_routing(Some("node-us".to_string()), Some("group-1".to_string()))
-            .with_security_tag(SecurityAuditTag::SuspiciousDirectBypass);
-        let c2 = make_conn("c2", TransportProtocol::Tcp, Some("node"), Some("api.google.com"), 100)
-            .with_routing(Some("node-hk".to_string()), Some("group-1".to_string()));
+        let c1 = make_conn(
+            "c1",
+            TransportProtocol::Tcp,
+            Some("curl"),
+            Some("api.google.com"),
+            100,
+        )
+        .with_routing(Some("node-us".to_string()), Some("group-1".to_string()))
+        .with_security_tag(SecurityAuditTag::SuspiciousDirectBypass);
+        let c2 = make_conn(
+            "c2",
+            TransportProtocol::Tcp,
+            Some("node"),
+            Some("api.google.com"),
+            100,
+        )
+        .with_routing(Some("node-hk".to_string()), Some("group-1".to_string()));
 
         sweeper.register_connection(c1).unwrap();
         sweeper.register_connection(c2).unwrap();
@@ -898,8 +922,8 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, "c1");
 
-        let tag_query = ConnectionQuery::new()
-            .with_security_tag(SecurityAuditTag::SuspiciousDirectBypass);
+        let tag_query =
+            ConnectionQuery::new().with_security_tag(SecurityAuditTag::SuspiciousDirectBypass);
         let terminated = sweeper.terminate_by_query(&tag_query);
         assert_eq!(terminated.len(), 1);
         assert_eq!(terminated[0].id, "c1");

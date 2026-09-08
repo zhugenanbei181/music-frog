@@ -241,9 +241,7 @@ fn test_live_rule_values_are_escaped_before_pac_embedding() {
 
     let pac = generator.compile_pac_script(&rules);
 
-    assert!(pac.contains(
-        r#"host === "evil\"); return \"DIRECT\"; //") return "127.0.0.1:7890"#
-    ));
+    assert!(pac.contains(r#"host === "evil\"); return \"DIRECT\"; //") return "127.0.0.1:7890"#));
     assert!(!pac.contains(r#"host === "evil"); return "DIRECT";"#));
     assert!(pac.contains(r#"return "127.0.0.1:7890\"; alert(1); //";"#));
     assert!(validate_pac_script(&pac).is_ok());

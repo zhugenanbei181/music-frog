@@ -1,6 +1,6 @@
 use super::*;
-use std::time::Instant;
 use std::time::Duration;
+use std::time::Instant;
 
 #[test]
 fn test_connection_rate_tracker() {
@@ -182,7 +182,10 @@ fn test_throttling_calculator_delays_and_loss() {
     // Transmission delay: 1000 bytes over 8000 kbps (1 MB/s) = 8000 bits / 8000 kbps = 1 ms
     let trans_delay = ThrottlingCalculator::calculate_transmission_delay_ms(1000, 8000);
     assert!((trans_delay - 1.0).abs() < 1e-6);
-    assert_eq!(ThrottlingCalculator::calculate_transmission_delay_ms(1000, 0), 0.0);
+    assert_eq!(
+        ThrottlingCalculator::calculate_transmission_delay_ms(1000, 0),
+        0.0
+    );
 
     // Packet loss checking
     assert!(ThrottlingCalculator::should_drop_packet(5.0, 4.9));

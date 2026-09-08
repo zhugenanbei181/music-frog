@@ -8,10 +8,10 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
-use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::pac_application::PacApplication;
-use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
+use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::version_application::VersionApplication;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::overview::ControllerOverviewReader;
@@ -39,14 +39,14 @@ pub fn core_application(
     // Keep the Bevy command seam live in the desktop composition: version
     // rollback is an application use-case, not a UI-local file operation.
     let versions = VersionApplication::new(std::sync::Arc::new(crate::storage::version()?));
-    let service_mode = infiltrator_application::service_mode_application::ServiceModeApplication::new(
-        std::sync::Arc::new(crate::service_mode::DesktopServiceMode::new(
-            service.binary_path().to_path_buf(),
-        )),
-    );
-    let port_conflicts = PortConflictApplication::new(std::sync::Arc::new(
-        crate::storage::port_conflict()?,
-    ));
+    let service_mode =
+        infiltrator_application::service_mode_application::ServiceModeApplication::new(
+            std::sync::Arc::new(crate::service_mode::DesktopServiceMode::new(
+                service.binary_path().to_path_buf(),
+            )),
+        );
+    let port_conflicts =
+        PortConflictApplication::new(std::sync::Arc::new(crate::storage::port_conflict()?));
     let pac = PacApplication::new(
         std::sync::Arc::new(client.clone()),
         std::sync::Arc::new(crate::pac_service::DesktopPacServicePort::shared()),

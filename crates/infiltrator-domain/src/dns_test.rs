@@ -390,7 +390,8 @@ fn test_parse_upstream_uri_protocols() {
     assert_eq!(u4.outbound_tag.as_deref(), Some("Proxy"));
 
     // DoH3 with query param
-    let u5 = parse_upstream_uri("https://cloudflare-dns.com/dns-query?h3=true#Proxy").expect("doh3");
+    let u5 =
+        parse_upstream_uri("https://cloudflare-dns.com/dns-query?h3=true#Proxy").expect("doh3");
     assert_eq!(u5.protocol, DnsUpstreamProtocol::DoH3);
     assert_eq!(u5.host, "cloudflare-dns.com");
     assert_eq!(u5.port, 443);
@@ -414,14 +415,8 @@ fn test_sanitize_ecs_subnet() {
         sanitize_ecs_subnet("101.10.20.30/24").unwrap(),
         "101.10.20.0/24"
     );
-    assert_eq!(
-        sanitize_ecs_subnet("1.2.3.4/32").unwrap(),
-        "1.2.3.4/32"
-    );
-    assert_eq!(
-        sanitize_ecs_subnet("0.0.0.0/0").unwrap(),
-        "0.0.0.0/0"
-    );
+    assert_eq!(sanitize_ecs_subnet("1.2.3.4/32").unwrap(), "1.2.3.4/32");
+    assert_eq!(sanitize_ecs_subnet("0.0.0.0/0").unwrap(), "0.0.0.0/0");
 
     // IPv6 host to network sanitization
     assert_eq!(

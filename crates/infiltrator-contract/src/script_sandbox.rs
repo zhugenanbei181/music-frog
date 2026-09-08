@@ -129,9 +129,21 @@ impl ScriptSandboxSnapshot {
     pub fn demo_fixture() -> Self {
         let diff = YamlAstDiffSnapshot::demo_fixture();
         let console_logs = vec![
-            ScriptLogEntry::new(2, ScriptLogLevel::Info, "QuickJS 沙箱初始化完毕 [内存限额: 64MB, 超时限额: 500ms]"),
-            ScriptLogEntry::new(14, ScriptLogLevel::Log, "加载输入配置: 32 个节点, 14 条分流规则"),
-            ScriptLogEntry::new(28, ScriptLogLevel::Log, "自动聚合国家地区策略组: 香港, 日本, 美国, 新加坡"),
+            ScriptLogEntry::new(
+                2,
+                ScriptLogLevel::Info,
+                "QuickJS 沙箱初始化完毕 [内存限额: 64MB, 超时限额: 500ms]",
+            ),
+            ScriptLogEntry::new(
+                14,
+                ScriptLogLevel::Log,
+                "加载输入配置: 32 个节点, 14 条分流规则",
+            ),
+            ScriptLogEntry::new(
+                28,
+                ScriptLogLevel::Log,
+                "自动聚合国家地区策略组: 香港, 日本, 美国, 新加坡",
+            ),
             ScriptLogEntry::new(45, ScriptLogLevel::Info, "注入中国大陆直连分流规则: 4 条"),
             ScriptLogEntry::new(52, ScriptLogLevel::Log, "AST 变换完成，生成最终目标配置"),
         ];
@@ -222,7 +234,8 @@ mod tests {
         assert_eq!(fixture.presets.len(), 4);
         assert!(fixture.diff.is_some());
 
-        let serialized = serde_json::to_string(&fixture).expect("serialize script sandbox snapshot");
+        let serialized =
+            serde_json::to_string(&fixture).expect("serialize script sandbox snapshot");
         let deserialized: ScriptSandboxSnapshot =
             serde_json::from_str(&serialized).expect("deserialize script sandbox snapshot");
         assert_eq!(fixture, deserialized);

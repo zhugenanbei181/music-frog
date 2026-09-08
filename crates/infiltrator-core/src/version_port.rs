@@ -117,7 +117,10 @@ impl VersionPort for MihomoVersionPort {
     }
 
     async fn activate(&self, version: &str) -> Result<(), PortError> {
-        self.manager.set_default(version).await.map_err(version_error)
+        self.manager
+            .set_default(version)
+            .await
+            .map_err(version_error)
     }
 
     async fn uninstall(&self, version: &str) -> Result<(), PortError> {

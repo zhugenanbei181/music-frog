@@ -79,9 +79,7 @@ pub async fn fix_doctor_http<C: AdminApiContext>(
         || query.stream.unwrap_or(false)
         || payload.as_ref().and_then(|p| p.stream).unwrap_or(false);
 
-    let only = payload
-        .and_then(|Json(p)| p.only)
-        .or(query.only);
+    let only = payload.and_then(|Json(p)| p.only).or(query.only);
 
     let application = state
         .ctx
@@ -139,7 +137,9 @@ pub async fn fix_doctor_http<C: AdminApiContext>(
             let filter_matches = match only.as_deref() {
                 Some(filter) => {
                     let tokens: Vec<&str> = filter.split(',').map(str::trim).collect();
-                    tokens.iter().any(|t| *t == category || task_id.starts_with(t))
+                    tokens
+                        .iter()
+                        .any(|t| *t == category || task_id.starts_with(t))
                 }
                 None => true,
             };
@@ -159,10 +159,7 @@ pub async fn fix_doctor_http<C: AdminApiContext>(
                 .unwrap_or_default(),
             )));
 
-            match application_for_stream
-                .fix(Some(task_id.to_string()))
-                .await
-            {
+            match application_for_stream.fix(Some(task_id.to_string())).await {
                 Ok(report) => {
                     for action in report.actions {
                         let _ = tx.send(Ok(Event::default().event("action").data(

@@ -487,19 +487,20 @@ impl FetchPermissionShim {
         }
 
         if let Some(whitelist) = allowed_domains
-            && !whitelist.is_empty() {
-                let parsed = url::Url::parse(target_url)
-                    .map_err(|e| ScriptError::Runtime(format!("Invalid fetch URL: {e}")))?;
-                let host = parsed.host_str().unwrap_or("");
-                let allowed = whitelist.iter().any(|domain| {
-                    host.eq_ignore_ascii_case(domain) || host.ends_with(&format!(".{domain}"))
-                });
-                if !allowed {
-                    return Err(ScriptError::Runtime(format!(
-                        "Fetch target `{host}` is not in plugin domain allowlist"
-                    )));
-                }
+            && !whitelist.is_empty()
+        {
+            let parsed = url::Url::parse(target_url)
+                .map_err(|e| ScriptError::Runtime(format!("Invalid fetch URL: {e}")))?;
+            let host = parsed.host_str().unwrap_or("");
+            let allowed = whitelist.iter().any(|domain| {
+                host.eq_ignore_ascii_case(domain) || host.ends_with(&format!(".{domain}"))
+            });
+            if !allowed {
+                return Err(ScriptError::Runtime(format!(
+                    "Fetch target `{host}` is not in plugin domain allowlist"
+                )));
             }
+        }
         Ok(())
     }
 }

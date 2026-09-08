@@ -63,9 +63,7 @@ impl ApplicationSurfaceReader {
         }
     }
 
-    pub(super) async fn read_mtu(
-        &self,
-    ) -> infiltrator_contract::mtu::MtuNegotiationSnapshot {
+    pub(super) async fn read_mtu(&self) -> infiltrator_contract::mtu::MtuNegotiationSnapshot {
         match &self.mtu {
             Some(application) => application.probe_cached().await,
             None => Default::default(),
@@ -90,9 +88,7 @@ impl ApplicationSurfaceReader {
         }
     }
 
-    pub(super) async fn read_uwp_loopback(
-        &self,
-    ) -> infiltrator_contract::uwp::UwpLoopbackSnapshot {
+    pub(super) async fn read_uwp_loopback(&self) -> infiltrator_contract::uwp::UwpLoopbackSnapshot {
         match &self.uwp_loopback {
             Some(application) => application.snapshot_cached().await,
             None => Default::default(),
@@ -125,9 +121,7 @@ impl ApplicationSurfaceReader {
         }
     }
 
-    pub(super) async fn read_vpn(
-        &self,
-    ) -> infiltrator_contract::vpn::VpnSessionSnapshot {
+    pub(super) async fn read_vpn(&self) -> infiltrator_contract::vpn::VpnSessionSnapshot {
         match &self.vpn {
             Some(application) => application.snapshot().await,
             None => match self
@@ -147,10 +141,12 @@ impl ApplicationSurfaceReader {
     ) -> infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot {
         match &self.privileged_network {
             Some(application) => application.snapshot().await,
-            None => infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot::unsupported(
-                0,
-                "privileged network regression port is not composed for this host",
-            ),
+            None => {
+                infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot::unsupported(
+                    0,
+                    "privileged network regression port is not composed for this host",
+                )
+            }
         }
     }
 }

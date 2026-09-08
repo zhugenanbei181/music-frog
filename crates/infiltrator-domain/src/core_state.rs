@@ -368,12 +368,7 @@ mod tests {
             }
         );
 
-        (state, _) = CoreStateMachine::step(
-            &state,
-            CoreEvent::ReloadSuccess {
-                session_token,
-            },
-        );
+        (state, _) = CoreStateMachine::step(&state, CoreEvent::ReloadSuccess { session_token });
         assert_eq!(
             state,
             CoreState::Running {

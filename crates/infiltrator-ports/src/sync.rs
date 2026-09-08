@@ -30,10 +30,8 @@ pub trait SyncPort: Send + Sync {
     async fn test(&self, config: WebDavConfig) -> Result<usize, PortError>;
     async fn sync(&self, request: SyncRequest) -> Result<SyncReport, PortError>;
     async fn upload(&self, request: SyncTransferRequest) -> Result<SyncTransferReport, PortError>;
-    async fn download(
-        &self,
-        request: SyncTransferRequest,
-    ) -> Result<SyncTransferReport, PortError>;
+    async fn download(&self, request: SyncTransferRequest)
+    -> Result<SyncTransferReport, PortError>;
 
     /// Read a conflict file after validating that it stays inside the
     /// resolved configs directory supplied by the host/application.

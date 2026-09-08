@@ -55,16 +55,22 @@ pub fn derive(
     let remaining_percent = usage_percent.map(|value| (100.0 - value).clamp(0.0, 100.0));
     let quota_status = info.status(now_unix);
     let (status, remaining_days) = match quota_status {
-        QuotaStatus::Normal => (SubscriptionQuotaStatus::Ready, info.remaining_days(now_unix)),
-        QuotaStatus::NearExhaustion => {
-            (SubscriptionQuotaStatus::Warning, info.remaining_days(now_unix))
-        }
-        QuotaStatus::Critical => {
-            (SubscriptionQuotaStatus::Critical, info.remaining_days(now_unix))
-        }
-        QuotaStatus::Exhausted => {
-            (SubscriptionQuotaStatus::Exhausted, info.remaining_days(now_unix))
-        }
+        QuotaStatus::Normal => (
+            SubscriptionQuotaStatus::Ready,
+            info.remaining_days(now_unix),
+        ),
+        QuotaStatus::NearExhaustion => (
+            SubscriptionQuotaStatus::Warning,
+            info.remaining_days(now_unix),
+        ),
+        QuotaStatus::Critical => (
+            SubscriptionQuotaStatus::Critical,
+            info.remaining_days(now_unix),
+        ),
+        QuotaStatus::Exhausted => (
+            SubscriptionQuotaStatus::Exhausted,
+            info.remaining_days(now_unix),
+        ),
         QuotaStatus::Expired => (SubscriptionQuotaStatus::Expired, Some(0)),
         QuotaStatus::ExpiringSoon { days_left } => {
             (SubscriptionQuotaStatus::ExpiringSoon, Some(days_left))

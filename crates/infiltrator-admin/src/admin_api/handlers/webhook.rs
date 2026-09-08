@@ -204,8 +204,8 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
         || raw_action == "UpdateAll"
     {
         let summary = crate::scheduler::subscription::update_all_subscriptions(&state.ctx)
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
         state
             .events
             .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
@@ -223,10 +223,7 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
     }
 
     // 7. Delay test
-    if normalized == "delay_test"
-        || normalized == "delay"
-        || raw_action == "DelayTest"
-    {
+    if normalized == "delay_test" || normalized == "delay" || raw_action == "DelayTest" {
         let test_url = payload
             .test_url
             .as_deref()
@@ -267,7 +264,7 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
                 timeout_ms,
                 30,
             )
-                .await;
+            .await;
             let success_count = outcomes.iter().filter(|o| o.result.is_ok()).count();
             return Ok(Json(WebhookResponse {
                 success: true,
@@ -440,8 +437,7 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
         intent: raw_action.to_string(),
         payload: payload.payload.or(payload.params),
     };
-    let bridge_resp =
-        crate::shared_bridge::AdminSharedBridge::handle_intent(&bridge_req, "en-US");
+    let bridge_resp = crate::shared_bridge::AdminSharedBridge::handle_intent(&bridge_req, "en-US");
     if bridge_resp.success {
         Ok(Json(WebhookResponse {
             success: true,

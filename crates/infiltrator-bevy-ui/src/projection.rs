@@ -105,6 +105,7 @@ pub struct OverviewProjection {
     pub traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot,
     /// Shared selected outbound node for the Overview exit card.
     pub active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot,
+    pub public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot,
     /// Shared active subscription quota dashboard.
     pub subscription_quota: infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot,
     /// Shared system proxy/TUN state used by Overview master controls.
@@ -137,6 +138,7 @@ impl OverviewProjection {
             traffic_scale: Default::default(),
             traffic_topology: Default::default(),
             active_exit: Default::default(),
+            public_ip: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
             proxy_mode: Default::default(),
@@ -282,6 +284,7 @@ impl OverviewSource for DemoOverviewSource {
             traffic_topology:
                 infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture(),
             active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot::demo_fixture(),
+            public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot::demo_fixture(),
             subscription_quota:
                 infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::demo_fixture(),
             system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(

@@ -1,8 +1,8 @@
 //! Host filesystem adapter for the Mihomo Fake-IP cache.
 
 use anyhow::Context;
-use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
 
 pub struct FileFakeIpCache;
 

@@ -7,11 +7,11 @@ use std::time::Instant;
 
 use infiltrator_contract::command::ProxyMode;
 
+use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::{
     build_connection_application, build_proxy_application, build_runtime_query_application,
     get_runtime, map_application_failure, network_application,
 };
-use crate::ffi::{FfiErrorCode, FfiStatus};
 
 // --- Proxies API ---
 
@@ -218,7 +218,11 @@ pub async fn connections_list() -> ConnectionsResult {
                     };
                 }
             };
-            match application.snapshot().await.map_err(map_application_failure) {
+            match application
+                .snapshot()
+                .await
+                .map_err(map_application_failure)
+            {
                 Ok(response) => ConnectionsResult {
                     status: FfiStatus::ok(),
                     connections: response
@@ -321,7 +325,10 @@ async fn proxy_select_internal(group: &str, server: &str) -> Result<(), FfiStatu
 
 async fn config_patch_mode_internal(mode: &str) -> Result<(), FfiStatus> {
     let mode = ProxyMode::from_wire(mode).ok_or_else(|| {
-        FfiStatus::err(FfiErrorCode::InvalidInput, format!("unsupported proxy mode: {mode}"))
+        FfiStatus::err(
+            FfiErrorCode::InvalidInput,
+            format!("unsupported proxy mode: {mode}"),
+        )
     })?;
     build_runtime_query_application()
         .await?

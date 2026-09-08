@@ -38,36 +38,28 @@ impl TrafficTopologyNavigationApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::traffic_topology::TrafficTopologyNavigationTarget as Target;
+    use infiltrator_contract::traffic_topology::TrafficTopologyNavigationTarget;
 
     #[test]
     fn every_topology_stage_has_one_shared_destination() {
         assert_eq!(
-            TrafficTopologyNavigationApplication::target_for_stage(
-                TrafficTopologyStage::Inbound
-            ),
-            Some(Target::Settings)
+            TrafficTopologyNavigationApplication::target_for_stage(TrafficTopologyStage::Inbound),
+            Some(TrafficTopologyNavigationTarget::Settings)
         );
         assert_eq!(
-            TrafficTopologyNavigationApplication::target_for_stage(
-                TrafficTopologyStage::Sniffer
-            ),
-            Some(Target::Settings)
+            TrafficTopologyNavigationApplication::target_for_stage(TrafficTopologyStage::Sniffer),
+            Some(TrafficTopologyNavigationTarget::Settings)
         );
         assert_eq!(
             TrafficTopologyNavigationApplication::page_for_stage(TrafficTopologyStage::RuleSet),
             Some(PageId::Rules)
         );
         assert_eq!(
-            TrafficTopologyNavigationApplication::page_for_stage(
-                TrafficTopologyStage::ProxyGroup
-            ),
+            TrafficTopologyNavigationApplication::page_for_stage(TrafficTopologyStage::ProxyGroup),
             Some(PageId::Proxies)
         );
         assert_eq!(
-            TrafficTopologyNavigationApplication::page_for_stage(
-                TrafficTopologyStage::Outbound
-            ),
+            TrafficTopologyNavigationApplication::page_for_stage(TrafficTopologyStage::Outbound),
             Some(PageId::Proxies)
         );
     }

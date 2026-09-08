@@ -45,7 +45,10 @@ mod tests {
         let application = ProfileResetApplication::new(Arc::new(FakeReset {
             called: Arc::clone(&called),
         }));
-        application.reset_to_default().await.expect("reset profiles");
+        application
+            .reset_to_default()
+            .await
+            .expect("reset profiles");
         assert!(called.load(Ordering::SeqCst));
     }
 }

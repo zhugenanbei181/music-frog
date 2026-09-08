@@ -75,8 +75,6 @@ impl RuleHitCounter {
         self.total_hits
     }
 
-
-
     /// Records a hit for a specific rule using the current Unix timestamp in seconds.
     pub fn record_hit_now(&mut self, rule_raw: &str, payload_bytes: u64) {
         let now_secs = std::time::SystemTime::now()
@@ -93,9 +91,13 @@ impl RuleHitCounter {
 
     /// Returns the last hit timestamp in seconds for a specific rule.
     pub fn last_hit_for(&self, rule_raw: &str) -> Option<u64> {
-        self.records
-            .get(rule_raw)
-            .and_then(|r| if r.last_hit_secs > 0 { Some(r.last_hit_secs) } else { None })
+        self.records.get(rule_raw).and_then(|r| {
+            if r.last_hit_secs > 0 {
+                Some(r.last_hit_secs)
+            } else {
+                None
+            }
+        })
     }
 
     /// Records a batch of hits from active connection observations.

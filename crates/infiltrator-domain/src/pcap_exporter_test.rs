@@ -568,9 +568,11 @@ fn test_mock_response_engine_match_and_respond() {
     );
 
     // No match
-    assert!(engine
-        .match_and_respond("https://api.mock.com/v1/unknown")
-        .is_none());
+    assert!(
+        engine
+            .match_and_respond("https://api.mock.com/v1/unknown")
+            .is_none()
+    );
 
     engine.clear();
     assert!(engine.is_empty());

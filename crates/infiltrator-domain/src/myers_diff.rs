@@ -130,9 +130,7 @@ fn myers_shortest_edit_script<'a>(a: &[&'a str], b: &[&'a str]) -> Vec<EditStep>
         trace.push(v.clone());
         for k in (-(d as isize)..=(d as isize)).step_by(2) {
             let k_idx = (k + offset as isize) as usize;
-            let mut x = if k == -(d as isize)
-                || (k != d as isize && v[k_idx - 1] < v[k_idx + 1])
-            {
+            let mut x = if k == -(d as isize) || (k != d as isize && v[k_idx - 1] < v[k_idx + 1]) {
                 v[k_idx + 1]
             } else {
                 v[k_idx - 1] + 1
@@ -216,8 +214,18 @@ fn build_split_rows(
         match steps[i] {
             EditStep::Equal(old_idx, new_idx) => {
                 rows.push(SplitDiffRow::new(
-                    Some(DiffLine::new(Some(old_idx + 1), None, DiffKind::Equal, old_lines[old_idx])),
-                    Some(DiffLine::new(None, Some(new_idx + 1), DiffKind::Equal, new_lines[new_idx])),
+                    Some(DiffLine::new(
+                        Some(old_idx + 1),
+                        None,
+                        DiffKind::Equal,
+                        old_lines[old_idx],
+                    )),
+                    Some(DiffLine::new(
+                        None,
+                        Some(new_idx + 1),
+                        DiffKind::Equal,
+                        new_lines[new_idx],
+                    )),
                     DiffKind::Equal,
                 ));
                 i += 1;
@@ -247,15 +255,30 @@ fn build_split_rows(
                     let old_idx = dels[idx];
                     let new_idx = inss[idx];
                     rows.push(SplitDiffRow::new(
-                        Some(DiffLine::new(Some(old_idx + 1), None, DiffKind::Modify, old_lines[old_idx])),
-                        Some(DiffLine::new(None, Some(new_idx + 1), DiffKind::Modify, new_lines[new_idx])),
+                        Some(DiffLine::new(
+                            Some(old_idx + 1),
+                            None,
+                            DiffKind::Modify,
+                            old_lines[old_idx],
+                        )),
+                        Some(DiffLine::new(
+                            None,
+                            Some(new_idx + 1),
+                            DiffKind::Modify,
+                            new_lines[new_idx],
+                        )),
                         DiffKind::Modify,
                     ));
                 }
 
                 for &old_idx in dels.iter().skip(common) {
                     rows.push(SplitDiffRow::new(
-                        Some(DiffLine::new(Some(old_idx + 1), None, DiffKind::Delete, old_lines[old_idx])),
+                        Some(DiffLine::new(
+                            Some(old_idx + 1),
+                            None,
+                            DiffKind::Delete,
+                            old_lines[old_idx],
+                        )),
                         None,
                         DiffKind::Delete,
                     ));
@@ -264,7 +287,12 @@ fn build_split_rows(
                 for &new_idx in inss.iter().skip(common) {
                     rows.push(SplitDiffRow::new(
                         None,
-                        Some(DiffLine::new(None, Some(new_idx + 1), DiffKind::Insert, new_lines[new_idx])),
+                        Some(DiffLine::new(
+                            None,
+                            Some(new_idx + 1),
+                            DiffKind::Insert,
+                            new_lines[new_idx],
+                        )),
                         DiffKind::Insert,
                     ));
                 }

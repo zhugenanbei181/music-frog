@@ -51,8 +51,7 @@ async fn test(runtime: &Runtime) -> anyhow::Result<()> {
         .map_err(|failure| anyhow!(failure.message))?;
     print_success(&format!(
         "WebDAV server '{}' is reachable ({} top-level entries)",
-        runtime.settings.webdav.url,
-        entries,
+        runtime.settings.webdav.url, entries,
     ));
     Ok(())
 }

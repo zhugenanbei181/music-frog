@@ -4,55 +4,56 @@
 //! toolkit-neutral. It is suitable for Rust frontends, REST DTO mapping, and
 //! UniFFI conversion without exposing Tokio or a concrete HTTP client.
 
-pub mod capability;
 pub mod active_exit;
-pub mod subscription_quota;
-pub mod controller;
+pub mod capability;
 pub mod command;
-pub mod proxy_mode;
-pub mod port_conflict;
-pub mod resources;
+pub mod controller;
 pub mod doctor;
 pub mod error;
 pub mod intent;
-pub mod lan;
 pub mod ipv6;
-pub mod pac;
-pub mod privileged_network;
-pub mod uwp;
-pub mod vpn;
-pub mod offline_startup;
+pub mod lan;
+pub mod mrs_acceleration;
 pub mod mtu;
 pub mod network_roaming;
-pub mod snapshot;
-pub mod session;
+pub mod offline_startup;
+pub mod pac;
+pub mod port_conflict;
+pub mod privileged_network;
+pub mod proxies;
+pub mod proxy_mode;
+pub mod public_ip;
+pub mod resources;
+pub mod rule_tracer;
+pub mod script_sandbox;
 pub mod service_mode;
-pub mod system_proxy;
-pub mod system_toggle;
+pub mod session;
+pub mod snapshot;
+pub mod speedtest;
+pub mod subscription_import;
+pub mod subscription_quota;
+pub mod surface;
 pub mod surface_snapshot;
 pub mod sync;
-pub mod tun;
-pub mod traffic_waveform;
+pub mod system_proxy;
+pub mod system_toggle;
 pub mod traffic_scale;
 pub mod traffic_topology;
+pub mod traffic_waveform;
+pub mod tun;
+pub mod uwp;
 pub mod version;
-pub mod surface;
-pub mod rule_tracer;
-pub mod mrs_acceleration;
+pub mod vpn;
 pub mod yaml_ast_diff;
-pub mod script_sandbox;
-pub mod subscription_import;
-pub mod speedtest;
-pub mod proxies;
 
 #[cfg(test)]
 mod tests {
     use super::capability::{Availability, Capability, CapabilitySnapshot, CapabilityStatus};
     use super::command::{CommandIntent, CommandKind, CoreLogLevel, ProxyMode};
-    use super::lan::LanCredentials;
     use super::ipv6::Ipv6RoutingSnapshot;
-    use super::tun::TunStack;
+    use super::lan::LanCredentials;
     use super::surface::HostKind;
+    use super::tun::TunStack;
 
     #[test]
     fn command_kind_is_stable_and_transport_free() {

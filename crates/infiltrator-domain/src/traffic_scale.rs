@@ -45,7 +45,11 @@ pub fn compute_from_peak(peak_bps: f64, revision: u64) -> TrafficScaleSnapshot {
     }
 }
 
-pub fn compute_from_rates(upload_bps: &[f64], download_bps: &[f64], revision: u64) -> TrafficScaleSnapshot {
+pub fn compute_from_rates(
+    upload_bps: &[f64],
+    download_bps: &[f64],
+    revision: u64,
+) -> TrafficScaleSnapshot {
     let peak = upload_bps
         .iter()
         .chain(download_bps)

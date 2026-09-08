@@ -421,7 +421,10 @@ pub fn eval_single_rule_type(rule_type: &RuleType, context: &TrafficContext) -> 
             }
         }
         RuleType::ProcessPathRegex(pattern) => {
-            let target = context.process_path.as_ref().or(context.process_name.as_ref());
+            let target = context
+                .process_path
+                .as_ref()
+                .or(context.process_name.as_ref());
             if let Some(p) = target {
                 regex::Regex::new(pattern)
                     .map(|re| re.is_match(p))
@@ -460,14 +463,22 @@ pub fn eval_single_rule_type(rule_type: &RuleType, context: &TrafficContext) -> 
         }
         RuleType::Dscp(val_str) => {
             if let Some(dscp) = context.dscp {
-                val_str.trim().parse::<u8>().map(|v| v == dscp).unwrap_or(false)
+                val_str
+                    .trim()
+                    .parse::<u8>()
+                    .map(|v| v == dscp)
+                    .unwrap_or(false)
             } else {
                 false
             }
         }
         RuleType::Uid(val_str) => {
             if let Some(uid) = context.uid {
-                val_str.trim().parse::<u32>().map(|v| v == uid).unwrap_or(false)
+                val_str
+                    .trim()
+                    .parse::<u32>()
+                    .map(|v| v == uid)
+                    .unwrap_or(false)
             } else {
                 false
             }
@@ -555,7 +566,9 @@ fn explain_ast_recursive(
             out.push(format!("{indent}{status} {}", payload.0));
         }
         LogicalRuleAst::And(children) => {
-            let all_pass = children.iter().all(|c| c.evaluate(&|l| eval_sub_rule(l, context)));
+            let all_pass = children
+                .iter()
+                .all(|c| c.evaluate(&|l| eval_sub_rule(l, context)));
             let status = if all_pass { "[AND PASS]" } else { "[AND FAIL]" };
             out.push(format!("{indent}{status}"));
             for c in children {
@@ -563,7 +576,9 @@ fn explain_ast_recursive(
             }
         }
         LogicalRuleAst::Or(children) => {
-            let any_pass = children.iter().any(|c| c.evaluate(&|l| eval_sub_rule(l, context)));
+            let any_pass = children
+                .iter()
+                .any(|c| c.evaluate(&|l| eval_sub_rule(l, context)));
             let status = if any_pass { "[OR PASS]" } else { "[OR FAIL]" };
             out.push(format!("{indent}{status}"));
             for c in children {
@@ -572,13 +587,25 @@ fn explain_ast_recursive(
         }
         LogicalRuleAst::Not(child) => {
             let inner_pass = child.evaluate(&|l| eval_sub_rule(l, context));
-            let status = if !inner_pass { "[NOT PASS]" } else { "[NOT FAIL]" };
-            out.push(format!("{indent}{status} (子条件取反: 原值为 {inner_pass})"));
+            let status = if !inner_pass {
+                "[NOT PASS]"
+            } else {
+                "[NOT FAIL]"
+            };
+            out.push(format!(
+                "{indent}{status} (子条件取反: 原值为 {inner_pass})"
+            ));
             explain_ast_recursive(child, context, out, depth + 1);
         }
         LogicalRuleAst::SubRule(children) => {
-            let any_pass = children.iter().any(|c| c.evaluate(&|l| eval_sub_rule(l, context)));
-            let status = if any_pass { "[SUB-RULE PASS]" } else { "[SUB-RULE FAIL]" };
+            let any_pass = children
+                .iter()
+                .any(|c| c.evaluate(&|l| eval_sub_rule(l, context)));
+            let status = if any_pass {
+                "[SUB-RULE PASS]"
+            } else {
+                "[SUB-RULE FAIL]"
+            };
             out.push(format!("{indent}{status}"));
             for c in children {
                 explain_ast_recursive(c, context, out, depth + 1);
@@ -823,11 +850,7 @@ pub fn build_decision_chain(
     } else {
         "VLESS · Reality"
     });
-    let out_delay = final_node_delay_ms.or(if is_direct_or_reject {
-        None
-    } else {
-        Some(28)
-    });
+    let out_delay = final_node_delay_ms.or(if is_direct_or_reject { None } else { Some(28) });
     let out_country = final_node_country.or(if is_direct_or_reject {
         None
     } else {

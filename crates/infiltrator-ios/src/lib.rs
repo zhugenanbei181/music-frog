@@ -46,7 +46,9 @@ pub trait IosBridge: Send + Sync {
 
     /// Native Swift code supplies local packaged-core/config evidence. The
     /// default is conservative and never claims readiness without evidence.
-    fn offline_startup_snapshot(&self) -> infiltrator_contract::offline_startup::OfflineStartupSnapshot {
+    fn offline_startup_snapshot(
+        &self,
+    ) -> infiltrator_contract::offline_startup::OfflineStartupSnapshot {
         Default::default()
     }
 }
@@ -360,11 +362,12 @@ mod tests {
         let adapter = IosHostAdapter::new(FakeBridge {
             running: Mutex::new(false),
         });
-        let snapshot = infiltrator_application::offline_startup_application::OfflineStartupApplication::new(
-            Arc::new(adapter),
-        )
-        .snapshot()
-        .await;
+        let snapshot =
+            infiltrator_application::offline_startup_application::OfflineStartupApplication::new(
+                Arc::new(adapter),
+            )
+            .snapshot()
+            .await;
         assert!(snapshot.is_offline_startable());
         assert_eq!(
             snapshot.policy,
@@ -381,11 +384,10 @@ mod tests {
         let adapter = IosHostAdapter::new(FakeBridge {
             running: Mutex::new(false),
         });
-        let snapshot = infiltrator_application::mtu_application::MtuApplication::new(Arc::new(
-            adapter,
-        ))
-        .probe()
-        .await;
+        let snapshot =
+            infiltrator_application::mtu_application::MtuApplication::new(Arc::new(adapter))
+                .probe()
+                .await;
         assert_eq!(
             snapshot.state,
             infiltrator_contract::mtu::MtuProbeState::Unsupported

@@ -8,10 +8,10 @@ use chrono::Utc;
 use infiltrator_domain::profiles::{ProfileDetail, ProfileInfo, sanitize_profile_name};
 use log::info;
 
+use super::{schedule_core_restart, schedule_rebuild};
 use crate::admin_api::events::{AdminEvent, EVENT_PROFILES_CHANGED};
 use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState, RebuildStatus};
-use super::{schedule_core_restart, schedule_rebuild};
 
 pub async fn list_profiles_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
@@ -354,8 +354,8 @@ pub async fn update_all_profiles_http<C: AdminApiContext>(
     axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
 ) -> Result<Json<ProfilesUpdateAllResponse>, ApiError> {
     let summary = crate::scheduler::subscription::update_all_subscriptions(&state.ctx)
-    .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     state
         .events

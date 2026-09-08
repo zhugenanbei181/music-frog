@@ -6,7 +6,9 @@ use infiltrator_contract::speedtest::{
     JitterCalculation, PacketLossRating, SpeedtestPhase, SpeedtestScope,
 };
 use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup, Shadowsocks};
-use infiltrator_domain::runtime::{ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::{
+    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider,
+};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::collections::HashMap;
@@ -54,7 +56,10 @@ impl RuntimeGateway for MockGateway {
     async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
         Ok(())
     }
-    async fn set_proxy_mode(&self, _mode: infiltrator_contract::command::ProxyMode) -> Result<(), PortError> {
+    async fn set_proxy_mode(
+        &self,
+        _mode: infiltrator_contract::command::ProxyMode,
+    ) -> Result<(), PortError> {
         Ok(())
     }
     async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
@@ -113,13 +118,28 @@ impl RuntimeGateway for MockGateway {
     async fn close_all_connections(&self) -> Result<(), PortError> {
         Ok(())
     }
-    async fn stream_logs(&self, _level: Option<String>) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<String>, PortError> {
+    async fn stream_logs(
+        &self,
+        _level: Option<String>,
+    ) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<String>, PortError> {
         Err(PortError::Failed("not implemented".into()))
     }
-    async fn stream_traffic(&self) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<infiltrator_domain::runtime::TrafficData>, PortError> {
+    async fn stream_traffic(
+        &self,
+    ) -> Result<
+        infiltrator_ports::runtime_gateway::RuntimeStream<infiltrator_domain::runtime::TrafficData>,
+        PortError,
+    > {
         Err(PortError::Failed("not implemented".into()))
     }
-    async fn stream_connections(&self) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<infiltrator_domain::runtime::ConnectionSnapshot>, PortError> {
+    async fn stream_connections(
+        &self,
+    ) -> Result<
+        infiltrator_ports::runtime_gateway::RuntimeStream<
+            infiltrator_domain::runtime::ConnectionSnapshot,
+        >,
+        PortError,
+    > {
         Err(PortError::Failed("not implemented".into()))
     }
 }
@@ -252,13 +272,8 @@ fn test_group_06_jitter_ms_and_rtt_standard_deviation() {
     // Std dev = sqrt(62.5) ≈ 7.90569
     // Consecutive diffs: |105-100|=5, |95-105|=10, |110-95|=15, |90-110|=20 -> sum = 50
     // Jitter = 50 / 4 = 12.5
-    let jitter = JitterCalculation::from_samples(&[
-        Some(100),
-        Some(105),
-        Some(95),
-        Some(110),
-        Some(90),
-    ]);
+    let jitter =
+        JitterCalculation::from_samples(&[Some(100), Some(105), Some(95), Some(110), Some(90)]);
 
     assert_eq!(jitter.sample_count, 5);
     assert_eq!(jitter.successful_probes, 5);
@@ -276,29 +291,74 @@ fn test_group_06_jitter_ms_and_rtt_standard_deviation() {
 #[test]
 fn test_group_06_packet_loss_gradient_rating_tiers() {
     // 0% -> Excellent
-    assert_eq!(PacketLossRating::from_loss_percent(0.0), PacketLossRating::Excellent);
-    assert_eq!(PacketLossRating::from_loss_percent(0.0).label(), "极佳 (0%)");
+    assert_eq!(
+        PacketLossRating::from_loss_percent(0.0),
+        PacketLossRating::Excellent
+    );
+    assert_eq!(
+        PacketLossRating::from_loss_percent(0.0).label(),
+        "极佳 (0%)"
+    );
 
     // <5% -> Good
-    assert_eq!(PacketLossRating::from_loss_percent(2.5), PacketLossRating::Good);
-    assert_eq!(PacketLossRating::from_loss_percent(5.0), PacketLossRating::Good);
-    assert_eq!(PacketLossRating::from_loss_percent(5.0).label(), "良好 (<5%)");
+    assert_eq!(
+        PacketLossRating::from_loss_percent(2.5),
+        PacketLossRating::Good
+    );
+    assert_eq!(
+        PacketLossRating::from_loss_percent(5.0),
+        PacketLossRating::Good
+    );
+    assert_eq!(
+        PacketLossRating::from_loss_percent(5.0).label(),
+        "良好 (<5%)"
+    );
 
     // 5-20% -> Fair
-    assert_eq!(PacketLossRating::from_loss_percent(5.1), PacketLossRating::Fair);
-    assert_eq!(PacketLossRating::from_loss_percent(12.0), PacketLossRating::Fair);
-    assert_eq!(PacketLossRating::from_loss_percent(20.0), PacketLossRating::Fair);
-    assert_eq!(PacketLossRating::from_loss_percent(20.0).label(), "一般 (5-20%)");
+    assert_eq!(
+        PacketLossRating::from_loss_percent(5.1),
+        PacketLossRating::Fair
+    );
+    assert_eq!(
+        PacketLossRating::from_loss_percent(12.0),
+        PacketLossRating::Fair
+    );
+    assert_eq!(
+        PacketLossRating::from_loss_percent(20.0),
+        PacketLossRating::Fair
+    );
+    assert_eq!(
+        PacketLossRating::from_loss_percent(20.0).label(),
+        "一般 (5-20%)"
+    );
 
     // >20% -> Poor
-    assert_eq!(PacketLossRating::from_loss_percent(20.1), PacketLossRating::Poor);
-    assert_eq!(PacketLossRating::from_loss_percent(45.0), PacketLossRating::Poor);
-    assert_eq!(PacketLossRating::from_loss_percent(80.0), PacketLossRating::Poor);
-    assert_eq!(PacketLossRating::from_loss_percent(80.0).label(), "较差 (>20%)");
+    assert_eq!(
+        PacketLossRating::from_loss_percent(20.1),
+        PacketLossRating::Poor
+    );
+    assert_eq!(
+        PacketLossRating::from_loss_percent(45.0),
+        PacketLossRating::Poor
+    );
+    assert_eq!(
+        PacketLossRating::from_loss_percent(80.0),
+        PacketLossRating::Poor
+    );
+    assert_eq!(
+        PacketLossRating::from_loss_percent(80.0).label(),
+        "较差 (>20%)"
+    );
 
     // 100% -> Dead
-    assert_eq!(PacketLossRating::from_loss_percent(100.0), PacketLossRating::Dead);
-    assert_eq!(PacketLossRating::from_loss_percent(100.0).label(), "超时 (100%)");
+    assert_eq!(
+        PacketLossRating::from_loss_percent(100.0),
+        PacketLossRating::Dead
+    );
+    assert_eq!(
+        PacketLossRating::from_loss_percent(100.0).label(),
+        "超时 (100%)"
+    );
 }
 
 #[tokio::test]

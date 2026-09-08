@@ -21,7 +21,10 @@ impl TrafficWaveformBuffer {
             self.generation = Some(core.generation);
             self.samples.clear();
         }
-        if matches!(core.lifecycle, CoreLifecycle::Running | CoreLifecycle::Ready) {
+        if matches!(
+            core.lifecycle,
+            CoreLifecycle::Running | CoreLifecycle::Ready
+        ) {
             if self.samples.len() == TRAFFIC_WAVEFORM_CAPACITY {
                 self.samples.pop_front();
             }
@@ -75,10 +78,8 @@ pub fn smooth_series(samples: &[f64], subdivisions_per_segment: usize) -> Vec<f3
         for step in 0..steps {
             let t = step as f64 / steps as f64;
             let u = 1.0 - t;
-            let value = u * u * u * p0
-                + 3.0 * u * u * t * c1
-                + 3.0 * u * t * t * c2
-                + t * t * t * p1;
+            let value =
+                u * u * u * p0 + 3.0 * u * u * t * c1 + 3.0 * u * t * t * c2 + t * t * t * p1;
             output.push(value.clamp(p0.min(p1), p0.max(p1)) as f32);
         }
     }
@@ -98,7 +99,11 @@ pub fn smooth_dual_series(
 }
 
 pub fn display_series(snapshot: &TrafficWaveformSnapshot) -> (Vec<f32>, Vec<f32>) {
-    let upload: Vec<f64> = snapshot.samples.iter().map(|sample| sample.upload_bps).collect();
+    let upload: Vec<f64> = snapshot
+        .samples
+        .iter()
+        .map(|sample| sample.upload_bps)
+        .collect();
     let download: Vec<f64> = snapshot
         .samples
         .iter()
@@ -111,12 +116,7 @@ pub fn display_series(snapshot: &TrafficWaveformSnapshot) -> (Vec<f32>, Vec<f32>
 mod tests {
     use super::*;
 
-    fn core(
-        generation: u64,
-        upload: f64,
-        download: f64,
-        lifecycle: CoreLifecycle,
-    ) -> CoreSnapshot {
+    fn core(generation: u64, upload: f64, download: f64, lifecycle: CoreLifecycle) -> CoreSnapshot {
         CoreSnapshot {
             lifecycle,
             generation,
@@ -138,7 +138,12 @@ mod tests {
     fn buffer_is_bounded_and_resets_on_generation_change() {
         let mut buffer = TrafficWaveformBuffer::default();
         for value in 0..(TRAFFIC_WAVEFORM_CAPACITY + 3) {
-            buffer.record(&core(1, value as f64, (value * 2) as f64, CoreLifecycle::Running));
+            buffer.record(&core(
+                1,
+                value as f64,
+                (value * 2) as f64,
+                CoreLifecycle::Running,
+            ));
         }
         assert_eq!(buffer.snapshot().samples.len(), TRAFFIC_WAVEFORM_CAPACITY);
         let reset = buffer.record(&core(2, 9.0, 11.0, CoreLifecycle::Running));
@@ -151,7 +156,11 @@ mod tests {
         let values = smooth_series(&[0.0, 100.0, 20.0], 4);
         assert_eq!(values.len(), 9);
         assert!(values.iter().all(|value| value.is_finite()));
-        assert!(values[..4].iter().all(|value| (0.0..=100.0).contains(value)));
+        assert!(
+            values[..4]
+                .iter()
+                .all(|value| (0.0..=100.0).contains(value))
+        );
         let (upload, download) = smooth_dual_series(&[1.0, 2.0], &[4.0, 8.0], 2);
         assert_eq!(upload.len(), 3);
         assert_eq!(download.len(), 3);

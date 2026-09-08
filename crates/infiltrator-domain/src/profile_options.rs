@@ -150,8 +150,14 @@ impl FilterSpec {
                 multiplier: spec.multiplier,
             });
         }
-        let allowed_ports = self.allowed_ports.as_ref().map(|v| v.iter().copied().collect::<HashSet<_>>());
-        let blocked_ports = self.blocked_ports.as_ref().map(|v| v.iter().copied().collect::<HashSet<_>>());
+        let allowed_ports = self
+            .allowed_ports
+            .as_ref()
+            .map(|v| v.iter().copied().collect::<HashSet<_>>());
+        let blocked_ports = self
+            .blocked_ports
+            .as_ref()
+            .map(|v| v.iter().copied().collect::<HashSet<_>>());
 
         Ok(FilterRule {
             include_keywords: include,
@@ -246,7 +252,8 @@ pub fn compose_content(
         if report.is_none()
             && crate::yaml_edit::mixin_fidelity::can_apply_mixin_via_fidelity(&options.mixin)
             && let Ok(mut doc) = crate::yaml_edit::SourceDoc::parse(&current)
-            && crate::yaml_edit::mixin_fidelity::apply_mixin_to_doc(&mut doc, &options.mixin).is_ok()
+            && crate::yaml_edit::mixin_fidelity::apply_mixin_to_doc(&mut doc, &options.mixin)
+                .is_ok()
         {
             return Ok((doc.render(), None));
         }

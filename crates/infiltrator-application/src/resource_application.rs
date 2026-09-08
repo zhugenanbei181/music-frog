@@ -44,7 +44,11 @@ impl ResourceApplication {
     /// reclaimed.
     pub async fn poll(&self) -> Result<CoreResourceSnapshot, Failure> {
         let memory = self.gateway.get_memory().await.map_err(Failure::from)?;
-        let cpu_percent = self.gateway.get_cpu_percent().await.map_err(Failure::from)?;
+        let cpu_percent = self
+            .gateway
+            .get_cpu_percent()
+            .await
+            .map_err(Failure::from)?;
         let over_limit = memory.in_use > CORE_MEMORY_SOFT_LIMIT_BYTES;
         let should_collect = over_limit && {
             let state = self.state.lock().expect("resource state lock");
@@ -56,7 +60,12 @@ impl ResourceApplication {
         if should_collect {
             let gc = match self.gateway.trigger_gc().await {
                 Ok(()) => {
-                    let after = self.gateway.get_memory().await.ok().map(|value| value.in_use);
+                    let after = self
+                        .gateway
+                        .get_memory()
+                        .await
+                        .ok()
+                        .map(|value| value.in_use);
                     CoreGcStatus::Triggered {
                         before_bytes: memory.in_use,
                         after_bytes: after,

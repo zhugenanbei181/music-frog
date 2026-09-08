@@ -55,7 +55,9 @@ pub fn validate_credentials(username: &str, password: &str) -> Result<(), String
         return Err("LAN authentication password is too long".to_owned());
     }
     if password.chars().any(|value| matches!(value, '\r' | '\n')) {
-        return Err("LAN authentication password contains a forbidden control character".to_owned());
+        return Err(
+            "LAN authentication password contains a forbidden control character".to_owned(),
+        );
     }
     Ok(())
 }

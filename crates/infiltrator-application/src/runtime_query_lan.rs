@@ -73,7 +73,8 @@ impl RuntimeQueryApplication {
             ));
         }
         let disallowed_ips = normalize_requested_cidrs(disallowed_ips, "lan-disallowed-ips")?;
-        let skip_auth_prefixes = normalize_requested_cidrs(skip_auth_prefixes, "skip-auth-prefixes")?;
+        let skip_auth_prefixes =
+            normalize_requested_cidrs(skip_auth_prefixes, "skip-auth-prefixes")?;
 
         let authentication = if authentication_enabled {
             let credentials = credentials.ok_or_else(|| {
@@ -94,7 +95,11 @@ impl RuntimeQueryApplication {
                     false,
                 )
             })?;
-            vec![format!("{}:{}", credentials.username.trim(), credentials.password)]
+            vec![format!(
+                "{}:{}",
+                credentials.username.trim(),
+                credentials.password
+            )]
         } else {
             Vec::new()
         };
@@ -112,15 +117,12 @@ impl RuntimeQueryApplication {
             .await
             .map_err(Failure::from)?;
         let observed = self.gateway.get_config().await.map_err(Failure::from)?;
-        let observed_allowed = normalize_observed_cidrs(&observed.lan_allowed_ips, "lan-allowed-ips")?;
-        let observed_disallowed = normalize_observed_cidrs(
-            &observed.lan_disallowed_ips,
-            "lan-disallowed-ips",
-        )?;
-        let observed_skip = normalize_observed_cidrs(
-            &observed.skip_auth_prefixes,
-            "skip-auth-prefixes",
-        )?;
+        let observed_allowed =
+            normalize_observed_cidrs(&observed.lan_allowed_ips, "lan-allowed-ips")?;
+        let observed_disallowed =
+            normalize_observed_cidrs(&observed.lan_disallowed_ips, "lan-disallowed-ips")?;
+        let observed_skip =
+            normalize_observed_cidrs(&observed.skip_auth_prefixes, "skip-auth-prefixes")?;
         if observed_allowed != allowed_ips
             || observed_disallowed != disallowed_ips
             || observed_skip != skip_auth_prefixes

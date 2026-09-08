@@ -8,10 +8,10 @@ use axum::{
     http::StatusCode,
     response::sse::{Event, KeepAlive, Sse},
 };
-use log::warn;
+use futures_util::StreamExt;
 use infiltrator_domain::runtime::{ConnectionsResponse, MemoryData};
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
-use futures_util::StreamExt;
+use log::warn;
 
 use crate::admin_api::events::{AdminEvent, EVENT_RUNTIME_CHANGED};
 use crate::admin_api::models::*;

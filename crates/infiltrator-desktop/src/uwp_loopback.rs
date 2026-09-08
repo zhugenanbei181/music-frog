@@ -4,9 +4,9 @@
 //! (or mock backend for testing/cross-platform) and management of loopback isolation
 //! exemptions using `CheckNetIsolation.exe`.
 
-use anyhow::Result;
 #[cfg(windows)]
 use anyhow::Context;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 #[cfg(windows)]
 use std::collections::HashSet;

@@ -50,7 +50,9 @@ pub(crate) async fn app_config_manager() -> anyhow::Result<ConfigManager<Default
 
 #[cfg(test)]
 pub(crate) async fn profile_application() -> anyhow::Result<ProfileApplication> {
-    Ok(ProfileApplication::new(infiltrator_core::profile_store_io::open().await?))
+    Ok(ProfileApplication::new(
+        infiltrator_core::profile_store_io::open().await?,
+    ))
 }
 
 #[cfg(test)]
@@ -81,11 +83,9 @@ pub(crate) fn cache_application() -> CacheApplication {
 }
 
 #[cfg(test)]
-pub(crate) fn subscription_source() -> Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource>
-{
-    Arc::new(
-        infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients(),
-    )
+pub(crate) fn subscription_source()
+-> Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource> {
+    Arc::new(infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients())
 }
 
 #[cfg(test)]

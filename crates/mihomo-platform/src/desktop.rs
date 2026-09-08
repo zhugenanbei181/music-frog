@@ -611,11 +611,12 @@ mod process {
     pub fn is_process_alive(pid: u32) -> bool {
         let mut system = System::new();
         system.refresh_processes(ProcessesToUpdate::All, true);
-        system
-            .process(Pid::from_u32(pid))
-            .is_some_and(|process| {
-                !matches!(process.status(), ProcessStatus::Zombie | ProcessStatus::Dead)
-            })
+        system.process(Pid::from_u32(pid)).is_some_and(|process| {
+            !matches!(
+                process.status(),
+                ProcessStatus::Zombie | ProcessStatus::Dead
+            )
+        })
     }
 
     pub fn process_matches_binary(pid: u32, binary: &Path) -> bool {
@@ -790,8 +791,8 @@ mod tests {
             .spawn()
             .expect("spawn fake orphan");
         let pid = child.id();
-        let binary = std::fs::read_link(format!("/proc/{pid}/exe"))
-            .expect("read fake orphan executable");
+        let binary =
+            std::fs::read_link(format!("/proc/{pid}/exe")).expect("read fake orphan executable");
         let pid_file = dir.path().join("mihomo.pid");
         process::write_pid_file(&pid_file, pid)
             .await

@@ -320,7 +320,7 @@ mod tests {
         assert_eq!(bridge.cache_dir().unwrap(), PathBuf::from("cache"));
 
         assert!(bridge.vpn_start().await.unwrap());
-        assert!(bridge.vpn_apply_configuration("{}" ).await.unwrap());
+        assert!(bridge.vpn_apply_configuration("{}").await.unwrap());
         assert!(bridge.vpn_stop().await.unwrap());
         assert!(bridge.vpn_is_running().await.unwrap());
         assert!(bridge.vpn_is_foreground().await.unwrap());

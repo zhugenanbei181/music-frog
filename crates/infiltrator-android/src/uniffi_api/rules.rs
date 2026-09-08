@@ -5,10 +5,8 @@ use std::collections::BTreeMap;
 
 use infiltrator_domain::rules::RuleProviders;
 
-use crate::host_support::{
-    build_configuration_application, get_runtime, map_application_failure,
-};
 use crate::ffi::{FfiErrorCode, FfiStatus};
+use crate::host_support::{build_configuration_application, get_runtime, map_application_failure};
 
 // --- Rules API ---
 
@@ -189,9 +187,7 @@ fn rule_providers_to_json(providers: &RuleProviders) -> String {
     serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string())
 }
 
-fn parse_rule_providers_json(
-    value: &str,
-) -> Result<RuleProviders, FfiStatus> {
+fn parse_rule_providers_json(value: &str) -> Result<RuleProviders, FfiStatus> {
     let parsed: serde_json::Value = serde_json::from_str(value).map_err(|err| {
         FfiStatus::err(FfiErrorCode::InvalidInput, format!("invalid JSON: {err}"))
     })?;

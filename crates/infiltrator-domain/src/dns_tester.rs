@@ -181,9 +181,10 @@ impl DnsTester {
                 is_hijacked = true;
             }
             if let Some(cidr) = fake_ip_cidr
-                && Self::check_fake_ip_range(ip, cidr) {
-                    is_fake_ip = true;
-                }
+                && Self::check_fake_ip_range(ip, cidr)
+            {
+                is_fake_ip = true;
+            }
         }
 
         DnsTestResult {
@@ -292,11 +293,15 @@ impl DnsTester {
             }
             DnsLeakScenario::FallbackLeak => {
                 // If fallback returns poisoned IP, it leaked
-                resolved_ips.iter().any(|ip| BogusIpDetector::is_bogus_ip(ip))
+                resolved_ips
+                    .iter()
+                    .any(|ip| BogusIpDetector::is_bogus_ip(ip))
             }
             DnsLeakScenario::FakeIpBypassLeak => {
                 // Resolved IP is not in Fake-IP space when Fake-IP mode expected
-                resolved_ips.iter().all(|ip| !Self::check_fake_ip_range(ip, "198.18.0.0/15"))
+                resolved_ips
+                    .iter()
+                    .all(|ip| !Self::check_fake_ip_range(ip, "198.18.0.0/15"))
             }
             DnsLeakScenario::EcsPrivacyLeak => {
                 // Handled via ecs_reflected validation
@@ -390,10 +395,7 @@ mod tests {
 
     #[test]
     fn test_ipv6_fake_ip_range() {
-        assert!(DnsTester::check_ipv6_fake_ip_range(
-            "fc00::1",
-            "fc00::/18"
-        ));
+        assert!(DnsTester::check_ipv6_fake_ip_range("fc00::1", "fc00::/18"));
         assert!(DnsTester::check_ipv6_fake_ip_range(
             "fc00:3fff:ffff:ffff:ffff:ffff:ffff:ffff",
             "fc00::/18"

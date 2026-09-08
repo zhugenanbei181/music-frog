@@ -26,10 +26,10 @@ use mihomo_config::manager::ConfigManager;
 use tokio::io::AsyncWriteExt;
 use yaml_rust2::{Yaml, YamlLoader};
 
-use infiltrator_domain::yaml_edit::SourceDoc;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::session::SessionToken;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::yaml_edit::SourceDoc;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
 
@@ -541,7 +541,8 @@ pub async fn apply_profile_mixin_fidelity<S: SecureStore>(
 
     if infiltrator_domain::yaml_edit::mixin_fidelity::can_apply_mixin_via_fidelity(mixin)
         && let Ok(mut doc) = SourceDoc::parse(&content)
-        && infiltrator_domain::yaml_edit::mixin_fidelity::apply_mixin_to_doc(&mut doc, mixin).is_ok()
+        && infiltrator_domain::yaml_edit::mixin_fidelity::apply_mixin_to_doc(&mut doc, mixin)
+            .is_ok()
     {
         let new_content = doc.render();
         return apply_current_profile(session, config, reloader, &new_content, params).await;

@@ -19,9 +19,15 @@ pub enum SystemToggleState {
     Unknown,
     Disabled,
     Enabled,
-    Pending { desired: bool },
-    Unsupported { failure: Failure },
-    Failed { failure: Failure },
+    Pending {
+        desired: bool,
+    },
+    Unsupported {
+        failure: Failure,
+    },
+    Failed {
+        failure: Failure,
+    },
 }
 
 impl SystemToggleState {

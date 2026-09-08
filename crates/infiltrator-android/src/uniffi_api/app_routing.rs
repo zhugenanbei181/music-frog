@@ -1,8 +1,8 @@
 //! Per-app routing surface: Android-only presentation plus application-owned
 //! routing preferences.
 
-use crate::host_support::{build_routing_application, map_application_failure};
 use crate::ffi::FfiStatus;
+use crate::host_support::{build_routing_application, map_application_failure};
 
 // --- App Routing API ---
 
@@ -30,9 +30,7 @@ impl From<infiltrator_domain::app_routing::AppRoutingMode> for AppRoutingMode {
 impl From<AppRoutingMode> for infiltrator_domain::app_routing::AppRoutingMode {
     fn from(mode: AppRoutingMode) -> Self {
         match mode {
-            AppRoutingMode::ProxyAll => {
-                infiltrator_domain::app_routing::AppRoutingMode::ProxyAll
-            }
+            AppRoutingMode::ProxyAll => infiltrator_domain::app_routing::AppRoutingMode::ProxyAll,
             AppRoutingMode::ProxySelected => {
                 infiltrator_domain::app_routing::AppRoutingMode::ProxySelected
             }
@@ -88,11 +86,9 @@ pub fn app_routing_save(mode: AppRoutingMode, packages: Vec<String>) -> FfiStatu
         packages: packages.into_iter().collect(),
         ..infiltrator_domain::app_routing::AppRoutingConfig::default()
     };
-    match build_routing_application().and_then(|application| {
-        application
-            .save(&config)
-            .map_err(map_application_failure)
-    }) {
+    match build_routing_application()
+        .and_then(|application| application.save(&config).map_err(map_application_failure))
+    {
         Ok(_) => FfiStatus::ok(),
         Err(status) => status,
     }

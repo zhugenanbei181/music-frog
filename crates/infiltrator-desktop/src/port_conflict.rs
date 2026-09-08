@@ -4,15 +4,13 @@
 //! Repair relocates MusicFrog's own bindings through the config manager; it
 //! never terminates an unverified third-party PID from a UI action.
 
-use infiltrator_contract::port_conflict::{
-    PortBinding, PortConflict, PortConflictSnapshot,
-};
+use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::port_conflict::PortConflictPort;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
-use std::process::Command;
 use std::path::PathBuf;
+use std::process::Command;
 use yaml_rust2::YamlLoader;
 
 pub struct DesktopPortConflict {
@@ -32,10 +30,7 @@ impl DesktopPortConflict {
 
     async fn bindings(&self) -> Result<Vec<(PortBinding, u16)>, PortError> {
         let config = self.config().await?;
-        let profile = config
-            .get_current()
-            .await
-            .map_err(config_error)?;
+        let profile = config.get_current().await.map_err(config_error)?;
         let content = config.load(&profile).await.map_err(config_error)?;
         let document = YamlLoader::load_from_str(&content)
             .map_err(|error| PortError::Failed(format!("invalid profile YAML: {error}")))?
@@ -211,7 +206,10 @@ mod tests {
     fn lsof_owner_parser_keeps_pid_and_process_name() {
         let owner = parse_lsof_owner("p4242\ncmihomo\n");
         assert_eq!(owner.as_ref().map(|value| value.pid), Some(4242));
-        assert_eq!(owner.as_ref().map(|value| value.name.as_str()), Some("mihomo"));
+        assert_eq!(
+            owner.as_ref().map(|value| value.name.as_str()),
+            Some("mihomo")
+        );
     }
 
     #[test]

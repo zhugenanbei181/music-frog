@@ -24,11 +24,7 @@ pub async fn save_settings(settings: &AppSettings) -> anyhow::Result<()> {
 }
 
 pub async fn save_webdav_password(password: &str) -> anyhow::Result<()> {
-    crate::settings_io::save_webdav_password(
-        &DefaultCredentialStore::default(),
-        password,
-    )
-    .await
+    crate::settings_io::save_webdav_password(&DefaultCredentialStore::default(), password).await
 }
 
 pub async fn clear_webdav_password() {

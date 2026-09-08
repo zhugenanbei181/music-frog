@@ -1,7 +1,7 @@
 //! Runtime observation use-cases over the controller gateway.
 
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::command::{CoreLogLevel, ProxyMode};
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::tun::TunStack;
 use infiltrator_domain::runtime::{MemoryData, TrafficData};
 use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
@@ -14,34 +14,36 @@ pub struct RuntimeQueryApplication {
     next_revision: Arc<AtomicU64>,
 }
 
+#[path = "runtime_query_ipv6.rs"]
+mod runtime_query_ipv6;
 #[path = "runtime_query_lan.rs"]
 mod runtime_query_lan;
-#[path = "runtime_query_ipv6.rs"] mod runtime_query_ipv6;
 
 #[cfg(test)]
 #[allow(clippy::items_after_test_module)]
 pub(crate) mod tests {
     use super::*;
+    use crate::resource_application::ResourceApplication;
     use async_trait::async_trait;
     use infiltrator_contract::command::CoreLogLevel;
     use infiltrator_contract::lan::LanCredentials;
     use infiltrator_contract::resources::{CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus};
-    use crate::resource_application::ResourceApplication;
     use infiltrator_domain::proxy::Proxy;
     use infiltrator_domain::runtime::{
         ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
     };
     use infiltrator_ports::error::PortError;
-    use infiltrator_ports::runtime_gateway::{RuntimeStreamEvent, RuntimeGateway};
+    use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStreamEvent};
     use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
 
     #[derive(Clone, Debug)]
     pub(crate) struct TestLanState {
         allow_lan: bool,
         mixed_port: u16,
-        bind_address: String, ipv6_enabled: bool,
+        bind_address: String,
+        ipv6_enabled: bool,
         allowed_ips: Vec<String>,
         disallowed_ips: Vec<String>,
         skip_auth_prefixes: Vec<String>,
@@ -66,7 +68,8 @@ pub(crate) mod tests {
         Arc::new(Mutex::new(TestLanState {
             allow_lan: false,
             mixed_port: 7890,
-            bind_address: "*".to_owned(), ipv6_enabled: true,
+            bind_address: "*".to_owned(),
+            ipv6_enabled: true,
             allowed_ips: vec!["192.168.0.0/16".to_owned()],
             disallowed_ips: Vec::new(),
             skip_auth_prefixes: vec!["127.0.0.0/8".to_owned()],
@@ -80,7 +83,8 @@ pub(crate) mod tests {
     impl RuntimeGateway for TestGateway {
         async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
             let lan = self.lan.lock().expect("LAN state lock").clone();
-            Ok(ConfigSnapshot { mode: "rule".to_owned(),
+            Ok(ConfigSnapshot {
+                mode: "rule".to_owned(),
                 log_level: self.level.lock().expect("level lock").clone(),
                 tun: {
                     let (auto_route, strict_route) =
@@ -93,7 +97,8 @@ pub(crate) mod tests {
                         mtu: *self.tun_mtu.lock().expect("tun mtu lock"),
                     })
                 },
-                allow_lan: lan.allow_lan, ipv6: lan.ipv6_enabled,
+                allow_lan: lan.allow_lan,
+                ipv6: lan.ipv6_enabled,
                 mixed_port: lan.mixed_port,
                 bind_address: lan.bind_address,
                 lan_allowed_ips: lan.allowed_ips,
@@ -113,27 +118,25 @@ pub(crate) mod tests {
             })
         }
 
-        async fn patch_config(
-            &self,
-            updates: serde_json::Value,
-        ) -> Result<(), PortError> {
+        async fn patch_config(&self, updates: serde_json::Value) -> Result<(), PortError> {
             if self.apply_patch
                 && let Some(level) = updates.get("log-level").and_then(|value| value.as_str())
             {
                 *self.level.lock().expect("level lock") = level.to_owned();
             }
             if self.apply_patch {
-                let mut lan = self.lan.lock().expect("LAN state lock"); if let Some(enabled) = updates.get("ipv6").and_then(|value| value.as_bool()) { lan.ipv6_enabled = enabled; }
-                if let Some(enabled) = updates.get("allow-lan").and_then(|value| value.as_bool())
-                {
+                let mut lan = self.lan.lock().expect("LAN state lock");
+                if let Some(enabled) = updates.get("ipv6").and_then(|value| value.as_bool()) {
+                    lan.ipv6_enabled = enabled;
+                }
+                if let Some(enabled) = updates.get("allow-lan").and_then(|value| value.as_bool()) {
                     lan.allow_lan = enabled;
                 }
                 if let Some(port) = updates.get("mixed-port").and_then(|value| value.as_u64()) {
                     lan.mixed_port = port as u16;
                 }
-                if let Some(bind_address) = updates
-                    .get("bind-address")
-                    .and_then(|value| value.as_str())
+                if let Some(bind_address) =
+                    updates.get("bind-address").and_then(|value| value.as_str())
                 {
                     lan.bind_address = bind_address.to_owned();
                 }
@@ -200,13 +203,11 @@ pub(crate) mod tests {
                     *self.tun_enabled.lock().expect("tun enabled lock") = enabled;
                 }
                 let mut routing = self.tun_routing.lock().expect("tun routing lock");
-                if let Some(auto_route) = tun.get("auto-route").and_then(|value| value.as_bool())
-                {
+                if let Some(auto_route) = tun.get("auto-route").and_then(|value| value.as_bool()) {
                     routing.0 = auto_route;
                 }
-                if let Some(strict_route) = tun
-                    .get("strict-route")
-                    .and_then(|value| value.as_bool())
+                if let Some(strict_route) =
+                    tun.get("strict-route").and_then(|value| value.as_bool())
                 {
                     routing.1 = strict_route;
                 }
@@ -280,23 +281,21 @@ pub(crate) mod tests {
             &self,
             _level: Option<String>,
         ) -> Result<RuntimeStream<String>, PortError> {
-            Ok(Box::pin(futures_util::stream::empty::<RuntimeStreamEvent<String>>()))
+            Ok(Box::pin(futures_util::stream::empty::<
+                RuntimeStreamEvent<String>,
+            >()))
         }
 
-        async fn stream_traffic(
-            &self,
-        ) -> Result<RuntimeStream<TrafficData>, PortError> {
-            Ok(Box::pin(
-                futures_util::stream::empty::<RuntimeStreamEvent<TrafficData>>(),
-            ))
+        async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
+            Ok(Box::pin(futures_util::stream::empty::<
+                RuntimeStreamEvent<TrafficData>,
+            >()))
         }
 
-        async fn stream_connections(
-            &self,
-        ) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-            Ok(Box::pin(
-                futures_util::stream::empty::<RuntimeStreamEvent<ConnectionSnapshot>>(),
-            ))
+        async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
+            Ok(Box::pin(futures_util::stream::empty::<
+                RuntimeStreamEvent<ConnectionSnapshot>,
+            >()))
         }
     }
 
@@ -445,7 +444,10 @@ pub(crate) mod tests {
         .set_tun_mtu(1279)
         .await
         .expect_err("out-of-range MTU must fail before I/O");
-        assert_eq!(failure.code, infiltrator_contract::error::ErrorCode::InvalidInput);
+        assert_eq!(
+            failure.code,
+            infiltrator_contract::error::ErrorCode::InvalidInput
+        );
 
         let failure = RuntimeQueryApplication::new(Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
@@ -461,7 +463,10 @@ pub(crate) mod tests {
         .set_tun_mtu(1420)
         .await
         .expect_err("ignored patch must fail readback");
-        assert_eq!(failure.code, infiltrator_contract::error::ErrorCode::InvalidState);
+        assert_eq!(
+            failure.code,
+            infiltrator_contract::error::ErrorCode::InvalidState
+        );
     }
 
     #[tokio::test]
@@ -510,7 +515,10 @@ pub(crate) mod tests {
             .set_tun_strict_route(true)
             .await
             .expect_err("ignored strict-route patch must fail readback");
-        assert_eq!(failure.code, infiltrator_contract::error::ErrorCode::InvalidState);
+        assert_eq!(
+            failure.code,
+            infiltrator_contract::error::ErrorCode::InvalidState
+        );
     }
 
     #[tokio::test]
@@ -646,13 +654,7 @@ pub(crate) mod tests {
             gc_calls: Arc::new(AtomicUsize::new(0)),
         }));
         let failure = application
-            .set_lan_security(
-                &["192.168.0.0/16".to_owned()],
-                &[],
-                &[],
-                true,
-                None,
-            )
+            .set_lan_security(&["192.168.0.0/16".to_owned()], &[], &[], true, None)
             .await
             .expect_err("auth cannot be enabled without credentials");
         assert_eq!(
@@ -660,7 +662,6 @@ pub(crate) mod tests {
             infiltrator_contract::error::ErrorCode::InvalidInput
         );
     }
-
 }
 
 impl RuntimeQueryApplication {
@@ -843,9 +844,7 @@ impl RuntimeQueryApplication {
             .await
             .map_err(Failure::from)?;
         let observed = self.gateway.get_config().await.map_err(Failure::from)?;
-        let observed = observed
-            .tun
-            .map(|tun| (tun.auto_route, tun.strict_route));
+        let observed = observed.tun.map(|tun| (tun.auto_route, tun.strict_route));
         if observed != Some((auto_route, strict_route)) {
             return Err(Failure::new(
                 infiltrator_contract::error::ErrorCode::InvalidState,
@@ -858,20 +857,11 @@ impl RuntimeQueryApplication {
         Ok(())
     }
 
-    pub async fn logs(
-        &self,
-        level: Option<String>,
-    ) -> Result<RuntimeStream<String>, Failure> {
-        self.gateway
-            .stream_logs(level)
-            .await
-            .map_err(Failure::from)
+    pub async fn logs(&self, level: Option<String>) -> Result<RuntimeStream<String>, Failure> {
+        self.gateway.stream_logs(level).await.map_err(Failure::from)
     }
 
     pub async fn traffic(&self) -> Result<RuntimeStream<TrafficData>, Failure> {
-        self.gateway
-            .stream_traffic()
-            .await
-            .map_err(Failure::from)
+        self.gateway.stream_traffic().await.map_err(Failure::from)
     }
 }

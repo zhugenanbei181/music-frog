@@ -62,15 +62,17 @@ impl SubscriptionFilterPipeline {
                     continue;
                 }
                 if let Some(ref allowed) = self.rule.allowed_ports
-                    && !allowed.contains(&port) {
-                        report.excluded_by_port += 1;
-                        continue;
-                    }
+                    && !allowed.contains(&port)
+                {
+                    report.excluded_by_port += 1;
+                    continue;
+                }
                 if let Some(ref blocked) = self.rule.blocked_ports
-                    && blocked.contains(&port) {
-                        report.excluded_by_port += 1;
-                        continue;
-                    }
+                    && blocked.contains(&port)
+                {
+                    report.excluded_by_port += 1;
+                    continue;
+                }
                 if self.rule.drop_private_ip && is_private_ip(server) {
                     report.excluded_by_server += 1;
                     continue;

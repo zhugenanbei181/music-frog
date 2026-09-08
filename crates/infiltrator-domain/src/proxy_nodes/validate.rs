@@ -9,20 +9,13 @@ use std::net::IpAddr;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_yaml_ng::Value;
 
-use super::model::{
-    CommonFields, PortHopping, ProxyNode, RawNode, Reserved,
-};
+use super::model::{CommonFields, PortHopping, ProxyNode, RawNode, Reserved};
 
 const TUIC_CONGESTION_CONTROLLERS: [&str; 3] = ["bbr", "cubic", "new-reno"];
 const TUIC_UDP_RELAY_MODES: [&str; 2] = ["native", "quic"];
 const VLESS_ALLOWED_FLOWS: [&str; 2] = ["xtls-rprx-vision", "xtls-rprx-vision-udp443"];
-const VMESS_ALLOWED_CIPHERS: [&str; 5] = [
-    "auto",
-    "aes-128-gcm",
-    "chacha20-poly1305",
-    "none",
-    "zero",
-];
+const VMESS_ALLOWED_CIPHERS: [&str; 5] =
+    ["auto", "aes-128-gcm", "chacha20-poly1305", "none", "zero"];
 const XHTTP_ALLOWED_MODES: [&str; 4] = ["auto", "stream-up", "stream-down", "packet-up"];
 
 /// Lightweight validation: returns one human-readable message per detected
@@ -73,7 +66,9 @@ pub fn validate(node: &RawNode) -> Vec<String> {
                                 .to_string(),
                         );
                     } else if !trimmed_sid.chars().all(|c| c.is_ascii_hexdigit()) {
-                        issues.push("vless: reality short-id contains non-hex characters".to_string());
+                        issues.push(
+                            "vless: reality short-id contains non-hex characters".to_string(),
+                        );
                     }
                 }
             }

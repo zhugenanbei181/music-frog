@@ -1,9 +1,9 @@
 use anyhow::anyhow;
 use chrono::Utc;
 use infiltrator_application::profile_application::ProfileApplication;
-use log::{info, warn};
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_ports::subscription_source::SubscriptionSource;
+use log::{info, warn};
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tokio::time::sleep;
@@ -47,7 +47,12 @@ pub(super) async fn run_profile_subscription_tick<C: AdminApiContext>(
     let profile = application
         .load_profile_info(profile_name)
         .await
-        .map_err(|failure| format!("读取 profile `{profile_name}` 元数据失败: {}", failure.message))?;
+        .map_err(|failure| {
+            format!(
+                "读取 profile `{profile_name}` 元数据失败: {}",
+                failure.message
+            )
+        })?;
     // The job is canceled as soon as auto-update is switched off; treat an
     // in-flight run that observes the new state as done.
     if !profile.auto_update_enabled {
@@ -209,10 +214,7 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
                         // and any credentials the error Display embedded.
                         redact_line(
                             &mask_subscription_url(
-                                profile
-                                    .subscription_url
-                                    .as_deref()
-                                    .unwrap_or_default(),
+                                profile.subscription_url.as_deref().unwrap_or_default(),
                             ),
                             &[],
                         ),

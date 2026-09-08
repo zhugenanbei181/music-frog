@@ -643,7 +643,15 @@ proxies:
         let type_names: Vec<&str> = nodes.iter().map(ProxyNode::type_name).collect();
         assert_eq!(
             type_names,
-            ["vless", "hysteria2", "tuic", "wireguard", "ss", "anytls", "quantum-tunnel-v9"]
+            [
+                "vless",
+                "hysteria2",
+                "tuic",
+                "wireguard",
+                "ss",
+                "anytls",
+                "quantum-tunnel-v9"
+            ]
         );
         // Exactly 6 nodes are strongly typed; the 7th falls back to Other.
         assert_eq!(nodes.iter().filter(|n| n.is_typed()).count(), 6);

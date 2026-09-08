@@ -165,12 +165,22 @@ impl CascadeOverlayPipeline {
 
         // Stage 4: Pre-Mixin Overlay
         if let Some(ref pre) = self.pre_mixin {
-            apply_mixin_config_to_value(&mut doc, pre, self.dedup_rules, self.dedup_named_sequences)?;
+            apply_mixin_config_to_value(
+                &mut doc,
+                pre,
+                self.dedup_rules,
+                self.dedup_named_sequences,
+            )?;
         }
 
         // Stage 5: Post-Mixin Overlay
         if let Some(ref post) = self.post_mixin {
-            apply_mixin_config_to_value(&mut doc, post, self.dedup_rules, self.dedup_named_sequences)?;
+            apply_mixin_config_to_value(
+                &mut doc,
+                post,
+                self.dedup_rules,
+                self.dedup_named_sequences,
+            )?;
         }
 
         Ok(doc)
@@ -282,7 +292,9 @@ pub fn deep_merge_cascade(base: &mut Value, mixin: Value, dedup_named: bool) {
             for (k, v) in mixin_map {
                 if let Some(base_v) = base_map.get_mut(&k) {
                     if dedup_named && base_v.is_sequence() && v.is_sequence() {
-                        if let (Some(base_seq), Value::Sequence(v_seq)) = (base_v.as_sequence_mut(), v) {
+                        if let (Some(base_seq), Value::Sequence(v_seq)) =
+                            (base_v.as_sequence_mut(), v)
+                        {
                             merge_named_sequences(base_seq, v_seq);
                         }
                     } else {
@@ -626,7 +638,8 @@ proxies:
             ..Default::default()
         };
 
-        let out = cascade_overlay_merge(Some(base), Some(sub), None, Some(&pre), Some(&post)).unwrap();
+        let out =
+            cascade_overlay_merge(Some(base), Some(sub), None, Some(&pre), Some(&post)).unwrap();
         let out_val: Value = serde_yaml_ng::from_str(&out).unwrap();
         assert_eq!(out_val.get("port").unwrap().as_u64().unwrap(), 7891);
         assert_eq!(out_val.get("log-level").unwrap().as_str().unwrap(), "debug");

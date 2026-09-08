@@ -356,18 +356,22 @@ impl From<ConfigResponse> for infiltrator_domain::runtime::ConfigSnapshot {
                 .first()
                 .and_then(|entry| entry.split_once(':'))
                 .map(|(username, _)| username.to_owned()),
-            tun: value.tun.map(|tun| infiltrator_domain::runtime::TunSnapshot {
-                enable: tun.enable,
-                stack: tun.stack,
-                auto_route: tun.auto_route,
-                strict_route: tun.strict_route,
-                mtu: tun.mtu,
-            }),
-            dns: value.dns.map(|dns| infiltrator_domain::runtime::DnsSnapshot {
-                nameserver: dns.nameserver,
-                fallback: dns.fallback.unwrap_or_default(),
-                enhanced_mode: dns.enhanced_mode,
-            }),
+            tun: value
+                .tun
+                .map(|tun| infiltrator_domain::runtime::TunSnapshot {
+                    enable: tun.enable,
+                    stack: tun.stack,
+                    auto_route: tun.auto_route,
+                    strict_route: tun.strict_route,
+                    mtu: tun.mtu,
+                }),
+            dns: value
+                .dns
+                .map(|dns| infiltrator_domain::runtime::DnsSnapshot {
+                    nameserver: dns.nameserver,
+                    fallback: dns.fallback.unwrap_or_default(),
+                    enhanced_mode: dns.enhanced_mode,
+                }),
             sniffer: value
                 .sniffer
                 .map(|sniffer| infiltrator_domain::runtime::SnifferSnapshot {

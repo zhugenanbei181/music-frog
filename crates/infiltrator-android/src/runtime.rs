@@ -228,19 +228,22 @@ where
                 CapabilityStatus {
                     capability: Capability::UwpLoopback,
                     availability: Availability::Unsupported {
-                        reason: "Windows AppContainer loopback is not available on Android".to_owned(),
+                        reason: "Windows AppContainer loopback is not available on Android"
+                            .to_owned(),
                     },
                 },
                 CapabilityStatus {
                     capability: Capability::PacService,
                     availability: Availability::Unsupported {
-                        reason: "Android uses VpnService instead of desktop PAC injection".to_owned(),
+                        reason: "Android uses VpnService instead of desktop PAC injection"
+                            .to_owned(),
                     },
                 },
                 CapabilityStatus {
                     capability: Capability::NetworkRoaming,
                     availability: Availability::Unsupported {
-                        reason: "Android native VpnService route callbacks are not exposed".to_owned(),
+                        reason: "Android native VpnService route callbacks are not exposed"
+                            .to_owned(),
                     },
                 },
                 CapabilityStatus {
@@ -440,21 +443,19 @@ mod tests {
     #[tokio::test]
     async fn test_runtime_accessors() {
         let adapter = AndroidBridgeAdapter::new(TestBridge::new());
-        assert!(adapter
-            .capabilities()
-            .supports(Capability::LanAccessControl));
-        assert!(adapter
-            .capabilities()
-            .supports(Capability::Ipv6Routing));
-        assert!(!adapter
-            .capabilities()
-            .supports(Capability::UwpLoopback));
-        assert!(!adapter
-            .capabilities()
-            .supports(Capability::NetworkRoaming));
+        assert!(
+            adapter
+                .capabilities()
+                .supports(Capability::LanAccessControl)
+        );
+        assert!(adapter.capabilities().supports(Capability::Ipv6Routing));
+        assert!(!adapter.capabilities().supports(Capability::UwpLoopback));
+        assert!(!adapter.capabilities().supports(Capability::NetworkRoaming));
         assert!(adapter.capabilities().supports(Capability::VpnService));
         assert!(matches!(
-            adapter.capabilities().availability(Capability::NetworkRoaming),
+            adapter
+                .capabilities()
+                .availability(Capability::NetworkRoaming),
             Availability::Unsupported { .. }
         ));
         let runtime = AndroidRuntime::new(adapter);
@@ -472,11 +473,12 @@ mod tests {
     #[tokio::test]
     async fn android_host_exposes_offline_first_startup_evidence() {
         let adapter = AndroidBridgeAdapter::new(TestBridge::new());
-        let snapshot = infiltrator_application::offline_startup_application::OfflineStartupApplication::new(
-            Arc::new(adapter),
-        )
-        .snapshot()
-        .await;
+        let snapshot =
+            infiltrator_application::offline_startup_application::OfflineStartupApplication::new(
+                Arc::new(adapter),
+            )
+            .snapshot()
+            .await;
         assert!(snapshot.is_offline_startable());
         assert_eq!(
             snapshot.policy,
@@ -491,11 +493,10 @@ mod tests {
     #[tokio::test]
     async fn android_host_keeps_mtu_probe_unsupported_without_native_link_metrics() {
         let adapter = AndroidBridgeAdapter::new(TestBridge::new());
-        let snapshot = infiltrator_application::mtu_application::MtuApplication::new(Arc::new(
-            adapter,
-        ))
-        .probe()
-        .await;
+        let snapshot =
+            infiltrator_application::mtu_application::MtuApplication::new(Arc::new(adapter))
+                .probe()
+                .await;
         assert_eq!(
             snapshot.state,
             infiltrator_contract::mtu::MtuProbeState::Unsupported

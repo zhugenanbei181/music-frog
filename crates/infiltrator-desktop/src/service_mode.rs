@@ -53,8 +53,7 @@ impl ServiceModePort for DesktopServiceMode {
                 TunServiceManager::start_service().map_err(permission_error)?;
             }
             ServiceModeState::NotInstalled | ServiceModeState::MissingPrivilege => {
-                TunServiceManager::install_service(&self.binary_path)
-                    .map_err(permission_error)?;
+                TunServiceManager::install_service(&self.binary_path).map_err(permission_error)?;
                 TunServiceManager::start_service().map_err(permission_error)?;
             }
             ServiceModeState::Unavailable => {

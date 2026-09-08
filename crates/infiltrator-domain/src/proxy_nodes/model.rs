@@ -288,17 +288,37 @@ impl Bandwidth {
                 let trimmed = text.trim();
                 let lower = trimmed.to_ascii_lowercase();
                 if let Some(num_str) = lower.strip_suffix("gbps") {
-                    num_str.trim().parse::<f64>().ok().map(|n| (n * 1_000_000_000.0) as u64)
+                    num_str
+                        .trim()
+                        .parse::<f64>()
+                        .ok()
+                        .map(|n| (n * 1_000_000_000.0) as u64)
                 } else if let Some(num_str) = lower.strip_suffix("mbps") {
-                    num_str.trim().parse::<f64>().ok().map(|n| (n * 1_000_000.0) as u64)
+                    num_str
+                        .trim()
+                        .parse::<f64>()
+                        .ok()
+                        .map(|n| (n * 1_000_000.0) as u64)
                 } else if let Some(num_str) = lower.strip_suffix("kbps") {
-                    num_str.trim().parse::<f64>().ok().map(|n| (n * 1_000.0) as u64)
+                    num_str
+                        .trim()
+                        .parse::<f64>()
+                        .ok()
+                        .map(|n| (n * 1_000.0) as u64)
                 } else if let Some(num_str) = lower.strip_suffix("bps") {
                     num_str.trim().parse::<f64>().ok().map(|n| n as u64)
                 } else if let Some(num_str) = lower.strip_suffix("mb/s") {
-                    num_str.trim().parse::<f64>().ok().map(|n| (n * 8_000_000.0) as u64)
+                    num_str
+                        .trim()
+                        .parse::<f64>()
+                        .ok()
+                        .map(|n| (n * 8_000_000.0) as u64)
                 } else if let Some(num_str) = lower.strip_suffix("kb/s") {
-                    num_str.trim().parse::<f64>().ok().map(|n| (n * 8_000.0) as u64)
+                    num_str
+                        .trim()
+                        .parse::<f64>()
+                        .ok()
+                        .map(|n| (n * 8_000.0) as u64)
                 } else {
                     trimmed.parse::<u64>().ok()
                 }

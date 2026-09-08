@@ -6,15 +6,15 @@ use infiltrator_core::apply::{
     ApplyOutcome, ApplyParams, EndpointConfigReloader, apply_current_profile,
 };
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::proxy::ProxyGroup;
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStreamEvent};
 use mihomo_api::client::MihomoClient;
 use mihomo_api::proxy::manager::ProxyManager;
-use infiltrator_domain::proxy::ProxyGroup;
-use infiltrator_domain::rules::RuleEntry;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
@@ -22,9 +22,9 @@ use mihomo_version::manager::VersionManager;
 use reqwest::{Client, header::ACCEPT_ENCODING};
 use serde::Serialize;
 use serde_json::json;
-use sysinfo::{Pid, ProcessesToUpdate, System};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use sysinfo::{Pid, ProcessesToUpdate, System};
 use yaml_rust2::{Yaml, YamlLoader};
 
 use crate::service::{ServiceManager, ServiceStatus};
@@ -98,15 +98,17 @@ impl MihomoRuntime {
         data_dir: &Path,
         allow_network: bool,
     ) -> anyhow::Result<Self> {
-        let recovery = SystemProxyApplication::new(Arc::new(
-            crate::system_proxy::DesktopSystemProxy::new(),
-        ));
+        let recovery =
+            SystemProxyApplication::new(Arc::new(crate::system_proxy::DesktopSystemProxy::new()));
         let recovery_snapshot = recovery.recover_orphaned().await;
         if !matches!(
             &recovery_snapshot.status,
             infiltrator_contract::system_proxy::SystemProxyRecoveryStatus::NotNeeded
         ) {
-            log::warn!("system proxy startup recovery: {:?}", recovery_snapshot.status);
+            log::warn!(
+                "system proxy startup recovery: {:?}",
+                recovery_snapshot.status
+            );
         }
         let configs_dir = Self::settings_configs_dir().await;
         let home = mihomo_platform::paths::get_home_dir()?;
@@ -158,9 +160,8 @@ impl MihomoRuntime {
         let watchdog = infiltrator_composition::spawn_core_watchdog(application.clone());
         let client = MihomoClient::new(&endpoint.url, endpoint.secret.clone())?;
         let pac_service = Arc::new(crate::pac_service::DesktopPacServicePort::shared());
-        let network_roaming_port = Arc::new(
-            crate::network_roaming::DesktopNetworkRoamingPort::shared(),
-        );
+        let network_roaming_port =
+            Arc::new(crate::network_roaming::DesktopNetworkRoamingPort::shared());
 
         Ok(Self {
             config_manager: cm,
@@ -352,9 +353,7 @@ impl MihomoRuntime {
 
 #[async_trait::async_trait]
 impl RuntimeGateway for MihomoRuntime {
-    async fn get_config(
-        &self,
-    ) -> Result<infiltrator_domain::runtime::ConfigSnapshot, PortError> {
+    async fn get_config(&self) -> Result<infiltrator_domain::runtime::ConfigSnapshot, PortError> {
         self.client
             .get_config()
             .await
@@ -389,7 +388,11 @@ impl RuntimeGateway for MihomoRuntime {
         &self,
         mode: infiltrator_contract::command::ProxyMode,
     ) -> Result<(), PortError> {
-        match self.application.execute(infiltrator_contract::command::CommandIntent::SetProxyMode { mode }).await {
+        match self
+            .application
+            .execute(infiltrator_contract::command::CommandIntent::SetProxyMode { mode })
+            .await
+        {
             infiltrator_contract::command::CommandResult::Completed { .. } => Ok(()),
             infiltrator_contract::command::CommandResult::Rejected { failure, .. } => {
                 Err(PortError::Failed(failure.message))
@@ -417,12 +420,7 @@ impl RuntimeGateway for MihomoRuntime {
             .map_err(|error| PortError::Network(error.to_string()))
     }
 
-    async fn test_delay(
-        &self,
-        proxy: &str,
-        url: &str,
-        timeout_ms: u32,
-    ) -> Result<u32, PortError> {
+    async fn test_delay(&self, proxy: &str, url: &str, timeout_ms: u32) -> Result<u32, PortError> {
         self.client
             .test_delay(proxy, url, timeout_ms)
             .await
@@ -500,7 +498,9 @@ impl RuntimeGateway for MihomoRuntime {
         };
         let mut system = System::new();
         system.refresh_processes(ProcessesToUpdate::All, true);
-        Ok(system.process(Pid::from_u32(pid)).map(|process| process.cpu_usage()))
+        Ok(system
+            .process(Pid::from_u32(pid))
+            .map(|process| process.cpu_usage()))
     }
 
     async fn trigger_gc(&self) -> Result<(), PortError> {
@@ -538,8 +538,10 @@ impl RuntimeGateway for MihomoRuntime {
 
     async fn stream_traffic(
         &self,
-    ) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<infiltrator_domain::runtime::TrafficData>, PortError>
-    {
+    ) -> Result<
+        infiltrator_ports::runtime_gateway::RuntimeStream<infiltrator_domain::runtime::TrafficData>,
+        PortError,
+    > {
         let receiver = self
             .client
             .stream_traffic_events()
@@ -550,8 +552,12 @@ impl RuntimeGateway for MihomoRuntime {
 
     async fn stream_connections(
         &self,
-    ) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<infiltrator_domain::runtime::ConnectionSnapshot>, PortError>
-    {
+    ) -> Result<
+        infiltrator_ports::runtime_gateway::RuntimeStream<
+            infiltrator_domain::runtime::ConnectionSnapshot,
+        >,
+        PortError,
+    > {
         let receiver = self
             .client
             .stream_connections_events()
@@ -559,7 +565,6 @@ impl RuntimeGateway for MihomoRuntime {
             .map_err(|error| PortError::Network(error.to_string()))?;
         Ok(map_stream(receiver, Into::into))
     }
-
 }
 
 #[async_trait::async_trait]
@@ -634,7 +639,9 @@ impl HostRuntime for MihomoRuntime {
         }
     }
 
-    fn service_mode_port(&self) -> Option<Arc<dyn infiltrator_ports::service_mode::ServiceModePort>> {
+    fn service_mode_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::service_mode::ServiceModePort>> {
         Some(self.service_mode.clone())
     }
 
@@ -648,9 +655,7 @@ impl HostRuntime for MihomoRuntime {
         Some(Arc::new(crate::system_proxy::DesktopSystemProxy::new()))
     }
 
-    fn pac_service_port(
-        &self,
-    ) -> Option<Arc<dyn infiltrator_ports::pac::PacServicePort>> {
+    fn pac_service_port(&self) -> Option<Arc<dyn infiltrator_ports::pac::PacServicePort>> {
         Some(self.pac_service.clone())
     }
 

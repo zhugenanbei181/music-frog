@@ -274,6 +274,11 @@ fn projection_from_snapshot(snapshot: CoreSnapshot) -> OverviewProjection {
                 snapshot.revision.max(1),
                 "overview-only controller source does not include topology facts",
             ),
+        public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot::unsupported(
+            snapshot.generation,
+            snapshot.revision.max(1),
+            "overview-only controller source does not include public IP probe facts",
+        ),
         active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot::unsupported(
             snapshot.generation,
             snapshot.revision.max(1),

@@ -79,11 +79,9 @@ impl ScriptApplication {
 
         let mut console_logs = extract_console_logs(script, 0);
 
-        let run_result = self.engine.execute_transform_detailed(
-            script,
-            input_yaml,
-            HookStage::PreMerge,
-        );
+        let run_result =
+            self.engine
+                .execute_transform_detailed(script, input_yaml, HookStage::PreMerge);
 
         let elapsed_ms = start.elapsed().as_millis() as u64;
         let estimated_memory = script.len() + input_yaml.len() * 4 + 1024 * 1024; // baseline + buffers
@@ -98,7 +96,11 @@ impl ScriptApplication {
                 // Add additional parsed logs if not already captured
                 for log_msg in res.console_logs {
                     if !console_logs.iter().any(|l| l.message == log_msg) {
-                        console_logs.push(ScriptLogEntry::new(elapsed_ms, ScriptLogLevel::Log, log_msg));
+                        console_logs.push(ScriptLogEntry::new(
+                            elapsed_ms,
+                            ScriptLogLevel::Log,
+                            log_msg,
+                        ));
                     }
                 }
 
@@ -195,14 +197,24 @@ impl ScriptApplication {
 
     /// Export an extension package to a JSON string.
     pub fn export_extension(&self, pkg: &ExtensionPackage) -> Result<String, Failure> {
-        ScriptEngine::export_extension_package(pkg)
-            .map_err(|e| Failure::new(ErrorCode::Internal, format!("Failed to export extension package: {e}"), false))
+        ScriptEngine::export_extension_package(pkg).map_err(|e| {
+            Failure::new(
+                ErrorCode::Internal,
+                format!("Failed to export extension package: {e}"),
+                false,
+            )
+        })
     }
 
     /// Import and parse an extension package from a JSON string.
     pub fn import_extension(&self, json: &str) -> Result<ExtensionPackage, Failure> {
-        ScriptEngine::import_extension_package(json)
-            .map_err(|e| Failure::new(ErrorCode::Internal, format!("Failed to import extension package: {e}"), false))
+        ScriptEngine::import_extension_package(json).map_err(|e| {
+            Failure::new(
+                ErrorCode::Internal,
+                format!("Failed to import extension package: {e}"),
+                false,
+            )
+        })
     }
 }
 
@@ -251,15 +263,24 @@ mod tests {
             return config;
         }"#;
 
-        let input_yaml = "proxies:\n  - name: 🇭🇰 HK 01\n    type: ss\n  - name: 🇯🇵 JP 01\n    type: ss\n";
+        let input_yaml =
+            "proxies:\n  - name: 🇭🇰 HK 01\n    type: ss\n  - name: 🇯🇵 JP 01\n    type: ss\n";
         let snapshot = app.run_sandbox(script, input_yaml, Some("auto-country-groups"));
 
         assert_eq!(snapshot.status, ScriptSandboxStatus::Success);
         assert!(snapshot.transformed_yaml.is_some());
         assert!(snapshot.diff.is_some());
         assert!(snapshot.diff.as_ref().unwrap().has_differences());
-        assert_eq!(snapshot.selected_preset.as_deref(), Some("auto-country-groups"));
-        assert!(snapshot.console_logs.iter().any(|l| l.message.contains("Starting auto-grouping")));
+        assert_eq!(
+            snapshot.selected_preset.as_deref(),
+            Some("auto-country-groups")
+        );
+        assert!(
+            snapshot
+                .console_logs
+                .iter()
+                .any(|l| l.message.contains("Starting auto-grouping"))
+        );
     }
 
     #[test]

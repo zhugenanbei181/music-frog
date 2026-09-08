@@ -73,11 +73,7 @@ impl PacServicePort for DesktopPacServicePort {
     }
 
     async fn stop(&self) -> Result<(), PortError> {
-        let handle = self
-            .state
-            .lock()
-            .expect("PAC service state lock")
-            .take();
+        let handle = self.state.lock().expect("PAC service state lock").take();
         if let Some(mut handle) = handle
             && let Some(shutdown) = handle.shutdown.take()
         {
@@ -112,7 +108,11 @@ async fn serve_connection(mut stream: TcpStream, script: Arc<String>) {
         .next()
         .unwrap_or("");
     let (status, content_type, body) = if path == "/proxy.pac" || path == "/" {
-        ("200 OK", "application/x-ns-proxy-autoconfig", script.as_str())
+        (
+            "200 OK",
+            "application/x-ns-proxy-autoconfig",
+            script.as_str(),
+        )
     } else {
         ("404 Not Found", "text/plain; charset=utf-8", "not found")
     };

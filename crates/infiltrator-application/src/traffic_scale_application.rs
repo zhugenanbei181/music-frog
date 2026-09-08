@@ -7,10 +7,7 @@ use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 pub struct TrafficScaleApplication;
 
 impl TrafficScaleApplication {
-    pub fn compute(
-        &self,
-        waveform: &TrafficWaveformSnapshot,
-    ) -> TrafficScaleSnapshot {
+    pub fn compute(&self, waveform: &TrafficWaveformSnapshot) -> TrafficScaleSnapshot {
         infiltrator_domain::traffic_scale::compute(waveform, waveform.revision)
     }
 }

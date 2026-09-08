@@ -82,20 +82,16 @@ impl UwpLoopbackApplication {
                 {
                     return Err(Failure::new(
                         ErrorCode::InvalidState,
-                        format!(
-                            "UWP loopback bulk readback mismatch: requested {exempt}"
-                        ),
+                        format!("UWP loopback bulk readback mismatch: requested {exempt}"),
                         true,
                     ));
                 }
                 Ok(snapshot)
             }
             UwpLoopbackAvailability::Unsupported { reason }
-            | UwpLoopbackAvailability::Unavailable { reason } => Err(Failure::new(
-                ErrorCode::Unsupported,
-                reason.clone(),
-                false,
-            )),
+            | UwpLoopbackAvailability::Unavailable { reason } => {
+                Err(Failure::new(ErrorCode::Unsupported, reason.clone(), false))
+            }
         }
     }
 }
@@ -127,11 +123,9 @@ fn verify_package_state(
             Ok(())
         }
         UwpLoopbackAvailability::Unsupported { reason }
-        | UwpLoopbackAvailability::Unavailable { reason } => Err(Failure::new(
-            ErrorCode::Unsupported,
-            reason.clone(),
-            false,
-        )),
+        | UwpLoopbackAvailability::Unavailable { reason } => {
+            Err(Failure::new(ErrorCode::Unsupported, reason.clone(), false))
+        }
     }
 }
 

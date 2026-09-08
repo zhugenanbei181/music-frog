@@ -1,7 +1,7 @@
 //! L3 Anchor and Alias scanning and namespace rewriting.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
 use super::{SourceDoc, YamlEditError};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Kind of YAML anchor token.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

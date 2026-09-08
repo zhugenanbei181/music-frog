@@ -263,7 +263,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "lan_sharing_apply" => "应用局域网监听设置".into(),
         "lan_sharing_acl" => "允许接入的客户端 IP 白名单 (CIDR)".into(),
         "lan_security_title" => "局域网 ACL 与 HTTP 基本认证".into(),
-        "lan_security_desc" => "仅允许白名单网段接入，并可为 HTTP/SOCKS/Mixed 代理启用账号认证".into(),
+        "lan_security_desc" => {
+            "仅允许白名单网段接入，并可为 HTTP/SOCKS/Mixed 代理启用账号认证".into()
+        }
         "lan_security_allowed" => "允许网段 (CIDR)".into(),
         "lan_security_disallowed" => "拒绝网段 (CIDR)".into(),
         "lan_security_skip_auth" => "免认证网段 (CIDR)".into(),
@@ -274,7 +276,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "lan_security_disabled" => "未启用".into(),
         "lan_security_apply" => "应用 ACL 与认证设置".into(),
         "settings_ipv6_routing" => "允许 IPv6 内核流量".into(),
-        "settings_ipv6_routing_desc" => "关闭后由 Mihomo 内核拒绝 IPv6 流量，降低双栈旁路泄漏风险".into(),
+        "settings_ipv6_routing_desc" => {
+            "关闭后由 Mihomo 内核拒绝 IPv6 流量，降低双栈旁路泄漏风险".into()
+        }
         _ => key.to_string().into(),
     }
 }

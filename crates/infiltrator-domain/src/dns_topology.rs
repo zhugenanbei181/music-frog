@@ -1,7 +1,7 @@
 //! DNS topology anti-leak auditing and diagnostics.
 
-use serde::{Deserialize, Serialize};
 use crate::dns::DnsConfig;
+use serde::{Deserialize, Serialize};
 
 /// Diagnostic severity for DNS topology auditing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -36,7 +36,12 @@ pub fn validate_dns_topology(config: &DnsConfig) -> Vec<DnsTopologyDiagnostic> {
     }
 
     // Check Tier 1: Bootstrap nameserver
-    if config.default_nameserver.as_ref().map(|v| v.is_empty()).unwrap_or(true) {
+    if config
+        .default_nameserver
+        .as_ref()
+        .map(|v| v.is_empty())
+        .unwrap_or(true)
+    {
         diagnostics.push(DnsTopologyDiagnostic {
             severity: TopologySeverity::Warning,
             code: "BOOTSTRAP_DNS_MISSING".to_string(),
@@ -46,7 +51,12 @@ pub fn validate_dns_topology(config: &DnsConfig) -> Vec<DnsTopologyDiagnostic> {
     }
 
     // Check Tier 2: Direct nameserver
-    if config.direct_nameserver.as_ref().map(|v| v.is_empty()).unwrap_or(true) {
+    if config
+        .direct_nameserver
+        .as_ref()
+        .map(|v| v.is_empty())
+        .unwrap_or(true)
+    {
         diagnostics.push(DnsTopologyDiagnostic {
             severity: TopologySeverity::Info,
             code: "DIRECT_NAMESERVER_UNSET".to_string(),
@@ -56,7 +66,12 @@ pub fn validate_dns_topology(config: &DnsConfig) -> Vec<DnsTopologyDiagnostic> {
     }
 
     // Check Tier 3: Proxy server nameserver
-    if config.proxy_server_nameserver.as_ref().map(|v| v.is_empty()).unwrap_or(true) {
+    if config
+        .proxy_server_nameserver
+        .as_ref()
+        .map(|v| v.is_empty())
+        .unwrap_or(true)
+    {
         diagnostics.push(DnsTopologyDiagnostic {
             severity: TopologySeverity::Info,
             code: "PROXY_SERVER_NAMESERVER_UNSET".to_string(),
@@ -66,12 +81,22 @@ pub fn validate_dns_topology(config: &DnsConfig) -> Vec<DnsTopologyDiagnostic> {
     }
 
     // Check Fallback Filter & Fallback alignment
-    if config.fallback_filter.is_some() && config.fallback.as_ref().map(|v| v.is_empty()).unwrap_or(true) {
+    if config.fallback_filter.is_some()
+        && config
+            .fallback
+            .as_ref()
+            .map(|v| v.is_empty())
+            .unwrap_or(true)
+    {
         diagnostics.push(DnsTopologyDiagnostic {
             severity: TopologySeverity::Warning,
             code: "FALLBACK_FILTER_WITHOUT_FALLBACK".to_string(),
-            message: "fallback-filter is defined but fallback nameservers list is empty.".to_string(),
-            suggestion: Some("Add untainted fallback nameservers (e.g., https://8.8.8.8/dns-query#Proxy)".to_string()),
+            message: "fallback-filter is defined but fallback nameservers list is empty."
+                .to_string(),
+            suggestion: Some(
+                "Add untainted fallback nameservers (e.g., https://8.8.8.8/dns-query#Proxy)"
+                    .to_string(),
+            ),
         });
     }
 
@@ -97,9 +122,17 @@ pub fn validate_dns_topology(config: &DnsConfig) -> Vec<DnsTopologyDiagnostic> {
 
     // Check ECS Subnet safety
     if let Some(ecs) = config.edns_client_subnet.as_deref() {
-        let has_foreign_upstreams = config.nameserver.as_ref().map(|ns| {
-            ns.iter().any(|s| !s.contains("223.5.5.5") && !s.contains("119.29.29.29") && !s.contains("114.114.114.114"))
-        }).unwrap_or(false);
+        let has_foreign_upstreams = config
+            .nameserver
+            .as_ref()
+            .map(|ns| {
+                ns.iter().any(|s| {
+                    !s.contains("223.5.5.5")
+                        && !s.contains("119.29.29.29")
+                        && !s.contains("114.114.114.114")
+                })
+            })
+            .unwrap_or(false);
 
         if has_foreign_upstreams && config.ecs_override_policy.as_deref() != Some("strip") {
             diagnostics.push(DnsTopologyDiagnostic {

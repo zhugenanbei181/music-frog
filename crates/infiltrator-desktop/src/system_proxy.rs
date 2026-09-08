@@ -64,19 +64,25 @@ impl SystemProxyPort for DesktopSystemProxy {
     ) -> Result<(), PortError> {
         tokio::task::spawn_blocking(move || arm_recovery_sync(previous, desired))
             .await
-            .map_err(|error| PortError::Io(format!("system proxy journal worker failed: {error}")))?
+            .map_err(|error| {
+                PortError::Io(format!("system proxy journal worker failed: {error}"))
+            })?
     }
 
     async fn recover_orphaned(&self) -> Result<SystemProxyRecoveryReport, PortError> {
         tokio::task::spawn_blocking(recover_orphaned_sync)
             .await
-            .map_err(|error| PortError::Io(format!("system proxy recovery worker failed: {error}")))?
+            .map_err(|error| {
+                PortError::Io(format!("system proxy recovery worker failed: {error}"))
+            })?
     }
 
     async fn clear_recovery(&self) -> Result<(), PortError> {
         tokio::task::spawn_blocking(clear_recovery_sync)
             .await
-            .map_err(|error| PortError::Io(format!("system proxy journal worker failed: {error}")))?
+            .map_err(|error| {
+                PortError::Io(format!("system proxy journal worker failed: {error}"))
+            })?
     }
 
     async fn snapshot(&self) -> Result<SystemProxyObservation, PortError> {
@@ -222,7 +228,9 @@ fn recovery_journal_lock() -> std::sync::MutexGuard<'static, ()> {
 fn process_start_time(pid: u32) -> Option<u64> {
     let mut system = System::new();
     system.refresh_processes(ProcessesToUpdate::All, true);
-    system.process(Pid::from_u32(pid)).map(|process| process.start_time())
+    system
+        .process(Pid::from_u32(pid))
+        .map(|process| process.start_time())
 }
 
 fn owner_process_is_live(journal: &RecoveryJournal) -> bool {
@@ -278,7 +286,8 @@ fn recover_orphaned_sync() -> Result<SystemProxyRecoveryReport, PortError> {
         });
     }
     let observed = to_observation(
-        crate::proxy::read_system_proxy_state().map_err(|error| PortError::Io(error.to_string()))?,
+        crate::proxy::read_system_proxy_state()
+            .map_err(|error| PortError::Io(error.to_string()))?,
     );
     if !desired_matches(&journal.desired, &observed) {
         remove_journal().map_err(|error| PortError::Io(error.to_string()))?;
@@ -289,7 +298,8 @@ fn recover_orphaned_sync() -> Result<SystemProxyRecoveryReport, PortError> {
     }
     apply_observation(&journal.previous).map_err(|error| PortError::Io(error.to_string()))?;
     let restored = to_observation(
-        crate::proxy::read_system_proxy_state().map_err(|error| PortError::Io(error.to_string()))?,
+        crate::proxy::read_system_proxy_state()
+            .map_err(|error| PortError::Io(error.to_string()))?,
     );
     if !observation_matches(&journal.previous, &restored) {
         return Err(PortError::Failed(
@@ -322,10 +332,7 @@ fn apply_observation(observation: &SystemProxyObservation) -> anyhow::Result<()>
             .endpoint
             .as_deref()
             .ok_or_else(|| anyhow::anyhow!("enabled proxy state has no endpoint"))?;
-        crate::proxy::apply_system_proxy_with_bypass(
-            Some(endpoint),
-            observation.bypass.as_deref(),
-        )
+        crate::proxy::apply_system_proxy_with_bypass(Some(endpoint), observation.bypass.as_deref())
     } else {
         crate::proxy::apply_system_proxy(None)
     }
@@ -343,7 +350,10 @@ fn desired_matches(desired: &SystemProxyDesiredState, observed: &SystemProxyObse
                 .is_none_or(|bypass| observed.bypass.as_ref() == Some(bypass)))
 }
 
-fn observation_matches(expected: &SystemProxyObservation, observed: &SystemProxyObservation) -> bool {
+fn observation_matches(
+    expected: &SystemProxyObservation,
+    observed: &SystemProxyObservation,
+) -> bool {
     desired_matches(
         &SystemProxyDesiredState {
             enabled: expected.enabled,
@@ -421,7 +431,9 @@ mod tests {
             bypass: None,
         };
         arm_recovery_sync(previous.clone(), desired.clone()).expect("arm recovery");
-        let journal = read_journal().expect("read journal").expect("journal exists");
+        let journal = read_journal()
+            .expect("read journal")
+            .expect("journal exists");
         assert_eq!(journal.previous, previous);
         assert_eq!(journal.desired, desired);
         remove_journal().expect("remove journal");

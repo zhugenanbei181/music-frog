@@ -6,16 +6,16 @@ use std::{
     time::Instant,
 };
 
-use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::cache_application::CacheApplication;
+use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::network_application::NetworkApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
-use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::subscription_source::SubscriptionSource;
 
 use super::events::AdminEventBus;
 use super::models::{RebuildStatusResponse, RuntimeTrafficSnapshotResponse};
@@ -35,7 +35,9 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     /// Public-egress probe owned by the host composition; the REST adapter
     /// never constructs an HTTP client itself.
     async fn network_application(&self) -> anyhow::Result<NetworkApplication> {
-        Err(anyhow::anyhow!("public IP probe is unavailable in this host"))
+        Err(anyhow::anyhow!(
+            "public IP probe is unavailable in this host"
+        ))
     }
 
     async fn rebuild_runtime(&self) -> anyhow::Result<()>;

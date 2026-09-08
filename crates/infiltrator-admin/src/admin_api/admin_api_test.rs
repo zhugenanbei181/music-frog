@@ -10,17 +10,17 @@ mod tests {
         body::Body,
         http::{Request, StatusCode},
     };
-    use infiltrator_core::settings_io::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY};
-    use infiltrator_domain::settings::AppSettings;
     use infiltrator_contract::version::{
         CoreRelease, CoreReleaseChannel, CoreReleaseSummary, InstalledCoreVersion,
     };
+    use infiltrator_core::settings_io::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY};
+    use infiltrator_domain::settings::AppSettings;
+    use infiltrator_ports::error::PortError;
+    use infiltrator_ports::runtime_gateway::RuntimeGateway;
+    use infiltrator_ports::version::{VersionPort, VersionProgressSink};
     use mihomo_api::client::MihomoClient;
     use mihomo_platform::TEST_LOCK;
     use mihomo_platform::defaults::DefaultCredentialStore;
-    use infiltrator_ports::runtime_gateway::RuntimeGateway;
-    use infiltrator_ports::error::PortError;
-    use infiltrator_ports::version::{VersionPort, VersionProgressSink};
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt; // for `oneshot`, `ready`, and `call`
 
@@ -48,11 +48,7 @@ mod tests {
 
     /// 内存密码库的键：service/key 拼接，语义与真实 keyring 一致。
     fn secrets_key() -> String {
-        format!(
-            "{}/{}",
-            WEBDAV_CREDENTIAL_SERVICE,
-            WEBDAV_PASSWORD_KEY
-        )
+        format!("{}/{}", WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY)
     }
 
     type SharedSecrets = Arc<Mutex<std::collections::HashMap<String, String>>>;
@@ -61,7 +57,8 @@ mod tests {
     impl AdminApiContext for MockContext {
         async fn profile_application(
             &self,
-        ) -> anyhow::Result<infiltrator_application::profile_application::ProfileApplication> {
+        ) -> anyhow::Result<infiltrator_application::profile_application::ProfileApplication>
+        {
             crate::support::profile_application().await
         }
 
@@ -75,14 +72,16 @@ mod tests {
 
         async fn doctor_application(
             &self,
-        ) -> anyhow::Result<infiltrator_application::doctor_application::DoctorApplication> {
+        ) -> anyhow::Result<infiltrator_application::doctor_application::DoctorApplication>
+        {
             crate::support::doctor_application()
         }
 
         async fn profile_reset_application(
             &self,
-        ) -> anyhow::Result<infiltrator_application::profile_reset_application::ProfileResetApplication>
-        {
+        ) -> anyhow::Result<
+            infiltrator_application::profile_reset_application::ProfileResetApplication,
+        > {
             Ok(crate::support::profile_reset_application())
         }
 
@@ -94,9 +93,8 @@ mod tests {
 
         async fn subscription_source(
             &self,
-        ) -> anyhow::Result<
-            Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource>,
-        > {
+        ) -> anyhow::Result<Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource>>
+        {
             Ok(crate::support::subscription_source())
         }
 
@@ -180,7 +178,8 @@ mod tests {
                 .runtime_url
                 .as_deref()
                 .ok_or_else(|| anyhow!("runtime url is not configured"))?;
-            let client = MihomoClient::new(runtime_url, None).map_err(|e| anyhow!(e.to_string()))?;
+            let client =
+                MihomoClient::new(runtime_url, None).map_err(|e| anyhow!(e.to_string()))?;
             Ok(Arc::new(client))
         }
         async fn system_proxy_enabled(&self) -> bool {
@@ -266,10 +265,7 @@ mod tests {
             })
         }
 
-        async fn list_releases(
-            &self,
-            _limit: usize,
-        ) -> Result<Vec<CoreReleaseSummary>, PortError> {
+        async fn list_releases(&self, _limit: usize) -> Result<Vec<CoreReleaseSummary>, PortError> {
             Ok(Vec::new())
         }
 
@@ -282,7 +278,8 @@ mod tests {
         }
 
         async fn activate(&self, version: &str) -> Result<(), PortError> {
-            std::fs::create_dir_all(&self.home).map_err(|error| PortError::Io(error.to_string()))?;
+            std::fs::create_dir_all(&self.home)
+                .map_err(|error| PortError::Io(error.to_string()))?;
             std::fs::write(
                 self.home.join("config.toml"),
                 format!("version = \"{version}\"\n"),
@@ -302,11 +299,13 @@ mod tests {
             runtime_url: None,
             settings: Arc::new(Mutex::new(AppSettings::default())),
             secrets: Arc::new(Mutex::new(std::collections::HashMap::new())),
-            version: Some(infiltrator_application::version_application::VersionApplication::new(
-                Arc::new(StaticVersionPort {
-                    home: home.to_path_buf(),
-                }),
-            )),
+            version: Some(
+                infiltrator_application::version_application::VersionApplication::new(Arc::new(
+                    StaticVersionPort {
+                        home: home.to_path_buf(),
+                    },
+                )),
+            ),
         };
         let bus = events::AdminEventBus::new();
         router(AdminApiState::new(ctx, bus))

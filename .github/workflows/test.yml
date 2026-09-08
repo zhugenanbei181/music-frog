@@ -217,6 +217,8 @@ jobs:
 
       - name: Enforce DUAL-03-10 Overview metrics grid parity
         run: python3 scripts/quality/overview-metrics-grid-guard.py --mode enforce
+      - name: Run Overview Public IP Probe Guard
+        run: python3 scripts/quality/overview-ip-probe-guard.py --mode enforce
 
       # Bevy UI bsn! 场景法守卫（BEVY-004）：两个 bevy crate 的生产代码里 UI 树
       # 只能在 bsn! 场景内声明并经 spawn_scene 挂载；豁免（Camera2d/Observer）

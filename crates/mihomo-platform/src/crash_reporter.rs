@@ -879,10 +879,7 @@ impl CleanExitHook {
         #[cfg(windows)]
         {
             let signal_received = Arc::new(AtomicBool::new(false));
-            signal_hook::flag::register(
-                signal_hook::consts::SIGINT,
-                Arc::clone(&signal_received),
-            )?;
+            signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&signal_received))?;
             std::thread::Builder::new()
                 .name("infiltrator-exit-cleanup".to_owned())
                 .spawn(move || {

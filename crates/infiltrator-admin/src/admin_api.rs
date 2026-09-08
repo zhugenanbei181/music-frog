@@ -201,9 +201,15 @@ pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
         )
         .route("/admin/api/audit", get(get_audit_http::<C>))
         .route("/admin/api/webhook", post(handle_webhook_http::<C>))
-        .route("/admin/api/scripts/presets", get(list_script_presets_http::<C>))
+        .route(
+            "/admin/api/scripts/presets",
+            get(list_script_presets_http::<C>),
+        )
         .route("/admin/api/scripts/execute", post(execute_script_http::<C>))
-        .route("/admin/api/scripts/validate", post(validate_script_http::<C>))
+        .route(
+            "/admin/api/scripts/validate",
+            post(validate_script_http::<C>),
+        )
         .route(
             "/admin/api/extensions/package/export",
             post(export_extension_package_http::<C>),

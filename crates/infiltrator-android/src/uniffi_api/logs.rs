@@ -6,8 +6,8 @@ use std::sync::{Mutex, OnceLock};
 use futures_util::StreamExt;
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
 
-use crate::host_support::{build_runtime_query_application, get_runtime, map_application_failure};
 use crate::ffi::{FfiErrorCode, FfiStatus};
+use crate::host_support::{build_runtime_query_application, get_runtime, map_application_failure};
 
 // --- Log Buffer ---
 

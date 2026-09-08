@@ -166,10 +166,7 @@ impl JitterCalculation {
 
         // Mean consecutive difference jitter
         let jitter_ms = if successful_probes > 1 {
-            let diff_sum: f64 = valid_rtts
-                .windows(2)
-                .map(|w| (w[1] - w[0]).abs())
-                .sum();
+            let diff_sum: f64 = valid_rtts.windows(2).map(|w| (w[1] - w[0]).abs()).sum();
             diff_sum / (successful_probes - 1) as f64
         } else {
             0.0
@@ -218,13 +215,7 @@ impl JitterCalculation {
     }
 
     pub fn demo_fixture() -> Self {
-        Self::from_samples(&[
-            Some(38),
-            Some(41),
-            Some(36),
-            Some(39),
-            Some(37),
-        ])
+        Self::from_samples(&[Some(38), Some(41), Some(36), Some(39), Some(37)])
     }
 }
 
@@ -356,12 +347,7 @@ impl SpeedtestSnapshot {
     pub fn demo_fixture() -> Self {
         let mut node_results = BTreeMap::new();
 
-        let hk_calc = JitterCalculation::from_samples(&[
-            Some(36),
-            Some(38),
-            Some(35),
-            Some(37),
-        ]);
+        let hk_calc = JitterCalculation::from_samples(&[Some(36), Some(38), Some(35), Some(37)]);
         node_results.insert(
             "🇭🇰 香港 01 · BGP 专线".to_string(),
             NodeSpeedtestResult {
@@ -380,12 +366,7 @@ impl SpeedtestSnapshot {
             },
         );
 
-        let jp_calc = JitterCalculation::from_samples(&[
-            Some(65),
-            Some(68),
-            Some(64),
-            Some(66),
-        ]);
+        let jp_calc = JitterCalculation::from_samples(&[Some(65), Some(68), Some(64), Some(66)]);
         node_results.insert(
             "🇯🇵 日本东京 02 · 极速".to_string(),
             NodeSpeedtestResult {
@@ -474,13 +455,11 @@ impl SpeedtestSnapshot {
 
     pub fn sorted_by_latency(&self) -> Vec<&NodeSpeedtestResult> {
         let mut list: Vec<&NodeSpeedtestResult> = self.node_results.values().collect();
-        list.sort_by(|a, b| {
-            match (a.delay_ms, b.delay_ms) {
-                (Some(da), Some(db)) => da.cmp(&db),
-                (Some(_), None) => std::cmp::Ordering::Less,
-                (None, Some(_)) => std::cmp::Ordering::Greater,
-                (None, None) => a.node_name.cmp(&b.node_name),
-            }
+        list.sort_by(|a, b| match (a.delay_ms, b.delay_ms) {
+            (Some(da), Some(db)) => da.cmp(&db),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => a.node_name.cmp(&b.node_name),
         });
         list
     }
@@ -492,16 +471,46 @@ mod tests {
 
     #[test]
     fn test_packet_loss_gradient_ratings() {
-        assert_eq!(PacketLossRating::from_loss_percent(0.0), PacketLossRating::Excellent);
-        assert_eq!(PacketLossRating::from_loss_percent(0.00005), PacketLossRating::Excellent);
-        assert_eq!(PacketLossRating::from_loss_percent(1.5), PacketLossRating::Good);
-        assert_eq!(PacketLossRating::from_loss_percent(5.0), PacketLossRating::Good);
-        assert_eq!(PacketLossRating::from_loss_percent(5.1), PacketLossRating::Fair);
-        assert_eq!(PacketLossRating::from_loss_percent(15.0), PacketLossRating::Fair);
-        assert_eq!(PacketLossRating::from_loss_percent(20.0), PacketLossRating::Fair);
-        assert_eq!(PacketLossRating::from_loss_percent(20.1), PacketLossRating::Poor);
-        assert_eq!(PacketLossRating::from_loss_percent(50.0), PacketLossRating::Poor);
-        assert_eq!(PacketLossRating::from_loss_percent(100.0), PacketLossRating::Dead);
+        assert_eq!(
+            PacketLossRating::from_loss_percent(0.0),
+            PacketLossRating::Excellent
+        );
+        assert_eq!(
+            PacketLossRating::from_loss_percent(0.00005),
+            PacketLossRating::Excellent
+        );
+        assert_eq!(
+            PacketLossRating::from_loss_percent(1.5),
+            PacketLossRating::Good
+        );
+        assert_eq!(
+            PacketLossRating::from_loss_percent(5.0),
+            PacketLossRating::Good
+        );
+        assert_eq!(
+            PacketLossRating::from_loss_percent(5.1),
+            PacketLossRating::Fair
+        );
+        assert_eq!(
+            PacketLossRating::from_loss_percent(15.0),
+            PacketLossRating::Fair
+        );
+        assert_eq!(
+            PacketLossRating::from_loss_percent(20.0),
+            PacketLossRating::Fair
+        );
+        assert_eq!(
+            PacketLossRating::from_loss_percent(20.1),
+            PacketLossRating::Poor
+        );
+        assert_eq!(
+            PacketLossRating::from_loss_percent(50.0),
+            PacketLossRating::Poor
+        );
+        assert_eq!(
+            PacketLossRating::from_loss_percent(100.0),
+            PacketLossRating::Dead
+        );
     }
 
     #[test]
@@ -511,12 +520,7 @@ mod tests {
         // Diff from mean: 0, 10, -10, 0 -> squared: 0, 100, 100, 0 = 200
         // Variance = 200 / 3 = 66.666...
         // Std Dev = sqrt(66.666...) ≈ 8.165
-        let calc = JitterCalculation::from_samples(&[
-            Some(100),
-            Some(110),
-            Some(90),
-            Some(100),
-        ]);
+        let calc = JitterCalculation::from_samples(&[Some(100), Some(110), Some(90), Some(100)]);
 
         assert_eq!(calc.sample_count, 4);
         assert_eq!(calc.successful_probes, 4);
@@ -534,13 +538,7 @@ mod tests {
 
     #[test]
     fn test_jitter_calculation_with_packet_loss() {
-        let calc = JitterCalculation::from_samples(&[
-            Some(50),
-            None,
-            Some(60),
-            Some(55),
-            None,
-        ]);
+        let calc = JitterCalculation::from_samples(&[Some(50), None, Some(60), Some(55), None]);
 
         assert_eq!(calc.sample_count, 5);
         assert_eq!(calc.successful_probes, 3);

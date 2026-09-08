@@ -163,11 +163,10 @@ fn summarize_rules(connections: &[Connection]) -> String {
         *counts.entry(rule.to_owned()).or_default() += 1;
     }
     let total = connections.len();
-    let Some((rule, count)) = counts.into_iter().max_by(|left, right| {
-        left.1
-            .cmp(&right.1)
-            .then_with(|| right.0.cmp(&left.0))
-    }) else {
+    let Some((rule, count)) = counts
+        .into_iter()
+        .max_by(|left, right| left.1.cmp(&right.1).then_with(|| right.0.cmp(&left.0)))
+    else {
         return if total == 0 {
             "waiting for rule decision".to_owned()
         } else {
@@ -181,10 +180,7 @@ fn summarize_rules(connections: &[Connection]) -> String {
     }
 }
 
-fn select_group(
-    connections: &[Connection],
-    proxies: &HashMap<String, Proxy>,
-) -> Option<String> {
+fn select_group(connections: &[Connection], proxies: &HashMap<String, Proxy>) -> Option<String> {
     let mut counts = BTreeMap::<String, usize>::new();
     for connection in connections {
         for chain in &connection.chains {
@@ -194,11 +190,10 @@ fn select_group(
             }
         }
     }
-    if let Some((group, _)) = counts.into_iter().max_by(|left, right| {
-        left.1
-            .cmp(&right.1)
-            .then_with(|| right.0.cmp(&left.0))
-    }) {
+    if let Some((group, _)) = counts
+        .into_iter()
+        .max_by(|left, right| left.1.cmp(&right.1).then_with(|| right.0.cmp(&left.0)))
+    {
         return Some(group);
     }
 
@@ -232,11 +227,10 @@ fn select_outbound(
             }
         }
     }
-    if let Some((outbound, _)) = counts.into_iter().max_by(|left, right| {
-        left.1
-            .cmp(&right.1)
-            .then_with(|| right.0.cmp(&left.0))
-    }) {
+    if let Some((outbound, _)) = counts
+        .into_iter()
+        .max_by(|left, right| left.1.cmp(&right.1).then_with(|| right.0.cmp(&left.0)))
+    {
         return proxy_detail(&outbound, proxies);
     }
 
@@ -260,7 +254,7 @@ fn proxy_detail(name: &str, proxies: &HashMap<String, Proxy>) -> String {
 mod tests {
     use super::*;
     use crate::proxy::{ProxyBase, ProxyGroup, Shadowsocks};
-    use crate::runtime::{ConnectionMetadata, ConfigSnapshot};
+    use crate::runtime::{ConfigSnapshot, ConnectionMetadata};
 
     fn connection(chains: &[&str], rule: &str) -> Connection {
         Connection {
@@ -326,11 +320,13 @@ mod tests {
             snapshot.node(TrafficTopologyStage::Inbound).unwrap().detail,
             "Mixed :7890"
         );
-        assert!(snapshot
-            .node(TrafficTopologyStage::Outbound)
-            .unwrap()
-            .detail
-            .contains("38 ms"));
+        assert!(
+            snapshot
+                .node(TrafficTopologyStage::Outbound)
+                .unwrap()
+                .detail
+                .contains("38 ms")
+        );
         assert_eq!(snapshot.flow_bps, 10_000.0);
     }
 
@@ -384,7 +380,10 @@ mod tests {
             "DOMAIN · 2 flows"
         );
         assert_eq!(
-            snapshot.node(TrafficTopologyStage::ProxyGroup).unwrap().detail,
+            snapshot
+                .node(TrafficTopologyStage::ProxyGroup)
+                .unwrap()
+                .detail,
             "not reported"
         );
     }

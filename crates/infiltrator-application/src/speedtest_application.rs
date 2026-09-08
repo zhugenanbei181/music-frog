@@ -192,7 +192,9 @@ impl SpeedtestApplication {
         }
 
         for item in collected.into_iter().flatten() {
-            final_state.node_results.insert(item.node_name.clone(), item);
+            final_state
+                .node_results
+                .insert(item.node_name.clone(), item);
         }
 
         final_state.progress.percent = 100.0;
@@ -223,7 +225,11 @@ impl SpeedtestApplication {
 
         for _ in 0..rounds {
             if self.cancel_token.load(Ordering::Relaxed) {
-                return Err(Failure::new(infiltrator_contract::error::ErrorCode::Canceled, "jitter probe cancelled", false));
+                return Err(Failure::new(
+                    infiltrator_contract::error::ErrorCode::Canceled,
+                    "jitter probe cancelled",
+                    false,
+                ));
             }
             let res = self.gateway.test_delay(node, &test_url, timeout_ms).await;
             match res {
@@ -397,7 +403,11 @@ fn build_historical_record(
     test_url: &str,
 ) -> HistoricalSpeedtestRecord {
     let total_nodes = snapshot.node_results.len();
-    let alive_nodes = snapshot.node_results.values().filter(|n| n.is_alive).count();
+    let alive_nodes = snapshot
+        .node_results
+        .values()
+        .filter(|n| n.is_alive)
+        .count();
 
     let valid_delays: Vec<u32> = snapshot
         .node_results
@@ -675,7 +685,11 @@ mod tests {
             Proxy::Selector(ProxyGroup {
                 name: "GLOBAL".to_string(),
                 now: "HK-Node-1".to_string(),
-                all: vec!["HK-Node-1".to_string(), "HK-Node-2".to_string(), "JP-Node-1".to_string()],
+                all: vec![
+                    "HK-Node-1".to_string(),
+                    "HK-Node-2".to_string(),
+                    "JP-Node-1".to_string(),
+                ],
                 history: Vec::new(),
             }),
         );
@@ -723,10 +737,12 @@ mod tests {
             );
         }
 
-        let gateway = Arc::new(TestGateway::new(map).with_delay_fn(|_name, _url, _timeout| {
-            std::thread::sleep(std::time::Duration::from_millis(15));
-            Ok(50)
-        }));
+        let gateway = Arc::new(
+            TestGateway::new(map).with_delay_fn(|_name, _url, _timeout| {
+                std::thread::sleep(std::time::Duration::from_millis(15));
+                Ok(50)
+            }),
+        );
 
         let app = SpeedtestApplication::new(gateway.clone()).with_concurrency(30);
 
@@ -747,11 +763,13 @@ mod tests {
         let u_clone = Arc::clone(&observed_url);
         let t_clone = Arc::clone(&observed_timeout);
 
-        let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(move |_node, url, timeout| {
-            *u_clone.lock().unwrap() = url.to_string();
-            t_clone.store(timeout, Ordering::SeqCst);
-            Ok(35)
-        }));
+        let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(
+            move |_node, url, timeout| {
+                *u_clone.lock().unwrap() = url.to_string();
+                t_clone.store(timeout, Ordering::SeqCst);
+                Ok(35)
+            },
+        ));
 
         let app = SpeedtestApplication::new(gateway);
 
@@ -781,14 +799,12 @@ mod tests {
         // Sequence of RTTs: 40, 50, 40, 50
         // Mean = 45.0
         // Sample std dev = sqrt((( -5 )^2 * 4) / 3) = sqrt(100 / 3) ≈ 5.7735
-        let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(move |_node, _url, _timeout| {
-            let idx = p_clone.fetch_add(1, Ordering::SeqCst);
-            if idx % 2 == 0 {
-                Ok(40)
-            } else {
-                Ok(50)
-            }
-        }));
+        let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(
+            move |_node, _url, _timeout| {
+                let idx = p_clone.fetch_add(1, Ordering::SeqCst);
+                if idx % 2 == 0 { Ok(40) } else { Ok(50) }
+            },
+        ));
 
         let app = SpeedtestApplication::new(gateway);
         let jitter = app
@@ -811,12 +827,14 @@ mod tests {
         let app_holder: Arc<Mutex<Option<SpeedtestApplication>>> = Arc::new(Mutex::new(None));
         let app_holder_clone = Arc::clone(&app_holder);
 
-        let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(move |_node, _url, _timeout| {
-            if let Some(ref app) = *app_holder_clone.lock().unwrap() {
-                app.cancel();
-            }
-            Ok(40)
-        }));
+        let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(
+            move |_node, _url, _timeout| {
+                if let Some(ref app) = *app_holder_clone.lock().unwrap() {
+                    app.cancel();
+                }
+                Ok(40)
+            },
+        ));
 
         let app = SpeedtestApplication::new(gateway);
         *app_holder.lock().unwrap() = Some(app.clone());
@@ -836,7 +854,11 @@ mod tests {
 
         for _ in 0..5 {
             let _ = app
-                .test_delays(SpeedtestScope::SingleNode("HK-Node-1".to_string()), None, None)
+                .test_delays(
+                    SpeedtestScope::SingleNode("HK-Node-1".to_string()),
+                    None,
+                    None,
+                )
                 .await;
         }
 

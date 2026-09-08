@@ -24,13 +24,19 @@ impl MihomoDoctor {
 
 #[async_trait::async_trait]
 impl DoctorPort for MihomoDoctor {
-    async fn run(&self, filter: Option<String>) -> Result<infiltrator_contract::doctor::DoctorReport, PortError> {
+    async fn run(
+        &self,
+        filter: Option<String>,
+    ) -> Result<infiltrator_contract::doctor::DoctorReport, PortError> {
         Ok(convert_report(
             crate::doctor::run_with(&self.environment, filter.as_deref()).await,
         ))
     }
 
-    async fn fix(&self, filter: Option<String>) -> Result<infiltrator_contract::doctor::DoctorFixReport, PortError> {
+    async fn fix(
+        &self,
+        filter: Option<String>,
+    ) -> Result<infiltrator_contract::doctor::DoctorFixReport, PortError> {
         crate::doctor::fix_with(&self.environment, filter.as_deref())
             .await
             .map(convert_fix_report)
@@ -53,7 +59,10 @@ impl DoctorPort for MihomoDoctor {
             .collect()
     }
 
-    fn explain(&self, check_id: &str) -> Result<infiltrator_contract::doctor::DoctorCheckMeta, PortError> {
+    fn explain(
+        &self,
+        check_id: &str,
+    ) -> Result<infiltrator_contract::doctor::DoctorCheckMeta, PortError> {
         let meta = crate::doctor::explain_check(check_id).map_err(adapter_error)?;
         Ok(infiltrator_contract::doctor::DoctorCheckMeta {
             id: meta.id.to_owned(),
@@ -79,7 +88,9 @@ fn adapter_error(error: impl std::fmt::Display) -> PortError {
     PortError::Failed(error.to_string())
 }
 
-fn convert_report(report: crate::doctor::DoctorReport) -> infiltrator_contract::doctor::DoctorReport {
+fn convert_report(
+    report: crate::doctor::DoctorReport,
+) -> infiltrator_contract::doctor::DoctorReport {
     infiltrator_contract::doctor::DoctorReport {
         started_at: report.started_at,
         finished_at: report.finished_at,
@@ -90,10 +101,18 @@ fn convert_report(report: crate::doctor::DoctorReport) -> infiltrator_contract::
                 id: check.id,
                 category: check.category,
                 status: match check.status {
-                    crate::doctor::DoctorStatus::Pass => infiltrator_contract::doctor::DoctorStatus::Pass,
-                    crate::doctor::DoctorStatus::Warn => infiltrator_contract::doctor::DoctorStatus::Warn,
-                    crate::doctor::DoctorStatus::Fail => infiltrator_contract::doctor::DoctorStatus::Fail,
-                    crate::doctor::DoctorStatus::Skip => infiltrator_contract::doctor::DoctorStatus::Skip,
+                    crate::doctor::DoctorStatus::Pass => {
+                        infiltrator_contract::doctor::DoctorStatus::Pass
+                    }
+                    crate::doctor::DoctorStatus::Warn => {
+                        infiltrator_contract::doctor::DoctorStatus::Warn
+                    }
+                    crate::doctor::DoctorStatus::Fail => {
+                        infiltrator_contract::doctor::DoctorStatus::Fail
+                    }
+                    crate::doctor::DoctorStatus::Skip => {
+                        infiltrator_contract::doctor::DoctorStatus::Skip
+                    }
                 },
                 summary: check.summary,
                 detail: check.detail,
@@ -103,7 +122,9 @@ fn convert_report(report: crate::doctor::DoctorReport) -> infiltrator_contract::
     }
 }
 
-fn convert_fix_report(report: crate::doctor::DoctorFixReport) -> infiltrator_contract::doctor::DoctorFixReport {
+fn convert_fix_report(
+    report: crate::doctor::DoctorFixReport,
+) -> infiltrator_contract::doctor::DoctorFixReport {
     infiltrator_contract::doctor::DoctorFixReport {
         actions: report
             .actions

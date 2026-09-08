@@ -5,11 +5,11 @@
 //! Mihomo REST adapter. UI crates may consume the returned application pump,
 //! but do not construct `MihomoClient` themselves.
 
-use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::overview::{OverviewConfig, OverviewPump, UnavailableOverviewReader};
-use infiltrator_application::offline_startup_application::OfflineStartupApplication;
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::mtu_application::MtuApplication;
+use infiltrator_application::offline_startup_application::OfflineStartupApplication;
+use infiltrator_application::overview::{OverviewConfig, OverviewPump, UnavailableOverviewReader};
 use infiltrator_ios::{IosBridge, IosHostAdapter};
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,

@@ -4,8 +4,8 @@
 
 use std::path::{Path, PathBuf};
 
-use mihomo_api::error::{MihomoError, Result};
 use infiltrator_ports::secure_store::SecureStore;
+use mihomo_api::error::{MihomoError, Result};
 use tokio::fs;
 
 use super::ConfigManager;
@@ -270,8 +270,8 @@ mod tests {
         let cloud = temp_dir.path().join("cloud").join("sync");
 
         set_env(cloud.to_str().unwrap());
-        let manager = crate::manager::ConfigManager::with_home_and_store(home.clone(), TestStore)
-            .unwrap();
+        let manager =
+            crate::manager::ConfigManager::with_home_and_store(home.clone(), TestStore).unwrap();
         clear_env();
 
         assert_eq!(manager.config_dir, cloud);
@@ -302,7 +302,6 @@ mod tests {
         )
         .unwrap();
         assert_eq!(manager.config_dir, temp_dir.path().join("configs"));
-
     }
 
     struct TestStore;

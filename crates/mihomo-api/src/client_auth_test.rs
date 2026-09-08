@@ -17,11 +17,7 @@ async fn test_get_version_injects_controller_secret_as_bearer_auth() {
         .create_async()
         .await;
 
-    let client = MihomoClient::new(
-        &server.url(),
-        Some("generated-by-host".to_owned()),
-    )
-    .unwrap();
+    let client = MihomoClient::new(&server.url(), Some("generated-by-host".to_owned())).unwrap();
     client.get_version().await.unwrap();
     mock.assert_async().await;
 }
@@ -38,11 +34,7 @@ async fn test_patch_config_changes_log_level_and_surfaces_rejection() {
         .with_status(204)
         .create_async()
         .await;
-    let client = MihomoClient::new(
-        &server.url(),
-        Some("generated-by-host".to_owned()),
-    )
-    .unwrap();
+    let client = MihomoClient::new(&server.url(), Some("generated-by-host".to_owned())).unwrap();
     client
         .patch_config(json!({ "log-level": "debug" }))
         .await
@@ -54,7 +46,12 @@ async fn test_patch_config_changes_log_level_and_surfaces_rejection() {
         .with_status(400)
         .create_async()
         .await;
-    assert!(client.patch_config(json!({ "log-level": "trace" })).await.is_err());
+    assert!(
+        client
+            .patch_config(json!({ "log-level": "trace" }))
+            .await
+            .is_err()
+    );
     rejected.assert_async().await;
 }
 
@@ -67,11 +64,7 @@ async fn test_trigger_gc_uses_authenticated_debug_endpoint() {
         .with_status(204)
         .create_async()
         .await;
-    let client = MihomoClient::new(
-        &server.url(),
-        Some("generated-by-host".to_owned()),
-    )
-    .unwrap();
+    let client = MihomoClient::new(&server.url(), Some("generated-by-host".to_owned())).unwrap();
     client.trigger_gc().await.unwrap();
     mock.assert_async().await;
 }

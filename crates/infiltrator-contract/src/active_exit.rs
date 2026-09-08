@@ -78,7 +78,8 @@ impl ActiveExitSnapshot {
     }
 
     pub fn is_drawable(&self) -> bool {
-        self.status == ActiveExitStatus::Ready && self.name.as_ref().is_some_and(|name| !name.is_empty())
+        self.status == ActiveExitStatus::Ready
+            && self.name.as_ref().is_some_and(|name| !name.is_empty())
     }
 }
 

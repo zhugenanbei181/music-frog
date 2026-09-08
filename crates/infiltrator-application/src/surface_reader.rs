@@ -5,31 +5,30 @@
 //! turns their results into the one contract read model consumed by Iced and
 //! Bevy.
 
-use infiltrator_domain::rules::types::parse_rule_str;
+use crate::active_exit_application::ActiveExitApplication;
 use crate::configuration_application::ConfigurationApplication;
 use crate::core_application::CoreApplication;
 use crate::doctor_application::DoctorApplication;
-use crate::profile_application::ProfileApplication;
-use crate::port_conflict_application::PortConflictApplication;
-use crate::resource_application::ResourceApplication;
-use crate::routing_application::RoutingApplication;
-use crate::settings_application::SettingsApplication;
-use crate::snapshot_application::SnapshotApplication;
-use crate::service_mode_application::ServiceModeApplication;
-use crate::version_application::VersionApplication;
-use crate::uwp_loopback_application::UwpLoopbackApplication;
-use crate::pac_application::PacApplication;
-use crate::offline_startup_application::OfflineStartupApplication;
 use crate::mtu_application::MtuApplication;
 use crate::network_roaming_application::NetworkRoamingApplication;
-use crate::vpn_application::VpnServiceApplication;
+use crate::offline_startup_application::OfflineStartupApplication;
+use crate::pac_application::PacApplication;
+use crate::port_conflict_application::PortConflictApplication;
 use crate::privileged_network_application::PrivilegedNetworkApplication;
-use crate::traffic_waveform_application::TrafficWaveformApplication;
-use crate::traffic_scale_application::TrafficScaleApplication;
-use crate::traffic_topology_application::TrafficTopologyApplication;
-use crate::active_exit_application::ActiveExitApplication;
+use crate::profile_application::ProfileApplication;
+use crate::resource_application::ResourceApplication;
+use crate::routing_application::RoutingApplication;
+use crate::service_mode_application::ServiceModeApplication;
+use crate::settings_application::SettingsApplication;
+use crate::snapshot_application::SnapshotApplication;
 use crate::subscription_quota_application::SubscriptionQuotaApplication;
 use crate::system_proxy_application::SystemProxyApplication;
+use crate::traffic_scale_application::TrafficScaleApplication;
+use crate::traffic_topology_application::TrafficTopologyApplication;
+use crate::traffic_waveform_application::TrafficWaveformApplication;
+use crate::uwp_loopback_application::UwpLoopbackApplication;
+use crate::version_application::VersionApplication;
+use crate::vpn_application::VpnServiceApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -38,8 +37,9 @@ use infiltrator_contract::version::{CoreChannelStatus, CoreVersionSnapshot};
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::rules::RuleEntry;
-use infiltrator_ports::error::PortError;
+use infiltrator_domain::rules::types::parse_rule_str;
 use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::surface::SurfaceReader;
 use std::collections::HashMap;
@@ -218,10 +218,7 @@ impl ApplicationSurfaceReader {
         self
     }
 
-    pub fn with_privileged_network(
-        mut self,
-        application: PrivilegedNetworkApplication,
-    ) -> Self {
+    pub fn with_privileged_network(mut self, application: PrivilegedNetworkApplication) -> Self {
         self.privileged_network = Some(application);
         self
     }
@@ -267,7 +264,6 @@ impl ApplicationSurfaceReader {
             Some((Instant::now(), snapshot.clone()));
         snapshot
     }
-
 }
 
 #[async_trait::async_trait]
@@ -435,9 +431,13 @@ impl SurfaceReader for ApplicationSurfaceReader {
         );
 
         let mrs_acceleration_snapshot = if let Some(Ok(provs)) = &runtime_rule_providers {
-            crate::mrs_acceleration_application::MrsAccelerationApplication::new().project(&core, Some(provs.as_slice()))
+            crate::mrs_acceleration_application::MrsAccelerationApplication::new()
+                .project(&core, Some(provs.as_slice()))
         } else {
-            infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot::empty(core.generation, revision)
+            infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot::empty(
+                core.generation,
+                revision,
+            )
         };
 
         pages.rules = build_rules_page(
@@ -446,7 +446,8 @@ impl SurfaceReader for ApplicationSurfaceReader {
             None,
             rule_tracer_snapshot,
             mrs_acceleration_snapshot,
-        ).await;
+        )
+        .await;
 
         pages.dns = build_dns_page(self.configuration.as_ref(), runtime_config.as_ref()).await;
 
@@ -515,6 +516,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             traffic_scale,
             traffic_topology,
             active_exit: active_exit_snapshot,
+            public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot::default(),
             subscription_quota,
             yaml_ast_diff: None,
             script_sandbox: None,
@@ -663,13 +665,7 @@ async fn build_rules_page(
                 .as_ref()
                 .and_then(|c| c.last_hit_for(&rule.rule));
             total_hits += hit;
-            rule_snapshot(
-                id + 1,
-                rule,
-                hit,
-                last_hit,
-                shadow_map.get(&id).copied(),
-            )
+            rule_snapshot(id + 1, rule, hit, last_hit, shadow_map.get(&id).copied())
         })
         .collect::<Vec<_>>();
 
@@ -918,23 +914,27 @@ fn build_settings_page(
         ),
         lan_security: config.map_or_else(
             infiltrator_contract::lan::LanSecuritySnapshot::default,
-            |value| infiltrator_contract::lan::LanSecuritySnapshot::new(
-                0,
-                value.lan_allowed_ips.clone(),
-                value.lan_disallowed_ips.clone(),
-                value.skip_auth_prefixes.clone(),
-                value.authentication_enabled,
-                value.authentication_user_count,
-                value.authentication_username.clone(),
-            ),
+            |value| {
+                infiltrator_contract::lan::LanSecuritySnapshot::new(
+                    0,
+                    value.lan_allowed_ips.clone(),
+                    value.lan_disallowed_ips.clone(),
+                    value.skip_auth_prefixes.clone(),
+                    value.authentication_enabled,
+                    value.authentication_user_count,
+                    value.authentication_username.clone(),
+                )
+            },
         ),
         ipv6_routing: config.map_or_else(
             infiltrator_contract::ipv6::Ipv6RoutingSnapshot::default,
-            |value| infiltrator_contract::ipv6::Ipv6RoutingSnapshot::new(
-                0,
-                value.ipv6,
-                value.tun.as_ref().is_some_and(|tun| tun.enable),
-            ),
+            |value| {
+                infiltrator_contract::ipv6::Ipv6RoutingSnapshot::new(
+                    0,
+                    value.ipv6,
+                    value.tun.as_ref().is_some_and(|tun| tun.enable),
+                )
+            },
         ),
         pac,
         tun_enabled: config

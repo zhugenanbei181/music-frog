@@ -1,12 +1,12 @@
 //! Admin REST API Token authentication and isolation middleware (`verify_admin_token`).
 
 use axum::{
+    Json,
     body::Body,
     extract::State,
     http::{Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde_json::json;
 
@@ -47,18 +47,13 @@ pub async fn verify_admin_token<C: AdminApiContext>(
             .and_then(|v| v.to_str().ok())
             .map(|s| s.trim());
 
-        let query_token = req
-            .uri()
-            .query()
-            .and_then(|q| {
-                url::form_urlencoded::parse(q.as_bytes())
-                    .find(|(k, _)| k == "token" || k == "auth_token")
-                    .map(|(_, v)| v.into_owned())
-            });
+        let query_token = req.uri().query().and_then(|q| {
+            url::form_urlencoded::parse(q.as_bytes())
+                .find(|(k, _)| k == "token" || k == "auth_token")
+                .map(|(_, v)| v.into_owned())
+        });
 
-        let candidate = token_from_header
-            .or(x_token)
-            .or(query_token.as_deref());
+        let candidate = token_from_header.or(x_token).or(query_token.as_deref());
 
         let valid = match candidate {
             Some(token) => infiltrator_domain::script_engine::CryptoSubtleShim::timing_safe_equal(

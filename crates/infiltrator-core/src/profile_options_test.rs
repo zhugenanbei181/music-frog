@@ -319,8 +319,14 @@ proxies:
     assert_eq!(rep.excluded_by_port, 1);
     assert_eq!(rep.mutated, 1);
     let first = proxies[0].as_mapping().unwrap();
-    assert_eq!(first.get("name").unwrap().as_str().unwrap(), "[HK] 香港 VIP 01 [2x]");
+    assert_eq!(
+        first.get("name").unwrap().as_str().unwrap(),
+        "[HK] 香港 VIP 01 [2x]"
+    );
     assert!(first.get("tls").unwrap().as_bool().unwrap());
     assert!(first.get("udp").unwrap().as_bool().unwrap());
-    assert_eq!(first.get("client-fingerprint").unwrap().as_str().unwrap(), "chrome");
+    assert_eq!(
+        first.get("client-fingerprint").unwrap().as_str().unwrap(),
+        "chrome"
+    );
 }

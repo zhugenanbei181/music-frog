@@ -17,6 +17,7 @@ use infiltrator_contract::tun::TunStack;
 
 /// All user action commands emitted from Bevy UI pages and controls.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[rustfmt::skip]
 pub enum UiCommand {
     /// Start the shared core lifecycle.
     StartCore,
@@ -38,6 +39,7 @@ pub enum UiCommand {
     SetTunStrictRoute(bool),
     /// Probe the physical link and negotiate the virtual TUN MTU.
     ProbeTunMtu,
+    RefreshPublicIpProbe,
     /// Switch core proxy mode (Rule / Global / Direct).
     SetProxyMode(ProxyMode),
     /// Select a specific proxy node in a policy group.
@@ -170,6 +172,7 @@ impl UiCommand {
                 Some(CommandIntent::SetTunStrictRoute { enabled: *enabled })
             }
             Self::ProbeTunMtu => Some(CommandIntent::ProbeTunMtu),
+            Self::RefreshPublicIpProbe => Some(CommandIntent::RefreshPublicIpProbe),
             Self::SetProxyMode(mode) => Some(CommandIntent::SetProxyMode { mode: *mode }),
             Self::SelectProxyNode { group, node } => Some(CommandIntent::SelectProxyNode {
                 group: group.clone(),
@@ -515,6 +518,10 @@ mod tests {
         assert_eq!(
             UiCommand::ProbeTunMtu.to_intent(),
             Some(CommandIntent::ProbeTunMtu)
+        );
+        assert_eq!(
+            UiCommand::RefreshPublicIpProbe.to_intent(),
+            Some(CommandIntent::RefreshPublicIpProbe)
         );
         assert_eq!(
             UiCommand::SetTunAutoRoute(false).to_intent(),

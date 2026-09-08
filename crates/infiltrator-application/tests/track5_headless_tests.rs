@@ -1,8 +1,8 @@
 //! Headless integration test suite for Track 5: Group 09 (YAML AST & Diff) & Group 10 (QuickJS Sandbox).
 
+use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_contract::script_sandbox::{ScriptLogLevel, ScriptSandboxStatus};
 use infiltrator_contract::yaml_ast_diff::{DiffKind, FidelityGrade};
-use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_domain::myers_diff;
 use infiltrator_domain::yaml_edit::SourceDoc;
 
@@ -25,12 +25,16 @@ rules:
     let mut doc = SourceDoc::parse(raw_yaml).expect("SourceDoc parse should succeed");
 
     // 1. 保留注释与排版的同时修改顶层标量
-    doc.set_top_scalar("port", "7891").expect("set_top_scalar port");
-    doc.set_top_scalar("mode", "global").expect("set_top_scalar mode");
+    doc.set_top_scalar("port", "7891")
+        .expect("set_top_scalar port");
+    doc.set_top_scalar("mode", "global")
+        .expect("set_top_scalar mode");
 
     // 2. 规则操作：安全追加与安全删除
-    doc.append_rule("DOMAIN-KEYWORD,twitter,PROXY").expect("append_rule");
-    doc.remove_rule("DOMAIN-SUFFIX,google.com,PROXY").expect("remove_rule");
+    doc.append_rule("DOMAIN-KEYWORD,twitter,PROXY")
+        .expect("append_rule");
+    doc.remove_rule("DOMAIN-SUFFIX,google.com,PROXY")
+        .expect("remove_rule");
 
     // 3. 锚点扫描与命名空间重写 (L3 Consistency)
     let occurrences = doc.scan_anchors_and_aliases();
@@ -38,7 +42,9 @@ rules:
     assert_eq!(occurrences[0].name, "my_anchor");
     assert_eq!(occurrences[1].name, "catchall");
 
-    let count = doc.rewrite_anchor_namespace("infiltrator").expect("rewrite anchor namespace");
+    let count = doc
+        .rewrite_anchor_namespace("infiltrator")
+        .expect("rewrite anchor namespace");
     assert_eq!(count, 2, "Both anchors rewritten with prefix");
 
     let rendered = doc.render();
@@ -88,16 +94,31 @@ rules:
     assert!(!diff.is_empty());
     assert!(diff.has_differences());
     assert_eq!(diff.stats.unchanged, 4);
-    assert_eq!(diff.stats.modifications, 1, "mode changed from rule to global");
+    assert_eq!(
+        diff.stats.modifications, 1,
+        "mode changed from rule to global"
+    );
     assert_eq!(diff.stats.additions, 1, "added github rule");
     assert_eq!(diff.stats.deletions, 0);
 
     // 检查 Unified Diff
-    assert!(diff.unified_lines.iter().any(|l| l.kind == DiffKind::Insert && l.content.contains("github")));
-    assert!(diff.unified_lines.iter().any(|l| l.kind == DiffKind::Delete || l.kind == DiffKind::Modify));
+    assert!(
+        diff.unified_lines
+            .iter()
+            .any(|l| l.kind == DiffKind::Insert && l.content.contains("github"))
+    );
+    assert!(
+        diff.unified_lines
+            .iter()
+            .any(|l| l.kind == DiffKind::Delete || l.kind == DiffKind::Modify)
+    );
 
     // 检查 Split Diff 并排对齐
-    let mode_row = diff.split_rows.iter().find(|r| r.kind == DiffKind::Modify).expect("modify row");
+    let mode_row = diff
+        .split_rows
+        .iter()
+        .find(|r| r.kind == DiffKind::Modify)
+        .expect("modify row");
     assert_eq!(mode_row.left.as_ref().unwrap().content, "mode: rule");
     assert_eq!(mode_row.right.as_ref().unwrap().content, "mode: global");
 }
@@ -159,7 +180,11 @@ rules:
     // 验证 console.log 流式捕获
     assert_eq!(snapshot.console_logs.len(), 4);
     assert_eq!(snapshot.console_logs[0].level, ScriptLogLevel::Info);
-    assert!(snapshot.console_logs[0].message.contains("Initializing QuickJS"));
+    assert!(
+        snapshot.console_logs[0]
+            .message
+            .contains("Initializing QuickJS")
+    );
     assert_eq!(snapshot.console_logs[1].level, ScriptLogLevel::Log);
     assert_eq!(snapshot.console_logs[2].level, ScriptLogLevel::Warn);
 

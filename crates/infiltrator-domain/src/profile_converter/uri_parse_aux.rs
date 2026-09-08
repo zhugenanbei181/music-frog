@@ -159,7 +159,11 @@ pub(crate) fn parse_trojan(parsed: &Url) -> Result<ProxyNodeItem> {
     let server = parsed.host_str().unwrap_or_default().to_string();
     let port = parsed.port().unwrap_or(443);
     let password = if !parsed.username().is_empty() {
-        Some(urlencoding::decode(parsed.username()).unwrap_or_default().to_string())
+        Some(
+            urlencoding::decode(parsed.username())
+                .unwrap_or_default()
+                .to_string(),
+        )
     } else {
         None
     };
@@ -230,7 +234,11 @@ pub(crate) fn parse_ssh(parsed: &Url) -> Result<ProxyNodeItem> {
     let server = parsed.host_str().unwrap_or_default().to_string();
     let port = parsed.port().unwrap_or(22);
     let username = if !parsed.username().is_empty() {
-        Some(urlencoding::decode(parsed.username()).unwrap_or_default().to_string())
+        Some(
+            urlencoding::decode(parsed.username())
+                .unwrap_or_default()
+                .to_string(),
+        )
     } else {
         None
     };

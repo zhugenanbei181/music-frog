@@ -60,7 +60,9 @@ impl ConnectionRateTracker {
     }
 
     pub fn snapshot_with_time(&mut self, now: Instant) -> ConnectionRateSnapshot {
-        let elapsed = now.saturating_duration_since(self.last_snapshot_time).as_secs_f64();
+        let elapsed = now
+            .saturating_duration_since(self.last_snapshot_time)
+            .as_secs_f64();
         let mut up_speed = 0;
         let mut down_speed = 0;
         if elapsed > 0.0 {
@@ -112,7 +114,11 @@ impl Default for JitterCalculator {
 
 impl JitterCalculator {
     pub fn new() -> Self {
-        Self { latencies: Vec::new(), failures: 0, total_attempts: 0 }
+        Self {
+            latencies: Vec::new(),
+            failures: 0,
+            total_attempts: 0,
+        }
     }
 
     pub fn record_success(&mut self, latency_ms: f64) {
@@ -195,24 +201,41 @@ pub struct DnsMetricsTracker {
 
 impl DnsMetricsTracker {
     pub fn new(fake_ip_capacity: usize) -> Self {
-        Self { queries: 0, cache_hits: 0, fake_ip_capacity, response_times: Vec::new() }
+        Self {
+            queries: 0,
+            cache_hits: 0,
+            fake_ip_capacity,
+            response_times: Vec::new(),
+        }
     }
 
     pub fn record_query(&mut self, is_hit: bool, response_time_ms: f64) {
         self.queries += 1;
-        if is_hit { self.cache_hits += 1; }
+        if is_hit {
+            self.cache_hits += 1;
+        }
         self.response_times.push(response_time_ms);
     }
 
     pub fn hit_ratio(&self) -> f64 {
-        if self.queries == 0 { 0.0 } else { self.cache_hits as f64 / self.queries as f64 }
+        if self.queries == 0 {
+            0.0
+        } else {
+            self.cache_hits as f64 / self.queries as f64
+        }
     }
 
     pub fn average_response_time_ms(&self) -> f64 {
-        if self.response_times.is_empty() { 0.0 } else { self.response_times.iter().sum::<f64>() / self.response_times.len() as f64 }
+        if self.response_times.is_empty() {
+            0.0
+        } else {
+            self.response_times.iter().sum::<f64>() / self.response_times.len() as f64
+        }
     }
 
-    pub fn fake_ip_capacity(&self) -> usize { self.fake_ip_capacity }
+    pub fn fake_ip_capacity(&self) -> usize {
+        self.fake_ip_capacity
+    }
 }
 
 /// Multi-dimensional connection timing breakdown (DNS, TCP, TLS, First Byte).
@@ -257,7 +280,9 @@ pub struct SpeedtestCalculator;
 
 impl SpeedtestCalculator {
     pub fn calculate_bandwidth(total_bytes: u64, duration_ms: u64) -> f64 {
-        if duration_ms == 0 { return 0.0; }
+        if duration_ms == 0 {
+            return 0.0;
+        }
         let duration_secs = duration_ms as f64 / 1000.0;
         let bits = total_bytes as f64 * 8.0;
         let mbps = (bits / (1024.0 * 1024.0)) / duration_secs;
@@ -346,8 +371,20 @@ impl NetworkThrottlingProfile {
         }
     }
 
-    pub fn custom(max_down_kbps: u64, max_up_kbps: u64, delay_ms: u64, jitter_ms: u64, loss_percent: f64) -> Self {
-        Self::Custom { max_down_kbps, max_up_kbps, delay_ms, jitter_ms, loss_percent }
+    pub fn custom(
+        max_down_kbps: u64,
+        max_up_kbps: u64,
+        delay_ms: u64,
+        jitter_ms: u64,
+        loss_percent: f64,
+    ) -> Self {
+        Self::Custom {
+            max_down_kbps,
+            max_up_kbps,
+            delay_ms,
+            jitter_ms,
+            loss_percent,
+        }
     }
 }
 
@@ -375,9 +412,12 @@ impl TokenBucket {
     }
 
     pub fn refill(&mut self, now: Instant) {
-        let elapsed = now.saturating_duration_since(self.last_refill).as_secs_f64();
+        let elapsed = now
+            .saturating_duration_since(self.last_refill)
+            .as_secs_f64();
         if elapsed > 0.0 {
-            self.available_tokens = (self.available_tokens + elapsed * self.rate_bytes_per_sec).min(self.capacity_bytes);
+            self.available_tokens = (self.available_tokens + elapsed * self.rate_bytes_per_sec)
+                .min(self.capacity_bytes);
             self.last_refill = now;
         }
     }
@@ -401,15 +441,25 @@ impl TokenBucket {
             std::time::Duration::ZERO
         } else {
             let deficit = required - self.available_tokens;
-            let wait_secs = if self.rate_bytes_per_sec > 0.0 { deficit / self.rate_bytes_per_sec } else { 0.0 };
+            let wait_secs = if self.rate_bytes_per_sec > 0.0 {
+                deficit / self.rate_bytes_per_sec
+            } else {
+                0.0
+            };
             self.available_tokens = 0.0;
             std::time::Duration::from_secs_f64(wait_secs)
         }
     }
 
-    pub fn available_tokens(&self) -> f64 { self.available_tokens }
-    pub fn capacity_bytes(&self) -> f64 { self.capacity_bytes }
-    pub fn rate_bytes_per_sec(&self) -> f64 { self.rate_bytes_per_sec }
+    pub fn available_tokens(&self) -> f64 {
+        self.available_tokens
+    }
+    pub fn capacity_bytes(&self) -> f64 {
+        self.capacity_bytes
+    }
+    pub fn rate_bytes_per_sec(&self) -> f64 {
+        self.rate_bytes_per_sec
+    }
 }
 
 /// Throttling calculator managing delay injection, jitter modeling, and token-bucket bandwidth limiting.
@@ -437,7 +487,9 @@ impl ThrottlingCalculator {
         }
     }
 
-    pub fn profile(&self) -> &NetworkThrottlingProfile { &self.profile }
+    pub fn profile(&self) -> &NetworkThrottlingProfile {
+        &self.profile
+    }
 
     pub fn set_profile(&mut self, profile: NetworkThrottlingProfile, now: Instant) {
         let down_rate = profile.max_down_kbps();
@@ -456,11 +508,19 @@ impl ThrottlingCalculator {
     }
 
     pub fn compute_injected_delay(&self, jitter_sample: f64) -> u64 {
-        Self::calculate_delay(self.profile.delay_ms(), self.profile.jitter_ms(), jitter_sample)
+        Self::calculate_delay(
+            self.profile.delay_ms(),
+            self.profile.jitter_ms(),
+            jitter_sample,
+        )
     }
 
     pub fn calculate_transmission_delay_ms(bytes: u64, rate_kbps: u64) -> f64 {
-        if rate_kbps == 0 { 0.0 } else { (bytes as f64 * 8.0) / (rate_kbps as f64) }
+        if rate_kbps == 0 {
+            0.0
+        } else {
+            (bytes as f64 * 8.0) / (rate_kbps as f64)
+        }
     }
 
     pub fn calculate_downlink_transmission_delay_ms(&self, bytes: u64) -> f64 {
@@ -495,10 +555,18 @@ impl ThrottlingCalculator {
         self.up_bucket.consume_or_wait(bytes, now)
     }
 
-    pub fn down_bucket(&self) -> &TokenBucket { &self.down_bucket }
-    pub fn up_bucket(&self) -> &TokenBucket { &self.up_bucket }
-    pub fn down_bucket_mut(&mut self) -> &mut TokenBucket { &mut self.down_bucket }
-    pub fn up_bucket_mut(&mut self) -> &mut TokenBucket { &mut self.up_bucket }
+    pub fn down_bucket(&self) -> &TokenBucket {
+        &self.down_bucket
+    }
+    pub fn up_bucket(&self) -> &TokenBucket {
+        &self.up_bucket
+    }
+    pub fn down_bucket_mut(&mut self) -> &mut TokenBucket {
+        &mut self.down_bucket
+    }
+    pub fn up_bucket_mut(&mut self) -> &mut TokenBucket {
+        &mut self.up_bucket
+    }
 }
 
 /// Comprehensive outcome of privacy leak evaluation across all vectors.
@@ -512,15 +580,29 @@ pub struct LeakTestOutcome {
 }
 
 impl LeakTestOutcome {
-    pub fn new() -> Self { Self::default() }
-    pub fn is_clean(&self) -> bool { !self.dns_leak && !self.webrtc_leak && !self.ipv6_leak && !self.fake_ip_bypass }
-    pub fn has_any_leak(&self) -> bool { !self.is_clean() }
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn is_clean(&self) -> bool {
+        !self.dns_leak && !self.webrtc_leak && !self.ipv6_leak && !self.fake_ip_bypass
+    }
+    pub fn has_any_leak(&self) -> bool {
+        !self.is_clean()
+    }
     pub fn total_leaks_count(&self) -> usize {
         let mut count = 0;
-        if self.dns_leak { count += 1; }
-        if self.webrtc_leak { count += 1; }
-        if self.ipv6_leak { count += 1; }
-        if self.fake_ip_bypass { count += 1; }
+        if self.dns_leak {
+            count += 1;
+        }
+        if self.webrtc_leak {
+            count += 1;
+        }
+        if self.ipv6_leak {
+            count += 1;
+        }
+        if self.fake_ip_bypass {
+            count += 1;
+        }
         count
     }
 }
@@ -540,7 +622,12 @@ pub struct DiagnosticConnection {
 }
 
 impl DiagnosticConnection {
-    pub fn new(id: impl Into<String>, destination_ip: impl Into<String>, destination_port: u16, rule: impl Into<String>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        destination_ip: impl Into<String>,
+        destination_port: u16,
+        rule: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             network: "tcp".to_string(),
@@ -554,10 +641,22 @@ impl DiagnosticConnection {
         }
     }
 
-    pub fn with_network(mut self, network: impl Into<String>) -> Self { self.network = network.into(); self }
-    pub fn with_host(mut self, host: impl Into<String>) -> Self { self.host = host.into(); self }
-    pub fn with_chains(mut self, chains: Vec<String>) -> Self { self.chains = chains; self }
-    pub fn with_process_path(mut self, path: impl Into<String>) -> Self { self.process_path = Some(path.into()); self }
+    pub fn with_network(mut self, network: impl Into<String>) -> Self {
+        self.network = network.into();
+        self
+    }
+    pub fn with_host(mut self, host: impl Into<String>) -> Self {
+        self.host = host.into();
+        self
+    }
+    pub fn with_chains(mut self, chains: Vec<String>) -> Self {
+        self.chains = chains;
+        self
+    }
+    pub fn with_process_path(mut self, path: impl Into<String>) -> Self {
+        self.process_path = Some(path.into());
+        self
+    }
 }
 
 /// Recorded DNS resolution log event for leak detection.
@@ -573,7 +672,11 @@ pub struct DnsResolutionLog {
 }
 
 impl DnsResolutionLog {
-    pub fn new(domain: impl Into<String>, query_type: impl Into<String>, upstream_server: impl Into<String>) -> Self {
+    pub fn new(
+        domain: impl Into<String>,
+        query_type: impl Into<String>,
+        upstream_server: impl Into<String>,
+    ) -> Self {
         Self {
             query_domain: domain.into(),
             query_type: query_type.into(),
@@ -585,10 +688,22 @@ impl DnsResolutionLog {
         }
     }
 
-    pub fn with_resolved_ips(mut self, ips: Vec<String>) -> Self { self.resolved_ips = ips; self }
-    pub fn with_direct(mut self, is_direct: bool) -> Self { self.is_direct = is_direct; self }
-    pub fn with_encrypted(mut self, is_encrypted: bool) -> Self { self.is_encrypted = is_encrypted; self }
-    pub fn with_process(mut self, process: impl Into<String>) -> Self { self.process_name = Some(process.into()); self }
+    pub fn with_resolved_ips(mut self, ips: Vec<String>) -> Self {
+        self.resolved_ips = ips;
+        self
+    }
+    pub fn with_direct(mut self, is_direct: bool) -> Self {
+        self.is_direct = is_direct;
+        self
+    }
+    pub fn with_encrypted(mut self, is_encrypted: bool) -> Self {
+        self.is_encrypted = is_encrypted;
+        self
+    }
+    pub fn with_process(mut self, process: impl Into<String>) -> Self {
+        self.process_name = Some(process.into());
+        self
+    }
 }
 
 /// Static evaluator analyzing connection traffic and DNS logs for privacy leaks.
@@ -612,17 +727,34 @@ impl PrivacyLeakDetectionSuite {
         }
     }
 
-    pub fn with_fake_ip_cidr(mut self, cidr: impl Into<String>) -> Self { self.fake_ip_cidr = cidr.into(); self }
-    pub fn with_stun_ports(mut self, ports: Vec<u16>) -> Self { self.stun_ports = ports; self }
+    pub fn with_fake_ip_cidr(mut self, cidr: impl Into<String>) -> Self {
+        self.fake_ip_cidr = cidr.into();
+        self
+    }
+    pub fn with_stun_ports(mut self, ports: Vec<u16>) -> Self {
+        self.stun_ports = ports;
+        self
+    }
 
-    pub fn evaluate(connections: &[DiagnosticConnection], dns_logs: &[DnsResolutionLog]) -> LeakTestOutcome {
+    pub fn evaluate(
+        connections: &[DiagnosticConnection],
+        dns_logs: &[DnsResolutionLog],
+    ) -> LeakTestOutcome {
         Self::new().evaluate_suite(connections, dns_logs)
     }
 
-    pub fn evaluate_suite(&self, connections: &[DiagnosticConnection], dns_logs: &[DnsResolutionLog]) -> LeakTestOutcome {
+    pub fn evaluate_suite(
+        &self,
+        connections: &[DiagnosticConnection],
+        dns_logs: &[DnsResolutionLog],
+    ) -> LeakTestOutcome {
         let mut outcome = LeakTestOutcome::default();
-        for conn in connections { self.check_connection(conn, &mut outcome); }
-        for log in dns_logs { self.check_dns_log(log, &mut outcome); }
+        for conn in connections {
+            self.check_connection(conn, &mut outcome);
+        }
+        for log in dns_logs {
+            self.check_dns_log(log, &mut outcome);
+        }
         outcome
     }
 
@@ -699,7 +831,10 @@ impl PrivacyLeakDetectionSuite {
         }
 
         // 3. IPv6 Leak: AAAA query resolved directly or returning public IPv6
-        if log.is_direct && (log.query_type.eq_ignore_ascii_case("AAAA") || log.resolved_ips.iter().any(|ip| is_public_ipv6(ip))) {
+        if log.is_direct
+            && (log.query_type.eq_ignore_ascii_case("AAAA")
+                || log.resolved_ips.iter().any(|ip| is_public_ipv6(ip)))
+        {
             outcome.ipv6_leak = true;
             outcome.details.push(format!(
                 "IPv6 Leak: Direct DNS resolution for domain '{}' (type: '{}') exposing IPv6 addresses {:?}",
@@ -709,12 +844,10 @@ impl PrivacyLeakDetectionSuite {
 
         // 4. Fake-IP Bypass in DNS log: domain resolved directly while answers are Fake-IP
         if log.is_direct
-            && log.resolved_ips.iter().any(|ip| {
-                crate::dns_tester::DnsTester::check_fake_ip_range(
-                    ip,
-                    &self.fake_ip_cidr,
-                )
-            })
+            && log
+                .resolved_ips
+                .iter()
+                .any(|ip| crate::dns_tester::DnsTester::check_fake_ip_range(ip, &self.fake_ip_cidr))
         {
             outcome.fake_ip_bypass = true;
             outcome.details.push(format!(
@@ -746,10 +879,21 @@ fn is_public_ipv6(ip_str: &str) -> bool {
         let segs = ip.segments();
         let is_link_local = (segs[0] & 0xffc0) == 0xfe80;
         let is_unique_local = (segs[0] & 0xfe00) == 0xfc00;
-        let is_v4_mapped = segs[0] == 0 && segs[1] == 0 && segs[2] == 0 && segs[3] == 0 && segs[4] == 0 && segs[5] == 0xffff;
+        let is_v4_mapped = segs[0] == 0
+            && segs[1] == 0
+            && segs[2] == 0
+            && segs[3] == 0
+            && segs[4] == 0
+            && segs[5] == 0xffff;
         let is_doc = segs[0] == 0x2001 && segs[1] == 0x0db8;
 
-        !ip.is_loopback() && !ip.is_unspecified() && !ip.is_multicast() && !is_link_local && !is_unique_local && !is_v4_mapped && !is_doc
+        !ip.is_loopback()
+            && !ip.is_unspecified()
+            && !ip.is_multicast()
+            && !is_link_local
+            && !is_unique_local
+            && !is_v4_mapped
+            && !is_doc
     } else {
         false
     }

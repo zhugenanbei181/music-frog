@@ -282,7 +282,9 @@ impl ProxyNodeItem {
     }
 
     pub fn get_ports_spec(&self) -> Option<PortHopping> {
-        self.ports.as_deref().and_then(|s| PortHopping::parse(s).ok())
+        self.ports
+            .as_deref()
+            .and_then(|s| PortHopping::parse(s).ok())
     }
 
     pub fn get_grpc_service_name(&self) -> Option<&str> {
@@ -556,7 +558,9 @@ impl MultiSubscriptionAggregator {
         }
 
         if all_nodes.is_empty() {
-            return Err(anyhow!("No valid proxy nodes found across sources to aggregate"));
+            return Err(anyhow!(
+                "No valid proxy nodes found across sources to aggregate"
+            ));
         }
 
         // Apply filter pipeline for cleaning / dedup / sorting
@@ -650,9 +654,15 @@ impl MultiSubscriptionAggregator {
 
         let mut doc = serde_yaml_ng::Mapping::new();
         doc.insert(Value::String("port".into()), Value::Number(7890.into()));
-        doc.insert(Value::String("socks-port".into()), Value::Number(7891.into()));
+        doc.insert(
+            Value::String("socks-port".into()),
+            Value::Number(7891.into()),
+        );
         doc.insert(Value::String("mode".into()), Value::String("rule".into()));
-        doc.insert(Value::String("log-level".into()), Value::String("info".into()));
+        doc.insert(
+            Value::String("log-level".into()),
+            Value::String("info".into()),
+        );
 
         let proxies_yaml: Value = serde_yaml_ng::to_value(nodes)?;
         doc.insert(Value::String("proxies".into()), proxies_yaml);

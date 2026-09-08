@@ -1,10 +1,10 @@
 //! Android host/application composition for the 0.30 seam.
 
-use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::overview::UnavailableOverviewReader;
-use infiltrator_application::offline_startup_application::OfflineStartupApplication;
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::mtu_application::MtuApplication;
+use infiltrator_application::offline_startup_application::OfflineStartupApplication;
+use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::error::PortError;
@@ -59,7 +59,9 @@ where
         Ok(client) => (
             Arc::new(ControllerOverviewReader::new(client.clone())) as Arc<dyn OverviewReader>,
             Some(Arc::new(client)
-                as Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway>),
+                as Arc<
+                    dyn infiltrator_ports::runtime_gateway::RuntimeGateway,
+                >),
         ),
         Err(error) => (
             Arc::new(UnavailableOverviewReader::new(PortError::Network(

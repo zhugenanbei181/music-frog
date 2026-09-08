@@ -1,19 +1,19 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
-use infiltrator_core::settings_store::FileSettingsStore;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::proxy_application::ProxyApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
+use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_core::settings_store::FileSettingsStore;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::endpoint::EndpointSource as _;
-use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
@@ -39,12 +39,11 @@ impl Runtime {
 
     /// Context rooted at an explicit home (tests inject a temp dir).
     pub async fn with_home(home: PathBuf) -> anyhow::Result<Self> {
-        let settings = SettingsApplication::new(Arc::new(FileSettingsStore::for_home(
-            home.clone(),
-        )))
-        .load()
-        .await
-        .map_err(|failure| anyhow::anyhow!(failure.message))?;
+        let settings =
+            SettingsApplication::new(Arc::new(FileSettingsStore::for_home(home.clone())))
+                .load()
+                .await
+                .map_err(|failure| anyhow::anyhow!(failure.message))?;
         Ok(Self { home, settings })
     }
 
@@ -79,9 +78,8 @@ impl Runtime {
     }
 
     pub fn version_application(&self) -> anyhow::Result<VersionApplication> {
-        let version = infiltrator_core::version_port::MihomoVersionPort::with_home(
-            self.home.clone(),
-        )?;
+        let version =
+            infiltrator_core::version_port::MihomoVersionPort::with_home(self.home.clone())?;
         Ok(VersionApplication::new(Arc::new(version)))
     }
 

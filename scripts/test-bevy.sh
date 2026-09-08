@@ -62,3 +62,4 @@ python3 "$repo_root/scripts/quality/overview-master-switch-guard.py" --mode enfo
 python3 "$repo_root/scripts/quality/proxy-mode-segment-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/overview-speedtest-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/overview-metrics-grid-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/overview-ip-probe-guard.py" --mode enforce

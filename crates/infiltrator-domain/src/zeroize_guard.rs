@@ -106,7 +106,9 @@ impl SecureMemoryBuffer {
     }
 
     pub fn from_slice(slice: &[u8]) -> Self {
-        Self { bytes: slice.to_vec() }
+        Self {
+            bytes: slice.to_vec(),
+        }
     }
 
     pub fn as_slice(&self) -> &[u8] {
@@ -137,7 +139,11 @@ impl Drop for SecureMemoryBuffer {
 
 impl fmt::Debug for SecureMemoryBuffer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SecureMemoryBuffer([{} bytes redacted])", self.bytes.len())
+        write!(
+            f,
+            "SecureMemoryBuffer([{} bytes redacted])",
+            self.bytes.len()
+        )
     }
 }
 
@@ -152,7 +158,9 @@ impl SensitiveTokenScrubber {
         // Scrub Bearer tokens
         if let Some(pos) = result.find("Bearer ") {
             let rest = &result[pos + 7..];
-            let token_end = rest.find(|c: char| c.is_whitespace() || c == '"' || c == '\'').unwrap_or(rest.len());
+            let token_end = rest
+                .find(|c: char| c.is_whitespace() || c == '"' || c == '\'')
+                .unwrap_or(rest.len());
             if token_end > 0 {
                 let token = &rest[..token_end];
                 result = result.replace(token, "***REDACTED_BEARER***");
@@ -254,7 +262,8 @@ mod tests {
 
     #[test]
     fn test_sensitive_token_scrubber_is_idempotent_and_scrubs_multiple_values() {
-        let text = "token=first-secret&token=***REDACTED***&token=second-secret password=plain-secret";
+        let text =
+            "token=first-secret&token=***REDACTED***&token=second-secret password=plain-secret";
         let scrubbed = SensitiveTokenScrubber::scrub_text(text);
 
         assert_eq!(scrubbed.matches("token=***REDACTED***").count(), 3);

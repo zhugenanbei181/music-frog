@@ -1,6 +1,6 @@
-use infiltrator_core::bootstrap;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_contract::doctor::DoctorStatus;
+use infiltrator_core::bootstrap;
 use infiltrator_core::doctor_port::MihomoDoctor;
 use mihomo_version::manager::VersionManager;
 
@@ -67,10 +67,7 @@ async fn doctor_filter_limits_report_to_matching_checks() {
     let application = DoctorApplication::new(std::sync::Arc::new(MihomoDoctor::with_home(
         temp.path().to_path_buf(),
     )));
-    let report = application
-        .run(Some("service".to_string()))
-        .await
-        .unwrap();
+    let report = application.run(Some("service".to_string())).await.unwrap();
     assert!(!report.checks.is_empty());
     assert!(
         report

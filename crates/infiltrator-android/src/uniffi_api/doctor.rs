@@ -9,8 +9,8 @@ use infiltrator_contract::doctor::{
     BootstrapStep, DoctorCheckMeta, DoctorCheckResult, DoctorFixAction, DoctorStatus,
 };
 
-use crate::host_support::{doctor_application, get_runtime, map_application_failure};
 use crate::ffi::{FfiErrorCode, FfiStatus};
+use crate::host_support::{doctor_application, get_runtime, map_application_failure};
 
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct DoctorCheckResultRecord {
@@ -158,11 +158,9 @@ pub fn doctor_checks() -> Vec<DoctorCheckMetaRecord> {
 
 #[uniffi::export]
 pub fn doctor_explain(id: String) -> DoctorCheckMetaResult {
-    match doctor_application().and_then(|application| {
-        application
-            .explain(&id)
-            .map_err(map_application_failure)
-    }) {
+    match doctor_application()
+        .and_then(|application| application.explain(&id).map_err(map_application_failure))
+    {
         Ok(meta) => DoctorCheckMetaResult {
             status: FfiStatus::ok(),
             check: Some(check_meta_to_record(meta)),

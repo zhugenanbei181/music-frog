@@ -4,6 +4,12 @@
 #[cfg(test)]
 use std::sync::Arc;
 
+use crate::ffi::{FfiErrorCode, FfiStatus};
+#[cfg(test)]
+use crate::host_support::map_anyhow_error;
+use crate::host_support::{
+    build_settings_application, build_sync_application, get_runtime, map_application_failure,
+};
 #[cfg(test)]
 use infiltrator_application::sync_application::SyncApplication;
 #[cfg(test)]
@@ -18,13 +24,6 @@ use infiltrator_domain::settings::AppSettings;
 use infiltrator_domain::settings::WebDavConfig;
 #[cfg(test)]
 use infiltrator_ports::secure_store::SecureStore;
-use crate::host_support::{
-    build_settings_application, build_sync_application, get_runtime,
-    map_application_failure,
-};
-#[cfg(test)]
-use crate::host_support::map_anyhow_error;
-use crate::ffi::{FfiErrorCode, FfiStatus};
 
 // --- WebDAV API ---
 
@@ -157,16 +156,11 @@ async fn load_webdav_settings_in<S: SecureStore>(
 
 async fn save_webdav_settings(settings: WebDavSettings) -> Result<WebDavSettings, FfiStatus> {
     let application = build_settings_application().await?;
-    let mut app_settings = application
-        .load()
-        .await
-        .map_err(map_application_failure)?;
+    let mut app_settings = application.load().await.map_err(map_application_failure)?;
     if settings.password.is_empty() {
         crate::host_support::clear_webdav_password().await;
     } else {
-        crate::host_support::save_webdav_password(&settings.password)
-            .await
-            ?;
+        crate::host_support::save_webdav_password(&settings.password).await?;
     }
     let mut core_config = webdav_settings_to_core(settings.clone());
     core_config.password = String::new();
@@ -264,10 +258,8 @@ async fn sync_webdav_now_in<S: SecureStore + 'static>(
     if !settings.webdav.enabled {
         return Err(FfiStatus::err(FfiErrorCode::NotReady, "WebDAV is disabled"));
     }
-    let application = SyncApplication::new(Arc::new(FileWebDavSync::new(
-        home.to_path_buf(),
-        store,
-    )));
+    let application =
+        SyncApplication::new(Arc::new(FileWebDavSync::new(home.to_path_buf(), store)));
     let report = application
         .sync(settings.webdav, settings.configs_dir)
         .await

@@ -4,7 +4,11 @@
 
 use std::collections::HashSet;
 
-use axum::{Json, http::StatusCode, response::{IntoResponse, Response}};
+use axum::{
+    Json,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use chrono::Utc;
 
 use crate::admin_api::events::{AdminEvent, EVENT_PROXY_CHANGED};
@@ -177,7 +181,7 @@ pub async fn test_all_runtime_proxy_delays_http<C: AdminApiContext>(
         timeout_ms,
         30,
     )
-        .await;
+    .await;
 
     for outcome in outcomes {
         match outcome.result {
@@ -267,7 +271,7 @@ pub async fn test_proxies_delay_http<C: AdminApiContext>(
         timeout_ms,
         30,
     )
-        .await;
+    .await;
 
     for outcome in outcomes {
         match outcome.result {

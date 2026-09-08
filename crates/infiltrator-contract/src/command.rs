@@ -152,6 +152,7 @@ pub enum CommandIntent {
     SetTunAutoRoute { enabled: bool },
     SetTunStrictRoute { enabled: bool },
     ProbeTunMtu,
+    RefreshPublicIpProbe,
     SetSystemProxy { enabled: bool },
     SetLanSharing {
         enabled: bool,
@@ -265,6 +266,7 @@ impl CommandIntent {
             | Self::SetTunAutoRoute { .. }
             | Self::SetTunStrictRoute { .. }
             | Self::ProbeTunMtu
+            | Self::RefreshPublicIpProbe
             | Self::SetSystemProxy { .. }
             | Self::SetLanSharing { .. }
             | Self::SetLanSecurity { .. }

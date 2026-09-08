@@ -62,6 +62,7 @@ on:
       - "scripts/quality/proxy-mode-segment-guard.py"
       - "scripts/quality/overview-speedtest-guard.py"
       - "scripts/quality/overview-metrics-grid-guard.py"
+      - "scripts/quality/overview-ip-probe-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -115,6 +116,7 @@ on:
       - "scripts/quality/proxy-mode-segment-guard.py"
       - "scripts/quality/overview-speedtest-guard.py"
       - "scripts/quality/overview-metrics-grid-guard.py"
+      - "scripts/quality/overview-ip-probe-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -295,6 +297,8 @@ jobs:
 
       - name: Enforce DUAL-03-10 Overview metrics grid parity
         run: python3 scripts/quality/overview-metrics-grid-guard.py --mode enforce
+      - name: Run Overview Public IP Probe Guard
+        run: python3 scripts/quality/overview-ip-probe-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

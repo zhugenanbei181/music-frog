@@ -9,7 +9,11 @@ use crate::proxy::Proxy;
 
 /// Derive the selected exit from the controller's proxy map. Selection is
 /// deterministic: `PROXIES`, then `GLOBAL`, then the first sorted group.
-pub fn derive(generation: u64, revision: u64, proxies: &HashMap<String, Proxy>) -> ActiveExitSnapshot {
+pub fn derive(
+    generation: u64,
+    revision: u64,
+    proxies: &HashMap<String, Proxy>,
+) -> ActiveExitSnapshot {
     let Some((group_name, group)) = selected_group(proxies) else {
         return ActiveExitSnapshot {
             generation,
@@ -63,7 +67,9 @@ fn selected_group(proxies: &HashMap<String, Proxy>) -> Option<(String, &Proxy)> 
         .filter(|(_, proxy)| proxy.is_group())
         .collect::<Vec<_>>();
     groups.sort_by(|left, right| left.0.cmp(right.0));
-    groups.first().map(|(name, proxy)| ((*name).clone(), *proxy))
+    groups
+        .first()
+        .map(|(name, proxy)| ((*name).clone(), *proxy))
 }
 
 #[cfg(test)]

@@ -259,7 +259,9 @@ mod tests {
         ) -> Result<PrivilegedNetworkSnapshot, PortError> {
             self.inject_calls.fetch_add(1, Ordering::SeqCst);
             if self.fail_inject.load(Ordering::SeqCst) {
-                return Err(PortError::PermissionDenied("mock injection denied".to_owned()));
+                return Err(PortError::PermissionDenied(
+                    "mock injection denied".to_owned(),
+                ));
             }
             let snapshot = PrivilegedNetworkSnapshot::active(0, request.operations.len());
             *self.snapshot.lock().expect("mock snapshot lock") = snapshot.clone();
@@ -269,7 +271,9 @@ mod tests {
         async fn cleanup(&self) -> Result<PrivilegedNetworkSnapshot, PortError> {
             self.cleanup_calls.fetch_add(1, Ordering::SeqCst);
             if self.fail_cleanup.load(Ordering::SeqCst) {
-                return Err(PortError::PermissionDenied("mock cleanup denied".to_owned()));
+                return Err(PortError::PermissionDenied(
+                    "mock cleanup denied".to_owned(),
+                ));
             }
             let operation_count = self
                 .snapshot

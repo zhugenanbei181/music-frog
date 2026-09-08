@@ -85,22 +85,24 @@ pub fn overview_mode_segment<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'
     let header = row![
         icon_themed(Icon::Settings, 16.0, |t: &Theme| tokens(t).accent),
         Space::new().width(theme::SP_SM),
-        text("代理运行模式 (Proxy Mode)")
+        text(lang.tr("overview_proxy_mode_title").into_owned())
             .size(14)
             .font(FONT_SEMIBOLD)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_primary)
             }),
         Space::new().width(Length::Fill),
-        text(format!(
-            "当前：{}",
-            match current_mode {
-                ProxyMode::Rule => lang.tr("mode_rule").into_owned(),
-                ProxyMode::Global => lang.tr("mode_global").into_owned(),
-                ProxyMode::Direct => lang.tr("mode_direct").into_owned(),
-                ProxyMode::Script => lang.tr("mode_script").into_owned(),
-            }
-        ))
+        text(
+            lang.tr("overview_current_prefix").replace(
+                "{}",
+                &match current_mode {
+                    ProxyMode::Rule => lang.tr("mode_rule").into_owned(),
+                    ProxyMode::Global => lang.tr("mode_global").into_owned(),
+                    ProxyMode::Direct => lang.tr("mode_direct").into_owned(),
+                    ProxyMode::Script => lang.tr("mode_script").into_owned(),
+                },
+            ),
+        )
         .size(12)
         .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_secondary)

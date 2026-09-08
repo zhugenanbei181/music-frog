@@ -128,16 +128,18 @@ mod tests {
         assert_eq!(snapshot.tun_mtu, Some(1420));
         assert_eq!(snapshot.applied_tun_mtu, None);
         assert_eq!(snapshot.tcp_mss, Some(1380));
-        assert_eq!(snapshot.clone().with_applied_tun_mtu(1420).applied_tun_mtu, Some(1420));
+        assert_eq!(
+            snapshot.clone().with_applied_tun_mtu(1420).applied_tun_mtu,
+            Some(1420)
+        );
     }
 
     #[test]
     fn unsupported_and_failed_are_not_ready() {
         assert!(!MtuNegotiationSnapshot::unsupported(1).is_ready());
-        assert!(!MtuNegotiationSnapshot::failed(
-            2,
-            Failure::unsupported("no native link probe")
-        )
-        .is_ready());
+        assert!(
+            !MtuNegotiationSnapshot::failed(2, Failure::unsupported("no native link probe"))
+                .is_ready()
+        );
     }
 }

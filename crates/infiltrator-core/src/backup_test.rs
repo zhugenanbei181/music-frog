@@ -5,8 +5,8 @@ use infiltrator_domain::snapshots::SnapshotMeta;
 use std::io::{Cursor, Write};
 use std::path::PathBuf;
 use tempfile::tempdir;
-use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
+use zip::write::SimpleFileOptions;
 
 fn sample_bundle() -> BackupBundle {
     let profiles = vec![

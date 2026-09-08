@@ -4,9 +4,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface_snapshot::{PageStatus, SurfaceSnapshot};
 use infiltrator_contract::system_proxy::SystemProxyStatus;
-use infiltrator_contract::system_toggle::{
-    SystemToggle, SystemToggleSnapshot, SystemToggleState,
-};
+use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
 
 /// Converts one canonical surface snapshot into the compact control model and
 /// fences actions that are not backed by a current host readback.
@@ -18,16 +16,17 @@ impl SystemToggleApplication {
             SystemProxyStatus::Unknown => SystemToggleState::Unknown,
             SystemProxyStatus::Disabled => SystemToggleState::Disabled,
             SystemProxyStatus::Enabled => SystemToggleState::Enabled,
-            SystemProxyStatus::Unsupported { failure } => {
-                SystemToggleState::Unsupported {
-                    failure: failure.clone(),
-                }
-            }
+            SystemProxyStatus::Unsupported { failure } => SystemToggleState::Unsupported {
+                failure: failure.clone(),
+            },
             SystemProxyStatus::Failed { failure } => SystemToggleState::Failed {
                 failure: failure.clone(),
             },
         };
-        let tun = match (&snapshot.pages.settings.status, &snapshot.pages.settings.data) {
+        let tun = match (
+            &snapshot.pages.settings.status,
+            &snapshot.pages.settings.data,
+        ) {
             (PageStatus::Ready | PageStatus::Empty, Some(settings)) => {
                 SystemToggleState::from_enabled(settings.tun_enabled)
             }

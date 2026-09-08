@@ -70,10 +70,6 @@ use infiltrator_bevy_widgets::theme::space;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::history::{TrafficHistory, chart_inputs};
-pub use crate::pages::overview_cards::{
-    OverviewModeSegmentPill, OverviewModeSegmentText, ProxyModeSegmentCard,
-    mode_segmented_controller_scene, mode_segmented_controller_scene_with_snapshot,
-};
 use crate::projection::{OverviewOrigin, OverviewProjection, OverviewState};
 use crate::route::{PageRoot, Route};
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
@@ -219,6 +215,28 @@ pub enum ActiveExitTextKind {
     Protocol,
     Delay,
     Group,
+    Status,
+}
+
+/// Marker on the public IP and privacy probe card.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PublicIpProbeCard;
+
+/// Marker on the public IP probe refresh button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PublicIpRefreshButton;
+
+/// Marker on the public IP card's mutable facts.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PublicIpText(pub PublicIpTextKind);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PublicIpTextKind {
+    #[default]
+    Ip,
+    Location,
+    Isp,
+    Provider,
     Status,
 }
 
@@ -537,6 +555,7 @@ pub fn overview_page(
             ( { chips_row_scene(projection, palette) } ),
             ( { crate::pages::overview_cards::master_switches_scene_with_snapshot(&projection.system_toggles, palette) } ),
             ( { crate::pages::overview_cards::active_exit_node_scene_with_snapshot(&projection.active_exit, palette) } ),
+            ( { crate::pages::overview_cards::public_ip_probe_card_scene_with_snapshot(&projection.public_ip, palette) } ),
             ( { crate::pages::overview_cards::topology_chain_scene_with_snapshot(&projection.traffic_topology, palette) } ),
             ( { crate::pages::overview_cards::subscription_quota_scene_with_snapshot(&projection.subscription_quota, palette) } ),
         ]
@@ -855,6 +874,51 @@ fn topology_stage_label(
         infiltrator_contract::traffic_topology::TrafficTopologyStage::RuleSet => "RuleSet",
         infiltrator_contract::traffic_topology::TrafficTopologyStage::ProxyGroup => "Proxy Group",
         infiltrator_contract::traffic_topology::TrafficTopologyStage::Outbound => "Outbound Node",
+    }
+}
+
+pub(crate) fn public_ip_text_value(
+    snapshot: &infiltrator_contract::public_ip::PublicIpProbeSnapshot,
+    kind: PublicIpTextKind,
+) -> String {
+    match kind {
+        PublicIpTextKind::Ip => snapshot.ip.clone().unwrap_or_else(|| "—".to_owned()),
+        PublicIpTextKind::Location => {
+            let country = snapshot.country_code.as_deref().unwrap_or("—");
+            if let Some(city) = snapshot.city.as_deref() {
+                format!("{country} · {city}")
+            } else {
+                country.to_owned()
+            }
+        }
+        PublicIpTextKind::Isp => snapshot.isp.clone().unwrap_or_else(|| "—".to_owned()),
+        PublicIpTextKind::Provider => snapshot
+            .provider
+            .as_deref()
+            .unwrap_or("ipapi.is")
+            .to_owned(),
+        PublicIpTextKind::Status => match snapshot.status {
+            infiltrator_contract::public_ip::PublicIpProbeStatus::Ready => {
+                "probe · ready".to_owned()
+            }
+            infiltrator_contract::public_ip::PublicIpProbeStatus::Probing => {
+                "probe · probing...".to_owned()
+            }
+            infiltrator_contract::public_ip::PublicIpProbeStatus::Empty => {
+                "probe · empty".to_owned()
+            }
+            infiltrator_contract::public_ip::PublicIpProbeStatus::Unknown => {
+                "probe · not requested".to_owned()
+            }
+            infiltrator_contract::public_ip::PublicIpProbeStatus::Unsupported => snapshot
+                .failure
+                .clone()
+                .unwrap_or_else(|| "probe · unsupported".to_owned()),
+            infiltrator_contract::public_ip::PublicIpProbeStatus::Failed => snapshot
+                .failure
+                .clone()
+                .unwrap_or_else(|| "probe · failed".to_owned()),
+        },
     }
 }
 
@@ -1186,6 +1250,7 @@ fn bind_overview_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(on_overview_master_switch_activated);
     commands.add_observer(on_overview_mode_segment_activated);
     commands.add_observer(on_overview_speedtest_activated);
+    commands.add_observer(on_overview_public_ip_refresh_activated);
 }
 
 /// Translate a Bevy `Activate` gesture through the shared application
@@ -1213,8 +1278,22 @@ pub(crate) fn on_topology_stage_activated(
     commands.trigger(crate::route::RouteChanged(route));
 }
 
-/// Convert an Overview one-click speedtest button activation into a
-/// UiCommand::TestAllProxyGroups command.
+/// Convert an Overview public IP refresh button activation into a
+/// UiCommand::RefreshPublicIpProbe command.
+pub(crate) fn on_overview_public_ip_refresh_activated(
+    activate: On<Activate>,
+    buttons: Query<&PublicIpRefreshButton>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    if buttons.get(activate.entity).is_err() {
+        return;
+    }
+    handle.submit(UiCommand::RefreshPublicIpProbe);
+}
+
 pub(crate) fn on_overview_speedtest_activated(
     activate: On<Activate>,
     buttons: Query<&OverviewSpeedtestButton>,
@@ -1331,6 +1410,7 @@ pub(crate) fn apply_overview_projection(
             (
                 With<TopologyText>,
                 Without<OverviewLine>,
+                Without<PublicIpText>,
                 Without<StatChipValue>,
             ),
         >,
@@ -1340,6 +1420,7 @@ pub(crate) fn apply_overview_projection(
                 With<ActiveExitText>,
                 Without<OverviewLine>,
                 Without<TopologyText>,
+                Without<PublicIpText>,
                 Without<StatChipValue>,
             ),
         >,
@@ -1350,6 +1431,7 @@ pub(crate) fn apply_overview_projection(
                 Without<OverviewLine>,
                 Without<TopologyText>,
                 Without<ActiveExitText>,
+                Without<PublicIpText>,
                 Without<StatChipValue>,
             ),
         >,
@@ -1362,11 +1444,24 @@ pub(crate) fn apply_overview_projection(
                 Without<TopologyText>,
                 Without<ActiveExitText>,
                 Without<SubscriptionQuotaText>,
+                Without<PublicIpText>,
                 Without<StatChipValue>,
             ),
         >,
         Query<&mut OverviewMasterSwitchButton>,
         Query<&mut TopologyStageButton>,
+        Query<
+            (&mut Text, &mut TextColor, &PublicIpText),
+            (
+                With<PublicIpText>,
+                Without<OverviewLine>,
+                Without<TopologyText>,
+                Without<ActiveExitText>,
+                Without<SubscriptionQuotaText>,
+                Without<OverviewMasterSwitchText>,
+                Without<StatChipValue>,
+            ),
+        >,
     )>,
     groups: Query<&Children>,
     mut charts: Query<&mut ChartPlate>,
@@ -1502,6 +1597,22 @@ pub(crate) fn apply_overview_projection(
         let mut topology_buttons = dynamic.p6();
         for mut button in &mut topology_buttons {
             button.enabled = projection.traffic_topology.is_drawable();
+        }
+    }
+    {
+        let mut public_ip_texts = dynamic.p7();
+        for (mut text, mut ink, marker) in &mut public_ip_texts {
+            let value = public_ip_text_value(&projection.public_ip, marker.0);
+            if text.0 != value {
+                text.0 = value;
+            }
+            if marker.0 == PublicIpTextKind::Status {
+                ink.0 = match projection.public_ip.status {
+                    infiltrator_contract::public_ip::PublicIpProbeStatus::Ready => palette.success,
+                    infiltrator_contract::public_ip::PublicIpProbeStatus::Failed => palette.danger,
+                    _ => palette.accent,
+                };
+            }
         }
     }
     // The trend chart: re-derive the series for this projection's origin

@@ -198,8 +198,14 @@ fn test_prometheus_and_snapshot() {
     );
 
     let prom = auditor.export_prometheus_metrics();
-    assert!(prom.contains("infiltrator_traffic_bytes_total{route=\"proxied\",direction=\"upload\"} 1000"));
-    assert!(prom.contains("infiltrator_traffic_bytes_total{route=\"proxied\",direction=\"download\"} 2000"));
+    assert!(
+        prom.contains(
+            "infiltrator_traffic_bytes_total{route=\"proxied\",direction=\"upload\"} 1000"
+        )
+    );
+    assert!(prom.contains(
+        "infiltrator_traffic_bytes_total{route=\"proxied\",direction=\"download\"} 2000"
+    ));
 
     let snap = auditor.snapshot();
     assert_eq!(snap.total_proxied_bytes, 3000);

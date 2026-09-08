@@ -484,10 +484,7 @@ pub fn import_zip_bundle(zip_bytes: &[u8]) -> Result<BackupBundle> {
 /// Intelligent snapshot pruning: retains newest snapshots, deduplicates
 /// identical SHA256 hashes, and trims older snapshots exceeding `max_retain`.
 /// Returns the storage identities that should be deleted by an adapter.
-pub fn prune_snapshots(
-    snapshots: &[SnapshotMeta],
-    max_retain: usize,
-) -> Vec<String> {
+pub fn prune_snapshots(snapshots: &[SnapshotMeta], max_retain: usize) -> Vec<String> {
     if snapshots.is_empty() {
         return Vec::new();
     }

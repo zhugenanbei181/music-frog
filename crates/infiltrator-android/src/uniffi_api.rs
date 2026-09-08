@@ -32,8 +32,8 @@ pub use settings::{
     FakeIpSettingsPatch, FakeIpSettingsResult,
 };
 pub use vpn::{
-    TunStatusResult, VpnSessionResult, VpnSessionSnapshot, VpnTunSettings,
-    VpnTunSettingsPatch, VpnTunSettingsResult,
+    TunStatusResult, VpnSessionResult, VpnSessionSnapshot, VpnTunSettings, VpnTunSettingsPatch,
+    VpnTunSettingsResult,
 };
 pub use webdav::{WebDavSettings, WebDavSettingsResult, WebDavSyncResult};
 

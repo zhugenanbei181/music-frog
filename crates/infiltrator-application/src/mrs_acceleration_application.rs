@@ -1,8 +1,7 @@
 //! Application seam for MRS binary ruleset governance, acceleration, and unpacking (MRS 二进制规则集应用服务).
 
 use infiltrator_contract::mrs_acceleration::{
-    MrsAccelerationSnapshot, MrsBehaviorKind, MrsCompressionKind,
-    MrsItemSnapshot,
+    MrsAccelerationSnapshot, MrsBehaviorKind, MrsCompressionKind, MrsItemSnapshot,
 };
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_domain::runtime::RuleProvider;
@@ -23,7 +22,10 @@ impl MrsAccelerationApplication {
     ) -> MrsAccelerationSnapshot {
         let revision = core.revision.max(1);
 
-        if !matches!(core.lifecycle, CoreLifecycle::Running | CoreLifecycle::Ready) {
+        if !matches!(
+            core.lifecycle,
+            CoreLifecycle::Running | CoreLifecycle::Ready
+        ) {
             // Provide honest unavailable/offline status when core is stopped
             return MrsAccelerationSnapshot::unavailable(
                 core.generation,

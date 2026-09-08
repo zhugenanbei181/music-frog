@@ -106,11 +106,7 @@ impl PrivilegedNetworkSnapshot {
         }
     }
 
-    pub fn cleaned(
-        revision: u64,
-        operation_count: usize,
-        rollback_attempted: bool,
-    ) -> Self {
+    pub fn cleaned(revision: u64, operation_count: usize, rollback_attempted: bool) -> Self {
         Self {
             state: PrivilegedNetworkState::Cleaned,
             operation_count,

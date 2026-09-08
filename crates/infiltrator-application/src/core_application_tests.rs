@@ -152,7 +152,10 @@ impl crate::command_application::CommandHandler for FakeCommandHandler {
         intent: infiltrator_contract::command::CommandIntent,
     ) -> crate::command_application::CommandFuture {
         Box::pin(async move {
-            if matches!(intent, infiltrator_contract::command::CommandIntent::ClearLogs) {
+            if matches!(
+                intent,
+                infiltrator_contract::command::CommandIntent::ClearLogs
+            ) {
                 Ok(())
             } else {
                 Err(Failure::unsupported("fake handler rejected command"))
@@ -524,7 +527,9 @@ async fn watchdog_detects_exit_and_restarts_with_a_new_session() {
     running.store(false, Ordering::SeqCst);
 
     assert!(matches!(
-        CoreWatchdogPort::watchdog_tick(&app).await.expect("detect exit"),
+        CoreWatchdogPort::watchdog_tick(&app)
+            .await
+            .expect("detect exit"),
         WatchdogTick::Waiting {
             attempt: 1,
             retry_in_ms: 0,
@@ -534,7 +539,9 @@ async fn watchdog_detects_exit_and_restarts_with_a_new_session() {
     assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Failed);
 
     assert!(matches!(
-        CoreWatchdogPort::watchdog_tick(&app).await.expect("recover exit"),
+        CoreWatchdogPort::watchdog_tick(&app)
+            .await
+            .expect("recover exit"),
         WatchdogTick::Recovered { attempts: 1, .. }
     ));
     let after = app.snapshot();
@@ -584,7 +591,9 @@ async fn watchdog_opens_the_circuit_after_repeated_restart_failures() {
     running.store(false, Ordering::SeqCst);
 
     assert!(matches!(
-        CoreWatchdogPort::watchdog_tick(&app).await.expect("detect exit"),
+        CoreWatchdogPort::watchdog_tick(&app)
+            .await
+            .expect("detect exit"),
         WatchdogTick::Waiting { attempt: 1, .. }
     ));
     assert!(matches!(

@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use infiltrator_application::profile_application::ProfileApplication;
     use crate::admin_api::state::AdminApiContext;
     use crate::scheduler::subscription::{
         SubscriptionUpdateSummary, run_profile_subscription_tick, schedule_next_attempt,
@@ -13,14 +12,15 @@ mod tests {
     use crate::support::{app_config_manager, test_env};
     use anyhow::anyhow;
     use chrono::Utc;
+    use infiltrator_application::profile_application::ProfileApplication;
     use infiltrator_core::settings_io::{save_settings, settings_path};
     use infiltrator_domain::settings::AppSettings;
     use infiltrator_domain::subscription::mask_subscription_url;
+    use infiltrator_ports::runtime_gateway::RuntimeGateway;
     use mihomo_config::manager::ConfigManager;
     use mihomo_config::profile::Profile;
     use mihomo_platform::TEST_LOCK;
     use mihomo_platform::defaults::DefaultCredentialStore;
-    use infiltrator_ports::runtime_gateway::RuntimeGateway;
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
@@ -35,7 +35,8 @@ mod tests {
     impl AdminApiContext for MockContext {
         async fn profile_application(
             &self,
-        ) -> anyhow::Result<infiltrator_application::profile_application::ProfileApplication> {
+        ) -> anyhow::Result<infiltrator_application::profile_application::ProfileApplication>
+        {
             crate::support::profile_application().await
         }
 
@@ -49,14 +50,16 @@ mod tests {
 
         async fn doctor_application(
             &self,
-        ) -> anyhow::Result<infiltrator_application::doctor_application::DoctorApplication> {
+        ) -> anyhow::Result<infiltrator_application::doctor_application::DoctorApplication>
+        {
             crate::support::doctor_application()
         }
 
         async fn profile_reset_application(
             &self,
-        ) -> anyhow::Result<infiltrator_application::profile_reset_application::ProfileResetApplication>
-        {
+        ) -> anyhow::Result<
+            infiltrator_application::profile_reset_application::ProfileResetApplication,
+        > {
             Ok(crate::support::profile_reset_application())
         }
 
@@ -68,9 +71,8 @@ mod tests {
 
         async fn subscription_source(
             &self,
-        ) -> anyhow::Result<
-            Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource>,
-        > {
+        ) -> anyhow::Result<Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource>>
+        {
             Ok(crate::support::subscription_source())
         }
 
@@ -587,9 +589,7 @@ mod tests {
         let ctx = MockContext {
             notifications: Arc::new(Mutex::new(vec![])),
         };
-        let summary = update_all_subscriptions(&ctx)
-            .await
-            .unwrap();
+        let summary = update_all_subscriptions(&ctx).await.unwrap();
         assert_eq!(summary.total, 1);
         assert_eq!(summary.updated, 1);
         assert_eq!(summary.failed, 0);

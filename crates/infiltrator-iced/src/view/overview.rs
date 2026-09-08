@@ -88,7 +88,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 pub fn overview_speedtest_button<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let is_testing = state.runtime.runtime_testing_all_delays;
     let label = if is_testing {
-        "测速中...".to_owned()
+        lang.tr("runtime_delay_testing_all").into_owned()
     } else {
         lang.tr("runtime_delay_test_all").into_owned()
     };
@@ -343,7 +343,7 @@ fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
             download,
             |t| tokens(t).accent
         ),
-        metric_tile(Icon::Globe, "总流量".to_string(), total, |t| tokens(t)
+        metric_tile(Icon::Globe, lang.tr("overview_total_traffic").to_string(), total, |t| tokens(t)
             .success),
     ]
     .spacing(theme::SP_MD)

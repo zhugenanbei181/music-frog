@@ -5,8 +5,8 @@
 
 use futures_util::stream::{self, StreamExt};
 use infiltrator_contract::error::{ErrorCode, Failure};
-pub use infiltrator_contract::proxies::{
-    ProxyFilterAliveSnapshot, ProxyGroupClassification, ProxySortOrder, ProxyUiPreferences,
+use infiltrator_contract::proxies::{
+    ProxyFilterAliveSnapshot, ProxyGroupClassification, ProxyUiPreferences,
 };
 use infiltrator_contract::surface_snapshot::{ProxyGroupSnapshot, ProxyNodeSnapshot};
 use infiltrator_domain::proxy::{Proxy, ProxyGroup, ProxyHistory};
@@ -14,7 +14,7 @@ use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-pub use crate::proxy_preferences_application::ProxyPreferencesApplication;
+use crate::proxy_preferences_application::ProxyPreferencesApplication;
 
 /// A controller-neutral leaf proxy projection.
 #[derive(Debug, Clone, PartialEq)]
@@ -230,8 +230,10 @@ impl ProxyApplication {
             .values()
             .filter(|p| !p.is_group() && !matches!(p, Proxy::Unknown))
             .map(|p| (p.delay(), p.alive()));
-        let alive_snapshot =
-            ProxyFilterAliveSnapshot::derive_from_candidates(candidate_stats, preferences.filter_alive);
+        let alive_snapshot = ProxyFilterAliveSnapshot::derive_from_candidates(
+            candidate_stats,
+            preferences.filter_alive,
+        );
 
         // Step 2: Build each group snapshot
         let mut groups: Vec<ProxyGroupSnapshot> = proxies
@@ -286,16 +288,18 @@ impl ProxyApplication {
 
                 // Apply four-way sorting + favorite pinning
                 let sort_order = preferences.sort_order;
-                node_snapshots.sort_by(|(left_node, left_delay, left_fav), (right_node, right_delay, right_fav)| {
-                    sort_order.compare_candidates(
-                        &left_node.name,
-                        *left_delay,
-                        *left_fav,
-                        &right_node.name,
-                        *right_delay,
-                        *right_fav,
-                    )
-                });
+                node_snapshots.sort_by(
+                    |(left_node, left_delay, left_fav), (right_node, right_delay, right_fav)| {
+                        sort_order.compare_candidates(
+                            &left_node.name,
+                            *left_delay,
+                            *left_fav,
+                            &right_node.name,
+                            *right_delay,
+                            *right_fav,
+                        )
+                    },
+                );
 
                 let sorted_nodes = node_snapshots
                     .into_iter()
@@ -323,7 +327,10 @@ impl ProxyApplication {
                 .collect();
 
             groups.sort_by(|left, right| {
-                match (order_map.get(left.name.as_str()), order_map.get(right.name.as_str())) {
+                match (
+                    order_map.get(left.name.as_str()),
+                    order_map.get(right.name.as_str()),
+                ) {
                     (Some(li), Some(ri)) => li.cmp(ri),
                     (Some(_), None) => std::cmp::Ordering::Less,
                     (None, Some(_)) => std::cmp::Ordering::Greater,
@@ -374,7 +381,9 @@ mod tests {
     use async_trait::async_trait;
     use infiltrator_contract::proxies::ProxySortOrder;
     use infiltrator_domain::proxy::{ProxyBase, Shadowsocks};
-    use infiltrator_domain::runtime::{ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData};
+    use infiltrator_domain::runtime::{
+        ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+    };
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::runtime_gateway::RuntimeStream;
     use std::sync::Mutex;
@@ -407,7 +416,12 @@ mod tests {
             Ok(())
         }
 
-        async fn test_delay(&self, _proxy: &str, _url: &str, _timeout_ms: u32) -> Result<u32, PortError> {
+        async fn test_delay(
+            &self,
+            _proxy: &str,
+            _url: &str,
+            _timeout_ms: u32,
+        ) -> Result<u32, PortError> {
             Ok(50)
         }
 
@@ -417,7 +431,10 @@ mod tests {
         async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
             Ok(())
         }
-        async fn set_proxy_mode(&self, _mode: infiltrator_contract::command::ProxyMode) -> Result<(), PortError> {
+        async fn set_proxy_mode(
+            &self,
+            _mode: infiltrator_contract::command::ProxyMode,
+        ) -> Result<(), PortError> {
             Ok(())
         }
         async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
@@ -432,7 +449,10 @@ mod tests {
         async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
             Err(PortError::Failed("not implemented".into()))
         }
-        async fn stream_logs(&self, _level: Option<String>) -> Result<RuntimeStream<String>, PortError> {
+        async fn stream_logs(
+            &self,
+            _level: Option<String>,
+        ) -> Result<RuntimeStream<String>, PortError> {
             Err(PortError::Failed("not implemented".into()))
         }
         async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
@@ -470,7 +490,10 @@ mod tests {
                 base: ProxyBase {
                     name: "Node-A".to_string(),
                     udp: true,
-                    history: vec![ProxyHistory { time: "".into(), delay: 100 }],
+                    history: vec![ProxyHistory {
+                        time: "".into(),
+                        delay: 100,
+                    }],
                     alive: true,
                     delay: Some(100),
                 },
@@ -488,7 +511,10 @@ mod tests {
                 base: ProxyBase {
                     name: "Node-B".to_string(),
                     udp: false,
-                    history: vec![ProxyHistory { time: "".into(), delay: 35 }],
+                    history: vec![ProxyHistory {
+                        time: "".into(),
+                        delay: 35,
+                    }],
                     alive: true,
                     delay: Some(35),
                 },
@@ -560,7 +586,10 @@ mod tests {
         // 1. Selector group switch succeeds
         assert!(app.switch("SelectorGroup", "Node-B").await.is_ok());
         let switches = gateway.switches.lock().unwrap().clone();
-        assert_eq!(switches, vec![("SelectorGroup".to_string(), "Node-B".to_string())]);
+        assert_eq!(
+            switches,
+            vec![("SelectorGroup".to_string(), "Node-B".to_string())]
+        );
 
         // 2. Switching non-existent group fails
         assert!(app.switch("NonExistent", "Node-A").await.is_err());
@@ -592,7 +621,10 @@ mod tests {
         // 2. FilterAlive on -> Dead node eliminated
         prefs.filter_alive = true;
         let (groups_alive, _) = ProxyApplication::project_groups_snapshot(&proxies, &prefs);
-        let selector_alive = groups_alive.iter().find(|g| g.name == "SelectorGroup").unwrap();
+        let selector_alive = groups_alive
+            .iter()
+            .find(|g| g.name == "SelectorGroup")
+            .unwrap();
         assert_eq!(selector_alive.proxies.len(), 2);
         assert!(!selector_alive.proxies.iter().any(|n| n.name == "Node-Dead"));
 
@@ -600,7 +632,10 @@ mod tests {
         prefs.filter_alive = false;
         prefs.favorite_proxies.push("Node-A".to_string()); // 100ms pinned
         let (groups_fav, _) = ProxyApplication::project_groups_snapshot(&proxies, &prefs);
-        let selector_fav = groups_fav.iter().find(|g| g.name == "SelectorGroup").unwrap();
+        let selector_fav = groups_fav
+            .iter()
+            .find(|g| g.name == "SelectorGroup")
+            .unwrap();
         assert_eq!(selector_fav.proxies[0].name, "Node-A"); // Pinned first!
         assert_eq!(selector_fav.proxies[1].name, "Node-B");
 
@@ -608,7 +643,10 @@ mod tests {
         prefs.favorite_proxies.clear();
         prefs.sort_order = ProxySortOrder::NameDesc;
         let (groups_desc, _) = ProxyApplication::project_groups_snapshot(&proxies, &prefs);
-        let selector_desc = groups_desc.iter().find(|g| g.name == "SelectorGroup").unwrap();
+        let selector_desc = groups_desc
+            .iter()
+            .find(|g| g.name == "SelectorGroup")
+            .unwrap();
         assert_eq!(selector_desc.proxies[0].name, "Node-Dead");
         assert_eq!(selector_desc.proxies[1].name, "Node-B");
         assert_eq!(selector_desc.proxies[2].name, "Node-A");

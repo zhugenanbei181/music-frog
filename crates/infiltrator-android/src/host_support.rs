@@ -5,17 +5,17 @@
 use std::sync::OnceLock;
 
 use infiltrator_application::cache_application::CacheApplication;
-use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::network_application::NetworkApplication;
 use infiltrator_application::proxy_application::ProxyApplication;
-use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::routing_application::RoutingApplication;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
-use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
@@ -24,8 +24,8 @@ use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
 use tokio::runtime::Runtime;
 
-use crate::host_session::shared_core;
 use crate::ffi::{FfiErrorCode, FfiStatus};
+use crate::host_session::shared_core;
 use infiltrator_contract::error::{ErrorCode, Failure};
 pub(super) fn get_runtime() -> &'static Runtime {
     static RUNTIME: OnceLock<Runtime> = OnceLock::new();
@@ -106,8 +106,7 @@ pub(crate) async fn clear_webdav_password() {
 }
 
 pub(super) fn doctor_application() -> Result<DoctorApplication, FfiStatus> {
-    let doctor = infiltrator_core::doctor_port::MihomoDoctor::detect()
-        .map_err(map_anyhow_error)?;
+    let doctor = infiltrator_core::doctor_port::MihomoDoctor::detect().map_err(map_anyhow_error)?;
     Ok(DoctorApplication::new(std::sync::Arc::new(doctor)))
 }
 
@@ -174,7 +173,8 @@ pub(super) async fn build_controller_client() -> Result<MihomoClient, FfiStatus>
 /// Build the controller port at the Android composition boundary. FFI
 /// modules consume application facades rather than retaining a concrete
 /// `MihomoClient` or its Tokio receiver types.
-pub(super) async fn build_runtime_gateway() -> Result<std::sync::Arc<dyn RuntimeGateway>, FfiStatus> {
+pub(super) async fn build_runtime_gateway() -> Result<std::sync::Arc<dyn RuntimeGateway>, FfiStatus>
+{
     Ok(std::sync::Arc::new(build_controller_client().await?))
 }
 
@@ -186,7 +186,8 @@ pub(super) async fn build_connection_application() -> Result<ConnectionApplicati
     Ok(ConnectionApplication::new(build_runtime_gateway().await?))
 }
 
-pub(super) async fn build_runtime_query_application() -> Result<RuntimeQueryApplication, FfiStatus> {
+pub(super) async fn build_runtime_query_application() -> Result<RuntimeQueryApplication, FfiStatus>
+{
     Ok(RuntimeQueryApplication::new(build_runtime_gateway().await?))
 }
 
@@ -198,10 +199,8 @@ pub(super) fn network_application() -> NetworkApplication {
 
 pub(super) async fn build_sync_application() -> Result<SyncApplication, FfiStatus> {
     let home = get_home_dir().map_err(map_mihomo_error)?;
-    let sync = infiltrator_core::sync_port::FileWebDavSync::new(
-        home,
-        DefaultCredentialStore::default(),
-    );
+    let sync =
+        infiltrator_core::sync_port::FileWebDavSync::new(home, DefaultCredentialStore::default());
     Ok(SyncApplication::new(std::sync::Arc::new(sync)))
 }
 

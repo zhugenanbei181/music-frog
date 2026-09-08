@@ -1,5 +1,5 @@
-use infiltrator_contract::doctor::BootstrapStep;
 use crate::context::Runtime;
+use infiltrator_contract::doctor::BootstrapStep;
 
 /// Ensure the default configs directory, profile, and controller settings
 /// exist. Idempotent; already-satisfied steps are reported as skipped.

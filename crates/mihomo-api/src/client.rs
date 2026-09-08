@@ -1,7 +1,7 @@
 use crate::error::{MihomoError, Result};
-use infiltrator_domain::proxy::Proxy;
 use crate::types::*;
 use futures_util::StreamExt;
+use infiltrator_domain::proxy::Proxy;
 use reqwest::Client;
 use serde_json::{Value, json};
 use std::collections::HashMap;

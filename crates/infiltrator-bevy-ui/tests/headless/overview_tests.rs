@@ -27,9 +27,10 @@ use infiltrator_bevy_ui::pages::overview::{
     ActiveExitText, ActiveExitTextKind, CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText,
     OverviewCardState, OverviewChip, OverviewChipKind, OverviewLine, OverviewLineKind,
     OverviewMasterSwitchButton, OverviewModeChip, OverviewModePill, OverviewProjectionUpdated,
-    OverviewStatusCard, StatusDot, StopButton, SubscriptionQuotaCard, TopologyChainCard,
-    TopologyStageButton, TopologyText, TopologyTextKind, format_memory, format_rate,
-    subscription_quota_scene, topology_chain_scene,
+    OverviewStatusCard, PublicIpProbeCard, PublicIpRefreshButton, PublicIpText, PublicIpTextKind,
+    StatusDot, StopButton, SubscriptionQuotaCard, TopologyChainCard, TopologyStageButton,
+    TopologyText, TopologyTextKind, format_memory, format_rate, subscription_quota_scene,
+    topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
     ActiveExitNodeCard, SystemProxyMasterCard, TunMasterCard,
@@ -74,6 +75,7 @@ impl OverviewSource for StubSource {
             traffic_scale: Default::default(),
             traffic_topology: Default::default(),
             active_exit: Default::default(),
+            public_ip: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
             cpu_percent: None,
@@ -401,6 +403,7 @@ fn projection_updates_restamp_in_place() {
         traffic_scale: Default::default(),
         traffic_topology: Default::default(),
         active_exit: Default::default(),
+        public_ip: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: None,
@@ -457,6 +460,7 @@ fn projection_updates_restamp_in_place() {
         traffic_scale: Default::default(),
         traffic_topology: Default::default(),
         active_exit: Default::default(),
+        public_ip: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: None,
@@ -727,6 +731,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         traffic_scale: Default::default(),
         traffic_topology: Default::default(),
         active_exit: Default::default(),
+        public_ip: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: None,
@@ -967,6 +972,7 @@ impl OverviewSource for LiveFootStub {
             traffic_scale: Default::default(),
             traffic_topology: Default::default(),
             active_exit: Default::default(),
+            public_ip: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
             cpu_percent: None,
@@ -1057,6 +1063,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         traffic_scale: Default::default(),
         traffic_topology: Default::default(),
         active_exit: Default::default(),
+        public_ip: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: None,
@@ -1515,7 +1522,7 @@ fn overview_mode_segment_uses_shared_policy_and_command_sink() {
         let world = app.world_mut();
         let mut buttons = world.query::<(
             Entity,
-            &infiltrator_bevy_ui::pages::overview::OverviewModeSegmentPill,
+            &infiltrator_bevy_ui::pages::overview_cards::OverviewModeSegmentPill,
         )>();
         buttons
             .iter(world)
@@ -1537,14 +1544,14 @@ fn overview_mode_segment_card_is_mounted_with_four_pills() {
     let mut app = mounted_default();
     let world = app.world_mut();
     let mut card_query =
-        world.query::<&infiltrator_bevy_ui::pages::overview::ProxyModeSegmentCard>();
+        world.query::<&infiltrator_bevy_ui::pages::overview_cards::ProxyModeSegmentCard>();
     assert!(
         card_query.iter(world).next().is_some(),
         "ProxyModeSegmentCard must be mounted"
     );
 
     let mut pills_query =
-        world.query::<&infiltrator_bevy_ui::pages::overview::OverviewModeSegmentPill>();
+        world.query::<&infiltrator_bevy_ui::pages::overview_cards::OverviewModeSegmentPill>();
     let modes: Vec<infiltrator_contract::command::ProxyMode> =
         pills_query.iter(world).map(|p| p.0).collect();
     assert_eq!(modes.len(), 4);
@@ -1603,4 +1610,69 @@ fn overview_six_item_metrics_grid_mounts_and_updates_in_place() {
     assert!(
         chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::TotalTraffic)
     );
+}
+
+#[test]
+fn overview_public_ip_probe_card_mounts_and_updates_in_place() {
+    let mut app = mounted_default();
+    let card_entity = {
+        let world = app.world_mut();
+        let mut cards = world.query::<(Entity, &PublicIpProbeCard)>();
+        cards.single(world).expect("public ip probe card").0
+    };
+    assert!(card_entity != Entity::PLACEHOLDER);
+
+    {
+        let world = app.world_mut();
+        let mut texts = world.query::<(&PublicIpText, &Text)>();
+        assert!(
+            texts.iter(world).any(|(marker, text)| {
+                marker.0 == PublicIpTextKind::Ip && text.0 == "203.0.113.7"
+            })
+        );
+    }
+
+    let mut projection = DemoOverviewSource::running().current();
+    projection.public_ip =
+        infiltrator_contract::public_ip::PublicIpProbeSnapshot::failed(1, 2, "network timeout");
+    app.world_mut()
+        .commands()
+        .trigger(OverviewProjectionUpdated(projection));
+    app.update();
+
+    let world = app.world_mut();
+    let mut texts = world.query::<(&PublicIpText, &Text)>();
+    assert!(texts.iter(world).any(|(marker, text)| {
+        marker.0 == PublicIpTextKind::Status && text.0 == "network timeout"
+    }));
+}
+
+#[test]
+fn overview_public_ip_refresh_button_submits_refresh_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    app.init_asset::<Image>();
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
+    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
+    app.update();
+
+    let button = {
+        let world = app.world_mut();
+        let mut buttons = world.query::<(Entity, &PublicIpRefreshButton)>();
+        buttons
+            .iter(world)
+            .next()
+            .expect("public ip refresh button")
+            .0
+    };
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+
+    assert!(sink.submitted().contains(&UiCommand::RefreshPublicIpProbe));
 }

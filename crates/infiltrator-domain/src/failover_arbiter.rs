@@ -221,13 +221,15 @@ impl StickySessionManager {
             && now_secs <= last_seen.saturating_add(self.ttl_secs)
         {
             let node_clone = node.clone();
-            self.sessions.insert(client_key.to_string(), (node_clone.clone(), now_secs));
+            self.sessions
+                .insert(client_key.to_string(), (node_clone.clone(), now_secs));
             return Some(node_clone);
         }
 
         // Assign new session
         if let Some(new_node) = assign_fn() {
-            self.sessions.insert(client_key.to_string(), (new_node.clone(), now_secs));
+            self.sessions
+                .insert(client_key.to_string(), (new_node.clone(), now_secs));
             Some(new_node)
         } else {
             None
@@ -236,7 +238,8 @@ impl StickySessionManager {
 
     pub fn purge_expired(&mut self, now_secs: u64) {
         let ttl = self.ttl_secs;
-        self.sessions.retain(|_, (_, last_seen)| now_secs <= last_seen.saturating_add(ttl));
+        self.sessions
+            .retain(|_, (_, last_seen)| now_secs <= last_seen.saturating_add(ttl));
     }
 
     pub fn active_session_count(&self) -> usize {
@@ -392,15 +395,21 @@ mod tests {
         let mut sessions = StickySessionManager::new(300);
         let client_ip = "192.168.1.50";
 
-        let assigned = sessions.get_or_assign(client_ip, 1000, || Some("Node-A".to_string())).unwrap();
+        let assigned = sessions
+            .get_or_assign(client_ip, 1000, || Some("Node-A".to_string()))
+            .unwrap();
         assert_eq!(assigned, "Node-A");
 
         // Subsequent request within TTL returns same node
-        let repeat = sessions.get_or_assign(client_ip, 1200, || Some("Node-B".to_string())).unwrap();
+        let repeat = sessions
+            .get_or_assign(client_ip, 1200, || Some("Node-B".to_string()))
+            .unwrap();
         assert_eq!(repeat, "Node-A");
 
         // Request after TTL expires gets new assignment
-        let expired = sessions.get_or_assign(client_ip, 1600, || Some("Node-C".to_string())).unwrap();
+        let expired = sessions
+            .get_or_assign(client_ip, 1600, || Some("Node-C".to_string()))
+            .unwrap();
         assert_eq!(expired, "Node-C");
 
         sessions.purge_expired(2000);

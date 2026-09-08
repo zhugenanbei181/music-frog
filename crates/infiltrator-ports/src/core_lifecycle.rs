@@ -33,7 +33,10 @@ pub trait CoreLifecyclePort: Send + Sync {
     /// is allowed to update. The default keeps lightweight legacy adapters
     /// source-compatible while still fencing the token.
     fn begin_reload(&self) -> Result<SessionToken, PortError> {
-        if !matches!(self.lifecycle(), CoreLifecycle::Ready | CoreLifecycle::Running) {
+        if !matches!(
+            self.lifecycle(),
+            CoreLifecycle::Ready | CoreLifecycle::Running
+        ) {
             return Err(PortError::Failed(
                 "core is not ready for hot reload".to_string(),
             ));
@@ -52,11 +55,7 @@ pub trait CoreLifecyclePort: Send + Sync {
     }
 
     /// Record a reload failure only for the session that started it.
-    fn fail_reload(
-        &self,
-        session_token: SessionToken,
-        _error: String,
-    ) -> Result<(), PortError> {
+    fn fail_reload(&self, session_token: SessionToken, _error: String) -> Result<(), PortError> {
         if self.session_token() == Some(session_token) {
             Ok(())
         } else {

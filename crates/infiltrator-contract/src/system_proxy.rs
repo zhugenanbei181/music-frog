@@ -31,7 +31,9 @@ pub enum SystemProxyRecoveryReport {
         expected: SystemProxyDesiredState,
         observed: SystemProxyObservation,
     },
-    SkippedLiveOwner { owner_pid: u32 },
+    SkippedLiveOwner {
+        owner_pid: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,8 +66,12 @@ pub enum SystemProxyRecoveryStatus {
         expected: SystemProxyDesiredState,
         observed: SystemProxyObservation,
     },
-    SkippedLiveOwner { owner_pid: u32 },
-    Failed { failure: Failure },
+    SkippedLiveOwner {
+        owner_pid: u32,
+    },
+    Failed {
+        failure: Failure,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -187,6 +193,9 @@ mod tests {
     fn unsupported_is_not_enabled() {
         let snapshot = SystemProxySnapshot::unsupported(4, "no host proxy port");
         assert!(!snapshot.is_enabled());
-        assert!(matches!(snapshot.status, SystemProxyStatus::Unsupported { .. }));
+        assert!(matches!(
+            snapshot.status,
+            SystemProxyStatus::Unsupported { .. }
+        ));
     }
 }

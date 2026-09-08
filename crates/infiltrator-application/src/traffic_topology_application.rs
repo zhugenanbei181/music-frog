@@ -21,7 +21,10 @@ impl TrafficTopologyApplication {
         connections: Option<&Result<ConnectionSnapshot, PortError>>,
     ) -> TrafficTopologySnapshot {
         let revision = core.revision.max(1);
-        if !matches!(core.lifecycle, CoreLifecycle::Running | CoreLifecycle::Ready) {
+        if !matches!(
+            core.lifecycle,
+            CoreLifecycle::Running | CoreLifecycle::Ready
+        ) {
             return TrafficTopologySnapshot::unavailable(
                 core.generation,
                 revision,
@@ -118,14 +121,16 @@ mod tests {
 
     #[test]
     fn missing_gateway_is_typed_unsupported() {
-        let snapshot = TrafficTopologyApplication.project(&core(CoreLifecycle::Running), None, None, None);
+        let snapshot =
+            TrafficTopologyApplication.project(&core(CoreLifecycle::Running), None, None, None);
         assert_eq!(snapshot.status, TrafficTopologyStatus::Unsupported);
         assert!(!snapshot.is_flowing());
     }
 
     #[test]
     fn stopped_core_does_not_reuse_traffic_as_a_live_topology() {
-        let snapshot = TrafficTopologyApplication.project(&core(CoreLifecycle::Stopped), None, None, None);
+        let snapshot =
+            TrafficTopologyApplication.project(&core(CoreLifecycle::Stopped), None, None, None);
         assert_eq!(snapshot.status, TrafficTopologyStatus::Unknown);
         assert!(!snapshot.is_drawable());
     }

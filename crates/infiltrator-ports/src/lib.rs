@@ -3,10 +3,9 @@
 //! Traits here describe capabilities, not implementations. They deliberately
 //! contain no Tokio channels, task handles, HTTP response types, or UI types.
 
-pub mod capability_provider;
-pub mod application_runtime;
 pub mod app_routing_store;
-pub mod fake_ip_cache;
+pub mod application_runtime;
+pub mod capability_provider;
 pub mod core_lifecycle;
 pub mod core_process;
 pub mod core_watchdog;
@@ -15,28 +14,29 @@ pub mod data_store;
 pub mod doctor;
 pub mod endpoint;
 pub mod error;
+pub mod fake_ip_cache;
 pub mod host_runtime;
-pub mod overview;
-pub mod offline_startup;
 pub mod mtu_probe;
 pub mod network_roaming;
-pub mod public_ip_probe;
-pub mod profile_store;
-pub mod profile_reset;
+pub mod offline_startup;
+pub mod overview;
+pub mod pac;
 pub mod port_conflict;
+pub mod privileged_network;
+pub mod profile_reset;
+pub mod profile_store;
+pub mod public_ip_probe;
+pub mod runtime_gateway;
 pub mod secure_store;
 pub mod service_mode;
-pub mod snapshot_store;
 pub mod settings_store;
+pub mod snapshot_store;
 pub mod subscription_source;
-pub mod runtime_gateway;
-pub mod sync;
 pub mod surface;
-pub mod version;
+pub mod sync;
 pub mod system_proxy;
 pub mod uwp_loopback;
-pub mod pac;
-pub mod privileged_network;
+pub mod version;
 pub mod vpn_service;
 
 #[cfg(test)]

@@ -1,8 +1,8 @@
 //! Unit tests for YAML editing, L3 anchor scanning & namespace rewriting.
 
-use super::*;
 use super::anchor::AnchorKind;
 use super::mixin_fidelity::{apply_mixin_to_doc, can_apply_mixin_via_fidelity};
+use super::*;
 use std::collections::HashMap;
 
 fn doc(s: &str) -> SourceDoc {
@@ -285,7 +285,10 @@ desc: |
     assert_eq!(occurrences[4].kind, AnchorKind::Alias);
     assert_eq!(occurrences[4].line_idx, 8);
 
-    assert_eq!(d.anchor_definitions(), vec!["main_mode", "hk_01", "catchall"]);
+    assert_eq!(
+        d.anchor_definitions(),
+        vec!["main_mode", "hk_01", "catchall"]
+    );
     assert_eq!(d.alias_references(), vec!["hk_01", "catchall"]);
     assert!(d.find_unresolved_aliases().is_empty());
 }

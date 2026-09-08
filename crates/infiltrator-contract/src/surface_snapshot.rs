@@ -7,17 +7,17 @@
 use crate::capability::CapabilitySnapshot;
 use crate::command::ProxyMode;
 use crate::controller::ControllerAuthSnapshot;
-use crate::service_mode::ServiceModeSnapshot;
-use crate::port_conflict::PortConflictSnapshot;
-use crate::resources::CoreResourceSnapshot;
 use crate::error::Failure;
 use crate::lan::LanSecuritySnapshot;
-use crate::offline_startup::OfflineStartupSnapshot;
 use crate::mtu::MtuNegotiationSnapshot;
-use crate::system_proxy::SystemProxySnapshot;
-use crate::system_proxy::SystemProxyRecoverySnapshot;
+use crate::offline_startup::OfflineStartupSnapshot;
+use crate::port_conflict::PortConflictSnapshot;
+use crate::resources::CoreResourceSnapshot;
+use crate::service_mode::ServiceModeSnapshot;
 use crate::snapshot::{CoreLifecycle, CoreSnapshot};
 use crate::surface::{HostKind, SurfaceKind};
+use crate::system_proxy::SystemProxyRecoverySnapshot;
+use crate::system_proxy::SystemProxySnapshot;
 use crate::version::CoreVersionSnapshot;
 use serde::{Deserialize, Serialize};
 
@@ -493,6 +493,8 @@ pub struct SurfaceSnapshot {
     /// Current selected proxy-group outbound node and its available facts.
     #[serde(default)]
     pub active_exit: crate::active_exit::ActiveExitSnapshot,
+    #[serde(default)]
+    pub public_ip: crate::public_ip::PublicIpProbeSnapshot,
     /// Current active subscription usage and expiry facts.
     #[serde(default)]
     pub subscription_quota: crate::subscription_quota::SubscriptionQuotaSnapshot,
@@ -558,6 +560,7 @@ impl SurfaceSnapshot {
             traffic_scale: crate::traffic_scale::TrafficScaleSnapshot::default(),
             traffic_topology: crate::traffic_topology::TrafficTopologySnapshot::default(),
             active_exit: crate::active_exit::ActiveExitSnapshot::default(),
+            public_ip: crate::public_ip::PublicIpProbeSnapshot::default(),
             subscription_quota: crate::subscription_quota::SubscriptionQuotaSnapshot::default(),
             yaml_ast_diff: None,
             script_sandbox: None,

@@ -4,11 +4,11 @@
 
 use infiltrator_domain::{dns, fake_ip};
 
+use crate::ffi::{FfiBoolResult, FfiErrorCode, FfiStatus};
 use crate::host_support::{
     build_configuration_application, cache_application, get_runtime, map_application_failure,
     normalize_optional_string, sanitize_list,
 };
-use crate::ffi::{FfiBoolResult, FfiErrorCode, FfiStatus};
 
 // --- DNS API ---
 
@@ -163,7 +163,11 @@ pub async fn fake_ip_settings_save(patch: FakeIpSettingsPatch) -> FakeIpSettings
 pub async fn fake_ip_cache_clear() -> FfiBoolResult {
     get_runtime()
         .spawn(async move {
-            match cache_application().clear_fake_ip().await.map_err(map_application_failure) {
+            match cache_application()
+                .clear_fake_ip()
+                .await
+                .map_err(map_application_failure)
+            {
                 Ok(removed) => FfiBoolResult::ok(removed),
                 Err(status) => FfiBoolResult {
                     status,
@@ -210,9 +214,7 @@ fn build_dns_settings(config: dns::DnsConfig) -> DnsSettings {
     }
 }
 
-pub(super) fn build_dns_settings_patch(
-    patch: DnsSettingsPatch,
-) -> dns::DnsConfigPatch {
+pub(super) fn build_dns_settings_patch(patch: DnsSettingsPatch) -> dns::DnsConfigPatch {
     dns::DnsConfigPatch {
         enable: patch.enable,
         ipv6: patch.ipv6,
@@ -279,9 +281,7 @@ fn build_fake_ip_settings(config: fake_ip::FakeIpConfig) -> FakeIpSettings {
     }
 }
 
-fn build_fake_ip_settings_patch(
-    patch: FakeIpSettingsPatch,
-) -> fake_ip::FakeIpConfigPatch {
+fn build_fake_ip_settings_patch(patch: FakeIpSettingsPatch) -> fake_ip::FakeIpConfigPatch {
     fake_ip::FakeIpConfigPatch {
         fake_ip_range: normalize_optional_string(patch.fake_ip_range),
         fake_ip_filter: sanitize_list(patch.fake_ip_filter),

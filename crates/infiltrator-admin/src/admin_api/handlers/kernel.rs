@@ -23,7 +23,10 @@ pub async fn list_core_versions_http<C: AdminApiContext>(
         .list_installed()
         .await
         .map_err(|failure| ApiError::internal(failure.message))?;
-    let mut list: Vec<String> = versions.iter().map(|version| version.version.clone()).collect();
+    let mut list: Vec<String> = versions
+        .iter()
+        .map(|version| version.version.clone())
+        .collect();
     sort_versions_desc(&mut list);
     let current = versions
         .into_iter()
@@ -156,7 +159,10 @@ async fn ensure_core_version_installed(
     }
 
     if let Err(failure) = application
-        .install(version.to_string(), std::sync::Arc::new(QuietVersionProgress))
+        .install(
+            version.to_string(),
+            std::sync::Arc::new(QuietVersionProgress),
+        )
         .await
     {
         let installed_after = application

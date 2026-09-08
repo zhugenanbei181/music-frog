@@ -18,7 +18,6 @@ pub use mihomo_platform::android_bridge::{
     AndroidBridge, clear_android_bridge, get_android_bridge, set_android_bridge,
 };
 pub use runtime::{AndroidBridgeAdapter, AndroidRuntime, android_bridge_adapter};
-pub use vpn_service::AndroidVpnServicePort;
 pub use uniffi_api::{
     AndroidAppCategory, AndroidAppInfo, AndroidVpnPerAppPlan, BootstrapResult, BootstrapStepRecord,
     ConnectionRecord, ConnectionsResult, DnsFallbackFilterSettings, DnsSettings, DnsSettingsPatch,
@@ -28,9 +27,9 @@ pub use uniffi_api::{
     ProfileSummary, ProfilesResult, ProxyGroupSummary, ProxyGroupsResult, RuleEntryRecord,
     RuleProvidersResult, RulesResult, TrafficResult, TrafficSnapshot, TunStatusResult,
     VpnSessionResult, VpnSessionSnapshot, VpnTunSettings, VpnTunSettingsPatch,
-    VpnTunSettingsResult, WebDavSettings,
-    WebDavSettingsResult, WebDavSyncResult,
+    VpnTunSettingsResult, WebDavSettings, WebDavSettingsResult, WebDavSyncResult,
 };
+pub use vpn_service::AndroidVpnServicePort;
 
 uniffi::setup_scaffolding!("infiltrator_android");
 

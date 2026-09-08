@@ -38,7 +38,9 @@ mod tests {
     fn empty_and_duplicate_requests_are_rejected_before_host_io() {
         assert!(validate_request(&PrivilegedNetworkRequest { operations: vec![] }).is_err());
         let mut request = PrivilegedNetworkRequest::standard();
-        request.operations.push(PrivilegedNetworkOperation::TunService);
+        request
+            .operations
+            .push(PrivilegedNetworkOperation::TunService);
         assert!(validate_request(&request).is_err());
     }
 }

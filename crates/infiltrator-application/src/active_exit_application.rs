@@ -16,7 +16,10 @@ impl ActiveExitApplication {
         proxies: Option<&Result<HashMap<String, Proxy>, PortError>>,
     ) -> ActiveExitSnapshot {
         let revision = core.revision.max(1);
-        if !matches!(core.lifecycle, CoreLifecycle::Running | CoreLifecycle::Ready) {
+        if !matches!(
+            core.lifecycle,
+            CoreLifecycle::Running | CoreLifecycle::Ready
+        ) {
             return ActiveExitSnapshot::unavailable(
                 core.generation,
                 revision,
@@ -47,8 +50,8 @@ impl ActiveExitApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::snapshot::CoreLifecycle;
     use infiltrator_contract::active_exit::ActiveExitStatus;
+    use infiltrator_contract::snapshot::CoreLifecycle;
 
     fn core(lifecycle: CoreLifecycle) -> CoreSnapshot {
         CoreSnapshot {

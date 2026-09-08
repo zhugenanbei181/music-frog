@@ -4,7 +4,9 @@ use async_trait::async_trait;
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
-use mihomo_platform::interface_watcher::{GatewayPriorityArbiter, NetworkInterfaceSnapshot, NetworkInterfaceWatcher};
+use mihomo_platform::interface_watcher::{
+    GatewayPriorityArbiter, NetworkInterfaceSnapshot, NetworkInterfaceWatcher,
+};
 use std::collections::HashMap;
 use std::process::Command;
 
@@ -116,7 +118,9 @@ fn default_route_interface() -> Option<String> {
             .output()
             .ok()
             .filter(|output| output.status.success())
-            .and_then(|output| parse_linux_default_route(&String::from_utf8_lossy(&output.stdout)));
+            .and_then(|output| {
+                parse_linux_default_route(&String::from_utf8_lossy(&output.stdout))
+            });
     }
 
     #[cfg(target_os = "macos")]
@@ -126,7 +130,9 @@ fn default_route_interface() -> Option<String> {
             .output()
             .ok()
             .filter(|output| output.status.success())
-            .and_then(|output| parse_macos_default_route(&String::from_utf8_lossy(&output.stdout)));
+            .and_then(|output| {
+                parse_macos_default_route(&String::from_utf8_lossy(&output.stdout))
+            });
     }
 
     #[cfg(target_os = "windows")]
@@ -218,7 +224,11 @@ fn parse_netsh_mtu(output: &str) -> HashMap<String, u32> {
 
 #[allow(dead_code)]
 fn parse_windows_default_route(output: &str) -> Option<String> {
-    output.lines().map(str::trim).find(|line| !line.is_empty()).map(str::to_owned)
+    output
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(str::to_owned)
 }
 
 #[cfg(test)]
@@ -267,9 +277,12 @@ mod tests {
 
     #[test]
     fn link_mtu_overrides_category_fallback() {
-        let mut interfaces = vec![
-            NetworkInterfaceSnapshot::new("eth0", true, true, vec!["192.0.2.1".to_owned()]),
-        ];
+        let mut interfaces = vec![NetworkInterfaceSnapshot::new(
+            "eth0",
+            true,
+            true,
+            vec!["192.0.2.1".to_owned()],
+        )];
         let mut mtus = HashMap::new();
         mtus.insert("eth0".to_owned(), 1492);
         apply_link_mtu(&mut interfaces, &mtus);

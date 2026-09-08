@@ -40,4 +40,3 @@ pub fn parse_snapshot_name(name: &str) -> Option<(DateTime<Utc>, String)> {
     let timestamp = DateTime::from_timestamp_millis(millis)?;
     Some((timestamp, hash.to_ascii_lowercase()))
 }
-

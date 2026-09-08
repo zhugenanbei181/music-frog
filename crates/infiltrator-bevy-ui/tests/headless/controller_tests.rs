@@ -652,6 +652,7 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
                 traffic_scale: Default::default(),
                 traffic_topology: Default::default(),
                 active_exit: Default::default(),
+                public_ip: Default::default(),
                 subscription_quota: Default::default(),
                 system_toggles: Default::default(),
                 cpu_percent: None,

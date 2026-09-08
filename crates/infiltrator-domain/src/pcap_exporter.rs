@@ -96,7 +96,12 @@ pub struct PcapRecordHeader {
 
 impl PcapRecordHeader {
     pub fn new(ts_sec: u32, ts_subsec: u32, caplen: u32, orig_len: u32) -> Self {
-        Self { ts_sec, ts_subsec, caplen, orig_len }
+        Self {
+            ts_sec,
+            ts_subsec,
+            caplen,
+            orig_len,
+        }
     }
 
     pub fn to_bytes(&self) -> [u8; 16] {
@@ -141,7 +146,12 @@ impl PcapExporter {
     pub fn new(header: PcapHeader) -> Self {
         let mut buffer = Vec::new();
         buffer.extend_from_slice(&header.to_bytes());
-        Self { header, buffer, packet_count: 0, total_bytes_captured: 0 }
+        Self {
+            header,
+            buffer,
+            packet_count: 0,
+            total_bytes_captured: 0,
+        }
     }
 
     pub fn write_header() -> Vec<u8> {
@@ -179,11 +189,21 @@ impl PcapExporter {
         16 + caplen as usize
     }
 
-    pub fn as_bytes(&self) -> &[u8] { &self.buffer }
-    pub fn into_bytes(self) -> Vec<u8> { self.buffer }
-    pub fn header(&self) -> &PcapHeader { &self.header }
-    pub fn packet_count(&self) -> usize { self.packet_count }
-    pub fn total_bytes_captured(&self) -> usize { self.total_bytes_captured }
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.buffer
+    }
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.buffer
+    }
+    pub fn header(&self) -> &PcapHeader {
+        &self.header
+    }
+    pub fn packet_count(&self) -> usize {
+        self.packet_count
+    }
+    pub fn total_bytes_captured(&self) -> usize {
+        self.total_bytes_captured
+    }
 
     pub fn clear(&mut self) {
         self.buffer.clear();
@@ -208,7 +228,10 @@ impl PcapExporter {
             }
             let payload = bytes[offset..offset + caplen].to_vec();
             offset += caplen;
-            packets.push(CapturedPacket { header: rec_hdr, data: payload });
+            packets.push(CapturedPacket {
+                header: rec_hdr,
+                data: payload,
+            });
         }
         Ok((header, packets))
     }
@@ -266,9 +289,19 @@ pub struct RewriteRule {
 }
 
 impl RewriteRule {
-    pub fn new(pattern: &str, replacement: &str, redirect: bool, status_code: Option<u16>) -> Result<Self> {
+    pub fn new(
+        pattern: &str,
+        replacement: &str,
+        redirect: bool,
+        status_code: Option<u16>,
+    ) -> Result<Self> {
         let reg = Regex::new(pattern).with_context(|| format!("Invalid regex: '{pattern}'"))?;
-        Ok(Self { pattern: reg, replacement: replacement.to_string(), status_code, redirect })
+        Ok(Self {
+            pattern: reg,
+            replacement: replacement.to_string(),
+            status_code,
+            redirect,
+        })
     }
 
     pub fn redirect_302(pattern: &str, replacement: &str) -> Result<Self> {
@@ -325,12 +358,14 @@ impl UrlRewriteEngine {
     }
 
     pub fn add_redirect_302(&mut self, pattern: &str, replacement: &str) -> Result<()> {
-        self.rules.push(RewriteRule::redirect_302(pattern, replacement)?);
+        self.rules
+            .push(RewriteRule::redirect_302(pattern, replacement)?);
         Ok(())
     }
 
     pub fn add_redirect_307(&mut self, pattern: &str, replacement: &str) -> Result<()> {
-        self.rules.push(RewriteRule::redirect_307(pattern, replacement)?);
+        self.rules
+            .push(RewriteRule::redirect_307(pattern, replacement)?);
         Ok(())
     }
 
@@ -343,10 +378,18 @@ impl UrlRewriteEngine {
         None
     }
 
-    pub fn rules(&self) -> &[RewriteRule] { &self.rules }
-    pub fn len(&self) -> usize { self.rules.len() }
-    pub fn is_empty(&self) -> bool { self.rules.is_empty() }
-    pub fn clear(&mut self) { self.rules.clear(); }
+    pub fn rules(&self) -> &[RewriteRule] {
+        &self.rules
+    }
+    pub fn len(&self) -> usize {
+        self.rules.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.rules.is_empty()
+    }
+    pub fn clear(&mut self) {
+        self.rules.clear();
+    }
 }
 
 /// HTTP header modification action.
@@ -376,24 +419,54 @@ pub struct HeaderRule {
 
 impl HeaderRule {
     pub fn new(target: HeaderTarget, action: HeaderAction) -> Self {
-        Self { target, action, url_pattern: None }
+        Self {
+            target,
+            action,
+            url_pattern: None,
+        }
     }
 
-    pub fn with_url_filter(target: HeaderTarget, action: HeaderAction, pattern: &str) -> Result<Self> {
-        let reg = Regex::new(pattern).with_context(|| format!("Invalid URL pattern: '{pattern}'"))?;
-        Ok(Self { target, action, url_pattern: Some(reg) })
+    pub fn with_url_filter(
+        target: HeaderTarget,
+        action: HeaderAction,
+        pattern: &str,
+    ) -> Result<Self> {
+        let reg =
+            Regex::new(pattern).with_context(|| format!("Invalid URL pattern: '{pattern}'"))?;
+        Ok(Self {
+            target,
+            action,
+            url_pattern: Some(reg),
+        })
     }
 
     pub fn set(target: HeaderTarget, name: &str, value: &str) -> Self {
-        Self::new(target, HeaderAction::Set { name: name.to_string(), value: value.to_string() })
+        Self::new(
+            target,
+            HeaderAction::Set {
+                name: name.to_string(),
+                value: value.to_string(),
+            },
+        )
     }
 
     pub fn inject(target: HeaderTarget, name: &str, value: &str) -> Self {
-        Self::new(target, HeaderAction::InjectIfNotPresent { name: name.to_string(), value: value.to_string() })
+        Self::new(
+            target,
+            HeaderAction::InjectIfNotPresent {
+                name: name.to_string(),
+                value: value.to_string(),
+            },
+        )
     }
 
     pub fn remove(target: HeaderTarget, name: &str) -> Self {
-        Self::new(target, HeaderAction::Remove { name: name.to_string() })
+        Self::new(
+            target,
+            HeaderAction::Remove {
+                name: name.to_string(),
+            },
+        )
     }
 }
 
@@ -413,15 +486,24 @@ impl HeaderModifier {
     }
 
     pub fn set_user_agent(&mut self, user_agent: &str) {
-        self.rules.push(HeaderRule::set(HeaderTarget::Request, "User-Agent", user_agent));
+        self.rules.push(HeaderRule::set(
+            HeaderTarget::Request,
+            "User-Agent",
+            user_agent,
+        ));
     }
 
     pub fn set_referer(&mut self, referer: &str) {
-        self.rules.push(HeaderRule::set(HeaderTarget::Request, "Referer", referer));
+        self.rules
+            .push(HeaderRule::set(HeaderTarget::Request, "Referer", referer));
     }
 
     pub fn inject_cors_origin(&mut self, origin: &str) {
-        self.rules.push(HeaderRule::set(HeaderTarget::Response, "Access-Control-Allow-Origin", origin));
+        self.rules.push(HeaderRule::set(
+            HeaderTarget::Response,
+            "Access-Control-Allow-Origin",
+            origin,
+        ));
     }
 
     pub fn set_custom_header(&mut self, target: HeaderTarget, name: &str, value: &str) {
@@ -432,7 +514,12 @@ impl HeaderModifier {
         self.rules.push(HeaderRule::remove(target, name));
     }
 
-    pub fn modify_headers(&self, headers: &mut HashMap<String, String>, target: HeaderTarget, url: Option<&str>) {
+    pub fn modify_headers(
+        &self,
+        headers: &mut HashMap<String, String>,
+        target: HeaderTarget,
+        url: Option<&str>,
+    ) {
         for rule in &self.rules {
             if rule.target != HeaderTarget::Both && rule.target != target {
                 continue;
@@ -457,7 +544,11 @@ impl HeaderModifier {
                     headers.retain(|k, _| !k.eq_ignore_ascii_case(name));
                 }
                 HeaderAction::ReplaceIfPresent { name, value } => {
-                    if let Some(key) = headers.keys().find(|k| k.eq_ignore_ascii_case(name)).cloned() {
+                    if let Some(key) = headers
+                        .keys()
+                        .find(|k| k.eq_ignore_ascii_case(name))
+                        .cloned()
+                    {
                         headers.remove(&key);
                         headers.insert(name.clone(), value.clone());
                     }
@@ -470,13 +561,23 @@ impl HeaderModifier {
         self.modify_headers(headers, HeaderTarget::Request, url);
     }
 
-    pub fn modify_response_headers(&self, headers: &mut HashMap<String, String>, url: Option<&str>) {
+    pub fn modify_response_headers(
+        &self,
+        headers: &mut HashMap<String, String>,
+        url: Option<&str>,
+    ) {
         self.modify_headers(headers, HeaderTarget::Response, url);
     }
 
-    pub fn rules(&self) -> &[HeaderRule] { &self.rules }
-    pub fn len(&self) -> usize { self.rules.len() }
-    pub fn is_empty(&self) -> bool { self.rules.is_empty() }
+    pub fn rules(&self) -> &[HeaderRule] {
+        &self.rules
+    }
+    pub fn len(&self) -> usize {
+        self.rules.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.rules.is_empty()
+    }
 }
 
 /// Predefined mock response payload.
@@ -489,25 +590,38 @@ pub struct MockResponse {
 
 impl MockResponse {
     pub fn new(status_code: u16, headers: HashMap<String, String>, body: Vec<u8>) -> Self {
-        Self { status_code, headers, body }
+        Self {
+            status_code,
+            headers,
+            body,
+        }
     }
 
     pub fn ok_json(value: &serde_json::Value) -> Result<Self> {
         let body = serde_json::to_vec(value).context("serialize JSON mock body")?;
         let mut headers = HashMap::new();
-        headers.insert("Content-Type".to_string(), "application/json; charset=utf-8".to_string());
+        headers.insert(
+            "Content-Type".to_string(),
+            "application/json; charset=utf-8".to_string(),
+        );
         Ok(Self::new(200, headers, body))
     }
 
     pub fn ok_text(text: &str) -> Self {
         let mut headers = HashMap::new();
-        headers.insert("Content-Type".to_string(), "text/plain; charset=utf-8".to_string());
+        headers.insert(
+            "Content-Type".to_string(),
+            "text/plain; charset=utf-8".to_string(),
+        );
         Self::new(200, headers, text.as_bytes().to_vec())
     }
 
     pub fn not_found() -> Self {
         let mut headers = HashMap::new();
-        headers.insert("Content-Type".to_string(), "text/plain; charset=utf-8".to_string());
+        headers.insert(
+            "Content-Type".to_string(),
+            "text/plain; charset=utf-8".to_string(),
+        );
         Self::new(404, headers, b"404 Not Found".to_vec())
     }
 
@@ -566,9 +680,19 @@ pub struct MockResponseRule {
 }
 
 impl MockResponseRule {
-    pub fn new(pattern: &str, status_code: u16, headers: HashMap<String, String>, body: Vec<u8>) -> Result<Self> {
+    pub fn new(
+        pattern: &str,
+        status_code: u16,
+        headers: HashMap<String, String>,
+        body: Vec<u8>,
+    ) -> Result<Self> {
         let reg = Regex::new(pattern).with_context(|| format!("Invalid regex: '{pattern}'"))?;
-        Ok(Self { url_pattern: reg, status_code, headers, body })
+        Ok(Self {
+            url_pattern: reg,
+            status_code,
+            headers,
+            body,
+        })
     }
 
     pub fn json(pattern: &str, status_code: u16, json_val: &serde_json::Value) -> Result<Self> {
@@ -612,13 +736,20 @@ impl MockResponseEngine {
         self.rules.push(rule);
     }
 
-    pub fn add_json_mock(&mut self, pattern: &str, status_code: u16, json: &serde_json::Value) -> Result<()> {
-        self.rules.push(MockResponseRule::json(pattern, status_code, json)?);
+    pub fn add_json_mock(
+        &mut self,
+        pattern: &str,
+        status_code: u16,
+        json: &serde_json::Value,
+    ) -> Result<()> {
+        self.rules
+            .push(MockResponseRule::json(pattern, status_code, json)?);
         Ok(())
     }
 
     pub fn add_text_mock(&mut self, pattern: &str, status_code: u16, text: &str) -> Result<()> {
-        self.rules.push(MockResponseRule::text(pattern, status_code, text)?);
+        self.rules
+            .push(MockResponseRule::text(pattern, status_code, text)?);
         Ok(())
     }
 
@@ -631,9 +762,15 @@ impl MockResponseEngine {
         None
     }
 
-    pub fn len(&self) -> usize { self.rules.len() }
-    pub fn is_empty(&self) -> bool { self.rules.is_empty() }
-    pub fn clear(&mut self) { self.rules.clear(); }
+    pub fn len(&self) -> usize {
+        self.rules.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.rules.is_empty()
+    }
+    pub fn clear(&mut self) {
+        self.rules.clear();
+    }
 }
 
 #[cfg(test)]

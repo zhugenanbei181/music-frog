@@ -4,8 +4,8 @@ use axum::Json;
 use std::time::Duration;
 
 use infiltrator_domain::script_engine::{
-    HookStage, ScriptEngine, ScriptExecutionResult, ScriptValidationResult,
-    DEFAULT_SCRIPT_TIMEOUT_MS,
+    DEFAULT_SCRIPT_TIMEOUT_MS, HookStage, ScriptEngine, ScriptExecutionResult,
+    ScriptValidationResult,
 };
 
 use crate::admin_api::models::{
@@ -67,11 +67,12 @@ pub async fn import_extension_package_http<C: AdminApiContext>(
 
     let checksum = package.calculate_checksum();
     if let Some(expected) = payload.expected_checksum
-        && !package.verify_checksum(&expected) {
-            return Err(ApiError::bad_request(format!(
-                "Checksum mismatch: expected `{expected}`, got `{checksum}`"
-            )));
-        }
+        && !package.verify_checksum(&expected)
+    {
+        return Err(ApiError::bad_request(format!(
+            "Checksum mismatch: expected `{expected}`, got `{checksum}`"
+        )));
+    }
 
     Ok(Json(ExtensionImportResponse { package, checksum }))
 }

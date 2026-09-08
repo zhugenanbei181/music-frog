@@ -7,19 +7,19 @@ use serde_yaml_ng::Value;
 
 use mihomo_platform::android_bridge::get_android_bridge;
 
-use infiltrator_domain::{dns, tun};
 use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_contract::vpn::VpnSessionState;
 #[cfg(target_os = "android")]
 use infiltrator_contract::vpn::{VpnConfiguration, VpnRoute, VpnStartRequest};
+use infiltrator_domain::{dns, tun};
 
+use crate::ffi::{FfiErrorCode, FfiStatus};
 #[cfg(target_os = "android")]
 use crate::host_support::build_config_manager;
 use crate::host_support::{
     build_configuration_application, get_runtime, map_application_failure, map_mihomo_error,
     normalize_optional_string,
 };
-use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::vpn_service::AndroidVpnServicePort;
 
 #[uniffi::export]
@@ -39,14 +39,16 @@ pub fn start_vpn(fd: i32) -> FfiStatus {
             Ok(request) => request,
             Err(status) => return status,
         };
-        let application = VpnServiceApplication::new(std::sync::Arc::new(
-            AndroidVpnServicePort::shared(),
-        ));
+        let application =
+            VpnServiceApplication::new(std::sync::Arc::new(AndroidVpnServicePort::shared()));
         return match get_runtime().block_on(application.start(request)) {
             Ok(snapshot) if snapshot.is_running() => FfiStatus::ok(),
             Ok(snapshot) => FfiStatus::err(
                 FfiErrorCode::NotReady,
-                format!("VPN start did not reach foreground Running: {:?}", snapshot.state),
+                format!(
+                    "VPN start did not reach foreground Running: {:?}",
+                    snapshot.state
+                ),
             ),
             Err(failure) => map_application_failure(failure),
         };
@@ -71,9 +73,8 @@ pub fn prepare_vpn() -> FfiStatus {
             Ok(configuration) => configuration,
             Err(status) => return status,
         };
-        let application = VpnServiceApplication::new(std::sync::Arc::new(
-            AndroidVpnServicePort::shared(),
-        ));
+        let application =
+            VpnServiceApplication::new(std::sync::Arc::new(AndroidVpnServicePort::shared()));
         return match get_runtime().block_on(application.prepare(configuration)) {
             Ok(snapshot) if snapshot.foreground => FfiStatus::ok(),
             Ok(snapshot) => FfiStatus::err(
@@ -100,15 +101,17 @@ pub fn prepare_vpn() -> FfiStatus {
 pub fn stop_vpn() -> FfiStatus {
     #[cfg(target_os = "android")]
     {
-        let application = VpnServiceApplication::new(std::sync::Arc::new(
-            AndroidVpnServicePort::shared(),
-        ));
+        let application =
+            VpnServiceApplication::new(std::sync::Arc::new(AndroidVpnServicePort::shared()));
         return match get_runtime().block_on(application.stop()) {
             Ok(snapshot)
                 if matches!(
                     snapshot.state,
                     VpnSessionState::Stopped | VpnSessionState::Revoked
-                ) => FfiStatus::ok(),
+                ) =>
+            {
+                FfiStatus::ok()
+            }
             Ok(snapshot) => FfiStatus::err(
                 FfiErrorCode::InvalidState,
                 format!("VPN stop did not settle: {:?}", snapshot.state),
@@ -130,9 +133,8 @@ pub fn stop_vpn() -> FfiStatus {
 pub fn revoke_vpn() -> FfiStatus {
     #[cfg(target_os = "android")]
     {
-        let application = VpnServiceApplication::new(std::sync::Arc::new(
-            AndroidVpnServicePort::shared(),
-        ));
+        let application =
+            VpnServiceApplication::new(std::sync::Arc::new(AndroidVpnServicePort::shared()));
         return match get_runtime().block_on(application.revoke()) {
             Ok(snapshot) if snapshot.state == VpnSessionState::Revoked => FfiStatus::ok(),
             Ok(snapshot) => FfiStatus::err(
@@ -207,9 +209,8 @@ pub struct VpnSessionResult {
 pub async fn vpn_session_status() -> VpnSessionResult {
     get_runtime()
         .spawn(async move {
-            let application = VpnServiceApplication::new(std::sync::Arc::new(
-                AndroidVpnServicePort::shared(),
-            ));
+            let application =
+                VpnServiceApplication::new(std::sync::Arc::new(AndroidVpnServicePort::shared()));
             let snapshot = application.snapshot().await;
             let status = match &snapshot.state {
                 VpnSessionState::Unsupported { reason } => {
@@ -225,14 +226,15 @@ pub async fn vpn_session_status() -> VpnSessionResult {
         })
         .await
         .unwrap_or_else(|error| VpnSessionResult {
-            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {error}")),
+            status: FfiStatus::err(
+                FfiErrorCode::Unknown,
+                format!("runtime join error: {error}"),
+            ),
             snapshot: None,
         })
 }
 
-fn map_vpn_snapshot(
-    snapshot: infiltrator_contract::vpn::VpnSessionSnapshot,
-) -> VpnSessionSnapshot {
+fn map_vpn_snapshot(snapshot: infiltrator_contract::vpn::VpnSessionSnapshot) -> VpnSessionSnapshot {
     VpnSessionSnapshot {
         state: match snapshot.state {
             VpnSessionState::Idle => "idle",
@@ -396,9 +398,7 @@ async fn build_vpn_start_request(
 }
 
 #[cfg(target_os = "android")]
-async fn build_vpn_configuration(
-    proxy_endpoint: String,
-) -> Result<VpnConfiguration, FfiStatus> {
+async fn build_vpn_configuration(proxy_endpoint: String) -> Result<VpnConfiguration, FfiStatus> {
     let settings = load_vpn_tun_settings().await?;
     let mtu = settings.mtu.unwrap_or(1500);
     let ipv6 = settings.ipv6.unwrap_or(true);
@@ -425,11 +425,16 @@ async fn build_vpn_configuration(
                 prefix: route.prefix,
                 exclude: false,
             })
-            .chain(route_plan.excluded_routes.into_iter().map(|route| VpnRoute {
-                address: route.ip,
-                prefix: route.prefix,
-                exclude: true,
-            }))
+            .chain(
+                route_plan
+                    .excluded_routes
+                    .into_iter()
+                    .map(|route| VpnRoute {
+                        address: route.ip,
+                        prefix: route.prefix,
+                        exclude: true,
+                    }),
+            )
             .collect(),
         dns_servers,
         ipv6,
@@ -505,9 +510,7 @@ fn build_vpn_tun_settings(
     }
 }
 
-pub(super) fn build_tun_patch(
-    patch: &VpnTunSettingsPatch,
-) -> (tun::TunConfigPatch, bool) {
+pub(super) fn build_tun_patch(patch: &VpnTunSettingsPatch) -> (tun::TunConfigPatch, bool) {
     let mut core_patch = tun::TunConfigPatch::default();
     let mut has_patch = false;
     if let Some(value) = patch.mtu {
@@ -533,10 +536,7 @@ pub(super) fn build_tun_patch(
     (core_patch, has_patch)
 }
 
-fn build_dns_patch(
-    patch: &VpnTunSettingsPatch,
-    current: &dns::DnsConfig,
-) -> dns::DnsConfigPatch {
+fn build_dns_patch(patch: &VpnTunSettingsPatch, current: &dns::DnsConfig) -> dns::DnsConfigPatch {
     let mut core_patch = dns::DnsConfigPatch::default();
     if let Some(value) = patch.ipv6 {
         core_patch.ipv6 = Some(value);

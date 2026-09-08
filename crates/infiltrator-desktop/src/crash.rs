@@ -11,11 +11,8 @@ pub fn write_sanitized_report(
     client_version: &str,
     backtrace_summary: &str,
 ) {
-    let mut report = CrashReporter::new_report(
-        panic_message,
-        client_version,
-        Some(backtrace_summary),
-    );
+    let mut report =
+        CrashReporter::new_report(panic_message, client_version, Some(backtrace_summary));
     CrashReporter::sanitize_report(&mut report);
     if let Ok(json) = CrashReporter::serialize_report(&report) {
         let _ = std::fs::write(log_dir.join("infiltrator_crash_report.json"), json);

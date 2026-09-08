@@ -219,5 +219,4 @@ mod tests {
         };
         assert!(validate_tun_config(&config).is_err());
     }
-
 }
