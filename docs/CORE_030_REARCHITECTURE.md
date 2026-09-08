@@ -60,6 +60,9 @@
 - [x] `DUAL-04-01`：策略组 5 大分类全覆盖进入 `ProxyGroupClassification`/`ProxyApplication`；强类型规范 `Selector`、`UrlTest`、`Fallback`、`LoadBalance`、`Relay`，单选组与自动组交互边界在契约层严格隔离。
 - [x] `DUAL-04-02`：策略组展开折叠状态持久化进入 `ProxyUiPreferences`/`ProxyPreferencesApplication`；`toggle_group_expand`、`is_group_collapsed` 由应用偏好驱动，两端共享 `ToggleProxyGroupExpand` 意图。
 - [x] `DUAL-04-03`：节点选择状态即时回写进入 `SelectProxyNode`/`ProxyApplication::switch`；强制非 Selector 组拒绝手动切换、非成员节点校验拦截，`PUT /proxies/{group}` 成功后两端卡片在席高亮。
+- [x] `DUAL-04-04`：节点死链一键隐藏进入 `ProxyFilterAliveSnapshot`/`ToggleFilterAlive`；死链过滤算子与 alive/dead 事实计算收敛至 domain/contract，两端状态对等。
+- [x] `DUAL-04-05`：四维排序控制器进入 `ProxySortOrder`/`SetProxySortOrder`；`compare_candidates` 统一星标优先、有效延迟与字母升降序，两端共享 `SetProxySortOrder` 意图。
+- [x] `DUAL-04-06`：节点星标置顶与收藏进入 `ProxyUiPreferences::favorite_proxies`/`ToggleFavoriteProxy`；收藏节点优先级超越常规延迟与字母排序，保证置顶生效。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

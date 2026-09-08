@@ -122,6 +122,9 @@
 - `DUAL-04-01` 已完成 5 大策略组分类强契约、`ProxyGroupClassification`、`ProxyApplication::list_group_details`、Bevy/Iced 分类映射与 headless 测试闭环；真实复杂链式中继网络 smoke 仍未冒充 `host-verified`。
 - `DUAL-04-02` 已完成 策略组展开/折叠状态持久化、`ProxyUiPreferences`、`ProxyPreferencesApplication`、Bevy `ProxyGroupFoldButton` 与 headless 测试闭环；真实长期重启偏好一致性 smoke 仍未冒充 `host-verified`。
 - `DUAL-04-03` 已完成 节点选择状态即时回写、`ProxyApplication::switch`、Bevy `ProxyNodeButton` 与 headless 测试闭环；真实并发切换网络抖动 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-04` 已完成 节点死链一键隐藏、`ProxyFilterAliveSnapshot`、Bevy `FilterAliveToggle` 与 headless 测试闭环；真实超时网络环境 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-05` 已完成 四维排序控制器、`ProxySortOrder`、Bevy `ProxySortPill` 与 headless 测试闭环；真实大数据集排序渲染 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-06` 已完成 节点星标置顶与收藏、`ProxyUiPreferences::favorite_proxies`、Bevy `NodePinButton` 与 headless 测试闭环；真实用户偏好持久化 smoke 仍未冒充 `host-verified`。
 
 ## 0.30 架构收口顺序
 

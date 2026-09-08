@@ -71,6 +71,9 @@ on:
       - "scripts/quality/proxies-five-group-guard.py"
       - "scripts/quality/proxies-group-collapse-guard.py"
       - "scripts/quality/proxies-node-selection-guard.py"
+      - "scripts/quality/proxies-filter-alive-guard.py"
+      - "scripts/quality/proxies-sorting-guard.py"
+      - "scripts/quality/proxies-favorite-pin-guard.py"
       - "scripts/test-bevy.sh"
   pull_request:
     paths:
@@ -133,6 +136,9 @@ on:
       - "scripts/quality/proxies-five-group-guard.py"
       - "scripts/quality/proxies-group-collapse-guard.py"
       - "scripts/quality/proxies-node-selection-guard.py"
+      - "scripts/quality/proxies-filter-alive-guard.py"
+      - "scripts/quality/proxies-sorting-guard.py"
+      - "scripts/quality/proxies-favorite-pin-guard.py"
       - "scripts/test-bevy.sh"
   workflow_dispatch:
 
@@ -329,6 +335,12 @@ jobs:
         run: python3 scripts/quality/proxies-group-collapse-guard.py --mode enforce
       - name: Run Proxies Node Selection Guard
         run: python3 scripts/quality/proxies-node-selection-guard.py --mode enforce
+      - name: Run Proxies Filter Alive Guard
+        run: python3 scripts/quality/proxies-filter-alive-guard.py --mode enforce
+      - name: Run Proxies Sorting Guard
+        run: python3 scripts/quality/proxies-sorting-guard.py --mode enforce
+      - name: Run Proxies Favorite Pin Guard
+        run: python3 scripts/quality/proxies-favorite-pin-guard.py --mode enforce
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

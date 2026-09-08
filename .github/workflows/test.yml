@@ -233,6 +233,12 @@ jobs:
         run: python3 scripts/quality/proxies-group-collapse-guard.py --mode enforce
       - name: Run Proxies Node Selection Guard
         run: python3 scripts/quality/proxies-node-selection-guard.py --mode enforce
+      - name: Run Proxies Filter Alive Guard
+        run: python3 scripts/quality/proxies-filter-alive-guard.py --mode enforce
+      - name: Run Proxies Sorting Guard
+        run: python3 scripts/quality/proxies-sorting-guard.py --mode enforce
+      - name: Run Proxies Favorite Pin Guard
+        run: python3 scripts/quality/proxies-favorite-pin-guard.py --mode enforce
 
       # Bevy UI bsn! 场景法守卫（BEVY-004）：两个 bevy crate 的生产代码里 UI 树
       # 只能在 bsn! 场景内声明并经 spawn_scene 挂载；豁免（Camera2d/Observer）

@@ -959,3 +959,71 @@ fn test_proxies_toggle_group_expand_submits_command() {
         UiCommand::ToggleProxyGroupExpand { group } if !group.is_empty()
     )));
 }
+
+#[test]
+fn test_proxies_filter_alive_toggle_submits_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink.clone());
+    let _ = navigate_to(&mut app, Route::Proxies);
+
+    let toggle_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<FilterAliveToggle>>()
+        .single(app.world())
+        .expect("filter alive toggle");
+
+    app.world_mut().commands().trigger(Activate {
+        entity: toggle_entity,
+    });
+    app.update();
+
+    assert_eq!(sink.submitted(), vec![UiCommand::ToggleFilterAlive(true)]);
+}
+
+#[test]
+fn test_proxies_sort_pills_submit_commands() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink.clone());
+    let _ = navigate_to(&mut app, Route::Proxies);
+
+    let pill_entity = {
+        let world = app.world_mut();
+        let mut query = world.query::<(Entity, &ProxySortPill)>();
+        query.iter(world).next().expect("sort pill").0
+    };
+
+    app.world_mut().commands().trigger(Activate {
+        entity: pill_entity,
+    });
+    app.update();
+
+    assert!(
+        sink.submitted()
+            .iter()
+            .any(|cmd| matches!(cmd, UiCommand::SetProxySortOrder(_)))
+    );
+}
+
+#[test]
+fn test_proxies_favorite_pin_submits_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink.clone());
+    let _ = navigate_to(&mut app, Route::Proxies);
+
+    let pin_entity = {
+        let world = app.world_mut();
+        let mut query = world.query::<(Entity, &NodePinButton)>();
+        query.iter(world).next().expect("pin button").0
+    };
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: pin_entity });
+    app.update();
+
+    assert!(
+        sink.submitted()
+            .iter()
+            .any(|cmd| matches!(cmd, UiCommand::ToggleFavoriteProxy(_)))
+    );
+}

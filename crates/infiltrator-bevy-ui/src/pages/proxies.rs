@@ -150,6 +150,17 @@ pub enum ProxySortMode {
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProxySortPill(pub ProxySortMode);
 
+impl From<ProxySortMode> for infiltrator_contract::proxies::ProxySortOrder {
+    fn from(mode: ProxySortMode) -> Self {
+        match mode {
+            ProxySortMode::LatencyAsc => Self::LatencyAsc,
+            ProxySortMode::LatencyDesc => Self::LatencyDesc,
+            ProxySortMode::NameAsc => Self::NameAsc,
+            ProxySortMode::NameDesc => Self::NameDesc,
+        }
+    }
+}
+
 /// Marker for the delay test URL indicator ("测试地址").
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DelayTestUrlIndicator;
@@ -453,12 +464,17 @@ fn bind_proxies_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(on_proxies_action_activated);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn on_proxies_action_activated(
     activate: On<Activate>,
     test_all_buttons: Query<(), With<TestAllProxiesButton>>,
     test_group_buttons: Query<&TestProxyGroupButton>,
     fold_buttons: Query<&ProxyGroupFoldButton>,
     node_buttons: Query<&ProxyNodeButton>,
+    filter_alive_toggles: Query<(), With<FilterAliveToggle>>,
+    sort_pills: Query<&ProxySortPill>,
+    pin_buttons: Query<&NodePinButton>,
+    toggle_view_buttons: Query<(), With<ToggleViewModeButton>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -479,6 +495,14 @@ pub(crate) fn on_proxies_action_activated(
             group: btn.group_name.clone(),
             node: btn.node_name.clone(),
         });
+    } else if filter_alive_toggles.contains(activate.entity) {
+        handle.submit(UiCommand::ToggleFilterAlive(true));
+    } else if let Ok(pill) = sort_pills.get(activate.entity) {
+        handle.submit(UiCommand::SetProxySortOrder(pill.0.into()));
+    } else if let Ok(pin) = pin_buttons.get(activate.entity) {
+        handle.submit(UiCommand::ToggleFavoriteProxy(pin.node_name.clone()));
+    } else if toggle_view_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::SetProxyCompactView(true));
     }
 }
 

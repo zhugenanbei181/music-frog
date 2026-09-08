@@ -70,3 +70,6 @@ python3 "$repo_root/scripts/quality/overview-regression-matrix-guard.py" --mode 
 python3 "$repo_root/scripts/quality/proxies-five-group-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/proxies-group-collapse-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/proxies-node-selection-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/proxies-filter-alive-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/proxies-sorting-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/proxies-favorite-pin-guard.py" --mode enforce
