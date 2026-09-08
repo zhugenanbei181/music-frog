@@ -55,6 +55,7 @@
 | `DUAL-03-15` 概览双端全景无头行为与回归测试矩阵 | `parity-ready` | Overview 15 项能力建立单一共享回归矩阵契约 `OverviewRegressionMatrixReport`；`OverviewMatrixApplication` 统一执行波形平滑、标尺量程、拓扑链、下钻跳转、出口卡片、配额预警、主控大卡、四态分段、一键测速、6项指标、公网探针、拖拽重排、降级蒙版与响应式视口共 14 场景全覆盖断言 | 自动化测试矩阵 100% 绿灯、nextest 自动化闭环；真实长期无故障运行 smoke 尚未计入 `host-verified` |
 | `DUAL-04-01` 策略组 5 大分类全覆盖 | `parity-ready` | 代理策略组统一使用 shared `ProxyGroupClassification` 强枚举建模（`Selector`、`UrlTest`、`Fallback`、`LoadBalance`、`Relay`）；`ProxyApplication` 校验分类合法性与手动可选性（仅 Selector 接受外部 `PUT /proxies/{group}`，自动组由内核按策略调度），双端根据分类正确渲染语义标签与交互模式 | contract/domain 5分类解析测试、ProxyApplication::list_group_details/switch 校验、Bevy/Iced 策略组卡片分类对齐与 headless tests 已覆盖；真实多级复杂 relay 节点与发行包 smoke 尚未计入 `host-verified` |
 | `DUAL-04-02` 策略组展开/折叠状态持久化 | `parity-ready` | 策略组折叠状态统一接入 shared `ProxyUiPreferences`（`collapsed_groups` 列表）；`ProxyPreferencesApplication` 负责折叠状态读写，Iced 与 Bevy 通过 `ToggleProxyGroupExpand` 意图驱动展开与折叠，状态重启记忆不丢失 | contract 偏好模型测试、ProxyPreferencesApplication::toggle_group_expand、Bevy ProxyGroupFoldButton observer / headless tests 已覆盖；真实多平台本地配置盘 IO 崩溃恢复 smoke 尚未计入 `host-verified` |
+| `DUAL-04-03` 节点选择状态即时回写 | `parity-ready` | 节点手动切换统一走 shared `SelectProxyNode` 意图；`ProxyApplication::switch` 执行目标组合法性、手动可选组（Selector 校验）与组内成员校验，秒级下发 `PUT /proxies/{group}`，双端在席高亮与出口卡片状态同步刷新 | ProxyApplication switch 校验与网关调用测试、Bevy ProxyNodeButton observer / headless tests 已覆盖；真实多网卡公网连通性变更 smoke 尚未计入 `host-verified` |
 
 ---
 

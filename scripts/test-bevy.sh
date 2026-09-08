@@ -69,3 +69,4 @@ python3 "$repo_root/scripts/quality/overview-responsive-viewport-guard.py" --mod
 python3 "$repo_root/scripts/quality/overview-regression-matrix-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/proxies-five-group-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/proxies-group-collapse-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/proxies-node-selection-guard.py" --mode enforce
