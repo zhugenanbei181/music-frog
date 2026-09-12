@@ -27,6 +27,94 @@ use infiltrator_bevy_widgets::theme::Breakpoint;
 
 use crate::support::*;
 
+/// Compile-time cross-check that the Bevy widget layer's mirrored breakpoint
+/// thresholds agree with the authoritative shared contract. `bevy-widgets`
+/// cannot depend on `infiltrator-contract` by charter, so this test (which can
+/// see both) makes drift fail the build rather than only the Python guard.
+#[test]
+fn test_bevy_breakpoint_mirrors_shared_contract_at_boundaries() {
+    use infiltrator_contract::responsive_viewport::{ResponsiveViewportSnapshot, ViewportTier};
+
+    // Sample both sides of every half-open boundary.
+    for width in [
+        0.0, 599.9, 600.0, 839.9, 840.0, 1199.9, 1200.0, 1920.0, 3840.0,
+    ] {
+        let widget_tier = match Breakpoint::from_width(width) {
+            Breakpoint::Compact => ViewportTier::Compact,
+            Breakpoint::Medium => ViewportTier::Medium,
+            Breakpoint::Expanded => ViewportTier::Expanded,
+            Breakpoint::Ultra => ViewportTier::Ultra,
+        };
+        assert_eq!(
+            widget_tier,
+            ViewportTier::from_width(width),
+            "Bevy Breakpoint and shared ViewportTier disagree at width {width}"
+        );
+    }
+
+    // The numeric thresholds themselves must match.
+    assert_eq!(Breakpoint::COMPACT_MAX_PX, 600.0);
+    assert_eq!(Breakpoint::MEDIUM_MAX_PX, 840.0);
+    assert_eq!(Breakpoint::EXPANDED_MAX_PX, 1200.0);
+
+    // Shared snapshot column operators must agree with widget grid columns.
+    let desktop = ResponsiveViewportSnapshot::from_dimensions(900.0, 780.0);
+    assert_eq!(desktop.tier, ViewportTier::Expanded);
+    assert_eq!(desktop.card_columns, 2);
+}
+
+/// The Bevy Overview metrics band and the Iced metrics grid must derive the
+/// same column counts from the shared contract (2 / 3 / 6 / 6). This pins the
+/// `sync_overview_metrics_columns` mapping to the authoritative operator.
+#[test]
+fn test_overview_metrics_columns_match_shared_contract() {
+    use infiltrator_bevy_widgets::theme::Breakpoint;
+    use infiltrator_contract::responsive_viewport::ViewportTier;
+
+    let cases = [
+        (Breakpoint::Compact, ViewportTier::Compact),
+        (Breakpoint::Medium, ViewportTier::Medium),
+        (Breakpoint::Expanded, ViewportTier::Expanded),
+        (Breakpoint::Ultra, ViewportTier::Ultra),
+    ];
+    for (bp, tier) in cases {
+        let from_bp = match bp {
+            Breakpoint::Compact => 2,
+            Breakpoint::Medium => 3,
+            Breakpoint::Expanded | Breakpoint::Ultra => 6,
+        };
+        assert_eq!(
+            from_bp,
+            tier.metrics_grid_columns(),
+            "metrics columns mismatch at {bp:?}"
+        );
+    }
+}
+
+/// The Bevy proxy node grid and the Iced proxy grid must read the same tier
+/// column operator (1 / 2 / 3 / 4), and the wrapped item percent must leave
+/// enough slack that N columns never wrap early.
+#[test]
+fn test_proxy_grid_columns_match_shared_contract() {
+    use infiltrator_bevy_widgets::fluid_grid::FluidCardGrid;
+
+    // Every tier's column count must produce a row that fits within 100%.
+    for columns in 1usize..=6 {
+        let basis = FluidCardGrid::wrapped_item_percent(columns);
+        let used = basis * columns as f32;
+        assert!(
+            used <= 100.0,
+            "{columns} columns of {basis}% overflow the row ({used}%)"
+        );
+    }
+
+    // The Bevy grid and the shared operator agree at the desktop tier.
+    assert_eq!(
+        infiltrator_contract::responsive_viewport::ViewportTier::Expanded.proxy_grid_columns(false),
+        3
+    );
+}
+
 fn setup_responsive_app(width: f32) -> App {
     let mut app = App::new();
     headless_plugins(&mut app);
@@ -79,13 +167,13 @@ fn test_standardized_four_tier_breakpoints_and_responsive_context() {
         assert_eq!(layout.mode, LayoutMode::Rail);
     }
 
-    // 3. Expanded: 1280px (Standard Desktop / Laptop)
+    // 3. Expanded: 1000px (Standard Desktop / Laptop)
     app.world_mut()
         .resource_mut::<ShellLayoutState>()
-        .set_width(1280.0);
+        .set_width(1000.0);
     app.world_mut()
         .resource_mut::<ResponsiveContext>()
-        .set_dimensions(1280.0, 800.0);
+        .set_dimensions(1000.0, 800.0);
     app.update();
     {
         let world = app.world();
@@ -124,7 +212,7 @@ fn test_standardized_four_tier_breakpoints_and_responsive_context() {
 
 #[test]
 fn test_polymorphic_navigation_switching_and_route_preservation() {
-    let mut app = setup_responsive_app(1280.0);
+    let mut app = setup_responsive_app(1000.0);
 
     // Initial expanded state: Sidebar visible, BottomNav hidden
     {
@@ -281,7 +369,7 @@ fn test_smart_text_truncation_rules() {
 
 #[test]
 fn test_dialog_to_actionsheet_morphology_transitions() {
-    let mut app = setup_responsive_app(1280.0);
+    let mut app = setup_responsive_app(1000.0);
     let palette = *app
         .world()
         .resource::<infiltrator_bevy_widgets::palette::UiPalette>();

@@ -6,7 +6,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::types::perf::SpeedtestResult;
+use infiltrator_contract::speedtest::{PacketLossRating, SpeedtestPhase, SpeedtestSnapshot};
 use infiltrator_contract::uwp::{UwpLoopbackSnapshot, UwpPackageSnapshot};
 
 #[test]
@@ -92,28 +92,47 @@ fn test_advancement_w3_2_subrules_logical_builder_workflow() {
 fn test_advancement_w3_3_speedtest_and_jitter_benchmark_result() {
     let (mut state, _) = AppState::new();
 
-    // Initial state
-    assert_eq!(state.diag.speedtest_result.bandwidth_mbps, 0.0);
-    assert!(!state.diag.speedtest_result.is_running);
+    // Initial state is the shared engine default: idle, no measured nodes.
+    assert_eq!(state.diag.speedtest.phase, SpeedtestPhase::Idle);
+    assert!(!state.diag.speedtest.is_running());
+    assert!(state.diag.speedtest.node_results.is_empty());
 
-    // Mock speedtest completion
-    let res = SpeedtestResult {
-        target_node: "HK-BGP-01".to_string(),
-        bandwidth_mbps: 184.5,
-        jitter_ms: 2.8,
-        packet_loss_percent: 0.0,
-        tier: "Excellent".to_string(),
-        is_running: false,
-    };
+    // A real engine snapshot drives the read model (no UI-local fabrication).
+    let snapshot = SpeedtestSnapshot::demo_fixture();
+    let _ = state.update(Message::SpeedtestSnapshotUpdated(Ok(snapshot)));
 
-    let _ = state.update(Message::NodeSpeedtestFinished(res));
+    assert_eq!(state.diag.speedtest.node_results.len(), 3);
+    let fastest = state
+        .diag
+        .speedtest
+        .fastest_node()
+        .expect("demo fixture has a fastest node");
+    assert_eq!(fastest.node_name, "🇭🇰 香港 01 · BGP 专线");
+    assert_eq!(fastest.bandwidth_mbps, Some(184.5));
+    assert_eq!(fastest.star_rating, 5);
+    assert_eq!(fastest.packet_loss, PacketLossRating::Excellent);
+}
 
-    assert_eq!(state.diag.speedtest_result.target_node, "HK-BGP-01");
-    assert_eq!(state.diag.speedtest_result.bandwidth_mbps, 184.5);
-    assert_eq!(state.diag.speedtest_result.jitter_ms, 2.8);
-    assert_eq!(state.diag.speedtest_result.packet_loss_percent, 0.0);
-    assert_eq!(state.diag.speedtest_result.tier, "Excellent");
-    assert!(!state.diag.speedtest_result.is_running);
+#[test]
+fn test_advancement_w3_3_speedtest_error_surfaces_toast() {
+    let (mut state, _) = AppState::new();
+    // A host without a speedtest engine must not fabricate a "success": the
+    // read model stays empty and the failure is surfaced (the update returns
+    // a ShowToast task, which the runtime applies).
+    let task = state.update(Message::SpeedtestSnapshotUpdated(Err(
+        infiltrator_ports::error::PortError::unsupported(
+            infiltrator_contract::capability::Capability::Speedtest,
+            "no engine",
+        ),
+    )));
+    // Applying the produced toast message lands it in the shell queue.
+    let _ = task;
+    let _ = state.update(Message::ShowToast(
+        "Speedtest failed".to_string(),
+        crate::types::app::ToastStatus::Error,
+    ));
+    assert!(!state.shell.toasts.is_empty());
+    assert!(state.diag.speedtest.node_results.is_empty());
 }
 
 #[test]

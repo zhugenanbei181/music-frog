@@ -15,9 +15,6 @@ use iced::{Alignment, Border, Color, Element, Length, Shadow, Theme, Vector, bor
 use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::locales::{Lang, Localizer};
 
-/// Node cards per row inside an expanded group (2-column grid or compact 1-column list).
-const NODE_GRID_COLUMNS: usize = 2;
-
 /// Sort options already understood by `Message::UpdateProxyDelaySort`.
 const SORT_KEYS: [&str; 4] = ["delay_asc", "delay_desc", "name_asc", "name_desc"];
 const SORT_LABEL_KEYS: [&str; 4] = [
@@ -494,7 +491,9 @@ impl NodeMetadata {
     }
 }
 
-/// 2-column grid of node cards for one expanded group.
+/// 2-column grid of node cards for one expanded group. Column count follows
+/// the shared tier operator (1 / 2 / 3 / 4), or a single dense column while the
+/// user's compact-view preference is on.
 fn node_grid<'a>(
     state: &'a AppState,
     group_name: &str,
@@ -509,6 +508,13 @@ fn node_grid<'a>(
             .is_some_and(|now| now == member)
     };
 
+    let columns = state
+        .shell
+        .viewport
+        .tier
+        .proxy_grid_columns(state.runtime.proxy_compact_view)
+        .max(1);
+
     let mut grid = column![].spacing(theme::SP_SM);
     let mut cells = row![].spacing(theme::SP_SM);
     let mut laid_out = 0usize;
@@ -521,14 +527,14 @@ fn node_grid<'a>(
             is_active(member.as_str()),
         ));
         laid_out += 1;
-        if laid_out.is_multiple_of(NODE_GRID_COLUMNS) {
+        if laid_out.is_multiple_of(columns) {
             grid = grid.push(cells);
             cells = row![].spacing(theme::SP_SM);
         }
     }
 
-    if !laid_out.is_multiple_of(NODE_GRID_COLUMNS) {
-        for _ in 0..(NODE_GRID_COLUMNS - laid_out % NODE_GRID_COLUMNS) {
+    if !laid_out.is_multiple_of(columns) {
+        for _ in 0..(columns - laid_out % columns) {
             cells = cells.push(Space::new().width(Length::FillPortion(1)));
         }
         grid = grid.push(cells);

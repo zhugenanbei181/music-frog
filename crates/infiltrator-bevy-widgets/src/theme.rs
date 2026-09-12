@@ -175,19 +175,26 @@ pub mod metrics {
 }
 
 /// Responsive layout breakpoints (px).
+///
+/// These numbers MIRROR the authoritative values in
+/// `infiltrator_contract::responsive_viewport` (`COMPACT_MAX_PX` /
+/// `MEDIUM_MAX_PX` / `EXPANDED_MAX_PX`). This crate is business-agnostic by
+/// charter and must not depend on contract, so the mirror is enforced by
+/// `scripts/quality/responsive-parity-guard.py` rather than by the compiler.
+/// See `docs/RESPONSIVE_PARITY_LEDGER.md`.
 pub mod breakpoint {
     /// Compact breakpoint boundary: < 600px width (smartphones portrait, narrow splits).
     pub const COMPACT_MAX_PX: f32 = 600.0;
-    /// Medium breakpoint boundary: 600px <= width < 1024px (tablets, foldables, small desktop).
-    pub const MEDIUM_MAX_PX: f32 = 1024.0;
-    /// Expanded breakpoint boundary: 1024px <= width < 1440px (desktop, laptop standard).
-    pub const EXPANDED_MAX_PX: f32 = 1440.0;
+    /// Medium breakpoint boundary: 600px <= width < 840px (tablets, foldables, small desktop).
+    pub const MEDIUM_MAX_PX: f32 = 840.0;
+    /// Expanded breakpoint boundary: 840px <= width < 1200px (desktop, laptop standard).
+    pub const EXPANDED_MAX_PX: f32 = 1200.0;
 
     /// Backwards-compatible alias for compact breakpoint boundary (600.0 px).
     pub const MOBILE_PX: f32 = COMPACT_MAX_PX;
-    /// Backwards-compatible alias for medium breakpoint boundary (1024.0 px).
+    /// Backwards-compatible alias for medium breakpoint boundary (840.0 px).
     pub const TABLET_PX: f32 = MEDIUM_MAX_PX;
-    /// Backwards-compatible alias for expanded breakpoint boundary (1440.0 px).
+    /// Backwards-compatible alias for expanded breakpoint boundary (1200.0 px).
     pub const DESKTOP_PX: f32 = EXPANDED_MAX_PX;
 }
 
@@ -198,21 +205,21 @@ pub mod breakpoint {
 pub enum Breakpoint {
     /// Compact layout: width < 600px (smartphones portrait, split screen).
     Compact,
-    /// Medium layout: 600px <= width < 1024px (tablets, foldables, compact desktop).
+    /// Medium layout: 600px <= width < 840px (tablets, foldables, compact desktop).
     Medium,
-    /// Expanded layout: 1024px <= width < 1440px (standard desktop, laptop).
+    /// Expanded layout: 840px <= width < 1200px (standard desktop, laptop).
     #[default]
     Expanded,
-    /// Ultra layout: width >= 1440px (ultrawide monitors, 2K/4K displays).
+    /// Ultra layout: width >= 1200px (ultrawide monitors, 2K/4K displays).
     Ultra,
 }
 
 impl Breakpoint {
     /// Compact boundary: 600.0 px.
     pub const COMPACT_MAX_PX: f32 = breakpoint::COMPACT_MAX_PX;
-    /// Medium boundary: 1024.0 px.
+    /// Medium boundary: 840.0 px.
     pub const MEDIUM_MAX_PX: f32 = breakpoint::MEDIUM_MAX_PX;
-    /// Expanded boundary: 1440.0 px.
+    /// Expanded boundary: 1200.0 px.
     pub const EXPANDED_MAX_PX: f32 = breakpoint::EXPANDED_MAX_PX;
 
     /// Backwards-compatible alias for mobile/compact boundary (600.0 px).
@@ -229,9 +236,9 @@ impl Breakpoint {
     #[allow(non_upper_case_globals)]
     pub const Tablet: Breakpoint = Breakpoint::Medium;
     pub const MOBILE_PX: f32 = breakpoint::MOBILE_PX;
-    /// Backwards-compatible alias for tablet/medium boundary (1024.0 px).
+    /// Backwards-compatible alias for tablet/medium boundary (840.0 px).
     pub const TABLET_PX: f32 = breakpoint::TABLET_PX;
-    /// Backwards-compatible alias for desktop/expanded boundary (1440.0 px).
+    /// Backwards-compatible alias for desktop/expanded boundary (1200.0 px).
     pub const DESKTOP_PX: f32 = breakpoint::DESKTOP_PX;
 
     /// Classify a window or viewport width in pixels into a 4-tier [`Breakpoint`].
@@ -252,17 +259,17 @@ impl Breakpoint {
         matches!(self, Breakpoint::Compact)
     }
 
-    /// Whether this breakpoint represents medium layout (600px..1024px).
+    /// Whether this breakpoint represents medium layout (600px..840px).
     pub fn is_medium(&self) -> bool {
         matches!(self, Breakpoint::Medium)
     }
 
-    /// Whether this breakpoint represents expanded layout (1024px..1440px).
+    /// Whether this breakpoint represents expanded layout (840px..1200px).
     pub fn is_expanded(&self) -> bool {
         matches!(self, Breakpoint::Expanded)
     }
 
-    /// Whether this breakpoint represents ultra layout (>=1440px).
+    /// Whether this breakpoint represents ultra layout (>=1200px).
     pub fn is_ultra(&self) -> bool {
         matches!(self, Breakpoint::Ultra)
     }
@@ -272,12 +279,12 @@ impl Breakpoint {
         self.is_compact()
     }
 
-    /// Backwards-compatible helper: whether this breakpoint represents tablet medium layout (600px..1024px).
+    /// Backwards-compatible helper: whether this breakpoint represents tablet medium layout (600px..840px).
     pub fn is_tablet(&self) -> bool {
         self.is_medium()
     }
 
-    /// Backwards-compatible helper: whether this breakpoint represents desktop layout (>=1024px).
+    /// Backwards-compatible helper: whether this breakpoint represents desktop layout (>=840px).
     pub fn is_desktop(&self) -> bool {
         matches!(self, Breakpoint::Expanded | Breakpoint::Ultra)
     }

@@ -368,7 +368,9 @@ impl AppState {
                 dns_leak_probe: None,
                 is_probing_dns_leak: false,
                 pcap_state: Default::default(),
-                speedtest_result: Default::default(),
+                speedtest: Default::default(),
+                overview_card_order:
+                    infiltrator_contract::overview_layout::OverviewCardKind::DEFAULT_ORDER.to_vec(),
                 crash_watchdog: Default::default(),
                 log_filter: Default::default(),
                 connection_grouping_mode: crate::types::runtime::ConnectionGroupingMode::Flat,
@@ -376,6 +378,8 @@ impl AppState {
             shell: crate::state::ShellState {
                 current_route: Route::Overview,
                 history: crate::types::app::RouteHistory::default(),
+                viewport:
+                    infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot::default(),
                 transition: crate::types::app::Transition::default(),
                 error_msg: None,
                 lang: get_system_language(),

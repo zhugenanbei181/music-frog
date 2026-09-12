@@ -41,6 +41,10 @@ pub enum Message {
     Noop,
     /// Shared 11-page application snapshot delivered by a host source.
     SurfaceSnapshotUpdated(Box<infiltrator_contract::surface_snapshot::SurfaceSnapshot>),
+    /// Window content area changed. Drives the shared 4-tier responsive
+    /// projection ([`infiltrator_contract::responsive_viewport`]); the payload
+    /// is `(width_px, height_px)`.
+    WindowResized(f32, f32),
     Navigate(Route),
     NavigateBack,
     NavigateForward,
@@ -394,6 +398,12 @@ pub enum Message {
     RemoveToast(usize),
     TestAllProxyDelays,
     AllProxyDelaysTested(Result<(usize, usize), InfiltratorError>),
+    /// Move one Overview card one slot up in the shared layout order.
+    MoveOverviewCardUp(infiltrator_contract::overview_layout::OverviewCardKind),
+    /// Move one Overview card one slot down in the shared layout order.
+    MoveOverviewCardDown(infiltrator_contract::overview_layout::OverviewCardKind),
+    /// Reset the Overview card order to the canonical default.
+    ResetOverviewCardOrder,
     // ui-wave2-p: proxies page — expand/collapse one proxy-group card
     // (view-only UI state; flips AppState::proxy_groups_expanded).
     ToggleProxyGroupExpanded(String),
@@ -489,7 +499,14 @@ pub enum Message {
     InsertSubRuleIntoRules,
     // Wave 3 Category 3: Node Speedtest & Jitter
     RunNodeSpeedtest(String),
-    NodeSpeedtestFinished(super::perf::SpeedtestResult),
+    /// Result of a real speedtest probe from the host port. `Err` carries the
+    /// typed port failure (e.g. unsupported host) so the UI can show it.
+    SpeedtestSnapshotUpdated(
+        Result<
+            infiltrator_contract::speedtest::SpeedtestSnapshot,
+            infiltrator_ports::error::PortError,
+        >,
+    ),
     // Wave 3 Category 4: Geo Data Updater
     CheckGeoDataUpdates,
     TriggerGeoDataUpdate,

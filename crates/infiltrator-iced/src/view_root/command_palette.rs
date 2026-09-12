@@ -502,7 +502,9 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
     ];
 
     let card = container(dialog_content)
-        .width(Length::Fixed(560.0))
+        .width(Length::Fixed(
+            state.shell.viewport.clamped_modal_width(560.0),
+        ))
         .style(|t: &Theme| {
             let tk = tokens(t);
             container::Style {

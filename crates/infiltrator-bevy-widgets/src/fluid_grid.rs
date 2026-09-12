@@ -38,6 +38,52 @@ impl Default for FluidGridConfig {
     }
 }
 
+impl FluidCardGrid {
+    /// Recommended item width as a percent of the container for an N-column
+    /// wrapped grid, leaving slack so column gaps never force an early wrap.
+    /// Mirrors the fixed basis table used by [`sync_fluid_grid_layout`].
+    pub const fn wrapped_item_percent(columns: usize) -> f32 {
+        match columns {
+            0 | 1 => 100.0,
+            2 => 48.0,
+            3 => 31.0,
+            4 => 23.0,
+            5 => 18.0,
+            6 => 15.0,
+            _ => 100.0 / columns as f32 - 1.0,
+        }
+    }
+}
+
+/// Explicit per-tier column override for a fluid grid. When present it pins the
+/// grid to the shared contract's column operators instead of the `max_columns`
+/// fit heuristic — required for fixed-arity bands like the Overview metrics
+/// grid (2 / 3 / 6 / 6). The responsive parity guard keeps these equal to
+/// `infiltrator_contract::responsive_viewport`.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FluidGridTierColumns {
+    /// Columns at the Compact tier.
+    pub compact: usize,
+    /// Columns at the Medium tier.
+    pub medium: usize,
+    /// Columns at the Expanded tier.
+    pub expanded: usize,
+    /// Columns at the Ultra tier.
+    pub ultra: usize,
+}
+
+impl FluidGridTierColumns {
+    /// Columns at the given breakpoint.
+    pub const fn for_breakpoint(self, breakpoint: Breakpoint) -> usize {
+        match breakpoint {
+            Breakpoint::Compact => self.compact,
+            Breakpoint::Medium => self.medium,
+            Breakpoint::Expanded => self.expanded,
+            Breakpoint::Ultra => self.ultra,
+        }
+    }
+}
+
 /// Component marker on the container of a fluid card grid.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FluidCardGrid;
@@ -99,7 +145,15 @@ pub fn fluid_card_grid_scene(
 /// System to sync child card flex basis and gaps based on breakpoint and density.
 pub fn sync_fluid_grid_layout(
     ctx: Option<Res<ResponsiveContext>>,
-    mut grids: Query<(&FluidGridConfig, &Children, &mut Node), With<FluidCardGrid>>,
+    mut grids: Query<
+        (
+            &FluidGridConfig,
+            Option<&FluidGridTierColumns>,
+            &Children,
+            &mut Node,
+        ),
+        With<FluidCardGrid>,
+    >,
     mut items: Query<&mut Node, (With<FluidGridItem>, Without<FluidCardGrid>)>,
 ) {
     let bp = ctx
@@ -108,7 +162,7 @@ pub fn sync_fluid_grid_layout(
         .unwrap_or(Breakpoint::Expanded);
     let density = ctx.as_ref().map(|c| c.density).unwrap_or_default();
 
-    for (config, children, mut grid_node) in &mut grids {
+    for (config, tier_columns, children, mut grid_node) in &mut grids {
         let gap = density.gap(config.gap_px);
         let row_gap = density.gap(config.row_gap_px);
 
@@ -119,36 +173,19 @@ pub fn sync_fluid_grid_layout(
             grid_node.row_gap = Val::Px(row_gap);
         }
 
-        let target_basis = match bp {
-            Breakpoint::Compact => percent(100),
-            Breakpoint::Medium => {
-                if config.max_columns >= 2 {
-                    percent(48)
-                } else {
-                    percent(100)
-                }
-            }
-            Breakpoint::Expanded => {
-                if config.max_columns >= 3 {
-                    percent(31)
-                } else if config.max_columns == 2 {
-                    percent(48)
-                } else {
-                    percent(100)
-                }
-            }
-            Breakpoint::Ultra => {
-                if config.max_columns >= 4 {
-                    percent(23)
-                } else if config.max_columns == 3 {
-                    percent(31)
-                } else if config.max_columns == 2 {
-                    percent(48)
-                } else {
-                    percent(100)
-                }
+        // An explicit per-tier column count wins over the fit heuristic so
+        // fixed-arity grids (metrics band) match the shared contract exactly.
+        let columns = if let Some(tier) = tier_columns {
+            tier.for_breakpoint(bp).max(1)
+        } else {
+            match bp {
+                Breakpoint::Compact => 1,
+                Breakpoint::Medium => config.max_columns.clamp(1, 2),
+                Breakpoint::Expanded => config.max_columns.clamp(1, 3),
+                Breakpoint::Ultra => config.max_columns.max(1),
             }
         };
+        let target_basis = percent(FluidCardGrid::wrapped_item_percent(columns));
 
         for child in children.iter() {
             if let Ok(mut item_node) = items.get_mut(*child)

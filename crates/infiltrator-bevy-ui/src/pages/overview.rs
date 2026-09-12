@@ -1384,6 +1384,53 @@ pub(crate) fn on_overview_speedtest_activated(
     handle.submit(UiCommand::TestAllProxyGroups);
 }
 
+/// Restamp the Overview speedtest button from the shared engine snapshot.
+///
+/// Query filter for the speedtest caption text, kept disjoint from the marked
+/// Overview line texts and stat chip values.
+type SpeedtestTextFilter = (
+    With<OverviewSpeedtestText>,
+    Without<OverviewLine>,
+    Without<StatChipValue>,
+);
+
+/// The button is baked `testing: false` at mount; this system reflects the
+/// live phase and progress so both surfaces read the same read model instead
+/// of a static label. Runs on every projection update and each frame the
+/// projection resource changes.
+pub fn sync_overview_speedtest_button(
+    last: Res<LastOverviewProjection>,
+    mut buttons: Query<&mut OverviewSpeedtestButton>,
+    mut texts: Query<&mut Text, SpeedtestTextFilter>,
+) {
+    let Some(projection) = last.0.as_ref() else {
+        return;
+    };
+    let snapshot = &projection.speedtest;
+    let running = snapshot.is_running();
+    let label = if running {
+        let done = snapshot.progress.completed_nodes;
+        let total = snapshot.progress.total_nodes;
+        if total > 0 {
+            format!("测速中 {done}/{total}")
+        } else {
+            "测速中…".to_owned()
+        }
+    } else {
+        "一键测速".to_owned()
+    };
+    for mut button in &mut buttons {
+        if button.testing != running {
+            button.testing = running;
+        }
+    }
+    for mut text in &mut texts {
+        if text.0 != label {
+            text.0 = label.clone();
+        }
+    }
+}
+
 pub(crate) fn on_overview_mode_segment_activated(
     activate: On<Activate>,
     buttons: Query<&crate::pages::overview_cards::OverviewModeSegmentPill>,
@@ -1826,6 +1873,33 @@ pub fn sync_overview_responsive(
     for mut node in &mut arrows {
         if node.display != target_display {
             node.display = target_display;
+        }
+    }
+}
+
+/// Pin the Overview metrics chip band to the shared tier column count
+/// (2 / 3 / 6 / 6) so the six tiles reflow on narrow windows. Column count is
+/// read from the same authoritative table the Iced surface uses; the responsive
+/// parity guard keeps the two in step.
+pub fn sync_overview_metrics_columns(
+    ctx: Option<Res<infiltrator_bevy_widgets::responsive::ResponsiveContext>>,
+    mut chips: Query<&mut Node, With<OverviewChip>>,
+) {
+    let Some(ctx) = ctx else {
+        return;
+    };
+    let columns = match ctx.breakpoint {
+        infiltrator_bevy_widgets::theme::Breakpoint::Compact => 2,
+        infiltrator_bevy_widgets::theme::Breakpoint::Medium => 3,
+        infiltrator_bevy_widgets::theme::Breakpoint::Expanded
+        | infiltrator_bevy_widgets::theme::Breakpoint::Ultra => 6,
+    };
+    let basis = Val::Percent(
+        infiltrator_bevy_widgets::fluid_grid::FluidCardGrid::wrapped_item_percent(columns),
+    );
+    for mut node in &mut chips {
+        if node.flex_basis != basis {
+            node.flex_basis = basis;
         }
     }
 }

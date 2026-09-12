@@ -132,7 +132,6 @@ pub struct AddCustomNodeButton;
 /// Marker for the view mode toggle button (网格/列表视图).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ToggleViewModeButton;
-
 /// Marker for the "Filter Alive" toggle switch (只看可用).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FilterAliveToggle;
@@ -495,6 +494,32 @@ fn bind_proxies_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.insert_resource(ProxiesPageBound);
     commands.add_observer(apply_proxies_projection);
     commands.add_observer(on_proxies_action_activated);
+}
+
+/// Reflow proxy node cards to the shared tier column count (1 / 2 / 3 / 4).
+/// The column count comes from the same authoritative operator Iced uses; the
+/// responsive parity guard keeps both surfaces in step.
+pub fn sync_proxies_node_columns(
+    ctx: Option<Res<infiltrator_bevy_widgets::responsive::ResponsiveContext>>,
+    mut nodes: Query<&mut Node, With<ProxyNodeButton>>,
+) {
+    let Some(ctx) = ctx else {
+        return;
+    };
+    let columns = match ctx.breakpoint {
+        infiltrator_bevy_widgets::theme::Breakpoint::Compact => 1,
+        infiltrator_bevy_widgets::theme::Breakpoint::Medium => 2,
+        infiltrator_bevy_widgets::theme::Breakpoint::Expanded => 3,
+        infiltrator_bevy_widgets::theme::Breakpoint::Ultra => 4,
+    };
+    let target = Val::Percent(
+        infiltrator_bevy_widgets::fluid_grid::FluidCardGrid::wrapped_item_percent(columns),
+    );
+    for mut node in &mut nodes {
+        if node.width != target {
+            node.width = target;
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -85,6 +85,7 @@ impl OverviewSource for StubSource {
             cpu_percent: None,
             total_traffic_bytes: None,
             proxy_mode: Default::default(),
+            speedtest: Default::default(),
         }
     }
 }
@@ -416,6 +417,7 @@ fn projection_updates_restamp_in_place() {
         cpu_percent: None,
         total_traffic_bytes: None,
         proxy_mode: Default::default(),
+        speedtest: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -476,6 +478,7 @@ fn projection_updates_restamp_in_place() {
         cpu_percent: None,
         total_traffic_bytes: None,
         proxy_mode: Default::default(),
+        speedtest: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -750,6 +753,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         cpu_percent: None,
         total_traffic_bytes: None,
         proxy_mode: Default::default(),
+        speedtest: Default::default(),
     }
 }
 
@@ -994,6 +998,7 @@ impl OverviewSource for LiveFootStub {
             cpu_percent: None,
             total_traffic_bytes: None,
             proxy_mode: Default::default(),
+            speedtest: Default::default(),
         }
     }
 
@@ -1088,6 +1093,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         cpu_percent: None,
         total_traffic_bytes: None,
         proxy_mode: Default::default(),
+        speedtest: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -1174,15 +1180,35 @@ fn overview_page_chips_and_container_responsive_wrapping() {
     let count = chips.iter(world).count();
     assert_eq!(count, 6, "exactly six stat chips mounted");
 
+    // Default window (1180px) is the Expanded tier: six tiles in one row.
+    let expanded_basis = bevy::ui::Val::Percent(
+        infiltrator_bevy_widgets::fluid_grid::FluidCardGrid::wrapped_item_percent(6),
+    );
     for (_, node) in chips.iter(world) {
         assert_eq!(
             node.flex_grow, 1.0,
             "chips share width evenly via flex_grow"
         );
         assert_eq!(
-            node.flex_basis,
-            bevy::ui::Val::Px(140.0),
-            "chips carry 140px flex_basis for responsive 2x2 wrapping on mobile"
+            node.flex_basis, expanded_basis,
+            "chips carry the shared Expanded-tier 6-column basis"
+        );
+    }
+
+    // Narrowing to the Medium tier must reflow the band to three columns.
+    app.world_mut()
+        .resource_mut::<infiltrator_bevy_widgets::responsive::ResponsiveContext>()
+        .set_dimensions(700.0, 900.0);
+    app.update();
+    let medium_basis = bevy::ui::Val::Percent(
+        infiltrator_bevy_widgets::fluid_grid::FluidCardGrid::wrapped_item_percent(3),
+    );
+    let world = app.world_mut();
+    let mut chips = world.query::<(&OverviewChip, &bevy::ui::Node)>();
+    for (_, node) in chips.iter(world) {
+        assert_eq!(
+            node.flex_basis, medium_basis,
+            "chips reflow to the 3-column Medium basis"
         );
     }
 }
@@ -1609,6 +1635,53 @@ fn overview_speedtest_button_submits_test_all_proxy_groups() {
         .trigger(Activate { entity: button });
     app.update();
     assert!(sink.submitted().contains(&UiCommand::TestAllProxyGroups));
+}
+
+#[test]
+fn overview_speedtest_button_reflects_shared_engine_phase() {
+    // The button and its caption must follow the shared engine snapshot, so a
+    // running batch reads "测速中 n/m" on both surfaces instead of a static label.
+    let mut app = mounted_default();
+
+    let read_caption = |app: &mut App| -> String {
+        let world = app.world_mut();
+        let mut texts = world.query_filtered::<
+            &Text,
+            bevy::ecs::query::With<infiltrator_bevy_ui::pages::overview::OverviewSpeedtestText>,
+        >();
+        texts
+            .iter(world)
+            .next()
+            .map(|t| t.0.clone())
+            .expect("speedtest caption mounted")
+    };
+    let read_testing = |app: &mut App| -> bool {
+        let world = app.world_mut();
+        let mut buttons =
+            world.query::<&infiltrator_bevy_ui::pages::overview::OverviewSpeedtestButton>();
+        buttons
+            .iter(world)
+            .next()
+            .map(|b| b.testing)
+            .unwrap_or(false)
+    };
+
+    // Idle: default caption, not testing.
+    assert_eq!(read_caption(&mut app), "一键测速");
+    assert!(!read_testing(&mut app));
+
+    // Running snapshot with progress must flip both label and marker.
+    let mut projection = DemoOverviewSource::running().current();
+    projection.speedtest.phase = infiltrator_contract::speedtest::SpeedtestPhase::ProbingLatency;
+    projection.speedtest.progress.completed_nodes = 12;
+    projection.speedtest.progress.total_nodes = 30;
+    app.world_mut()
+        .commands()
+        .trigger(infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated(projection));
+    app.update();
+
+    assert_eq!(read_caption(&mut app), "测速中 12/30");
+    assert!(read_testing(&mut app));
 }
 
 #[test]

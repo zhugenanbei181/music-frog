@@ -51,3 +51,6 @@ mod iced_six_advancements_wave5_tests;
 
 #[path = "../tests/gui/surface_contract_tests.rs"]
 mod surface_contract_tests;
+
+#[path = "../tests/gui/responsive_elasticity_tests.rs"]
+mod responsive_elasticity_tests;

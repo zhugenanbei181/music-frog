@@ -50,7 +50,7 @@ fn four_tier_breakpoint_classification() {
     let bp_compact_edge = Breakpoint::from_width(599.9);
     assert_eq!(bp_compact_edge, Breakpoint::Compact);
 
-    // 2. Medium: 600px .. 1024px
+    // 2. Medium: 600px .. 840px
     let bp_medium = Breakpoint::from_width(600.0);
     assert_eq!(bp_medium, Breakpoint::Medium);
     assert!(bp_medium.is_medium());
@@ -61,11 +61,11 @@ fn four_tier_breakpoint_classification() {
     assert_eq!(bp_medium.sidebar_width_px(), Some(72.0));
     assert_eq!(bp_medium.default_grid_columns(), 2);
 
-    let bp_medium_edge = Breakpoint::from_width(1023.9);
+    let bp_medium_edge = Breakpoint::from_width(839.9);
     assert_eq!(bp_medium_edge, Breakpoint::Medium);
 
-    // 3. Expanded: 1024px .. 1440px
-    let bp_expanded = Breakpoint::from_width(1024.0);
+    // 3. Expanded: 840px .. 1200px
+    let bp_expanded = Breakpoint::from_width(840.0);
     assert_eq!(bp_expanded, Breakpoint::Expanded);
     assert!(bp_expanded.is_expanded());
     assert!(bp_expanded.is_desktop());
@@ -75,11 +75,11 @@ fn four_tier_breakpoint_classification() {
     assert_eq!(bp_expanded.sidebar_width_px(), Some(240.0));
     assert_eq!(bp_expanded.default_grid_columns(), 3);
 
-    let bp_expanded_edge = Breakpoint::from_width(1439.9);
+    let bp_expanded_edge = Breakpoint::from_width(1199.9);
     assert_eq!(bp_expanded_edge, Breakpoint::Expanded);
 
-    // 4. Ultra: >= 1440px
-    let bp_ultra = Breakpoint::from_width(1440.0);
+    // 4. Ultra: >= 1200px
+    let bp_ultra = Breakpoint::from_width(1200.0);
     assert_eq!(bp_ultra, Breakpoint::Ultra);
     assert!(bp_ultra.is_ultra());
     assert!(bp_ultra.is_desktop());
@@ -109,7 +109,7 @@ fn responsive_context_derives_layout_modes() {
     assert_eq!(ctx.master_detail_mode(), MasterDetailMode::Split);
     assert_eq!(ctx.modal_form(), ModalForm::CenteredDialog);
 
-    ctx.set_dimensions(1280.0, 800.0);
+    ctx.set_dimensions(1000.0, 800.0);
     assert_eq!(ctx.breakpoint, Breakpoint::Expanded);
     assert_eq!(ctx.orientation, Orientation::Landscape);
     assert_eq!(ctx.sidebar_mode(), SidebarMode::Standard);
@@ -251,7 +251,7 @@ fn smart_truncate_ecs_restamps_text_in_place() {
 fn fluid_card_grid_responsive_basis_and_gaps() {
     let mut app = headless_app();
     app.world_mut()
-        .insert_resource(ResponsiveContext::new(1280.0, 800.0));
+        .insert_resource(ResponsiveContext::new(1000.0, 800.0));
 
     app.add_systems(
         Startup,
@@ -271,7 +271,7 @@ fn fluid_card_grid_responsive_basis_and_gaps() {
 
     app.update();
 
-    // 1. Expanded (1280px): basis 31%
+    // 1. Expanded (1000px): basis 31%
     {
         let world = app.world_mut();
         let mut items = world.query_filtered::<&Node, bevy::ecs::query::With<FluidGridItem>>();
@@ -327,7 +327,7 @@ fn fluid_card_grid_responsive_basis_and_gaps() {
 fn master_detail_split_and_stacked_navigation() {
     let mut app = headless_app();
     app.world_mut()
-        .insert_resource(ResponsiveContext::new(1280.0, 800.0));
+        .insert_resource(ResponsiveContext::new(1000.0, 800.0));
 
     app.add_systems(
         Startup,
@@ -359,7 +359,7 @@ fn master_detail_split_and_stacked_navigation() {
 
     app.update();
 
-    // 1. On Expanded (1280px): both Master and Detail panes are visible simultaneously
+    // 1. On Expanded (1000px): both Master and Detail panes are visible simultaneously
     {
         let world = app.world_mut();
         let mut master = world.query_filtered::<&Node, bevy::ecs::query::With<MasterPane>>();
@@ -438,7 +438,7 @@ fn master_detail_split_and_stacked_navigation() {
 fn adaptive_modal_morphology_actionsheet_and_dialog() {
     let mut app = headless_app();
     app.world_mut()
-        .insert_resource(ResponsiveContext::new(1280.0, 800.0));
+        .insert_resource(ResponsiveContext::new(1000.0, 800.0));
 
     app.add_systems(
         Startup,
@@ -464,7 +464,7 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
         assert_eq!(roots.iter(world).next().unwrap().display, Display::None);
     }
 
-    // 2. Open on Expanded (1280px): CenteredDialog (JustifyContent::Center, width 480px, radius::CARD all corners)
+    // 2. Open on Expanded (1000px): CenteredDialog (JustifyContent::Center, width 480px, radius::CARD all corners)
     app.world_mut().commands().trigger(OpenModal);
     app.update();
 

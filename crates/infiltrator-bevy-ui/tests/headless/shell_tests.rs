@@ -549,7 +549,7 @@ fn responsive_shell_switches_back_to_sidebar_on_desktop_width() {
     // Switch back to desktop
     app.world_mut()
         .resource_mut::<ShellLayoutState>()
-        .set_width(1280.0);
+        .set_width(1000.0);
     app.update();
 
     let world = app.world_mut();
@@ -594,10 +594,10 @@ fn responsive_four_tier_sidebar_morphology() {
         assert_eq!(node.width, px(72.0));
     }
 
-    // 3. Expanded: 1280px -> Sidebar (240px)
+    // 3. Expanded: 1000px -> Sidebar (240px)
     app.world_mut()
         .resource_mut::<ShellLayoutState>()
-        .set_width(1280.0);
+        .set_width(1000.0);
     app.update();
     {
         let world = app.world_mut();

@@ -221,7 +221,7 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         .spacing(theme::SP_SM),
     )
     .padding([20, 24])
-    .width(520)
+    .width(state.shell.viewport.clamped_modal_width(520.0))
     .style(|t: &Theme| {
         let tk = tokens(t);
         container::Style {

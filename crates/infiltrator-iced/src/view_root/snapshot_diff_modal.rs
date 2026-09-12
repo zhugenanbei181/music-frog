@@ -128,7 +128,7 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
         .spacing(theme::SP_SM),
     )
     .padding([20, 24])
-    .width(540)
+    .width(state.shell.viewport.clamped_modal_width(540.0))
     .style(|t: &Theme| {
         let tk = tokens(t);
         container::Style {

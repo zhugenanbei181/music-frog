@@ -21,10 +21,15 @@ use crate::service::ServiceManager;
 
 /// Build the 0.30 lifecycle application over the desktop process host and
 /// Mihomo controller readiness adapter.
+///
+/// `speedtest` is the same instance the surface reader publishes, so a
+/// `RunSpeedtest` command and the Overview/Proxies telemetry read model share
+/// one engine state instead of two divergent copies.
 pub fn core_application(
     service: &ServiceManager,
     controller_url: impl Into<String>,
     secret: Option<String>,
+    speedtest: infiltrator_application::speedtest_application::SpeedtestApplication,
 ) -> anyhow::Result<CoreApplication> {
     let controller_url = controller_url.into();
     let client = MihomoClient::new(&controller_url, secret.clone())?;
@@ -71,7 +76,8 @@ pub fn core_application(
             .with_network_roaming(network_roaming)
             .with_versions(versions)
             .with_service_mode(service_mode)
-            .with_port_conflicts(port_conflicts),
+            .with_port_conflicts(port_conflicts)
+            .with_speedtest(speedtest),
     ));
     Ok(application)
 }

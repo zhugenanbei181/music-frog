@@ -22,6 +22,7 @@ pub enum Capability {
     CoreVersionInstall,
     WebDavSync,
     AppRouting,
+    Speedtest,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

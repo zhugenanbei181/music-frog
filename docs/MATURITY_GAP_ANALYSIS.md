@@ -5,6 +5,10 @@
 > **主控台账与分工说明（2026-09-03）**：
 > 本文档聚焦于底层核心层与协议层（`infiltrator-core` / `mihomo-*`）的 10×10 深度差距。有关 Iced 与 Bevy UI 的**双端同步演进**、**10 大业务组功能并集**与 **UI 表现清单**，统一归属并由最高主控台账 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 统摄。
 
+> **状态口径校准（2026-09-12）**：
+> 下表中的“已落地”是**历史宽口径标记**，含义仅限“`infiltrator-core` / `mihomo-*` 中已有对应代码路径与单测”，**不代表**真实 mihomo、跨平台宿主或发行包验证通过，也不代表该能力已在 Iced 与 Bevy UI 双端 live parity。
+> 产品级完成度只以 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 的 `planned / shared-ready / iced-ready / bevy-ready / parity-ready / host-verified` 口径为准；本文件不得作为发布准入结论。当前无任何一项达到 `host-verified`（真实宿主/发布验证已按主线决定挂起）。
+
 ---
 
 ## 总体设计原则

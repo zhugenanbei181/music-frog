@@ -301,6 +301,7 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
         "overview_upload" => "Upload".into(),
         "overview_download" => "Download".into(),
         "overview_topology_title" => "Traffic Topology".into(),
+        "overview_reset_card_order" => "Reset card order".into(),
         "overview_traffic" => "REAL-TIME TRAFFIC".into(),
         "overview_total_traffic" => "Total Traffic".into(),
         "overview_proxy_mode_title" => "Proxy Mode".into(),

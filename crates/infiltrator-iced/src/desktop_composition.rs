@@ -89,7 +89,9 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
         .default_font(iced::Font::with_name("Inter"))
         .window(window::Settings {
             size: (1180.0, 780.0).into(),
-            min_size: Some((960.0, 640.0).into()),
+            // Kept below the 600px Compact boundary so every responsive tier
+            // (Compact/Medium/Expanded/Ultra) is reachable by resizing.
+            min_size: Some((420.0, 560.0).into()),
             exit_on_close_request: false,
             ..Default::default()
         })

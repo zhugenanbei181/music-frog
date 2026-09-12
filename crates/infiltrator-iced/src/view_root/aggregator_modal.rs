@@ -222,7 +222,7 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         .spacing(theme::SP_SM),
     )
     .padding([20, 24])
-    .width(500)
+    .width(state.shell.viewport.clamped_modal_width(500.0))
     .style(|t: &Theme| {
         let tk = tokens(t);
         container::Style {

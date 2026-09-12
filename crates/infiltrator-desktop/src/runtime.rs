@@ -45,6 +45,7 @@ pub struct MihomoRuntime {
     service_mode: Arc<crate::service_mode::DesktopServiceMode>,
     pac_service: Arc<crate::pac_service::DesktopPacServicePort>,
     network_roaming_port: Arc<crate::network_roaming::DesktopNetworkRoamingPort>,
+    speedtest: infiltrator_application::speedtest_application::SpeedtestApplication,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -138,10 +139,17 @@ impl MihomoRuntime {
             .resolve()
             .await
             .map_err(|e| anyhow!(e.to_string()))?;
+        let client = MihomoClient::new(&endpoint.url, endpoint.secret.clone())?;
+        // One speedtest engine shared by the command handler and the surface
+        // reader, so RunSpeedtest results reach the UI read model.
+        let speedtest = infiltrator_application::speedtest_application::SpeedtestApplication::new(
+            Arc::new(client.clone()),
+        );
         let application = Arc::new(crate::composition::core_application(
             &service_manager,
             endpoint.url.clone(),
             endpoint.secret.clone(),
+            speedtest.clone(),
         )?);
         // Attach to an already-running instance by proving it answers, or
         // start a fresh one and let the application own readiness retries.
@@ -158,7 +166,6 @@ impl MihomoRuntime {
                 .map_err(|error| anyhow!(error.to_string()))?;
         }
         let watchdog = infiltrator_composition::spawn_core_watchdog(application.clone());
-        let client = MihomoClient::new(&endpoint.url, endpoint.secret.clone())?;
         let pac_service = Arc::new(crate::pac_service::DesktopPacServicePort::shared());
         let network_roaming_port =
             Arc::new(crate::network_roaming::DesktopNetworkRoamingPort::shared());
@@ -176,6 +183,7 @@ impl MihomoRuntime {
             apply_guard: Arc::new(tokio::sync::Mutex::new(())),
             service_mode,
             pac_service,
+            speedtest,
             network_roaming_port,
         })
     }
@@ -275,6 +283,7 @@ impl MihomoRuntime {
             sample_interval,
             self.binary_path.clone(),
             self.network_roaming_port.clone(),
+            self.speedtest.clone(),
         )
         .await
     }
@@ -672,6 +681,12 @@ impl HostRuntime for MihomoRuntime {
         // desktop production must not run destructive privilege probes merely
         // because a surface was opened.
         None
+    }
+
+    fn speedtest_port(&self) -> Option<Arc<dyn infiltrator_ports::speedtest::SpeedtestPort>> {
+        Some(Arc::new(crate::speedtest::DesktopSpeedtestPort::new(
+            self.speedtest.clone(),
+        )))
     }
 
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {

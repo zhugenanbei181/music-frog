@@ -78,6 +78,7 @@ pub struct ApplicationSurfaceReader {
     traffic_topology: TrafficTopologyApplication,
     active_exit: ActiveExitApplication,
     subscription_quota: SubscriptionQuotaApplication,
+    speedtest: Option<crate::speedtest_application::SpeedtestApplication>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -112,6 +113,7 @@ impl ApplicationSurfaceReader {
             traffic_topology: TrafficTopologyApplication,
             active_exit: ActiveExitApplication,
             subscription_quota: SubscriptionQuotaApplication,
+            speedtest: None,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -220,6 +222,16 @@ impl ApplicationSurfaceReader {
 
     pub fn with_privileged_network(mut self, application: PrivilegedNetworkApplication) -> Self {
         self.privileged_network = Some(application);
+        self
+    }
+
+    /// Attach the shared speedtest/jitter engine so its snapshot is published
+    /// to both surfaces. Without this the field would fall back to `Default`.
+    pub fn with_speedtest(
+        mut self,
+        application: crate::speedtest_application::SpeedtestApplication,
+    ) -> Self {
+        self.speedtest = Some(application);
         self
     }
 
@@ -525,7 +537,11 @@ impl SurfaceReader for ApplicationSurfaceReader {
             subscription_quota,
             yaml_ast_diff: None,
             script_sandbox: None,
-            speedtest: Default::default(),
+            speedtest: self
+                .speedtest
+                .as_ref()
+                .map(|s| s.snapshot())
+                .unwrap_or_default(),
         })
     }
 }

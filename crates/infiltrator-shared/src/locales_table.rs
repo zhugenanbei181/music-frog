@@ -298,6 +298,7 @@ pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "overview_upload" => "上传".into(),
         "overview_download" => "下载".into(),
         "overview_topology_title" => "分流网络拓扑".into(),
+        "overview_reset_card_order" => "重置卡片顺序".into(),
         "overview_traffic" => "实时流量".into(),
         "overview_total_traffic" => "总流量".into(),
         "overview_proxy_mode_title" => "代理运行模式 (Proxy Mode)".into(),

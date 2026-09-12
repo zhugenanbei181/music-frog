@@ -443,7 +443,7 @@ pub fn proxy_node_scene(
 
     bsn! {
         Node {
-            width: percent(49),
+            width: percent(31),
             min_height: px(58.0),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::SpaceBetween,

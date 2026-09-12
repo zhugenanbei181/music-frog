@@ -115,6 +115,8 @@ pub struct OverviewProjection {
     pub system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot,
     /// Shared proxy mode snapshot used by Overview mode segment controls.
     pub proxy_mode: infiltrator_contract::proxy_mode::ProxyModeSnapshot,
+    /// Shared speedtest engine read model driving the Overview speedtest button.
+    pub speedtest: infiltrator_contract::speedtest::SpeedtestSnapshot,
     /// CPU utilization percentage, if observed.
     pub cpu_percent: Option<f32>,
     /// Cumulative session traffic in bytes, if observed.
@@ -148,6 +150,7 @@ impl OverviewProjection {
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
             proxy_mode: Default::default(),
+            speedtest: Default::default(),
             cpu_percent: None,
             total_traffic_bytes: None,
         }
@@ -302,6 +305,7 @@ impl OverviewSource for DemoOverviewSource {
                 1,
             ),
             proxy_mode: infiltrator_contract::proxy_mode::ProxyModeSnapshot::demo_fixture(),
+            speedtest: infiltrator_contract::speedtest::SpeedtestSnapshot::demo_fixture(),
             cpu_percent: live.then_some(2.4),
             total_traffic_bytes: live.then_some(1024 * 1024 * 1024 * 12 + 1024 * 1024 * 512),
         }

@@ -280,7 +280,9 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
     .spacing(10);
 
     let drawer_panel = container(modern_scrollable(content).height(Length::Fill))
-        .width(Length::Fixed(480.0))
+        .width(Length::Fixed(
+            state.shell.viewport.detail_panel_width_px(480.0),
+        ))
         .height(Length::Fill)
         .padding(24)
         .style(|t: &Theme| {

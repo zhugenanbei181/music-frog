@@ -23,7 +23,8 @@ impl AppState {
         if self.shell.mini_hud_mode {
             return view::mini_hud::mini_hud_view(self);
         }
-        let sidebar = view::sidebar::sidebar(self);
+        let tier = self.shell.viewport.tier;
+        let sidebar = view::sidebar::sidebar_for_tier(self);
 
         // 声明式动画进度计算
         let progress = if let Some(start) = self.shell.transition.start_time {
@@ -50,7 +51,7 @@ impl AppState {
         })
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(48)
+        .padding(tier.content_padding_px())
         .style(move |theme: &Theme| container::Style {
             background: Some(crate::view::theme::tokens(theme).canvas.into()),
             text_color: Some(Color {
@@ -60,9 +61,16 @@ impl AppState {
             ..Default::default()
         });
 
-        let main_view = row![sidebar, main_content];
+        // Compact tier stacks the bottom navigation bar under the content;
+        // every wider tier keeps the vertical sidebar beside it.
+        let main_view: Element<Message> =
+            if tier == infiltrator_contract::responsive_viewport::ViewportTier::Compact {
+                column![main_content, sidebar].into()
+            } else {
+                row![sidebar, main_content].into()
+            };
 
-        let mut layers: Vec<Element<Message>> = vec![main_view.into()];
+        let mut layers: Vec<Element<Message>> = vec![main_view];
 
         if !self.shell.toasts.is_empty() {
             let mut toast_column = column![].spacing(10);

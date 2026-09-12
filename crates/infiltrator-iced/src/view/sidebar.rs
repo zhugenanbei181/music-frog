@@ -21,8 +21,9 @@ use iced::widget::{Space, button, column, container, progress_bar, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
 
-/// Sidebar width (~260–280 band) so every card wraps gracefully.
-const SIDEBAR_WIDTH: f32 = 272.0;
+/// Standard labelled sidebar width. Mirrors
+/// `responsive_viewport::SidebarForm::Standard`, the authoritative value.
+pub(crate) const SIDEBAR_WIDTH: f32 = 240.0;
 
 /// Canonical mihomo proxy-mode identifiers, in segmented-control order.
 /// The Script segment only appears when the running core reports a
@@ -35,10 +36,21 @@ fn mode_ids(state: &AppState) -> Vec<&'static str> {
     }
 }
 
+/// Full labelled sidebar at the default expanded width. Kept as a stable
+/// entry point for callers that do not have a tier (tests, mini HUD shell).
 pub fn sidebar(state: &AppState) -> Element<'_, Message> {
+    sidebar_with_form(
+        state,
+        infiltrator_contract::responsive_viewport::SidebarForm::Standard,
+    )
+}
+
+/// Sidebar content column (header, mode control, toggles, nav shortcuts).
+/// Padding is owned by the surrounding container so rail/standard/wide share it.
+fn sidebar_inner(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
 
-    let content = column![
+    column![
         header(state),
         mode_control(state, &lang),
         toggles(state, &lang),
@@ -74,11 +86,66 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
         Space::new().height(Length::Fill),
     ]
     .spacing(theme::SP_SM)
-    .padding([theme::SP_LG, theme::SP_LG]);
+    .width(Length::Fill)
+    .into()
+}
 
-    container(content)
-        .width(SIDEBAR_WIDTH)
-        .height(Length::Fill)
+/// Compact bottom navigation bar for the `< 600px` tier: a horizontal strip of
+/// icon + label entries replacing the vertical sidebar entirely.
+fn sidebar_bottom_nav(state: &AppState) -> Element<'_, Message> {
+    let lang = Lang(&state.shell.lang);
+    let routes = [
+        (Route::Overview, "nav_overview", Icon::LayoutGrid),
+        (Route::Proxies, "nav_proxies", Icon::Globe),
+        (Route::Rules, "nav_rules", Icon::Shield),
+        (Route::Runtime, "nav_runtime", Icon::Activity),
+        (Route::Settings, "nav_settings", Icon::Settings),
+    ];
+
+    let mut bar = row![]
+        .spacing(theme::SP_XS)
+        .padding([theme::SP_XS, theme::SP_SM]);
+    for (route, key, icon) in routes {
+        let is_active = route == state.shell.current_route;
+        let glyph = icon_themed(icon, 18.0, move |t: &Theme| {
+            if is_active {
+                theme::tokens(t).accent
+            } else {
+                theme::tokens(t).sidebar_text_muted
+            }
+        });
+        bar = bar.push(
+            button(
+                column![glyph, text(lang.tr(key).into_owned()).size(11.0),]
+                    .spacing(2)
+                    .align_x(Alignment::Center),
+            )
+            .width(Length::Fill)
+            .padding(6)
+            .on_press(Message::Navigate(route))
+            .style(move |t: &Theme, status| {
+                let tk = theme::tokens(t);
+                button::Style {
+                    background: if is_active {
+                        Some(tk.accent_soft.into())
+                    } else if matches!(status, button::Status::Hovered) {
+                        Some(tk.control_bg.into())
+                    } else {
+                        None
+                    },
+                    text_color: tk.text_primary,
+                    border: Border {
+                        radius: border::Radius::from(R_CONTROL),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }
+            }),
+        );
+    }
+
+    container(bar)
+        .width(Length::Fill)
         .style(|t: &Theme| container::Style {
             background: Some(theme::tokens(t).sidebar.into()),
             ..Default::default()
@@ -89,6 +156,50 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
 /// Compact 64px rail sidebar for responsive tablet or narrow desktop views.
 pub const RAIL_WIDTH: f32 = 64.0;
 
+/// Pure tier → navigation-form mapping shared with tests. Keeps the dropdown
+/// width and the rendered widget in sync from one decision point.
+pub fn sidebar_form_for_width(
+    width_px: f32,
+) -> infiltrator_contract::responsive_viewport::SidebarForm {
+    infiltrator_contract::responsive_viewport::ViewportTier::from_width(width_px).sidebar_form()
+}
+
+/// Select and render the sidebar form for the shell's current responsive tier.
+///
+/// This is the single entry point the view root uses, so window-resize tier
+/// changes actually re-lay out navigation instead of leaving a static sidebar.
+pub fn sidebar_for_tier(state: &AppState) -> Element<'_, Message> {
+    use infiltrator_contract::responsive_viewport::ViewportTier;
+
+    match state.shell.viewport.tier {
+        ViewportTier::Compact => sidebar_bottom_nav(state),
+        ViewportTier::Medium => sidebar_rail(state),
+        ViewportTier::Expanded | ViewportTier::Ultra => {
+            let form = state.shell.viewport.tier.sidebar_form();
+            sidebar_with_form(state, form)
+        }
+    }
+}
+
+/// Standard / wide labelled sidebar; width is taken from the shared tier form.
+fn sidebar_with_form(
+    state: &AppState,
+    form: infiltrator_contract::responsive_viewport::SidebarForm,
+) -> Element<'_, Message> {
+    let width = form.width_px().map(f32::from).unwrap_or(SIDEBAR_WIDTH);
+    let inner = sidebar_inner(state);
+    container(inner)
+        .width(width)
+        .height(Length::Fill)
+        .padding([theme::SP_LG, theme::SP_MD])
+        .style(|t: &Theme| container::Style {
+            background: Some(theme::tokens(t).sidebar.into()),
+            ..Default::default()
+        })
+        .into()
+}
+
+/// Compact vertical rail with icon-only navigation (medium tier).
 pub fn sidebar_rail(state: &AppState) -> Element<'_, Message> {
     let routes = [
         Route::Overview,

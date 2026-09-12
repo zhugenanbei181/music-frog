@@ -31,6 +31,7 @@ pub mod secure_store;
 pub mod service_mode;
 pub mod settings_store;
 pub mod snapshot_store;
+pub mod speedtest;
 pub mod subscription_source;
 pub mod surface;
 pub mod sync;

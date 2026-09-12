@@ -18,6 +18,7 @@ use infiltrator_application::routing_application::RoutingApplication;
 use infiltrator_application::service_mode_application::ServiceModeApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::snapshot_application::SnapshotApplication;
+use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
@@ -81,6 +82,7 @@ pub async fn application_surface_reader(
     surface: SurfaceKind,
     binary_path: std::path::PathBuf,
     network_roaming_port: Arc<dyn NetworkRoamingPort>,
+    speedtest: SpeedtestApplication,
 ) -> anyhow::Result<ApplicationSurfaceReader> {
     let profile_store = crate::storage::profile_store().await?;
     let configuration_store = Arc::clone(&profile_store);
@@ -141,6 +143,7 @@ pub async fn application_surface_reader(
             .with_versions(versions)
             .with_endpoint_source(endpoint_source)
             .with_service_mode(service_mode)
+            .with_speedtest(speedtest)
             .with_port_conflicts(port_conflicts),
     )
 }
@@ -153,6 +156,7 @@ pub async fn surface_pump(
     sample_interval: Duration,
     binary_path: std::path::PathBuf,
     network_roaming_port: Arc<dyn NetworkRoamingPort>,
+    speedtest: SpeedtestApplication,
 ) -> anyhow::Result<SurfacePump> {
     let reader = application_surface_reader(
         Arc::clone(&core),
@@ -160,6 +164,7 @@ pub async fn surface_pump(
         surface,
         binary_path,
         network_roaming_port,
+        speedtest,
     )
     .await?;
     let runtime = infiltrator_composition::tokio_application_runtime()

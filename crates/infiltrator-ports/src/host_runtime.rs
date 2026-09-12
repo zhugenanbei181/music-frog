@@ -67,5 +67,10 @@ pub trait HostRuntime: ManagedRuntime {
     fn vpn_service_port(&self) -> Option<Arc<dyn VpnServicePort>> {
         None
     }
+    /// Optional speedtest / jitter / packet-loss engine adapter. Hosts without
+    /// one surface a typed unsupported state instead of fabricating metrics.
+    fn speedtest_port(&self) -> Option<Arc<dyn crate::speedtest::SpeedtestPort>> {
+        None
+    }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;
 }

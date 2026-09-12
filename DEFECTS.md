@@ -18,8 +18,39 @@
   Android 真机、iOS NetworkExtension，以及 Windows/macOS/Linux 打包 smoke。本次检查
   不能把 mock/headless 通过写成跨平台发布完成。
 
+> **2026-09-12 复测**：`bash scripts/test.sh` 2,390/2,390 通过；`cargo fmt --check` 与
+> `cargo clippy --workspace --all-targets -- -D warnings` 均通过。组 05～15 的逐项闭环已
+> 启动：第一个 `DUAL-XX-YY` 逐项账目（组 06 测速）已展开，见主控台账；其中 Iced 伪造测速
+> 数据这一 High 缺陷（D-016）已修复。测试布局与行数结构债务数量不变。
+
 下方 D-001～D-012 保留为历史差距索引，其中个别证据仍指向 0.20/WebUI 时代；在单独
 完成 0.30 差距审计前，不应把这些旧行当作当前发布准入结论。
+
+## 2026-09-12 双端多尺寸弹性审计（mock 层）
+
+真实宿主/发布验证已按主线决定挂起，本轮把重心放在 mock/headless 层的 UI 与功能闭环。
+多尺寸弹性专项实测发现（权威台账见 [docs/RESPONSIVE_PARITY_LEDGER.md](docs/RESPONSIVE_PARITY_LEDGER.md)）：
+
+- ~~**两套冲突断点**：共享 contract `ViewportTier` 用 `600/840/1200`，Bevy `theme::Breakpoint`
+  用 `600/1024/1440`，同名四阶语义不一致。~~ **已收敛**：Bevy 镜像回落至 `600/840/1200`。
+- ~~**共享契约是死契约**：`ResponsiveViewportSnapshot` 在 Iced 生产代码与测试中零引用。~~
+  **已收敛**：Iced 经 `Message::WindowResized` 写入并驱动侧栏/网格/内边距。
+- ~~**Iced 不监听窗口 resize**：rail 侧栏为静态布局，拖拽窗口不重排。~~ **已收敛**。
+- ~~**Bevy 弹性网格未接线**：`fluid_grid` 在 `infiltrator-bevy-ui` 中引用次数为 0。~~ **已收敛**：
+  `sync_overview_metrics_columns`、`sync_proxies_node_columns` 已消费其列数/基宽算子。
+- **Iced 刚性尺寸**（部分收敛）：固定像素宽度/`Fixed` 站点原有 56 处；居中模态首批已改为按视口
+  收缩，其余列表/表单页待续。
+- ~~**守卫偏弱**：只做字符串存在性检查。~~ **已收敛**：新增 `responsive-parity-guard.py`
+  做数值级 fail-closed 校验（阈值一致、Iced 消费、双端网格接线、`fluid_grid` 注册）。
+
+| ID | 严重度 | 当前判断 | 证据 | 后续任务 |
+| --- | --- | --- | --- | --- |
+| D-013 | High | **已收敛（mock 层）** | 断点单源化（contract 600/840/1200，Bevy 镜像）；Iced 消费 `resize_events` 并驱动 viewport；双端 Overview/Proxies 网格按阶接线；居中模态按视口收缩；分页列表预算随阶 | `DUAL-15-01`/`DUAL-03-14`，`RESPONSIVE_PARITY_LEDGER.md` |
+| D-014 | Low | 基本收敛 | 模态/抽屉/搜索框已弹性化；仅剩 150–180px 表单标签/控件宽度，在 420px 最小窗口内不溢出，记为可接受差异 | `DUAL-15-01e` |
+| D-015 | Medium | **已收敛** | `responsive-parity-guard.py` 做数值级 fail-closed 校验，已入 `test.sh`/`test-bevy.sh` | `DUAL-15-01f` |
+| D-016 | High | **已收敛（mock 层）** | Iced 测速曾用 UI 内硬编码的 48MB/2400ms 与假抖动样本伪造结果；已删除该第二事实源，改经 `SpeedtestPort` 驱动共享 `SpeedtestApplication` 并渲染快照，无引擎时 typed unsupported | `DUAL-06-04/05/06/08/14/15` |
+| D-017 | High | 开放 | reader 的 Rule Tracer 仍是空投影（`RuleTracerSnapshot::ready(.., String::new(), Default::default(), None, 0)`），未从 `RuleTracerApplication` 读取真实查询/决策链；Iced 用的是本地三元组 `rules_tracer_result`，Bevy 无消费 | `DUAL-12-*` |
+| D-018 | Medium | 部分收敛 | 组 05～15 中多项被主控台账标记 `parity-ready` 的条目实为单端。已复核并修正：`DUAL-03-12`（卡片重排）Iced 端本轮已补齐；`DUAL-03-13`（重载蒙版）仍只有 Bevy，已降为 `bevy-ready` | 逐项审计 |
 
 ## 差距列表
 

@@ -4,8 +4,7 @@ Cross-platform manager for mihomo-based proxy configurations. The **primary desk
 
 ## Tech Stack & Libraries
 
-- Desktop (primary): Rust, iced 0.14, tray-icon/muda, Tokio, Reqwest, Serde
-- Desktop: Iced, Axum (embedded admin API), notify-rust (OS notifications), Reqwest, Tokio, Serde
+- Desktop (primary): Rust, iced 0.14, tray-icon/muda, Axum (embedded admin API), notify-rust, Tokio, Reqwest, Serde
 
 ## Packaging
 

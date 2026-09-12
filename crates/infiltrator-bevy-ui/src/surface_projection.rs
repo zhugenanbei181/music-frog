@@ -87,6 +87,7 @@ pub(super) fn overview_projection(
         subscription_quota: snapshot.subscription_quota.clone(),
         system_toggles: infiltrator_application::system_toggle_application::SystemToggleApplication::from_surface(snapshot),
         proxy_mode: infiltrator_application::proxy_mode_application::ProxyModeApplication::from_surface(snapshot),
+        speedtest: snapshot.speedtest.clone(),
         cpu_percent: snapshot.resources.cpu_percent,
         total_traffic_bytes: snapshot.pages.connections.data.as_ref().map(|c| c.total_upload_bytes + c.total_download_bytes),
     }

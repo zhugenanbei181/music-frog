@@ -359,6 +359,13 @@ impl AppState {
             None
         }));
 
+        // 4b. 窗口尺寸订阅：唯一驱动共享 4 阶响应式投影的来源。窗口拖拽
+        // 只影响本地布局，但阶的判定必须走 shared contract，两端一致。
+        subs.push(
+            window::resize_events()
+                .map(|(_id, size)| Message::WindowResized(size.width, size.height)),
+        );
+
         // 5. 高性能动画订阅：只有正在转场时才开启帧回调
         if self.shell.transition.start_time.is_some()
             || (self.shell.current_route == Route::Overview

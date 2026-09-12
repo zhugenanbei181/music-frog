@@ -10,6 +10,7 @@ impl std::fmt::Debug for Message {
                 snapshot.revision, snapshot.generation
             ),
             Message::Navigate(route) => write!(f, "Navigate({:?})", route),
+            Message::WindowResized(w, h) => write!(f, "WindowResized({w}x{h})"),
             Message::NavigateBack => write!(f, "NavigateBack"),
             Message::NavigateForward => write!(f, "NavigateForward"),
             Message::StartProxy => write!(f, "StartProxy"),
@@ -658,6 +659,9 @@ impl std::fmt::Debug for Message {
             Message::ShowToast(s, st) => write!(f, "ShowToast({}, {:?})", s, st),
             Message::RemoveToast(i) => write!(f, "RemoveToast({})", i),
             Message::TestAllProxyDelays => write!(f, "TestAllProxyDelays"),
+            Message::MoveOverviewCardUp(kind) => write!(f, "MoveOverviewCardUp({kind:?})"),
+            Message::MoveOverviewCardDown(kind) => write!(f, "MoveOverviewCardDown({kind:?})"),
+            Message::ResetOverviewCardOrder => write!(f, "ResetOverviewCardOrder"),
             Message::AllProxyDelaysTested(Ok((s, f_cnt))) => {
                 write!(
                     f,
@@ -820,8 +824,13 @@ impl std::fmt::Debug for Message {
             Message::UpdateSubRuleTarget(t) => write!(f, "UpdateSubRuleTarget({t})"),
             Message::InsertSubRuleIntoRules => write!(f, "InsertSubRuleIntoRules"),
             Message::RunNodeSpeedtest(node) => write!(f, "RunNodeSpeedtest({node})"),
-            Message::NodeSpeedtestFinished(res) => {
-                write!(f, "NodeSpeedtestFinished({:?} mbps)", res.bandwidth_mbps)
+            Message::SpeedtestSnapshotUpdated(Ok(snapshot)) => write!(
+                f,
+                "SpeedtestSnapshotUpdated(Ok(nodes={}))",
+                snapshot.node_results.len()
+            ),
+            Message::SpeedtestSnapshotUpdated(Err(error)) => {
+                write!(f, "SpeedtestSnapshotUpdated(Err({error:?}))")
             }
             Message::CheckGeoDataUpdates => write!(f, "CheckGeoDataUpdates"),
             Message::TriggerGeoDataUpdate => write!(f, "TriggerGeoDataUpdate"),

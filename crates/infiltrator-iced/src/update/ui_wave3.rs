@@ -103,45 +103,36 @@ impl AppState {
                 ))
             }
             Message::RunNodeSpeedtest(node) => {
-                self.diag.speedtest_result.target_node = node.clone();
-                self.diag.speedtest_result.is_running = true;
+                // Drive the real shared engine through the host port; no
+                // UI-local fabricated metrics. The result snapshot is also
+                // published by the desktop surface pump.
+                let Some(runtime) = self.runtime.runtime.clone() else {
+                    return Task::none();
+                };
+                let Some(port) = runtime.speedtest_port() else {
+                    return Task::done(Message::ShowToast(
+                        "Speedtest is not available on this host".to_string(),
+                        ToastStatus::Error,
+                    ));
+                };
                 Task::perform(
                     async move {
-                        let duration_ms = 2400u64;
-                        let total_bytes = 1024 * 1024 * 48;
-                        let bandwidth_mbps =
-                            infiltrator_domain::diagnostics::SpeedtestCalculator::calculate_bandwidth(
-                                total_bytes,
-                                duration_ms,
-                            ) * 8.0
-                                / 1000.0;
-                        let mut jitter_calc =
-                            infiltrator_domain::diagnostics::JitterCalculator::new();
-                        jitter_calc.record_success(24.5);
-                        jitter_calc.record_success(28.2);
-                        jitter_calc.record_success(22.1);
-                        jitter_calc.record_success(26.0);
-                        let jitter_stats = jitter_calc.calculate();
-                        crate::types::perf::SpeedtestResult {
-                            target_node: node,
-                            bandwidth_mbps,
-                            jitter_ms: jitter_stats.jitter_ms,
-                            packet_loss_percent: jitter_stats.loss_rate_percent,
-                            tier: if bandwidth_mbps > 100.0 {
-                                "Excellent".into()
-                            } else {
-                                "Good".into()
-                            },
-                            is_running: false,
+                        match port.probe_node(&node, 5, None, None).await {
+                            Ok(snapshot) => Ok::<_, infiltrator_ports::error::PortError>(snapshot),
+                            Err(error) => Err(error),
                         }
                     },
-                    Message::NodeSpeedtestFinished,
+                    Message::SpeedtestSnapshotUpdated,
                 )
             }
-            Message::NodeSpeedtestFinished(res) => {
-                self.diag.speedtest_result = res;
+            Message::SpeedtestSnapshotUpdated(Ok(snapshot)) => {
+                self.diag.speedtest = snapshot;
                 Task::none()
             }
+            Message::SpeedtestSnapshotUpdated(Err(error)) => Task::done(Message::ShowToast(
+                format!("Speedtest failed: {error}"),
+                ToastStatus::Error,
+            )),
             Message::CheckGeoDataUpdates => {
                 self.editor.geodata_status.is_updating = true;
                 self.editor.geodata_status.geoip_version = "v2026.09.01".into();

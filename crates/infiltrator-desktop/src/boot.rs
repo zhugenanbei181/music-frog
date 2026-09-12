@@ -441,6 +441,21 @@ impl BootEngine for ProductionEngine<'_> {
                 &service_manager,
                 endpoint.url.clone(),
                 endpoint.secret.clone(),
+                infiltrator_application::speedtest_application::SpeedtestApplication::new(
+                    Arc::new(
+                        mihomo_api::client::MihomoClient::new(
+                            &endpoint.url,
+                            endpoint.secret.clone(),
+                        )
+                        .map_err(|error| {
+                            AttemptFailure::new(
+                                anyhow!("build controller client: {error}"),
+                                controller,
+                                false,
+                            )
+                        })?,
+                    ),
+                ),
             )
             .map_err(|error| {
                 AttemptFailure::new(

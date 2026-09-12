@@ -49,9 +49,8 @@
 | `DUAL-03-09` 全局一键并发测速按钮 | `parity-ready` | Overview 页面头部集成全局一键测速按钮；Iced 映射 `Message::TestAllProxyDelays` 与 `runtime_testing_all_delays` 状态，Bevy 映射 `OverviewSpeedtestButton`→`Activate`→`UiCommand::TestAllProxyGroups` 并支持在席状态刷新，两端行为对等 | Bevy OverviewSpeedtestButton scene/observer/headless tests、Iced overview_speedtest_button 适配与交互测试、nextest 自动化闭环；真实并发网络测速与发行包 smoke 尚未计入 `host-verified` |
 | `DUAL-03-10` 核心资源 6 项运维网格 | `parity-ready` | Overview 运维指标卡片扩展为 6 项完整网格（连接数、内存、CPU、上传、下载、总流量）；Iced stats_grid 与 Bevy chips_row_scene 均消费统一多维事实，支持响应式多列包裹与在席文本刷新 | Bevy OverviewChipKind 6-variant headless tests、Iced 6-tile stats_grid 适配与渲染测试、nextest 自动化闭环；真实长时高吞吐/多会话统计 smoke 尚未计入 `host-verified` |
 | `DUAL-03-11` 公网 IP 隐私归属探针 | `parity-ready` | Overview 公网 IP 探针卡片统一消费 shared `PublicIpProbeSnapshot`；`PublicIpApplication` 负责真实外网出口 IP、归属徽标、ISP 运营商与探针状态推导，Iced 映射 `current_ip_card` 与 `Message::FetchIpInfo`，Bevy 映射 `PublicIpProbeCard` 与 `PublicIpRefreshButton` 触发 `UiCommand::RefreshPublicIpProbe`，两端对等 | Bevy PublicIpProbeCard scene/observer/headless tests、Iced current_ip_card 适配与交互测试、nextest 自动化闭环；真实全球多节点出口探测与发行包 smoke 尚未计入 `host-verified` |
-| `DUAL-03-12` 卡片模块长按纵向拖拽重排 | `parity-ready` | Overview 卡片模块顺序统一消费 shared `OverviewLayoutSnapshot`；`OverviewLayoutApplication` 负责 8 类卡片（模式分段器、流量图、指标网格、主控开关、出口卡片、公网探针、拓扑流动链、配额仪表）排序校验、上移下移与拖拽重排，两端按 `ReorderOverviewCards` / `ResetOverviewCardOrder` 意图同步 | Bevy OverviewCardSlot / 移动动作 scene / headless tests、Iced 动态布局适配、nextest 自动化闭环；真实触摸长按拖拽手势物理 smoke 尚未计入 `host-verified` |
-| `DUAL-03-13` 断线与重载优雅降级蒙版 | `parity-ready` | Overview 断线与配置重载优雅降级统一消费 shared `ReconnectMaskSnapshot`；`ReconnectMaskApplication` 负责看门狗重试、配置平滑热重载与崩溃恢复判定，在核心重启/重载期间界面完整保留上一帧有效事实快照，覆以半透明平滑重载蒙版与重试倒计时 | Bevy OverviewReloadMask scene / projection in-place / headless tests、Iced 重载保护适配、nextest 自动化闭环；真实生产断网拔线/故障注入 smoke 尚未计入 `host-verified` |
-| `DUAL-03-14` 双端全视口响应式表现 1:1 对齐 | `parity-ready` | Overview 视口响应式自适应统一消费 shared `ResponsiveViewportSnapshot`；划分 `Compact`（移动紧凑 1 列卡片/2 列指标）、`Medium`（平板 2 列卡片/3 列指标）、`Expanded`（标准桌面 2 列卡片/6 列指标）与 `Ultra`（宽屏 3 列卡片/6 列指标）四阶断点梯队，Iced 与 Bevy 双端保持 100% 结构层次对齐 | Bevy 4-tier breakpoint headless tests、Iced 响应式栅格、nextest 自动化闭环；真实手机/平板触控设备视觉 smoke 尚未计入 `host-verified` |
+| `DUAL-03-12` 卡片模块长按纵向拖拽重排 | `parity-ready` | Overview 卡片模块顺序统一消费 shared `OverviewLayoutSnapshot`；`OverviewLayoutApplication` 负责 8 类卡片（模式分段器、流量图、指标网格、主控开关、出口卡片、公网探针、拓扑流动链、配额仪表）排序校验、上移下移与拖拽重排，两端按 `ReorderOverviewCards` / `ResetOverviewCardOrder` 意图同步 | Bevy OverviewCardSlot / 移动动作 scene / headless tests、Iced `MoveOverviewCardUp/Down`/`ResetOverviewCardOrder` + 按共享顺序装配 + `overview_card_order_follows_shared_layout_moves` 测试、nextest 自动化闭环。**2026-09-12 补齐**：原 Iced 端零消费，本轮接上共享布局（上移/下移复用 `OverviewLayoutSnapshot::move_up/move_down` 语义）；真实触摸长按拖拽手势物理 smoke 尚未计入 `host-verified` |
+| `DUAL-03-13` 断线与重载优雅降级蒙版 | `bevy-ready` | Overview 断线与配置重载优雅降级统一消费 shared `ReconnectMaskSnapshot`；`ReconnectMaskApplication` 负责看门狗重试、配置平滑热重载与崩溃恢复判定，在核心重启/重载期间界面完整保留上一帧有效事实快照，覆以半透明平滑重载蒙版与重试倒计时 | Bevy OverviewReloadMask scene / projection in-place / headless tests、nextest 自动化闭环。**2026-09-12 复核**：Iced 端对 `reconnect_mask` 零引用，故降为 `bevy-ready`，Iced 待接 || `DUAL-03-14` 双端全视口响应式表现 1:1 对齐 | `parity-ready` | Overview 视口响应式自适应统一消费 shared `ResponsiveViewportSnapshot`；划分 `Compact`（移动紧凑 1 列卡片/2 列指标）、`Medium`（平板 2 列卡片/3 列指标）、`Expanded`（标准桌面 2 列卡片/6 列指标）与 `Ultra`（宽屏 3 列卡片/6 列指标）四阶断点梯队，Iced 与 Bevy 双端保持 100% 结构层次对齐 | Bevy 4-tier breakpoint headless tests、Iced 响应式栅格、nextest 自动化闭环；真实手机/平板触控设备视觉 smoke 尚未计入 `host-verified` |
 | `DUAL-03-15` 概览双端全景无头行为与回归测试矩阵 | `parity-ready` | Overview 15 项能力建立单一共享回归矩阵契约 `OverviewRegressionMatrixReport`；`OverviewMatrixApplication` 统一执行波形平滑、标尺量程、拓扑链、下钻跳转、出口卡片、配额预警、主控大卡、四态分段、一键测速、6项指标、公网探针、拖拽重排、降级蒙版与响应式视口共 14 场景全覆盖断言 | 自动化测试矩阵 100% 绿灯、nextest 自动化闭环；真实长期无故障运行 smoke 尚未计入 `host-verified` |
 | `DUAL-04-01` 策略组 5 大分类全覆盖 | `parity-ready` | 代理策略组统一使用 shared `ProxyGroupClassification` 强枚举建模（`Selector`、`UrlTest`、`Fallback`、`LoadBalance`、`Relay`）；`ProxyApplication` 校验分类合法性与手动可选性（仅 Selector 接受外部 `PUT /proxies/{group}`，自动组由内核按策略调度），双端根据分类正确渲染语义标签与交互模式 | contract/domain 5分类解析测试、ProxyApplication::list_group_details/switch 校验、Bevy/Iced 策略组卡片分类对齐与 headless tests 已覆盖；真实多级复杂 relay 节点与发行包 smoke 尚未计入 `host-verified` |
 | `DUAL-04-02` 策略组展开/折叠状态持久化 | `parity-ready` | 策略组折叠状态统一接入 shared `ProxyUiPreferences`（`collapsed_groups` 列表）；`ProxyPreferencesApplication` 负责折叠状态读写，Iced 与 Bevy 通过 `ToggleProxyGroupExpand` 意图驱动展开与折叠，状态重启记忆不丢失 | contract 偏好模型测试、ProxyPreferencesApplication::toggle_group_expand、Bevy ProxyGroupFoldButton observer / headless tests 已覆盖；真实多平台本地配置盘 IO 崩溃恢复 smoke 尚未计入 `host-verified` |
@@ -68,6 +67,49 @@
 | `DUAL-04-13` 节点卡片网格与紧凑列表无缝切换 | `parity-ready` | 节点展示布局切换统一接入 shared `ProxyUiPreferences::compact_view`；支持响应式双列网格与单列高密度列表一键切换，两端派发 `SetProxyCompactView` 意图并持久化 | contract 视图偏好测试、Bevy ToggleViewModeButton / headless tests、Iced 紧凑模式已覆盖；真实超大屏幕多列流体排版 smoke 尚未计入 `host-verified` |
 | `DUAL-04-14` 测速动态脉冲骨架屏占位 | `parity-ready` | 节点测速期间数值占位统一走 `LatencySkeletonPulse`；测速阶段数值呈现波纹平滑占位或状态文本，测速完成淡入最新延迟数值，两端动效节奏一致 | Bevy LatencySkeletonPulse / headless tests、Iced runtime_testing_all_delays 占位已覆盖；真实高频测速显卡着色器平滑过渡 smoke 尚未计入 `host-verified` |
 | `DUAL-04-15` 双端代理操作无头行为测试闭环 | `parity-ready` | Proxies 15 项能力建立单一共享回归矩阵契约 `ProxyRegressionMatrixReport`；`ProxyMatrixApplication` 统一执行策略组分类、展开折叠、即时回写、死链过滤、四维排序、星标置顶、协议芯片、多阶色温、Sparkline走势、拼音模糊检索、详情抽屉、拖拽调序、紧凑列表、骨架占位共 15 场景全覆盖断言 | 自动化测试矩阵 100% 绿灯、nextest 自动化闭环；真实生产复杂代理拓扑 smoke 尚未计入 `host-verified` |
+
+> **组 05～15 交付状态（2026-09-12 账目补齐）**：
+> 上表只登记到组 04（`DUAL-04-*`）。组 05～15 共 165 项目前**没有逐项验收账目**，统一按下表以组为单位记录，逐项状态在对应组开始实现时再展开为 `DUAL-XX-YY` 行。
+> 判定口径：这些组中确实已存在单端代码路径（例如 Iced `view/rules_tracer.rs`、`view/script_console.rs`、`view/mini_hud.rs`、`view_root/command_palette.rs`、`view_root/aggregator_modal.rs`），但按“shared + Iced + Bevy + 双端测试 + 宿主证据”四层定义，**均不满足 `parity-ready`**，故统一记为 `planned`。
+> 挂钩说明：组 15 的“4 阶响应式形态断点架构”（`DUAL-15-01`）与组 03 的“双端全视口响应式表现 1:1 对齐”（`DUAL-03-14`）是同一问题的两端验收，单独由 [RESPONSIVE_PARITY_LEDGER.md](RESPONSIVE_PARITY_LEDGER.md) 权威跟踪。
+
+| 业务组 | 项数 | 当前状态 | 单端代码路径（未验收） | 备注 |
+| :--- | :---: | :--- | :--- | :--- |
+| 组 05 协议生态保真与多路复用 | 15 | `planned` | `infiltrator-domain::profile_converter` | 后端解析已有测试；双端 UI 编辑面未验收 |
+| 组 06 并发测速与稳定性评估 | 15 | `in progress` | `SpeedtestApplication` 引擎 | 已闭环：单端口 `SpeedtestPort`、reader 发布真实快照、Iced 渲染共享快照（不再伪造）、Bevy 按钮按 phase/progress 重盖；其余 12 项未验收 |
+| 组 07 订阅生命周期与定时更新 | 15 | `planned` | `subscription`、`filter` 管道 | 双端订阅卡片与调度回显未验收 |
+| 组 08 多源聚合器与自动拓扑 | 15 | `planned` | `aggregator_modal.rs`（Iced） | Bevy `profiles_aggregator.rs` 与双端测试未验收 |
+| 组 09 AST YAML 引擎与快照 Diff | 15 | `planned` | `snapshot_diff_modal.rs`、`profiles_diff.rs` | 双端编辑器与回滚事务未验收 |
+| 组 10 脚本沙箱与多级 Mixin | 15 | `planned` | `script_console.rs`、`profiles_script.rs` | 双端控制台与熔断测试未验收 |
+| 组 11 规则引擎与 MRS 治理 | 15 | `planned` | `rules.rs`、`rules_mrs.rs`、`mrs` | 双端规则视口与虚拟滚动未验收 |
+| 组 12 Live Rule Tracer 与命中审计 | 15 | `planned` | `rules_tracer.rs`（两端同名） | 双端算法断言未验收 |
+| 组 13 连接审计与深度透视 | 15 | `planned` | `connections.rs`、`connection_drawer.rs` | 双端聚合视图与瀑布流未验收 |
+| 组 14 DNS 工作台与泄漏探活 | 15 | `planned` | `dns.rs`（两端） | 双端表单与探活状态机未验收 |
+| 组 15 多模态外壳与极客命令流 | 15 | `planned` | `mini_hud.rs`、`command_palette.rs`、`sidebar.rs` | **含多尺寸弹性**，见专项台账 |
+
+### 组 06 逐项账目（2026-09-12 展开）
+
+组 06 是第一个逐项展开的 `DUAL-XX-YY` 组，闭环口径 = shared contract + Iced + Bevy + 双端测试。
+
+| 项 | 任务 | 状态 | 证据 |
+| :--- | :--- | :--- | :--- |
+| `DUAL-06-01` | 信号量流控并发测速（Semaphore 30） | `shared-ready` | `SpeedtestApplication::with_concurrency` + 引擎单测；双端 UI 未接线进度 |
+| `DUAL-06-02` | 单策略组独立测速 | `shared-ready` | `SpeedtestScope::SingleGroup` + `CommandIntent::TestGroupDelays` |
+| `DUAL-06-03` | 测速目标 URL 动态自定义 | `shared-ready` | `SpeedtestTargetConfig.test_url` + command `url` 覆盖 |
+| `DUAL-06-04` | 真实下行带宽测速 | `shared-ready` | `record_bandwidth` + `NodeSpeedtestResult.bandwidth_mbps`；需真实 core |
+| `DUAL-06-05` | 网络抖动 (Jitter ms) 精确计算 | `parity-ready` | `JitterCalculation`（std dev / RFC3550 EWMA）；Iced 渲染共享快照，Bevy 投影携带 |
+| `DUAL-06-06` | 丢包率梯度评级 | `parity-ready` | `PacketLossRating::from_loss_percent` + 双端 loss badge |
+| `DUAL-06-07` | 五星稳定性综合雷达评分 | `shared-ready` | `star_rating` / `stability_score`；Iced 展示星标，Bevy 未接线 |
+| `DUAL-06-08` | 测速进度环形百分比动画 | `parity-ready` | `SpeedtestProgress`；Bevy `sync_overview_speedtest_button` 重盖「测速中 n/m」，Iced 按钮按 `is_running` |
+| `DUAL-06-09` | 超时与不可用节点即时归档 | `shared-ready` | `is_alive` / `dead_nodes()`；归档视觉未验收 |
+| `DUAL-06-10` | 测速取消与安全中断 | `shared-ready` | `cancel()` + `CommandIntent::CancelSpeedtest`；双端取消按钮未接线 |
+| `DUAL-06-11` | 历史测速数据持久化缓存 | `shared-ready` | `recent_history`（最近 3 次）；跨重启持久化未验收 |
+| `DUAL-06-12` | 节点真实 IP 与出口探测对比 | `shared-ready` | `outbound_ip` / `outbound_country`；需真实 core |
+| `DUAL-06-13` | 测速结果弹窗详细透视 | `planned` | 双端雷达图弹窗未实现 |
+| `DUAL-06-14` | 双端测速状态机与动效一致 | `in progress` | 已对齐：同一引擎快照驱动 Iced 卡片与 Bevy 按钮；结果弹窗未验收 |
+| `DUAL-06-15` | 测速流控与状态机无头测试 | `parity-ready` | `speedtest_headless_tests.rs` + Iced 快照/失败断言 + Bevy 阶段重盖断言 |
+
+> **关键修复**：此前 Iced 的测速结果由 UI 内硬编码的 48MB/2400ms 与假抖动样本伪造。现已删除该第二条事实源，改为经 `SpeedtestPort` 驱动 `SpeedtestApplication` 并渲染共享快照；host 无引擎时按 typed unsupported 报错，不再伪造成功。
 
 ---
 
@@ -484,5 +526,5 @@ Wave 4: 规则集深度治理、云端同步与多模态大一统 [A-01～A-05 �
 | **`docs/BEVY_CORE_MATURITY_GAPS.md`** | 记录 Bevy 的 10 维度 150 项工程缺口，未显式与 Iced 对齐。 | 头部增补索引指引：明确 10 维度与 Master Plan 10 大业务组 1:1 对齐，作为 Bevy 落地切片。 | Bevy 侧场景、组件与无头测试证据的追溯台账。 |
 | **`docs/MATURITY_GAP_ANALYSIS.md`** | 记录 10×10 内核与协议差距，偏重后端逻辑。 | 明确其定位为“核心层成熟度台账”，将 UI 表现层与双端同步要求引流至 Master Plan。 | `infiltrator-core` 与 `mihomo-*` 协议与配置 AST 的底层权威台账。 |
 | **`docs/TEN_PHASE_ROADMAP.md`** | 记录 10 阶段工程任务，部分与 GAP_ANALYSIS 重叠。 | 保留历史演进追踪，头部声明其与当前 Wave 1~4 的映射关系。 | 历史演进里程碑与代码下沉过程的事实记录。 |
-| **`iced_todo.md`** (根目录) | 仅有 30 行简略重定向文字。 | 更新内容：直接指向 `docs/DUAL_SURFACE_PARITY_MASTER_PLAN.md` 与 Iced 落地台账。 | 根目录快捷重定向索引。 |
+| ~~`iced_todo.md`~~ (根目录) | 已删除（内容冗余，仅为重定向）。 | — | — |
 | **`docs/README.md`** | 缺少最新台账导航与阅读顺序。 | 更新阅读顺序与权威关系表，将 Master Plan 纳为核心架构第一入口。 | 文档中心主索引。 |

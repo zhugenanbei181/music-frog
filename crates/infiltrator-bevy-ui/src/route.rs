@@ -39,10 +39,11 @@ use crate::pages::doctor::{DoctorProjectionUpdated, doctor_page};
 use crate::pages::logs::{LogsProjectionUpdated, logs_page};
 use crate::pages::overview::{
     LastOverviewProjection, OverviewProjectionUpdated, banner_note, overview_page,
-    replay_projection_after_theme, reskin_overview_tokens, sync_overview_responsive,
+    replay_projection_after_theme, reskin_overview_tokens, sync_overview_metrics_columns,
+    sync_overview_responsive, sync_overview_speedtest_button,
 };
 use crate::pages::profiles::{ProfilesProjectionUpdated, profiles_page};
-use crate::pages::proxies::{ProxiesProjectionUpdated, proxies_page};
+use crate::pages::proxies::{ProxiesProjectionUpdated, proxies_page, sync_proxies_node_columns};
 use crate::pages::rules::{RulesProjectionUpdated, rules_page};
 use crate::pages::settings::{SettingsProjectionUpdated, settings_page};
 use crate::pages::sync::{SyncProjectionUpdated, sync_page};
@@ -326,7 +327,16 @@ impl Plugin for PagesPlugin {
         app.add_observer(replay_projection_after_theme);
         // The sidebar foot follows the injected source (demo caption vs
         // 实时内核 version).
-        app.add_systems(Update, (sync_sidebar_foot, sync_overview_responsive));
+        app.add_systems(
+            Update,
+            (
+                sync_sidebar_foot,
+                sync_overview_responsive,
+                sync_overview_metrics_columns,
+                sync_overview_speedtest_button,
+                sync_proxies_node_columns,
+            ),
+        );
     }
 }
 

@@ -356,7 +356,14 @@ pub struct DiagnosticsState {
     pub dns_leak_probe: Option<crate::types::dns::DnsLeakReport>,
     pub is_probing_dns_leak: bool,
     pub pcap_state: crate::types::runtime::PcapCaptureState,
-    pub speedtest_result: crate::types::perf::SpeedtestResult,
+    /// Canonical speedtest read model published by the shared application
+    /// engine. This replaces the former UI-local fabricated metrics: the view
+    /// renders this snapshot, and `RunSpeedtest` intents drive the engine.
+    pub speedtest: infiltrator_contract::speedtest::SpeedtestSnapshot,
+    /// Overview card display order from the shared `OverviewLayoutSnapshot`.
+    /// Local render projection of the shared contract; the view assembles its
+    /// reorderable cards in this order.
+    pub overview_card_order: Vec<infiltrator_contract::overview_layout::OverviewCardKind>,
     pub crash_watchdog: crate::types::doctor::CrashWatchdogState,
     pub log_filter: crate::types::runtime::LogFilterState,
     pub connection_grouping_mode: crate::types::runtime::ConnectionGroupingMode,
@@ -367,6 +374,10 @@ pub struct DiagnosticsState {
 pub struct ShellState {
     pub current_route: Route,
     pub history: crate::types::app::RouteHistory,
+    /// Shared 4-tier responsive viewport projection. Updated from
+    /// [`crate::types::message::Message::WindowResized`]; both the sidebar form
+    /// and page grids derive from this single source.
+    pub viewport: infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot,
     pub error_msg: Option<String>,
     pub transition: Transition,
     pub lang: String,
@@ -424,6 +435,27 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// Move an Overview card up/down using the shared layout operators, then
+    /// store the resulting order. Reusing `OverviewLayoutSnapshot` guarantees
+    /// the Iced surface applies the exact same swap semantics as Bevy.
+    pub fn move_overview_card(
+        &mut self,
+        kind: infiltrator_contract::overview_layout::OverviewCardKind,
+        up: bool,
+    ) {
+        let mut layout = infiltrator_contract::overview_layout::OverviewLayoutSnapshot::new(
+            self.diag.overview_card_order.clone(),
+        );
+        let changed = if up {
+            layout.move_up(kind)
+        } else {
+            layout.move_down(kind)
+        };
+        if changed {
+            self.diag.overview_card_order = layout.order;
+        }
+    }
+
     /// Apply the shared page read model as a monotonic render cache. The
     /// existing Elm fields remain toolkit-local projections; stale host
     /// events cannot overwrite a newer shared revision.
@@ -454,6 +486,8 @@ impl AppState {
         self.runtime.traffic_topology = snapshot.traffic_topology.clone();
         self.runtime.active_exit = snapshot.active_exit.clone();
         self.runtime.subscription_quota = snapshot.subscription_quota.clone();
+        self.diag.speedtest = snapshot.speedtest.clone();
+        self.diag.overview_card_order = snapshot.overview_layout.order.clone();
         self.runtime.system_toggles =
             infiltrator_application::system_toggle_application::SystemToggleApplication::from_surface(
                 &snapshot,

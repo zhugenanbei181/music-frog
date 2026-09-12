@@ -137,6 +137,42 @@ fn test_proxies_page_mounting_and_default_state() {
 }
 
 #[test]
+fn test_proxies_node_cards_reflow_across_tiers() {
+    // Proxy node cards must track the shared tier column operator, not a fixed
+    // 49% width. Sizes chosen to land squarely inside each tier band.
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    navigate_to(&mut app, Route::Proxies);
+
+    let node_width = |app: &mut App| -> bevy::ui::prelude::Val {
+        let mut query = app
+            .world_mut()
+            .query::<(&bevy::ui::prelude::Node, &ProxyNodeButton)>();
+        query
+            .iter(app.world())
+            .next()
+            .map(|(node, _)| node.width)
+            .expect("at least one proxy node card")
+    };
+
+    let cases = [(400.0_f32, 1usize), (700.0, 2), (1000.0, 3), (1600.0, 4)];
+    for (width, columns) in cases {
+        app.world_mut()
+            .resource_mut::<infiltrator_bevy_widgets::responsive::ResponsiveContext>()
+            .set_dimensions(width, 900.0);
+        app.update();
+        let expected = bevy::ui::prelude::Val::Percent(
+            infiltrator_bevy_widgets::fluid_grid::FluidCardGrid::wrapped_item_percent(columns),
+        );
+        assert_eq!(
+            node_width(&mut app),
+            expected,
+            "proxy node width at {width}px should reflect {columns} columns"
+        );
+    }
+}
+
+#[test]
 fn test_proxies_test_all_button_submits_command() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(Arc::clone(&sink));

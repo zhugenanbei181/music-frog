@@ -661,6 +661,7 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
                 cpu_percent: None,
                 total_traffic_bytes: None,
                 proxy_mode: Default::default(),
+                speedtest: Default::default(),
             }
         }
     }

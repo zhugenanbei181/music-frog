@@ -343,7 +343,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         Message::UpdateProfilesFilter,
         Message::UpdateProfilesFilter(String::new()),
     ))
-    .width(Length::Fixed(280.0));
+    .width(Length::Fill)
+    .max_width(360.0);
 
     let header = row![
         text(lang.tr("profiles_title").to_string())

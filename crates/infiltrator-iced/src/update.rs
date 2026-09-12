@@ -108,6 +108,36 @@ impl AppState {
                 self.apply_shared_surface_snapshot(*snapshot);
                 Task::none()
             }
+            // Window geometry is local shell state, but the derived layout tier
+            // is the shared contract so both surfaces classify widths identically.
+            Message::WindowResized(width, height) => {
+                self.shell.viewport =
+                    infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot::from_dimensions(
+                        width, height,
+                    );
+                // Paginated lists derive their page budget from the tier so a
+                // short/narrow window builds fewer heavy rows. Keeping it on the
+                // stored field means view and paging logic share one source.
+                let tier = self.shell.viewport.tier;
+                self.editor.rules_page_size = tier.list_page_rows(200);
+                self.diag.connections_page_size = tier.list_page_rows(100);
+                Task::none()
+            }
+            // Overview card order is the shared `OverviewLayoutSnapshot`; the
+            // view assembles its cards from this local projection of it.
+            Message::MoveOverviewCardUp(kind) => {
+                self.move_overview_card(kind, true);
+                Task::none()
+            }
+            Message::MoveOverviewCardDown(kind) => {
+                self.move_overview_card(kind, false);
+                Task::none()
+            }
+            Message::ResetOverviewCardOrder => {
+                self.diag.overview_card_order =
+                    infiltrator_contract::overview_layout::OverviewCardKind::DEFAULT_ORDER.to_vec();
+                Task::none()
+            }
             // UI & Navigation
             Message::ToggleCommandPalette
             | Message::OpenCommandPalette
@@ -166,7 +196,7 @@ impl AppState {
             | Message::UpdateSubRuleTarget(_)
             | Message::InsertSubRuleIntoRules
             | Message::RunNodeSpeedtest(_)
-            | Message::NodeSpeedtestFinished(_)
+            | Message::SpeedtestSnapshotUpdated(_)
             | Message::CheckGeoDataUpdates
             | Message::TriggerGeoDataUpdate
             | Message::GeoDataUpdateFinished(_)

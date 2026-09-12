@@ -5,6 +5,10 @@
 > **双端对齐与主纲从属说明（2026-09-03）**：
 > 本文档是最高主控台账 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 在 `infiltrator-bevy-ui` 前端的专属落地执行切片。本文列出的 10 大维度与 Master Plan 的 10 大业务组 1:1 对齐，所有特性与 Iced 前端保持同步推进与对等验收。
 
+> **状态口径校准（2026-09-12）**：
+> 下方 `[DONE]` 表示“`infiltrator-bevy-ui` / `infiltrator-bevy-widgets` 中已有对应场景、组件与无头测试”，属于 `bevy-ready` 量级，**不是** `parity-ready`：它不证明 Iced 端有对等 live parity，也不证明任何宿主/发行包验证。
+> 文中模块路径为历史记录，可能随 0.30 重整漂移（例如 `script_engine` / `mrs` / `profile_converter` 现位于 `infiltrator-domain`），以工作树源码为准。双端状态以 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 为准。
+
 ---
 
 ## 一、10 大核心维度全景落地矩阵

@@ -304,6 +304,7 @@ fn projection_from_snapshot(snapshot: CoreSnapshot) -> OverviewProjection {
             status: infiltrator_contract::proxy_mode::ProxyModeStatus::Ready,
             failure: None,
         },
+        speedtest: Default::default(),
         cpu_percent: None,
         total_traffic_bytes: None,
     }

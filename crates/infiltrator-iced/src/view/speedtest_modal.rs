@@ -1,4 +1,8 @@
 //! Speedtest & Jitter Benchmark Inspector component.
+//!
+//! Renders the canonical `SpeedtestSnapshot` published by the shared
+//! application engine. There is no UI-local metric: the button dispatches the
+//! shared speedtest port and the view only reads typed results.
 
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -7,22 +11,42 @@ use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, row, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_contract::speedtest::{NodeSpeedtestResult, PacketLossRating};
 use infiltrator_shared::locales::{Lang, Localizer};
 
-pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let res = &state.diag.speedtest_result;
-
-    let target = if res.target_node.is_empty() {
-        state.runtime.runtime_selected_proxy.clone()
-    } else {
-        res.target_node.clone()
+fn loss_badge(rating: PacketLossRating) -> Element<'static, Message> {
+    let (label, kind) = match rating {
+        PacketLossRating::Excellent => (rating.label(), BadgeKind::Success),
+        PacketLossRating::Good => (rating.label(), BadgeKind::Accent),
+        PacketLossRating::Fair => (rating.label(), BadgeKind::Warning),
+        PacketLossRating::Poor | PacketLossRating::Dead => (rating.label(), BadgeKind::Danger),
     };
+    badge(label.to_string(), kind)
+}
+
+fn star_label(stars: u8) -> String {
+    let filled = stars.min(5) as usize;
+    let mut out = String::new();
+    for _ in 0..filled {
+        out.push('★');
+    }
+    for _ in filled..5 {
+        out.push('☆');
+    }
+    out
+}
+
+pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
+    let snapshot = &state.diag.speedtest;
+    let is_running = snapshot.is_running();
+
+    let target = state.runtime.runtime_selected_proxy.clone();
 
     let run_btn = button(
         row![
             svg_icons::icon_themed(Icon::Zap, 14.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_SM),
-            text(if res.is_running {
+            text(if is_running {
                 lang.tr("speedtest_measuring").to_string()
             } else {
                 lang.tr("speedtest_btn_start").to_string()
@@ -35,15 +59,34 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     .padding([6, 14])
     .style(style_accent)
     .on_press_maybe(
-        (!res.is_running && !target.is_empty()).then(|| Message::RunNodeSpeedtest(target.clone())),
+        (!is_running && !target.is_empty()).then(|| Message::RunNodeSpeedtest(target.clone())),
     );
 
-    let metric_content: Element<'_, Message> = if res.bandwidth_mbps > 0.0 {
-        let tier_badge = match res.tier.as_str() {
-            "Excellent" => badge(res.tier.clone(), BadgeKind::Success),
-            "Good" => badge(res.tier.clone(), BadgeKind::Accent),
-            _ => badge(res.tier.clone(), BadgeKind::Neutral),
-        };
+    // Pick the measured row for the active target, if any.
+    let result: Option<&NodeSpeedtestResult> = snapshot.node_results.get(&target).or_else(|| {
+        // Fall back to the fastest measured node so the card is useful even
+        // before the user selects a specific target.
+        snapshot.fastest_node()
+    });
+
+    let metric_content: Element<'_, Message> = if let Some(res) = result {
+        let (bandwidth, jitter_ms, loss) = (
+            res.bandwidth_mbps,
+            res.jitter.as_ref().map(|j| j.jitter_ms),
+            res.packet_loss,
+        );
+
+        let bandwidth_text = bandwidth
+            .map(|mbps| format!("{mbps:.1} Mbps"))
+            .unwrap_or_else(|| "—".to_string());
+        let jitter_text = jitter_ms
+            .map(|ms| format!("{ms:.1} ms"))
+            .unwrap_or_else(|| "—".to_string());
+        let loss_text = res
+            .jitter
+            .as_ref()
+            .map(|j| format!("{:.1}%", j.loss_percent))
+            .unwrap_or_else(|| "—".to_string());
 
         row![
             column![
@@ -52,7 +95,7 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
                     }),
-                text(format!("{:.1} Mbps", res.bandwidth_mbps))
+                text(bandwidth_text)
                     .size(16)
                     .font(FONT_SEMIBOLD)
                     .style(|t: &Theme| text::Style {
@@ -66,7 +109,7 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
                     }),
-                text(format!("{:.1} ms", res.jitter_ms)).size(14).font(MONO),
+                text(jitter_text).size(14).font(MONO),
             ]
             .width(Length::Fill),
             column![
@@ -75,9 +118,7 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
                     }),
-                text(format!("{:.1}%", res.packet_loss_percent))
-                    .size(14)
-                    .font(MONO),
+                text(loss_text).size(14).font(MONO),
             ]
             .width(Length::Fill),
             column![
@@ -86,7 +127,12 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
                     }),
-                tier_badge,
+                row![
+                    loss_badge(loss),
+                    Space::new().width(theme::SP_XS),
+                    text(star_label(res.star_rating)).size(13),
+                ]
+                .align_y(Alignment::Center),
             ],
         ]
         .align_y(Alignment::Center)

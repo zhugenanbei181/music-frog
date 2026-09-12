@@ -53,6 +53,40 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let traffic = traffic_card(state, &lang);
     let topology = topology_card(state, &lang, is_en);
     let quota = subscription_quota_card(state, &lang);
+
+    // Reorderable cards are assembled according to the shared layout order so
+    // the Iced surface honours the same `OverviewLayoutSnapshot` Bevy does.
+    // Active-exit / public-IP / latency are the fixed support row and are not
+    // part of the reorderable set.
+    let mut reorderable: Vec<(
+        infiltrator_contract::overview_layout::OverviewCardKind,
+        Element<'_, Message>,
+    )> = vec![
+        (
+            infiltrator_contract::overview_layout::OverviewCardKind::ModeSegment,
+            mode_segment,
+        ),
+        (
+            infiltrator_contract::overview_layout::OverviewCardKind::Traffic,
+            traffic,
+        ),
+        (
+            infiltrator_contract::overview_layout::OverviewCardKind::Metrics,
+            stats,
+        ),
+        (
+            infiltrator_contract::overview_layout::OverviewCardKind::MasterSwitches,
+            masters,
+        ),
+        (
+            infiltrator_contract::overview_layout::OverviewCardKind::Topology,
+            topology,
+        ),
+        (
+            infiltrator_contract::overview_layout::OverviewCardKind::Quota,
+            quota,
+        ),
+    ];
     let lower_row = row![
         active_exit_card(state, &lang),
         current_ip_card(state, &lang, is_en),
@@ -61,21 +95,82 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .spacing(theme::SP_LG)
     .width(Length::Fill);
 
-    let content = column![
-        header,
-        hero,
-        mode_segment,
-        stats,
-        masters,
-        traffic,
-        topology,
-        quota,
-        lower_row
-    ]
-    .spacing(theme::SP_LG)
-    .max_width(1100);
+    let mut content = column![header, hero].spacing(theme::SP_LG);
+    let mut ordered: Vec<(_, Element<'_, Message>)> = Vec::new();
+    for kind in &state.diag.overview_card_order {
+        if let Some(pos) = reorderable.iter().position(|(k, _)| k == kind) {
+            let (_, element) = reorderable.remove(pos);
+            ordered.push((*kind, element));
+        }
+    }
+    // Any card missing from the persisted order (e.g. a newly added kind) is
+    // appended in canonical order so no card can silently disappear.
+    ordered.extend(reorderable);
+    for (kind, element) in ordered {
+        content = content.push(card_reorder_row(state, &lang, kind, element));
+    }
+    content = content.push(lower_row);
+    // Reset only appears once the order diverges from the canonical default.
+    if state.diag.overview_card_order
+        != infiltrator_contract::overview_layout::OverviewCardKind::DEFAULT_ORDER.to_vec()
+    {
+        content = content.push(
+            row![
+                Space::new().width(Length::Fill),
+                icon_button(Icon::RefreshCw, 13.0, Message::ResetOverviewCardOrder),
+                Space::new().width(theme::SP_XS),
+                text(lang.tr("overview_reset_card_order").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    }),
+            ]
+            .align_y(Alignment::Center),
+        );
+    }
+    let content = content.spacing(theme::SP_LG).max_width(1100);
 
     modern_scrollable(content).height(Length::Fill).into()
+}
+
+/// Wrap one reorderable Overview card with its up/down controls so both
+/// surfaces expose the same shared-layout reorder intent.
+fn card_reorder_row<'a>(
+    state: &AppState,
+    _lang: &Lang<'a>,
+    kind: infiltrator_contract::overview_layout::OverviewCardKind,
+    card: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let order = &state.diag.overview_card_order;
+    let position = order.iter().position(|k| *k == kind);
+    let can_up = position.is_some_and(|p| p > 0);
+    let can_down = position.is_some_and(|p| p + 1 < order.len());
+
+    let up: Element<'a, Message> = if can_up {
+        icon_button(Icon::ArrowUp, 12.0, Message::MoveOverviewCardUp(kind))
+    } else {
+        Space::new().width(0).into()
+    };
+    let down: Element<'a, Message> = if can_down {
+        icon_button(Icon::ArrowDown, 12.0, Message::MoveOverviewCardDown(kind))
+    } else {
+        Space::new().width(0).into()
+    };
+
+    column![
+        row![
+            Space::new().width(Length::Fill),
+            down,
+            Space::new().width(2),
+            up
+        ]
+        .align_y(Alignment::Center)
+        .width(Length::Fill),
+        card,
+    ]
+    .spacing(theme::SP_XS)
+    .width(Length::Fill)
+    .into()
 }
 
 // ---------------------------------------------------------------------------
@@ -278,6 +373,10 @@ fn default_core_version(state: &AppState) -> Option<String> {
 // ---------------------------------------------------------------------------
 
 /// 连接数 / 内存 / 上传 / 下载 tiles with mono numerals.
+///
+/// The six tiles wrap into rows of `metrics_grid_columns` for the shell's
+/// current tier (2 / 3 / 6 / 6) so a compact window never squeezes six columns
+/// into one unreadable strip.
 fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let connections = state
         .diag
@@ -316,42 +415,73 @@ fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         .map(|c| crate::utils::format_bytes(c.download_total + c.upload_total))
         .unwrap_or_else(|| "—".to_string());
 
-    row![
+    let tiles: Vec<Element<'a, Message>> = vec![
         metric_tile(
             Icon::Activity,
             lang.tr("overview_connections").to_string(),
             connections,
-            |t| tokens(t).accent
+            |t| tokens(t).accent,
         ),
         metric_tile(
             Icon::Server,
             lang.tr("overview_memory").to_string(),
             memory,
-            |t| tokens(t).warning
+            |t| tokens(t).warning,
         ),
         metric_tile(Icon::Zap, "CPU".to_string(), cpu, |t| tokens(t).accent),
         metric_tile(
             Icon::ArrowUp,
             lang.tr("overview_upload").to_string(),
             upload,
-            |t| tokens(t).success
+            |t| tokens(t).success,
         ),
         metric_tile(
             Icon::ArrowDown,
             lang.tr("overview_download").to_string(),
             download,
-            |t| tokens(t).accent
+            |t| tokens(t).accent,
         ),
         metric_tile(
             Icon::Globe,
             lang.tr("overview_total_traffic").to_string(),
             total,
-            |t| tokens(t).success
+            |t| tokens(t).success,
         ),
-    ]
-    .spacing(theme::SP_MD)
-    .width(Length::Fill)
-    .into()
+    ];
+
+    // Column count comes from the shared tier operator, so Iced and Bevy agree.
+    let columns = state
+        .shell
+        .viewport
+        .tier
+        .metrics_grid_columns()
+        .clamp(1, tiles.len().max(1));
+
+    let mut grid = column![].spacing(theme::SP_MD).width(Length::Fill);
+    let mut row_tiles: Vec<Element<'a, Message>> = Vec::with_capacity(columns);
+    for tile in tiles {
+        row_tiles.push(tile);
+        if row_tiles.len() == columns {
+            grid = grid.push(
+                row::Row::with_children(std::mem::take(&mut row_tiles))
+                    .spacing(theme::SP_MD)
+                    .width(Length::Fill),
+            );
+        }
+    }
+    if !row_tiles.is_empty() {
+        // Pad the trailing row so the last tiles keep the same width as a full row.
+        for _ in row_tiles.len()..columns {
+            row_tiles.push(Space::new().width(Length::FillPortion(1)).into());
+        }
+        grid = grid.push(
+            row::Row::with_children(row_tiles)
+                .spacing(theme::SP_MD)
+                .width(Length::Fill),
+        );
+    }
+
+    grid.into()
 }
 
 fn metric_tile<'a>(

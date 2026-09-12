@@ -234,8 +234,8 @@ fn virtual_list_ecs_message_advancement() {
 #[test]
 fn responsive_breakpoint_classification() {
     assert_eq!(Breakpoint::COMPACT_MAX_PX, 600.0);
-    assert_eq!(Breakpoint::MEDIUM_MAX_PX, 1024.0);
-    assert_eq!(Breakpoint::EXPANDED_MAX_PX, 1440.0);
+    assert_eq!(Breakpoint::MEDIUM_MAX_PX, 840.0);
+    assert_eq!(Breakpoint::EXPANDED_MAX_PX, 1200.0);
 
     // Compact range (< 600px)
     let compact = Breakpoint::from_width(375.0);
@@ -249,7 +249,7 @@ fn responsive_breakpoint_classification() {
     let compact_edge = Breakpoint::from_width(599.9);
     assert_eq!(compact_edge, Breakpoint::Compact);
 
-    // Medium range (600px .. 1024px)
+    // Medium range (600px .. 840px)
     let med_min = Breakpoint::from_width(600.0);
     assert_eq!(med_min, Breakpoint::Medium);
     assert!(!med_min.is_compact());
@@ -261,11 +261,11 @@ fn responsive_breakpoint_classification() {
     let med_mid = Breakpoint::from_width(768.0);
     assert_eq!(med_mid, Breakpoint::Medium);
 
-    let med_edge = Breakpoint::from_width(1023.9);
+    let med_edge = Breakpoint::from_width(839.9);
     assert_eq!(med_edge, Breakpoint::Medium);
 
-    // Expanded range (1024px .. 1440px)
-    let exp_min = Breakpoint::from_width(1024.0);
+    // Expanded range (840px .. 1200px)
+    let exp_min = Breakpoint::from_width(840.0);
     assert_eq!(exp_min, Breakpoint::Expanded);
     assert!(!exp_min.is_compact());
     assert!(!exp_min.is_medium());
@@ -273,8 +273,8 @@ fn responsive_breakpoint_classification() {
     assert!(exp_min.is_desktop());
     assert_eq!(exp_min.sidebar_width_px(), Some(240.0));
 
-    // Ultra range (>= 1440px)
-    let ultra = Breakpoint::from_width(1920.0);
+    // Ultra range (>= 1200px)
+    let ultra = Breakpoint::from_width(1280.0);
     assert_eq!(ultra, Breakpoint::Ultra);
     assert!(ultra.is_ultra());
     assert!(ultra.is_desktop());

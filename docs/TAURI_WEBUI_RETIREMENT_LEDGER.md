@@ -139,5 +139,5 @@ diagnostics(Doctor)；SSE 实时事件（`GET events`）。消费的 admin API �
   「在浏览器打开管理面板」入口、`AppSettings.open_webui_on_startup` 字段、
   README/docs 中 Tauri/WebUI 表述、THIRD-PARTY-NOTICES 的 zashboard 条目、
   `.gitignore` 的 webui/src-tauri 条目。
-- 文档未动的历史记录：FIX_SUMMARY.md、ISSUE_RESOLVED.md、iced_todo.md
-  （历史事实文件，保留原文）。
+- 历史记录文件 FIX_SUMMARY.md、ISSUE_RESOLVED.md、iced_todo.md 已于 2026-09-12 移除
+  （内容陈旧，仅有 Tauri 时代调试流水，不再作为架构依据）。
