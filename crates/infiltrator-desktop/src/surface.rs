@@ -74,6 +74,13 @@ pub fn desktop_capabilities() -> CapabilitySnapshot {
     CapabilitySnapshot::new(HostKind::Desktop, 0, entries)
 }
 
+/// Shared application engines handed from the desktop runtime to the surface
+/// reader, so UI intents and surface projections observe one instance each.
+pub struct SurfaceEngines {
+    pub speedtest: SpeedtestApplication,
+    pub rule_tracer: infiltrator_application::rule_tracer_application::RuleTracerApplication,
+}
+
 /// Assemble all currently available desktop application facades into one
 /// surface reader. No UI toolkit appears in this function.
 pub async fn application_surface_reader(
@@ -82,7 +89,7 @@ pub async fn application_surface_reader(
     surface: SurfaceKind,
     binary_path: std::path::PathBuf,
     network_roaming_port: Arc<dyn NetworkRoamingPort>,
-    speedtest: SpeedtestApplication,
+    engines: SurfaceEngines,
 ) -> anyhow::Result<ApplicationSurfaceReader> {
     let profile_store = crate::storage::profile_store().await?;
     let configuration_store = Arc::clone(&profile_store);
@@ -143,7 +150,8 @@ pub async fn application_surface_reader(
             .with_versions(versions)
             .with_endpoint_source(endpoint_source)
             .with_service_mode(service_mode)
-            .with_speedtest(speedtest)
+            .with_speedtest(engines.speedtest)
+            .with_rule_tracer(engines.rule_tracer)
             .with_port_conflicts(port_conflicts),
     )
 }
@@ -156,7 +164,7 @@ pub async fn surface_pump(
     sample_interval: Duration,
     binary_path: std::path::PathBuf,
     network_roaming_port: Arc<dyn NetworkRoamingPort>,
-    speedtest: SpeedtestApplication,
+    engines: SurfaceEngines,
 ) -> anyhow::Result<SurfacePump> {
     let reader = application_surface_reader(
         Arc::clone(&core),
@@ -164,7 +172,7 @@ pub async fn surface_pump(
         surface,
         binary_path,
         network_roaming_port,
-        speedtest,
+        engines,
     )
     .await?;
     let runtime = infiltrator_composition::tokio_application_runtime()

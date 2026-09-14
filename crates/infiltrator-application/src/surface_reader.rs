@@ -77,6 +77,7 @@ pub struct ApplicationSurfaceReader {
     traffic_scale: TrafficScaleApplication,
     traffic_topology: TrafficTopologyApplication,
     active_exit: ActiveExitApplication,
+    rule_tracer: crate::rule_tracer_application::RuleTracerApplication,
     subscription_quota: SubscriptionQuotaApplication,
     speedtest: Option<crate::speedtest_application::SpeedtestApplication>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
@@ -112,6 +113,7 @@ impl ApplicationSurfaceReader {
             traffic_scale: TrafficScaleApplication,
             traffic_topology: TrafficTopologyApplication,
             active_exit: ActiveExitApplication,
+            rule_tracer: crate::rule_tracer_application::RuleTracerApplication::new(),
             subscription_quota: SubscriptionQuotaApplication,
             speedtest: None,
             version_cache: Arc::new(Mutex::new(None)),
@@ -235,6 +237,21 @@ impl ApplicationSurfaceReader {
         self
     }
 
+    /// Share the live rule tracer engine with the host composition so UI
+    /// intents and surface projections observe one query state.
+    pub fn with_rule_tracer(
+        mut self,
+        application: crate::rule_tracer_application::RuleTracerApplication,
+    ) -> Self {
+        self.rule_tracer = application;
+        self
+    }
+
+    /// The shared tracer engine handed to inbound UI ports.
+    pub fn rule_tracer(&self) -> crate::rule_tracer_application::RuleTracerApplication {
+        self.rule_tracer.clone()
+    }
+
     pub fn core(&self) -> &Arc<CoreApplication> {
         &self.core
     }
@@ -343,7 +360,9 @@ impl SurfaceReader for ApplicationSurfaceReader {
             None => None,
         };
 
-        let _proxies_for_tracer = runtime_proxies
+        // Owned copy of the resolved proxy map so the tracer can resolve group
+        // scheduling facts after the proxies page consumes the fetch result.
+        let runtime_proxy_map = runtime_proxies
             .as_ref()
             .and_then(|r| r.as_ref().ok())
             .cloned();
@@ -433,15 +452,6 @@ impl SurfaceReader for ApplicationSurfaceReader {
             "Mihomo connections gateway",
         );
 
-        let rule_tracer_snapshot = infiltrator_contract::rule_tracer::RuleTracerSnapshot::ready(
-            core.generation,
-            revision,
-            String::new(),
-            Default::default(),
-            None,
-            0,
-        );
-
         let mrs_acceleration_snapshot = if let Some(Ok(provs)) = &runtime_rule_providers {
             crate::mrs_acceleration_application::MrsAccelerationApplication::new()
                 .project(&core, Some(provs.as_slice()))
@@ -452,11 +462,19 @@ impl SurfaceReader for ApplicationSurfaceReader {
             )
         };
 
+        // Resolve the tracer inputs once so the shared engine replays the same
+        // rule list the rules page renders. Without runtime proxy facts the
+        // outbound stage stays honestly unknown (no fabricated node data).
         pages.rules = build_rules_page(
             self.configuration.as_ref(),
             runtime_rule_providers,
             None,
-            rule_tracer_snapshot,
+            RulesTracerReplay {
+                application: &self.rule_tracer,
+                core: &core,
+                active_exit: Some(&active_exit_snapshot),
+                proxies: runtime_proxy_map.as_ref(),
+            },
             mrs_acceleration_snapshot,
         )
         .await;
@@ -633,11 +651,20 @@ fn active_exit(proxies: &HashMap<String, Proxy>) -> String {
         .to_owned()
 }
 
+/// Inputs the live rule tracer replays against: the shared engine plus the
+/// runtime facts that resolve the outbound stage of the decision chain.
+struct RulesTracerReplay<'a> {
+    application: &'a crate::rule_tracer_application::RuleTracerApplication,
+    core: &'a infiltrator_contract::snapshot::CoreSnapshot,
+    active_exit: Option<&'a infiltrator_contract::active_exit::ActiveExitSnapshot>,
+    proxies: Option<&'a HashMap<String, Proxy>>,
+}
+
 async fn build_rules_page(
     configuration: Option<&ConfigurationApplication>,
     runtime_providers: Option<Result<Vec<infiltrator_domain::runtime::RuleProvider>, PortError>>,
     hit_counter: Option<&Arc<Mutex<infiltrator_domain::rule_hit_counter::RuleHitCounter>>>,
-    tracer: infiltrator_contract::rule_tracer::RuleTracerSnapshot,
+    tracer_replay: RulesTracerReplay<'_>,
     mrs_acceleration: infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
 ) -> surface_snapshot::PageData<surface_snapshot::RulesPageSnapshot> {
     let Some(configuration) = configuration else {
@@ -647,6 +674,14 @@ async fn build_rules_page(
         Ok(rules) => rules,
         Err(error) => return surface_snapshot::PageData::failed(error),
     };
+    // The tracer replays the exact rule list rendered below; the query comes
+    // from the shared engine so both surfaces observe the same simulation.
+    let tracer = tracer_replay.application.project(
+        tracer_replay.core,
+        &rules,
+        tracer_replay.active_exit,
+        tracer_replay.proxies,
+    );
     let providers = match runtime_providers {
         Some(Ok(providers)) => providers
             .into_iter()

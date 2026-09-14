@@ -100,6 +100,10 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "geodata_geosite_status" => "GeoSite 数据库".into(),
         "geodata_updated" => "已是最新版本".into(),
         "geodata_updating" => "正在更新数据库...".into(),
+        "geodata_version_unknown" => "版本未知".into(),
+        "geodata_check_unavailable" => "内核未提供 Geo 数据库版本查询接口，无法核对当前版本".into(),
+        "geodata_unsupported_host" => "当前宿主不支持 Geo 数据库更新".into(),
+        "geodata_update_triggered" => "已触发 Geo 数据库更新，内核将在后台完成下载".into(),
 
         // Category 5: UWP Loopback Utility
         "uwp_title" => "Windows UWP 本地回环隔离管理".into(),

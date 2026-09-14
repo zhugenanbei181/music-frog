@@ -72,5 +72,11 @@ pub trait HostRuntime: ManagedRuntime {
     fn speedtest_port(&self) -> Option<Arc<dyn crate::speedtest::SpeedtestPort>> {
         None
     }
+    /// Optional live rule tracer adapter backed by the shared AST simulation
+    /// engine. Hosts without one surface a typed unsupported state instead of
+    /// replaying a UI-local decision chain.
+    fn rule_tracer_port(&self) -> Option<Arc<dyn crate::rule_tracer::RuleTracerPort>> {
+        None
+    }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;
 }

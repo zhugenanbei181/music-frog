@@ -267,6 +267,7 @@ pub(crate) fn empty_rules() -> RulesProjection {
         default_action: "—".to_owned(),
         providers: Vec::new(),
         rules: Vec::new(),
+        tracer: Default::default(),
     }
 }
 
@@ -447,7 +448,7 @@ impl From<RulesProjection> for surface_snapshot::RulesPageSnapshot {
                     ..Default::default()
                 })
                 .collect(),
-            tracer: Default::default(),
+            tracer: value.tracer,
             mrs_acceleration: Default::default(),
             total_hits: 0,
         }

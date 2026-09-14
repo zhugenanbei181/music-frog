@@ -21,7 +21,7 @@ fn test_advancement_1_live_rule_tracer_contract() {
     // 1. Initial tracer state check
     assert_eq!(state.editor.rules_tab, RulesTab::RulesList);
     assert_eq!(state.editor.rules_tracer_input, "");
-    assert!(state.editor.rules_tracer_result.is_none());
+    assert!(state.editor.rules_tracer_chain.is_none());
 
     // Switch to Tracer tab
     let _ = state.update(Message::SetRulesTab(RulesTab::Tracer));
@@ -54,40 +54,48 @@ fn test_advancement_1_live_rule_tracer_contract() {
     assert_eq!(state.editor.rules_tracer_input, "mail.google.com");
     let _ = state.update(Message::RunRulesTracer);
 
-    let (idx0, rule0, target0) = state
+    let chain0 = state
         .editor
-        .rules_tracer_result
+        .rules_tracer_chain
         .clone()
         .expect("match expected");
-    assert_eq!(idx0, 0);
-    assert_eq!(rule0, "DOMAIN-SUFFIX,google.com");
-    assert_eq!(target0, "ProxyGroup");
+    assert_eq!(chain0.hit_rule_index, Some(0));
+    assert_eq!(chain0.matched_rule_raw, "DOMAIN-SUFFIX,google.com");
+    assert_eq!(chain0.target_proxy, "ProxyGroup");
+    assert_eq!(chain0.nodes.len(), 5);
+    assert!(!chain0.is_fallback);
 
     // Scenario B: trace IP match
     let _ = state.update(Message::UpdateRulesTracerInput("1.1.1.1".to_string()));
     let _ = state.update(Message::RunRulesTracer);
-    let (idx1, rule1, target1) = state
+    let chain1 = state
         .editor
-        .rules_tracer_result
+        .rules_tracer_chain
         .clone()
         .expect("IP match expected");
-    assert_eq!(idx1, 1);
-    assert_eq!(rule1, "IP-CIDR,1.1.1.1/32");
-    assert_eq!(target1, "DIRECT");
+    assert_eq!(chain1.hit_rule_index, Some(1));
+    assert_eq!(chain1.matched_rule_raw, "IP-CIDR,1.1.1.1/32");
+    assert_eq!(chain1.target_proxy, "DIRECT");
 
     // Scenario C: trace fallback MATCH
     let _ = state.update(Message::UpdateRulesTracerInput(
         "unknown-domain.xyz".to_string(),
     ));
     let _ = state.update(Message::RunRulesTracer);
-    let (idx_fb, rule_fb, target_fb) = state
+    let chain_fb = state
         .editor
-        .rules_tracer_result
+        .rules_tracer_chain
         .clone()
         .expect("fallback expected");
-    assert_eq!(idx_fb, 3);
-    assert_eq!(rule_fb, "MATCH");
-    assert_eq!(target_fb, "FallbackProxy");
+    assert_eq!(chain_fb.hit_rule_index, Some(3));
+    assert_eq!(chain_fb.matched_rule_type, "MATCH");
+    assert_eq!(chain_fb.target_proxy, "FallbackProxy");
+    assert!(chain_fb.is_fallback);
+
+    // Clearing the input clears the replayed chain.
+    let _ = state.update(Message::UpdateRulesTracerInput(String::new()));
+    let _ = state.update(Message::RunRulesTracer);
+    assert!(state.editor.rules_tracer_chain.is_none());
 }
 
 #[test]

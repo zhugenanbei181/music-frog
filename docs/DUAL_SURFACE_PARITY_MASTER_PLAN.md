@@ -50,7 +50,7 @@
 | `DUAL-03-10` 核心资源 6 项运维网格 | `parity-ready` | Overview 运维指标卡片扩展为 6 项完整网格（连接数、内存、CPU、上传、下载、总流量）；Iced stats_grid 与 Bevy chips_row_scene 均消费统一多维事实，支持响应式多列包裹与在席文本刷新 | Bevy OverviewChipKind 6-variant headless tests、Iced 6-tile stats_grid 适配与渲染测试、nextest 自动化闭环；真实长时高吞吐/多会话统计 smoke 尚未计入 `host-verified` |
 | `DUAL-03-11` 公网 IP 隐私归属探针 | `parity-ready` | Overview 公网 IP 探针卡片统一消费 shared `PublicIpProbeSnapshot`；`PublicIpApplication` 负责真实外网出口 IP、归属徽标、ISP 运营商与探针状态推导，Iced 映射 `current_ip_card` 与 `Message::FetchIpInfo`，Bevy 映射 `PublicIpProbeCard` 与 `PublicIpRefreshButton` 触发 `UiCommand::RefreshPublicIpProbe`，两端对等 | Bevy PublicIpProbeCard scene/observer/headless tests、Iced current_ip_card 适配与交互测试、nextest 自动化闭环；真实全球多节点出口探测与发行包 smoke 尚未计入 `host-verified` |
 | `DUAL-03-12` 卡片模块长按纵向拖拽重排 | `parity-ready` | Overview 卡片模块顺序统一消费 shared `OverviewLayoutSnapshot`；`OverviewLayoutApplication` 负责 8 类卡片（模式分段器、流量图、指标网格、主控开关、出口卡片、公网探针、拓扑流动链、配额仪表）排序校验、上移下移与拖拽重排，两端按 `ReorderOverviewCards` / `ResetOverviewCardOrder` 意图同步 | Bevy OverviewCardSlot / 移动动作 scene / headless tests、Iced `MoveOverviewCardUp/Down`/`ResetOverviewCardOrder` + 按共享顺序装配 + `overview_card_order_follows_shared_layout_moves` 测试、nextest 自动化闭环。**2026-09-12 补齐**：原 Iced 端零消费，本轮接上共享布局（上移/下移复用 `OverviewLayoutSnapshot::move_up/move_down` 语义）；真实触摸长按拖拽手势物理 smoke 尚未计入 `host-verified` |
-| `DUAL-03-13` 断线与重载优雅降级蒙版 | `bevy-ready` | Overview 断线与配置重载优雅降级统一消费 shared `ReconnectMaskSnapshot`；`ReconnectMaskApplication` 负责看门狗重试、配置平滑热重载与崩溃恢复判定，在核心重启/重载期间界面完整保留上一帧有效事实快照，覆以半透明平滑重载蒙版与重试倒计时 | Bevy OverviewReloadMask scene / projection in-place / headless tests、nextest 自动化闭环。**2026-09-12 复核**：Iced 端对 `reconnect_mask` 零引用，故降为 `bevy-ready`，Iced 待接 || `DUAL-03-14` 双端全视口响应式表现 1:1 对齐 | `parity-ready` | Overview 视口响应式自适应统一消费 shared `ResponsiveViewportSnapshot`；划分 `Compact`（移动紧凑 1 列卡片/2 列指标）、`Medium`（平板 2 列卡片/3 列指标）、`Expanded`（标准桌面 2 列卡片/6 列指标）与 `Ultra`（宽屏 3 列卡片/6 列指标）四阶断点梯队，Iced 与 Bevy 双端保持 100% 结构层次对齐 | Bevy 4-tier breakpoint headless tests、Iced 响应式栅格、nextest 自动化闭环；真实手机/平板触控设备视觉 smoke 尚未计入 `host-verified` |
+| `DUAL-03-13` 断线与重载优雅降级蒙版 | `parity-ready` | Overview 断线与配置重载优雅降级统一消费 shared `ReconnectMaskSnapshot`；`ReconnectMaskApplication` 负责看门狗重试、配置平滑热重载与崩溃恢复判定，在核心重启/重载期间界面完整保留上一帧有效事实快照，覆以半透明平滑重载蒙版与重试倒计时 | Bevy OverviewReloadMask scene / projection in-place / headless tests；**2026-09-13 补齐 Iced**：Iced 消费 `snapshot.reconnect_mask`，Overview 活跃期渲染重载/重连横幅（阶段文案 + 尝试次数），状态接线有 `shared_reconnect_mask_reaches_the_iced_runtime_projection` 断言；真实 core 重启 smoke 尚未计入 || `DUAL-03-14` 双端全视口响应式表现 1:1 对齐 | `parity-ready` | Overview 视口响应式自适应统一消费 shared `ResponsiveViewportSnapshot`；划分 `Compact`（移动紧凑 1 列卡片/2 列指标）、`Medium`（平板 2 列卡片/3 列指标）、`Expanded`（标准桌面 2 列卡片/6 列指标）与 `Ultra`（宽屏 3 列卡片/6 列指标）四阶断点梯队，Iced 与 Bevy 双端保持 100% 结构层次对齐 | Bevy 4-tier breakpoint headless tests、Iced 响应式栅格、nextest 自动化闭环；真实手机/平板触控设备视觉 smoke 尚未计入 `host-verified` |
 | `DUAL-03-15` 概览双端全景无头行为与回归测试矩阵 | `parity-ready` | Overview 15 项能力建立单一共享回归矩阵契约 `OverviewRegressionMatrixReport`；`OverviewMatrixApplication` 统一执行波形平滑、标尺量程、拓扑链、下钻跳转、出口卡片、配额预警、主控大卡、四态分段、一键测速、6项指标、公网探针、拖拽重排、降级蒙版与响应式视口共 14 场景全覆盖断言 | 自动化测试矩阵 100% 绿灯、nextest 自动化闭环；真实长期无故障运行 smoke 尚未计入 `host-verified` |
 | `DUAL-04-01` 策略组 5 大分类全覆盖 | `parity-ready` | 代理策略组统一使用 shared `ProxyGroupClassification` 强枚举建模（`Selector`、`UrlTest`、`Fallback`、`LoadBalance`、`Relay`）；`ProxyApplication` 校验分类合法性与手动可选性（仅 Selector 接受外部 `PUT /proxies/{group}`，自动组由内核按策略调度），双端根据分类正确渲染语义标签与交互模式 | contract/domain 5分类解析测试、ProxyApplication::list_group_details/switch 校验、Bevy/Iced 策略组卡片分类对齐与 headless tests 已覆盖；真实多级复杂 relay 节点与发行包 smoke 尚未计入 `host-verified` |
 | `DUAL-04-02` 策略组展开/折叠状态持久化 | `parity-ready` | 策略组折叠状态统一接入 shared `ProxyUiPreferences`（`collapsed_groups` 列表）；`ProxyPreferencesApplication` 负责折叠状态读写，Iced 与 Bevy 通过 `ToggleProxyGroupExpand` 意图驱动展开与折叠，状态重启记忆不丢失 | contract 偏好模型测试、ProxyPreferencesApplication::toggle_group_expand、Bevy ProxyGroupFoldButton observer / headless tests 已覆盖；真实多平台本地配置盘 IO 崩溃恢复 smoke 尚未计入 `host-verified` |
@@ -82,7 +82,7 @@
 | 组 09 AST YAML 引擎与快照 Diff | 15 | `planned` | `snapshot_diff_modal.rs`、`profiles_diff.rs` | 双端编辑器与回滚事务未验收 |
 | 组 10 脚本沙箱与多级 Mixin | 15 | `planned` | `script_console.rs`、`profiles_script.rs` | 双端控制台与熔断测试未验收 |
 | 组 11 规则引擎与 MRS 治理 | 15 | `planned` | `rules.rs`、`rules_mrs.rs`、`mrs` | 双端规则视口与虚拟滚动未验收 |
-| 组 12 Live Rule Tracer 与命中审计 | 15 | `planned` | `rules_tracer.rs`（两端同名） | 双端算法断言未验收 |
+| 组 12 Live Rule Tracer 与命中审计 | 15 | `in progress` | `rules_tracer.rs`（两端同名） | 2026-09-13 起逐项展开：决策链回放/预设/离线模拟已双端接线（见组 12 逐项账目），命中审计类条目未验收 |
 | 组 13 连接审计与深度透视 | 15 | `planned` | `connections.rs`、`connection_drawer.rs` | 双端聚合视图与瀑布流未验收 |
 | 组 14 DNS 工作台与泄漏探活 | 15 | `planned` | `dns.rs`（两端） | 双端表单与探活状态机未验收 |
 | 组 15 多模态外壳与极客命令流 | 15 | `planned` | `mini_hud.rs`、`command_palette.rs`、`sidebar.rs` | **含多尺寸弹性**，见专项台账 |
@@ -110,6 +110,22 @@
 | `DUAL-06-15` | 测速流控与状态机无头测试 | `parity-ready` | `speedtest_headless_tests.rs` + Iced 快照/失败断言 + Bevy 阶段重盖断言 |
 
 > **关键修复**：此前 Iced 的测速结果由 UI 内硬编码的 48MB/2400ms 与假抖动样本伪造。现已删除该第二条事实源，改为经 `SpeedtestPort` 驱动 `SpeedtestApplication` 并渲染共享快照；host 无引擎时按 typed unsupported 报错，不再伪造成功。
+
+### 组 12 逐项账目（2026-09-13 展开）
+
+闭环口径同组 06。本轮关键事实：`RuleTracerApplication` 此前从未在 `infiltrator-application/src/lib.rs` 挂载——整个应用服务（含测试）是死代码；reader 对 Rules 页发布的是硬编码空投影（`D-017`）。
+
+| 项 | 任务 | 状态 | 证据 |
+| :--- | :--- | :--- | :--- |
+| `DUAL-12-01` | 交互式分流追踪沙盒视口 | `parity-ready` | Iced 查询输入 + `RunRulesTracer` 经 `RuleTracerPort` 驱动共享引擎；Bevy 预设芯片数据驱动 |
+| `DUAL-12-02` | 分流决策链树状回放 | `parity-ready` | 共享 `DecisionChainSnapshot`：Iced 五阶段链路卡 + 命中摘要；Bevy `TracerDecisionTree` 逐节点行 |
+| `DUAL-12-03` | 快捷测试预设域名芯片 | `parity-ready` | 双端均渲染共享快照 `presets`（`RuleTracerSnapshot::default_presets`） |
+| `DUAL-12-13` | 离线分流追踪支持 | `parity-ready` | `RuleTracerApplication::project` 离线 AST 推演 + 诚实「未知出口」；hostless demo 走同一应用直调 |
+| `DUAL-12-14` | 双端 Tracer 沙盒组件完全镜像 | `parity-ready` | reader 真实投影 `pages.rules.tracer`；Bevy 经 `RulesProjection.tracer` 消费；Iced 经 `HostRuntime::rule_tracer_port` |
+| `DUAL-12-15` | Tracer 判定算法无头断言覆盖 | `parity-ready` | domain `tracer_tests`（含未知出口诚实断言）、application 端口/离线测试、Iced chain 断言、Bevy `test_rules_tracer_projection_renders_shared_decision_chain` |
+| 其余 9 项（命中计数流/死规则诊断/CIDR 冲突/反向应用/时延审计等） | 见组 12 清单 | `planned` | 未实现 |
+
+> **关键修复（D-017 收敛）**：reader 的 Rule Tracer 投影从硬编码空 `ready(..)` 改为 `RuleTracerApplication::project(core, rules, active_exit, proxies)` 真实推演；domain 出口阶段删除「香港专线 01 / 28ms / HK」伪造兜底，无运行时出口事实时渲染中性「未知出口」节点；Iced 删除本地 `(usize, String, String)` 三元组第二事实源。
 
 ---
 

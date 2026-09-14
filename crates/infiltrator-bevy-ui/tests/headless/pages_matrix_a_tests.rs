@@ -801,7 +801,7 @@ fn test_rules_page_mounting_and_default_state() {
     assert!(subtree_has_text(
         app.world(),
         root,
-        "【匹配命中】规则 #42: DOMAIN-SUFFIX, github.com"
+        "【匹配命中】规则 #42: DOMAIN-SUFFIX,github.com,PROXY -> PROXY"
     ));
     assert!(subtree_has_text(
         app.world(),
@@ -919,6 +919,7 @@ fn test_rules_empty_and_edge_case_projection() {
         default_action: "DIRECT".to_owned(),
         providers: vec![],
         rules: vec![],
+        tracer: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -931,6 +932,49 @@ fn test_rules_empty_and_edge_case_projection() {
         "分流规则 · 共 0 条规则 (0 个规则集 / 命中统计开启)"
     ));
     assert!(subtree_has_text(app.world(), root, "最终匹配目标: DIRECT"));
+    // Empty tracer snapshot renders the honest empty state, never a
+    // fabricated replay.
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "输入测试目标后执行模拟追踪，决策链路将在此回放"
+    ));
+}
+
+#[test]
+fn test_rules_tracer_projection_renders_shared_decision_chain() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Rules);
+
+    // The demo projection carries the shared demo_fixture chain, so the
+    // tracer card must replay that exact decision chain — five stages, the
+    // matched rule headline and the resolved outbound node.
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(RulesProjection::demo()));
+    app.update();
+
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "【匹配命中】规则 #42: DOMAIN-SUFFIX,github.com,PROXY -> PROXY"
+    ));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "· inbound | 混合端口监听 (Mixed) | 127.0.0.1:7890 (TCP)"
+    ));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "· rule_set | 命中规则 #42: DOMAIN-SUFFIX, github.com"
+    ));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "最终出站: 香港 IPLC 01"
+    ));
 }
 
 #[test]

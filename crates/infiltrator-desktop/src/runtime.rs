@@ -46,6 +46,7 @@ pub struct MihomoRuntime {
     pac_service: Arc<crate::pac_service::DesktopPacServicePort>,
     network_roaming_port: Arc<crate::network_roaming::DesktopNetworkRoamingPort>,
     speedtest: infiltrator_application::speedtest_application::SpeedtestApplication,
+    rule_tracer: infiltrator_application::rule_tracer_application::RuleTracerApplication,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -145,6 +146,10 @@ impl MihomoRuntime {
         let speedtest = infiltrator_application::speedtest_application::SpeedtestApplication::new(
             Arc::new(client.clone()),
         );
+        // One live rule tracer engine shared by the host runtime port and the
+        // surface reader, so both surfaces replay the same query state.
+        let rule_tracer =
+            infiltrator_application::rule_tracer_application::RuleTracerApplication::new();
         let application = Arc::new(crate::composition::core_application(
             &service_manager,
             endpoint.url.clone(),
@@ -184,6 +189,7 @@ impl MihomoRuntime {
             service_mode,
             pac_service,
             speedtest,
+            rule_tracer,
             network_roaming_port,
         })
     }
@@ -283,7 +289,10 @@ impl MihomoRuntime {
             sample_interval,
             self.binary_path.clone(),
             self.network_roaming_port.clone(),
-            self.speedtest.clone(),
+            crate::surface::SurfaceEngines {
+                speedtest: self.speedtest.clone(),
+                rule_tracer: self.rule_tracer.clone(),
+            },
         )
         .await
     }
@@ -473,6 +482,13 @@ impl RuntimeGateway for MihomoRuntime {
     async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
         self.client
             .flush_fakeip_cache()
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))
+    }
+
+    async fn upgrade_geo(&self) -> Result<(), PortError> {
+        self.client
+            .upgrade_geo()
             .await
             .map_err(|error| PortError::Network(error.to_string()))
     }
@@ -687,6 +703,10 @@ impl HostRuntime for MihomoRuntime {
         Some(Arc::new(crate::speedtest::DesktopSpeedtestPort::new(
             self.speedtest.clone(),
         )))
+    }
+
+    fn rule_tracer_port(&self) -> Option<Arc<dyn infiltrator_ports::rule_tracer::RuleTracerPort>> {
+        Some(Arc::new(self.rule_tracer.clone()))
     }
 
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {

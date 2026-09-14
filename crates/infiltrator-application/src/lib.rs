@@ -33,6 +33,7 @@ pub mod reconnect_mask_application;
 pub mod resource_application;
 pub mod responsive_viewport_application;
 pub mod routing_application;
+pub mod rule_tracer_application;
 pub mod runtime_query_application;
 pub mod script_application;
 pub mod service_mode_application;

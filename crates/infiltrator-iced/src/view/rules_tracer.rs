@@ -46,14 +46,106 @@ fn quick_test_btn<'a>(sample: &'static str) -> Element<'a, Message> {
         .into()
 }
 
+/// Color for a decision-chain node status.
+fn decision_status_color(
+    status: infiltrator_contract::rule_tracer::DecisionNodeStatus,
+) -> fn(&Theme) -> Color {
+    match status {
+        infiltrator_contract::rule_tracer::DecisionNodeStatus::Matched
+        | infiltrator_contract::rule_tracer::DecisionNodeStatus::Passed => {
+            |t: &Theme| tokens(t).success
+        }
+        infiltrator_contract::rule_tracer::DecisionNodeStatus::Failed => {
+            |t: &Theme| tokens(t).danger
+        }
+        infiltrator_contract::rule_tracer::DecisionNodeStatus::Fallback => {
+            |t: &Theme| tokens(t).warning
+        }
+        infiltrator_contract::rule_tracer::DecisionNodeStatus::Bypassed
+        | infiltrator_contract::rule_tracer::DecisionNodeStatus::Neutral => {
+            |t: &Theme| tokens(t).text_tertiary
+        }
+    }
+}
+
+/// Compact five-stage replay of the shared decision chain.
+fn decision_chain_rows<'a>(
+    chain: &'a infiltrator_contract::rule_tracer::DecisionChainSnapshot,
+    lang: &Lang<'_>,
+) -> Element<'a, Message> {
+    let rows: Vec<Element<'a, Message>> = chain
+        .nodes
+        .iter()
+        .map(|node| {
+            let status_color = decision_status_color(node.status);
+            row![
+                text("●").size(10).style(move |t: &Theme| text::Style {
+                    color: Some(status_color(t))
+                }),
+                Space::new().width(theme::SP_XS),
+                text(node.title.clone())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_primary)
+                    }),
+                Space::new().width(Length::Fill),
+                text(node.detail.clone())
+                    .size(10)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_tertiary)
+                    })
+                    .width(Length::FillPortion(3)),
+            ]
+            .align_y(Alignment::Center)
+            .spacing(theme::SP_XS)
+            .width(Length::Fill)
+            .into()
+        })
+        .collect();
+
+    container(
+        column![
+            text(lang.tr("tracer_chain_title").to_string())
+                .size(11)
+                .font(FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
+            Space::new().height(theme::SP_XS),
+            column(rows).spacing(theme::SP_XS),
+        ]
+        .spacing(theme::SP_XS),
+    )
+    .padding([10, 14])
+    .width(Length::Fill)
+    .style(|t: &Theme| {
+        let tk = tokens(t);
+        container::Style {
+            background: Some(tk.control_bg.into()),
+            border: Border {
+                radius: border::Radius::from(theme::R_CARD),
+                width: 1.0,
+                color: tk.divider,
+            },
+            ..Default::default()
+        }
+    })
+    .into()
+}
+
 /// Standalone Full-Page / Tab Live Rule Tracer Sandbox.
 pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let tracer_result_view: Element<'_, Message> = match &state.editor.rules_tracer_result {
-        Some((index, matched_rule, target)) => {
-            let (rule_type_part, payload_part) = matched_rule
+    let tracer_result_view: Element<'_, Message> = match &state.editor.rules_tracer_chain {
+        Some(chain) if !chain.is_fallback => {
+            let index_label = chain
+                .hit_rule_index
+                .map(|index| format!("#{}", index + 1))
+                .unwrap_or_else(|| "—".to_owned());
+            let (rule_type_part, payload_part) = chain
+                .matched_rule_raw
                 .split_once(',')
                 .map(|(t, p)| (t.trim(), p.trim()))
-                .unwrap_or((matched_rule.as_str(), ""));
+                .unwrap_or((chain.matched_rule_raw.as_str(), ""));
             let bkind = semantic_badge_kind(rule_type_part, RuleBadgeKind::Other);
             let norm_type = display_rule_type(rule_type_part);
 
@@ -69,9 +161,9 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
                                 color: Some(tokens(t).success)
                             }),
                         Space::new().width(theme::SP_SM),
-                        badge(format!("#{}", index + 1), BadgeKind::Success),
+                        badge(index_label, BadgeKind::Success),
                         Space::new().width(Length::Fill),
-                        kbd_badge(target.clone()),
+                        kbd_badge(chain.target_proxy.clone()),
                     ]
                     .align_y(Alignment::Center),
                     Space::new().height(theme::SP_SM),
@@ -85,7 +177,7 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
                         badge(norm_type, bkind),
                         Space::new().width(theme::SP_SM),
                         text(if payload_part.is_empty() {
-                            matched_rule.as_str()
+                            chain.matched_rule_raw.as_str()
                         } else {
                             payload_part
                         })
@@ -104,7 +196,7 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
                                 color: Some(tokens(t).text_secondary)
                             }),
                         Space::new().width(theme::SP_XS),
-                        text(target.clone())
+                        text(chain.target_proxy.clone())
                             .size(13)
                             .font(FONT_SEMIBOLD)
                             .style(|t: &Theme| text::Style {
@@ -112,6 +204,8 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
                             }),
                     ]
                     .align_y(Alignment::Center),
+                    Space::new().height(theme::SP_SM),
+                    decision_chain_rows(chain, lang),
                 ]
                 .spacing(theme::SP_XS),
             )
@@ -140,88 +234,87 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
             })
             .into()
         }
-        None => {
-            if !state.editor.rules_tracer_input.trim().is_empty() {
-                container(
-                    row![
-                        svg_icons::icon_themed(Icon::Shield, 16.0, |t: &Theme| tokens(t).warning),
-                        Space::new().width(theme::SP_MD),
-                        column![
-                            text(lang.tr("tracer_result_fallback").to_string())
-                                .size(13)
-                                .font(FONT_SEMIBOLD)
-                                .style(|t: &Theme| text::Style {
-                                    color: Some(tokens(t).warning)
-                                }),
-                            text(lang.tr("rule_tracer_fallback_desc").to_string())
-                                .size(11)
-                                .style(|t: &Theme| text::Style {
-                                    color: Some(tokens(t).text_secondary)
-                                }),
-                        ]
-                        .width(Length::Fill),
-                        badge(
-                            lang.tr("rule_tracer_fallback_badge").to_string(),
-                            BadgeKind::Warning
-                        ),
-                    ]
-                    .align_y(Alignment::Center),
-                )
-                .padding([12, 16])
-                .width(Length::Fill)
-                .style(|t: &Theme| {
-                    let tk = tokens(t);
-                    container::Style {
-                        background: Some(
-                            Color {
-                                a: 0.08,
-                                ..tk.warning
-                            }
-                            .into(),
-                        ),
-                        border: Border {
-                            radius: border::Radius::from(theme::R_CARD),
-                            width: 1.0,
-                            color: Color {
-                                a: 0.25,
-                                ..tk.warning
-                            },
-                        },
-                        ..Default::default()
-                    }
-                })
-                .into()
-            } else {
-                container(
-                    row![
-                        svg_icons::icon_themed(Icon::Target, 16.0, |t: &Theme| tokens(t)
-                            .text_tertiary),
-                        Space::new().width(theme::SP_SM),
-                        text(lang.tr("tracer_subtitle").to_string())
-                            .size(12)
+        Some(chain) => container(
+            column![
+                row![
+                    svg_icons::icon_themed(Icon::Shield, 16.0, |t: &Theme| tokens(t).warning),
+                    Space::new().width(theme::SP_MD),
+                    column![
+                        text(lang.tr("tracer_result_fallback").to_string())
+                            .size(13)
+                            .font(FONT_SEMIBOLD)
                             .style(|t: &Theme| text::Style {
-                                color: Some(tokens(t).text_tertiary)
+                                color: Some(tokens(t).warning)
+                            }),
+                        text(lang.tr("rule_tracer_fallback_desc").to_string())
+                            .size(11)
+                            .style(|t: &Theme| text::Style {
+                                color: Some(tokens(t).text_secondary)
                             }),
                     ]
-                    .align_y(Alignment::Center),
-                )
-                .padding([12, 16])
-                .width(Length::Fill)
-                .style(|t: &Theme| {
-                    let tk = tokens(t);
-                    container::Style {
-                        background: Some(tk.control_bg.into()),
-                        border: Border {
-                            radius: border::Radius::from(theme::R_CARD),
-                            width: 1.0,
-                            color: tk.card_border,
-                        },
-                        ..Default::default()
+                    .width(Length::Fill),
+                    badge(
+                        lang.tr("rule_tracer_fallback_badge").to_string(),
+                        BadgeKind::Warning
+                    ),
+                ]
+                .align_y(Alignment::Center),
+                Space::new().height(theme::SP_SM),
+                decision_chain_rows(chain, lang),
+            ]
+            .spacing(theme::SP_XS),
+        )
+        .padding([12, 16])
+        .width(Length::Fill)
+        .style(|t: &Theme| {
+            let tk = tokens(t);
+            container::Style {
+                background: Some(
+                    Color {
+                        a: 0.08,
+                        ..tk.warning
                     }
-                })
-                .into()
+                    .into(),
+                ),
+                border: Border {
+                    radius: border::Radius::from(theme::R_CARD),
+                    width: 1.0,
+                    color: Color {
+                        a: 0.25,
+                        ..tk.warning
+                    },
+                },
+                ..Default::default()
             }
-        }
+        })
+        .into(),
+        None => container(
+            row![
+                svg_icons::icon_themed(Icon::Target, 16.0, |t: &Theme| tokens(t).text_tertiary),
+                Space::new().width(theme::SP_SM),
+                text(lang.tr("tracer_subtitle").to_string())
+                    .size(12)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_tertiary)
+                    }),
+            ]
+            .align_y(Alignment::Center),
+        )
+        .padding([12, 16])
+        .width(Length::Fill)
+        .style(|t: &Theme| {
+            let tk = tokens(t);
+            container::Style {
+                background: Some(tk.control_bg.into()),
+                border: Border {
+                    radius: border::Radius::from(theme::R_CARD),
+                    width: 1.0,
+                    color: tk.card_border,
+                },
+                ..Default::default()
+            }
+        })
+        .into(),
     };
 
     let clear_btn = if state.editor.rules_tracer_input.is_empty() {

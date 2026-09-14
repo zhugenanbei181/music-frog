@@ -2,14 +2,15 @@
 
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::rule_tracer::{
-    DecisionChainSnapshot, RuleTracerSnapshot, RuleTracerStatus,
-    TrafficContextSnapshot,
+    DecisionChainSnapshot, RuleTracerSnapshot, RuleTracerStatus, TrafficContextSnapshot,
 };
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_domain::proxy::Proxy;
-use infiltrator_domain::rules::tracer::{TrafficContext, build_decision_chain, trace_rules, RuleTraceMatch};
-use infiltrator_domain::rules::types::parse_rule_str;
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_domain::rules::tracer::{
+    RuleTraceMatch, TrafficContext, build_decision_chain, trace_rules,
+};
+use infiltrator_domain::rules::types::parse_rule_str;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -67,34 +68,42 @@ impl RuleTracerApplication {
             .map(|m| m.target.as_str())
             .unwrap_or("DIRECT");
 
-        // Resolve outbound node and facts from proxy group read model or active exit
-        let mut group_proto_holder = None;
-        let mut group_country_holder = None;
-        let (outbound_node, protocol, delay, country) = if target_group.eq_ignore_ascii_case("DIRECT") {
-            (Some("DIRECT"), Some("Direct"), None, None)
+        // Resolve outbound node and facts from proxy group read model or active exit.
+        // Without runtime facts the outbound stage stays honestly unknown; the
+        // domain chain renders a neutral node instead of fabricated node data.
+        let mut resolved: (Option<String>, Option<String>, Option<u32>, Option<String>) =
+            (None, None, None, None);
+        if target_group.eq_ignore_ascii_case("DIRECT") {
+            resolved = (Some("DIRECT".into()), Some("Direct".into()), None, None);
         } else if target_group.eq_ignore_ascii_case("REJECT") {
-            (Some("REJECT"), Some("Reject"), None, None)
+            resolved = (Some("REJECT".into()), Some("Reject".into()), None, None);
         } else if let Some(proxies) = proxies
             && let Some(group) = proxies.get(target_group)
             && let Some(now_node_name) = group.now()
         {
             let node_info = proxies.get(now_node_name);
-            group_proto_holder = node_info.map(|n| n.proxy_type().to_string());
-            let delay_val = node_info.and_then(|n| n.delay());
-            group_country_holder = active_exit.and_then(|e| e.country_code.clone());
-            (Some(now_node_name), group_proto_holder.as_deref().or(Some("VLESS · Reality")), delay_val, group_country_holder.as_deref())
+            resolved = (
+                Some(now_node_name.to_owned()),
+                node_info.map(|n| n.proxy_type().to_string()),
+                node_info.and_then(|n| n.delay()),
+                active_exit.and_then(|e| e.country_code.clone()),
+            );
         } else if let Some(exit) = active_exit
             && exit.is_drawable()
         {
-            (
-                exit.name.as_deref().or(Some("香港专线 01")),
-                exit.protocol.as_deref().or(Some("VLESS · Reality")),
+            resolved = (
+                exit.name.clone(),
+                exit.protocol.clone(),
                 exit.delay_ms,
-                exit.country_code.as_deref().or(Some("HK")),
-            )
-        } else {
-            (Some("香港专线 01"), Some("VLESS · Reality"), Some(28), Some("HK"))
-        };
+                exit.country_code.clone(),
+            );
+        }
+        let (outbound_node, protocol, delay, country) = (
+            resolved.0.as_deref(),
+            resolved.1.as_deref(),
+            resolved.2,
+            resolved.3.as_deref(),
+        );
 
         let latency_us = start.elapsed().as_micros().max(1) as u64;
 
@@ -127,7 +136,10 @@ impl RuleTracerApplication {
         // When query is empty, provide a clean, ready-to-test sandbox with presets
         if query.trim().is_empty() {
             let mut snapshot = RuleTracerSnapshot::empty(core.generation, revision);
-            if matches!(core.lifecycle, CoreLifecycle::Running | CoreLifecycle::Ready) {
+            if matches!(
+                core.lifecycle,
+                CoreLifecycle::Running | CoreLifecycle::Ready
+            ) {
                 snapshot.status = RuleTracerStatus::Ready;
             }
             return snapshot;
@@ -156,12 +168,33 @@ impl RuleTracerApplication {
         );
 
         // Offline notice if core is stopped but AST trace still completed
-        if !matches!(core.lifecycle, CoreLifecycle::Running | CoreLifecycle::Ready) {
+        if !matches!(
+            core.lifecycle,
+            CoreLifecycle::Running | CoreLifecycle::Ready
+        ) {
             snapshot.status = RuleTracerStatus::Ready;
-            snapshot.failure = Some("内核离线：当前展示基于本地 AST 规则树的离线模拟推演".to_owned());
+            snapshot.failure =
+                Some("内核离线：当前展示基于本地 AST 规则树的离线模拟推演".to_owned());
         }
 
         snapshot
+    }
+}
+
+/// Port seam so an inbound surface drives the exact application instance the
+/// surface reader projects, keeping one query state across Iced and Bevy.
+impl infiltrator_ports::rule_tracer::RuleTracerPort for RuleTracerApplication {
+    fn set_query(&self, query: &str) {
+        RuleTracerApplication::set_query(self, query);
+    }
+
+    fn trace(
+        &self,
+        rules: &[RuleEntry],
+        query: &str,
+        active_exit: Option<&ActiveExitSnapshot>,
+    ) -> DecisionChainSnapshot {
+        self.trace(rules, query, active_exit, None).1
     }
 }
 
@@ -245,7 +278,12 @@ mod tests {
         let chain = snapshot.decision_chain.expect("decision chain");
         assert_eq!(chain.target_proxy, "AI_PROXY");
         assert_eq!(chain.matched_rule_type, "AND");
-        assert!(chain.nodes[2].sub_evaluations.iter().any(|e| e.contains("PASS")));
+        assert!(
+            chain.nodes[2]
+                .sub_evaluations
+                .iter()
+                .any(|e| e.contains("PASS"))
+        );
     }
 
     #[test]
@@ -277,5 +315,21 @@ mod tests {
         assert!(snapshot.failure.as_deref().unwrap_or("").contains("离线"));
         let chain = snapshot.decision_chain.expect("decision chain");
         assert_eq!(chain.target_proxy, "DIRECT");
+    }
+
+    #[test]
+    fn tracer_port_drives_the_shared_query_state() {
+        let app = RuleTracerApplication::new();
+        let port: &dyn infiltrator_ports::rule_tracer::RuleTracerPort = &app;
+        port.set_query("www.google.com");
+        assert_eq!(app.query(), "www.google.com");
+
+        let chain = port.trace(&sample_rules(), "www.google.com", None);
+        assert_eq!(chain.hit_rule_index, Some(0));
+        assert_eq!(chain.matched_rule_type, "DOMAIN-SUFFIX");
+        // No runtime exit facts were supplied, so the outbound stage must not
+        // fabricate a node name or latency.
+        assert_eq!(chain.final_outbound, "未知出口");
+        assert_eq!(chain.final_node_delay_ms, None);
     }
 }

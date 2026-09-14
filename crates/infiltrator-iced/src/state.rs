@@ -72,6 +72,9 @@ pub struct RuntimeState {
     pub traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot,
     pub traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
     pub traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot,
+    /// Core reload/reconnect graceful degradation mask shared with Bevy; the
+    /// overview banner renders it while the core restarts or reconnects.
+    pub reconnect_mask: infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot,
     pub active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot,
     pub subscription_quota: infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot,
     pub system_proxy: SystemProxySnapshot,
@@ -235,7 +238,11 @@ pub struct ConfigEditorState {
     pub rules_page: usize,
     pub rules_page_size: usize,
     pub rules_tracer_input: String,
-    pub rules_tracer_result: Option<(usize, String, String)>,
+    /// Decision chain replayed by the shared rule tracer engine. No UI-local
+    /// second source of truth: hosts with a composed port share the query
+    /// state the surface reader projects; hostless demo runs trace the same
+    /// pure application directly.
+    pub rules_tracer_chain: Option<infiltrator_contract::rule_tracer::DecisionChainSnapshot>,
     pub rules_providers_expanded: bool,
     pub rules_render_cache: Vec<RuleRenderItem>,
     pub rules_filtered_indices: Vec<usize>,
@@ -484,6 +491,7 @@ impl AppState {
         self.runtime.traffic_waveform = snapshot.traffic_waveform.clone();
         self.runtime.traffic_scale = snapshot.traffic_scale.clone();
         self.runtime.traffic_topology = snapshot.traffic_topology.clone();
+        self.runtime.reconnect_mask = snapshot.reconnect_mask.clone();
         self.runtime.active_exit = snapshot.active_exit.clone();
         self.runtime.subscription_quota = snapshot.subscription_quota.clone();
         self.diag.speedtest = snapshot.speedtest.clone();

@@ -56,6 +56,15 @@ pub trait MihomoApi: Send + Sync {
     /// why this seam only offers the restart command.
     async fn restart_core(&self) -> Result<()>;
 
+    /// Triggers the GeoIP/GeoSite database update inside the running core
+    /// (`POST /upgrade/geo`).
+    ///
+    /// This only refreshes the geo rule databases; it is unrelated to the
+    /// forbidden `POST /upgrade` core self-upgrade path (UP-001). mihomo
+    /// performs the actual download asynchronously, so success means the
+    /// trigger was accepted, not that fresh databases are installed yet.
+    async fn upgrade_geo(&self) -> Result<()>;
+
     /// Triggers an on-demand health check for one proxy provider
     /// (`GET /providers/proxies/{provider}/healthcheck`).
     async fn provider_healthcheck(&self, provider: &str) -> Result<()>;
@@ -180,6 +189,10 @@ impl MihomoApi for MihomoClient {
         MihomoClient::restart_core(self).await
     }
 
+    async fn upgrade_geo(&self) -> Result<()> {
+        MihomoClient::upgrade_geo(self).await
+    }
+
     async fn provider_healthcheck(&self, provider: &str) -> Result<()> {
         MihomoClient::provider_healthcheck(self, provider).await
     }
@@ -296,6 +309,9 @@ mod tests {
             unsupported()
         }
         async fn restart_core(&self) -> Result<()> {
+            unsupported()
+        }
+        async fn upgrade_geo(&self) -> Result<()> {
             unsupported()
         }
         async fn provider_healthcheck(&self, _provider: &str) -> Result<()> {

@@ -510,7 +510,7 @@ pub enum Message {
     // Wave 3 Category 4: Geo Data Updater
     CheckGeoDataUpdates,
     TriggerGeoDataUpdate,
-    GeoDataUpdateFinished(super::editor::GeoDataStatus),
+    GeoDataUpdateResult(Result<(), String>),
     // Wave 3 Category 5: Windows UWP Loopback Utility
     ScanUwpApps,
     UwpAppsLoaded(Vec<super::app::UwpAppItem>),

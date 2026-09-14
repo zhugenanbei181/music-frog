@@ -169,6 +169,7 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
         .map(|value| RulesProjection {
             total_rules: value.total_rules,
             default_action: value.default_action.clone(),
+            tracer: value.tracer.clone(),
             providers: value
                 .providers
                 .iter()

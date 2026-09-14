@@ -51,6 +51,15 @@ pub trait RuntimeGateway: Send + Sync {
     async fn update_proxy_provider(&self, name: &str) -> Result<(), PortError>;
     async fn update_rule_provider(&self, name: &str) -> Result<(), PortError>;
     async fn flush_fakeip_cache(&self) -> Result<(), PortError>;
+    /// Ask the running core to refresh its GeoIP/GeoSite rule databases
+    /// (`POST /upgrade/geo`). Gateways without the trigger surface a typed
+    /// unsupported state instead of fabricating a success.
+    async fn upgrade_geo(&self) -> Result<(), PortError> {
+        Err(PortError::unsupported(
+            Capability::CoreLifecycle,
+            "geo database upgrade is not supported by this gateway",
+        ))
+    }
     async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError>;
     async fn get_memory(&self) -> Result<MemoryData, PortError>;
     /// Host-side CPU usage for the running core, when the platform exposes it.

@@ -49,8 +49,9 @@
 | D-014 | Low | 基本收敛 | 模态/抽屉/搜索框已弹性化；仅剩 150–180px 表单标签/控件宽度，在 420px 最小窗口内不溢出，记为可接受差异 | `DUAL-15-01e` |
 | D-015 | Medium | **已收敛** | `responsive-parity-guard.py` 做数值级 fail-closed 校验，已入 `test.sh`/`test-bevy.sh` | `DUAL-15-01f` |
 | D-016 | High | **已收敛（mock 层）** | Iced 测速曾用 UI 内硬编码的 48MB/2400ms 与假抖动样本伪造结果；已删除该第二事实源，改经 `SpeedtestPort` 驱动共享 `SpeedtestApplication` 并渲染快照，无引擎时 typed unsupported | `DUAL-06-04/05/06/08/14/15` |
-| D-017 | High | 开放 | reader 的 Rule Tracer 仍是空投影（`RuleTracerSnapshot::ready(.., String::new(), Default::default(), None, 0)`），未从 `RuleTracerApplication` 读取真实查询/决策链；Iced 用的是本地三元组 `rules_tracer_result`，Bevy 无消费 | `DUAL-12-*` |
-| D-018 | Medium | 部分收敛 | 组 05～15 中多项被主控台账标记 `parity-ready` 的条目实为单端。已复核并修正：`DUAL-03-12`（卡片重排）Iced 端本轮已补齐；`DUAL-03-13`（重载蒙版）仍只有 Bevy，已降为 `bevy-ready` | 逐项审计 |
+| D-017 | High | **已收敛（mock 层）** | reader 的 Rule Tracer 曾是硬编码空投影，且 `RuleTracerApplication` 从未在 application `lib.rs` 挂载（死代码）。已接线：reader 经真实 `project(core, rules, active_exit, proxies)` 投影；domain 出口阶段删除「香港专线 01/28ms/HK」伪造兜底（无事实时渲染中性「未知出口」）；Iced 删除本地三元组第二事实源，经 `HostRuntime::rule_tracer_port` 驱动共享引擎并渲染五阶段链路；Bevy `RulesProjection.tracer` 数据驱动场景 | `DUAL-12-*`，组 12 逐项账目 |
+| D-018 | Medium | **已收敛（mock 层）** | 组 05～15 中多项被主控台账标记 `parity-ready` 的条目实为单端。已复核并修正：`DUAL-03-12`（卡片重排）Iced 端已补齐；`DUAL-03-13`（重载蒙版）Iced 端 2026-09-13 已补齐并升回 `parity-ready` | 逐项审计 |
+| D-019 | High | **已收敛（mock 层）** | Iced GeoData 面板三处伪造：`UpdateGeoDatabases` 睡 600ms 即报成功、`CheckGeoDataUpdates` 硬编码 v2026.09.01 版本与字节数、卡片对空值回填假版本/假大小。已收敛：`mihomo-api` 新增 `POST /upgrade/geo`（`upgrade_geo`，含 mockito 测试）经 `RuntimeGateway::upgrade_geo` 真实触发；无 gateway 时 typed error toast；版本/大小无事实时渲染「未知/—」；检查动作诚实提示内核未提供版本查询 | `GeoDataUpdateResult`，geodata locale keys |
 
 ## 差距列表
 

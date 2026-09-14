@@ -54,6 +54,71 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let topology = topology_card(state, &lang, is_en);
     let quota = subscription_quota_card(state, &lang);
 
+    // Graceful degradation mask shared with Bevy: while the core reloads or
+    // the watchdog reconnects, the last valid frame stays visible and the
+    // banner names the phase instead of silently blanking the page.
+    let reconnect_banner: Option<Element<'_, Message>> = if state.runtime.reconnect_mask.is_active()
+    {
+        let mask = &state.runtime.reconnect_mask;
+        let detail = match (mask.attempt, mask.retry_in_ms) {
+            (Some(attempt), Some(retry_ms)) => {
+                format!(
+                    "{} · {} {}",
+                    mask.message.clone().unwrap_or_default(),
+                    attempt,
+                    retry_ms
+                )
+            }
+            (Some(attempt), None) => {
+                format!(
+                    "{} · #{}",
+                    mask.message.clone().unwrap_or_default(),
+                    attempt
+                )
+            }
+            _ => mask.message.clone().unwrap_or_default(),
+        };
+        Some(
+            container(
+                row![
+                    icon_themed(Icon::Shield, 16.0, |t: &Theme| tokens(t).on_accent),
+                    Space::new().width(theme::SP_SM),
+                    text(detail)
+                        .size(12)
+                        .font(FONT_MEDIUM)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).on_accent)
+                        }),
+                    Space::new().width(Length::Fill),
+                ]
+                .align_y(Alignment::Center),
+            )
+            .padding([10, 16])
+            .width(Length::Fill)
+            .style(|t: &Theme| {
+                let tk = tokens(t);
+                container::Style {
+                    background: Some(
+                        Color {
+                            a: 0.85,
+                            ..tk.accent
+                        }
+                        .into(),
+                    ),
+                    border: Border {
+                        radius: border::Radius::from(theme::R_CARD),
+                        width: 1.0,
+                        color: tk.accent,
+                    },
+                    ..Default::default()
+                }
+            })
+            .into(),
+        )
+    } else {
+        None
+    };
+
     // Reorderable cards are assembled according to the shared layout order so
     // the Iced surface honours the same `OverviewLayoutSnapshot` Bevy does.
     // Active-exit / public-IP / latency are the fixed support row and are not
@@ -95,7 +160,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .spacing(theme::SP_LG)
     .width(Length::Fill);
 
-    let mut content = column![header, hero].spacing(theme::SP_LG);
+    let mut content = column![header];
+    if let Some(banner) = reconnect_banner {
+        content = content.push(banner);
+    }
+    content = content.push(hero).spacing(theme::SP_LG);
     let mut ordered: Vec<(_, Element<'_, Message>)> = Vec::new();
     for kind in &state.diag.overview_card_order {
         if let Some(pos) = reorderable.iter().position(|(k, _)| k == kind) {

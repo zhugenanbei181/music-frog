@@ -218,11 +218,10 @@ fn test_rules_tracer_gui_flow() {
     assert_eq!(state.editor.rules_tracer_input, "mail.google.com");
 
     let _ = state.update(Message::RunRulesTracer);
-    assert!(state.editor.rules_tracer_result.is_some());
-    let (idx, matched, target) = state.editor.rules_tracer_result.as_ref().unwrap();
-    assert_eq!(*idx, 1);
-    assert_eq!(matched, "DOMAIN-SUFFIX,google.com");
-    assert_eq!(target, "节点选择");
+    let chain = state.editor.rules_tracer_chain.as_ref().unwrap();
+    assert_eq!(chain.hit_rule_index, Some(1));
+    assert_eq!(chain.matched_rule_raw, "DOMAIN-SUFFIX,google.com");
+    assert_eq!(chain.target_proxy, "节点选择");
 }
 
 #[test]
@@ -240,8 +239,13 @@ fn test_rules_game_presets_and_geo_update() {
     assert!(state.editor.rules[0].rule.contains("Game-Proxy"));
     assert!(state.editor.rules_dirty);
 
+    // Without a composed runtime the geo update is refused with a typed
+    // toast instead of a fabricated sleep-then-success.
     let _ = state.update(Message::UpdateGeoDatabases);
-    assert!(state.editor.is_updating_geo_databases);
+    assert!(!state.editor.is_updating_geo_databases);
+
+    // The finished handler still owns the busy-flag lifecycle.
+    state.editor.is_updating_geo_databases = true;
     let _ = state.update(Message::GeoDatabasesUpdated(Ok(())));
     assert!(!state.editor.is_updating_geo_databases);
 }

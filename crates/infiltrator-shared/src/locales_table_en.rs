@@ -795,6 +795,7 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
         "tracer_hit_index" => "Rule Index".into(),
         "tracer_hit_pattern" => "Matched Pattern".into(),
         "tracer_hit_target" => "Target Policy".into(),
+        "tracer_chain_title" => "Routing Decision Chain Replay (Inbound → Sniffer → Rule → Group → Outbound)".into(),
         "nav_app_routing" => "App Routing".into(),
         "nav_doctor" => "Doctor Diagnostics".into(),
         "app_routing_subtitle" => "Configure per-application split tunneling rules for running and installed apps.".into(),

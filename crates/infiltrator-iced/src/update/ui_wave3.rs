@@ -6,6 +6,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 fn map_uwp_snapshot(
     target: &mut crate::types::app::UwpLoopbackState,
@@ -134,31 +135,50 @@ impl AppState {
                 ToastStatus::Error,
             )),
             Message::CheckGeoDataUpdates => {
-                self.editor.geodata_status.is_updating = true;
-                self.editor.geodata_status.geoip_version = "v2026.09.01".into();
-                self.editor.geodata_status.geosite_version = "v2026.09.01".into();
-                self.editor.geodata_status.geoip_size_bytes = 7_450_210;
-                self.editor.geodata_status.geosite_size_bytes = 4_892_100;
-                self.editor.geodata_status.is_updating = false;
+                // mihomo's controller exposes no geo version/size query, so
+                // the honest answer is "cannot verify" — never fabricated
+                // version strings or byte counts.
+                let lang = Lang(&self.shell.lang);
                 self.editor.geodata_status.update_message =
-                    Some("Geo databases are up to date".into());
+                    Some(lang.tr("geodata_check_unavailable").to_string());
                 Task::none()
             }
             Message::TriggerGeoDataUpdate => {
+                // Drive the real core trigger (`POST /upgrade/geo`) through
+                // the runtime gateway; no fabricated success results.
+                let Some(rt) = self.runtime.runtime.clone() else {
+                    let lang = Lang(&self.shell.lang);
+                    return Task::done(Message::ShowToast(
+                        lang.tr("geodata_unsupported_host").to_string(),
+                        ToastStatus::Error,
+                    ));
+                };
                 self.editor.geodata_status.is_updating = true;
-                self.editor.geodata_status.geoip_version = "v2026.09.03".into();
-                self.editor.geodata_status.geosite_version = "v2026.09.03".into();
-                self.editor.geodata_status.is_updating = false;
-                self.editor.geodata_status.update_message =
-                    Some("Updated GeoIP and GeoSite successfully".into());
-                Task::done(Message::ShowToast(
-                    "Geo databases updated successfully".into(),
-                    ToastStatus::Success,
-                ))
+                Task::perform(
+                    async move {
+                        rt.upgrade_geo().await.map_err(|error| error.to_string())?;
+                        Ok::<_, String>(())
+                    },
+                    Message::GeoDataUpdateResult,
+                )
             }
-            Message::GeoDataUpdateFinished(st) => {
-                self.editor.geodata_status = st;
-                Task::none()
+            Message::GeoDataUpdateResult(result) => {
+                let lang = Lang(&self.shell.lang);
+                self.editor.geodata_status.is_updating = false;
+                match result {
+                    Ok(()) => {
+                        self.editor.geodata_status.update_message =
+                            Some(lang.tr("geodata_update_triggered").to_string());
+                        Task::done(Message::ShowToast(
+                            lang.tr("geodata_update_triggered").to_string(),
+                            ToastStatus::Success,
+                        ))
+                    }
+                    Err(error) => {
+                        self.editor.geodata_status.update_message = Some(error.clone());
+                        Task::done(Message::ShowToast(error, ToastStatus::Error))
+                    }
+                }
             }
             Message::ScanUwpApps => {
                 if !self.shell.demo {

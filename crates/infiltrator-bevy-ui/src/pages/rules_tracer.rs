@@ -2,6 +2,8 @@
 
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::observer::On;
+use bevy::ecs::system::Query;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
@@ -15,6 +17,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
+
+use crate::pages::rules::RulesProjectionUpdated;
 
 /// Marker on the Rules Tracer card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -32,13 +37,96 @@ pub struct TracerPresetChip(pub String);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TracerDecisionTree;
 
-/// Scene constructor for the Live Rule Tracer card.
-pub fn rules_tracer_scene(palette: &UiPalette) -> impl Scene + use<> {
-    let presets = vec!["google.com", "github.com", "bilibili.com", "1.1.1.1"];
+/// Text slots of the tracer card, patched in place from the shared snapshot.
+/// Slot `0` is the headline, `1..=5` the five decision-chain stages (fixed
+/// capacity), and `6` the honest empty/unsupported line.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TracerText(pub u8);
 
-    let preset_chips: Vec<Box<dyn Scene>> = presets
+const TRACER_HEADLINE_SLOT: u8 = 0;
+const TRACER_STAGE_SLOTS: u8 = 5;
+const TRACER_EMPTY_SLOT: u8 = 6;
+
+/// Headline line for the current shared snapshot.
+fn tracer_headline(tracer: &RuleTracerSnapshot) -> String {
+    match &tracer.decision_chain {
+        Some(chain) if !chain.is_fallback => format!(
+            "【匹配命中】规则 #{}: {} -> {}",
+            chain.hit_rule_index.map(|i| i + 1).unwrap_or(0),
+            chain.matched_rule_raw,
+            chain.target_proxy
+        ),
+        Some(chain) => format!(
+            "【默认兜底】{} -> {}",
+            chain.matched_rule_raw, chain.target_proxy
+        ),
+        None => "分流追踪器沙盒 (等待查询)".to_owned(),
+    }
+}
+
+/// One decision-chain stage line; empty for slots without a live chain.
+fn tracer_stage_line(tracer: &RuleTracerSnapshot, stage: usize) -> String {
+    match &tracer.decision_chain {
+        Some(chain) => chain
+            .nodes
+            .get(stage)
+            .map(|node| {
+                format!(
+                    "· {} | {} | {}",
+                    node.stage.as_str(),
+                    node.title,
+                    node.detail
+                )
+            })
+            .unwrap_or_default(),
+        None => String::new(),
+    }
+}
+
+/// Honest empty/unsupported line — never a fabricated replay.
+fn tracer_empty_line(tracer: &RuleTracerSnapshot) -> String {
+    match &tracer.failure {
+        Some(failure) => format!("分流追踪器不可用: {failure}"),
+        None => "输入测试目标后执行模拟追踪，决策链路将在此回放".to_owned(),
+    }
+}
+
+/// Patch the tracer card text slots from the shared projection so the card
+/// stays reactive across projection updates without re-mounting the page.
+pub(crate) fn apply_tracer_projection(
+    update: On<RulesProjectionUpdated>,
+    mut texts: Query<(&mut Text, &TracerText)>,
+) {
+    let tracer = &update.0.tracer;
+    for (mut text, slot) in texts.iter_mut() {
+        text.0 = match slot.0 {
+            TRACER_HEADLINE_SLOT => tracer_headline(tracer),
+            stage @ 1..=TRACER_STAGE_SLOTS => tracer_stage_line(tracer, (stage - 1) as usize),
+            _ => tracer_empty_line(tracer),
+        };
+    }
+}
+
+/// Scene constructor for the Live Rule Tracer card. Data-driven from the
+/// shared `RuleTracerSnapshot` the surface reader projects; no fabricated
+/// replay content is rendered when the snapshot has no decision chain.
+pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> impl Scene + use<> {
+    let preset_labels: Vec<String> = if tracer.presets.is_empty() {
+        RuleTracerSnapshot::default_presets()
+            .into_iter()
+            .map(|preset| preset.label)
+            .collect()
+    } else {
+        tracer
+            .presets
+            .iter()
+            .map(|preset| preset.label.clone())
+            .collect()
+    };
+
+    let preset_chips: Vec<Box<dyn Scene>> = preset_labels
         .into_iter()
-        .map(|domain| {
+        .map(|label| {
             Box::new(bsn! {
                 Node {
                     min_height: px(28.0),
@@ -49,13 +137,45 @@ pub fn rules_tracer_scene(palette: &UiPalette) -> impl Scene + use<> {
                 }
                 BackgroundColor({ palette.border })
                 Button
-                TracerPresetChip({ domain.to_owned() })
+                TracerPresetChip({ label.clone() })
                 Children [
-                    ( Text({ domain.to_owned() }) TextRole(Role::Caption) ),
+                    ( Text({ label.clone() }) TextRole(Role::Caption) ),
                 ]
             }) as Box<dyn Scene>
         })
         .collect();
+
+    // The tracer card keeps a fixed set of text slots (headline + 5 stages +
+    // honest empty line) so the in-place projection patch can rewrite them
+    // without re-mounting the page.
+    let tracer_slot = |slot: u8, content: String, role: Role| -> Box<dyn Scene> {
+        Box::new(bsn! {
+            Node {
+                width: percent(100),
+            }
+            Children [
+                ( Text({ content }) TracerText({ slot }) TextRole(role) ),
+            ]
+        })
+    };
+
+    let mut decision_rows: Vec<Box<dyn Scene>> = vec![tracer_slot(
+        TRACER_HEADLINE_SLOT,
+        tracer_headline(tracer),
+        Role::BodyStrong,
+    )];
+    for stage in 0..TRACER_STAGE_SLOTS {
+        decision_rows.push(tracer_slot(
+            stage + 1,
+            tracer_stage_line(tracer, stage as usize),
+            Role::Caption,
+        ));
+    }
+    decision_rows.push(tracer_slot(
+        TRACER_EMPTY_SLOT,
+        tracer_empty_line(tracer),
+        Role::Caption,
+    ));
 
     surface_scene(
         vec![
@@ -117,9 +237,7 @@ pub fn rules_tracer_scene(palette: &UiPalette) -> impl Scene + use<> {
                 BackgroundColor({ palette.window_clear })
                 TracerDecisionTree
                 Children [
-                    ( Text({ "【匹配命中】规则 #42: DOMAIN-SUFFIX, github.com".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ( Text({ "分流决策链: Inbound(7890) -> Sniffer(TLS) -> GeoSite -> Outbound(PROXY)".to_owned() }) TextRole(Role::Caption) ),
-                    ( Text({ "目标策略组: [PROXY] -> 自动测速延迟最优 [香港专线 01] (28ms)".to_owned() }) TextRole(Role::Caption) ),
+                    { decision_rows },
                 ]
             }),
         ],

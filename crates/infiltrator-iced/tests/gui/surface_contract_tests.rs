@@ -323,3 +323,31 @@ fn surface_bridge_translates_the_application_snapshot_to_an_iced_message() {
         std::thread::yield_now();
     }
 }
+
+#[test]
+fn shared_reconnect_mask_reaches_the_iced_runtime_projection() {
+    let (mut state, _) = AppState::new();
+    assert!(!state.runtime.reconnect_mask.is_active());
+
+    let mut value = snapshot(8);
+    value.reconnect_mask =
+        infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot::reconnecting(
+            2,
+            4_000,
+            "看门狗重连中，保留上一帧快照",
+        );
+    assert!(state.apply_shared_surface_snapshot(value));
+    assert!(state.runtime.reconnect_mask.is_active());
+    assert_eq!(
+        state.runtime.reconnect_mask.attempt,
+        Some(2),
+        "the watchdog attempt count must surface for the overview banner"
+    );
+    assert_eq!(state.runtime.reconnect_mask.retry_in_ms, Some(4_000));
+
+    // A newer normal snapshot clears the degradation state.
+    let mut cleared = snapshot(9);
+    cleared.reconnect_mask = infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot::normal();
+    assert!(state.apply_shared_surface_snapshot(cleared));
+    assert!(!state.runtime.reconnect_mask.is_active());
+}

@@ -790,6 +790,7 @@ pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "tracer_hit_index" => "规则索引".into(),
         "tracer_hit_pattern" => "匹配表达式".into(),
         "tracer_hit_target" => "出站策略".into(),
+        "tracer_chain_title" => "分流决策链路回放 (入站 → 嗅探 → 规则 → 策略组 → 出站)".into(),
         "nav_app_routing" => "应用分流".into(),
         "nav_doctor" => "自愈诊断".into(),
         "app_routing_subtitle" => "针对系统安装与运行中的应用设定独立的直连、代理或拦截规则".into(),

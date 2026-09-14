@@ -120,10 +120,30 @@ impl AppState {
                 Task::none()
             }
             Message::RunRulesTracer => {
-                let input = self.editor.rules_tracer_input.trim();
-                let ctx = rules::TrafficContext::from_query(input);
-                self.editor.rules_tracer_result =
-                    rules::trace_rules(&self.editor.rules, &ctx).map(Into::into);
+                let input = self.editor.rules_tracer_input.trim().to_string();
+                if input.is_empty() {
+                    self.editor.rules_tracer_chain = None;
+                    return Task::none();
+                }
+                // Drive the shared tracer engine: hosts with a composed port
+                // share the query state the surface reader projects; hostless
+                // demo runs replay the same pure application directly. No
+                // UI-local fabricated metrics either way.
+                if let Some(runtime) = self.runtime.runtime.clone()
+                    && let Some(port) = runtime.rule_tracer_port()
+                {
+                    port.set_query(&input);
+                    let exit = self.runtime.active_exit.clone();
+                    self.editor.rules_tracer_chain =
+                        Some(port.trace(&self.editor.rules, &input, Some(&exit)));
+                } else {
+                    let application =
+                        infiltrator_application::rule_tracer_application::RuleTracerApplication::with_query(
+                            &input,
+                        );
+                    self.editor.rules_tracer_chain =
+                        Some(application.trace(&self.editor.rules, &input, None, None).1);
+                }
                 Task::none()
             }
             Message::UpdateNewRuleType(t) => {
@@ -480,11 +500,20 @@ impl AppState {
                 ))
             }
             Message::UpdateGeoDatabases => {
+                // Drive the real core trigger (`POST /upgrade/geo`) through
+                // the runtime gateway; no fabricated sleep-then-success.
+                let Some(rt) = self.runtime.runtime.clone() else {
+                    return Task::done(Message::ShowToast(
+                        "Geo database update is not available on this host".to_string(),
+                        ToastStatus::Error,
+                    ));
+                };
                 self.editor.is_updating_geo_databases = true;
                 Task::perform(
-                    async {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(600)).await;
-                        Ok(())
+                    async move {
+                        rt.upgrade_geo()
+                            .await
+                            .map_err(|error| InfiltratorError::Internal(error.to_string()))
                     },
                     Message::GeoDatabasesUpdated,
                 )

@@ -116,6 +116,8 @@ pub struct RulesProjection {
     pub default_action: String,
     pub providers: Vec<RuleProviderItem>,
     pub rules: Vec<RuleItem>,
+    /// Shared live rule tracer read model published by the surface reader.
+    pub tracer: infiltrator_contract::rule_tracer::RuleTracerSnapshot,
 }
 
 impl RulesProjection {
@@ -124,6 +126,7 @@ impl RulesProjection {
         Self {
             total_rules: 2842,
             default_action: "DIRECT (漏网之鱼直连)".to_owned(),
+            tracer: infiltrator_contract::rule_tracer::RuleTracerSnapshot::demo_fixture(),
             providers: vec![
                 RuleProviderItem {
                     name: "geosite-geolocation-!cn".to_owned(),
@@ -232,7 +235,7 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         RulesPageRoot
         Children [
             ( { header_card_scene(summary, default_action, palette) } ),
-            ( { crate::pages::rules_tracer::rules_tracer_scene(palette) } ),
+            ( { crate::pages::rules_tracer::rules_tracer_scene(palette, &projection.tracer) } ),
             ( { crate::pages::rules_mrs::rules_mrs_scene(palette) } ),
             ( { crate::pages::rules_builder::rules_builder_scene(palette) } ),
             ( { providers_card_scene(provider_scenes, palette) } ),
@@ -455,6 +458,7 @@ fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     let mut commands = world.commands();
     commands.insert_resource(RulesPageBound);
     commands.add_observer(apply_rules_projection);
+    commands.add_observer(crate::pages::rules_tracer::apply_tracer_projection);
     commands.add_observer(on_rules_action_activated);
 }
 

@@ -834,7 +834,9 @@ impl std::fmt::Debug for Message {
             }
             Message::CheckGeoDataUpdates => write!(f, "CheckGeoDataUpdates"),
             Message::TriggerGeoDataUpdate => write!(f, "TriggerGeoDataUpdate"),
-            Message::GeoDataUpdateFinished(_) => write!(f, "GeoDataUpdateFinished"),
+            Message::GeoDataUpdateResult(result) => {
+                write!(f, "GeoDataUpdateResult({result:?})")
+            }
             Message::ScanUwpApps => write!(f, "ScanUwpApps"),
             Message::UwpAppsLoaded(apps) => write!(f, "UwpAppsLoaded({} apps)", apps.len()),
             Message::UwpSnapshotLoaded(snapshot) => write!(

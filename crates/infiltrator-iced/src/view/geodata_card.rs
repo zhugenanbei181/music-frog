@@ -45,26 +45,28 @@ pub fn geodata_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
     .style(style_accent)
     .on_press_maybe((!geo.is_updating).then_some(Message::TriggerGeoDataUpdate));
 
+    // mihomo's controller exposes no geo version/size query, so an empty
+    // status renders the honest unknown state — never fabricated values.
     let geoip_ver = if geo.geoip_version.is_empty() {
-        "v2026.09.01"
+        lang.tr("geodata_version_unknown").to_string()
     } else {
-        &geo.geoip_version
+        geo.geoip_version.clone()
     };
     let geosite_ver = if geo.geosite_version.is_empty() {
-        "v2026.09.01"
+        lang.tr("geodata_version_unknown").to_string()
     } else {
-        &geo.geosite_version
+        geo.geosite_version.clone()
     };
 
-    let geoip_size = if geo.geoip_size_bytes == 0 {
-        7_450_210
+    let geoip_size_label = if geo.geoip_size_bytes == 0 {
+        "—".to_owned()
     } else {
-        geo.geoip_size_bytes
+        format_bytes(geo.geoip_size_bytes)
     };
-    let geosite_size = if geo.geosite_size_bytes == 0 {
-        4_892_100
+    let geosite_size_label = if geo.geosite_size_bytes == 0 {
+        "—".to_owned()
     } else {
-        geo.geosite_size_bytes
+        format_bytes(geo.geosite_size_bytes)
     };
 
     let databases_row = row![
@@ -76,7 +78,7 @@ pub fn geodata_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
             row![
                 badge(geoip_ver.to_string(), BadgeKind::Accent),
                 Space::new().width(theme::SP_XS),
-                text(format_bytes(geoip_size))
+                text(geoip_size_label)
                     .size(11)
                     .font(MONO)
                     .style(|t: &Theme| text::Style {
@@ -94,7 +96,7 @@ pub fn geodata_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
             row![
                 badge(geosite_ver.to_string(), BadgeKind::Success),
                 Space::new().width(theme::SP_XS),
-                text(format_bytes(geosite_size))
+                text(geosite_size_label)
                     .size(11)
                     .font(MONO)
                     .style(|t: &Theme| text::Style {

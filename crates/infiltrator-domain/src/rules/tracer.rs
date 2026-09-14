@@ -839,32 +839,39 @@ pub fn build_decision_chain(
         ],
     });
 
-    // Stage 5: Outbound
+    // Stage 5: Outbound. Builtin DIRECT/REJECT policies are fully known;
+    // anything else without runtime exit data stays honestly unknown instead
+    // of fabricating a node name, protocol, latency, or region.
+    let known_outbound = final_node.is_some() || is_direct_or_reject;
     let out_node = final_node.unwrap_or(if is_direct_or_reject {
         &group_name
     } else {
-        "香港专线 01"
+        "未知出口"
     });
     let out_proto = final_node_protocol.unwrap_or(if is_direct_or_reject {
         "Direct"
     } else {
-        "VLESS · Reality"
+        "未知协议"
     });
-    let out_delay = final_node_delay_ms.or(if is_direct_or_reject { None } else { Some(28) });
-    let out_country = final_node_country.or(if is_direct_or_reject {
-        None
-    } else {
-        Some("HK")
-    });
+    let out_delay = final_node_delay_ms;
+    let out_country = final_node_country;
     let delay_str = out_delay
         .map(|d| format!(" · 延迟 {d}ms"))
         .unwrap_or_default();
     nodes.push(DecisionChainNode {
         stage: DecisionStageKind::Outbound,
         title: format!("最终出站: {out_node}"),
-        detail: format!("{out_proto}{delay_str}"),
+        detail: if known_outbound {
+            format!("{out_proto}{delay_str}")
+        } else {
+            "暂无运行时出口数据 · 策略组调度结果未同步".to_string()
+        },
         badge: out_country.map(|c| c.to_string()),
-        status: DecisionNodeStatus::Matched,
+        status: if known_outbound {
+            DecisionNodeStatus::Matched
+        } else {
+            DecisionNodeStatus::Neutral
+        },
         sub_evaluations: vec![
             format!("出口节点名称: {out_node}"),
             format!("协议及加密: {out_proto}"),
@@ -872,7 +879,7 @@ pub fn build_decision_chain(
                 "测速延迟: {}",
                 out_delay
                     .map(|d| format!("{d}ms"))
-                    .unwrap_or_else(|| "0ms (直连)".to_string())
+                    .unwrap_or_else(|| "未知".to_string())
             ),
         ],
     });

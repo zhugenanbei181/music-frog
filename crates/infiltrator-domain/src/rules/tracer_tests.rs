@@ -254,3 +254,70 @@ fn test_decision_chain_generation() {
     assert_eq!(chain.final_node_delay_ms, Some(28));
     assert!(!chain.is_fallback);
 }
+
+#[test]
+fn test_decision_chain_without_exit_data_stays_honestly_unknown() {
+    let rules = vec![RuleEntry {
+        rule: "DOMAIN-SUFFIX,github.com,PROXY".into(),
+        enabled: true,
+    }];
+
+    let ctx = TrafficContext::from_domain("github.com").with_port(443);
+    let matched = trace_rules(&rules, &ctx);
+    let parsed = matched
+        .as_ref()
+        .and_then(|m| parse_rule_str(&rules[m.index].rule).ok());
+
+    // No runtime exit facts at all: the outbound stage must not fabricate a
+    // node name, protocol, latency, or region.
+    let chain = build_decision_chain(
+        &rules,
+        &ctx,
+        matched.as_ref(),
+        parsed.as_ref(),
+        None,
+        None,
+        None,
+        None,
+        15,
+    );
+
+    let outbound = &chain.nodes[4];
+    assert_eq!(outbound.stage, DecisionStageKind::Outbound);
+    assert_eq!(outbound.status, DecisionNodeStatus::Neutral);
+    assert!(outbound.title.contains("未知出口"));
+    assert!(outbound.detail.contains("暂无运行时出口数据"));
+    assert_eq!(chain.final_outbound, "未知出口");
+    assert_eq!(chain.final_node_delay_ms, None);
+    assert_eq!(chain.final_node_country, None);
+}
+
+#[test]
+fn test_decision_chain_direct_policy_keeps_builtin_facts() {
+    let rules = vec![RuleEntry {
+        rule: "DOMAIN-SUFFIX,bilibili.com,DIRECT".into(),
+        enabled: true,
+    }];
+
+    let ctx = TrafficContext::from_domain("bilibili.com").with_port(443);
+    let matched = trace_rules(&rules, &ctx);
+    let parsed = matched
+        .as_ref()
+        .and_then(|m| parse_rule_str(&rules[m.index].rule).ok());
+
+    let chain = build_decision_chain(
+        &rules,
+        &ctx,
+        matched.as_ref(),
+        parsed.as_ref(),
+        None,
+        None,
+        None,
+        None,
+        15,
+    );
+
+    assert_eq!(chain.final_outbound, "DIRECT");
+    assert_eq!(chain.nodes[4].status, DecisionNodeStatus::Matched);
+    assert_eq!(chain.final_node_protocol.as_deref(), Some("Direct"));
+}

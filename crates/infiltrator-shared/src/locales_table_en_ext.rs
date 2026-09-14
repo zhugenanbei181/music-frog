@@ -94,6 +94,10 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "geodata_geosite_status" => "GeoSite Database".into(),
         "geodata_updated" => "Up to Date".into(),
         "geodata_updating" => "Updating databases...".into(),
+        "geodata_version_unknown" => "Unknown".into(),
+        "geodata_check_unavailable" => "The core exposes no geo version query; the current version cannot be verified.".into(),
+        "geodata_unsupported_host" => "Geo database update is not available on this host".into(),
+        "geodata_update_triggered" => "Geo database update triggered; the core downloads in the background".into(),
 
         // Category 5: UWP Loopback Utility
         "uwp_title" => "Windows UWP Loopback Exemption Manager".into(),

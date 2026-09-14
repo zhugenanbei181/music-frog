@@ -478,6 +478,22 @@ impl MihomoClient {
         Ok(())
     }
 
+    /// Triggers the GeoIP/GeoSite database update inside the running core
+    /// (`POST /upgrade/geo`).
+    ///
+    /// mihomo performs the actual download asynchronously; a success response
+    /// means the core accepted the trigger, not that fresh databases are
+    /// already installed. Following the fire-and-forget style of the other
+    /// command methods here, any success response is treated as `Ok(())`
+    /// without inspecting the body.
+    pub async fn upgrade_geo(&self) -> Result<()> {
+        let url = self.build_url("/upgrade/geo")?;
+        let req = self.client.post(url);
+        let req = self.add_auth(req);
+        req.send().await?;
+        Ok(())
+    }
+
     /// Triggers an on-demand health check for one proxy provider
     /// (`GET /providers/proxies/{provider}/healthcheck`).
     ///
@@ -852,6 +868,23 @@ mod tests {
 
         let client = MihomoClient::new(&server.url(), Some("test-secret".to_string())).unwrap();
         let result = client.flush_fakeip_cache().await;
+
+        mock.assert_async().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_upgrade_geo() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/upgrade/geo")
+            .match_header("authorization", "Bearer test-secret")
+            .with_status(204)
+            .create_async()
+            .await;
+
+        let client = MihomoClient::new(&server.url(), Some("test-secret".to_string())).unwrap();
+        let result = client.upgrade_geo().await;
 
         mock.assert_async().await;
         assert!(result.is_ok());

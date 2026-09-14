@@ -199,7 +199,7 @@ impl AppState {
             | Message::SpeedtestSnapshotUpdated(_)
             | Message::CheckGeoDataUpdates
             | Message::TriggerGeoDataUpdate
-            | Message::GeoDataUpdateFinished(_)
+            | Message::GeoDataUpdateResult(_)
             | Message::ScanUwpApps
             | Message::UwpAppsLoaded(_)
             | Message::UwpSnapshotLoaded(_)

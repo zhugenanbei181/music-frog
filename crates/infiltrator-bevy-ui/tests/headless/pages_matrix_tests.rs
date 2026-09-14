@@ -235,6 +235,7 @@ fn rules_page_in_place_update() {
             proxy: "AI-PROXIES".to_owned(),
             hit_count: 8888,
         }],
+        tracer: Default::default(),
     };
 
     app.world_mut()

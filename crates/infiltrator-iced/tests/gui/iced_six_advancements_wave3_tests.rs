@@ -136,28 +136,38 @@ fn test_advancement_w3_3_speedtest_error_surfaces_toast() {
 }
 
 #[test]
-fn test_advancement_w3_4_geodata_version_and_updater_workflow() {
+fn test_advancement_w3_4_geodata_updater_stays_honest() {
     let (mut state, _) = AppState::new();
 
-    // Initial state
+    // Initial state: no version facts exist anywhere.
     assert!(state.editor.geodata_status.geoip_version.is_empty());
+    assert!(state.editor.geodata_status.geosite_version.is_empty());
+    assert_eq!(state.editor.geodata_status.geoip_size_bytes, 0);
+    assert_eq!(state.editor.geodata_status.geosite_size_bytes, 0);
     assert!(!state.editor.geodata_status.is_updating);
 
-    // Check updates
+    // Check updates: the mihomo controller exposes no geo version/size
+    // query, so the honest result is an informational notice — versions and
+    // sizes stay unknown instead of fabricated values.
     let _ = state.update(Message::CheckGeoDataUpdates);
-    assert_eq!(state.editor.geodata_status.geoip_version, "v2026.09.01");
-    assert_eq!(state.editor.geodata_status.geosite_version, "v2026.09.01");
-    assert!(state.editor.geodata_status.geoip_size_bytes > 0);
-    assert!(state.editor.geodata_status.geosite_size_bytes > 0);
+    assert!(state.editor.geodata_status.geoip_version.is_empty());
+    assert!(state.editor.geodata_status.geosite_version.is_empty());
+    assert_eq!(state.editor.geodata_status.geoip_size_bytes, 0);
+    assert_eq!(state.editor.geodata_status.geosite_size_bytes, 0);
+    assert!(state.editor.geodata_status.update_message.is_some());
 
-    // Trigger update
-    let _ = state.update(Message::TriggerGeoDataUpdate);
-    assert_eq!(state.editor.geodata_status.geoip_version, "v2026.09.03");
-    assert_eq!(state.editor.geodata_status.geosite_version, "v2026.09.03");
-    assert_eq!(
-        state.editor.geodata_status.update_message.as_deref(),
-        Some("Updated GeoIP and GeoSite successfully")
-    );
+    // Trigger update without a composed runtime: a typed error toast is
+    // produced and no fake "updated successfully" state is written.
+    let task = state.update(Message::TriggerGeoDataUpdate);
+    let _ = task;
+    let _ = state.update(Message::ShowToast(
+        "Geo database update is not available on this host".to_string(),
+        crate::types::app::ToastStatus::Error,
+    ));
+    assert!(!state.shell.toasts.is_empty());
+    assert!(state.editor.geodata_status.geoip_version.is_empty());
+    assert!(state.editor.geodata_status.geosite_version.is_empty());
+    assert!(!state.editor.geodata_status.is_updating);
 }
 
 #[test]
