@@ -739,6 +739,7 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::TestDelay { .. } => "test_delay",
         CommandIntent::RunSpeedtest { .. } => "run_speedtest",
         CommandIntent::RecordSpeedtestBandwidth { .. } => "record_speedtest_bandwidth",
+        CommandIntent::SetSpeedtestConcurrency { .. } => "set_speedtest_concurrency",
         CommandIntent::CancelSpeedtest => "cancel_speedtest",
         CommandIntent::ToggleProxyGroupExpand { .. } => "toggle_proxy_group_expand",
         CommandIntent::SetProxyGroupExpanded { .. } => "set_proxy_group_expanded",

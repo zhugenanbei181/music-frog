@@ -5,6 +5,7 @@
 //! the canonical snapshot, without constructing a Mihomo client of its own.
 
 use async_trait::async_trait;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::speedtest::{SpeedtestScope, SpeedtestSnapshot};
 
 use crate::error::PortError;
@@ -46,4 +47,16 @@ pub trait SpeedtestPort: Send + Sync {
 
     /// Request cancellation of the active batch. Returns whether one was running.
     fn cancel(&self) -> bool;
+
+    /// DUAL-06-01: set the shared engine's concurrency limit at runtime.
+    ///
+    /// Hosts without a speedtest engine return a typed unsupported error
+    /// instead of silently accepting a bound they cannot honor. The value is
+    /// clamped to a minimum of 1 by the engine.
+    fn set_concurrency(&self, _limit: usize) -> Result<(), PortError> {
+        Err(PortError::unsupported(
+            Capability::Speedtest,
+            "speedtest engine is not available on this host",
+        ))
+    }
 }

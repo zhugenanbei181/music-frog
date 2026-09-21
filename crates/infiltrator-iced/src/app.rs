@@ -140,6 +140,7 @@ impl AppState {
                 is_checking_update: false,
                 rebuild_flow: RebuildFlowState::Idle,
                 runtime_delay_test_url: "http://www.gstatic.com/generate_204".to_string(),
+                runtime_speedtest_url: String::new(),
                 runtime_delay_timeout_ms: "5000".to_string(),
                 runtime_testing_delay_proxy: String::new(),
                 runtime_testing_all_delays: false,

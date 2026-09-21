@@ -266,6 +266,53 @@ async fn test_concurrency_limiting_semaphore_30() {
 }
 
 #[tokio::test]
+async fn test_runtime_set_concurrency_updates_config_and_effective_bound() {
+    let mut map = HashMap::new();
+    for i in 0..45 {
+        let name = format!("Node-{i:02}");
+        map.insert(
+            name.clone(),
+            Proxy::Shadowsocks(Shadowsocks {
+                base: ProxyBase {
+                    name,
+                    alive: true,
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+        );
+    }
+
+    let gateway = Arc::new(
+        TestGateway::new(map).with_delay_fn(|_name, _url, _timeout| {
+            std::thread::sleep(std::time::Duration::from_millis(15));
+            Ok(50)
+        }),
+    );
+
+    let app = SpeedtestApplication::new(gateway.clone());
+
+    // The live bound is published into the shared config read model, and a
+    // zero request is clamped to 1 rather than stalling the batch.
+    app.set_concurrency(0);
+    assert_eq!(app.snapshot().config.concurrency, 1);
+    assert_eq!(app.concurrency(), 1);
+
+    app.set_concurrency(4);
+    assert_eq!(app.snapshot().config.concurrency, 4);
+
+    let snapshot = app
+        .test_delays(SpeedtestScope::AllGroups, None, None)
+        .await
+        .expect("batch test success");
+
+    // The batch honored the runtime bound, not the constructor default.
+    assert_eq!(snapshot.node_results.len(), 45);
+    assert_eq!(snapshot.config.concurrency, 4);
+    assert!(gateway.max_concurrency.load(Ordering::SeqCst) <= 4);
+}
+
+#[tokio::test]
 async fn test_dynamic_custom_url_and_timeout_propagation() {
     let observed_url = Arc::new(Mutex::new(String::new()));
     let observed_timeout = Arc::new(std::sync::atomic::AtomicU32::new(0));

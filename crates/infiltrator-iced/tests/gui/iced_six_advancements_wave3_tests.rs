@@ -198,6 +198,62 @@ fn test_advancement_w3_3_speedtest_history_renders_shared_snapshot() {
 }
 
 #[test]
+fn test_advancement_w3_3_speedtest_custom_url_flows_into_the_port_call() {
+    let (mut state, _) = AppState::new();
+
+    // Blank input defers to the shared engine's own default target.
+    assert_eq!(state.speedtest_target_url(), None);
+
+    // The typed value is stored in state and trimmed before it rides into
+    // `run_scope` / `probe_node` as the port's URL argument.
+    let _ = state.update(Message::UpdateSpeedtestTestUrl(
+        "  https://cp.cloudflare.com/generate_204  ".to_string(),
+    ));
+    assert_eq!(
+        state.speedtest_target_url(),
+        Some("https://cp.cloudflare.com/generate_204".to_string())
+    );
+
+    // The card still renders with the typed target.
+    let lang = infiltrator_shared::locales::Lang("zh-CN");
+    let _card = crate::view::speedtest_modal::speedtest_card(&state, &lang);
+
+    // The debug arm is exhaustive and names the message.
+    assert!(
+        format!("{:?}", Message::UpdateSpeedtestTestUrl("x".to_string()))
+            .contains("UpdateSpeedtestTestUrl")
+    );
+}
+
+#[test]
+fn test_advancement_w3_3_speedtest_concurrency_reads_shared_and_clamps() {
+    let (mut state, _) = AppState::new();
+
+    // The card reads the bound from the shared snapshot, not a UI-local value.
+    let mut snapshot = SpeedtestSnapshot::demo_fixture();
+    snapshot.config.concurrency = 12;
+    let _ = state.update(Message::SpeedtestScopeUpdated(Ok(snapshot)));
+    assert_eq!(state.diag.speedtest.config.concurrency, 12);
+    let lang = infiltrator_shared::locales::Lang("zh-CN");
+    {
+        let _card = crate::view::speedtest_modal::speedtest_card(&state, &lang);
+    }
+
+    // Stepping is clamped into the supported 1..=64 window.
+    assert_eq!(AppState::stepped_speedtest_concurrency(1, -5), 1);
+    assert_eq!(AppState::stepped_speedtest_concurrency(30, 5), 35);
+    assert_eq!(AppState::stepped_speedtest_concurrency(64, 5), 64);
+
+    // Without a host port the adjustment stays honest: no fabricated change.
+    let _ = state.update(Message::AdjustSpeedtestConcurrency(5));
+    assert_eq!(state.diag.speedtest.config.concurrency, 12);
+    assert!(
+        format!("{:?}", Message::AdjustSpeedtestConcurrency(-1))
+            .contains("AdjustSpeedtestConcurrency")
+    );
+}
+
+#[test]
 fn test_advancement_w3_4_geodata_updater_stays_honest() {
     let (mut state, _) = AppState::new();
 

@@ -302,6 +302,11 @@ impl CommandApplication {
                 speedtest.record_bandwidth(&node, total_bytes, duration_ms)?;
                 Ok(())
             }
+            CommandIntent::SetSpeedtestConcurrency { limit } => {
+                let speedtest = self.speedtest()?;
+                speedtest.set_concurrency(limit);
+                Ok(())
+            }
             CommandIntent::CancelSpeedtest => {
                 let speedtest = self.speedtest()?;
                 speedtest.cancel();

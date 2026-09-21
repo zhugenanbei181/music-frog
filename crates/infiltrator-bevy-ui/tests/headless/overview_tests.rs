@@ -49,6 +49,8 @@ use infiltrator_bevy_widgets::stat_chip::StatChipValue;
 use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text_input::TextField;
+use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::theme::{LightDark, Theme};
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
@@ -1811,6 +1813,158 @@ fn overview_speedtest_running_button_submits_cancel() {
     app.update();
 
     assert!(sink.submitted().contains(&UiCommand::CancelSpeedtest));
+}
+
+#[test]
+fn overview_speedtest_typed_url_reaches_the_shared_intent() {
+    // DUAL-06-03: the URL typed in the Overview field must ride into the
+    // shared `TestDelay { url: Some(..) }` intent, not a Bevy-local target.
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    app.init_asset::<Image>();
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
+    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
+    app.update();
+
+    let custom_url = "https://cp.cloudflare.com/generate_204";
+    {
+        let world = app.world_mut();
+        let mut fields = world.query::<&mut TextField>();
+        for mut field in fields.iter_mut(world) {
+            field
+                .0
+                .apply(TextFieldInput::SetText(custom_url.to_owned()));
+        }
+    }
+
+    let button = {
+        let world = app.world_mut();
+        let mut buttons = world.query::<(
+            Entity,
+            &infiltrator_bevy_ui::pages::overview::OverviewSpeedtestButton,
+        )>();
+        buttons
+            .iter(world)
+            .find(|(_, btn)| !btn.testing)
+            .expect("speedtest button mounted")
+            .0
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+
+    assert!(
+        sink.submitted()
+            .contains(&UiCommand::TestAllProxyGroupsWithUrl {
+                url: custom_url.to_owned(),
+            }),
+        "submitted={:?}",
+        sink.submitted()
+    );
+    // The typed URL reaches the shared delay intent verbatim.
+    assert_eq!(
+        UiCommand::TestAllProxyGroupsWithUrl {
+            url: custom_url.to_owned(),
+        }
+        .to_intent(),
+        Some(infiltrator_contract::command::CommandIntent::TestDelay {
+            group: None,
+            url: Some(custom_url.to_owned()),
+            timeout_ms: None,
+        })
+    );
+}
+
+#[test]
+fn overview_speedtest_concurrency_stepper_submits_shared_intent() {
+    // DUAL-06-01: the +/- stepper reads the live bound from the shared
+    // snapshot and submits the shared concurrency intent; the UI owns no
+    // concurrency fact of its own.
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    app.init_asset::<Image>();
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
+    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
+    app.update();
+
+    let step_entity = |app: &mut App, delta: i64| -> Entity {
+        let world = app.world_mut();
+        let mut steps = world.query::<(
+            Entity,
+            &infiltrator_bevy_ui::pages::overview::OverviewSpeedtestConcurrencyStep,
+        )>();
+        steps
+            .iter(world)
+            .find(|(_, step)| step.0 == delta)
+            .expect("concurrency step mounted")
+            .0
+    };
+
+    // The demo fixture bound is 30; +5 -> 35.
+    let up = step_entity(&mut app, 5);
+    app.world_mut().commands().trigger(Activate { entity: up });
+    app.update();
+    assert!(
+        sink.submitted()
+            .contains(&UiCommand::SetSpeedtestConcurrency { limit: 35 }),
+        "submitted={:?}",
+        sink.submitted()
+    );
+
+    // Clamp: a shared bound of 2 stepped down by 5 stays at 1 (never zero).
+    app.world_mut()
+        .resource_mut::<infiltrator_bevy_ui::surface::LatestSurfaceSnapshot>()
+        .0
+        .speedtest
+        .config
+        .concurrency = 2;
+    let down = step_entity(&mut app, -5);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: down });
+    app.update();
+    assert!(
+        sink.submitted()
+            .contains(&UiCommand::SetSpeedtestConcurrency { limit: 1 }),
+        "submitted={:?}",
+        sink.submitted()
+    );
+}
+
+#[test]
+fn overview_speedtest_concurrency_text_follows_shared_engine() {
+    // The concurrency caption is restamped from the shared snapshot's
+    // `config.concurrency`, never a Bevy-local constant.
+    let mut app = mounted_default();
+
+    let read = |app: &mut App| -> String {
+        let world = app.world_mut();
+        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
+            infiltrator_bevy_ui::pages::overview::OverviewSpeedtestConcurrencyText,
+        >>();
+        texts
+            .iter(world)
+            .next()
+            .map(|t| t.0.clone())
+            .expect("concurrency caption mounted")
+    };
+
+    assert_eq!(read(&mut app), "30");
+
+    let mut projection = DemoOverviewSource::running().current();
+    projection.speedtest.config.concurrency = 12;
+    app.world_mut()
+        .commands()
+        .trigger(OverviewProjectionUpdated(projection));
+    app.update();
+    assert_eq!(read(&mut app), "12");
 }
 
 #[test]

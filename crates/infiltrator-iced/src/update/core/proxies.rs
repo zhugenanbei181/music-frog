@@ -34,14 +34,11 @@ impl AppState {
                 ToastStatus::Error,
             ));
         };
-        let test_url = self.normalized_delay_test_url();
+        let test_url = self.speedtest_target_url();
         let timeout_ms = self.normalized_delay_timeout_ms();
         self.runtime.runtime_testing_all_delays = true;
         Task::perform(
-            async move {
-                port.run_scope(scope, Some(test_url), Some(timeout_ms))
-                    .await
-            },
+            async move { port.run_scope(scope, test_url, Some(timeout_ms)).await },
             Message::SpeedtestScopeUpdated,
         )
     }
@@ -117,6 +114,20 @@ impl AppState {
         } else {
             trimmed.to_string()
         }
+    }
+
+    /// DUAL-06-03: the user-typed speedtest target, or `None` when blank so the
+    /// shared engine applies its own default. The engine owns the effective
+    /// target fact; the UI only carries the raw input into the port call.
+    pub(crate) fn speedtest_target_url(&self) -> Option<String> {
+        let trimmed = self.runtime.runtime_speedtest_url.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
+    }
+
+    /// DUAL-06-01: apply a signed step to a concurrency bound, clamped to the
+    /// supported 1..=64 window. Pure so the handler and tests share one rule.
+    pub(crate) fn stepped_speedtest_concurrency(current: usize, delta: i32) -> usize {
+        (current as i32 + delta).clamp(1, 64) as usize
     }
 
     fn normalized_delay_timeout_ms(&self) -> u32 {
@@ -562,6 +573,36 @@ impl AppState {
                         ToastStatus::Error
                     },
                 ))
+            }
+            Message::UpdateSpeedtestTestUrl(url) => {
+                self.runtime.runtime_speedtest_url = url;
+                Task::none()
+            }
+            Message::AdjustSpeedtestConcurrency(delta) => {
+                let Some(port) = self
+                    .runtime
+                    .runtime
+                    .clone()
+                    .and_then(|runtime| runtime.speedtest_port())
+                else {
+                    return Task::done(Message::ShowToast(
+                        "Speedtest is not available on this host".to_string(),
+                        ToastStatus::Error,
+                    ));
+                };
+                let current = port.snapshot().config.concurrency;
+                let next = Self::stepped_speedtest_concurrency(current, delta);
+                match port.set_concurrency(next) {
+                    Ok(()) => {
+                        // Read the live bound back from the one shared snapshot.
+                        self.diag.speedtest = port.snapshot();
+                        Task::none()
+                    }
+                    Err(error) => Task::done(Message::ShowToast(
+                        format!("Concurrency update failed: {error}"),
+                        ToastStatus::Error,
+                    )),
+                }
             }
             Message::TestProxyDelay(name) => {
                 if let Some(rt) = self.runtime.runtime.clone() {

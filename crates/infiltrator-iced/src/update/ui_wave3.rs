@@ -116,9 +116,12 @@ impl AppState {
                         ToastStatus::Error,
                     ));
                 };
+                // DUAL-06-03: the typed speedtest target rides into the port
+                // probe; blank means the engine's own default target applies.
+                let test_url = self.speedtest_target_url();
                 Task::perform(
                     async move {
-                        match port.probe_node(&node, 5, None, None).await {
+                        match port.probe_node(&node, 5, test_url, None).await {
                             Ok(snapshot) => Ok::<_, infiltrator_ports::error::PortError>(snapshot),
                             Err(error) => Err(error),
                         }

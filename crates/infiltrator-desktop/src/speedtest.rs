@@ -86,6 +86,11 @@ impl SpeedtestPort for DesktopSpeedtestPort {
     fn cancel(&self) -> bool {
         self.application.cancel()
     }
+
+    fn set_concurrency(&self, limit: usize) -> Result<(), PortError> {
+        self.application.set_concurrency(limit);
+        Ok(())
+    }
 }
 
 /// Typed unsupported adapter for hosts without a speedtest engine.

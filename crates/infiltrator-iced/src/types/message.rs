@@ -408,6 +408,13 @@ pub enum Message {
     ),
     /// Request cancellation of the active shared speedtest batch.
     CancelSpeedtest,
+    /// DUAL-06-03: store the user-typed speedtest target URL. The typed value
+    /// is handed to `run_scope` / `probe_node`; the engine owns the effective
+    /// target when the field is blank.
+    UpdateSpeedtestTestUrl(String),
+    /// DUAL-06-01: adjust the shared engine's concurrency bound by a signed
+    /// step. The effective value is read back from `snapshot.config.concurrency`.
+    AdjustSpeedtestConcurrency(i32),
     /// Move one Overview card one slot up in the shared layout order.
     MoveOverviewCardUp(infiltrator_contract::overview_layout::OverviewCardKind),
     /// Move one Overview card one slot down in the shared layout order.

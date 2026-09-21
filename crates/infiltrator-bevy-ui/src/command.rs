@@ -50,6 +50,11 @@ pub enum UiCommand {
     SelectProxyNode { group: String, node: String },
     /// Run latency benchmark across all proxy groups.
     TestAllProxyGroups,
+    /// DUAL-06-03: run the all-groups benchmark with a custom target URL typed
+    /// in the Overview field.
+    TestAllProxyGroupsWithUrl { url: String },
+    /// DUAL-06-01: set the shared speedtest engine's concurrency bound.
+    SetSpeedtestConcurrency { limit: usize },
     /// Cancel the active shared speedtest batch.
     CancelSpeedtest,
     /// Run latency benchmark for a specific proxy group.
@@ -200,9 +205,17 @@ impl UiCommand {
                 node: node.clone(),
             }),
             Self::CancelSpeedtest => Some(CommandIntent::CancelSpeedtest),
+            Self::SetSpeedtestConcurrency { limit } => {
+                Some(CommandIntent::SetSpeedtestConcurrency { limit: *limit })
+            }
             Self::TestAllProxyGroups => Some(CommandIntent::TestDelay {
                 group: None,
                 url: None,
+                timeout_ms: None,
+            }),
+            Self::TestAllProxyGroupsWithUrl { url } => Some(CommandIntent::TestDelay {
+                group: None,
+                url: Some(url.clone()),
                 timeout_ms: None,
             }),
             Self::TestProxyGroup { group } => Some(CommandIntent::TestDelay {
@@ -633,6 +646,36 @@ mod tests {
                 bypass_domains: vec!["example.com".to_owned()],
                 bypass_lan: true,
                 minify: false,
+            })
+        );
+    }
+
+    #[test]
+    fn speedtest_commands_carry_concurrency_and_custom_url() {
+        // DUAL-06-01: the runtime concurrency bound maps to the shared intent.
+        assert_eq!(
+            UiCommand::SetSpeedtestConcurrency { limit: 12 }.to_intent(),
+            Some(CommandIntent::SetSpeedtestConcurrency { limit: 12 })
+        );
+        // DUAL-06-03: a typed target URL rides into the shared delay intent.
+        assert_eq!(
+            UiCommand::TestAllProxyGroupsWithUrl {
+                url: "https://cp.cloudflare.com/generate_204".to_owned(),
+            }
+            .to_intent(),
+            Some(CommandIntent::TestDelay {
+                group: None,
+                url: Some("https://cp.cloudflare.com/generate_204".to_owned()),
+                timeout_ms: None,
+            })
+        );
+        // The plain all-groups command keeps the engine's default target.
+        assert_eq!(
+            UiCommand::TestAllProxyGroups.to_intent(),
+            Some(CommandIntent::TestDelay {
+                group: None,
+                url: None,
+                timeout_ms: None,
             })
         );
     }

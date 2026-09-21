@@ -673,6 +673,12 @@ impl std::fmt::Debug for Message {
                 write!(f, "SpeedtestScopeUpdated(Err({:?}))", e)
             }
             Message::CancelSpeedtest => write!(f, "CancelSpeedtest"),
+            Message::UpdateSpeedtestTestUrl(url) => {
+                write!(f, "UpdateSpeedtestTestUrl({url})")
+            }
+            Message::AdjustSpeedtestConcurrency(delta) => {
+                write!(f, "AdjustSpeedtestConcurrency({delta})")
+            }
             // ui-wave2-p
             Message::ToggleProxyGroupExpanded(name) => {
                 write!(f, "ToggleProxyGroupExpanded({})", name)

@@ -141,6 +141,11 @@ pub enum CommandIntent {
         total_bytes: u64,
         duration_ms: u64,
     },
+    /// DUAL-06-01: set the shared speedtest engine's concurrency limit at
+    /// runtime (clamped to >= 1 by the engine).
+    SetSpeedtestConcurrency {
+        limit: usize,
+    },
     CancelSpeedtest,
     ToggleProxyGroupExpand {
         group: String,
@@ -331,6 +336,7 @@ impl CommandIntent {
             | Self::TestDelay { .. }
             | Self::RunSpeedtest { .. }
             | Self::RecordSpeedtestBandwidth { .. }
+            | Self::SetSpeedtestConcurrency { .. }
             | Self::CancelSpeedtest
             | Self::ToggleProxyGroupExpand { .. }
             | Self::SetProxyGroupExpanded { .. }

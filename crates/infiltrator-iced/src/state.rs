@@ -93,6 +93,10 @@ pub struct RuntimeState {
     pub proxy_sort_by_delay: bool,
     pub proxy_delay_sort: String,
     pub runtime_delay_test_url: String,
+    /// DUAL-06-03: user-typed speedtest target URL shown in the speedtest card.
+    /// Empty means "use the shared engine default"; the typed value is passed
+    /// into `run_scope` / `probe_node` so the port owns the effective fact.
+    pub runtime_speedtest_url: String,
     pub runtime_delay_timeout_ms: String,
     pub runtime_testing_delay_proxy: String,
     pub runtime_testing_all_delays: bool,

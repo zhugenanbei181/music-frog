@@ -11,7 +11,7 @@ use infiltrator_domain::proxy::Proxy;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -26,7 +26,9 @@ pub struct SpeedtestApplication {
     gateway: Arc<dyn RuntimeGateway>,
     state: Arc<Mutex<SpeedtestSnapshot>>,
     cancel_token: Arc<AtomicBool>,
-    concurrency_limit: usize,
+    /// Live Semaphore-style concurrency bound shared with both UI surfaces.
+    /// Runtime-settable (DUAL-06-01): reads always observe the latest value.
+    concurrency_limit: Arc<AtomicUsize>,
     history_store: Option<Arc<dyn SpeedtestHistoryStore>>,
 }
 
@@ -37,15 +39,33 @@ impl SpeedtestApplication {
             gateway,
             state: Arc::new(Mutex::new(SpeedtestSnapshot::default())),
             cancel_token: Arc::new(AtomicBool::new(false)),
-            concurrency_limit: DEFAULT_CONCURRENCY_LIMIT,
+            concurrency_limit: Arc::new(AtomicUsize::new(DEFAULT_CONCURRENCY_LIMIT)),
             history_store: None,
         }
     }
 
     /// Set a custom concurrency limit for batch speedtesting.
-    pub fn with_concurrency(mut self, limit: usize) -> Self {
-        self.concurrency_limit = limit.max(1);
+    pub fn with_concurrency(self, limit: usize) -> Self {
+        self.set_concurrency(limit);
         self
+    }
+
+    /// DUAL-06-01: set the shared engine's concurrency limit at runtime.
+    ///
+    /// The value is clamped to a minimum of 1 (a zero bound would stall the
+    /// batch forever) and published into `snapshot.config.concurrency` so both
+    /// surfaces read the live bound from the one shared fact source.
+    pub fn set_concurrency(&self, limit: usize) {
+        let clamped = limit.max(1);
+        self.concurrency_limit.store(clamped, Ordering::SeqCst);
+        let mut state = self.state.lock().unwrap();
+        state.config.concurrency = clamped;
+        state.revision += 1;
+    }
+
+    /// The live concurrency bound the next batch will honor.
+    pub fn concurrency(&self) -> usize {
+        self.concurrency_limit.load(Ordering::SeqCst).max(1)
     }
 
     /// Attach a durable history store and hydrate the bounded run history from
@@ -106,6 +126,7 @@ impl SpeedtestApplication {
         }
 
         let total_nodes = candidates.len();
+        let concurrency_limit = self.concurrency();
         {
             let mut state = self.state.lock().unwrap();
             state.generation += 1;
@@ -115,7 +136,7 @@ impl SpeedtestApplication {
             state.config = SpeedtestTargetConfig {
                 test_url: test_url.clone(),
                 timeout_ms,
-                concurrency: self.concurrency_limit,
+                concurrency: concurrency_limit,
                 probe_rounds: 1,
             };
             state.progress = SpeedtestProgress {
@@ -194,7 +215,7 @@ impl SpeedtestApplication {
                 })
             }
         }))
-        .buffer_unordered(self.concurrency_limit.max(1));
+        .buffer_unordered(concurrency_limit);
 
         let collected: Vec<Option<NodeSpeedtestResult>> = results_stream.collect().await;
 

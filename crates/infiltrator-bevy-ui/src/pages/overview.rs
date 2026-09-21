@@ -66,6 +66,7 @@ use infiltrator_bevy_widgets::stat_chip::{StatChipValue, stat_chip_scene};
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::space;
 
 use crate::command::{CommandSinkHandle, UiCommand};
@@ -375,6 +376,21 @@ pub struct OverviewSpeedtestDeadText;
 /// shared engine snapshot's `recent_history`.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewSpeedtestHistoryText;
+
+/// DUAL-06-03: parent node of the Overview speedtest target-URL text field.
+/// The typed value is read into `UiCommand::TestAllProxyGroupsWithUrl`.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewSpeedtestUrlField;
+
+/// DUAL-06-01: caption showing the live concurrency bound from the shared
+/// speedtest snapshot (`snapshot.config.concurrency`).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewSpeedtestConcurrencyText;
+
+/// DUAL-06-01: a signed step applied to the shared concurrency bound. The
+/// observer reads the live bound and submits `SetSpeedtestConcurrency`.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewSpeedtestConcurrencyStep(pub i64);
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewModePill(pub ProxyMode);
@@ -743,6 +759,62 @@ fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> {
                 Children [
                     ( { icon_scene(IconId::Zap, 14.0, palette.accent) } ),
                     ( Text({ "一键测速".to_owned() }) OverviewSpeedtestText TextRole(Role::BodyStrong) TextColor({ palette.accent }) ),
+                ]
+            ),
+            (
+                Node {
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(space::S6),
+                    flex_shrink: 0.0,
+                }
+                Children [
+                    (
+                        Node {
+                            width: px(240.0),
+                            align_items: AlignItems::Center,
+                            flex_shrink: 0.0,
+                        }
+                        OverviewSpeedtestUrlField
+                        Children [
+                            ( { text_field_with_placeholder_scene(
+                                String::new(),
+                                "测速目标 URL (留空用默认)".to_owned(),
+                                palette,
+                            ) } ),
+                        ]
+                    ),
+                    ( Text({ "并发".to_owned() }) TextRole(Role::Caption) ),
+                    (
+                        Node {
+                            min_width: px(26.0),
+                            min_height: px(24.0),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            flex_shrink: 0.0,
+                        }
+                        BackgroundColor({ palette.border })
+                        Button
+                        OverviewSpeedtestConcurrencyStep(-5)
+                        Children [ ( Text({ "-".to_owned() }) TextRole(Role::Body) ) ]
+                    ),
+                    (
+                        Text({ "30".to_owned() })
+                        OverviewSpeedtestConcurrencyText
+                        TextRole(Role::Caption)
+                    ),
+                    (
+                        Node {
+                            min_width: px(26.0),
+                            min_height: px(24.0),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            flex_shrink: 0.0,
+                        }
+                        BackgroundColor({ palette.border })
+                        Button
+                        OverviewSpeedtestConcurrencyStep(5)
+                        Children [ ( Text({ "+".to_owned() }) TextRole(Role::Body) ) ]
+                    ),
                 ]
             ),
             (
@@ -1334,6 +1406,7 @@ fn bind_overview_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(on_overview_master_switch_activated);
     commands.add_observer(on_overview_mode_segment_activated);
     commands.add_observer(on_overview_speedtest_activated);
+    commands.add_observer(on_overview_speedtest_concurrency_stepped);
     commands.add_observer(on_overview_public_ip_refresh_activated);
     commands.add_observer(on_overview_card_move_up_activated);
     commands.add_observer(on_overview_card_move_down_activated);
@@ -1410,6 +1483,8 @@ pub(crate) fn on_overview_public_ip_refresh_activated(
 pub(crate) fn on_overview_speedtest_activated(
     activate: On<Activate>,
     buttons: Query<&OverviewSpeedtestButton>,
+    url_fields: Query<&Children, With<OverviewSpeedtestUrlField>>,
+    text_fields: Query<&TextField>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -1422,9 +1497,42 @@ pub(crate) fn on_overview_speedtest_activated(
     // shared engine run (no dead "testing" state that can never be stopped).
     if button.testing {
         handle.submit(UiCommand::CancelSpeedtest);
-    } else {
-        handle.submit(UiCommand::TestAllProxyGroups);
+        return;
     }
+    // DUAL-06-03: read the typed target URL from the card's text field and
+    // carry it into the shared intent; blank keeps the engine's own default.
+    let url = url_fields
+        .iter()
+        .flat_map(|children| children.iter())
+        .find_map(|child| text_fields.get(*child).ok())
+        .map(|field| field.0.text())
+        .unwrap_or_default();
+    let url = url.trim().to_owned();
+    if url.is_empty() {
+        handle.submit(UiCommand::TestAllProxyGroups);
+    } else {
+        handle.submit(UiCommand::TestAllProxyGroupsWithUrl { url });
+    }
+}
+
+/// DUAL-06-01: apply a signed step to the live concurrency bound read from the
+/// shared speedtest snapshot and submit the shared intent. The UI never owns
+/// the effective bound.
+pub(crate) fn on_overview_speedtest_concurrency_stepped(
+    activate: On<Activate>,
+    steps: Query<&OverviewSpeedtestConcurrencyStep>,
+    latest: Res<crate::surface::LatestSurfaceSnapshot>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    let Ok(step) = steps.get(activate.entity) else {
+        return;
+    };
+    let current = latest.0.speedtest.config.concurrency as i64;
+    let next = (current + step.0).clamp(1, 64) as usize;
+    handle.submit(UiCommand::SetSpeedtestConcurrency { limit: next });
 }
 
 /// Restamp the Overview speedtest button from the shared engine snapshot.
@@ -1468,6 +1576,17 @@ type SpeedtestHistoryFilter = (
     Without<OverviewSpeedtestText>,
     Without<OverviewSpeedtestMetricsText>,
     Without<OverviewSpeedtestDeadText>,
+);
+
+/// Disjoint filter for the live concurrency-bound caption.
+type SpeedtestConcurrencyFilter = (
+    With<OverviewSpeedtestConcurrencyText>,
+    Without<OverviewLine>,
+    Without<StatChipValue>,
+    Without<OverviewSpeedtestText>,
+    Without<OverviewSpeedtestMetricsText>,
+    Without<OverviewSpeedtestDeadText>,
+    Without<OverviewSpeedtestHistoryText>,
 );
 
 /// Format an epoch-millisecond timestamp as UTC `MM-DD HH:MM` (no date crate).
@@ -1531,6 +1650,7 @@ pub fn sync_overview_speedtest_button(
     mut metrics: Query<&mut Text, SpeedtestMetricsFilter>,
     mut dead: Query<&mut Text, SpeedtestDeadFilter>,
     mut history: Query<&mut Text, SpeedtestHistoryFilter>,
+    mut concurrency: Query<&mut Text, SpeedtestConcurrencyFilter>,
 ) {
     let Some(projection) = last.0.as_ref() else {
         return;
@@ -1629,6 +1749,14 @@ pub fn sync_overview_speedtest_button(
     for mut text in &mut history {
         if text.0 != history_label {
             text.0 = history_label.clone();
+        }
+    }
+    // DUAL-06-01: the live concurrency bound is read from the shared snapshot,
+    // never a Bevy-local constant.
+    let concurrency_label = snapshot.config.concurrency.to_string();
+    for mut text in &mut concurrency {
+        if text.0 != concurrency_label {
+            text.0 = concurrency_label.clone();
         }
     }
 }

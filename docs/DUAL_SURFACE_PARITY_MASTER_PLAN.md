@@ -93,9 +93,9 @@
 
 | 项 | 任务 | 状态 | 证据 |
 | :--- | :--- | :--- | :--- |
-| `DUAL-06-01` | 信号量流控并发测速（Semaphore 30） | `shared-ready` | `SpeedtestApplication::with_concurrency` + 引擎单测；双端 UI 未接线进度 |
+| `DUAL-06-01` | 信号量流控并发测速（Semaphore 30） | `parity-ready` | 运行时流控：`SpeedtestApplication` 持 `Arc<AtomicUsize>`，`set_concurrency`（下限 1）实时发布到 `snapshot.config.concurrency` 并驱动 `buffer_unordered(concurrency_limit)`；`SpeedtestPort::set_concurrency`（缺省 typed unsupported，`DesktopSpeedtestPort` 委托引擎）+ `CommandIntent::SetSpeedtestConcurrency`（`command_application` 路由、`command_name` 映射）；Iced `speedtest_card` 展示 `snapshot.config.concurrency` 并经 `Message::AdjustSpeedtestConcurrency` 写回端口，Bevy `OverviewSpeedtestConcurrencyStep` 步进提交 `UiCommand::SetSpeedtestConcurrency`。证据：`test_runtime_set_concurrency_updates_config_and_effective_bound`（bound≤4 且 config=4）、`test_advancement_w3_3_speedtest_concurrency_reads_shared_and_clamps`、`overview_speedtest_concurrency_stepper_submits_shared_intent` |
 | `DUAL-06-02` | 单策略组独立测速 | `parity-ready` | `SpeedtestScope::SingleGroup` + `SpeedtestPort::run_scope`；Iced `TestGroupDelay` 删除 legacy `test_proxy_delays` 第二路径，改经共享引擎（`run_speedtest_scope`）；Bevy `TestProxyGroup`→`TestDelay { group }` |
-| `DUAL-06-03` | 测速目标 URL 动态自定义 | `shared-ready` | `SpeedtestTargetConfig.test_url` + command `url` 覆盖 |
+| `DUAL-06-03` | 测速目标 URL 动态自定义 | `parity-ready` | `SpeedtestTargetConfig.test_url` 由引擎持有默认；Iced 卡片 URL 输入存 `runtime_speedtest_url`（`Message::UpdateSpeedtestTestUrl`），`run_speedtest_scope`/`RunNodeSpeedtest` 经 `speedtest_target_url()` 传入 `run_scope`/`probe_node`（空白回退引擎默认）；Bevy Overview URL 字段经 `UiCommand::TestAllProxyGroupsWithUrl`→`TestDelay { url: Some(..) }`。证据：`test_dynamic_custom_url_and_timeout_propagation`、`test_advancement_w3_3_speedtest_custom_url_flows_into_the_port_call`、`overview_speedtest_typed_url_reaches_the_shared_intent` |
 | `DUAL-06-04` | 真实下行带宽测速 | `parity-ready` | seam 级诚实链路：host 实测后经 `CommandIntent::RecordSpeedtestBandwidth` / `SpeedtestPort::record_bandwidth` 上报 bytes+duration，`DesktopSpeedtestPort` 委托共享 `SpeedtestApplication::record_bandwidth`（domain `SpeedtestCalculator` 换算 Mbps，零时长诚实 0.0，无伪造）；`UnsupportedSpeedtestPort` 保持 typed 拒绝。engine 测试 `test_record_bandwidth_populates_shared_snapshot` 断言结果进入发布快照；Iced `speedtest_card` 渲染 `bandwidth_mbps`，Bevy `OverviewSpeedtestMetricsText` 从同一 `fastest_node().bandwidth_mbps` 重盖 |
 | `DUAL-06-05` | 网络抖动 (Jitter ms) 精确计算 | `parity-ready` | `JitterCalculation`（std dev / RFC3550 EWMA）；Iced 渲染共享快照，Bevy `OverviewSpeedtestMetricsText` 从 `fastest_node().jitter` 重盖 |
 | `DUAL-06-06` | 丢包率梯度评级 | `parity-ready` | `PacketLossRating::from_loss_percent`；Iced loss badge，Bevy 指标行渲染 `packet_loss.label_en()` |
@@ -125,6 +125,22 @@
 > Iced `shared_speedtest_history_lines` 与 Bevy `OverviewSpeedtestHistoryText` 同读
 > `snapshot.recent_history`，两端 UI 不得自建历史源。守卫 `speedtest-history-guard.py`
 > （含「UI 不得持有 history store」反向断言）。剩余 06-01/03/12/13/14。
+
+> **2026-09-22 组 06 批次 C**：`DUAL-06-01/03` 收口为 `parity-ready`。
+> 01：`SpeedtestApplication` 的并发上限改为 `Arc<AtomicUsize>`，新增
+> `set_concurrency`（下限 1）实时写入 `snapshot.config.concurrency` 并作为
+> `buffer_unordered` 的真实 bound；`SpeedtestPort::set_concurrency` 缺省
+> typed unsupported，`DesktopSpeedtestPort` 委托同一引擎；
+> `CommandIntent::SetSpeedtestConcurrency` 经 `command_application` 路由、
+> `command_name` 命名。Iced 卡片显示 `snapshot.config.concurrency` 并以
+> +/- 步进经端口写回（`Message::AdjustSpeedtestConcurrency`），Bevy Overview
+> 步进按钮提交 `UiCommand::SetSpeedtestConcurrency`。
+> 03：Iced 卡片 URL 输入存入 `runtime_speedtest_url`（`UpdateSpeedtestTestUrl`），
+> `run_speedtest_scope`/`RunNodeSpeedtest` 统一经 `speedtest_target_url()`
+> 传入端口（空白回退引擎默认）；Bevy Overview URL 字段经
+> `UiCommand::TestAllProxyGroupsWithUrl` → `TestDelay { url: Some(..) }`。
+> 守卫 `speedtest-config-guard.py`（含「UI 不得持有 effective concurrency /
+> target URL 事实」反向断言）。剩余 06-12/13/14。
 
 > **关键修复**：此前 Iced 的测速结果由 UI 内硬编码的 48MB/2400ms 与假抖动样本伪造。现已删除该第二条事实源，改为经 `SpeedtestPort` 驱动 `SpeedtestApplication` 并渲染共享快照；host 无引擎时按 typed unsupported 报错，不再伪造成功。
 

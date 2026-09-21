@@ -96,6 +96,9 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "speedtest_history_latency" => "Avg latency".into(),
         "speedtest_history_bandwidth" => "Avg bandwidth".into(),
         "speedtest_history_jitter" => "Avg jitter".into(),
+        "speedtest_target_url_label" => "Speedtest target URL".into(),
+        "speedtest_target_url_placeholder" => "Blank uses the shared engine default".into(),
+        "speedtest_concurrency_label" => "Concurrency".into(),
 
         // Category 4: Geo Database Updater
         "geodata_title" => "GeoIP / GeoSite Database Manager".into(),

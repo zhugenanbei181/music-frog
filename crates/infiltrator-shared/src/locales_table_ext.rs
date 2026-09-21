@@ -102,6 +102,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "speedtest_history_latency" => "平均延迟".into(),
         "speedtest_history_bandwidth" => "平均带宽".into(),
         "speedtest_history_jitter" => "平均抖动".into(),
+        "speedtest_target_url_label" => "测速目标 URL".into(),
+        "speedtest_target_url_placeholder" => "留空使用共享引擎默认目标".into(),
+        "speedtest_concurrency_label" => "并发数".into(),
 
         // Category 4: Geo Database Updater
         "geodata_title" => "GeoIP / GeoSite 数据库管理".into(),

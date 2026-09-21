@@ -9,7 +9,7 @@ use crate::types::message::Message;
 use crate::view::components::{BadgeKind, badge, card, style_accent};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
-use iced::widget::{Space, button, column, row, text};
+use iced::widget::{Space, button, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::speedtest::{
     NodeSpeedtestResult, PacketLossRating, SpeedtestScope, SpeedtestSnapshot,
@@ -126,6 +126,47 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     .on_press_maybe(
         (!is_running && !target.is_empty()).then(|| Message::RunNodeSpeedtest(target.clone())),
     );
+
+    // DUAL-06-03: the typed speedtest target URL. Blank defers to the shared
+    // engine default; the typed value rides into `run_scope`/`probe_node`.
+    let target_url_input = text_input(
+        lang.tr("speedtest_target_url_placeholder").as_ref(),
+        &state.runtime.runtime_speedtest_url,
+    )
+    .on_input(Message::UpdateSpeedtestTestUrl)
+    .padding([6, 10])
+    .size(12)
+    .width(Length::Fill);
+
+    // DUAL-06-01: the live concurrency bound is read from the shared snapshot
+    // and written back through the port; the UI never owns the effective fact.
+    let concurrency = snapshot.config.concurrency;
+    let concurrency_down = button(text("−").size(14))
+        .padding([2, 10])
+        .on_press(Message::AdjustSpeedtestConcurrency(-1));
+    let concurrency_up = button(text("+").size(14))
+        .padding([2, 10])
+        .on_press(Message::AdjustSpeedtestConcurrency(1));
+    let controls_row = row![
+        text(lang.tr("speedtest_target_url_label").to_string())
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            }),
+        Space::new().width(theme::SP_XS),
+        target_url_input,
+        Space::new().width(theme::SP_SM),
+        text(lang.tr("speedtest_concurrency_label").to_string())
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            }),
+        Space::new().width(theme::SP_XS),
+        concurrency_down,
+        text(concurrency.to_string()).size(13).font(MONO),
+        concurrency_up,
+    ]
+    .align_y(Alignment::Center);
 
     // Pick the measured row for the active target, if any.
     let result: Option<&NodeSpeedtestResult> = snapshot.node_results.get(&target).or_else(|| {
@@ -302,6 +343,8 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                 run_btn,
             ]
             .align_y(Alignment::Center),
+            Space::new().height(theme::SP_XS),
+            controls_row,
             Space::new().height(theme::SP_XS),
             metric_content,
             history_section,

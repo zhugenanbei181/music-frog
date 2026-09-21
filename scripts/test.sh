@@ -75,6 +75,7 @@ python3 scripts/quality/rule-hit-audit-guard.py --mode enforce
 python3 scripts/quality/rule-tracer-sandbox-guard.py --mode enforce
 python3 scripts/quality/speedtest-parity-guard.py --mode enforce
 python3 scripts/quality/speedtest-history-guard.py --mode enforce
+python3 scripts/quality/speedtest-config-guard.py --mode enforce
 python3 scripts/quality/responsive-parity-guard.py --mode enforce
 
 nextest_mode=()
