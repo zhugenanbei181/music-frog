@@ -4997,6 +4997,7 @@ name = "infiltrator-bevy-ui"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "async-trait",
  "bevy",
  "blake3",
  "infiltrator-application",
@@ -5004,9 +5005,11 @@ dependencies = [
  "infiltrator-composition",
  "infiltrator-contract",
  "infiltrator-domain",
+ "infiltrator-ports",
  "mockito",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

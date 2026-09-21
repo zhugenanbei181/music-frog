@@ -345,6 +345,15 @@ impl std::fmt::Debug for Message {
             Message::UpdateRulesTracerInput(s) => write!(f, "UpdateRulesTracerInput({s})"),
             Message::UpdateTracerSourceIp(s) => write!(f, "UpdateTracerSourceIp({s})"),
             Message::RunRulesTracer => write!(f, "RunRulesTracer"),
+            Message::UpdateTracerOverrideTarget(s) => {
+                write!(f, "UpdateTracerOverrideTarget({s})")
+            }
+            Message::ApplyTracerRuleOverride { rule_index } => {
+                write!(f, "ApplyTracerRuleOverride({rule_index})")
+            }
+            Message::TracerRuleOverrideApplied(result) => {
+                write!(f, "TracerRuleOverrideApplied({result:?})")
+            }
             Message::UpdateFilteredGroups => write!(f, "UpdateFilteredGroups"),
             Message::UpdateNewRuleType(s) => write!(f, "UpdateNewRuleType({})", s),
             Message::UpdateNewRulePayload(s) => write!(f, "UpdateNewRulePayload({})", s),

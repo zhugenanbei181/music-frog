@@ -82,6 +82,8 @@ pub enum UiCommand {
     SetRuleTracerContext { src_ip: Option<String> },
     /// Re-run the shared rule tracer for a target query.
     SimulateRuleTrace { query: String },
+    /// DUAL-12-08: rewrite the traced rule's outbound and apply the config.
+    ApplyTracerRuleOverride { rule_index: usize, new_target: String },
     /// Terminate a single active connection by ID.
     CloseConnection { id: String },
     /// Terminate all active connections.
@@ -245,6 +247,15 @@ impl UiCommand {
             }),
             Self::SimulateRuleTrace { query } => Some(CommandIntent::SimulateRuleTrace {
                 query: query.clone(),
+            }),
+            Self::ApplyTracerRuleOverride {
+                rule_index,
+                new_target,
+            } => Some(CommandIntent::ApplyTracerRuleOverride {
+                request: infiltrator_contract::rule_tracer::TracerRuleOverride {
+                    rule_index: *rule_index,
+                    new_target: new_target.clone(),
+                },
             }),
             Self::CloseConnection { id } => Some(CommandIntent::CloseConnection { id: id.clone() }),
             Self::CloseAllConnections => Some(CommandIntent::CloseAllConnections),

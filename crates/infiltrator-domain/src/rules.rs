@@ -285,3 +285,89 @@ pub fn validate_rules(rules: &[RuleEntry]) -> Result<()> {
     }
     Ok(())
 }
+
+/// DUAL-12-08: rewrite the outbound target of a rule expression while
+/// preserving its type, payload, logical sub-expressions and any trailing
+/// `no-resolve` flag. The target is the segment after the last top-level comma;
+/// commas nested inside `AND(...)`/`OR(...)`/`NOT(...)`/`SUB-RULE(...)` are
+/// ignored. Returns `None` for a bare value with no target segment.
+pub fn rewrite_rule_target(rule: &str, new_target: &str) -> Option<String> {
+    let trimmed = rule.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    let no_resolve = lower.ends_with(",no-resolve");
+    let body = if no_resolve {
+        trimmed[..trimmed.len() - ",no-resolve".len()].trim_end()
+    } else {
+        trimmed
+    };
+
+    // Locate the target separator: the last comma at the shallowest nesting
+    // depth. For a flat rule that is the final comma; for a logical rule the
+    // only candidate is the comma before the target inside the outer parens.
+    let mut depth: i32 = 0;
+    let mut commas: Vec<(i32, usize)> = Vec::new();
+    for (index, ch) in body.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            ',' => commas.push((depth, index)),
+            _ => {}
+        }
+    }
+    let shallowest = commas.iter().map(|(level, _)| *level).min()?;
+    let split = commas
+        .iter()
+        .rev()
+        .find(|(level, _)| *level == shallowest)
+        .map(|(_, index)| *index)?;
+    let prefix = &body[..split];
+    if prefix.trim().is_empty() {
+        return None;
+    }
+    // Everything after the target separator up to the trailing logical closing
+    // parens is the old target; preserve those closers.
+    let closers = body.len() - body.trim_end_matches(')').len();
+    let suffix = &body[body.len() - closers..];
+
+    let mut rewritten = format!("{},{new_target}{suffix}", body[..split].trim_end());
+    if no_resolve {
+        rewritten.push_str(",no-resolve");
+    }
+    Some(rewritten)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn d12_08_rewrite_rule_target_preserves_rule_shape() {
+        assert_eq!(
+            rewrite_rule_target("DOMAIN-SUFFIX,github.com,PROXY", "DIRECT").as_deref(),
+            Some("DOMAIN-SUFFIX,github.com,DIRECT")
+        );
+        assert_eq!(
+            rewrite_rule_target("MATCH,FALLBACK", "REJECT").as_deref(),
+            Some("MATCH,REJECT")
+        );
+        // no-resolve flag is preserved.
+        assert_eq!(
+            rewrite_rule_target("IP-CIDR,1.1.1.1/32,DIRECT,no-resolve", "PROXY").as_deref(),
+            Some("IP-CIDR,1.1.1.1/32,PROXY,no-resolve")
+        );
+        // Logical subrules keep their nested commas; only the final target moves.
+        assert_eq!(
+            rewrite_rule_target(
+                "AND((DOMAIN,api.openai.com),(DST-PORT,443),AI_PROXY)",
+                "DIRECT"
+            )
+            .as_deref(),
+            Some("AND((DOMAIN,api.openai.com),(DST-PORT,443),DIRECT)")
+        );
+        assert_eq!(rewrite_rule_target("DIRECT", "PROXY"), None);
+        assert_eq!(rewrite_rule_target("", "PROXY"), None);
+    }
+}

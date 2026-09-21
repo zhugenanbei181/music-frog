@@ -84,6 +84,7 @@ python3 "$repo_root/scripts/quality/proxies-skeleton-pulse-guard.py" --mode enfo
 python3 "$repo_root/scripts/quality/proxies-regression-matrix-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/rule-hit-audit-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/rule-tracer-sandbox-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/rule-tracer-override-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/speedtest-parity-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/speedtest-history-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/responsive-parity-guard.py" --mode enforce

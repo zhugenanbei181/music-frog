@@ -184,6 +184,11 @@ pub enum CommandIntent {
     SetRuleTracerContext {
         src_ip: Option<String>,
     },
+    /// DUAL-12-08: rewrite the traced rule's outbound target and commit the
+    /// whole rule list through the atomic apply transaction.
+    ApplyTracerRuleOverride {
+        request: crate::rule_tracer::TracerRuleOverride,
+    },
     ResetRuleHitCounters,
     UnpackRuleProvider {
         provider_name: String,
@@ -323,6 +328,7 @@ impl CommandIntent {
             | Self::UnpackRuleProvider { .. } => CommandKind::Profile,
             Self::SimulateRuleTrace { .. }
             | Self::SetRuleTracerContext { .. }
+            | Self::ApplyTracerRuleOverride { .. }
             | Self::ResetRuleHitCounters
             | Self::ReorderOverviewCards { .. }
             | Self::ResetOverviewCardOrder => CommandKind::Runtime,

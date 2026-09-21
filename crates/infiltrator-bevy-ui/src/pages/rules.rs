@@ -538,9 +538,13 @@ fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     }
     let mut commands = world.commands();
     commands.insert_resource(RulesPageBound);
+    // DUAL-12-08: the tracer reverse-apply observer reads the last projection,
+    // so the store must exist from the moment the page is bound.
+    commands.insert_resource(LastRulesProjection::default());
     commands.add_observer(apply_rules_projection);
     commands.add_observer(crate::pages::rules_tracer::apply_tracer_projection);
     commands.add_observer(crate::pages::rules_tracer::on_tracer_action_activated);
+    commands.add_observer(crate::pages::rules_tracer::on_tracer_override_activated);
     commands.add_observer(on_rules_action_activated);
 }
 

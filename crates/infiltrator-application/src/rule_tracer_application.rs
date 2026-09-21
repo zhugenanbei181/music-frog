@@ -3,7 +3,8 @@
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::rule_tracer::{
     DecisionChainSnapshot, RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot, RuleHitSummary,
-    RuleTracerSnapshot, RuleTracerStatus, TrafficContextSnapshot,
+    RuleTracerSnapshot, RuleTracerStatus, TracerRuleOverride, TracerRuleOverrideResult,
+    TracerRuleOverrideStatus, TrafficContextSnapshot,
 };
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_domain::proxy::Proxy;
@@ -29,12 +30,42 @@ struct TraceLatencyStats {
     last_us: Option<u64>,
 }
 
+/// DUAL-12-08: the optional host persistence capability driving the
+/// reverse-apply. Wrapped so the application's `Debug` derive does not require
+/// the port object itself to be `Debug`.
+#[derive(Clone, Default)]
+struct OverridePortSlot(
+    Arc<Mutex<Option<Arc<dyn infiltrator_ports::rule_tracer::RuleOverridePort>>>>,
+);
+
+impl OverridePortSlot {
+    fn get(&self) -> Option<Arc<dyn infiltrator_ports::rule_tracer::RuleOverridePort>> {
+        self.0.lock().ok().and_then(|slot| slot.clone())
+    }
+
+    fn set(&self, port: Arc<dyn infiltrator_ports::rule_tracer::RuleOverridePort>) {
+        if let Ok(mut slot) = self.0.lock() {
+            *slot = Some(port);
+        }
+    }
+}
+
+impl std::fmt::Debug for OverridePortSlot {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("OverridePortSlot")
+            .field("configured", &self.get().is_some())
+            .finish()
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct RuleTracerApplication {
     active_query: Arc<Mutex<String>>,
     context: Arc<Mutex<TrafficContextSnapshot>>,
     hit_counter: Arc<Mutex<RuleHitCounter>>,
     trace_stats: Arc<Mutex<TraceLatencyStats>>,
+    override_port: OverridePortSlot,
 }
 
 impl RuleTracerApplication {
@@ -44,6 +75,7 @@ impl RuleTracerApplication {
             context: Arc::new(Mutex::new(TrafficContextSnapshot::default())),
             hit_counter: Arc::new(Mutex::new(RuleHitCounter::new())),
             trace_stats: Arc::new(Mutex::new(TraceLatencyStats::default())),
+            override_port: OverridePortSlot::default(),
         }
     }
 
@@ -53,7 +85,97 @@ impl RuleTracerApplication {
             context: Arc::new(Mutex::new(TrafficContextSnapshot::default())),
             hit_counter: Arc::new(Mutex::new(RuleHitCounter::new())),
             trace_stats: Arc::new(Mutex::new(TraceLatencyStats::default())),
+            override_port: OverridePortSlot::default(),
         }
+    }
+
+    /// DUAL-12-08: inject the host persistence capability. Composed after the
+    /// core application exists (the adapter needs the live lifecycle session),
+    /// so every surface holding a clone observes the same port.
+    pub fn set_override_port(
+        &self,
+        port: Arc<dyn infiltrator_ports::rule_tracer::RuleOverridePort>,
+    ) {
+        self.override_port.set(port);
+    }
+
+    /// DUAL-12-08: reverse-apply a matched rule's outbound. Loads the live rule
+    /// list, rewrites the matched rule's target, and commits the whole list
+    /// through the host's atomic apply transaction. Returns one typed result;
+    /// no capability, a stale index, an invalid target and an apply failure are
+    /// all reported honestly.
+    pub async fn apply_override(&self, request: &TracerRuleOverride) -> TracerRuleOverrideResult {
+        let new_target = request.new_target.trim().to_owned();
+        if let Err(reason) = validate_override_target(&new_target) {
+            return TracerRuleOverrideResult::rejected(
+                TracerRuleOverrideStatus::InvalidTarget,
+                request.rule_index,
+                new_target,
+                reason,
+            );
+        }
+
+        let Some(port) = self.override_port.get() else {
+            return TracerRuleOverrideResult::rejected(
+                TracerRuleOverrideStatus::Unsupported,
+                request.rule_index,
+                new_target,
+                "此主机未组合规则反向应用能力 (no rule apply capability composed)".to_owned(),
+            );
+        };
+
+        let mut rules = match port.load_rule_entries().await {
+            Ok(rules) => rules,
+            Err(error) => {
+                return TracerRuleOverrideResult::rejected(
+                    TracerRuleOverrideStatus::ApplyFailed,
+                    request.rule_index,
+                    new_target,
+                    format!("读取当前规则失败: {error}"),
+                );
+            }
+        };
+
+        let Some(entry) = rules.get_mut(request.rule_index) else {
+            return TracerRuleOverrideResult::rejected(
+                TracerRuleOverrideStatus::StaleRuleIndex,
+                request.rule_index,
+                new_target,
+                format!(
+                    "命中规则 #{} 已不存在，请重新执行追踪",
+                    request.rule_index + 1
+                ),
+            );
+        };
+
+        let previous_rule_raw = entry.rule.clone();
+        let Some(updated_rule_raw) =
+            infiltrator_domain::rules::rewrite_rule_target(&previous_rule_raw, &new_target)
+        else {
+            return TracerRuleOverrideResult::rejected(
+                TracerRuleOverrideStatus::InvalidTarget,
+                request.rule_index,
+                new_target,
+                "该规则没有可重写的出站目标".to_owned(),
+            );
+        };
+        entry.rule = updated_rule_raw.clone();
+
+        if let Err(error) = port.apply_rule_entries(&rules).await {
+            return TracerRuleOverrideResult::rejected(
+                TracerRuleOverrideStatus::ApplyFailed,
+                request.rule_index,
+                new_target,
+                format!("应用配置事务失败: {error}"),
+            );
+        }
+
+        TracerRuleOverrideResult::applied(
+            request.rule_index,
+            new_target,
+            previous_rule_raw,
+            updated_rule_raw,
+        )
     }
 
     pub fn set_query(&self, query: impl Into<String>) {
@@ -352,18 +474,20 @@ impl RuleTracerApplication {
             return snapshot;
         }
 
-        let context_domain = self.merged_context(&query);
+        // The simulated sandbox environment (source IP / ports) the shared
+        // engine merged onto the query; published as `simulated_context`.
+        let simulated_context = self.merged_context(&query);
         let ctx_snapshot = TrafficContextSnapshot {
-            domain: context_domain.domain.clone(),
-            ip: context_domain.ip.map(|ip| ip.to_string()),
-            port: context_domain.port,
-            src_ip: context_domain.src_ip.map(|ip| ip.to_string()),
-            src_port: context_domain.src_port,
-            in_port: context_domain.in_port,
-            process_name: context_domain.process_name.clone(),
-            network: context_domain.network.clone(),
-            in_type: context_domain.in_type.clone(),
-            client_ip: context_domain.client_ip.map(|ip| ip.to_string()),
+            domain: simulated_context.domain.clone(),
+            ip: simulated_context.ip.map(|ip| ip.to_string()),
+            port: simulated_context.port,
+            src_ip: simulated_context.src_ip.map(|ip| ip.to_string()),
+            src_port: simulated_context.src_port,
+            in_port: simulated_context.in_port,
+            process_name: simulated_context.process_name.clone(),
+            network: simulated_context.network.clone(),
+            in_type: simulated_context.in_type.clone(),
+            client_ip: simulated_context.client_ip.map(|ip| ip.to_string()),
         };
 
         let (_matched, chain) = self.trace(rules, &query, active_exit, proxies);
@@ -394,6 +518,7 @@ impl RuleTracerApplication {
 
 /// Port seam so an inbound surface drives the exact application instance the
 /// surface reader projects, keeping one query state across Iced and Bevy.
+#[async_trait::async_trait]
 impl infiltrator_ports::rule_tracer::RuleTracerPort for RuleTracerApplication {
     fn set_query(&self, query: &str) {
         RuleTracerApplication::set_query(self, query);
@@ -419,336 +544,31 @@ impl infiltrator_ports::rule_tracer::RuleTracerPort for RuleTracerApplication {
     fn clear_hits(&self) {
         RuleTracerApplication::clear_hits(self);
     }
+
+    async fn apply_override(&self, request: &TracerRuleOverride) -> TracerRuleOverrideResult {
+        RuleTracerApplication::apply_override(self, request).await
+    }
+}
+
+/// DUAL-12-08: reject an outbound target that cannot be written into a rule
+/// expression. PROXY / DIRECT / REJECT and any typed group name are accepted;
+/// empty, comma-bearing and control-character targets are not.
+fn validate_override_target(target: &str) -> Result<(), String> {
+    if target.is_empty() {
+        return Err("出站目标不能为空".to_owned());
+    }
+    if target.chars().count() > 64 {
+        return Err("出站目标过长 (最多 64 字符)".to_owned());
+    }
+    if target.contains(',') || target.contains('\n') || target.contains('\r') {
+        return Err("出站目标不能包含逗号或换行".to_owned());
+    }
+    if target.chars().any(char::is_control) {
+        return Err("出站目标包含非法控制字符".to_owned());
+    }
+    Ok(())
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use infiltrator_contract::rule_tracer::DecisionStageKind;
-
-    fn sample_rules() -> Vec<RuleEntry> {
-        vec![
-            RuleEntry {
-                rule: "DOMAIN-SUFFIX,google.com,PROXY".to_owned(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "DOMAIN-KEYWORD,bilibili,DIRECT".to_owned(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "IP-CIDR,1.1.1.1/32,DNS_DIRECT".to_owned(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "AND((DOMAIN,api.openai.com),(DST-PORT,443),AI_PROXY)".to_owned(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "MATCH,FALLBACK".to_owned(),
-                enabled: true,
-            },
-        ]
-    }
-
-    fn running_core() -> CoreSnapshot {
-        CoreSnapshot {
-            lifecycle: CoreLifecycle::Running,
-            generation: 1,
-            revision: 2,
-            session_token: None,
-            proxy_mode: None,
-            core_version: None,
-            sampled_at_epoch_ms: None,
-            failure: None,
-            upload_bps: 0.0,
-            download_bps: 0.0,
-            active_connections: 0,
-            memory_bytes: None,
-            watchdog: Default::default(),
-        }
-    }
-
-    #[test]
-    fn tracer_empty_query_projects_ready_sandbox_with_presets() {
-        let app = RuleTracerApplication::new();
-        let snapshot = app.project(&running_core(), &sample_rules(), None, None);
-        assert_eq!(snapshot.status, RuleTracerStatus::Ready);
-        assert!(snapshot.active_query.is_empty());
-        assert!(!snapshot.presets.is_empty());
-        assert!(snapshot.decision_chain.is_none());
-    }
-
-    #[test]
-    fn tracer_simulates_domain_suffix_match() {
-        let app = RuleTracerApplication::with_query("www.google.com");
-        let snapshot = app.project(&running_core(), &sample_rules(), None, None);
-        assert_eq!(snapshot.status, RuleTracerStatus::Ready);
-        let chain = snapshot.decision_chain.expect("decision chain");
-        assert_eq!(chain.hit_rule_index, Some(0));
-        assert_eq!(chain.matched_rule_type, "DOMAIN-SUFFIX");
-        assert_eq!(chain.target_proxy, "PROXY");
-        assert_eq!(chain.nodes.len(), 5);
-        assert_eq!(chain.nodes[0].stage, DecisionStageKind::Inbound);
-        assert_eq!(chain.nodes[2].stage, DecisionStageKind::RuleSet);
-        assert!(!chain.is_fallback);
-    }
-
-    #[test]
-    fn tracer_simulates_nested_logical_subrule() {
-        let app = RuleTracerApplication::with_query("api.openai.com:443");
-        let snapshot = app.project(&running_core(), &sample_rules(), None, None);
-        let chain = snapshot.decision_chain.expect("decision chain");
-        assert_eq!(chain.target_proxy, "AI_PROXY");
-        assert_eq!(chain.matched_rule_type, "AND");
-        assert!(
-            chain.nodes[2]
-                .sub_evaluations
-                .iter()
-                .any(|e| e.contains("PASS"))
-        );
-    }
-
-    #[test]
-    fn tracer_simulates_ip_cidr_match() {
-        let app = RuleTracerApplication::with_query("1.1.1.1:53");
-        let snapshot = app.project(&running_core(), &sample_rules(), None, None);
-        let chain = snapshot.decision_chain.expect("decision chain");
-        assert_eq!(chain.target_proxy, "DNS_DIRECT");
-        assert_eq!(chain.matched_rule_type, "IP-CIDR");
-    }
-
-    #[test]
-    fn tracer_fallback_when_unmatched() {
-        let app = RuleTracerApplication::with_query("unknown-domain.xyz");
-        let snapshot = app.project(&running_core(), &sample_rules(), None, None);
-        let chain = snapshot.decision_chain.expect("decision chain");
-        assert_eq!(chain.target_proxy, "FALLBACK");
-        assert_eq!(chain.matched_rule_type, "MATCH");
-        assert!(chain.is_fallback);
-    }
-
-    #[test]
-    fn tracer_supports_offline_ast_trace_when_core_stopped() {
-        let mut core = running_core();
-        core.lifecycle = CoreLifecycle::Stopped;
-        let app = RuleTracerApplication::with_query("bilibili.com");
-        let snapshot = app.project(&core, &sample_rules(), None, None);
-        assert_eq!(snapshot.status, RuleTracerStatus::Ready);
-        assert!(snapshot.failure.as_deref().unwrap_or("").contains("离线"));
-        let chain = snapshot.decision_chain.expect("decision chain");
-        assert_eq!(chain.target_proxy, "DIRECT");
-    }
-
-    #[test]
-    fn hit_audit_reports_real_counts_dead_rules_and_last_hit() {
-        use infiltrator_contract::rule_tracer::RuleDeadReason;
-
-        let app = RuleTracerApplication::new();
-        app.record_hits(&[
-            ("DOMAIN-SUFFIX,google.com,PROXY", 2048),
-            ("DOMAIN-SUFFIX,google.com,PROXY", 1024),
-            ("DOMAIN-KEYWORD,bilibili,DIRECT", 512),
-        ]);
-
-        let audit = app.audit(&sample_rules());
-
-        assert_eq!(audit.total_hits, 3);
-        assert!(audit.can_clear);
-        // Highest-count rule is first; payload bytes accumulate across hits.
-        assert_eq!(audit.top_hits[0].rule_raw, "DOMAIN-SUFFIX,google.com,PROXY");
-        assert_eq!(audit.top_hits[0].hit_count, 2);
-        assert_eq!(audit.top_hits[0].total_payload_bytes, 3072);
-        assert!(audit.top_hits[0].last_hit_secs.is_some());
-        // The most recent timestamp drives the hit-flash highlight; ties are
-        // broken toward the higher-hit rule so the projection is deterministic.
-        assert_eq!(
-            audit.last_hit_rule.as_deref(),
-            Some("DOMAIN-SUFFIX,google.com,PROXY")
-        );
-        // Untouched enabled rules are honestly reported as zero-hit.
-        assert!(audit.dead_rules.iter().any(|entry| {
-            entry.rule_raw == "IP-CIDR,1.1.1.1/32,DNS_DIRECT"
-                && entry.reason == RuleDeadReason::ZeroHits
-                && entry.hit_count == 0
-        }));
-    }
-
-    #[test]
-    fn hit_audit_surfaces_cidr_overlap_and_shadow_reason() {
-        use infiltrator_contract::rule_tracer::RuleDeadReason;
-
-        let app = RuleTracerApplication::new();
-        let rules = vec![
-            RuleEntry {
-                rule: "IP-CIDR,10.0.0.0/8,DIRECT".to_owned(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "IP-CIDR,10.1.2.0/24,PROXY".to_owned(),
-                enabled: true,
-            },
-        ];
-
-        let audit = app.audit(&rules);
-        assert_eq!(audit.cidr_overlaps.len(), 1);
-        let overlap = &audit.cidr_overlaps[0];
-        assert_eq!(overlap.rule_raw, "IP-CIDR,10.1.2.0/24,PROXY");
-        assert_eq!(overlap.reason, RuleDeadReason::Shadowed);
-        assert_eq!(
-            overlap.shadowed_by.as_deref(),
-            Some("IP-CIDR,10.0.0.0/8,DIRECT")
-        );
-        assert!(
-            audit
-                .dead_rules
-                .iter()
-                .any(|entry| entry.rule_raw == overlap.rule_raw)
-        );
-    }
-
-    #[test]
-    fn hit_audit_publishes_trace_latency_contribution() {
-        let app = RuleTracerApplication::new();
-        let rules = sample_rules();
-        let _ = app.trace(&rules, "www.google.com", None, None);
-        let _ = app.trace(&rules, "bilibili.com", None, None);
-
-        let audit = app.audit(&rules);
-        assert_eq!(audit.trace_count, 2);
-        assert!(audit.avg_match_latency_us.is_some_and(|avg| avg >= 1.0));
-        assert!(audit.last_match_latency_us.is_some_and(|last| last >= 1));
-    }
-
-    #[test]
-    fn clear_hits_resets_the_audit() {
-        let app = RuleTracerApplication::new();
-        app.record_hits(&[("DOMAIN-SUFFIX,google.com,PROXY", 64)]);
-        assert_eq!(app.audit(&sample_rules()).total_hits, 1);
-
-        app.clear_hits();
-        let audit = app.audit(&sample_rules());
-        assert_eq!(audit.total_hits, 0);
-        assert!(!audit.can_clear);
-        assert!(audit.last_hit_rule.is_none());
-    }
-
-    #[test]
-    fn project_publishes_the_hit_audit_for_the_surface() {
-        let app = RuleTracerApplication::with_query("www.google.com");
-        app.record_hits(&[("DOMAIN-SUFFIX,google.com,PROXY", 128)]);
-        let snapshot = app.project(&running_core(), &sample_rules(), None, None);
-        assert_eq!(snapshot.hit_audit.total_hits, 1);
-        assert_eq!(
-            snapshot.hit_audit.last_hit_rule.as_deref(),
-            Some("DOMAIN-SUFFIX,google.com,PROXY")
-        );
-    }
-
-    #[test]
-    fn tracer_port_drives_the_shared_query_state() {
-        let app = RuleTracerApplication::new();
-        let port: &dyn infiltrator_ports::rule_tracer::RuleTracerPort = &app;
-        port.set_query("www.google.com");
-        assert_eq!(app.query(), "www.google.com");
-
-        let chain = port.trace(&sample_rules(), "www.google.com", None);
-        assert_eq!(chain.hit_rule_index, Some(0));
-        assert_eq!(chain.matched_rule_type, "DOMAIN-SUFFIX");
-        // No runtime exit facts were supplied, so the outbound stage must not
-        // fabricate a node name or latency.
-        assert_eq!(chain.final_outbound, "未知出口");
-        assert_eq!(chain.final_node_delay_ms, None);
-
-        // Hit feeding and clearing flow through the same shared instance.
-        port.record_hits(&[("MATCH,FALLBACK", 32)]);
-        assert_eq!(app.hit_count_for("MATCH,FALLBACK"), 1);
-        port.clear_hits();
-        assert_eq!(app.hit_count_for("MATCH,FALLBACK"), 0);
-    }
-
-    #[test]
-    fn tracer_stored_source_ip_drives_inbound_stage_and_context() {
-        let app = RuleTracerApplication::with_query("www.google.com");
-        app.set_context(&TrafficContextSnapshot {
-            src_ip: Some("10.20.30.40".to_owned()),
-            src_port: Some(54321),
-            in_port: Some(7891),
-            ..TrafficContextSnapshot::default()
-        });
-
-        let snapshot = app.project(&running_core(), &sample_rules(), None, None);
-        assert_eq!(
-            snapshot.simulated_context.src_ip.as_deref(),
-            Some("10.20.30.40")
-        );
-        assert_eq!(snapshot.simulated_context.src_port, Some(54321));
-        assert_eq!(snapshot.simulated_context.in_port, Some(7891));
-
-        let chain = snapshot.decision_chain.expect("decision chain");
-        let inbound = &chain.nodes[0];
-        assert_eq!(inbound.stage, DecisionStageKind::Inbound);
-        assert!(inbound.detail.contains("10.20.30.40"));
-        assert!(inbound.detail.contains("7891"));
-        assert!(
-            inbound
-                .sub_evaluations
-                .iter()
-                .any(|line| line.contains("10.20.30.40"))
-        );
-    }
-
-    #[test]
-    fn tracer_stored_source_ip_drives_src_ip_cidr_rule_match() {
-        let rules = vec![
-            RuleEntry {
-                rule: "SRC-IP-CIDR,10.0.0.0/8,DIRECT".to_owned(),
-                enabled: true,
-            },
-            RuleEntry {
-                rule: "MATCH,FALLBACK".to_owned(),
-                enabled: true,
-            },
-        ];
-
-        let app = RuleTracerApplication::with_query("example.org");
-        let baseline = app.project(&running_core(), &rules, None, None);
-        assert_eq!(
-            baseline
-                .decision_chain
-                .expect("baseline chain")
-                .target_proxy,
-            "FALLBACK"
-        );
-
-        app.set_context(&TrafficContextSnapshot {
-            src_ip: Some("10.1.2.3".to_owned()),
-            ..TrafficContextSnapshot::default()
-        });
-        let snapshot = app.project(&running_core(), &rules, None, None);
-        let chain = snapshot.decision_chain.expect("decision chain");
-        assert_eq!(chain.matched_rule_type, "SRC-IP-CIDR");
-        assert_eq!(chain.target_proxy, "DIRECT");
-    }
-
-    #[test]
-    fn tracer_port_set_context_updates_shared_environment() {
-        let app = RuleTracerApplication::new();
-        let port: &dyn infiltrator_ports::rule_tracer::RuleTracerPort = &app;
-        port.set_query("www.google.com");
-        port.set_context(&TrafficContextSnapshot {
-            src_ip: Some("192.168.1.77".to_owned()),
-            ..TrafficContextSnapshot::default()
-        });
-        assert_eq!(app.context().src_ip.as_deref(), Some("192.168.1.77"));
-
-        let chain = port.trace(&sample_rules(), "www.google.com", None);
-        assert!(chain.nodes[0].detail.contains("192.168.1.77"));
-
-        let snapshot = app.project(&running_core(), &sample_rules(), None, None);
-        assert_eq!(
-            snapshot.simulated_context.src_ip.as_deref(),
-            Some("192.168.1.77")
-        );
-    }
-}
+#[path = "rule_tracer_application_test.rs"]
+mod tests;

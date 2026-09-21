@@ -195,6 +195,14 @@ pub enum Message {
     UpdateRulesTracerInput(String),
     UpdateTracerSourceIp(String),
     RunRulesTracer,
+    /// DUAL-12-08: outbound target typed into the reverse-apply chooser.
+    UpdateTracerOverrideTarget(String),
+    /// DUAL-12-08: rewrite the matched rule's outbound and apply it.
+    ApplyTracerRuleOverride {
+        rule_index: usize,
+    },
+    /// DUAL-12-08: shared typed result of the reverse-apply attempt.
+    TracerRuleOverrideApplied(infiltrator_contract::rule_tracer::TracerRuleOverrideResult),
     UpdateFilteredGroups,
     UpdateNewRuleType(String),
     UpdateNewRulePayload(String),

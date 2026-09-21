@@ -125,6 +125,7 @@ impl AppState {
             port.set_context(&context);
             if input.is_empty() {
                 self.editor.rules_tracer_chain = None;
+                self.sync_tracer_override_state();
                 return Task::none();
             }
             port.set_query(&input);
@@ -139,12 +140,31 @@ impl AppState {
             application.set_context(&context);
             if input.is_empty() {
                 self.editor.rules_tracer_chain = None;
+                self.sync_tracer_override_state();
                 return Task::none();
             }
             self.editor.rules_tracer_chain =
                 Some(application.trace(&self.editor.rules, &input, None, None).1);
         }
+        self.sync_tracer_override_state();
         Task::none()
+    }
+
+    /// DUAL-12-08: derive the reverse-apply gate, suggestion and chooser seed
+    /// from the shared decision chain. A fresh trace restarts the chooser at
+    /// the shared suggestion instead of carrying a stale target.
+    fn sync_tracer_override_state(&mut self) {
+        use infiltrator_contract::rule_tracer::DecisionChainSnapshot;
+        let chain = self.editor.rules_tracer_chain.as_ref();
+        self.editor.rules_tracer_can_reverse_apply =
+            chain.is_some_and(DecisionChainSnapshot::can_reverse_apply);
+        self.editor.rules_tracer_suggested_target =
+            chain.and_then(DecisionChainSnapshot::suggested_override_target);
+        self.editor.rules_tracer_override_target = self
+            .editor
+            .rules_tracer_suggested_target
+            .clone()
+            .unwrap_or_default();
     }
 
     /// Custom rules list plus rule/proxy provider and sniffer JSON editors.
@@ -167,6 +187,67 @@ impl AppState {
                 self.run_rules_tracer()
             }
             Message::RunRulesTracer => self.run_rules_tracer(),
+            Message::UpdateTracerOverrideTarget(target) => {
+                self.editor.rules_tracer_override_target = target;
+                Task::none()
+            }
+            Message::ApplyTracerRuleOverride { rule_index } => {
+                // DUAL-12-08: only a traced, non-fallback rule can be rewritten;
+                // without a composed apply port the request is refused as a
+                // typed error toast instead of a silent no-op.
+                if !self.editor.rules_tracer_can_reverse_apply {
+                    return Task::done(Message::ShowToast(
+                        "当前追踪结果不可反向应用".to_string(),
+                        ToastStatus::Error,
+                    ));
+                }
+                let target = self.editor.rules_tracer_override_target.trim().to_string();
+                let port = self
+                    .runtime
+                    .runtime
+                    .clone()
+                    .and_then(|runtime| runtime.rule_tracer_port());
+                let Some(port) = port else {
+                    return Task::done(Message::ShowToast(
+                        "此主机未组合规则反向应用能力".to_string(),
+                        ToastStatus::Error,
+                    ));
+                };
+                let request = infiltrator_contract::rule_tracer::TracerRuleOverride {
+                    rule_index,
+                    new_target: target,
+                };
+                Task::perform(
+                    async move { port.apply_override(&request).await },
+                    Message::TracerRuleOverrideApplied,
+                )
+            }
+            Message::TracerRuleOverrideApplied(result) => {
+                if !result.is_applied() {
+                    let message = result
+                        .failure_message()
+                        .unwrap_or("规则反向应用失败")
+                        .to_string();
+                    return Task::done(Message::ShowToast(message, ToastStatus::Error));
+                }
+                let updated = result.updated_rule_raw.clone().unwrap_or_default();
+                // Reflect the committed rule locally, then re-run the trace so
+                // the decision chain shows the new outbound; LoadRules resyncs
+                // the authoritative list from disk in the same batch.
+                if let Some(entry) = self.editor.rules.get_mut(result.rule_index) {
+                    entry.rule = updated.clone();
+                }
+                self.rebuild_rules_render_cache();
+                let trace = self.run_rules_tracer();
+                Task::batch(vec![
+                    trace,
+                    Task::done(Message::LoadRules),
+                    Task::done(Message::ShowToast(
+                        format!("规则出站已更新: {updated}"),
+                        ToastStatus::Success,
+                    )),
+                ])
+            }
             Message::ClearRuleHitCounters => {
                 // Drive the very same counter the surface reader projects; no
                 // UI-local reset that would diverge from the shared read model.

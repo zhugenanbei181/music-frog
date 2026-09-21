@@ -274,6 +274,85 @@ fn test_rules_tracer_source_ip_sandbox_flow() {
 }
 
 #[test]
+fn test_rules_tracer_reverse_apply_override_dual_surface_flow() {
+    let (mut state, _) = AppState::new();
+    state.editor.rules = vec![
+        RuleEntry {
+            rule: "DOMAIN-SUFFIX,example.com,PROXY".into(),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: "MATCH,DIRECT".into(),
+            enabled: true,
+        },
+    ];
+    state.rebuild_rules_render_cache();
+
+    let _ = state.update(Message::UpdateRulesTracerInput("example.com".into()));
+    let _ = state.update(Message::RunRulesTracer);
+    // The shared decision chain drives the reverse-apply gate and the chooser
+    // seed; neither is a UI-local guess.
+    assert!(state.editor.rules_tracer_can_reverse_apply);
+    assert_eq!(
+        state.editor.rules_tracer_suggested_target.as_deref(),
+        Some("DIRECT")
+    );
+    assert_eq!(state.editor.rules_tracer_override_target, "DIRECT");
+    assert_eq!(
+        state
+            .editor
+            .rules_tracer_chain
+            .as_ref()
+            .unwrap()
+            .target_proxy,
+        "PROXY"
+    );
+
+    // Consume the shared typed result: the matched rule is rewritten and the
+    // trace replays against the new target.
+    let applied = infiltrator_contract::rule_tracer::TracerRuleOverrideResult::applied(
+        0,
+        "DIRECT".to_owned(),
+        "DOMAIN-SUFFIX,example.com,PROXY".to_owned(),
+        "DOMAIN-SUFFIX,example.com,DIRECT".to_owned(),
+    );
+    let _ = state.update(Message::TracerRuleOverrideApplied(applied));
+    assert_eq!(
+        state.editor.rules[0].rule,
+        "DOMAIN-SUFFIX,example.com,DIRECT"
+    );
+    let chain = state.editor.rules_tracer_chain.as_ref().unwrap();
+    assert_eq!(chain.target_proxy, "DIRECT");
+    assert_eq!(chain.matched_rule_type, "DOMAIN-SUFFIX");
+    assert_eq!(chain.matched_payload, "example.com");
+
+    // A rejected result never mutates the rule list nor fabricates success.
+    let rejected = infiltrator_contract::rule_tracer::TracerRuleOverrideResult::rejected(
+        infiltrator_contract::rule_tracer::TracerRuleOverrideStatus::ApplyFailed,
+        0,
+        "REJECT".to_owned(),
+        "apply transaction rolled back",
+    );
+    let _ = state.update(Message::TracerRuleOverrideApplied(rejected));
+    assert_eq!(
+        state.editor.rules[0].rule,
+        "DOMAIN-SUFFIX,example.com,DIRECT"
+    );
+
+    // Without a composed apply port the request queues one typed error task
+    // and leaves the rule list untouched.
+    state.editor.rules_tracer_override_target = "REJECT".to_owned();
+    let units = state
+        .update(Message::ApplyTracerRuleOverride { rule_index: 0 })
+        .units();
+    assert_eq!(units, 1);
+    assert_eq!(
+        state.editor.rules[0].rule,
+        "DOMAIN-SUFFIX,example.com,DIRECT"
+    );
+}
+
+#[test]
 fn test_rules_game_presets_and_geo_update() {
     let (mut state, _) = AppState::new();
     state.editor.rules = vec![RuleEntry {
