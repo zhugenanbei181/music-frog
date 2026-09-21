@@ -160,6 +160,42 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         .into()
     };
 
+    // Timed-out / unreachable nodes are archived in one honest region driven
+    // by the shared snapshot's `dead_nodes()` — never hidden or fabricated.
+    let dead_nodes = snapshot.dead_nodes();
+    let dead_section: Element<'_, Message> = if dead_nodes.is_empty() {
+        Space::new().height(0).into()
+    } else {
+        let names: Vec<String> = dead_nodes
+            .iter()
+            .take(4)
+            .map(|node| node.node_name.clone())
+            .collect();
+        let extra = dead_nodes.len().saturating_sub(names.len());
+        let mut listed = names.join(" · ");
+        if extra > 0 {
+            listed.push_str(&format!(" (+{extra})"));
+        }
+        row![
+            badge(dead_nodes.len().to_string(), BadgeKind::Danger),
+            Space::new().width(theme::SP_XS),
+            text(lang.tr("speedtest_dead_archive").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
+            Space::new().width(theme::SP_XS),
+            text(listed)
+                .size(11)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).danger)
+                }),
+        ]
+        .align_y(Alignment::Center)
+        .into()
+    };
+
     card(
         Some(lang.tr("speedtest_title").to_string()),
         column![
@@ -176,6 +212,7 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
             metric_content,
+            dead_section,
         ]
         .spacing(theme::SP_SM),
     )

@@ -55,6 +55,7 @@ def main() -> int:
         "DUAL-06-06",
         "DUAL-06-07",
         "DUAL-06-08",
+        "DUAL-06-09",
         "DUAL-06-10",
         "parity-ready",
     )
@@ -86,10 +87,18 @@ def main() -> int:
     )
     require(
         violations,
+        "crates/infiltrator-iced/src/view/speedtest_modal.rs",
+        "speedtest_dead_archive",
+        "dead_nodes()",
+    )
+    require(
+        violations,
         "crates/infiltrator-bevy-ui/src/pages/overview.rs",
         "OverviewSpeedtestMetricsText",
+        "OverviewSpeedtestDeadText",
         "UiCommand::CancelSpeedtest",
         "fastest_node()",
+        "dead_nodes()",
     )
     require(
         violations,
@@ -101,12 +110,14 @@ def main() -> int:
         violations,
         "crates/infiltrator-iced/tests/gui/iced_six_advancements_wave3_tests.rs",
         "test_advancement_w3_3_speedtest_scope_and_cancel_share_the_engine",
+        "test_advancement_w3_3_speedtest_dead_node_archive_renders",
     )
     require(
         violations,
         "crates/infiltrator-bevy-ui/tests/headless/overview_tests.rs",
         "overview_speedtest_metrics_follow_shared_engine",
         "overview_speedtest_running_button_submits_cancel",
+        "超时归档 1",
     )
     # Iced must not regress to the legacy proxy-delay path.
     forbid(violations, "crates/infiltrator-iced/src/update/core/proxies.rs", "test_proxy_delays")
@@ -129,7 +140,7 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1 if args.mode == "enforce" else 0
-    print("speedtest-parity-guard: DUAL-06-02/05/06/07/08/10 markers=complete violations=0")
+    print("speedtest-parity-guard: DUAL-06-02/05/06/07/08/09/10 markers=complete violations=0")
     return 0
 
 

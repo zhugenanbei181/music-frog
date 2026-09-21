@@ -159,6 +159,20 @@ fn test_advancement_w3_3_speedtest_scope_and_cancel_share_the_engine() {
 }
 
 #[test]
+fn test_advancement_w3_3_speedtest_dead_node_archive_renders() {
+    let (mut state, _) = AppState::new();
+    let _ = state.update(Message::SpeedtestSnapshotUpdated(Ok(
+        SpeedtestSnapshot::demo_fixture(),
+    )));
+
+    // The shared snapshot archives the timed-out node; the card renders it
+    // from `dead_nodes()` instead of hiding it.
+    assert_eq!(state.diag.speedtest.dead_nodes().len(), 1);
+    let lang = infiltrator_shared::locales::Lang("zh-CN");
+    let _card = crate::view::speedtest_modal::speedtest_card(&state, &lang);
+}
+
+#[test]
 fn test_advancement_w3_4_geodata_updater_stays_honest() {
     let (mut state, _) = AppState::new();
 

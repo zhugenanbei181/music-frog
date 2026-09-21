@@ -366,6 +366,10 @@ pub struct OverviewSpeedtestText;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewSpeedtestMetricsText;
 
+/// Marker for the timed-out / unreachable node archive caption.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewSpeedtestDeadText;
+
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewModePill(pub ProxyMode);
 
@@ -738,6 +742,11 @@ fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> {
             (
                 Text({ "—".to_owned() })
                 OverviewSpeedtestMetricsText
+                TextRole(Role::Caption)
+            ),
+            (
+                Text({ "—".to_owned() })
+                OverviewSpeedtestDeadText
                 TextRole(Role::Caption)
             ),
         ]
@@ -1416,6 +1425,7 @@ type SpeedtestTextFilter = (
     Without<OverviewLine>,
     Without<StatChipValue>,
     Without<OverviewSpeedtestMetricsText>,
+    Without<OverviewSpeedtestDeadText>,
 );
 
 /// Disjoint filter for the live speedtest metrics caption.
@@ -1424,6 +1434,16 @@ type SpeedtestMetricsFilter = (
     Without<OverviewLine>,
     Without<StatChipValue>,
     Without<OverviewSpeedtestText>,
+    Without<OverviewSpeedtestDeadText>,
+);
+
+/// Disjoint filter for the timed-out / unreachable node archive caption.
+type SpeedtestDeadFilter = (
+    With<OverviewSpeedtestDeadText>,
+    Without<OverviewLine>,
+    Without<StatChipValue>,
+    Without<OverviewSpeedtestText>,
+    Without<OverviewSpeedtestMetricsText>,
 );
 
 /// The button is baked `testing: false` at mount; this system reflects the
@@ -1435,6 +1455,7 @@ pub fn sync_overview_speedtest_button(
     mut buttons: Query<&mut OverviewSpeedtestButton>,
     mut texts: Query<&mut Text, SpeedtestTextFilter>,
     mut metrics: Query<&mut Text, SpeedtestMetricsFilter>,
+    mut dead: Query<&mut Text, SpeedtestDeadFilter>,
 ) {
     let Some(projection) = last.0.as_ref() else {
         return;
@@ -1488,6 +1509,31 @@ pub fn sync_overview_speedtest_button(
     for mut text in &mut metrics {
         if text.0 != metrics_label {
             text.0 = metrics_label.clone();
+        }
+    }
+    // Timed-out / unreachable nodes are archived in one honest line; empty
+    // means "—", never a fabricated node.
+    let dead_label = {
+        let dead_nodes = snapshot.dead_nodes();
+        if dead_nodes.is_empty() {
+            "—".to_owned()
+        } else {
+            let names: Vec<&str> = dead_nodes
+                .iter()
+                .take(4)
+                .map(|node| node.node_name.as_str())
+                .collect();
+            let extra = dead_nodes.len().saturating_sub(names.len());
+            let mut listed = names.join(" · ");
+            if extra > 0 {
+                listed.push_str(&format!(" (+{extra})"));
+            }
+            format!("超时归档 {} · {listed}", dead_nodes.len())
+        }
+    };
+    for mut text in &mut dead {
+        if text.0 != dead_label {
+            text.0 = dead_label.clone();
         }
     }
 }

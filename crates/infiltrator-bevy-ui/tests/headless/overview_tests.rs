@@ -1701,9 +1701,22 @@ fn overview_speedtest_metrics_follow_shared_engine() {
             .map(|t| t.0.clone())
             .expect("speedtest metrics caption mounted")
     };
+    let read_dead = |app: &mut App| -> String {
+        let world = app.world_mut();
+        let mut texts =
+            world.query_filtered::<&Text, bevy::ecs::query::With<
+                infiltrator_bevy_ui::pages::overview::OverviewSpeedtestDeadText,
+            >>();
+        texts
+            .iter(world)
+            .next()
+            .map(|t| t.0.clone())
+            .expect("speedtest dead archive caption mounted")
+    };
 
     // Idle: honest placeholder, no fabricated numbers.
     assert_eq!(read_metrics(&mut app), "—");
+    assert_eq!(read_dead(&mut app), "—");
 
     let mut projection = DemoOverviewSource::running().current();
     projection.speedtest = infiltrator_contract::speedtest::SpeedtestSnapshot::demo_fixture();
@@ -1716,6 +1729,12 @@ fn overview_speedtest_metrics_follow_shared_engine() {
     assert!(metrics.contains("抖动"), "metrics={metrics}");
     assert!(metrics.contains("Mbps"), "metrics={metrics}");
     assert!(metrics.contains('★'), "metrics={metrics}");
+
+    // The demo fixture carries exactly one dead node; it must be archived
+    // honestly rather than hidden.
+    let dead = read_dead(&mut app);
+    assert!(dead.contains("超时归档 1"), "dead={dead}");
+    assert!(dead.contains("超时不可用节点"), "dead={dead}");
 }
 
 #[test]

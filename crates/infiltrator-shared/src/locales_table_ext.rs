@@ -92,6 +92,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "speedtest_packet_loss" => "丢包率".into(),
         "speedtest_stability" => "节点稳定性等级".into(),
         "speedtest_cancel" => "取消测速".into(),
+        "speedtest_dead_archive" => "超时/不可用节点归档".into(),
 
         // Category 4: Geo Database Updater
         "geodata_title" => "GeoIP / GeoSite 数据库管理".into(),

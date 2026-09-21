@@ -101,7 +101,7 @@
 | `DUAL-06-06` | 丢包率梯度评级 | `parity-ready` | `PacketLossRating::from_loss_percent`；Iced loss badge，Bevy 指标行渲染 `packet_loss.label_en()` |
 | `DUAL-06-07` | 五星稳定性综合雷达评分 | `parity-ready` | `star_rating` / `stability_score`；Iced 展示星标，Bevy 指标行渲染 `★×star_rating` |
 | `DUAL-06-08` | 测速进度环形百分比动画 | `parity-ready` | `SpeedtestProgress`；Bevy `sync_overview_speedtest_button` 重盖「测速中 n/m」，Iced Overview 按钮改为消费共享 `snapshot.is_running()` + `progress` 显示 n/m |
-| `DUAL-06-09` | 超时与不可用节点即时归档 | `shared-ready` | `is_alive` / `dead_nodes()`；归档视觉未验收 |
+| `DUAL-06-09` | 超时与不可用节点即时归档 | `parity-ready` | `is_alive` / `dead_nodes()`；Iced `speedtest_card` 死链归档区（计数徽标 + 前 4 名 + 溢出），Bevy `OverviewSpeedtestDeadText`「超时归档 n · 名单」；空态诚实 `—` |
 | `DUAL-06-10` | 测速取消与安全中断 | `parity-ready` | `SpeedtestPort::cancel`；Iced `Message::CancelSpeedtest` 经 port、运行中 Overview 按钮切换为取消；Bevy `UiCommand::CancelSpeedtest`→`CommandIntent::CancelSpeedtest`，同一按钮运行中提交取消 |
 | `DUAL-06-11` | 历史测速数据持久化缓存 | `shared-ready` | `recent_history`（最近 3 次）；跨重启持久化未验收 |
 | `DUAL-06-12` | 节点真实 IP 与出口探测对比 | `shared-ready` | `outbound_ip` / `outbound_country`；需真实 core |
