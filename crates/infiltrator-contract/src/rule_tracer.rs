@@ -97,6 +97,29 @@ pub struct DecisionChainSnapshot {
     pub is_fallback: bool,
 }
 
+impl DecisionChainSnapshot {
+    /// DUAL-12-08: a concrete, non-fallback rule matched, so its outbound can
+    /// be rewritten by index. A fallback `MATCH` replay or a chain without a
+    /// hit cannot be reverse-applied.
+    pub fn can_reverse_apply(&self) -> bool {
+        self.hit_rule_index.is_some() && !self.is_fallback
+    }
+
+    /// Suggested replacement outbound for the one-click override chooser. The
+    /// suggestion flips away from the current target when doing so is
+    /// meaningful; it is never a fabricated group name.
+    pub fn suggested_override_target(&self) -> Option<String> {
+        let current = self.target_proxy.trim();
+        if current.is_empty() {
+            None
+        } else if current.eq_ignore_ascii_case("DIRECT") {
+            Some("PROXY".to_owned())
+        } else {
+            Some("DIRECT".to_owned())
+        }
+    }
+}
+
 /// Normalized traffic context used for simulation queries.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TrafficContextSnapshot {
@@ -118,6 +141,106 @@ pub struct TrafficContextSnapshot {
     pub network: Option<String>,
     pub in_type: Option<String>,
     pub client_ip: Option<String>,
+}
+
+/// DUAL-12-08: one-click reverse-apply request. The traced decision matched
+/// `rule_index`; the user picked `new_target` (PROXY / DIRECT / REJECT or a
+/// typed group name) to rewrite that rule's outbound and re-apply the config.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TracerRuleOverride {
+    pub rule_index: usize,
+    pub new_target: String,
+}
+
+/// Terminal status of a reverse-apply request. `Unsupported` is the honest
+/// answer when no configuration/apply capability is composed; it is never a
+/// silent success.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TracerRuleOverrideStatus {
+    Applied,
+    Unsupported,
+    InvalidTarget,
+    StaleRuleIndex,
+    ApplyFailed,
+}
+
+/// The single typed result every surface consumes after a reverse-apply
+/// attempt. Iced and Bevy both read this value; neither invents its own
+/// success/failure, and the failure reason is always present when the rule
+/// was not applied.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TracerRuleOverrideResult {
+    pub status: TracerRuleOverrideStatus,
+    pub rule_index: usize,
+    pub new_target: String,
+    pub previous_rule_raw: Option<String>,
+    pub updated_rule_raw: Option<String>,
+    pub failure: Option<String>,
+}
+
+impl TracerRuleOverrideResult {
+    /// A committed override carrying both rule strings for the surface toast.
+    pub fn applied(
+        rule_index: usize,
+        new_target: String,
+        previous_rule_raw: String,
+        updated_rule_raw: String,
+    ) -> Self {
+        Self {
+            status: TracerRuleOverrideStatus::Applied,
+            rule_index,
+            new_target,
+            previous_rule_raw: Some(previous_rule_raw),
+            updated_rule_raw: Some(updated_rule_raw),
+            failure: None,
+        }
+    }
+
+    /// A rejected override. `failure` must explain the rejection.
+    pub fn rejected(
+        status: TracerRuleOverrideStatus,
+        rule_index: usize,
+        new_target: String,
+        failure: impl Into<String>,
+    ) -> Self {
+        Self {
+            status,
+            rule_index,
+            new_target,
+            previous_rule_raw: None,
+            updated_rule_raw: None,
+            failure: Some(failure.into()),
+        }
+    }
+
+    pub fn is_applied(&self) -> bool {
+        self.status == TracerRuleOverrideStatus::Applied
+    }
+
+    pub fn failure_message(&self) -> Option<&str> {
+        self.failure.as_deref()
+    }
+
+    /// Map a non-applied result onto the shared failure vocabulary; `None`
+    /// means the override committed. The command router uses this so a
+    /// rejected override is never reported as accepted.
+    pub fn into_failure(self) -> Option<crate::error::Failure> {
+        if self.is_applied() {
+            return None;
+        }
+        let message = self
+            .failure
+            .unwrap_or_else(|| "rule override was not applied".to_owned());
+        let code = match self.status {
+            TracerRuleOverrideStatus::Applied => crate::error::ErrorCode::Internal,
+            TracerRuleOverrideStatus::Unsupported => crate::error::ErrorCode::Unsupported,
+            TracerRuleOverrideStatus::InvalidTarget => crate::error::ErrorCode::InvalidInput,
+            TracerRuleOverrideStatus::StaleRuleIndex => crate::error::ErrorCode::NotReady,
+            TracerRuleOverrideStatus::ApplyFailed => crate::error::ErrorCode::Configuration,
+        };
+        Some(crate::error::Failure::new(code, message, false))
+    }
 }
 
 /// Quick preset chip for 1-click test queries.
@@ -419,6 +542,14 @@ impl RuleTracerSnapshot {
             .as_ref()
             .map(|d| d.is_fallback)
             .unwrap_or(false);
+        // DUAL-12-08: the two reverse-apply facts are derived from the shared
+        // decision chain, never toggled independently by a surface.
+        let can_reverse_apply = decision_chain
+            .as_ref()
+            .is_some_and(DecisionChainSnapshot::can_reverse_apply);
+        let suggested_override_target = decision_chain
+            .as_ref()
+            .and_then(DecisionChainSnapshot::suggested_override_target);
         Self {
             generation,
             revision,
@@ -430,8 +561,8 @@ impl RuleTracerSnapshot {
             decision_chain,
             is_fallback_match: is_fallback,
             total_rules_evaluated,
-            can_reverse_apply: true,
-            suggested_override_target: None,
+            can_reverse_apply,
+            suggested_override_target,
             hit_audit: RuleHitAuditSnapshot::default(),
         }
     }
@@ -579,5 +710,88 @@ mod tests {
         assert_eq!(context.src_ip, None);
         assert_eq!(context.src_port, None);
         assert_eq!(context.in_port, None);
+    }
+
+    #[test]
+    fn d12_08_ready_derives_reverse_apply_facts_from_the_chain() {
+        let chain = DecisionChainSnapshot {
+            hit_rule_index: Some(3),
+            matched_rule_raw: "DOMAIN-SUFFIX,github.com,PROXY".to_owned(),
+            target_proxy: "PROXY".to_owned(),
+            is_fallback: false,
+            ..DecisionChainSnapshot::default()
+        };
+        let snapshot = RuleTracerSnapshot::ready(
+            1,
+            1,
+            "github.com".to_owned(),
+            TrafficContextSnapshot::default(),
+            Some(chain),
+            10,
+        );
+        assert!(snapshot.can_reverse_apply);
+        assert_eq!(
+            snapshot.suggested_override_target.as_deref(),
+            Some("DIRECT")
+        );
+
+        // A fallback MATCH replay cannot be reverse-applied.
+        let fallback = DecisionChainSnapshot {
+            hit_rule_index: Some(9),
+            matched_rule_raw: "MATCH,DIRECT".to_owned(),
+            target_proxy: "DIRECT".to_owned(),
+            is_fallback: true,
+            ..DecisionChainSnapshot::default()
+        };
+        let snapshot = RuleTracerSnapshot::ready(
+            1,
+            1,
+            "example.org".to_owned(),
+            TrafficContextSnapshot::default(),
+            Some(fallback),
+            10,
+        );
+        assert!(!snapshot.can_reverse_apply);
+    }
+
+    #[test]
+    fn d12_08_suggested_target_flips_away_from_direct() {
+        let direct = DecisionChainSnapshot {
+            target_proxy: "DIRECT".to_owned(),
+            ..DecisionChainSnapshot::default()
+        };
+        assert_eq!(direct.suggested_override_target().as_deref(), Some("PROXY"));
+        let proxy = DecisionChainSnapshot {
+            target_proxy: "GLOBAL-MEDIA".to_owned(),
+            ..DecisionChainSnapshot::default()
+        };
+        assert_eq!(proxy.suggested_override_target().as_deref(), Some("DIRECT"));
+        let blank = DecisionChainSnapshot::default();
+        assert_eq!(blank.suggested_override_target(), None);
+    }
+
+    #[test]
+    fn d12_08_override_result_carries_honest_failure() {
+        let applied = TracerRuleOverrideResult::applied(
+            2,
+            "DIRECT".to_owned(),
+            "DOMAIN,example.com,PROXY".to_owned(),
+            "DOMAIN,example.com,DIRECT".to_owned(),
+        );
+        assert!(applied.is_applied());
+        assert!(applied.failure_message().is_none());
+        assert_eq!(
+            applied.updated_rule_raw.as_deref(),
+            Some("DOMAIN,example.com,DIRECT")
+        );
+
+        let rejected = TracerRuleOverrideResult::rejected(
+            TracerRuleOverrideStatus::Unsupported,
+            2,
+            "DIRECT".to_owned(),
+            "no apply capability",
+        );
+        assert!(!rejected.is_applied());
+        assert_eq!(rejected.failure_message(), Some("no apply capability"));
     }
 }

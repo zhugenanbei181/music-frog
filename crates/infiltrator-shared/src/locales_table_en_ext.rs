@@ -288,6 +288,11 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "overview_scale_max" => "Max".into(),
         "tracer_src_ip_label" => "Source IP:".into(),
         "tracer_src_ip_placeholder" => "Simulated source IP (e.g. 192.168.1.100)".into(),
+        "tracer_override_label" => "Reverse-apply outbound (edit this rule)".into(),
+        "tracer_override_placeholder" => {
+            "Outbound target or group name (e.g. PROXY / DIRECT / REJECT)".into()
+        }
+        "tracer_override_apply" => "Apply to This Rule".into(),
         _ => key.to_string().into(),
     }
 }

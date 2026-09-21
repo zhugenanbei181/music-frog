@@ -251,6 +251,14 @@ pub struct ConfigEditorState {
     /// state the surface reader projects; hostless demo runs trace the same
     /// pure application directly.
     pub rules_tracer_chain: Option<infiltrator_contract::rule_tracer::DecisionChainSnapshot>,
+    /// DUAL-12-08: shared reverse-apply gate for the currently traced rule,
+    /// consumed from the surface read model's `can_reverse_apply`.
+    pub rules_tracer_can_reverse_apply: bool,
+    /// DUAL-12-08: shared suggested replacement outbound, seeded into the
+    /// chooser. Never a fabricated group name.
+    pub rules_tracer_suggested_target: Option<String>,
+    /// DUAL-12-08: outbound target typed into the reverse-apply chooser.
+    pub rules_tracer_override_target: String,
     pub rules_providers_expanded: bool,
     pub rules_render_cache: Vec<RuleRenderItem>,
     pub rules_filtered_indices: Vec<usize>,
@@ -505,6 +513,11 @@ impl AppState {
         self.diag.speedtest = snapshot.speedtest.clone();
         if let Some(rules_page) = snapshot.pages.rules.data.as_ref() {
             self.editor.rule_hit_audit.audit = rules_page.tracer.hit_audit.clone();
+            // DUAL-12-08: consume the shared reverse-apply facts; the chooser
+            // is gated and seeded from the surface read model, not guessed.
+            self.editor.rules_tracer_can_reverse_apply = rules_page.tracer.can_reverse_apply;
+            self.editor.rules_tracer_suggested_target =
+                rules_page.tracer.suggested_override_target.clone();
         }
         self.diag.overview_card_order = snapshot.overview_layout.order.clone();
         self.runtime.system_toggles =

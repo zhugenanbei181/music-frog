@@ -179,6 +179,17 @@ impl MihomoRuntime {
         let pac_service = Arc::new(crate::pac_service::DesktopPacServicePort::shared());
         let network_roaming_port =
             Arc::new(crate::network_roaming::DesktopNetworkRoamingPort::shared());
+        // DUAL-12-08: the tracer reverse-apply commits through the same apply
+        // transaction the editor uses, sharing its serialization guard.
+        let apply_guard = Arc::new(tokio::sync::Mutex::new(()));
+        rule_tracer.set_override_port(Arc::new(
+            crate::rule_override::DesktopRuleOverridePort::new(
+                cm.clone(),
+                application.clone(),
+                endpoints.clone() as Arc<dyn EndpointSource>,
+                apply_guard.clone(),
+            ),
+        ));
 
         Ok(Self {
             config_manager: cm,
@@ -190,7 +201,7 @@ impl MihomoRuntime {
             endpoints,
             application,
             _watchdog: watchdog,
-            apply_guard: Arc::new(tokio::sync::Mutex::new(())),
+            apply_guard,
             service_mode,
             pac_service,
             speedtest,

@@ -149,6 +149,96 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
             let bkind = semantic_badge_kind(rule_type_part, RuleBadgeKind::Other);
             let norm_type = display_rule_type(rule_type_part);
 
+            // DUAL-12-08: one-click reverse-apply, gated on the shared
+            // `can_reverse_apply` fact. A matched, concrete rule can be
+            // rewritten; a fallback replay renders no chooser.
+            let override_block: Element<'_, Message> = match (
+                state.editor.rules_tracer_can_reverse_apply,
+                chain.hit_rule_index,
+            ) {
+                (true, Some(rule_index)) => {
+                    let chip = |label: &'static str| -> Element<'_, Message> {
+                        button(text(label).size(11).font(MONO))
+                            .padding([4, 8])
+                            .style(|t: &Theme, status| {
+                                let tk = tokens(t);
+                                let bg = match status {
+                                    iced::widget::button::Status::Hovered => Color {
+                                        a: 0.15,
+                                        ..tk.accent
+                                    },
+                                    _ => Color {
+                                        a: 0.06,
+                                        ..tk.text_secondary
+                                    },
+                                };
+                                button::Style {
+                                    background: Some(bg.into()),
+                                    border: Border {
+                                        radius: border::Radius::from(theme::R_CONTROL),
+                                        width: 1.0,
+                                        color: Color {
+                                            a: 0.20,
+                                            ..tk.card_border
+                                        },
+                                    },
+                                    ..Default::default()
+                                }
+                            })
+                            .on_press(Message::UpdateTracerOverrideTarget(label.to_string()))
+                            .into()
+                    };
+                    let apply_btn = button(
+                        row![
+                            svg_icons::icon_themed(Icon::Target, 13.0, |t: &Theme| {
+                                tokens(t).on_accent
+                            }),
+                            text(lang.tr("tracer_override_apply").to_string())
+                                .size(12)
+                                .font(FONT_MEDIUM),
+                        ]
+                        .spacing(theme::SP_XS)
+                        .align_y(Alignment::Center),
+                    )
+                    .padding([6, 12])
+                    .style(style_accent)
+                    .on_press(Message::ApplyTracerRuleOverride { rule_index });
+
+                    column![
+                        text(lang.tr("tracer_override_label").to_string())
+                            .size(11)
+                            .style(|t: &Theme| text::Style {
+                                color: Some(tokens(t).text_secondary)
+                            }),
+                        row![
+                            chip("PROXY"),
+                            Space::new().width(theme::SP_XS),
+                            chip("DIRECT"),
+                            Space::new().width(theme::SP_XS),
+                            chip("REJECT"),
+                            Space::new().width(theme::SP_SM),
+                            text_input(
+                                lang.tr("tracer_override_placeholder").as_ref(),
+                                &state.editor.rules_tracer_override_target,
+                            )
+                            .on_input(Message::UpdateTracerOverrideTarget)
+                            .on_submit(Message::ApplyTracerRuleOverride { rule_index })
+                            .padding([6, 10])
+                            .size(12)
+                            .font(MONO)
+                            .width(Length::Fill)
+                            .style(form_input_style),
+                            Space::new().width(theme::SP_SM),
+                            apply_btn,
+                        ]
+                        .align_y(Alignment::Center),
+                    ]
+                    .spacing(theme::SP_XS)
+                    .into()
+                }
+                _ => Space::new().width(0).into(),
+            };
+
             container(
                 column![
                     row![
@@ -206,6 +296,8 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
                     .align_y(Alignment::Center),
                     Space::new().height(theme::SP_SM),
                     decision_chain_rows(chain, lang),
+                    Space::new().height(theme::SP_SM),
+                    override_block,
                 ]
                 .spacing(theme::SP_XS),
             )

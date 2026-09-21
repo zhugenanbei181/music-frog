@@ -561,6 +561,13 @@ impl CommandApplication {
                 });
                 Ok(())
             }
+            CommandIntent::ApplyTracerRuleOverride { request } => {
+                let result = self.rule_tracer()?.apply_override(&request).await;
+                match result.into_failure() {
+                    Some(failure) => Err(failure),
+                    None => Ok(()),
+                }
+            }
             CommandIntent::RunPrivilegedNetworkRegression => self
                 .privileged_network()?
                 .run(infiltrator_contract::privileged_network::PrivilegedNetworkRequest::standard())

@@ -18,6 +18,7 @@ pub mod pac_service;
 pub mod port_conflict;
 pub mod process_enumerator;
 pub mod proxy;
+pub mod rule_override;
 pub mod runtime;
 pub mod service;
 pub mod service_mode;

@@ -49,6 +49,14 @@ pub struct TracerQueryField;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TracerSourceIpField;
 
+/// DUAL-12-08: marker on the wrapper of the reverse-apply target text field.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TracerOverrideTargetField;
+
+/// DUAL-12-08: marker on the "apply this rule's outbound" button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ApplyTracerRuleOverrideButton;
+
 /// Text slots of the tracer card, patched in place from the shared snapshot.
 /// Slot `0` is the headline, `1..=5` the five decision-chain stages (fixed
 /// capacity), and `6` the honest empty/unsupported line.
@@ -156,6 +164,58 @@ pub(crate) fn on_tracer_action_activated(
     }
 }
 
+/// DUAL-12-08: the reverse-apply button reads the traced rule index and the
+/// typed target from the shared projection, falling back to the shared
+/// `suggested_override_target`, and submits the override intent. It refuses
+/// when the shared `can_reverse_apply` fact is false — no UI-local success.
+pub(crate) fn on_tracer_override_activated(
+    activate: On<Activate>,
+    buttons: Query<(), With<ApplyTracerRuleOverrideButton>>,
+    target_fields: Query<&Children, With<TracerOverrideTargetField>>,
+    text_fields: Query<&TextField>,
+    last: Option<Res<crate::pages::rules::LastRulesProjection>>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    if buttons.get(activate.entity).is_err() {
+        return;
+    }
+    let Some(projection) = last.and_then(|last| last.0.clone()) else {
+        return;
+    };
+    let tracer = &projection.tracer;
+    if !tracer.can_reverse_apply {
+        return;
+    }
+    let Some(rule_index) = tracer
+        .decision_chain
+        .as_ref()
+        .and_then(|chain| chain.hit_rule_index)
+    else {
+        return;
+    };
+    let typed = target_fields
+        .iter()
+        .flat_map(|children| children.iter())
+        .find_map(|child| text_fields.get(*child).ok())
+        .map(|field| field.0.text())
+        .unwrap_or_default();
+    let new_target = if typed.trim().is_empty() {
+        tracer.suggested_override_target.clone().unwrap_or_default()
+    } else {
+        typed.trim().to_owned()
+    };
+    if new_target.is_empty() {
+        return;
+    }
+    handle.submit(UiCommand::ApplyTracerRuleOverride {
+        rule_index,
+        new_target,
+    });
+}
+
 /// Scene constructor for the Live Rule Tracer card. Data-driven from the
 /// shared `RuleTracerSnapshot` the surface reader projects; no fabricated
 /// replay content is rendered when the snapshot has no decision chain.
@@ -231,102 +291,142 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
         Role::Caption,
     ));
 
-    surface_scene(
-        vec![
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                RulesTracerRoot
+    let mut tracer_children: Vec<Box<dyn Scene>> = vec![
+        Box::new(bsn! {
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::bottom(Val::Px(space::S8)),
+            }
+            RulesTracerRoot
+            Children [
+                (
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S8),
+                    }
+                    Children [
+                        ( { icon_tile_scene(IconId::Activity, 24.0, palette) } ),
+                        ( Text({ "实时分流追踪器沙盒 (Live Rule Tracer)".to_owned() }) TextRole(Role::BodyStrong) ),
+                    ]
+                ),
+                (
+                    Node {
+                        min_height: px(palette.control_height_px),
+                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    }
+                    BackgroundColor({ palette.accent })
+                    Button
+                    SimulateRuleTraceButton
+                    Children [
+                        ( Text({ "执行模拟追踪".to_owned() }) TextRole(Role::BodyStrong) ),
+                    ]
+                ),
+            ]
+        }),
+        Box::new(bsn! {
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                padding: UiRect::vertical(Val::Px(space::S6)),
+            }
+            Children [
+                (
+                    Node { flex_grow: 1.0 }
+                    TracerQueryField
+                    Children [
+                        ( { text_field_with_placeholder_scene(
+                            query_initial,
+                            "目标域名或 IP (例如: google.com 或 1.1.1.1:443)".to_owned(),
+                            palette,
+                        ) } ),
+                    ]
+                ),
+                (
+                    Node { width: px(240.0) }
+                    TracerSourceIpField
+                    Children [
+                        ( { text_field_with_placeholder_scene(
+                            src_ip_initial,
+                            "模拟来源 IP (例如: 192.168.1.100)".to_owned(),
+                            palette,
+                        ) } ),
+                    ]
+                ),
+            ]
+        }),
+        Box::new(bsn! {
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                padding: UiRect::vertical(Val::Px(space::S6)),
+            }
+            Children [
+                { preset_chips },
+            ]
+        }),
+        Box::new(bsn! {
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.window_clear })
+            TracerDecisionTree
+            Children [
+                { decision_rows },
+            ]
+        }),
+    ];
+    // DUAL-12-08: the reverse-apply chooser is always mounted so it exists
+    // before the first trace (the page mounts once per navigation); the
+    // observer enforces the shared `can_reverse_apply` fact at click time and
+    // the field seeds from the shared `suggested_override_target`.
+    let override_initial = tracer.suggested_override_target.clone().unwrap_or_default();
+    tracer_children.push(Box::new(bsn! {
+        Node {
+            width: percent(100),
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(space::S8),
+            padding: UiRect::vertical(Val::Px(space::S6)),
+        }
+        Children [
+            ( Text({ "修改此规则出站".to_owned() }) TextRole(Role::Caption) ),
+            (
+                Node { flex_grow: 1.0 }
+                TracerOverrideTargetField
                 Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::Activity, 24.0, palette) } ),
-                            ( Text({ "实时分流追踪器沙盒 (Live Rule Tracer)".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.accent })
-                        Button
-                        SimulateRuleTraceButton
-                        Children [
-                            ( Text({ "执行模拟追踪".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
+                    ( { text_field_with_placeholder_scene(
+                        override_initial,
+                        "出站目标或策略组名称 (PROXY / DIRECT / REJECT)".to_owned(),
+                        palette,
+                    ) } ),
                 ]
-            }),
-            Box::new(bsn! {
+            ),
+            (
                 Node {
-                    width: percent(100),
+                    min_height: px(palette.control_height_px),
+                    padding: UiRect::horizontal(Val::Px(space::S12)),
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::vertical(Val::Px(space::S6)),
-                }
-                Children [
-                    (
-                        Node { flex_grow: 1.0 }
-                        TracerQueryField
-                        Children [
-                            ( { text_field_with_placeholder_scene(
-                                query_initial,
-                                "目标域名或 IP (例如: google.com 或 1.1.1.1:443)".to_owned(),
-                                palette,
-                            ) } ),
-                        ]
-                    ),
-                    (
-                        Node { width: px(240.0) }
-                        TracerSourceIpField
-                        Children [
-                            ( { text_field_with_placeholder_scene(
-                                src_ip_initial,
-                                "模拟来源 IP (例如: 192.168.1.100)".to_owned(),
-                                palette,
-                            ) } ),
-                        ]
-                    ),
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::vertical(Val::Px(space::S6)),
-                }
-                Children [
-                    { preset_chips },
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
-                    padding: UiRect::all(Val::Px(space::S8)),
+                    justify_content: JustifyContent::Center,
                     border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                 }
-                BackgroundColor({ palette.window_clear })
-                TracerDecisionTree
+                BackgroundColor({ palette.accent })
+                Button
+                ApplyTracerRuleOverrideButton
                 Children [
-                    { decision_rows },
+                    ( Text({ "应用出站".to_owned() }) TextRole(Role::BodyStrong) ),
                 ]
-            }),
-        ],
-        palette,
-    )
+            ),
+        ]
+    }));
+    surface_scene(tracer_children, palette)
 }

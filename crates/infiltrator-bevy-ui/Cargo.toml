@@ -28,6 +28,9 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 mockito = { workspace = true }
+async-trait = { workspace = true }
+infiltrator-ports = { path = "../infiltrator-ports" }
+tokio = { workspace = true }
 
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
 bevy = { workspace = true, features = [

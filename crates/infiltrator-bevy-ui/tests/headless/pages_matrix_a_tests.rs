@@ -10,6 +10,7 @@ use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ui_widgets::Activate;
+use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::pages::connections::*;
@@ -22,14 +23,20 @@ use infiltrator_bevy_ui::pages::proxies::*;
 use infiltrator_bevy_ui::pages::rules::*;
 use infiltrator_bevy_ui::pages::rules_mrs::{RulesMrsRoot, UnpackRuleProviderButton};
 use infiltrator_bevy_ui::pages::rules_tracer::{
-    SimulateRuleTraceButton, TracerQueryField, TracerSourceIpField,
+    ApplyTracerRuleOverrideButton, SimulateRuleTraceButton, TracerOverrideTargetField,
+    TracerQueryField, TracerSourceIpField,
 };
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
+use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::rule_tracer::{RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot};
+use infiltrator_domain::rules::RuleEntry;
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::rule_tracer::RuleOverridePort;
+use std::sync::Mutex;
 
 use crate::support::*;
 
@@ -1069,6 +1076,132 @@ fn test_rules_tracer_source_ip_sandbox_submits_shared_context() {
             },
         ]
     );
+}
+
+/// DUAL-12-08: an in-memory host apply capability for the Bevy headless test.
+struct FakeRuleOverridePort {
+    rules: Mutex<Vec<RuleEntry>>,
+}
+
+#[async_trait::async_trait]
+impl RuleOverridePort for FakeRuleOverridePort {
+    async fn load_rule_entries(&self) -> Result<Vec<RuleEntry>, PortError> {
+        Ok(self.rules.lock().expect("rules lock").clone())
+    }
+
+    async fn apply_rule_entries(&self, entries: &[RuleEntry]) -> Result<(), PortError> {
+        *self.rules.lock().expect("rules lock") = entries.to_vec();
+        Ok(())
+    }
+}
+
+#[test]
+fn test_rules_tracer_override_submits_and_consumes_shared_result() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Rules);
+
+    // The demo fixture matched rule #42 (0-based index 41) with target PROXY,
+    // so the shared `can_reverse_apply` fact mounts the chooser.
+    let mut projection = RulesProjection::demo();
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection.clone()));
+    app.update();
+
+    let override_source = {
+        let mut fields = app
+            .world_mut()
+            .query::<(&TracerOverrideTargetField, &Children)>();
+        *fields
+            .single(app.world())
+            .expect("override target field wrapper")
+            .1
+            .iter()
+            .next()
+            .expect("override text field")
+    };
+    // The field seeds from the shared suggested target; the user overrides it.
+    assert_eq!(
+        app.world()
+            .get::<TextField>(override_source)
+            .expect("override field state")
+            .0
+            .text(),
+        "DIRECT"
+    );
+    app.world_mut()
+        .get_mut::<TextField>(override_source)
+        .expect("override field state")
+        .0
+        .apply(TextFieldInput::SetText("REJECT".to_owned()));
+
+    let button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<ApplyTracerRuleOverrideButton>>()
+        .single(app.world())
+        .expect("apply override button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+
+    let expected = UiCommand::ApplyTracerRuleOverride {
+        rule_index: 41,
+        new_target: "REJECT".to_owned(),
+    };
+    assert_eq!(sink.submitted().last(), Some(&expected));
+
+    // Drive the exact submitted intent through the shared application with a
+    // composed override port and consume the one typed result.
+    let intent = expected.to_intent().expect("override intent");
+    let request = match intent {
+        CommandIntent::ApplyTracerRuleOverride { request } => request,
+        other => panic!("unexpected intent: {other:?}"),
+    };
+    let mut rules: Vec<RuleEntry> = (0..42)
+        .map(|index| RuleEntry {
+            rule: format!("DOMAIN-SUFFIX,rule{index}.com,PROXY"),
+            enabled: true,
+        })
+        .collect();
+    rules[41] = RuleEntry {
+        rule: "DOMAIN-SUFFIX,github.com,PROXY".to_owned(),
+        enabled: true,
+    };
+    let port = Arc::new(FakeRuleOverridePort {
+        rules: Mutex::new(rules),
+    });
+    let application = RuleTracerApplication::new();
+    application.set_override_port(port);
+    let result = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .expect("test runtime")
+        .block_on(application.apply_override(&request));
+    assert!(result.is_applied());
+    assert_eq!(
+        result.updated_rule_raw.as_deref(),
+        Some("DOMAIN-SUFFIX,github.com,REJECT")
+    );
+
+    // Consume the shared result on the Bevy surface: the tracer card replays
+    // the applied decision chain's new outbound, not a UI-local guess.
+    let chain = projection
+        .tracer
+        .decision_chain
+        .as_mut()
+        .expect("demo decision chain");
+    chain.target_proxy = result.new_target.clone();
+    chain.matched_rule_raw = result.updated_rule_raw.clone().unwrap_or_default();
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection));
+    app.update();
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "DOMAIN-SUFFIX,github.com,REJECT -> REJECT"
+    ));
 }
 
 #[test]
