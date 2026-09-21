@@ -1685,6 +1685,81 @@ fn overview_speedtest_button_reflects_shared_engine_phase() {
 }
 
 #[test]
+fn overview_speedtest_metrics_follow_shared_engine() {
+    // Jitter / packet-loss / star / bandwidth of the fastest node must come
+    // from the same shared snapshot Iced renders, never a Bevy-local value.
+    let mut app = mounted_default();
+
+    let read_metrics = |app: &mut App| -> String {
+        let world = app.world_mut();
+        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
+            infiltrator_bevy_ui::pages::overview::OverviewSpeedtestMetricsText,
+        >>();
+        texts
+            .iter(world)
+            .next()
+            .map(|t| t.0.clone())
+            .expect("speedtest metrics caption mounted")
+    };
+
+    // Idle: honest placeholder, no fabricated numbers.
+    assert_eq!(read_metrics(&mut app), "—");
+
+    let mut projection = DemoOverviewSource::running().current();
+    projection.speedtest = infiltrator_contract::speedtest::SpeedtestSnapshot::demo_fixture();
+    app.world_mut()
+        .commands()
+        .trigger(infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated(projection));
+    app.update();
+
+    let metrics = read_metrics(&mut app);
+    assert!(metrics.contains("抖动"), "metrics={metrics}");
+    assert!(metrics.contains("Mbps"), "metrics={metrics}");
+    assert!(metrics.contains('★'), "metrics={metrics}");
+}
+
+#[test]
+fn overview_speedtest_running_button_submits_cancel() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    app.init_asset::<Image>();
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
+    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
+    app.update();
+
+    let mut projection = DemoOverviewSource::running().current();
+    projection.speedtest.phase = infiltrator_contract::speedtest::SpeedtestPhase::ProbingLatency;
+    projection.speedtest.progress.completed_nodes = 1;
+    projection.speedtest.progress.total_nodes = 4;
+    app.world_mut()
+        .commands()
+        .trigger(infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated(projection));
+    app.update();
+
+    let button = {
+        let world = app.world_mut();
+        let mut buttons = world.query::<(
+            Entity,
+            &infiltrator_bevy_ui::pages::overview::OverviewSpeedtestButton,
+        )>();
+        buttons
+            .iter(world)
+            .find(|(_, btn)| btn.testing)
+            .expect("running speedtest button mounted")
+            .0
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+
+    assert!(sink.submitted().contains(&UiCommand::CancelSpeedtest));
+}
+
+#[test]
 fn overview_six_item_metrics_grid_mounts_and_updates_in_place() {
     let mut app = mounted_default();
     let world = app.world_mut();

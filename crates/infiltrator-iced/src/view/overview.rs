@@ -249,8 +249,21 @@ fn card_reorder_row<'a>(
 /// Accent hero: status dot + localized status, mode / core-version meta row
 /// and the prominent start/stop control.
 pub fn overview_speedtest_button<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let is_testing = state.runtime.runtime_testing_all_delays;
-    let label = if is_testing {
+    // The running state and progress come from the shared engine snapshot the
+    // desktop pump publishes; the legacy flag remains only as a UI spinner for
+    // hosts whose surface pump has not yet delivered a snapshot this tick.
+    let snapshot = &state.diag.speedtest;
+    let snapshot_running = snapshot.is_running();
+    let is_testing = snapshot_running || state.runtime.runtime_testing_all_delays;
+    let label: String = if snapshot_running {
+        let done = snapshot.progress.completed_nodes;
+        let total = snapshot.progress.total_nodes;
+        if total > 0 {
+            format!("{} {done}/{total}", lang.tr("runtime_delay_testing_all"))
+        } else {
+            lang.tr("runtime_delay_testing_all").into_owned()
+        }
+    } else if state.runtime.runtime_testing_all_delays {
         lang.tr("runtime_delay_testing_all").into_owned()
     } else {
         lang.tr("runtime_delay_test_all").into_owned()
@@ -277,10 +290,36 @@ pub fn overview_speedtest_button<'a>(state: &AppState, lang: &Lang<'a>) -> Eleme
     ]
     .align_y(Alignment::Center);
 
-    button(btn_content)
+    let test_btn = button(btn_content)
         .padding([6, 12])
         .style(style_ghost)
-        .on_press_maybe((!is_testing).then_some(Message::TestAllProxyDelays))
+        .on_press_maybe((!is_testing).then_some(Message::TestAllProxyDelays));
+
+    if !is_testing {
+        return test_btn.into();
+    }
+
+    // While a batch is in flight the same control becomes an honest cancel
+    // action routed to the shared engine's cancel token.
+    let cancel_btn = button(
+        row![
+            icon_themed(Icon::X, 13.0, |t: &Theme| tokens(t).danger),
+            Space::new().width(theme::SP_XS),
+            text(lang.tr("speedtest_cancel").to_string())
+                .size(12)
+                .font(FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).danger)
+                }),
+        ]
+        .align_y(Alignment::Center),
+    )
+    .padding([6, 12])
+    .style(style_ghost)
+    .on_press(Message::CancelSpeedtest);
+
+    row![test_btn, Space::new().width(theme::SP_XS), cancel_btn]
+        .align_y(Alignment::Center)
         .into()
 }
 
@@ -1310,7 +1349,19 @@ mod tests {
         let lang = Lang("zh-CN");
         let _btn_idle = overview_speedtest_button(&state, &lang);
 
-        state.runtime.runtime_testing_all_delays = true;
+        // Shared engine phase drives the label/progress and the cancel action.
+        state.diag.speedtest.phase =
+            infiltrator_contract::speedtest::SpeedtestPhase::ProbingLatency;
+        state.diag.speedtest.progress = infiltrator_contract::speedtest::SpeedtestProgress {
+            completed_nodes: 3,
+            total_nodes: 10,
+            percent: 30.0,
+            current_node: None,
+            current_mbps: None,
+        };
         let _btn_testing = overview_speedtest_button(&state, &lang);
+
+        state.runtime.runtime_testing_all_delays = true;
+        let _btn_legacy_flag = overview_speedtest_button(&state, &lang);
     }
 }

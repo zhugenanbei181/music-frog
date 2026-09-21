@@ -50,6 +50,8 @@ pub enum UiCommand {
     SelectProxyNode { group: String, node: String },
     /// Run latency benchmark across all proxy groups.
     TestAllProxyGroups,
+    /// Cancel the active shared speedtest batch.
+    CancelSpeedtest,
     /// Run latency benchmark for a specific proxy group.
     TestProxyGroup { group: String },
     /// Toggle expand/fold of a proxy group card.
@@ -193,6 +195,7 @@ impl UiCommand {
                 group: group.clone(),
                 node: node.clone(),
             }),
+            Self::CancelSpeedtest => Some(CommandIntent::CancelSpeedtest),
             Self::TestAllProxyGroups => Some(CommandIntent::TestDelay {
                 group: None,
                 url: None,

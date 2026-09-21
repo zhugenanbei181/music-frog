@@ -361,6 +361,11 @@ pub struct OverviewSpeedtestButton {
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewSpeedtestText;
 
+/// Marker for the live speedtest metrics caption (jitter / loss / stars /
+/// bandwidth of the fastest measured node), restamped from the shared engine.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewSpeedtestMetricsText;
+
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewModePill(pub ProxyMode);
 
@@ -706,20 +711,35 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
 fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
         Node {
-            min_height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            column_gap: Val::Px(space::S6),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(space::S4),
+            align_items: AlignItems::End,
             flex_shrink: 0.0,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
         }
-        BackgroundColor({ palette.accent_container })
-        OverviewSpeedtestButton { testing: false }
-        Button
         Children [
-            ( { icon_scene(IconId::Zap, 14.0, palette.accent) } ),
-            ( Text({ "一键测速".to_owned() }) OverviewSpeedtestText TextRole(Role::BodyStrong) TextColor({ palette.accent }) ),
+            (
+                Node {
+                    min_height: px(palette.control_height_px),
+                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    column_gap: Val::Px(space::S6),
+                    flex_shrink: 0.0,
+                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                }
+                BackgroundColor({ palette.accent_container })
+                OverviewSpeedtestButton { testing: false }
+                Button
+                Children [
+                    ( { icon_scene(IconId::Zap, 14.0, palette.accent) } ),
+                    ( Text({ "一键测速".to_owned() }) OverviewSpeedtestText TextRole(Role::BodyStrong) TextColor({ palette.accent }) ),
+                ]
+            ),
+            (
+                Text({ "—".to_owned() })
+                OverviewSpeedtestMetricsText
+                TextRole(Role::Caption)
+            ),
         ]
     }
 }
@@ -1378,10 +1398,13 @@ pub(crate) fn on_overview_speedtest_activated(
     let Ok(button) = buttons.get(activate.entity) else {
         return;
     };
+    // The same control toggles: idle starts a batch, in-flight cancels the
+    // shared engine run (no dead "testing" state that can never be stopped).
     if button.testing {
-        return;
+        handle.submit(UiCommand::CancelSpeedtest);
+    } else {
+        handle.submit(UiCommand::TestAllProxyGroups);
     }
-    handle.submit(UiCommand::TestAllProxyGroups);
 }
 
 /// Restamp the Overview speedtest button from the shared engine snapshot.
@@ -1392,6 +1415,15 @@ type SpeedtestTextFilter = (
     With<OverviewSpeedtestText>,
     Without<OverviewLine>,
     Without<StatChipValue>,
+    Without<OverviewSpeedtestMetricsText>,
+);
+
+/// Disjoint filter for the live speedtest metrics caption.
+type SpeedtestMetricsFilter = (
+    With<OverviewSpeedtestMetricsText>,
+    Without<OverviewLine>,
+    Without<StatChipValue>,
+    Without<OverviewSpeedtestText>,
 );
 
 /// The button is baked `testing: false` at mount; this system reflects the
@@ -1402,6 +1434,7 @@ pub fn sync_overview_speedtest_button(
     last: Res<LastOverviewProjection>,
     mut buttons: Query<&mut OverviewSpeedtestButton>,
     mut texts: Query<&mut Text, SpeedtestTextFilter>,
+    mut metrics: Query<&mut Text, SpeedtestMetricsFilter>,
 ) {
     let Some(projection) = last.0.as_ref() else {
         return;
@@ -1419,6 +1452,29 @@ pub fn sync_overview_speedtest_button(
     } else {
         "一键测速".to_owned()
     };
+    // Mirror the Iced speedtest card metrics from the same shared snapshot:
+    // jitter, packet-loss rating, star rating and bandwidth of the fastest
+    // measured node. Honest "—" until the engine has a result.
+    let metrics_label = match snapshot.fastest_node() {
+        Some(node) => {
+            let jitter = node
+                .jitter
+                .as_ref()
+                .map(|j| format!("{:.1}ms", j.jitter_ms))
+                .unwrap_or_else(|| "—".to_owned());
+            let bandwidth = node
+                .bandwidth_mbps
+                .map(|mbps| format!("{mbps:.1}Mbps"))
+                .unwrap_or_else(|| "—".to_owned());
+            let stars = "★".repeat(node.star_rating.min(5) as usize);
+            format!(
+                "{} · 抖动 {jitter} · 丢包 {} · {bandwidth} · {stars}",
+                node.node_name,
+                node.packet_loss.label_en()
+            )
+        }
+        None => "—".to_owned(),
+    };
     for mut button in &mut buttons {
         if button.testing != running {
             button.testing = running;
@@ -1427,6 +1483,11 @@ pub fn sync_overview_speedtest_button(
     for mut text in &mut texts {
         if text.0 != label {
             text.0 = label.clone();
+        }
+    }
+    for mut text in &mut metrics {
+        if text.0 != metrics_label {
+            text.0 = metrics_label.clone();
         }
     }
 }

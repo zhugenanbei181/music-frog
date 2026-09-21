@@ -85,6 +85,7 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "speedtest_jitter" => "Latency Jitter".into(),
         "speedtest_packet_loss" => "Packet Loss".into(),
         "speedtest_stability" => "Stability Tier".into(),
+        "speedtest_cancel" => "Cancel Speedtest".into(),
 
         // Category 4: Geo Database Updater
         "geodata_title" => "GeoIP / GeoSite Database Manager".into(),

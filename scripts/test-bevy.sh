@@ -83,4 +83,5 @@ python3 "$repo_root/scripts/quality/proxies-compact-view-guard.py" --mode enforc
 python3 "$repo_root/scripts/quality/proxies-skeleton-pulse-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/proxies-regression-matrix-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/rule-hit-audit-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/speedtest-parity-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/responsive-parity-guard.py" --mode enforce

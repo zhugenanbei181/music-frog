@@ -136,6 +136,29 @@ fn test_advancement_w3_3_speedtest_error_surfaces_toast() {
 }
 
 #[test]
+fn test_advancement_w3_3_speedtest_scope_and_cancel_share_the_engine() {
+    let (mut state, _) = AppState::new();
+
+    // A scope-wide result lands in the same shared read model and clears the
+    // UI spinner; no UI-local metrics are computed.
+    state.runtime.runtime_testing_all_delays = true;
+    let _ = state.update(Message::SpeedtestScopeUpdated(Ok(
+        SpeedtestSnapshot::demo_fixture(),
+    )));
+    assert_eq!(state.diag.speedtest.node_results.len(), 3);
+    assert!(!state.runtime.runtime_testing_all_delays);
+
+    // Hostless: no engine port, so a scope test cannot start and nothing is
+    // fabricated as running.
+    let _ = state.update(Message::TestAllProxyDelays);
+    assert!(!state.runtime.runtime_testing_all_delays);
+
+    // Cancel without a port stays honest (error toast), never a fake success.
+    let _ = state.update(Message::CancelSpeedtest);
+    assert!(!state.runtime.runtime_testing_all_delays);
+}
+
+#[test]
 fn test_advancement_w3_4_geodata_updater_stays_honest() {
     let (mut state, _) = AppState::new();
 

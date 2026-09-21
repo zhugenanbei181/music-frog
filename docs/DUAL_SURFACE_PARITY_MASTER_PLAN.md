@@ -94,20 +94,28 @@
 | 项 | 任务 | 状态 | 证据 |
 | :--- | :--- | :--- | :--- |
 | `DUAL-06-01` | 信号量流控并发测速（Semaphore 30） | `shared-ready` | `SpeedtestApplication::with_concurrency` + 引擎单测；双端 UI 未接线进度 |
-| `DUAL-06-02` | 单策略组独立测速 | `shared-ready` | `SpeedtestScope::SingleGroup` + `CommandIntent::TestGroupDelays` |
+| `DUAL-06-02` | 单策略组独立测速 | `parity-ready` | `SpeedtestScope::SingleGroup` + `SpeedtestPort::run_scope`；Iced `TestGroupDelay` 删除 legacy `test_proxy_delays` 第二路径，改经共享引擎（`run_speedtest_scope`）；Bevy `TestProxyGroup`→`TestDelay { group }` |
 | `DUAL-06-03` | 测速目标 URL 动态自定义 | `shared-ready` | `SpeedtestTargetConfig.test_url` + command `url` 覆盖 |
 | `DUAL-06-04` | 真实下行带宽测速 | `shared-ready` | `record_bandwidth` + `NodeSpeedtestResult.bandwidth_mbps`；需真实 core |
-| `DUAL-06-05` | 网络抖动 (Jitter ms) 精确计算 | `parity-ready` | `JitterCalculation`（std dev / RFC3550 EWMA）；Iced 渲染共享快照，Bevy 投影携带 |
-| `DUAL-06-06` | 丢包率梯度评级 | `parity-ready` | `PacketLossRating::from_loss_percent` + 双端 loss badge |
-| `DUAL-06-07` | 五星稳定性综合雷达评分 | `shared-ready` | `star_rating` / `stability_score`；Iced 展示星标，Bevy 未接线 |
-| `DUAL-06-08` | 测速进度环形百分比动画 | `parity-ready` | `SpeedtestProgress`；Bevy `sync_overview_speedtest_button` 重盖「测速中 n/m」，Iced 按钮按 `is_running` |
+| `DUAL-06-05` | 网络抖动 (Jitter ms) 精确计算 | `parity-ready` | `JitterCalculation`（std dev / RFC3550 EWMA）；Iced 渲染共享快照，Bevy `OverviewSpeedtestMetricsText` 从 `fastest_node().jitter` 重盖 |
+| `DUAL-06-06` | 丢包率梯度评级 | `parity-ready` | `PacketLossRating::from_loss_percent`；Iced loss badge，Bevy 指标行渲染 `packet_loss.label_en()` |
+| `DUAL-06-07` | 五星稳定性综合雷达评分 | `parity-ready` | `star_rating` / `stability_score`；Iced 展示星标，Bevy 指标行渲染 `★×star_rating` |
+| `DUAL-06-08` | 测速进度环形百分比动画 | `parity-ready` | `SpeedtestProgress`；Bevy `sync_overview_speedtest_button` 重盖「测速中 n/m」，Iced Overview 按钮改为消费共享 `snapshot.is_running()` + `progress` 显示 n/m |
 | `DUAL-06-09` | 超时与不可用节点即时归档 | `shared-ready` | `is_alive` / `dead_nodes()`；归档视觉未验收 |
-| `DUAL-06-10` | 测速取消与安全中断 | `shared-ready` | `cancel()` + `CommandIntent::CancelSpeedtest`；双端取消按钮未接线 |
+| `DUAL-06-10` | 测速取消与安全中断 | `parity-ready` | `SpeedtestPort::cancel`；Iced `Message::CancelSpeedtest` 经 port、运行中 Overview 按钮切换为取消；Bevy `UiCommand::CancelSpeedtest`→`CommandIntent::CancelSpeedtest`，同一按钮运行中提交取消 |
 | `DUAL-06-11` | 历史测速数据持久化缓存 | `shared-ready` | `recent_history`（最近 3 次）；跨重启持久化未验收 |
 | `DUAL-06-12` | 节点真实 IP 与出口探测对比 | `shared-ready` | `outbound_ip` / `outbound_country`；需真实 core |
 | `DUAL-06-13` | 测速结果弹窗详细透视 | `planned` | 双端雷达图弹窗未实现 |
 | `DUAL-06-14` | 双端测速状态机与动效一致 | `in progress` | 已对齐：同一引擎快照驱动 Iced 卡片与 Bevy 按钮；结果弹窗未验收 |
 | `DUAL-06-15` | 测速流控与状态机无头测试 | `parity-ready` | `speedtest_headless_tests.rs` + Iced 快照/失败断言 + Bevy 阶段重盖断言 |
+
+> **2026-09-21 组 06 批次 A**：`DUAL-06-02/05/06/07/08/10` 收口为 `parity-ready`。
+> Iced 删除 `test_proxy_delays` legacy 第二路径，组/全量测速统一经共享
+> `SpeedtestPort::run_scope`；Overview 按钮消费共享 `is_running`+`progress`
+> 显示 n/m 并在运行中切换为取消；Bevy 新增 `OverviewSpeedtestMetricsText`
+> 从同一 `projection.speedtest.fastest_node()` 渲染抖动/丢包/星级/带宽，
+> 运行中按钮提交 `CancelSpeedtest`。守卫 `speedtest-parity-guard.py`（含
+> 「Iced 不得再引用 legacy 路径」反向断言）。剩余 06-01/03/04/09/11/12/13/14。
 
 > **关键修复**：此前 Iced 的测速结果由 UI 内硬编码的 48MB/2400ms 与假抖动样本伪造。现已删除该第二条事实源，改为经 `SpeedtestPort` 驱动 `SpeedtestApplication` 并渲染共享快照；host 无引擎时按 typed unsupported 报错，不再伪造成功。
 

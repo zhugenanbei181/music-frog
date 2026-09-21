@@ -397,7 +397,16 @@ pub enum Message {
     ShowToast(String, ToastStatus),
     RemoveToast(usize),
     TestAllProxyDelays,
-    AllProxyDelaysTested(Result<(usize, usize), InfiltratorError>),
+    /// Result of a scope-wide speedtest (all groups or one group) driven
+    /// through the shared engine port. `Err` carries the typed port failure.
+    SpeedtestScopeUpdated(
+        Result<
+            infiltrator_contract::speedtest::SpeedtestSnapshot,
+            infiltrator_ports::error::PortError,
+        >,
+    ),
+    /// Request cancellation of the active shared speedtest batch.
+    CancelSpeedtest,
     /// Move one Overview card one slot up in the shared layout order.
     MoveOverviewCardUp(infiltrator_contract::overview_layout::OverviewCardKind),
     /// Move one Overview card one slot down in the shared layout order.

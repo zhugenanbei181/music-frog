@@ -16,6 +16,36 @@ pub(super) const MAX_RUNTIME_DELAY_TIMEOUT_MS: u32 = 60_000;
 const DEFAULT_RUNTIME_CONNECTION_SORT: &str = "download_desc";
 
 impl AppState {
+    /// Drive a scope-wide speedtest through the shared engine port. The host's
+    /// `SpeedtestApplication` is the single fact source both surfaces read; no
+    /// UI-local metric or legacy proxy path is used.
+    fn run_speedtest_scope(
+        &mut self,
+        scope: infiltrator_contract::speedtest::SpeedtestScope,
+    ) -> Task<Message> {
+        let Some(port) = self
+            .runtime
+            .runtime
+            .clone()
+            .and_then(|runtime| runtime.speedtest_port())
+        else {
+            return Task::done(Message::ShowToast(
+                "Speedtest is not available on this host".to_string(),
+                ToastStatus::Error,
+            ));
+        };
+        let test_url = self.normalized_delay_test_url();
+        let timeout_ms = self.normalized_delay_timeout_ms();
+        self.runtime.runtime_testing_all_delays = true;
+        Task::perform(
+            async move {
+                port.run_scope(scope, Some(test_url), Some(timeout_ms))
+                    .await
+            },
+            Message::SpeedtestScopeUpdated,
+        )
+    }
+
     pub(super) fn normalize_delay_sort_key(value: &str) -> &'static str {
         match value.trim().to_ascii_lowercase().as_str() {
             "delay_asc" => "delay_asc",
@@ -484,24 +514,54 @@ impl AppState {
                 self.recompute_filtered_groups();
                 Task::none()
             }
-            Message::AllProxyDelaysTested(result) => {
+            Message::SpeedtestScopeUpdated(result) => {
                 self.runtime.runtime_testing_all_delays = false;
                 match result {
-                    Ok((success, failed)) => Task::batch(vec![
-                        Task::done(Message::LoadProxies),
-                        Task::done(Message::ShowToast(
-                            format!(
-                                "Delay test complete: {} success, {} failed",
-                                success, failed
-                            ),
-                            ToastStatus::Success,
-                        )),
-                    ]),
-                    Err(e) => {
+                    Ok(snapshot) => {
+                        let alive = snapshot.alive_nodes_count();
+                        let total = snapshot.node_count();
+                        self.diag.speedtest = snapshot;
+                        Task::batch(vec![
+                            Task::done(Message::LoadProxies),
+                            Task::done(Message::ShowToast(
+                                format!("Delay test complete: {alive} alive / {total} tested"),
+                                ToastStatus::Success,
+                            )),
+                        ])
+                    }
+                    Err(error) => {
+                        let e = InfiltratorError::Internal(error.to_string());
                         self.set_error(&e);
                         Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
                     }
                 }
+            }
+            Message::CancelSpeedtest => {
+                let Some(port) = self
+                    .runtime
+                    .runtime
+                    .clone()
+                    .and_then(|runtime| runtime.speedtest_port())
+                else {
+                    return Task::done(Message::ShowToast(
+                        "Speedtest is not available on this host".to_string(),
+                        ToastStatus::Error,
+                    ));
+                };
+                let was_running = port.cancel();
+                self.runtime.runtime_testing_all_delays = false;
+                Task::done(Message::ShowToast(
+                    if was_running {
+                        "Speedtest cancelled".to_string()
+                    } else {
+                        "No speedtest is running".to_string()
+                    },
+                    if was_running {
+                        ToastStatus::Warning
+                    } else {
+                        ToastStatus::Error
+                    },
+                ))
             }
             Message::TestProxyDelay(name) => {
                 if let Some(rt) = self.runtime.runtime.clone() {
@@ -538,86 +598,14 @@ impl AppState {
                     )),
                 }
             }
-            Message::TestGroupDelay(name) => {
-                if let Some(rt) = self.runtime.runtime.clone() {
-                    let proxies = self.runtime.proxies.clone();
-                    let test_url = self.normalized_delay_test_url();
-                    let timeout_ms = self.normalized_delay_timeout_ms();
-                    self.runtime.runtime_testing_all_delays = true;
-                    Task::perform(
-                        async move {
-                            let members = proxies
-                                .get(&name)
-                                .and_then(|p| p.all())
-                                .map(|all| all.to_vec())
-                                .unwrap_or_default();
-                            let outcomes =
-                                infiltrator_application::proxy_application::test_proxy_delays(
-                                    rt, members, test_url, timeout_ms, 30,
-                                )
-                                .await;
-                            let mut success = 0usize;
-                            let mut failed = 0usize;
-                            for outcome in outcomes {
-                                if outcome.result.is_ok() {
-                                    success += 1;
-                                } else {
-                                    failed += 1;
-                                }
-                            }
-                            Ok((success, failed))
-                        },
-                        Message::AllProxyDelaysTested,
-                    )
-                } else {
-                    Task::none()
-                }
-            }
+            Message::TestGroupDelay(name) => self.run_speedtest_scope(
+                infiltrator_contract::speedtest::SpeedtestScope::SingleGroup(name),
+            ),
             Message::TestAllProxyDelays => {
-                if let Some(rt) = self.runtime.runtime.clone() {
-                    if self.runtime.runtime_testing_all_delays
-                        || !self.runtime.runtime_testing_delay_proxy.is_empty()
-                    {
-                        return Task::none();
-                    }
-                    let test_url = self.normalized_delay_test_url();
-                    let timeout_ms = self.normalized_delay_timeout_ms();
-                    let candidates: Vec<String> = self
-                        .runtime
-                        .proxies
-                        .iter()
-                        .filter_map(|(name, info)| {
-                            if info.is_group() {
-                                None
-                            } else {
-                                Some(name.clone())
-                            }
-                        })
-                        .collect();
-                    self.runtime.runtime_testing_all_delays = true;
-                    Task::perform(
-                        async move {
-                            let outcomes =
-                                infiltrator_application::proxy_application::test_proxy_delays(
-                                    rt, candidates, test_url, timeout_ms, 30,
-                                )
-                                .await;
-                            let mut success = 0usize;
-                            let mut failed = 0usize;
-                            for outcome in outcomes {
-                                if outcome.result.is_ok() {
-                                    success += 1;
-                                } else {
-                                    failed += 1;
-                                }
-                            }
-                            Ok((success, failed))
-                        },
-                        Message::AllProxyDelaysTested,
-                    )
-                } else {
-                    Task::none()
+                if self.runtime.runtime_testing_all_delays {
+                    return Task::none();
                 }
+                self.run_speedtest_scope(infiltrator_contract::speedtest::SpeedtestScope::AllGroups)
             }
             other => self.update_core_runtime_config(other),
         }

@@ -662,16 +662,16 @@ impl std::fmt::Debug for Message {
             Message::MoveOverviewCardUp(kind) => write!(f, "MoveOverviewCardUp({kind:?})"),
             Message::MoveOverviewCardDown(kind) => write!(f, "MoveOverviewCardDown({kind:?})"),
             Message::ResetOverviewCardOrder => write!(f, "ResetOverviewCardOrder"),
-            Message::AllProxyDelaysTested(Ok((s, f_cnt))) => {
-                write!(
-                    f,
-                    "AllProxyDelaysTested(Ok(success={}, failed={}))",
-                    s, f_cnt
-                )
+            Message::SpeedtestScopeUpdated(Ok(snapshot)) => write!(
+                f,
+                "SpeedtestScopeUpdated(Ok(alive={}, total={}))",
+                snapshot.alive_nodes_count(),
+                snapshot.node_count()
+            ),
+            Message::SpeedtestScopeUpdated(Err(e)) => {
+                write!(f, "SpeedtestScopeUpdated(Err({:?}))", e)
             }
-            Message::AllProxyDelaysTested(Err(e)) => {
-                write!(f, "AllProxyDelaysTested(Err({:?}))", e)
-            }
+            Message::CancelSpeedtest => write!(f, "CancelSpeedtest"),
             // ui-wave2-p
             Message::ToggleProxyGroupExpanded(name) => {
                 write!(f, "ToggleProxyGroupExpanded({})", name)
