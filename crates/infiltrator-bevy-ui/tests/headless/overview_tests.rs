@@ -1738,6 +1738,41 @@ fn overview_speedtest_metrics_follow_shared_engine() {
 }
 
 #[test]
+fn overview_speedtest_history_follows_shared_engine() {
+    // The persisted run history must render from the same shared snapshot
+    // Iced reads (`recent_history`), never a Bevy-local record.
+    let mut app = mounted_default();
+
+    let read_history = |app: &mut App| -> String {
+        let world = app.world_mut();
+        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
+            infiltrator_bevy_ui::pages::overview::OverviewSpeedtestHistoryText,
+        >>();
+        texts
+            .iter(world)
+            .next()
+            .map(|t| t.0.clone())
+            .expect("speedtest history caption mounted")
+    };
+
+    // Idle: honest placeholder, no fabricated run.
+    assert_eq!(read_history(&mut app), "—");
+
+    let mut projection = DemoOverviewSource::running().current();
+    projection.speedtest = infiltrator_contract::speedtest::SpeedtestSnapshot::demo_fixture();
+    app.world_mut()
+        .commands()
+        .trigger(infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated(projection));
+    app.update();
+
+    let history = read_history(&mut app);
+    assert!(history.contains("最近测速"), "history={history}");
+    assert!(history.contains("全部节点"), "history={history}");
+    assert!(history.contains("平均带宽 154.8Mbps"), "history={history}");
+    assert!(history.contains("★5"), "history={history}");
+}
+
+#[test]
 fn overview_speedtest_running_button_submits_cancel() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = App::new();

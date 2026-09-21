@@ -32,6 +32,18 @@ pub trait SpeedtestPort: Send + Sync {
         timeout_ms: Option<u32>,
     ) -> Result<SpeedtestSnapshot, PortError>;
 
+    /// Record a measured downlink throughput sample for a node.
+    ///
+    /// The host performs the real transfer and reports the observed bytes and
+    /// elapsed milliseconds; the shared engine converts them to Mbps and
+    /// publishes the node in the canonical snapshot. No fabricated numbers.
+    fn record_bandwidth(
+        &self,
+        node: &str,
+        total_bytes: u64,
+        duration_ms: u64,
+    ) -> Result<f64, PortError>;
+
     /// Request cancellation of the active batch. Returns whether one was running.
     fn cancel(&self) -> bool;
 }

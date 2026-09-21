@@ -11,7 +11,9 @@ use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::speedtest::{NodeSpeedtestResult, PacketLossRating};
+use infiltrator_contract::speedtest::{
+    NodeSpeedtestResult, PacketLossRating, SpeedtestScope, SpeedtestSnapshot,
+};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn loss_badge(rating: PacketLossRating) -> Element<'static, Message> {
@@ -34,6 +36,69 @@ fn star_label(stars: u8) -> String {
         out.push('☆');
     }
     out
+}
+
+fn format_scope(scope: &SpeedtestScope, lang: &Lang<'_>) -> String {
+    match scope {
+        SpeedtestScope::AllGroups => lang.tr("speedtest_scope_all_groups").to_string(),
+        SpeedtestScope::SingleGroup(group) => {
+            format!("{} {group}", lang.tr("speedtest_scope_group"))
+        }
+        SpeedtestScope::SingleNode(node) => {
+            format!("{} {node}", lang.tr("speedtest_scope_node"))
+        }
+    }
+}
+
+fn format_run_time(epoch_ms: u64) -> String {
+    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(epoch_ms as i64)
+        .map(|dt| dt.format("%m-%d %H:%M").to_string())
+        .unwrap_or_else(|| "—".to_string())
+}
+
+/// Render one compact, honest line per persisted run from the shared snapshot.
+///
+/// The history is read straight off `snapshot.recent_history`; the view never
+/// owns a store or fabricates a run.
+pub fn shared_speedtest_history_lines(
+    snapshot: &SpeedtestSnapshot,
+    lang: &Lang<'_>,
+) -> Vec<String> {
+    snapshot
+        .recent_history
+        .iter()
+        .rev()
+        .map(|record| {
+            let bandwidth = record
+                .avg_bandwidth_mbps
+                .map(|mbps| format!("{mbps:.1} Mbps"))
+                .unwrap_or_else(|| "—".to_string());
+            let latency = record
+                .avg_latency_ms
+                .map(|ms| format!("{ms:.1} ms"))
+                .unwrap_or_else(|| "—".to_string());
+            let jitter = record
+                .avg_jitter_ms
+                .map(|ms| format!("{ms:.1} ms"))
+                .unwrap_or_else(|| "—".to_string());
+            let stars = "★".repeat(record.overall_star_rating.min(5) as usize);
+            format!(
+                "{time} · {scope} · {alive_label} {alive}/{total} · {lat_label} {latency} · {jit_label} {jitter} · {bw_label} {bandwidth} · {stars}",
+                time = format_run_time(record.timestamp_epoch_ms),
+                scope = format_scope(&record.scope, lang),
+                alive_label = lang.tr("speedtest_history_alive"),
+                alive = record.alive_nodes,
+                total = record.total_nodes,
+                lat_label = lang.tr("speedtest_history_latency"),
+                latency = latency,
+                jit_label = lang.tr("speedtest_history_jitter"),
+                jitter = jitter,
+                bw_label = lang.tr("speedtest_history_bandwidth"),
+                bandwidth = bandwidth,
+                stars = stars,
+            )
+        })
+        .collect()
 }
 
 pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
@@ -196,6 +261,33 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         .into()
     };
 
+    // Persisted history from the shared snapshot: every line is a real run,
+    // never a UI-local record.
+    let history_lines = shared_speedtest_history_lines(snapshot, lang);
+    let mut history_column = column![
+        text(lang.tr("speedtest_history_title").to_string())
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            })
+    ]
+    .spacing(2);
+    if history_lines.is_empty() {
+        history_column = history_column.push(
+            text(lang.tr("speedtest_history_empty").to_string())
+                .size(11)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
+        );
+    } else {
+        for line in history_lines {
+            history_column = history_column.push(text(line).size(11).font(MONO));
+        }
+    }
+    let history_section: Element<'_, Message> = history_column.into();
+
     card(
         Some(lang.tr("speedtest_title").to_string()),
         column![
@@ -212,6 +304,7 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
             metric_content,
+            history_section,
             dead_section,
         ]
         .spacing(theme::SP_SM),

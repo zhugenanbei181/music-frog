@@ -23,6 +23,7 @@ pub mod service;
 pub mod service_mode;
 pub mod shortcut_manager;
 pub mod speedtest;
+pub mod speedtest_history_store;
 pub mod storage;
 pub mod surface;
 pub mod system_proxy;

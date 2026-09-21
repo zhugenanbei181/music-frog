@@ -292,6 +292,15 @@ impl CommandApplication {
                 speedtest.probe_node_jitter(&node, 5, url, None).await?;
                 Ok(())
             }
+            CommandIntent::RecordSpeedtestBandwidth {
+                node,
+                total_bytes,
+                duration_ms,
+            } => {
+                let speedtest = self.speedtest()?;
+                speedtest.record_bandwidth(&node, total_bytes, duration_ms)?;
+                Ok(())
+            }
             CommandIntent::CancelSpeedtest => {
                 let speedtest = self.speedtest()?;
                 speedtest.cancel();

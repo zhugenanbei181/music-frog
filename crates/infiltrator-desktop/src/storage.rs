@@ -11,6 +11,7 @@ use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::public_ip_probe::PublicIpProbe;
 use infiltrator_ports::settings_store::SettingsStore;
 use infiltrator_ports::snapshot_store::SnapshotStore;
+use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::sync::SyncPort;
 use infiltrator_ports::version::VersionPort;
@@ -92,6 +93,10 @@ pub fn profile_reset() -> impl ProfileResetPort {
 
 pub fn fake_ip_cache() -> impl FakeIpCachePort {
     infiltrator_core::fake_ip_cache_io::FileFakeIpCache::current()
+}
+
+pub fn speedtest_history_store() -> anyhow::Result<impl SpeedtestHistoryStore> {
+    crate::speedtest_history_store::FileSpeedtestHistoryStore::current()
 }
 
 pub fn app_routing_store() -> anyhow::Result<impl AppRoutingStore> {

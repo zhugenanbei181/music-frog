@@ -142,10 +142,14 @@ impl MihomoRuntime {
             .map_err(|e| anyhow!(e.to_string()))?;
         let client = MihomoClient::new(&endpoint.url, endpoint.secret.clone())?;
         // One speedtest engine shared by the command handler and the surface
-        // reader, so RunSpeedtest results reach the UI read model.
+        // reader, so RunSpeedtest results reach the UI read model. The bounded
+        // run history is persisted so it survives a process restart.
+        let history_store: Arc<dyn infiltrator_ports::speedtest_history::SpeedtestHistoryStore> =
+            Arc::new(crate::storage::speedtest_history_store()?);
         let speedtest = infiltrator_application::speedtest_application::SpeedtestApplication::new(
             Arc::new(client.clone()),
-        );
+        )
+        .with_history_store(history_store);
         // One live rule tracer engine shared by the host runtime port and the
         // surface reader, so both surfaces replay the same query state.
         let rule_tracer =

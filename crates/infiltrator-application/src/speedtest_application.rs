@@ -9,6 +9,7 @@ use infiltrator_contract::speedtest::{
 use infiltrator_domain::filter::extract_country_code;
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -26,6 +27,7 @@ pub struct SpeedtestApplication {
     state: Arc<Mutex<SpeedtestSnapshot>>,
     cancel_token: Arc<AtomicBool>,
     concurrency_limit: usize,
+    history_store: Option<Arc<dyn SpeedtestHistoryStore>>,
 }
 
 impl SpeedtestApplication {
@@ -36,12 +38,24 @@ impl SpeedtestApplication {
             state: Arc::new(Mutex::new(SpeedtestSnapshot::default())),
             cancel_token: Arc::new(AtomicBool::new(false)),
             concurrency_limit: DEFAULT_CONCURRENCY_LIMIT,
+            history_store: None,
         }
     }
 
     /// Set a custom concurrency limit for batch speedtesting.
     pub fn with_concurrency(mut self, limit: usize) -> Self {
         self.concurrency_limit = limit.max(1);
+        self
+    }
+
+    /// Attach a durable history store and hydrate the bounded run history from
+    /// any records persisted by a previous process.
+    pub fn with_history_store(mut self, store: Arc<dyn SpeedtestHistoryStore>) -> Self {
+        if let Ok(records) = store.load() {
+            let mut state = self.state.lock().unwrap();
+            state.recent_history = bounded_history(records);
+        }
+        self.history_store = Some(store);
         self
     }
 
@@ -204,6 +218,7 @@ impl SpeedtestApplication {
         if !self.cancel_token.load(Ordering::Relaxed) {
             let record = build_historical_record(&final_state, &scope, &test_url);
             push_history_record(&mut final_state.recent_history, record);
+            self.persist_history(&final_state);
         }
 
         Ok(final_state.clone())
@@ -309,12 +324,20 @@ impl SpeedtestApplication {
             );
         }
         state.revision += 1;
+        self.persist_history(&state);
         Ok(bandwidth_mbps)
     }
 
     /// Retrieve the cached history of recent runs.
     pub fn get_history(&self) -> Vec<HistoricalSpeedtestRecord> {
         self.state.lock().unwrap().recent_history.clone()
+    }
+
+    /// Best-effort write-through of the bounded history to the host store.
+    fn persist_history(&self, state: &SpeedtestSnapshot) {
+        if let Some(store) = &self.history_store {
+            let _ = store.save(&state.recent_history);
+        }
     }
 }
 
@@ -477,6 +500,14 @@ fn push_history_record(
     }
 }
 
+/// Clamp persisted records to the in-memory cap, keeping the newest entries.
+fn bounded_history(mut history: Vec<HistoricalSpeedtestRecord>) -> Vec<HistoricalSpeedtestRecord> {
+    if history.len() > MAX_HISTORY_ENTRIES {
+        history.drain(0..history.len() - MAX_HISTORY_ENTRIES);
+    }
+    history
+}
+
 fn current_epoch_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -485,391 +516,5 @@ fn current_epoch_ms() -> u64 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use async_trait::async_trait;
-    use infiltrator_domain::proxy::{ProxyBase, ProxyGroup, Shadowsocks, Vmess};
-    use infiltrator_domain::runtime::{
-        ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider,
-    };
-    use infiltrator_ports::error::PortError;
-    use std::collections::HashMap;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    type DelayFn = dyn Fn(&str, &str, u32) -> Result<u32, PortError> + Send + Sync;
-
-    struct TestGateway {
-        proxies: HashMap<String, Proxy>,
-        delay_probe_count: AtomicUsize,
-        active_concurrency: AtomicUsize,
-        max_concurrency: AtomicUsize,
-        delay_fn: Box<DelayFn>,
-    }
-
-    impl TestGateway {
-        fn new(proxies: HashMap<String, Proxy>) -> Self {
-            Self {
-                proxies,
-                delay_probe_count: AtomicUsize::new(0),
-                active_concurrency: AtomicUsize::new(0),
-                max_concurrency: AtomicUsize::new(0),
-                delay_fn: Box::new(|_proxy, _url, _timeout| Ok(45)),
-            }
-        }
-
-        fn with_delay_fn<F>(mut self, f: F) -> Self
-        where
-            F: Fn(&str, &str, u32) -> Result<u32, PortError> + Send + Sync + 'static,
-        {
-            self.delay_fn = Box::new(f);
-            self
-        }
-    }
-
-    #[async_trait]
-    impl RuntimeGateway for TestGateway {
-        async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
-            Ok(ConfigSnapshot::default())
-        }
-        async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn set_proxy_mode(
-            &self,
-            _mode: infiltrator_contract::command::ProxyMode,
-        ) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
-            Ok(self.proxies.clone())
-        }
-        async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn test_delay(
-            &self,
-            proxy: &str,
-            url: &str,
-            timeout_ms: u32,
-        ) -> Result<u32, PortError> {
-            self.delay_probe_count.fetch_add(1, Ordering::SeqCst);
-            let current = self.active_concurrency.fetch_add(1, Ordering::SeqCst) + 1;
-            let mut max = self.max_concurrency.load(Ordering::SeqCst);
-            while current > max {
-                match self.max_concurrency.compare_exchange_weak(
-                    max,
-                    current,
-                    Ordering::SeqCst,
-                    Ordering::SeqCst,
-                ) {
-                    Ok(_) => break,
-                    Err(actual) => max = actual,
-                }
-            }
-
-            let res = (self.delay_fn)(proxy, url, timeout_ms);
-            self.active_concurrency.fetch_sub(1, Ordering::SeqCst);
-            res
-        }
-        async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-            Ok(Vec::new())
-        }
-        async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-            Ok(Vec::new())
-        }
-        async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-            Ok(ConnectionSnapshot::default())
-        }
-        async fn get_memory(&self) -> Result<MemoryData, PortError> {
-            Ok(MemoryData::default())
-        }
-        async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn close_all_connections(&self) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn stream_logs(
-            &self,
-            _level: Option<String>,
-        ) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<String>, PortError> {
-            Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::CoreLifecycle,
-                "not supported",
-            ))
-        }
-        async fn stream_traffic(
-            &self,
-        ) -> Result<
-            infiltrator_ports::runtime_gateway::RuntimeStream<
-                infiltrator_domain::runtime::TrafficData,
-            >,
-            PortError,
-        > {
-            Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::CoreLifecycle,
-                "not supported",
-            ))
-        }
-        async fn stream_connections(
-            &self,
-        ) -> Result<
-            infiltrator_ports::runtime_gateway::RuntimeStream<
-                infiltrator_domain::runtime::ConnectionSnapshot,
-            >,
-            PortError,
-        > {
-            Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::CoreLifecycle,
-                "not supported",
-            ))
-        }
-    }
-
-    fn sample_proxies() -> HashMap<String, Proxy> {
-        let mut map = HashMap::new();
-        map.insert(
-            "HK-Node-1".to_string(),
-            Proxy::Shadowsocks(Shadowsocks {
-                base: ProxyBase {
-                    name: "HK-Node-1".to_string(),
-                    alive: true,
-                    delay: Some(35),
-                    ..Default::default()
-                },
-                ..Default::default()
-            }),
-        );
-        map.insert(
-            "HK-Node-2".to_string(),
-            Proxy::Shadowsocks(Shadowsocks {
-                base: ProxyBase {
-                    name: "HK-Node-2".to_string(),
-                    alive: true,
-                    delay: Some(40),
-                    ..Default::default()
-                },
-                ..Default::default()
-            }),
-        );
-        map.insert(
-            "JP-Node-1".to_string(),
-            Proxy::Vmess(Vmess {
-                base: ProxyBase {
-                    name: "JP-Node-1".to_string(),
-                    alive: true,
-                    delay: Some(70),
-                    ..Default::default()
-                },
-                ..Default::default()
-            }),
-        );
-        map.insert(
-            "HongKong".to_string(),
-            Proxy::Selector(ProxyGroup {
-                name: "HongKong".to_string(),
-                now: "HK-Node-1".to_string(),
-                all: vec!["HK-Node-1".to_string(), "HK-Node-2".to_string()],
-                history: Vec::new(),
-            }),
-        );
-        map.insert(
-            "GLOBAL".to_string(),
-            Proxy::Selector(ProxyGroup {
-                name: "GLOBAL".to_string(),
-                now: "HK-Node-1".to_string(),
-                all: vec![
-                    "HK-Node-1".to_string(),
-                    "HK-Node-2".to_string(),
-                    "JP-Node-1".to_string(),
-                ],
-                history: Vec::new(),
-            }),
-        );
-        map
-    }
-
-    #[tokio::test]
-    async fn test_single_group_independent_speedtest() {
-        let gateway = Arc::new(TestGateway::new(sample_proxies()));
-        let app = SpeedtestApplication::new(gateway.clone());
-
-        // Test only "HongKong" group
-        let snapshot = app
-            .test_delays(
-                SpeedtestScope::SingleGroup("HongKong".to_string()),
-                None,
-                None,
-            )
-            .await
-            .expect("test delays should succeed");
-
-        assert_eq!(snapshot.phase, SpeedtestPhase::Completed);
-        assert_eq!(snapshot.node_results.len(), 2);
-        assert!(snapshot.node_results.contains_key("HK-Node-1"));
-        assert!(snapshot.node_results.contains_key("HK-Node-2"));
-        assert!(!snapshot.node_results.contains_key("JP-Node-1"));
-        assert_eq!(gateway.delay_probe_count.load(Ordering::SeqCst), 2);
-    }
-
-    #[tokio::test]
-    async fn test_concurrency_limiting_semaphore_30() {
-        let mut map = HashMap::new();
-        for i in 0..45 {
-            let name = format!("Node-{i:02}");
-            map.insert(
-                name.clone(),
-                Proxy::Shadowsocks(Shadowsocks {
-                    base: ProxyBase {
-                        name,
-                        alive: true,
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                }),
-            );
-        }
-
-        let gateway = Arc::new(
-            TestGateway::new(map).with_delay_fn(|_name, _url, _timeout| {
-                std::thread::sleep(std::time::Duration::from_millis(15));
-                Ok(50)
-            }),
-        );
-
-        let app = SpeedtestApplication::new(gateway.clone()).with_concurrency(30);
-
-        let snapshot = app
-            .test_delays(SpeedtestScope::AllGroups, None, None)
-            .await
-            .expect("batch test success");
-
-        assert_eq!(snapshot.node_results.len(), 45);
-        assert!(gateway.max_concurrency.load(Ordering::SeqCst) <= 30);
-    }
-
-    #[tokio::test]
-    async fn test_dynamic_custom_url_and_timeout_propagation() {
-        let observed_url = Arc::new(Mutex::new(String::new()));
-        let observed_timeout = Arc::new(std::sync::atomic::AtomicU32::new(0));
-
-        let u_clone = Arc::clone(&observed_url);
-        let t_clone = Arc::clone(&observed_timeout);
-
-        let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(
-            move |_node, url, timeout| {
-                *u_clone.lock().unwrap() = url.to_string();
-                t_clone.store(timeout, Ordering::SeqCst);
-                Ok(35)
-            },
-        ));
-
-        let app = SpeedtestApplication::new(gateway);
-
-        let custom_url = "https://cp.cloudflare.com/generate_204".to_string();
-        let custom_timeout = 8888;
-
-        let snapshot = app
-            .test_delays(
-                SpeedtestScope::SingleNode("HK-Node-1".to_string()),
-                Some(custom_url.clone()),
-                Some(custom_timeout),
-            )
-            .await
-            .expect("success");
-
-        assert_eq!(*observed_url.lock().unwrap(), custom_url);
-        assert_eq!(observed_timeout.load(Ordering::SeqCst), custom_timeout);
-        assert_eq!(snapshot.config.test_url, custom_url);
-        assert_eq!(snapshot.config.timeout_ms, custom_timeout);
-    }
-
-    #[tokio::test]
-    async fn test_probe_node_jitter_and_rtt_standard_deviation() {
-        let probe_index = Arc::new(AtomicUsize::new(0));
-        let p_clone = Arc::clone(&probe_index);
-
-        // Sequence of RTTs: 40, 50, 40, 50
-        // Mean = 45.0
-        // Sample std dev = sqrt((( -5 )^2 * 4) / 3) = sqrt(100 / 3) ≈ 5.7735
-        let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(
-            move |_node, _url, _timeout| {
-                let idx = p_clone.fetch_add(1, Ordering::SeqCst);
-                if idx.is_multiple_of(2) {
-                    Ok(40)
-                } else {
-                    Ok(50)
-                }
-            },
-        ));
-
-        let app = SpeedtestApplication::new(gateway);
-        let jitter = app
-            .probe_node_jitter("HK-Node-1", 4, None, None)
-            .await
-            .expect("jitter probe success");
-
-        assert_eq!(jitter.sample_count, 4);
-        assert_eq!(jitter.successful_probes, 4);
-        assert_eq!(jitter.loss_percent, 0.0);
-        assert_eq!(jitter.loss_rating, PacketLossRating::Excellent);
-        assert!((jitter.mean_rtt_ms - 45.0).abs() < 1e-4);
-        assert!((jitter.std_dev_ms - 5.7735).abs() < 1e-3);
-        assert_eq!(jitter.min_rtt_ms, Some(40));
-        assert_eq!(jitter.max_rtt_ms, Some(50));
-    }
-
-    #[tokio::test]
-    async fn test_cancellation_and_safe_interruption() {
-        let app_holder: Arc<Mutex<Option<SpeedtestApplication>>> = Arc::new(Mutex::new(None));
-        let app_holder_clone = Arc::clone(&app_holder);
-
-        let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(
-            move |_node, _url, _timeout| {
-                if let Some(ref app) = *app_holder_clone.lock().unwrap() {
-                    app.cancel();
-                }
-                Ok(40)
-            },
-        ));
-
-        let app = SpeedtestApplication::new(gateway);
-        *app_holder.lock().unwrap() = Some(app.clone());
-
-        let snapshot = app
-            .test_delays(SpeedtestScope::AllGroups, None, None)
-            .await
-            .expect("test returns snapshot");
-
-        assert_eq!(snapshot.phase, SpeedtestPhase::Cancelled);
-    }
-
-    #[tokio::test]
-    async fn test_history_caching_last_3_runs() {
-        let gateway = Arc::new(TestGateway::new(sample_proxies()));
-        let app = SpeedtestApplication::new(gateway);
-
-        for _ in 0..5 {
-            let _ = app
-                .test_delays(
-                    SpeedtestScope::SingleNode("HK-Node-1".to_string()),
-                    None,
-                    None,
-                )
-                .await;
-        }
-
-        let history = app.get_history();
-        assert_eq!(history.len(), 3);
-        assert_eq!(history[0].target_url, DEFAULT_DELAY_TEST_URL);
-    }
-}
+#[path = "speedtest_application_tests.rs"]
+mod tests;

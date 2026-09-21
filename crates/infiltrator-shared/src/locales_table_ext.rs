@@ -93,6 +93,15 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "speedtest_stability" => "节点稳定性等级".into(),
         "speedtest_cancel" => "取消测速".into(),
         "speedtest_dead_archive" => "超时/不可用节点归档".into(),
+        "speedtest_history_title" => "历史测速记录".into(),
+        "speedtest_history_empty" => "暂无历史记录".into(),
+        "speedtest_scope_all_groups" => "全部节点".into(),
+        "speedtest_scope_group" => "分组".into(),
+        "speedtest_scope_node" => "节点".into(),
+        "speedtest_history_alive" => "存活".into(),
+        "speedtest_history_latency" => "平均延迟".into(),
+        "speedtest_history_bandwidth" => "平均带宽".into(),
+        "speedtest_history_jitter" => "平均抖动".into(),
 
         // Category 4: Geo Database Updater
         "geodata_title" => "GeoIP / GeoSite 数据库管理".into(),

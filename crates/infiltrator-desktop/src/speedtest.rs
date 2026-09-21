@@ -72,6 +72,17 @@ impl SpeedtestPort for DesktopSpeedtestPort {
             .map_err(map_failure)
     }
 
+    fn record_bandwidth(
+        &self,
+        node: &str,
+        total_bytes: u64,
+        duration_ms: u64,
+    ) -> Result<f64, PortError> {
+        self.application
+            .record_bandwidth(node, total_bytes, duration_ms)
+            .map_err(map_failure)
+    }
+
     fn cancel(&self) -> bool {
         self.application.cancel()
     }
@@ -105,6 +116,18 @@ impl SpeedtestPort for UnsupportedSpeedtestPort {
         _url: Option<String>,
         _timeout_ms: Option<u32>,
     ) -> Result<SpeedtestSnapshot, PortError> {
+        Err(PortError::unsupported(
+            Capability::Speedtest,
+            "speedtest engine is not available on this host",
+        ))
+    }
+
+    fn record_bandwidth(
+        &self,
+        _node: &str,
+        _total_bytes: u64,
+        _duration_ms: u64,
+    ) -> Result<f64, PortError> {
         Err(PortError::unsupported(
             Capability::Speedtest,
             "speedtest engine is not available on this host",

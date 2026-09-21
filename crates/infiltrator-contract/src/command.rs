@@ -135,6 +135,12 @@ pub enum CommandIntent {
         #[serde(default)]
         url: Option<String>,
     },
+    /// Report a real downlink transfer measured by the host for one node.
+    RecordSpeedtestBandwidth {
+        node: String,
+        total_bytes: u64,
+        duration_ms: u64,
+    },
     CancelSpeedtest,
     ToggleProxyGroupExpand {
         group: String,
@@ -318,6 +324,7 @@ impl CommandIntent {
             | Self::SelectProxyNode { .. }
             | Self::TestDelay { .. }
             | Self::RunSpeedtest { .. }
+            | Self::RecordSpeedtestBandwidth { .. }
             | Self::CancelSpeedtest
             | Self::ToggleProxyGroupExpand { .. }
             | Self::SetProxyGroupExpanded { .. }

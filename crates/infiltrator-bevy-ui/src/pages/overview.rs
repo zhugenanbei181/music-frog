@@ -76,6 +76,7 @@ use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::speedtest::{HistoricalSpeedtestRecord, SpeedtestScope};
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
 
 /// The trend chart's raster box (ui-side tokens — the widget's pixel box
@@ -369,6 +370,11 @@ pub struct OverviewSpeedtestMetricsText;
 /// Marker for the timed-out / unreachable node archive caption.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewSpeedtestDeadText;
+
+/// Marker for the persisted speedtest run-history caption, restamped from the
+/// shared engine snapshot's `recent_history`.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewSpeedtestHistoryText;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewModePill(pub ProxyMode);
@@ -747,6 +753,11 @@ fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> {
             (
                 Text({ "—".to_owned() })
                 OverviewSpeedtestDeadText
+                TextRole(Role::Caption)
+            ),
+            (
+                Text({ "—".to_owned() })
+                OverviewSpeedtestHistoryText
                 TextRole(Role::Caption)
             ),
         ]
@@ -1426,6 +1437,7 @@ type SpeedtestTextFilter = (
     Without<StatChipValue>,
     Without<OverviewSpeedtestMetricsText>,
     Without<OverviewSpeedtestDeadText>,
+    Without<OverviewSpeedtestHistoryText>,
 );
 
 /// Disjoint filter for the live speedtest metrics caption.
@@ -1435,6 +1447,7 @@ type SpeedtestMetricsFilter = (
     Without<StatChipValue>,
     Without<OverviewSpeedtestText>,
     Without<OverviewSpeedtestDeadText>,
+    Without<OverviewSpeedtestHistoryText>,
 );
 
 /// Disjoint filter for the timed-out / unreachable node archive caption.
@@ -1444,7 +1457,68 @@ type SpeedtestDeadFilter = (
     Without<StatChipValue>,
     Without<OverviewSpeedtestText>,
     Without<OverviewSpeedtestMetricsText>,
+    Without<OverviewSpeedtestHistoryText>,
 );
+
+/// Disjoint filter for the persisted run-history caption.
+type SpeedtestHistoryFilter = (
+    With<OverviewSpeedtestHistoryText>,
+    Without<OverviewLine>,
+    Without<StatChipValue>,
+    Without<OverviewSpeedtestText>,
+    Without<OverviewSpeedtestMetricsText>,
+    Without<OverviewSpeedtestDeadText>,
+);
+
+/// Format an epoch-millisecond timestamp as UTC `MM-DD HH:MM` (no date crate).
+fn overview_run_time(epoch_ms: u64) -> String {
+    let secs = (epoch_ms / 1000) as i64;
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    let hour = rem / 3600;
+    let minute = (rem % 3600) / 60;
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    format!("{month:02}-{day:02} {hour:02}:{minute:02}")
+}
+
+fn overview_scope_label(scope: &SpeedtestScope) -> String {
+    match scope {
+        SpeedtestScope::AllGroups => "全部节点".to_owned(),
+        SpeedtestScope::SingleGroup(group) => format!("分组 {group}"),
+        SpeedtestScope::SingleNode(node) => format!("节点 {node}"),
+    }
+}
+
+/// One honest, compact line per persisted run (shared `recent_history`).
+fn overview_history_line(record: &HistoricalSpeedtestRecord) -> String {
+    let bandwidth = record
+        .avg_bandwidth_mbps
+        .map(|mbps| format!("{mbps:.1}Mbps"))
+        .unwrap_or_else(|| "—".to_owned());
+    let latency = record
+        .avg_latency_ms
+        .map(|ms| format!("{ms:.1}ms"))
+        .unwrap_or_else(|| "—".to_owned());
+    let jitter = record
+        .avg_jitter_ms
+        .map(|ms| format!("{ms:.1}ms"))
+        .unwrap_or_else(|| "—".to_owned());
+    format!(
+        "{} · {} · 存活 {}/{} · 平均延迟 {latency} · 平均抖动 {jitter} · 平均带宽 {bandwidth} · ★{}",
+        overview_run_time(record.timestamp_epoch_ms),
+        overview_scope_label(&record.scope),
+        record.alive_nodes,
+        record.total_nodes,
+        record.overall_star_rating.min(5),
+    )
+}
 
 /// The button is baked `testing: false` at mount; this system reflects the
 /// live phase and progress so both surfaces read the same read model instead
@@ -1456,6 +1530,7 @@ pub fn sync_overview_speedtest_button(
     mut texts: Query<&mut Text, SpeedtestTextFilter>,
     mut metrics: Query<&mut Text, SpeedtestMetricsFilter>,
     mut dead: Query<&mut Text, SpeedtestDeadFilter>,
+    mut history: Query<&mut Text, SpeedtestHistoryFilter>,
 ) {
     let Some(projection) = last.0.as_ref() else {
         return;
@@ -1534,6 +1609,26 @@ pub fn sync_overview_speedtest_button(
     for mut text in &mut dead {
         if text.0 != dead_label {
             text.0 = dead_label.clone();
+        }
+    }
+    // Persisted run history from the same shared snapshot: one honest line per
+    // run, newest first, with "—" when nothing has been recorded yet.
+    let history_label = {
+        let lines: Vec<String> = snapshot
+            .recent_history
+            .iter()
+            .rev()
+            .map(overview_history_line)
+            .collect();
+        if lines.is_empty() {
+            "—".to_owned()
+        } else {
+            format!("最近测速: {}", lines.join(" | "))
+        }
+    };
+    for mut text in &mut history {
+        if text.0 != history_label {
+            text.0 = history_label.clone();
         }
     }
 }

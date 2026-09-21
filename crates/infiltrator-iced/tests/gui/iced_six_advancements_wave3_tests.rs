@@ -173,6 +173,31 @@ fn test_advancement_w3_3_speedtest_dead_node_archive_renders() {
 }
 
 #[test]
+fn test_advancement_w3_3_speedtest_history_renders_shared_snapshot() {
+    let (mut state, _) = AppState::new();
+    let _ = state.update(Message::SpeedtestSnapshotUpdated(Ok(
+        SpeedtestSnapshot::demo_fixture(),
+    )));
+
+    // The history lines are read straight off the shared snapshot's
+    // `recent_history`; the view owns no store.
+    let lang = infiltrator_shared::locales::Lang("zh-CN");
+    let lines =
+        crate::view::speedtest_modal::shared_speedtest_history_lines(&state.diag.speedtest, &lang);
+    assert_eq!(lines.len(), 1);
+    assert!(
+        lines[0].contains("平均带宽 154.8 Mbps"),
+        "line={}",
+        lines[0]
+    );
+    assert!(lines[0].contains("★★★★★"), "line={}", lines[0]);
+    assert!(lines[0].contains("全部节点"), "line={}", lines[0]);
+
+    // The full card still renders with the history section.
+    let _card = crate::view::speedtest_modal::speedtest_card(&state, &lang);
+}
+
+#[test]
 fn test_advancement_w3_4_geodata_updater_stays_honest() {
     let (mut state, _) = AppState::new();
 

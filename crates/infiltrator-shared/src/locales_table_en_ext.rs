@@ -87,6 +87,15 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "speedtest_stability" => "Stability Tier".into(),
         "speedtest_cancel" => "Cancel Speedtest".into(),
         "speedtest_dead_archive" => "Timed-out / unreachable archive".into(),
+        "speedtest_history_title" => "Speedtest History".into(),
+        "speedtest_history_empty" => "No history yet".into(),
+        "speedtest_scope_all_groups" => "All nodes".into(),
+        "speedtest_scope_group" => "Group".into(),
+        "speedtest_scope_node" => "Node".into(),
+        "speedtest_history_alive" => "Alive".into(),
+        "speedtest_history_latency" => "Avg latency".into(),
+        "speedtest_history_bandwidth" => "Avg bandwidth".into(),
+        "speedtest_history_jitter" => "Avg jitter".into(),
 
         // Category 4: Geo Database Updater
         "geodata_title" => "GeoIP / GeoSite Database Manager".into(),
