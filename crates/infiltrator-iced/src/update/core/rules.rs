@@ -104,6 +104,49 @@ impl AppState {
         self.editor.sniffer_editor_state = EditorLazyState::Unloaded;
     }
 
+    /// DUAL-12-10: push the simulated sandbox source IP into the shared tracer
+    /// engine and replay the current query. The composed port path and the
+    /// hostless fallback both merge the same stored context, so the decision
+    /// chain reflects one environment on both surfaces.
+    fn run_rules_tracer(&mut self) -> Task<Message> {
+        let input = self.editor.rules_tracer_input.trim().to_string();
+        let src_ip = self.editor.rules_tracer_src_ip.trim().to_string();
+        let context = infiltrator_contract::rule_tracer::TrafficContextSnapshot {
+            src_ip: (!src_ip.is_empty()).then_some(src_ip),
+            ..infiltrator_contract::rule_tracer::TrafficContextSnapshot::default()
+        };
+
+        // Drive the shared tracer engine: hosts with a composed port share the
+        // query state the surface reader projects; hostless demo runs replay
+        // the same pure application directly. No UI-local fabricated metrics.
+        if let Some(runtime) = self.runtime.runtime.clone()
+            && let Some(port) = runtime.rule_tracer_port()
+        {
+            port.set_context(&context);
+            if input.is_empty() {
+                self.editor.rules_tracer_chain = None;
+                return Task::none();
+            }
+            port.set_query(&input);
+            let exit = self.runtime.active_exit.clone();
+            self.editor.rules_tracer_chain =
+                Some(port.trace(&self.editor.rules, &input, Some(&exit)));
+        } else {
+            let application =
+                infiltrator_application::rule_tracer_application::RuleTracerApplication::with_query(
+                    &input,
+                );
+            application.set_context(&context);
+            if input.is_empty() {
+                self.editor.rules_tracer_chain = None;
+                return Task::none();
+            }
+            self.editor.rules_tracer_chain =
+                Some(application.trace(&self.editor.rules, &input, None, None).1);
+        }
+        Task::none()
+    }
+
     /// Custom rules list plus rule/proxy provider and sniffer JSON editors.
     /// Unmatched messages fall through to the next domain in the
     /// `update_core` chain.
@@ -119,33 +162,11 @@ impl AppState {
                 self.editor.rules_tracer_input = input;
                 Task::none()
             }
-            Message::RunRulesTracer => {
-                let input = self.editor.rules_tracer_input.trim().to_string();
-                if input.is_empty() {
-                    self.editor.rules_tracer_chain = None;
-                    return Task::none();
-                }
-                // Drive the shared tracer engine: hosts with a composed port
-                // share the query state the surface reader projects; hostless
-                // demo runs replay the same pure application directly. No
-                // UI-local fabricated metrics either way.
-                if let Some(runtime) = self.runtime.runtime.clone()
-                    && let Some(port) = runtime.rule_tracer_port()
-                {
-                    port.set_query(&input);
-                    let exit = self.runtime.active_exit.clone();
-                    self.editor.rules_tracer_chain =
-                        Some(port.trace(&self.editor.rules, &input, Some(&exit)));
-                } else {
-                    let application =
-                        infiltrator_application::rule_tracer_application::RuleTracerApplication::with_query(
-                            &input,
-                        );
-                    self.editor.rules_tracer_chain =
-                        Some(application.trace(&self.editor.rules, &input, None, None).1);
-                }
-                Task::none()
+            Message::UpdateTracerSourceIp(input) => {
+                self.editor.rules_tracer_src_ip = input;
+                self.run_rules_tracer()
             }
+            Message::RunRulesTracer => self.run_rules_tracer(),
             Message::ClearRuleHitCounters => {
                 // Drive the very same counter the surface reader projects; no
                 // UI-local reset that would diverge from the shared read model.

@@ -3,22 +3,26 @@
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::system::Query;
+use bevy::ecs::query::With;
+use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
     percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text_input::TextField;
+use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
 
+use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::rules::RulesProjectionUpdated;
 
 /// Marker on the Rules Tracer card root.
@@ -36,6 +40,14 @@ pub struct TracerPresetChip(pub String);
 /// Marker for trace result decision tree.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TracerDecisionTree;
+
+/// DUAL-12-10: marker on the wrapper of the sandbox target-query text field.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TracerQueryField;
+
+/// DUAL-12-10: marker on the wrapper of the simulated source-IP text field.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TracerSourceIpField;
 
 /// Text slots of the tracer card, patched in place from the shared snapshot.
 /// Slot `0` is the headline, `1..=5` the five decision-chain stages (fixed
@@ -107,6 +119,43 @@ pub(crate) fn apply_tracer_projection(
     }
 }
 
+/// DUAL-12-10: the simulate button reads both sandbox fields and submits the
+/// shared context + query commands; no UI-local trace is fabricated.
+pub(crate) fn on_tracer_action_activated(
+    activate: On<Activate>,
+    simulate_buttons: Query<(), With<SimulateRuleTraceButton>>,
+    query_fields: Query<&Children, With<TracerQueryField>>,
+    source_fields: Query<&Children, With<TracerSourceIpField>>,
+    text_fields: Query<&TextField>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    if simulate_buttons.get(activate.entity).is_err() {
+        return;
+    }
+    let query = query_fields
+        .iter()
+        .flat_map(|children| children.iter())
+        .find_map(|child| text_fields.get(*child).ok())
+        .map(|field| field.0.text())
+        .unwrap_or_default();
+    let src_ip = source_fields
+        .iter()
+        .flat_map(|children| children.iter())
+        .find_map(|child| text_fields.get(*child).ok())
+        .map(|field| field.0.text())
+        .unwrap_or_default();
+    let src_ip = (!src_ip.trim().is_empty()).then(|| src_ip.trim().to_owned());
+    handle.submit(UiCommand::SetRuleTracerContext { src_ip });
+    if !query.trim().is_empty() {
+        handle.submit(UiCommand::SimulateRuleTrace {
+            query: query.trim().to_owned(),
+        });
+    }
+}
+
 /// Scene constructor for the Live Rule Tracer card. Data-driven from the
 /// shared `RuleTracerSnapshot` the surface reader projects; no fabricated
 /// replay content is rendered when the snapshot has no decision chain.
@@ -144,6 +193,11 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
             }) as Box<dyn Scene>
         })
         .collect();
+
+    // DUAL-12-10: the sandbox environment inputs. The query seeds from the
+    // shared snapshot; the source IP seeds from the shared simulated context.
+    let query_initial = tracer.active_query.clone();
+    let src_ip_initial = tracer.simulated_context.src_ip.clone().unwrap_or_default();
 
     // The tracer card keeps a fixed set of text slots (headline + 5 stages +
     // honest empty line) so the in-place projection patch can rewrite them
@@ -211,6 +265,38 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
                         SimulateRuleTraceButton
                         Children [
                             ( Text({ "执行模拟追踪".to_owned() }) TextRole(Role::BodyStrong) ),
+                        ]
+                    ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(space::S8),
+                    padding: UiRect::vertical(Val::Px(space::S6)),
+                }
+                Children [
+                    (
+                        Node { flex_grow: 1.0 }
+                        TracerQueryField
+                        Children [
+                            ( { text_field_with_placeholder_scene(
+                                query_initial,
+                                "目标域名或 IP (例如: google.com 或 1.1.1.1:443)".to_owned(),
+                                palette,
+                            ) } ),
+                        ]
+                    ),
+                    (
+                        Node { width: px(240.0) }
+                        TracerSourceIpField
+                        Children [
+                            ( { text_field_with_placeholder_scene(
+                                src_ip_initial,
+                                "模拟来源 IP (例如: 192.168.1.100)".to_owned(),
+                                palette,
+                            ) } ),
                         ]
                     ),
                 ]

@@ -147,7 +147,8 @@
 | `DUAL-12-11` | 一键清空规则命中计数 | `parity-ready` | `CommandIntent::ResetRuleHitCounters` 从 unsupported 改为真实调用共享 `clear_hits`；Iced `Message::ClearRuleHitCounters` 经 `HostRuntime::rule_tracer_port`，无 port 时 typed error toast；Bevy `UiCommand::ClearRuleHitCounters` 经 `CommandApplication::with_rule_tracer` 路由 |
 | `DUAL-12-12` | 规则命中高亮闪烁动效 | `parity-ready`（数据面） | 审计快照 `last_hit_rule`/`last_hit_secs` 提供唯一「刚命中」事实；Iced 卡片 HIT 徽标 + 规则名高亮、Bevy 行标签。像素动效属 `local`，宿主视觉 smoke 未计入 |
 | `DUAL-12-09` | 规则时延贡献审计 | `parity-ready` | `RuleTracerApplication` 记录每次 AST 推演的匹配耗时（count/total/last），审计快照发布 `trace_count`/`avg_match_latency_us`/`last_match_latency_us`；Iced「平均匹配耗时」指标、Bevy 头部行「匹配 n.nµs」；application 单测覆盖两次推演求均值 |
-| `DUAL-12-08` 反向应用 / `DUAL-12-10` 沙盒来源 IP | 见组 12 清单 | `planned` | 未实现（均需 Bevy tracer 交互输入面，见组 12 剩余计划） |
+| `DUAL-12-10` | 仿真沙盒环境参数模拟（来源 IP） | `parity-ready` | 共享 `TrafficContextSnapshot` 新增 serde 默认字段 `src_ip`/`src_port`/`in_port`（contract `rule_tracer.rs`）；`RuleTracerApplication` 拥有唯一 `context`，`set_context`/`context` + `merged_context` 同时并入端口 `trace` 与 reader `project` 并发布 `simulated_context`；Iced 来源 IP 输入 `Message::UpdateTracerSourceIp` 经 `RuleTracerPort::set_context` 后重跑；Bevy `TracerSourceIpField`/`TracerQueryField` + `SimulateRuleTraceButton` 观察者提交 `UiCommand::SetRuleTracerContext`（`CommandIntent::SetRuleTracerContext` 路由到共享 `set_context`）；application（Inbound 阶段 + `SRC-IP-CIDR` 命中）、Iced、Bevy 三处无头断言 |
+| `DUAL-12-08` | 分流结果一键反向应用（修改此规则出站） | `planned` | 未实现（需 Bevy tracer 反向应用交互面，见组 12 剩余计划） |
 
 > **关键修复（D-017 收敛）**：reader 的 Rule Tracer 投影从硬编码空 `ready(..)` 改为 `RuleTracerApplication::project(core, rules, active_exit, proxies)` 真实推演；domain 出口阶段删除「香港专线 01 / 28ms / HK」伪造兜底，无运行时出口事实时渲染中性「未知出口」节点；Iced 删除本地 `(usize, String, String)` 三元组第二事实源。
 

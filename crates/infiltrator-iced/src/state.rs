@@ -238,6 +238,10 @@ pub struct ConfigEditorState {
     pub rules_page: usize,
     pub rules_page_size: usize,
     pub rules_tracer_input: String,
+    /// DUAL-12-10: simulated inbound source IP typed into the tracer sandbox.
+    /// It is pushed into the shared tracer engine via `RuleTracerPort` so the
+    /// Inbound decision stage reflects the same environment on both surfaces.
+    pub rules_tracer_src_ip: String,
     /// Decision chain replayed by the shared rule tracer engine. No UI-local
     /// second source of truth: hosts with a composed port share the query
     /// state the surface reader projects; hostless demo runs trace the same

@@ -72,6 +72,7 @@ python3 scripts/quality/proxies-compact-view-guard.py --mode enforce
 python3 scripts/quality/proxies-skeleton-pulse-guard.py --mode enforce
 python3 scripts/quality/proxies-regression-matrix-guard.py --mode enforce
 python3 scripts/quality/rule-hit-audit-guard.py --mode enforce
+python3 scripts/quality/rule-tracer-sandbox-guard.py --mode enforce
 python3 scripts/quality/speedtest-parity-guard.py --mode enforce
 python3 scripts/quality/speedtest-history-guard.py --mode enforce
 python3 scripts/quality/responsive-parity-guard.py --mode enforce

@@ -242,6 +242,7 @@ impl AppState {
                 rules_page: 0,
                 rules_page_size: 200,
                 rules_tracer_input: String::new(),
+                rules_tracer_src_ip: String::new(),
                 rules_tracer_chain: None,
                 rules_providers_expanded: true,
                 rules_render_cache: Vec::new(),

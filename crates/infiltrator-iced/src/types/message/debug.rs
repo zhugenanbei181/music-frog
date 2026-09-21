@@ -343,6 +343,7 @@ impl std::fmt::Debug for Message {
             Message::UpdateRuleProvider(p) => write!(f, "UpdateRuleProvider({})", p),
             Message::FilterRules(s) => write!(f, "FilterRules({})", s),
             Message::UpdateRulesTracerInput(s) => write!(f, "UpdateRulesTracerInput({s})"),
+            Message::UpdateTracerSourceIp(s) => write!(f, "UpdateTracerSourceIp({s})"),
             Message::RunRulesTracer => write!(f, "RunRulesTracer"),
             Message::UpdateFilteredGroups => write!(f, "UpdateFilteredGroups"),
             Message::UpdateNewRuleType(s) => write!(f, "UpdateNewRuleType({})", s),

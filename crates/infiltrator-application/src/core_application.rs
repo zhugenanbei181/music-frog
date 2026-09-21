@@ -792,6 +792,7 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::UpdateSetting { .. } => "update_setting",
         CommandIntent::CheckUpdates => "check_updates",
         CommandIntent::SimulateRuleTrace { .. } => "simulate_rule_trace",
+        CommandIntent::SetRuleTracerContext { .. } => "set_rule_tracer_context",
         CommandIntent::ResetRuleHitCounters => "reset_rule_hit_counters",
         CommandIntent::UnpackRuleProvider { .. } => "unpack_rule_provider",
     }

@@ -6,12 +6,17 @@
 //! state and one decision-chain computation instead of UI-local copies.
 
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
-use infiltrator_contract::rule_tracer::DecisionChainSnapshot;
+use infiltrator_contract::rule_tracer::{DecisionChainSnapshot, TrafficContextSnapshot};
 use infiltrator_domain::rules::RuleEntry;
 
 pub trait RuleTracerPort: Send + Sync {
     /// Record the query that the next surface projection should replay.
     fn set_query(&self, query: &str);
+
+    /// DUAL-12-10: record the simulated inbound sandbox context (source IP /
+    /// source port / inbound port) merged onto every subsequent trace and
+    /// projection so both surfaces observe one environment.
+    fn set_context(&self, context: &TrafficContextSnapshot);
 
     /// Pure AST simulation of the routing decision chain for `query` over
     /// `rules`. No controller, filesystem, or network access.

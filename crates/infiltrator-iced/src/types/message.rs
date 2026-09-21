@@ -193,6 +193,7 @@ pub enum Message {
     UpdateRuleProvider(String),
     FilterRules(String),
     UpdateRulesTracerInput(String),
+    UpdateTracerSourceIp(String),
     RunRulesTracer,
     UpdateFilteredGroups,
     UpdateNewRuleType(String),

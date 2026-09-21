@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::hierarchy::ChildOf;
+use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
@@ -21,9 +21,14 @@ use infiltrator_bevy_ui::pages::profiles_import::{
 use infiltrator_bevy_ui::pages::proxies::*;
 use infiltrator_bevy_ui::pages::rules::*;
 use infiltrator_bevy_ui::pages::rules_mrs::{RulesMrsRoot, UnpackRuleProviderButton};
+use infiltrator_bevy_ui::pages::rules_tracer::{
+    SimulateRuleTraceButton, TracerQueryField, TracerSourceIpField,
+};
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::button::ControlVisual;
+use infiltrator_bevy_widgets::text_input::TextField;
+use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_contract::rule_tracer::{RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot};
 
 use crate::support::*;
@@ -983,6 +988,87 @@ fn test_rules_tracer_projection_renders_shared_decision_chain() {
         root,
         "最终出站: 香港 IPLC 01"
     ));
+}
+
+#[test]
+fn test_rules_tracer_source_ip_sandbox_submits_shared_context() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Rules);
+
+    // The shared snapshot's Inbound stage reflects the simulated source IP;
+    // the card must render that exact shared decision-chain line.
+    let mut projection = RulesProjection::demo();
+    if let Some(chain) = projection.tracer.decision_chain.as_mut() {
+        chain.nodes[0].detail = "10.20.30.40:7890 (TCP)".to_owned();
+    }
+    projection.tracer.simulated_context.src_ip = Some("10.20.30.40".to_owned());
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection));
+    app.update();
+
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "· inbound | 混合端口监听 (Mixed) | 10.20.30.40:7890 (TCP)"
+    ));
+
+    // Both sandbox inputs mount: the target query and the source-IP field.
+    let query_source = {
+        let mut fields = app.world_mut().query::<(&TracerQueryField, &Children)>();
+        *fields
+            .single(app.world())
+            .expect("query field wrapper")
+            .1
+            .iter()
+            .next()
+            .expect("query text field")
+    };
+    let src_source = {
+        let mut fields = app.world_mut().query::<(&TracerSourceIpField, &Children)>();
+        *fields
+            .single(app.world())
+            .expect("source ip field wrapper")
+            .1
+            .iter()
+            .next()
+            .expect("source ip text field")
+    };
+    app.world_mut()
+        .get_mut::<TextField>(query_source)
+        .expect("query field state")
+        .0
+        .apply(TextFieldInput::SetText("google.com".to_owned()));
+    app.world_mut()
+        .get_mut::<TextField>(src_source)
+        .expect("source ip field state")
+        .0
+        .apply(TextFieldInput::SetText("10.20.30.40".to_owned()));
+
+    // The simulate button submits the shared sandbox context, then the query;
+    // no UI-local trace is fabricated.
+    let simulate = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<SimulateRuleTraceButton>>()
+        .single(app.world())
+        .expect("simulate button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: simulate });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![
+            UiCommand::SetRuleTracerContext {
+                src_ip: Some("10.20.30.40".to_owned()),
+            },
+            UiCommand::SimulateRuleTrace {
+                query: "google.com".to_owned(),
+            },
+        ]
+    );
 }
 
 #[test]

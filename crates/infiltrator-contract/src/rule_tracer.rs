@@ -103,6 +103,17 @@ pub struct TrafficContextSnapshot {
     pub domain: Option<String>,
     pub ip: Option<String>,
     pub port: Option<u16>,
+    /// Simulated inbound source IP (the LAN device the decision is replayed
+    /// for). DUAL-12-10: this is the sandbox environment parameter that the
+    /// Inbound decision stage reflects on both surfaces.
+    #[serde(default)]
+    pub src_ip: Option<String>,
+    /// Simulated source port paired with `src_ip`.
+    #[serde(default)]
+    pub src_port: Option<u16>,
+    /// Simulated inbound listener port the traffic arrives on.
+    #[serde(default)]
+    pub in_port: Option<u16>,
     pub process_name: Option<String>,
     pub network: Option<String>,
     pub in_type: Option<String>,
@@ -325,6 +336,9 @@ impl RuleTracerSnapshot {
                 domain: Some("github.com".to_owned()),
                 ip: None,
                 port: Some(443),
+                src_ip: Some("127.0.0.1".to_owned()),
+                src_port: None,
+                in_port: Some(7890),
                 process_name: Some("git.exe".to_owned()),
                 network: Some("tcp".to_owned()),
                 in_type: Some("mixed".to_owned()),
@@ -552,5 +566,18 @@ mod tests {
         );
         assert_eq!(snapshot.hit_audit, RuleHitAuditSnapshot::default());
         assert!(!snapshot.hit_audit.can_clear);
+    }
+
+    #[test]
+    fn traffic_context_snapshot_defaults_new_sandbox_fields_for_legacy_json() {
+        // DUAL-12-10: old payloads without the sandbox source-IP fields must
+        // still deserialize; the new fields default to `None`.
+        let legacy = r#"{"domain":"github.com","port":443}"#;
+        let context: TrafficContextSnapshot =
+            serde_json::from_str(legacy).expect("legacy context payload");
+        assert_eq!(context.domain.as_deref(), Some("github.com"));
+        assert_eq!(context.src_ip, None);
+        assert_eq!(context.src_port, None);
+        assert_eq!(context.in_port, None);
     }
 }

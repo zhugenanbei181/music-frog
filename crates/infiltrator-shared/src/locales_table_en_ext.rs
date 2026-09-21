@@ -283,6 +283,8 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "common_copy" => "Copy".into(),
         "overview_current_ip" => "Current Outbound IP".into(),
         "overview_scale_max" => "Max".into(),
+        "tracer_src_ip_label" => "Source IP:".into(),
+        "tracer_src_ip_placeholder" => "Simulated source IP (e.g. 192.168.1.100)".into(),
         _ => key.to_string().into(),
     }
 }

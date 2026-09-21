@@ -387,6 +387,26 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
                 trace_btn,
             ]
             .align_y(Alignment::Center),
+            row![
+                text(lang.tr("tracer_src_ip_label").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_tertiary)
+                    }),
+                Space::new().width(theme::SP_XS),
+                text_input(
+                    lang.tr("tracer_src_ip_placeholder").as_ref(),
+                    &state.editor.rules_tracer_src_ip
+                )
+                .on_input(Message::UpdateTracerSourceIp)
+                .on_submit(Message::RunRulesTracer)
+                .padding([8, 12])
+                .size(12)
+                .font(MONO)
+                .width(Length::Fill)
+                .style(form_input_style),
+            ]
+            .align_y(Alignment::Center),
             quick_presets,
             Space::new().height(theme::SP_SM),
             tracer_result_view,
