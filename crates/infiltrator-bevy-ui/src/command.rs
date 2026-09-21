@@ -74,6 +74,8 @@ pub enum UiCommand {
     DeleteProfile { id: String },
     /// Trigger a remote update for all rule providers.
     RefreshRuleProviders,
+    /// Reset every accumulated rule hit counter.
+    ClearRuleHitCounters,
     /// Terminate a single active connection by ID.
     CloseConnection { id: String },
     /// Terminate all active connections.
@@ -230,6 +232,7 @@ impl UiCommand {
                 profile_id: id.clone(),
             }),
             Self::RefreshRuleProviders => Some(CommandIntent::RefreshRuleProviders),
+            Self::ClearRuleHitCounters => Some(CommandIntent::ResetRuleHitCounters),
             Self::CloseConnection { id } => Some(CommandIntent::CloseConnection { id: id.clone() }),
             Self::CloseAllConnections => Some(CommandIntent::CloseAllConnections),
             Self::ClearLogs => Some(CommandIntent::ClearLogs),

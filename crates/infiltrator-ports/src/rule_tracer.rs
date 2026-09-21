@@ -21,4 +21,11 @@ pub trait RuleTracerPort: Send + Sync {
         query: &str,
         active_exit: Option<&ActiveExitSnapshot>,
     ) -> DecisionChainSnapshot;
+
+    /// Feed observed rule hits from a live connection stream into the shared
+    /// counter. `payload_bytes` is the connection's cumulative traffic.
+    fn record_hits(&self, hits: &[(&str, u64)]);
+
+    /// Reset every accumulated hit counter and timestamp.
+    fn clear_hits(&self);
 }

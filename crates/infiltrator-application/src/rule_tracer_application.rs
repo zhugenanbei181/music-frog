@@ -2,11 +2,14 @@
 
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::rule_tracer::{
-    DecisionChainSnapshot, RuleTracerSnapshot, RuleTracerStatus, TrafficContextSnapshot,
+    DecisionChainSnapshot, RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot, RuleHitSummary,
+    RuleTracerSnapshot, RuleTracerStatus, TrafficContextSnapshot,
 };
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_domain::proxy::Proxy;
+use infiltrator_domain::rule_hit_counter::RuleHitCounter;
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_domain::rules::analyzer::{ShadowReason, find_shadowed_rules};
 use infiltrator_domain::rules::tracer::{
     RuleTraceMatch, TrafficContext, build_decision_chain, trace_rules,
 };
@@ -15,21 +18,27 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+/// Maximum number of per-rule hit summaries published in the audit snapshot.
+const HIT_AUDIT_LIMIT: usize = 20;
+
 #[derive(Clone, Debug, Default)]
 pub struct RuleTracerApplication {
     active_query: Arc<Mutex<String>>,
+    hit_counter: Arc<Mutex<RuleHitCounter>>,
 }
 
 impl RuleTracerApplication {
     pub fn new() -> Self {
         Self {
             active_query: Arc::new(Mutex::new(String::new())),
+            hit_counter: Arc::new(Mutex::new(RuleHitCounter::new())),
         }
     }
 
     pub fn with_query(query: impl Into<String>) -> Self {
         Self {
             active_query: Arc::new(Mutex::new(query.into())),
+            hit_counter: Arc::new(Mutex::new(RuleHitCounter::new())),
         }
     }
 
@@ -44,6 +53,127 @@ impl RuleTracerApplication {
             .lock()
             .map(|q| q.clone())
             .unwrap_or_default()
+    }
+
+    /// Feed observed rule hits into the shared counter.
+    pub fn record_hits(&self, hits: &[(&str, u64)]) {
+        if let Ok(mut counter) = self.hit_counter.lock() {
+            counter.record_batch(hits);
+        }
+    }
+
+    /// Reset every accumulated hit counter and timestamp.
+    pub fn clear_hits(&self) {
+        if let Ok(mut counter) = self.hit_counter.lock() {
+            counter.clear();
+        }
+    }
+
+    /// Hits observed for a single rule.
+    pub fn hit_count_for(&self, rule_raw: &str) -> u64 {
+        self.hit_counter
+            .lock()
+            .map(|counter| counter.hit_count_for(rule_raw))
+            .unwrap_or(0)
+    }
+
+    /// Last observed hit timestamp (epoch seconds) for a single rule.
+    pub fn last_hit_for(&self, rule_raw: &str) -> Option<u64> {
+        self.hit_counter
+            .lock()
+            .ok()
+            .and_then(|counter| counter.last_hit_for(rule_raw))
+    }
+
+    /// Build the shared hit-audit read model from the accumulated counter and
+    /// the static shadow analysis of the current rule list.
+    pub fn audit(&self, rules: &[RuleEntry]) -> RuleHitAuditSnapshot {
+        let total_hits;
+        let tracked_rules;
+        let top_hits: Vec<RuleHitSummary>;
+        let last_hit_rule;
+        let last_hit_secs;
+
+        match self.hit_counter.lock() {
+            Ok(counter) => {
+                total_hits = counter.total_hits();
+                top_hits = counter
+                    .top_rules_by_hits(HIT_AUDIT_LIMIT)
+                    .into_iter()
+                    .map(|record| RuleHitSummary {
+                        last_hit_secs: (record.last_hit_secs > 0).then_some(record.last_hit_secs),
+                        rule_raw: record.rule_raw,
+                        hit_count: record.hit_count,
+                        total_payload_bytes: record.total_payload_bytes,
+                    })
+                    .collect();
+                tracked_rules = top_hits.len();
+                last_hit_secs = top_hits
+                    .iter()
+                    .filter_map(|entry| entry.last_hit_secs)
+                    .max();
+                last_hit_rule = last_hit_secs.and_then(|latest| {
+                    top_hits
+                        .iter()
+                        .find(|entry| entry.last_hit_secs == Some(latest))
+                        .map(|entry| entry.rule_raw.clone())
+                });
+            }
+            Err(_) => {
+                total_hits = 0;
+                tracked_rules = 0;
+                top_hits = Vec::new();
+                last_hit_rule = None;
+                last_hit_secs = None;
+            }
+        }
+
+        let shadow_warnings = find_shadowed_rules(rules);
+        let shadow_map: HashMap<usize, &_> = shadow_warnings
+            .iter()
+            .map(|warning| (warning.index, warning))
+            .collect();
+
+        let mut dead_rules = Vec::new();
+        let mut cidr_overlaps = Vec::new();
+        for (index, entry) in rules.iter().enumerate() {
+            let hit_count = self.hit_count_for(&entry.rule);
+            let last_hit = self.last_hit_for(&entry.rule);
+            if let Some(warning) = shadow_map.get(&index) {
+                let entry = RuleDeadEntry {
+                    rule_raw: entry.rule.clone(),
+                    hit_count,
+                    reason: RuleDeadReason::Shadowed,
+                    shadowed_by: Some(warning.shadowed_by_rule.clone()),
+                    detail: Some(warning.reason.to_string()),
+                    last_hit_secs: last_hit,
+                };
+                if matches!(warning.reason, ShadowReason::IpCidrShadowedByCidr) {
+                    cidr_overlaps.push(entry.clone());
+                }
+                dead_rules.push(entry);
+            } else if hit_count == 0 && entry.enabled {
+                dead_rules.push(RuleDeadEntry {
+                    rule_raw: entry.rule.clone(),
+                    hit_count,
+                    reason: RuleDeadReason::ZeroHits,
+                    shadowed_by: None,
+                    detail: None,
+                    last_hit_secs: last_hit,
+                });
+            }
+        }
+
+        RuleHitAuditSnapshot {
+            total_hits,
+            tracked_rules,
+            top_hits,
+            dead_rules,
+            cidr_overlaps,
+            last_hit_rule,
+            last_hit_secs,
+            can_clear: total_hits > 0,
+        }
     }
 
     /// Pure simulation trace over a rule set and query context.
@@ -142,6 +272,7 @@ impl RuleTracerApplication {
             ) {
                 snapshot.status = RuleTracerStatus::Ready;
             }
+            snapshot.hit_audit = self.audit(rules);
             return snapshot;
         }
 
@@ -177,6 +308,7 @@ impl RuleTracerApplication {
                 Some("内核离线：当前展示基于本地 AST 规则树的离线模拟推演".to_owned());
         }
 
+        snapshot.hit_audit = self.audit(rules);
         snapshot
     }
 }
@@ -195,6 +327,14 @@ impl infiltrator_ports::rule_tracer::RuleTracerPort for RuleTracerApplication {
         active_exit: Option<&ActiveExitSnapshot>,
     ) -> DecisionChainSnapshot {
         self.trace(rules, query, active_exit, None).1
+    }
+
+    fn record_hits(&self, hits: &[(&str, u64)]) {
+        RuleTracerApplication::record_hits(self, hits);
+    }
+
+    fn clear_hits(&self) {
+        RuleTracerApplication::clear_hits(self);
     }
 }
 
@@ -318,6 +458,98 @@ mod tests {
     }
 
     #[test]
+    fn hit_audit_reports_real_counts_dead_rules_and_last_hit() {
+        use infiltrator_contract::rule_tracer::RuleDeadReason;
+
+        let app = RuleTracerApplication::new();
+        app.record_hits(&[
+            ("DOMAIN-SUFFIX,google.com,PROXY", 2048),
+            ("DOMAIN-SUFFIX,google.com,PROXY", 1024),
+            ("DOMAIN-KEYWORD,bilibili,DIRECT", 512),
+        ]);
+
+        let audit = app.audit(&sample_rules());
+
+        assert_eq!(audit.total_hits, 3);
+        assert!(audit.can_clear);
+        // Highest-count rule is first; payload bytes accumulate across hits.
+        assert_eq!(audit.top_hits[0].rule_raw, "DOMAIN-SUFFIX,google.com,PROXY");
+        assert_eq!(audit.top_hits[0].hit_count, 2);
+        assert_eq!(audit.top_hits[0].total_payload_bytes, 3072);
+        assert!(audit.top_hits[0].last_hit_secs.is_some());
+        // The most recent timestamp drives the hit-flash highlight; ties are
+        // broken toward the higher-hit rule so the projection is deterministic.
+        assert_eq!(
+            audit.last_hit_rule.as_deref(),
+            Some("DOMAIN-SUFFIX,google.com,PROXY")
+        );
+        // Untouched enabled rules are honestly reported as zero-hit.
+        assert!(audit.dead_rules.iter().any(|entry| {
+            entry.rule_raw == "IP-CIDR,1.1.1.1/32,DNS_DIRECT"
+                && entry.reason == RuleDeadReason::ZeroHits
+                && entry.hit_count == 0
+        }));
+    }
+
+    #[test]
+    fn hit_audit_surfaces_cidr_overlap_and_shadow_reason() {
+        use infiltrator_contract::rule_tracer::RuleDeadReason;
+
+        let app = RuleTracerApplication::new();
+        let rules = vec![
+            RuleEntry {
+                rule: "IP-CIDR,10.0.0.0/8,DIRECT".to_owned(),
+                enabled: true,
+            },
+            RuleEntry {
+                rule: "IP-CIDR,10.1.2.0/24,PROXY".to_owned(),
+                enabled: true,
+            },
+        ];
+
+        let audit = app.audit(&rules);
+        assert_eq!(audit.cidr_overlaps.len(), 1);
+        let overlap = &audit.cidr_overlaps[0];
+        assert_eq!(overlap.rule_raw, "IP-CIDR,10.1.2.0/24,PROXY");
+        assert_eq!(overlap.reason, RuleDeadReason::Shadowed);
+        assert_eq!(
+            overlap.shadowed_by.as_deref(),
+            Some("IP-CIDR,10.0.0.0/8,DIRECT")
+        );
+        assert!(
+            audit
+                .dead_rules
+                .iter()
+                .any(|entry| entry.rule_raw == overlap.rule_raw)
+        );
+    }
+
+    #[test]
+    fn clear_hits_resets_the_audit() {
+        let app = RuleTracerApplication::new();
+        app.record_hits(&[("DOMAIN-SUFFIX,google.com,PROXY", 64)]);
+        assert_eq!(app.audit(&sample_rules()).total_hits, 1);
+
+        app.clear_hits();
+        let audit = app.audit(&sample_rules());
+        assert_eq!(audit.total_hits, 0);
+        assert!(!audit.can_clear);
+        assert!(audit.last_hit_rule.is_none());
+    }
+
+    #[test]
+    fn project_publishes_the_hit_audit_for_the_surface() {
+        let app = RuleTracerApplication::with_query("www.google.com");
+        app.record_hits(&[("DOMAIN-SUFFIX,google.com,PROXY", 128)]);
+        let snapshot = app.project(&running_core(), &sample_rules(), None, None);
+        assert_eq!(snapshot.hit_audit.total_hits, 1);
+        assert_eq!(
+            snapshot.hit_audit.last_hit_rule.as_deref(),
+            Some("DOMAIN-SUFFIX,google.com,PROXY")
+        );
+    }
+
+    #[test]
     fn tracer_port_drives_the_shared_query_state() {
         let app = RuleTracerApplication::new();
         let port: &dyn infiltrator_ports::rule_tracer::RuleTracerPort = &app;
@@ -331,5 +563,11 @@ mod tests {
         // fabricate a node name or latency.
         assert_eq!(chain.final_outbound, "未知出口");
         assert_eq!(chain.final_node_delay_ms, None);
+
+        // Hit feeding and clearing flow through the same shared instance.
+        port.record_hits(&[("MATCH,FALLBACK", 32)]);
+        assert_eq!(app.hit_count_for("MATCH,FALLBACK"), 1);
+        port.clear_hits();
+        assert_eq!(app.hit_count_for("MATCH,FALLBACK"), 0);
     }
 }

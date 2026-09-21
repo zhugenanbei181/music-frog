@@ -170,6 +170,7 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
             total_rules: value.total_rules,
             default_action: value.default_action.clone(),
             tracer: value.tracer.clone(),
+            hit_audit: value.tracer.hit_audit.clone(),
             providers: value
                 .providers
                 .iter()
@@ -189,6 +190,9 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
                     payload: rule.payload.clone(),
                     proxy: rule.proxy.clone(),
                     hit_count: rule.hit_count,
+                    last_hit_secs: rule.last_hit_secs,
+                    is_shadowed: rule.is_shadowed,
+                    shadow_reason: rule.shadow_reason.clone(),
                 })
                 .collect(),
         })

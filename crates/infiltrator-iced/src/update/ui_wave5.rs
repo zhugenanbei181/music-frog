@@ -142,24 +142,34 @@ impl AppState {
                 self.finish_privileged_network_regression(result)
             }
             Message::AuditStaleRules => {
-                self.editor.rule_hit_audit.is_auditing = true;
-                let total_rules = self.editor.rules.len();
-                let mut zero_hits = Vec::new();
-                for (idx, r) in self.editor.rules.iter().enumerate() {
-                    if r.rule.contains("MATCH") {
-                        continue;
-                    }
-                    if idx % 2 == 1 {
-                        zero_hits.push(idx);
-                    }
-                }
+                // Project the shared hit-audit read model onto the locally loaded
+                // rule list. Every index comes from real counter/shadow facts —
+                // never from an `idx % 2` fabrication.
+                let dead: std::collections::HashSet<&str> = self
+                    .editor
+                    .rule_hit_audit
+                    .audit
+                    .dead_rules
+                    .iter()
+                    .map(|entry| entry.rule_raw.as_str())
+                    .collect();
+                let zero_hits: Vec<usize> = self
+                    .editor
+                    .rules
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, rule)| dead.contains(rule.rule.as_str()))
+                    .map(|(index, _)| index)
+                    .collect();
                 let count = zero_hits.len();
+                let total_rules = self.editor.rules.len();
                 self.editor.rule_hit_audit.zero_hit_rule_indices = zero_hits;
-                self.editor.rule_hit_audit.total_rule_hits = 1250;
                 self.editor.rule_hit_audit.is_auditing = false;
-                self.editor.rule_hit_audit.audit_summary = Some(format!(
-                    "Audit complete: {count}/{total_rules} rules have 0 hits"
-                ));
+                self.editor.rule_hit_audit.audit_summary = Some(if total_rules == 0 {
+                    "No rules loaded for audit".to_string()
+                } else {
+                    format!("Audit complete: {count}/{total_rules} rules have 0 hits")
+                });
                 Task::none()
             }
             Message::DisableZeroHitRules => {

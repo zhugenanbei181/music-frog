@@ -66,6 +66,7 @@ pub struct CommandApplication {
     privileged_network: Option<PrivilegedNetworkApplication>,
     speedtest: Option<crate::speedtest_application::SpeedtestApplication>,
     proxy_preferences: Option<crate::proxy_preferences_application::ProxyPreferencesApplication>,
+    rule_tracer: Option<crate::rule_tracer_application::RuleTracerApplication>,
 }
 
 impl CommandApplication {
@@ -181,6 +182,14 @@ impl CommandApplication {
         preferences: crate::proxy_preferences_application::ProxyPreferencesApplication,
     ) -> Self {
         self.proxy_preferences = Some(preferences);
+        self
+    }
+
+    pub fn with_rule_tracer(
+        mut self,
+        rule_tracer: crate::rule_tracer_application::RuleTracerApplication,
+    ) -> Self {
+        self.rule_tracer = Some(rule_tracer);
         self
     }
 
@@ -522,6 +531,10 @@ impl CommandApplication {
                 }
             }
             CommandIntent::StopVpn => self.vpn()?.stop().await.map(|_| ()),
+            CommandIntent::ResetRuleHitCounters => {
+                self.rule_tracer()?.clear_hits();
+                Ok(())
+            }
             CommandIntent::RunPrivilegedNetworkRegression => self
                 .privileged_network()?
                 .run(infiltrator_contract::privileged_network::PrivilegedNetworkRequest::standard())
@@ -540,7 +553,6 @@ impl CommandApplication {
             | CommandIntent::ResolveConflictKeepLocal
             | CommandIntent::ResolveConflictTakeRemote
             | CommandIntent::SimulateRuleTrace { .. }
-            | CommandIntent::ResetRuleHitCounters
             | CommandIntent::UnpackRuleProvider { .. } => Err(unsupported()),
         }
     }
@@ -691,6 +703,14 @@ impl CommandApplication {
         self.speedtest
             .clone()
             .ok_or_else(|| missing("speedtest application"))
+    }
+
+    fn rule_tracer(
+        &self,
+    ) -> Result<crate::rule_tracer_application::RuleTracerApplication, Failure> {
+        self.rule_tracer
+            .clone()
+            .ok_or_else(|| missing("rule tracer application"))
     }
 }
 

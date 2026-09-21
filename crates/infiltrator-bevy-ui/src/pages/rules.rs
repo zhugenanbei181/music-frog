@@ -56,6 +56,8 @@ pub enum RulesLineKind {
     Summary,
     /// Default fallback rule target.
     DefaultAction,
+    /// Shared live hit audit: total hits, dead/shadowed rules, CIDR overlaps.
+    HitAudit,
 }
 
 /// Marker for a rule item hit count text.
@@ -90,6 +92,10 @@ pub struct ProviderUpdatedText(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RefreshRuleProvidersButton;
 
+/// Marker for the "Clear Rule Hit Counters" button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ClearRuleHitCountersButton;
+
 /// A single rule entry.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RuleItem {
@@ -98,6 +104,12 @@ pub struct RuleItem {
     pub payload: String,
     pub proxy: String,
     pub hit_count: u64,
+    /// Last observed hit time (epoch seconds), if any.
+    pub last_hit_secs: Option<u64>,
+    /// Whether static analysis found this rule shadowed by an earlier rule.
+    pub is_shadowed: bool,
+    /// Human-readable shadow reason when `is_shadowed` is set.
+    pub shadow_reason: Option<String>,
 }
 
 /// A rule provider (MRS / geosite) entry.
@@ -118,6 +130,8 @@ pub struct RulesProjection {
     pub rules: Vec<RuleItem>,
     /// Shared live rule tracer read model published by the surface reader.
     pub tracer: infiltrator_contract::rule_tracer::RuleTracerSnapshot,
+    /// Shared rule hit-audit read model (hits, dead/shadowed rules, CIDR overlaps).
+    pub hit_audit: infiltrator_contract::rule_tracer::RuleHitAuditSnapshot,
 }
 
 impl RulesProjection {
@@ -126,6 +140,8 @@ impl RulesProjection {
         Self {
             total_rules: 2842,
             default_action: "DIRECT (漏网之鱼直连)".to_owned(),
+            hit_audit: infiltrator_contract::rule_tracer::RuleTracerSnapshot::demo_fixture()
+                .hit_audit,
             tracer: infiltrator_contract::rule_tracer::RuleTracerSnapshot::demo_fixture(),
             providers: vec![
                 RuleProviderItem {
@@ -154,6 +170,9 @@ impl RulesProjection {
                     payload: "google.com".to_owned(),
                     proxy: "国外媒体 (GLOBAL-MEDIA)".to_owned(),
                     hit_count: 1420,
+                    last_hit_secs: Some(1_700_000_010),
+                    is_shadowed: false,
+                    shadow_reason: None,
                 },
                 RuleItem {
                     id: 2,
@@ -161,6 +180,9 @@ impl RulesProjection {
                     payload: "github".to_owned(),
                     proxy: "节点选择 (PROXIES)".to_owned(),
                     hit_count: 852,
+                    last_hit_secs: Some(1_700_000_008),
+                    is_shadowed: false,
+                    shadow_reason: None,
                 },
                 RuleItem {
                     id: 3,
@@ -168,6 +190,9 @@ impl RulesProjection {
                     payload: "CN".to_owned(),
                     proxy: "DIRECT".to_owned(),
                     hit_count: 4210,
+                    last_hit_secs: Some(1_700_000_004),
+                    is_shadowed: false,
+                    shadow_reason: None,
                 },
                 RuleItem {
                     id: 4,
@@ -175,6 +200,9 @@ impl RulesProjection {
                     payload: "custom-reject-ads".to_owned(),
                     proxy: "REJECT".to_owned(),
                     hit_count: 128,
+                    last_hit_secs: Some(1_699_999_900),
+                    is_shadowed: false,
+                    shadow_reason: None,
                 },
                 RuleItem {
                     id: 5,
@@ -182,6 +210,12 @@ impl RulesProjection {
                     payload: "".to_owned(),
                     proxy: "DIRECT".to_owned(),
                     hit_count: 56,
+                    last_hit_secs: None,
+                    is_shadowed: true,
+                    shadow_reason: Some(
+                        "Rule is unreachable because an earlier MATCH rule matches all traffic"
+                            .to_owned(),
+                    ),
                 },
             ],
         }
@@ -205,6 +239,12 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         projection.providers.len()
     );
     let default_action = format!("最终匹配目标: {}", projection.default_action);
+    let hit_audit_line = format!(
+        "命中 {} · 冷门/被遮蔽 {} · CIDR 重叠 {}",
+        projection.hit_audit.total_hits,
+        projection.hit_audit.dead_rules.len(),
+        projection.hit_audit.cidr_overlaps.len()
+    );
 
     let provider_scenes: Vec<Box<dyn Scene>> = projection
         .providers
@@ -234,7 +274,7 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         PageRoot(Route::Rules)
         RulesPageRoot
         Children [
-            ( { header_card_scene(summary, default_action, palette) } ),
+            ( { header_card_scene(summary, default_action, hit_audit_line, palette) } ),
             ( { crate::pages::rules_tracer::rules_tracer_scene(palette, &projection.tracer) } ),
             ( { crate::pages::rules_mrs::rules_mrs_scene(palette) } ),
             ( { crate::pages::rules_builder::rules_builder_scene(palette) } ),
@@ -247,6 +287,7 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
 fn header_card_scene(
     summary: String,
     default_action: String,
+    hit_audit_line: String,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
@@ -277,6 +318,7 @@ fn header_card_scene(
                             Children [
                                 ( Text(summary) RulesLine(RulesLineKind::Summary) TextRole(Role::Heading) ),
                                 ( Text(default_action) RulesLine(RulesLineKind::DefaultAction) TextRole(Role::Caption) ),
+                                ( Text(hit_audit_line) RulesLine(RulesLineKind::HitAudit) TextRole(Role::Caption) ),
                             ]
                         ),
                     ]
@@ -300,6 +342,21 @@ fn header_card_scene(
                             RefreshRuleProvidersButton
                             Children [
                                 ( Text({ "刷新规则集".to_owned() }) TextRole(Role::Body) ),
+                            ]
+                        ),
+                        (
+                            Node {
+                                min_height: px(palette.control_height_px),
+                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            Button
+                            ClearRuleHitCountersButton
+                            Children [
+                                ( Text({ "清空命中计数".to_owned() }) TextRole(Role::Body) ),
                             ]
                         ),
                     ]
@@ -407,12 +464,24 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
     )
 }
 
+/// Live hit label for one rule, flagging zero-hit and shadowed rules from the
+/// shared audit rather than showing a bare count.
+pub(crate) fn rule_hit_label(rule: &RuleItem) -> String {
+    if rule.is_shadowed {
+        format!("{} 次命中 · 被遮蔽", rule.hit_count)
+    } else if rule.hit_count == 0 {
+        format!("{} 次命中 · 冷门", rule.hit_count)
+    } else {
+        format!("{} 次命中", rule.hit_count)
+    }
+}
+
 fn rule_row_scene(idx: usize, rule: &RuleItem, palette: &UiPalette) -> impl Scene + use<> {
     let idx_str = format!("#{}", rule.id);
     let type_str = format!("[{}]", rule.rule_type);
     let payload = rule.payload.clone();
     let proxy = rule.proxy.clone();
-    let hits = format!("{} 次命中", rule.hit_count);
+    let hits = rule_hit_label(rule);
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -465,6 +534,7 @@ fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
 pub(crate) fn on_rules_action_activated(
     activate: On<Activate>,
     buttons: Query<(), With<RefreshRuleProvidersButton>>,
+    clear_buttons: Query<(), With<ClearRuleHitCountersButton>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -472,6 +542,8 @@ pub(crate) fn on_rules_action_activated(
     };
     if buttons.contains(activate.entity) {
         handle.submit(UiCommand::RefreshRuleProviders);
+    } else if clear_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::ClearRuleHitCounters);
     }
 }
 
@@ -605,12 +677,23 @@ pub(crate) fn apply_rules_projection(
                     text.0 = want;
                 }
             }
+            RulesLineKind::HitAudit => {
+                let want = format!(
+                    "命中 {} · 冷门/被遮蔽 {} · CIDR 重叠 {}",
+                    projection.hit_audit.total_hits,
+                    projection.hit_audit.dead_rules.len(),
+                    projection.hit_audit.cidr_overlaps.len()
+                );
+                if text.0 != want {
+                    text.0 = want;
+                }
+            }
         }
     }
 
     for (mut text, marker) in &mut hits {
         if let Some(rule) = projection.rules.get(marker.0) {
-            let want = format!("{} 次命中", rule.hit_count);
+            let want = rule_hit_label(rule);
             if text.0 != want {
                 text.0 = want;
             }

@@ -268,6 +268,7 @@ pub(crate) fn empty_rules() -> RulesProjection {
         providers: Vec::new(),
         rules: Vec::new(),
         tracer: Default::default(),
+        hit_audit: Default::default(),
     }
 }
 

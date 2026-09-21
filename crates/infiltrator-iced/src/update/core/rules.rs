@@ -146,6 +146,29 @@ impl AppState {
                 }
                 Task::none()
             }
+            Message::ClearRuleHitCounters => {
+                // Drive the very same counter the surface reader projects; no
+                // UI-local reset that would diverge from the shared read model.
+                let port = self
+                    .runtime
+                    .runtime
+                    .clone()
+                    .and_then(|runtime| runtime.rule_tracer_port());
+                let Some(port) = port else {
+                    return Task::done(Message::ShowToast(
+                        "Clearing rule hit counters is unavailable on this host".to_string(),
+                        ToastStatus::Error,
+                    ));
+                };
+                port.clear_hits();
+                self.editor.rule_hit_audit.audit = Default::default();
+                self.editor.rule_hit_audit.zero_hit_rule_indices.clear();
+                self.editor.rule_hit_audit.audit_summary = None;
+                Task::done(Message::ShowToast(
+                    "Rule hit counters cleared".to_string(),
+                    ToastStatus::Success,
+                ))
+            }
             Message::UpdateNewRuleType(t) => {
                 self.editor.new_rule_type = t;
                 Task::none()

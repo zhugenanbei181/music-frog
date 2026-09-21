@@ -561,6 +561,7 @@ pub enum Message {
     // Wave 5 Category 1: Rule Hit Counter & Stale Rule Audit
     AuditStaleRules,
     DisableZeroHitRules,
+    ClearRuleHitCounters,
     // Wave 5 Category 2: Latency Time-Series & Stability Radar
     SelectRadarNode(String),
     RecordRadarLatencySample {

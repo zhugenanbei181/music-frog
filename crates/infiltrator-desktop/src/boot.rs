@@ -456,6 +456,7 @@ impl BootEngine for ProductionEngine<'_> {
                         })?,
                     ),
                 ),
+                infiltrator_application::rule_tracer_application::RuleTracerApplication::new(),
             )
             .map_err(|error| {
                 AttemptFailure::new(

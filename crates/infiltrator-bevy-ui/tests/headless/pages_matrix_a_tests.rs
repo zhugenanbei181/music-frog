@@ -24,6 +24,7 @@ use infiltrator_bevy_ui::pages::rules_mrs::{RulesMrsRoot, UnpackRuleProviderButt
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::button::ControlVisual;
+use infiltrator_contract::rule_tracer::{RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot};
 
 use crate::support::*;
 
@@ -920,6 +921,7 @@ fn test_rules_empty_and_edge_case_projection() {
         providers: vec![],
         rules: vec![],
         tracer: Default::default(),
+        hit_audit: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -932,6 +934,12 @@ fn test_rules_empty_and_edge_case_projection() {
         "分流规则 · 共 0 条规则 (0 个规则集 / 命中统计开启)"
     ));
     assert!(subtree_has_text(app.world(), root, "最终匹配目标: DIRECT"));
+    // Honest zero-audit line: no fabricated hit totals.
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "命中 0 · 冷门/被遮蔽 0 · CIDR 重叠 0"
+    ));
     // Empty tracer snapshot renders the honest empty state, never a
     // fabricated replay.
     assert!(subtree_has_text(
@@ -975,6 +983,81 @@ fn test_rules_tracer_projection_renders_shared_decision_chain() {
         root,
         "最终出站: 香港 IPLC 01"
     ));
+}
+
+#[test]
+fn test_rules_hit_audit_projection_and_clear_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink.clone());
+    let (root, _) = navigate_to(&mut app, Route::Rules);
+
+    let dead = RuleDeadEntry {
+        rule_raw: "MATCH,DIRECT".to_owned(),
+        hit_count: 0,
+        reason: RuleDeadReason::ZeroHits,
+        shadowed_by: None,
+        detail: None,
+        last_hit_secs: None,
+    };
+    let overlap = RuleDeadEntry {
+        rule_raw: "IP-CIDR,10.1.2.0/24,PROXY".to_owned(),
+        hit_count: 0,
+        reason: RuleDeadReason::Shadowed,
+        shadowed_by: Some("IP-CIDR,10.0.0.0/8,DIRECT".to_owned()),
+        detail: Some("IP CIDR is shadowed by an earlier broader IP-CIDR rule".to_owned()),
+        last_hit_secs: None,
+    };
+
+    let mut projection = RulesProjection::demo();
+    projection.hit_audit = RuleHitAuditSnapshot {
+        total_hits: 1287,
+        tracked_rules: 42,
+        top_hits: Vec::new(),
+        dead_rules: vec![dead, overlap.clone()],
+        cidr_overlaps: vec![overlap],
+        last_hit_rule: Some("DOMAIN-SUFFIX,google.com,PROXY".to_owned()),
+        last_hit_secs: Some(1_700_000_012),
+        can_clear: true,
+    };
+    // The demo MATCH rule is the last entry; flag it shadowed so the row label
+    // must render the shared shadow fact.
+    if let Some(rule) = projection.rules.last_mut() {
+        rule.is_shadowed = true;
+        rule.shadow_reason = Some("unreachable after MATCH".to_owned());
+    }
+
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection));
+    app.update();
+
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "命中 1287 · 冷门/被遮蔽 2 · CIDR 重叠 1"
+    ));
+    assert!(subtree_has_text(app.world(), root, "56 次命中 · 被遮蔽"));
+
+    // The clear button submits the shared reset intent (no UI-local reset).
+    let clear_entity = {
+        let world = app.world_mut();
+        let mut buttons = world.query::<(Entity, &ClearRuleHitCountersButton)>();
+        buttons
+            .iter(world)
+            .next()
+            .expect("clear hit counters button mounted")
+            .0
+    };
+    app.world_mut().commands().trigger(Activate {
+        entity: clear_entity,
+    });
+    app.update();
+
+    assert!(
+        sink.submitted()
+            .iter()
+            .any(|command| matches!(command, UiCommand::ClearRuleHitCounters))
+    );
 }
 
 #[test]

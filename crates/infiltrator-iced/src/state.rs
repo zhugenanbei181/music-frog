@@ -495,6 +495,9 @@ impl AppState {
         self.runtime.active_exit = snapshot.active_exit.clone();
         self.runtime.subscription_quota = snapshot.subscription_quota.clone();
         self.diag.speedtest = snapshot.speedtest.clone();
+        if let Some(rules_page) = snapshot.pages.rules.data.as_ref() {
+            self.editor.rule_hit_audit.audit = rules_page.tracer.hit_audit.clone();
+        }
         self.diag.overview_card_order = snapshot.overview_layout.order.clone();
         self.runtime.system_toggles =
             infiltrator_application::system_toggle_application::SystemToggleApplication::from_surface(

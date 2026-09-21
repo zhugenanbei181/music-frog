@@ -12,6 +12,9 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, PhysicalMtuSnapshot};
+use infiltrator_contract::rule_tracer::{
+    RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot, RuleTracerSnapshot,
+};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageData, SettingsPageSnapshot, SurfaceSnapshot};
 use infiltrator_contract::system_proxy::{
@@ -20,6 +23,29 @@ use infiltrator_contract::system_proxy::{
 };
 use infiltrator_contract::tun::{TunStack, TunStackAvailability};
 use infiltrator_domain::rules::RuleEntry;
+
+fn rules_page_with_hit_audit(audit: RuleHitAuditSnapshot) -> SurfaceSnapshot {
+    let mut snapshot = SurfaceSnapshot::unavailable(
+        SurfaceKind::IcedDesktop,
+        HostKind::Desktop,
+        Failure::new(ErrorCode::NotReady, "test snapshot", true),
+    );
+    snapshot.revision = 3;
+    snapshot.pages.rules =
+        PageData::ready(infiltrator_contract::surface_snapshot::RulesPageSnapshot {
+            total_rules: 4,
+            default_action: "Proxy".to_owned(),
+            providers: Vec::new(),
+            rules: Vec::new(),
+            tracer: RuleTracerSnapshot {
+                hit_audit: audit,
+                ..Default::default()
+            },
+            mrs_acceleration: Default::default(),
+            total_hits: 0,
+        });
+    snapshot
+}
 
 #[test]
 fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
@@ -45,13 +71,48 @@ fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
         },
     ];
 
-    // Initial audit state
-    assert_eq!(state.editor.rule_hit_audit.total_rule_hits, 0);
+    // No fabricated audit before the shared projection arrives.
+    assert_eq!(state.editor.rule_hit_audit.audit.total_hits, 0);
     assert!(state.editor.rule_hit_audit.zero_hit_rule_indices.is_empty());
 
-    // Trigger audit
+    // The application-owned hit audit reaches the Iced projection verbatim.
+    let audit = RuleHitAuditSnapshot {
+        total_hits: 42,
+        tracked_rules: 2,
+        top_hits: Vec::new(),
+        dead_rules: vec![
+            RuleDeadEntry {
+                rule_raw: "DOMAIN-SUFFIX,facebook.com,Proxy".into(),
+                hit_count: 0,
+                reason: RuleDeadReason::ZeroHits,
+                shadowed_by: None,
+                detail: None,
+                last_hit_secs: None,
+            },
+            RuleDeadEntry {
+                rule_raw: "IP-CIDR,1.1.1.1/32,DIRECT".into(),
+                hit_count: 0,
+                reason: RuleDeadReason::Shadowed,
+                shadowed_by: Some("IP-CIDR,0.0.0.0/0,DIRECT".into()),
+                detail: Some("shadowed".into()),
+                last_hit_secs: None,
+            },
+        ],
+        cidr_overlaps: Vec::new(),
+        last_hit_rule: Some("DOMAIN-SUFFIX,google.com,Proxy".into()),
+        last_hit_secs: Some(1_700_000_000),
+        can_clear: true,
+    };
+    assert!(state.apply_shared_surface_snapshot(rules_page_with_hit_audit(audit)));
+    assert_eq!(state.editor.rule_hit_audit.audit.total_hits, 42);
+    assert_eq!(
+        state.editor.rule_hit_audit.audit.last_hit_rule.as_deref(),
+        Some("DOMAIN-SUFFIX,google.com,Proxy")
+    );
+
+    // Trigger audit: indices are derived from the shared dead-rule projection,
+    // not from any `idx % 2` fabrication.
     let _ = state.update(Message::AuditStaleRules);
-    assert_eq!(state.editor.rule_hit_audit.total_rule_hits, 1250);
     assert_eq!(
         state.editor.rule_hit_audit.zero_hit_rule_indices,
         vec![1, 3]
@@ -64,6 +125,23 @@ fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
     assert!(state.editor.rules[2].enabled);
     assert!(!state.editor.rules[3].enabled); // disabled rule 3
     assert!(state.editor.rules_dirty);
+}
+
+#[test]
+fn test_clear_rule_hit_counters_without_host_port_is_honest() {
+    let (mut state, _) = AppState::new();
+
+    // Hostless: no tracer port is composed, so the reset must not mutate the
+    // shared audit into a fabricated success.
+    let audit = RuleHitAuditSnapshot {
+        total_hits: 7,
+        can_clear: true,
+        ..Default::default()
+    };
+    assert!(state.apply_shared_surface_snapshot(rules_page_with_hit_audit(audit)));
+
+    let _ = state.update(Message::ClearRuleHitCounters);
+    assert_eq!(state.editor.rule_hit_audit.audit.total_hits, 7);
 }
 
 #[test]

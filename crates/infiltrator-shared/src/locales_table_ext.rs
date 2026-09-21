@@ -222,6 +222,11 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "rule_hit_btn_clean" => "一键停用 0 命中规则".into(),
         "rule_hit_total_hits" => "累计总命中次数".into(),
         "rule_hit_stale_count" => "发现 {count} 条冷门规则".into(),
+        "rule_hit_btn_clear" => "清空命中计数".into(),
+        "rule_hit_dead_count" => "冷门/被遮蔽规则".into(),
+        "rule_hit_cidr_conflicts" => "CIDR 掩码重叠".into(),
+        "rule_hit_last_hit" => "最近命中规则".into(),
+        "rule_hit_none" => "暂无命中数据".into(),
 
         // Wave 5 Category 2: Latency Time-Series & Stability Radar
         "latency_radar_title" => "节点时序延迟与稳定性雷达".into(),

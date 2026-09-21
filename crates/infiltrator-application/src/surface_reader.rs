@@ -468,7 +468,6 @@ impl SurfaceReader for ApplicationSurfaceReader {
         pages.rules = build_rules_page(
             self.configuration.as_ref(),
             runtime_rule_providers,
-            None,
             RulesTracerReplay {
                 application: &self.rule_tracer,
                 core: &core,
@@ -663,7 +662,6 @@ struct RulesTracerReplay<'a> {
 async fn build_rules_page(
     configuration: Option<&ConfigurationApplication>,
     runtime_providers: Option<Result<Vec<infiltrator_domain::runtime::RuleProvider>, PortError>>,
-    hit_counter: Option<&Arc<Mutex<infiltrator_domain::rule_hit_counter::RuleHitCounter>>>,
     tracer_replay: RulesTracerReplay<'_>,
     mrs_acceleration: infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
 ) -> surface_snapshot::PageData<surface_snapshot::RulesPageSnapshot> {
@@ -706,24 +704,17 @@ async fn build_rules_page(
     let shadow_map: HashMap<usize, &infiltrator_domain::rules::analyzer::ShadowedRuleWarning> =
         shadow_warnings.iter().map(|w| (w.index, w)).collect();
 
-    let counter_guard = hit_counter.and_then(|c| c.lock().ok());
-
-    let mut total_hits: u64 = 0;
     let mut entries = rules
         .into_iter()
         .enumerate()
         .map(|(id, rule)| {
-            let hit = counter_guard
-                .as_ref()
-                .map(|c| c.hit_count_for(&rule.rule))
-                .unwrap_or(0);
-            let last_hit = counter_guard
-                .as_ref()
-                .and_then(|c| c.last_hit_for(&rule.rule));
-            total_hits += hit;
+            let hit = tracer_replay.application.hit_count_for(&rule.rule);
+            let last_hit = tracer_replay.application.last_hit_for(&rule.rule);
             rule_snapshot(id + 1, rule, hit, last_hit, shadow_map.get(&id).copied())
         })
         .collect::<Vec<_>>();
+
+    let total_hits = tracer.hit_audit.total_hits;
 
     let default_action = entries
         .last()

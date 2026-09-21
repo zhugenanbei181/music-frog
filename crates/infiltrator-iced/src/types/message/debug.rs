@@ -921,6 +921,7 @@ impl std::fmt::Debug for Message {
             Message::TogglePacMode(on) => write!(f, "TogglePacMode({on})"),
             Message::AuditStaleRules => write!(f, "AuditStaleRules"),
             Message::DisableZeroHitRules => write!(f, "DisableZeroHitRules"),
+            Message::ClearRuleHitCounters => write!(f, "ClearRuleHitCounters"),
             Message::SelectRadarNode(n) => write!(f, "SelectRadarNode({n})"),
             Message::RecordRadarLatencySample { node, latency_ms } => {
                 write!(f, "RecordRadarLatencySample({node}: {latency_ms}ms)")

@@ -234,8 +234,12 @@ fn rules_page_in_place_update() {
             payload: "anthropic.com".to_owned(),
             proxy: "AI-PROXIES".to_owned(),
             hit_count: 8888,
+            last_hit_secs: None,
+            is_shadowed: false,
+            shadow_reason: None,
         }],
         tracer: Default::default(),
+        hit_audit: Default::default(),
     };
 
     app.world_mut()

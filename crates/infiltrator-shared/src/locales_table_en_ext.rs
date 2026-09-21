@@ -210,6 +210,11 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "rule_hit_btn_clean" => "Disable 0-Hit Rules".into(),
         "rule_hit_total_hits" => "Total Rule Hits".into(),
         "rule_hit_stale_count" => "{count} stale rules detected".into(),
+        "rule_hit_btn_clear" => "Clear Hit Counters".into(),
+        "rule_hit_dead_count" => "Dead & Shadowed Rules".into(),
+        "rule_hit_cidr_conflicts" => "CIDR Mask Overlaps".into(),
+        "rule_hit_last_hit" => "Most Recent Hit".into(),
+        "rule_hit_none" => "No hit data yet".into(),
 
         // Wave 5 Category 2: Latency Time-Series & Stability Radar
         "latency_radar_title" => "Latency Time-Series & Stability Radar".into(),

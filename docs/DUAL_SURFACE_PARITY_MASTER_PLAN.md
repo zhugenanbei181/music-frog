@@ -123,7 +123,13 @@
 | `DUAL-12-13` | 离线分流追踪支持 | `parity-ready` | `RuleTracerApplication::project` 离线 AST 推演 + 诚实「未知出口」；hostless demo 走同一应用直调 |
 | `DUAL-12-14` | 双端 Tracer 沙盒组件完全镜像 | `parity-ready` | reader 真实投影 `pages.rules.tracer`；Bevy 经 `RulesProjection.tracer` 消费；Iced 经 `HostRuntime::rule_tracer_port` |
 | `DUAL-12-15` | Tracer 判定算法无头断言覆盖 | `parity-ready` | domain `tracer_tests`（含未知出口诚实断言）、application 端口/离线测试、Iced chain 断言、Bevy `test_rules_tracer_projection_renders_shared_decision_chain` |
-| 其余 9 项（命中计数流/死规则诊断/CIDR 冲突/反向应用/时延审计等） | 见组 12 清单 | `planned` | 未实现 |
+| `DUAL-12-04` | 规则命中实时流计数 (Hit Counter) | `parity-ready` | 共享 `RuleHitAuditSnapshot`（contract `rule_tracer.rs`）；application `RuleTracerApplication::record_hits/audit` 拥有唯一 `RuleHitCounter`，`project()` 发布审计；reader 不再传 `None`，逐条命中数来自共享引擎；Iced 删除 `total_rule_hits=1250` 伪造桩改为消费 `pages.rules.tracer.hit_audit`，Bevy `RulesProjection.hit_audit` 渲染；双端断言 |
+| `DUAL-12-05` | 冷门死规则静态诊断 | `parity-ready` | domain `find_shadowed_rules` 已在 reader 生效；本轮审计快照 `dead_rules` 合并零命中与 `ShadowReason`；Iced `AuditStaleRules` 从共享 `dead_rules` 投影索引（删除 `idx % 2` 伪造），Bevy 行标签渲染「冷门/被遮蔽」 |
+| `DUAL-12-06` | IP-CIDR 掩码重叠与冲突检测 | `parity-ready` | domain `cidr_contains`/`ShadowReason::IpCidrShadowedByCidr` 为事实源；审计快照 `cidr_overlaps` 子集发布；Iced 审计卡与 Bevy 头部行展示 CIDR 重叠数；application 单测覆盖重叠与 `shadowed_by` |
+| `DUAL-12-07` | 命中时间戳记录 | `parity-ready` | `RuleHitRecord::last_hit_secs` → `RuleHitSummary::last_hit_secs` → Iced `rule_hit_last_hit` 行与 Bevy `RuleItem.last_hit_secs`，无事实时诚实空态 |
+| `DUAL-12-11` | 一键清空规则命中计数 | `parity-ready` | `CommandIntent::ResetRuleHitCounters` 从 unsupported 改为真实调用共享 `clear_hits`；Iced `Message::ClearRuleHitCounters` 经 `HostRuntime::rule_tracer_port`，无 port 时 typed error toast；Bevy `UiCommand::ClearRuleHitCounters` 经 `CommandApplication::with_rule_tracer` 路由 |
+| `DUAL-12-12` | 规则命中高亮闪烁动效 | `parity-ready`（数据面） | 审计快照 `last_hit_rule`/`last_hit_secs` 提供唯一「刚命中」事实；Iced 卡片 HIT 徽标 + 规则名高亮、Bevy 行标签。像素动效属 `local`，宿主视觉 smoke 未计入 |
+| `DUAL-12-08` 反向应用 / `DUAL-12-09` 时延贡献审计 / `DUAL-12-10` 沙盒来源 IP | 见组 12 清单 | `planned` | 未实现 |
 
 > **关键修复（D-017 收敛）**：reader 的 Rule Tracer 投影从硬编码空 `ready(..)` 改为 `RuleTracerApplication::project(core, rules, active_exit, proxies)` 真实推演；domain 出口阶段删除「香港专线 01 / 28ms / HK」伪造兜底，无运行时出口事实时渲染中性「未知出口」节点；Iced 删除本地 `(usize, String, String)` 三元组第二事实源。
 

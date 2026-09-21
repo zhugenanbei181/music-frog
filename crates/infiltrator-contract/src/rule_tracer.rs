@@ -119,6 +119,55 @@ pub struct RuleTracerPreset {
     pub description: String,
 }
 
+/// Why a rule is considered dead / non-contributing during hit audit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuleDeadReason {
+    /// The rule was never observed matching any live connection.
+    ZeroHits,
+    /// The rule is unreachable because an earlier rule shadows it.
+    Shadowed,
+}
+
+/// Aggregated live hit statistics for a single rule.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuleHitSummary {
+    pub rule_raw: String,
+    pub hit_count: u64,
+    pub total_payload_bytes: u64,
+    pub last_hit_secs: Option<u64>,
+}
+
+/// A rule flagged as non-contributing, with the honest reason.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuleDeadEntry {
+    pub rule_raw: String,
+    pub hit_count: u64,
+    pub reason: RuleDeadReason,
+    pub shadowed_by: Option<String>,
+    pub detail: Option<String>,
+    pub last_hit_secs: Option<u64>,
+}
+
+/// Shared read model for rule hit counting, dead-rule diagnosis and CIDR
+/// conflict auditing. Computed once in the application and consumed by both
+/// Iced and Bevy so neither surface keeps a private hit fact source.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuleHitAuditSnapshot {
+    pub total_hits: u64,
+    pub tracked_rules: usize,
+    pub top_hits: Vec<RuleHitSummary>,
+    /// Zero-hit and shadowed rules, ordered by rule order.
+    pub dead_rules: Vec<RuleDeadEntry>,
+    /// Subset of `dead_rules` whose cause is an overlapping IP-CIDR mask.
+    pub cidr_overlaps: Vec<RuleDeadEntry>,
+    /// Most recently hit rule (used for the hit-flash highlight).
+    pub last_hit_rule: Option<String>,
+    pub last_hit_secs: Option<u64>,
+    /// Whether a counter reset is meaningful right now.
+    pub can_clear: bool,
+}
+
 /// The comprehensive Rule Tracer sandbox read model.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RuleTracerSnapshot {
@@ -134,6 +183,8 @@ pub struct RuleTracerSnapshot {
     pub total_rules_evaluated: usize,
     pub can_reverse_apply: bool,
     pub suggested_override_target: Option<String>,
+    #[serde(default)]
+    pub hit_audit: RuleHitAuditSnapshot,
 }
 
 impl RuleTracerSnapshot {
@@ -279,6 +330,57 @@ impl RuleTracerSnapshot {
             total_rules_evaluated: 42,
             can_reverse_apply: true,
             suggested_override_target: Some("DIRECT".to_owned()),
+            hit_audit: RuleHitAuditSnapshot {
+                total_hits: 1287,
+                tracked_rules: 42,
+                top_hits: vec![
+                    RuleHitSummary {
+                        rule_raw: "DOMAIN-SUFFIX,github.com,PROXY".to_owned(),
+                        hit_count: 312,
+                        total_payload_bytes: 48_233_984,
+                        last_hit_secs: Some(1_700_000_012),
+                    },
+                    RuleHitSummary {
+                        rule_raw: "DOMAIN-KEYWORD,bilibili,DIRECT".to_owned(),
+                        hit_count: 186,
+                        total_payload_bytes: 22_114_560,
+                        last_hit_secs: Some(1_700_000_004),
+                    },
+                ],
+                dead_rules: vec![
+                    RuleDeadEntry {
+                        rule_raw: "DOMAIN,dead.example.com,REJECT".to_owned(),
+                        hit_count: 0,
+                        reason: RuleDeadReason::ZeroHits,
+                        shadowed_by: None,
+                        detail: None,
+                        last_hit_secs: None,
+                    },
+                    RuleDeadEntry {
+                        rule_raw: "IP-CIDR,10.1.2.0/24,PROXY".to_owned(),
+                        hit_count: 0,
+                        reason: RuleDeadReason::Shadowed,
+                        shadowed_by: Some("IP-CIDR,10.0.0.0/8,DIRECT".to_owned()),
+                        detail: Some(
+                            "IP CIDR is shadowed by an earlier broader IP-CIDR rule".to_owned(),
+                        ),
+                        last_hit_secs: None,
+                    },
+                ],
+                cidr_overlaps: vec![RuleDeadEntry {
+                    rule_raw: "IP-CIDR,10.1.2.0/24,PROXY".to_owned(),
+                    hit_count: 0,
+                    reason: RuleDeadReason::Shadowed,
+                    shadowed_by: Some("IP-CIDR,10.0.0.0/8,DIRECT".to_owned()),
+                    detail: Some(
+                        "IP CIDR is shadowed by an earlier broader IP-CIDR rule".to_owned(),
+                    ),
+                    last_hit_secs: None,
+                }],
+                last_hit_rule: Some("DOMAIN-SUFFIX,github.com,PROXY".to_owned()),
+                last_hit_secs: Some(1_700_000_012),
+                can_clear: true,
+            },
         }
     }
 
@@ -307,6 +409,7 @@ impl RuleTracerSnapshot {
             total_rules_evaluated,
             can_reverse_apply: true,
             suggested_override_target: None,
+            hit_audit: RuleHitAuditSnapshot::default(),
         }
     }
 
@@ -324,6 +427,7 @@ impl RuleTracerSnapshot {
             total_rules_evaluated: 0,
             can_reverse_apply: false,
             suggested_override_target: None,
+            hit_audit: RuleHitAuditSnapshot::default(),
         }
     }
 
@@ -400,5 +504,42 @@ mod tests {
         let snapshot = RuleTracerSnapshot::unsupported(1, 1, "offline host");
         assert!(!snapshot.is_drawable());
         assert_eq!(snapshot.status, RuleTracerStatus::Unsupported);
+    }
+
+    #[test]
+    fn demo_fixture_carries_hit_audit_dead_rules_and_cidr_overlap() {
+        let snapshot = RuleTracerSnapshot::demo_fixture();
+        let audit = &snapshot.hit_audit;
+        assert!(audit.total_hits > 0);
+        assert!(!audit.top_hits.is_empty());
+        assert!(
+            audit
+                .dead_rules
+                .iter()
+                .any(|d| d.reason == RuleDeadReason::ZeroHits)
+        );
+        assert!(
+            audit
+                .dead_rules
+                .iter()
+                .any(|d| d.reason == RuleDeadReason::Shadowed)
+        );
+        assert_eq!(audit.cidr_overlaps.len(), 1);
+        assert!(audit.can_clear);
+        assert!(audit.last_hit_rule.is_some());
+    }
+
+    #[test]
+    fn ready_snapshot_defaults_hit_audit_to_empty() {
+        let snapshot = RuleTracerSnapshot::ready(
+            1,
+            1,
+            "github.com".to_owned(),
+            TrafficContextSnapshot::default(),
+            None,
+            0,
+        );
+        assert_eq!(snapshot.hit_audit, RuleHitAuditSnapshot::default());
+        assert!(!snapshot.hit_audit.can_clear);
     }
 }

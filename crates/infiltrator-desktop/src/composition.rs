@@ -30,6 +30,7 @@ pub fn core_application(
     controller_url: impl Into<String>,
     secret: Option<String>,
     speedtest: infiltrator_application::speedtest_application::SpeedtestApplication,
+    rule_tracer: infiltrator_application::rule_tracer_application::RuleTracerApplication,
 ) -> anyhow::Result<CoreApplication> {
     let controller_url = controller_url.into();
     let client = MihomoClient::new(&controller_url, secret.clone())?;
@@ -77,7 +78,8 @@ pub fn core_application(
             .with_versions(versions)
             .with_service_mode(service_mode)
             .with_port_conflicts(port_conflicts)
-            .with_speedtest(speedtest),
+            .with_speedtest(speedtest)
+            .with_rule_tracer(rule_tracer),
     ));
     Ok(application)
 }

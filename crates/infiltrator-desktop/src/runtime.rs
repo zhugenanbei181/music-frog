@@ -155,6 +155,7 @@ impl MihomoRuntime {
             endpoint.url.clone(),
             endpoint.secret.clone(),
             speedtest.clone(),
+            rule_tracer.clone(),
         )?);
         // Attach to an already-running instance by proving it answers, or
         // start a fresh one and let the application own readiness retries.

@@ -1,4 +1,7 @@
 //! Rule Hit Counter and Stale Rule Analyzer component.
+//!
+//! Renders the application-owned `RuleHitAuditSnapshot` shared with Bevy. The
+//! card never computes hit counts, dead rules or CIDR overlaps locally.
 
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -9,8 +12,33 @@ use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
 
+fn metric<'a>(
+    lang: &Lang<'_>,
+    label_key: &str,
+    value: String,
+    color: fn(&Theme) -> iced::Color,
+) -> Element<'a, Message> {
+    column![
+        text(lang.tr(label_key).to_string())
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            }),
+        Space::new().height(2.0),
+        text(value)
+            .size(14)
+            .font(FONT_SEMIBOLD)
+            .style(move |t: &Theme| text::Style {
+                color: Some(color(t))
+            }),
+    ]
+    .width(Length::Fill)
+    .into()
+}
+
 pub fn rule_hit_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let audit = &state.editor.rule_hit_audit;
+    let audit_state = &state.editor.rule_hit_audit;
+    let audit = &audit_state.audit;
 
     let audit_btn = button(
         row![
@@ -24,7 +52,7 @@ pub fn rule_hit_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
     )
     .padding([4, 10])
     .style(style_ghost)
-    .on_press_maybe((!audit.is_auditing).then_some(Message::AuditStaleRules));
+    .on_press_maybe((!audit_state.is_auditing).then_some(Message::AuditStaleRules));
 
     let clean_btn = button(
         row![
@@ -39,44 +67,76 @@ pub fn rule_hit_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
     .padding([4, 10])
     .style(style_danger)
     .on_press_maybe(
-        (!audit.zero_hit_rule_indices.is_empty()).then_some(Message::DisableZeroHitRules),
+        (!audit_state.zero_hit_rule_indices.is_empty()).then_some(Message::DisableZeroHitRules),
     );
 
-    let metrics_row = row![
-        column![
-            text(lang.tr("rule_hit_total_hits").to_string())
+    let clear_btn = button(
+        row![
+            svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).text_secondary),
+            Space::new().width(theme::SP_XS),
+            text(lang.tr("rule_hit_btn_clear").to_string())
                 .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
-            Space::new().height(2.0),
-            text(format!("{}", audit.total_rule_hits))
-                .size(14)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).accent)
-                }),
+                .font(FONT_MEDIUM),
         ]
-        .width(Length::Fill),
-        column![
-            text("0-Hit Rules").size(11).style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            }),
-            Space::new().height(2.0),
-            badge(
-                format!("{} stale", audit.zero_hit_rule_indices.len()),
-                if audit.zero_hit_rule_indices.is_empty() {
-                    BadgeKind::Success
-                } else {
-                    BadgeKind::Warning
-                }
-            ),
-        ]
-        .width(Length::Fill),
-    ]
-    .align_y(Alignment::Center);
+        .align_y(Alignment::Center),
+    )
+    .padding([4, 10])
+    .style(style_ghost)
+    .on_press_maybe(audit.can_clear.then_some(Message::ClearRuleHitCounters));
 
-    let summary_feedback: Element<'_, Message> = if let Some(sum) = &audit.audit_summary {
+    let dead_color: fn(&Theme) -> iced::Color = if audit.dead_rules.is_empty() {
+        |t: &Theme| tokens(t).success
+    } else {
+        |t: &Theme| tokens(t).warning
+    };
+
+    let metrics_row = row![
+        metric(
+            lang,
+            "rule_hit_total_hits",
+            audit.total_hits.to_string(),
+            |t: &Theme| tokens(t).accent,
+        ),
+        metric(
+            lang,
+            "rule_hit_dead_count",
+            audit.dead_rules.len().to_string(),
+            dead_color,
+        ),
+        metric(
+            lang,
+            "rule_hit_cidr_conflicts",
+            audit.cidr_overlaps.len().to_string(),
+            |t: &Theme| tokens(t).danger,
+        ),
+    ]
+    .align_y(Alignment::Center)
+    .spacing(theme::SP_SM);
+
+    let last_hit: Element<'_, Message> = match audit.last_hit_rule.as_ref() {
+        Some(rule) => container(
+            row![
+                badge("HIT", BadgeKind::Success),
+                Space::new().width(theme::SP_XS),
+                text(rule.clone())
+                    .size(11)
+                    .font(MONO)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).accent)
+                    }),
+            ]
+            .align_y(Alignment::Center),
+        )
+        .into(),
+        None => text(lang.tr("rule_hit_none").to_string())
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            })
+            .into(),
+    };
+
+    let summary_feedback: Element<'_, Message> = if let Some(sum) = &audit_state.audit_summary {
         container(
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
@@ -105,10 +165,23 @@ pub fn rule_hit_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
                 }),
             Space::new().height(theme::SP_XS),
             metrics_row,
+            Space::new().height(theme::SP_XS),
+            row![
+                text(lang.tr("rule_hit_last_hit").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    }),
+                Space::new().width(theme::SP_XS),
+                last_hit,
+            ]
+            .align_y(Alignment::Center),
             summary_feedback,
             Space::new().height(theme::SP_XS),
             row![
                 Space::new().width(Length::Fill),
+                clear_btn,
+                Space::new().width(theme::SP_SM),
                 audit_btn,
                 Space::new().width(theme::SP_SM),
                 clean_btn,
