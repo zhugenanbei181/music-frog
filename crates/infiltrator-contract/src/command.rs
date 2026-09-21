@@ -177,6 +177,13 @@ pub enum CommandIntent {
     UpdateProfile {
         profile_id: String,
     },
+    /// Persist a profile's subscription fetch options: custom User-Agent and
+    /// the insecure-TLS preference used by the conditional update.
+    UpdateSubscriptionFetchSettings {
+        profile_id: String,
+        user_agent: Option<String>,
+        insecure_skip_verify: bool,
+    },
     DeleteProfile {
         profile_id: String,
     },
@@ -328,6 +335,7 @@ impl CommandIntent {
             Self::SetCoreLogLevel { .. } | Self::SetTunStack { .. } => CommandKind::Runtime,
             Self::SwitchProfile { .. }
             | Self::UpdateProfile { .. }
+            | Self::UpdateSubscriptionFetchSettings { .. }
             | Self::DeleteProfile { .. }
             | Self::RefreshRuleProviders
             | Self::UnpackRuleProvider { .. } => CommandKind::Profile,

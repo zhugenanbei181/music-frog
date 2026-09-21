@@ -193,6 +193,7 @@ pub struct ProfileState {
     pub subscription_auto_update_enabled: bool,
     pub subscription_update_interval_hours: String,
     pub subscription_user_agent: String,
+    pub subscription_insecure_skip_verify: bool,
     pub is_saving_subscription: bool,
     pub is_updating_subscription_now: bool,
     pub webdav_url: String,

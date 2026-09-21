@@ -293,6 +293,19 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
             "Outbound target or group name (e.g. PROXY / DIRECT / REJECT)".into()
         }
         "tracer_override_apply" => "Apply to This Rule".into(),
+        "profiles_user_agent_placeholder" => {
+            "User-Agent (e.g. Clash.Meta / ClashVerge / Shadowrocket)".into()
+        }
+        "profiles_insecure_skip_verify" => "Skip TLS Certificate Verification (Insecure)".into(),
+        "profiles_insecure_skip_verify_hint" => {
+            "Applies to this subscription only. Skipping certificate checks lowers security; use it only with self-signed providers.".into()
+        }
+        "profiles_conditional_request" => "Conditional request cached".into(),
+        "profiles_conditional_request_empty" => {
+            "Conditional request: no ETag / Last-Modified cached yet".into()
+        }
+        "sub_update_not_modified" => "Subscription unchanged (304 Not Modified)".into(),
+        "sub_update_quota_warning" => "quota or expiry warning".into(),
         _ => key.to_string().into(),
     }
 }

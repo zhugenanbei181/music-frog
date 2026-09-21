@@ -8,6 +8,9 @@ use chrono::Utc;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::subscription_import::{
+    SubscriptionUpdateOutcome, SubscriptionUpdateReport,
+};
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_shared::locales::Localizer;
 
@@ -21,6 +24,8 @@ impl AppState {
             self.profile.subscription_url.clear();
             self.profile.subscription_auto_update_enabled = false;
             self.profile.subscription_update_interval_hours.clear();
+            self.profile.subscription_user_agent.clear();
+            self.profile.subscription_insecure_skip_verify = false;
             return;
         }
 
@@ -51,6 +56,8 @@ impl AppState {
                 .update_interval_hours
                 .map(|hours| hours.to_string())
                 .unwrap_or_else(|| "24".to_string());
+            self.profile.subscription_user_agent = profile.user_agent.clone().unwrap_or_default();
+            self.profile.subscription_insecure_skip_verify = profile.insecure_skip_verify;
         }
     }
 
@@ -74,10 +81,20 @@ impl AppState {
                 self.profile.subscription_update_interval_hours = interval;
                 Task::none()
             }
+            Message::UpdateSubscriptionUserAgent(user_agent) => {
+                self.profile.subscription_user_agent = user_agent;
+                Task::none()
+            }
+            Message::UpdateSubscriptionInsecureSkipVerify(enabled) => {
+                self.profile.subscription_insecure_skip_verify = enabled;
+                Task::none()
+            }
             Message::SaveSubscriptionSettings => {
                 let profile_name = self.profile.subscription_profile_name.clone();
                 let url = self.profile.subscription_url.trim().to_string();
                 let auto_update = self.profile.subscription_auto_update_enabled;
+                let user_agent = self.profile.subscription_user_agent.trim().to_string();
+                let insecure_skip_verify = self.profile.subscription_insecure_skip_verify;
                 let interval_raw = self
                     .profile
                     .subscription_update_interval_hours
@@ -137,6 +154,12 @@ impl AppState {
                             metadata.update_interval_hours = interval_hours;
                             metadata.next_update = None;
                         }
+                        metadata.user_agent = if user_agent.is_empty() {
+                            None
+                        } else {
+                            Some(user_agent)
+                        };
+                        metadata.insecure_skip_verify = insecure_skip_verify;
 
                         application
                             .update_metadata(&profile_name, &metadata)
@@ -178,15 +201,15 @@ impl AppState {
                         let cm = crate::configs_dir::config_manager().await?;
                         let application = ProfileApplication::new(cm);
                         let source = crate::host::storage::subscription_source();
-                        application
-                            .update_subscription(&source, &profile_name)
+                        let mut report = application
+                            .update_subscription_conditional(&source, &profile_name)
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
                         let current = application
                             .current_profile()
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                        if let Some(runtime) = runtime
+                        let reloaded = if let Some(runtime) = runtime
                             && current == profile_name
                         {
                             ManagedRuntime::apply_current_config(
@@ -195,14 +218,16 @@ impl AppState {
                             )
                             .await
                             .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
-                            Ok(true)
+                            true
                         } else {
                             application
                                 .clear_backup(&profile_name)
                                 .await
                                 .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                            Ok(false)
-                        }
+                            false
+                        };
+                        report.reloaded_core = reloaded;
+                        Ok(report)
                     },
                     Message::SubscriptionUpdatedNow,
                 )
@@ -211,16 +236,17 @@ impl AppState {
                 self.profile.is_updating_subscription_now = false;
                 self.refresh_tray();
                 match result {
-                    Ok(reloaded) => {
-                        if reloaded && let Some(runtime) = self.runtime.runtime.clone() {
+                    Ok(report) => {
+                        if report.reloaded_core
+                            && let Some(runtime) = self.runtime.runtime.clone()
+                        {
                             self.sync_runtime_slot(Some(runtime));
                         }
+                        let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                        let (text, status) = subscription_update_toast(&lang, &report);
                         Task::batch(vec![
                             Task::done(Message::LoadProfiles),
-                            Task::done(Message::ShowToast(
-                                "Subscription updated".to_string(),
-                                ToastStatus::Success,
-                            )),
+                            Task::done(Message::ShowToast(text, status)),
                         ])
                     }
                     Err(e) => {
@@ -505,5 +531,33 @@ impl AppState {
             }
             _ => Task::none(),
         }
+    }
+}
+
+/// Map a shared subscription update report to the user-facing toast text and
+/// status. A `304 Not Modified` is reported as informational, never as a
+/// fabricated success; quota/expiry warnings downgrade a success to warning.
+pub(crate) fn subscription_update_toast(
+    lang: &infiltrator_shared::locales::Lang<'_>,
+    report: &SubscriptionUpdateReport,
+) -> (String, ToastStatus) {
+    use infiltrator_shared::locales::Localizer;
+    match &report.outcome {
+        SubscriptionUpdateOutcome::NotModified { .. } => (
+            lang.tr("sub_update_not_modified").into_owned(),
+            ToastStatus::Info,
+        ),
+        _ if report.usage_warning || report.expiry_warning => (
+            format!(
+                "{} · {}",
+                lang.tr("sub_update_done"),
+                lang.tr("sub_update_quota_warning")
+            ),
+            ToastStatus::Warning,
+        ),
+        _ => (
+            lang.tr("sub_update_done").into_owned(),
+            ToastStatus::Success,
+        ),
     }
 }

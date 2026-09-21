@@ -75,14 +75,21 @@ impl std::fmt::Debug for Message {
             Message::UpdateSubscriptionUserAgent(v) => {
                 write!(f, "UpdateSubscriptionUserAgent({})", v)
             }
+            Message::UpdateSubscriptionInsecureSkipVerify(v) => {
+                write!(f, "UpdateSubscriptionInsecureSkipVerify({})", v)
+            }
             Message::SaveSubscriptionSettings => write!(f, "SaveSubscriptionSettings"),
             Message::SubscriptionSettingsSaved(Ok(_)) => write!(f, "SubscriptionSettingsSaved(Ok)"),
             Message::SubscriptionSettingsSaved(Err(e)) => {
                 write!(f, "SubscriptionSettingsSaved(Err({:?}))", e)
             }
             Message::UpdateSubscriptionNow => write!(f, "UpdateSubscriptionNow"),
-            Message::SubscriptionUpdatedNow(Ok(reloaded)) => {
-                write!(f, "SubscriptionUpdatedNow(Ok(reloaded={}))", reloaded)
+            Message::SubscriptionUpdatedNow(Ok(report)) => {
+                write!(
+                    f,
+                    "SubscriptionUpdatedNow(Ok(profile={}))",
+                    report.profile_name
+                )
             }
             Message::SubscriptionUpdatedNow(Err(e)) => {
                 write!(f, "SubscriptionUpdatedNow(Err({:?}))", e)

@@ -354,6 +354,18 @@ impl QuotaWarningPolicy {
 pub struct FormatDetector;
 
 impl FormatDetector {
+    /// Count the `proxies` entries of a Clash-format document. Non-Clash or
+    /// malformed payloads honestly report `0` rather than guessing a count.
+    pub fn count_nodes(content: &str) -> usize {
+        let Ok(value) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(content) else {
+            return 0;
+        };
+        value
+            .get("proxies")
+            .and_then(|proxies| proxies.as_sequence())
+            .map_or(0, Vec::len)
+    }
+
     pub fn detect(content: &str) -> SubscriptionFormat {
         let trimmed = content.trim();
         if trimmed.is_empty() {
@@ -467,5 +479,13 @@ mod tests {
             FormatDetector::detect(ss),
             SubscriptionFormat::ShadowsocksUri
         );
+    }
+
+    #[test]
+    fn test_format_detector_counts_nodes_honestly() {
+        let yaml = "proxies:\n  - name: n1\n    type: ss\n  - name: n2\n    type: vmess\n";
+        assert_eq!(FormatDetector::count_nodes(yaml), 2);
+        assert_eq!(FormatDetector::count_nodes("ss://not-clash"), 0);
+        assert_eq!(FormatDetector::count_nodes(""), 0);
     }
 }

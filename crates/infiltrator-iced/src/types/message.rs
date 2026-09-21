@@ -10,6 +10,7 @@ use super::runtime::{IpProbeResult, RuntimeConfig, RuntimeStreamKind, RuntimeStr
 use iced::{widget::text_editor, window};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::session::SessionToken;
+use infiltrator_contract::subscription_import::SubscriptionUpdateReport;
 use infiltrator_contract::version::InstalledCoreVersion;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::proxy::Proxy;
@@ -78,10 +79,11 @@ pub enum Message {
     UpdateSubscriptionAutoUpdate(bool),
     UpdateSubscriptionInterval(String),
     UpdateSubscriptionUserAgent(String),
+    UpdateSubscriptionInsecureSkipVerify(bool),
     SaveSubscriptionSettings,
     SubscriptionSettingsSaved(Result<(), InfiltratorError>),
     UpdateSubscriptionNow,
-    SubscriptionUpdatedNow(Result<bool, InfiltratorError>),
+    SubscriptionUpdatedNow(Result<SubscriptionUpdateReport, InfiltratorError>),
     SubscriptionAutoUpdated(Result<(Vec<String>, bool), InfiltratorError>),
     // Tray entries: update every subscription now (ignoring schedules) and
     // flip one profile's auto-update flag straight from the menu.

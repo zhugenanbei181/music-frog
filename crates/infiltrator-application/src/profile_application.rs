@@ -6,14 +6,20 @@
 
 use chrono::Utc;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::subscription_import::{
+    SubscriptionQuotaFacts, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
+};
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::{
     ProfileDetail, ProfileInfo, ProfileMetadata, sanitize_profile_name,
 };
-use infiltrator_domain::subscription::CheckedSubscriptionUrl;
+use infiltrator_domain::subscription::{CheckedSubscriptionUrl, SubscriptionUserInfo};
+use infiltrator_domain::subscription_scheduler_policy::{FormatDetector, QuotaWarningPolicy};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
-use infiltrator_ports::subscription_source::SubscriptionSource;
+use infiltrator_ports::subscription_source::{
+    ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionSource,
+};
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -161,6 +167,21 @@ impl ProfileApplication {
         name: &str,
     ) -> Result<ProfileInfo, Failure> {
         let name = valid_name(name)?;
+        self.update_subscription_conditional(source, &name).await?;
+        self.load_profile_info(&name).await
+    }
+
+    /// Conditional subscription update: send the profile's stored validators
+    /// (`ETag` / `If-Modified-Since`), its custom `User-Agent`, and its
+    /// insecure-TLS preference, commit content only on `200`, and return the
+    /// shared [`SubscriptionUpdateReport`]. A `304 Not Modified` refreshes
+    /// quota facts and the next-update schedule without rewriting the file.
+    pub async fn update_subscription_conditional<S: SubscriptionSource + ?Sized>(
+        &self,
+        source: &S,
+        name: &str,
+    ) -> Result<SubscriptionUpdateReport, Failure> {
+        let name = valid_name(name)?;
         let mut metadata = self.load_metadata(&name).await?;
         let url = metadata.subscription_url.as_deref().ok_or_else(|| {
             Failure::new(
@@ -171,16 +192,102 @@ impl ProfileApplication {
         })?;
         let url = CheckedSubscriptionUrl::parse(url)
             .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
-        let document = source.fetch(&name, &url).await.map_err(Failure::from)?;
-        self.store
-            .save(&name, &document.content)
+
+        let headers = ConditionalFetchHeaders {
+            etag: metadata.etag.clone(),
+            if_modified_since: metadata.last_modified.clone(),
+            custom_user_agent: metadata.user_agent.clone(),
+            insecure_skip_verify: metadata.insecure_skip_verify,
+        };
+        let result = source
+            .fetch_conditional(&name, &url, &headers)
             .await
             .map_err(Failure::from)?;
 
         let now = Utc::now();
-        apply_subscription_metadata(&mut metadata, document.userinfo, now);
-        self.update_metadata(&name, &metadata).await?;
-        self.load_profile_info(&name).await
+        match result {
+            ConditionalDocumentResult::Modified {
+                document,
+                etag,
+                last_modified,
+            } => {
+                if document.content.trim().is_empty() {
+                    return Err(Failure::new(
+                        ErrorCode::Configuration,
+                        "subscription returned empty content",
+                        false,
+                    ));
+                }
+                infiltrator_domain::config::validate_yaml(&document.content).map_err(|error| {
+                    Failure::new(ErrorCode::Configuration, error.to_string(), false)
+                })?;
+                let new_bytes = document.content.len();
+                let node_count = FormatDetector::count_nodes(&document.content);
+                self.store
+                    .save(&name, &document.content)
+                    .await
+                    .map_err(Failure::from)?;
+
+                apply_subscription_metadata(&mut metadata, document.userinfo, now);
+                metadata.etag = etag.clone().or(metadata.etag);
+                metadata.last_modified = last_modified.clone().or(metadata.last_modified);
+                self.update_metadata(&name, &metadata).await?;
+
+                Ok(report_from_metadata(
+                    name,
+                    metadata,
+                    SubscriptionUpdateOutcome::Updated {
+                        new_bytes,
+                        node_count,
+                    },
+                    etag,
+                    last_modified,
+                    true,
+                    now,
+                ))
+            }
+            ConditionalDocumentResult::NotModified {
+                userinfo,
+                etag,
+                last_modified,
+            } => {
+                // Content is unchanged: refresh quota facts and the schedule,
+                // but keep `last_updated` pointing at the last real download.
+                apply_subscription_quota(&mut metadata, userinfo);
+                schedule_next_update(&mut metadata, now);
+                metadata.etag = etag.clone().or(metadata.etag);
+                metadata.last_modified = last_modified.clone().or(metadata.last_modified);
+                self.update_metadata(&name, &metadata).await?;
+
+                Ok(report_from_metadata(
+                    name,
+                    metadata,
+                    SubscriptionUpdateOutcome::NotModified {
+                        etag: etag.clone(),
+                        last_modified: last_modified.clone(),
+                    },
+                    etag,
+                    last_modified,
+                    false,
+                    now,
+                ))
+            }
+        }
+    }
+
+    /// Persist the per-profile subscription fetch options (custom User-Agent
+    /// and insecure-TLS preference) used by the next conditional update.
+    pub async fn update_subscription_fetch_settings(
+        &self,
+        name: &str,
+        user_agent: Option<String>,
+        insecure_skip_verify: bool,
+    ) -> Result<(), Failure> {
+        let name = valid_name(name)?;
+        let mut metadata = self.load_metadata(&name).await?;
+        metadata.user_agent = user_agent.filter(|value| !value.trim().is_empty());
+        metadata.insecure_skip_verify = insecure_skip_verify;
+        self.update_metadata(&name, &metadata).await
     }
 
     /// Commit an arbitrary profile document through the managed runtime when
@@ -326,13 +433,27 @@ fn apply_subscription_metadata(
     userinfo: Option<infiltrator_domain::subscription::SubscriptionUserInfo>,
     now: chrono::DateTime<Utc>,
 ) {
+    apply_subscription_quota(metadata, userinfo);
+    metadata.last_updated = Some(now);
+    schedule_next_update(metadata, now);
+}
+
+fn apply_subscription_quota(
+    metadata: &mut infiltrator_domain::profiles::ProfileMetadata,
+    userinfo: Option<infiltrator_domain::subscription::SubscriptionUserInfo>,
+) {
     if let Some(info) = userinfo {
         metadata.traffic_upload = info.upload;
         metadata.traffic_download = info.download;
         metadata.traffic_total = info.total;
         metadata.expire_at = info.expire;
     }
-    metadata.last_updated = Some(now);
+}
+
+fn schedule_next_update(
+    metadata: &mut infiltrator_domain::profiles::ProfileMetadata,
+    now: chrono::DateTime<Utc>,
+) {
     metadata.next_update = if metadata.auto_update_enabled {
         metadata
             .update_interval_hours
@@ -342,251 +463,40 @@ fn apply_subscription_metadata(
     };
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use async_trait::async_trait;
-    use infiltrator_domain::profiles::ProfileMetadata;
-    use infiltrator_ports::error::PortError;
-    use std::collections::BTreeMap;
-    use std::sync::Mutex;
-
-    #[derive(Default)]
-    struct FakeStore {
-        current: Mutex<String>,
-        profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
-        deleted_options: Mutex<Vec<String>>,
-        cleared_backups: Mutex<Vec<String>>,
-    }
-
-    impl FakeStore {
-        fn with_profile(name: &str, content: &str, active: bool) -> Self {
-            let mut profiles = BTreeMap::new();
-            profiles.insert(
-                name.to_string(),
-                (content.to_string(), ProfileMetadata::default()),
-            );
-            Self {
-                current: Mutex::new(if active {
-                    name.to_string()
-                } else {
-                    String::new()
-                }),
-                profiles: Mutex::new(profiles),
-                ..Self::default()
-            }
-        }
-    }
-
-    #[async_trait]
-    impl ProfileStore for FakeStore {
-        fn config_dir(&self) -> PathBuf {
-            PathBuf::from("/fake/configs")
-        }
-
-        async fn list_profiles(&self) -> Result<Vec<ProfileInfo>, PortError> {
-            let current = self.current.lock().expect("current lock").clone();
-            Ok(self
-                .profiles
-                .lock()
-                .expect("profiles lock")
-                .iter()
-                .map(|(name, (_content, metadata))| ProfileInfo {
-                    name: name.clone(),
-                    active: current == *name,
-                    path: format!("/fake/configs/{name}.yaml"),
-                    subscription_url: metadata.subscription_url.clone(),
-                    auto_update_enabled: metadata.auto_update_enabled,
-                    update_interval_hours: metadata.update_interval_hours,
-                    last_updated: metadata.last_updated,
-                    next_update: metadata.next_update,
-                    traffic_upload: metadata.traffic_upload,
-                    traffic_download: metadata.traffic_download,
-                    traffic_total: metadata.traffic_total,
-                    expire_at: metadata.expire_at,
-                    controller_url: None,
-                    controller_changed: None,
-                    user_agent: metadata.user_agent.clone(),
-                    etag: metadata.etag.clone(),
-                    last_modified: metadata.last_modified.clone(),
-                    cron_expression: metadata.cron_expression.clone(),
-                    insecure_skip_verify: metadata.insecure_skip_verify,
-                    auto_reload_core: metadata.auto_reload_core,
-                })
-                .collect())
-        }
-
-        async fn get_current(&self) -> Result<String, PortError> {
-            Ok(self.current.lock().expect("current lock").clone())
-        }
-
-        async fn set_current(&self, profile: &str) -> Result<(), PortError> {
-            if !self
-                .profiles
-                .lock()
-                .expect("profiles lock")
-                .contains_key(profile)
-            {
-                return Err(PortError::NotFound(profile.to_string()));
-            }
-            *self.current.lock().expect("current lock") = profile.to_string();
-            Ok(())
-        }
-
-        async fn load(&self, profile: &str) -> Result<String, PortError> {
-            self.profiles
-                .lock()
-                .expect("profiles lock")
-                .get(profile)
-                .map(|(content, _)| content.clone())
-                .ok_or_else(|| PortError::NotFound(profile.to_string()))
-        }
-
-        async fn save(&self, profile: &str, content: &str) -> Result<(), PortError> {
-            self.profiles
-                .lock()
-                .expect("profiles lock")
-                .entry(profile.to_string())
-                .or_insert_with(|| (String::new(), ProfileMetadata::default()))
-                .0 = content.to_string();
-            Ok(())
-        }
-
-        async fn delete_profile(&self, profile: &str) -> Result<(), PortError> {
-            self.profiles
-                .lock()
-                .expect("profiles lock")
-                .remove(profile)
-                .map(|_| ())
-                .ok_or_else(|| PortError::NotFound(profile.to_string()))
-        }
-
-        async fn get_profile_metadata(&self, profile: &str) -> Result<ProfileMetadata, PortError> {
-            self.profiles
-                .lock()
-                .expect("profiles lock")
-                .get(profile)
-                .map(|(_, metadata)| metadata.clone())
-                .ok_or_else(|| PortError::NotFound(profile.to_string()))
-        }
-
-        async fn update_profile_metadata(
-            &self,
-            profile: &str,
-            metadata: &ProfileMetadata,
-        ) -> Result<(), PortError> {
-            self.profiles
-                .lock()
-                .expect("profiles lock")
-                .get_mut(profile)
-                .map(|(_, current)| *current = metadata.clone())
-                .ok_or_else(|| PortError::NotFound(profile.to_string()))
-        }
-
-        async fn delete_subscription_credential(&self, _profile: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-
-        async fn delete_options(&self, profile: &str) -> Result<(), PortError> {
-            self.deleted_options
-                .lock()
-                .expect("options lock")
-                .push(profile.to_string());
-            Ok(())
-        }
-
-        async fn clear_backup(&self, profile: &str) -> Result<(), PortError> {
-            self.cleared_backups
-                .lock()
-                .expect("backup lock")
-                .push(profile.to_string());
-            Ok(())
-        }
-
-        async fn restore_backup(&self, _profile: &str) -> Result<bool, PortError> {
-            Ok(false)
-        }
-    }
-
-    #[tokio::test]
-    async fn list_and_detail_are_projected_from_the_store() {
-        let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
-        let application = ProfileApplication::new(store);
-
-        let profiles = application.list_profiles().await.expect("list");
-        assert_eq!(profiles.len(), 1);
-        assert!(profiles[0].active);
-
-        let detail = application
-            .load_profile_detail("main")
-            .await
-            .expect("detail");
-        assert_eq!(detail.content, "mode: rule\n");
-        assert!(detail.active);
-    }
-
-    #[tokio::test]
-    async fn invalid_names_are_rejected_before_store_access() {
-        let application = ProfileApplication::new(Arc::new(FakeStore::default()));
-        let failure = application
-            .load_profile_info("../outside")
-            .await
-            .expect_err("path-like name must fail");
-        assert_eq!(failure.code, ErrorCode::InvalidInput);
-    }
-
-    #[tokio::test]
-    async fn selection_updates_the_current_profile() {
-        let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", false));
-        let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
-
-        let selected = application.select_profile("main").await.expect("select");
-        assert!(selected.active);
-        assert_eq!(
-            application.current_profile().await.expect("current"),
-            "main"
-        );
-    }
-
-    #[tokio::test]
-    async fn deletion_cleans_the_profile_sidecar() {
-        let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", false));
-        let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
-
-        application.delete_profile("main").await.expect("delete");
-        assert_eq!(
-            store
-                .deleted_options
-                .lock()
-                .expect("options lock")
-                .as_slice(),
-            &["main".to_string()]
-        );
-    }
-
-    #[tokio::test]
-    async fn inactive_save_clears_the_transient_backup() {
-        let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", false));
-        let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
-        let runtime: Option<Arc<dyn ManagedRuntime>> = None;
-
-        application
-            .save_profile_content(
-                runtime,
-                "main".to_string(),
-                "mode: direct\n".to_string(),
-                ApplyStrategy::PreferReload,
-            )
-            .await
-            .expect("save");
-        assert_eq!(store.load("main").await.expect("load"), "mode: direct\n");
-        assert_eq!(
-            store
-                .cleared_backups
-                .lock()
-                .expect("backup lock")
-                .as_slice(),
-            &["main".to_string()]
-        );
+fn report_from_metadata(
+    profile_name: String,
+    metadata: ProfileMetadata,
+    outcome: SubscriptionUpdateOutcome,
+    etag: Option<String>,
+    last_modified: Option<String>,
+    backed_up: bool,
+    now: chrono::DateTime<Utc>,
+) -> SubscriptionUpdateReport {
+    let info = SubscriptionUserInfo {
+        upload: metadata.traffic_upload,
+        download: metadata.traffic_download,
+        total: metadata.traffic_total,
+        expire: metadata.expire_at,
+    };
+    let (usage_warning, expiry_warning) = QuotaWarningPolicy::evaluate(&info, now.timestamp());
+    SubscriptionUpdateReport {
+        profile_name,
+        outcome,
+        etag,
+        last_modified,
+        quota: Some(SubscriptionQuotaFacts {
+            upload_bytes: metadata.traffic_upload.unwrap_or_default(),
+            download_bytes: metadata.traffic_download.unwrap_or_default(),
+            total_bytes: metadata.traffic_total.unwrap_or_default(),
+            expire_at_unix: metadata.expire_at,
+        }),
+        usage_warning,
+        expiry_warning,
+        reloaded_core: false,
+        backed_up,
     }
 }
+
+#[cfg(test)]
+#[path = "profile_application_tests.rs"]
+mod tests;

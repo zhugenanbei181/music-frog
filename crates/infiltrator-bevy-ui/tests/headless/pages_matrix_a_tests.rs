@@ -18,6 +18,7 @@ use infiltrator_bevy_ui::pages::logs::*;
 use infiltrator_bevy_ui::pages::profiles::*;
 use infiltrator_bevy_ui::pages::profiles_import::{
     ChooseLocalFileButton, ImportLocalFileButton, ProfilesImportRoot, SaveUserAgentButton,
+    SubscriptionInsecureToggle, SubscriptionUserAgentField,
 };
 use infiltrator_bevy_ui::pages::proxies::*;
 use infiltrator_bevy_ui::pages::rules::*;
@@ -365,7 +366,7 @@ fn test_profiles_page_mounting_and_default_state() {
         root,
         "订阅请求设置 (Subscription User-Agent)"
     ));
-    assert!(subtree_has_text(app.world(), root, "保存 UA 设置"));
+    assert!(subtree_has_text(app.world(), root, "保存请求设置"));
     assert!(subtree_has_text(
         app.world(),
         root,
@@ -1560,4 +1561,109 @@ fn test_proxies_node_detail_drawer_and_group_reorder() {
         infiltrator_contract::proxies::ProxyRegressionMatrixReport::run_deterministic_matrix();
     assert!(report.is_all_passed());
     assert_eq!(report.total_scenarios, 15);
+}
+
+// ---- DUAL-07-02/04/12: subscription fetch options dual surface ---------------
+
+fn subscription_fetch_projection() -> ProfilesProjection {
+    ProfilesProjection {
+        auto_update_interval_hours: 12,
+        updating: false,
+        profiles: vec![ProfileItem {
+            id: "sub-fetch".to_owned(),
+            name: "抓取选项订阅".to_owned(),
+            url: "https://fetch.example/sub".to_owned(),
+            updated_at: "2026-09-22 09:00".to_owned(),
+            upload_bytes: 0,
+            download_bytes: 0,
+            total_bytes: 0,
+            is_active: true,
+            user_agent: "ClashVerge/2.0".to_owned(),
+            insecure_skip_verify: true,
+            etag: Some("\"fetch-etag\"".to_owned()),
+            last_modified: Some("Tue, 22 Sep 2026 09:00:00 GMT".to_owned()),
+        }],
+    }
+}
+
+#[test]
+fn test_profiles_fetch_options_projection_restamps_ua_insecure_and_validators() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(subscription_fetch_projection()));
+    app.update();
+
+    assert!(
+        subtree_has_text(app.world(), root, "ClashVerge/2.0"),
+        "active profile User-Agent reaches the text field"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "条件请求已缓存"),
+        "cached ETag / Last-Modified reaches the status line"
+    );
+    let insecure_checked = {
+        let mut toggles = app
+            .world_mut()
+            .query::<(&SubscriptionInsecureToggle, &Children)>();
+        let (_, children) = toggles.single(app.world()).expect("insecure toggle");
+        children
+            .iter()
+            .any(|child| app.world().get::<bevy::ui::Checked>(*child).is_some())
+    };
+    assert!(
+        insecure_checked,
+        "insecure-TLS toggle reflects the projection"
+    );
+}
+
+#[test]
+fn test_profiles_save_fetch_settings_submits_shared_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Profiles);
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(subscription_fetch_projection()));
+    app.update();
+
+    let field = {
+        let mut fields = app
+            .world_mut()
+            .query::<(&SubscriptionUserAgentField, &Children)>();
+        *fields
+            .single(app.world())
+            .expect("ua field wrapper")
+            .1
+            .iter()
+            .next()
+            .expect("ua text field")
+    };
+    app.world_mut()
+        .get_mut::<TextField>(field)
+        .expect("ua field state")
+        .0
+        .apply(TextFieldInput::SetText("Custom-UA/9".to_owned()));
+
+    let save = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<SaveUserAgentButton>>()
+        .single(app.world())
+        .expect("save button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: save });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::SaveSubscriptionFetchSettings {
+            profile_id: "sub-fetch".to_owned(),
+            user_agent: Some("Custom-UA/9".to_owned()),
+            insecure_skip_verify: true,
+        }]
+    );
 }

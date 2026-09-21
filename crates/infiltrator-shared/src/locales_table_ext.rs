@@ -313,6 +313,17 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
             "出站目标或策略组名称 (例如: PROXY / DIRECT / REJECT)".into()
         }
         "tracer_override_apply" => "修改此规则出站".into(),
+        "profiles_user_agent_placeholder" => {
+            "User-Agent (例如 Clash.Meta / ClashVerge / Shadowrocket)".into()
+        }
+        "profiles_insecure_skip_verify" => "跳过 TLS 证书校验 (Insecure Skip Verify)".into(),
+        "profiles_insecure_skip_verify_hint" => {
+            "仅对当前订阅生效；跳过证书校验会降低安全性，请仅在自签证书源站使用".into()
+        }
+        "profiles_conditional_request" => "条件请求已缓存".into(),
+        "profiles_conditional_request_empty" => "条件请求：尚无 ETag / Last-Modified 缓存".into(),
+        "sub_update_not_modified" => "订阅未变更 (304 Not Modified)".into(),
+        "sub_update_quota_warning" => "配额或到期预警".into(),
         _ => key.to_string().into(),
     }
 }

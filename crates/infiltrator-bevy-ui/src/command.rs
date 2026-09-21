@@ -77,6 +77,12 @@ pub enum UiCommand {
     ActivateProfile { id: String },
     /// Trigger an immediate remote update for a profile.
     UpdateProfile { id: String },
+    /// Persist a profile's subscription fetch options.
+    SaveSubscriptionFetchSettings {
+        profile_id: String,
+        user_agent: Option<String>,
+        insecure_skip_verify: bool,
+    },
     /// Delete a subscription profile.
     DeleteProfile { id: String },
     /// Trigger a remote update for all rule providers.
@@ -249,6 +255,15 @@ impl UiCommand {
             }),
             Self::UpdateProfile { id } => Some(CommandIntent::UpdateProfile {
                 profile_id: id.clone(),
+            }),
+            Self::SaveSubscriptionFetchSettings {
+                profile_id,
+                user_agent,
+                insecure_skip_verify,
+            } => Some(CommandIntent::UpdateSubscriptionFetchSettings {
+                profile_id: profile_id.clone(),
+                user_agent: user_agent.clone(),
+                insecure_skip_verify: *insecure_skip_verify,
             }),
             Self::DeleteProfile { id } => Some(CommandIntent::DeleteProfile {
                 profile_id: id.clone(),

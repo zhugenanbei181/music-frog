@@ -320,6 +320,20 @@ impl CommandApplication {
                     .await
                     .map(|_| ())
             }
+            CommandIntent::UpdateSubscriptionFetchSettings {
+                profile_id,
+                user_agent,
+                insecure_skip_verify,
+            } => {
+                let profile = self.profile()?;
+                profile
+                    .update_subscription_fetch_settings(
+                        &profile_id,
+                        user_agent,
+                        insecure_skip_verify,
+                    )
+                    .await
+            }
             CommandIntent::DeleteProfile { profile_id } => {
                 self.profile()?.delete_profile(&profile_id).await
             }
