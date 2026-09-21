@@ -152,7 +152,7 @@ pub struct RuleDeadEntry {
 /// Shared read model for rule hit counting, dead-rule diagnosis and CIDR
 /// conflict auditing. Computed once in the application and consumed by both
 /// Iced and Bevy so neither surface keeps a private hit fact source.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RuleHitAuditSnapshot {
     pub total_hits: u64,
     pub tracked_rules: usize,
@@ -166,6 +166,12 @@ pub struct RuleHitAuditSnapshot {
     pub last_hit_secs: Option<u64>,
     /// Whether a counter reset is meaningful right now.
     pub can_clear: bool,
+    /// Number of simulations recorded for the latency-contribution audit.
+    pub trace_count: u64,
+    /// Mean AST match latency across recorded simulations, in microseconds.
+    pub avg_match_latency_us: Option<f64>,
+    /// AST match latency of the most recent simulation, in microseconds.
+    pub last_match_latency_us: Option<u64>,
 }
 
 /// The comprehensive Rule Tracer sandbox read model.
@@ -380,6 +386,9 @@ impl RuleTracerSnapshot {
                 last_hit_rule: Some("DOMAIN-SUFFIX,github.com,PROXY".to_owned()),
                 last_hit_secs: Some(1_700_000_012),
                 can_clear: true,
+                trace_count: 128,
+                avg_match_latency_us: Some(18.5),
+                last_match_latency_us: Some(14),
             },
         }
     }
@@ -527,6 +536,8 @@ mod tests {
         assert_eq!(audit.cidr_overlaps.len(), 1);
         assert!(audit.can_clear);
         assert!(audit.last_hit_rule.is_some());
+        assert_eq!(audit.trace_count, 128);
+        assert!(audit.avg_match_latency_us.is_some());
     }
 
     #[test]

@@ -57,6 +57,7 @@ def main() -> int:
         "DUAL-12-07",
         "DUAL-12-11",
         "DUAL-12-12",
+        "DUAL-12-09",
         "RuleHitAuditSnapshot",
         "parity-ready",
     )
@@ -69,6 +70,7 @@ def main() -> int:
         "cidr_overlaps",
         "last_hit_rule",
         "can_clear",
+        "avg_match_latency_us",
     )
     require(
         violations,

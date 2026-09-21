@@ -213,6 +213,7 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "rule_hit_btn_clear" => "Clear Hit Counters".into(),
         "rule_hit_dead_count" => "Dead & Shadowed Rules".into(),
         "rule_hit_cidr_conflicts" => "CIDR Mask Overlaps".into(),
+        "rule_hit_match_latency" => "Avg Match Latency".into(),
         "rule_hit_last_hit" => "Most Recent Hit".into(),
         "rule_hit_none" => "No hit data yet".into(),
 

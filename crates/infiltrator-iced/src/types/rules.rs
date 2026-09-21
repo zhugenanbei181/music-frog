@@ -84,7 +84,7 @@ impl Default for SubRuleDraft {
 /// `audit` is the shared application-owned read model; `zero_hit_rule_indices`
 /// is a pure projection of it onto the locally loaded rule list used by the
 /// one-click disable action. No UI-local hit counts are fabricated.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct RuleHitAuditState {
     pub audit: infiltrator_contract::rule_tracer::RuleHitAuditSnapshot,
     pub zero_hit_rule_indices: Vec<usize>,

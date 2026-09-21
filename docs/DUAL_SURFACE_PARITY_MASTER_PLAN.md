@@ -129,7 +129,8 @@
 | `DUAL-12-07` | 命中时间戳记录 | `parity-ready` | `RuleHitRecord::last_hit_secs` → `RuleHitSummary::last_hit_secs` → Iced `rule_hit_last_hit` 行与 Bevy `RuleItem.last_hit_secs`，无事实时诚实空态 |
 | `DUAL-12-11` | 一键清空规则命中计数 | `parity-ready` | `CommandIntent::ResetRuleHitCounters` 从 unsupported 改为真实调用共享 `clear_hits`；Iced `Message::ClearRuleHitCounters` 经 `HostRuntime::rule_tracer_port`，无 port 时 typed error toast；Bevy `UiCommand::ClearRuleHitCounters` 经 `CommandApplication::with_rule_tracer` 路由 |
 | `DUAL-12-12` | 规则命中高亮闪烁动效 | `parity-ready`（数据面） | 审计快照 `last_hit_rule`/`last_hit_secs` 提供唯一「刚命中」事实；Iced 卡片 HIT 徽标 + 规则名高亮、Bevy 行标签。像素动效属 `local`，宿主视觉 smoke 未计入 |
-| `DUAL-12-08` 反向应用 / `DUAL-12-09` 时延贡献审计 / `DUAL-12-10` 沙盒来源 IP | 见组 12 清单 | `planned` | 未实现 |
+| `DUAL-12-09` | 规则时延贡献审计 | `parity-ready` | `RuleTracerApplication` 记录每次 AST 推演的匹配耗时（count/total/last），审计快照发布 `trace_count`/`avg_match_latency_us`/`last_match_latency_us`；Iced「平均匹配耗时」指标、Bevy 头部行「匹配 n.nµs」；application 单测覆盖两次推演求均值 |
+| `DUAL-12-08` 反向应用 / `DUAL-12-10` 沙盒来源 IP | 见组 12 清单 | `planned` | 未实现（均需 Bevy tracer 交互输入面，见组 12 剩余计划） |
 
 > **关键修复（D-017 收敛）**：reader 的 Rule Tracer 投影从硬编码空 `ready(..)` 改为 `RuleTracerApplication::project(core, rules, active_exit, proxies)` 真实推演；domain 出口阶段删除「香港专线 01 / 28ms / HK」伪造兜底，无运行时出口事实时渲染中性「未知出口」节点；Iced 删除本地 `(usize, String, String)` 三元组第二事实源。
 

@@ -21,10 +21,19 @@ use std::time::Instant;
 /// Maximum number of per-rule hit summaries published in the audit snapshot.
 const HIT_AUDIT_LIMIT: usize = 20;
 
+/// Running AST match-latency statistics for the routing-contribution audit.
+#[derive(Clone, Debug, Default)]
+struct TraceLatencyStats {
+    count: u64,
+    total_us: u64,
+    last_us: Option<u64>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct RuleTracerApplication {
     active_query: Arc<Mutex<String>>,
     hit_counter: Arc<Mutex<RuleHitCounter>>,
+    trace_stats: Arc<Mutex<TraceLatencyStats>>,
 }
 
 impl RuleTracerApplication {
@@ -32,6 +41,7 @@ impl RuleTracerApplication {
         Self {
             active_query: Arc::new(Mutex::new(String::new())),
             hit_counter: Arc::new(Mutex::new(RuleHitCounter::new())),
+            trace_stats: Arc::new(Mutex::new(TraceLatencyStats::default())),
         }
     }
 
@@ -39,6 +49,7 @@ impl RuleTracerApplication {
         Self {
             active_query: Arc::new(Mutex::new(query.into())),
             hit_counter: Arc::new(Mutex::new(RuleHitCounter::new())),
+            trace_stats: Arc::new(Mutex::new(TraceLatencyStats::default())),
         }
     }
 
@@ -164,6 +175,16 @@ impl RuleTracerApplication {
             }
         }
 
+        let (trace_count, avg_match_latency_us, last_match_latency_us) =
+            match self.trace_stats.lock() {
+                Ok(stats) => (
+                    stats.count,
+                    (stats.count > 0).then(|| stats.total_us as f64 / stats.count as f64),
+                    stats.last_us,
+                ),
+                Err(_) => (0, None, None),
+            };
+
         RuleHitAuditSnapshot {
             total_hits,
             tracked_rules,
@@ -173,6 +194,9 @@ impl RuleTracerApplication {
             last_hit_rule,
             last_hit_secs,
             can_clear: total_hits > 0,
+            trace_count,
+            avg_match_latency_us,
+            last_match_latency_us,
         }
     }
 
@@ -236,6 +260,11 @@ impl RuleTracerApplication {
         );
 
         let latency_us = start.elapsed().as_micros().max(1) as u64;
+        if let Ok(mut stats) = self.trace_stats.lock() {
+            stats.count += 1;
+            stats.total_us += latency_us;
+            stats.last_us = Some(latency_us);
+        }
 
         let chain = build_decision_chain(
             rules,
@@ -522,6 +551,19 @@ mod tests {
                 .iter()
                 .any(|entry| entry.rule_raw == overlap.rule_raw)
         );
+    }
+
+    #[test]
+    fn hit_audit_publishes_trace_latency_contribution() {
+        let app = RuleTracerApplication::new();
+        let rules = sample_rules();
+        let _ = app.trace(&rules, "www.google.com", None, None);
+        let _ = app.trace(&rules, "bilibili.com", None, None);
+
+        let audit = app.audit(&rules);
+        assert_eq!(audit.trace_count, 2);
+        assert!(audit.avg_match_latency_us.is_some_and(|avg| avg >= 1.0));
+        assert!(audit.last_match_latency_us.is_some_and(|last| last >= 1));
     }
 
     #[test]

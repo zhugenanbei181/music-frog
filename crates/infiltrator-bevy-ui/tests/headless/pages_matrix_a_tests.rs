@@ -938,7 +938,7 @@ fn test_rules_empty_and_edge_case_projection() {
     assert!(subtree_has_text(
         app.world(),
         root,
-        "命中 0 · 冷门/被遮蔽 0 · CIDR 重叠 0"
+        "命中 0 · 冷门/被遮蔽 0 · CIDR 重叠 0 · 匹配 —"
     ));
     // Empty tracer snapshot renders the honest empty state, never a
     // fabricated replay.
@@ -1018,6 +1018,9 @@ fn test_rules_hit_audit_projection_and_clear_command() {
         last_hit_rule: Some("DOMAIN-SUFFIX,google.com,PROXY".to_owned()),
         last_hit_secs: Some(1_700_000_012),
         can_clear: true,
+        trace_count: 128,
+        avg_match_latency_us: Some(18.5),
+        last_match_latency_us: Some(14),
     };
     // The demo MATCH rule is the last entry; flag it shadowed so the row label
     // must render the shared shadow fact.
@@ -1034,7 +1037,7 @@ fn test_rules_hit_audit_projection_and_clear_command() {
     assert!(subtree_has_text(
         app.world(),
         root,
-        "命中 1287 · 冷门/被遮蔽 2 · CIDR 重叠 1"
+        "命中 1287 · 冷门/被遮蔽 2 · CIDR 重叠 1 · 匹配 18.5µs"
     ));
     assert!(subtree_has_text(app.world(), root, "56 次命中 · 被遮蔽"));
 

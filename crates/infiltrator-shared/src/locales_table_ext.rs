@@ -225,6 +225,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "rule_hit_btn_clear" => "清空命中计数".into(),
         "rule_hit_dead_count" => "冷门/被遮蔽规则".into(),
         "rule_hit_cidr_conflicts" => "CIDR 掩码重叠".into(),
+        "rule_hit_match_latency" => "平均匹配耗时".into(),
         "rule_hit_last_hit" => "最近命中规则".into(),
         "rule_hit_none" => "暂无命中数据".into(),
 

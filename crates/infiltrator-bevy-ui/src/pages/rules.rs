@@ -239,12 +239,7 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         projection.providers.len()
     );
     let default_action = format!("最终匹配目标: {}", projection.default_action);
-    let hit_audit_line = format!(
-        "命中 {} · 冷门/被遮蔽 {} · CIDR 重叠 {}",
-        projection.hit_audit.total_hits,
-        projection.hit_audit.dead_rules.len(),
-        projection.hit_audit.cidr_overlaps.len()
-    );
+    let hit_audit_line = hit_audit_label(&projection.hit_audit);
 
     let provider_scenes: Vec<Box<dyn Scene>> = projection
         .providers
@@ -464,6 +459,23 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
     )
 }
 
+/// Header summary of the shared hit-audit read model.
+pub(crate) fn hit_audit_label(
+    audit: &infiltrator_contract::rule_tracer::RuleHitAuditSnapshot,
+) -> String {
+    let latency = audit
+        .avg_match_latency_us
+        .map(|avg| format!("{avg:.1}µs"))
+        .unwrap_or_else(|| "—".to_owned());
+    format!(
+        "命中 {} · 冷门/被遮蔽 {} · CIDR 重叠 {} · 匹配 {}",
+        audit.total_hits,
+        audit.dead_rules.len(),
+        audit.cidr_overlaps.len(),
+        latency
+    )
+}
+
 /// Live hit label for one rule, flagging zero-hit and shadowed rules from the
 /// shared audit rather than showing a bare count.
 pub(crate) fn rule_hit_label(rule: &RuleItem) -> String {
@@ -678,12 +690,7 @@ pub(crate) fn apply_rules_projection(
                 }
             }
             RulesLineKind::HitAudit => {
-                let want = format!(
-                    "命中 {} · 冷门/被遮蔽 {} · CIDR 重叠 {}",
-                    projection.hit_audit.total_hits,
-                    projection.hit_audit.dead_rules.len(),
-                    projection.hit_audit.cidr_overlaps.len()
-                );
+                let want = hit_audit_label(&projection.hit_audit);
                 if text.0 != want {
                     text.0 = want;
                 }

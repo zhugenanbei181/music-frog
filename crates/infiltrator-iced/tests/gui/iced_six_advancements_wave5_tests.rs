@@ -102,6 +102,9 @@ fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
         last_hit_rule: Some("DOMAIN-SUFFIX,google.com,Proxy".into()),
         last_hit_secs: Some(1_700_000_000),
         can_clear: true,
+        trace_count: 3,
+        avg_match_latency_us: Some(12.5),
+        last_match_latency_us: Some(11),
     };
     assert!(state.apply_shared_surface_snapshot(rules_page_with_hit_audit(audit)));
     assert_eq!(state.editor.rule_hit_audit.audit.total_hits, 42);

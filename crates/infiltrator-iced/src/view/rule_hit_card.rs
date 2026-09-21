@@ -109,6 +109,15 @@ pub fn rule_hit_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
             audit.cidr_overlaps.len().to_string(),
             |t: &Theme| tokens(t).danger,
         ),
+        metric(
+            lang,
+            "rule_hit_match_latency",
+            audit
+                .avg_match_latency_us
+                .map(|avg| format!("{avg:.1} µs"))
+                .unwrap_or_else(|| "—".to_owned()),
+            |t: &Theme| tokens(t).text_primary,
+        ),
     ]
     .align_y(Alignment::Center)
     .spacing(theme::SP_SM);
