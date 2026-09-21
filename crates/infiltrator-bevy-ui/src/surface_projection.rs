@@ -152,6 +152,10 @@ pub(super) fn profiles_projection(
                     download_bytes: profile.download_bytes,
                     total_bytes: profile.total_bytes,
                     is_active: profile.is_active,
+                    user_agent: profile.user_agent.clone(),
+                    insecure_skip_verify: profile.insecure_skip_verify,
+                    etag: profile.etag.clone(),
+                    last_modified: profile.last_modified.clone(),
                 })
                 .collect(),
             auto_update_interval_hours: value.auto_update_interval_hours,

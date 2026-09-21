@@ -93,6 +93,14 @@ pub struct ProfileItem {
     pub download_bytes: u64,
     pub total_bytes: u64,
     pub is_active: bool,
+    /// Per-profile conditional-request User-Agent (empty = provider default).
+    pub user_agent: String,
+    /// Per-profile TLS certificate-skip preference.
+    pub insecure_skip_verify: bool,
+    /// Cached `ETag` validator from the last successful download.
+    pub etag: Option<String>,
+    /// Cached `Last-Modified` validator from the last successful download.
+    pub last_modified: Option<String>,
 }
 
 /// Snapshot of the Profiles domain.
@@ -120,6 +128,10 @@ impl ProfilesProjection {
                     download_bytes: 48_600_000_000,
                     total_bytes: 200_000_000_000,
                     is_active: true,
+                    user_agent: "Clash.Meta/1.18.0".to_owned(),
+                    insecure_skip_verify: false,
+                    etag: Some("\"etag-sub-1\"".to_owned()),
+                    last_modified: Some("Tue, 02 Sep 2026 08:30:00 GMT".to_owned()),
                 },
                 ProfileItem {
                     id: "sub-2".to_owned(),
@@ -130,6 +142,10 @@ impl ProfilesProjection {
                     download_bytes: 2_400_000_000,
                     total_bytes: 100_000_000_000,
                     is_active: false,
+                    user_agent: String::new(),
+                    insecure_skip_verify: true,
+                    etag: None,
+                    last_modified: None,
                 },
                 ProfileItem {
                     id: "sub-3".to_owned(),
@@ -140,6 +156,10 @@ impl ProfilesProjection {
                     download_bytes: 50_000_000,
                     total_bytes: 0,
                     is_active: false,
+                    user_agent: "Shadowrocket/2.2.20".to_owned(),
+                    insecure_skip_verify: false,
+                    etag: Some("\"etag-sub-3\"".to_owned()),
+                    last_modified: Some("Fri, 28 Aug 2026 15:45:00 GMT".to_owned()),
                 },
             ],
         }
@@ -198,7 +218,7 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
         ProfilesPageRoot
         Children [
             ( { header_card_scene(summary, auto_update, palette) } ),
-            ( { crate::pages::profiles_import::profiles_import_card_scene(palette) } ),
+            ( { crate::pages::profiles_import::profiles_import_card_scene(projection, palette) } ),
             ( { crate::pages::profiles_aggregator::profiles_aggregator_scene(palette) } ),
             ( { crate::pages::profiles_diff::snapshot_diff_scene(palette) } ),
             ( { crate::pages::profiles_script::script_sandbox_scene(palette) } ),
@@ -372,8 +392,11 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     }
     let mut commands = world.commands();
     commands.insert_resource(ProfilesPageBound);
+    commands.init_resource::<LastProfilesProjection>();
     commands.add_observer(apply_profiles_projection);
     commands.add_observer(on_profiles_action_activated);
+    commands.add_observer(crate::pages::profiles_import::sync_subscription_fetch_controls);
+    commands.add_observer(crate::pages::profiles_import::on_save_subscription_fetch_settings);
 }
 
 pub(crate) fn on_profiles_action_activated(

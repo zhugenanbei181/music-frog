@@ -86,4 +86,5 @@ python3 "$repo_root/scripts/quality/rule-hit-audit-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/rule-tracer-sandbox-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/speedtest-parity-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/speedtest-history-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/subscription-lifecycle-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/responsive-parity-guard.py" --mode enforce

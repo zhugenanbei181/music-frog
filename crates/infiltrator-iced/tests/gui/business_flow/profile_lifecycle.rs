@@ -11,11 +11,48 @@ use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::subscription_import::{
+    SubscriptionUpdateOutcome, SubscriptionUpdateReport,
+};
 use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_domain::profiles::sanitize_profile_name;
 use std::path::PathBuf;
 
 const LOCAL_IMPORT_YAML: &str = "mixed-port: 7890\nmode: rule\n";
+
+fn subscription_report(profile: &str) -> SubscriptionUpdateReport {
+    SubscriptionUpdateReport {
+        profile_name: profile.to_string(),
+        outcome: SubscriptionUpdateOutcome::Updated {
+            new_bytes: 1,
+            node_count: 1,
+        },
+        etag: None,
+        last_modified: None,
+        quota: None,
+        usage_warning: false,
+        expiry_warning: false,
+        reloaded_core: false,
+        backed_up: true,
+    }
+}
+
+fn not_modified_report(profile: &str) -> SubscriptionUpdateReport {
+    SubscriptionUpdateReport {
+        profile_name: profile.to_string(),
+        outcome: SubscriptionUpdateOutcome::NotModified {
+            etag: Some("\"abc\"".to_string()),
+            last_modified: Some("Tue, 22 Sep 2026 09:00:00 GMT".to_string()),
+        },
+        etag: Some("\"abc\"".to_string()),
+        last_modified: Some("Tue, 22 Sep 2026 09:00:00 GMT".to_string()),
+        quota: None,
+        usage_warning: false,
+        expiry_warning: false,
+        reloaded_core: false,
+        backed_up: false,
+    }
+}
 
 /// Journey 1 — 导入订阅 → 立即更新失败回灌 → 本地导入 → 激活 → 重启内核链。
 ///
@@ -293,7 +330,10 @@ fn manual_subscription_update_reports_zero_selection_and_outcomes() {
     assert!(units >= 1, "update task spawned");
 
     // Worker would fetch → parse → (active profile, no runtime) clear backup.
-    let units = feed(&mut state, Message::SubscriptionUpdatedNow(Ok(false)));
+    let units = feed(
+        &mut state,
+        Message::SubscriptionUpdatedNow(Ok(subscription_report("Paid"))),
+    );
     assert!(!state.profile.is_updating_subscription_now);
     assert_eq!(units, 2, "LoadProfiles + success-toast legs");
 
@@ -415,4 +455,79 @@ fn tray_bulk_entry_messages_reach_their_handlers() {
         crate::types::options::EditorPane::Mixin,
         "pane preselected"
     );
+}
+
+/// DUAL-07-02 / 07-04 / 07-12 — the per-profile User-Agent and insecure-TLS
+/// fields are real editor state (previously `UpdateSubscriptionUserAgent`
+/// was a dead message), the stored values reload from the shared profile
+/// metadata, and a `304 Not Modified` update surfaces the honest not-modified
+/// toast instead of a fabricated success.
+#[test]
+fn subscription_fetch_options_load_and_not_modified_feedback() {
+    let home = TempHome::acquire("sub-fetch-options");
+    home.seed_profile("Paid", LOCAL_IMPORT_YAML);
+    let mut state = fresh_state();
+    state.shell.lang = "zh-CN".into();
+
+    block_on(async {
+        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let mut metadata = manager.get_profile_metadata("Paid").await.unwrap();
+        metadata.subscription_url = Some("https://sub.example.com/token".into());
+        metadata.user_agent = Some("ClashVerge/2.0".into());
+        metadata.insecure_skip_verify = true;
+        metadata.etag = Some("\"abc\"".into());
+        metadata.last_modified = Some("Tue, 22 Sep 2026 09:00:00 GMT".into());
+        manager
+            .update_profile_metadata("Paid", &metadata)
+            .await
+            .unwrap();
+    });
+
+    feed(&mut state, Message::ProfilesLoaded(Ok(list_profiles())));
+    feed(
+        &mut state,
+        Message::SelectSubscriptionProfile("Paid".into()),
+    );
+    assert_eq!(
+        state.profile.subscription_user_agent, "ClashVerge/2.0",
+        "stored User-Agent loads into the editor"
+    );
+    assert!(
+        state.profile.subscription_insecure_skip_verify,
+        "stored insecure-TLS preference loads into the editor"
+    );
+
+    // Both controls mutate real state (not dead dispatches).
+    feed(
+        &mut state,
+        Message::UpdateSubscriptionUserAgent("Custom-UA/9".into()),
+    );
+    feed(
+        &mut state,
+        Message::UpdateSubscriptionInsecureSkipVerify(false),
+    );
+    assert_eq!(state.profile.subscription_user_agent, "Custom-UA/9");
+    assert!(!state.profile.subscription_insecure_skip_verify);
+
+    // A 304 update renders the not-modified toast, not a success toast.
+    let units = feed(
+        &mut state,
+        Message::SubscriptionUpdatedNow(Ok(not_modified_report("Paid"))),
+    );
+    assert!(units >= 2, "LoadProfiles + toast legs");
+    let lang = infiltrator_shared::locales::Lang(&state.shell.lang);
+    let (text, status) = crate::update::profile::subscription::subscription_update_toast(
+        &lang,
+        &not_modified_report("Paid"),
+    );
+    assert_eq!(status, crate::types::app::ToastStatus::Info);
+    assert!(
+        text.contains("未变更"),
+        "304 surfaces the honest not-modified toast, got {text:?}"
+    );
+    let (_, success_status) = crate::update::profile::subscription::subscription_update_toast(
+        &lang,
+        &subscription_report("Paid"),
+    );
+    assert_eq!(success_status, crate::types::app::ToastStatus::Success);
 }

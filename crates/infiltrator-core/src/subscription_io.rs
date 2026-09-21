@@ -69,7 +69,18 @@ impl SubscriptionSource for HttpSubscriptionSource {
         url: &CheckedSubscriptionUrl,
         headers: &ConditionalFetchHeaders,
     ) -> Result<ConditionalDocumentResult, PortError> {
-        let res = fetch_subscription_conditional(&self.client, &self.raw_client, url, headers)
+        // Per-profile opt-in: when the profile requests insecure TLS, build a
+        // dedicated client that skips certificate verification for this
+        // request only. The default client is never used for insecure fetches.
+        let (client, raw_client) = if headers.insecure_skip_verify {
+            (
+                infiltrator_http::build_insecure_http_client(false),
+                infiltrator_http::build_insecure_http_client(true),
+            )
+        } else {
+            (self.client.clone(), self.raw_client.clone())
+        };
+        let res = fetch_subscription_conditional(&client, &raw_client, url, headers)
             .await
             .map_err(|error| PortError::Network(error.to_string()))?;
         match res {

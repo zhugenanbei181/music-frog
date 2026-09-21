@@ -195,6 +195,18 @@ pub struct ProfileSnapshot {
     pub download_bytes: u64,
     pub total_bytes: u64,
     pub is_active: bool,
+    /// Per-profile conditional-request User-Agent (empty = provider default).
+    #[serde(default)]
+    pub user_agent: String,
+    /// Per-profile TLS certificate-skip preference.
+    #[serde(default)]
+    pub insecure_skip_verify: bool,
+    /// Cached `ETag` validator from the last successful download.
+    #[serde(default)]
+    pub etag: Option<String>,
+    /// Cached `Last-Modified` validator from the last successful download.
+    #[serde(default)]
+    pub last_modified: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

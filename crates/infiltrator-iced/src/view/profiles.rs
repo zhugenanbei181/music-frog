@@ -736,7 +736,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .style(form_input_style),
             Space::new().height(theme::SP_SM),
             text_input(
-                "User-Agent (e.g. Clash.Meta / ClashVerge / Shadowrocket)",
+                lang.tr("profiles_user_agent_placeholder").as_ref(),
                 &state.profile.subscription_user_agent
             )
             .on_input(Message::UpdateSubscriptionUserAgent)
@@ -747,6 +747,38 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .style(form_input_style),
             Space::new().height(theme::SP_XS),
             ua_presets,
+            Space::new().height(theme::SP_SM),
+            form_toggle_row(
+                lang.tr("profiles_insecure_skip_verify").to_string(),
+                state.profile.subscription_insecure_skip_verify,
+                Message::UpdateSubscriptionInsecureSkipVerify
+            ),
+            Space::new().height(theme::SP_XS),
+            text(lang.tr("profiles_insecure_skip_verify_hint").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary)
+                }),
+            Space::new().height(theme::SP_SM),
+            if let Some(profile) = selected_profile_meta {
+                let conditional = if profile.etag.is_some() || profile.last_modified.is_some() {
+                    format!(
+                        "{} · ETag: {} · Last-Modified: {}",
+                        lang.tr("profiles_conditional_request"),
+                        profile.etag.as_deref().unwrap_or("-"),
+                        profile.last_modified.as_deref().unwrap_or("-")
+                    )
+                } else {
+                    lang.tr("profiles_conditional_request_empty").into_owned()
+                };
+                Element::from(text(conditional).size(11).font(MONO).style(|t: &Theme| {
+                    text::Style {
+                        color: Some(tokens(t).text_secondary),
+                    }
+                }))
+            } else {
+                Element::from(Space::new().width(0))
+            },
             Space::new().height(theme::SP_MD),
             form_toggle_row(
                 lang.tr("profiles_auto_update").to_string(),

@@ -285,6 +285,19 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "overview_scale_max" => "Max".into(),
         "tracer_src_ip_label" => "Source IP:".into(),
         "tracer_src_ip_placeholder" => "Simulated source IP (e.g. 192.168.1.100)".into(),
+        "profiles_user_agent_placeholder" => {
+            "User-Agent (e.g. Clash.Meta / ClashVerge / Shadowrocket)".into()
+        }
+        "profiles_insecure_skip_verify" => "Skip TLS Certificate Verification (Insecure)".into(),
+        "profiles_insecure_skip_verify_hint" => {
+            "Applies to this subscription only. Skipping certificate checks lowers security; use it only with self-signed providers.".into()
+        }
+        "profiles_conditional_request" => "Conditional request cached".into(),
+        "profiles_conditional_request_empty" => {
+            "Conditional request: no ETag / Last-Modified cached yet".into()
+        }
+        "sub_update_not_modified" => "Subscription unchanged (304 Not Modified)".into(),
+        "sub_update_quota_warning" => "quota or expiry warning".into(),
         _ => key.to_string().into(),
     }
 }

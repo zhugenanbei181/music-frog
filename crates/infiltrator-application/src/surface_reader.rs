@@ -405,6 +405,10 @@ impl SurfaceReader for ApplicationSurfaceReader {
                                 download_bytes: item.traffic_download.unwrap_or_default(),
                                 total_bytes: item.traffic_total.unwrap_or_default(),
                                 is_active: item.active,
+                                user_agent: item.user_agent.unwrap_or_default(),
+                                insecure_skip_verify: item.insecure_skip_verify,
+                                etag: item.etag,
+                                last_modified: item.last_modified,
                             })
                             .collect(),
                         auto_update_interval_hours: 0,

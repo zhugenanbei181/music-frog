@@ -194,6 +194,10 @@ fn profiles_page_in_place_update() {
             download_bytes: 20_000_000_000,
             total_bytes: 500_000_000_000,
             is_active: true,
+            user_agent: "Clash.Meta/1.18.0".to_owned(),
+            insecure_skip_verify: false,
+            etag: Some("\"etag-custom\"".to_owned()),
+            last_modified: None,
         }],
     };
 

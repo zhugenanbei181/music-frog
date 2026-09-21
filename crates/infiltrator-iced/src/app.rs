@@ -202,6 +202,7 @@ impl AppState {
                 subscription_auto_update_enabled: false,
                 subscription_update_interval_hours: String::new(),
                 subscription_user_agent: String::new(),
+                subscription_insecure_skip_verify: false,
                 is_saving_subscription: false,
                 is_updating_subscription_now: false,
                 webdav_url: String::new(),

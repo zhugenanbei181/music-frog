@@ -9,7 +9,7 @@ mod import;
 mod options;
 mod profiles;
 mod settings;
-mod subscription;
+pub(crate) mod subscription;
 mod sync;
 mod sync_diff;
 
@@ -69,6 +69,8 @@ impl AppState {
             | Message::UpdateSubscriptionUrl(_)
             | Message::UpdateSubscriptionAutoUpdate(_)
             | Message::UpdateSubscriptionInterval(_)
+            | Message::UpdateSubscriptionUserAgent(_)
+            | Message::UpdateSubscriptionInsecureSkipVerify(_)
             | Message::SaveSubscriptionSettings
             | Message::SubscriptionSettingsSaved(_)
             | Message::UpdateSubscriptionNow

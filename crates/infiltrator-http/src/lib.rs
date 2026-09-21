@@ -31,6 +31,27 @@ pub fn build_raw_http_client(default_client: &HttpClient) -> HttpClient {
         })
 }
 
+/// Build a client that skips TLS certificate verification for one profile's
+/// subscription. This is an explicit, per-request opt-in used only when the
+/// user has enabled "insecure skip verify" for that subscription; it is never
+/// the default. The raw variant disables content negotiation like
+/// [`build_raw_http_client`].
+pub fn build_insecure_http_client(raw: bool) -> HttpClient {
+    let builder = HttpClient::builder()
+        .user_agent("MusicFrog-Despicable-Infiltrator")
+        .timeout(Duration::from_secs(30))
+        .danger_accept_invalid_certs(true);
+    let builder = if raw {
+        builder.no_gzip().no_brotli().no_deflate().no_zstd()
+    } else {
+        builder
+    };
+    builder.build().unwrap_or_else(|err| {
+        warn!("failed to build insecure http client: {err}");
+        HttpClient::new()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

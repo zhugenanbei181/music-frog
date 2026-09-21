@@ -414,6 +414,10 @@ impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
                     download_bytes: profile.download_bytes,
                     total_bytes: profile.total_bytes,
                     is_active: profile.is_active,
+                    user_agent: profile.user_agent,
+                    insecure_skip_verify: profile.insecure_skip_verify,
+                    etag: profile.etag,
+                    last_modified: profile.last_modified,
                 })
                 .collect(),
             auto_update_interval_hours: value.auto_update_interval_hours,
