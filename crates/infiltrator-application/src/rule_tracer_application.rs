@@ -32,6 +32,7 @@ struct TraceLatencyStats {
 #[derive(Clone, Debug, Default)]
 pub struct RuleTracerApplication {
     active_query: Arc<Mutex<String>>,
+    context: Arc<Mutex<TrafficContextSnapshot>>,
     hit_counter: Arc<Mutex<RuleHitCounter>>,
     trace_stats: Arc<Mutex<TraceLatencyStats>>,
 }
@@ -40,6 +41,7 @@ impl RuleTracerApplication {
     pub fn new() -> Self {
         Self {
             active_query: Arc::new(Mutex::new(String::new())),
+            context: Arc::new(Mutex::new(TrafficContextSnapshot::default())),
             hit_counter: Arc::new(Mutex::new(RuleHitCounter::new())),
             trace_stats: Arc::new(Mutex::new(TraceLatencyStats::default())),
         }
@@ -48,6 +50,7 @@ impl RuleTracerApplication {
     pub fn with_query(query: impl Into<String>) -> Self {
         Self {
             active_query: Arc::new(Mutex::new(query.into())),
+            context: Arc::new(Mutex::new(TrafficContextSnapshot::default())),
             hit_counter: Arc::new(Mutex::new(RuleHitCounter::new())),
             trace_stats: Arc::new(Mutex::new(TraceLatencyStats::default())),
         }
@@ -64,6 +67,50 @@ impl RuleTracerApplication {
             .lock()
             .map(|q| q.clone())
             .unwrap_or_default()
+    }
+
+    /// DUAL-12-10: store the simulated sandbox environment (source IP and
+    /// inbound ports). The stored context is merged onto every trace and
+    /// projection so the Iced port path and the Bevy surface reader agree.
+    pub fn set_context(&self, context: &TrafficContextSnapshot) {
+        if let Ok(mut lock) = self.context.lock() {
+            *lock = context.clone();
+        }
+    }
+
+    /// The stored simulated sandbox environment.
+    pub fn context(&self) -> TrafficContextSnapshot {
+        self.context
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_default()
+    }
+
+    /// Merge the stored sandbox environment onto a query-derived context.
+    fn merged_context(&self, query: &str) -> TrafficContext {
+        let mut context = TrafficContext::from_query(query);
+        let stored = self.context();
+        if let Some(src_ip) = stored
+            .src_ip
+            .as_deref()
+            .and_then(|raw| raw.trim().parse::<std::net::IpAddr>().ok())
+        {
+            context.src_ip = Some(src_ip);
+        }
+        if let Some(src_port) = stored.src_port {
+            context.src_port = Some(src_port);
+        }
+        if let Some(in_port) = stored.in_port {
+            context.in_port = Some(in_port);
+        }
+        if let Some(client_ip) = stored
+            .client_ip
+            .as_deref()
+            .and_then(|raw| raw.trim().parse::<std::net::IpAddr>().ok())
+        {
+            context.client_ip = Some(client_ip);
+        }
+        context
     }
 
     /// Feed observed rule hits into the shared counter.
@@ -209,7 +256,7 @@ impl RuleTracerApplication {
         proxies: Option<&HashMap<String, Proxy>>,
     ) -> (Option<RuleTraceMatch>, DecisionChainSnapshot) {
         let start = Instant::now();
-        let context = TrafficContext::from_query(query);
+        let context = self.merged_context(query);
         let domain_matched = trace_rules(rules, &context);
 
         let parsed_rule = domain_matched
@@ -305,11 +352,14 @@ impl RuleTracerApplication {
             return snapshot;
         }
 
-        let context_domain = TrafficContext::from_query(&query);
+        let context_domain = self.merged_context(&query);
         let ctx_snapshot = TrafficContextSnapshot {
             domain: context_domain.domain.clone(),
             ip: context_domain.ip.map(|ip| ip.to_string()),
             port: context_domain.port,
+            src_ip: context_domain.src_ip.map(|ip| ip.to_string()),
+            src_port: context_domain.src_port,
+            in_port: context_domain.in_port,
             process_name: context_domain.process_name.clone(),
             network: context_domain.network.clone(),
             in_type: context_domain.in_type.clone(),
@@ -347,6 +397,10 @@ impl RuleTracerApplication {
 impl infiltrator_ports::rule_tracer::RuleTracerPort for RuleTracerApplication {
     fn set_query(&self, query: &str) {
         RuleTracerApplication::set_query(self, query);
+    }
+
+    fn set_context(&self, context: &TrafficContextSnapshot) {
+        RuleTracerApplication::set_context(self, context);
     }
 
     fn trace(
@@ -611,5 +665,90 @@ mod tests {
         assert_eq!(app.hit_count_for("MATCH,FALLBACK"), 1);
         port.clear_hits();
         assert_eq!(app.hit_count_for("MATCH,FALLBACK"), 0);
+    }
+
+    #[test]
+    fn tracer_stored_source_ip_drives_inbound_stage_and_context() {
+        let app = RuleTracerApplication::with_query("www.google.com");
+        app.set_context(&TrafficContextSnapshot {
+            src_ip: Some("10.20.30.40".to_owned()),
+            src_port: Some(54321),
+            in_port: Some(7891),
+            ..TrafficContextSnapshot::default()
+        });
+
+        let snapshot = app.project(&running_core(), &sample_rules(), None, None);
+        assert_eq!(
+            snapshot.simulated_context.src_ip.as_deref(),
+            Some("10.20.30.40")
+        );
+        assert_eq!(snapshot.simulated_context.src_port, Some(54321));
+        assert_eq!(snapshot.simulated_context.in_port, Some(7891));
+
+        let chain = snapshot.decision_chain.expect("decision chain");
+        let inbound = &chain.nodes[0];
+        assert_eq!(inbound.stage, DecisionStageKind::Inbound);
+        assert!(inbound.detail.contains("10.20.30.40"));
+        assert!(inbound.detail.contains("7891"));
+        assert!(
+            inbound
+                .sub_evaluations
+                .iter()
+                .any(|line| line.contains("10.20.30.40"))
+        );
+    }
+
+    #[test]
+    fn tracer_stored_source_ip_drives_src_ip_cidr_rule_match() {
+        let rules = vec![
+            RuleEntry {
+                rule: "SRC-IP-CIDR,10.0.0.0/8,DIRECT".to_owned(),
+                enabled: true,
+            },
+            RuleEntry {
+                rule: "MATCH,FALLBACK".to_owned(),
+                enabled: true,
+            },
+        ];
+
+        let app = RuleTracerApplication::with_query("example.org");
+        let baseline = app.project(&running_core(), &rules, None, None);
+        assert_eq!(
+            baseline
+                .decision_chain
+                .expect("baseline chain")
+                .target_proxy,
+            "FALLBACK"
+        );
+
+        app.set_context(&TrafficContextSnapshot {
+            src_ip: Some("10.1.2.3".to_owned()),
+            ..TrafficContextSnapshot::default()
+        });
+        let snapshot = app.project(&running_core(), &rules, None, None);
+        let chain = snapshot.decision_chain.expect("decision chain");
+        assert_eq!(chain.matched_rule_type, "SRC-IP-CIDR");
+        assert_eq!(chain.target_proxy, "DIRECT");
+    }
+
+    #[test]
+    fn tracer_port_set_context_updates_shared_environment() {
+        let app = RuleTracerApplication::new();
+        let port: &dyn infiltrator_ports::rule_tracer::RuleTracerPort = &app;
+        port.set_query("www.google.com");
+        port.set_context(&TrafficContextSnapshot {
+            src_ip: Some("192.168.1.77".to_owned()),
+            ..TrafficContextSnapshot::default()
+        });
+        assert_eq!(app.context().src_ip.as_deref(), Some("192.168.1.77"));
+
+        let chain = port.trace(&sample_rules(), "www.google.com", None);
+        assert!(chain.nodes[0].detail.contains("192.168.1.77"));
+
+        let snapshot = app.project(&running_core(), &sample_rules(), None, None);
+        assert_eq!(
+            snapshot.simulated_context.src_ip.as_deref(),
+            Some("192.168.1.77")
+        );
     }
 }

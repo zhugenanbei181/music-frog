@@ -294,6 +294,8 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "common_copy" => "复制".into(),
         "overview_current_ip" => "当前出口 IP".into(),
         "overview_scale_max" => "最大".into(),
+        "tracer_src_ip_label" => "来源 IP:".into(),
+        "tracer_src_ip_placeholder" => "模拟来源 IP (例如: 192.168.1.100)".into(),
         _ => key.to_string().into(),
     }
 }

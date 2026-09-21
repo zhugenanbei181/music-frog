@@ -78,6 +78,10 @@ pub enum UiCommand {
     RefreshRuleProviders,
     /// Reset every accumulated rule hit counter.
     ClearRuleHitCounters,
+    /// DUAL-12-10: set the simulated sandbox source IP the tracer replays.
+    SetRuleTracerContext { src_ip: Option<String> },
+    /// Re-run the shared rule tracer for a target query.
+    SimulateRuleTrace { query: String },
     /// Terminate a single active connection by ID.
     CloseConnection { id: String },
     /// Terminate all active connections.
@@ -236,6 +240,12 @@ impl UiCommand {
             }),
             Self::RefreshRuleProviders => Some(CommandIntent::RefreshRuleProviders),
             Self::ClearRuleHitCounters => Some(CommandIntent::ResetRuleHitCounters),
+            Self::SetRuleTracerContext { src_ip } => Some(CommandIntent::SetRuleTracerContext {
+                src_ip: src_ip.clone(),
+            }),
+            Self::SimulateRuleTrace { query } => Some(CommandIntent::SimulateRuleTrace {
+                query: query.clone(),
+            }),
             Self::CloseConnection { id } => Some(CommandIntent::CloseConnection { id: id.clone() }),
             Self::CloseAllConnections => Some(CommandIntent::CloseAllConnections),
             Self::ClearLogs => Some(CommandIntent::ClearLogs),

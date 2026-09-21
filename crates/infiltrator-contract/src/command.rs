@@ -173,6 +173,11 @@ pub enum CommandIntent {
     SimulateRuleTrace {
         query: String,
     },
+    /// DUAL-12-10: set the simulated sandbox source IP / inbound environment
+    /// the next rule-tracer replay must merge.
+    SetRuleTracerContext {
+        src_ip: Option<String>,
+    },
     ResetRuleHitCounters,
     UnpackRuleProvider {
         provider_name: String,
@@ -311,6 +316,7 @@ impl CommandIntent {
             | Self::RefreshRuleProviders
             | Self::UnpackRuleProvider { .. } => CommandKind::Profile,
             Self::SimulateRuleTrace { .. }
+            | Self::SetRuleTracerContext { .. }
             | Self::ResetRuleHitCounters
             | Self::ReorderOverviewCards { .. }
             | Self::ResetOverviewCardOrder => CommandKind::Runtime,

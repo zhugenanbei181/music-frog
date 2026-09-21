@@ -7,6 +7,7 @@
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::mtu::MtuProbeState;
+use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
 use infiltrator_contract::version::CoreReleaseChannel;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::proxy::Proxy;
@@ -535,6 +536,17 @@ impl CommandApplication {
                 self.rule_tracer()?.clear_hits();
                 Ok(())
             }
+            CommandIntent::SimulateRuleTrace { query } => {
+                self.rule_tracer()?.set_query(&query);
+                Ok(())
+            }
+            CommandIntent::SetRuleTracerContext { src_ip } => {
+                self.rule_tracer()?.set_context(&TrafficContextSnapshot {
+                    src_ip,
+                    ..TrafficContextSnapshot::default()
+                });
+                Ok(())
+            }
             CommandIntent::RunPrivilegedNetworkRegression => self
                 .privileged_network()?
                 .run(infiltrator_contract::privileged_network::PrivilegedNetworkRequest::standard())
@@ -552,7 +564,6 @@ impl CommandApplication {
             | CommandIntent::ToggleIncludeSystemApps { .. }
             | CommandIntent::ResolveConflictKeepLocal
             | CommandIntent::ResolveConflictTakeRemote
-            | CommandIntent::SimulateRuleTrace { .. }
             | CommandIntent::UnpackRuleProvider { .. } => Err(unsupported()),
         }
     }

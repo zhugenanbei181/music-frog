@@ -225,6 +225,55 @@ fn test_rules_tracer_gui_flow() {
 }
 
 #[test]
+fn test_rules_tracer_source_ip_sandbox_flow() {
+    let (mut state, _) = AppState::new();
+    state.editor.rules = vec![
+        RuleEntry {
+            rule: "SRC-IP-CIDR,10.0.0.0/8,DIRECT".into(),
+            enabled: true,
+        },
+        RuleEntry {
+            rule: "MATCH,FALLBACK".into(),
+            enabled: true,
+        },
+    ];
+    state.rebuild_rules_render_cache();
+
+    let _ = state.update(Message::UpdateRulesTracerInput("example.org".into()));
+    let _ = state.update(Message::RunRulesTracer);
+    assert_eq!(
+        state
+            .editor
+            .rules_tracer_chain
+            .as_ref()
+            .unwrap()
+            .target_proxy,
+        "FALLBACK"
+    );
+
+    // Typing a sandbox source IP re-runs the trace: the Inbound stage reflects
+    // it and the SRC-IP-CIDR rule now matches the simulated LAN device.
+    let _ = state.update(Message::UpdateTracerSourceIp("10.1.2.3".into()));
+    assert_eq!(state.editor.rules_tracer_src_ip, "10.1.2.3");
+    let chain = state.editor.rules_tracer_chain.as_ref().unwrap();
+    assert_eq!(chain.matched_rule_type, "SRC-IP-CIDR");
+    assert_eq!(chain.target_proxy, "DIRECT");
+    assert!(chain.nodes[0].detail.contains("10.1.2.3"));
+
+    // Clearing the source IP returns to the query-only decision.
+    let _ = state.update(Message::UpdateTracerSourceIp(String::new()));
+    assert_eq!(
+        state
+            .editor
+            .rules_tracer_chain
+            .as_ref()
+            .unwrap()
+            .target_proxy,
+        "FALLBACK"
+    );
+}
+
+#[test]
 fn test_rules_game_presets_and_geo_update() {
     let (mut state, _) = AppState::new();
     state.editor.rules = vec![RuleEntry {

@@ -540,6 +540,7 @@ fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.insert_resource(RulesPageBound);
     commands.add_observer(apply_rules_projection);
     commands.add_observer(crate::pages::rules_tracer::apply_tracer_projection);
+    commands.add_observer(crate::pages::rules_tracer::on_tracer_action_activated);
     commands.add_observer(on_rules_action_activated);
 }
 
