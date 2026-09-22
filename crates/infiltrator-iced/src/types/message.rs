@@ -529,12 +529,23 @@ pub enum Message {
     ParseAndImportCustomUri,
     ExportNodeAsUri(String),
     SaveCustomNodeForm,
-    // Multi-Profile Aggregator (Category 3)
+    // Multi-Profile Aggregator (Category 3, DUAL-08)
     OpenAggregatorModal,
     CloseAggregatorModal,
     ToggleAggregatorProfileSelection(String),
     UpdateAggregatorName(String),
-    ExecuteProfileAggregation,
+    ToggleAggregatorDeduplicate,
+    ToggleAggregatorGeoCluster,
+    ToggleAggregatorGenerateGroups,
+    ToggleAggregatorRemoveEmojis,
+    /// DUAL-08-11: run the shared aggregation preview over the real sources.
+    PreviewProfileAggregation,
+    AggregationPreviewFinished(
+        Result<infiltrator_contract::aggregator::AggregationReport, InfiltratorError>,
+    ),
+    /// DUAL-08-06: save the preview as a brand new independent profile.
+    CreateAggregatedProfile,
+    AggregatedProfileCreated(Result<String, InfiltratorError>),
     // Connection Grouping & Quick Rule (Category 4)
     SetConnectionGroupingMode(infiltrator_domain::connection_view::ConnectionGroupingMode),
     AddQuickRuleFromConnection {

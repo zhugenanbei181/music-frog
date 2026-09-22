@@ -9,6 +9,7 @@ use std::sync::Arc;
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
+use bevy::ui::Checked;
 use bevy::ui::prelude::{Display, Node};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
@@ -21,6 +22,10 @@ use infiltrator_bevy_ui::pages::connections_idle::*;
 use infiltrator_bevy_ui::pages::connections_view::*;
 use infiltrator_bevy_ui::pages::logs::*;
 use infiltrator_bevy_ui::pages::profiles::*;
+use infiltrator_bevy_ui::pages::profiles_aggregator::{
+    AggregatorNameField, AggregatorSourceToggle, PreviewAggregationButton,
+    SaveAggregatedProfileButton,
+};
 use infiltrator_bevy_ui::pages::profiles_import::{
     ChooseLocalFileButton, ImportLocalFileButton, ProfilesImportRoot,
     RestoreSubscriptionBackupButton, SaveUserAgentButton, SubscriptionBackupStatus,
@@ -430,7 +435,8 @@ fn test_profiles_page_mounting_and_default_state() {
         root,
         "多订阅节点聚合器 (Profile Aggregator)"
     ));
-    assert!(subtree_has_text(app.world(), root, "一键聚合为新配置"));
+    assert!(subtree_has_text(app.world(), root, "预览聚合结果"));
+    assert!(subtree_has_text(app.world(), root, "保存为新配置"));
     assert!(subtree_has_text(
         app.world(),
         root,
@@ -588,6 +594,7 @@ fn test_profiles_empty_and_edge_case_projection() {
         profiles: vec![],
         auto_update_interval_hours: 0,
         updating: false,
+        aggregation: None,
     };
     app.world_mut()
         .commands()
@@ -2599,6 +2606,7 @@ fn subscription_fetch_projection() -> ProfilesProjection {
     ProfilesProjection {
         auto_update_interval_hours: 12,
         updating: false,
+        aggregation: None,
         profiles: vec![ProfileItem {
             id: "sub-fetch".to_owned(),
             name: "抓取选项订阅".to_owned(),
@@ -3082,5 +3090,173 @@ fn test_profiles_auto_reload_toggle_submits_shared_command() {
             enabled: false,
         }],
         "the reload preference rides the shared command"
+    );
+}
+
+// ---- DUAL-08: aggregator wizard + shared preview dual surface ---------------
+
+/// DUAL-08: a report carrying real region clusters and a master cascade.
+fn aggregation_preview_report() -> infiltrator_contract::aggregator::AggregationReport {
+    use infiltrator_contract::aggregator::{
+        AggregationReport, GeneratedGroupSnapshot, RegionalClusterSnapshot,
+    };
+    AggregationReport {
+        draft: infiltrator_contract::aggregator::AggregationDraft {
+            source_profiles: vec![
+                "主力高速订阅 (Primary VIP)".to_owned(),
+                "备用容灾线路 (Backup Anycast)".to_owned(),
+                "局域网调试配置 (LAN Lab)".to_owned(),
+            ],
+            target_name: "Merged-All".to_owned(),
+            deduplicate: true,
+            deduplicate_names: true,
+            geo_cluster: true,
+            generate_groups: true,
+            remove_emojis: true,
+        },
+        source_count: 3,
+        missing_sources: vec![],
+        input_nodes: 32,
+        total_nodes: 30,
+        duplicates_removed: 2,
+        renamed_nodes: 30,
+        regions: vec![
+            RegionalClusterSnapshot {
+                iso: "HK".to_owned(),
+                label: "香港".to_owned(),
+                flag: "🇭🇰".to_owned(),
+                group_name: "香港自动测速".to_owned(),
+                node_names: vec!["香港 01".to_owned(), "香港 02".to_owned()],
+            },
+            RegionalClusterSnapshot {
+                iso: "JP".to_owned(),
+                label: "日本".to_owned(),
+                flag: "🇯🇵".to_owned(),
+                group_name: "日本自动测速".to_owned(),
+                node_names: vec!["东京 01".to_owned()],
+            },
+        ],
+        groups: vec![
+            GeneratedGroupSnapshot {
+                name: "🚀 节点选择".to_owned(),
+                group_type: "select".to_owned(),
+                is_master: true,
+                members: vec!["♻️ 自动选择".to_owned(), "香港自动测速".to_owned()],
+            },
+            GeneratedGroupSnapshot {
+                name: "香港自动测速".to_owned(),
+                group_type: "url-test".to_owned(),
+                is_master: false,
+                members: vec!["香港 01".to_owned()],
+            },
+        ],
+        yaml: "proxies: []\n".to_owned(),
+        generated_at: "2026-09-22T10:00:00+00:00".to_owned(),
+    }
+}
+
+fn aggregation_page_projection() -> ProfilesProjection {
+    ProfilesProjection {
+        profiles: vec![],
+        auto_update_interval_hours: 0,
+        updating: false,
+        aggregation: Some(aggregation_preview_report()),
+    }
+}
+
+/// Flip the `Checked` state of one source row by profile name.
+fn set_source_checked(app: &mut App, name: &str, checked: bool) {
+    let child = {
+        let mut query = app
+            .world_mut()
+            .query::<(&AggregatorSourceToggle, &Children)>();
+        let mut found = None;
+        for (toggle, children) in query.iter(app.world()) {
+            if toggle.1 == name {
+                found = children.iter().next().copied();
+                break;
+            }
+        }
+        found.expect("source toggle row")
+    };
+    let mut entity = app.world_mut().entity_mut(child);
+    if checked {
+        entity.insert(Checked);
+    } else {
+        entity.remove::<Checked>();
+    }
+}
+
+/// DUAL-08: the aggregator card projects the shared report and submits the
+/// complete edited draft through the shared command bus.
+#[test]
+fn test_profiles_aggregator_previews_and_saves_through_shared_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(aggregation_page_projection()));
+    app.update();
+
+    assert!(
+        subtree_has_text(app.world(), root, "多订阅节点聚合器 (Profile Aggregator)"),
+        "the aggregator card mounts on the profiles page"
+    );
+    // The preview is the shared report, never a local fabrication.
+    assert!(
+        subtree_has_text(app.world(), root, "🇭🇰 HK 香港 → 香港自动测速（2 节点）"),
+        "the region cluster line restamps from the shared report"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "🚀 节点选择 [主选择器]"),
+        "the master cascade line restamps from the shared report"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "去重 2"),
+        "the dedup counter restamps from the shared report"
+    );
+
+    // Local edits: rename the target and deselect two of the three sources.
+    set_marker_text::<AggregatorNameField>(&mut app, "Merged-New");
+    set_source_checked(&mut app, "备用容灾线路 (Backup Anycast)", false);
+    set_source_checked(&mut app, "局域网调试配置 (LAN Lab)", false);
+
+    let preview = marker_entity::<PreviewAggregationButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: preview });
+    app.update();
+
+    let expected = infiltrator_contract::aggregator::AggregationDraft {
+        source_profiles: vec!["主力高速订阅 (Primary VIP)".to_owned()],
+        target_name: "Merged-New".to_owned(),
+        deduplicate: true,
+        deduplicate_names: true,
+        geo_cluster: true,
+        generate_groups: true,
+        remove_emojis: true,
+    };
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::PreviewProfileAggregation {
+            draft: expected.clone(),
+        }],
+        "the edited draft rides the shared preview command"
+    );
+
+    let save = marker_entity::<SaveAggregatedProfileButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: save });
+    app.update();
+
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::CreateAggregatedProfile {
+            draft: expected.clone(),
+        }),
+        "the save action rides the shared create command"
     );
 }

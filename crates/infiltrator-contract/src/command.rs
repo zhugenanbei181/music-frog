@@ -231,6 +231,17 @@ pub enum CommandIntent {
     DeleteProfile {
         profile_id: String,
     },
+    /// DUAL-08-01/08-11: persist the aggregation draft and recompute the
+    /// shared preview from the real source contents. Both surfaces render the
+    /// resulting `AggregationReport`; neither clusters or dedups locally.
+    PreviewProfileAggregation {
+        draft: crate::aggregator::AggregationDraft,
+    },
+    /// DUAL-08-06: materialise the persisted aggregation draft into a brand
+    /// new profile, leaving every source profile untouched.
+    CreateAggregatedProfile {
+        draft: crate::aggregator::AggregationDraft,
+    },
     RefreshRuleProviders,
     SimulateRuleTrace {
         query: String,
@@ -415,6 +426,8 @@ impl CommandIntent {
             | Self::SaveSubscriptionFilter { .. }
             | Self::ImportSubscription { .. }
             | Self::DeleteProfile { .. }
+            | Self::PreviewProfileAggregation { .. }
+            | Self::CreateAggregatedProfile { .. }
             | Self::RefreshRuleProviders
             | Self::UnpackRuleProvider { .. } => CommandKind::Profile,
             Self::ToggleRuleEnabled { .. }

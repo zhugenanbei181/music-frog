@@ -880,7 +880,18 @@ impl std::fmt::Debug for Message {
                 write!(f, "ToggleAggregatorProfileSelection({p})")
             }
             Message::UpdateAggregatorName(n) => write!(f, "UpdateAggregatorName({n})"),
-            Message::ExecuteProfileAggregation => write!(f, "ExecuteProfileAggregation"),
+            Message::ToggleAggregatorDeduplicate => write!(f, "ToggleAggregatorDeduplicate"),
+            Message::ToggleAggregatorGeoCluster => write!(f, "ToggleAggregatorGeoCluster"),
+            Message::ToggleAggregatorGenerateGroups => write!(f, "ToggleAggregatorGenerateGroups"),
+            Message::ToggleAggregatorRemoveEmojis => write!(f, "ToggleAggregatorRemoveEmojis"),
+            Message::PreviewProfileAggregation => write!(f, "PreviewProfileAggregation"),
+            Message::AggregationPreviewFinished(result) => {
+                write!(f, "AggregationPreviewFinished({})", result.is_ok())
+            }
+            Message::CreateAggregatedProfile => write!(f, "CreateAggregatedProfile"),
+            Message::AggregatedProfileCreated(result) => {
+                write!(f, "AggregatedProfileCreated({})", result.is_ok())
+            }
             Message::SetConnectionGroupingMode(m) => write!(f, "SetConnectionGroupingMode({m:?})"),
             Message::AddQuickRuleFromConnection { pattern, target } => {
                 write!(f, "AddQuickRuleFromConnection({pattern} -> {target})")

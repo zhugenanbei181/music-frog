@@ -166,6 +166,7 @@ pub(super) fn profiles_projection(
                 .collect(),
             auto_update_interval_hours: value.auto_update_interval_hours,
             updating: value.updating,
+            aggregation: value.aggregation.clone(),
         })
         .unwrap_or_else(empty_profiles)
 }

@@ -460,6 +460,20 @@ impl CommandApplication {
             CommandIntent::DeleteProfile { profile_id } => {
                 self.profile()?.delete_profile(&profile_id).await
             }
+            CommandIntent::PreviewProfileAggregation { draft } => {
+                let application =
+                    crate::profile_aggregation_application::ProfileAggregationApplication::new(
+                        self.profile()?,
+                    );
+                application.preview(&draft).await.map(|_| ())
+            }
+            CommandIntent::CreateAggregatedProfile { draft } => {
+                let application =
+                    crate::profile_aggregation_application::ProfileAggregationApplication::new(
+                        self.profile()?,
+                    );
+                application.create_profile(&draft).await.map(|_| ())
+            }
             CommandIntent::SetSubscriptionAutoReload {
                 profile_id,
                 enabled,

@@ -120,16 +120,84 @@ fn test_advancement_w2_3_multi_profile_aggregator_workflow() {
     let _ = state.update(Message::UpdateAggregatorName("HK-Only-Merged".to_string()));
     assert_eq!(state.profile.aggregator_name_input, "HK-Only-Merged");
 
-    // Execute merge
-    let _ = state.update(Message::ExecuteProfileAggregation);
-    assert_eq!(
-        state.profile.aggregator_result_summary.as_deref(),
-        Some("Merged 1 profiles into 'HK-Only-Merged'")
-    );
+    // DUAL-08: changing a cleaning switch drops the previous shared preview;
+    // the surface never keeps a stale report.
+    state.profile.aggregator_report = Some(Default::default());
+    let _ = state.update(Message::ToggleAggregatorDeduplicate);
+    assert!(state.profile.aggregator_report.is_none());
+    assert!(!state.profile.aggregator_deduplicate);
 
     // Close modal
     let _ = state.update(Message::CloseAggregatorModal);
     assert!(!state.profile.aggregator_modal_open);
+}
+
+/// DUAL-08: the surface consumes the shared aggregation report verbatim and
+/// refuses to start a preview without a source selection.
+#[test]
+fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
+    use infiltrator_contract::aggregator::{
+        AggregationReport, GeneratedGroupSnapshot, RegionalClusterSnapshot,
+    };
+
+    let (mut state, _) = AppState::new();
+    let report = AggregationReport {
+        draft: infiltrator_contract::aggregator::AggregationDraft {
+            source_profiles: vec!["Airport-HK".to_string()],
+            target_name: "Merged-New".to_string(),
+            deduplicate: true,
+            deduplicate_names: true,
+            geo_cluster: true,
+            generate_groups: true,
+            remove_emojis: true,
+        },
+        source_count: 1,
+        missing_sources: vec![],
+        input_nodes: 8,
+        total_nodes: 7,
+        duplicates_removed: 1,
+        renamed_nodes: 7,
+        regions: vec![RegionalClusterSnapshot {
+            iso: "HK".to_string(),
+            label: "香港".to_string(),
+            flag: "🇭🇰".to_string(),
+            group_name: "香港自动测速".to_string(),
+            node_names: vec!["香港 01".to_string()],
+        }],
+        groups: vec![GeneratedGroupSnapshot {
+            name: "🚀 节点选择".to_string(),
+            group_type: "select".to_string(),
+            is_master: true,
+            members: vec!["香港自动测速".to_string()],
+        }],
+        yaml: "proxies: []\n".to_string(),
+        generated_at: "2026-09-22T10:00:00+00:00".to_string(),
+    };
+
+    // A real shared report lands in the surface state verbatim.
+    let _ = state.update(Message::AggregationPreviewFinished(Ok(report.clone())));
+    assert_eq!(state.profile.aggregator_report.as_ref(), Some(&report));
+    assert!(!state.profile.is_aggregating);
+
+    // The draft assembled by the surface maps every switch to the shared type.
+    let draft = state.aggregator_draft();
+    assert!(draft.deduplicate);
+    assert!(draft.geo_cluster);
+    assert!(draft.generate_groups);
+    assert!(draft.remove_emojis);
+    assert!(draft.deduplicate_names);
+
+    // No source selected: the surface refuses to start an aggregation.
+    state.profile.aggregator_selected_profiles.clear();
+    let _ = state.update(Message::PreviewProfileAggregation);
+    assert!(!state.profile.is_aggregating);
+
+    // A typed failure clears the in-flight flag without faking a report.
+    state.profile.aggregator_report = None;
+    let _ = state.update(Message::AggregationPreviewFinished(Err(
+        infiltrator_contract::error::InfiltratorError::Internal("boom".to_string()),
+    )));
+    assert!(state.profile.aggregator_report.is_none());
 }
 
 #[test]
