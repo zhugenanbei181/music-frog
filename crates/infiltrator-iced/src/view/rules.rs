@@ -21,6 +21,7 @@ use iced::widget::{
     Space, button, column, container, pick_list, row, text, text_editor, text_input,
 };
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_domain::rules::matrix::RuleTypeFamily;
 use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::collections::HashMap;
@@ -135,49 +136,27 @@ fn save_action(
     }
 }
 
-/// Format raw rule type into semantic display label (`Domain`, `DomainSuffix`, `IPCIDR`, `GeoIP`, `Match`, `RuleSet`).
+/// Format raw rule type into the shared semantic display label (`Domain`,
+/// `DomainSuffix`, `IPCIDR`, `GeoIP`, `Match`, `RuleSet`, …) for all 33
+/// catalogue spellings (DUAL-11-01). Unknown spellings keep their raw text.
 pub fn display_rule_type(rule_type: &str) -> String {
-    match rule_type.to_ascii_uppercase().as_str() {
-        "DOMAIN" => "Domain".to_string(),
-        "DOMAIN-SUFFIX" | "DOMAINSUFFIX" => "DomainSuffix".to_string(),
-        "DOMAIN-KEYWORD" | "DOMAINKEYWORD" => "DomainKeyword".to_string(),
-        "IP-CIDR" | "IPCIDR" => "IPCIDR".to_string(),
-        "IP-CIDR6" | "IPCIDR6" => "IPCIDR6".to_string(),
-        "IP-ASN" | "IPASN" => "IPASN".to_string(),
-        "GEOIP" => "GeoIP".to_string(),
-        "GEOSITE" => "GeoSite".to_string(),
-        "MATCH" => "Match".to_string(),
-        "RULE-SET" | "RULESET" => "RuleSet".to_string(),
-        "PROCESS-NAME" | "PROCESSNAME" => "ProcessName".to_string(),
-        "AND" => "And".to_string(),
-        "OR" => "Or".to_string(),
-        "NOT" => "Not".to_string(),
-        "SUB-RULE" | "SUBRULE" => "SubRule".to_string(),
-        other => {
-            if other.is_empty() {
-                "Rule".to_string()
-            } else {
-                rule_type.to_string()
-            }
-        }
-    }
+    infiltrator_domain::rules::matrix::matrix_label(rule_type)
 }
 
-/// Map rule type and classifier to the shared badge palette.
+/// Map rule type and classifier to the shared badge palette (DUAL-11-01). The
+/// family comes from the shared catalogue, so every known type is colored by
+/// semantics rather than by a per-surface spelling list; `kind` is only the
+/// fallback for a spelling the catalogue does not know.
 pub fn semantic_badge_kind(rule_type: &str, kind: RuleBadgeKind) -> BadgeKind {
-    match rule_type
-        .to_ascii_uppercase()
-        .replace(['-', '_'], "")
-        .as_str()
-    {
-        "DOMAIN" | "DOMAINSUFFIX" | "DOMAINKEYWORD" | "RULESET" => BadgeKind::Accent,
-        "IPCIDR" | "IPCIDR6" | "IPASN" => BadgeKind::Warning,
-        "GEOIP" | "GEOSITE" | "MATCH" => BadgeKind::Neutral,
-        _ => match kind {
+    match infiltrator_domain::rules::matrix::matrix_family(rule_type) {
+        RuleTypeFamily::Host => BadgeKind::Accent,
+        RuleTypeFamily::Address => BadgeKind::Warning,
+        RuleTypeFamily::Unknown => match kind {
             RuleBadgeKind::Domain => BadgeKind::Accent,
             RuleBadgeKind::Ip => BadgeKind::Warning,
             RuleBadgeKind::Other => BadgeKind::Neutral,
         },
+        _ => BadgeKind::Neutral,
     }
 }
 
@@ -364,10 +343,16 @@ pub fn total_external_rules(rule_providers: &[RuleProvider]) -> u32 {
     rule_providers.iter().map(|rp| rp.rule_count).sum()
 }
 
-/// DUAL-11-04: provider lifecycle line combining the last update time with the
-/// declared source URL (or an honest "not declared" for runtime-only
-/// providers). No fabricated address.
-pub fn provider_lifecycle_line(updated_at: &str, source_url: Option<&str>) -> String {
+/// DUAL-11-04/11-05: provider lifecycle line combining the last update time
+/// with the declared source URL (or an honest "not declared" for runtime-only
+/// providers) and the declared automatic-refresh interval. The kernel executes
+/// the schedule and owns the `ETag`/`304` conditional cache, so no cache
+/// hit/miss state is invented here.
+pub fn provider_lifecycle_line(
+    updated_at: &str,
+    source_url: Option<&str>,
+    refresh_interval_secs: Option<u64>,
+) -> String {
     let mut parts = Vec::new();
     if updated_at.is_empty() {
         parts.push("Updated: —".to_string());
@@ -378,18 +363,27 @@ pub fn provider_lifecycle_line(updated_at: &str, source_url: Option<&str>) -> St
         Some(url) if !url.is_empty() => parts.push(format!("Source: {url}")),
         _ => parts.push("Source: not declared".to_string()),
     }
+    match refresh_interval_secs {
+        Some(secs) => parts.push(format!(
+            "Auto: {} (kernel-scheduled)",
+            infiltrator_domain::rules::view::format_refresh_interval(secs)
+        )),
+        None => parts.push("Auto: not declared".to_string()),
+    }
     parts.join(" · ")
 }
 
 pub fn rule_provider_row<'a>(
     provider: &RuleProvider,
     source_url: Option<&str>,
+    refresh_interval_secs: Option<u64>,
     _lang: &Lang<'_>,
 ) -> Element<'a, Message> {
     let behavior_badge_text = format_provider_behavior(&provider.behavior);
     let rule_count_str = crate::view::mrs_panel::format_rule_count(provider.rule_count);
     let format_str = format_rule_provider_format(provider);
-    let updated_text = provider_lifecycle_line(&provider.updated_at, source_url);
+    let updated_text =
+        provider_lifecycle_line(&provider.updated_at, source_url, refresh_interval_secs);
 
     let actions = row![
         button(
@@ -695,6 +689,36 @@ fn add_rule_panel<'a>(
     )
 }
 
+/// DUAL-11-08: honest note shown only while the shared read model reports a
+/// truncated published view. The Iced editor list is loaded in full from the
+/// profile, so this states the publish cap instead of pretending a windowed
+/// O(1) render exists.
+pub fn publish_truncation_line(state: &AppState, lang: &Lang<'_>) -> Option<String> {
+    let omitted = state
+        .editor
+        .rule_publish_omitted
+        .filter(|omitted| *omitted > 0)?;
+    Some(infiltrator_shared::i18n_interpolator::interpolate(
+        &lang.tr("rules_publish_truncated"),
+        &[
+            ("omitted", &omitted.to_string()),
+            ("limit", &state.editor.rule_publish_limit.to_string()),
+        ],
+    ))
+}
+
+fn publish_truncation_note<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
+    match publish_truncation_line(state, lang) {
+        Some(line) => text(line)
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).warning),
+            })
+            .into(),
+        None => Space::new().width(0).height(0).into(),
+    }
+}
+
 fn rules_list_view<'a>(
     state: &'a AppState,
     lang: &Lang<'_>,
@@ -861,6 +885,8 @@ fn rules_list_view<'a>(
         ]
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
+        publish_truncation_note(state, lang),
+        Space::new().width(theme::SP_MD),
         text_btn(
             "Prev".to_string(),
             style_ghost,
@@ -953,7 +979,17 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                     .rule_provider_source_urls
                     .get(&provider.name)
                     .map(String::as_str);
-                rule_list = rule_list.push(rule_provider_row(provider, source_url, lang));
+                let refresh_interval_secs = state
+                    .editor
+                    .rule_provider_intervals
+                    .get(&provider.name)
+                    .copied();
+                rule_list = rule_list.push(rule_provider_row(
+                    provider,
+                    source_url,
+                    refresh_interval_secs,
+                    lang,
+                ));
             }
         }
 

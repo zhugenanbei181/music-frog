@@ -182,6 +182,10 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
             tracer: value.tracer.clone(),
             hit_audit: value.tracer.hit_audit.clone(),
             mrs_acceleration: value.mrs_acceleration.clone(),
+            // DUAL-11-08: the publish cap and the omitted count are shared
+            // facts, so the page can render the truncation honestly.
+            truncated_rule_count: value.is_truncated().then(|| value.omitted_rule_count()),
+            rule_publish_limit: value.rule_publish_limit,
             providers: value
                 .providers
                 .iter()
@@ -191,6 +195,7 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
                     behavior: provider.behavior.clone(),
                     updated_at: provider.updated_at.clone(),
                     source_url: provider.source_url.clone(),
+                    refresh_interval_secs: provider.refresh_interval_secs,
                 })
                 .collect(),
             rules: value

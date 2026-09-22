@@ -8,11 +8,13 @@
 //! assert.
 
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::rule_edit::{RuleDraft, RuleMoveDirection};
+use infiltrator_contract::rule_edit::{LogicalDraft, RuleDraft, RuleMoveDirection};
 use infiltrator_domain::mrs::{
     Behavior, build_mrs_bytes, deconstruct_mrs_payload, parse_mrs_header,
 };
 use infiltrator_domain::rules::edit;
+use infiltrator_domain::rules::logical;
+use infiltrator_domain::rules::matrix::{RULE_TYPE_MATRIX, RuleTypeFamily, matrix_label};
 use infiltrator_domain::rules::types::parse_rule_str;
 use infiltrator_domain::rules::view;
 use infiltrator_domain::rules::{RuleEntry, game_routing_presets};
@@ -25,7 +27,8 @@ fn entry(rule: &str) -> RuleEntry {
     }
 }
 
-/// DUAL-11-01: every advertised rule-type spelling parses to its named type.
+/// DUAL-11-01: every advertised rule-type spelling parses to its named type and
+/// resolves to a catalogue entry the surfaces render.
 #[test]
 fn matrix_11_01_rule_type_vocabulary_parses() {
     let types = [
@@ -63,11 +66,79 @@ fn matrix_11_01_rule_type_vocabulary_parses() {
         let (expected, _) = raw.split_once(',').unwrap();
         assert_eq!(parsed.rule_type.name(), expected, "type {raw}");
         assert_eq!(parsed.target, "TARGET");
+        // The parsed type resolves to the shared catalogue entry of the same
+        // spelling, with a per-type display label and semantic family.
+        let spec = parsed.rule_type.spec();
+        assert_eq!(spec.name, expected);
+        assert_eq!(matrix_label(expected), spec.label);
+        assert_ne!(spec.family, RuleTypeFamily::Unknown);
     }
     // MATCH carries only a target.
+    let matched = parse_rule_str("MATCH,DIRECT").unwrap();
+    assert_eq!(matched.rule_type.name(), "MATCH");
+    assert_eq!(matched.rule_type.spec().family, RuleTypeFamily::Terminal);
+
+    // The catalogue has one entry per concrete spelling and every entry is
+    // reachable from the parser; nothing renders as an unknown type.
+    assert!(RULE_TYPE_MATRIX.len() >= 30);
+    for spec in RULE_TYPE_MATRIX.iter() {
+        let raw = if spec.is_logical {
+            format!("{}((DOMAIN,a.com),T)", spec.name)
+        } else {
+            format!("{},payload,T", spec.name)
+        };
+        let parsed = parse_rule_str(&raw).unwrap_or_else(|error| panic!("{raw}: {error}"));
+        assert_eq!(parsed.rule_type.spec(), spec);
+    }
+    assert_eq!(matrix_label("domain-keyword"), "DomainKeyword");
+}
+
+/// DUAL-11-02: the shared logical draft builds the canonical recursive
+/// expression, rejects malformed compositions and routes into the same AST the
+/// evaluator walks.
+#[test]
+fn matrix_11_02_logical_draft_builds_recursive_expression() {
+    let mut draft = logical::default_logical_draft(edit::DEFAULT_RULE_TARGET);
+    assert!(logical::select_operator(&mut draft, "or"));
+    assert!(logical::set_target(&mut draft, "Streaming"));
+    assert!(logical::add_condition(&mut draft, "DST-PORT,443"));
+    assert!(!logical::add_condition(&mut draft, "  DST-PORT,443  "));
+    assert_eq!(logical::draft_issue(&draft), None);
+
+    let built = logical::build_logical_rule(&draft).unwrap();
+    assert_eq!(logical::draft_expression(&draft), built.rule);
+    let parsed = parse_rule_str(&built.rule).unwrap();
+    assert_eq!(parsed.rule_type.name(), "OR");
+    assert_eq!(parsed.target, "Streaming");
+
+    // NOT is single-condition; an invalid draft never yields an entry.
+    assert!(logical::select_operator(&mut draft, "NOT"));
+    assert!(logical::build_logical_rule(&draft).is_err());
+    assert!(logical::remove_condition(&mut draft, 0));
+    assert!(logical::remove_condition(&mut draft, 0));
     assert_eq!(
-        parse_rule_str("MATCH,DIRECT").unwrap().rule_type.name(),
-        "MATCH"
+        logical::build_logical_rule(&draft).unwrap().rule,
+        "NOT((DST-PORT,443),Streaming)"
+    );
+    assert!(logical::remove_condition(&mut draft, 0));
+    assert!(logical::build_logical_rule(&draft).is_err());
+    let mut single = LogicalDraft {
+        operator: "NOT".to_owned(),
+        conditions: vec!["DOMAIN,a.com".to_owned()],
+        target: "REJECT".to_owned(),
+    };
+    assert_eq!(
+        logical::build_logical_rule(&single).unwrap().rule,
+        "NOT((DOMAIN,a.com),REJECT)"
+    );
+    single.conditions = vec!["BOGUS,a.com".to_owned()];
+    assert!(logical::build_logical_rule(&single).is_err());
+    // The operator vocabulary the surfaces render is the shared one.
+    assert_eq!(logical::LOGICAL_OPERATOR_CHOICES.len(), 4);
+    assert!(
+        logical::SUB_RULE_CONDITION_PRESETS
+            .iter()
+            .all(|preset| { logical::condition_issue(preset).is_none() })
     );
 }
 
@@ -112,6 +183,7 @@ fn matrix_11_04_rule_provider_source_url_projection() {
         behavior: "ipcidr".to_owned(),
         updated_at: "2026-09-01".to_owned(),
         source_url: Some("https://example.com/cn.mrs".to_owned()),
+        refresh_interval_secs: Some(86_400),
     };
     assert_eq!(
         provider.source_url.as_deref(),
@@ -119,17 +191,30 @@ fn matrix_11_04_rule_provider_source_url_projection() {
     );
 }
 
-/// DUAL-11-05: the incremental provider refresh intent is part of the shared bus.
+/// DUAL-11-05: the refresh intent is real and the declared automatic-refresh
+/// interval is what the client can honestly publish. The `ETag` / `304`
+/// conditional cache lives inside the mihomo kernel: it is deliberately absent
+/// from this snapshot and must not be invented by a surface.
 #[test]
-fn matrix_11_05_provider_refresh_intent_exists() {
+fn matrix_11_05_provider_refresh_intent_and_declared_interval() {
     let intent = CommandIntent::RefreshRuleProviders;
     assert_eq!(
         intent.kind(),
         infiltrator_contract::command::CommandKind::Profile
     );
+    let declared = infiltrator_contract::surface_snapshot::RuleProviderSnapshot {
+        name: "ads".to_owned(),
+        rule_count: 12,
+        behavior: "domain".to_owned(),
+        updated_at: "2026-09-01".to_owned(),
+        source_url: None,
+        refresh_interval_secs: Some(3600),
+    };
+    assert_eq!(declared.refresh_interval_secs, Some(3600));
 }
 
-/// DUAL-11-08/13: keyword search + pagination are shared arithmetic.
+/// DUAL-11-08/13: keyword search + pagination are shared arithmetic, and the
+/// publish cap + omitted count are shared facts the surfaces render.
 #[test]
 fn matrix_11_08_search_and_pagination_reduce_in_shared_view() {
     let rules = vec![
@@ -140,6 +225,34 @@ fn matrix_11_08_search_and_pagination_reduce_in_shared_view() {
     assert_eq!(view::filter_rule_indices(&rules, "proxy"), vec![1]);
     assert_eq!(view::page_count(0, 0), 1);
     assert_eq!(view::page_bounds(9, 5, 2), (4, 5));
+
+    // DUAL-11-08: the published view is capped and says so.
+    assert_eq!(view::published_rule_count(120), 120);
+    assert_eq!(view::published_rule_count(50_000), view::RULE_PUBLISH_LIMIT);
+    assert_eq!(view::omitted_rule_count(50_000), 45_000);
+    assert!(view::is_truncated_rule_list(50_000));
+    let snapshot = infiltrator_contract::surface_snapshot::RulesPageSnapshot {
+        total_rules: 50_000,
+        default_action: "DIRECT".to_owned(),
+        providers: Vec::new(),
+        rules: Vec::new(),
+        tracer: Default::default(),
+        mrs_acceleration: Default::default(),
+        total_hits: 0,
+        rule_publish_limit: view::RULE_PUBLISH_LIMIT,
+    };
+    assert_eq!(snapshot.omitted_rule_count(), 50_000);
+    assert!(snapshot.is_truncated());
+    let complete = infiltrator_contract::surface_snapshot::RulesPageSnapshot {
+        total_rules: 2,
+        rules: vec![
+            infiltrator_contract::surface_snapshot::RuleSnapshot::default(),
+            infiltrator_contract::surface_snapshot::RuleSnapshot::default(),
+        ],
+        ..snapshot
+    };
+    assert!(!complete.is_truncated());
+    assert_eq!(complete.omitted_rule_count(), 0);
 }
 
 /// DUAL-11-09/10/11/12: toggle, reorder, wizard and presets are shared edits.

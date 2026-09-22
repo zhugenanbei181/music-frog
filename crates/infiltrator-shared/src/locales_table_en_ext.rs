@@ -96,6 +96,9 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "subrules_target" => "Target Policy".into(),
         "subrules_result_preview" => "Rule Expression Preview".into(),
         "subrules_btn_insert" => "Insert Rule".into(),
+        "subrules_no_conditions" => "No sub-conditions yet".into(),
+        "subrules_validate_ok" => "Syntax valid".into(),
+        "subrules_validate_failed" => "Syntax invalid".into(),
 
         // Category 3: Speedtest & Jitter Benchmark
         "speedtest_title" => "Node Bandwidth & Jitter Benchmark".into(),

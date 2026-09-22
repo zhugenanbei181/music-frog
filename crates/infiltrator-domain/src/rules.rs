@@ -11,6 +11,8 @@ use std::collections::{BTreeMap, HashSet};
 
 pub mod analyzer;
 pub mod edit;
+pub mod logical;
+pub mod matrix;
 pub mod tracer;
 pub mod types;
 pub mod view;

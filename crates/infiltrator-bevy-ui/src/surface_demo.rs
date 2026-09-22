@@ -271,6 +271,8 @@ pub(crate) fn empty_rules() -> RulesProjection {
         tracer: Default::default(),
         hit_audit: Default::default(),
         mrs_acceleration: Default::default(),
+        truncated_rule_count: None,
+        rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
     }
 }
 
@@ -454,6 +456,7 @@ impl From<RulesProjection> for surface_snapshot::RulesPageSnapshot {
                     behavior: provider.behavior,
                     updated_at: provider.updated_at,
                     source_url: provider.source_url,
+                    refresh_interval_secs: provider.refresh_interval_secs,
                 })
                 .collect(),
             rules: value
@@ -471,6 +474,7 @@ impl From<RulesProjection> for surface_snapshot::RulesPageSnapshot {
             tracer: value.tracer,
             mrs_acceleration: value.mrs_acceleration,
             total_hits: 0,
+            rule_publish_limit: value.rule_publish_limit,
         }
     }
 }

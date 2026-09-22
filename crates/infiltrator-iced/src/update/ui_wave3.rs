@@ -69,39 +69,52 @@ impl AppState {
                 ))
             }
             Message::UpdateSubRuleOperator(op) => {
-                self.editor.subrule_draft.operator = op;
+                // DUAL-11-02: operator selection is the shared vocabulary gate.
+                infiltrator_domain::rules::logical::select_operator(
+                    &mut self.editor.subrule_draft,
+                    &op,
+                );
                 Task::none()
             }
             Message::AddSubRuleCondition(cond) => {
-                self.editor.subrule_draft.conditions.push(cond);
+                infiltrator_domain::rules::logical::add_condition(
+                    &mut self.editor.subrule_draft,
+                    &cond,
+                );
                 Task::none()
             }
             Message::RemoveSubRuleCondition(idx) => {
-                if idx < self.editor.subrule_draft.conditions.len() {
-                    self.editor.subrule_draft.conditions.remove(idx);
-                }
+                infiltrator_domain::rules::logical::remove_condition(
+                    &mut self.editor.subrule_draft,
+                    idx,
+                );
                 Task::none()
             }
             Message::UpdateSubRuleTarget(t) => {
-                self.editor.subrule_draft.target = t;
+                infiltrator_domain::rules::logical::set_target(&mut self.editor.subrule_draft, &t);
                 Task::none()
             }
             Message::InsertSubRuleIntoRules => {
-                let op = &self.editor.subrule_draft.operator;
-                let conds = self.editor.subrule_draft.conditions.join(", ");
-                let target = &self.editor.subrule_draft.target;
-                let formatted_rule = format!("{op}(({conds})),{target}");
-                self.editor
-                    .rules
-                    .push(infiltrator_domain::rules::RuleEntry {
-                        rule: formatted_rule.clone(),
-                        enabled: true,
-                    });
-                self.editor.rules_dirty = true;
-                Task::done(Message::ShowToast(
-                    format!("Inserted: {formatted_rule}"),
-                    ToastStatus::Success,
-                ))
+                // DUAL-11-02: the visual builder inserts the shared reduction's
+                // canonical `OP((cond),(cond),TARGET)` expression. An invalid
+                // composition is an honest error toast, never a malformed rule.
+                match infiltrator_domain::rules::logical::build_logical_rule(
+                    &self.editor.subrule_draft,
+                ) {
+                    Ok(entry) => {
+                        let formatted_rule = entry.rule.clone();
+                        self.editor.rules.push(entry);
+                        self.editor.rules_dirty = true;
+                        Task::done(Message::ShowToast(
+                            format!("Inserted: {formatted_rule}"),
+                            ToastStatus::Success,
+                        ))
+                    }
+                    Err(issue) => Task::done(Message::ShowToast(
+                        format!("Invalid logical rule: {issue}"),
+                        ToastStatus::Error,
+                    )),
+                }
             }
             Message::RunNodeSpeedtest(node) => {
                 // Drive the real shared engine through the host port; no

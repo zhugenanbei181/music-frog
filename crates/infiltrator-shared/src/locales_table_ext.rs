@@ -102,6 +102,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "subrules_target" => "目标策略".into(),
         "subrules_result_preview" => "规则表达式预览".into(),
         "subrules_btn_insert" => "插入分流规则".into(),
+        "subrules_no_conditions" => "尚未添加子条件".into(),
+        "subrules_validate_ok" => "语法校验通过".into(),
+        "subrules_validate_failed" => "语法校验未通过".into(),
 
         // Category 3: Speedtest & Jitter Benchmark
         "speedtest_title" => "节点带宽与抖动率测速".into(),

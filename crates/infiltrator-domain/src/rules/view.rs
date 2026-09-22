@@ -25,6 +25,27 @@ impl RuleView for RuleEntry {
 /// Default page size shared by both surfaces when a view has none set.
 pub const DEFAULT_RULE_PAGE_SIZE: usize = 200;
 
+/// DUAL-11-08: maximum number of rules the application publishes into surface
+/// snapshots. The Iced editor loads the profile list through its own port and
+/// is not capped; the published view is, and both surfaces render the cap and
+/// the omitted count instead of presenting a truncated list as complete.
+pub const RULE_PUBLISH_LIMIT: usize = 5000;
+
+/// DUAL-11-08: number of rules published for a received list.
+pub fn published_rule_count(received: usize) -> usize {
+    received.min(RULE_PUBLISH_LIMIT)
+}
+
+/// DUAL-11-08: rules the publish cap drops from a received list.
+pub fn omitted_rule_count(received: usize) -> usize {
+    received.saturating_sub(RULE_PUBLISH_LIMIT)
+}
+
+/// DUAL-11-08: whether publishing a received list truncates it.
+pub fn is_truncated_rule_list(received: usize) -> bool {
+    received > RULE_PUBLISH_LIMIT
+}
+
 /// Case-insensitive substring match over the rule expression. An empty query
 /// matches every row.
 pub fn matches_rule_search<T: RuleView>(item: &T, query: &str) -> bool {
@@ -81,6 +102,23 @@ pub fn page_bounds(page: usize, len: usize, page_size: usize) -> (usize, usize) 
     (start, end)
 }
 
+/// DUAL-11-05: human-readable form of a provider's declared refresh interval
+/// (seconds). Shared so both surfaces render the same schedule.
+pub fn format_refresh_interval(secs: u64) -> String {
+    if secs == 0 {
+        return "0s".to_owned();
+    }
+    if secs.is_multiple_of(86_400) {
+        format!("{}d", secs / 86_400)
+    } else if secs.is_multiple_of(3_600) {
+        format!("{}h", secs / 3_600)
+    } else if secs.is_multiple_of(60) {
+        format!("{}m", secs / 60)
+    } else {
+        format!("{secs}s")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,5 +153,26 @@ mod tests {
         // A stale page past the end clamps back onto the last page.
         assert_eq!(page_bounds(9, 5, 2), (4, 5));
         assert_eq!(page_bounds(0, 0, 2), (0, 0));
+    }
+
+    #[test]
+    fn publish_cap_arithmetic_is_shared() {
+        assert_eq!(RULE_PUBLISH_LIMIT, 5000);
+        assert_eq!(published_rule_count(4_999), 4_999);
+        assert_eq!(published_rule_count(5_001), 5_000);
+        assert_eq!(omitted_rule_count(5_001), 1);
+        assert_eq!(omitted_rule_count(120), 0);
+        assert!(!is_truncated_rule_list(5_000));
+        assert!(is_truncated_rule_list(50_000));
+    }
+
+    #[test]
+    fn refresh_interval_formats_in_the_largest_whole_unit() {
+        assert_eq!(format_refresh_interval(0), "0s");
+        assert_eq!(format_refresh_interval(45), "45s");
+        assert_eq!(format_refresh_interval(1_800), "30m");
+        assert_eq!(format_refresh_interval(3_600), "1h");
+        assert_eq!(format_refresh_interval(86_400), "1d");
+        assert_eq!(format_refresh_interval(90_000), "25h");
     }
 }

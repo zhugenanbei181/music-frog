@@ -274,10 +274,20 @@ pub struct RuleProviderSnapshot {
     /// honestly report `None` instead of a fabricated address).
     #[serde(default)]
     pub source_url: Option<String>,
+    /// DUAL-11-05: the `interval` declared for this provider in the active
+    /// profile, in seconds. The mihomo kernel owns the scheduled refresh (and
+    /// the `ETag`/`If-None-Match` conditional cache behind it); the client only
+    /// publishes the declared schedule, never a fabricated cache hit/miss.
+    #[serde(default)]
+    pub refresh_interval_secs: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RulesPageSnapshot {
+    /// DUAL-11-08: total rules present in the active profile, *before* the
+    /// honest publish cap. `rules.len()` is the published window and may be
+    /// smaller; both facts are published so a surface never reports a truncated
+    /// list as if it were complete.
     pub total_rules: usize,
     pub default_action: String,
     pub providers: Vec<RuleProviderSnapshot>,
@@ -288,6 +298,22 @@ pub struct RulesPageSnapshot {
     pub mrs_acceleration: crate::mrs_acceleration::MrsAccelerationSnapshot,
     #[serde(default)]
     pub total_hits: u64,
+    /// DUAL-11-08: cap the publisher applied to `rules` (0 = uncapped).
+    #[serde(default)]
+    pub rule_publish_limit: usize,
+}
+
+impl RulesPageSnapshot {
+    /// DUAL-11-08: rules the publish cap dropped from the rendered list.
+    pub fn omitted_rule_count(&self) -> usize {
+        self.total_rules.saturating_sub(self.rules.len())
+    }
+
+    /// DUAL-11-08: whether the published rule list is a truncated view of the
+    /// profile's rule list.
+    pub fn is_truncated(&self) -> bool {
+        self.omitted_rule_count() > 0
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

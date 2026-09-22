@@ -112,6 +112,251 @@ def main() -> int:
         "matrix_11_09_to_12_rule_edit_reductions",
         "rules_matrix_test.rs",
     )
+    # Batch C (DUAL-11-01/02/05/08): the shared type catalogue, the shared
+    # logical sub-rule draft reduction, the declared refresh interval and the
+    # honest publish-cap facts, all wired on both surfaces.
+    require(
+        violations,
+        LEDGER,
+        "RULE_TYPE_MATRIX",
+        "RuleTypeFamily",
+        "matrix_label",
+        "RuleTypeBadge",
+        "rule_type_chip_fill",
+        "test_rules_type_matrix_renders_every_shared_label",
+        "LogicalDraft",
+        "LOGICAL_OPERATOR_CHOICES",
+        "SUB_RULE_CONDITION_PRESETS",
+        "build_logical_rule",
+        "draft_expression",
+        "draft_issue",
+        "RulesSubRuleState",
+        "rules_subrules.rs",
+        "on_rules_subrules_activated",
+        "SubRuleConditionList",
+        "test_rules_subrules_builder_submits_shared_logical_intent",
+        "test_advancement_w3_2_subrules_logical_builder_workflow",
+        "matrix_11_02_logical_draft_builds_recursive_expression",
+        "refresh_interval_secs",
+        "format_refresh_interval",
+        "kernel-scheduled",
+        "内核调度",
+        "rule_publish_limit",
+        "truncation_label",
+        "publish_truncation_line",
+        "published_rule_count",
+        "omitted_rule_count",
+        "is_truncated_rule_list",
+        "test_rules_truncation_note_reports_publish_cap",
+        "test_rules_provider_interval_and_publish_truncation_project_from_snapshot",
+        "matrix_11_05_provider_refresh_intent_and_declared_interval",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/rules.rs",
+        "pub mod logical;",
+        "pub mod matrix;",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/rules/matrix.rs",
+        "pub const RULE_TYPE_MATRIX",
+        "pub enum RuleTypeFamily",
+        "pub struct RuleTypeSpec",
+        "pub fn matrix_label",
+        "pub fn matrix_family",
+        "pub fn spec_for_name",
+        "pub fn spec(&self)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/rules/logical.rs",
+        "pub const LOGICAL_OPERATOR_CHOICES",
+        "pub const SUB_RULE_CONDITION_PRESETS",
+        "pub fn default_logical_draft",
+        "pub fn select_operator",
+        "pub fn add_condition",
+        "pub fn remove_condition",
+        "pub fn set_target",
+        "pub fn draft_payload",
+        "pub fn draft_operator",
+        "pub fn draft_expression",
+        "pub fn draft_issue",
+        "pub fn build_logical_rule",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/rules/view.rs",
+        "pub const RULE_PUBLISH_LIMIT",
+        "pub fn published_rule_count",
+        "pub fn omitted_rule_count",
+        "pub fn is_truncated_rule_list",
+        "pub fn format_refresh_interval",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/rule_edit.rs",
+        "pub struct LogicalDraft",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub refresh_interval_secs: Option<u64>",
+        "pub rule_publish_limit: usize",
+        "pub fn omitted_rule_count",
+        "pub fn is_truncated",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "refresh_interval_secs",
+        "published_rule_count",
+        "RULE_PUBLISH_LIMIT",
+    )
+    # Iced consumes the shared catalogue and the shared logical builder.
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/rules.rs",
+        "matrix::matrix_label",
+        "RuleTypeFamily::Host",
+        "RuleTypeFamily::Address",
+        "format_refresh_interval",
+        "kernel-scheduled",
+        "pub fn publish_truncation_line",
+        "rules_publish_truncated",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/subrules_builder.rs",
+        "logical::LOGICAL_OPERATOR_CHOICES",
+        "logical::SUB_RULE_CONDITION_PRESETS",
+        "logical::draft_expression",
+        "logical::draft_issue",
+        "Message::UpdateSubRuleTarget",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/ui_wave3.rs",
+        "logical::select_operator",
+        "logical::add_condition",
+        "logical::remove_condition",
+        "logical::set_target",
+        "logical::build_logical_rule",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/state.rs",
+        "rule_provider_intervals",
+        "rule_publish_omitted",
+        "rule_publish_limit",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table.rs",
+        "rules_publish_truncated",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en.rs",
+        "rules_publish_truncated",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "subrules_validate_ok",
+        "subrules_no_conditions",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "subrules_validate_ok",
+        "subrules_no_conditions",
+    )
+    # Bevy renders the shared catalogue labels/chips and the visual logical
+    # sub-rule builder, and publishes the truncation/schedule facts.
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages.rs",
+        "pub mod rules_projection;",
+        "pub mod rules_subrules;",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules_subrules.rs",
+        "pub struct RulesSubRuleState",
+        "pub struct SubRuleOperatorChip",
+        "pub struct SubRuleConditionRow",
+        "pub struct SubRuleConditionList",
+        "pub struct SubRulePresetButton",
+        "pub struct SubRuleTargetField",
+        "pub struct SubRuleInsertButton",
+        "pub fn rules_subrules_scene",
+        "pub(crate) fn on_rules_subrules_activated",
+        "logical::build_logical_rule",
+        "logical::select_operator",
+        "logical::draft_expression",
+        "UiCommand::AddCustomRule",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules_projection.rs",
+        "pub struct RuleTypeBadge",
+        "pub(crate) fn rule_type_chip_fill",
+        "pub(crate) fn truncation_label",
+        "matrix_label",
+        "RuleTypeFamily::Host",
+        "非 O(1) 虚拟滚动",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules.rs",
+        "RuleTypeBadge",
+        "rule_type_chip_scene",
+        "truncated_rule_count",
+        "自动刷新",
+        "内核调度",
+        "rules_subrules_scene",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/surface_projection.rs",
+        "value.is_truncated()",
+        "refresh_interval_secs: provider.refresh_interval_secs",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_rules_type_matrix_renders_every_shared_label",
+        "test_rules_subrules_builder_submits_shared_logical_intent",
+        "test_rules_truncation_note_reports_publish_cap",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/tests/rules_matrix_test.rs",
+        "matrix_11_02_logical_draft_builds_recursive_expression",
+        "matrix_11_05_provider_refresh_intent_and_declared_interval",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/rules_dns_tests.rs",
+        "test_rules_provider_interval_and_publish_truncation_project_from_snapshot",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_rules_tests.rs",
+        "Auto: 1d (kernel-scheduled)",
+    )
+    # Honest-boundary markers: the fabricated/corrupted forms must not return.
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/view/rules.rs",
+        '"DOMAIN-SUFFIX" | "DOMAINSUFFIX" => "DomainSuffix"',
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/update/ui_wave3.rs",
+        'subrule_draft.conditions.join(", ")',
+    )
     require(
         violations,
         "crates/infiltrator-contract/src/rule_edit.rs",

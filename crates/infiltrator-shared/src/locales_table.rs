@@ -548,6 +548,7 @@ pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "rule_tracer_recent_hits" => "最近命中".into(),
         "rule_tracer_zero_hits" => "0 命中".into(),
         "rule_rules_showing" => "显示第 {start}-{end} 条，共 {total} 条规则".into(),
+        "rules_publish_truncated" => "共享发布视口已截断：已省略 {omitted} 条（发布上限 {limit} 条；编辑器列表仍为全量，非 O(1) 虚拟滚动）".into(),
         "rule_repo_official" => "MetaCubeX 官方全量规则资源库".into(),
         "rule_match_all" => "全量兜底匹配 (Match All)".into(),
         "yaml_status_valid" => "YAML 语法正确".into(),

@@ -47,9 +47,12 @@ fn test_advancement_w3_1_pcap_capture_and_export_lifecycle() {
 fn test_advancement_w3_2_subrules_logical_builder_workflow() {
     let (mut state, _) = AppState::new();
 
-    // Default draft state
+    // Default draft state: the shared builder seeds the shared default target.
     assert_eq!(state.editor.subrule_draft.operator, "AND");
-    assert_eq!(state.editor.subrule_draft.target, "DIRECT");
+    assert_eq!(
+        state.editor.subrule_draft.target,
+        infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET
+    );
 
     // Update operator to OR
     let _ = state.update(Message::UpdateSubRuleOperator("OR".to_string()));
@@ -74,7 +77,8 @@ fn test_advancement_w3_2_subrules_logical_builder_workflow() {
     let _ = state.update(Message::UpdateSubRuleTarget("StreamingGroup".to_string()));
     assert_eq!(state.editor.subrule_draft.target, "StreamingGroup");
 
-    // Insert into rules
+    // Insert into rules: the shared builder encodes the canonical
+    // `OP((cond),(cond),TARGET)` expression the parser accepts.
     let initial_rule_count = state.editor.rules.len();
     let _ = state.update(Message::InsertSubRuleIntoRules);
 
@@ -82,10 +86,14 @@ fn test_advancement_w3_2_subrules_logical_builder_workflow() {
     let inserted = state.editor.rules.last().expect("rule must be inserted");
     assert_eq!(
         inserted.rule,
-        "OR((NETWORK,TCP, DOMAIN-KEYWORD,netflix)),StreamingGroup"
+        "OR((NETWORK,TCP),(DOMAIN-KEYWORD,netflix),StreamingGroup)"
     );
     assert!(inserted.enabled);
     assert!(state.editor.rules_dirty);
+    assert!(
+        infiltrator_domain::sub_rules::validate_logical_rule_syntax(&inserted.rule).is_ok(),
+        "inserted logical rule must parse through the shared gate"
+    );
 }
 
 #[test]

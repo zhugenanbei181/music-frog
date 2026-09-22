@@ -7,7 +7,10 @@ use crate::state::AppState;
 use crate::types::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
+use crate::types::rules::RuleBadgeKind;
 use crate::types::runtime::RebuildFlowState;
+use crate::view::components::BadgeKind;
+use crate::view::rules::{display_rule_type, semantic_badge_kind};
 use infiltrator_domain::rules::RuleEntry;
 
 #[test]
@@ -503,6 +506,33 @@ fn test_rules_type_matrix_and_logical_builder_delegate_to_shared() {
         assert!(rendered.iter().any(|item| item == rule_type), "{rule_type}");
     }
 
+    // DUAL-11-01: every catalogue spelling renders the shared display label and
+    // resolves to a known semantic family (no per-surface spelling list).
+    for spec in infiltrator_domain::rules::matrix::RULE_TYPE_MATRIX.iter() {
+        assert_eq!(display_rule_type(spec.name), spec.label, "{}", spec.name);
+        assert_eq!(
+            infiltrator_domain::rules::matrix::matrix_family(spec.name),
+            spec.family
+        );
+        assert!(
+            infiltrator_domain::rules::matrix::matrix_family(spec.name)
+                != infiltrator_domain::rules::matrix::RuleTypeFamily::Unknown
+        );
+        assert_eq!(
+            semantic_badge_kind(spec.name, RuleBadgeKind::Other),
+            match spec.family {
+                infiltrator_domain::rules::matrix::RuleTypeFamily::Host => BadgeKind::Accent,
+                infiltrator_domain::rules::matrix::RuleTypeFamily::Address => BadgeKind::Warning,
+                _ => BadgeKind::Neutral,
+            },
+            "{}",
+            spec.name
+        );
+    }
+    // Separator/case tolerant lookup survives the delegation.
+    assert_eq!(display_rule_type("domainsuffix"), "DomainSuffix");
+    assert_eq!(display_rule_type("CUSTOM"), "CUSTOM");
+
     // DUAL-11-02: the surface relies on the shared logical-rule syntax gate.
     assert!(
         infiltrator_domain::sub_rules::validate_logical_rule_syntax(
@@ -515,6 +545,27 @@ fn test_rules_type_matrix_and_logical_builder_delegate_to_shared() {
             .is_err()
     );
 
+    // DUAL-11-02: the builder draft is the shared `LogicalDraft` and the insert
+    // builds through the shared reduction, so the persisted expression is the
+    // canonical `OP((cond),(cond),TARGET)` form the parser accepts.
+    let draft = infiltrator_domain::rules::logical::default_logical_draft(
+        infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET,
+    );
+    let built = infiltrator_domain::rules::logical::build_logical_rule(&draft).unwrap();
+    assert_eq!(
+        built.rule,
+        "AND((DOMAIN-SUFFIX,company.com),(NETWORK,TCP),PROXY)"
+    );
+    assert_eq!(
+        infiltrator_domain::rules::logical::draft_expression(&draft),
+        built.rule
+    );
+    assert_eq!(state.editor.subrule_draft, draft);
+    assert_eq!(
+        infiltrator_domain::rules::logical::LOGICAL_OPERATOR_CHOICES.len(),
+        4
+    );
+
     // DUAL-11-15: the shared view/edit reductions are reachable from the
     // surface and use the same constants the Bevy page consumes.
     assert_eq!(infiltrator_domain::rules::view::DEFAULT_RULE_PAGE_SIZE, 200);
@@ -522,6 +573,81 @@ fn test_rules_type_matrix_and_logical_builder_delegate_to_shared() {
         infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES.len(),
         12
     );
+}
+
+/// DUAL-11-05/11-08: the provider's declared refresh interval and the shared
+/// publish-truncation fact are projected from one surface snapshot.
+#[test]
+fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
+    use infiltrator_contract::error::{ErrorCode, Failure};
+    use infiltrator_contract::surface::{HostKind, SurfaceKind};
+    use infiltrator_contract::surface_snapshot::{
+        PageData, RuleProviderSnapshot, RulesPageSnapshot, SurfaceSnapshot,
+    };
+
+    let (mut state, _) = AppState::new();
+    let mut snapshot = SurfaceSnapshot::unavailable(
+        SurfaceKind::IcedDesktop,
+        HostKind::Desktop,
+        Failure::new(ErrorCode::NotReady, "test snapshot", true),
+    );
+    snapshot.revision = 7;
+    snapshot.pages.rules = PageData::ready(RulesPageSnapshot {
+        total_rules: 12_000,
+        default_action: "DIRECT".to_owned(),
+        providers: vec![RuleProviderSnapshot {
+            name: "ads".to_owned(),
+            rule_count: 120,
+            behavior: "domain".to_owned(),
+            updated_at: "2026-09-01".to_owned(),
+            source_url: Some("https://example.com/ads.mrs".to_owned()),
+            refresh_interval_secs: Some(86_400),
+        }],
+        rules: vec![Default::default(); 5_000],
+        tracer: Default::default(),
+        mrs_acceleration: Default::default(),
+        total_hits: 0,
+        rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
+    });
+    assert!(state.apply_shared_surface_snapshot(snapshot));
+
+    // DUAL-11-05: the declared interval reaches the surface, keyed by provider.
+    assert_eq!(
+        state.editor.rule_provider_intervals.get("ads").copied(),
+        Some(86_400)
+    );
+    // DUAL-11-08: the publish cap and the omitted count are honest facts.
+    assert_eq!(
+        state.editor.rule_publish_limit,
+        infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT
+    );
+    assert_eq!(state.editor.rule_publish_omitted, Some(7_000));
+    let lang = infiltrator_shared::locales::Lang("en");
+    let note = crate::view::rules::publish_truncation_line(&state, &lang)
+        .expect("truncation note while the shared view is capped");
+    assert!(note.contains("7000"), "{note}");
+    assert!(note.contains("5000"), "{note}");
+
+    // A complete published list renders no truncation note.
+    let mut complete = SurfaceSnapshot::unavailable(
+        SurfaceKind::IcedDesktop,
+        HostKind::Desktop,
+        Failure::new(ErrorCode::NotReady, "test snapshot", true),
+    );
+    complete.revision = 8;
+    complete.pages.rules = PageData::ready(RulesPageSnapshot {
+        total_rules: 5,
+        default_action: "DIRECT".to_owned(),
+        providers: Vec::new(),
+        rules: vec![Default::default(); 5],
+        tracer: Default::default(),
+        mrs_acceleration: Default::default(),
+        total_hits: 0,
+        rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
+    });
+    assert!(state.apply_shared_surface_snapshot(complete));
+    assert_eq!(state.editor.rule_publish_omitted, None);
+    assert!(crate::view::rules::publish_truncation_line(&state, &lang).is_none());
 }
 
 #[test]
@@ -649,10 +775,11 @@ fn test_rule_provider_diff_and_unpack_flow() {
     let _dom_elem = crate::view::rules::rule_provider_row(
         &domain_provider,
         Some("https://example.com/domain.mrs"),
+        Some(86_400),
         &lang,
     );
-    let _ipc_elem = crate::view::rules::rule_provider_row(&ipcidr_provider, None, &lang);
-    let _cls_elem = crate::view::rules::rule_provider_row(&classical_provider, None, &lang);
+    let _ipc_elem = crate::view::rules::rule_provider_row(&ipcidr_provider, None, None, &lang);
+    let _cls_elem = crate::view::rules::rule_provider_row(&classical_provider, None, None, &lang);
 
     state.editor.rule_providers = providers;
     let _providers_elem = crate::view::rules::providers_view(&state, &lang);

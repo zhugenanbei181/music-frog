@@ -57,27 +57,6 @@ pub struct RuleTracerState {
     pub trace_performed: bool,
 }
 
-/// Draft state for the visual Sub-Rules and logical rule AST builder.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SubRuleDraft {
-    pub operator: String,
-    pub conditions: Vec<String>,
-    pub target: String,
-}
-
-impl Default for SubRuleDraft {
-    fn default() -> Self {
-        Self {
-            operator: "AND".to_string(),
-            conditions: vec![
-                "DOMAIN-SUFFIX,company.com".to_string(),
-                "NETWORK,TCP".to_string(),
-            ],
-            target: "DIRECT".to_string(),
-        }
-    }
-}
-
 /// State for the Rule Hit Counter and Stale Rule Analyzer.
 ///
 /// `audit` is the shared application-owned read model; `zero_hit_rule_indices`

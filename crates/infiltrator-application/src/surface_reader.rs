@@ -745,17 +745,25 @@ async fn build_rules_page(
         Some(Ok(providers)) => providers
             .into_iter()
             .map(|provider| {
-                let source_url = configured_providers
-                    .get(&provider.name)
+                let declaration = configured_providers.get(&provider.name);
+                let source_url = declaration
                     .and_then(|value| value.get("url"))
                     .and_then(|url| url.as_str())
                     .map(str::to_owned);
+                // DUAL-11-05: the declared automatic-refresh interval. The
+                // kernel performs the scheduled refresh and owns the
+                // `ETag`/`If-None-Match` cache behind it; the client publishes
+                // only what the profile declares.
+                let refresh_interval_secs = declaration
+                    .and_then(|value| value.get("interval"))
+                    .and_then(|interval| interval.as_u64());
                 surface_snapshot::RuleProviderSnapshot {
                     name: provider.name,
                     rule_count: provider.rule_count as usize,
                     behavior: provider.behavior,
                     updated_at: provider.updated_at,
                     source_url,
+                    refresh_interval_secs,
                 }
             })
             .collect(),
@@ -789,8 +797,12 @@ async fn build_rules_page(
         .last()
         .map(|entry| entry.proxy.clone())
         .unwrap_or_else(|| "—".to_owned());
-    entries.truncate(entries.len().min(5000));
+    // DUAL-11-08: publish both the profile's rule count and the honest cap on
+    // the rendered list, so a truncated view is never reported as complete.
     let total_rules = entries.len();
+    entries.truncate(infiltrator_domain::rules::view::published_rule_count(
+        total_rules,
+    ));
     let data = surface_snapshot::RulesPageSnapshot {
         total_rules,
         default_action,
@@ -799,6 +811,7 @@ async fn build_rules_page(
         tracer,
         mrs_acceleration,
         total_hits,
+        rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
     };
     if total_rules == 0 {
         surface_snapshot::PageData::empty(data)

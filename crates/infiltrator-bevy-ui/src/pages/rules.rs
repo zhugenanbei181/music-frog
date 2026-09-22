@@ -14,9 +14,9 @@ use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::ecs::system::{Query, Res};
 use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn, template_value};
 use bevy::ui::prelude::{
@@ -35,6 +35,10 @@ use infiltrator_bevy_widgets::theme::space;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::rules_edit::{RuleMoveDownButton, RuleMoveUpButton, RuleToggleButton};
+use crate::pages::rules_projection::{
+    ProviderCountText, ProviderNameText, ProviderUpdatedText, RuleHitText, RulePayloadText,
+    RuleProxyText, RuleTypeBadge, RuleTypeText, RulesLine, RulesLineKind, truncation_label,
+};
 use crate::pages::rules_view::{
     RuleRow, RuleSearchField, RulesPageIndicator, RulesPageNextButton, RulesPagePrevButton,
     RulesViewState,
@@ -45,54 +49,6 @@ use crate::route::{PageRoot, Route};
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 #[component(on_insert = bind_rules_page)]
 pub struct RulesPageRoot;
-
-/// Once-per-world guard preventing duplicate observer registration.
-#[derive(Resource)]
-struct RulesPageBound;
-
-/// Marker for text lines updated by the projection observer.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct RulesLine(pub RulesLineKind);
-
-/// Different text lines on the rules page.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum RulesLineKind {
-    /// Overview summary: total rules and active providers count.
-    #[default]
-    Summary,
-    /// Default fallback rule target.
-    DefaultAction,
-    /// Shared live hit audit: total hits, dead/shadowed rules, CIDR overlaps.
-    HitAudit,
-}
-
-/// Marker for a rule item hit count text.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct RuleHitText(pub usize);
-
-/// Marker for a rule item proxy outbound text.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct RuleProxyText(pub usize);
-
-/// Marker for a rule item payload text.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct RulePayloadText(pub usize);
-
-/// Marker for a rule item type text.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct RuleTypeText(pub usize);
-
-/// Marker for a rule provider name text.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ProviderNameText(pub usize);
-
-/// Marker for a rule provider count text.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ProviderCountText(pub usize);
-
-/// Marker for a rule provider update time text.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ProviderUpdatedText(pub usize);
 
 /// Marker for the "Refresh Rule Providers" button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -129,6 +85,10 @@ pub struct RuleProviderItem {
     pub updated_at: String,
     /// DUAL-11-04: source URL declared in the active profile, when known.
     pub source_url: Option<String>,
+    /// DUAL-11-05: automatic-refresh interval declared in the active profile
+    /// (seconds). The kernel owns the schedule and the conditional cache, so an
+    /// undeclared provider honestly reports `None`.
+    pub refresh_interval_secs: Option<u64>,
 }
 
 /// Snapshot of the Rules domain.
@@ -144,6 +104,11 @@ pub struct RulesProjection {
     pub hit_audit: infiltrator_contract::rule_tracer::RuleHitAuditSnapshot,
     /// DUAL-11-03: shared MRS binary acceleration read model.
     pub mrs_acceleration: infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
+    /// DUAL-11-08: rules the publisher dropped from `rules`, when the published
+    /// list is a truncated view of the profile list. `None` means complete.
+    pub truncated_rule_count: Option<usize>,
+    /// DUAL-11-08: publish cap the reader applied to `rules` (0 = uncapped).
+    pub rule_publish_limit: usize,
 }
 
 impl RulesProjection {
@@ -157,6 +122,8 @@ impl RulesProjection {
             tracer: infiltrator_contract::rule_tracer::RuleTracerSnapshot::demo_fixture(),
             mrs_acceleration:
                 infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot::demo_fixture(),
+            truncated_rule_count: None,
+            rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
             providers: vec![
                 RuleProviderItem {
                     name: "geosite-geolocation-!cn".to_owned(),
@@ -167,6 +134,7 @@ impl RulesProjection {
                         "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.mrs"
                             .to_owned(),
                     ),
+                    refresh_interval_secs: Some(86_400),
                 },
                 RuleProviderItem {
                     name: "geoip-cn".to_owned(),
@@ -177,6 +145,7 @@ impl RulesProjection {
                         "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs"
                             .to_owned(),
                     ),
+                    refresh_interval_secs: Some(86_400),
                 },
                 RuleProviderItem {
                     name: "custom-reject-ads".to_owned(),
@@ -184,6 +153,7 @@ impl RulesProjection {
                     behavior: "classical".to_owned(),
                     updated_at: "2026-08-30 18:30".to_owned(),
                     source_url: None,
+                    refresh_interval_secs: None,
                 },
             ],
             rules: vec![
@@ -268,6 +238,10 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
     );
     let default_action = format!("最终匹配目标: {}", projection.default_action);
     let hit_audit_line = hit_audit_label(&projection.hit_audit);
+    let truncation_line = truncation_label(
+        projection.truncated_rule_count,
+        projection.rule_publish_limit,
+    );
 
     let provider_scenes: Vec<Box<dyn Scene>> = projection
         .providers
@@ -297,10 +271,14 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         PageRoot(Route::Rules)
         RulesPageRoot
         Children [
-            ( { header_card_scene(summary, default_action, hit_audit_line, palette) } ),
+            ( { header_card_scene(summary, default_action, hit_audit_line, truncation_line, palette) } ),
             ( { crate::pages::rules_tracer::rules_tracer_scene(palette, &projection.tracer) } ),
             ( { crate::pages::rules_mrs::rules_mrs_scene(palette, &projection.mrs_acceleration) } ),
             ( { crate::pages::rules_builder::rules_builder_scene(palette) } ),
+            ( { crate::pages::rules_subrules::rules_subrules_scene(
+                palette,
+                &crate::pages::rules_subrules::RulesSubRuleState::default(),
+            ) } ),
             ( { providers_card_scene(provider_scenes, palette) } ),
             ( { rules_table_scene(rule_scenes, palette) } ),
         ]
@@ -311,6 +289,7 @@ fn header_card_scene(
     summary: String,
     default_action: String,
     hit_audit_line: String,
+    truncation_line: String,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
@@ -342,6 +321,7 @@ fn header_card_scene(
                                 ( Text(summary) RulesLine(RulesLineKind::Summary) TextRole(Role::Heading) ),
                                 ( Text(default_action) RulesLine(RulesLineKind::DefaultAction) TextRole(Role::Caption) ),
                                 ( Text(hit_audit_line) RulesLine(RulesLineKind::HitAudit) TextRole(Role::Caption) ),
+                                ( Text(truncation_line) RulesLine(RulesLineKind::Truncation) TextRole(Role::Caption) ),
                             ]
                         ),
                     ]
@@ -573,18 +553,32 @@ pub(crate) fn rule_hit_label(rule: &RuleItem) -> String {
     }
 }
 
-/// DUAL-11-04: one provider's lifecycle line: update time plus the declared
-/// source URL (or an honest "not declared" for runtime-only providers).
+/// DUAL-11-04/11-05: one provider's lifecycle line: update time, the declared
+/// source URL, and the declared automatic-refresh schedule. The schedule is
+/// executed by the kernel, which also owns the `ETag`/`304` conditional cache;
+/// an undeclared provider says so instead of inventing a cache state.
 pub(crate) fn provider_updated_label(provider: &RuleProviderItem) -> String {
-    match provider.source_url.as_deref() {
-        Some(url) if !url.is_empty() => format!("更新: {} · 来源: {}", provider.updated_at, url),
-        _ => format!("更新: {} · 来源: 未声明", provider.updated_at),
-    }
+    let source = match provider.source_url.as_deref() {
+        Some(url) if !url.is_empty() => format!("来源: {url}"),
+        _ => "来源: 未声明".to_owned(),
+    };
+    let schedule = match provider.refresh_interval_secs {
+        Some(secs) => format!(
+            "自动刷新: {} (内核调度)",
+            infiltrator_domain::rules::view::format_refresh_interval(secs)
+        ),
+        None => "自动刷新: 未声明".to_owned(),
+    };
+    format!("更新: {} · {source} · {schedule}", provider.updated_at)
 }
 
 fn rule_row_scene(idx: usize, rule: &RuleItem, palette: &UiPalette) -> impl Scene + use<> {
     let idx_str = format!("#{}", rule.id);
-    let type_str = format!("[{}]", rule.rule_type);
+    let type_str = format!(
+        "[{}]",
+        infiltrator_domain::rules::matrix::matrix_label(&rule.rule_type)
+    );
+    let type_chip = rule_type_chip_scene(idx, &rule.rule_type, palette);
     let payload = rule.payload.clone();
     let proxy = rule.proxy.clone();
     let hits = rule_hit_label(rule);
@@ -610,6 +604,7 @@ fn rule_row_scene(idx: usize, rule: &RuleItem, palette: &UiPalette) -> impl Scen
                 }
                 Children [
                     ( Text(idx_str) TextRole(Role::Caption) ),
+                    ( type_chip ),
                     ( Text(type_str) RuleTypeText(idx) TextRole(Role::BodyStrong) ),
                     ( Text(payload) RulePayloadText(idx) TextRole(Role::Body) ),
                 ]
@@ -625,6 +620,28 @@ fn rule_row_scene(idx: usize, rule: &RuleItem, palette: &UiPalette) -> impl Scen
                     ( { rule_row_controls_scene(idx, palette) } ),
                 ]
             ),
+        ]
+    }
+}
+
+/// DUAL-11-01: one rule row's type chip, filled from the shared type family.
+/// The label and the fill both restamp in place from the shared catalogue.
+fn rule_type_chip_scene(idx: usize, rule_type: &str, palette: &UiPalette) -> impl Scene + use<> {
+    let label = infiltrator_domain::rules::matrix::matrix_label(rule_type);
+    let fill = crate::pages::rules_projection::rule_type_chip_fill(rule_type, palette);
+    bsn! {
+        Node {
+            min_width: px(8.0),
+            min_height: px(18.0),
+            padding: UiRect::horizontal(Val::Px(space::S6)),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            border_radius: BorderRadius::all(Val::Px(4.0)),
+        }
+        BackgroundColor({ fill })
+        RuleTypeBadge(idx)
+        Children [
+            ( Text(label) TextRole(Role::Caption) ),
         ]
     }
 }
@@ -691,22 +708,25 @@ fn rule_row_controls_scene(idx: usize, palette: &UiPalette) -> impl Scene + use<
 // ---- Observer & Update Hook -----------------------------------------------
 
 fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
-    if world.get_resource::<RulesPageBound>().is_some() {
+    // The projection observer owns the once-per-world bind guard; every other
+    // rules observer registers behind the same gate.
+    let first_bind = crate::pages::rules_projection::bind_rules_projection(&mut world);
+    let mut commands = world.commands();
+    // DUAL-11-02: the sub-rule builder scene is rebuilt from the shared default
+    // draft on every mount, so its state is re-seeded with the same default —
+    // the mounted card and the draft never disagree after a route change.
+    commands.insert_resource(crate::pages::rules_subrules::RulesSubRuleState::default());
+    if !first_bind {
         return;
     }
-    let mut commands = world.commands();
-    commands.insert_resource(RulesPageBound);
-    // DUAL-12-08: the tracer reverse-apply observer reads the last projection,
-    // so the store must exist from the moment the page is bound.
-    commands.insert_resource(LastRulesProjection::default());
     // DUAL-11-13: the shared page cursor for the keyword search + pagination.
     commands.insert_resource(RulesViewState::default());
     // DUAL-11-11: the shared wizard type selection for the add-rule form.
     commands.insert_resource(crate::pages::rules_builder::RulesBuilderState::default());
-    commands.add_observer(apply_rules_projection);
     commands.add_observer(crate::pages::rules_edit::on_rules_row_edit_activated);
     commands.add_observer(crate::pages::rules_builder::on_rules_builder_activated);
     commands.add_observer(crate::pages::rules_view::on_rules_paging_activated);
+    commands.add_observer(crate::pages::rules_subrules::on_rules_subrules_activated);
     commands.add_observer(crate::pages::rules_mrs::apply_mrs_projection);
     commands.add_observer(crate::pages::rules_tracer::apply_tracer_projection);
     commands.add_observer(crate::pages::rules_tracer::on_tracer_action_activated);
@@ -727,210 +747,6 @@ pub(crate) fn on_rules_action_activated(
         handle.submit(UiCommand::RefreshRuleProviders);
     } else if clear_buttons.contains(activate.entity) {
         handle.submit(UiCommand::ClearRuleHitCounters);
-    }
-}
-
-#[allow(clippy::type_complexity)]
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn apply_rules_projection(
-    update: On<RulesProjectionUpdated>,
-    mut last: Option<ResMut<LastRulesProjection>>,
-    mut lines: Query<
-        (&mut Text, &RulesLine),
-        (
-            With<RulesLine>,
-            Without<RuleHitText>,
-            Without<RuleProxyText>,
-            Without<RulePayloadText>,
-            Without<RuleTypeText>,
-            Without<ProviderNameText>,
-            Without<ProviderCountText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut hits: Query<
-        (&mut Text, &RuleHitText),
-        (
-            With<RuleHitText>,
-            Without<RulesLine>,
-            Without<RuleProxyText>,
-            Without<RulePayloadText>,
-            Without<RuleTypeText>,
-            Without<ProviderNameText>,
-            Without<ProviderCountText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut proxies: Query<
-        (&mut Text, &RuleProxyText),
-        (
-            With<RuleProxyText>,
-            Without<RulesLine>,
-            Without<RuleHitText>,
-            Without<RulePayloadText>,
-            Without<RuleTypeText>,
-            Without<ProviderNameText>,
-            Without<ProviderCountText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut payloads: Query<
-        (&mut Text, &RulePayloadText),
-        (
-            With<RulePayloadText>,
-            Without<RulesLine>,
-            Without<RuleHitText>,
-            Without<RuleProxyText>,
-            Without<RuleTypeText>,
-            Without<ProviderNameText>,
-            Without<ProviderCountText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut types: Query<
-        (&mut Text, &RuleTypeText),
-        (
-            With<RuleTypeText>,
-            Without<RulesLine>,
-            Without<RuleHitText>,
-            Without<RuleProxyText>,
-            Without<RulePayloadText>,
-            Without<ProviderNameText>,
-            Without<ProviderCountText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut provider_names: Query<
-        (&mut Text, &ProviderNameText),
-        (
-            With<ProviderNameText>,
-            Without<RulesLine>,
-            Without<RuleHitText>,
-            Without<RuleProxyText>,
-            Without<RulePayloadText>,
-            Without<RuleTypeText>,
-            Without<ProviderCountText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut provider_counts: Query<
-        (&mut Text, &ProviderCountText),
-        (
-            With<ProviderCountText>,
-            Without<RulesLine>,
-            Without<RuleHitText>,
-            Without<RuleProxyText>,
-            Without<RulePayloadText>,
-            Without<RuleTypeText>,
-            Without<ProviderNameText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut provider_updates: Query<
-        (&mut Text, &ProviderUpdatedText),
-        (
-            With<ProviderUpdatedText>,
-            Without<RulesLine>,
-            Without<RuleHitText>,
-            Without<RuleProxyText>,
-            Without<RulePayloadText>,
-            Without<RuleTypeText>,
-            Without<ProviderNameText>,
-            Without<ProviderCountText>,
-        ),
-    >,
-) {
-    let projection = &update.0;
-
-    for (mut text, line) in &mut lines {
-        match line.0 {
-            RulesLineKind::Summary => {
-                let want = format!(
-                    "分流规则 · 共 {} 条规则 ({} 个规则集 / 命中统计开启)",
-                    projection.total_rules,
-                    projection.providers.len()
-                );
-                if text.0 != want {
-                    text.0 = want;
-                }
-            }
-            RulesLineKind::DefaultAction => {
-                let want = format!("最终匹配目标: {}", projection.default_action);
-                if text.0 != want {
-                    text.0 = want;
-                }
-            }
-            RulesLineKind::HitAudit => {
-                let want = hit_audit_label(&projection.hit_audit);
-                if text.0 != want {
-                    text.0 = want;
-                }
-            }
-        }
-    }
-
-    for (mut text, marker) in &mut hits {
-        if let Some(rule) = projection.rules.get(marker.0) {
-            let want = rule_hit_label(rule);
-            if text.0 != want {
-                text.0 = want;
-            }
-        }
-    }
-
-    for (mut text, marker) in &mut proxies {
-        if let Some(rule) = projection.rules.get(marker.0)
-            && text.0 != rule.proxy
-        {
-            text.0 = rule.proxy.clone();
-        }
-    }
-
-    for (mut text, marker) in &mut payloads {
-        if let Some(rule) = projection.rules.get(marker.0)
-            && text.0 != rule.payload
-        {
-            text.0 = rule.payload.clone();
-        }
-    }
-
-    for (mut text, marker) in &mut types {
-        if let Some(rule) = projection.rules.get(marker.0) {
-            let want = format!("[{}]", rule.rule_type);
-            if text.0 != want {
-                text.0 = want;
-            }
-        }
-    }
-
-    for (mut text, marker) in &mut provider_names {
-        if let Some(provider) = projection.providers.get(marker.0)
-            && text.0 != provider.name
-        {
-            text.0 = provider.name.clone();
-        }
-    }
-
-    for (mut text, marker) in &mut provider_counts {
-        if let Some(provider) = projection.providers.get(marker.0) {
-            let want = format!("{} 条 ({})", provider.rule_count, provider.behavior);
-            if text.0 != want {
-                text.0 = want;
-            }
-        }
-    }
-
-    for (mut text, marker) in &mut provider_updates {
-        if let Some(provider) = projection.providers.get(marker.0) {
-            let want = provider_updated_label(provider);
-            if text.0 != want {
-                text.0 = want;
-            }
-        }
-    }
-
-    if let Some(ref mut last_proj) = last {
-        last_proj.0 = Some(projection.clone());
     }
 }
 

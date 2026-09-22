@@ -36,8 +36,9 @@ use infiltrator_bevy_ui::pages::proxies::{
     LatencyText, NodeNameText, ProxiesProjection, ProxiesProjectionUpdated, ProxyGroup, ProxyNode,
 };
 use infiltrator_bevy_ui::pages::rules::{
-    RuleHitText, RuleItem, RuleProviderItem, RuleProxyText, RulesProjection, RulesProjectionUpdated,
+    RuleItem, RuleProviderItem, RulesProjection, RulesProjectionUpdated,
 };
+use infiltrator_bevy_ui::pages::rules_projection::{RuleHitText, RuleProxyText};
 use infiltrator_bevy_ui::pages::settings::SettingsProjectionUpdated;
 use infiltrator_bevy_ui::pages::settings::settings_core::{
     SettingsLine, SettingsLineKind, SettingsProjection,
@@ -240,6 +241,7 @@ fn rules_page_in_place_update() {
             behavior: "domain".to_owned(),
             updated_at: "2026-09-02 12:00".to_owned(),
             source_url: None,
+            refresh_interval_secs: Some(86_400),
         }],
         rules: vec![RuleItem {
             id: 1,
@@ -255,6 +257,8 @@ fn rules_page_in_place_update() {
         tracer: Default::default(),
         hit_audit: Default::default(),
         mrs_acceleration: Default::default(),
+        truncated_rule_count: None,
+        rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
     };
 
     app.world_mut()

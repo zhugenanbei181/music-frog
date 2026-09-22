@@ -43,6 +43,7 @@ fn rules_page_with_hit_audit(audit: RuleHitAuditSnapshot) -> SurfaceSnapshot {
             },
             mrs_acceleration: Default::default(),
             total_hits: 0,
+            rule_publish_limit: 0,
         });
     snapshot
 }

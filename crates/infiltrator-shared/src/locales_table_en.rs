@@ -553,6 +553,7 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
         "rule_tracer_recent_hits" => "Recent hits".into(),
         "rule_tracer_zero_hits" => "0 hits".into(),
         "rule_rules_showing" => "Showing {start}-{end} of {total} rules".into(),
+        "rules_publish_truncated" => "Shared published view truncated: {omitted} rules omitted (publish limit {limit}; the editor list stays complete, no O(1) virtual scroll)".into(),
         "rule_repo_official" => "MetaCubeX Official Rule Repository".into(),
         "rule_match_all" => "Match All Fallback".into(),
         "yaml_status_valid" => "YAML Valid".into(),

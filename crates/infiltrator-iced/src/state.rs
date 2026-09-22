@@ -271,6 +271,14 @@ pub struct ConfigEditorState {
     /// DUAL-11-04: provider source URLs declared in the active profile, keyed
     /// by provider name and projected from the shared surface read model.
     pub rule_provider_source_urls: HashMap<String, String>,
+    /// DUAL-11-05: declared automatic-refresh intervals (seconds) keyed by
+    /// provider name. The kernel owns the schedule and the conditional cache.
+    pub rule_provider_intervals: HashMap<String, u64>,
+    /// DUAL-11-08: publish cap of the shared rules read model (0 = uncapped)
+    /// and the rules it dropped, when the published view is truncated. The
+    /// editor list itself is loaded in full from the profile.
+    pub rule_publish_limit: usize,
+    pub rule_publish_omitted: Option<usize>,
     /// DUAL-11-03: shared MRS binary acceleration read model, projected from
     /// the surface reader. The providers tab renders this, never a local
     /// fabricated rule-set list.
@@ -326,7 +334,7 @@ pub struct ConfigEditorState {
     pub script_sandbox: crate::types::editor::ScriptSandboxState,
     pub snapshot_diff_modal_open: bool,
     pub snapshot_diff_selected_id: Option<String>,
-    pub subrule_draft: crate::types::rules::SubRuleDraft,
+    pub subrule_draft: infiltrator_contract::rule_edit::LogicalDraft,
     pub geodata_status: crate::types::editor::GeoDataStatus,
     pub rule_hit_audit: crate::types::rules::RuleHitAuditState,
     pub provider_unpack: crate::types::rules::ProviderUnpackState,
@@ -599,6 +607,21 @@ impl AppState {
                         .map(|url| (provider.name.clone(), url.clone()))
                 })
                 .collect();
+            self.editor.rule_provider_intervals = rules_page
+                .providers
+                .iter()
+                .filter_map(|provider| {
+                    provider
+                        .refresh_interval_secs
+                        .map(|secs| (provider.name.clone(), secs))
+                })
+                .collect();
+            // DUAL-11-08: the publish cap and the omitted count are shared
+            // facts; the editor keeps its full profile list and says so.
+            self.editor.rule_publish_limit = rules_page.rule_publish_limit;
+            self.editor.rule_publish_omitted = rules_page
+                .is_truncated()
+                .then(|| rules_page.omitted_rule_count());
         }
         self.diag.overview_card_order = snapshot.overview_layout.order.clone();
         self.runtime.system_toggles =
