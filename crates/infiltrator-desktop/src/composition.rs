@@ -72,6 +72,12 @@ pub fn core_application(
             .with_application_runtime(runtime)
             .with_profile(ProfileApplication::new(profile_store))
             .with_subscription_source(subscription_source)
+            .with_import_source(std::sync::Arc::new(
+                crate::subscription_import_port::DesktopSubscriptionImportPort,
+            ))
+            .with_subscription_notifier(std::sync::Arc::new(
+                crate::subscription_notification_port::DesktopSubscriptionNotificationPort,
+            ))
             .with_mtu(MtuApplication::new(std::sync::Arc::new(
                 crate::mtu::DesktopMtuProbe::new(),
             )))

@@ -318,6 +318,10 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "profiles_insecure_skip_verify_hint" => {
             "Applies to this subscription only. Skipping certificate checks lowers security; use it only with self-signed providers.".into()
         }
+        "profiles_cron_placeholder" => "Cron expression (e.g. 0 */6 * * *, empty = hourly)".into(),
+        "profiles_cron_hint" => {
+            "5-field UTC cron (min hour day month weekday); @daily / @hourly macros supported; takes precedence over the hourly interval".into()
+        }
         "profiles_conditional_request" => "Conditional request cached".into(),
         "profiles_conditional_request_empty" => {
             "Conditional request: no ETag / Last-Modified cached yet".into()

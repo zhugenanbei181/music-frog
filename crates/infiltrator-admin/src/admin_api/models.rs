@@ -43,6 +43,10 @@ pub struct SubscriptionConfigPayload {
     pub url: String,
     pub auto_update_enabled: bool,
     pub update_interval_hours: Option<u32>,
+    /// DUAL-07-03: optional 5-field UTC Cron expression (or `@daily`-style
+    /// macro). When present it takes precedence over the interval.
+    #[serde(default)]
+    pub cron_expression: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]

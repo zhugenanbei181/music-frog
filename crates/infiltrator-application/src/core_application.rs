@@ -803,6 +803,8 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::ApplyTracerRuleOverride { .. } => "apply_tracer_rule_override",
         CommandIntent::ResetRuleHitCounters => "reset_rule_hit_counters",
         CommandIntent::UnpackRuleProvider { .. } => "unpack_rule_provider",
+        CommandIntent::SaveSubscriptionFilter { .. } => "save_subscription_filter",
+        CommandIntent::ImportSubscription { .. } => "import_subscription",
     }
 }
 

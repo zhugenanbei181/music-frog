@@ -34,6 +34,8 @@ pub mod settings_store;
 pub mod snapshot_store;
 pub mod speedtest;
 pub mod speedtest_history;
+pub mod subscription_import;
+pub mod subscription_notification;
 pub mod subscription_source;
 pub mod surface;
 pub mod sync;

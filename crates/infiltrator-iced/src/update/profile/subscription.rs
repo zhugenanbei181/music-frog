@@ -12,6 +12,7 @@ use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::{
     SubscriptionBatchReport, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
 };
+use infiltrator_domain::subscription_scheduler_policy::CronSchedule;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_shared::locales::Localizer;
 
@@ -25,6 +26,7 @@ impl AppState {
             self.profile.subscription_url.clear();
             self.profile.subscription_auto_update_enabled = false;
             self.profile.subscription_update_interval_hours.clear();
+            self.profile.subscription_cron_expression.clear();
             self.profile.subscription_user_agent.clear();
             self.profile.subscription_insecure_skip_verify = false;
             return;
@@ -57,6 +59,8 @@ impl AppState {
                 .update_interval_hours
                 .map(|hours| hours.to_string())
                 .unwrap_or_else(|| "24".to_string());
+            self.profile.subscription_cron_expression =
+                profile.cron_expression.clone().unwrap_or_default();
             self.profile.subscription_user_agent = profile.user_agent.clone().unwrap_or_default();
             self.profile.subscription_insecure_skip_verify = profile.insecure_skip_verify;
         }
@@ -82,6 +86,10 @@ impl AppState {
                 self.profile.subscription_update_interval_hours = interval;
                 Task::none()
             }
+            Message::UpdateSubscriptionCron(cron) => {
+                self.profile.subscription_cron_expression = cron;
+                Task::none()
+            }
             Message::UpdateSubscriptionUserAgent(user_agent) => {
                 self.profile.subscription_user_agent = user_agent;
                 Task::none()
@@ -101,6 +109,7 @@ impl AppState {
                     .subscription_update_interval_hours
                     .trim()
                     .to_string();
+                let cron_raw = self.profile.subscription_cron_expression.trim().to_string();
 
                 if profile_name.is_empty() {
                     return Task::done(Message::ShowToast(
@@ -114,6 +123,21 @@ impl AppState {
                         ToastStatus::Error,
                     ));
                 }
+                // DUAL-07-03: a non-empty cron expression must parse before it
+                // is stored; a malformed one surfaces as an actionable toast.
+                let cron_expression = if cron_raw.is_empty() {
+                    None
+                } else {
+                    match CronSchedule::parse(&cron_raw) {
+                        Ok(cron) => Some(cron.raw),
+                        Err(error) => {
+                            return Task::done(Message::ShowToast(
+                                format!("Cron 表达式无效: {error}"),
+                                ToastStatus::Error,
+                            ));
+                        }
+                    }
+                };
                 let interval_hours = if auto_update {
                     let normalized = if interval_raw.is_empty() {
                         "24".to_string()
@@ -147,12 +171,14 @@ impl AppState {
                             metadata.subscription_url = None;
                             metadata.auto_update_enabled = false;
                             metadata.update_interval_hours = None;
+                            metadata.cron_expression = None;
                             metadata.last_updated = None;
                             metadata.next_update = None;
                         } else {
                             metadata.subscription_url = Some(url);
                             metadata.auto_update_enabled = auto_update;
                             metadata.update_interval_hours = interval_hours;
+                            metadata.cron_expression = cron_expression;
                             metadata.next_update = None;
                         }
                         metadata.user_agent = if user_agent.is_empty() {
@@ -209,7 +235,8 @@ impl AppState {
                         let refresh = SubscriptionRefreshApplication::with_default_policy(
                             application.clone(),
                             crate::host::runtime::application_runtime(),
-                        );
+                        )
+                        .with_notifier(crate::host::runtime::subscription_notifier());
                         let mut report = refresh
                             .refresh_profile(&source, &profile_name)
                             .await
@@ -388,7 +415,8 @@ impl AppState {
                         let refresh = SubscriptionRefreshApplication::with_default_policy(
                             application.clone(),
                             crate::host::runtime::application_runtime(),
-                        );
+                        )
+                        .with_notifier(crate::host::runtime::subscription_notifier());
                         let report = refresh
                             .refresh_all(&source, BATCH_UPDATE_CONCURRENCY)
                             .await

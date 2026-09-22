@@ -505,6 +505,308 @@ def main() -> int:
         "test_profiles_update_button_submits_shared_command",
     )
 
+    # 14. DUAL-07-01 "multi-channel import": one host port + shared import
+    #     application drives URL / local-file / clipboard on both surfaces.
+    require(
+        violations,
+        "crates/infiltrator-ports/src/subscription_import.rs",
+        "pub trait SubscriptionImportPort",
+        "async fn read_local_file",
+        "async fn read_clipboard",
+        "headless_host_reports_typed_unsupported",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/subscription_import_application.rs",
+        "pub struct SubscriptionImportApplication",
+        "pub async fn import",
+        "extract_subscription_url",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application.rs",
+        "async fn import_subscription_report",
+        "async fn import_document",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/command.rs",
+        "ImportSubscription",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "with_import_source",
+        "ImportSubscription",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/subscription_import_port.rs",
+        "pub struct DesktopSubscriptionImportPort",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/composition.rs",
+        "with_import_source",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/host.rs",
+        "subscription_import_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/import.rs",
+        "subscription_import_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_import_channels.rs",
+        "ImportSubscriptionUrlButton",
+        "ImportLocalSubscriptionButton",
+        "ImportClipboardSubscriptionButton",
+        "on_import_subscription_url",
+        "on_import_local_subscription",
+        "on_import_clipboard_subscription",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "ImportSubscription",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/subscription_import_application_test.rs",
+        "local_file_channel_reads_through_the_host_port",
+        "clipboard_url_is_fetched_through_the_shared_source",
+        "unsupported_clipboard_is_a_typed_failure_not_a_fake_success",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application_tests.rs",
+        "import_document_validates_and_reports_format",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/business_flow/profile_lifecycle.rs",
+        "local_import_reads_through_the_host_import_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_profiles_import_channels_submit_shared_command",
+    )
+
+    # 15. DUAL-07-03 "cron scheduling": cron-only profiles are scheduled by the
+    #     admin host on a dynamic job; both surfaces configure/display it.
+    require(
+        violations,
+        "crates/infiltrator-admin/src/scheduler.rs",
+        "schedule_cron_profile_update_job",
+        "fn cron_delay",
+        "SubscriptionSchedule::from_metadata",
+    )
+    require(
+        violations,
+        "crates/infiltrator-admin/src/scheduler/job_scheduler.rs",
+        "pub fn spawn_dynamic_job",
+        "DYNAMIC_JOB_MIN_DELAY",
+        "dynamic_job_waits_then_recomputes_its_delay",
+    )
+    require(
+        violations,
+        "crates/infiltrator-admin/src/scheduler/subscription.rs",
+        "SubscriptionSchedule::from_metadata",
+    )
+    require(
+        violations,
+        "crates/infiltrator-admin/src/admin_api/models.rs",
+        "pub cron_expression: Option<String>",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application.rs",
+        "SubscriptionSchedule::from_metadata",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub cron_expression: Option<String>",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_import_channels.rs",
+        "SubscriptionScheduleStatus",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/subscription.rs",
+        "UpdateSubscriptionCron",
+        "CronSchedule::parse",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/profiles.rs",
+        "UpdateSubscriptionCron",
+        "profiles_cron_placeholder",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "profiles_cron_hint",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "profiles_cron_hint",
+    )
+    require(
+        violations,
+        "crates/infiltrator-admin/src/scheduler/subscription_test.rs",
+        "test_cron_only_profile_is_scheduled_and_cancelled",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application_tests.rs",
+        "successful_cron_update_advances_to_the_next_occurrence",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/business_flow/profile_lifecycle.rs",
+        "subscription_cron_editor_loads_and_validates",
+    )
+
+    # 16. DUAL-07-08 "node keyword cleaning pipeline": one shared filter
+    #     application + draft contract, edited on both surfaces.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/subscription_import.rs",
+        "pub struct SubscriptionFilterDraft",
+        "SubscriptionFilterDedup",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/profile_options.rs",
+        "pub fn filter_spec_from_draft",
+        "pub fn filter_spec_to_draft",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application.rs",
+        "async fn apply_subscription_filter",
+        "async fn load_options",
+        "async fn save_options",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/profile_store.rs",
+        "async fn load_options",
+        "async fn save_options",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/command.rs",
+        "SaveSubscriptionFilter",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "SaveSubscriptionFilter",
+        "filter_spec_from_draft",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/options.rs",
+        "apply_subscription_filter",
+        "load_options",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_import_channels.rs",
+        "SubscriptionFilterIncludeField",
+        "SaveSubscriptionFilterButton",
+        "on_save_subscription_filter",
+        "sync_subscription_filter_controls",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "SaveSubscriptionFilter",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application_tests.rs",
+        "apply_subscription_filter_reshapes_document_and_persists_spec",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/business_flow/profile_lifecycle.rs",
+        "subscription_filter_panel_rides_the_shared_pipeline",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_profiles_filter_panel_restamps_and_submits_shared_command",
+    )
+
+    # 17. DUAL-07-10 "silent system notifications": the shared refresh emits a
+    #     locale-neutral notification through a host port both surfaces install.
+    require(
+        violations,
+        "crates/infiltrator-ports/src/subscription_notification.rs",
+        "pub enum SubscriptionNotificationKind",
+        "pub struct SubscriptionNotification",
+        "pub trait SubscriptionNotificationPort",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/subscription_refresh_application.rs",
+        "with_notifier",
+        "notification_for_refresh",
+        "notification_for_batch",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "with_subscription_notifier",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/subscription_notification_port.rs",
+        "pub struct DesktopSubscriptionNotificationPort",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/composition.rs",
+        "with_subscription_notifier",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/host.rs",
+        "subscription_notifier",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/subscription.rs",
+        "with_notifier",
+        "subscription_notifier",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/subscription_refresh_application_test.rs",
+        "refresh_profile_notifies_success_through_the_host_port",
+        "exhausted_refresh_notifies_failure_through_the_host_port",
+        "refresh_all_emits_one_aggregated_notification",
+    )
+
+    # 18. DUAL-07-15 "pipeline regression matrix": one headless matrix covering
+    #     every item this batch closed plus the stages they build on.
+    require(
+        violations,
+        "crates/infiltrator-application/src/subscription_refresh_application_test.rs",
+        "subscription_update_pipeline_regression_matrix",
+    )
+
     if violations:
         for violation in violations:
             print(f"subscription-lifecycle-guard: {violation}", file=sys.stderr)

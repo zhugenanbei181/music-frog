@@ -14,6 +14,7 @@ use crate::filter::{
 };
 use crate::mixin::MixinConfig;
 use anyhow::{Context, anyhow};
+use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Value;
@@ -301,5 +302,117 @@ pub fn strip_rule_lines(content: &str, removals: &[String]) -> String {
     match serde_yaml_ng::to_string(&doc) {
         Ok(out) => out,
         Err(_) => content.to_string(),
+    }
+}
+
+/// Split a free-text keyword field on commas (ASCII or full-width) and
+/// newlines, dropping blanks. Shared by every surface's filter editor.
+pub fn split_filter_keywords(raw: &str) -> Vec<String> {
+    raw.split([',', '\n', '，'])
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// DUAL-07-08: compile a surface filter draft into the stored [`FilterSpec`].
+///
+/// Every regex is compiled here (via `to_rule` at apply time) but the rename
+/// syntax is validated now so a malformed `pattern => replacement` line
+/// surfaces as an actionable error rather than silently dropping the rename.
+pub fn filter_spec_from_draft(draft: &SubscriptionFilterDraft) -> anyhow::Result<FilterSpec> {
+    let mut spec = FilterSpec {
+        include_keywords: split_filter_keywords(&draft.include),
+        exclude_keywords: split_filter_keywords(&draft.exclude),
+        exclude_types: split_filter_keywords(&draft.exclude_types),
+        ..FilterSpec::default()
+    };
+    for line in draft.renames.split(['\n', ';']) {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Some((pattern, replacement)) = line.split_once("=>") else {
+            anyhow::bail!("重命名规则格式错误（应为 模式 => 替换）: {line}");
+        };
+        spec.rename_rules.push(RenameSpec {
+            pattern: pattern.trim().to_string(),
+            replacement: replacement.trim().to_string(),
+        });
+    }
+    spec.deduplication = match draft.dedup_index {
+        1 => FilterDedup::KeepFirst,
+        2 => FilterDedup::KeepLast,
+        3 => FilterDedup::AppendIndex,
+        _ => FilterDedup::Disabled,
+    };
+    Ok(spec)
+}
+
+/// Render a stored [`FilterSpec`] back into the surface-editable draft.
+pub fn filter_spec_to_draft(spec: &FilterSpec) -> SubscriptionFilterDraft {
+    SubscriptionFilterDraft {
+        include: spec.include_keywords.join(", "),
+        exclude: spec.exclude_keywords.join(", "),
+        exclude_types: spec.exclude_types.join(", "),
+        renames: spec
+            .rename_rules
+            .iter()
+            .map(|rule| format!("{} => {}", rule.pattern, rule.replacement))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        dedup_index: match spec.deduplication {
+            FilterDedup::Disabled => 0,
+            FilterDedup::KeepFirst => 1,
+            FilterDedup::KeepLast => 2,
+            FilterDedup::AppendIndex => 3,
+        },
+    }
+}
+
+#[cfg(test)]
+mod draft_tests {
+    use super::*;
+
+    #[test]
+    fn draft_round_trips_keywords_and_rename_rules() {
+        let draft = SubscriptionFilterDraft {
+            include: "香港, 新加坡\n日本".to_string(),
+            exclude: "广告".to_string(),
+            exclude_types: "ss, vmess".to_string(),
+            renames: "旧前缀 => 新前缀\n(?i)test => prod".to_string(),
+            dedup_index: 2,
+        };
+        let spec = filter_spec_from_draft(&draft).expect("valid draft");
+        assert_eq!(spec.include_keywords.len(), 3);
+        assert_eq!(spec.exclude_types, vec!["ss", "vmess"]);
+        assert_eq!(spec.rename_rules.len(), 2);
+        assert_eq!(spec.deduplication, FilterDedup::KeepLast);
+
+        let rendered = filter_spec_to_draft(&spec);
+        assert_eq!(rendered.include, "香港, 新加坡, 日本");
+        assert_eq!(rendered.dedup_index, 2);
+        assert!(rendered.renames.contains("旧前缀 => 新前缀"));
+    }
+
+    #[test]
+    fn malformed_rename_line_is_rejected_honestly() {
+        let draft = SubscriptionFilterDraft {
+            renames: "this line has no arrow".to_string(),
+            ..SubscriptionFilterDraft::default()
+        };
+        assert!(filter_spec_from_draft(&draft).is_err());
+    }
+
+    #[test]
+    fn empty_draft_is_detected() {
+        assert!(SubscriptionFilterDraft::default().is_empty());
+        assert!(
+            !SubscriptionFilterDraft {
+                exclude: "ad".to_string(),
+                ..SubscriptionFilterDraft::default()
+            }
+            .is_empty()
+        );
     }
 }

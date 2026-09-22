@@ -421,6 +421,8 @@ impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
                     etag: profile.etag,
                     last_modified: profile.last_modified,
                     has_backup: profile.has_backup,
+                    cron_expression: profile.cron_expression,
+                    filter: profile.filter,
                 })
                 .collect(),
             auto_update_interval_hours: value.auto_update_interval_hours,

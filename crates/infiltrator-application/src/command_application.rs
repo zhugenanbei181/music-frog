@@ -13,6 +13,8 @@ use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_ports::subscription_import::SubscriptionImportPort;
+use infiltrator_ports::subscription_notification::SubscriptionNotificationPort;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use std::collections::HashSet;
 use std::future::Future;
@@ -54,6 +56,10 @@ pub struct CommandApplication {
     /// DUAL-07-05/06: executor-neutral delay seam + single-flight refresh.
     application_runtime: Option<Arc<dyn ApplicationRuntime>>,
     subscription_source: Option<Arc<dyn SubscriptionSource>>,
+    /// DUAL-07-01: host port for local-file / clipboard import channels.
+    import_source: Option<Arc<dyn SubscriptionImportPort>>,
+    /// DUAL-07-10: host port for subscription system notifications.
+    notifier: Option<Arc<dyn SubscriptionNotificationPort>>,
     doctor: Option<DoctorApplication>,
     routing: Option<RoutingApplication>,
     sync: Option<SyncApplication>,
@@ -96,6 +102,23 @@ impl CommandApplication {
 
     pub fn with_subscription_source(mut self, source: Arc<dyn SubscriptionSource>) -> Self {
         self.subscription_source = Some(source);
+        self
+    }
+
+    /// DUAL-07-01: install the host import port backing the local-file /
+    /// clipboard import channels.
+    pub fn with_import_source(mut self, port: Arc<dyn SubscriptionImportPort>) -> Self {
+        self.import_source = Some(port);
+        self
+    }
+
+    /// DUAL-07-10: install the host port that dispatches subscription
+    /// success/failure system notifications.
+    pub fn with_subscription_notifier(
+        mut self,
+        notifier: Arc<dyn SubscriptionNotificationPort>,
+    ) -> Self {
+        self.notifier = Some(notifier);
         self
     }
 
@@ -333,7 +356,7 @@ impl CommandApplication {
                 let profile = self.profile()?;
                 let source = self.subscription_source()?;
                 if let Some(runtime) = self.application_runtime.clone() {
-                    SubscriptionRefreshApplication::with_default_policy(profile, runtime)
+                    self.refresh_application(profile, runtime)
                         .refresh_profile(source.as_ref(), &profile_id)
                         .await
                         .map(|_| ())
@@ -348,7 +371,7 @@ impl CommandApplication {
                 let profile = self.profile()?;
                 let source = self.subscription_source()?;
                 if let Some(runtime) = self.application_runtime.clone() {
-                    SubscriptionRefreshApplication::with_default_policy(profile, runtime)
+                    self.refresh_application(profile, runtime)
                         .refresh_all(source.as_ref(), BATCH_UPDATE_CONCURRENCY)
                         .await
                         .map(|_| ())
@@ -358,6 +381,38 @@ impl CommandApplication {
                         .await
                         .map(|_| ())
                 }
+            }
+            CommandIntent::SaveSubscriptionFilter { profile_id, filter } => {
+                let profile = self.profile()?;
+                let spec = infiltrator_domain::profile_options::filter_spec_from_draft(&filter)
+                    .map_err(|error| {
+                        Failure::new(ErrorCode::InvalidInput, error.to_string(), false)
+                    })?;
+                profile
+                    .apply_subscription_filter(self.managed_runtime.clone(), &profile_id, spec)
+                    .await
+                    .map(|_| ())
+            }
+            CommandIntent::ImportSubscription {
+                profile_id,
+                channel,
+                source,
+            } => {
+                let port = self.import_source.clone().ok_or_else(|| {
+                    Failure::unsupported(
+                        "local file / clipboard import is not configured for this host",
+                    )
+                })?;
+                let application =
+                    crate::subscription_import_application::SubscriptionImportApplication::new(
+                        self.profile()?,
+                        port,
+                    );
+                let subscription_source = self.subscription_source()?;
+                application
+                    .import(subscription_source.as_ref(), &profile_id, channel, &source)
+                    .await
+                    .map(|_| ())
             }
             CommandIntent::RestoreSubscriptionBackup { profile_id } => self
                 .profile()?
@@ -701,6 +756,20 @@ impl CommandApplication {
         self.subscription_source
             .clone()
             .ok_or_else(|| missing("subscription source"))
+    }
+
+    /// Build the shared refresh orchestration, carrying the optional
+    /// DUAL-07-10 notifier so both surfaces' command paths notify identically.
+    fn refresh_application(
+        &self,
+        profile: ProfileApplication,
+        runtime: Arc<dyn ApplicationRuntime>,
+    ) -> SubscriptionRefreshApplication {
+        let refresh = SubscriptionRefreshApplication::with_default_policy(profile, runtime);
+        match &self.notifier {
+            Some(notifier) => refresh.with_notifier(Arc::clone(notifier)),
+            None => refresh,
+        }
     }
 
     fn doctor(&self) -> Result<DoctorApplication, Failure> {

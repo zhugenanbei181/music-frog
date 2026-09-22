@@ -213,8 +213,35 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
     if url.is_empty() {
         return Err(ApiError::bad_request("订阅链接不能为空"));
     }
-    if payload.auto_update_enabled && payload.update_interval_hours.unwrap_or(0) == 0 {
+    if payload.auto_update_enabled
+        && payload
+            .cron_expression
+            .as_deref()
+            .is_none_or(|v| v.trim().is_empty())
+        && payload.update_interval_hours.unwrap_or(0) == 0
+    {
         return Err(ApiError::bad_request("更新间隔不能为空"));
+    }
+    // DUAL-07-03: a supplied Cron expression must parse before it is stored;
+    // a cron-only schedule may omit the interval entirely.
+    let cron_expression = match payload
+        .cron_expression
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(expr) => Some(
+            infiltrator_domain::subscription_scheduler_policy::CronSchedule::parse(expr)
+                .map_err(|error| ApiError::bad_request(format!("Cron 表达式无效: {error}")))?
+                .raw,
+        ),
+        None => None,
+    };
+    if payload.auto_update_enabled
+        && cron_expression.is_none()
+        && payload.update_interval_hours.unwrap_or(0) == 0
+    {
+        return Err(ApiError::bad_request("更新间隔或 Cron 表达式至少需要一项"));
     }
 
     let application = state
@@ -233,13 +260,17 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
     metadata.subscription_url = Some(url.to_string());
     metadata.auto_update_enabled = payload.auto_update_enabled;
     metadata.update_interval_hours = payload.update_interval_hours;
-    if payload.auto_update_enabled {
-        if let Some(hours) = payload.update_interval_hours {
-            metadata.next_update = Some(Utc::now() + chrono::Duration::hours(hours as i64));
-        }
+    metadata.cron_expression = cron_expression;
+    metadata.next_update = if payload.auto_update_enabled {
+        infiltrator_domain::subscription_scheduler_policy::SubscriptionSchedule::from_metadata(
+            metadata.update_interval_hours,
+            metadata.cron_expression.as_deref(),
+        )
+        .ok()
+        .and_then(|schedule| schedule.next_run(Utc::now()))
     } else {
-        metadata.next_update = None;
-    }
+        None
+    };
     application
         .update_metadata(&profile_name, &metadata)
         .await
@@ -252,6 +283,7 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
         metadata.auto_update_enabled,
         metadata.subscription_url.as_deref(),
         metadata.update_interval_hours,
+        metadata.cron_expression.as_deref(),
     );
     let info = application
         .load_profile_info(&profile_name)
@@ -291,7 +323,7 @@ pub async fn clear_profile_subscription_http<C: AdminApiContext>(
         .await
         .map_err(|failure| ApiError::internal(failure.message))?;
     // Subscription (and auto-update with it) is gone: drop the periodic job.
-    crate::scheduler::sync_profile_job(&state.ctx, &profile_name, false, None, None);
+    crate::scheduler::sync_profile_job(&state.ctx, &profile_name, false, None, None, None);
     let info = application
         .load_profile_info(&profile_name)
         .await
@@ -430,6 +462,7 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
         metadata.auto_update_enabled,
         metadata.subscription_url.as_deref(),
         metadata.update_interval_hours,
+        metadata.cron_expression.as_deref(),
     );
 
     if activate {

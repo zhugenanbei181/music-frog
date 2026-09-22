@@ -200,6 +200,20 @@ pub enum CommandIntent {
         user_agent: Option<String>,
         insecure_skip_verify: bool,
     },
+    /// DUAL-07-08: apply and persist a profile's subscription node-keyword
+    /// filter (include/exclude/protocol/rename/dedupe) through the shared
+    /// pipeline.
+    SaveSubscriptionFilter {
+        profile_id: String,
+        filter: crate::subscription_import::SubscriptionFilterDraft,
+    },
+    /// DUAL-07-01: import a profile from a URL, local file, or the clipboard
+    /// through the shared import application + host import port.
+    ImportSubscription {
+        profile_id: String,
+        channel: crate::subscription_import::SubscriptionImportChannel,
+        source: String,
+    },
     DeleteProfile {
         profile_id: String,
     },
@@ -354,6 +368,8 @@ impl CommandIntent {
             | Self::UpdateAllSubscriptions
             | Self::RestoreSubscriptionBackup { .. }
             | Self::UpdateSubscriptionFetchSettings { .. }
+            | Self::SaveSubscriptionFilter { .. }
+            | Self::ImportSubscription { .. }
             | Self::DeleteProfile { .. }
             | Self::RefreshRuleProviders
             | Self::UnpackRuleProvider { .. } => CommandKind::Profile,

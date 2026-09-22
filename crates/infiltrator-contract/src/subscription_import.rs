@@ -133,3 +133,57 @@ pub struct SubscriptionBatchReport {
     pub skipped: usize,
     pub outcomes: Vec<SubscriptionUpdateReport>,
 }
+
+/// DUAL-07-01: outcome of importing one document through a specific channel.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubscriptionImportReport {
+    pub profile_name: String,
+    pub channel: SubscriptionImportChannel,
+    pub format: SubscriptionFormat,
+    pub node_count: usize,
+    pub content_bytes: usize,
+}
+
+/// Deduplication strategy a surface can pick in the filter editor.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SubscriptionFilterDedup {
+    #[default]
+    Disabled,
+    KeepFirst,
+    KeepLast,
+    AppendIndex,
+}
+
+/// DUAL-07-08: contract mirror of the per-profile node-keyword filter a
+/// surface edits and submits through the shared command bus.
+///
+/// The domain owns the runtime `FilterRule`; this draft only carries the
+/// surface-editable fields as free text (comma/newline separated keywords, a
+/// `pattern => replacement` rename list and a dedupe index). It stays
+/// serializable so it can ride both the command bus and the surface snapshot.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", default)]
+pub struct SubscriptionFilterDraft {
+    pub include: String,
+    pub exclude: String,
+    pub exclude_types: String,
+    pub renames: String,
+    pub dedup_index: usize,
+}
+
+impl SubscriptionFilterDraft {
+    /// True when the draft would not reshape the document, so the surfaces can
+    /// render an "inactive" state and the pipeline can be skipped.
+    pub fn is_empty(&self) -> bool {
+        [
+            &self.include,
+            &self.exclude,
+            &self.exclude_types,
+            &self.renames,
+        ]
+        .iter()
+        .all(|value| value.trim().is_empty())
+            && self.dedup_index == 0
+    }
+}

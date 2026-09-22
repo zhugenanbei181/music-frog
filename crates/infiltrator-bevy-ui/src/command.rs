@@ -87,6 +87,18 @@ pub enum UiCommand {
         user_agent: Option<String>,
         insecure_skip_verify: bool,
     },
+    /// DUAL-07-08: apply a profile's node-keyword filter through the shared
+    /// pipeline.
+    SaveSubscriptionFilter {
+        profile_id: String,
+        filter: infiltrator_contract::subscription_import::SubscriptionFilterDraft,
+    },
+    /// DUAL-07-01: import a profile through the shared multi-channel path.
+    ImportSubscription {
+        profile_id: String,
+        channel: infiltrator_contract::subscription_import::SubscriptionImportChannel,
+        source: String,
+    },
     /// Delete a subscription profile.
     DeleteProfile { id: String },
     /// Trigger a remote update for all rule providers.
@@ -274,6 +286,21 @@ impl UiCommand {
                 profile_id: profile_id.clone(),
                 user_agent: user_agent.clone(),
                 insecure_skip_verify: *insecure_skip_verify,
+            }),
+            Self::SaveSubscriptionFilter { profile_id, filter } => {
+                Some(CommandIntent::SaveSubscriptionFilter {
+                    profile_id: profile_id.clone(),
+                    filter: filter.clone(),
+                })
+            }
+            Self::ImportSubscription {
+                profile_id,
+                channel,
+                source,
+            } => Some(CommandIntent::ImportSubscription {
+                profile_id: profile_id.clone(),
+                channel: *channel,
+                source: source.clone(),
             }),
             Self::DeleteProfile { id } => Some(CommandIntent::DeleteProfile {
                 profile_id: id.clone(),

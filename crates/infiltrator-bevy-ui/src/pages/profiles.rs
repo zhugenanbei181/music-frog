@@ -113,6 +113,10 @@ pub struct ProfileItem {
     pub last_modified: Option<String>,
     /// DUAL-07-13: a transient pre-save `.bak` copy exists and can be restored.
     pub has_backup: bool,
+    /// DUAL-07-03: the profile's cron schedule (empty = interval/manual).
+    pub cron_expression: Option<String>,
+    /// DUAL-07-08: the stored node-keyword filter draft.
+    pub filter: infiltrator_contract::subscription_import::SubscriptionFilterDraft,
 }
 
 /// Snapshot of the Profiles domain.
@@ -145,6 +149,8 @@ impl ProfilesProjection {
                     etag: Some("\"etag-sub-1\"".to_owned()),
                     last_modified: Some("Tue, 02 Sep 2026 08:30:00 GMT".to_owned()),
                     has_backup: true,
+                    cron_expression: Some("0 */6 * * *".to_owned()),
+                    filter: Default::default(),
                 },
                 ProfileItem {
                     id: "sub-2".to_owned(),
@@ -160,6 +166,8 @@ impl ProfilesProjection {
                     etag: None,
                     last_modified: None,
                     has_backup: false,
+                    cron_expression: None,
+                    filter: Default::default(),
                 },
                 ProfileItem {
                     id: "sub-3".to_owned(),
@@ -175,6 +183,8 @@ impl ProfilesProjection {
                     etag: Some("\"etag-sub-3\"".to_owned()),
                     last_modified: Some("Fri, 28 Aug 2026 15:45:00 GMT".to_owned()),
                     has_backup: false,
+                    cron_expression: None,
+                    filter: Default::default(),
                 },
             ],
         }
@@ -443,8 +453,14 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(on_update_profile_activated);
     commands.add_observer(on_update_all_subscriptions_activated);
     commands.add_observer(crate::pages::profiles_import::sync_subscription_fetch_controls);
+    commands
+        .add_observer(crate::pages::profiles_import_channels::sync_subscription_filter_controls);
     commands.add_observer(crate::pages::profiles_import::on_save_subscription_fetch_settings);
+    commands.add_observer(crate::pages::profiles_import_channels::on_save_subscription_filter);
     commands.add_observer(crate::pages::profiles_import::on_restore_subscription_backup);
+    commands.add_observer(crate::pages::profiles_import_channels::on_import_subscription_url);
+    commands.add_observer(crate::pages::profiles_import_channels::on_import_local_subscription);
+    commands.add_observer(crate::pages::profiles_import_channels::on_import_clipboard_subscription);
 }
 
 /// DUAL-07-11: route the toolbar "update all" click into the shared command bus.

@@ -31,6 +31,10 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tokio::time::MissedTickBehavior;
 
+/// Lower bound for a dynamic job's recomputed delay so a broken schedule
+/// cannot spin the scheduler.
+const DYNAMIC_JOB_MIN_DELAY: Duration = Duration::from_secs(1);
+
 /// Mutable runtime counters of one registered job.
 #[derive(Default)]
 struct JobState {
@@ -151,6 +155,71 @@ impl JobScheduler {
                         state.last_error = Some(err);
                     }
                 }
+            }
+        });
+
+        let previous = self.jobs.lock().expect("scheduler registry lock").insert(
+            name.to_string(),
+            JobEntry {
+                shutdown_tx,
+                handle,
+                state,
+            },
+        );
+        let replaced = previous.is_some();
+        if let Some(previous) = previous {
+            previous.stop();
+            log::info!(target: "scheduler", "replaced active periodic job `{name}`");
+        }
+        Spawned { replaced }
+    }
+
+    /// Register and start a periodic job whose next delay is recomputed after
+    /// every run.
+    ///
+    /// Unlike [`JobScheduler::spawn_job`], the first run happens after
+    /// `first_delay` instead of immediately, and after each run the job
+    /// returns the delay to wait before the next one. This is what makes
+    /// arbitrary Cron cadences expressible on a fixed scheduler: the caller
+    /// computes the gap to the next occurrence from the current clock, so a
+    /// `0 0 1 * *` monthly schedule does not drift. The returned delay is
+    /// clamped to at least one second so a broken schedule cannot busy-loop.
+    ///
+    /// Runs of one job stay strictly sequential, exactly like `spawn_job`.
+    pub fn spawn_dynamic_job<F, Fut>(&self, name: &str, first_delay: Duration, job: F) -> Spawned
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = (Result<(), String>, Duration)> + Send + 'static,
+    {
+        let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
+        let state = Arc::new(Mutex::new(JobState::default()));
+        let job_name = name.to_string();
+        let loop_state = Arc::clone(&state);
+
+        let handle = tokio::spawn(async move {
+            let mut delay = first_delay.max(DYNAMIC_JOB_MIN_DELAY);
+            loop {
+                tokio::select! {
+                    _ = shutdown_rx.wait_for(|running| *running) => break,
+                    _ = tokio::time::sleep(delay) => {}
+                }
+                loop_state
+                    .lock()
+                    .expect("scheduler job state lock")
+                    .run_count += 1;
+                let (outcome, next_delay) = job().await;
+                {
+                    let mut state = loop_state.lock().expect("scheduler job state lock");
+                    match outcome {
+                        Ok(()) => state.last_error = None,
+                        Err(err) => {
+                            log::warn!(target: "scheduler", "periodic job `{job_name}` failed: {err}");
+                            state.failure_count += 1;
+                            state.last_error = Some(err);
+                        }
+                    }
+                }
+                delay = next_delay.max(DYNAMIC_JOB_MIN_DELAY);
             }
         });
 
@@ -294,6 +363,51 @@ mod tests {
             );
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
+    }
+
+    #[tokio::test]
+    async fn dynamic_job_waits_then_recomputes_its_delay() {
+        let scheduler = JobScheduler::new();
+        let runs = Arc::new(AtomicU64::new(0));
+        let counter = Arc::clone(&runs);
+        let delayed = Duration::from_millis(10);
+        let spawned = scheduler.spawn_dynamic_job("dynamic", delayed, move || {
+            let counter = Arc::clone(&counter);
+            async move {
+                counter.fetch_add(1, Ordering::SeqCst);
+                (Ok(()), delayed)
+            }
+        });
+        assert!(!spawned.replaced);
+
+        // Unlike `spawn_job`, the first run waits for the supplied delay.
+        tokio::time::sleep(Duration::from_millis(1)).await;
+        assert_eq!(runs.load(Ordering::SeqCst), 0);
+
+        wait_until_reaches(&runs, 3).await;
+        let snapshot = scheduler
+            .snapshot()
+            .into_iter()
+            .find(|s| s.name == "dynamic");
+        assert!(snapshot.is_some());
+        let snapshot = snapshot.unwrap();
+        assert_eq!(snapshot.failure_count, 0);
+
+        // Failure outcomes are counted while the cadence keeps running.
+        let failing_runs = Arc::new(AtomicU64::new(0));
+        let failing = Arc::clone(&failing_runs);
+        scheduler.spawn_dynamic_job("dynamic-fail", delayed, move || {
+            let failing = Arc::clone(&failing);
+            async move {
+                failing.fetch_add(1, Ordering::SeqCst);
+                (Err("boom".to_string()), delayed)
+            }
+        });
+        wait_until_reaches(&failing_runs, 2).await;
+        let snapshot =
+            wait_for_snapshot(&scheduler, "dynamic-fail", |s| s.failure_count >= 1).await;
+        assert_eq!(snapshot.last_error.as_deref(), Some("boom"));
+        scheduler.cancel_all();
     }
 
     #[tokio::test]

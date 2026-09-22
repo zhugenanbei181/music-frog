@@ -32,6 +32,7 @@ pub mod profiles;
 pub mod profiles_aggregator;
 pub mod profiles_diff;
 pub mod profiles_import;
+pub mod profiles_import_channels;
 pub mod profiles_script;
 pub mod proxies;
 pub mod proxies_card;

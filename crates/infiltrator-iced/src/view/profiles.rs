@@ -855,6 +855,23 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 Space::new().width(Length::Fill),
             ]
             .align_y(Alignment::Center),
+            Space::new().height(theme::SP_XS),
+            text_input(
+                lang.tr("profiles_cron_placeholder").as_ref(),
+                &state.profile.subscription_cron_expression
+            )
+            .on_input(Message::UpdateSubscriptionCron)
+            .padding([8, 12])
+            .size(12)
+            .font(MONO)
+            .width(Length::Fill)
+            .style(form_input_style),
+            Space::new().height(theme::SP_XS),
+            text(lang.tr("profiles_cron_hint").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary)
+                }),
             if let Some(profile) = selected_profile_meta {
                 Element::from(
                     row![

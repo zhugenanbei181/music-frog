@@ -3,12 +3,14 @@
 
 use super::*;
 use async_trait::async_trait;
+use chrono::Timelike;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument,
 };
@@ -47,6 +49,7 @@ struct FakeStore {
     dir: PathBuf,
     current: Mutex<String>,
     profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
+    options: Mutex<BTreeMap<String, infiltrator_domain::profile_options::ProfileOptions>>,
 }
 
 impl FakeStore {
@@ -61,6 +64,7 @@ impl FakeStore {
             dir: PathBuf::from(dir),
             current: Mutex::new(profile.to_string()),
             profiles: Mutex::new(profiles),
+            options: Mutex::new(BTreeMap::new()),
         }
     }
 }
@@ -163,6 +167,31 @@ impl ProfileStore for FakeStore {
     }
 
     async fn delete_options(&self, _profile: &str) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn load_options(
+        &self,
+        profile: &str,
+    ) -> Result<infiltrator_domain::profile_options::ProfileOptions, PortError> {
+        Ok(self
+            .options
+            .lock()
+            .expect("options lock")
+            .get(profile)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    async fn save_options(
+        &self,
+        profile: &str,
+        options: &infiltrator_domain::profile_options::ProfileOptions,
+    ) -> Result<(), PortError> {
+        self.options
+            .lock()
+            .expect("options lock")
+            .insert(profile.to_string(), options.clone());
         Ok(())
     }
 
@@ -338,6 +367,181 @@ async fn refresh_all_aggregates_and_skips_url_less_profiles() {
     assert_eq!(report.updated, 1);
     assert_eq!(report.failed, 0);
     assert_eq!(source.calls(), 1);
+}
+
+/// DUAL-07-10: a recording host notification port.
+#[derive(Default)]
+struct RecordingNotifier {
+    seen: Mutex<Vec<SubscriptionNotification>>,
+}
+
+impl SubscriptionNotificationPort for RecordingNotifier {
+    fn notify(&self, notification: SubscriptionNotification) {
+        self.seen.lock().expect("notifier lock").push(notification);
+    }
+}
+
+#[tokio::test]
+async fn refresh_profile_notifies_success_through_the_host_port() {
+    let store = Arc::new(FakeStore::new(
+        "/fake/notify-ok",
+        "main",
+        Some("https://example.com/sub"),
+    ));
+    let notifier = Arc::new(RecordingNotifier::default());
+    let app = SubscriptionRefreshApplication::with_default_policy(
+        ProfileApplication::new(store),
+        Arc::new(RecordingRuntime::default()),
+    )
+    .with_notifier(notifier.clone());
+    let source = FlakySource::new(0);
+
+    app.refresh_profile(&source, "main").await.expect("refresh");
+    let seen = notifier.seen.lock().expect("notifier lock").clone();
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].kind, SubscriptionNotificationKind::Updated);
+    assert_eq!(seen[0].profiles, vec!["main".to_string()]);
+}
+
+#[tokio::test]
+async fn exhausted_refresh_notifies_failure_through_the_host_port() {
+    let store = Arc::new(FakeStore::new(
+        "/fake/notify-fail",
+        "main",
+        Some("https://example.com/sub"),
+    ));
+    let notifier = Arc::new(RecordingNotifier::default());
+    let app = SubscriptionRefreshApplication::with_default_policy(
+        ProfileApplication::new(store),
+        Arc::new(RecordingRuntime::default()),
+    )
+    .with_notifier(notifier.clone());
+    let source = FlakySource::new(usize::MAX);
+
+    let _ = app.refresh_profile(&source, "main").await;
+    let seen = notifier.seen.lock().expect("notifier lock").clone();
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].kind, SubscriptionNotificationKind::Failed);
+    assert!(seen[0].error.is_some(), "failure carries the error summary");
+}
+
+#[tokio::test]
+async fn refresh_all_emits_one_aggregated_notification() {
+    let store = Arc::new(FakeStore::new(
+        "/fake/notify-batch",
+        "main",
+        Some("https://example.com/sub"),
+    ));
+    store.profiles.lock().expect("profiles lock").insert(
+        "local".to_string(),
+        (String::new(), ProfileMetadata::default()),
+    );
+    let notifier = Arc::new(RecordingNotifier::default());
+    let app = SubscriptionRefreshApplication::with_default_policy(
+        ProfileApplication::new(store),
+        Arc::new(RecordingRuntime::default()),
+    )
+    .with_notifier(notifier.clone());
+    let source = FlakySource::new(0);
+
+    app.refresh_all(&source, 4).await.expect("batch");
+    let seen = notifier.seen.lock().expect("notifier lock").clone();
+    assert_eq!(seen.len(), 1, "the batch aggregates into one notification");
+    assert_eq!(seen[0].kind, SubscriptionNotificationKind::Updated);
+    assert_eq!(seen[0].profiles, vec!["main".to_string()]);
+}
+
+/// DUAL-07-15: honest headless regression matrix over the shared subscription
+/// update pipeline, covering every item this batch closed plus the retry,
+/// single-flight and conditional-request stages they build on.
+#[tokio::test]
+async fn subscription_update_pipeline_regression_matrix() {
+    let store = Arc::new(FakeStore::new(
+        "/fake/matrix",
+        "main",
+        Some("https://example.com/sub"),
+    ));
+    {
+        let mut profiles = store.profiles.lock().expect("profiles lock");
+        let metadata = &mut profiles.get_mut("main").expect("profile").1;
+        metadata.auto_update_enabled = true;
+        metadata.update_interval_hours = None;
+        metadata.cron_expression = Some("0 */6 * * *".to_string());
+    }
+    let profile = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+
+    // 07-05/07-10: retry a transient failure then notify success.
+    let notifier = Arc::new(RecordingNotifier::default());
+    let refresh = SubscriptionRefreshApplication::with_default_policy(
+        profile.clone(),
+        Arc::new(RecordingRuntime::default()),
+    )
+    .with_notifier(notifier.clone());
+    let flaky = FlakySource::new(1);
+    refresh
+        .refresh_profile(&flaky, "main")
+        .await
+        .expect("retry then success");
+    assert_eq!(flaky.calls(), 2, "07-05 retried the transient failure");
+
+    // 07-03: the cron-only profile advanced `next_update` to a cron occurrence.
+    let metadata = store
+        .get_profile_metadata("main")
+        .await
+        .expect("metadata after refresh");
+    let next = metadata.next_update.expect("cron next_update");
+    assert_eq!(next.minute(), 0, "07-03 cron minute");
+    assert_eq!(next.hour() % 6, 0, "07-03 cron hour step");
+    assert_eq!(
+        notifier.seen.lock().expect("notifier lock").len(),
+        1,
+        "07-10 success notification"
+    );
+
+    // 07-06: a held single-flight slot rejects a concurrent refresh.
+    let guard = refresh.begin_refresh("main").expect("claim slot");
+    let busy = refresh
+        .refresh_profile(&FlakySource::new(0), "main")
+        .await
+        .expect_err("second refresh rejected");
+    assert_eq!(busy.code, ErrorCode::InvalidState, "07-06 single flight");
+    drop(guard);
+
+    // 07-08: the node-keyword pipeline reshapes content and persists the spec.
+    profile
+        .save_profile(
+            "main",
+            "proxies:\n  - name: 广告-02\n    type: ss\n  - name: 香港-01\n    type: ss\n",
+        )
+        .await
+        .expect("seed document");
+    let spec = infiltrator_domain::profile_options::FilterSpec {
+        exclude_keywords: vec!["广告".to_string()],
+        ..Default::default()
+    };
+    let runtime: Option<Arc<dyn ManagedRuntime>> = None;
+    let report = profile
+        .apply_subscription_filter(runtime, "main", spec)
+        .await
+        .expect("filter pipeline");
+    assert_eq!(report.passed, 1, "07-08 one node survives");
+    let saved = profile
+        .load_profile_detail("main")
+        .await
+        .expect("detail")
+        .content;
+    assert!(!saved.contains("广告-02"), "07-08 exclusion applied");
+
+    // 07-01: a local document imports through the shared application.
+    let import_report = profile
+        .import_document(
+            "matrix-import",
+            "proxies:\n  - name: a\n    type: ss\n  - name: b\n    type: ss\n",
+            infiltrator_contract::subscription_import::SubscriptionImportChannel::LocalFile,
+        )
+        .await
+        .expect("import document");
+    assert_eq!(import_report.node_count, 2, "07-01 import reports nodes");
 }
 
 #[tokio::test]

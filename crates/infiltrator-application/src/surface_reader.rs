@@ -390,28 +390,45 @@ impl SurfaceReader for ApplicationSurfaceReader {
                     })
                 }
                 Some(Ok(items)) => {
+                    let mut snapshots = Vec::with_capacity(items.len());
+                    for item in items {
+                        // DUAL-07-08: surface the stored node-keyword filter so
+                        // both surfaces can prefill the editor.
+                        let filter = match &self.profiles {
+                            Some(profiles) => profiles
+                                .load_options(&item.name)
+                                .await
+                                .ok()
+                                .and_then(|options| options.filter)
+                                .map(|spec| {
+                                    infiltrator_domain::profile_options::filter_spec_to_draft(&spec)
+                                })
+                                .unwrap_or_default(),
+                            None => Default::default(),
+                        };
+                        snapshots.push(surface_snapshot::ProfileSnapshot {
+                            id: item.name.clone(),
+                            name: item.name,
+                            url: item.subscription_url.unwrap_or_default(),
+                            updated_at: item
+                                .last_updated
+                                .map(|value| value.to_rfc3339())
+                                .unwrap_or_default(),
+                            upload_bytes: item.traffic_upload.unwrap_or_default(),
+                            download_bytes: item.traffic_download.unwrap_or_default(),
+                            total_bytes: item.traffic_total.unwrap_or_default(),
+                            is_active: item.active,
+                            user_agent: item.user_agent.unwrap_or_default(),
+                            insecure_skip_verify: item.insecure_skip_verify,
+                            etag: item.etag,
+                            last_modified: item.last_modified,
+                            has_backup: item.has_backup,
+                            cron_expression: item.cron_expression,
+                            filter,
+                        });
+                    }
                     surface_snapshot::PageData::ready(surface_snapshot::ProfilesPageSnapshot {
-                        profiles: items
-                            .into_iter()
-                            .map(|item| surface_snapshot::ProfileSnapshot {
-                                id: item.name.clone(),
-                                name: item.name,
-                                url: item.subscription_url.unwrap_or_default(),
-                                updated_at: item
-                                    .last_updated
-                                    .map(|value| value.to_rfc3339())
-                                    .unwrap_or_default(),
-                                upload_bytes: item.traffic_upload.unwrap_or_default(),
-                                download_bytes: item.traffic_download.unwrap_or_default(),
-                                total_bytes: item.traffic_total.unwrap_or_default(),
-                                is_active: item.active,
-                                user_agent: item.user_agent.unwrap_or_default(),
-                                insecure_skip_verify: item.insecure_skip_verify,
-                                etag: item.etag,
-                                last_modified: item.last_modified,
-                                has_backup: item.has_backup,
-                            })
-                            .collect(),
+                        profiles: snapshots,
                         auto_update_interval_hours: 0,
                         updating: false,
                     })

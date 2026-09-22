@@ -27,9 +27,12 @@
 use std::sync::OnceLock;
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use log::warn;
 use tokio::sync::watch;
 use tokio::time::{Instant, interval};
+
+use infiltrator_domain::subscription_scheduler_policy::{CronSchedule, SubscriptionSchedule};
 
 use self::sync::run_sync_tick;
 use crate::admin_api::state::AdminApiContext;
@@ -81,6 +84,42 @@ pub(crate) fn schedule_profile_update_job<C: AdminApiContext>(
     log::info!("scheduled subscription auto-update job `{name}` (interval {interval:?})");
 }
 
+/// Register (or replace) a Cron-scheduled update job.
+///
+/// Arbitrary Cron cadences are irregular, so the job waits until the next
+/// occurrence, runs, and recomputes the delay to the following one instead of
+/// ticking at a fixed interval that would drift.
+pub(crate) fn schedule_cron_profile_update_job<C: AdminApiContext>(
+    ctx: &C,
+    profile_name: &str,
+    cron: CronSchedule,
+) {
+    let name = subscription_job_name(profile_name);
+    let ctx = ctx.clone();
+    let profile = profile_name.to_string();
+    let first_delay = cron_delay(&cron, Utc::now());
+    let raw = cron.raw.clone();
+    subscription_jobs().spawn_dynamic_job(&name, first_delay, move || {
+        let ctx = ctx.clone();
+        let profile = profile.clone();
+        let cron = cron.clone();
+        async move {
+            let outcome = subscription::run_profile_subscription_tick(&ctx, &profile).await;
+            let next = cron_delay(&cron, Utc::now());
+            (outcome, next)
+        }
+    });
+    log::info!("scheduled cron subscription job `{name}` (expression `{raw}`)");
+}
+
+/// Delay from `now` to the Cron expression's next occurrence, with a one-hour
+/// honest fallback when the expression has no reachable future occurrence.
+fn cron_delay(cron: &CronSchedule, now: DateTime<Utc>) -> Duration {
+    cron.next_occurrence(now)
+        .and_then(|next| (next - now).to_std().ok())
+        .unwrap_or_else(|| Duration::from_secs(3600))
+}
+
 /// Cancel the periodic update job of one profile. Returns whether a job was
 /// registered.
 pub(crate) fn cancel_profile_update_job(profile_name: &str) -> bool {
@@ -95,22 +134,43 @@ pub(crate) fn cancel_profile_update_job(profile_name: &str) -> bool {
 /// Bring the periodic update job of one profile in sync with its stored
 /// subscription metadata. Called from the admin API handlers after every
 /// metadata mutation (enable / disable / interval change / import / clear).
+///
+/// DUAL-07-03: a profile may be scheduled by a fixed interval *or* by a Cron
+/// expression. The shared domain schedule picks Cron first, so a cron-only
+/// profile (no `update_interval_hours`) is now scheduled instead of silently
+/// left unregistered; a malformed stored expression cancels the job and is
+/// surfaced by the next run rather than widening the schedule.
 pub(crate) fn sync_profile_job<C: AdminApiContext>(
     ctx: &C,
     profile_name: &str,
     auto_update_enabled: bool,
     subscription_url: Option<&str>,
     update_interval_hours: Option<u32>,
+    cron_expression: Option<&str>,
 ) {
-    let enabled = auto_update_enabled
-        && subscription_url.is_some_and(|url| !url.trim().is_empty())
-        && update_interval_hours.is_some_and(|hours| hours > 0);
-    if !enabled {
+    if !auto_update_enabled || !subscription_url.is_some_and(|url| !url.trim().is_empty()) {
         cancel_profile_update_job(profile_name);
         return;
     }
-    let hours = u64::from(update_interval_hours.unwrap_or_default());
-    schedule_profile_update_job(ctx, profile_name, Duration::from_secs(hours * 3600));
+    match SubscriptionSchedule::from_metadata(update_interval_hours, cron_expression) {
+        Ok(SubscriptionSchedule::IntervalHours(hours)) if hours > 0 => {
+            schedule_profile_update_job(
+                ctx,
+                profile_name,
+                Duration::from_secs(u64::from(hours) * 3600),
+            );
+        }
+        Ok(SubscriptionSchedule::Cron(cron)) => {
+            schedule_cron_profile_update_job(ctx, profile_name, cron);
+        }
+        // Manual-only and malformed expressions have nothing to schedule; the
+        // latter is reported by `run_profile_subscription_tick` if it ever runs.
+        Ok(SubscriptionSchedule::ManualOnly)
+        | Ok(SubscriptionSchedule::IntervalHours(_))
+        | Err(_) => {
+            cancel_profile_update_job(profile_name);
+        }
+    }
 }
 
 /// Cancel every per-profile subscription job (used when all profiles are
@@ -152,6 +212,7 @@ pub(crate) async fn seed_subscription_jobs<C: AdminApiContext>(ctx: &C) {
             profile.auto_update_enabled,
             profile.subscription_url.as_deref(),
             profile.update_interval_hours,
+            profile.cron_expression.as_deref(),
         );
     }
     // Observability: dump the fresh registry once after seeding; ongoing

@@ -210,6 +210,12 @@ pub struct ProfileSnapshot {
     /// DUAL-07-13: a transient pre-save `.bak` copy exists and can be restored.
     #[serde(default)]
     pub has_backup: bool,
+    /// DUAL-07-03: the profile's cron schedule (empty = interval/manual).
+    #[serde(default)]
+    pub cron_expression: Option<String>,
+    /// DUAL-07-08: the profile's stored node-keyword filter draft.
+    #[serde(default)]
+    pub filter: crate::subscription_import::SubscriptionFilterDraft,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

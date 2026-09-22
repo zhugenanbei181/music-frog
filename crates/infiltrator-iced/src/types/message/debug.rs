@@ -72,6 +72,9 @@ impl std::fmt::Debug for Message {
             Message::UpdateSubscriptionInterval(v) => {
                 write!(f, "UpdateSubscriptionInterval({})", v)
             }
+            Message::UpdateSubscriptionCron(v) => {
+                write!(f, "UpdateSubscriptionCron({})", v)
+            }
             Message::UpdateSubscriptionUserAgent(v) => {
                 write!(f, "UpdateSubscriptionUserAgent({})", v)
             }
