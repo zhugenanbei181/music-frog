@@ -219,7 +219,7 @@ fn test_advanced_bundle_load_applies_form_drafts() {
         },
     };
     let _ = state.update(Message::AdvancedConfigsBundleLoaded(Ok(Box::new(bundle))));
-    assert!(state.editor.dns_form.enable);
+    assert!(state.editor.dns_form.switches.enable);
     assert_eq!(
         state.editor.dns_form.nameserver,
         "https://dns.google/dns-query".to_string()

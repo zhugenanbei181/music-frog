@@ -34,9 +34,10 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns::{
-    DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag, DnsSettingsPatch,
-    DnsSwitchField,
+    DnsCacheFlushReport, DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag,
+    DnsSettingsPatch, DnsSwitchField,
 };
+use infiltrator_contract::dns_form::DnsWorkbenchForm;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::proxies::{format_latency, latency_color};
@@ -71,6 +72,8 @@ pub enum DnsLineKind {
     EnhancedModeLabel(DnsEnhancedMode),
     /// The label ink of one filter-mode pill.
     FilterModeLabel(DnsFakeIpFilterMode),
+    /// The honest last DNS cache flush report line.
+    CacheFlush,
 }
 
 /// Marker for a DNS server's address display text.
@@ -148,9 +151,39 @@ pub struct DnsProjection {
     pub servers: Vec<DnsServerItem>,
     pub switches: DnsCoreSwitches,
     pub filter_mode: DnsFakeIpFilterMode,
+    /// Shared workbench draft (upstream lists, fallback policy, Fake-IP).
+    pub form: DnsWorkbenchForm,
+    /// Honest last Fake-IP / OS cache flush report.
+    pub cache_flush: DnsCacheFlushReport,
 }
 
 impl DnsProjection {
+    /// Project the shared DNS page read model into the Bevy render values.
+    pub fn from_snapshot(
+        snapshot: &infiltrator_contract::surface_snapshot::DnsPageSnapshot,
+    ) -> Self {
+        Self {
+            mode: snapshot.enhanced_mode,
+            cache_entries: snapshot.cache_entries,
+            fake_ip_range: snapshot.fake_ip_range.clone(),
+            switches: snapshot.switches,
+            filter_mode: snapshot.filter_mode,
+            servers: snapshot
+                .servers
+                .iter()
+                .map(|server| DnsServerItem {
+                    address: server.address.clone(),
+                    protocol: server.protocol.clone(),
+                    latency_ms: server.latency_ms,
+                    is_fallback: server.is_fallback,
+                    tags: server.tags.clone(),
+                })
+                .collect(),
+            form: DnsWorkbenchForm::from_snapshot(snapshot),
+            cache_flush: snapshot.cache_flush.clone(),
+        }
+    }
+
     /// Believable demo fixture for the DNS page.
     pub fn demo() -> Self {
         Self {
@@ -166,6 +199,31 @@ impl DnsProjection {
                 respect_rules: false,
             },
             filter_mode: DnsFakeIpFilterMode::Blacklist,
+            form: DnsWorkbenchForm {
+                switches: DnsCoreSwitches {
+                    enable: true,
+                    ipv6: true,
+                    cache: true,
+                    use_hosts: true,
+                    use_system_hosts: true,
+                    respect_rules: false,
+                },
+                enhanced_mode: DnsEnhancedMode::FakeIp,
+                filter_mode: DnsFakeIpFilterMode::Blacklist,
+                bootstrap_nameserver: "223.5.5.5".to_owned(),
+                nameserver: "https://1.1.1.1/dns-query, tls://8.8.8.8:853".to_owned(),
+                fallback: "https://cloudflare-dns.com/dns-query".to_owned(),
+                fallback_policy: infiltrator_contract::dns_form::DnsFallbackPolicyDraft {
+                    geoip: true,
+                    geoip_code: "CN".to_owned(),
+                    trigger_ipcidr: "240.0.0.0/4".to_owned(),
+                },
+                fake_ip_range: "198.18.0.1/16".to_owned(),
+                fake_ip_filter: "*.lan, localhost.ptlogin2.qq.com".to_owned(),
+                proxy_server_nameserver: "tls://223.5.5.5:853".to_owned(),
+                direct_nameserver: "system".to_owned(),
+            },
+            cache_flush: DnsCacheFlushReport::default(),
             servers: vec![
                 DnsServerItem {
                     address: "https://1.1.1.1/dns-query".to_owned(),
@@ -248,6 +306,25 @@ fn server_tags_text(tags: &[DnsServerTag]) -> String {
         .join(" · ")
 }
 
+/// Honest cache flush status line (DUAL-14-07).
+pub(crate) fn cache_flush_label(report: &DnsCacheFlushReport) -> String {
+    format!(
+        "Fake-IP 缓存: {} · 系统 DNS 缓存: {}",
+        flush_outcome_label(&report.fake_ip),
+        flush_outcome_label(&report.os_cache)
+    )
+}
+
+fn flush_outcome_label(outcome: &infiltrator_contract::dns::DnsFlushOutcome) -> String {
+    use infiltrator_contract::dns::DnsFlushOutcome;
+    match outcome {
+        DnsFlushOutcome::NotRequested => "尚未执行".to_owned(),
+        DnsFlushOutcome::Flushed => "已清空".to_owned(),
+        DnsFlushOutcome::Unsupported { reason } => format!("宿主不支持 ({reason})"),
+        DnsFlushOutcome::Failed { message } => format!("清理失败 ({message})"),
+    }
+}
+
 // ---- Scene constructors ---------------------------------------------------
 
 pub fn dns_page(projection: &DnsProjection, palette: &UiPalette) -> impl Scene + use<> {
@@ -278,17 +355,23 @@ pub fn dns_page(projection: &DnsProjection, palette: &UiPalette) -> impl Scene +
         PageRoot(Route::Dns)
         DnsPageRoot
         Children [
-            ( { header_card_scene(summary, palette) } ),
+            ( { header_card_scene(summary, projection, palette) } ),
             ( { crate::pages::dns_form::dns_form_card_scene(projection, palette) } ),
+            ( { crate::pages::dns_edit::dns_edit_card_scene(projection, palette) } ),
             ( { servers_card_scene(server_scenes, palette) } ),
             ( { fake_ip_card_scene(&projection.fake_ip_range, palette) } ),
         ]
     }
 }
 
-fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + use<> {
+fn header_card_scene(
+    summary: String,
+    projection: &DnsProjection,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
     header_a11y.set_label("DNS 解析概览");
+    let flush_label = cache_flush_label(&projection.cache_flush);
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -307,7 +390,20 @@ fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + use<>
                     }
                     Children [
                         ( { icon_tile_scene(IconId::Network, 36.0, palette) } ),
-                        ( Text(summary) DnsLine(DnsLineKind::Summary) TextRole(Role::Heading) ),
+                        (
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S4),
+                            }
+                            Children [
+                                ( Text(summary) DnsLine(DnsLineKind::Summary) TextRole(Role::Heading) ),
+                                (
+                                    Text(flush_label)
+                                    DnsLine(DnsLineKind::CacheFlush)
+                                    TextRole(Role::Caption)
+                                ),
+                            ]
+                        ),
                     ]
                 ),
                 (
@@ -474,6 +570,8 @@ fn bind_dns_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.insert_resource(DnsPageBound);
     commands.add_observer(apply_dns_projection);
     commands.add_observer(on_dns_action_activated);
+    commands.add_observer(crate::pages::dns_edit::apply_dns_edit_projection);
+    commands.add_observer(crate::pages::dns_edit::on_dns_edit_activated);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -628,6 +726,9 @@ pub(crate) fn apply_dns_projection(
             }
             DnsLineKind::FakeIpRange => {
                 text.0 = format!("分配网段: {}", projection.fake_ip_range);
+            }
+            DnsLineKind::CacheFlush => {
+                text.0 = cache_flush_label(&projection.cache_flush);
             }
             DnsLineKind::SwitchStatus(field) => {
                 let enabled = projection.switches.value(field);

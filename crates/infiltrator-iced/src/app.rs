@@ -8,7 +8,7 @@ use crate::tray;
 #[cfg(not(test))]
 use crate::tray::spec::TrayStartup;
 use crate::types::app::Route;
-use crate::types::dns::{AdvancedEditMode, DnsFormDraft, DnsTab, FakeIpFormDraft, TunFormDraft};
+use crate::types::dns::{AdvancedEditMode, DnsTab, FakeIpFormDraft, TunFormDraft};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::rules::{RulesJsonTab, RulesTab};
@@ -290,9 +290,9 @@ impl AppState {
                 dns_json_dirty: false,
                 fake_ip_json_dirty: false,
                 tun_json_dirty: false,
-                dns_form: DnsFormDraft {
+                dns_form: infiltrator_contract::dns_form::DnsWorkbenchForm {
                     enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::FakeIp,
-                    ..DnsFormDraft::default()
+                    ..infiltrator_contract::dns_form::DnsWorkbenchForm::default()
                 },
                 fake_ip_form: FakeIpFormDraft::default(),
                 tun_form: TunFormDraft {
@@ -376,6 +376,7 @@ impl AppState {
                 doctor: crate::types::doctor::DoctorPanelState::default(),
                 inspecting_connection_id: None,
                 dns_leak_probe: None,
+                dns_cache_flush: infiltrator_contract::dns::DnsCacheFlushReport::default(),
                 is_probing_dns_leak: false,
                 pcap_state: Default::default(),
                 speedtest: Default::default(),

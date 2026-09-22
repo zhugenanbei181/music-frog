@@ -53,6 +53,18 @@ pub struct FallbackFilter {
     pub geosite: Option<Vec<String>>,
 }
 
+/// Partial `fallback-filter` merge used by the DNS workbench form: only the
+/// fields the workbench edits are present, so unedited subfields
+/// (`domain`/`domain-suffix`/`geosite`) keep their configured value instead of
+/// being erased by a full-list save.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct FallbackFilterPatch {
+    pub geoip: Option<bool>,
+    pub geoip_code: Option<String>,
+    pub ipcidr: Option<Vec<String>>,
+}
+
 pub type DnsFallbackFilter = FallbackFilter;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -69,6 +81,11 @@ pub struct DnsConfigPatch {
     #[serde(default)]
     pub clear_enhanced_mode: bool,
     pub fake_ip_range: Option<String>,
+    /// Clear the `fake-ip-range` key (the workbench form field was emptied).
+    /// Mirrors `clear_enhanced_mode`: a merge patch cannot express deletion
+    /// with `None` alone.
+    #[serde(default)]
+    pub clear_fake_ip_range: bool,
     pub fake_ip_filter: Option<Vec<String>>,
     pub fake_ip_filter_mode: Option<String>,
     pub store_fake_ip: Option<bool>,
@@ -78,6 +95,10 @@ pub struct DnsConfigPatch {
     pub direct_nameserver: Option<Vec<String>>,
     pub nameserver_policy: Option<BTreeMap<String, serde_json::Value>>,
     pub fallback_filter: Option<FallbackFilter>,
+    /// Partial `fallback-filter` merge carrying only the workbench form
+    /// fields, so unedited subfields survive the save.
+    #[serde(default)]
+    pub fallback_filter_partial: Option<FallbackFilterPatch>,
     pub prefer_h3: Option<bool>,
     pub respect_rules: Option<bool>,
     pub use_system_hosts: Option<bool>,
@@ -104,6 +125,7 @@ impl From<DnsConfig> for DnsConfigPatch {
             enhanced_mode: c.enhanced_mode,
             clear_enhanced_mode: false,
             fake_ip_range: c.fake_ip_range,
+            clear_fake_ip_range: false,
             fake_ip_filter: c.fake_ip_filter,
             fake_ip_filter_mode: c.fake_ip_filter_mode,
             store_fake_ip: c.store_fake_ip,
@@ -113,6 +135,7 @@ impl From<DnsConfig> for DnsConfigPatch {
             direct_nameserver: c.direct_nameserver,
             nameserver_policy: c.nameserver_policy,
             fallback_filter: c.fallback_filter,
+            fallback_filter_partial: None,
             prefer_h3: c.prefer_h3,
             respect_rules: c.respect_rules,
             use_system_hosts: c.use_system_hosts,
@@ -186,6 +209,9 @@ impl DnsConfig {
         if let Some(v) = patch.fake_ip_range {
             self.fake_ip_range = Some(v);
         }
+        if patch.clear_fake_ip_range {
+            self.fake_ip_range = None;
+        }
         if let Some(v) = patch.fake_ip_filter {
             self.fake_ip_filter = Some(v);
         }
@@ -212,6 +238,20 @@ impl DnsConfig {
         }
         if let Some(v) = patch.fallback_filter {
             self.fallback_filter = Some(v);
+        }
+        if let Some(partial) = patch.fallback_filter_partial {
+            let filter = self
+                .fallback_filter
+                .get_or_insert_with(FallbackFilter::default);
+            if let Some(v) = partial.geoip {
+                filter.geoip = Some(v);
+            }
+            if let Some(v) = partial.geoip_code {
+                filter.geoip_code = Some(v);
+            }
+            if let Some(v) = partial.ipcidr {
+                filter.ipcidr = Some(v);
+            }
         }
         if let Some(v) = patch.prefer_h3 {
             self.prefer_h3 = Some(v);

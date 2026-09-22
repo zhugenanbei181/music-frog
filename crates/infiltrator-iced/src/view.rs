@@ -4,6 +4,7 @@ pub mod apply_guard_card;
 pub mod components;
 pub mod crash_watchdog_card;
 pub mod dns;
+pub mod dns_form_panel;
 pub mod doctor;
 pub mod editor;
 pub mod geodata_card;

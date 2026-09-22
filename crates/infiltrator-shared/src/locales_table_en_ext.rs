@@ -16,6 +16,19 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "dns_leak_isp" => "ISP / ASN".into(),
         "dns_leak_tested_servers" => "Resolved DNS Servers".into(),
 
+        // Category 1b: DNS workbench form parity & cache flush (DUAL-14)
+        "dns_form_issues" => "Form validation failed".into(),
+        "dns_form_err_scheme" => "Unsupported upstream scheme in {field}: {entry}".into(),
+        "dns_form_err_bootstrap" => "Bootstrap resolver must be a pure IP: {entry}".into(),
+        "dns_form_err_cidr" => "Fallback trigger is not a valid CIDR network: {entry}".into(),
+        "dns_form_err_geoip_code" => "geoip-code must be a 2-letter country code: {value}".into(),
+        "dns_flush_target_fakeip" => "Fake-IP cache".into(),
+        "dns_flush_target_os" => "OS DNS cache".into(),
+        "dns_flush_not_requested" => "not run yet".into(),
+        "dns_flush_flushed" => "flushed".into(),
+        "dns_flush_unsupported" => "unsupported by this host".into(),
+        "dns_flush_failed" => "flush failed".into(),
+
         // Category 2: Custom Node Editor & Universal URI Codec
         "custom_node_title" => "Custom Node Editor & URI Codec".into(),
         "custom_node_btn_add" => "Add Custom Node".into(),

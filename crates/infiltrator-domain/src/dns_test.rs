@@ -93,8 +93,10 @@ fn test_apply_patch_full() {
             domain_suffix: Some(vec!["google.com".to_string()]),
             geosite: Some(vec!["cn".to_string()]),
         }),
+        fallback_filter_partial: None,
         enhanced_mode: Some("fake-ip".to_string()),
         fake_ip_range: Some("198.18.0.1/16".to_string()),
+        clear_fake_ip_range: false,
         fake_ip_filter: Some(vec!["*.lan".to_string()]),
         fake_ip_filter_mode: Some("blacklist".to_string()),
         use_hosts: Some(true),
@@ -686,4 +688,58 @@ fn test_clear_enhanced_mode_removes_the_key() {
     let config = extract_dns_config_from_doc(&doc).expect("extract config");
     assert!(config.enhanced_mode.is_none());
     assert_eq!(config.enable, Some(true));
+}
+
+#[test]
+fn test_clear_fake_ip_range_removes_the_key() {
+    let yaml = "dns:\n  enable: true\n  fake-ip-range: 198.18.0.1/16\n";
+    let patch = DnsConfigPayload {
+        clear_fake_ip_range: true,
+        ..DnsConfigPayload::default()
+    };
+    let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply clear patch");
+    let doc: Value = serde_yaml_ng::from_str(&updated).expect("parse updated");
+    let config = extract_dns_config_from_doc(&doc).expect("extract config");
+    assert!(config.fake_ip_range.is_none());
+    assert_eq!(config.enable, Some(true));
+}
+
+#[test]
+fn test_partial_fallback_filter_preserves_unedited_subfields() {
+    let yaml = "dns:\n  enable: true\n  fallback-filter:\n    geoip: true\n    geoip-code: CN\n    ipcidr:\n      - 240.0.0.0/4\n    geosite:\n      - cn\n    domain-suffix:\n      - example.com\n";
+    let patch = DnsConfigPayload {
+        fallback_filter_partial: Some(FallbackFilterPatch {
+            geoip: Some(false),
+            geoip_code: None,
+            ipcidr: Some(vec!["192.168.0.0/16".to_string()]),
+        }),
+        ..DnsConfigPayload::default()
+    };
+    let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply partial patch");
+    let doc: Value = serde_yaml_ng::from_str(&updated).expect("parse updated");
+    let config = extract_dns_config_from_doc(&doc).expect("extract config");
+    let filter = config.fallback_filter.expect("fallback filter survives");
+    assert_eq!(filter.geoip, Some(false));
+    assert_eq!(filter.geoip_code, Some("CN".to_string()));
+    assert_eq!(filter.ipcidr, Some(vec!["192.168.0.0/16".to_string()]));
+    assert_eq!(filter.geosite, Some(vec!["cn".to_string()]));
+    assert_eq!(filter.domain_suffix, Some(vec!["example.com".to_string()]));
+}
+
+#[test]
+fn test_partial_fallback_filter_clears_an_emptied_trigger_list() {
+    let yaml = "dns:\n  fallback-filter:\n    ipcidr:\n      - 240.0.0.0/4\n";
+    let patch = DnsConfigPayload {
+        fallback_filter_partial: Some(FallbackFilterPatch {
+            geoip: Some(true),
+            geoip_code: Some("CN".to_string()),
+            ipcidr: Some(Vec::new()),
+        }),
+        ..DnsConfigPayload::default()
+    };
+    let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply partial patch");
+    let doc: Value = serde_yaml_ng::from_str(&updated).expect("parse updated");
+    let config = extract_dns_config_from_doc(&doc).expect("extract config");
+    let filter = config.fallback_filter.expect("fallback filter survives");
+    assert_eq!(filter.ipcidr, Some(Vec::new()));
 }

@@ -17,24 +17,6 @@ pub enum AdvancedEditMode {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct DnsFormDraft {
-    pub enable: bool,
-    pub nameserver: String,
-    pub fallback: String,
-    pub enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode,
-    pub fake_ip_range: String,
-    pub fake_ip_filter: String,
-    pub filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode,
-    pub ipv6: bool,
-    pub cache: bool,
-    pub use_hosts: bool,
-    pub use_system_hosts: bool,
-    pub respect_rules: bool,
-    pub proxy_server_nameserver: String,
-    pub direct_nameserver: String,
-}
-
-#[derive(Debug, Clone, Default)]
 pub struct FakeIpFormDraft {
     pub fake_ip_range: String,
     pub fake_ip_filter: String,

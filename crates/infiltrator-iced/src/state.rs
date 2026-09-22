@@ -11,7 +11,7 @@ use crate::tray::SharedTrayEventReceiver;
 use crate::tray::spec::TrayController;
 use crate::types::app::{ConfirmAction, Route, ToastStatus, Transition};
 use crate::types::dns::{
-    AdvancedEditMode, AdvancedValidationState, DnsFormDraft, DnsTab, FakeIpFormDraft, TunFormDraft,
+    AdvancedEditMode, AdvancedValidationState, DnsTab, FakeIpFormDraft, TunFormDraft,
 };
 use crate::types::editor::EditorLazyState;
 use crate::types::perf::PerfSnapshot;
@@ -307,7 +307,7 @@ pub struct ConfigEditorState {
     pub dns_json_dirty: bool,
     pub fake_ip_json_dirty: bool,
     pub tun_json_dirty: bool,
-    pub dns_form: DnsFormDraft,
+    pub dns_form: infiltrator_contract::dns_form::DnsWorkbenchForm,
     pub fake_ip_form: FakeIpFormDraft,
     pub tun_form: TunFormDraft,
     pub dns_form_dirty: bool,
@@ -388,6 +388,9 @@ pub struct DiagnosticsState {
     pub inspecting_connection_id: Option<String>,
     pub dns_leak_probe: Option<crate::types::dns::DnsLeakReport>,
     pub is_probing_dns_leak: bool,
+    /// Honest per-target report of the last Fake-IP / OS DNS cache flush,
+    /// consumed from the shared DNS page read model (DUAL-14-07).
+    pub dns_cache_flush: infiltrator_contract::dns::DnsCacheFlushReport,
     pub pcap_state: crate::types::runtime::PcapCaptureState,
     /// Canonical speedtest read model published by the shared application
     /// engine. This replaces the former UI-local fabricated metrics: the view
@@ -530,6 +533,21 @@ impl AppState {
         self.runtime.active_exit = snapshot.active_exit.clone();
         self.runtime.subscription_quota = snapshot.subscription_quota.clone();
         self.diag.speedtest = snapshot.speedtest.clone();
+        if let Some(dns) = snapshot.pages.dns.data.as_ref() {
+            // Canonical cross-surface DNS workbench input: re-seed the form
+            // from the shared read model only while the user has no unsaved
+            // edits, so a poll never clobbers typing.
+            if !self.editor.dns_form_dirty && !self.editor.dns_json_dirty {
+                self.editor.dns_form =
+                    infiltrator_contract::dns_form::DnsWorkbenchForm::from_snapshot(dns);
+            }
+            // The read model carries the honest last flush report for the
+            // shared host application; a local report from this session is
+            // never downgraded back to `NotRequested`.
+            if dns.cache_flush.is_requested() {
+                self.diag.dns_cache_flush = dns.cache_flush.clone();
+            }
+        }
         if let Some(rules_page) = snapshot.pages.rules.data.as_ref() {
             self.editor.rule_hit_audit.audit = rules_page.tracer.hit_audit.clone();
             // DUAL-12-08: consume the shared reverse-apply facts; the chooser

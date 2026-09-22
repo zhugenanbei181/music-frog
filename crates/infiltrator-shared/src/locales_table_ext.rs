@@ -18,6 +18,19 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "dns_leak_isp" => "运营商 / ASN".into(),
         "dns_leak_tested_servers" => "实际响应 DNS 节点".into(),
 
+        // Category 1b: DNS workbench form parity & cache flush (DUAL-14)
+        "dns_form_issues" => "表单校验未通过".into(),
+        "dns_form_err_scheme" => "字段 {field} 的上游协议不受支持: {entry}".into(),
+        "dns_form_err_bootstrap" => "bootstrap 解析器必须是纯 IP: {entry}".into(),
+        "dns_form_err_cidr" => "fallback 触发网段不是合法 CIDR: {entry}".into(),
+        "dns_form_err_geoip_code" => "geoip-code 必须是两位国家代码: {value}".into(),
+        "dns_flush_target_fakeip" => "Fake-IP 缓存".into(),
+        "dns_flush_target_os" => "系统 DNS 缓存".into(),
+        "dns_flush_not_requested" => "尚未执行".into(),
+        "dns_flush_flushed" => "已清空".into(),
+        "dns_flush_unsupported" => "宿主不支持".into(),
+        "dns_flush_failed" => "清理失败".into(),
+
         // Category 2: Custom Node Editor & Universal URI Codec
         "custom_node_title" => "自定义节点表单与 URI 编解码".into(),
         "custom_node_btn_add" => "添加自建节点".into(),

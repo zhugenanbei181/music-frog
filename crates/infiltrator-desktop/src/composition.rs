@@ -29,12 +29,14 @@ use crate::service::ServiceManager;
 /// `speedtest` is the same instance the surface reader publishes, so a
 /// `RunSpeedtest` command and the Overview/Proxies telemetry read model share
 /// one engine state instead of two divergent copies.
+#[allow(clippy::too_many_arguments)]
 pub fn core_application(
     service: &ServiceManager,
     controller_url: impl Into<String>,
     secret: Option<String>,
     speedtest: infiltrator_application::speedtest_application::SpeedtestApplication,
     rule_tracer: infiltrator_application::rule_tracer_application::RuleTracerApplication,
+    dns_cache: infiltrator_application::dns_cache_application::DnsCacheApplication,
     profile_store: std::sync::Arc<dyn ProfileStore>,
     subscription_source: std::sync::Arc<dyn SubscriptionSource>,
 ) -> anyhow::Result<CoreApplication> {
@@ -96,7 +98,8 @@ pub fn core_application(
             .with_service_mode(service_mode)
             .with_port_conflicts(port_conflicts)
             .with_speedtest(speedtest)
-            .with_rule_tracer(rule_tracer),
+            .with_rule_tracer(rule_tracer)
+            .with_dns_cache(dns_cache),
     ));
     Ok(application)
 }

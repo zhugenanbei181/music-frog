@@ -4,10 +4,12 @@ use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use crate::view::components::{
-    BadgeKind, badge, banner_alert, card, chip, editor_frame_surface, empty_state,
-    form_field_label, form_input_style, form_pick_style, form_toggle_row, icon_button, kbd_badge,
-    modern_scrollable, row_card_surface, section_header, segmented_control, style_accent,
-    style_ghost, text_btn,
+    BadgeKind, badge, banner_alert, card, editor_frame_surface, empty_state, form_field_label,
+    form_input_style, form_pick_style, form_toggle_row, icon_button, kbd_badge, modern_scrollable,
+    row_card_surface, section_header, segmented_control, style_accent, style_ghost, text_btn,
+};
+use crate::view::dns_form_panel::{
+    dns_cache_flush_status, dns_form_field_widget, dynamic_token_section, form_issue_banner,
 };
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_LG, tokens};
@@ -15,7 +17,8 @@ use iced::widget::{
     Space, button, column, container, pick_list, row, text, text_editor, text_input,
 };
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag};
+use infiltrator_contract::dns::DnsServerTag;
+use infiltrator_contract::dns_form::DnsFormField;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn save_button(
@@ -123,190 +126,24 @@ fn mode_tabs(tab: DnsTab, current: AdvancedEditMode) -> Element<'static, Message
     )
 }
 
-fn parse_item_list(raw: &str) -> Vec<String> {
-    raw.lines()
-        .flat_map(|l| l.split(','))
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect()
-}
-
-fn remove_item_from_list(raw: &str, index: usize) -> String {
-    let mut items = parse_item_list(raw);
-    if index < items.len() {
-        items.remove(index);
-    }
-    items.join(", ")
-}
-
-fn append_item_to_list(raw: &str, item: &str) -> String {
-    let trimmed = item.trim();
-    if trimmed.is_empty() {
-        return raw.to_string();
-    }
-    let mut items = parse_item_list(raw);
-    if !items.iter().any(|x| x.eq_ignore_ascii_case(trimmed)) {
-        items.push(trimmed.to_string());
-    }
-    items.join(", ")
-}
-
+/// Protocol chip label for a nameserver address (shared contract decode).
 pub fn dns_protocol_chip(server: &str) -> &'static str {
-    let s = server.trim().to_ascii_lowercase();
-    if s.starts_with("https://") || s.starts_with("http://") {
-        "DoH"
-    } else if s.starts_with("h3://") {
-        "DoH3"
-    } else if s.starts_with("tls://") {
-        "DoT"
-    } else if s.starts_with("quic://") || s.starts_with("doq://") {
-        "DoQ"
-    } else if s.starts_with("dhcp://") {
-        "DHCP"
-    } else if s.starts_with("tcp://") {
-        "TCP"
-    } else if s == "system" {
-        "System"
-    } else if !s.is_empty() {
-        "UDP"
-    } else {
-        "DNS"
-    }
+    infiltrator_contract::dns::DnsUpstreamProtocol::from_address(server).chip_label()
 }
 
-fn token_row<'a>(
-    item: &str,
-    idx: usize,
-    raw_list: &'a str,
-    is_domain: bool,
-    lang: &Lang<'_>,
-    on_update: impl Fn(String) -> Message + 'a,
-) -> Element<'a, Message> {
-    let tag: Element<'a, Message> = if is_domain {
-        svg_icons::icon_themed(Icon::Globe, 12.0, |t: &Theme| tokens(t).text_tertiary)
-    } else {
-        chip(dns_protocol_chip(item))
-    };
-    let mut meta = row![tag].spacing(4).align_y(Alignment::Center);
-    if !is_domain {
-        for server_tag in DnsServerTag::classify(item, false) {
-            meta = meta.push(chip(server_tag_label(server_tag, lang)));
-        }
-    }
-    let address = text(item.to_string())
-        .size(12)
-        .font(MONO)
-        .style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_primary),
-        });
-    let delete_btn = icon_button(
-        Icon::Trash2,
-        12.0,
-        on_update(remove_item_from_list(raw_list, idx)),
-    );
-
-    container(
-        row![
-            meta,
-            Space::new().width(theme::SP_SM),
-            address,
-            Space::new().width(Length::Fill),
-            delete_btn
-        ]
-        .align_y(Alignment::Center),
-    )
-    .padding([5, 8])
-    .style(row_card_surface)
-    .into()
+pub(crate) fn parse_item_list(raw: &str) -> Vec<String> {
+    infiltrator_contract::dns::parse_server_list(raw)
 }
 
-fn quick_template_chips<'a>(
-    templates: &[&'static str],
-    current_raw: &'a str,
-    on_update: impl Fn(String) -> Message + 'a + Copy,
-) -> Element<'a, Message> {
-    let current_items = parse_item_list(current_raw);
-    let chips: Vec<Element<'a, Message>> = templates
-        .iter()
-        .map(|&tpl| {
-            let added = current_items.iter().any(|x| x.eq_ignore_ascii_case(tpl));
-            let on_press = if added {
-                None
-            } else {
-                Some(on_update(append_item_to_list(current_raw, tpl)))
-            };
-            text_btn(format!("+ {}", tpl), style_ghost, on_press)
-        })
-        .collect();
-    row(chips).spacing(theme::SP_XS).wrap().into()
+pub(crate) fn remove_item_from_list(raw: &str, index: usize) -> String {
+    infiltrator_contract::dns::remove_server_at(raw, index)
 }
 
-fn dynamic_token_section<'a>(
-    label: &str,
-    raw_list: &'a str,
-    placeholder: &str,
-    templates: &[&'static str],
-    is_domain: bool,
-    lang: &Lang<'_>,
-    on_update: impl Fn(String) -> Message + 'a + Copy,
-) -> Element<'a, Message> {
-    let items = parse_item_list(raw_list);
-    let mut col = column![form_field_label(label.to_string())].spacing(theme::SP_XS);
-    if !templates.is_empty() {
-        col = col.push(quick_template_chips(templates, raw_list, on_update));
-    }
-    if !items.is_empty() {
-        let mut list_col = column![].spacing(4);
-        for (idx, item) in items.iter().enumerate() {
-            list_col = list_col.push(token_row(item, idx, raw_list, is_domain, lang, on_update));
-        }
-        col = col.push(list_col);
-    }
-    col.push(
-        text_input(placeholder, raw_list)
-            .on_input(on_update)
-            .padding([8, 12])
-            .size(12)
-            .font(MONO)
-            .style(form_input_style),
-    )
-    .into()
+pub(crate) fn append_item_to_list(raw: &str, item: &str) -> String {
+    infiltrator_contract::dns::append_server(raw, item)
 }
 
-fn domain_mapping_mode_control(
-    mode: DnsEnhancedMode,
-    lang: &Lang<'_>,
-) -> Element<'static, Message> {
-    let mode_labels = vec![
-        lang.tr("dns_mode_fakeip").to_string(),
-        lang.tr("dns_mode_redirhost").to_string(),
-        lang.tr("dns_mode_none").to_string(),
-    ];
-    let ctrl = segmented_control(&mode_labels, mode.to_index(), |idx| {
-        Message::UpdateDnsFormEnhancedMode(DnsEnhancedMode::from_index(idx))
-    });
-    let lbl = lang.tr("dns_mode_label").to_string();
-    column![form_field_label(lbl), ctrl]
-        .spacing(theme::SP_XS)
-        .into()
-}
-
-fn filter_mode_control(mode: DnsFakeIpFilterMode, lang: &Lang<'_>) -> Element<'static, Message> {
-    let labels = vec![
-        lang.tr("dns_filter_blacklist").to_string(),
-        lang.tr("dns_filter_whitelist").to_string(),
-        lang.tr("dns_filter_rules").to_string(),
-    ];
-    let ctrl = segmented_control(&labels, mode.to_index(), |idx| {
-        Message::UpdateDnsFormFilterMode(DnsFakeIpFilterMode::from_index(idx))
-    });
-    let lbl = lang.tr("dns_filter_label").to_string();
-    column![form_field_label(lbl), ctrl]
-        .spacing(theme::SP_XS)
-        .into()
-}
-
-fn server_tag_label(tag: DnsServerTag, lang: &Lang<'_>) -> String {
+pub(crate) fn server_tag_label(tag: DnsServerTag, lang: &Lang<'_>) -> String {
     match tag {
         DnsServerTag::Domestic => lang.tr("dns_tag_domestic"),
         DnsServerTag::Fallback => lang.tr("dns_tag_fallback"),
@@ -346,110 +183,19 @@ fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
             )
         ),
         Space::new().height(theme::SP_MD),
-        form_toggle_row(
-            "enable",
-            state.editor.dns_form.enable,
-            Message::UpdateDnsFormEnable
-        ),
-        form_toggle_row(
-            "ipv6",
-            state.editor.dns_form.ipv6,
-            Message::UpdateDnsFormIpv6
-        ),
-        form_toggle_row(
-            "cache",
-            state.editor.dns_form.cache,
-            Message::UpdateDnsFormCache
-        ),
-        form_toggle_row(
-            "use_hosts",
-            state.editor.dns_form.use_hosts,
-            Message::UpdateDnsFormUseHosts
-        ),
-        form_toggle_row(
-            "use_system_hosts",
-            state.editor.dns_form.use_system_hosts,
-            Message::UpdateDnsFormUseSystemHosts
-        ),
-        form_toggle_row(
-            "respect_rules",
-            state.editor.dns_form.respect_rules,
-            Message::UpdateDnsFormRespectRules
-        ),
-        Space::new().height(theme::SP_SM),
-        domain_mapping_mode_control(state.editor.dns_form.enhanced_mode, lang),
-        Space::new().height(theme::SP_XS),
-        filter_mode_control(state.editor.dns_form.filter_mode, lang),
-        Space::new().height(theme::SP_SM),
-        dynamic_token_section(
-            "nameserver (DoH/DoT/DoQ/UDP)",
-            &state.editor.dns_form.nameserver,
-            "https://dns.google/dns-query, 1.1.1.1",
-            &[
-                "tls://223.5.5.5:853",
-                "https://doh.pub/dns-query",
-                "223.5.5.5",
-                "119.29.29.29"
-            ],
-            false,
-            lang,
-            Message::UpdateDnsFormNameserver
-        ),
-        dynamic_token_section(
-            "fallback",
-            &state.editor.dns_form.fallback,
-            "https://1.0.0.1/dns-query",
-            &[
-                "https://1.0.0.1/dns-query",
-                "8.8.8.8",
-                "1.1.1.1",
-                "tls://1.0.0.1:853"
-            ],
-            false,
-            lang,
-            Message::UpdateDnsFormFallback
-        ),
-        form_field_label("fake_ip_range".to_string()),
-        text_input("198.18.0.1/16", &state.editor.dns_form.fake_ip_range)
-            .on_input(Message::UpdateDnsFormFakeIpRange)
-            .padding([8, 12])
-            .size(12)
-            .font(MONO)
-            .style(form_input_style),
-        dynamic_token_section(
-            "fake_ip_filter",
-            &state.editor.dns_form.fake_ip_filter,
-            "*.lan, localhost.ptlogin2.qq.com",
-            &["*.lan", "localhost.ptlogin2.qq.com", "*.local"],
-            true,
-            lang,
-            Message::UpdateDnsFormFakeIpFilter
-        ),
-        dynamic_token_section(
-            "proxy_server_nameserver",
-            &state.editor.dns_form.proxy_server_nameserver,
-            "tls://223.5.5.5:853",
-            &[
-                "tls://223.5.5.5:853",
-                "https://doh.pub/dns-query",
-                "https://dns.alidns.com/dns-query"
-            ],
-            false,
-            lang,
-            Message::UpdateDnsFormProxyServerNameserver
-        ),
-        dynamic_token_section(
-            "direct_nameserver",
-            &state.editor.dns_form.direct_nameserver,
-            "system",
-            &["system", "223.5.5.5"],
-            false,
-            lang,
-            Message::UpdateDnsFormDirectNameserver
-        ),
     ]
     .spacing(theme::SP_SM);
 
+    // DUAL-14-14: the panel is assembled from the shared field set, so a
+    // field cannot exist on one surface and be missing on the other.
+    for field in DnsFormField::ALL {
+        content = content.push(dns_form_field_widget(field, &state.editor.dns_form, lang));
+    }
+
+    let issues = state.editor.dns_form.validate();
+    if !issues.is_empty() {
+        content = content.push(form_issue_banner(&issues, lang));
+    }
     if let Some(error) = &state.editor.advanced_validation.dns {
         content = content.push(validation_error_banner(error, lang));
     }
@@ -536,6 +282,8 @@ fn fake_ip_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, M
         )
         .padding([8, 12])
         .style(row_card_surface),
+        Space::new().height(theme::SP_XS),
+        dns_cache_flush_status(state, lang),
     ]
     .spacing(theme::SP_SM);
 

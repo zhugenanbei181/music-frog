@@ -453,8 +453,20 @@ impl std::fmt::Debug for Message {
             }
             Message::TunConfigJsonLoaded(Err(e)) => write!(f, "TunConfigJsonLoaded(Err({:?}))", e),
             Message::UpdateDnsFormEnable(v) => write!(f, "UpdateDnsFormEnable({})", v),
+            Message::UpdateDnsFormBootstrapNameserver(v) => {
+                write!(f, "UpdateDnsFormBootstrapNameserver({})", v)
+            }
             Message::UpdateDnsFormNameserver(v) => write!(f, "UpdateDnsFormNameserver({})", v),
             Message::UpdateDnsFormFallback(v) => write!(f, "UpdateDnsFormFallback({})", v),
+            Message::UpdateDnsFormFallbackGeoip(v) => {
+                write!(f, "UpdateDnsFormFallbackGeoip({})", v)
+            }
+            Message::UpdateDnsFormFallbackGeoipCode(v) => {
+                write!(f, "UpdateDnsFormFallbackGeoipCode({})", v)
+            }
+            Message::UpdateDnsFormFallbackTrigger(v) => {
+                write!(f, "UpdateDnsFormFallbackTrigger({})", v)
+            }
             Message::UpdateDnsFormEnhancedMode(v) => {
                 write!(f, "UpdateDnsFormEnhancedMode({:?})", v)
             }
@@ -670,6 +682,8 @@ impl std::fmt::Debug for Message {
             }
             Message::OpenConfigDir => write!(f, "OpenConfigDir"),
             Message::FlushFakeIpCache => write!(f, "FlushFakeIpCache"),
+            Message::DnsCacheFlushed(Ok(report)) => write!(f, "DnsCacheFlushed(Ok({report:?}))"),
+            Message::DnsCacheFlushed(Err(error)) => write!(f, "DnsCacheFlushed(Err({error}))"),
             Message::TestProxyDelay(p) => write!(f, "TestProxyDelay({})", p),
             Message::TestGroupDelay(g) => write!(f, "TestGroupDelay({})", g),
             Message::ProxyTested(p, Ok(d)) => write!(f, "ProxyTested({}, Ok({}ms))", p, d),

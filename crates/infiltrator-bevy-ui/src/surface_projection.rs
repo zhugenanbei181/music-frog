@@ -6,7 +6,6 @@ use super::surface_demo::{
 };
 use crate::pages::app_routing::{AppItem, AppRouteRule, AppRoutingMode};
 use crate::pages::connections::ConnectionItem;
-use crate::pages::dns::DnsServerItem;
 use crate::pages::doctor::{DoctorCheckItem, DoctorCheckState, DoctorProjection};
 use crate::pages::logs::{LogEntry, LogLevel};
 use crate::pages::profiles::ProfileItem;
@@ -282,24 +281,7 @@ pub(super) fn dns_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> Dn
         .dns
         .data
         .as_ref()
-        .map(|value| DnsProjection {
-            mode: value.enhanced_mode,
-            cache_entries: value.cache_entries,
-            fake_ip_range: value.fake_ip_range.clone(),
-            switches: value.switches,
-            filter_mode: value.filter_mode,
-            servers: value
-                .servers
-                .iter()
-                .map(|server| DnsServerItem {
-                    address: server.address.clone(),
-                    protocol: server.protocol.clone(),
-                    latency_ms: server.latency_ms,
-                    is_fallback: server.is_fallback,
-                    tags: server.tags.clone(),
-                })
-                .collect(),
-        })
+        .map(DnsProjection::from_snapshot)
         .unwrap_or_else(empty_dns)
 }
 

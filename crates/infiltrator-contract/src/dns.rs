@@ -239,12 +239,226 @@ fn is_domestic_resolver(address: &str) -> bool {
     DOMESTIC.iter().any(|marker| lower.contains(marker))
 }
 
+/// Upstream resolver transport decoded from a nameserver address.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum DnsUpstreamProtocol {
+    /// Plain UDP (a bare address, or an explicit `udp://`).
+    Udp,
+    /// Plain TCP (`tcp://`).
+    Tcp,
+    /// DNS over HTTPS (`https://` / `doh://`).
+    Doh,
+    /// DNS over HTTP/3 (`h3://`, or `https://...?h3=true`).
+    Doh3,
+    /// DNS over TLS (`tls://` / `dot://`).
+    Dot,
+    /// DNS over QUIC (`quic://` / `doq://`).
+    Doq,
+    /// DNSCrypt stamp (`sdns://`).
+    DnsCrypt,
+    /// Platform resolver (`dhcp://`).
+    Dhcp,
+    /// The literal `system` resolver keyword.
+    System,
+    /// A scheme this workbench does not recognise.
+    Unknown,
+}
+
+impl DnsUpstreamProtocol {
+    /// Decode the transport from a raw nameserver entry.
+    pub fn from_address(address: &str) -> Self {
+        let lower = address.trim().to_ascii_lowercase();
+        if lower.is_empty() {
+            return Self::Unknown;
+        }
+        if lower == "system" {
+            return Self::System;
+        }
+        let Some((scheme, rest)) = lower.split_once("://") else {
+            return Self::Udp;
+        };
+        match scheme {
+            "udp" => Self::Udp,
+            "tcp" => Self::Tcp,
+            "dhcp" => Self::Dhcp,
+            "tls" | "dot" => Self::Dot,
+            "quic" | "doq" => Self::Doq,
+            "sdns" => Self::DnsCrypt,
+            "h3" => Self::Doh3,
+            "https" | "doh" => {
+                if rest.contains("h3=true") {
+                    Self::Doh3
+                } else {
+                    Self::Doh
+                }
+            }
+            "http" => Self::Doh,
+            _ => Self::Unknown,
+        }
+    }
+
+    /// The protocol chip label both surfaces render.
+    pub const fn chip_label(self) -> &'static str {
+        match self {
+            Self::Udp => "UDP",
+            Self::Tcp => "TCP",
+            Self::Doh => "DoH",
+            Self::Doh3 => "DoH3",
+            Self::Dot => "DoT",
+            Self::Doq => "DoQ",
+            Self::DnsCrypt => "DNSCrypt",
+            Self::Dhcp => "DHCP",
+            Self::System => "System",
+            Self::Unknown => "DNS",
+        }
+    }
+
+    /// DoH / DoH3 / DoT / DoQ / DNSCrypt are encrypted transports.
+    pub const fn is_encrypted(self) -> bool {
+        matches!(
+            self,
+            Self::Doh | Self::Doh3 | Self::Dot | Self::Doq | Self::DnsCrypt
+        )
+    }
+}
+
+/// Split a raw nameserver editor string into normalised entries.
+///
+/// Both surfaces share the exact same token rules: entries are separated by
+/// newlines or commas, surrounding whitespace is dropped, and empty tokens are
+/// discarded.
+pub fn parse_server_list(raw: &str) -> Vec<String> {
+    raw.lines()
+        .flat_map(|line| line.split(','))
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Join nameserver entries back into the canonical editor string.
+pub fn join_server_list(entries: &[String]) -> String {
+    entries.join(", ")
+}
+
+/// Remove one entry from the raw editor string, keeping shared token rules.
+pub fn remove_server_at(raw: &str, index: usize) -> String {
+    let mut entries = parse_server_list(raw);
+    if index < entries.len() {
+        entries.remove(index);
+    }
+    join_server_list(&entries)
+}
+
+/// Append one entry to the raw editor string. Duplicates (case-insensitive)
+/// are ignored so the quick-template chips cannot double-insert.
+pub fn append_server(raw: &str, entry: &str) -> String {
+    let trimmed = entry.trim();
+    if trimmed.is_empty() {
+        return raw.to_owned();
+    }
+    let mut entries = parse_server_list(raw);
+    if !entries
+        .iter()
+        .any(|item| item.eq_ignore_ascii_case(trimmed))
+    {
+        entries.push(trimmed.to_owned());
+    }
+    join_server_list(&entries)
+}
+
+/// Fallback resolver policy (`dns.fallback-filter`).
+///
+/// The host schema exposes the GEOIP trigger as `geoip` / `geoip-code` plus an
+/// explicit `ipcidr` trigger list; there is no numeric threshold in the
+/// profile schema and this contract does not invent one.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DnsFallbackPolicy {
+    /// `fallback-filter.geoip`: fall back when the answer is not domestic.
+    pub geoip: bool,
+    /// `fallback-filter.geoip-code`; empty means the key is not configured.
+    pub geoip_code: String,
+    /// `fallback-filter.ipcidr`: fall back when the answer lands in one of
+    /// these CIDRs.
+    pub trigger_ipcidr: Vec<String>,
+}
+
+impl DnsFallbackPolicy {
+    /// Build the policy from its raw editor fields.
+    pub fn from_raw(geoip: bool, geoip_code: &str, trigger_ipcidr: &str) -> Self {
+        Self {
+            geoip,
+            geoip_code: geoip_code.trim().to_owned(),
+            trigger_ipcidr: parse_server_list(trigger_ipcidr),
+        }
+    }
+
+    /// The canonical raw trigger string for the form field.
+    pub fn trigger_raw(&self) -> String {
+        join_server_list(&self.trigger_ipcidr)
+    }
+}
+
+/// Outcome of one DNS cache flush target.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DnsFlushOutcome {
+    /// No flush has been requested in this session.
+    #[default]
+    NotRequested,
+    /// The target accepted the flush.
+    Flushed,
+    /// The host has no drivable flush for this target.
+    Unsupported { reason: String },
+    /// The flush ran and failed.
+    Failed { message: String },
+}
+
+impl DnsFlushOutcome {
+    pub fn is_flushed(&self) -> bool {
+        matches!(self, Self::Flushed)
+    }
+}
+
+/// Honest per-target report of the last DNS cache flush.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DnsCacheFlushReport {
+    /// The running core's Fake-IP mapping cache.
+    pub fake_ip: DnsFlushOutcome,
+    /// The operating system resolver cache.
+    pub os_cache: DnsFlushOutcome,
+}
+
+impl DnsCacheFlushReport {
+    /// Whether any target has a recorded outcome (a flush was requested).
+    pub fn is_requested(&self) -> bool {
+        self.fake_ip != DnsFlushOutcome::NotRequested
+            || self.os_cache != DnsFlushOutcome::NotRequested
+    }
+}
+
 /// A partial DNS settings patch submitted by either surface.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DnsSettingsPatch {
     pub switches: Option<DnsCoreSwitches>,
     pub enhanced_mode: Option<DnsEnhancedMode>,
     pub filter_mode: Option<DnsFakeIpFilterMode>,
+    /// Primary upstream nameservers (DoH / DoT / DoQ / plain).
+    pub nameserver: Option<Vec<String>>,
+    /// Fallback upstream nameservers.
+    pub fallback: Option<Vec<String>>,
+    /// Fallback resolver policy.
+    pub fallback_policy: Option<DnsFallbackPolicy>,
+    /// `dns.fake-ip-range`; empty entries are rejected by the domain validator.
+    pub fake_ip_range: Option<String>,
+    /// Clear `dns.fake-ip-range` (the form field was emptied).
+    #[serde(default)]
+    pub clear_fake_ip_range: bool,
+    /// `dns.fake-ip-filter` patterns or rules.
+    pub fake_ip_filter: Option<Vec<String>>,
+    /// `dns.proxy-server-nameserver`.
+    pub proxy_server_nameserver: Option<Vec<String>>,
+    /// `dns.direct-nameserver`.
+    pub direct_nameserver: Option<Vec<String>>,
 }
 
 impl DnsSettingsPatch {
@@ -318,5 +532,80 @@ mod tests {
 
         let fallback = DnsServerTag::classify("8.8.8.8", true);
         assert_eq!(fallback, vec![DnsServerTag::Fallback, DnsServerTag::Plain]);
+    }
+
+    #[test]
+    fn upstream_protocol_decodes_both_surface_editor_shapes() {
+        assert_eq!(
+            DnsUpstreamProtocol::from_address("https://dns.google/dns-query"),
+            DnsUpstreamProtocol::Doh
+        );
+        assert_eq!(
+            DnsUpstreamProtocol::from_address("h3://dns.google/dns-query"),
+            DnsUpstreamProtocol::Doh3
+        );
+        assert_eq!(
+            DnsUpstreamProtocol::from_address("https://cloudflare-dns.com/dns-query?h3=true"),
+            DnsUpstreamProtocol::Doh3
+        );
+        assert_eq!(
+            DnsUpstreamProtocol::from_address("tls://223.5.5.5:853"),
+            DnsUpstreamProtocol::Dot
+        );
+        assert_eq!(
+            DnsUpstreamProtocol::from_address("doq://dns.adguard.com"),
+            DnsUpstreamProtocol::Doq
+        );
+        assert_eq!(
+            DnsUpstreamProtocol::from_address("sdns://stamp"),
+            DnsUpstreamProtocol::DnsCrypt
+        );
+        assert_eq!(
+            DnsUpstreamProtocol::from_address("dhcp://en0"),
+            DnsUpstreamProtocol::Dhcp
+        );
+        assert_eq!(
+            DnsUpstreamProtocol::from_address("system"),
+            DnsUpstreamProtocol::System
+        );
+        assert_eq!(
+            DnsUpstreamProtocol::from_address("223.5.5.5"),
+            DnsUpstreamProtocol::Udp
+        );
+        assert_eq!(
+            DnsUpstreamProtocol::from_address("ftp://dns.example"),
+            DnsUpstreamProtocol::Unknown
+        );
+        assert_eq!(DnsUpstreamProtocol::Doq.chip_label(), "DoQ");
+        assert_eq!(DnsUpstreamProtocol::Unknown.chip_label(), "DNS");
+        assert!(DnsUpstreamProtocol::Dot.is_encrypted());
+        assert!(!DnsUpstreamProtocol::Udp.is_encrypted());
+        assert!(!DnsUpstreamProtocol::System.is_encrypted());
+    }
+
+    #[test]
+    fn server_list_codec_round_trips_and_deduplicates() {
+        let raw = "223.5.5.5, 119.29.29.29\nhttps://doh.pub/dns-query";
+        assert_eq!(parse_server_list(raw).len(), 3);
+        assert_eq!(
+            remove_server_at(raw, 1),
+            "223.5.5.5, https://doh.pub/dns-query"
+        );
+        let appended = append_server(raw, "tls://223.5.5.5:853");
+        assert_eq!(
+            appended,
+            "223.5.5.5, 119.29.29.29, https://doh.pub/dns-query, tls://223.5.5.5:853"
+        );
+        assert_eq!(append_server(&appended, "223.5.5.5"), appended);
+        assert_eq!(append_server(raw, "   "), raw);
+        assert!(parse_server_list(" , \n ").is_empty());
+    }
+
+    #[test]
+    fn fallback_policy_parses_raw_trigger_lists() {
+        let policy = DnsFallbackPolicy::from_raw(true, " cn ", "192.168.0.0/16, 10.0.0.0/8");
+        assert!(policy.geoip);
+        assert_eq!(policy.geoip_code, "cn");
+        assert_eq!(policy.trigger_raw(), "192.168.0.0/16, 10.0.0.0/8");
     }
 }
