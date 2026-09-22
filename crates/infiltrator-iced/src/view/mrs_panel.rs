@@ -204,6 +204,97 @@ pub fn mrs_card(state: &AppState) -> Option<Element<'_, Message>> {
     Some(card(Some(lang.tr("mrs_panel_title").to_string()), body))
 }
 
+/// DUAL-11-03: shared MRS acceleration status line rendered from the read model
+/// published by the surface reader (never a UI-local fabricated list).
+pub fn mrs_acceleration_status_line(
+    lang: &Lang<'_>,
+    mrs: &infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
+) -> String {
+    use infiltrator_contract::mrs_acceleration::MrsAccelerationStatus;
+    match mrs.status {
+        MrsAccelerationStatus::Ready => format!(
+            "{} · {} {} · {} {} · {} {} · {}",
+            lang.tr("mrs_accel_ready"),
+            mrs.total_providers,
+            lang.tr("mrs_accel_providers"),
+            mrs.total_accelerated_rules,
+            lang.tr("mrs_accel_rules"),
+            mrs.total_memory_saved_bytes,
+            lang.tr("mrs_accel_memory_saved"),
+            if mrs.mmap_acceleration_active {
+                lang.tr("mrs_accel_mmap_on")
+            } else {
+                lang.tr("mrs_accel_mmap_off")
+            },
+        ),
+        MrsAccelerationStatus::Empty => lang.tr("mrs_accel_empty").to_string(),
+        MrsAccelerationStatus::Unsupported => format!(
+            "{}: {}",
+            lang.tr("mrs_accel_unsupported"),
+            mrs.failure.as_deref().unwrap_or("")
+        ),
+        MrsAccelerationStatus::Failed => format!(
+            "{}: {}",
+            lang.tr("mrs_accel_failed"),
+            mrs.failure.as_deref().unwrap_or("")
+        ),
+        MrsAccelerationStatus::Unknown => format!(
+            "{}: {}",
+            lang.tr("mrs_accel_unavailable"),
+            mrs.failure.as_deref().unwrap_or("")
+        ),
+    }
+}
+
+/// One shared MRS item line: name, count, behavior, validity and digest prefix.
+pub fn mrs_acceleration_item_label(
+    lang: &Lang<'_>,
+    item: &infiltrator_contract::mrs_acceleration::MrsItemSnapshot,
+) -> String {
+    let digest = item
+        .sha256_digest
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .map(|value| format!("sha256 {}", &value[..value.len().min(12)]))
+        .unwrap_or_else(|| lang.tr("mrs_accel_no_digest").to_string());
+    let validity = if item.is_valid {
+        lang.tr("mrs_accel_valid")
+    } else {
+        lang.tr("mrs_accel_invalid")
+    };
+    format!(
+        "{} · {} {} · {} · {}",
+        item.name,
+        item.rule_count,
+        item.behavior.as_str(),
+        validity,
+        digest
+    )
+}
+
+/// DUAL-11-03: the shared MRS acceleration card. Distinct from [`mrs_card`],
+/// which scans local cache files; this renders the same read model the Bevy
+/// surface consumes so both ends report one status.
+pub fn mrs_acceleration_card(state: &AppState) -> Element<'_, Message> {
+    let lang = Lang(&state.shell.lang);
+    let mrs = &state.editor.mrs_acceleration;
+    let mut body =
+        column![meta_text(mrs_acceleration_status_line(&lang, mrs))].spacing(theme::SP_XS);
+    for item in &mrs.items {
+        body = body.push(
+            container(
+                text(mrs_acceleration_item_label(&lang, item))
+                    .size(11)
+                    .font(MONO),
+            )
+            .padding([6, 10])
+            .width(Length::Fill)
+            .style(row_card_surface),
+        );
+    }
+    card(Some(lang.tr("mrs_accel_title").to_string()), body)
+}
+
 #[cfg(test)]
 #[path = "../../tests/gui/view_mrs_panel_tests.rs"]
 mod tests;

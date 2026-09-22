@@ -253,6 +253,8 @@ impl AppState {
                 rules_render_cache: Vec::new(),
                 rules_filtered_indices: Vec::new(),
                 rules_heavy_ready: true,
+                rule_provider_source_urls: std::collections::HashMap::new(),
+                mrs_acceleration: Default::default(),
                 rule_providers_json_content: iced::widget::text_editor::Content::new(),
                 proxy_providers_json_content: iced::widget::text_editor::Content::new(),
                 sniffer_json_content: iced::widget::text_editor::Content::new(),

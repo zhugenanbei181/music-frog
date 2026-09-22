@@ -43,7 +43,6 @@ pub struct RuleRenderItem {
     pub rule_type: String,
     pub payload: String,
     pub target: String,
-    pub search_key: String,
     pub badge: RuleBadgeKind,
 }
 

@@ -677,6 +677,14 @@ async fn build_rules_page(
         Ok(rules) => rules,
         Err(error) => return surface_snapshot::PageData::failed(error),
     };
+    // DUAL-11-04: the runtime controller reports a provider's behavior and
+    // update time but not its source address. Merge the active profile's
+    // `rule-providers` declarations so config-backed providers publish their
+    // real URL; runtime-only providers stay honestly `None`.
+    let configured_providers = configuration
+        .load_rule_providers()
+        .await
+        .unwrap_or_default();
     // The tracer replays the exact rule list rendered below; the query comes
     // from the shared engine so both surfaces observe the same simulation.
     let tracer = tracer_replay.application.project(
@@ -688,11 +696,19 @@ async fn build_rules_page(
     let providers = match runtime_providers {
         Some(Ok(providers)) => providers
             .into_iter()
-            .map(|provider| surface_snapshot::RuleProviderSnapshot {
-                name: provider.name,
-                rule_count: provider.rule_count as usize,
-                behavior: provider.behavior,
-                updated_at: provider.updated_at,
+            .map(|provider| {
+                let source_url = configured_providers
+                    .get(&provider.name)
+                    .and_then(|value| value.get("url"))
+                    .and_then(|url| url.as_str())
+                    .map(str::to_owned);
+                surface_snapshot::RuleProviderSnapshot {
+                    name: provider.name,
+                    rule_count: provider.rule_count as usize,
+                    behavior: provider.behavior,
+                    updated_at: provider.updated_at,
+                    source_url,
+                }
             })
             .collect(),
         Some(Err(error)) => {

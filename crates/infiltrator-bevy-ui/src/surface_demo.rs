@@ -269,6 +269,7 @@ pub(crate) fn empty_rules() -> RulesProjection {
         rules: Vec::new(),
         tracer: Default::default(),
         hit_audit: Default::default(),
+        mrs_acceleration: Default::default(),
     }
 }
 
@@ -440,6 +441,7 @@ impl From<RulesProjection> for surface_snapshot::RulesPageSnapshot {
                     rule_count: provider.rule_count,
                     behavior: provider.behavior,
                     updated_at: provider.updated_at,
+                    source_url: provider.source_url,
                 })
                 .collect(),
             rules: value
@@ -455,7 +457,7 @@ impl From<RulesProjection> for surface_snapshot::RulesPageSnapshot {
                 })
                 .collect(),
             tracer: value.tracer,
-            mrs_acceleration: Default::default(),
+            mrs_acceleration: value.mrs_acceleration,
             total_hits: 0,
         }
     }

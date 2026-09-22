@@ -10,6 +10,7 @@ use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ui::prelude::{Display, Node};
+use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
@@ -30,6 +31,9 @@ use infiltrator_bevy_ui::pages::rules_tracer::{
     ApplyTracerRuleOverrideButton, SimulateRuleTraceButton, TracerOverrideTargetField,
     TracerQueryField, TracerSourceIpField,
 };
+use infiltrator_bevy_ui::pages::rules_view::{
+    RuleRow, RuleSearchField, RulesPageIndicator, RulesViewState,
+};
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::button::ControlVisual;
@@ -37,6 +41,9 @@ use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::state::TextFieldState;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::mrs_acceleration::{
+    MrsAccelerationSnapshot, MrsBehaviorKind, MrsCompressionKind, MrsItemSnapshot,
+};
 use infiltrator_contract::rule_tracer::{RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot};
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::rules::RuleEntry;
@@ -967,17 +974,17 @@ fn test_rules_page_mounting_and_default_state() {
     assert!(subtree_has_text(
         app.world(),
         root,
-        "geoip.mrs (14,200 条目 · IPCIDR · 高性能 mmap 索引)"
+        "geoip-cn.mrs (8500 条目 · ipcidr · 校验通过 · sha256 e3b0c44298fc)"
     ));
     assert!(subtree_has_text(
         app.world(),
         root,
-        "geosite-cn.mrs (28,500 条目 · Domain · 二进制缓存正常)"
+        "geosite-geolocation-!cn.mrs (28400 条目 · domain · 校验通过 · sha256 cbf529a4d5d4)"
     ));
     assert!(subtree_has_text(
         app.world(),
         root,
-        "支持本地 .mrs 二进制规则集秒级索引与 diff 比对"
+        "MRS 加速就绪 · 3 个规则集 · 37472 条规则"
     ));
     assert!(
         app.world_mut()
@@ -1065,6 +1072,7 @@ fn test_rules_empty_and_edge_case_projection() {
         rules: vec![],
         tracer: Default::default(),
         hit_audit: Default::default(),
+        mrs_acceleration: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -1411,6 +1419,164 @@ fn test_rules_hit_audit_projection_and_clear_command() {
             .iter()
             .any(|command| matches!(command, UiCommand::ClearRuleHitCounters))
     );
+}
+
+fn rules_mrs_test_item(name: &str, behavior: MrsBehaviorKind, rule_count: u32) -> MrsItemSnapshot {
+    MrsItemSnapshot {
+        name: name.to_owned(),
+        behavior,
+        format_version: 1,
+        compression: MrsCompressionKind::None,
+        rule_count,
+        payload_size_bytes: 128,
+        file_size_bytes: 192,
+        sha256_digest: Some("deadbeefcafebabe0123456789abcdef".to_owned()),
+        crc32_checksum: Some(1),
+        is_mmap_accelerated: true,
+        is_valid: true,
+        description: String::new(),
+        updated_at: "2026-09-06 12:00".to_owned(),
+        source_url: None,
+        unpack_supported: true,
+    }
+}
+
+#[test]
+fn test_rules_mrs_renders_shared_snapshot_not_fabricated() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Rules);
+
+    let mut projection = RulesProjection::demo();
+    projection.mrs_acceleration = MrsAccelerationSnapshot::ready(
+        1,
+        1,
+        vec![rules_mrs_test_item(
+            "custom-test.mrs",
+            MrsBehaviorKind::IpCidr,
+            1234,
+        )],
+        true,
+    );
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection));
+    app.update();
+
+    // DUAL-11-03: the row is rendered from the shared snapshot, digest included.
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "custom-test.mrs (1234 条目 · ipcidr · 校验通过 · sha256 deadbeefcafe)"
+    ));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "MRS 加速就绪 · 1 个规则集"
+    ));
+    // The previously hardcoded fabricated item must be gone.
+    assert!(!subtree_has_text(app.world(), root, "14,200 条目"));
+
+    // An unsupported snapshot renders its honest typed status, not a fake list.
+    let mut unsupported = RulesProjection::demo();
+    unsupported.mrs_acceleration =
+        MrsAccelerationSnapshot::unsupported(1, 1, "内核未配置规则集提供者网关");
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(unsupported));
+    app.update();
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "MRS 加速不受支持：内核未配置规则集提供者网关"
+    ));
+}
+
+#[test]
+fn test_rules_provider_lifecycle_renders_shared_source_url() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Rules);
+
+    let mut projection = RulesProjection::demo();
+    projection.providers[0].source_url = Some("https://example.com/geo.mrs".to_owned());
+    projection.providers[1].source_url = None;
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection));
+    app.update();
+
+    // DUAL-11-04: declared URL is shown; runtime-only providers stay honest.
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "更新: 2026-09-02 06:00 · 来源: https://example.com/geo.mrs"
+    ));
+    assert!(subtree_has_text(app.world(), root, "来源: 未声明"));
+}
+
+#[test]
+fn test_rules_search_hides_non_matching_rows() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    navigate_to(&mut app, Route::Rules);
+
+    let field_entity = app
+        .world_mut()
+        .query_filtered::<&Children, bevy::ecs::query::With<RuleSearchField>>()
+        .single(app.world())
+        .expect("search field wrapper")
+        .iter()
+        .copied()
+        .find(|child| app.world().get::<TextField>(*child).is_some())
+        .expect("search text field");
+    app.world_mut()
+        .get_mut::<TextField>(field_entity)
+        .expect("text field")
+        .0 = TextFieldState::new("github");
+    app.update();
+
+    // DUAL-11-13: demo row #1 is DOMAIN-KEYWORD,github; the rest are hidden.
+    let mut rows = app.world_mut().query::<(&Node, &RuleRow)>();
+    let displays: Vec<(usize, Display)> = rows
+        .iter(app.world())
+        .map(|(node, row)| (row.0, node.display))
+        .collect();
+    assert!(displays.contains(&(1, Display::Flex)));
+    assert!(displays.contains(&(0, Display::None)));
+}
+
+#[test]
+fn test_rules_pagination_hides_rows_outside_page() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    navigate_to(&mut app, Route::Rules);
+
+    {
+        let mut view = app.world_mut().resource_mut::<RulesViewState>();
+        view.page_size = 2;
+        view.page = 1;
+    }
+    app.update();
+
+    // DUAL-11-13: page 2 of size 2 over 5 demo rules shows indices 2 and 3.
+    let mut rows = app.world_mut().query::<(&Node, &RuleRow)>();
+    let displays: Vec<(usize, Display)> = rows
+        .iter(app.world())
+        .map(|(node, row)| (row.0, node.display))
+        .collect();
+    assert!(displays.contains(&(2, Display::Flex)));
+    assert!(displays.contains(&(3, Display::Flex)));
+    assert!(displays.contains(&(0, Display::None)));
+
+    let indicator = app
+        .world_mut()
+        .query::<(&Text, &RulesPageIndicator)>()
+        .iter(app.world())
+        .map(|(text, _)| text.0.clone())
+        .find(|text| text.contains("页"))
+        .expect("page indicator");
+    assert_eq!(indicator, "第 2/3 页 · 共 5 条");
 }
 
 #[test]

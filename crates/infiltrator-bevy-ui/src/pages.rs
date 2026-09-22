@@ -40,6 +40,7 @@ pub mod rules;
 pub mod rules_builder;
 pub mod rules_mrs;
 pub mod rules_tracer;
+pub mod rules_view;
 pub mod settings;
 pub mod sync;
 pub mod sync_merge;

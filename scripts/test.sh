@@ -81,6 +81,7 @@ python3 scripts/quality/speedtest-final-guard.py --mode enforce
 python3 scripts/quality/subscription-lifecycle-guard.py --mode enforce
 python3 scripts/quality/responsive-parity-guard.py --mode enforce
 python3 scripts/quality/connections-audit-guard.py --mode enforce
+python3 scripts/quality/rules-engine-guard.py --mode enforce
 
 nextest_mode=()
 if [[ $# -eq 1 ]]; then

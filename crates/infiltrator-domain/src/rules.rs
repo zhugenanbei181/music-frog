@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, HashSet};
 pub mod analyzer;
 pub mod tracer;
 pub mod types;
+pub mod view;
 
 pub type RuleProviders = BTreeMap<String, serde_json::Value>;
 

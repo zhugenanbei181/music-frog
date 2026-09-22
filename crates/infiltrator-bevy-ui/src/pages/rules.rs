@@ -28,11 +28,16 @@ use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::surface::surface_scene;
+use infiltrator_bevy_widgets::surface::{SurfacePanel, surface_scene};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
 use infiltrator_bevy_widgets::theme::space;
 
 use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::rules_view::{
+    RuleRow, RuleSearchField, RulesPageIndicator, RulesPageNextButton, RulesPagePrevButton,
+    RulesViewState,
+};
 use crate::route::{PageRoot, Route};
 
 /// Root marker on the Rules page scene.
@@ -119,6 +124,8 @@ pub struct RuleProviderItem {
     pub rule_count: usize,
     pub behavior: String,
     pub updated_at: String,
+    /// DUAL-11-04: source URL declared in the active profile, when known.
+    pub source_url: Option<String>,
 }
 
 /// Snapshot of the Rules domain.
@@ -132,6 +139,8 @@ pub struct RulesProjection {
     pub tracer: infiltrator_contract::rule_tracer::RuleTracerSnapshot,
     /// Shared rule hit-audit read model (hits, dead/shadowed rules, CIDR overlaps).
     pub hit_audit: infiltrator_contract::rule_tracer::RuleHitAuditSnapshot,
+    /// DUAL-11-03: shared MRS binary acceleration read model.
+    pub mrs_acceleration: infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
 }
 
 impl RulesProjection {
@@ -143,24 +152,35 @@ impl RulesProjection {
             hit_audit: infiltrator_contract::rule_tracer::RuleTracerSnapshot::demo_fixture()
                 .hit_audit,
             tracer: infiltrator_contract::rule_tracer::RuleTracerSnapshot::demo_fixture(),
+            mrs_acceleration:
+                infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot::demo_fixture(),
             providers: vec![
                 RuleProviderItem {
                     name: "geosite-geolocation-!cn".to_owned(),
                     rule_count: 1420,
                     behavior: "domain".to_owned(),
                     updated_at: "2026-09-02 06:00".to_owned(),
+                    source_url: Some(
+                        "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.mrs"
+                            .to_owned(),
+                    ),
                 },
                 RuleProviderItem {
                     name: "geoip-cn".to_owned(),
                     rule_count: 850,
                     behavior: "ipcidr".to_owned(),
                     updated_at: "2026-09-01 12:00".to_owned(),
+                    source_url: Some(
+                        "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs"
+                            .to_owned(),
+                    ),
                 },
                 RuleProviderItem {
                     name: "custom-reject-ads".to_owned(),
                     rule_count: 572,
                     behavior: "classical".to_owned(),
                     updated_at: "2026-08-30 18:30".to_owned(),
+                    source_url: None,
                 },
             ],
             rules: vec![
@@ -271,7 +291,7 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         Children [
             ( { header_card_scene(summary, default_action, hit_audit_line, palette) } ),
             ( { crate::pages::rules_tracer::rules_tracer_scene(palette, &projection.tracer) } ),
-            ( { crate::pages::rules_mrs::rules_mrs_scene(palette) } ),
+            ( { crate::pages::rules_mrs::rules_mrs_scene(palette, &projection.mrs_acceleration) } ),
             ( { crate::pages::rules_builder::rules_builder_scene(palette) } ),
             ( { providers_card_scene(provider_scenes, palette) } ),
             ( { rules_table_scene(rule_scenes, palette) } ),
@@ -402,7 +422,7 @@ fn provider_item_scene(
 ) -> impl Scene + use<> {
     let name = provider.name.clone();
     let count_info = format!("{} 条 ({})", provider.rule_count, provider.behavior);
-    let updated = format!("更新: {}", provider.updated_at);
+    let updated = provider_updated_label(provider);
 
     bsn! {
         Node {
@@ -442,6 +462,61 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                 Children [
                     ( Text({ "规则匹配序列表 (Rules Flow)".to_owned() }) TextRole(Role::BodyStrong) ),
                     ( Text({ "自上而下第一命中即生效".to_owned() }) TextRole(Role::Caption) ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(space::S8),
+                    padding: UiRect::bottom(Val::Px(space::S8)),
+                }
+                Children [
+                    (
+                        Node {
+                            flex_grow: 1.0,
+                            min_width: px(0.0),
+                        }
+                        RuleSearchField
+                        Children [
+                            ( { text_field_with_placeholder_scene(
+                                String::new(),
+                                "按匹配表达式/类型/目标即时搜索规则".to_owned(),
+                                palette,
+                            ) } ),
+                        ]
+                    ),
+                    (
+                        Node {
+                            min_height: px(palette.control_height_px),
+                            padding: UiRect::horizontal(Val::Px(space::S8)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.surface_elevated })
+                        Button
+                        RulesPagePrevButton
+                        Children [
+                            ( Text({ "上一页".to_owned() }) TextRole(Role::Caption) ),
+                        ]
+                    ),
+                    ( Text({ "第 1/1 页 · 共 0 条".to_owned() }) RulesPageIndicator TextRole(Role::Caption) ),
+                    (
+                        Node {
+                            min_height: px(palette.control_height_px),
+                            padding: UiRect::horizontal(Val::Px(space::S8)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.surface_elevated })
+                        Button
+                        RulesPageNextButton
+                        Children [
+                            ( Text({ "下一页".to_owned() }) TextRole(Role::Caption) ),
+                        ]
+                    ),
                 ]
             }),
             Box::new(bsn! {
@@ -488,6 +563,15 @@ pub(crate) fn rule_hit_label(rule: &RuleItem) -> String {
     }
 }
 
+/// DUAL-11-04: one provider's lifecycle line: update time plus the declared
+/// source URL (or an honest "not declared" for runtime-only providers).
+pub(crate) fn provider_updated_label(provider: &RuleProviderItem) -> String {
+    match provider.source_url.as_deref() {
+        Some(url) if !url.is_empty() => format!("更新: {} · 来源: {}", provider.updated_at, url),
+        _ => format!("更新: {} · 来源: 未声明", provider.updated_at),
+    }
+}
+
 fn rule_row_scene(idx: usize, rule: &RuleItem, palette: &UiPalette) -> impl Scene + use<> {
     let idx_str = format!("#{}", rule.id);
     let type_str = format!("[{}]", rule.rule_type);
@@ -495,39 +579,43 @@ fn rule_row_scene(idx: usize, rule: &RuleItem, palette: &UiPalette) -> impl Scen
     let proxy = rule.proxy.clone();
     let hits = rule_hit_label(rule);
 
-    surface_scene(
-        vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-            }
-            Children [
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
-                    }
-                    Children [
-                        ( Text(idx_str) TextRole(Role::Caption) ),
-                        ( Text(type_str) RuleTypeText(idx) TextRole(Role::BodyStrong) ),
-                        ( Text(payload) RulePayloadText(idx) TextRole(Role::Body) ),
-                    ]
-                ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
-                    }
-                    Children [
-                        ( Text(proxy) RuleProxyText(idx) TextRole(Role::Body) ),
-                        ( Text(hits) RuleHitText(idx) TextRole(Role::Caption) ),
-                    ]
-                ),
-            ]
-        })],
-        palette,
-    )
+    bsn! {
+        Node {
+            width: percent(100),
+            min_width: px(0.0),
+            max_width: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect::all(Val::Px(space::S16)),
+            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+        }
+        BackgroundColor({ palette.surface })
+        SurfacePanel
+        RuleRow(idx)
+        Children [
+            (
+                Node {
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(space::S12),
+                }
+                Children [
+                    ( Text(idx_str) TextRole(Role::Caption) ),
+                    ( Text(type_str) RuleTypeText(idx) TextRole(Role::BodyStrong) ),
+                    ( Text(payload) RulePayloadText(idx) TextRole(Role::Body) ),
+                ]
+            ),
+            (
+                Node {
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(space::S12),
+                }
+                Children [
+                    ( Text(proxy) RuleProxyText(idx) TextRole(Role::Body) ),
+                    ( Text(hits) RuleHitText(idx) TextRole(Role::Caption) ),
+                ]
+            ),
+        ]
+    }
 }
 
 // ---- Observer & Update Hook -----------------------------------------------
@@ -541,7 +629,11 @@ fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     // DUAL-12-08: the tracer reverse-apply observer reads the last projection,
     // so the store must exist from the moment the page is bound.
     commands.insert_resource(LastRulesProjection::default());
+    // DUAL-11-13: the shared page cursor for the keyword search + pagination.
+    commands.insert_resource(RulesViewState::default());
     commands.add_observer(apply_rules_projection);
+    commands.add_observer(crate::pages::rules_view::on_rules_paging_activated);
+    commands.add_observer(crate::pages::rules_mrs::apply_mrs_projection);
     commands.add_observer(crate::pages::rules_tracer::apply_tracer_projection);
     commands.add_observer(crate::pages::rules_tracer::on_tracer_action_activated);
     commands.add_observer(crate::pages::rules_tracer::on_tracer_override_activated);
@@ -756,7 +848,7 @@ pub(crate) fn apply_rules_projection(
 
     for (mut text, marker) in &mut provider_updates {
         if let Some(provider) = projection.providers.get(marker.0) {
-            let want = format!("更新: {}", provider.updated_at);
+            let want = provider_updated_label(provider);
             if text.0 != want {
                 text.0 = want;
             }
