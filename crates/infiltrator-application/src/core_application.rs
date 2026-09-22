@@ -820,6 +820,8 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::MoveRule { .. } => "move_rule",
         CommandIntent::AddCustomRule { .. } => "add_custom_rule",
         CommandIntent::ApplyGameRoutingPresets { .. } => "apply_game_routing_presets",
+        CommandIntent::UpgradeGeoDatabases => "upgrade_geo_databases",
+        CommandIntent::ApplyRulesJsonDocument { .. } => "apply_rules_json_document",
         CommandIntent::SaveSubscriptionFilter { .. } => "save_subscription_filter",
         CommandIntent::ImportSubscription { .. } => "import_subscription",
         CommandIntent::PreviewProfileAggregation { .. } => "preview_profile_aggregation",

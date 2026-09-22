@@ -270,6 +270,7 @@ fn rules_page_in_place_update() {
         truncated_rule_count: None,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
+        json_documents: Vec::new(),
     };
 
     app.world_mut()

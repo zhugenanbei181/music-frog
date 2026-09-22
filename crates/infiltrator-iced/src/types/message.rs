@@ -5,10 +5,11 @@ use super::app::{
     ConfirmAction, CoreDownloadProgress, Route, SyncProgress, SyncSummary, ToastStatus,
 };
 use super::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
-use super::rules::{RulesJsonTab, RulesLoadBundle, RulesTab};
+use super::rules::RulesLoadBundle;
 use super::runtime::{IpProbeResult, RuntimeConfig, RuntimeStreamKind, RuntimeStreamState};
 use iced::{widget::text_editor, window};
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::subscription_import::{
     SubscriptionBatchReport, SubscriptionUpdateReport,
@@ -193,11 +194,18 @@ pub enum Message {
     RulesBundleLoaded(Result<RulesLoadBundle, InfiltratorError>),
     RulesLoaded(Result<Vec<RuleEntry>, InfiltratorError>),
     SetRulesTab(RulesTab),
-    SetRulesJsonTab(RulesJsonTab),
+    SetRulesJsonTab(RulesJsonSection),
     ToggleRulesProvidersExpanded,
     RulesPrevPage,
     RulesNextPage,
     RulesSetPage(usize),
+    /// DUAL-11-08: the rules list viewport moved. `offset_px` is the absolute
+    /// scroll offset and `viewport_px` the measured viewport height reported
+    /// by the scrollable; both drive the shared render window.
+    RulesListScrolled {
+        offset_px: f32,
+        viewport_px: f32,
+    },
     EnsureRuleProvidersEditorLoaded,
     EnsureProxyProvidersEditorLoaded,
     EnsureSnifferEditorLoaded,

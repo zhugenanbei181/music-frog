@@ -177,6 +177,10 @@ pub enum UiCommand {
     },
     /// DUAL-11-12: prepend the built-in game-routing presets for a target.
     ApplyGameRoutingPresets { target: String },
+    /// DUAL-11-14: trigger the kernel's GeoIP/GeoSite database upgrade.
+    UpgradeGeoDatabases,
+    /// DUAL-11-14: replace one rules-workspace JSON document.
+    ApplyRulesJsonDocument { section: infiltrator_contract::rules_workspace::RulesJsonSection, json: String },
     /// DUAL-12-10: set the simulated sandbox source IP the tracer replays.
     SetRuleTracerContext { src_ip: Option<String> },
     /// Re-run the shared rule tracer for a target query.
@@ -482,6 +486,13 @@ impl UiCommand {
             Self::ApplyGameRoutingPresets { target } => {
                 Some(CommandIntent::ApplyGameRoutingPresets {
                     target: target.clone(),
+                })
+            }
+            Self::UpgradeGeoDatabases => Some(CommandIntent::UpgradeGeoDatabases),
+            Self::ApplyRulesJsonDocument { section, json } => {
+                Some(CommandIntent::ApplyRulesJsonDocument {
+                    section: *section,
+                    json: json.clone(),
                 })
             }
             Self::SetRuleTracerContext { src_ip } => Some(CommandIntent::SetRuleTracerContext {

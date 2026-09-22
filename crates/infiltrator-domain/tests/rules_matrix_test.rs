@@ -246,6 +246,7 @@ fn matrix_11_08_search_and_pagination_reduce_in_shared_view() {
         total_hits: 0,
         rule_publish_limit: view::RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
+        json_documents: Vec::new(),
     };
     assert_eq!(snapshot.omitted_rule_count(), 50_000);
     assert!(snapshot.is_truncated());
@@ -259,6 +260,33 @@ fn matrix_11_08_search_and_pagination_reduce_in_shared_view() {
     };
     assert!(!complete.is_truncated());
     assert_eq!(complete.omitted_rule_count(), 0);
+
+    // DUAL-11-08: the rendered view is a real virtual window — bounded by the
+    // viewport, sliding with the scroll offset, and never one row per entry.
+    let viewport = view::RULE_DEFAULT_VIEWPORT_PX;
+    let bound = view::rendered_row_bound(viewport);
+    for offset in [0.0, 5_000.0, 1.0e9, f32::NAN] {
+        let window = view::rule_window(offset, viewport, 50_000);
+        assert!(window.rendered_rows() <= bound, "offset {offset}");
+        assert_eq!(
+            window.top_spacer_px
+                + window.rendered_rows() as f32 * view::RULE_ROW_HEIGHT_PX
+                + window.bottom_spacer_px,
+            window.content_height_px
+        );
+    }
+    let middle = view::rule_window(view::rule_scroll_offset_for_index(25_000), viewport, 50_000);
+    assert_eq!(middle.start + view::RULE_WINDOW_OVERSCAN, 25_000);
+    assert!(middle.contains(25_000));
+    // The offset->index projection is unclamped by design; the window clamps
+    // it to the list, so scrolling past the end still renders the last rows.
+    assert_eq!(
+        view::rule_index_at_scroll_offset(view::rule_scroll_offset_for_index(25_000)),
+        25_000
+    );
+    let past_end = view::rule_window(1.0e9, viewport, 50_000);
+    assert!(past_end.contains(49_999));
+    assert_eq!(past_end.bottom_spacer_px, 0.0);
 }
 
 /// DUAL-11-09/10/11/12: toggle, reorder, wizard and presets are shared edits.

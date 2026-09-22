@@ -790,6 +790,44 @@ struct RulesTracerReplay<'a> {
     proxies: Option<&'a HashMap<String, Proxy>>,
 }
 
+/// DUAL-11-14: serialise the rules-workspace documents the shared reader
+/// publishes. Pure over the loaded sections, so a section the host cannot read
+/// (`None`) is omitted rather than published as an empty document.
+fn rules_json_documents(
+    rule_providers: Option<infiltrator_domain::rules::RuleProviders>,
+    proxy_providers: Option<infiltrator_domain::proxy_providers::ProxyProviders>,
+    sniffer: Option<serde_json::Value>,
+) -> Vec<infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot> {
+    use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
+
+    let mut documents = Vec::new();
+    if let Some(providers) = rule_providers
+        && let Ok(json) = serde_json::to_string_pretty(&providers)
+    {
+        documents.push(RulesJsonDocumentSnapshot {
+            section: RulesJsonSection::RuleProviders,
+            json,
+        });
+    }
+    if let Some(providers) = proxy_providers
+        && let Ok(json) = serde_json::to_string_pretty(&providers)
+    {
+        documents.push(RulesJsonDocumentSnapshot {
+            section: RulesJsonSection::ProxyProviders,
+            json,
+        });
+    }
+    if let Some(config) = sniffer
+        && let Ok(json) = serde_json::to_string_pretty(&config)
+    {
+        documents.push(RulesJsonDocumentSnapshot {
+            section: RulesJsonSection::Sniffer,
+            json,
+        });
+    }
+    documents
+}
+
 async fn build_rules_page(
     configuration: Option<&ConfigurationApplication>,
     runtime_providers: Option<Result<Vec<infiltrator_domain::runtime::RuleProvider>, PortError>>,
@@ -856,6 +894,16 @@ async fn build_rules_page(
         None => Vec::new(),
     };
 
+    // DUAL-11-14: publish the same JSON documents the Iced editors load, so
+    // the Bevy JSON partition edits the identical text through the shared
+    // `ApplyRulesJsonDocument` use-case. A section that cannot be read is
+    // omitted instead of being published as a fabricated document.
+    let json_documents = rules_json_documents(
+        configuration.load_rule_providers().await.ok(),
+        configuration.load_proxy_providers().await.ok(),
+        configuration.load_sniffer_config().await.ok(),
+    );
+
     let shadow_warnings = infiltrator_domain::rules::analyzer::find_shadowed_rules(&rules);
     let shadow_map: HashMap<usize, &infiltrator_domain::rules::analyzer::ShadowedRuleWarning> =
         shadow_warnings.iter().map(|w| (w.index, w)).collect();
@@ -892,6 +940,7 @@ async fn build_rules_page(
         total_hits,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
         provider_cache,
+        json_documents,
     };
     if total_rules == 0 {
         surface_snapshot::PageData::empty(data)

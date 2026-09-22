@@ -7,13 +7,13 @@ use crate::state::AppState;
 use crate::types::app::{ConfirmAction, CoreDownloadProgress, Route, SyncProgress};
 use crate::types::dns::DnsTab;
 use crate::types::message::Message;
-use crate::types::rules::{RulesJsonTab, RulesTab};
 use crate::types::runtime::{
     IpProbeResult, RuntimePatchSnapshot, RuntimeStatus, RuntimeStreamKind, RuntimeStreamState,
 };
 use crate::types::runtime::{RebuildFlowState, RuntimeConfig};
 use iced::widget::text_editor;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::TrafficData;
@@ -351,8 +351,8 @@ fn test_tab_state_switches() {
     assert_eq!(state.editor.rules_tab, RulesTab::JsonEditors);
     assert_eq!(state.editor.rules_page, 0);
 
-    let _ = state.update(Message::SetRulesJsonTab(RulesJsonTab::Sniffer));
-    assert_eq!(state.editor.rules_json_tab, RulesJsonTab::Sniffer);
+    let _ = state.update(Message::SetRulesJsonTab(RulesJsonSection::Sniffer));
+    assert_eq!(state.editor.rules_json_tab, RulesJsonSection::Sniffer);
 
     let _ = state.update(Message::SetDnsTab(DnsTab::Tun));
     assert_eq!(state.editor.dns_tab, DnsTab::Tun);

@@ -62,7 +62,24 @@ fn test_rules_filter_and_pagination_delegate_to_shared_reduction() {
         (2, 4)
     );
     assert_eq!(state.editor.rules_page, 1);
-    assert_eq!(state.diag.perf_snapshot.rules_visible_rows, 2);
+    // DUAL-11-08: the visible rows are the shared window at the page's scroll
+    // offset, not the whole page slice; the count is bounded by the viewport.
+    assert_eq!(
+        state.editor.rules_scroll_offset_px,
+        infiltrator_domain::rules::view::rule_scroll_offset_for_index(2)
+    );
+    assert_eq!(
+        state.editor.rules_page,
+        crate::view::rules_window::rules_window_page(&state)
+    );
+    assert_eq!(
+        state.diag.perf_snapshot.rules_visible_rows,
+        crate::view::rules_window::rendered_rule_rows(&state)
+    );
+    assert!(
+        state.diag.perf_snapshot.rules_visible_rows
+            <= infiltrator_domain::rules::view::rendered_row_bound(state.editor.rules_viewport_px)
+    );
 
     // Forward paging stops at the shared last page; a stale page clamps back.
     let _ = state.update(Message::RulesNextPage);
@@ -78,6 +95,147 @@ fn test_rules_filter_and_pagination_delegate_to_shared_reduction() {
     let _ = state.update(Message::FilterRules("site4".into()));
     assert_eq!(state.editor.rules_page, 0);
     assert_eq!(state.editor.rules_filtered_indices.len(), 1);
+}
+
+#[test]
+fn test_rules_virtual_window_renders_bounded_rows_for_50k_list() {
+    use infiltrator_domain::rules::view;
+
+    let (mut state, _) = AppState::new();
+    let rules: Vec<RuleEntry> = (0..50_000)
+        .map(|i| RuleEntry {
+            rule: format!("DOMAIN,host-{i}.example,DIRECT"),
+            enabled: true,
+        })
+        .collect();
+    let _ = state.update(Message::RulesLoaded(Ok(rules)));
+    assert_eq!(state.editor.rules_render_cache.len(), 50_000);
+
+    let viewport = view::RULE_DEFAULT_VIEWPORT_PX;
+    let bound = view::rendered_row_bound(viewport);
+    // The render list is a window, and a 50,000-entry list renders no more
+    // rows than the bound derived from the viewport alone.
+    assert!(
+        crate::view::rules_window::rendered_rule_rows(&state) <= bound,
+        "50k list must render a bounded window"
+    );
+    assert_eq!(
+        state.diag.perf_snapshot.rules_visible_rows,
+        crate::view::rules_window::rendered_rule_rows(&state),
+        "the published perf fact is the real rendered-row count"
+    );
+
+    // Scrolling to the middle slides the window without growing it, and the
+    // rendered band starts where the shared window says it does.
+    let offset = view::rule_scroll_offset_for_index(25_000);
+    let _ = state.update(Message::RulesListScrolled {
+        offset_px: offset,
+        viewport_px: viewport,
+    });
+    let window = crate::view::rules_window::rules_window(&state);
+    assert_eq!(window.start + view::RULE_WINDOW_OVERSCAN, 25_000);
+    assert!(window.contains(25_000));
+    assert_eq!(
+        crate::view::rules_window::rendered_rule_rows(&state),
+        window.rendered_rows()
+    );
+    assert!(crate::view::rules_window::rendered_rule_rows(&state) <= bound);
+    assert_eq!(
+        crate::view::rules_window::rules_window_page(&state),
+        25_000 / view::DEFAULT_RULE_PAGE_SIZE
+    );
+    let rendered = crate::view::rules_window::visible_rule_items(&state);
+    assert!(
+        rendered
+            .iter()
+            .all(|index| *index >= 25_000 - view::RULE_WINDOW_OVERSCAN)
+    );
+    assert!(rendered.iter().all(|index| *index < 25_000 + bound));
+
+    // Paging is a scroll jump to the shared page's first row; the window
+    // follows the offset through the same shared reduction.
+    let (page_start, _) = view::page_bounds(3, 50_000, view::DEFAULT_RULE_PAGE_SIZE);
+    let _ = state.update(Message::RulesSetPage(3));
+    assert_eq!(
+        state.editor.rules_scroll_offset_px,
+        view::rule_scroll_offset_for_index(page_start)
+    );
+    assert_eq!(crate::view::rules_window::rules_window_page(&state), 3);
+    assert!(crate::view::rules_window::rendered_rule_rows(&state) <= bound);
+
+    // A measured viewport replaces the declared fallback and tightens the
+    // bound; a short viewport still renders at least one row band.
+    let _ = state.update(Message::RulesListScrolled {
+        offset_px: 0.0,
+        viewport_px: 112.0,
+    });
+    assert_eq!(state.editor.rules_viewport_px, 112.0);
+    let small_bound = view::rendered_row_bound(112.0);
+    assert!(small_bound < bound);
+    assert!(crate::view::rules_window::rendered_rule_rows(&state) <= small_bound);
+    assert!(crate::view::rules_window::rendered_rule_rows(&state) > 0);
+}
+
+#[test]
+fn test_rules_workspace_partitions_delegate_to_shared_vocabulary() {
+    use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
+    use infiltrator_shared::locales::{Lang, Localizer};
+
+    let (mut state, _) = AppState::new();
+    // The default partition is the shared default, not a surface literal.
+    assert_eq!(state.editor.rules_tab, RulesTab::default());
+    assert_eq!(state.editor.rules_json_tab, RulesJsonSection::default());
+    assert_eq!(RulesTab::default(), RulesTab::List);
+    assert_eq!(RulesJsonSection::default(), RulesJsonSection::RuleProviders);
+
+    // Every shared partition is selectable through the shared enum and keeps
+    // its shared identity.
+    for tab in RulesTab::ALL {
+        let _ = state.update(Message::SetRulesTab(tab));
+        assert_eq!(state.editor.rules_tab, tab);
+        assert_eq!(RulesTab::from_index(tab.index()), tab);
+    }
+    for section in RulesJsonSection::ALL {
+        let _ = state.update(Message::SetRulesJsonTab(section));
+        assert_eq!(state.editor.rules_json_tab, section);
+        assert_eq!(RulesJsonSection::from_index(section.index()), section);
+    }
+
+    // Every shared label key resolves in both language tables: a partition
+    // cannot exist with a label the Iced surface cannot render.
+    for lang in [Lang("zh-CN"), Lang("en")] {
+        for tab in RulesTab::ALL {
+            assert_ne!(lang.tr(tab.i18n_key()).as_ref(), tab.i18n_key(), "{tab:?}");
+        }
+        for section in RulesJsonSection::ALL {
+            assert_ne!(
+                lang.tr(section.i18n_key()).as_ref(),
+                section.i18n_key(),
+                "{section:?}"
+            );
+            assert_ne!(
+                lang.tr(section.save_i18n_key()).as_ref(),
+                section.save_i18n_key(),
+                "{section:?}"
+            );
+        }
+    }
+
+    // DUAL-11-14: the Geo database entry point both surfaces expose is the
+    // shared command vocabulary (Iced drives the same gateway call the
+    // application performs for the Bevy intent).
+    assert_eq!(
+        infiltrator_contract::command::CommandIntent::UpgradeGeoDatabases.kind(),
+        infiltrator_contract::command::CommandKind::Runtime
+    );
+    assert_eq!(
+        infiltrator_contract::command::CommandIntent::ApplyRulesJsonDocument {
+            section: RulesJsonSection::Sniffer,
+            json: "{}".to_owned(),
+        }
+        .kind(),
+        infiltrator_contract::command::CommandKind::Profile
+    );
 }
 
 #[test]
@@ -609,6 +767,7 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
         total_hits: 0,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
+        json_documents: Vec::new(),
     });
     assert!(state.apply_shared_surface_snapshot(snapshot));
 
@@ -646,6 +805,7 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
         total_hits: 0,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
+        json_documents: Vec::new(),
     });
     assert!(state.apply_shared_surface_snapshot(complete));
     assert_eq!(state.editor.rule_publish_omitted, None);

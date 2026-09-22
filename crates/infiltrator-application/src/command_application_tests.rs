@@ -126,6 +126,133 @@ impl ProfileStore for FakeStore {
 const THREE_RULES: &str =
     "rules:\n  - DOMAIN,a.com,DIRECT\n  - DOMAIN,b.com,PROXY\n  - MATCH,DIRECT\n";
 
+/// Minimal runtime gateway that records the Geo database upgrade trigger. All
+/// other operations are the honest no-ops of a gateway that is not the subject
+/// of these tests.
+#[derive(Default)]
+struct RecordingGeoGateway {
+    geo_upgrades: std::sync::atomic::AtomicUsize,
+}
+
+impl RecordingGeoGateway {
+    fn geo_upgrades(&self) -> usize {
+        self.geo_upgrades.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+#[async_trait]
+impl infiltrator_ports::runtime_gateway::RuntimeGateway for RecordingGeoGateway {
+    async fn get_config(&self) -> Result<infiltrator_domain::runtime::ConfigSnapshot, PortError> {
+        Ok(infiltrator_domain::runtime::ConfigSnapshot::default())
+    }
+
+    async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn set_proxy_mode(
+        &self,
+        _mode: infiltrator_contract::command::ProxyMode,
+    ) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn get_proxies(
+        &self,
+    ) -> Result<std::collections::HashMap<String, infiltrator_domain::proxy::Proxy>, PortError>
+    {
+        Ok(std::collections::HashMap::new())
+    }
+
+    async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn test_delay(
+        &self,
+        _proxy: &str,
+        _url: &str,
+        _timeout_ms: u32,
+    ) -> Result<u32, PortError> {
+        Ok(1)
+    }
+
+    async fn get_proxy_providers(
+        &self,
+    ) -> Result<Vec<infiltrator_domain::runtime::ProxyProvider>, PortError> {
+        Ok(Vec::new())
+    }
+
+    async fn get_rule_providers(
+        &self,
+    ) -> Result<Vec<infiltrator_domain::runtime::RuleProvider>, PortError> {
+        Ok(Vec::new())
+    }
+
+    async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn upgrade_geo(&self) -> Result<(), PortError> {
+        self.geo_upgrades
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn get_connections(
+        &self,
+    ) -> Result<infiltrator_domain::runtime::ConnectionSnapshot, PortError> {
+        Ok(infiltrator_domain::runtime::ConnectionSnapshot::default())
+    }
+
+    async fn get_memory(&self) -> Result<infiltrator_domain::runtime::MemoryData, PortError> {
+        Ok(infiltrator_domain::runtime::MemoryData::default())
+    }
+
+    async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn close_all_connections(&self) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn stream_logs(
+        &self,
+        _level: Option<String>,
+    ) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<String>, PortError> {
+        Err(PortError::Failed("not implemented".into()))
+    }
+
+    async fn stream_traffic(
+        &self,
+    ) -> Result<
+        infiltrator_ports::runtime_gateway::RuntimeStream<infiltrator_domain::runtime::TrafficData>,
+        PortError,
+    > {
+        Err(PortError::Failed("not implemented".into()))
+    }
+
+    async fn stream_connections(
+        &self,
+    ) -> Result<
+        infiltrator_ports::runtime_gateway::RuntimeStream<
+            infiltrator_domain::runtime::ConnectionSnapshot,
+        >,
+        PortError,
+    > {
+        Err(PortError::Failed("not implemented".into()))
+    }
+}
+
 fn application(store: &Arc<FakeStore>) -> CommandApplication {
     CommandApplication::new().with_profile(ProfileApplication::new(
         Arc::clone(store) as Arc<dyn ProfileStore>
@@ -515,6 +642,125 @@ async fn unpack_rule_provider_imports_real_payload_and_rejects_unknown() {
         .await
         .expect_err("empty provider name");
     assert_eq!(failure.code, ErrorCode::InvalidInput);
+}
+
+/// DUAL-11-14: the rules-workspace JSON partition submits one document and the
+/// shared configuration use-case validates and persists it; a malformed or
+/// empty document is a typed input error that leaves the profile untouched.
+#[tokio::test]
+async fn apply_rules_json_document_validates_and_persists_each_section() {
+    use infiltrator_contract::rules_workspace::RulesJsonSection;
+
+    let store = Arc::new(FakeStore::with_profile(THREE_RULES));
+    let configured = application(&store).with_configuration(ConfigurationApplication::new(
+        Arc::clone(&store) as Arc<dyn ProfileStore>,
+    ));
+
+    // Rule providers: a valid document is written into the profile section.
+    configured
+        .execute(CommandIntent::ApplyRulesJsonDocument {
+            section: RulesJsonSection::RuleProviders,
+            json: r#"{"ads":{"type":"inline","behavior":"domain","payload":["ads.com"]}}"#
+                .to_owned(),
+        })
+        .await
+        .expect("rule providers document");
+    let providers = configured
+        .configuration()
+        .expect("configuration")
+        .load_rule_providers()
+        .await
+        .expect("reload providers");
+    assert_eq!(providers.len(), 1);
+    assert!(providers.contains_key("ads"));
+
+    // Proxy providers and sniffer go through their own shared use-cases.
+    configured
+        .execute(CommandIntent::ApplyRulesJsonDocument {
+            section: RulesJsonSection::ProxyProviders,
+            json: r#"{"sub":{"type":"http","url":"https://example.com/proxies.yaml","interval":3600}}"#
+                .to_owned(),
+        })
+        .await
+        .expect("proxy providers document");
+    configured
+        .execute(CommandIntent::ApplyRulesJsonDocument {
+            section: RulesJsonSection::Sniffer,
+            json: r#"{"enable":true}"#.to_owned(),
+        })
+        .await
+        .expect("sniffer document");
+    let sniffer = configured
+        .configuration()
+        .expect("configuration")
+        .load_sniffer_config()
+        .await
+        .expect("reload sniffer");
+    assert_eq!(
+        sniffer.get("enable").and_then(|value| value.as_bool()),
+        Some(true)
+    );
+
+    // The rule list the same profile carries is untouched by the JSON writes.
+    let rules = infiltrator_domain::rules::load_rules_from_yaml(&store.content()).expect("parse");
+    assert_eq!(rules.len(), 3);
+
+    // A malformed document never reaches the profile.
+    let before = store.content();
+    let failure = configured
+        .execute(CommandIntent::ApplyRulesJsonDocument {
+            section: RulesJsonSection::RuleProviders,
+            json: "{not json".to_owned(),
+        })
+        .await
+        .expect_err("malformed document");
+    assert_eq!(failure.code, ErrorCode::InvalidInput);
+    assert_eq!(store.content(), before, "the profile is untouched");
+
+    // An empty document is refused before any write.
+    let failure = configured
+        .execute(CommandIntent::ApplyRulesJsonDocument {
+            section: RulesJsonSection::Sniffer,
+            json: "   ".to_owned(),
+        })
+        .await
+        .expect_err("empty document");
+    assert_eq!(failure.code, ErrorCode::InvalidInput);
+
+    // A host without the configuration application is a typed unsupported.
+    let hostless = application(&store);
+    let failure = hostless
+        .execute(CommandIntent::ApplyRulesJsonDocument {
+            section: RulesJsonSection::Sniffer,
+            json: "{}".to_owned(),
+        })
+        .await
+        .expect_err("no configuration application");
+    assert!(
+        failure.message.contains("configuration application"),
+        "{failure:?}"
+    );
+}
+
+/// DUAL-11-14: the Geo database upgrade is the shared runtime-gateway call;
+/// without a gateway the intent is a typed unsupported, never a fake success.
+#[tokio::test]
+async fn upgrade_geo_databases_requires_the_runtime_gateway() {
+    let store = Arc::new(FakeStore::with_profile(THREE_RULES));
+    let hostless = application(&store);
+    let failure = hostless
+        .execute(CommandIntent::UpgradeGeoDatabases)
+        .await
+        .expect_err("no runtime gateway");
+    assert!(failure.message.contains("runtime gateway"), "{failure:?}");
+
+    let gateway = Arc::new(RecordingGeoGateway::default());
+    let with_gateway = application(&store).with_runtime(gateway.clone());
+    with_gateway
+        .execute(CommandIntent::UpgradeGeoDatabases)
+        .await
+        .expect("geo upgrade");
+    assert_eq!(gateway.geo_upgrades(), 1);
 }
 
 /// DUAL-11-07: the purge command only reports what the injected host port

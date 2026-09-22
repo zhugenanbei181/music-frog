@@ -422,3 +422,64 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
         infiltrator_contract::version::CoreChannelStatus::Ready { .. }
     )));
 }
+
+/// DUAL-11-14: the shared reader publishes the three rules-workspace JSON
+/// documents, in the shared section order, and omits a section the host cannot
+/// read instead of publishing an empty document for it.
+#[test]
+fn rules_json_documents_cover_the_shared_sections_and_omit_unreadable_ones() {
+    use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
+
+    let rule_providers: infiltrator_domain::rules::RuleProviders =
+        serde_json::from_value(serde_json::json!({
+            "ads": {"type": "inline", "behavior": "domain", "payload": ["ads.com"]}
+        }))
+        .expect("rule providers");
+    let proxy_providers: infiltrator_domain::proxy_providers::ProxyProviders =
+        serde_json::from_value(serde_json::json!({
+            "sub": {"type": "http", "url": "https://example.com/proxies.yaml"}
+        }))
+        .expect("proxy providers");
+    let sniffer = serde_json::json!({"enable": true});
+
+    let documents = super::rules_json_documents(
+        Some(rule_providers.clone()),
+        Some(proxy_providers.clone()),
+        Some(sniffer.clone()),
+    );
+    assert_eq!(documents.len(), RulesJsonSection::ALL.len());
+    assert_eq!(
+        documents
+            .iter()
+            .map(|document| document.section)
+            .collect::<Vec<_>>(),
+        RulesJsonSection::ALL.to_vec()
+    );
+
+    // Each document round-trips back to the value it was serialised from, so
+    // the Bevy editor edits exactly the text the shared application owns.
+    for document in &documents {
+        let value: serde_json::Value =
+            serde_json::from_str(&document.json).expect("document is valid JSON");
+        match document.section {
+            RulesJsonSection::RuleProviders => {
+                assert_eq!(value, serde_json::to_value(&rule_providers).unwrap());
+            }
+            RulesJsonSection::ProxyProviders => {
+                assert_eq!(value, serde_json::to_value(&proxy_providers).unwrap());
+            }
+            RulesJsonSection::Sniffer => assert_eq!(value, sniffer),
+        }
+    }
+
+    // A section the host cannot read is omitted, not fabricated.
+    let partial = super::rules_json_documents(None, None, Some(sniffer));
+    assert_eq!(
+        partial,
+        vec![RulesJsonDocumentSnapshot {
+            section: RulesJsonSection::Sniffer,
+            json: partial[0].json.clone(),
+        }]
+    );
+    assert!(partial[0].json.contains("enable"));
+}

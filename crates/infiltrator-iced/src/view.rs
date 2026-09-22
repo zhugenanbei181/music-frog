@@ -31,6 +31,7 @@ pub mod proxies;
 pub mod rule_hit_card;
 pub mod rules;
 pub mod rules_tracer;
+pub mod rules_window;
 pub mod runtime;
 pub mod script_console;
 pub mod settings;

@@ -12,6 +12,7 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::ui::Checked;
+use bevy::ui::ScrollPosition;
 use bevy::ui::prelude::{Display, Node};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
@@ -69,7 +70,8 @@ use infiltrator_bevy_ui::pages::rules_tracer::{
     TracerQueryField, TracerSourceIpField,
 };
 use infiltrator_bevy_ui::pages::rules_view::{
-    RuleRow, RuleSearchField, RulesPageIndicator, RulesViewState,
+    RuleRow, RuleSearchField, RulesListScrollArea, RulesPageIndicator, RulesPageNextButton,
+    RulesViewState, RulesWindowRows,
 };
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
@@ -1380,6 +1382,7 @@ fn test_rules_empty_and_edge_case_projection() {
         truncated_rule_count: None,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
+        json_documents: Vec::new(),
     };
     app.world_mut()
         .commands()
@@ -1832,35 +1835,86 @@ fn test_rules_provider_lifecycle_renders_shared_source_url() {
     assert!(subtree_has_text(app.world(), root, "自动刷新: 未声明"));
 }
 
-#[test]
-fn test_rules_search_hides_non_matching_rows() {
-    let sink = Arc::new(DemoCommandSink::accepting());
-    let mut app = setup_matrix_a_app(sink);
-    navigate_to(&mut app, Route::Rules);
+/// A projection with `total` generated rules, for window/paging tests.
+fn rules_projection_with(total: usize) -> RulesProjection {
+    let mut projection = RulesProjection::demo();
+    projection.total_rules = total;
+    projection.rules = (0..total)
+        .map(|index| RuleItem {
+            id: index + 1,
+            rule_type: "DOMAIN".to_owned(),
+            payload: format!("host-{index}.example"),
+            proxy: "DIRECT".to_owned(),
+            hit_count: 0,
+            is_enabled: true,
+            last_hit_secs: None,
+            is_shadowed: false,
+            shadow_reason: None,
+        })
+        .collect();
+    projection
+}
 
-    let field_entity = app
-        .world_mut()
+/// The mounted rules keyword field (the wrapper's text-field child).
+fn rules_search_field(app: &mut App) -> Entity {
+    app.world_mut()
         .query_filtered::<&Children, bevy::ecs::query::With<RuleSearchField>>()
         .single(app.world())
         .expect("search field wrapper")
         .iter()
         .copied()
         .find(|child| app.world().get::<TextField>(*child).is_some())
-        .expect("search text field");
+        .expect("search text field")
+}
+
+fn mounted_rule_rows(app: &mut App) -> Vec<usize> {
+    let mut rows = app.world_mut().query::<&RuleRow>();
+    let mut indices: Vec<usize> = rows.iter(app.world()).map(|row| row.0).collect();
+    indices.sort_unstable();
+    indices
+}
+
+#[test]
+fn test_rules_search_hides_non_matching_rows() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    navigate_to(&mut app, Route::Rules);
+
+    // DUAL-11-08/13: a 1,000-rule projection only ever mounts the window; the
+    // keyword filter mounts only the rows that match it.
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(rules_projection_with(1_000)));
+    app.update();
+    let window = app.world().resource::<RulesViewState>().rendered_rows;
+    assert!(window > 0 && window < 1_000);
+    assert_eq!(mounted_rule_rows(&mut app).len(), window);
+
+    let field_entity = rules_search_field(&mut app);
     app.world_mut()
         .get_mut::<TextField>(field_entity)
         .expect("text field")
-        .0 = TextFieldState::new("github");
+        .0 = TextFieldState::new("host-42.example");
     app.update();
 
-    // DUAL-11-13: demo row #1 is DOMAIN-KEYWORD,github; the rest are hidden.
-    let mut rows = app.world_mut().query::<(&Node, &RuleRow)>();
-    let displays: Vec<(usize, Display)> = rows
-        .iter(app.world())
-        .map(|(node, row)| (row.0, node.display))
-        .collect();
-    assert!(displays.contains(&(1, Display::Flex)));
-    assert!(displays.contains(&(0, Display::None)));
+    // The matching row is mounted; nothing else is. The demo row #1 is not
+    // part of this projection at all.
+    let rows = mounted_rule_rows(&mut app);
+    assert_eq!(rows, vec![42]);
+    let container = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<RulesWindowRows>>()
+        .single(app.world())
+        .expect("window rows container");
+    assert!(subtree_has_text(app.world(), container, "host-42.example"));
+
+    // A keyword that matches nothing mounts no rows and says so.
+    app.world_mut()
+        .get_mut::<TextField>(field_entity)
+        .expect("text field")
+        .0 = TextFieldState::new("no-such-host");
+    app.update();
+    assert!(mounted_rule_rows(&mut app).is_empty());
 }
 
 #[test]
@@ -1869,22 +1923,46 @@ fn test_rules_pagination_hides_rows_outside_page() {
     let mut app = setup_matrix_a_app(sink);
     navigate_to(&mut app, Route::Rules);
 
-    {
-        let mut view = app.world_mut().resource_mut::<RulesViewState>();
-        view.page_size = 2;
-        view.page = 1;
-    }
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(rules_projection_with(1_000)));
     app.update();
 
-    // DUAL-11-13: page 2 of size 2 over 5 demo rules shows indices 2 and 3.
-    let mut rows = app.world_mut().query::<(&Node, &RuleRow)>();
-    let displays: Vec<(usize, Display)> = rows
-        .iter(app.world())
-        .map(|(node, row)| (row.0, node.display))
-        .collect();
-    assert!(displays.contains(&(2, Display::Flex)));
-    assert!(displays.contains(&(3, Display::Flex)));
-    assert!(displays.contains(&(0, Display::None)));
+    {
+        let mut view = app.world_mut().resource_mut::<RulesViewState>();
+        view.page_size = 200;
+        view.page = 4;
+    }
+    // The paging buttons move the viewport: page 5 of size 200 starts at row
+    // 800, and the window follows that offset instead of hiding rows in place.
+    let next = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<RulesPageNextButton>>()
+        .single(app.world())
+        .expect("next page button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: next });
+    app.update();
+
+    let rows = mounted_rule_rows(&mut app);
+    let bound = infiltrator_domain::rules::view::rendered_row_bound(
+        RulesViewState::default().viewport_height_px,
+    );
+    assert!(!rows.is_empty() && rows.len() <= bound);
+    assert_eq!(
+        rows.len(),
+        app.world().resource::<RulesViewState>().rendered_rows
+    );
+    assert_eq!(
+        app.world().resource::<RulesViewState>().scroll_offset_px,
+        infiltrator_domain::rules::view::rule_scroll_offset_for_index(800)
+    );
+    // The window covers the page's last rows (800..819 clamped to the list),
+    // never the first rows of the list.
+    assert!(rows.contains(&800));
+    assert!(rows.iter().all(|row| *row >= 796));
+    assert!(!rows.contains(&0));
 
     let indicator = app
         .world_mut()
@@ -1893,7 +1971,370 @@ fn test_rules_pagination_hides_rows_outside_page() {
         .map(|(text, _)| text.0.clone())
         .find(|text| text.contains("页"))
         .expect("page indicator");
-    assert_eq!(indicator, "第 2/3 页 · 共 5 条");
+    assert_eq!(indicator, "第 5/5 页 · 显示 797–815 · 共 1000 条");
+}
+
+#[test]
+fn test_rules_window_mounts_bounded_rows_for_50k_projection() {
+    use infiltrator_domain::rules::view;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    navigate_to(&mut app, Route::Rules);
+
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(rules_projection_with(50_000)));
+    app.update();
+
+    let viewport = RulesViewState::default().viewport_height_px;
+    let bound = view::rendered_row_bound(viewport);
+    let mounted = mounted_rule_rows(&mut app);
+    assert!(
+        !mounted.is_empty() && mounted.len() <= bound,
+        "a 50,000-rule projection must mount a bounded window, got {}",
+        mounted.len()
+    );
+    assert_eq!(mounted.first().copied(), Some(0));
+    {
+        let view = app.world().resource::<RulesViewState>();
+        assert_eq!(view.rendered_rows, mounted.len());
+        assert_eq!(view.filtered_indices.len(), 50_000);
+        assert_eq!(
+            infiltrator_bevy_ui::pages::rules_view::visible_projection_rows(view).len(),
+            mounted.len(),
+            "the shared window is the mounted entity set"
+        );
+    }
+
+    // Scrolling the list viewport shifts the mounted window; it never grows
+    // and never walks the whole list.
+    let scroll_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<RulesListScrollArea>>()
+        .single(app.world())
+        .expect("rules list scroll area");
+    app.world_mut()
+        .get_mut::<ScrollPosition>(scroll_entity)
+        .expect("scroll position")
+        .0 = bevy::math::Vec2::new(0.0, view::rule_scroll_offset_for_index(25_000));
+    app.update();
+
+    let scrolled = mounted_rule_rows(&mut app);
+    assert!(scrolled.len() <= bound);
+    assert_eq!(
+        scrolled.len(),
+        app.world().resource::<RulesViewState>().rendered_rows
+    );
+    assert_eq!(
+        scrolled.first().copied(),
+        Some(25_000 - view::RULE_WINDOW_OVERSCAN)
+    );
+    assert!(scrolled.contains(&25_000));
+    assert!(!scrolled.contains(&0));
+
+    // A live projection refresh rebuilds the covered rows but keeps the user's
+    // scroll position: the viewport never jumps to the top on its own.
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(rules_projection_with(50_000)));
+    app.update();
+    assert_eq!(
+        app.world().resource::<RulesViewState>().scroll_offset_px,
+        view::rule_scroll_offset_for_index(25_000)
+    );
+    assert_eq!(
+        mounted_rule_rows(&mut app).first().copied(),
+        Some(25_000 - view::RULE_WINDOW_OVERSCAN)
+    );
+
+    // A recomputed filter moves the viewport together with the window, so the
+    // mounted rows and the scroll position can never disagree.
+    let field = rules_search_field(&mut app);
+    app.world_mut()
+        .get_mut::<TextField>(field)
+        .expect("text field")
+        .0 = TextFieldState::new("host-42.example");
+    app.update();
+    assert_eq!(mounted_rule_rows(&mut app), vec![42]);
+    assert_eq!(
+        app.world()
+            .get::<ScrollPosition>(scroll_entity)
+            .expect("scroll position")
+            .0
+            .y,
+        0.0
+    );
+    assert_eq!(
+        app.world().resource::<RulesViewState>().scroll_offset_px,
+        0.0
+    );
+}
+
+#[test]
+fn test_rules_tab_partition_matches_the_shared_capability_set() {
+    use infiltrator_bevy_ui::pages::rules_json::{
+        RulesJsonEditorBody, RulesJsonSaveButton, RulesJsonSectionChip, RulesJsonState,
+    };
+    use infiltrator_bevy_ui::pages::rules_tabs::{
+        RulesTabBody, RulesTabChip, RulesTabState, tab_label_zh,
+    };
+    use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Rules);
+
+    // One chip and one body per shared partition, labelled from the shared
+    // vocabulary in its shared order.
+    let chips: Vec<usize> = {
+        let mut query = app.world_mut().query::<&RulesTabChip>();
+        let mut values: Vec<usize> = query.iter(app.world()).map(|chip| chip.0).collect();
+        values.sort_unstable();
+        values
+    };
+    assert_eq!(chips, vec![0, 1, 2, 3]);
+    let mut bodies: Vec<usize> = {
+        let mut query = app.world_mut().query::<&RulesTabBody>();
+        query.iter(app.world()).map(|body| body.0.index()).collect()
+    };
+    bodies.sort_unstable();
+    assert_eq!(bodies, vec![0, 1, 2, 3]);
+    for tab in RulesTab::ALL {
+        assert!(subtree_has_text(app.world(), root, tab_label_zh(tab)));
+    }
+    assert_eq!(RulesTabState::default().tab, RulesTab::List);
+
+    // Only the active partition is displayed; switching tabs flips exactly one.
+    let displays = |app: &mut App| -> Vec<(usize, Display)> {
+        let mut query = app.world_mut().query::<(&Node, &RulesTabBody)>();
+        let mut values: Vec<(usize, Display)> = query
+            .iter(app.world())
+            .map(|(node, body)| (body.0.index(), node.display))
+            .collect();
+        values.sort_by_key(|(index, _)| *index);
+        values
+    };
+    assert_eq!(
+        displays(&mut app),
+        vec![
+            (0, Display::Flex),
+            (1, Display::None),
+            (2, Display::None),
+            (3, Display::None)
+        ]
+    );
+
+    let json_chip = {
+        let mut query = app.world_mut().query::<(Entity, &RulesTabChip)>();
+        query
+            .iter(app.world())
+            .find(|(_, chip)| chip.0 == RulesTab::JsonEditors.index())
+            .map(|(entity, _)| entity)
+            .expect("json editors chip")
+    };
+    activate(&mut app, json_chip);
+    assert_eq!(
+        app.world().resource::<RulesTabState>().tab,
+        RulesTab::JsonEditors
+    );
+    assert_eq!(
+        displays(&mut app),
+        vec![
+            (0, Display::None),
+            (1, Display::None),
+            (2, Display::Flex),
+            (3, Display::None)
+        ]
+    );
+
+    // The JSON partition exposes every shared section and the editor body.
+    let sections: Vec<usize> = {
+        let mut query = app.world_mut().query::<&RulesJsonSectionChip>();
+        let mut values: Vec<usize> = query.iter(app.world()).map(|chip| chip.0).collect();
+        values.sort_unstable();
+        values
+    };
+    assert_eq!(sections, vec![0, 1, 2]);
+    assert_eq!(
+        app.world_mut()
+            .query_filtered::<Entity, bevy::ecs::query::With<RulesJsonEditorBody>>()
+            .iter(app.world())
+            .count(),
+        1
+    );
+    assert!(
+        app.world_mut()
+            .query_filtered::<Entity, bevy::ecs::query::With<RulesJsonSaveButton>>()
+            .iter(app.world())
+            .next()
+            .is_some()
+    );
+    assert_eq!(
+        app.world().resource::<RulesJsonState>().buffers.len(),
+        RulesJsonSection::ALL.len()
+    );
+}
+
+#[test]
+fn test_rules_geo_databases_button_submits_shared_intent() {
+    use infiltrator_bevy_ui::pages::rules_mrs::UpgradeGeoDatabasesButton;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Rules);
+
+    let button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<UpgradeGeoDatabasesButton>>()
+        .single(app.world())
+        .expect("geo database update button");
+    assert!(
+        app.world()
+            .get::<bevy::ui_widgets::Button>(button)
+            .is_some(),
+        "the entry point is a real button"
+    );
+    activate(&mut app, button);
+    assert_eq!(sink.submitted(), vec![UiCommand::UpgradeGeoDatabases]);
+    // The shared contract carries the intent both surfaces dispatch.
+    assert_eq!(
+        UiCommand::UpgradeGeoDatabases.to_intent(),
+        Some(CommandIntent::UpgradeGeoDatabases)
+    );
+}
+
+#[test]
+fn test_rules_json_partition_edits_and_submits_shared_intent() {
+    use infiltrator_bevy_ui::pages::rules_json::{
+        RulesJsonEditButton, RulesJsonSaveButton, RulesJsonState, RulesJsonStatusText,
+    };
+    use infiltrator_bevy_ui::pages::rules_tabs::{RulesTabChip, RulesTabState};
+    use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Rules);
+
+    // The demo projection publishes the three workspace documents; the
+    // partition adopts them verbatim.
+    {
+        let state = app.world().resource::<RulesJsonState>();
+        assert_eq!(state.published.len(), RulesJsonSection::ALL.len());
+        assert_eq!(
+            state.published_document().map(str::to_owned),
+            Some(state.buffer().full_text()),
+            "the partition adopts the published document verbatim"
+        );
+        assert!(state.status_label().contains("已与读模型一致"));
+    }
+
+    // Switch to the JSON partition and focus the buffer through the explicit
+    // seam, exactly like the profiles editor.
+    let json_chip = {
+        let mut query = app.world_mut().query::<(Entity, &RulesTabChip)>();
+        query
+            .iter(app.world())
+            .find(|(_, chip)| chip.0 == RulesTab::JsonEditors.index())
+            .map(|(entity, _)| entity)
+            .expect("json editors chip")
+    };
+    activate(&mut app, json_chip);
+    assert_eq!(
+        app.world().resource::<RulesTabState>().tab,
+        RulesTab::JsonEditors
+    );
+
+    let edit = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<RulesJsonEditButton>>()
+        .single(app.world())
+        .expect("edit button");
+    activate(&mut app, edit);
+    {
+        let state = app.world().resource::<RulesJsonState>();
+        assert!(state.focused, "the explicit seam armed the buffer");
+        assert!(state.status_label().contains("编辑中"));
+    }
+
+    // Typed keystrokes reach the buffer and mark it dirty.
+    app.world_mut()
+        .write_message(keyboard_press(Key::End, None));
+    app.world_mut()
+        .write_message(keyboard_press(Key::Character("x".into()), Some("x")));
+    app.update();
+    {
+        let state = app.world().resource::<RulesJsonState>();
+        assert!(state.buffer().full_text().contains('x'));
+        assert!(state.status_label().contains("有未提交改动"));
+    }
+
+    // Save submits the edited text through the shared intent, and the status
+    // is honest about the fire-and-forget command bus.
+    let save = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<RulesJsonSaveButton>>()
+        .single(app.world())
+        .expect("save button");
+    activate(&mut app, save);
+    let submitted = sink.submitted();
+    assert_eq!(submitted.len(), 1);
+    match &submitted[0] {
+        UiCommand::ApplyRulesJsonDocument { section, json } => {
+            assert_eq!(*section, RulesJsonSection::RuleProviders);
+            assert!(json.contains('x'));
+        }
+        other => panic!("expected the shared JSON intent, got {other:?}"),
+    }
+    {
+        let state = app.world().resource::<RulesJsonState>();
+        assert!(state.status_label().contains("已提交共享应用保存"));
+    }
+    assert_eq!(
+        UiCommand::ApplyRulesJsonDocument {
+            section: RulesJsonSection::RuleProviders,
+            json: "{}".to_owned(),
+        }
+        .to_intent(),
+        Some(CommandIntent::ApplyRulesJsonDocument {
+            section: RulesJsonSection::RuleProviders,
+            json: "{}".to_owned(),
+        })
+    );
+
+    // The read model confirms the submitted bytes: the pending flag clears and
+    // the status stops claiming unsubmitted work.
+    let edited_json = app
+        .world()
+        .resource::<RulesJsonState>()
+        .buffer()
+        .full_text();
+    let mut confirmed = RulesProjection::demo();
+    confirmed.json_documents = vec![
+        infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot {
+            section: RulesJsonSection::RuleProviders,
+            json: edited_json,
+        },
+    ];
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(confirmed));
+    app.update();
+    {
+        let state = app.world().resource::<RulesJsonState>();
+        assert!(!state.status_label().contains("有未提交改动"));
+        assert!(state.status_label().contains("已与读模型一致"));
+    }
+
+    // The status line is rendered from the partition state.
+    let status = app
+        .world_mut()
+        .query::<(&Text, &RulesJsonStatusText)>()
+        .iter(app.world())
+        .map(|(text, _)| text.0.clone())
+        .next()
+        .expect("json status line");
+    assert!(status.contains("已提交共享应用保存"), "{status}");
 }
 
 fn activate(app: &mut App, entity: Entity) {
@@ -2169,6 +2610,7 @@ fn test_rules_type_matrix_renders_every_shared_label() {
             total_hits: 0,
             rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
             provider_cache: Default::default(),
+            json_documents: Vec::new(),
         },
     );
 
@@ -2184,6 +2626,15 @@ fn test_rules_type_matrix_renders_every_shared_label() {
         .iter()
         .map(|spec| format!("[{}]", spec.label))
         .collect();
+    // DUAL-11-08: the page mounts the shared render window, so the test uses a
+    // viewport tall enough to show every catalogue row — the same mechanism a
+    // user gets from a tall window — and asserts the whole catalogue renders.
+    {
+        let mut view = app.world_mut().resource_mut::<RulesViewState>();
+        view.viewport_height_px =
+            matrix_len as f32 * infiltrator_domain::rules::view::RULE_ROW_HEIGHT_PX;
+    }
+    app.update();
     for label in expected {
         assert!(
             subtree_has_text(app.world(), root, &label),
@@ -2324,7 +2775,7 @@ fn test_rules_truncation_note_reports_publish_cap() {
     assert!(subtree_has_text(
         app.world(),
         root,
-        "发布视口已截断 · 已省略 45000 条 (发布上限 5000 条，非 O(1) 虚拟滚动)"
+        "发布视口已截断 · 已省略 45000 条 (发布上限 5000 条)"
     ));
     assert!(subtree_has_text(
         app.world(),
