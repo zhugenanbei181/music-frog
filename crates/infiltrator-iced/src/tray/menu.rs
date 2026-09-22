@@ -13,19 +13,19 @@ use super::spec::{
     TRAY_ACTION_CHECK_CORE_UPDATE, TRAY_ACTION_FACTORY_RESET, TRAY_ACTION_FLUSH_FAKEIP,
     TRAY_ACTION_INFO_ADMIN, TRAY_ACTION_INFO_CONTROLLER, TRAY_ACTION_INFO_DOWNLOAD,
     TRAY_ACTION_INFO_KERNEL_DEFAULT, TRAY_ACTION_INFO_KERNEL_STATUS,
-    TRAY_ACTION_INFO_KERNEL_VERSION, TRAY_ACTION_INFO_MODE, TRAY_ACTION_INFO_STATUS,
-    TRAY_ACTION_INFO_SYNC, TRAY_ACTION_MODE_DIRECT, TRAY_ACTION_MODE_GLOBAL, TRAY_ACTION_MODE_RULE,
-    TRAY_ACTION_MODE_SCRIPT, TRAY_ACTION_NAVIGATE_SYNC, TRAY_ACTION_NO_PROFILES,
-    TRAY_ACTION_NO_PROXIES, TRAY_ACTION_QUIT, TRAY_ACTION_SELECT_PROXY,
-    TRAY_ACTION_SET_DEFAULT_KERNEL, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE, TRAY_ACTION_SHOW,
-    TRAY_ACTION_SYNC_DOWNLOAD, TRAY_ACTION_SYNC_UPLOAD, TRAY_ACTION_TOGGLE_AUTOSTART,
-    TRAY_ACTION_TOGGLE_SYSTEM_PROXY, TRAY_ACTION_TOGGLE_THEME, TRAY_ACTION_TOGGLE_TUN,
-    TRAY_ACTION_UNINSTALL_KERNEL, TRAY_ACTION_UPDATE_ALL_PROFILES, TRAY_MAX_NODES_PER_GROUP,
-    TRAY_SUBMENU_INFO, TRAY_SUBMENU_KERNEL, TRAY_SUBMENU_KERNEL_VERSION_BASE, TRAY_SUBMENU_MODE,
-    TRAY_SUBMENU_PROFILES, TRAY_SUBMENU_PROXIES, TRAY_SUBMENU_PROXY_GROUP_BASE,
-    TRAY_SUBMENU_PROXY_MORE_BASE, TRAY_SUBMENU_SYNC, TrayActionId, TrayMenuItem, TrayMenuSpec,
-    TrayProxyGroup, TrayProxyNode, TraySpec, TraySpecContext, encode_pair_payload, load_icon_rgba,
-    tray_status_key,
+    TRAY_ACTION_INFO_KERNEL_VERSION, TRAY_ACTION_INFO_MODE, TRAY_ACTION_INFO_RATE,
+    TRAY_ACTION_INFO_STATUS, TRAY_ACTION_INFO_SYNC, TRAY_ACTION_MODE_DIRECT,
+    TRAY_ACTION_MODE_GLOBAL, TRAY_ACTION_MODE_RULE, TRAY_ACTION_MODE_SCRIPT,
+    TRAY_ACTION_NAVIGATE_SYNC, TRAY_ACTION_NO_PROFILES, TRAY_ACTION_NO_PROXIES, TRAY_ACTION_QUIT,
+    TRAY_ACTION_SELECT_PROXY, TRAY_ACTION_SET_DEFAULT_KERNEL, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
+    TRAY_ACTION_SHOW, TRAY_ACTION_SYNC_DOWNLOAD, TRAY_ACTION_SYNC_UPLOAD,
+    TRAY_ACTION_TOGGLE_AUTOSTART, TRAY_ACTION_TOGGLE_SYSTEM_PROXY, TRAY_ACTION_TOGGLE_THEME,
+    TRAY_ACTION_TOGGLE_TUN, TRAY_ACTION_UNINSTALL_KERNEL, TRAY_ACTION_UPDATE_ALL_PROFILES,
+    TRAY_MAX_NODES_PER_GROUP, TRAY_SUBMENU_INFO, TRAY_SUBMENU_KERNEL,
+    TRAY_SUBMENU_KERNEL_VERSION_BASE, TRAY_SUBMENU_MODE, TRAY_SUBMENU_PROFILES,
+    TRAY_SUBMENU_PROXIES, TRAY_SUBMENU_PROXY_GROUP_BASE, TRAY_SUBMENU_PROXY_MORE_BASE,
+    TRAY_SUBMENU_SYNC, TrayActionId, TrayMenuItem, TrayMenuSpec, TrayProxyGroup, TrayProxyNode,
+    TraySpec, TraySpecContext, encode_pair_payload, load_icon_rgba, tray_status_key,
 };
 
 /// Translation closure type shared by the section builders below.
@@ -89,11 +89,15 @@ fn default_kernel_version<'a>(ctx: &TraySpecContext<'a>) -> Option<&'a str> {
         .map(|kernel| kernel.version.as_str())
 }
 
-/// Localized tooltip carrying the static state lines (mode/status/version).
-/// No live traffic figures here on purpose — a per-sample spec push would
-/// spam D-Bus and the native menu event loops.
+/// Localized tooltip carrying the static state lines (mode/status/version)
+/// plus the shared live rate badge when the host has delivered a real sample.
+///
+/// The badge is rebuilt from the same snapshot the shell renders; the update
+/// path throttles pushes to
+/// `infiltrator_contract::tray_status::TRAY_RATE_REFRESH_INTERVAL_MS`, so a
+/// per-sample spec push cannot spam D-Bus and the native menu event loops.
 fn tooltip(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> String {
-    format!(
+    let mut tooltip = format!(
         "{}\n{}: {} · {}: {}\n{}: {}",
         tr("app_title"),
         tr("tray_info_mode"),
@@ -102,7 +106,15 @@ fn tooltip(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> String {
         tr(tray_status_key(ctx.status)),
         tr("tray_kernel_version"),
         default_kernel_version(ctx).unwrap_or("-"),
-    )
+    );
+    if let Some(badge) = ctx.rate_badge {
+        tooltip.push_str(&format!(
+            "\n{}: {}",
+            tr("tray_info_rate"),
+            badge.badge_text()
+        ));
+    }
+    tooltip
 }
 
 /// The 代理模式 submenu: rule / global / direct / script, the active mode
@@ -406,54 +418,66 @@ fn sync_submenu(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> TrayMenuItem {
 }
 
 /// The 信息 submenu: five always-disabled state lines (mode, run status,
-/// controller URL, admin port, kernel version). Static on purpose — no live
-/// traffic, so a spec push never churns D-Bus.
+/// controller URL, admin port, kernel version) plus the shared live rate
+/// badge while a real traffic sample exists. The static lines never churn
+/// D-Bus on their own; the optional rate line is throttled by the update path
+/// to the shared `TRAY_RATE_REFRESH_INTERVAL_MS` cadence.
 fn info_submenu(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> TrayMenuItem {
+    let mut items = vec![
+        TrayMenuItem::info(
+            TRAY_ACTION_INFO_MODE,
+            format!("{}: {}", tr("tray_info_mode"), mode_text(ctx, tr)),
+        ),
+        TrayMenuItem::info(
+            TRAY_ACTION_INFO_STATUS,
+            format!(
+                "{}: {}",
+                tr("tray_info_status"),
+                tr(tray_status_key(ctx.status))
+            ),
+        ),
+        TrayMenuItem::info(
+            TRAY_ACTION_INFO_CONTROLLER,
+            format!(
+                "{}: {}",
+                tr("tray_info_controller"),
+                ctx.controller.unwrap_or("-")
+            ),
+        ),
+        TrayMenuItem::info(
+            TRAY_ACTION_INFO_ADMIN,
+            format!(
+                "{}: {}",
+                tr("tray_info_admin"),
+                if ctx.admin_enabled {
+                    ctx.admin_port.to_string()
+                } else {
+                    "-".to_string()
+                }
+            ),
+        ),
+        TrayMenuItem::info(
+            TRAY_ACTION_INFO_KERNEL_VERSION,
+            format!(
+                "{}: {}",
+                tr("tray_kernel_version"),
+                default_kernel_version(ctx).unwrap_or("-")
+            ),
+        ),
+    ];
+    if let Some(badge) = ctx.rate_badge {
+        items.insert(
+            0,
+            TrayMenuItem::info(
+                TRAY_ACTION_INFO_RATE,
+                format!("{}: {}", tr("tray_info_rate"), badge.badge_text()),
+            ),
+        );
+    }
     TrayMenuItem::Submenu {
         id: TRAY_SUBMENU_INFO,
         label: tr("tray_info"),
         enabled: true,
-        items: vec![
-            TrayMenuItem::info(
-                TRAY_ACTION_INFO_MODE,
-                format!("{}: {}", tr("tray_info_mode"), mode_text(ctx, tr)),
-            ),
-            TrayMenuItem::info(
-                TRAY_ACTION_INFO_STATUS,
-                format!(
-                    "{}: {}",
-                    tr("tray_info_status"),
-                    tr(tray_status_key(ctx.status))
-                ),
-            ),
-            TrayMenuItem::info(
-                TRAY_ACTION_INFO_CONTROLLER,
-                format!(
-                    "{}: {}",
-                    tr("tray_info_controller"),
-                    ctx.controller.unwrap_or("-")
-                ),
-            ),
-            TrayMenuItem::info(
-                TRAY_ACTION_INFO_ADMIN,
-                format!(
-                    "{}: {}",
-                    tr("tray_info_admin"),
-                    if ctx.admin_enabled {
-                        ctx.admin_port.to_string()
-                    } else {
-                        "-".to_string()
-                    }
-                ),
-            ),
-            TrayMenuItem::info(
-                TRAY_ACTION_INFO_KERNEL_VERSION,
-                format!(
-                    "{}: {}",
-                    tr("tray_kernel_version"),
-                    default_kernel_version(ctx).unwrap_or("-")
-                ),
-            ),
-        ],
+        items,
     }
 }

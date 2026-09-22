@@ -58,15 +58,21 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
     .align_y(Alignment::Center);
 
     // Top title row: logo + real mode chip + pin/expand buttons
-    let mut header_row = row![
-        svg_icons::icon_themed(Icon::Activity, 14.0, |t: &Theme| tokens(t).accent),
-        Space::new().width(theme::SP_XS),
+    let header_title = crate::accessibility::labelled(
+        infiltrator_contract::a11y::ShellA11yNode::MiniHudCard,
+        &state.shell.lang,
         text(lang.tr("mini_hud_title").to_string())
             .size(11)
             .font(FONT_SEMIBOLD)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
-            }),
+            })
+            .into(),
+    );
+    let mut header_row = row![
+        svg_icons::icon_themed(Icon::Activity, 14.0, |t: &Theme| tokens(t).accent),
+        Space::new().width(theme::SP_XS),
+        header_title,
     ]
     .align_y(Alignment::Center);
     if !model.mode_zh.is_empty() {
@@ -125,7 +131,11 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
     };
 
     footer_row = footer_row
-        .push(proxy_button)
+        .push(crate::accessibility::labelled(
+            infiltrator_contract::a11y::ShellA11yNode::MiniHudSystemProxySwitch,
+            &state.shell.lang,
+            proxy_button.into(),
+        ))
         .push(Space::new().width(theme::SP_XS));
 
     // The compact state letters are the shared contract vocabulary; the
@@ -138,7 +148,11 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
         tun_state.compact_label()
     );
     footer_row = footer_row
-        .push(tun_button)
+        .push(crate::accessibility::labelled(
+            infiltrator_contract::a11y::ShellA11yNode::MiniHudTunSwitch,
+            &state.shell.lang,
+            tun_button.into(),
+        ))
         .push(Space::new().width(theme::SP_SM))
         .push(text(state_text).size(10).style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_tertiary),

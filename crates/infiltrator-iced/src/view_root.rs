@@ -73,6 +73,11 @@ impl AppState {
                 row![sidebar, main_content].into()
             };
 
+        // DUAL-15-13: the frameless host has no OS title bar, so the drag
+        // strip and the window controls are mounted above the shell.
+        let main_view: Element<Message> =
+            column![view::chrome::chrome_strip(self), main_view].into();
+
         let mut layers: Vec<Element<Message>> = vec![main_view];
 
         if !self.shell.toasts.is_empty() {

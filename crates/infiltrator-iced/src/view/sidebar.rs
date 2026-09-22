@@ -340,7 +340,14 @@ fn header(state: &AppState) -> Element<'_, Message> {
 
     let actions = row![
         nav_history,
-        status_dot,
+        // DUAL-15-10: the status dot is a colour-only control; its shared
+        // semantic label is surfaced as a real hover tooltip (Iced has no
+        // AccessKit tree to attach it to).
+        crate::accessibility::labelled(
+            infiltrator_contract::a11y::ShellA11yNode::GlobalStatusDot,
+            &state.shell.lang,
+            status_dot.into(),
+        ),
         icon_button(Icon::Search, 14.0, Message::ToggleCommandPalette),
         icon_button(Icon::RefreshCw, 14.0, Message::RefreshRuntimeNow),
         icon_button(Icon::Settings, 14.0, Message::Navigate(Route::Settings)),
@@ -751,11 +758,17 @@ fn speed_footer<'a>(state: &AppState, _lang: &Lang<'a>) -> Element<'a, Message> 
         .align_y(Alignment::Center)
         .width(Length::Fill);
 
-    container(content)
-        .width(Length::Fill)
-        .padding(theme::SP_MD)
-        .style(card_surface)
-        .into()
+    // DUAL-15-10: the live rate readout carries the shared semantic label as a
+    // tooltip, since Iced cannot publish an AccessKit status node.
+    crate::accessibility::labelled(
+        infiltrator_contract::a11y::ShellA11yNode::TrafficReadout,
+        &state.shell.lang,
+        container(content)
+            .width(Length::Fill)
+            .padding(theme::SP_MD)
+            .style(card_surface)
+            .into(),
+    )
 }
 
 fn speed_leg<'a>(

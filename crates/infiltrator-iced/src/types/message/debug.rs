@@ -879,6 +879,10 @@ impl std::fmt::Debug for Message {
                 None => write!(f, "MiniHudDisplayKnown(None)"),
             },
             Message::WindowIdResolved(id) => write!(f, "WindowIdResolved({id:?})"),
+            Message::WindowChromeDragRequested => write!(f, "WindowChromeDragRequested"),
+            Message::WindowChromeToggleMaximize => write!(f, "WindowChromeToggleMaximize"),
+            Message::WindowChromeMinimize => write!(f, "WindowChromeMinimize"),
+            Message::WindowChromeClose => write!(f, "WindowChromeClose"),
             Message::RunScriptSandboxTest => write!(f, "RunScriptSandboxTest"),
             Message::SelectScriptPreset(p) => write!(f, "SelectScriptPreset({p})"),
             Message::UpdateScriptSandboxCode(c) => {

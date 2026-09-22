@@ -469,6 +469,7 @@ impl AppState {
                 system_proxy_bypass: String::new(),
                 last_task_id: 0,
                 tray_refresh_cooldown: None,
+                tray_last_rate_text: None,
                 // demo-mode: production default is a non-demo session with no
                 // capture marker (see demo.rs for the demo boot path).
                 demo: false,

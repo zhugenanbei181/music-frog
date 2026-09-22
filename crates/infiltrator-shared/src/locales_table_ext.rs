@@ -574,6 +574,27 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "editor_viewport_label" => "视口".into(),
         "editor_viewport_hidden_above" => "上方 {count} 行未渲染".into(),
         "editor_viewport_hidden_below" => "下方 {count} 行未渲染".into(),
+
+        // Category 2: multimodal shell finish (DUAL-15-02/10/13)
+        "tray_info_rate" => "实时速率".into(),
+        "a11y_window" => "应用主窗口".into(),
+        "a11y_shell_header" => "应用标题栏".into(),
+        "a11y_content_region" => "内容区".into(),
+        "a11y_sidebar_nav" => "页面导航".into(),
+        "a11y_global_status_dot" => "内核运行状态".into(),
+        "a11y_mode_segment" => "代理模式选择".into(),
+        "a11y_system_proxy_switch" => "系统代理开关".into(),
+        "a11y_tun_switch" => "TUN 模式开关".into(),
+        "a11y_theme_toggle" => "切换深浅主题".into(),
+        "a11y_mini_hud_card" => "网速悬浮窗".into(),
+        "a11y_mini_hud_system_proxy" => "悬浮窗系统代理开关".into(),
+        "a11y_mini_hud_tun" => "悬浮窗 TUN 开关".into(),
+        "a11y_command_palette" => "命令面板".into(),
+        "a11y_toast_region" => "通知与告警".into(),
+        "a11y_traffic_readout" => "上下行实时速率".into(),
+        "chrome_minimize" => "最小化".into(),
+        "chrome_maximize" => "最大化 / 还原".into(),
+        "chrome_close" => "关闭".into(),
         _ => key.to_string().into(),
     }
 }

@@ -6,10 +6,11 @@
 //! (via the shared `infiltrator_domain::redact` engine) and the shared
 //! dedup/capacity policy from `infiltrator_contract::toast`.
 
+use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::message::{Message, MessageReader, MessageWriter};
-use bevy::ecs::query::With;
+use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
@@ -19,6 +20,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::toast::{
     ToastContainer, ToastKind, ToastQueue, ToastSpawnEvent, toast_stack_scene,
 };
+use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::toast::{ToastAdmission, ToastGate};
 
 /// The shared dedup gate plus the shell's toast clock.
@@ -165,6 +167,22 @@ impl Plugin for ShellToastPlugin {
             Update,
             sync_toast_stack.after(infiltrator_bevy_widgets::toast::advance_toasts),
         );
+        // DUAL-15-10: the mounted stack root is a live region in the shared
+        // grammar; the widget scene stays business-agnostic, so the semantic
+        // node is attached here, where the product vocabulary lives.
+        app.add_systems(Update, sync_toast_semantics.after(sync_toast_stack));
+    }
+}
+
+/// Attach the shared live-region semantic node to the mounted toast stack.
+fn sync_toast_semantics(
+    mut commands: Commands,
+    roots: Query<Entity, (With<ToastContainer>, Without<AccessibilityNode>)>,
+) {
+    for entity in &roots {
+        commands
+            .entity(entity)
+            .insert(crate::a11y::semantic_node(ShellA11yNode::ToastRegion));
     }
 }
 

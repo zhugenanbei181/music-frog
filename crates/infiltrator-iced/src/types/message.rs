@@ -546,6 +546,11 @@ pub enum Message {
     MiniHudPlacementUpdated(Result<infiltrator_contract::mini_hud::MiniHudPlacement, String>),
     MiniHudDisplayKnown(Option<iced::Size>),
     WindowIdResolved(Option<iced::window::Id>),
+    // Frameless window chrome (无边框窗口拖拽, DUAL-15-13)
+    WindowChromeDragRequested,
+    WindowChromeToggleMaximize,
+    WindowChromeMinimize,
+    WindowChromeClose,
     // Script Sandbox Console (脚本沙箱控制台)
     RunScriptSandboxTest,
     SelectScriptPreset(String),

@@ -516,6 +516,11 @@ impl Plugin for ShellPlugin {
         app.add_plugins(crate::pages::profiles_editor::ProfilesEditorPlugin);
         app.add_plugins(crate::pages::profiles_editor_panes_sync::ProfilesEditorPanesPlugin);
         app.add_plugins(crate::mini_hud_shell::MiniHudPlugin);
+        // DUAL-15-13/02: the frameless chrome wiring and the honest tray
+        // capability report are part of the shell, so headless compositions
+        // get the same facts as the windowed launcher.
+        app.add_plugins(crate::chrome::WindowChromePlugin);
+        app.add_plugins(crate::tray_status::TrayStatusPlugin);
         app.insert_resource(crate::appearance::ThemeMode(self.preference));
         app.init_resource::<crate::appearance::SystemAppearance>();
 

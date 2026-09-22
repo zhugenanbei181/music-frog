@@ -510,3 +510,269 @@ fn the_shell_tracks_window_focus_for_the_shared_cadence() {
         RenderCadence::Active
     );
 }
+
+// ---------------------------------------------------------------------------
+// DUAL-15-02: the shared tray-status contract (live rate badge + capability)
+// ---------------------------------------------------------------------------
+
+/// A tray controller that records every pushed spec, so the live-badge push
+/// path is observable headlessly (no D-Bus, no backend).
+struct RecordingTrayController {
+    pushed: std::sync::Arc<std::sync::Mutex<Vec<crate::tray::spec::TraySpec>>>,
+}
+
+impl crate::tray::spec::TrayController for RecordingTrayController {
+    fn update_spec(&self, spec: crate::tray::spec::TraySpec) {
+        self.pushed
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .push(spec);
+    }
+
+    fn shutdown(&mut self) {}
+}
+
+fn live_waveform(
+    up: f64,
+    down: f64,
+) -> infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot {
+    use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+    TrafficWaveformSnapshot {
+        generation: 1,
+        revision: 7,
+        samples: vec![TrafficSample {
+            sampled_at_epoch_ms: Some(1_700_000_000_000),
+            upload_bps: up,
+            download_bps: down,
+        }],
+    }
+}
+
+fn info_rate_label(spec: &crate::tray::spec::TraySpec) -> Option<String> {
+    use crate::tray::spec::{TRAY_ACTION_INFO_RATE, TrayMenuItem};
+    fn scan(items: &[TrayMenuItem]) -> Option<String> {
+        for item in items {
+            match item {
+                TrayMenuItem::Action { id, label, .. } if *id == TRAY_ACTION_INFO_RATE => {
+                    return Some(label.clone());
+                }
+                TrayMenuItem::Submenu { items, .. } => {
+                    if let Some(found) = scan(items) {
+                        return Some(found);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+    scan(&spec.menu.items)
+}
+
+#[test]
+fn the_tray_spec_carries_the_live_rate_badge_from_the_shared_waveform() {
+    use infiltrator_contract::tray_status::TrayRateBadge;
+
+    let (mut state, _) = AppState::new();
+    state.shell.lang = "zh-CN".to_string();
+    state.runtime.traffic_waveform = live_waveform(2_048.0, 512.0);
+
+    let badge = TrayRateBadge::from_waveform(&state.runtime.traffic_waveform).expect("real sample");
+    assert_eq!(badge.badge_text(), "↑ 2.0 KB/s · ↓ 512 B/s");
+
+    let spec = state.current_tray_spec();
+    assert!(
+        spec.tooltip.contains(&badge.badge_text()),
+        "tooltip must carry the shared badge text: {}",
+        spec.tooltip
+    );
+    let info_line = info_rate_label(&spec).expect("info submenu carries the rate line");
+    assert!(info_line.contains(&badge.badge_text()));
+    assert!(info_line.contains("实时速率"));
+}
+
+#[test]
+fn a_host_without_live_samples_shows_no_rate_badge() {
+    let (state, _) = AppState::new();
+    assert!(
+        state.runtime.traffic_waveform.samples.is_empty(),
+        "no live sample is the honest starting state"
+    );
+    let spec = state.current_tray_spec();
+    assert!(!spec.tooltip.contains('↑'));
+    assert!(!spec.tooltip.contains('↓'));
+    assert!(info_rate_label(&spec).is_none());
+}
+
+#[test]
+fn the_rate_badge_push_is_deduplicated_and_uses_the_shared_interval() {
+    use infiltrator_contract::tray_status::{TRAY_RATE_REFRESH_INTERVAL_MS, TrayRateBadge};
+    use std::time::Duration;
+
+    assert_eq!(
+        crate::tray::TRAY_RATE_REFRESH_INTERVAL,
+        Duration::from_millis(TRAY_RATE_REFRESH_INTERVAL_MS),
+        "the Iced throttle must be the shared constant, not a local one"
+    );
+
+    let (mut state, _) = AppState::new();
+    state.shell.lang = "zh-CN".to_string();
+    let pushed = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    state.shell.tray_controller = Some(Box::new(RecordingTrayController {
+        pushed: std::sync::Arc::clone(&pushed),
+    }));
+
+    state.runtime.traffic_waveform = live_waveform(1_000.0, 2_000.0);
+    state.refresh_tray_rates();
+    assert_eq!(pushed.lock().unwrap().len(), 1);
+
+    // Same display text → no second push, even with the cooldown expired.
+    state.shell.tray_refresh_cooldown = None;
+    state.refresh_tray_rates();
+    assert_eq!(
+        pushed.lock().unwrap().len(),
+        1,
+        "an unchanged badge is quiet"
+    );
+
+    // A changed badge inside the shared interval stays throttled...
+    state.shell.tray_refresh_cooldown = Some(std::time::Instant::now());
+    state.runtime.traffic_waveform = live_waveform(3_000.0, 4_000.0);
+    state.refresh_tray_rates();
+    assert_eq!(pushed.lock().unwrap().len(), 1, "throttled inside 1000 ms");
+
+    // ...and lands once the interval has elapsed.
+    state.shell.tray_refresh_cooldown = None;
+    state.refresh_tray_rates();
+    assert_eq!(pushed.lock().unwrap().len(), 2);
+    let latest = pushed.lock().unwrap()[1].tooltip.clone();
+    let badge = TrayRateBadge::from_waveform(&state.runtime.traffic_waveform).expect("sample");
+    assert!(latest.contains(&badge.badge_text()));
+}
+
+// ---------------------------------------------------------------------------
+// DUAL-15-13: frameless window chrome (shared contract + real host ops)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn the_frameless_window_settings_consume_the_shared_chrome_contract() {
+    use infiltrator_contract::window_chrome::WindowChrome;
+
+    let chrome = WindowChrome::FRAMELESS;
+    let settings = crate::window_chrome::window_settings((1180.0, 780.0), (420.0, 560.0));
+    assert!(!settings.decorations, "the host runs frameless");
+    assert_eq!(settings.decorations, chrome.os_decorations());
+    assert!(chrome.needs_custom_controls());
+    assert_eq!(
+        crate::view::chrome::strip_height_px(),
+        chrome.chrome_height_px() as f32
+    );
+
+    let support = crate::window_chrome::support();
+    assert!(support.is_hosted());
+    assert!(support.drag(), "the press path goes to the OS drag");
+    assert!(support.maximize());
+    assert_eq!(support.unsupported_reason(), None);
+}
+
+#[test]
+fn every_chrome_message_maps_to_one_real_host_window_op() {
+    use crate::window_chrome::ChromeRequest;
+
+    assert_eq!(
+        ChromeRequest::from_message(&Message::WindowChromeDragRequested),
+        Some(ChromeRequest::Drag)
+    );
+    assert_eq!(
+        ChromeRequest::from_message(&Message::WindowChromeToggleMaximize),
+        Some(ChromeRequest::ToggleMaximize)
+    );
+    assert_eq!(
+        ChromeRequest::from_message(&Message::WindowChromeMinimize),
+        Some(ChromeRequest::Minimize)
+    );
+    assert_eq!(
+        ChromeRequest::from_message(&Message::WindowChromeClose),
+        Some(ChromeRequest::Close)
+    );
+    assert_eq!(
+        ChromeRequest::from_message(&Message::ToggleMiniHudMode),
+        None
+    );
+}
+
+#[test]
+fn the_chrome_strip_mounts_above_the_shell_and_never_fabricates_a_window() {
+    let (mut state, _) = AppState::new();
+    state.shell.lang = "zh-CN".to_string();
+
+    // The strip is part of the mounted shell view (frameless hosts have no OS
+    // title bar to fall back on).
+    state.shell.mini_hud_mode = false;
+    {
+        let _shell = state.view();
+    }
+
+    // No resolved window id yet: the press is a no-op, never a fake handle.
+    assert!(state.shell.window_id.is_none());
+    let _ = state.update(Message::WindowChromeDragRequested);
+    let _ = state.update(Message::WindowChromeMinimize);
+    let _ = state.update(Message::WindowChromeToggleMaximize);
+
+    // With a resolved window the update path accepts the requests.
+    let _ = state.update(Message::WindowIdResolved(Some(iced::window::Id::unique())));
+    assert!(state.shell.window_id.is_some());
+    let _ = state.update(Message::WindowChromeDragRequested);
+    let _ = state.update(Message::WindowChromeToggleMaximize);
+}
+
+// ---------------------------------------------------------------------------
+// DUAL-15-10: the shared accessibility-semantics grammar
+// ---------------------------------------------------------------------------
+
+#[test]
+fn every_shared_semantic_node_resolves_a_localized_label_and_role() {
+    use infiltrator_contract::a11y::ShellA11yNode;
+
+    let (mut state, _) = AppState::new();
+    state.shell.lang = "zh-CN".to_string();
+    for node in ShellA11yNode::ALL {
+        let label = state.a11y_label(node);
+        assert!(!label.is_empty(), "{node:?} must resolve a label");
+        assert_ne!(label, node.label_key(), "{node:?} label key must resolve");
+        assert_eq!(state.a11y_role(node), node.role());
+    }
+
+    state.shell.lang = "en-US".to_string();
+    for node in ShellA11yNode::ALL {
+        let label = state.a11y_label(node);
+        assert_ne!(label, node.label_key(), "{node:?} must resolve in en-US");
+    }
+    assert_eq!(
+        state.a11y_label(ShellA11yNode::GlobalStatusDot),
+        "Kernel status"
+    );
+}
+
+#[test]
+fn the_shell_carries_the_shared_labels_as_visible_tooltips() {
+    use infiltrator_contract::a11y::ShellA11yNode;
+
+    let (mut state, _) = AppState::new();
+    state.shell.lang = "zh-CN".to_string();
+
+    // The full shell view (chrome strip, sidebar status dot, live rate
+    // readout) and the Mini HUD view both build with the shared labels.
+    {
+        let _shell = state.view();
+    }
+    state.shell.mini_hud_mode = true;
+    {
+        let _hud = state.view();
+    }
+    assert_eq!(
+        state.a11y_label(ShellA11yNode::TrafficReadout),
+        "上下行实时速率"
+    );
+    assert_eq!(state.a11y_label(ShellA11yNode::MiniHudCard), "网速悬浮窗");
+}

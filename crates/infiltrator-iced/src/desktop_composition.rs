@@ -7,7 +7,7 @@
 
 use crate::state::AppState;
 use crate::surface::SurfaceBridge;
-use iced::{application, window};
+use iced::application;
 use infiltrator_application::surface_application::SurfacePump;
 use single_instance::SingleInstance;
 use std::fs::File;
@@ -87,14 +87,12 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
         .font(include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice())
         .font(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice())
         .default_font(iced::Font::with_name("Inter"))
-        .window(window::Settings {
-            size: (1180.0, 780.0).into(),
+        .window(crate::window_chrome::window_settings(
+            (1180.0, 780.0),
             // Kept below the 600px Compact boundary so every responsive tier
             // (Compact/Medium/Expanded/Ultra) is reachable by resizing.
-            min_size: Some((420.0, 560.0).into()),
-            exit_on_close_request: false,
-            ..Default::default()
-        })
+            (420.0, 560.0),
+        ))
         .run()
 }
 

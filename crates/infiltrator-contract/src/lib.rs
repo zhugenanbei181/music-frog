@@ -4,6 +4,7 @@
 //! toolkit-neutral. It is suitable for Rust frontends, REST DTO mapping, and
 //! UniFFI conversion without exposing Tokio or a concrete HTTP client.
 
+pub mod a11y;
 pub mod active_exit;
 pub mod aggregator;
 pub mod apply_transaction;
@@ -79,10 +80,12 @@ pub mod toast;
 pub mod traffic_scale;
 pub mod traffic_topology;
 pub mod traffic_waveform;
+pub mod tray_status;
 pub mod tun;
 pub mod uwp;
 pub mod version;
 pub mod vpn;
+pub mod window_chrome;
 pub mod yaml_ast_diff;
 pub mod yaml_snippets;
 

@@ -26,6 +26,7 @@ use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::command_catalogue::{CommandCatalogue, CommandEntry};
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 
@@ -199,11 +200,11 @@ pub struct CommandPaletteOverlayRoot;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CommandPaletteRow(pub usize);
 
-/// Accessibility node constructor for Command Palette dialog.
+/// Accessibility node constructor for the Command Palette dialog: the shared
+/// grammar row supplies role and label, so the Bevy tree and the Iced labels
+/// stay one vocabulary (DUAL-15-10).
 pub fn command_palette_semantic_node() -> AccessibilityNode {
-    let mut node = accesskit::Node::new(accesskit::Role::Dialog);
-    node.set_label("命令面板 (Command Palette)");
-    AccessibilityNode(node)
+    crate::a11y::semantic_node(ShellA11yNode::CommandPaletteDialog)
 }
 
 /// Declarative scene for an individual catalogue row.

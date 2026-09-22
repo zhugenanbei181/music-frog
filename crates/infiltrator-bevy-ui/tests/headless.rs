@@ -43,6 +43,15 @@ mod toast_overlay_tests;
 #[path = "headless/design_token_tests.rs"]
 mod design_token_tests;
 
+#[path = "headless/window_chrome_tests.rs"]
+mod window_chrome_tests;
+
+#[path = "headless/a11y_semantics_tests.rs"]
+mod a11y_semantics_tests;
+
+#[path = "headless/tray_status_tests.rs"]
+mod tray_status_tests;
+
 #[path = "headless/cadence_tests.rs"]
 mod cadence_tests;
 

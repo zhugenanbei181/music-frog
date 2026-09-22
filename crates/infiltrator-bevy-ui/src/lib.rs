@@ -16,10 +16,12 @@
 //! [`command`] the UI command sink pipeline, and [`capture`] the headless
 //! screenshot forensics seam (env-driven skin/window-size/marker, read only here).
 
+pub mod a11y;
 pub mod app;
 pub mod appearance;
 pub mod cadence;
 pub mod capture;
+pub mod chrome;
 pub mod command;
 pub mod command_palette;
 pub mod command_palette_shell;
@@ -37,6 +39,7 @@ pub mod shell_scene;
 pub mod shortcuts;
 pub mod surface;
 pub mod toast;
+pub mod tray_status;
 
 use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};
@@ -146,6 +149,9 @@ fn run_with_command_sink_and_surface(
         primary_window: Some(Window {
             title: "MusicFrog Infiltrator — Bevy".into(),
             resolution: WindowResolution::new(width, height),
+            // DUAL-15-13: the shell runs the shared frameless chrome shape;
+            // the mounted chrome bar owns dragging and the window controls.
+            decorations: chrome::chrome_shape().os_decorations(),
             ..Window::default()
         }),
         exit_condition: ExitCondition::OnPrimaryClosed,
@@ -154,6 +160,10 @@ fn run_with_command_sink_and_surface(
     app.add_plugins(app::ShellPlugin::new_with_width(preference, width as f32));
     // DUAL-15-08: the real Bevy power knob follows the shared render cadence.
     app.add_plugins(cadence::CadencePlugin);
+    // DUAL-15-13 / DUAL-15-02: the real frameless chrome path and the honest
+    // tray capability report (this surface has no tray host).
+    app.add_plugins(chrome::WindowChromePlugin);
+    app.add_plugins(tray_status::TrayStatusPlugin);
     app.add_plugins(command::CommandPumpPlugin::new(sink));
     // The route + page bootstrap: without it the content slot stays empty in
     // the windowed run (headless tests add PagesPlugin explicitly). A host
