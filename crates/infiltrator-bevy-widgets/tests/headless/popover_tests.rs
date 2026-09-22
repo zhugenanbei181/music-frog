@@ -17,7 +17,7 @@ use infiltrator_bevy_widgets::popover::{
     ANCHOR_GAP_PX, AnchorHint, PopoverPanel, PopoverScrim, Rect, Side, placement, popover_scene,
 };
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::theme::{LightDark, Theme};
+use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 
 const VIEWPORT: Rect = Rect {
     x: 0.0,
@@ -163,7 +163,7 @@ fn popover_scene_stamps_the_placement_and_reskins_in_place() {
 
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Light));
+        .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
 
     let light = UiPalette::new(&Theme::light());

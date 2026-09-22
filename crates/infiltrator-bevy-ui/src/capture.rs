@@ -7,7 +7,7 @@
 //!
 //! - `INFILTRATOR_BEVY_SKIN=dark|light` — the cold-start appearance. The
 //!   pure parser is [`parse_skin`]; the resolved mode seeds both the
-//!   shell's [`crate::app::ThemeMode`] mirror and the widget layer's
+//!   shell's [`crate::appearance::ThemeMode`] mirror and the widget layer's
 //!   initial theme so the whole tree starts on one token set.
 //! - `INFILTRATOR_BEVY_WINDOW_SIZE=WxH` — the requested window
 //!   resolution ([`parse_window_size`]).
@@ -26,26 +26,31 @@ use std::path::PathBuf;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Local, Res};
-use infiltrator_bevy_widgets::theme::LightDark;
+use infiltrator_bevy_widgets::theme::ThemeSkin;
 
-use crate::app::ThemeMode;
+use crate::appearance::{SystemAppearance, ThemeMode};
 use crate::controller::PumpSnapshotSeen;
 use crate::history::TrafficHistory;
 use crate::route::Route;
 
 /// Parse the capture skin knob. Case-insensitive, whitespace-tolerant;
-/// anything else is `None` (the launcher falls back to the cold-start
-/// dark theme). Pure function — unit-tested below without any env access.
-pub fn parse_skin(raw: &str) -> Option<LightDark> {
+/// anything else is `None` (the launcher falls back to the shared
+/// system-follow preference). Pure function — unit-tested below without any
+/// env access.
+pub fn parse_skin(raw: &str) -> Option<ThemeSkin> {
     match raw.trim().to_ascii_lowercase().as_str() {
-        "dark" => Some(LightDark::Dark),
-        "light" => Some(LightDark::Light),
+        "dark" => Some(ThemeSkin::Dark),
+        "light" => Some(ThemeSkin::Light),
+        "forest" | "eyeforest" | "eye-forest" => Some(ThemeSkin::Forest),
+        "amoled" | "black" | "pitch-black" | "pitch_black" | "pitchblack" => {
+            Some(ThemeSkin::Amoled)
+        }
         _ => None,
     }
 }
 
 /// The capture skin from the environment, if it parses.
-pub fn skin_from_env() -> Option<LightDark> {
+pub fn skin_from_env() -> Option<ThemeSkin> {
     std::env::var("INFILTRATOR_BEVY_SKIN")
         .ok()
         .and_then(|raw| parse_skin(&raw))
@@ -116,13 +121,9 @@ pub fn route_slug(route: Route) -> &'static str {
 }
 
 /// The readiness line the capture script waits on. Pure function.
-pub fn capture_marker_line(route: Route, skin: LightDark) -> String {
-    let skin_str = match skin {
-        LightDark::Dark => "dark",
-        LightDark::Light => "light",
-    };
+pub fn capture_marker_line(route: Route, skin: ThemeSkin) -> String {
     let page_str = route_slug(route);
-    format!("CAPTURE_READY page={page_str} skin={skin_str}\n")
+    format!("CAPTURE_READY page={page_str} skin={}\n", skin.as_setting())
 }
 
 /// Where the marker goes. Injected by the launcher; a resource so the
@@ -206,6 +207,7 @@ fn write_capture_marker(
     mut frames: Local<u32>,
     mut done: Local<bool>,
     mode: Option<Res<ThemeMode>>,
+    appearance: Option<Res<SystemAppearance>>,
     seen: Option<Res<PumpSnapshotSeen>>,
     history: Option<Res<TrafficHistory>>,
     active_route: Option<Res<crate::route::ActiveRoute>>,
@@ -227,7 +229,10 @@ fn write_capture_marker(
     {
         return;
     }
-    let skin = mode.map(|mode| mode.0).unwrap_or(LightDark::Dark);
+    let skin = crate::appearance::resolved_skin(
+        mode.map(|mode| mode.0).unwrap_or_default(),
+        appearance.map(|appearance| appearance.0).unwrap_or(None),
+    );
     let route = active_route
         .and_then(|r| r.0)
         .or_else(page_from_env)
@@ -242,13 +247,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn skin_parses_both_modes_and_rejects_junk() {
-        assert_eq!(parse_skin("dark"), Some(LightDark::Dark));
-        assert_eq!(parse_skin("light"), Some(LightDark::Light));
-        assert_eq!(parse_skin(" LIGHT "), Some(LightDark::Light));
-        assert_eq!(parse_skin("Dark"), Some(LightDark::Dark));
+    fn skin_parses_every_shared_skin_and_rejects_junk() {
+        assert_eq!(parse_skin("dark"), Some(ThemeSkin::Dark));
+        assert_eq!(parse_skin("light"), Some(ThemeSkin::Light));
+        assert_eq!(parse_skin("forest"), Some(ThemeSkin::Forest));
+        assert_eq!(parse_skin("EyeForest"), Some(ThemeSkin::Forest));
+        assert_eq!(parse_skin("amoled"), Some(ThemeSkin::Amoled));
+        assert_eq!(parse_skin("pitch-black"), Some(ThemeSkin::Amoled));
+        assert_eq!(parse_skin(" LIGHT "), Some(ThemeSkin::Light));
+        assert_eq!(parse_skin("Dark"), Some(ThemeSkin::Dark));
         assert_eq!(parse_skin("blue"), None);
         assert_eq!(parse_skin(""), None);
+        assert_eq!(parse_skin("system"), None, "system is not a skin");
     }
 
     #[test]
@@ -283,12 +293,20 @@ mod tests {
     #[test]
     fn marker_line_names_the_route_and_skin() {
         assert_eq!(
-            capture_marker_line(Route::Overview, LightDark::Dark),
+            capture_marker_line(Route::Overview, ThemeSkin::Dark),
             "CAPTURE_READY page=overview skin=dark\n"
         );
         assert_eq!(
-            capture_marker_line(Route::Proxies, LightDark::Light),
+            capture_marker_line(Route::Proxies, ThemeSkin::Light),
             "CAPTURE_READY page=proxies skin=light\n"
+        );
+        assert_eq!(
+            capture_marker_line(Route::Settings, ThemeSkin::Forest),
+            "CAPTURE_READY page=settings skin=forest\n"
+        );
+        assert_eq!(
+            capture_marker_line(Route::Sync, ThemeSkin::Amoled),
+            "CAPTURE_READY page=sync skin=amoled\n"
         );
     }
 

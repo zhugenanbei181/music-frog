@@ -190,14 +190,9 @@ pub struct CommandItem {
     pub action: CommandAction,
 }
 
-/// User-configured global hotkey binding.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HotkeyBinding {
-    pub id: String,
-    pub action_title_key: &'static str,
-    pub combo: String,
-    pub enabled: bool,
-}
+// User-configured global hotkeys live in the shared contract
+// (`infiltrator_contract::shortcuts::ShortcutRegistry`); the shell keeps no
+// second local binding model.
 
 /// Individual UWP package metadata for Windows loopback exemption.
 #[derive(Debug, Clone, PartialEq, Eq)]

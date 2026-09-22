@@ -19,6 +19,7 @@ mod notify;
 pub mod port_conflict_application;
 pub mod routing_application;
 pub mod settings_store;
+pub mod shortcuts_store;
 pub mod snapshot_application;
 pub mod state;
 pub mod subscription;

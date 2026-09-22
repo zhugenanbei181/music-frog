@@ -20,7 +20,15 @@ impl AppState {
             self.shell.lang = settings.language;
         }
         if !settings.theme.trim().is_empty() {
-            self.shell.theme = crate::view::theme::theme_from_name(&settings.theme);
+            let preference =
+                infiltrator_contract::theme::ThemePreference::from_setting(&settings.theme);
+            self.shell.apply_theme_preference(preference);
+        }
+        let stored_shortcuts = settings.shortcuts.clone();
+        if !stored_shortcuts.is_empty() {
+            self.shell.shortcut_registry =
+                infiltrator_contract::shortcuts::ShortcutRegistry::from_bindings(stored_shortcuts)
+                    .normalize();
         }
         self.editor.editor_path = settings.editor_path.clone().map(std::path::PathBuf::from);
         self.editor.editor_path_setting = settings.editor_path.unwrap_or_default();

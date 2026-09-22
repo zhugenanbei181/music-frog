@@ -17,6 +17,7 @@
 //! screenshot forensics seam (env-driven skin/window-size/marker, read only here).
 
 pub mod app;
+pub mod appearance;
 pub mod capture;
 pub mod command;
 pub mod command_palette;
@@ -32,13 +33,13 @@ pub mod route;
 pub mod shell_scene;
 pub mod shortcuts;
 pub mod surface;
+pub mod toast;
 
 use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};
 use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
 use infiltrator_application::command_application::CommandHandler;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_bevy_widgets::theme::LightDark;
 use std::sync::Arc;
 
 use crate::command::UiCommandSink;
@@ -127,7 +128,12 @@ fn run_with_command_sink_and_surface(
     surface_source: Option<Arc<dyn surface::SurfaceSource>>,
     surface_drain: Option<surface::SurfaceDrainPlugin>,
 ) {
-    let skin = capture::skin_from_env().unwrap_or(LightDark::Dark);
+    // `INFILTRATOR_BEVY_SKIN` pins a skin for capture forensics; without it
+    // the shell follows the OS appearance (shared `ThemePreference`).
+    let preference = capture::skin_from_env()
+        .map(appearance::contract_skin_from_widget)
+        .map(infiltrator_contract::theme::ThemePreference::Fixed)
+        .unwrap_or_default();
     let (width, height) = capture::window_size_from_env().unwrap_or((1180, 760));
     let marker = capture::marker_path_from_env();
     let controller = controller::controller_config_from_env();
@@ -142,7 +148,7 @@ fn run_with_command_sink_and_surface(
         exit_condition: ExitCondition::OnPrimaryClosed,
         ..WindowPlugin::default()
     }));
-    app.add_plugins(app::ShellPlugin::new_with_width(skin, width as f32));
+    app.add_plugins(app::ShellPlugin::new_with_width(preference, width as f32));
     app.add_plugins(command::CommandPumpPlugin::new(sink));
     // The route + page bootstrap: without it the content slot stays empty in
     // the windowed run (headless tests add PagesPlugin explicitly). A host

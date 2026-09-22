@@ -85,7 +85,7 @@
 | 组 12 Live Rule Tracer 与命中审计 | 15 | `parity-ready` | `rules_tracer.rs`（两端同名） | 15/15 收口（2026-09-22）：决策链回放/预设/离线模拟/命中审计/时延审计/沙盒来源 IP/反向应用均双端接线（见组 12 逐项账目） |
 | 组 13 连接审计与深度透视 | 15 | `in progress` | `connections.rs`、`connection_drawer.rs` | 2026-09-22 起逐项展开（见组 13 逐项账目）：01/02/03/06/07/08/09/11/13/15 已双端收口，04/05/10/12/14 `planned`（04 宿主无阶段耗时、05 无 ASN 事实源、10/12 无瞬时速率、14 受 04 阻塞） |
 | 组 14 DNS 工作台与泄漏探活 | 15 | `in progress` | `dns.rs`（两端） | 2026-09-22 起逐项展开（见组 14 逐项账目）：01/02/03/12 已双端收口，04/05/07/14/15 为 `shared-ready`，06/08/09/10/11/13 `planned` |
-| 组 15 多模态外壳与极客命令流 | 15 | `planned` | `mini_hud.rs`、`command_palette.rs`、`sidebar.rs` | **含多尺寸弹性**，见专项台账 |
+| 组 15 多模态外壳与极客命令流 | 15 | `in progress` | `mini_hud.rs`、`command_palette.rs`、`sidebar.rs` | 2026-09-22 起逐项展开（见组 15 逐项账目）：06/09/12 已双端收口，05/14/15 为 `shared-ready`，01 由 [RESPONSIVE_PARITY_LEDGER.md](RESPONSIVE_PARITY_LEDGER.md) 权威跟踪，其余 `planned` |
 
 ### 组 06 逐项账目（2026-09-12 展开）
 
@@ -740,6 +740,58 @@ value: "toggle" }`——`CommandApplication::update_setting` 只接受
 13. **桌面无边框窗口拖拽与原生阴影**：支持 Windows/Linux/macOS 现代无边框拖拽、双击最大化与阴影。
 14. **双端设计规范与交互质感 100% 对齐**：Iced 与 Bevy 在所有模态下互有测试与截图证据。
 15. **多模态与外壳架构无头测试矩阵**：断点切换、主题换肤、命令面板与快捷键 100% 自动化覆盖。
+
+### 组 15 逐项账目（2026-09-22 展开）
+
+组 15 闭环口径同组 06/12/14：shared contract/application + Iced + Bevy + 双端测试 + 守卫。
+`DUAL-15-01`（4 阶响应式形态）由 [RESPONSIVE_PARITY_LEDGER.md](RESPONSIVE_PARITY_LEDGER.md)
+权威跟踪（已按 mock 层收口），本表只保留指针，不复制其验收口径。
+
+本轮关键事实（2026-09-22 批次 A）：
+
+- **15-09 真实缺陷**：`AppSettings.theme` 默认 `"system"`，但 `view::theme::theme_from_name`
+  把 `system` 与任何未知值一起回落 `Theme::Dark`——即「跟随系统」从未接线；同时
+  `Message::SetTheme` 未挂在任何 update 分组上，设置页主题分段器点击是静默 no-op
+  （`update.rs` 分组链最终落到 `Task::none()`），本轮一并修复。
+- **15-06 真实缺陷**：Iced 设置页快捷键卡片的 `UpdateHotkeyCombo` 只写本地
+  `Vec<HotkeyBinding>`（重启即丢、无冲突检测、不参与派发），Bevy 的
+  `ShortcutRegistry`/`KeyboardChord` 是零引用的死代码，desktop 的
+  `shortcut_manager.rs`（641 行、含冲突检测）也只被 `lib.rs` 导出。本轮把三者统一到
+  共享 `infiltrator_contract::shortcuts` + `infiltrator_application::shortcut_application`。
+- **15-12 真实缺陷**：Iced 侧 `toast_state::ToastManager`（带 2s 去重）零引用，
+  实际 toast 走 `shell.toasts: Vec<(String, ToastStatus)>`（无去重、按 index 移除，
+  前沿淘汰后过期任务会误删相邻 toast）；Bevy 侧 `toast_stack_scene`/`ToastQueue`
+  从未挂载，且 `ToastQueue::default()` 容量为 0 → 任何 push 都会 panic。
+
+| 项 | 任务 | 状态 | 证据 |
+| :--- | :--- | :--- | :--- |
+| `DUAL-15-01` | 4 阶响应式形态断点架构 | `parity-ready`（外链） | 权威台账 [RESPONSIVE_PARITY_LEDGER.md](RESPONSIVE_PARITY_LEDGER.md)：契约 `responsive_viewport` 阈值 600/840/1200（`infiltrator-contract/src/responsive_viewport.rs:12`），Iced `sidebar_for_tier`（`view/sidebar.rs:171`）、Bevy `Breakpoint::from_width` 镜像，守卫 `scripts/quality/responsive-parity-guard.py`；本表不重复验收 |
+| `DUAL-15-02` | 动态系统托盘菜单与速率徽标 | `planned` | Iced 托盘菜单/工具提示存在且本地化（`crates/infiltrator-iced/src/tray/menu.rs:96 tooltip`、`:422` 状态行、`:39-54` 子菜单装配），但**明确不携带实时速率**：`tray/menu.rs:93` 记录「No live traffic figures here on purpose — a per-sample spec push would spam D-Bus」；`TraySpecContext`（`tray/spec.rs:403`）无速率字段；Bevy 无托盘面；`infiltrator-desktop/src/tray_badge.rs:54 generate_activity_tooltip` 是零引用死代码。真实速率徽标未接线，保持 `planned` |
+| `DUAL-15-03` | 独立桌面 Mini HUD 悬浮小窗 | `planned` | Iced 具备真实渲染（`view/mini_hud.rs:17`，读取 `diag.traffic`、`traffic_history`、系统代理/TUN 实况，i18n `mini_hud_title`），但 `view_root.rs:24` 只是整窗替换模式，`Message::SetAlwaysOnTop`（`update/ui.rs:476`）仅改本地 bool、从未调用 `window::set_level`；Bevy `mini_hud_scene`（`mini_hud.rs:37`）**未被任何生产代码挂载**且硬编码 `"RULE"`（`:74`）与 `"系统代理: 开启 · TUN: 开启"`（`:170`）；无共享契约，保持 `planned`（不伪造） |
+| `DUAL-15-04` | Mini HUD 坐标持久化与贴边吸附 | `planned` | `infiltrator-desktop/src/display_adapter.rs` 已有完整几何实现：`PersistedWindowGeometry::validate_and_restore`（`:120`）、`DisplayAdapter::snap_to_screen_edges`（`:445`）、`MiniWidgetConfig`（`:306`）、`find_display_for_point`（`:480`），但全模块`DisplayAdapter` 全仓**零引用**；Iced/Bevy 均无拖拽/坐标持久化接线，保持 `planned` |
+| `DUAL-15-05` | 全键盘命令面板 (Ctrl+K) | `shared-ready` | Iced 完整：面板渲染 `view_root/command_palette.rs:239`、拼音模糊 `pinyin_fuzzy_match`（`:11`、`:257`）、i18n 占位与页脚、导航/模式/动作 19 项（`:14 build_all_commands`）、Ctrl+K 经共享注册表（`update/shell.rs` 的 `handle_keyboard_chord`）+ `tests/gui/multimodal_shell_tests.rs::the_keyboard_chord_dispatches_through_the_shared_registry`。另外 ↑↓ 键盘导航此前只有页脚提示、无订阅（`SelectNextCommand/SelectPrevCommand` 无发射点），本轮由 `handle_keyboard_chord` 在面板打开时接管 ArrowUp/ArrowDown（`update/shell.rs`，测试 `the_open_palette_owns_the_arrow_keys`）。Bevy 已有纯状态机与场景（`command_palette.rs:68`、`:449`、`:304 refilter`、`tests/headless/command_palette_tests.rs`，Ctrl+K 现由共享快捷键派发 `ToggleCommandPalette`），但**场景未挂载到 shell**、条目 title/过滤未走共享目录，故整体 `shared-ready` |
+| `DUAL-15-06` | 全局系统快捷键管理与冲突检测 | `parity-ready` | 共享契约 `infiltrator-contract/src/shortcuts.rs`（`ShortcutAction` 5 项、`ShortcutChord::parse/matches/display_string`、`ShortcutRegistry::bind_or_replace/find_conflict/detect_conflicts/normalize/reset_action`）；应用层 `infiltrator-application/src/shortcut_application.rs`（capture/set_enabled/reset_action/reset_all 持久化到 `AppSettings.shortcuts`，冲突返回 `InvalidInput`），设置写入路径 `command_application.rs` 的 `shortcut.<id>` 分支（`update_setting`）；Iced 设置页卡片改为消费共享注册表（`view/settings.rs` `hotkeys_card`，捕获/启用/恢复默认），派发 `update/shell.rs::handle_keyboard_chord`，冲突弹 Warning toast，持久化 `shortcuts_store.rs`→`ShortcutApplication`；Bevy `shortcuts.rs`（`ShortcutBindings`/`HotkeyCapture`/`ChordPressed`，真实 `ButtonInput<KeyCode>` 键盘源 + `ShortcutChords` 派发 + 捕获经 `UiCommand::UpdateSetting("shortcut.<id>")` 落库，冲突弹 toast）；双端测试：契约 8 项、应用 4 项（含 `a_stored_custom_chord_blocks_later_captures`）、`command_application_settings_tests.rs::shortcut_capture_persists_and_rejects_conflicts`、Iced `multimodal_shell_tests.rs` 4 项、Bevy `shortcut_tests.rs` 7 项（含 `a_bound_chord_reaches_the_command_sink`、`capture_rebinds_through_the_shared_settings_command`） |
+| `DUAL-15-07` | 移动端触控手势引擎 | `planned` | 仅 widget 层纯实现 + widget 自测：`infiltrator-bevy-widgets/src/gesture.rs`（`GestureRecognizer:61`、`PullToRefreshState:156`、`SwipeToActionItem:203`、`SafeAreaInsets:13`）与 `tests/headless/advanced_ecosystem_tests.rs`；`bevy-ui`/Android host 零引用，无共享契约，保持 `planned` |
+| `DUAL-15-08` | 低功耗 Reactive 调步渲染 | `planned` | Bevy 有真实页面级节流器（`infiltrator-bevy-ui/src/pipeline.rs:150 MultiPageCadenceGovernor`，可见性/焦点/低功耗三态），widget 层另有 `cadence.rs:41 CadenceGovernor`（零引用）；Iced 仅在动画/拓扑流动时开帧订阅（`subscription.rs:387 window::frames()`），无后台降频；两端无共享契约、口径不同，保持 `planned` |
+| `DUAL-15-09` | 深浅与多主题系统级跟随 | `parity-ready` | 共享契约 `infiltrator-contract/src/theme.rs`（`ThemeSkin` 四皮肤、`ThemePreference::parse_strict/resolve/next`）；应用层 `update_setting` 严格校验并落盘规范值（`command_application.rs`）；Iced 修掉 `system` 回落 Dark 的缺陷并新增真实 OS 订阅 `iced::system::theme()/theme_changes()`（`app.rs` 启动任务、`subscription.rs`）+ `Subscription` 分发到 `update/shell.rs::SystemThemeChanged`，设置页分段器（`view/settings.rs`）恢复可用（`Message::SetTheme` 挂回 update 分组）；Bevy 四皮肤 token（`bevy-widgets/src/theme.rs` `forest()/amoled()` 对齐 Iced 参考值）+ winit `Window::window_theme` 跟随（`bevy-ui/src/appearance.rs::sync_system_appearance`）+ `ThemeMode` 持有共享偏好；双端测试：契约 7 项、Iced `multimodal_shell_tests.rs` 4 项（含 `a_system_preference_survives_the_settings_round_trip`）、Bevy `theme_skin_tests.rs` 4 项（`widget_skin_mirror_matches_the_shared_contract` 镜像漂移断言、`the_shell_follows_the_os_appearance_while_preference_is_system` 系统跟随） |
+| `DUAL-15-10` | AccessKit 无障碍语义全覆盖 | `planned` | Bevy 有部分语义节点（`bevy-ui/src/app.rs` `window/header/toggle/nav/region_semantic_node`、`command_palette.rs:373 dialog`），Iced 全仓零 `accessibility`/`AccessKit` 接入；无共享语义契约、无覆盖矩阵测试，保持 `planned` |
+| `DUAL-15-11` | IME 中文输入法候选框定位 | `planned` | 全仓无 IME/候选框/组合事件处理（`grep -i "input_method\|candidate\|ime"` 仅命中无关词），两端均未接线，保持 `planned` |
+| `DUAL-15-12` | Toast 消息队列防重与敏感信息脱敏 | `parity-ready` | 共享契约 `infiltrator-contract/src/toast.rs`（`ToastSeverity` 四态、`ToastPolicy{max_visible,dedup_window_ms}`、`ToastGate::admit/live_offers`）；脱敏沿用共享引擎 `infiltrator_domain::redact::redact_line`（Iced `utils::sanitize_ui_text`、Bevy `toast.rs::ToastPolicyGate::push`）；Iced 单一入口 `update/shell.rs::push_toast`（脱敏→共享去重门→容量裁剪→按 id 移除的过期任务，`RemoveToast(u64)`），`toast_state::ToastManager` 改为共享策略壳；Bevy `toast.rs`（`ShellToast` 摄入消息 + `ToastPolicyGate` + `sync_toast_stack` 挂载 `toast_stack_scene`），并修复 `ToastQueue::default()` 容量 0 的 push panic（`bevy-widgets/src/toast.rs` `DEFAULT_TOAST_CAPACITY`）与模式切换失败注入路径（`app.rs::drain_mode_ack`）；双端测试：契约 6 项、Iced `multimodal_shell_tests.rs::identical_toasts_are_coalesced_and_the_stack_is_capped` + `business_flow/settings_lifecycle.rs::toast_lifecycle_redacts_secrets_and_survives_stale_removal`、Bevy `toast_overlay_tests.rs` 4 项（`a_sensitive_toast_is_redacted_before_it_renders`、`the_overlay_mounts_a_single_stack_root`） |
+| `DUAL-15-13` | 桌面无边框窗口拖拽与原生阴影 | `planned` | Iced 启动窗口用默认装饰（`desktop_composition.rs:90 window::Settings` 未设 `decorations`/拖拽区），全仓无 `window::drag`/无边框拖拽接线；Bevy `windowing.rs` 只有 `DockPanel/PipOverlayState`（`:19`/`:43`），非无边框拖拽；`display_adapter` 的 `WindowMaterial/MacosAppearance` 材料契约（`:171`/`:219`）零引用，保持 `planned` |
+| `DUAL-15-14` | 双端设计规范与交互质感对齐 | `shared-ready` | 本轮把外观（`contract::theme`）与通知（`contract::toast`）抽成共享契约，两端 token/语义标签对齐并各有镜像断言；但托盘（15-02）、Mini HUD（15-03/04）、命令面板挂载（15-05）、手势/节流（15-07/08）、无障碍与 IME（15-10/11）、无边框（15-13）仍未双端闭环，1:1 质感对齐未达成 |
+| `DUAL-15-15` | 多模态与外壳架构无头测试矩阵 | `shared-ready` | 已闭环项各有双端无头断言（15-06/09/12 见上），05 有 Iced 端矩阵与 Bevy 单端场景测试；但 15-01 之外的 02/03/04/07/08/10/11/13 无测试面，矩阵未 100% |
+
+> **2026-09-22 组 15 批次 A**：`DUAL-15-06/09/12` 收口为 `parity-ready`。
+> 新增共享 `infiltrator-contract::theme`（四皮肤 + `system` 偏好严格解析）、
+> `infiltrator-contract::shortcuts`（和弦语法、5 个产品默认绑定、冲突检测、规范化）、
+> `infiltrator-contract::toast`（严重度 + 去重窗口/容量策略门）、
+> `infiltrator-application::shortcut_application`（捕获/启停/重置 + 持久化）；
+> 修复 Iced `system` 主题静默回落 Dark、`Message::SetTheme` 未挂分组导致设置页主题
+> 选择器 no-op、Toast 按 index 移除在淘汰后误删、`ToastQueue::default()` 容量 0 panic；
+> Bevy 首次获得真实键盘热键派发（`ButtonInput<KeyCode>` → 共享注册表 → `UiCommand`）
+> 与挂载的 toast overlay。05/14/15 为 `shared-ready`；02/03/04/07/08/10/11/13 因宿主事实
+> 或双端面缺失保持 `planned`（不伪造速率徽标、悬浮窗坐标、手势与无障碍覆盖）。
+> 守卫 `scripts/quality/multimodal-shell-guard.py`。
 
 
 全仓按 10 大核心业务组划分，双端必须具备对等功能支撑：

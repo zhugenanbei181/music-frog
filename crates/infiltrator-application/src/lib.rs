@@ -38,6 +38,7 @@ pub mod runtime_query_application;
 pub mod script_application;
 pub mod service_mode_application;
 pub mod settings_application;
+pub mod shortcut_application;
 pub mod snapshot_application;
 pub mod speedtest_application;
 pub mod speedtest_matrix_application;

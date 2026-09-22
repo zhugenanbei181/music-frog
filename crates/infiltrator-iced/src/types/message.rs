@@ -416,9 +416,13 @@ pub enum Message {
     TogglePerfPanel,
     ToggleTheme,
     SetTheme(String),
+    /// The OS appearance changed (`true` = the OS prefers dark).
+    SystemThemeChanged(bool),
+    /// Advance the shared appearance preference through its cycle.
+    CycleThemePreference,
     SetLanguage(String),
     ShowToast(String, ToastStatus),
-    RemoveToast(usize),
+    RemoveToast(u64),
     TestAllProxyDelays,
     /// Result of a scope-wide speedtest (all groups or one group) driven
     /// through the shared engine port. `Err` carries the typed port failure.
@@ -526,12 +530,18 @@ pub enum Message {
     OpenSnapshotDiff(String),
     CloseSnapshotDiff,
     RollbackToSnapshot(String),
-    // Global Hotkey Manager (Category 6)
-    UpdateHotkeyCombo {
-        id: String,
-        combo: String,
+    // Global Hotkey Manager (Category 6) — shared contract registry.
+    BeginHotkeyCapture(infiltrator_contract::shortcuts::ShortcutAction),
+    CancelHotkeyCapture,
+    /// One raw key press forwarded from the window: capture and dispatch are
+    /// resolved against the live registry in `update`.
+    KeyboardChord {
+        key: String,
+        modifiers: infiltrator_contract::shortcuts::KeyModifiers,
     },
-    ToggleHotkeyEnabled(String),
+    ToggleHotkeyEnabled(infiltrator_contract::shortcuts::ShortcutAction),
+    ResetHotkey(infiltrator_contract::shortcuts::ShortcutAction),
+    ShortcutsUpdated(Result<infiltrator_contract::shortcuts::ShortcutRegistry, String>),
     // Wave 3 Category 1: PCAP Exporter
     TogglePcapCapture,
     ExportPcapBuffer,

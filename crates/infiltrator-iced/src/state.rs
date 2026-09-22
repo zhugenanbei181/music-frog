@@ -443,6 +443,15 @@ pub struct ShellState {
     /// so the D-Bus menu is rebuilt at most once per second.
     pub tray_refresh_cooldown: Option<std::time::Instant>,
     pub toasts: Vec<(String, ToastStatus)>,
+    /// Stable ids parallel to [`Self::toasts`]: dismissal is by id, so an
+    /// evicted toast's expiry task can never remove a neighbour.
+    pub toast_ids: Vec<u64>,
+    /// Shared dedup gate (`ToastPolicy`), applied at the single toast
+    /// ingestion point.
+    pub toast_gate: infiltrator_contract::toast::ToastGate,
+    /// Monotonic clock baseline for toast admission timestamps.
+    pub toast_epoch: std::time::Instant,
+    pub next_toast_id: u64,
     pub confirmation: Option<ConfirmAction>,
     pub is_factory_resetting: bool,
     pub theme: Theme,
@@ -454,8 +463,28 @@ pub struct ShellState {
     pub command_selected_index: usize,
     pub mini_hud_mode: bool,
     pub always_on_top: bool,
-    pub hotkeys_config: Vec<crate::types::app::HotkeyBinding>,
+    /// Shared appearance preference (pinned skin or system follow).
+    pub theme_preference: infiltrator_contract::theme::ThemePreference,
+    /// Latest OS appearance signal (`true` = the OS prefers dark).
+    pub system_prefers_dark: bool,
+    /// Shared global-shortcut registry (product defaults until settings load).
+    pub shortcut_registry: infiltrator_contract::shortcuts::ShortcutRegistry,
+    /// Action awaiting the next captured chord, if any.
+    pub hotkey_capture: Option<infiltrator_contract::shortcuts::ShortcutAction>,
     pub uwp_loopback: crate::types::app::UwpLoopbackState,
+}
+
+impl ShellState {
+    /// Apply an appearance preference: store it and repaint the resolved skin
+    /// against the latest OS signal (shared `ThemePreference` resolution).
+    pub fn apply_theme_preference(
+        &mut self,
+        preference: infiltrator_contract::theme::ThemePreference,
+    ) {
+        self.theme_preference = preference;
+        self.theme =
+            crate::view::theme::theme_for_skin(preference.resolve(self.system_prefers_dark));
+    }
 }
 
 pub struct AppState {

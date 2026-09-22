@@ -21,7 +21,7 @@ use infiltrator_bevy_widgets::list::{
 use infiltrator_bevy_widgets::nav::{NavActive, NavItem, nav_fill};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::theme::{Breakpoint, LightDark, Theme};
+use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, ThemeSkin};
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -422,7 +422,7 @@ fn theme_flip_repaints_the_list_and_rows_without_respawn() {
 
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Light));
+        .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
 
     let light = UiPalette::new(&Theme::light());

@@ -35,7 +35,7 @@ use infiltrator_bevy_widgets::text_input::{
     TextField, TextFieldAfter, TextFieldCaret, TextFieldPreeditText, TextFieldSelection,
     TextFieldSelectionText, sync_field_carets, text_field_scene,
 };
-use infiltrator_bevy_widgets::theme::{LightDark, Theme};
+use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -351,7 +351,7 @@ fn theme_flip_rederives_the_wash_and_keeps_the_field() {
     world.entity_mut(field_entity).insert(TextField(state));
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Light));
+        .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
 
     let light = UiPalette::new(&Theme::light());

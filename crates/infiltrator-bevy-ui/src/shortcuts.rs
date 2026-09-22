@@ -1,161 +1,252 @@
-//! Global keyboard shortcut registration, conflict detection, and one-handed reachability mode.
+//! Global shortcut bindings for the Bevy shell.
 //!
-//! Charter (docs/BEVY_UI_FRONTEND.md):
-//! Pure state machine dispatching chords to typed `UiCommand` items without direct OS hooks.
+//! The chord grammar, the product defaults, the conflict rules and the
+//! persisted shape all live in `infiltrator_contract::shortcuts`. This module
+//! owns the Bevy wiring only: a resource mirror of the shared registry, the
+//! keyboard source that turns pressed keys into chords, the capture state for
+//! rebinding, and dispatch of bound chords into typed [`UiCommand`]s (or the
+//! local appearance command).
 
-use crate::command::UiCommand;
+use bevy::app::{App, Plugin, PreUpdate, Update};
+use bevy::ecs::event::Event;
+use bevy::ecs::message::{Message, MessageReader, MessageWriter};
+use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::{Commands, Res, ResMut};
+use bevy::input::ButtonInput;
+use bevy::input::keyboard::KeyCode;
+use infiltrator_contract::shortcuts::{
+    KeyModifiers, ShortcutAction, ShortcutChord, ShortcutRegistry,
+};
+use infiltrator_contract::system_toggle::SystemToggle;
 
-/// Standard key modifiers.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
-pub struct KeyModifiers {
-    pub ctrl: bool,
-    pub shift: bool,
-    pub alt: bool,
-    pub meta: bool,
-}
+use crate::app::SidebarToggleProjection;
+use crate::appearance::{SystemAppearance, ThemeMode, resolved_skin};
+use crate::command::{CommandSinkHandle, UiCommand};
+use bevy::time::{Time, Virtual};
+use infiltrator_bevy_widgets::switch::ThemeSwitch;
 
-impl KeyModifiers {
-    pub fn ctrl() -> Self {
-        Self {
-            ctrl: true,
-            ..Default::default()
-        }
-    }
+/// The live binding set (shared registry).
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
+pub struct ShortcutBindings(pub ShortcutRegistry);
 
-    pub fn ctrl_shift() -> Self {
-        Self {
-            ctrl: true,
-            shift: true,
-            ..Default::default()
-        }
+impl ShortcutBindings {
+    pub fn registry(&self) -> &ShortcutRegistry {
+        &self.0
     }
 }
 
-/// A combined keyboard chord (modifiers + primary key).
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct KeyboardChord {
+/// The action currently awaiting a captured chord, if any.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HotkeyCapture(pub Option<ShortcutAction>);
+
+/// One pressed key plus its modifiers, forwarded by the keyboard source.
+#[derive(Message, Clone, Debug, PartialEq, Eq)]
+pub struct ChordPressed {
     pub key: String,
     pub modifiers: KeyModifiers,
 }
 
-impl KeyboardChord {
-    pub fn new(key: impl Into<String>, modifiers: KeyModifiers) -> Self {
-        Self {
-            key: key.into().to_uppercase(),
-            modifiers,
-        }
-    }
+/// Request a rebind: the next chord is captured for this action.
+#[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BeginChordCapture(pub ShortcutAction);
 
-    /// Human-readable formatting tailored for desktop OS.
-    pub fn display_string(&self, is_macos: bool) -> String {
-        let mut parts = Vec::new();
-        if is_macos {
-            if self.modifiers.ctrl {
-                parts.push("⌃");
+/// Abandon the in-flight rebind.
+#[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CancelChordCapture;
+
+/// Resolve a chord against the shared registry (pure).
+pub fn resolve_action(
+    registry: &ShortcutRegistry,
+    chord: &ShortcutChord,
+) -> Option<ShortcutAction> {
+    registry.resolve(chord)
+}
+
+/// The chord a raw key event denotes (pure): `None` for a bare modifier.
+pub fn chord_from_key(key: KeyCode, modifiers: KeyModifiers) -> Option<ShortcutChord> {
+    let character = match key {
+        KeyCode::KeyA => 'A',
+        KeyCode::KeyB => 'B',
+        KeyCode::KeyC => 'C',
+        KeyCode::KeyD => 'D',
+        KeyCode::KeyE => 'E',
+        KeyCode::KeyF => 'F',
+        KeyCode::KeyG => 'G',
+        KeyCode::KeyH => 'H',
+        KeyCode::KeyI => 'I',
+        KeyCode::KeyJ => 'J',
+        KeyCode::KeyK => 'K',
+        KeyCode::KeyL => 'L',
+        KeyCode::KeyM => 'M',
+        KeyCode::KeyN => 'N',
+        KeyCode::KeyO => 'O',
+        KeyCode::KeyP => 'P',
+        KeyCode::KeyQ => 'Q',
+        KeyCode::KeyR => 'R',
+        KeyCode::KeyS => 'S',
+        KeyCode::KeyT => 'T',
+        KeyCode::KeyU => 'U',
+        KeyCode::KeyV => 'V',
+        KeyCode::KeyW => 'W',
+        KeyCode::KeyX => 'X',
+        KeyCode::KeyY => 'Y',
+        KeyCode::KeyZ => 'Z',
+        KeyCode::Digit0 => '0',
+        KeyCode::Digit1 => '1',
+        KeyCode::Digit2 => '2',
+        KeyCode::Digit3 => '3',
+        KeyCode::Digit4 => '4',
+        KeyCode::Digit5 => '5',
+        KeyCode::Digit6 => '6',
+        KeyCode::Digit7 => '7',
+        KeyCode::Digit8 => '8',
+        KeyCode::Digit9 => '9',
+        KeyCode::Escape => return None,
+        _ => return None,
+    };
+    Some(ShortcutChord::new(character.to_string(), modifiers))
+}
+
+/// Read the platform modifiers out of the live keyboard state (pure).
+pub fn modifiers_from_keyboard(keyboard: &ButtonInput<KeyCode>) -> KeyModifiers {
+    KeyModifiers {
+        ctrl: keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight),
+        shift: keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight),
+        alt: keyboard.pressed(KeyCode::AltLeft) || keyboard.pressed(KeyCode::AltRight),
+        meta: keyboard.pressed(KeyCode::SuperLeft) || keyboard.pressed(KeyCode::SuperRight),
+    }
+}
+
+/// Forward every freshly pressed key as a [`ChordPressed`]. The keyboard
+/// resource is optional: the headless shell (no input plugin) simply has no
+/// key source, and the windowed composition installs `InputPlugin`.
+pub fn forward_pressed_chords(
+    keyboard: Option<Res<ButtonInput<KeyCode>>>,
+    mut chords: MessageWriter<ChordPressed>,
+) {
+    let Some(keyboard) = keyboard else {
+        return;
+    };
+    for key in keyboard.get_just_pressed() {
+        let modifiers = modifiers_from_keyboard(&keyboard);
+        let Some(chord) = chord_from_key(*key, modifiers) else {
+            continue;
+        };
+        chords.write(ChordPressed {
+            key: chord.key().to_string(),
+            modifiers: chord.modifiers(),
+        });
+    }
+}
+
+/// Observer for [`BeginChordCapture`].
+pub fn on_begin_chord_capture(
+    capture: On<BeginChordCapture>,
+    mut hotkey_capture: ResMut<HotkeyCapture>,
+) {
+    hotkey_capture.0 = Some(capture.event().0);
+}
+
+/// Observer for [`CancelChordCapture`].
+pub fn on_cancel_chord_capture(
+    _cancel: On<CancelChordCapture>,
+    mut hotkey_capture: ResMut<HotkeyCapture>,
+) {
+    hotkey_capture.0 = None;
+}
+
+/// Resolve a pressed chord: capture it for the pending action, or dispatch it.
+#[allow(clippy::too_many_arguments)]
+pub fn dispatch_chords(
+    mut chords: MessageReader<ChordPressed>,
+    mut bindings: ResMut<ShortcutBindings>,
+    mut hotkey_capture: ResMut<HotkeyCapture>,
+    toggles: Res<SidebarToggleProjection>,
+    mut theme: ResMut<ThemeMode>,
+    appearance: Res<SystemAppearance>,
+    time: Res<Time<Virtual>>,
+    mut toast_gate: ResMut<crate::toast::ToastPolicyGate>,
+    mut toast_spawns: MessageWriter<infiltrator_bevy_widgets::toast::ToastSpawnEvent>,
+    sink: Option<Res<CommandSinkHandle>>,
+    mut commands: Commands,
+) {
+    for pressed in chords.read() {
+        let chord = ShortcutChord::new(pressed.key.clone(), pressed.modifiers);
+        if let Some(action) = hotkey_capture.0 {
+            hotkey_capture.0 = None;
+            // The shared registry is the conflict authority: a chord owned by
+            // another action keeps the old binding, surfaces a toast, and is
+            // not submitted.
+            if let Some(conflict) = bindings.0.find_conflict(action, &chord) {
+                toast_gate.push(
+                    &mut toast_spawns,
+                    infiltrator_bevy_widgets::toast::ToastKind::Warning,
+                    &conflict.message,
+                    5.0,
+                    crate::toast::now_ms(&time),
+                );
+                continue;
             }
-            if self.modifiers.alt {
-                parts.push("⌥");
+            let _ = bindings.0.bind_or_replace(action, chord.clone());
+            if let Some(sink) = sink.as_deref() {
+                sink.submit(UiCommand::UpdateSetting {
+                    key: format!("shortcut.{}", action.id()),
+                    value: chord.display_string(false),
+                });
             }
-            if self.modifiers.shift {
-                parts.push("⇧");
+            continue;
+        }
+
+        let Some(action) = resolve_action(&bindings.0, &chord) else {
+            continue;
+        };
+        match action {
+            ShortcutAction::ToggleSystemProxy => {
+                let enabled = !toggles.0.state(SystemToggle::SystemProxy).is_enabled();
+                if let Some(sink) = sink.as_deref() {
+                    sink.submit(UiCommand::SetSystemProxy { enabled });
+                }
             }
-            if self.modifiers.meta {
-                parts.push("⌘");
+            ShortcutAction::ToggleTun => {
+                let enabled = !toggles.0.state(SystemToggle::Tun).is_enabled();
+                if let Some(sink) = sink.as_deref() {
+                    sink.submit(UiCommand::ToggleTun { enabled });
+                }
             }
-            parts.push(&self.key);
-            parts.concat()
-        } else {
-            if self.modifiers.ctrl {
-                parts.push("Ctrl");
+            ShortcutAction::CycleTheme => {
+                let next = theme.0.next();
+                theme.0 = next;
+                commands.trigger(ThemeSwitch(resolved_skin(next, appearance.0)));
             }
-            if self.modifiers.alt {
-                parts.push("Alt");
+            ShortcutAction::OpenCommandPalette => {
+                commands.trigger(crate::command_palette::ToggleCommandPalette);
             }
-            if self.modifiers.shift {
-                parts.push("Shift");
-            }
-            if self.modifiers.meta {
-                parts.push("Super");
-            }
-            parts.push(&self.key);
-            parts.join("+")
+            // The Mini HUD action is bound and captured on both surfaces; its
+            // Bevy dispatch lands with the mounted Mini HUD scene (DUAL-15-03).
+            ShortcutAction::ToggleMiniHud => {}
         }
     }
 }
 
-/// Global registry managing shortcut bindings and conflict detection.
-#[derive(Resource, Clone, Debug, Default, PartialEq)]
-pub struct ShortcutRegistry {
-    pub bindings: Vec<(KeyboardChord, UiCommand)>,
-}
+/// Register the shortcut resource, observers, and systems.
+pub struct ShortcutsPlugin;
 
-impl ShortcutRegistry {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Register a chord shortcut mapping to a typed command.
-    /// Returns Err if the chord is already bound.
-    pub fn bind(&mut self, chord: KeyboardChord, command: UiCommand) -> Result<(), String> {
-        if let Some((existing, _)) = self.bindings.iter().find(|(c, _)| c == &chord) {
-            return Err(format!(
-                "Shortcut conflict: {} is already bound",
-                existing.display_string(false)
-            ));
-        }
-        self.bindings.push((chord, command));
-        Ok(())
-    }
-
-    /// Lookup bound command for a chord.
-    pub fn lookup(&self, chord: &KeyboardChord) -> Option<UiCommand> {
-        self.bindings
-            .iter()
-            .find(|(c, _)| c == chord)
-            .map(|(_, cmd)| cmd.clone())
-    }
-}
-
-/// Mobile one-handed reachability mode (pulls top half down for thumb access).
-#[derive(Resource, Clone, Copy, Debug, PartialEq)]
-pub struct ReachabilityMode {
-    pub is_active: bool,
-    pub offset_fraction: f32,
-    pub timer_secs: f32,
-    pub timeout_limit_secs: f32,
-}
-
-impl Default for ReachabilityMode {
-    fn default() -> Self {
-        Self {
-            is_active: false,
-            offset_fraction: 0.35, // pull down 35% of screen height
-            timer_secs: 0.0,
-            timeout_limit_secs: 8.0,
-        }
-    }
-}
-
-impl ReachabilityMode {
-    pub fn toggle(&mut self) {
-        self.is_active = !self.is_active;
-        self.timer_secs = 0.0;
-    }
-
-    pub fn dismiss(&mut self) {
-        self.is_active = false;
-        self.timer_secs = 0.0;
-    }
-
-    /// Advance idle timer: automatically dismisses after timeout_limit_secs.
-    pub fn tick(&mut self, dt_secs: f32) {
-        if self.is_active {
-            self.timer_secs += dt_secs;
-            if self.timer_secs >= self.timeout_limit_secs {
-                self.dismiss();
-            }
-        }
+impl Plugin for ShortcutsPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ShortcutBindings>();
+        app.init_resource::<HotkeyCapture>();
+        app.add_message::<ChordPressed>();
+        app.add_observer(on_begin_chord_capture);
+        app.add_observer(on_cancel_chord_capture);
+        // Read the freshly pressed keys *after* the input plugin has applied
+        // this frame's keyboard messages (it clears the just-pressed set).
+        app.add_systems(
+            PreUpdate,
+            forward_pressed_chords.after(bevy::input::InputSystems),
+        );
+        app.add_systems(Update, dispatch_chords);
     }
 }
 
@@ -164,42 +255,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_keyboard_chord_formatting_and_lookup() {
-        let mut registry = ShortcutRegistry::new();
-        let chord_k = KeyboardChord::new("K", KeyModifiers::ctrl());
-        assert_eq!(chord_k.display_string(false), "Ctrl+K");
-
-        assert!(
-            registry
-                .bind(chord_k.clone(), UiCommand::ClearDnsCache)
-                .is_ok()
+    fn chord_mapping_covers_letters_digits_and_skips_modifiers() {
+        let chord = chord_from_key(KeyCode::KeyK, KeyModifiers::ctrl()).expect("letter chord");
+        assert_eq!(chord, ShortcutChord::ctrl_key("K"));
+        assert_eq!(
+            chord_from_key(KeyCode::Escape, KeyModifiers::default()),
+            None
         );
-
-        // Duplicate bind fails with conflict
-        assert!(
-            registry
-                .bind(chord_k.clone(), UiCommand::ClearLogs)
-                .is_err()
+        assert_eq!(
+            chord_from_key(KeyCode::Digit1, KeyModifiers::default()),
+            Some(ShortcutChord::new("1", KeyModifiers::default()))
         );
-
-        // Lookup succeeds
-        assert_eq!(registry.lookup(&chord_k), Some(UiCommand::ClearDnsCache));
     }
 
     #[test]
-    fn test_reachability_mode_lifecycle_and_timeout() {
-        let mut reach = ReachabilityMode::default();
-        assert!(!reach.is_active);
-
-        reach.toggle();
-        assert!(reach.is_active);
-
-        // Advance 5s -> still active
-        reach.tick(5.0);
-        assert!(reach.is_active);
-
-        // Advance past 8s -> automatically dismissed
-        reach.tick(4.0);
-        assert!(!reach.is_active);
+    fn default_bindings_resolve_the_product_chords() {
+        let bindings = ShortcutBindings::default();
+        assert_eq!(bindings.0.bindings().len(), ShortcutAction::ALL.len());
+        assert_eq!(
+            resolve_action(&bindings.0, &ShortcutChord::ctrl_key("K")),
+            Some(ShortcutAction::OpenCommandPalette)
+        );
+        assert_eq!(
+            resolve_action(&bindings.0, &ShortcutChord::ctrl_alt_key("M")),
+            Some(ShortcutAction::ToggleMiniHud)
+        );
     }
 }

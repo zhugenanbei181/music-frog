@@ -10,7 +10,6 @@ use infiltrator_bevy_ui::surface::{
     SurfaceSource, SurfaceStatusBanner, core_lifecycle_projection, overview_projection,
     settings_projection,
 };
-use infiltrator_bevy_widgets::theme::LightDark;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_contract::session::SessionToken;
@@ -72,7 +71,12 @@ fn app_with_shared_source() -> App {
 
     let mut app = App::new();
     headless_plugins(&mut app);
-    app.add_plugins(ShellPlugin::new_with_width(LightDark::Dark, 1180.0));
+    app.add_plugins(ShellPlugin::new_with_width(
+        infiltrator_contract::theme::ThemePreference::Fixed(
+            infiltrator_contract::theme::ThemeSkin::Dark,
+        ),
+        1180.0,
+    ));
     app.add_plugins(PagesPlugin::new_surface(StaticSurface { snapshot }));
     app.update();
     app
@@ -216,7 +220,12 @@ fn live_snapshot_reconciles_an_initial_unavailable_banner() {
     );
     let mut app = App::new();
     headless_plugins(&mut app);
-    app.add_plugins(ShellPlugin::new_with_width(LightDark::Dark, 1180.0));
+    app.add_plugins(ShellPlugin::new_with_width(
+        infiltrator_contract::theme::ThemePreference::Fixed(
+            infiltrator_contract::theme::ThemeSkin::Dark,
+        ),
+        1180.0,
+    ));
     app.add_plugins(PagesPlugin::new_surface(StaticSurface {
         snapshot: initial.clone(),
     }));
@@ -257,7 +266,12 @@ fn stale_session_snapshot_cannot_replace_a_newer_bevy_projection() {
 
     let mut app = App::new();
     headless_plugins(&mut app);
-    app.add_plugins(ShellPlugin::new_with_width(LightDark::Dark, 1180.0));
+    app.add_plugins(ShellPlugin::new_with_width(
+        infiltrator_contract::theme::ThemePreference::Fixed(
+            infiltrator_contract::theme::ThemeSkin::Dark,
+        ),
+        1180.0,
+    ));
     app.add_plugins(PagesPlugin::new_surface(StaticSurface {
         snapshot: snapshot.clone(),
     }));
@@ -294,7 +308,12 @@ fn hot_reload_snapshot_keeps_bevy_generation_and_session_identity() {
 
     let mut app = App::new();
     headless_plugins(&mut app);
-    app.add_plugins(ShellPlugin::new_with_width(LightDark::Dark, 1180.0));
+    app.add_plugins(ShellPlugin::new_with_width(
+        infiltrator_contract::theme::ThemePreference::Fixed(
+            infiltrator_contract::theme::ThemeSkin::Dark,
+        ),
+        1180.0,
+    ));
     app.add_plugins(PagesPlugin::new_surface(StaticSurface {
         snapshot: snapshot.clone(),
     }));

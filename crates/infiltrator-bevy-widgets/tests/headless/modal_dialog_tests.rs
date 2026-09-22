@@ -11,7 +11,7 @@ use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim, confirm_dialog_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::theme::{LightDark, Theme};
+use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -51,7 +51,7 @@ fn modal_state_and_dialog_scenes_mount() {
     // Theme switch
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Light));
+        .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
 
     let light_palette = UiPalette::new(&Theme::light());

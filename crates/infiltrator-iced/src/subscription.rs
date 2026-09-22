@@ -340,24 +340,37 @@ impl AppState {
             }));
         }
 
-        // 4. 全局键盘热键订阅（Command Palette Ctrl+K / Cmd+K 与 ESC）
+        // 4. 全局键盘订阅：把每一次按下原样转成 `KeyboardChord`，由
+        // `update` 对照共享 `ShortcutRegistry` 解析（Command Palette
+        // Ctrl+K / Cmd+K、系统代理、TUN、Mini HUD、主题循环），捕获模式下
+        // 则作为新的绑定组合键。订阅是纯转发，因此不需要捕获状态。
         subs.push(iced::event::listen_with(|event, _status, _window| {
-            if let iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
-                key, modifiers, ..
-            }) = event
-            {
-                if (modifiers.control() || modifiers.command())
-                    && (key == iced::keyboard::Key::Character("k".into())
-                        || key == iced::keyboard::Key::Character("K".into()))
-                {
-                    return Some(Message::ToggleCommandPalette);
-                }
-                if key == iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape) {
-                    return Some(Message::CloseCommandPalette);
-                }
-            }
-            None
+            let iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, modifiers, .. }) =
+                event
+            else {
+                return None;
+            };
+            let key_name = match &key {
+                iced::keyboard::Key::Character(character) => character.to_string(),
+                iced::keyboard::Key::Named(named) => format!("{named:?}"),
+                _ => return None,
+            };
+            Some(Message::KeyboardChord {
+                key: key_name,
+                modifiers: infiltrator_contract::shortcuts::KeyModifiers {
+                    ctrl: modifiers.control(),
+                    shift: modifiers.shift(),
+                    alt: modifiers.alt(),
+                    meta: modifiers.command(),
+                },
+            })
         }));
+
+        // 4a. 系统外观订阅：`system` 偏好下即时跟随 OS 明暗切换。
+        subs.push(
+            iced::system::theme_changes()
+                .map(|mode| Message::SystemThemeChanged(matches!(mode, iced::theme::Mode::Dark))),
+        );
 
         // 4b. 窗口尺寸订阅：唯一驱动共享 4 阶响应式投影的来源。窗口拖拽
         // 只影响本地布局，但阶的判定必须走 shared contract，两端一致。

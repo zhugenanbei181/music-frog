@@ -43,7 +43,7 @@ use infiltrator_bevy_widgets::chart::{
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::theme::{LightDark, Theme};
+use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -226,7 +226,7 @@ fn chart_scene_stamps_an_image_node_and_updates_rewrite_the_same_handle() {
 
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Light));
+        .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
     let world = app.world_mut();
     assert_eq!(

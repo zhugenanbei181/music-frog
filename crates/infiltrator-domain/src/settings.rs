@@ -100,6 +100,10 @@ pub struct AppSettings {
     pub window_position: Option<(i32, i32)>,
     #[serde(default)]
     pub window_maximized: bool,
+    /// Global shell-chord bindings (shared contract: `ShortcutBinding`).
+    /// An empty list means "product defaults".
+    #[serde(default)]
+    pub shortcuts: Vec<infiltrator_contract::shortcuts::ShortcutBinding>,
 }
 
 fn default_notifications_enabled() -> bool {
@@ -128,6 +132,7 @@ impl Default for AppSettings {
             window_size: None,
             window_position: None,
             window_maximized: false,
+            shortcuts: Vec::new(),
         }
     }
 }

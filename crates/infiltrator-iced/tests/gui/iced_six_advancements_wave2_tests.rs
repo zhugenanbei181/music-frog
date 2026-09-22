@@ -201,25 +201,77 @@ fn test_advancement_w2_5_snapshot_diff_and_rollback_dialog() {
 
 #[test]
 fn test_advancement_w2_6_global_hotkey_manager_state() {
+    use infiltrator_contract::shortcuts::{KeyModifiers, ShortcutAction, ShortcutChord};
     let (mut state, _) = AppState::new();
 
-    // Verify default bindings
-    assert_eq!(state.shell.hotkeys_config.len(), 3);
-    assert_eq!(state.shell.hotkeys_config[0].id, "system_proxy");
-    assert_eq!(state.shell.hotkeys_config[0].combo, "Ctrl+Alt+P");
-    assert!(state.shell.hotkeys_config[0].enabled);
+    // The shared registry seeds one product default per action.
+    assert_eq!(
+        state.shell.shortcut_registry.bindings().len(),
+        ShortcutAction::ALL.len()
+    );
+    let system_proxy = ShortcutAction::ToggleSystemProxy;
+    assert_eq!(
+        state
+            .shell
+            .shortcut_registry
+            .get(system_proxy)
+            .unwrap()
+            .chord,
+        ShortcutChord::ctrl_alt_key("P")
+    );
+    assert!(state.shell.shortcut_registry.is_active(system_proxy));
 
-    // Update shortcut combo
-    let _ = state.update(Message::UpdateHotkeyCombo {
-        id: "system_proxy".to_string(),
-        combo: "Ctrl+Shift+P".to_string(),
+    // Capturing a free chord rebinds it in place (the persistence task is
+    // host-driven; the in-memory decision comes from the shared registry).
+    let _ = state.update(Message::BeginHotkeyCapture(system_proxy));
+    assert_eq!(state.shell.hotkey_capture, Some(system_proxy));
+    let _ = state.update(Message::KeyboardChord {
+        key: "P".to_string(),
+        modifiers: KeyModifiers {
+            ctrl: true,
+            shift: true,
+            alt: false,
+            meta: false,
+        },
     });
-    assert_eq!(state.shell.hotkeys_config[0].combo, "Ctrl+Shift+P");
+    assert_eq!(state.shell.hotkey_capture, None);
+    assert_eq!(
+        state
+            .shell
+            .shortcut_registry
+            .get(system_proxy)
+            .unwrap()
+            .chord,
+        ShortcutChord::new(
+            "P",
+            KeyModifiers {
+                ctrl: true,
+                shift: true,
+                alt: false,
+                meta: false,
+            }
+        )
+    );
 
-    // Toggle shortcut enabled: On -> Off -> On
-    let _ = state.update(Message::ToggleHotkeyEnabled("system_proxy".to_string()));
-    assert!(!state.shell.hotkeys_config[0].enabled);
+    // A chord owned by another action is refused with a conflict toast and
+    // the live binding is untouched.
+    let before = state.shell.shortcut_registry.clone();
+    let _ = state.update(Message::BeginHotkeyCapture(system_proxy));
+    let _ = state.update(Message::KeyboardChord {
+        key: "T".to_string(),
+        modifiers: KeyModifiers {
+            ctrl: true,
+            shift: false,
+            alt: true,
+            meta: false,
+        },
+    });
+    assert_eq!(state.shell.shortcut_registry, before);
+    assert!(!state.shell.toasts.is_empty(), "conflict is surfaced");
 
-    let _ = state.update(Message::ToggleHotkeyEnabled("system_proxy".to_string()));
-    assert!(state.shell.hotkeys_config[0].enabled);
+    // Toggle enabled: On -> Off -> On.
+    let _ = state.update(Message::ToggleHotkeyEnabled(system_proxy));
+    assert!(!state.shell.shortcut_registry.is_active(system_proxy));
+    let _ = state.update(Message::ToggleHotkeyEnabled(system_proxy));
+    assert!(state.shell.shortcut_registry.is_active(system_proxy));
 }

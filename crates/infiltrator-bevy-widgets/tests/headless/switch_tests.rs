@@ -12,7 +12,7 @@ use infiltrator_bevy_widgets::button::{ControlVisual, pill_scene};
 use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::theme::{LightDark, Theme};
+use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 
 use super::support::headless_app;
 
@@ -48,7 +48,7 @@ fn switch_to_light_rethemes_the_mounted_tree_in_place() {
 
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Light));
+        .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
 
     // The palette resource now resolves the light token set.
@@ -81,7 +81,7 @@ fn switch_to_light_rethemes_the_mounted_tree_in_place() {
     // A second switch returns everything to the dark tokens.
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Dark));
+        .trigger(ThemeSwitch(ThemeSkin::Dark));
     app.update();
 
     let world = app.world_mut();

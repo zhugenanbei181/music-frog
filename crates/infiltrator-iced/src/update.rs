@@ -1,5 +1,6 @@
 pub mod core;
 pub mod profile;
+pub mod shell;
 mod system_proxy;
 pub mod ui;
 mod ui_wave3;
@@ -186,7 +187,6 @@ impl AppState {
             | Message::OpenSnapshotDiff(_)
             | Message::CloseSnapshotDiff
             | Message::RollbackToSnapshot(_)
-            | Message::UpdateHotkeyCombo { .. }
             | Message::ToggleHotkeyEnabled(_)
             | Message::TogglePcapCapture
             | Message::ExportPcapBuffer
@@ -264,6 +264,14 @@ impl AppState {
             | Message::NavigateBack
             | Message::NavigateForward
             | Message::ToggleTheme
+            | Message::SetTheme(_)
+            | Message::SystemThemeChanged(_)
+            | Message::CycleThemePreference
+            | Message::BeginHotkeyCapture(_)
+            | Message::CancelHotkeyCapture
+            | Message::KeyboardChord { .. }
+            | Message::ResetHotkey(_)
+            | Message::ShortcutsUpdated(_)
             | Message::TickFrame(_)
             | Message::WindowClosed(_)
             | Message::HideWindow

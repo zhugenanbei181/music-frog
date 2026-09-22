@@ -71,7 +71,10 @@ impl AppState {
                 self.profile.is_saving_app_settings = true;
                 let language = self.shell.lang.clone();
                 let core_channel = self.profile_core_channel();
-                let theme = crate::view::theme::theme_to_name(&self.shell.theme).to_string();
+                // Persist the *preference* ("system" stays "system"); a
+                // resolved skin name would silently pin the appearance on the
+                // next start.
+                let theme = self.shell.theme_preference.as_setting().to_string();
                 let editor_path = if self.editor.editor_path_setting.trim().is_empty() {
                     None
                 } else {
