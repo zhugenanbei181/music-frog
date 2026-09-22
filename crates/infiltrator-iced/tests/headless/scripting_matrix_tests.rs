@@ -6,7 +6,12 @@
 use infiltrator_application::script_application::{
     ScriptApplication, last_script_sandbox, publish_script_sandbox,
 };
+use infiltrator_application::script_export_application::{
+    ScriptExportApplication, last_script_export, publish_script_export,
+};
 use infiltrator_application::script_sandbox_matrix_application::ScriptSandboxMatrixApplication;
+use infiltrator_contract::script_export::{ScriptExportKind, ScriptExportOutcome};
+use infiltrator_domain::mixin_studio;
 
 #[test]
 fn script_sandbox_matrix_passes_on_the_iced_surface() {
@@ -17,13 +22,47 @@ fn script_sandbox_matrix_passes_on_the_iced_surface() {
         "failed covered rows: {:?}",
         report.failed_ids()
     );
-    assert_eq!(
-        report.not_covered_ids(),
-        vec!["DUAL-10-01", "DUAL-10-09"],
-        "the honest gaps stay uncovered"
-    );
-    assert_eq!(report.covered_passed_count(), 13);
-    assert!(report.summary_zh().contains("13/13"));
+    // Only the honest QuickJS gap stays uncovered.
+    assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01"]);
+    assert_eq!(report.covered_passed_count(), 14);
+    assert!(report.summary_zh().contains("14/14"));
+}
+
+/// DUAL-10-09/12 on the Iced surface: the three-column model is the shared
+/// reduction (real base, editable overlay, real composed output) and the
+/// per-surface export is the real artifact with a typed host outcome.
+#[test]
+fn three_column_editor_and_export_ride_the_shared_reduction() {
+    let base = "mode: rule\nport: 7890\n";
+    let columns = mixin_studio::mixin_editor_columns(base, "mode: global\n");
+    assert_eq!(columns.base.content, base);
+    assert!(columns.overlay.editable);
+    assert!(columns.is_composed());
+    assert!(columns.composed.content.contains("mode: global"));
+    assert!(columns.composed.content.contains("port: 7890"));
+    let blocked = mixin_studio::mixin_editor_columns(base, "mode: [bad\n");
+    assert!(blocked.is_blocked());
+    assert!(blocked.composed.content.is_empty());
+
+    // A host with no save-file port is a typed unsupported, not a fake path.
+    let hostless = ScriptExportApplication::without_host_port()
+        .export_directive_dsl(
+            Some("iced"),
+            "function main(config) {\n  auto_country_groups(config);\n  return config;\n}",
+            Some("auto-country-groups"),
+        )
+        .expect("compose");
+    assert_eq!(hostless.kind, ScriptExportKind::DirectiveDslScript);
+    assert_eq!(hostless.file_name, "iced.js");
+    assert!(hostless.content.contains("不是 JavaScript"));
+    assert!(hostless.outcome.is_unsupported());
+    assert!(matches!(
+        hostless.outcome,
+        ScriptExportOutcome::Unsupported { .. }
+    ));
+    // The projection the Bevy console reads is the same fact.
+    publish_script_export(hostless.clone());
+    assert_eq!(last_script_export().as_ref(), Some(&hostless));
 }
 
 #[test]

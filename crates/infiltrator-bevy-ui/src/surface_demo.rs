@@ -135,6 +135,7 @@ pub(super) fn snapshot_from_overview(
         subscription_quota: overview.subscription_quota.clone(),
         yaml_ast_diff: None,
         script_sandbox: None,
+        script_export: None,
         speedtest: infiltrator_contract::speedtest::SpeedtestSnapshot::default(),
     }
 }
@@ -194,6 +195,7 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         subscription_quota: overview.subscription_quota.clone(),
         yaml_ast_diff: None,
         script_sandbox: None,
+        script_export: None,
         speedtest: infiltrator_contract::speedtest::SpeedtestSnapshot::default(),
     }
 }
@@ -269,6 +271,7 @@ pub(crate) fn empty_profiles() -> ProfilesProjection {
         profile_document: None,
         profile_options: None,
         script_sandbox: None,
+        script_export: None,
     }
 }
 

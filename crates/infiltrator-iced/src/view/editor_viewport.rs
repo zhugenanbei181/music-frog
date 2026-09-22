@@ -57,6 +57,27 @@ pub fn window_lines_for_window_height(height_px: f32) -> usize {
         .clamp(EDITOR_MIN_WINDOW_LINES, EDITOR_MAX_WINDOW_LINES)
 }
 
+/// DUAL-10-09: chrome the Mixin pane spends above/below its three-column
+/// workspace — the preflight banner, the toggle chips, the cascade strip, the
+/// export panel and the history row. The Mixin window is sized against this
+/// larger estimate so the workspace and the export panel stay inside the
+/// (non-scrolling) page on a normal window.
+pub const MIXIN_EDITOR_CHROME_PX: f32 = 470.0;
+
+/// The bounded window for the Mixin pane's middle column.
+pub fn mixin_viewport_for(
+    content: &text_editor::Content,
+    window_height_px: f32,
+    first_line: usize,
+) -> EditorViewport {
+    let chrome = MIXIN_EDITOR_CHROME_PX + 2.0 * EDITOR_PADDING_PX;
+    let usable =
+        (window_height_px - chrome).max(EDITOR_LINE_HEIGHT_PX * EDITOR_MIN_WINDOW_LINES as f32);
+    let window_lines = ((usable / EDITOR_LINE_HEIGHT_PX).floor() as usize)
+        .clamp(EDITOR_MIN_WINDOW_LINES, EDITOR_MAX_WINDOW_LINES);
+    EditorViewport::new(content.line_count().max(1), window_lines, first_line)
+}
+
 /// Exact pixel height of the editor box for a window of `window_lines` lines.
 pub fn editor_box_height_px(window_lines: usize) -> f32 {
     window_lines as f32 * EDITOR_LINE_HEIGHT_PX + 2.0 * EDITOR_PADDING_PX

@@ -24,6 +24,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::script_export::{
+    ScriptExportKind, ScriptExportOutcome, ScriptExportSnapshot,
+};
 use infiltrator_contract::script_sandbox::ScriptSandboxSnapshot;
 
 use crate::pages::profiles::{ProfilesProjection, ProfilesProjectionUpdated};
@@ -40,6 +43,8 @@ pub struct ScriptSandboxBody;
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct ScriptSandboxViewState {
     pub rendered: Option<ScriptSandboxSnapshot>,
+    /// DUAL-10-12: the export projection rendered next to the console rows.
+    pub rendered_export: Option<ScriptExportSnapshot>,
 }
 
 fn text_row(body: String) -> Box<dyn Scene> {
@@ -58,7 +63,10 @@ fn one_line(yaml: &str) -> String {
 }
 
 /// The console rows for one shared projection (or the honest waiting state).
-pub fn script_sandbox_body(snapshot: Option<&ScriptSandboxSnapshot>) -> Vec<Box<dyn Scene>> {
+pub fn script_sandbox_body(
+    snapshot: Option<&ScriptSandboxSnapshot>,
+    export: Option<&ScriptExportSnapshot>,
+) -> Vec<Box<dyn Scene>> {
     let mut rows: Vec<Box<dyn Scene>> = Vec::new();
 
     // DUAL-10-04: the preset catalogue is the shared one, never inline copy.
@@ -133,6 +141,61 @@ pub fn script_sandbox_body(snapshot: Option<&ScriptSandboxSnapshot>) -> Vec<Box<
             )));
         }
     }
+    rows.extend(export_rows(export));
+    rows
+}
+
+/// DUAL-10-12: the export rows. The export is *executed* by the Iced console
+/// through the shared application and the host save-file port; this card
+/// renders the same shared projection (file name, bytes, SHA-256, typed host
+/// outcome) and states where the action comes from.
+fn export_rows(export: Option<&ScriptExportSnapshot>) -> Vec<Box<dyn Scene>> {
+    let mut rows: Vec<Box<dyn Scene>> = Vec::new();
+    let kinds: Vec<&str> = [
+        ScriptExportKind::MixinOverlayYaml,
+        ScriptExportKind::DirectiveDslScript,
+        ScriptExportKind::ExtensionPackageJson,
+    ]
+    .iter()
+    .map(|kind| kind.label_zh())
+    .collect();
+    rows.push(text_row(format!(
+        "导出格式（共享用例，{} 种）: {}",
+        kinds.len(),
+        kinds.join(" · ")
+    )));
+    match export {
+        None => rows.push(text_row(
+            "尚未导出：在 Iced 控制台触发导出后，同一共享读模型（含真实文件名/字节数/宿主结果）会发布到此卡片"
+                .to_owned(),
+        )),
+        Some(export) => {
+            rows.push(text_row(format!(
+                "导出文件: {}（{} 字节，{}）",
+                export.file_name,
+                export.byte_len(),
+                export.media_type
+            )));
+            rows.push(text_row(format!(
+                "宿主结果: {}{}",
+                export.outcome_label_zh(),
+                match &export.outcome {
+                    ScriptExportOutcome::Saved { path, .. } => format!(" · 已写入 {path}"),
+                    ScriptExportOutcome::Unsupported { reason }
+                    | ScriptExportOutcome::Failed { reason } => format!(" · {reason}"),
+                    ScriptExportOutcome::Prepared => String::new(),
+                }
+            )));
+            if let Some(checksum) = export.checksum.as_deref() {
+                rows.push(text_row(format!("SHA-256: {checksum}")));
+            }
+            rows.push(text_row(format!("诚实说明: {}", export.honest_note)));
+            rows.push(text_row(format!(
+                "导出内容预览: {}",
+                one_line(&export.content_preview(400))
+            )));
+        }
+    }
     rows
 }
 
@@ -141,7 +204,10 @@ pub fn script_sandbox_scene(
     projection: &ProfilesProjection,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let rows = script_sandbox_body(projection.script_sandbox.as_ref());
+    let rows = script_sandbox_body(
+        projection.script_sandbox.as_ref(),
+        projection.script_export.as_ref(),
+    );
     let engine_note = projection
         .script_sandbox
         .as_ref()
@@ -210,13 +276,15 @@ pub fn rebuild_script_sandbox_body(
     mut commands: Commands,
 ) {
     let snapshot = update.0.script_sandbox.clone();
-    if state.rendered == snapshot {
+    let export = update.0.script_export.clone();
+    if state.rendered == snapshot && state.rendered_export == export {
         return;
     }
     state.rendered = snapshot.clone();
+    state.rendered_export = export.clone();
     for entity in &bodies {
         commands.entity(entity).despawn_children();
-        for row in script_sandbox_body(snapshot.as_ref()) {
+        for row in script_sandbox_body(snapshot.as_ref(), export.as_ref()) {
             commands.spawn_scene(row).insert(ChildOf(entity));
         }
     }

@@ -596,6 +596,37 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "mixin_studio_cascade_merged" => "合成输出".into(),
         "mixin_studio_cascade_lines" => "行".into(),
 
+        // Category: DUAL-10-09 three-column Mixin editor
+        "mixin_column_base" => "Base 配置".into(),
+        "mixin_column_overlay" => "Mixin 覆写块".into(),
+        "mixin_column_composed" => "合成后最终配置".into(),
+        "mixin_column_editable" => "可编辑".into(),
+        "mixin_column_readonly" => "只读".into(),
+        "mixin_column_blocked" => "合成被阻断：{error}".into(),
+
+        // Category: DUAL-10-12 extension export
+        "script_export_title" => "导出与社区分享".into(),
+        "script_export_kind_mixin_yaml" => "导出 Mixin 覆写 (.yaml)".into(),
+        "script_export_kind_directive_js" => "导出指令 DSL 脚本 (.js)".into(),
+        "script_export_kind_package_json" => "导出扩展包 (JSON)".into(),
+        "script_export_busy" => "导出中…".into(),
+        "script_export_empty" => {
+            "尚未导出：内容由共享用例合成后交给宿主保存端口（无对话框时为类型化“不支持”）".into()
+        }
+        "script_export_kind" => "导出格式：".into(),
+        "script_export_file" => "文件：".into(),
+        "script_export_file_value" => "{name}（{bytes} 字节）".into(),
+        "script_export_outcome" => "宿主结果：".into(),
+        "script_export_saved_path" => "已写入：".into(),
+        "script_export_unsupported" => "未写入：".into(),
+        "script_export_checksum" => "SHA-256：".into(),
+        "script_export_note" => "诚实说明：".into(),
+        "script_export_preview" => "导出内容预览".into(),
+        "script_export_toast_saved" => "已导出".into(),
+        "script_export_toast_unsupported" => "宿主无文件对话框：内容已生成，未写入磁盘".into(),
+        "script_export_toast_failed" => "导出失败".into(),
+        "script_export_toast_prepared" => "导出内容已生成".into(),
+
         // Category 2: multimodal shell finish (DUAL-15-02/10/13)
         "tray_info_rate" => "实时速率".into(),
         "a11y_window" => "应用主窗口".into(),

@@ -32,6 +32,7 @@ pub mod public_ip_probe;
 pub mod rule_provider_cache;
 pub mod rule_tracer;
 pub mod runtime_gateway;
+pub mod script_export;
 pub mod secure_store;
 pub mod service_mode;
 pub mod settings_store;

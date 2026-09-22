@@ -571,6 +571,14 @@ pub enum Message {
     UpdateScriptSandboxCode(String),
     UpdateScriptSandboxInputYaml(String),
     ClearScriptSandbox,
+    /// DUAL-10-12: export one artifact through the shared export use-case and
+    /// the host save-file port (typed unsupported when the host has none).
+    ExportScriptDraft(infiltrator_contract::script_export::ScriptExportKind),
+    /// DUAL-10-12: the shared export projection (file name/bytes/checksum +
+    /// typed host outcome) the console renders for both surfaces.
+    ScriptExportFinished(
+        Result<infiltrator_contract::script_export::ScriptExportSnapshot, InfiltratorError>,
+    ),
     // DNS Leak & Privacy Probe (Category 1)
     RunDnsLeakProbe,
     DnsLeakProbeFinished(super::dns::DnsLeakReport),

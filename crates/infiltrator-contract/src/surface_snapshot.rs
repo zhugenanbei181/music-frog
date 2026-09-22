@@ -694,6 +694,10 @@ pub struct SurfaceSnapshot {
     /// by `ScriptApplication` (no JavaScript engine is bundled).
     #[serde(default)]
     pub script_sandbox: Option<crate::script_sandbox::ScriptSandboxSnapshot>,
+    /// DUAL-10-12: the shared export read model published by
+    /// `ScriptExportApplication` (real file name/bytes/checksum + host outcome).
+    #[serde(default)]
+    pub script_export: Option<crate::script_export::ScriptExportSnapshot>,
     /// Shared concurrent speedtest, jitter, and packet loss telemetry.
     #[serde(default)]
     pub speedtest: crate::speedtest::SpeedtestSnapshot,
@@ -754,6 +758,7 @@ impl SurfaceSnapshot {
             subscription_quota: crate::subscription_quota::SubscriptionQuotaSnapshot::default(),
             yaml_ast_diff: None,
             script_sandbox: None,
+            script_export: None,
             speedtest: crate::speedtest::SpeedtestSnapshot::default(),
         }
     }

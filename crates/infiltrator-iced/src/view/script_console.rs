@@ -432,16 +432,34 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
         .into(),
     };
 
+    // DUAL-10-12: the console body (editors + result + the real export
+    // panel) is a bounded scroll region so the export UI stays reachable on
+    // the default 780px window; the height follows the shared viewport.
+    let body_height = (state.shell.viewport.height_px - 360.0).max(260.0);
     let main_card = card(
         Some(lang.tr("script_sandbox_title").to_string()),
-        column![
-            preset_row,
-            Space::new().height(theme::SP_SM),
-            editors_row,
-            Space::new().height(theme::SP_MD),
-            output_section,
-        ]
-        .spacing(theme::SP_SM),
+        modern_scrollable(
+            column![
+                preset_row,
+                Space::new().height(theme::SP_SM),
+                editors_row,
+                Space::new().height(theme::SP_MD),
+                output_section,
+                Space::new().height(theme::SP_MD),
+                // DUAL-10-12: the real per-surface export (directive DSL `.js`
+                // + the SHA-256 extension package), routed through the shared
+                // application and the host save-file port.
+                crate::view::script_export::export_section(
+                    state,
+                    &[
+                        infiltrator_contract::script_export::ScriptExportKind::DirectiveDslScript,
+                        infiltrator_contract::script_export::ScriptExportKind::ExtensionPackageJson,
+                    ],
+                ),
+            ]
+            .spacing(theme::SP_SM),
+        )
+        .height(Length::Fixed(body_height)),
     );
 
     column![main_card].spacing(theme::SP_MD).into()

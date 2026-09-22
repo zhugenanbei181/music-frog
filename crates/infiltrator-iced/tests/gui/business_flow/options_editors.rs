@@ -335,7 +335,21 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
         let _banner = crate::view::mixin_studio::preflight_banner(&state);
         let _strip = crate::view::mixin_studio::cascade_strip(&state);
         let _chips = crate::view::mixin_studio::toggle_row(&state);
+        // DUAL-10-09: the three-column row compiles and reads the shared
+        // reduction over the open base document.
+        let _columns = crate::view::mixin_studio::three_column_row(&state);
     }
+    let columns = infiltrator_domain::mixin_studio::mixin_editor_columns(
+        &state.editor.editor_content.text(),
+        &state.editor.mixin_content.text(),
+    );
+    assert_eq!(columns.base.content, state.editor.editor_content.text());
+    assert!(columns.is_composed());
+    assert!(columns.composed.content.contains("ipv6: true"));
+    assert!(
+        columns.composed.content.contains("HK-1"),
+        "the composed column carries the real base document content"
+    );
 
     // A broken overlay is blocked by the shared preflight before any write.
     feed(
@@ -349,4 +363,105 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
         !home.configs().join("options/alpha.yaml").exists(),
         "blocked overlay must not write a sidecar"
     );
+    // DUAL-10-09: a blocked overlay empties the composed column with the real
+    // reason instead of a mock document.
+    let blocked = infiltrator_domain::mixin_studio::mixin_editor_columns(
+        &state.editor.editor_content.text(),
+        &state.editor.mixin_content.text(),
+    );
+    assert!(blocked.is_blocked());
+    assert!(blocked.composed.content.is_empty());
+}
+
+/// DUAL-10-12 — the Mixin pane export is a real file: the routed message arms
+/// the shared use-case, the desktop host adapter writes the overlay YAML into
+/// the host-owned exports directory, and the result message publishes the
+/// shared projection both surfaces render. A host without a save-file adapter
+/// answers a typed unsupported outcome instead of a fake path.
+#[test]
+fn mixin_export_writes_a_real_yaml_file_and_reports_the_host_outcome() {
+    use infiltrator_contract::script_export::{ScriptExportKind, ScriptExportOutcome};
+    use std::sync::Arc;
+
+    let home = TempHome::acquire("mixin-export");
+    home.seed_profile("alpha", super::support::SAMPLE_PROFILE_YAML);
+    let profile_path = home.configs().join("alpha.yaml");
+    let mut state = fresh_state();
+    feed(
+        &mut state,
+        Message::ProfileContentLoaded(Ok((
+            profile_path,
+            super::support::SAMPLE_PROFILE_YAML.into(),
+        ))),
+    );
+    feed(&mut state, Message::SetEditorPane(EditorPane::Mixin));
+    feed(&mut state, Message::MixinLoaded(Ok("ipv6: true\n".into())));
+
+    // The user action arms the shared export task (no local composition).
+    let units = feed(
+        &mut state,
+        Message::ExportScriptDraft(ScriptExportKind::MixinOverlayYaml),
+    );
+    assert_eq!(units, 1, "the export task is armed");
+    assert!(state.editor.script_sandbox.is_exporting);
+
+    // The same task body the update arm runs, with the real desktop adapter
+    // over this journey's temp home: a real file must land on disk.
+    let port =
+        Arc::new(infiltrator_desktop::script_export::DesktopScriptExportPort::new(home.configs()));
+    let snapshot =
+        infiltrator_application::script_export_application::ScriptExportApplication::new(Some(
+            port,
+        ))
+        .export_mixin_overlay(
+            "alpha",
+            &state.editor.editor_content.text(),
+            &state.editor.mixin_content.text(),
+        )
+        .expect("real export");
+    let exported_path = home.configs().join("exports/alpha.mixin.yaml");
+    assert!(
+        exported_path.exists(),
+        "the host wrote a real overlay export at {exported_path:?}"
+    );
+    let written = std::fs::read_to_string(&exported_path).expect("read export");
+    assert!(written.contains("ipv6: true"));
+    assert!(written.contains("非 JavaScript"));
+    match &snapshot.outcome {
+        ScriptExportOutcome::Saved {
+            path,
+            bytes_written,
+        } => {
+            assert_eq!(path, &exported_path.to_string_lossy());
+            assert_eq!(*bytes_written, written.len());
+        }
+        other => panic!("expected a saved outcome, got {other:?}"),
+    }
+
+    // The result message clears the busy flag and publishes the shared fact.
+    feed(
+        &mut state,
+        Message::ScriptExportFinished(Ok(snapshot.clone())),
+    );
+    assert!(!state.editor.script_sandbox.is_exporting);
+    assert_eq!(
+        state.editor.script_sandbox.export.as_ref(),
+        Some(&snapshot),
+        "the pane renders the shared export projection"
+    );
+    assert!(
+        last_toast(&state)
+            .map(|(text, _)| text.contains("alpha.mixin.yaml"))
+            .unwrap_or(false),
+        "the toast names the real file"
+    );
+    let _panel =
+        crate::view::script_export::export_section(&state, &[ScriptExportKind::MixinOverlayYaml]);
+
+    // A host with no save-file adapter is a typed unsupported, not a fake path.
+    let hostless = infiltrator_application::script_export_application::ScriptExportApplication::without_host_port()
+        .export_directive_dsl(Some("alpha"), "function main(config) { return config; }", None)
+        .expect("compose for a hostless export");
+    assert!(hostless.outcome.is_unsupported());
+    assert!(hostless.content.contains("不是 JavaScript"));
 }

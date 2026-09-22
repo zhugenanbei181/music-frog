@@ -49,6 +49,7 @@ pub mod rules;
 pub mod runtime;
 pub mod sandbox;
 pub mod script_engine;
+pub mod script_export;
 pub mod settings;
 pub mod snapshots;
 pub mod sniffer;

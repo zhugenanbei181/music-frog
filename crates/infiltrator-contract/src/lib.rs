@@ -62,6 +62,7 @@ pub mod responsive_viewport;
 pub mod rule_edit;
 pub mod rule_tracer;
 pub mod rules_workspace;
+pub mod script_export;
 pub mod script_sandbox;
 pub mod script_sandbox_matrix;
 pub mod service_mode;

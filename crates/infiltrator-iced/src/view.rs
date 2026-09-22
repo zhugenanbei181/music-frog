@@ -36,6 +36,7 @@ pub mod rules_tracer;
 pub mod rules_window;
 pub mod runtime;
 pub mod script_console;
+pub mod script_export;
 pub mod settings;
 pub mod sidebar;
 pub mod speedtest_modal;

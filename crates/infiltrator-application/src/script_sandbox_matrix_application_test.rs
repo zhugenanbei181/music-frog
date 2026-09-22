@@ -11,10 +11,11 @@ fn deterministic_matrix_passes_every_covered_item_and_names_the_planned_ones() {
         "failed covered rows: {:?}",
         report.failed_ids()
     );
-    // The honest gaps stay uncovered with a real reason.
-    assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01", "DUAL-10-09"]);
-    assert_eq!(report.covered_count(), 13);
-    assert_eq!(report.covered_passed_count(), 13);
+    // Only the honest QuickJS gap stays uncovered; DUAL-10-09/12 are closed by
+    // the real three-column reduction and the real per-surface export.
+    assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01"]);
+    assert_eq!(report.covered_count(), 14);
+    assert_eq!(report.covered_passed_count(), 14);
     for row in report.scenarios.iter().filter(|row| !row.covered) {
         assert!(!row.detail.trim().is_empty(), "{} lacks a reason", row.id);
     }
@@ -25,5 +26,5 @@ fn matrix_is_deterministic_across_runs() {
     let first = ScriptSandboxMatrixApplication::run_deterministic_matrix();
     let second = ScriptSandboxMatrixApplication::run_deterministic_matrix();
     assert_eq!(first, second);
-    assert!(first.summary_zh().contains("13/13"));
+    assert!(first.summary_zh().contains("14/14"));
 }

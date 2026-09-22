@@ -783,6 +783,19 @@ impl HostRuntime for MihomoRuntime {
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {
         self.application.clone()
     }
+
+    fn script_export_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::script_export::ScriptExportPort>> {
+        // DUAL-10-12: no native file dialog ships with this desktop product, so
+        // the adapter writes into a host-owned `exports/` directory next to the
+        // configs and reports the real path. Without a resolvable config dir
+        // the port is omitted and every export is a typed unsupported.
+        let config_dir = self.config_path.parent()?.to_path_buf();
+        Some(Arc::new(
+            crate::script_export::DesktopScriptExportPort::new(config_dir),
+        ))
+    }
 }
 
 fn map_stream<T, U>(

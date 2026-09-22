@@ -219,6 +219,115 @@ pub fn set_toggle(mixin_yaml: &str, id: &str, enabled: bool) -> Result<String, S
     serde_yaml_ng::to_string(&config).map_err(|error| error.to_string())
 }
 
+/// Which column of the three-column Mixin editor a value belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MixinColumnRole {
+    /// The base profile document, read-only in this editor.
+    Base,
+    /// The Mixin overlay draft the user edits.
+    Overlay,
+    /// The composed document produced by the real cascade pipeline.
+    Composed,
+}
+
+/// One column of the three-column editor, carrying its real content.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MixinColumn {
+    pub role: MixinColumnRole,
+    pub label_key: &'static str,
+    pub label_zh: &'static str,
+    /// The real document bytes this column shows.
+    pub content: String,
+    /// Whether the column is the user's editable buffer.
+    pub editable: bool,
+    pub line_count: usize,
+}
+
+/// DUAL-10-09: the three-column Mixin editor model.
+///
+/// The composed column is always the real output of the shared
+/// [`preview_cascade`] run: when the pipeline blocks (malformed base or
+/// overlay) the column is empty and carries the real reason, never a mock.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MixinEditorColumns {
+    pub base: MixinColumn,
+    pub overlay: MixinColumn,
+    pub composed: MixinColumn,
+    /// The real error when the composed column could not be produced.
+    pub error: Option<String>,
+}
+
+impl MixinEditorColumns {
+    /// Whether the composed column carries a real pipeline output.
+    pub fn is_composed(&self) -> bool {
+        self.error.is_none() && !self.composed.content.is_empty()
+    }
+
+    /// `true` when the pipeline refused to compose (the real reason is in
+    /// [`Self::error`]).
+    pub fn is_blocked(&self) -> bool {
+        self.error.is_some()
+    }
+
+    pub fn composed_line_count(&self) -> usize {
+        self.composed.line_count
+    }
+}
+
+fn column(
+    role: MixinColumnRole,
+    label_key: &'static str,
+    label_zh: &'static str,
+    content: String,
+    editable: bool,
+) -> MixinColumn {
+    MixinColumn {
+        role,
+        label_key,
+        label_zh,
+        line_count: line_count(&content),
+        content,
+        editable,
+    }
+}
+
+/// Build the three-column editor model for the open base document and the
+/// overlay draft currently in the middle column.
+pub fn mixin_editor_columns(base_yaml: &str, mixin_yaml: &str) -> MixinEditorColumns {
+    let base = column(
+        MixinColumnRole::Base,
+        "mixin_column_base",
+        "Base 配置",
+        base_yaml.to_string(),
+        false,
+    );
+    let overlay = column(
+        MixinColumnRole::Overlay,
+        "mixin_column_overlay",
+        "Mixin 覆写块",
+        mixin_yaml.to_string(),
+        true,
+    );
+    let report = preview_cascade_from_yaml(base_yaml, mixin_yaml);
+    let (composed_text, error) = match (&report.blocked, &report.error) {
+        (true, error) => (String::new(), error.clone()),
+        (false, _) => (report.merged_yaml.clone().unwrap_or_default(), None),
+    };
+    let composed = column(
+        MixinColumnRole::Composed,
+        "mixin_column_composed",
+        "合成后最终配置",
+        composed_text,
+        false,
+    );
+    MixinEditorColumns {
+        base,
+        overlay,
+        composed,
+        error,
+    }
+}
+
 /// One stage of the cascade overlay preview.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CascadeStageReport {
@@ -503,5 +612,36 @@ mod tests {
         let report = preview_cascade("mode: [bad\n", None, None, None, None);
         assert!(report.blocked);
         assert!(report.merged_yaml.is_none());
+    }
+
+    #[test]
+    fn three_columns_carry_the_real_base_overlay_and_composed_output() {
+        let columns = mixin_editor_columns("mode: rule\nport: 7890\n", "mode: global\n");
+        assert_eq!(columns.base.content, "mode: rule\nport: 7890\n");
+        assert_eq!(columns.base.line_count, 2);
+        assert!(!columns.base.editable);
+        assert_eq!(columns.overlay.content, "mode: global\n");
+        assert!(columns.overlay.editable);
+        assert!(columns.is_composed());
+        assert!(!columns.is_blocked());
+        // The composed column is the real pipeline output, not the overlay.
+        assert!(columns.composed.content.contains("port: 7890"));
+        assert!(columns.composed.content.contains("mode: global"));
+        assert!(!columns.composed.editable);
+        assert_eq!(
+            columns.composed.line_count,
+            columns.composed.content.lines().count()
+        );
+    }
+
+    #[test]
+    fn an_invalid_overlay_blocks_the_composed_column_instead_of_mocking_it() {
+        let columns = mixin_editor_columns("mode: rule\n", "mode: [unterminated\n");
+        assert!(columns.is_blocked());
+        assert!(!columns.is_composed());
+        assert!(columns.composed.content.is_empty());
+        assert!(columns.error.is_some());
+        // The user's own bytes are never dropped from the middle column.
+        assert_eq!(columns.overlay.content, "mode: [unterminated\n");
     }
 }

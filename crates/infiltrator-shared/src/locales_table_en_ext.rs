@@ -584,6 +584,39 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "mixin_studio_cascade_merged" => "Composed output".into(),
         "mixin_studio_cascade_lines" => "lines".into(),
 
+        // Category: DUAL-10-09 three-column Mixin editor
+        "mixin_column_base" => "Base profile".into(),
+        "mixin_column_overlay" => "Mixin overlay".into(),
+        "mixin_column_composed" => "Composed final config".into(),
+        "mixin_column_editable" => "editable".into(),
+        "mixin_column_readonly" => "read-only".into(),
+        "mixin_column_blocked" => "Composition blocked: {error}".into(),
+
+        // Category: DUAL-10-12 extension export
+        "script_export_title" => "Export & community sharing".into(),
+        "script_export_kind_mixin_yaml" => "Export Mixin overlay (.yaml)".into(),
+        "script_export_kind_directive_js" => "Export directive-DSL script (.js)".into(),
+        "script_export_kind_package_json" => "Export extension package (JSON)".into(),
+        "script_export_busy" => "Exporting…".into(),
+        "script_export_empty" => {
+            "Nothing exported yet: the shared use-case composes the artifact and hands it to the host save port (typed unsupported when the host has no dialog)".into()
+        }
+        "script_export_kind" => "Format:".into(),
+        "script_export_file" => "File:".into(),
+        "script_export_file_value" => "{name} ({bytes} bytes)".into(),
+        "script_export_outcome" => "Host outcome:".into(),
+        "script_export_saved_path" => "Written to:".into(),
+        "script_export_unsupported" => "Not written:".into(),
+        "script_export_checksum" => "SHA-256:".into(),
+        "script_export_note" => "Honest note:".into(),
+        "script_export_preview" => "Exported content preview".into(),
+        "script_export_toast_saved" => "Exported".into(),
+        "script_export_toast_unsupported" => {
+            "Host has no file dialog: the content was composed but not written to disk".into()
+        }
+        "script_export_toast_failed" => "Export failed".into(),
+        "script_export_toast_prepared" => "Exported content composed".into(),
+
 
         // Category 2: multimodal shell finish (DUAL-15-02/10/13)
         "tray_info_rate" => "Live Rate".into(),
