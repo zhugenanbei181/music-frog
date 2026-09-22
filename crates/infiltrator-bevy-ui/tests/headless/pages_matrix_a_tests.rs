@@ -16,6 +16,8 @@ use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::pages::connections::*;
+use infiltrator_bevy_ui::pages::connections_drawer::*;
+use infiltrator_bevy_ui::pages::connections_idle::*;
 use infiltrator_bevy_ui::pages::connections_view::*;
 use infiltrator_bevy_ui::pages::logs::*;
 use infiltrator_bevy_ui::pages::profiles::*;
@@ -813,6 +815,7 @@ fn test_connections_empty_and_edge_case_projection() {
         total_connections: 0,
         total_upload_bytes: 0,
         total_download_bytes: 0,
+        stream_phase: infiltrator_contract::connection::ConnectionStreamPhase::Unavailable,
         connections: vec![],
     };
     app.world_mut()
@@ -832,10 +835,194 @@ fn test_connections_empty_and_edge_case_projection() {
     ));
 }
 
+#[test]
+fn test_connections_stream_badge_reflects_shared_phase() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Connections);
+
+    // The demo projection carries the shared `Live` phase.
+    assert!(subtree_has_text(app.world(), root, "连接流 · 实时"));
+
+    let mut reconnecting = ConnectionsProjection::demo();
+    reconnecting.stream_phase =
+        infiltrator_contract::connection::ConnectionStreamPhase::Reconnecting;
+    app.world_mut()
+        .commands()
+        .trigger(ConnectionsProjectionUpdated(reconnecting));
+    app.update();
+    assert!(subtree_has_text(app.world(), root, "连接流 · 重连中"));
+}
+
+#[test]
+fn test_connections_route_chain_renders_each_hop() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Connections);
+
+    // DUAL-13-06: each hop is its own text node through the shared model.
+    assert!(subtree_has_text(app.world(), root, "节点选择"));
+    assert!(subtree_has_text(app.world(), root, "🇭🇰 香港 01"));
+    assert!(subtree_has_text(app.world(), root, "国外媒体"));
+    // The pre-joined snapshot string is no longer what the surface renders.
+    assert!(!subtree_has_text(
+        app.world(),
+        root,
+        "节点选择 -> 🇭🇰 香港 01"
+    ));
+}
+
+#[test]
+fn test_connections_inspect_opens_shared_drawer() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Connections);
+
+    let inspect_entity = {
+        let mut query = app.world_mut().query::<(Entity, &ConnInspectButton)>();
+        query
+            .iter(app.world())
+            .find(|(_, button)| button.0 == 0)
+            .map(|(entity, _)| entity)
+            .expect("row 0 inspect button")
+    };
+
+    app.world_mut().commands().trigger(Activate {
+        entity: inspect_entity,
+    });
+    app.update();
+
+    let state = app.world().resource::<ConnectionsDrawerState>();
+    assert!(state.open);
+    assert_eq!(state.selected, Some(0));
+
+    let layer_display = app
+        .world_mut()
+        .query_filtered::<&Node, bevy::ecs::query::With<ConnectionDrawerLayer>>()
+        .single(app.world())
+        .expect("drawer layer")
+        .display;
+    assert_eq!(layer_display, Display::Flex);
+    assert!(subtree_has_text(app.world(), root, "api.github.com:443"));
+}
+
+#[test]
+fn test_connections_add_rule_draft_uses_shared_seam() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    navigate_to(&mut app, Route::Connections);
+
+    // Select row 0, then draft a reverse rule from the drawer action.
+    let inspect_entity = {
+        let mut query = app.world_mut().query::<(Entity, &ConnInspectButton)>();
+        query
+            .iter(app.world())
+            .find(|(_, button)| button.0 == 0)
+            .map(|(entity, _)| entity)
+            .expect("row 0 inspect button")
+    };
+    app.world_mut().commands().trigger(Activate {
+        entity: inspect_entity,
+    });
+    app.update();
+
+    let add_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<DrawerAddRuleButton>>()
+        .single(app.world())
+        .expect("add rule button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: add_entity });
+    app.update();
+
+    let first = app.world().resource::<ConnectionsRuleDraft>().clone();
+    assert_eq!(first.entries.len(), 1);
+    assert_eq!(first.entries[0].rule, "DOMAIN-SUFFIX,api.github.com,DIRECT");
+
+    // The shared seam de-duplicates the same rule line.
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: add_entity });
+    app.update();
+    assert_eq!(
+        app.world().resource::<ConnectionsRuleDraft>().entries.len(),
+        1
+    );
+}
+
+#[test]
+fn test_connections_idle_timeout_pill_switches_shared_choice() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    navigate_to(&mut app, Route::Connections);
+
+    let pill_entity = {
+        let mut query = app.world_mut().query::<(Entity, &ConnIdleTimeoutPill)>();
+        query
+            .iter(app.world())
+            .find(|(_, pill)| pill.0 == 1800)
+            .map(|(entity, _)| entity)
+            .expect("30m idle timeout pill")
+    };
+    app.world_mut().commands().trigger(Activate {
+        entity: pill_entity,
+    });
+    app.update();
+
+    assert_eq!(
+        app.world().resource::<ConnectionsIdleState>().timeout_secs,
+        1800
+    );
+}
+
+#[test]
+fn test_connections_idle_sweep_submits_and_reports() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Connections);
+
+    // Rewind the tracker's activity clock to the epoch so the demo rows count
+    // as idle, then run the sweep button.
+    let demo = ConnectionsProjection::demo();
+    {
+        let mut state = app.world_mut().resource_mut::<ConnectionsIdleState>();
+        let mut changed = demo.connections.clone();
+        for item in &mut changed {
+            item.upload_total += 1;
+        }
+        state.tracker.observe(&changed, 1);
+        state.tracker.observe(&demo.connections, 1);
+        state.timeout_secs = 0;
+    }
+
+    let sweep_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<ConnIdleSweepButton>>()
+        .single(app.world())
+        .expect("idle sweep button");
+    app.world_mut().commands().trigger(Activate {
+        entity: sweep_entity,
+    });
+    app.update();
+
+    let submitted = sink.submitted();
+    assert_eq!(submitted.len(), 4);
+    assert!(
+        submitted
+            .iter()
+            .all(|command| matches!(command, UiCommand::CloseConnection { .. }))
+    );
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "上次清理: 4 条空闲连接"
+    ));
+}
+
 // ===========================================================================
 // 4. Logs Page Tests
 // ===========================================================================
-
 #[test]
 fn test_logs_page_mounting_and_default_state() {
     let sink = Arc::new(DemoCommandSink::accepting());

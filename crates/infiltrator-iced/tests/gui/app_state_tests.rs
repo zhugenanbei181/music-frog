@@ -589,6 +589,47 @@ fn connections_pagination_windows_and_clamps() {
 }
 
 #[test]
+fn connection_idle_timeout_and_activity_tracking() {
+    use infiltrator_domain::connection_activity::DEFAULT_IDLE_TIMEOUT_SECS;
+    use infiltrator_domain::runtime::{Connection, ConnectionMetadata, ConnectionSnapshot};
+
+    let (mut state, _) = AppState::new();
+    assert_eq!(
+        state.diag.connection_idle_timeout_secs,
+        DEFAULT_IDLE_TIMEOUT_SECS
+    );
+
+    // The timeout selector writes one of the shared choices.
+    let _ = state.update(Message::SetConnectionIdleTimeout(1800));
+    assert_eq!(state.diag.connection_idle_timeout_secs, 1800);
+
+    // Feeding a connection snapshot records its byte totals for idle detection.
+    let snapshot = ConnectionSnapshot {
+        download_total: 0,
+        upload_total: 0,
+        connections: vec![Connection {
+            id: "c-idle".to_string(),
+            metadata: ConnectionMetadata::default(),
+            upload: 10,
+            download: 20,
+            start: String::new(),
+            rule: String::new(),
+            rule_payload: String::new(),
+            chains: Vec::new(),
+        }],
+    };
+    let _ = state.update(Message::ConnectionsReceived(snapshot));
+    assert_eq!(state.diag.connection_activity.tracked(), 1);
+    assert!(
+        state
+            .diag
+            .connection_activity
+            .last_active_secs("c-idle")
+            .is_some()
+    );
+}
+
+#[test]
 fn process_exit_uses_the_host_cleanup_callback_before_shutdown_task() {
     let (mut state, _) = AppState::new();
     let calls = Arc::new(AtomicUsize::new(0));

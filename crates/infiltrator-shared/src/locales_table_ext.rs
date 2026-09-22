@@ -53,6 +53,10 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "conn_close_filtered_btn" => "断开筛选结果".into(),
         "quick_rule_btn" => "一键添加分流规则".into(),
         "quick_rule_success" => "已将目标添加至分流规则".into(),
+        "conn_idle_timeout_label" => "空闲超时".into(),
+        "conn_idle_sweep_btn" => "清理空闲连接".into(),
+        "conn_idle_last_sweep_none" => "上次清理: 尚未执行".into(),
+        "conn_idle_last_sweep" => "上次清理: 清理 {count} 条空闲连接".into(),
 
         // Category 5: Config Snapshot Visual Diff & Rollback
         "snapshot_diff_title" => "配置历史快照差异比对与回滚".into(),

@@ -83,6 +83,14 @@ impl ConnectionView for ConnectionItem {
         self.download_total
     }
 
+    fn view_chain(&self) -> &[String] {
+        &self.chains
+    }
+
+    fn view_joined_chain(&self) -> &str {
+        &self.chain
+    }
+
     fn view_search_terms(&self) -> Vec<&str> {
         vec![
             self.id.as_str(),
@@ -201,6 +209,7 @@ mod tests {
             process: process.to_owned(),
             rule: "DIRECT".to_owned(),
             chain: "DIRECT".to_owned(),
+            chains: vec!["DIRECT".to_owned()],
             upload_bps: 0.0,
             download_bps: 0.0,
             upload_total: up,
@@ -222,6 +231,7 @@ mod tests {
             total_connections: 2,
             total_upload_bytes: 30,
             total_download_bytes: 40,
+            stream_phase: infiltrator_contract::connection::ConnectionStreamPhase::Live,
             connections: vec![
                 item("c1", "a.com:443", "/usr/bin/git", 10, 20),
                 item("c2", "b.com:443", "/usr/bin/git", 20, 20),

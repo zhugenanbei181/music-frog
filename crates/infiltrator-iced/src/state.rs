@@ -401,6 +401,12 @@ pub struct DiagnosticsState {
     pub crash_watchdog: crate::types::doctor::CrashWatchdogState,
     pub log_filter: crate::types::runtime::LogFilterState,
     pub connection_grouping_mode: infiltrator_domain::connection_view::ConnectionGroupingMode,
+    /// DUAL-13-11: byte-change tracking that backs idle detection.
+    pub connection_activity: infiltrator_domain::connection_activity::ConnectionActivityTracker,
+    /// Configured idle timeout in seconds (one of the shared choices).
+    pub connection_idle_timeout_secs: u64,
+    /// Idle connections identified by the last sweep, if one has run.
+    pub last_idle_sweep: Option<usize>,
 }
 
 /// 外壳域:导航路由、语言/主题、全局错误与 Toast、托盘、Admin 管理端、

@@ -299,6 +299,9 @@ impl Plugin for PagesPlugin {
         app.init_resource::<crate::pages::connections::LastConnectionsProjection>();
         app.init_resource::<crate::pages::connections_view::ConnectionsViewState>();
         app.init_resource::<crate::pages::connections_view::ConnectionsCloseAllState>();
+        app.init_resource::<crate::pages::connections_idle::ConnectionsIdleState>();
+        app.init_resource::<crate::pages::connections_drawer::ConnectionsDrawerState>();
+        app.init_resource::<crate::pages::connections_drawer::ConnectionsRuleDraft>();
         // The trend chart's sample ring: written by the live pump's drain
         // (when one is mounted), read by the page's refresh observer and
         // mount scene. The demo fixture ignores it (its trend is the
@@ -341,6 +344,7 @@ impl Plugin for PagesPlugin {
                 sync_proxies_node_columns,
                 crate::pages::connections_view::sync_connections_search,
                 crate::pages::rules_view::sync_rules_view,
+                crate::pages::connections_drawer::sync_connections_drawer,
             ),
         );
     }

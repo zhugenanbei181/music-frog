@@ -209,6 +209,9 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
 pub(super) fn connections_projection(
     snapshot: &surface_snapshot::SurfaceSnapshot,
 ) -> ConnectionsProjection {
+    let stream_phase = infiltrator_contract::connection::ConnectionStreamPhase::from_page_status(
+        &snapshot.pages.connections.status,
+    );
     snapshot
         .pages
         .connections
@@ -218,6 +221,7 @@ pub(super) fn connections_projection(
             total_connections: value.total_connections,
             total_upload_bytes: value.total_upload_bytes,
             total_download_bytes: value.total_download_bytes,
+            stream_phase,
             connections: value
                 .connections
                 .iter()
@@ -227,6 +231,7 @@ pub(super) fn connections_projection(
                     process: connection.process.clone(),
                     rule: connection.rule.clone(),
                     chain: connection.chain.clone(),
+                    chains: connection.chains.clone(),
                     upload_bps: connection.upload_bps,
                     download_bps: connection.download_bps,
                     upload_total: connection.upload_total,
@@ -234,7 +239,15 @@ pub(super) fn connections_projection(
                 })
                 .collect(),
         })
-        .unwrap_or_else(empty_connections)
+        .unwrap_or_else(|| empty_connections_with_phase(stream_phase))
+}
+
+fn empty_connections_with_phase(
+    stream_phase: infiltrator_contract::connection::ConnectionStreamPhase,
+) -> ConnectionsProjection {
+    let mut projection = empty_connections();
+    projection.stream_phase = stream_phase;
+    projection
 }
 
 pub(super) fn logs_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> LogsProjection {

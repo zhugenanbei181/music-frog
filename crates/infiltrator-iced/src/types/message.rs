@@ -151,6 +151,10 @@ pub enum Message {
     CloseConnection(String),
     CloseAllConnections,
     CloseFilteredConnections,
+    /// DUAL-13-11: change the idle timeout used by the sweeper.
+    SetConnectionIdleTimeout(u64),
+    /// DUAL-13-11: terminate connections idle past the configured timeout.
+    SweepIdleConnections,
     ConnectionsPrevPage,
     ConnectionsNextPage,
     FetchRuntimeConfig,

@@ -278,6 +278,7 @@ pub(crate) fn empty_connections() -> ConnectionsProjection {
         total_connections: 0,
         total_upload_bytes: 0,
         total_download_bytes: 0,
+        stream_phase: infiltrator_contract::connection::ConnectionStreamPhase::Idle,
         connections: Vec::new(),
     }
 }
@@ -478,6 +479,7 @@ impl From<ConnectionsProjection> for surface_snapshot::ConnectionsPageSnapshot {
                     process: connection.process,
                     rule: connection.rule,
                     chain: connection.chain,
+                    chains: connection.chains,
                     upload_bps: connection.upload_bps,
                     download_bps: connection.download_bps,
                     upload_total: connection.upload_total,

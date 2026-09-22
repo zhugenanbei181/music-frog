@@ -127,3 +127,38 @@ fn test_shared_connection_view_reductions_are_delegated() {
     assert_eq!(spec.pattern, "DOMAIN-SUFFIX,a.com");
     assert_eq!(spec.rule_line(), "DOMAIN-SUFFIX,a.com,DIRECT");
 }
+
+#[test]
+fn test_stream_state_maps_to_shared_phase() {
+    use infiltrator_contract::connection::ConnectionStreamPhase;
+
+    assert_eq!(
+        RuntimeStreamState::Idle.shared_phase(),
+        ConnectionStreamPhase::Idle
+    );
+    assert_eq!(
+        RuntimeStreamState::Connecting.shared_phase(),
+        ConnectionStreamPhase::Connecting
+    );
+    assert_eq!(
+        RuntimeStreamState::Connected.shared_phase(),
+        ConnectionStreamPhase::Live
+    );
+    assert_eq!(
+        RuntimeStreamState::Reconnecting.shared_phase(),
+        ConnectionStreamPhase::Reconnecting
+    );
+    assert_eq!(
+        RuntimeStreamState::Failed("closed".to_string()).shared_phase(),
+        ConnectionStreamPhase::Unavailable
+    );
+}
+
+#[test]
+fn test_route_chain_hops_parse_through_shared_model() {
+    let conn = make_test_conn("1", "google.com", "/usr/bin/chrome", 0, 0);
+    let chain = infiltrator_domain::connection_view::route_chain(&conn);
+    assert_eq!(chain.hops(), ["DMIT", "PROXY"]);
+    assert_eq!(chain.first(), Some("DMIT"));
+    assert_eq!(chain.display(" → "), "DMIT → PROXY");
+}

@@ -447,6 +447,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
                         },
                         rule: connection.rule,
                         chain: connection.chains.join(" -> "),
+                        chains: connection.chains,
                         upload_bps: 0.0,
                         download_bps: 0.0,
                         upload_total: connection.upload,

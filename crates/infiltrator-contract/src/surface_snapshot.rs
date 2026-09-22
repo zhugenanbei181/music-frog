@@ -271,7 +271,13 @@ pub struct ConnectionSnapshot {
     pub host: String,
     pub process: String,
     pub rule: String,
+    /// Joined route chain retained for compact fallback rendering.
     pub chain: String,
+    /// DUAL-13-06: the parsed route chain, one hop per entry, from the matched
+    /// inbound rule through each policy group to the outbound. Empty when the
+    /// core did not report a chain.
+    #[serde(default)]
+    pub chains: Vec<String>,
     pub upload_bps: f64,
     pub download_bps: f64,
     pub upload_total: u64,

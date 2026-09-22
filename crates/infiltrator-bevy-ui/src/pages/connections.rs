@@ -2,7 +2,8 @@
 //! inspection, matched rule tracer, throughput rates, and disconnect actions.
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`ConnectionsLine`],
-//! [`ConnSpeedText`], [`ConnHostText`], [`ConnProcessText`], [`ConnChainText`],
+//! [`ConnSpeedText`], [`ConnHostText`], [`ConnProcessText`],
+//! [`ConnChainHopText`],
 //! [`CloseConnectionButton`]). The page self-registers [`apply_connections_projection`]
 //! and action observers once per world via [`ConnectionsPageRoot`].
 
@@ -36,6 +37,7 @@ use infiltrator_domain::connection_view;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 
 use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::connections_idle::{ConnectionsIdleState, current_unix_secs};
 use crate::pages::connections_view::{
     CloseAllConnectionsLabel, CloseFilteredConnectionsButton, ConnAggregationSummary,
     ConnAggregationSummaryContainer, ConnRowsContainer, ConnSearchField, ConnectionRow,
@@ -66,6 +68,8 @@ pub enum ConnectionsLineKind {
     Summary,
     /// Total traffic uploaded & downloaded.
     TrafficSummary,
+    /// DUAL-13-01: connections telemetry stream-phase badge.
+    Stream,
 }
 
 /// Marker for a connection row's rate display.
@@ -80,9 +84,18 @@ pub struct ConnHostText(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ConnProcessText(pub usize);
 
-/// Marker for a connection row's chain display.
+/// Marker for a connection row's route-chain hop display (DUAL-13-06).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ConnChainText(pub usize);
+pub struct ConnChainHopText {
+    /// Owning flat row index.
+    pub row: usize,
+    /// Hop ordinal within the parsed route chain.
+    pub hop: usize,
+}
+
+/// Marker for the inspect button of one flat row (DUAL-13-03).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConnInspectButton(pub usize);
 
 /// Marker for the "Close All Connections" button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -109,6 +122,8 @@ pub struct ConnectionItem {
     pub process: String,
     pub rule: String,
     pub chain: String,
+    /// DUAL-13-06: parsed route-chain hops, one per stage.
+    pub chains: Vec<String>,
     pub upload_bps: f64,
     pub download_bps: f64,
     pub upload_total: u64,
@@ -121,6 +136,8 @@ pub struct ConnectionsProjection {
     pub total_connections: usize,
     pub total_upload_bytes: u64,
     pub total_download_bytes: u64,
+    /// DUAL-13-01: lifecycle phase of the connections telemetry feed.
+    pub stream_phase: infiltrator_contract::connection::ConnectionStreamPhase,
     pub connections: Vec<ConnectionItem>,
 }
 
@@ -131,6 +148,7 @@ impl ConnectionsProjection {
             total_connections: 4,
             total_upload_bytes: 14_200_000,
             total_download_bytes: 88_900_000,
+            stream_phase: infiltrator_contract::connection::ConnectionStreamPhase::Live,
             connections: vec![
                 ConnectionItem {
                     id: "c-1".to_owned(),
@@ -138,6 +156,7 @@ impl ConnectionsProjection {
                     process: "git (pid: 14238)".to_owned(),
                     rule: "DOMAIN-SUFFIX github.com".to_owned(),
                     chain: "节点选择 -> 🇭🇰 香港 01".to_owned(),
+                    chains: vec!["节点选择".to_owned(), "🇭🇰 香港 01".to_owned()],
                     upload_bps: 24_000.0,
                     download_bps: 180_000.0,
                     upload_total: 1_200_000,
@@ -149,6 +168,7 @@ impl ConnectionsProjection {
                     process: "chrome (pid: 8912)".to_owned(),
                     rule: "GEOSITE youtube".to_owned(),
                     chain: "国外媒体 -> 🇸🇬 新加坡 01".to_owned(),
+                    chains: vec!["国外媒体".to_owned(), "🇸🇬 新加坡 01".to_owned()],
                     upload_bps: 8_500.0,
                     download_bps: 2_450_000.0,
                     upload_total: 450_000,
@@ -160,6 +180,7 @@ impl ConnectionsProjection {
                     process: "Discord (pid: 11024)".to_owned(),
                     rule: "DOMAIN-SUFFIX discord.gg".to_owned(),
                     chain: "节点选择 -> 🇭🇰 香港 01".to_owned(),
+                    chains: vec!["节点选择".to_owned(), "🇭🇰 香港 01".to_owned()],
                     upload_bps: 1_200.0,
                     download_bps: 3_400.0,
                     upload_total: 890_000,
@@ -171,6 +192,7 @@ impl ConnectionsProjection {
                     process: "systemd-resolved".to_owned(),
                     rule: "GEOIP CN".to_owned(),
                     chain: "DIRECT".to_owned(),
+                    chains: vec!["DIRECT".to_owned()],
                     upload_bps: 0.0,
                     download_bps: 0.0,
                     upload_total: 12_000,
@@ -190,6 +212,20 @@ pub struct ConnectionsProjectionUpdated(pub ConnectionsProjection);
 pub struct LastConnectionsProjection(pub Option<ConnectionsProjection>);
 
 // ---- Scene constructors ---------------------------------------------------
+
+/// Bare-Chinese label for the shared connections stream phase (DUAL-13-01).
+fn stream_phase_label(
+    phase: infiltrator_contract::connection::ConnectionStreamPhase,
+) -> &'static str {
+    use infiltrator_contract::connection::ConnectionStreamPhase;
+    match phase {
+        ConnectionStreamPhase::Idle => "未连接",
+        ConnectionStreamPhase::Connecting => "连接中",
+        ConnectionStreamPhase::Live => "实时",
+        ConnectionStreamPhase::Reconnecting => "重连中",
+        ConnectionStreamPhase::Unavailable => "不可用",
+    }
+}
 
 pub fn connections_page(
     projection: &ConnectionsProjection,
@@ -263,6 +299,7 @@ fn header_card_scene(summary: String, traffic: String, palette: &UiPalette) -> i
                                 Children [
                                     ( Text(summary) ConnectionsLine(ConnectionsLineKind::Summary) TextRole(Role::Heading) ),
                                     ( Text(traffic) ConnectionsLine(ConnectionsLineKind::TrafficSummary) TextRole(Role::Caption) ),
+                                    ( Text({ "● 连接流 · 未连接".to_owned() }) ConnectionsLine(ConnectionsLineKind::Stream) TextRole(Role::Caption) ),
                                 ]
                             ),
                         ]
@@ -351,9 +388,15 @@ fn header_card_scene(summary: String, traffic: String, palette: &UiPalette) -> i
                     ),
                 ]
             }),
+            Box::new(conn_idle_controls_scene(palette)),
         ],
         palette,
     )
+}
+
+/// DUAL-13-11: shared idle-timeout choices + manual sweep + honest status.
+fn conn_idle_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
+    crate::pages::connections_idle::conn_idle_controls_scene(palette)
 }
 
 fn conn_aggregation_pill(
@@ -436,7 +479,7 @@ fn connection_row_scene(
 ) -> impl Scene + use<> {
     let host = conn.host.clone();
     let process_info = format!("{} · {}", conn.process, conn.rule);
-    let chain_info = format!("链路: {}", conn.chain);
+    let chain_scenes = connection_chain_scenes(idx, conn);
     let speed_info = format!(
         "↑ {}  ↓ {}",
         format_rate(conn.upload_bps),
@@ -446,6 +489,7 @@ fn connection_row_scene(
         connection_id: conn.id.clone(),
         connection_idx: idx,
     };
+    let inspect_btn = ConnInspectButton(idx);
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -472,7 +516,15 @@ fn connection_row_scene(
                                 ( Text(process_info) ConnProcessText(idx) TextRole(Role::Caption) ),
                             ]
                         ),
-                        ( Text(chain_info) ConnChainText(idx) TextRole(Role::Caption) ),
+                        (
+                            Node {
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S4),
+                            }
+                            Children [
+                                { chain_scenes },
+                            ]
+                        ),
                     ]
                 ),
                 (
@@ -482,6 +534,21 @@ fn connection_row_scene(
                     }
                     Children [
                         ( Text(speed_info) ConnSpeedText(idx) TextRole(Role::Mono) ),
+                        (
+                            Node {
+                                min_height: px(palette.control_height_px * 0.8),
+                                padding: UiRect::horizontal(Val::Px(space::S8)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            Button
+                            template_value(inspect_btn)
+                            Children [
+                                ( Text({ "详情".to_owned() }) TextRole(Role::Caption) ),
+                            ]
+                        ),
                         (
                             Node {
                                 min_height: px(palette.control_height_px * 0.8),
@@ -505,6 +572,33 @@ fn connection_row_scene(
     )
 }
 
+/// DUAL-13-06: render one flat row's route chain as one text per hop, through
+/// the shared parsed chain model (no pre-joined string).
+fn connection_chain_scenes(idx: usize, conn: &ConnectionItem) -> Vec<Box<dyn Scene>> {
+    let chain = connection_view::route_chain(conn);
+    let mut scenes: Vec<Box<dyn Scene>> = vec![Box::new(bsn! {
+        ( Text({ "链路: ".to_owned() }) TextRole(Role::Caption) )
+    }) as Box<dyn Scene>];
+    if chain.is_empty() {
+        scenes.push(Box::new(bsn! {
+            ( Text({ "DIRECT".to_owned() }) TextRole(Role::Caption) )
+        }) as Box<dyn Scene>);
+        return scenes;
+    }
+    for (hop, label) in chain.hops().iter().enumerate() {
+        if hop > 0 {
+            scenes.push(Box::new(bsn! {
+                ( Text({ "→".to_owned() }) TextRole(Role::Caption) )
+            }) as Box<dyn Scene>);
+        }
+        let hop_label = label.clone();
+        scenes.push(Box::new(bsn! {
+            ( Text(hop_label) template_value(ConnChainHopText { row: idx, hop }) TextRole(Role::Caption) )
+        }) as Box<dyn Scene>);
+    }
+    scenes
+}
+
 // ---- Observer & Update Hook -----------------------------------------------
 
 fn bind_connections_page(mut world: DeferredWorld<'_>, _context: HookContext) {
@@ -516,6 +610,8 @@ fn bind_connections_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(apply_connections_projection);
     commands.add_observer(on_connections_action_activated);
     commands.add_observer(on_connections_view_activated);
+    commands.add_observer(crate::pages::connections_drawer::on_connections_drawer_activated);
+    commands.add_observer(crate::pages::connections_idle::on_connections_idle_activated);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -636,7 +732,7 @@ pub(crate) fn apply_connections_projection(
             Without<ConnSpeedText>,
             Without<ConnHostText>,
             Without<ConnProcessText>,
-            Without<ConnChainText>,
+            Without<ConnChainHopText>,
             Without<ConnAggregationSummary>,
         ),
     >,
@@ -647,7 +743,7 @@ pub(crate) fn apply_connections_projection(
             Without<ConnectionsLine>,
             Without<ConnHostText>,
             Without<ConnProcessText>,
-            Without<ConnChainText>,
+            Without<ConnChainHopText>,
             Without<ConnAggregationSummary>,
         ),
     >,
@@ -658,7 +754,7 @@ pub(crate) fn apply_connections_projection(
             Without<ConnectionsLine>,
             Without<ConnSpeedText>,
             Without<ConnProcessText>,
-            Without<ConnChainText>,
+            Without<ConnChainHopText>,
             Without<ConnAggregationSummary>,
         ),
     >,
@@ -669,14 +765,14 @@ pub(crate) fn apply_connections_projection(
             Without<ConnectionsLine>,
             Without<ConnSpeedText>,
             Without<ConnHostText>,
-            Without<ConnChainText>,
+            Without<ConnChainHopText>,
             Without<ConnAggregationSummary>,
         ),
     >,
     mut chains: Query<
-        (&mut Text, &ConnChainText),
+        (&mut Text, &ConnChainHopText),
         (
-            With<ConnChainText>,
+            With<ConnChainHopText>,
             Without<ConnectionsLine>,
             Without<ConnSpeedText>,
             Without<ConnHostText>,
@@ -693,14 +789,21 @@ pub(crate) fn apply_connections_projection(
             Without<ConnSpeedText>,
             Without<ConnHostText>,
             Without<ConnProcessText>,
-            Without<ConnChainText>,
+            Without<ConnChainHopText>,
         ),
     >,
     mut pills: Query<(&mut BackgroundColor, &ConnAggregationPill)>,
     palette: Res<UiPalette>,
     view_state: Option<Res<ConnectionsViewState>>,
+    mut idle: Option<ResMut<ConnectionsIdleState>>,
 ) {
     let projection = &update.0;
+
+    // DUAL-13-11: record byte-change times for the idle sweeper.
+    if let Some(idle) = idle.as_deref_mut() {
+        idle.tracker
+            .observe(&projection.connections, current_unix_secs());
+    }
 
     for (mut text, line) in &mut lines {
         match line.0 {
@@ -716,6 +819,9 @@ pub(crate) fn apply_connections_projection(
                     format_byte_count(projection.total_upload_bytes),
                     format_byte_count(projection.total_download_bytes)
                 );
+            }
+            ConnectionsLineKind::Stream => {
+                text.0 = format!("● 连接流 · {}", stream_phase_label(projection.stream_phase));
             }
         }
     }
@@ -743,9 +849,13 @@ pub(crate) fn apply_connections_projection(
     }
 
     for (mut text, marker) in &mut chains {
-        if let Some(conn) = projection.connections.get(marker.0) {
-            text.0 = format!("链路: {}", conn.chain);
-        }
+        // DUAL-13-06: each hop slot restamps from the shared parsed chain.
+        text.0 = projection
+            .connections
+            .get(marker.row)
+            .map(connection_view::route_chain)
+            .and_then(|chain| chain.hops().get(marker.hop).cloned())
+            .unwrap_or_default();
     }
 
     for mut btn in &mut buttons {
