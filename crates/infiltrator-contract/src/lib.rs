@@ -28,6 +28,7 @@ pub mod overview_matrix;
 pub mod pac;
 pub mod port_conflict;
 pub mod privileged_network;
+pub mod profile_protection;
 pub mod proxies;
 pub mod proxy_mode;
 pub mod public_ip;

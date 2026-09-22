@@ -177,8 +177,19 @@ pub fn load_rules_from_yaml(content: &str) -> Result<Vec<RuleEntry>> {
 }
 
 /// Apply a complete rule list to an in-memory profile document.
+///
+/// DUAL-09-01 / LEFT-05 L1: the byte-faithful splice is attempted first so
+/// comments, blank lines, anchors and formatting survive an add/remove/toggle
+/// save. The splice self-verifies against the structural reader below; any
+/// shape it cannot express falls back to the structural rewrite with no
+/// behavior change.
 pub fn apply_rules_to_yaml(content: &str, rules: &[RuleEntry]) -> Result<String> {
     validate_rules(rules)?;
+    if let Ok(mut doc) = crate::yaml_edit::SourceDoc::parse(content)
+        && crate::yaml_edit::rules_fidelity::apply_rule_list(&mut doc, rules).is_ok()
+    {
+        return Ok(doc.render());
+    }
     let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
     apply_rules(&mut doc, rules)?;
     serde_yaml_ng::to_string(&doc).context("serialize profile yaml")

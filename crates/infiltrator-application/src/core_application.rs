@@ -711,9 +711,8 @@ fn spawn_dispatch_worker(
                 let Some(inner) = inner.upgrade() else {
                     return;
                 };
-                let application = CoreApplication { inner };
                 runtime.block_on(Box::pin(async move {
-                    let _ = application
+                    let _ = CoreApplication { inner }
                         .execute_with_id(command.request_id, command.intent)
                         .await;
                 }));
@@ -795,6 +794,7 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::ResolveConflictKeepLocal => "resolve_conflict_keep_local",
         CommandIntent::ResolveConflictTakeRemote => "resolve_conflict_take_remote",
         CommandIntent::RestoreSnapshot { .. } => "restore_snapshot",
+        CommandIntent::LoadSnapshotDiff { .. } => "load_snapshot_diff",
         CommandIntent::RefreshPublicIpProbe => "refresh_public_ip_probe",
         CommandIntent::RollbackCore => "rollback_core",
         CommandIntent::UpdateSetting { .. } => "update_setting",

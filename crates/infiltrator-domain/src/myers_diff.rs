@@ -101,6 +101,7 @@ pub fn compute_diff(
         split_rows,
         fidelity_grade,
         fidelity_preserved,
+        source_path: None,
     }
 }
 

@@ -511,3 +511,126 @@ fn can_apply_mixin_detects_complex_ast_features() {
     };
     assert!(!can_apply_mixin_via_fidelity(&complex_rules));
 }
+
+// --- Scenario D: rule-list splice (DUAL-09-01 / LEFT-05 L1) --------------
+
+fn entry(rule: &str, enabled: bool) -> crate::rules::RuleEntry {
+    crate::rules::RuleEntry {
+        rule: rule.to_string(),
+        enabled,
+    }
+}
+
+#[test]
+fn rule_list_edit_preserves_comments_and_inline_notes() {
+    let input = "\
+# 顶层手写注释
+mode: rule
+rules:
+  # 兜底规则说明
+  - MATCH,DIRECT   # 保住这行注释
+  - DOMAIN-SUFFIX,ads.example.com,REJECT
+  - '# DOMAIN-SUFFIX,disabled.example.com,REJECT'  # 已停用
+proxies:
+  - &hk HK-01
+";
+    let mut d = doc(input);
+    let next = vec![
+        entry("MATCH,DIRECT", true),
+        entry("DOMAIN-SUFFIX,ads.example.com,REJECT", true),
+        entry("DOMAIN-SUFFIX,disabled.example.com,REJECT", true),
+        entry("DOMAIN-SUFFIX,new.example.com,REJECT", true),
+    ];
+    crate::yaml_edit::rules_fidelity::apply_rule_list(&mut d, &next).expect("splice");
+    let out = d.render();
+
+    assert!(out.contains("# 顶层手写注释"), "top comment kept");
+    assert!(out.contains("# 兜底规则说明"), "block comment kept");
+    assert!(out.contains("# 保住这行注释"), "inline note kept");
+    assert!(out.contains("# 已停用"), "disabled note kept");
+    assert!(out.contains("- MATCH,DIRECT   # 保住这行注释"));
+    assert!(
+        out.contains("- DOMAIN-SUFFIX,disabled.example.com,REJECT'  # 已停用")
+            || out.contains("- DOMAIN-SUFFIX,disabled.example.com,REJECT"),
+        "toggled line keeps its comment: {out}"
+    );
+    assert!(out.contains("new.example.com"));
+    assert_eq!(
+        crate::rules::load_rules_from_yaml(&out).unwrap(),
+        next,
+        "spliced document reads back as the requested list"
+    );
+}
+
+#[test]
+fn rule_list_edit_is_byte_identical_when_unchanged() {
+    let input = "\
+rules:
+  # keep me
+  - DOMAIN-SUFFIX,a.example.com,PROXY
+  - MATCH,DIRECT
+";
+    let rules = crate::rules::load_rules_from_yaml(input).unwrap();
+    let mut d = doc(input);
+    crate::yaml_edit::rules_fidelity::apply_rule_list(&mut d, &rules).expect("splice");
+    assert_eq!(d.render(), input);
+}
+
+#[test]
+fn rule_list_edit_inserts_a_missing_block_and_rejects_flow_rules() {
+    let mut d = doc("mode: rule\n# tail comment\n");
+    let rules = vec![entry("DOMAIN-SUFFIX,a.example.com,PROXY", true)];
+    crate::yaml_edit::rules_fidelity::apply_rule_list(&mut d, &rules).expect("insert block");
+    let out = d.render();
+    assert!(out.contains("# tail comment"));
+    assert_eq!(crate::rules::load_rules_from_yaml(&out).unwrap(), rules);
+
+    let mut flow = doc("rules: [DOMAIN,a.example.com,PROXY]\n");
+    let flow_rules = vec![entry("DOMAIN,a.example.com,PROXY", true)];
+    assert!(crate::yaml_edit::rules_fidelity::apply_rule_list(&mut flow, &flow_rules).is_err());
+}
+
+#[test]
+fn rule_list_edit_removes_and_reorders_without_touching_other_lines() {
+    let input = "\
+mixed-port: 7890
+
+rules:
+  # 规则块
+  - DOMAIN-SUFFIX,a.example.com,PROXY
+  - DOMAIN-SUFFIX,b.example.com,DIRECT
+  - MATCH,DIRECT
+
+tun:
+  enable: false   # 不动这行
+";
+    let mut d = doc(input);
+    let next = vec![
+        entry("MATCH,DIRECT", true),
+        entry("DOMAIN-SUFFIX,a.example.com,PROXY", true),
+    ];
+    crate::yaml_edit::rules_fidelity::apply_rule_list(&mut d, &next).expect("splice");
+    let out = d.render();
+
+    assert!(out.contains("# 规则块"));
+    assert!(out.contains("tun:\n  enable: false   # 不动这行"));
+    assert!(!out.contains("b.example.com"));
+    assert_eq!(crate::rules::load_rules_from_yaml(&out).unwrap(), next);
+}
+
+#[test]
+fn apply_rules_to_yaml_keeps_comments_for_add_and_remove() {
+    let input = "\
+# 用户注释
+rules:
+  # 说明
+  - MATCH,DIRECT   # 兜底
+";
+    let mut rules = crate::rules::load_rules_from_yaml(input).unwrap();
+    rules.insert(0, entry("DOMAIN-SUFFIX,google.com,PROXY", false));
+    let out = crate::rules::apply_rules_to_yaml(input, &rules).unwrap();
+    assert!(out.contains("# 用户注释"), "top comment kept: {out}");
+    assert!(out.contains("# 说明"), "block comment kept: {out}");
+    assert!(out.contains("# 兜底"), "inline comment kept: {out}");
+    assert_eq!(crate::rules::load_rules_from_yaml(&out).unwrap(), rules);
+}

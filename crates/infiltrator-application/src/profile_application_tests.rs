@@ -794,3 +794,90 @@ async fn auto_reload_preference_is_persisted_and_readable() {
             .auto_reload_core
     );
 }
+
+// ---- DUAL-09-12: remote-subscription write protection -----------------------
+
+/// Mark a fake profile as downloaded from a subscription URL.
+fn mark_subscription(store: &FakeStore, profile: &str, url: &str) {
+    let mut profiles = store.profiles.lock().expect("profiles lock");
+    profiles
+        .get_mut(profile)
+        .expect("profile exists")
+        .1
+        .subscription_url = Some(url.to_string());
+}
+
+#[tokio::test]
+async fn write_protection_is_derived_from_the_subscription_source() {
+    let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
+    let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    // assert_eq fails on ProfileWriteProtection without Debug; use is_protected.
+    assert!(
+        !application
+            .write_protection("main")
+            .await
+            .expect("protection")
+            .is_protected()
+    );
+
+    mark_subscription(&store, "main", "https://example.com/sub");
+    let protected = application
+        .write_protection("main")
+        .await
+        .expect("protection");
+    assert!(protected.is_protected());
+    assert_eq!(protected.label_zh(), "远程订阅 · 只读保护");
+}
+
+#[tokio::test]
+async fn edited_writes_refuse_protected_subscriptions_until_unlocked() {
+    let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
+    mark_subscription(&store, "main", "https://example.com/sub");
+    let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+
+    let failure = application
+        .save_edited_profile_content(
+            None::<Arc<dyn ManagedRuntime>>,
+            "main".to_string(),
+            "mode: global\n".to_string(),
+            ApplyStrategy::PreferReload,
+            false,
+        )
+        .await
+        .expect_err("direct edit of a protected subscription must fail");
+    assert_eq!(failure.code, ErrorCode::Configuration);
+    assert_eq!(
+        store.load("main").await.expect("content"),
+        "mode: rule\n",
+        "the refused write must not touch the profile"
+    );
+
+    application
+        .save_edited_profile_content(
+            None::<Arc<dyn ManagedRuntime>>,
+            "main".to_string(),
+            "mode: global\n".to_string(),
+            ApplyStrategy::PreferReload,
+            true,
+        )
+        .await
+        .expect("the explicit unlock commits");
+    assert_eq!(store.load("main").await.expect("content"), "mode: global\n");
+}
+
+#[tokio::test]
+async fn local_profiles_stay_directly_editable() {
+    let store = Arc::new(FakeStore::with_profile("lab", "mode: rule\n", true));
+    let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    application
+        .save_edited_profile_content(
+            None::<Arc<dyn ManagedRuntime>>,
+            "lab".to_string(),
+            "mode: global\n".to_string(),
+            ApplyStrategy::PreferReload,
+            false,
+        )
+        .await
+        .expect("local profile edits need no unlock");
+    assert_eq!(store.load("lab").await.expect("content"), "mode: global\n");
+}

@@ -784,3 +784,110 @@ fn test_rule_provider_diff_and_unpack_flow() {
     state.editor.rule_providers = providers;
     let _providers_elem = crate::view::rules::providers_view(&state, &lang);
 }
+
+// ---- LEFT-05 L1 / DUAL-09-01: editor saves keep comments -------------------
+
+/// The exact function `Message::SaveRules` runs: comment preservation is a
+/// property of the shared domain writer, so the Iced editor inherits it.
+#[test]
+fn test_rule_save_path_preserves_comments_through_the_shared_fidelity_writer() {
+    let source = "\
+# 顶层手写注释
+mode: rule
+rules:
+  # 规则块说明
+  - MATCH,DIRECT   # 兜底规则
+";
+    let mut rules = infiltrator_domain::rules::load_rules_from_yaml(source).expect("rules");
+    rules.insert(
+        0,
+        RuleEntry {
+            rule: "DOMAIN-SUFFIX,google.com,PROXY".to_string(),
+            enabled: false,
+        },
+    );
+    let saved = infiltrator_domain::rules::apply_rules_to_yaml(source, &rules).expect("save");
+    assert!(
+        saved.contains("# 顶层手写注释"),
+        "top comment kept: {saved}"
+    );
+    assert!(
+        saved.contains("# 规则块说明"),
+        "block comment kept: {saved}"
+    );
+    assert!(saved.contains("# 兜底规则"), "inline comment kept: {saved}");
+    assert_eq!(
+        infiltrator_domain::rules::load_rules_from_yaml(&saved).expect("reload"),
+        rules,
+        "the saved document still parses to the edited rule list"
+    );
+}
+
+/// The exact function the Mixin pane commit runs.
+#[test]
+fn test_mixin_save_path_preserves_comments_through_the_shared_fidelity_writer() {
+    let source = "\
+# 手写头注释
+mode: rule   # 行内说明
+
+dns:
+  enable: true
+";
+    let mixin = infiltrator_domain::mixin::MixinConfig {
+        mode: Some("global".to_string()),
+        ..Default::default()
+    };
+    let merged = infiltrator_domain::mixin::merge_profile_with_config_fidelity(source, &mixin)
+        .expect("merge");
+    assert!(
+        merged.contains("# 手写头注释"),
+        "top comment kept: {merged}"
+    );
+    assert!(
+        merged.contains("# 行内说明"),
+        "inline comment kept: {merged}"
+    );
+    assert!(merged.contains("mode: global"));
+}
+
+/// Mirrors the real Mixin-pane save flow: strip the outgoing mixin's appended
+/// rules through the shared writer, then merge the new mixin through the
+/// fidelity writer. Comments survive both steps and no rule duplicates.
+#[test]
+fn test_mixin_resave_cycle_keeps_comments_and_does_not_duplicate_rules() {
+    let source = "\
+# 头注释
+mode: rule
+rules:
+  # 规则块
+  - MATCH,DIRECT
+";
+    let first = infiltrator_domain::mixin::MixinConfig {
+        mode: Some("global".to_string()),
+        rules: Some(infiltrator_domain::mixin::RuleMixin {
+            append: vec!["DOMAIN-SUFFIX,ads.example.com,REJECT".to_string()],
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let once = infiltrator_domain::mixin::merge_profile_with_config_fidelity(source, &first)
+        .expect("first mixin");
+    assert!(once.contains("# 头注释"));
+    assert!(once.contains("# 规则块"));
+    assert_eq!(once.matches("ads.example.com").count(), 1);
+
+    let removals = vec!["DOMAIN-SUFFIX,ads.example.com,REJECT".to_string()];
+    let base = infiltrator_domain::profile_options::strip_rule_lines(&once, &removals);
+    assert!(!base.contains("ads.example.com"), "strip is exact: {base}");
+    assert!(base.contains("# 头注释") && base.contains("# 规则块"));
+
+    let second = infiltrator_domain::mixin::MixinConfig {
+        mode: Some("direct".to_string()),
+        ..Default::default()
+    };
+    let twice =
+        infiltrator_domain::mixin::merge_profile_with_config_fidelity(&base, &second).expect("re");
+    assert!(twice.contains("mode: direct"));
+    assert!(twice.contains("# 头注释"));
+    assert!(twice.contains("# 规则块"));
+}

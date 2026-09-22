@@ -898,7 +898,25 @@ impl std::fmt::Debug for Message {
             }
             Message::OpenSnapshotDiff(id) => write!(f, "OpenSnapshotDiff({id})"),
             Message::CloseSnapshotDiff => write!(f, "CloseSnapshotDiff"),
+            Message::SnapshotDiffLoaded(Ok(diff)) => write!(
+                f,
+                "SnapshotDiffLoaded(Ok(+{} -{} ~{}))",
+                diff.stats.additions, diff.stats.deletions, diff.stats.modifications
+            ),
+            Message::SnapshotDiffLoaded(Err(error)) => {
+                write!(f, "SnapshotDiffLoaded(Err({:?}))", error)
+            }
+            Message::ArmRestoreProfileSnapshot(path) => {
+                write!(f, "ArmRestoreProfileSnapshot({})", path.display())
+            }
+            Message::CancelRestoreProfileSnapshot => write!(f, "CancelRestoreProfileSnapshot"),
+            Message::SetSnapshotDiffMode(mode) => write!(f, "SetSnapshotDiffMode({mode:?})"),
+            Message::ArmSnapshotRollback => write!(f, "ArmSnapshotRollback"),
+            Message::CancelSnapshotRollback => write!(f, "CancelSnapshotRollback"),
             Message::RollbackToSnapshot(id) => write!(f, "RollbackToSnapshot({id})"),
+            Message::SetProfileProtectionOverride(allow) => {
+                write!(f, "SetProfileProtectionOverride({allow})")
+            }
             Message::BeginHotkeyCapture(action) => {
                 write!(f, "BeginHotkeyCapture({})", action.id())
             }

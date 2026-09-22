@@ -7,6 +7,7 @@
 
 pub mod anchor;
 pub mod mixin_fidelity;
+pub mod rules_fidelity;
 
 use thiserror::Error;
 

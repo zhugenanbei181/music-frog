@@ -26,6 +26,9 @@ use infiltrator_bevy_ui::pages::profiles_aggregator::{
     AggregatorNameField, AggregatorSourceToggle, PreviewAggregationButton,
     SaveAggregatedProfileButton,
 };
+use infiltrator_bevy_ui::pages::profiles_diff::{
+    RefreshSnapshotDiffButton, RollbackSnapshotButton, SnapshotDiffModeButton,
+};
 use infiltrator_bevy_ui::pages::profiles_import::{
     ChooseLocalFileButton, ImportLocalFileButton, ProfilesImportRoot,
     RestoreSubscriptionBackupButton, SaveUserAgentButton, SubscriptionBackupStatus,
@@ -595,6 +598,7 @@ fn test_profiles_empty_and_edge_case_projection() {
         auto_update_interval_hours: 0,
         updating: false,
         aggregation: None,
+        yaml_ast_diff: None,
     };
     app.world_mut()
         .commands()
@@ -2607,6 +2611,7 @@ fn subscription_fetch_projection() -> ProfilesProjection {
         auto_update_interval_hours: 12,
         updating: false,
         aggregation: None,
+        yaml_ast_diff: None,
         profiles: vec![ProfileItem {
             id: "sub-fetch".to_owned(),
             name: "抓取选项订阅".to_owned(),
@@ -2631,6 +2636,8 @@ fn subscription_fetch_projection() -> ProfilesProjection {
                 exclude: "广告".to_owned(),
                 ..Default::default()
             },
+            write_protection:
+                infiltrator_contract::profile_protection::ProfileWriteProtection::RemoteSubscription,
         }],
     }
 }
@@ -3161,6 +3168,7 @@ fn aggregation_page_projection() -> ProfilesProjection {
         auto_update_interval_hours: 0,
         updating: false,
         aggregation: Some(aggregation_preview_report()),
+        yaml_ast_diff: None,
     }
 }
 
@@ -3258,5 +3266,176 @@ fn test_profiles_aggregator_previews_and_saves_through_shared_command() {
             draft: expected.clone(),
         }),
         "the save action rides the shared create command"
+    );
+}
+
+// ---- DUAL-09-08/09/12: snapshot diff, rollback and protection chips --------
+
+fn snapshot_diff_fixture() -> infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot {
+    infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot::demo_fixture()
+        .with_source_path("/fake/configs/main-history/snap-001.yaml")
+}
+
+fn snapshot_diff_page_projection(
+    diff: Option<infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot>,
+) -> ProfilesProjection {
+    ProfilesProjection {
+        profiles: vec![ProfileItem {
+            id: "main".to_owned(),
+            name: "主力高速订阅 (Primary VIP)".to_owned(),
+            url: "https://subscribe.musicfrog.io/main".to_owned(),
+            updated_at: "2026-09-22 08:30".to_owned(),
+            upload_bytes: 0,
+            download_bytes: 0,
+            total_bytes: 0,
+            is_active: true,
+            user_agent: String::new(),
+            insecure_skip_verify: false,
+            etag: None,
+            last_modified: None,
+            has_backup: false,
+            cron_expression: None,
+            auto_update_enabled: false,
+            update_interval_hours: None,
+            next_update: None,
+            auto_reload_core: true,
+            filter: Default::default(),
+            write_protection:
+                infiltrator_contract::profile_protection::ProfileWriteProtection::RemoteSubscription,
+        }],
+        auto_update_interval_hours: 0,
+        updating: false,
+        aggregation: None,
+        yaml_ast_diff: diff,
+    }
+}
+
+#[test]
+fn test_profiles_snapshot_diff_renders_shared_rows_and_confirms_rollback() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(snapshot_diff_page_projection(
+            Some(snapshot_diff_fixture()),
+        )));
+    app.update();
+
+    assert!(
+        subtree_has_text(
+            app.world(),
+            root,
+            "对比 snapshot-1735489200000 → current-profile · +1 -1 ~1 · 保真 L3-Anchors"
+        ),
+        "the summary restamps from the shared diff snapshot"
+    );
+    assert!(
+        subtree_has_text(
+            app.world(),
+            root,
+            "rules: [DOMAIN-SUFFIX,google.com,DIRECT]"
+        ),
+        "the inline rows come from the shared unified lines"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "远程订阅 · 只读保护"),
+        "the profile card renders the shared write protection"
+    );
+
+    let refresh = marker_entity::<RefreshSnapshotDiffButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: refresh });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::LoadSnapshotDiff { snapshot_id: None }),
+        "refresh asks the shared application for the newest snapshot diff"
+    );
+
+    let split = {
+        let mut query = app.world_mut().query::<(Entity, &SnapshotDiffModeButton)>();
+        query
+            .iter(app.world())
+            .find(|(_, button)| button.split)
+            .map(|(entity, _)| entity)
+            .expect("split mode button")
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: split });
+    app.update();
+    assert!(
+        subtree_has_text(
+            app.world(),
+            root,
+            "   4|     ~ tun: { enable: false, stack: gvisor }"
+        ),
+        "the split layout renders aligned line numbers from the shared split rows"
+    );
+
+    let rollback = marker_entity::<RollbackSnapshotButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: rollback });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::LoadSnapshotDiff { snapshot_id: None }),
+        "the first rollback click only arms the confirmation"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "再次点击确认回滚"),
+        "the armed button states the confirmation requirement"
+    );
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: rollback });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::RestoreSnapshot {
+            id: "/fake/configs/main-history/snap-001.yaml".to_owned(),
+        }),
+        "the second click restores through the shared apply transaction"
+    );
+}
+
+#[test]
+fn test_profiles_snapshot_diff_states_are_honest_without_a_diff() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(snapshot_diff_page_projection(
+            None,
+        )));
+    app.update();
+    assert!(
+        subtree_has_text(app.world(), root, "尚未计算快照差异"),
+        "no diff means an honest prompt, never fabricated rows"
+    );
+
+    let identical = infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot::demo_fixture();
+    let identical = infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot {
+        stats: Default::default(),
+        unified_lines: Vec::new(),
+        split_rows: Vec::new(),
+        ..identical
+    };
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(snapshot_diff_page_projection(
+            Some(identical),
+        )));
+    app.update();
+    assert!(
+        subtree_has_text(app.world(), root, "快照与当前配置内容一致"),
+        "an identical diff reports equality instead of a fake change"
     );
 }

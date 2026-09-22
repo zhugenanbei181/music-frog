@@ -93,6 +93,8 @@ impl AppState {
             | Message::ProfileContentLoaded(_)
             | Message::LoadProfileSnapshots
             | Message::ProfileSnapshotsLoaded(_)
+            | Message::ArmRestoreProfileSnapshot(_)
+            | Message::CancelRestoreProfileSnapshot
             | Message::RestoreProfileSnapshot(_)
             | Message::ProfileSnapshotRestored(_)
             | Message::EditorAction(_)

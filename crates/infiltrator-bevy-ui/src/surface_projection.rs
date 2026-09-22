@@ -162,11 +162,13 @@ pub(super) fn profiles_projection(
                     next_update: profile.next_update.clone(),
                     auto_reload_core: profile.auto_reload_core,
                     filter: profile.filter.clone(),
+                    write_protection: profile.write_protection,
                 })
                 .collect(),
             auto_update_interval_hours: value.auto_update_interval_hours,
             updating: value.updating,
             aggregation: value.aggregation.clone(),
+            yaml_ast_diff: snapshot.yaml_ast_diff.clone(),
         })
         .unwrap_or_else(empty_profiles)
 }

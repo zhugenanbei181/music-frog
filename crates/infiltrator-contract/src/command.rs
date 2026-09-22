@@ -372,6 +372,12 @@ pub enum CommandIntent {
     RestoreSnapshot {
         id: String,
     },
+    /// DUAL-09-08: compute a real snapshot-vs-current AST diff and publish it
+    /// process-wide for the surface snapshot. `snapshot_id = None` selects the
+    /// newest snapshot of the active profile.
+    LoadSnapshotDiff {
+        snapshot_id: Option<String>,
+    },
     /// Select the last installed, locally recorded core version.
     RollbackCore,
     UpdateSetting {
@@ -492,7 +498,8 @@ impl CommandIntent {
             | Self::CreateBackupSnapshot
             | Self::ResolveConflictKeepLocal
             | Self::ResolveConflictTakeRemote
-            | Self::RestoreSnapshot { .. } => CommandKind::Sync,
+            | Self::RestoreSnapshot { .. }
+            | Self::LoadSnapshotDiff { .. } => CommandKind::Sync,
             Self::RollbackCore | Self::UpdateSetting { .. } | Self::CheckUpdates => {
                 CommandKind::Update
             }

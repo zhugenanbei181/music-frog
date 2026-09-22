@@ -391,6 +391,22 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "mrs_accel_valid" => "valid".into(),
         "mrs_accel_invalid" => "invalid".into(),
         "mrs_accel_no_digest" => "no digest".into(),
+        "snapshot_diff_open" => "Diff".into(),
+        "snapshot_diff_loading" => "Computing the snapshot diff...".into(),
+        "snapshot_diff_empty" => {
+            "This snapshot matches the current content, or has no visible difference.".into()
+        }
+        "snapshot_diff_fidelity" => "Fidelity".into(),
+        "snapshot_diff_inline" => "Inline".into(),
+        "snapshot_diff_split" => "Split".into(),
+        "snapshot_diff_confirm_hint" => {
+            "Rollback overwrites the current config through the apply transaction and cannot be undone.".into()
+        }
+        "snapshot_diff_confirm_btn" => "Confirm Rollback".into(),
+        "editor_protection_unlock" => "Edit Anyway".into(),
+        "editor_protection_lock" => "Restore Protection".into(),
+        "editor_protection_use_mixin" => "Use a Mixin".into(),
+        "editor_restore_confirm" => "Confirm Restore".into(),
         _ => key.to_string().into(),
     }
 }

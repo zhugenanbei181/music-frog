@@ -359,6 +359,9 @@ pub enum Message {
     ProfileContentLoaded(Result<(PathBuf, String), InfiltratorError>),
     LoadProfileSnapshots,
     ProfileSnapshotsLoaded(Result<Vec<SnapshotMeta>, InfiltratorError>),
+    /// DUAL-09-09: arm the history-panel restore confirmation (first step).
+    ArmRestoreProfileSnapshot(PathBuf),
+    CancelRestoreProfileSnapshot,
     RestoreProfileSnapshot(PathBuf),
     ProfileSnapshotRestored(Result<(), InfiltratorError>),
     EditorAction(text_editor::Action),
@@ -555,7 +558,19 @@ pub enum Message {
     // Config Snapshot Visual Diff & Rollback (Category 5)
     OpenSnapshotDiff(String),
     CloseSnapshotDiff,
+    /// DUAL-09-08: the shared application finished computing the diff.
+    SnapshotDiffLoaded(
+        Result<infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot, InfiltratorError>,
+    ),
+    /// DUAL-09-08: inline vs split layout for the same shared diff.
+    SetSnapshotDiffMode(crate::types::app::SnapshotDiffMode),
+    /// DUAL-09-09: arm the two-step rollback confirmation.
+    ArmSnapshotRollback,
+    CancelSnapshotRollback,
     RollbackToSnapshot(String),
+    /// DUAL-09-12: allow direct edits of a protected remote subscription for
+    /// this session (the application still receives the explicit flag).
+    SetProfileProtectionOverride(bool),
     // Global Hotkey Manager (Category 6) — shared contract registry.
     BeginHotkeyCapture(infiltrator_contract::shortcuts::ShortcutAction),
     CancelHotkeyCapture,

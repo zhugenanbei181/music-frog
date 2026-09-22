@@ -79,7 +79,7 @@
 | 组 06 并发测速与稳定性评估 | 15 | `parity-ready` | `SpeedtestApplication` 引擎 | 15/15 收口（2026-09-22 批次 D）：单端口 `SpeedtestPort`、reader 发布真实快照、Iced 渲染共享快照（不再伪造）、Bevy 按钮按 phase/progress 重盖；出口 IP 对比、双端明细弹窗与共享状态机矩阵已闭环 |
 | 组 07 订阅生命周期与定时更新 | 15 | `parity-ready` | `subscription`、`filter` 管道 | 15/15 收口（2026-09-22）：07-09/14 于批次 E 双端接线（见组 07 逐项账目） |
 | 组 08 多源聚合器与自动拓扑 | 15 | `in-progress (8/15)` | `profile_aggregator.rs`（domain）、`aggregator_modal.rs`（Iced）、`profiles_aggregator.rs`（Bevy） | 2026-09-22 批次 A：08-01/02/03/04/05/06/14/15 收口为 `parity-ready`（见组 08 逐项账目）；08-11/08-08/08-09/08-12 为 `shared-ready` |
-| 组 09 AST YAML 引擎与快照 Diff | 15 | `planned` | `snapshot_diff_modal.rs`、`profiles_diff.rs` | 双端编辑器与回滚事务未验收 |
+| 组 09 AST YAML 引擎与快照 Diff | 15 | `in progress (6/15)` | `yaml_edit/`（domain）、`snapshot_diff_modal.rs`（Iced）、`profiles_diff.rs`（Bevy） | 2026-09-22 起逐项展开（见组 09 逐项账目）：01/08/09/10/12/15 已双端收口；03/06/07/11/14 为 `shared-ready`；02/04/05/13 `planned`（编辑器/格式化/虚拟滚动无 Bevy 面） |
 | 组 10 脚本沙箱与多级 Mixin | 15 | `planned` | `script_console.rs`、`profiles_script.rs` | 双端控制台与熔断测试未验收 |
 | 组 11 规则引擎与 MRS 治理 | 15 | `in progress` | `rules.rs`、`rules_mrs.rs`、`mrs` | 2026-09-22 起逐项展开（见组 11 逐项账目）：01/02/03/04/09/10/11/12/13/15 已双端收口（10/15），05/08 为 `shared-ready`（304 仅存核内、无 O(1) 虚拟滚动），06/07/14 `planned` |
 | 组 12 Live Rule Tracer 与命中审计 | 15 | `parity-ready` | `rules_tracer.rs`（两端同名） | 15/15 收口（2026-09-22）：决策链回放/预设/离线模拟/命中审计/时延审计/沙盒来源 IP/反向应用均双端接线（见组 12 逐项账目） |
@@ -578,6 +578,48 @@
 13. **大文件编辑器性能优化**：编辑 10,000+ 行配置时维持 60 FPS 滚动，杜绝卡顿。
 14. **双端编辑器与 Diff 模态完全镜像**：Iced (`snapshot_diff_modal.rs`) 与 Bevy (`profiles_diff.rs`) 保持一致。
 15. **YAML 引擎与回滚事务无头测试**：注释保留、语法报错与回滚事务测试 100% 覆盖。
+
+### 组 09 逐项账目（2026-09-22 展开）
+
+组 09 闭环口径同组 06/07/08/11：shared contract/application + Iced + Bevy + 双端无头测试 + 守卫
+（`scripts/quality/yaml-diff-guard.py`）。
+本轮关键事实：共享保真引擎（`SourceDoc` + `rules_fidelity` + `mixin_fidelity`）此前**只被
+`profile_options::compose_content` 与 `strip_rule_lines` 使用**，Iced 的规则保存/新增、Mixin 保存
+与 Bevy 的规则意图仍走 serde 旧管线（`apply_rules_to_yaml` / `merge_profile_with_config`），
+即 `LEFT-05` 描述的丢注释问题；Diff 方面 Iced 模态与 Bevy 卡片此前都是**硬编码假行**
+（`+ Added`/`- Removed`/`~ Modified` 与固定三行 demo），与共享 `YamlAstDiffSnapshot` 无关。
+
+| 项 | 任务 | 状态 | 证据 |
+| :--- | :--- | :--- | :--- |
+| `DUAL-09-01` | 100% 保真 YAML AST 引擎 | `parity-ready` | 共享字节级引擎 `SourceDoc::parse/render`（`crates/infiltrator-domain/src/yaml_edit.rs:68/104`，round-trip 字节等同单测）与 `append_rule`/`remove_rule`/`set_top_scalar`（`:117/204/240`）、L3 锚点扫描与命名空间重写（`yaml_edit/anchor.rs:50/291`）；本轮新增 `rules_fidelity::apply_rule_list`（`yaml_edit/rules_fidelity.rs:21`）：物理行级增删/停用，行尾注释随行保留，**改完先用结构级读取器自校验，失败即整体回退 serde**；并把它接进 `rules::apply_rules_to_yaml`（`crates/infiltrator-domain/src/rules.rs:180`），Iced `SaveRules`/新增规则与 Bevy `AddCustomRule`/停用/调序/游戏预设全部经此；mixin 标量覆盖经 `mixin::merge_profile_with_config_fidelity`（`crates/infiltrator-domain/src/mixin.rs:10`）接进 `profile_options::compose_content`（`crates/infiltrator-domain/src/profile_options.rs:252`）与 Iced Mixin 保存（`crates/infiltrator-iced/src/update/profile/options.rs:265`）。测试：领域 `rule_list_edit_preserves_comments_and_inline_notes`、`apply_rules_to_yaml_keeps_comments_for_add_and_remove`；application `rule_commands_keep_handwritten_comments_end_to_end`；Iced `test_rule_save_path_preserves_comments_through_the_shared_fidelity_writer`、`test_mixin_save_path_...`、`test_mixin_resave_cycle_...`。**诚实边界**：filter 管线与 deep-merge 仍走结构级 serde（`docs/YAML_FIDELITY_PLAN.md` §4 已论证文本级无收益）；`crates/infiltrator-core/src/apply.rs:416-554` 的 profile 级 fidelity 辅助函数仍无生产调用方；L3 只承诺“不触碰即不变”与显式重写 API，未接入写路径 |
+| `DUAL-09-02` | Monaco 级代码编辑器视口 | `planned` | Iced 有 `text_editor`（`crates/infiltrator-iced/src/view/editor.rs:256`）+ 语法错误行号胶囊（`format_syntax_line_pill`，`:80`）与等宽字体，但没有行号槽/缩进参考线/视口定位；Bevy 没有任何代码编辑器组件，本项无双端面 |
+| `DUAL-09-03` | YAML 语法实时预检与行号定位 | `shared-ready` | 共享 `preflight_yaml_syntax` + `SyntaxDiagnostic{line,message}`（`crates/infiltrator-domain/src/config.rs:22`）；Iced 实时预检（`crates/infiltrator-iced/src/update/profile/editor.rs:61`）并在保存前阻断（`:159`）；Bevy 无解析/定位面，仅待未来编辑器 |
+| `DUAL-09-04` | 常用代码片段一键插入 (Snippets) | `planned` | 片段仅存在 Iced `view/editor.rs:593 snip_btn` 与 `Message::InsertYamlSnippet`（`crates/infiltrator-iced/src/update/ui.rs:341`）；共享层无片段目录，Bevy 无编辑器面板 |
+| `DUAL-09-05` | 代码一键格式化 (Format YAML) | `planned` | Iced `Message::FormatYamlEditor`（`crates/infiltrator-iced/src/update/ui.rs:349`）用 `serde_yaml_ng` 重新序列化（本身会丢注释/锚点，且无视共享引擎）；共享层没有格式化器，Bevy 无入口 |
+| `DUAL-09-06` | 配置自动历史快照备份 | `shared-ready` | 共享 `history::save_snapshot`（`crates/infiltrator-core/src/history.rs:29`）由成功 apply 自动调用（`crates/infiltrator-core/src/apply.rs:346`）；Iced 历史面板（`crates/infiltrator-iced/src/view/editor.rs:460`）列出并支持对比/恢复；Bevy 侧只有本轮新增的“最新快照 vs 当前”Diff 卡读取同一历史，没有快照列表/手动备份入口，故不记 `parity-ready` |
+| `DUAL-09-07` | 历史快照自动智能修剪 | `shared-ready` | 上限 20（`crates/infiltrator-core/src/history.rs:17`），apply 成功后 `prune_snapshots`（`:88`）；domain `backup::prune_snapshots`（`crates/infiltrator-domain/src/backup.rs:487`）有去重/LRU 单测（`crates/infiltrator-core/src/backup_test.rs:217-454`）；两端都没有修剪策略可视面 |
+| `DUAL-09-08` | 配置历史快照可视化并排/行内 Diff | `parity-ready` | 共享读模型 `YamlAstDiffSnapshot`（`crates/infiltrator-contract/src/yaml_ast_diff.rs:137`，新增 `source_path`/`change_summary` `:268/275`）由 `myers_diff::compute_diff`（`crates/infiltrator-domain/src/myers_diff.rs:19`）填充；application `SnapshotApplication::diff_snapshot`/`diff_newest`（`crates/infiltrator-application/src/snapshot_application.rs:94/119`）计算并发布进程级缓存（`:35`），surface reader 投影到 `yaml_ast_diff`（`crates/infiltrator-application/src/surface_reader.rs`）。Iced 模态渲染真实 unified/split 行与模式切换（`crates/infiltrator-iced/src/view_root/snapshot_diff_modal.rs:22/287/330`，状态机 `crates/infiltrator-iced/src/update/snapshot_diff.rs:13`），删除硬编码 `+ Added/- Removed/~ Modified`；Bevy 卡片按投影重建行、模式切换即时重建（`crates/infiltrator-bevy-ui/src/pages/profiles_diff.rs:85/361/404`），删除固定三行 demo。测试：application `diff_newest_publishes_the_real_diff_and_its_snapshot_path`、Iced `modal_renders_the_shared_diff_in_inline_and_split_modes`、Bevy `test_profiles_snapshot_diff_renders_shared_rows_and_confirms_rollback`。**诚实边界**：Bevy 只呈现“最新快照 vs 当前”（无逐快照选择器），Iced 可任选历史 |
+| `DUAL-09-09` | 快照一键安全回滚 (One-Click Rollback) | `parity-ready` | 回滚仍以 apply 事务的整文件字节串为单位（`crates/infiltrator-core/src/apply.rs:290`，失败自动 restore `:369-393`）；`SnapshotApplication::restore` 经 `save_profile_content`→`ManagedRuntime::apply_profile_content`（`crates/infiltrator-application/src/snapshot_application.rs:129`），成功后清掉过期 diff 缓存；Iced 两步确认状态机（`crates/infiltrator-iced/src/update/snapshot_diff.rs`：首次点击仅 arm，第二次才派发 `RestoreProfileSnapshot`），历史面板的“恢复”按钮同样先 `ArmRestoreProfileSnapshot`、确认后才执行（`crates/infiltrator-iced/src/update/profile/editor.rs` + `view/editor.rs:616`）；Bevy 卡片两步确认后提交 `UiCommand::RestoreSnapshot`（`crates/infiltrator-bevy-ui/src/pages/profiles_diff.rs:456`）→ `CommandIntent::RestoreSnapshot`。测试：application `restore_clears_the_cached_diff`、Iced `rollback_never_executes_before_the_second_confirmation` / `history_panel_restore_is_armed_before_it_executes`、Bevy 同一测试后半段（第二次点击才提交 `RestoreSnapshot{id}`）。**边界**：Bevy Sync 页的独立快照恢复按钮仍是单次点击（属组 16 的既有路径，不在本项内） |
+| `DUAL-09-10` | 多配置快速切换 (Switch Profile) | `parity-ready` | 共享 `ProfileApplication::activate_profile`（`crates/infiltrator-application/src/profile_application.rs:691`）带失败恢复指针；Iced `Message::SetActiveProfile`（`crates/infiltrator-iced/src/update/profile/profiles.rs:95`）调用同一 application；Bevy `ActivateProfileButton`（`crates/infiltrator-bevy-ui/src/pages/profiles.rs:614`）→ `UiCommand::ActivateProfile`（`crates/infiltrator-bevy-ui/src/command.rs:309`）→ `CommandIntent::SwitchProfile`（application `:258`）。测试：Bevy `test_profiles_activate_button_submits_command`、Iced `business_flow/profile_lifecycle.rs:135` |
+| `DUAL-09-11` | 配置无效时自动触发安全回滚 | `shared-ready` | apply 事务回滚语义见 `crates/infiltrator-core/src/apply.rs:369-393` 与 `ApplyError::{RolledBack,RollbackFailed}`（`:96-99`），snapshot 成功后自动备份；Iced 有 `Message::ApplyTransactionStageChanged`/`RebuildFlowState::Failed` 展示路径；Bevy 没有 apply 事务投影面，故仅共享层具备 |
+| `DUAL-09-12` | 只读保护与远程订阅防手滑覆写 | `parity-ready` | 共享分类 `ProfileWriteProtection::from_subscription_url`（`crates/infiltrator-contract/src/profile_protection.rs:14/27`，徽标/提示文案 `:39/47`）随 reader 投影（`crates/infiltrator-application/src/surface_reader.rs:434`、`crates/infiltrator-contract/src/surface_snapshot.rs:236`）；application 守卫 `save_edited_profile_content`（`crates/infiltrator-application/src/profile_application.rs:646`）在未显式解锁时拒绝写入受保护订阅（Mixin/filter/导入/回滚仍走不经守卫的合法写路径）；Iced 编辑器横幅 + 解锁开关 + “前往 Mixin 覆写”，保存按钮受同一门禁（`crates/infiltrator-iced/src/view/editor.rs:138-190`、`:137`）；Bevy 卡片显示共享徽标并由 diff sync 重盖（`crates/infiltrator-bevy-ui/src/pages/profiles_diff.rs:361`）。测试：application `edited_writes_refuse_protected_subscriptions_until_unlocked` 等 3 项、Iced `editor_protection_follows_the_shared_subscription_metadata`、Bevy 断言「远程订阅 · 只读保护」。**诚实边界**：Bevy 无编辑器，其防手滑由应用层守卫兜底 |
+| `DUAL-09-13` | 大文件编辑器性能优化 | `planned` | 没有窗口化/几何裁剪编辑器：Iced 只有 `PerfSnapshot` 诊断与历史列表 `take(12)` 截断（`crates/infiltrator-iced/src/view/editor.rs:501`），无 10,000 行压测或 60FPS 证据，不计入 |
+| `DUAL-09-14` | 双端编辑器与 Diff 模态完全镜像 | `shared-ready` | Diff 半边已镜像（09-08/09-09：同一 `YamlAstDiffSnapshot`、同一内联/并排语义、同一回滚确认）；编辑器半边仍是 Iced 独占（`crates/infiltrator-iced/src/view/editor.rs`，Bevy 无编辑器），因此不宣称“完全镜像”，维持 `shared-ready` |
+| `DUAL-09-15` | YAML 引擎与回滚事务无头测试 | `parity-ready` | 既有 `crates/infiltrator-application/tests/track5_headless_tests.rs`（保真引擎/语法预检/Myers Diff 3 项）；本轮新增领域 `yaml_edit_test.rs` 5 项（含 `rule_list_edit_preserves_comments_and_inline_notes`）、application 4 项 diff/restore + 3 项只读守卫 + 1 项规则注释端到端、Iced 8 项模态/回滚/保护 + 3 项保存路径、Bevy 2 项 diff/回滚/保护；守卫 `scripts/quality/yaml-diff-guard.py` 固化账目与双端标记 |
+
+> **2026-09-22 组 09 首批**：`DUAL-09-01/08/09/10/12/15` 收口为 `parity-ready`。
+> 共享层新增 `rules_fidelity::apply_rule_list`（自校验的规则行级 splice）并接入
+> `rules::apply_rules_to_yaml`，`mixin::merge_profile_with_config_fidelity` 接入
+> `compose_content` 与 Iced Mixin 保存——这是 `LEFT-05` 的 L1 切片（rules 增删 +
+> mixin 标量覆写保注释）。Diff 侧新增 `SnapshotApplication::{diff_snapshot,diff_newest}`
+> 进程级缓存 + `YamlAstDiffSnapshot.source_path/change_summary`，surface reader 投影
+> 真实 diff；Iced 模态与 Bevy 卡片删除假行，改为渲染同一共享快照并支持内联/并排，
+> 回滚改为两步确认。只读保护新增共享 `ProfileWriteProtection` + 应用层守卫 +
+> Iced 编辑器门禁 + Bevy 共享徽标。**诚实边界**：02/04/05/13 仍为 `planned`
+> （Bevy 无编辑器、无共享格式化器/虚拟滚动）；03/06/07/11/14 为 `shared-ready`；
+> Bevy 的 Diff 只看最新快照；`crates/infiltrator-core/src/apply.rs` 的 profile 级
+> fidelity 辅助函数仍无生产调用方；`LEFT-05` 的 filter/deep-merge 与 L3 写路径
+> 按 `docs/YAML_FIDELITY_PLAN.md` §4/§6 继续保留结构级或未接线。
 
 ### 组 10：脚本沙箱生态、QuickJS 调试控制台与多级混入 (Scripting & Mixin)
 1. **QuickJS 嵌入式轻量执行沙箱**：内置纯 Rust QuickJS 引擎，无 node/外部环境依赖。

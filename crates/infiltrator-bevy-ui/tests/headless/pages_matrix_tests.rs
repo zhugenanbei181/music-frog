@@ -188,6 +188,7 @@ fn profiles_page_in_place_update() {
         auto_update_interval_hours: 12,
         updating: false,
         aggregation: None,
+        yaml_ast_diff: None,
         profiles: vec![ProfileItem {
             id: "sub-custom".to_owned(),
             name: "自建中继节点订阅".to_owned(),
@@ -208,6 +209,7 @@ fn profiles_page_in_place_update() {
             next_update: None,
             auto_reload_core: true,
             filter: Default::default(),
+            write_protection: Default::default(),
         }],
     };
 
