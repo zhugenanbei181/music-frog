@@ -1,11 +1,15 @@
 //! Design tokens for the Infiltrator desktop shell.
 //!
 //! The canonical numbers live in `infiltrator_contract::design_tokens`
-//! (DUAL-15-14); this module resolves them for Iced and owns the surface-only
-//! decoration (shadows, hover washes, tertiary ink). Page views and shared
-//! components must never hardcode a `Color` — take [`tokens`] (resolved from
-//! the active [`iced::Theme`]) and read from the returned [`Tokens`] instead,
-//! so light, dark, eye-care forest and amoled black stay equally first-class.
+//! (DUAL-15-14); this module resolves them for Iced — the core palette, the
+//! interaction palette (scrim / hover / pressed / focus ring / disabled ink),
+//! the spacing and radius ladders and the hairline. This module still owns the
+//! surface-only decoration (shadows, accent-tinted button derivations) because
+//! those are not programmable on both toolkits.
+//! Page views and shared components must never hardcode a `Color` — take
+//! [`tokens`] (resolved from the active [`iced::Theme`]) and read from the
+//! returned [`Tokens`] instead, so light, dark, eye-care forest and amoled
+//! black stay equally first-class.
 //!
 //! Reference aesthetics:
 //! - Light: soft warm-paper light with low-glare card surfaces.
@@ -14,7 +18,9 @@
 //! - AMOLED: pitch-black OLED appearance with high-contrast surfaces.
 
 use iced::{Color, Shadow, Theme, Vector};
-use infiltrator_contract::design_tokens::{RgbaToken, SkinCorePalette, skin_core};
+use infiltrator_contract::design_tokens::{
+    RgbaToken, SkinCorePalette, SkinInteractionPalette, skin_core, skin_interaction,
+};
 use infiltrator_contract::theme::ThemeSkin;
 
 /// Resolve a shared token into an Iced color.
@@ -31,6 +37,11 @@ const LIGHT_CORE: SkinCorePalette = skin_core(ThemeSkin::Light);
 const DARK_CORE: SkinCorePalette = skin_core(ThemeSkin::Dark);
 const FOREST_CORE: SkinCorePalette = skin_core(ThemeSkin::Forest);
 const AMOLED_CORE: SkinCorePalette = skin_core(ThemeSkin::Amoled);
+
+const LIGHT_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::Light);
+const DARK_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::Dark);
+const FOREST_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::Forest);
+const AMOLED_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::Amoled);
 
 /// Spacing scale (logical pixels), from the shared contract ladder. Use these
 /// instead of raw numbers so rhythm stays consistent across pages.
@@ -99,6 +110,8 @@ pub struct Tokens {
     pub badge_accent: Color,
     pub text_primary: Color,
     pub text_secondary: Color,
+    /// Tertiary / disabled ink (hints, placeholders, disabled labels). From
+    /// the shared interaction palette so both surfaces dim alike.
     pub text_tertiary: Color,
     pub success: Color,
     pub warning: Color,
@@ -112,6 +125,14 @@ pub struct Tokens {
     pub sidebar_text_muted: Color,
     /// Elevated control surface (segmented control track, inputs).
     pub control_bg: Color,
+    /// Neutral control hover wash (shared interaction token).
+    pub hover: Color,
+    /// Neutral control pressed wash; always stronger than [`Self::hover`].
+    pub pressed: Color,
+    /// Keyboard focus ring around a focused control.
+    pub focus_ring: Color,
+    /// Modal / overlay backdrop painted over page content.
+    pub scrim: Color,
     /// Toast / HUD bubble: background, text, muted text, hairline border.
     pub overlay: Color,
     pub overlay_text: Color,
@@ -153,10 +174,7 @@ pub const LIGHT: Tokens = Tokens {
     badge_accent: Color::from_rgb(0.04, 0.44, 0.88),
     text_primary: token_color(LIGHT_CORE.ink),
     text_secondary: token_color(LIGHT_CORE.ink_dim),
-    text_tertiary: Color {
-        a: 0.38,
-        ..Color::from_rgb(0.24, 0.28, 0.26)
-    },
+    text_tertiary: token_color(LIGHT_INTERACTION.disabled_ink),
     success: token_color(LIGHT_CORE.success),
     warning: token_color(LIGHT_CORE.warning),
     danger: token_color(LIGHT_CORE.danger),
@@ -174,6 +192,10 @@ pub const LIGHT: Tokens = Tokens {
         ..Color::from_rgb(0.24, 0.28, 0.26)
     },
     control_bg: token_color(LIGHT_CORE.control_bg),
+    hover: token_color(LIGHT_INTERACTION.hover),
+    pressed: token_color(LIGHT_INTERACTION.pressed),
+    focus_ring: token_color(LIGHT_INTERACTION.focus_ring),
+    scrim: token_color(LIGHT_INTERACTION.scrim),
     overlay: Color {
         a: 0.90,
         ..Color::BLACK
@@ -225,10 +247,7 @@ pub const DARK: Tokens = Tokens {
     badge_accent: Color::from_rgb(0.46, 0.72, 1.0), // #76B8FF
     text_primary: token_color(DARK_CORE.ink),
     text_secondary: token_color(DARK_CORE.ink_dim),
-    text_tertiary: Color {
-        a: 0.35,
-        ..Color::from_rgb(0.88, 0.90, 0.92)
-    },
+    text_tertiary: token_color(DARK_INTERACTION.disabled_ink),
     success: token_color(DARK_CORE.success),
     warning: token_color(DARK_CORE.warning),
     danger: token_color(DARK_CORE.danger),
@@ -246,6 +265,10 @@ pub const DARK: Tokens = Tokens {
         ..Color::WHITE
     },
     control_bg: token_color(DARK_CORE.control_bg),
+    hover: token_color(DARK_INTERACTION.hover),
+    pressed: token_color(DARK_INTERACTION.pressed),
+    focus_ring: token_color(DARK_INTERACTION.focus_ring),
+    scrim: token_color(DARK_INTERACTION.scrim),
     overlay: Color {
         a: 0.92,
         ..Color::from_rgb(0.11, 0.11, 0.12)
@@ -297,10 +320,7 @@ pub const FOREST: Tokens = Tokens {
     badge_accent: Color::from_rgb(0.188, 0.435, 0.306),
     text_primary: token_color(FOREST_CORE.ink),
     text_secondary: token_color(FOREST_CORE.ink_dim),
-    text_tertiary: Color {
-        a: 0.45,
-        ..Color::from_rgb(0.341, 0.439, 0.353)
-    },
+    text_tertiary: token_color(FOREST_INTERACTION.disabled_ink),
     success: token_color(FOREST_CORE.success),
     warning: token_color(FOREST_CORE.warning),
     danger: token_color(FOREST_CORE.danger),
@@ -318,6 +338,10 @@ pub const FOREST: Tokens = Tokens {
         ..Color::from_rgb(0.341, 0.439, 0.353)
     },
     control_bg: token_color(FOREST_CORE.control_bg),
+    hover: token_color(FOREST_INTERACTION.hover),
+    pressed: token_color(FOREST_INTERACTION.pressed),
+    focus_ring: token_color(FOREST_INTERACTION.focus_ring),
+    scrim: token_color(FOREST_INTERACTION.scrim),
     overlay: Color {
         a: 0.94,
         ..Color::from_rgb(0.122, 0.208, 0.145)
@@ -369,10 +393,7 @@ pub const AMOLED: Tokens = Tokens {
     badge_accent: Color::from_rgb(0.46, 0.72, 1.0), // #76B8FF
     text_primary: token_color(AMOLED_CORE.ink),
     text_secondary: token_color(AMOLED_CORE.ink_dim),
-    text_tertiary: Color {
-        a: 0.38,
-        ..Color::from_rgb(0.90, 0.92, 0.94)
-    },
+    text_tertiary: token_color(AMOLED_INTERACTION.disabled_ink),
     success: token_color(AMOLED_CORE.success),
     warning: token_color(AMOLED_CORE.warning),
     danger: token_color(AMOLED_CORE.danger),
@@ -390,6 +411,10 @@ pub const AMOLED: Tokens = Tokens {
         ..Color::WHITE
     },
     control_bg: token_color(AMOLED_CORE.control_bg),
+    hover: token_color(AMOLED_INTERACTION.hover),
+    pressed: token_color(AMOLED_INTERACTION.pressed),
+    focus_ring: token_color(AMOLED_INTERACTION.focus_ring),
+    scrim: token_color(AMOLED_INTERACTION.scrim),
     overlay: Color {
         a: 0.95,
         ..Color::from_rgb(0.05, 0.06, 0.07)

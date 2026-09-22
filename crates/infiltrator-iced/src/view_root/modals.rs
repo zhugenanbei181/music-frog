@@ -17,14 +17,8 @@ pub(super) fn modal_backdrop<'a>(dialog: Element<'a, Message>) -> Element<'a, Me
     )
     .width(Length::Fill)
     .height(Length::Fill)
-    .style(|_t: &Theme| container::Style {
-        background: Some(
-            Color {
-                a: 0.45,
-                ..Color::BLACK
-            }
-            .into(),
-        ),
+    .style(|t: &Theme| container::Style {
+        background: Some(crate::view::theme::tokens(t).scrim.into()),
         ..Default::default()
     })
     .into()

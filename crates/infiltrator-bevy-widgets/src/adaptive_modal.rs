@@ -9,7 +9,6 @@ use crate::palette::UiPalette;
 use crate::responsive::{ModalForm, ResponsiveContext};
 use crate::text::{Role, TextRole};
 use crate::theme::{radius, space};
-use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
@@ -82,7 +81,7 @@ pub fn adaptive_modal_scene(
     actions: Vec<Box<dyn Scene>>,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
-    let scrim_fill = Color::srgba(0.0, 0.0, 0.0, 0.55);
+    let scrim_fill = palette.scrim;
     let card_fill = palette.surface;
     let edge = palette.border;
 

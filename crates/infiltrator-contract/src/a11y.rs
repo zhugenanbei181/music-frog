@@ -18,7 +18,7 @@
 //! roles, and the group guard forbids it from pretending otherwise.
 
 /// Toolkit-neutral semantic role of a shell node.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum A11yRole {
     Window,
     Header,
@@ -32,6 +32,23 @@ pub enum A11yRole {
     LiveRegion,
     /// A read-only text line.
     Text,
+}
+
+impl A11yRole {
+    /// Every role the shared grammar can assign, so a surface can prove its
+    /// role vocabulary is complete instead of listing the variants by hand.
+    pub const ALL: [Self; 10] = [
+        Self::Window,
+        Self::Header,
+        Self::Region,
+        Self::Navigation,
+        Self::Button,
+        Self::Switch,
+        Self::Status,
+        Self::Dialog,
+        Self::LiveRegion,
+        Self::Text,
+    ];
 }
 
 /// One node of the shell's accessibility grammar.
@@ -238,6 +255,26 @@ mod tests {
             keys.len(),
             ShellA11yNode::ALL.len(),
             "label keys must be unique"
+        );
+    }
+
+    #[test]
+    fn the_role_inventory_covers_every_variant_once() {
+        let unique: BTreeSet<A11yRole> = A11yRole::ALL.iter().copied().collect();
+        assert_eq!(unique.len(), A11yRole::ALL.len());
+        // The inventory must be the whole vocabulary: every role any row can
+        // carry has to appear in `A11yRole::ALL`.
+        let used: BTreeSet<A11yRole> = ShellA11yNode::ALL.iter().map(|node| node.role()).collect();
+        for role in used {
+            assert!(
+                A11yRole::ALL.contains(&role),
+                "{role:?} is assigned by a row but missing from A11yRole::ALL"
+            );
+        }
+        assert_eq!(
+            A11yRole::ALL.len(),
+            10,
+            "adding a role must extend the shared inventory"
         );
     }
 

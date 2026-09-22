@@ -387,7 +387,8 @@ pub fn icon_button<'a, Message: 'a + Clone>(
             let tk = theme::tokens(t);
             button::Style {
                 background: match status {
-                    button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
+                    button::Status::Hovered => Some(tk.hover.into()),
+                    button::Status::Pressed => Some(tk.pressed.into()),
                     _ => None,
                 },
                 border: Border {
@@ -544,7 +545,7 @@ pub fn segmented_control<'a, Message: 'a + Clone>(
                 };
                 if !is_active && matches!(status, button::Status::Hovered | button::Status::Pressed)
                 {
-                    style.background = Some(theme::tokens(t).chip_bg.into());
+                    style.background = Some(theme::tokens(t).hover.into());
                 }
                 style
             })
@@ -719,7 +720,8 @@ pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Ele
                 style.text_color = tk.accent;
             } else {
                 style.background = match status {
-                    button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
+                    button::Status::Hovered => Some(tk.hover.into()),
+                    button::Status::Pressed => Some(tk.pressed.into()),
                     _ => None,
                 };
                 style.text_color = match status {
@@ -765,7 +767,8 @@ pub fn style_ghost(t: &Theme, status: button::Status) -> button::Style {
     let tk = theme::tokens(t);
     button::Style {
         background: match status {
-            button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
+            button::Status::Hovered => Some(tk.hover.into()),
+            button::Status::Pressed => Some(tk.pressed.into()),
             _ => None,
         },
         border: Border {
@@ -835,7 +838,7 @@ pub fn form_input_style(
 ) -> iced::widget::text_input::Style {
     let tk = theme::tokens(t);
     let (border_color, border_width) = match status {
-        iced::widget::text_input::Status::Focused { .. } => (tk.accent, 1.5),
+        iced::widget::text_input::Status::Focused { .. } => (tk.focus_ring, 1.5),
         _ => (tk.card_border, 1.0),
     };
     iced::widget::text_input::Style {

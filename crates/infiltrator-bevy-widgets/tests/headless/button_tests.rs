@@ -89,7 +89,7 @@ fn button_variants_fill_and_text_color_matrix() {
     // Disabled states
     assert_eq!(
         button_text_color(ButtonVariant::Primary, false, true, &palette),
-        palette.ink_dim
+        palette.disabled_ink
     );
 }
 

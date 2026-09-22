@@ -40,6 +40,48 @@ fn test_tokens_resolution() {
     assert_eq!(tokens(&amoled).canvas, Color::from_rgb(0.0, 0.0, 0.0));
 }
 
+/// DUAL-15-14: the interaction palette both surfaces paint resolves from the
+/// shared contract, not from local literals.
+#[test]
+fn the_interaction_tokens_resolve_the_shared_contract() {
+    use infiltrator_contract::design_tokens::skin_interaction;
+    use infiltrator_contract::theme::ThemeSkin;
+
+    for (skin, resolved) in [
+        (ThemeSkin::Light, &LIGHT),
+        (ThemeSkin::Dark, &DARK),
+        (ThemeSkin::Forest, &FOREST),
+        (ThemeSkin::Amoled, &AMOLED),
+    ] {
+        let expected = skin_interaction(skin);
+        assert_eq!(
+            resolved.scrim,
+            token_color(expected.scrim),
+            "{skin:?} scrim"
+        );
+        assert_eq!(
+            resolved.hover,
+            token_color(expected.hover),
+            "{skin:?} hover"
+        );
+        assert_eq!(
+            resolved.pressed,
+            token_color(expected.pressed),
+            "{skin:?} pressed wash"
+        );
+        assert_eq!(
+            resolved.focus_ring,
+            token_color(expected.focus_ring),
+            "{skin:?} focus ring"
+        );
+        assert_eq!(
+            resolved.text_tertiary,
+            token_color(expected.disabled_ink),
+            "{skin:?} disabled ink"
+        );
+    }
+}
+
 /// DUAL-15-14: the hairline is a consumed shared token, not a page-local 1.0.
 #[test]
 fn theme_hairline_consumes_the_shared_contract_metric() {

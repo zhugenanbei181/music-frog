@@ -5,7 +5,9 @@
 //! core palette channel and every structural token is asserted here.
 
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin, metrics, radius, space};
-use infiltrator_contract::design_tokens::{RgbaToken, SkinCorePalette, skin_core};
+use infiltrator_contract::design_tokens::{
+    RgbaToken, SkinCorePalette, SkinInteractionPalette, skin_core, skin_interaction,
+};
 use infiltrator_contract::theme;
 
 fn mirrored_skin(skin: theme::ThemeSkin) -> ThemeSkin {
@@ -51,6 +53,76 @@ fn assert_core_palette(skin: theme::ThemeSkin) {
 fn the_widget_palette_mirrors_the_shared_design_tokens() {
     for skin in theme::ThemeSkin::ALL {
         assert_core_palette(skin);
+    }
+}
+
+/// DUAL-15-14: the interaction/overlay tokens (scrim, hover, pressed, focus
+/// ring, disabled ink) are part of the shared claim, so the widget mirror is
+/// asserted channel-exactly and the palette must map every one of them from
+/// the theme tokens (no re-derivation, no raw gray scrim).
+fn assert_interaction_palette(skin: theme::ThemeSkin) {
+    let interaction: SkinInteractionPalette = skin_interaction(skin);
+    let resolved = Theme::for_mode(mirrored_skin(skin));
+    assert_token(resolved.scrim, interaction.scrim, "scrim");
+    assert_token(resolved.hover, interaction.hover, "hover");
+    assert_token(resolved.pressed, interaction.pressed, "pressed");
+    assert_token(resolved.focus_ring, interaction.focus_ring, "focus_ring");
+    assert_token(
+        resolved.disabled_ink,
+        interaction.disabled_ink,
+        "disabled_ink",
+    );
+
+    let palette = infiltrator_bevy_widgets::palette::UiPalette::new(&resolved);
+    assert_eq!(
+        palette.scrim,
+        infiltrator_bevy_widgets::palette::theme_color(resolved.scrim),
+        "the palette must read the scrim token instead of deriving one"
+    );
+    assert_eq!(
+        palette.focus_ring,
+        infiltrator_bevy_widgets::palette::theme_color(resolved.focus_ring)
+    );
+    assert_eq!(
+        palette.disabled_ink,
+        infiltrator_bevy_widgets::palette::theme_color(resolved.disabled_ink)
+    );
+    assert_eq!(
+        palette.hover_bg,
+        infiltrator_bevy_widgets::palette::theme_color(resolved.hover)
+    );
+    assert_eq!(
+        palette.pressed_bg,
+        infiltrator_bevy_widgets::palette::theme_color(resolved.pressed)
+    );
+}
+
+#[test]
+fn the_widget_interaction_tokens_mirror_the_shared_contract() {
+    for skin in theme::ThemeSkin::ALL {
+        assert_interaction_palette(skin);
+    }
+}
+
+/// The overlay scrim is a dark translucent wash on every skin — the alignment
+/// deliberately replaced the old "window token at half strength" derivation,
+/// which lightened the backdrop on the light skin instead of dimming it.
+#[test]
+fn the_mirrored_scrim_dimms_the_backdrop_on_every_skin() {
+    for skin in theme::ThemeSkin::ALL {
+        let resolved = Theme::for_mode(mirrored_skin(skin));
+        assert!(
+            resolved.scrim.r < 0.2 && resolved.scrim.g < 0.7 && resolved.scrim.b < 0.7,
+            "{skin:?} scrim must stay a dark wash, found {resolved:?}"
+        );
+        assert!(
+            resolved.scrim.a > 0.0 && resolved.scrim.a < 1.0,
+            "{skin:?} scrim must be translucent"
+        );
+        assert!(
+            resolved.pressed.a > resolved.hover.a,
+            "{skin:?} pressed wash must read stronger than hover"
+        );
     }
 }
 

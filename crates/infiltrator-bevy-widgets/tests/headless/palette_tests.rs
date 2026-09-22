@@ -33,6 +33,9 @@ fn token_colors_round_trip_channel_exact() {
             theme.icon_tile,
             theme.hover,
             theme.pressed,
+            theme.scrim,
+            theme.focus_ring,
+            theme.disabled_ink,
             theme.border,
             theme.success,
             theme.warning,
@@ -59,6 +62,9 @@ fn palette_carries_every_token_and_scale() {
         assert_same_color(palette.icon_tile, theme.icon_tile);
         assert_same_color(palette.hover_bg, theme.hover);
         assert_same_color(palette.pressed_bg, theme.pressed);
+        assert_same_color(palette.scrim, theme.scrim);
+        assert_same_color(palette.focus_ring, theme.focus_ring);
+        assert_same_color(palette.disabled_ink, theme.disabled_ink);
         assert_same_color(palette.border, theme.border);
         assert_same_color(palette.success, theme.success);
         assert_same_color(palette.warning, theme.warning);

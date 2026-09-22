@@ -114,7 +114,7 @@ fn overlay_scene_mounts_scrim_panel_and_rows_on_token_layers() {
     let world = app.world_mut();
     let mut scrims = world.query::<(&MenuScrim, &BackgroundColor)>();
     let (_, scrim) = scrims.iter(world).next().expect("scrim mounted");
-    assert_eq!(scrim.0, palette.scrim());
+    assert_eq!(scrim.0, palette.scrim);
 
     let mut panels = world.query::<&MenuPanel>();
     assert_eq!(panels.iter(world).count(), 1);
@@ -241,7 +241,7 @@ fn theme_flip_repaints_the_overlay_without_respawn() {
     let world = app.world_mut();
     let mut scrims = world.query::<(&MenuScrim, &BackgroundColor)>();
     let (_, scrim) = scrims.iter(world).next().expect("scrim survives");
-    assert_eq!(scrim.0, light.scrim(), "the scrim re-derives from light");
+    assert_eq!(scrim.0, light.scrim, "the scrim re-derives from light");
     assert_eq!(
         row_fill(world, 0).0,
         menu_row_fill(true, &light),

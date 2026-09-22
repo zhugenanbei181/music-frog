@@ -253,8 +253,8 @@ fn test_focus_ring_and_code_editor_scenes() {
     let (style, border) = rings.iter(world).next().expect("focus ring mounted");
     assert_eq!(style.width_px, 2.0);
     assert_eq!(style.offset_px, 2.0);
-    assert_eq!(border.top, dark_palette.accent);
-    assert_eq!(border.bottom, dark_palette.accent);
+    assert_eq!(border.top, dark_palette.focus_ring);
+    assert_eq!(border.bottom, dark_palette.focus_ring);
 
     let mut gutters = world.query::<(&infiltrator_bevy_widgets::editor::CodeEditorGutter, &Node)>();
     let (_, gutter_node) = gutters.iter(world).next().expect("gutter mounted");

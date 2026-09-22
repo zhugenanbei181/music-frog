@@ -175,7 +175,7 @@ pub fn button_text_color(
     palette: &UiPalette,
 ) -> Color {
     if disabled {
-        return palette.ink_dim;
+        return palette.disabled_ink;
     }
 
     if selected {

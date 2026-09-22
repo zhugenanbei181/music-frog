@@ -62,6 +62,75 @@ ICED_CORE_FIELDS = {
 
 SKINS = ("Dark", "Light", "Forest", "Amoled")
 
+#: Contract interaction-palette field -> (Iced token field, Bevy mirror field).
+#: DUAL-15-14: these are the programmable interaction surfaces both toolkits
+#: expose; the focus ring maps onto the Iced input border and `disabled_ink`
+#: onto the Iced tertiary ink (the two surfaces use different field names for
+#: the same shared value).
+INTERACTION_FIELDS = {
+    "scrim": ("scrim", "scrim"),
+    "hover": ("hover", "hover"),
+    "pressed": ("pressed", "pressed"),
+    "focus_ring": ("focus_ring", "focus_ring"),
+    "disabled_ink": ("text_tertiary", "disabled_ink"),
+}
+
+#: Shared shell rows the Iced surface can honestly present only as a visible
+#: localized tooltip (icon-only or colour-only affordances, or readouts whose
+#: meaning is a value). Each row must be referenced by a real `labelled(...)`
+#: call in the listed file: removing the tooltip fails the gate instead of
+#: silently dropping the shared label (DUAL-15-10).
+ICED_TOOLTIP_ROWS = {
+    "GlobalStatusDot": "crates/infiltrator-iced/src/view/sidebar.rs",
+    "TrafficReadout": "crates/infiltrator-iced/src/view/sidebar.rs",
+    "SystemProxySwitch": "crates/infiltrator-iced/src/view/sidebar.rs",
+    "TunSwitch": "crates/infiltrator-iced/src/view/sidebar.rs",
+    "MiniHudCard": "crates/infiltrator-iced/src/view/mini_hud.rs",
+    "MiniHudSystemProxySwitch": "crates/infiltrator-iced/src/view/mini_hud.rs",
+    "MiniHudTunSwitch": "crates/infiltrator-iced/src/view/mini_hud.rs",
+    "ChromeMinimize": "crates/infiltrator-iced/src/view/chrome.rs",
+    "ChromeMaximize": "crates/infiltrator-iced/src/view/chrome.rs",
+    "ChromeClose": "crates/infiltrator-iced/src/view/chrome.rs",
+    "CommandPaletteQuery": "crates/infiltrator-iced/src/view_root/command_palette.rs",
+}
+
+#: Shared shell rows the Iced surface presents as visible text already (nav
+#: labels, the dialog content, toast copy), so a tooltip would be redundant.
+ICED_VISIBLE_TEXT_ROWS = {
+    "ShellHeader",
+    "ContentRegion",
+    "SidebarNav",
+    "ModeSegment",
+    "ToastRegion",
+    "CommandPaletteDialog",
+}
+
+#: Shared shell rows Iced genuinely has no control for: the OS window itself,
+#: and the header theme toggle (Iced changes the appearance from the settings
+#: page and the command palette, so there is no icon to attach a label to).
+#: Classifying them as absent is the honest statement, not a missing tooltip.
+ICED_ABSENT_ROWS = {
+    "Window",
+    "ThemeToggle",
+}
+
+#: The Iced overlay backdrops that must paint the shared scrim token.
+ICED_SCRIM_BACKDROPS = (
+    "crates/infiltrator-iced/src/view_root/command_palette.rs",
+    "crates/infiltrator-iced/src/view_root/connection_drawer.rs",
+    "crates/infiltrator-iced/src/view_root/modals.rs",
+)
+
+#: The Bevy scenes that must paint the shared scrim token.
+BEVY_SCRIM_SCENES = (
+    "crates/infiltrator-bevy-widgets/src/adaptive_modal.rs",
+    "crates/infiltrator-bevy-widgets/src/drawer.rs",
+    "crates/infiltrator-bevy-widgets/src/menu.rs",
+    "crates/infiltrator-bevy-widgets/src/modal.rs",
+    "crates/infiltrator-bevy-widgets/src/popover.rs",
+    "crates/infiltrator-bevy-ui/src/command_palette.rs",
+)
+
 
 def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
@@ -141,6 +210,21 @@ def bevy_cores() -> dict[str, dict[str, tuple[float, ...]]]:
         if match:
             cores[skin] = color_fields(match.group("body"))
     return cores
+
+
+def contract_interactions() -> dict[str, dict[str, tuple[float, ...]]]:
+    """The authoritative per-skin interaction palette from the contract."""
+    text = read(DESIGN_TOKENS)
+    interactions: dict[str, dict[str, tuple[float, ...]]] = {}
+    for skin in SKINS:
+        match = re.search(
+            rf"ThemeSkin::{skin} => SkinInteractionPalette \{{(?P<body>.*?)\n        \}},",
+            text,
+            re.DOTALL,
+        )
+        if match:
+            interactions[skin] = color_fields(match.group("body"))
+    return interactions
 
 
 def number_const(text: str, name: str) -> float | None:
@@ -486,6 +570,180 @@ def check_no_raw_hairlines(violations: list[str]) -> None:
                     )
 
 
+PALETTE_FIELDS = {
+    "scrim": "scrim",
+    "hover": "hover_bg",
+    "pressed": "pressed_bg",
+    "focus_ring": "focus_ring",
+    "disabled_ink": "disabled_ink",
+}
+
+
+def token_spellings(channels: tuple[float, ...]) -> set[str]:
+    """The literal spellings a surface would use to hardcode these channels."""
+    compact = ", ".join(repr(channel) for channel in channels)
+    return {compact, compact.replace(", ", ",")}
+
+
+#: Files exempt from the interaction-literal scan. `shader_fx.rs` is the
+#: documented surface-local shadow/effect boundary (shadows are not
+#: programmable on both toolkits), so its black-alpha shadow recipes may
+#: legitimately collide with the light-skin pressed wash.
+INTERACTION_LITERAL_SKIP = ("crates/infiltrator-bevy-widgets/src/shader_fx.rs",)
+
+
+def check_interaction_token_mirrors(violations: list[str]) -> None:
+    """DUAL-15-14: the interaction/overlay palette is shared, not surface-local.
+
+    The contract owns the scrim, the hover/pressed washes, the focus ring and
+    the disabled ink. Iced must consume them by name, the Bevy widget mirror
+    must match channel-exactly and the palette must map them from its theme
+    tokens. On top of that the named seams (Iced backdrops/controls, Bevy
+    backdrops/focus ring/disabled ink) must reference the token, and a raw
+    literal spelling of any shared interaction value outside the token module
+    is rejected — a surface that hardcodes one fails this gate.
+    """
+    interactions = contract_interactions()
+    if set(interactions) != set(SKINS):
+        violations.append(
+            f"{DESIGN_TOKENS} must define skin_interaction for every skin, "
+            f"found {sorted(interactions)}"
+        )
+        return
+    for skin, fields in interactions.items():
+        missing = set(INTERACTION_FIELDS) - set(fields)
+        if missing:
+            violations.append(
+                f"{DESIGN_TOKENS} {skin} interaction palette missing {sorted(missing)}"
+            )
+
+    # Iced: every skin token block consumes the contract fields by name.
+    iced_text = read(ICED_THEME)
+    for skin in SKINS:
+        if f"skin_interaction(ThemeSkin::{skin})" not in iced_text:
+            violations.append(
+                f"{ICED_THEME} must resolve {skin} from the shared skin_interaction"
+            )
+        block = re.search(
+            rf"pub const {skin.upper()}: Tokens = Tokens \{{(?P<body>.*?)\n\}};",
+            iced_text,
+            re.DOTALL,
+        )
+        if not block:
+            violations.append(f"{ICED_THEME} missing the {skin.upper()} token block")
+            continue
+        body = block.group("body")
+        for field, (iced_field, _) in INTERACTION_FIELDS.items():
+            marker = (
+                f"{iced_field}: token_color({skin.upper()}_INTERACTION.{field})"
+            )
+            if marker not in body:
+                violations.append(
+                    f"{ICED_THEME} {skin.upper()}.{iced_field} must consume "
+                    f"{skin.upper()}_INTERACTION.{field}"
+                )
+
+    # Bevy: the widget mirror matches channel-exactly and the palette maps
+    # every token from the theme instead of re-deriving one.
+    mirror = bevy_cores()
+    if set(mirror) != set(SKINS):
+        violations.append(
+            f"{BEVY_THEME} must define all four skins, found {sorted(mirror)}"
+        )
+    else:
+        for skin in SKINS:
+            for field, (_, bevy_field) in INTERACTION_FIELDS.items():
+                expected = interactions[skin].get(field)
+                actual = mirror[skin].get(bevy_field)
+                if expected is None:
+                    continue
+                if actual is None:
+                    violations.append(
+                        f"{BEVY_THEME} {skin} missing interaction token {bevy_field!r}"
+                    )
+                    continue
+                if len(expected) != len(actual) or any(
+                    abs(left - right) > 1e-6 for left, right in zip(expected, actual)
+                ):
+                    violations.append(
+                        f"{BEVY_THEME} {skin}.{bevy_field}={actual} must mirror "
+                        f"contract {field}={expected}"
+                    )
+    palette_text = read("crates/infiltrator-bevy-widgets/src/palette.rs")
+    for field, palette_field in PALETTE_FIELDS.items():
+        if f"{palette_field}: theme_color(theme.{field})" not in palette_text:
+            violations.append(
+                "crates/infiltrator-bevy-widgets/src/palette.rs "
+                f"must map {palette_field} from the theme token (`{field}`)"
+            )
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-widgets/src/palette.rs",
+        "pub fn scrim(&self)",
+    )
+
+    # Named seams: the token must be the thing the surface paints.
+    iced_components = read("crates/infiltrator-iced/src/view/components.rs")
+    for marker in ("tk.hover", "tk.pressed", "tk.focus_ring"):
+        if marker not in iced_components:
+            violations.append(
+                f"crates/infiltrator-iced/src/view/components.rs must paint "
+                f"{marker} (the shared interaction token)"
+            )
+    for path in ICED_SCRIM_BACKDROPS:
+        if ".scrim" not in read(path):
+            violations.append(f"{path} must paint the shared scrim token")
+        forbid(violations, path, "Color::BLACK")
+    require(
+        violations,
+        "crates/infiltrator-bevy-widgets/src/focus.rs",
+        "palette.focus_ring",
+    )
+    forbid(violations, "crates/infiltrator-bevy-widgets/src/focus.rs", "palette.accent")
+    require(
+        violations,
+        "crates/infiltrator-bevy-widgets/src/button.rs",
+        "palette.disabled_ink",
+    )
+    for path in BEVY_SCRIM_SCENES:
+        if "palette.scrim" not in read(path):
+            violations.append(f"{path} must paint the shared scrim token")
+        forbid(violations, path, "Color::BLACK", "Color::srgba(0.0, 0.0, 0.0")
+
+    # Raw literal rejection: the same channels typed outside the token module.
+    spellings: dict[str, set[str]] = {}
+    for skin in SKINS:
+        for field in INTERACTION_FIELDS:
+            expected = interactions[skin].get(field)
+            if expected is None:
+                continue
+            spellings.setdefault(field, set()).update(token_spellings(expected))
+    scanned: dict[str, str] = {}
+    for parent, skip in (
+        ("crates/infiltrator-iced/src", ICED_THEME),
+        ("crates/infiltrator-bevy-widgets/src", BEVY_THEME),
+        # The Bevy shell reads `UiPalette`; a shell-local literal is just as
+        # much a drift as a widget-local one.
+        ("crates/infiltrator-bevy-ui/src", ""),
+    ):
+        for path in sorted((ROOT / parent).rglob("*.rs")):
+            relative = path.relative_to(ROOT).as_posix()
+            if relative == skip or relative in INTERACTION_LITERAL_SKIP:
+                continue
+            text = scanned.get(relative)
+            if text is None:
+                text = path.read_text(encoding="utf-8")
+                scanned[relative] = text
+            for field, literals in spellings.items():
+                for spelling in literals:
+                    if spelling in text:
+                        violations.append(
+                            f"{relative} hardcodes interaction token {field}="
+                            f"{spelling}; consume the shared token instead "
+                            "(DUAL-15-14)"
+                        )
+
+
 TRAY_STATUS = "crates/infiltrator-contract/src/tray_status.rs"
 WINDOW_CHROME = "crates/infiltrator-contract/src/window_chrome.rs"
 A11Y = "crates/infiltrator-contract/src/a11y.rs"
@@ -568,9 +826,31 @@ def a11y_per_node_table(fn_name: str) -> dict[str, str]:
     return table
 
 
+def impl_block(text: str, header: str) -> str:
+    """The body of one top-level `impl ... { ... }` block."""
+    match = re.search(
+        rf"impl {re.escape(header)} \{{(?P<body>.*?)\n\}}",
+        text,
+        re.DOTALL,
+    )
+    return match.group("body") if match else ""
+
+
 def a11y_inventory_size() -> int | None:
     """The `ShellA11yNode::ALL` array length from the grammar."""
-    match = re.search(r"pub const ALL: \[Self; (\d+)\]", read(A11Y))
+    match = re.search(
+        r"pub const ALL: \[Self; (\d+)\]",
+        impl_block(read(A11Y), "ShellA11yNode"),
+    )
+    return int(match.group(1)) if match else None
+
+
+def a11y_role_inventory_size() -> int | None:
+    """The `A11yRole::ALL` array length from the grammar."""
+    match = re.search(
+        r"pub const ALL: \[Self; (\d+)\]",
+        impl_block(read(A11Y), "A11yRole"),
+    )
     return int(match.group(1)) if match else None
 
 
@@ -619,6 +899,17 @@ def check_a11y_label_coverage(violations: list[str]) -> None:
             f"{len(variants)} enum variants"
         )
 
+    role_variants = a11y_role_variants()
+    role_inventory = a11y_role_inventory_size()
+    if not role_variants:
+        violations.append(f"{A11Y} A11yRole must define its variants")
+    elif role_inventory != len(role_variants):
+        violations.append(
+            f"{A11Y} A11yRole::ALL declares {role_inventory} roles for "
+            f"{len(role_variants)} enum variants; a role added without the "
+            "shared inventory would let a surface silently skip it"
+        )
+
     label_keys = [value.strip().strip('"') for value in keys.values()]
     if len(label_keys) != len(set(label_keys)):
         violations.append(f"{A11Y} label_key() must define one unique key per node")
@@ -649,6 +940,56 @@ def check_a11y_label_coverage(violations: list[str]) -> None:
             violations.append(f"{A11Y} label key {key!r} missing from the zh-CN tables")
         if key not in en_keys:
             violations.append(f"{A11Y} label key {key!r} missing from the en-US tables")
+
+
+def labelled_call_arguments(text: str) -> list[str]:
+    """The argument text of every `labelled(...)` call, paren-balanced."""
+    calls: list[str] = []
+    for match in re.finditer(r"\blabelled\(", text):
+        depth = 1
+        index = match.end()
+        while index < len(text) and depth > 0:
+            if text[index] == "(":
+                depth += 1
+            elif text[index] == ")":
+                depth -= 1
+            index += 1
+        calls.append(text[match.end() : index - 1])
+    return calls
+
+
+def check_iced_tooltip_coverage(violations: list[str]) -> None:
+    """DUAL-15-10: the Iced tooltip rows must really be labelled.
+
+    Iced cannot publish AccessKit roles, so its honest mapping of a shared
+    semantic row is a visible localized tooltip. This gate pins that claim
+    row-by-row: every declared icon-only/colour-only row must appear inside a
+    `labelled(...)` call in the listed file, and every grammar row must be
+    classified as tooltip / visible-text / absent-on-Iced — so a node added
+    to the shared inventory without an Iced decision fails instead of
+    silently shrinking the coverage inventory.
+    """
+    covered = set(ICED_TOOLTIP_ROWS) | ICED_VISIBLE_TEXT_ROWS | ICED_ABSENT_ROWS
+    grammar = set(a11y_enum_variants())
+    unclassified = sorted(grammar - covered)
+    if unclassified:
+        violations.append(
+            f"{A11Y} rows without an Iced coverage decision: {unclassified}; "
+            "classify each new row as tooltip / visible text / absent (DUAL-15-10)"
+        )
+    extra = sorted(covered - grammar)
+    if extra:
+        violations.append(
+            f"multimodal-shell-guard.py classifies unknown a11y rows: {extra}"
+        )
+
+    for node, path in ICED_TOOLTIP_ROWS.items():
+        calls = labelled_call_arguments(read(path))
+        if not any(f"ShellA11yNode::{node}" in call for call in calls):
+            violations.append(
+                f"{path} must carry {node} inside a labelled(...) tooltip "
+                "(DUAL-15-10)"
+            )
 
 
 def a11y_role_variants() -> list[str]:
@@ -738,7 +1079,10 @@ def main() -> int:
         "planned",
         "组 15 逐项账目",
         "2026-09-22 组 15 批次 A",
-        "组 15 多模态外壳与极客命令流 | 15 | `in progress (12/15)`",
+        "组 15 多模态外壳与极客命令流 | 15 | `in progress (13/15)`",
+        # Batch G: the interaction palette and the a11y coverage inventory.
+        "2026-09-23 组 15 批次 G",
+        "SkinInteractionPalette",
         # 15-01 stays authoritatively tracked in the responsive ledger.
         "RESPONSIVE_PARITY_LEDGER.md",
     )
@@ -1776,6 +2120,112 @@ def main() -> int:
         "ShellA11yNode::CommandPaletteDialog",
     )
 
+    # ---- Batch G (DUAL-15-10/14): the shared interaction palette consumed by
+    # both surfaces, the tooltip coverage inventory, and the shared role
+    # inventory a surface can iterate instead of hand-listing roles.
+    require(
+        violations,
+        DESIGN_TOKENS,
+        "pub struct SkinInteractionPalette",
+        "pub const fn skin_interaction(skin: ThemeSkin) -> SkinInteractionPalette",
+        "fn every_skin_defines_the_shared_interaction_tokens",
+        "fn the_interaction_washes_stay_distinct_across_skins",
+    )
+    require(
+        violations,
+        ICED_THEME,
+        "LIGHT_INTERACTION",
+        "DARK_INTERACTION",
+        "FOREST_INTERACTION",
+        "AMOLED_INTERACTION",
+        "pub hover: Color",
+        "pub pressed: Color",
+        "pub focus_ring: Color",
+        "pub scrim: Color",
+    )
+    require(
+        violations,
+        BEVY_THEME,
+        "pub scrim: TokenColor",
+        "pub focus_ring: TokenColor",
+        "pub disabled_ink: TokenColor",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-widgets/src/palette.rs",
+        "pub scrim: Color",
+        "pub focus_ring: Color",
+        "pub disabled_ink: Color",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/components.rs",
+        "pub fn form_input_style",
+        "tk.focus_ring",
+        "tk.hover",
+        "tk.pressed",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_theme_tests.rs",
+        "fn the_interaction_tokens_resolve_the_shared_contract",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_components_tests.rs",
+        "fn test_interaction_seams_consume_the_shared_tokens",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/design_token_tests.rs",
+        "fn the_widget_interaction_tokens_mirror_the_shared_contract",
+        "fn the_mirrored_scrim_dimms_the_backdrop_on_every_skin",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-widgets/tests/headless/palette_tests.rs",
+        "assert_same_color(palette.scrim, theme.scrim)",
+        "assert_same_color(palette.focus_ring, theme.focus_ring)",
+        "assert_same_color(palette.disabled_ink, theme.disabled_ink)",
+    )
+    require(
+        violations,
+        A11Y,
+        "pub const ALL: [Self; 10]",
+        "fn the_role_inventory_covers_every_variant_once",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/sidebar.rs",
+        "ShellA11yNode::SystemProxySwitch",
+        "ShellA11yNode::TunSwitch",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/a11y_semantics_tests.rs",
+        "for role in A11yRole::ALL",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view_root/modals.rs",
+        "tokens(t).scrim",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-widgets/src/focus.rs",
+        "palette.focus_ring",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-widgets/src/button.rs",
+        "palette.disabled_ink",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-widgets/src/adaptive_modal.rs",
+        "palette.scrim",
+    )
+
     # DUAL-15-11: the shared IME grammar, the Bevy host wiring, the Iced
     # toolkit boundary, and the dual tests that pin them.
     require(
@@ -1905,7 +2355,12 @@ def main() -> int:
     # DUAL-15-10 label coverage + the two honesty boundaries (no fake
     # AccessKit on Iced, no fake tray on Bevy).
     check_a11y_label_coverage(violations)
+    check_iced_tooltip_coverage(violations)
     check_capability_honesty(violations)
+
+    # DUAL-15-14: the interaction/overlay palette is shared and consumed by
+    # name on both surfaces; raw literal spellings fail the gate.
+    check_interaction_token_mirrors(violations)
 
     # Fixed defects must not regress.
     forbid(

@@ -170,7 +170,7 @@ fn popover_scene_stamps_the_placement_and_reskins_in_place() {
     let world = app.world_mut();
     let mut scrims = world.query::<(&PopoverScrim, &BackgroundColor)>();
     let (_, scrim) = scrims.iter(world).next().expect("scrim survives");
-    assert_eq!(scrim.0, light.scrim(), "scrim re-derives from light");
+    assert_eq!(scrim.0, light.scrim, "scrim re-derives from light");
     assert!(
         world.get::<PopoverPanel>(panel_entity).is_some(),
         "the panel kept its entity id across the flip"

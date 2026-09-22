@@ -247,7 +247,7 @@ pub fn menu_overlay_scene(entries: Vec<MenuEntry>, palette: &UiPalette) -> impl 
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
         }
-        BackgroundColor({ palette.scrim() })
+        BackgroundColor({ palette.scrim })
         MenuScrim
         Children [
             (
@@ -362,7 +362,7 @@ pub fn sync_menu_visuals(
     >,
     menus: Query<(&Menu, &Children)>,
 ) {
-    let scrim = palette.scrim();
+    let scrim = palette.scrim;
     for mut fill in &mut scrims {
         if fill.0 != scrim {
             fill.0 = scrim;

@@ -10,9 +10,11 @@
 //!
 //! The scope is deliberately the tokens both surfaces actually consume:
 //! the core skin palette (canvas / surfaces / ink / accent / semantic colors),
-//! the spacing ladder, the corner radii and the hairline width. Surface-only
-//! decoration (hover washes, icon-tile tints, shadows, per-surface type scales)
-//! stays with its surface.
+//! the interaction palette every programmable surface exposes (overlay scrim,
+//! hover/pressed washes, focus ring, disabled ink), the spacing ladder, the
+//! corner radii and the hairline width. Surface-only decoration (icon-tile
+//! tints, shadows, per-surface type scales, accent-tinted button derivations)
+//! stays with its surface: shadows are not programmable on either toolkit.
 
 use crate::theme::ThemeSkin;
 
@@ -123,6 +125,65 @@ pub const fn skin_core(skin: ThemeSkin) -> SkinCorePalette {
     }
 }
 
+/// The interaction/overlay tokens both surfaces paint (DUAL-15-14).
+///
+/// These are the programmable interaction surfaces the two toolkits both
+/// expose: the modal/overlay backdrop (`scrim`), the neutral control washes
+/// (`hover`, `pressed`), the keyboard `focus_ring` and the dimmed
+/// `disabled_ink`. Accent-tinted hover derivations (primary/danger buttons)
+/// and shadows are surface-local decoration and stay out of this palette.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SkinInteractionPalette {
+    /// Modal / overlay backdrop painted over the page content.
+    pub scrim: RgbaToken,
+    /// Neutral control hover wash, painted over the control surface.
+    pub hover: RgbaToken,
+    /// Neutral control pressed wash; always stronger than [`Self::hover`].
+    pub pressed: RgbaToken,
+    /// Keyboard focus ring around the focused control. Product rule: the
+    /// focus ring is the skin accent, kept as its own seam so the ring can
+    /// change independently of selection fills.
+    pub focus_ring: RgbaToken,
+    /// Disabled / tertiary ink: dimmed labels, hints and placeholders. Always
+    /// dimmer than [`SkinCorePalette::ink_dim`], which is the readable
+    /// secondary ink.
+    pub disabled_ink: RgbaToken,
+}
+
+/// The canonical interaction palette for one skin.
+pub const fn skin_interaction(skin: ThemeSkin) -> SkinInteractionPalette {
+    match skin {
+        ThemeSkin::Dark => SkinInteractionPalette {
+            scrim: RgbaToken::rgba(0.0, 0.0, 0.0, 0.50),
+            hover: RgbaToken::rgba(1.0, 1.0, 1.0, 0.08),
+            pressed: RgbaToken::rgba(1.0, 1.0, 1.0, 0.14),
+            focus_ring: RgbaToken::rgb(0.12, 0.56, 0.96),
+            disabled_ink: RgbaToken::rgba(0.88, 0.90, 0.92, 0.35),
+        },
+        ThemeSkin::Light => SkinInteractionPalette {
+            scrim: RgbaToken::rgba(0.0, 0.0, 0.0, 0.40),
+            hover: RgbaToken::rgba(0.0, 0.0, 0.0, 0.06),
+            pressed: RgbaToken::rgba(0.0, 0.0, 0.0, 0.12),
+            focus_ring: RgbaToken::rgb(0.04, 0.44, 0.88),
+            disabled_ink: RgbaToken::rgba(0.24, 0.28, 0.26, 0.38),
+        },
+        ThemeSkin::Forest => SkinInteractionPalette {
+            scrim: RgbaToken::rgba(0.122, 0.208, 0.145, 0.42),
+            hover: RgbaToken::rgba(0.122, 0.208, 0.145, 0.06),
+            pressed: RgbaToken::rgba(0.122, 0.208, 0.145, 0.12),
+            focus_ring: RgbaToken::rgb(0.188, 0.435, 0.306),
+            disabled_ink: RgbaToken::rgba(0.341, 0.439, 0.353, 0.45),
+        },
+        ThemeSkin::Amoled => SkinInteractionPalette {
+            scrim: RgbaToken::rgba(0.0, 0.0, 0.0, 0.55),
+            hover: RgbaToken::rgba(1.0, 1.0, 1.0, 0.08),
+            pressed: RgbaToken::rgba(1.0, 1.0, 1.0, 0.14),
+            focus_ring: RgbaToken::rgb(0.12, 0.56, 0.96),
+            disabled_ink: RgbaToken::rgba(0.90, 0.92, 0.94, 0.38),
+        },
+    }
+}
+
 /// Spacing ladder (logical pixels) both shells lay out with.
 pub mod space {
     pub const XS: f32 = 4.0;
@@ -169,6 +230,60 @@ mod tests {
                 "the reading ink must not vanish into the canvas"
             );
         }
+    }
+
+    #[test]
+    fn every_skin_defines_the_shared_interaction_tokens() {
+        for skin in ThemeSkin::ALL {
+            let interaction = skin_interaction(skin);
+            let core = skin_core(skin);
+            let channels = [
+                interaction.scrim,
+                interaction.hover,
+                interaction.pressed,
+                interaction.focus_ring,
+                interaction.disabled_ink,
+            ];
+            for token in channels {
+                assert!(
+                    token.r.is_finite()
+                        && token.g.is_finite()
+                        && token.b.is_finite()
+                        && token.a.is_finite(),
+                    "{skin:?} interaction token has a non-finite channel"
+                );
+            }
+            // The overlay scrim is a real translucent wash: it must actually
+            // cover without going fully opaque.
+            assert!(
+                interaction.scrim.a > 0.0 && interaction.scrim.a < 1.0,
+                "{skin:?} scrim must be a translucent backdrop"
+            );
+            assert!(
+                interaction.pressed.a > interaction.hover.a,
+                "{skin:?} pressed wash must read stronger than hover"
+            );
+            assert_eq!(
+                interaction.focus_ring, core.accent,
+                "the focus ring is the skin accent by product rule"
+            );
+            assert!(
+                interaction.disabled_ink.a > 0.0 && interaction.disabled_ink.a < core.ink_dim.a,
+                "{skin:?} disabled ink must stay dimmer than secondary ink"
+            );
+        }
+    }
+
+    #[test]
+    fn the_interaction_washes_stay_distinct_across_skins() {
+        let dark = skin_interaction(ThemeSkin::Dark);
+        let light = skin_interaction(ThemeSkin::Light);
+        let forest = skin_interaction(ThemeSkin::Forest);
+        let amoled = skin_interaction(ThemeSkin::Amoled);
+        assert_ne!(dark.hover, light.hover);
+        assert_ne!(light.hover, forest.hover);
+        assert_ne!(dark.scrim.a, amoled.scrim.a);
+        assert_ne!(light.disabled_ink, dark.disabled_ink);
     }
 
     #[test]

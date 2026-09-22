@@ -135,7 +135,7 @@ pub fn modal_scene(
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
         }
-        BackgroundColor({ palette.scrim() })
+        BackgroundColor({ palette.scrim })
         ModalScrim
         Children [
             (
@@ -234,7 +234,7 @@ pub fn sync_modal_visuals(
         (With<ModalDialogCard>, Without<ModalScrim>),
     >,
 ) {
-    let scrim_bg = palette.scrim();
+    let scrim_bg = palette.scrim;
     for mut fill in &mut scrims {
         if fill.0 != scrim_bg {
             fill.0 = scrim_bg;

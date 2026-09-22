@@ -595,7 +595,7 @@ fn card_fill(state: OverviewState, palette: &UiPalette) -> Color {
 
 /// Reload / reconnect graceful degradation overlay mask (DUAL-03-13).
 pub(crate) fn reload_mask_scene(palette: &UiPalette) -> impl Scene + use<> {
-    let scrim = palette.scrim();
+    let scrim = palette.scrim;
     bsn! {
         Node {
             display: Display::None,

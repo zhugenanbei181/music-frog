@@ -90,3 +90,28 @@ fn test_hud_waveform_strip_widget() {
     let _elem_down: Element<'_, TestMsg> = hud_waveform(&bars, StripInk::Accent);
     let _elem_up: Element<'_, TestMsg> = hud_waveform(&bars, StripInk::Success);
 }
+
+/// DUAL-15-14: the shared interaction seams really read the resolution
+/// palette, so a re-hardcoded hover wash or focus ring fails here (and the
+/// guard scans the source for the raw literals).
+#[test]
+fn test_interaction_seams_consume_the_shared_tokens() {
+    use iced::widget::{button, text_input};
+
+    let dark = Theme::Dark;
+    let tk = theme::tokens(&dark);
+
+    let focused = form_input_style(&dark, text_input::Status::Focused { is_hovered: false });
+    assert_eq!(focused.border.color, tk.focus_ring);
+    assert_eq!(focused.border.width, 1.5);
+    let idle = form_input_style(&dark, text_input::Status::Active);
+    assert_eq!(idle.border.color, tk.card_border);
+
+    let hovered = style_ghost(&dark, button::Status::Hovered);
+    assert_eq!(hovered.background, Some(tk.hover.into()));
+    let pressed = style_ghost(&dark, button::Status::Pressed);
+    assert_eq!(pressed.background, Some(tk.pressed.into()));
+    assert_ne!(hovered.background, pressed.background);
+    let disabled = style_ghost(&dark, button::Status::Disabled);
+    assert_eq!(disabled.text_color, tk.text_tertiary);
+}

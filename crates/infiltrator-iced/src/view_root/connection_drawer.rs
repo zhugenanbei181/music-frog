@@ -323,14 +323,8 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
     ])
     .width(Length::Fill)
     .height(Length::Fill)
-    .style(|_t: &Theme| container::Style {
-        background: Some(
-            Color {
-                a: 0.35,
-                ..Color::BLACK
-            }
-            .into(),
-        ),
+    .style(|t: &Theme| container::Style {
+        background: Some(tokens(t).scrim.into()),
         ..Default::default()
     })
     .into()

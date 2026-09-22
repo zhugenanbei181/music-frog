@@ -418,17 +418,28 @@ fn mode_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
 /// 系统代理 / TUN cards side by side: icon top-left, switch top-right,
 /// label underneath.
 fn toggles<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let system_proxy = toggle_card(
-        Icon::Wifi,
-        short_label(&lang.tr("system_proxy")),
-        state.runtime.system_toggles.system_proxy.is_enabled(),
-        Message::SetSystemProxy,
+    // DUAL-15-10: the two master toggle cards carry the shared semantic labels
+    // as real hover tooltips, the visible affordance Iced can offer in place
+    // of the AccessKit switch nodes Bevy mounts.
+    let system_proxy = crate::accessibility::labelled(
+        infiltrator_contract::a11y::ShellA11yNode::SystemProxySwitch,
+        &state.shell.lang,
+        toggle_card(
+            Icon::Wifi,
+            short_label(&lang.tr("system_proxy")),
+            state.runtime.system_toggles.system_proxy.is_enabled(),
+            Message::SetSystemProxy,
+        ),
     );
-    let tun = toggle_card(
-        Icon::Zap,
-        short_label(&lang.tr("tun_mode")),
-        state.runtime.system_toggles.tun.is_enabled(),
-        Message::SetTunEnabled,
+    let tun = crate::accessibility::labelled(
+        infiltrator_contract::a11y::ShellA11yNode::TunSwitch,
+        &state.shell.lang,
+        toggle_card(
+            Icon::Zap,
+            short_label(&lang.tr("tun_mode")),
+            state.runtime.system_toggles.tun.is_enabled(),
+            Message::SetTunEnabled,
+        ),
     );
 
     row![system_proxy, tun]

@@ -32,6 +32,12 @@ pub struct UiPalette {
     pub icon_tile: Color,
     pub hover_bg: Color,
     pub pressed_bg: Color,
+    /// Modal / overlay backdrop (shared contract `scrim`).
+    pub scrim: Color,
+    /// Keyboard focus ring around the focused control.
+    pub focus_ring: Color,
+    /// Disabled / tertiary ink.
+    pub disabled_ink: Color,
     pub border: Color,
     pub success: Color,
     pub warning: Color,
@@ -65,6 +71,9 @@ impl UiPalette {
             icon_tile: theme_color(theme.icon_tile),
             hover_bg: theme_color(theme.hover),
             pressed_bg: theme_color(theme.pressed),
+            scrim: theme_color(theme.scrim),
+            focus_ring: theme_color(theme.focus_ring),
+            disabled_ink: theme_color(theme.disabled_ink),
             border: theme_color(theme.border),
             success: theme_color(theme.success),
             warning: theme_color(theme.warning),
@@ -88,13 +97,6 @@ impl UiPalette {
     /// all from token inks. Everything else must be a plain token read.
     /// These are methods, not fields, so a [`ThemeSwitch`] (which replaces
     /// the whole resource) re-derives them with zero extra bookkeeping.
-    /// The light scrim behind menus and popovers: the window token held at
-    /// half strength — the overlay darkens by the window's own tone, never
-    /// by a raw gray.
-    pub fn scrim(&self) -> Color {
-        self.window_clear.with_alpha(0.5)
-    }
-
     /// Text selection wash: the accent at low opacity (BEVY-010 selection
     /// highlight).
     pub fn selection_fill(&self) -> Color {

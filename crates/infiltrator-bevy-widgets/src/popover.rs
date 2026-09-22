@@ -156,7 +156,7 @@ pub fn popover_scene(
             height: percent(100),
             align_items: AlignItems::FlexStart,
         }
-        BackgroundColor({ palette.scrim() })
+        BackgroundColor({ palette.scrim })
         PopoverScrim
         Children [
             (
@@ -194,7 +194,7 @@ pub fn sync_popover_visuals(
         (With<PopoverPanel>, Without<PopoverScrim>),
     >,
 ) {
-    let scrim = palette.scrim();
+    let scrim = palette.scrim;
     for mut fill in &mut scrims {
         if fill.0 != scrim {
             fill.0 = scrim;

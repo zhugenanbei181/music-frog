@@ -3,10 +3,11 @@
 //! Business-agnostic by law: this module knows nothing about infiltrator or
 //! mihomo — it is the future extraction candidate shared across projects.
 //! The palette mirrors the shared product token contract
-//! (`infiltrator_contract::design_tokens::skin_core`, DUAL-15-14) which the
-//! Iced shell consumes directly; this crate cannot depend on contract, so the
-//! mirror is enforced by `tests/headless/design_token_tests.rs` and the
-//! numeric source scan in `scripts/quality/multimodal-shell-guard.py`.
+//! (`infiltrator_contract::design_tokens::skin_core` / `skin_interaction`,
+//! DUAL-15-14) which the Iced shell consumes directly; this crate cannot
+//! depend on contract, so the mirror is enforced by
+//! `tests/headless/design_token_tests.rs` and the numeric source scan in
+//! `scripts/quality/multimodal-shell-guard.py`.
 //!
 //! Every product color this layer paints must originate here as a token and
 //! reach bevy only through [`crate::palette`] — never as a literal at a call
@@ -126,6 +127,12 @@ pub struct Theme {
     pub hover: TokenColor,
     /// Pressed control surface.
     pub pressed: TokenColor,
+    /// Modal / overlay backdrop wash (shared contract `scrim`).
+    pub scrim: TokenColor,
+    /// Keyboard focus ring (shared contract `focus_ring`).
+    pub focus_ring: TokenColor,
+    /// Disabled / tertiary ink (shared contract `disabled_ink`).
+    pub disabled_ink: TokenColor,
     /// Hairline borders.
     pub border: TokenColor,
     pub success: TokenColor,
@@ -162,6 +169,9 @@ impl Theme {
             icon_tile: TokenColor::rgba(0.12, 0.56, 0.96, 0.62),    // accent @ 0.62
             hover: TokenColor::rgba(1.0, 1.0, 1.0, 0.08),
             pressed: TokenColor::rgba(1.0, 1.0, 1.0, 0.14),
+            scrim: TokenColor::rgba(0.0, 0.0, 0.0, 0.50),
+            focus_ring: TokenColor::rgb(0.12, 0.56, 0.96),
+            disabled_ink: TokenColor::rgba(0.88, 0.90, 0.92, 0.35),
             border: TokenColor::rgba(0.85, 0.90, 0.95, 0.10),
             success: TokenColor::rgb(0.24, 0.78, 0.44), // #3DC770
             warning: TokenColor::rgb(0.96, 0.62, 0.15), // #F59E26
@@ -184,6 +194,9 @@ impl Theme {
             icon_tile: TokenColor::rgba(0.04, 0.44, 0.88, 0.18),    // accent @ 0.18
             hover: TokenColor::rgba(0.0, 0.0, 0.0, 0.06),
             pressed: TokenColor::rgba(0.0, 0.0, 0.0, 0.12),
+            scrim: TokenColor::rgba(0.0, 0.0, 0.0, 0.40),
+            focus_ring: TokenColor::rgb(0.04, 0.44, 0.88),
+            disabled_ink: TokenColor::rgba(0.24, 0.28, 0.26, 0.38),
             border: TokenColor::rgba(0.18, 0.22, 0.20, 0.10),
             success: TokenColor::rgb(0.18, 0.68, 0.38), // #2EAD61
             warning: TokenColor::rgb(0.88, 0.52, 0.05), // #E0850D
@@ -209,6 +222,9 @@ impl Theme {
             icon_tile: TokenColor::rgba(0.188, 0.435, 0.306, 0.18),
             hover: TokenColor::rgba(0.122, 0.208, 0.145, 0.06),
             pressed: TokenColor::rgba(0.122, 0.208, 0.145, 0.12),
+            scrim: TokenColor::rgba(0.122, 0.208, 0.145, 0.42),
+            focus_ring: TokenColor::rgb(0.188, 0.435, 0.306),
+            disabled_ink: TokenColor::rgba(0.341, 0.439, 0.353, 0.45),
             border: TokenColor::rgba(0.341, 0.439, 0.353, 0.22),
             success: TokenColor::rgb(0.243, 0.490, 0.314), // #3E7D50
             warning: TokenColor::rgb(0.663, 0.439, 0.157), // #A97028
@@ -233,6 +249,9 @@ impl Theme {
             icon_tile: TokenColor::rgba(0.12, 0.56, 0.96, 0.62),
             hover: TokenColor::rgba(1.0, 1.0, 1.0, 0.08),
             pressed: TokenColor::rgba(1.0, 1.0, 1.0, 0.14),
+            scrim: TokenColor::rgba(0.0, 0.0, 0.0, 0.55),
+            focus_ring: TokenColor::rgb(0.12, 0.56, 0.96),
+            disabled_ink: TokenColor::rgba(0.90, 0.92, 0.94, 0.38),
             border: TokenColor::rgba(0.85, 0.90, 0.95, 0.12),
             success: TokenColor::rgb(0.063, 0.725, 0.506), // #10B981
             warning: TokenColor::rgb(0.96, 0.62, 0.15),    // #F59E26

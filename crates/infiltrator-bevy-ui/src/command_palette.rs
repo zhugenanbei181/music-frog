@@ -333,7 +333,7 @@ pub fn command_palette_modal_scene(
             justify_content: JustifyContent::FlexStart,
             padding: UiRect::top(Val::Px(80.0)),
         }
-        BackgroundColor({ palette.scrim() })
+        BackgroundColor({ palette.scrim })
         CommandPaletteOverlayRoot
         template_value(semantic)
         Children [

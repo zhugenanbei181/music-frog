@@ -110,18 +110,9 @@ fn a_switch_node_announces_its_live_state_and_a_status_node_its_value() {
 
 #[test]
 fn every_shared_role_maps_onto_a_real_accesskit_role() {
-    for role in [
-        A11yRole::Window,
-        A11yRole::Header,
-        A11yRole::Region,
-        A11yRole::Navigation,
-        A11yRole::Button,
-        A11yRole::Switch,
-        A11yRole::Status,
-        A11yRole::Dialog,
-        A11yRole::LiveRegion,
-        A11yRole::Text,
-    ] {
+    // The shared inventory is authoritative: adding a role there must be
+    // translated by the Bevy mapping or this test fails.
+    for role in A11yRole::ALL {
         let mapped = accesskit_role(role);
         assert_ne!(mapped, accesskit::Role::Unknown, "{role:?} must map");
     }

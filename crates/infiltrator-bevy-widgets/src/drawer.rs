@@ -207,7 +207,7 @@ pub fn drawer_scene(
             height: percent(100),
             align_items: AlignItems::FlexStart,
         }
-        BackgroundColor({ palette.scrim() })
+        BackgroundColor({ palette.scrim })
         DrawerScrim
         Children [
             (
@@ -245,7 +245,7 @@ pub fn sync_drawer_visuals(
         (With<DrawerPanel>, Without<DrawerScrim>),
     >,
 ) {
-    let scrim_bg = palette.scrim();
+    let scrim_bg = palette.scrim;
     for mut fill in &mut scrims {
         if fill.0 != scrim_bg {
             fill.0 = scrim_bg;
