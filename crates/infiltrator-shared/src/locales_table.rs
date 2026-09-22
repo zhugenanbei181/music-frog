@@ -510,6 +510,7 @@ pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "conn_drawer_tcp_time" => "TCP 握手".into(),
         "conn_drawer_tls_time" => "TLS 协商".into(),
         "conn_drawer_ttfb_time" => "首包时延 (TTFB)".into(),
+        "conn_drawer_timing_unsupported" => "内核未提供该连接的 DNS/TCP/TLS/TTFB 耗时明细".into(),
         "conn_drawer_duration" => "活跃时长".into(),
         "conn_drawer_section_throughput" => "实时吞吐与流量统计".into(),
         "conn_drawer_upload_speed" => "当前上传速率".into(),

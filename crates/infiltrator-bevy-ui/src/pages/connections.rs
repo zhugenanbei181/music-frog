@@ -20,8 +20,8 @@ use bevy::scene::{Scene, bsn, template_value};
 use bevy::text::TextColor;
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
+    Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
@@ -30,9 +30,18 @@ use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_domain::connection_view;
+use infiltrator_domain::connection_view::ConnectionGroupingMode;
 
 use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::connections_view::{
+    CloseAllConnectionsLabel, CloseFilteredConnectionsButton, ConnAggregationSummary,
+    ConnAggregationSummaryContainer, ConnRowsContainer, ConnSearchField, ConnectionRow,
+    ConnectionsCloseAllState, ConnectionsViewState, restamp_aggregation_pills,
+    restamp_aggregation_summary, search_field_text,
+};
 use crate::pages::overview::{format_byte_count, format_rate};
 use crate::route::{PageRoot, Route};
 
@@ -86,21 +95,11 @@ pub struct CloseConnectionButton {
     pub connection_idx: usize,
 }
 
-/// Connection aggregation / grouping mode.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ConnGroupingMode {
-    /// Flat list of all active connections.
-    #[default]
-    Flat,
-    /// Group connections by application process.
-    ByProcess,
-    /// Group connections by destination host.
-    ByHost,
-}
-
 /// Marker component for the connection aggregation segmented control pills.
+/// The payload is the shared domain grouping mode (DUAL-13-02), so Bevy and
+/// Iced switch the same modes.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ConnAggregationPill(pub ConnGroupingMode);
+pub struct ConnAggregationPill(pub ConnectionGroupingMode);
 
 /// A single active connection entry.
 #[derive(Clone, Debug, PartialEq)]
@@ -239,86 +238,126 @@ fn header_card_scene(summary: String, traffic: String, palette: &UiPalette) -> i
     header_a11y.set_label("连接审计概览");
 
     surface_scene(
-        vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                column_gap: Val::Px(space::S16),
-            }
-            template_value(AccessibilityNode(header_a11y))
-            Children [
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
-                    }
-                    Children [
-                        ( { icon_tile_scene(IconId::Network, 36.0, palette) } ),
-                        (
-                            Node {
-                                flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
-                            }
-                            Children [
-                                ( Text(summary) ConnectionsLine(ConnectionsLineKind::Summary) TextRole(Role::Heading) ),
-                                ( Text(traffic) ConnectionsLine(ConnectionsLineKind::TrafficSummary) TextRole(Role::Caption) ),
-                            ]
-                        ),
-                    ]
-                ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                    }
-                    Children [
-                        (
-                            Node {
-                                align_items: AlignItems::Center,
-                                padding: UiRect::all(Val::Px(2.0)),
-                                border: UiRect::all(Val::Px(palette.hairline_px)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                column_gap: Val::Px(space::S4),
-                            }
-                            BackgroundColor({ palette.surface_elevated })
-                            BorderColor {
-                                top: { palette.border },
-                                right: { palette.border },
-                                bottom: { palette.border },
-                                left: { palette.border },
-                            }
-                            Children [
-                                ( { conn_aggregation_pill(ConnGroupingMode::Flat, "全部连接 (Flat)", true, palette) } ),
-                                ( { conn_aggregation_pill(ConnGroupingMode::ByProcess, "按应用进程聚合 (By Process)", false, palette) } ),
-                                ( { conn_aggregation_pill(ConnGroupingMode::ByHost, "按目标域名聚合 (By Host)", false, palette) } ),
-                            ]
-                        ),
-                        (
-                            Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            }
-                            BackgroundColor({ palette.danger })
-                            Button
-                            CloseAllConnectionsButton
-                            Children [
-                                ( Text({ "关闭全部连接".to_owned() }) TextRole(Role::BodyStrong) ),
-                            ]
-                        ),
-                    ]
-                ),
-            ]
-        })],
+        vec![
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::SpaceBetween,
+                    column_gap: Val::Px(space::S16),
+                }
+                template_value(AccessibilityNode(header_a11y))
+                Children [
+                    (
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S12),
+                        }
+                        Children [
+                            ( { icon_tile_scene(IconId::Network, 36.0, palette) } ),
+                            (
+                                Node {
+                                    flex_direction: FlexDirection::Column,
+                                    row_gap: Val::Px(space::S4),
+                                }
+                                Children [
+                                    ( Text(summary) ConnectionsLine(ConnectionsLineKind::Summary) TextRole(Role::Heading) ),
+                                    ( Text(traffic) ConnectionsLine(ConnectionsLineKind::TrafficSummary) TextRole(Role::Caption) ),
+                                ]
+                            ),
+                        ]
+                    ),
+                    (
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S8),
+                        }
+                        Children [
+                            (
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    padding: UiRect::all(Val::Px(2.0)),
+                                    border: UiRect::all(Val::Px(palette.hairline_px)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    column_gap: Val::Px(space::S4),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                BorderColor {
+                                    top: { palette.border },
+                                    right: { palette.border },
+                                    bottom: { palette.border },
+                                    left: { palette.border },
+                                }
+                                Children [
+                                    ( { conn_aggregation_pill(ConnectionGroupingMode::Flat, "全部连接 (Flat)", true, palette) } ),
+                                    ( { conn_aggregation_pill(ConnectionGroupingMode::ByProcess, "按应用进程聚合 (By Process)", false, palette) } ),
+                                    ( { conn_aggregation_pill(ConnectionGroupingMode::ByHost, "按目标域名聚合 (By Host)", false, palette) } ),
+                                ]
+                            ),
+                            (
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.danger })
+                                Button
+                                CloseAllConnectionsButton
+                                Children [
+                                    ( Text({ "关闭全部连接".to_owned() }) CloseAllConnectionsLabel TextRole(Role::BodyStrong) ),
+                                ]
+                            ),
+                        ]
+                    ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(space::S8),
+                }
+                Children [
+                    (
+                        Node {
+                            flex_grow: 1.0,
+                            min_width: px(0.0),
+                        }
+                        ConnSearchField
+                        Children [
+                            ( { text_field_with_placeholder_scene(
+                                String::new(),
+                                "按域名/IP/进程即时搜索连接".to_owned(),
+                                palette,
+                            ) } ),
+                        ]
+                    ),
+                    (
+                        Node {
+                            min_height: px(palette.control_height_px),
+                            padding: UiRect::horizontal(Val::Px(space::S12)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.surface_elevated })
+                        Button
+                        CloseFilteredConnectionsButton
+                        Children [
+                            ( Text({ "断开筛选结果".to_owned() }) TextRole(Role::Caption) ),
+                        ]
+                    ),
+                ]
+            }),
+        ],
         palette,
     )
 }
 
 fn conn_aggregation_pill(
-    mode: ConnGroupingMode,
+    mode: ConnectionGroupingMode,
     label: &str,
     active: bool,
     palette: &UiPalette,
@@ -366,9 +405,21 @@ fn connections_table_scene(
             Box::new(bsn! {
                 Node {
                     width: percent(100),
+                    display: Display::None,
+                    align_items: AlignItems::Center,
+                }
+                ConnAggregationSummaryContainer
+                Children [
+                    ( Text({ String::new() }) ConnAggregationSummary TextRole(Role::Caption) ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S8),
                 }
+                ConnRowsContainer
                 Children [
                     { connection_scenes },
                 ]
@@ -403,6 +454,7 @@ fn connection_row_scene(
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
             }
+            ConnectionRow(idx)
             Children [
                 (
                     Node {
@@ -463,23 +515,112 @@ fn bind_connections_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.insert_resource(ConnectionsPageBound);
     commands.add_observer(apply_connections_projection);
     commands.add_observer(on_connections_action_activated);
+    commands.add_observer(on_connections_view_activated);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn on_connections_action_activated(
     activate: On<Activate>,
     close_all_buttons: Query<(), With<CloseAllConnectionsButton>>,
     close_row_buttons: Query<&CloseConnectionButton>,
+    close_filtered_buttons: Query<(), With<CloseFilteredConnectionsButton>>,
+    search_fields: Query<&Children, With<ConnSearchField>>,
+    text_fields: Query<&TextField>,
+    mut close_all_labels: Query<&mut Text, With<CloseAllConnectionsLabel>>,
+    mut close_all_state: Option<ResMut<ConnectionsCloseAllState>>,
+    last: Option<Res<LastConnectionsProjection>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
         return;
     };
     if close_all_buttons.contains(activate.entity) {
-        handle.submit(UiCommand::CloseAllConnections);
+        // DUAL-13-08: destructive teardown is armed behind a second click;
+        // only the armed click submits the shared command.
+        let Some(state) = close_all_state.as_deref_mut() else {
+            handle.submit(UiCommand::CloseAllConnections);
+            return;
+        };
+        if !state.armed {
+            state.armed = true;
+            for mut text in &mut close_all_labels {
+                text.0 = "确认关闭全部？再次点击执行".to_owned();
+            }
+        } else {
+            state.armed = false;
+            for mut text in &mut close_all_labels {
+                text.0 = "关闭全部连接".to_owned();
+            }
+            handle.submit(UiCommand::CloseAllConnections);
+        }
     } else if let Ok(btn) = close_row_buttons.get(activate.entity) {
         handle.submit(UiCommand::CloseConnection {
             id: btn.connection_id.clone(),
         });
+    } else if close_filtered_buttons.contains(activate.entity) {
+        // DUAL-13-07: range teardown reuses the shared keyword predicate
+        // (DUAL-13-13); an empty filter never tears anything down.
+        let query = search_field_text(&search_fields, &text_fields).unwrap_or_default();
+        if query.trim().is_empty() {
+            return;
+        }
+        if let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref()) {
+            for item in projection
+                .connections
+                .iter()
+                .filter(|item| connection_view::matches_search(*item, &query))
+            {
+                handle.submit(UiCommand::CloseConnection {
+                    id: item.id.clone(),
+                });
+            }
+        }
+    }
+}
+
+/// DUAL-13-02: the aggregation segmented control switches the shared grouping
+/// mode and restamps the summary line + row visibility from the shared
+/// reduction.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn on_connections_view_activated(
+    activate: On<Activate>,
+    mut pills: Query<(&mut BackgroundColor, &ConnAggregationPill)>,
+    mut summaries: Query<(&mut Text, &ConnAggregationSummary)>,
+    mut summary_containers: Query<
+        &mut Node,
+        (
+            With<ConnAggregationSummaryContainer>,
+            Without<ConnRowsContainer>,
+        ),
+    >,
+    mut rows_containers: Query<
+        &mut Node,
+        (
+            With<ConnRowsContainer>,
+            Without<ConnAggregationSummaryContainer>,
+        ),
+    >,
+    palette: Res<UiPalette>,
+    mut view_state: Option<ResMut<ConnectionsViewState>>,
+    last: Option<Res<LastConnectionsProjection>>,
+) {
+    let Ok((_, pill)) = pills.get(activate.entity) else {
+        return;
+    };
+    let mode = pill.0;
+    if let Some(state) = view_state.as_deref_mut() {
+        state.grouping = mode;
+    }
+    restamp_aggregation_pills(&palette, &mut pills, mode);
+    if let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref()) {
+        restamp_aggregation_summary(&mut summaries, projection, mode);
+    }
+    let flat = mode.is_flat();
+    for mut node in &mut summary_containers {
+        node.display = if flat { Display::None } else { Display::Flex };
+    }
+    for mut node in &mut rows_containers {
+        node.display = if flat { Display::Flex } else { Display::None };
     }
 }
 
@@ -496,6 +637,7 @@ pub(crate) fn apply_connections_projection(
             Without<ConnHostText>,
             Without<ConnProcessText>,
             Without<ConnChainText>,
+            Without<ConnAggregationSummary>,
         ),
     >,
     mut speeds: Query<
@@ -506,6 +648,7 @@ pub(crate) fn apply_connections_projection(
             Without<ConnHostText>,
             Without<ConnProcessText>,
             Without<ConnChainText>,
+            Without<ConnAggregationSummary>,
         ),
     >,
     mut hosts: Query<
@@ -516,6 +659,7 @@ pub(crate) fn apply_connections_projection(
             Without<ConnSpeedText>,
             Without<ConnProcessText>,
             Without<ConnChainText>,
+            Without<ConnAggregationSummary>,
         ),
     >,
     mut processes: Query<
@@ -526,6 +670,7 @@ pub(crate) fn apply_connections_projection(
             Without<ConnSpeedText>,
             Without<ConnHostText>,
             Without<ConnChainText>,
+            Without<ConnAggregationSummary>,
         ),
     >,
     mut chains: Query<
@@ -536,9 +681,24 @@ pub(crate) fn apply_connections_projection(
             Without<ConnSpeedText>,
             Without<ConnHostText>,
             Without<ConnProcessText>,
+            Without<ConnAggregationSummary>,
         ),
     >,
     mut buttons: Query<&mut CloseConnectionButton>,
+    mut summaries: Query<
+        (&mut Text, &ConnAggregationSummary),
+        (
+            With<ConnAggregationSummary>,
+            Without<ConnectionsLine>,
+            Without<ConnSpeedText>,
+            Without<ConnHostText>,
+            Without<ConnProcessText>,
+            Without<ConnChainText>,
+        ),
+    >,
+    mut pills: Query<(&mut BackgroundColor, &ConnAggregationPill)>,
+    palette: Res<UiPalette>,
+    view_state: Option<Res<ConnectionsViewState>>,
 ) {
     let projection = &update.0;
 
@@ -593,6 +753,12 @@ pub(crate) fn apply_connections_projection(
             btn.connection_id = conn.id.clone();
         }
     }
+
+    // DUAL-13-02: a new projection restamps the aggregation view from the
+    // shared reduction so grouped mode never shows stale buckets.
+    let grouping = view_state.map(|state| state.grouping).unwrap_or_default();
+    restamp_aggregation_summary(&mut summaries, projection, grouping);
+    restamp_aggregation_pills(&palette, &mut pills, grouping);
 
     if let Some(ref mut last_proj) = last {
         last_proj.0 = Some(projection.clone());

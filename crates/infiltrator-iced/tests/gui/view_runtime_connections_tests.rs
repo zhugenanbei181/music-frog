@@ -97,3 +97,33 @@ fn test_stream_badge_kinds() {
     let _elem_failed: Element<'_, Message> =
         stream_badge(&RuntimeStreamState::Failed("err".into()), &Lang("zh-CN"));
 }
+
+#[test]
+fn test_shared_connection_view_reductions_are_delegated() {
+    use infiltrator_domain::connection_view::{ConnectionGroupingMode, quick_rule_spec};
+
+    let mut conns = vec![
+        make_test_conn("1", "b.com", "/usr/bin/git", 100, 500),
+        make_test_conn("2", "a.com", "/usr/bin/curl", 900, 200),
+    ];
+
+    // Search (DUAL-13-13) and sort resolve through the shared domain.
+    assert!(filter_connection(&conns[0], "git"));
+    assert!(!filter_connection(&conns[0], "curl"));
+    sort_connections(&mut conns, "upload_desc");
+    assert_eq!(conns[0].id, "2");
+
+    // Aggregation (DUAL-13-02) is the shared bucket reduction.
+    let buckets = infiltrator_domain::connection_view::aggregate_connections(
+        &conns,
+        ConnectionGroupingMode::ByProcess,
+    );
+    assert_eq!(buckets.len(), 2);
+    assert_eq!(buckets[0].key, "curl");
+    assert_eq!(buckets[0].upload_total, 900);
+
+    // Reverse rule draft (DUAL-13-09) uses the bare host, not host:port.
+    let spec = quick_rule_spec(&conns[0], "DIRECT");
+    assert_eq!(spec.pattern, "DOMAIN-SUFFIX,a.com");
+    assert_eq!(spec.rule_line(), "DOMAIN-SUFFIX,a.com,DIRECT");
+}

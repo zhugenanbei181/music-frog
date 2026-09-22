@@ -7,7 +7,7 @@
 use crate::state::AppState;
 use crate::types::dns::DnsLeakReport;
 use crate::types::message::Message;
-use crate::types::runtime::ConnectionGroupingMode;
+use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::profiles::ProfileInfo;
 
 #[test]

@@ -381,7 +381,8 @@ impl AppState {
                     infiltrator_contract::overview_layout::OverviewCardKind::DEFAULT_ORDER.to_vec(),
                 crash_watchdog: Default::default(),
                 log_filter: Default::default(),
-                connection_grouping_mode: crate::types::runtime::ConnectionGroupingMode::Flat,
+                connection_grouping_mode:
+                    infiltrator_domain::connection_view::ConnectionGroupingMode::Flat,
             },
             shell: crate::state::ShellState {
                 current_route: Route::Overview,

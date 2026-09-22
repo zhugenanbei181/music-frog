@@ -515,6 +515,7 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
         "conn_drawer_tcp_time" => "TCP Connect".into(),
         "conn_drawer_tls_time" => "TLS Handshake".into(),
         "conn_drawer_ttfb_time" => "Time to First Byte".into(),
+        "conn_drawer_timing_unsupported" => "The core does not expose DNS/TCP/TLS/TTFB timings for this connection".into(),
         "conn_drawer_duration" => "Active Duration".into(),
         "conn_drawer_section_throughput" => "Real-time Throughput & Traffic".into(),
         "conn_drawer_upload_speed" => "Current Upload Speed".into(),

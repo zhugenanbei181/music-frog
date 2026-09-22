@@ -320,6 +320,49 @@ impl AppState {
                     Task::none()
                 }
             }
+            Message::CloseFilteredConnections => {
+                // DUAL-13-07: range teardown reuses the shared keyword predicate
+                // (DUAL-13-13) over the live snapshot; an empty filter is a
+                // no-op so the button can never silently close everything.
+                let Some(rt) = self.runtime.runtime.clone() else {
+                    return Task::none();
+                };
+                let raw_filter = self.runtime.runtime_connection_filter.clone();
+                let query = raw_filter
+                    .strip_prefix("tab:closed")
+                    .unwrap_or(&raw_filter)
+                    .trim()
+                    .to_string();
+                if query.is_empty() {
+                    return Task::none();
+                }
+                let ids: Vec<String> = self
+                    .diag
+                    .connections
+                    .as_ref()
+                    .map(|snapshot| {
+                        snapshot
+                            .connections
+                            .iter()
+                            .filter(|conn| {
+                                infiltrator_domain::connection_view::matches_search(*conn, &query)
+                            })
+                            .map(|conn| conn.id.clone())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                Task::batch(ids.into_iter().map(|id| {
+                    let rt = rt.clone();
+                    Task::perform(
+                        async move {
+                            rt.close_connection(&id)
+                                .await
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
+                        },
+                        Message::OperationResult,
+                    )
+                }))
+            }
             other => self.update_core_doctor(other),
         }
     }

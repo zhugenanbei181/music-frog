@@ -6,7 +6,7 @@
 use crate::state::AppState;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
-use crate::types::runtime::{ConnectionGroupingMode, RuntimeStreamState};
+use crate::types::runtime::RuntimeStreamState;
 use crate::utils::format_bytes;
 use crate::view::components::{
     BadgeKind, badge, chip, empty_state, icon_button, modern_scrollable, row_card_surface,
@@ -16,19 +16,14 @@ use crate::view::components::{
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
 use iced::widget::{Space, button, column, container, row, text};
-use iced::{Alignment, Element, Length, Theme};
+use iced::{Alignment, Color, Element, Length, Theme};
+use infiltrator_domain::connection_view::{self, ConnectionGroupingMode, ConnectionSortKey};
 use infiltrator_domain::runtime::Connection;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Extract clean executable/binary name from a system process path.
 pub fn extract_process_name(path: &str) -> String {
-    let trimmed = path.trim();
-    if trimmed.is_empty() {
-        return String::new();
-    }
-    let filename = trimmed.rsplit(['/', '\\']).next().unwrap_or(trimmed);
-    let name = filename.strip_suffix(".exe").unwrap_or(filename);
-    name.to_string()
+    connection_view::process_display_name(path)
 }
 
 /// Determine outbound target label and badge semantic color.
@@ -68,54 +63,12 @@ pub fn outbound_target_info(conn: &Connection) -> (String, BadgeKind) {
 
 /// Filter connections matching query across ID, host, process, IP, and rule.
 pub fn filter_connection(conn: &Connection, query: &str) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    let query_lower = query.to_lowercase();
-    let meta = &conn.metadata;
-    conn.id.to_lowercase().contains(&query_lower)
-        || meta.host.to_lowercase().contains(&query_lower)
-        || meta.process_path.to_lowercase().contains(&query_lower)
-        || meta.source_ip.to_lowercase().contains(&query_lower)
-        || meta.destination_ip.to_lowercase().contains(&query_lower)
-        || meta.source_port.contains(&query_lower)
-        || meta.destination_port.contains(&query_lower)
-        || meta.network.to_lowercase().contains(&query_lower)
-        || conn.rule.to_lowercase().contains(&query_lower)
-        || conn.rule_payload.to_lowercase().contains(&query_lower)
-        || conn
-            .chains
-            .iter()
-            .any(|c| c.to_lowercase().contains(&query_lower))
+    connection_view::matches_search(conn, query)
 }
 
 /// Sort connection list according to user-selected sort key.
 pub fn sort_connections(conns: &mut [Connection], sort_key: &str) {
-    conns.sort_by(|a, b| {
-        let ordering = match sort_key {
-            "upload_desc" => b.upload.cmp(&a.upload),
-            "latest_desc" => b.start.cmp(&a.start),
-            "host_asc" => {
-                let left_host = if a.metadata.host.is_empty() {
-                    a.metadata.destination_ip.as_str()
-                } else {
-                    a.metadata.host.as_str()
-                };
-                let right_host = if b.metadata.host.is_empty() {
-                    b.metadata.destination_ip.as_str()
-                } else {
-                    b.metadata.host.as_str()
-                };
-                left_host.cmp(right_host)
-            }
-            _ => b.download.cmp(&a.download),
-        };
-        if ordering == std::cmp::Ordering::Equal {
-            a.id.cmp(&b.id)
-        } else {
-            ordering
-        }
-    });
+    connection_view::sort_connections(conns, ConnectionSortKey::from_identifier(sort_key));
 }
 
 pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
@@ -263,6 +216,20 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         })
     });
 
+    let close_filtered_btn = button(
+        row![
+            svg_icons::icon_themed(Icon::X, 13.0, |t: &Theme| tokens(t).warning),
+            Space::new().width(4),
+            text(lang.tr("conn_close_filtered_btn").to_string())
+                .size(12)
+                .font(FONT_MEDIUM),
+        ]
+        .align_y(Alignment::Center),
+    )
+    .padding([6, 12])
+    .style(style_ghost)
+    .on_press_maybe((!user_filter.is_empty()).then_some(Message::CloseFilteredConnections));
+
     let filter_bar = row![
         sub_tabs,
         Space::new().width(theme::SP_MD),
@@ -274,6 +241,8 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
             on_search_input,
             on_search_clear,
         ),
+        Space::new().width(theme::SP_SM),
+        close_filtered_btn,
     ]
     .align_y(Alignment::Center)
     .width(Length::Fill);
@@ -308,91 +277,61 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 lang.tr("runtime_no_matching_connections").as_ref(),
                 "",
             ));
-        } else if state.diag.connection_grouping_mode == ConnectionGroupingMode::ByProcess {
-            let mut proc_map: std::collections::HashMap<String, (usize, u64, u64)> =
-                std::collections::HashMap::new();
-            for conn in &sorted_conns {
-                let name = extract_process_name(&conn.metadata.process_path);
-                let entry = proc_map
-                    .entry(if name.is_empty() {
-                        "unknown".to_string()
+        } else if !state.diag.connection_grouping_mode.is_flat() {
+            // DUAL-13-02: both grouped dimensions reduce through the shared
+            // domain aggregation; Iced owns no aggregation logic of its own.
+            let mode = state.diag.connection_grouping_mode;
+            let aggregates = connection_view::aggregate_connections(&sorted_conns, mode);
+            if aggregates.is_empty() {
+                connections_section = connections_section.push(empty_state(
+                    Icon::Plug,
+                    lang.tr("conn_aggregate_empty").as_ref(),
+                    "",
+                ));
+            } else {
+                let (icon, icon_color): (Icon, fn(&Theme) -> Color) =
+                    if mode == ConnectionGroupingMode::ByProcess {
+                        (Icon::Activity, |t: &Theme| tokens(t).accent)
                     } else {
-                        name
-                    })
-                    .or_insert((0, 0, 0));
-                entry.0 += 1;
-                entry.1 += conn.upload;
-                entry.2 += conn.download;
-            }
-            let mut grouped_list = column![].spacing(theme::SP_SM);
-            let mut sorted_procs: Vec<_> = proc_map.into_iter().collect();
-            sorted_procs.sort_by_key(|item| std::cmp::Reverse(item.1.1));
-            for (proc_name, (cnt, up, down)) in sorted_procs {
-                let proc_card = container(
-                    row![
-                        svg_icons::icon_themed(Icon::Activity, 16.0, |t: &Theme| tokens(t).accent),
-                        Space::new().width(theme::SP_MD),
-                        text(proc_name)
-                            .size(13)
-                            .font(FONT_SEMIBOLD)
-                            .width(Length::Fill),
-                        badge(format!("{cnt} connections"), BadgeKind::Neutral),
-                        Space::new().width(theme::SP_MD),
-                        text(format!("↑ {} / ↓ {}", format_bytes(up), format_bytes(down)))
+                        (Icon::Globe, |t: &Theme| tokens(t).success)
+                    };
+                let mut grouped_list = column![].spacing(theme::SP_SM);
+                for aggregate in &aggregates {
+                    let count_text = aggregate.count.to_string();
+                    let count_label = infiltrator_shared::i18n_interpolator::interpolate(
+                        &lang.tr("conn_aggregate_count"),
+                        &[("count", count_text.as_str())],
+                    );
+                    let group_card = container(
+                        row![
+                            svg_icons::icon_themed(icon, 16.0, icon_color),
+                            Space::new().width(theme::SP_MD),
+                            text(aggregate.key.clone())
+                                .size(13)
+                                .font(FONT_SEMIBOLD)
+                                .width(Length::Fill),
+                            badge(count_label, BadgeKind::Neutral),
+                            Space::new().width(theme::SP_MD),
+                            text(format!(
+                                "↑ {} / ↓ {}",
+                                format_bytes(aggregate.upload_total),
+                                format_bytes(aggregate.download_total)
+                            ))
                             .size(11)
                             .font(MONO)
                             .style(|t: &Theme| text::Style {
                                 color: Some(tokens(t).text_secondary)
                             }),
-                    ]
-                    .align_y(Alignment::Center),
-                )
-                .padding([10, 16])
-                .style(row_card_surface);
-                grouped_list = grouped_list.push(proc_card);
+                        ]
+                        .align_y(Alignment::Center),
+                    )
+                    .padding([10, 16])
+                    .style(row_card_surface);
+                    grouped_list = grouped_list.push(group_card);
+                }
+                connections_section =
+                    connections_section.push(modern_scrollable(grouped_list).height(Length::Fill));
             }
-            connections_section =
-                connections_section.push(modern_scrollable(grouped_list).height(Length::Fill));
-        } else if state.diag.connection_grouping_mode == ConnectionGroupingMode::ByHost {
-            let mut host_map: std::collections::HashMap<String, (usize, u64, u64)> =
-                std::collections::HashMap::new();
-            for conn in &sorted_conns {
-                let h = if !conn.metadata.host.is_empty() {
-                    conn.metadata.host.clone()
-                } else {
-                    conn.metadata.destination_ip.clone()
-                };
-                let entry = host_map.entry(h).or_insert((0, 0, 0));
-                entry.0 += 1;
-                entry.1 += conn.upload;
-                entry.2 += conn.download;
-            }
-            let mut grouped_list = column![].spacing(theme::SP_SM);
-            let mut sorted_hosts: Vec<_> = host_map.into_iter().collect();
-            sorted_hosts.sort_by_key(|item| std::cmp::Reverse(item.1.1));
-            for (h_name, (cnt, up, down)) in sorted_hosts {
-                let host_card = container(
-                    row![
-                        svg_icons::icon_themed(Icon::Globe, 16.0, |t: &Theme| tokens(t).success),
-                        Space::new().width(theme::SP_MD),
-                        text(h_name).size(13).font(MONO).width(Length::Fill),
-                        badge(format!("{cnt} conns"), BadgeKind::Neutral),
-                        Space::new().width(theme::SP_MD),
-                        text(format!("↑ {} / ↓ {}", format_bytes(up), format_bytes(down)))
-                            .size(11)
-                            .font(MONO)
-                            .style(|t: &Theme| text::Style {
-                                color: Some(tokens(t).text_secondary)
-                            }),
-                    ]
-                    .align_y(Alignment::Center),
-                )
-                .padding([10, 16])
-                .style(row_card_surface);
-                grouped_list = grouped_list.push(host_card);
-            }
-            connections_section =
-                connections_section.push(modern_scrollable(grouped_list).height(Length::Fill));
         } else {
             // Windowed rendering: only current window items are instantiated into widgets
             let total = sorted_conns.len();
