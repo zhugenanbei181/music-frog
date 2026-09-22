@@ -97,6 +97,7 @@ pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "editor_history_empty" => "暂无应用快照。".into(),
         "editor_restore" => "恢复".into(),
         "editor_backup_now" => "立即备份当前配置".into(),
+        "editor_history_refresh" => "刷新列表".into(),
         "editor_prune_keep" => "保留份数".into(),
         "editor_prune_now" => "立即修剪".into(),
         "editor_prune_pending" => "待修剪 {count} 份".into(),

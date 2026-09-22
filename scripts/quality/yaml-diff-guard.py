@@ -153,8 +153,8 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/update/profile/options.rs",
-        "infiltrator_domain::mixin::merge_profile_with_config_fidelity(",
+        "crates/infiltrator-application/src/profile_options_application.rs",
+        "merge_profile_with_config_fidelity(&base, &mixin)",
     )
 
     # 3. The shared diff read model and its process-wide publisher.
@@ -427,12 +427,20 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-bevy-ui/src/pages/profiles_editor.rs",
-        "infiltrator_bevy_widgets::editor::{CodeEditorState, SyntaxTokenKind, tokenize_yaml_line}",
         "pub fn profile_editor_scene(",
         "pub fn profile_editor_keyboard_input(",
         "UiCommand::SaveProfileDocument",
         "UiCommand::LoadProfileDocument",
         "pub struct ProfilesEditorPlugin",
+    )
+    # DUAL-09-14: both document panes render through the one row renderer.
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor_body.rs",
+        "infiltrator_bevy_widgets::editor::{SyntaxTokenKind, tokenize_yaml_line}",
+        "pub(crate) fn editor_rows_scene(",
+        "fn indent_rail(",
+        "有界窗口，不是虚拟滚动",
     )
     require(
         violations,
@@ -763,13 +771,16 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-bevy-ui/src/pages/profiles_editor.rs",
-        "fn indent_rail(",
         "fn snippet_buttons(",
-        "state.rendered_lines()",
-        "有界窗口，不是虚拟滚动",
         "pub struct ProfileEditorSnippetButton",
         "ProfileEditorSnippetButton { index }",
         "pub fn on_profile_editor_snippet_activated(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor_body.rs",
+        "state.rendered_lines()",
+        "有界窗口，不是虚拟滚动",
     )
     # 09-04: one catalogue, one application use-case, both surfaces.
     require(
@@ -845,7 +856,257 @@ def main() -> int:
         "DUAL-09-02` | Monaco 级代码编辑器视口 | `parity-ready`",
         "DUAL-09-04` | 常用代码片段一键插入 (Snippets) | `parity-ready`",
         "DUAL-09-13` | 大文件编辑器性能优化 | `parity-ready`",
-        "DUAL-09-14` | 双端编辑器与 Diff 模态完全镜像 | `shared-ready`",
+        "DUAL-09-14` | 双端编辑器与 Diff 模态完全镜像 | `parity-ready`",
+    )
+
+    # 13. DUAL-09-14: one option-sidecar use-case, mirrored editor panes and
+    # aligned diff actions.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/profile_options.rs",
+        "pub struct ProfileOptionsSnapshot",
+        "pub fn publish_profile_options(",
+        "pub fn last_profile_options()",
+        "pub fn clear_profile_options()",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/lib.rs",
+        "pub mod profile_options;",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/command.rs",
+        "LoadProfileOptions {",
+        "SaveMixinOverlay {",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub profile_options: Option<crate::profile_options::ProfileOptionsSnapshot>,",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_options_application.rs",
+        "pub struct ProfileOptionsApplication",
+        "pub async fn load(",
+        "pub async fn save_mixin<",
+        "pub async fn save_filter<",
+        "profile_options::strip_rule_lines(&content, &removals)",
+        "merge_profile_with_config_fidelity(&base, &mixin)",
+        "filter_spec_from_draft(draft)",
+        "apply_subscription_filter(runtime, profile, spec)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "profile_options:",
+        "infiltrator_contract::profile_options::last_profile_options(),",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "CommandIntent::LoadProfileOptions { profile }",
+        "CommandIntent::SaveMixinOverlay {",
+        ".save_filter(self.managed_runtime.clone(), &profile_id, &filter)",
+        "fn profile_options(&self)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/core_application.rs",
+        'CommandIntent::LoadProfileOptions { .. } => "load_profile_options"',
+        'CommandIntent::SaveMixinOverlay { .. } => "save_mixin_overlay"',
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application_tests.rs",
+        "options_load_publishes_the_sidecar_draft_for_both_surfaces",
+        "mixin_save_is_idempotent_and_keeps_handwritten_comments",
+        "filter_draft_save_uses_the_shared_parser_and_persists_the_spec",
+    )
+    # Iced consumes the shared use-case and the shared draft type only.
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/options.rs",
+        "ProfileOptionsApplication::new(ProfileApplication::new(manager))",
+        ".save_mixin(runtime, &profile, &text)",
+        ".save_filter(runtime, &profile, &draft)",
+        "infiltrator_domain::profile_options::filter_spec_from_draft(",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/options.rs",
+        "strip_rule_lines",
+        "merge_profile_with_config_fidelity",
+        "save_profile_options",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/state.rs",
+        "pub filter_draft: infiltrator_contract::subscription_import::SubscriptionFilterDraft,",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/types/options.rs",
+        "pub struct FilterDraft",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/editor.rs",
+        "pub fn pane_has_snippet_bar(",
+        "EditorPane::Profile | EditorPane::Mixin",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view_root/snapshot_diff_modal.rs",
+        "Message::RefreshSnapshotDiff",
+        "diff.source_id",
+        "diff.target_id",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/editor_history.rs",
+        "Message::LoadProfileSnapshots",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "snapshot_diff_refresh",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "snapshot_diff_refresh",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table.rs",
+        "editor_history_refresh",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en.rs",
+        "editor_history_refresh",
+    )
+    # Bevy mounts the same drafts through the same commands.
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor_panes.rs",
+        "pub enum ProfileEditorPane",
+        "pub struct ProfileEditorOptionsState",
+        "pub fn adopt_snapshot(",
+        "pub fn pane_switch_scene(",
+        "pub fn mixin_pane_scene(",
+        "pub fn filter_pane_scene(",
+        "MixinEditorSaveButton",
+        "EditorFilterSaveButton",
+        "EditorFilterDedupButton",
+        "脚本沙盒未镜像",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor_panes_sync.rs",
+        "pub fn route_editor_keyboard(",
+        "pub struct ProfilesEditorPanesPlugin",
+        "UiCommand::LoadProfileOptions {",
+        "UiCommand::SaveMixinOverlay {",
+        "UiCommand::SaveSubscriptionFilter {",
+        "infiltrator_domain::profile_options::filter_spec_from_draft(",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor_panes_sync.rs",
+        "serde_yaml_ng",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor.rs",
+        "ProfileEditorPaneArea",
+        "pane_switch_scene(&options, palette)",
+        "crate::pages::profiles_editor_panes_sync::route_editor_keyboard(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor_body.rs",
+        "pub(crate) fn editor_rows_scene(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_diff_history.rs",
+        "pub struct SnapshotHistoryRestoreButton",
+        "pub(super) fn on_snapshot_history_restore_activated(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_diff.rs",
+        "pub armed_restore: Option<String>,",
+        "if diff.fidelity_preserved {",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles.rs",
+        "on_snapshot_history_restore_activated",
+        "profile_options:",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/surface_projection.rs",
+        "profile_options: value.profile_options.clone(),",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/surface_demo.rs",
+        "profile_options: value.profile_options,",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "LoadProfileOptions { profile: Option<String> }",
+        "SaveMixinOverlay { profile: String, mixin_yaml: String }",
+        "CommandIntent::LoadProfileOptions",
+        "CommandIntent::SaveMixinOverlay",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/app.rs",
+        "crate::pages::profiles_editor_panes_sync::ProfilesEditorPanesPlugin",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages.rs",
+        "pub mod profiles_editor_panes;",
+        "pub mod profiles_editor_panes_sync;",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor.rs",
+        "strip_rule_lines",
+        "merge_profile_with_config_fidelity",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_snapshot_diff_tests.rs",
+        "refresh_recomputes_the_open_diff_through_the_shared_application",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_editor_tests.rs",
+        "snippet_bar_is_mounted_in_the_document_panes_only",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_profiles_editor_mixin_pane_uses_the_shared_sidecar_use_case",
+        "test_profiles_editor_filter_pane_mirrors_the_shared_draft_and_gates_submits",
+        "test_profiles_snapshot_history_entry_restore_is_armed_before_it_executes",
+    )
+    # The ledger must carry the fourth batch note and the closed 09-14 row.
+    require(
+        violations,
+        LEDGER,
+        "2026-09-22 组 09 第四批",
+        "DUAL-09-14` | 双端编辑器与 Diff 模态完全镜像 | `parity-ready`",
+        "| 组 09 AST YAML 引擎与快照 Diff | 15 | `parity-ready (15/15)`",
     )
 
     # 8. Both test entrypoints register this guard.
@@ -865,7 +1126,7 @@ def main() -> int:
             print(f"yaml-diff-guard: {violation}", file=sys.stderr)
         print(f"yaml-diff-guard: violations={len(violations)}", file=sys.stderr)
         return 1 if args.mode == "enforce" else 0
-    print("yaml-diff-guard: DUAL-09 ledger_rows=15 parity_items=14 violations=0")
+    print("yaml-diff-guard: DUAL-09 ledger_rows=15 parity_items=15 violations=0")
     return 0
 
 

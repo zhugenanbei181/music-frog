@@ -546,6 +546,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "snapshot_diff_fidelity" => "保真级别".into(),
         "snapshot_diff_inline" => "行内".into(),
         "snapshot_diff_split" => "并排".into(),
+        "snapshot_diff_refresh" => "刷新差异".into(),
         "snapshot_diff_confirm_hint" => "回滚会通过应用事务覆写当前配置，此操作不可撤销。".into(),
         "snapshot_diff_confirm_btn" => "确认回滚".into(),
         "editor_protection_unlock" => "仍要直接编辑".into(),

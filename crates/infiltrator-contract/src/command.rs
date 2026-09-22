@@ -416,6 +416,20 @@ pub enum CommandIntent {
         content: String,
         allow_protected: bool,
     },
+    /// DUAL-09-14: load a profile's option sidecar (Mixin overlay + filter
+    /// draft) through the shared use-case and publish it for the editor panes.
+    /// `profile = None` selects the active profile.
+    LoadProfileOptions {
+        profile: Option<String>,
+    },
+    /// DUAL-09-14: commit an edited Mixin overlay through the shared use-case
+    /// (strip the outgoing mixin's injected rule lines, merge with the
+    /// byte-faithful engine, apply through the transaction and persist the
+    /// sidecar). The same call the Iced editor makes.
+    SaveMixinOverlay {
+        profile: String,
+        mixin_yaml: String,
+    },
     /// Select the last installed, locally recorded core version.
     RollbackCore,
     /// DUAL-05-14: decode a share link into the shared protocol draft and
@@ -561,6 +575,7 @@ impl CommandIntent {
             Self::LoadProfileDocument { .. } | Self::SaveProfileDocument { .. } => {
                 CommandKind::Profile
             }
+            Self::LoadProfileOptions { .. } | Self::SaveMixinOverlay { .. } => CommandKind::Profile,
             Self::RollbackCore | Self::UpdateSetting { .. } | Self::CheckUpdates => {
                 CommandKind::Update
             }

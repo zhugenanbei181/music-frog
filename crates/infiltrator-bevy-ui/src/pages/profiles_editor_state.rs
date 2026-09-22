@@ -7,6 +7,7 @@
 
 use bevy::color::Color;
 use bevy::ecs::resource::Resource;
+use bevy::input::keyboard::Key;
 use infiltrator_bevy_widgets::editor::CodeEditorState;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::editor_viewport::{EditorViewport, line_indent_level};
@@ -101,6 +102,53 @@ impl ProfileEditorState {
             self.buffer.move_down();
         }
         self.generation += 1;
+    }
+
+    pub fn move_left(&mut self) {
+        self.buffer.move_left();
+        self.generation += 1;
+    }
+
+    pub fn move_right(&mut self) {
+        self.buffer.move_right();
+        self.generation += 1;
+    }
+
+    pub fn move_home(&mut self) {
+        self.buffer.move_home();
+        self.generation += 1;
+    }
+
+    pub fn move_end(&mut self) {
+        self.buffer.move_end();
+        self.generation += 1;
+    }
+
+    /// DUAL-09-14: apply one unmodified key press to the buffer. The Profile
+    /// and Mixin panes share this rule set through the single keyboard seam,
+    /// so the two document panes can never diverge in editing behavior.
+    /// Returns `true` when the key was consumed.
+    pub fn apply_key(&mut self, key: &Key) -> bool {
+        match key {
+            Key::Character(text) => self.insert_text(text),
+            Key::Space => self.insert_text(" "),
+            Key::Enter => self.insert_text("\n"),
+            Key::Tab => self.insert_text("  "),
+            Key::Backspace => self.backspace(),
+            Key::Delete => self.delete_forward(),
+            Key::ArrowUp => self.move_cursor(true),
+            Key::ArrowDown => self.move_cursor(false),
+            Key::ArrowLeft => self.move_left(),
+            Key::ArrowRight => self.move_right(),
+            Key::Home => self.move_home(),
+            Key::End => self.move_end(),
+            Key::Escape => {
+                self.focused = false;
+                self.generation = self.generation.wrapping_add(1);
+            }
+            _ => return false,
+        }
+        true
     }
 
     /// Format through the shared formatter; a refusal keeps the user's bytes.

@@ -719,13 +719,21 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "SaveSubscriptionFilter",
+    )
+    # DUAL-09-14: the draft is parsed once in the shared option-sidecar
+    # use-case, so both surfaces route through the same parser.
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_options_application.rs",
         "filter_spec_from_draft",
+        "apply_subscription_filter",
+        "pub async fn save_filter<",
     )
     require(
         violations,
         "crates/infiltrator-iced/src/update/profile/options.rs",
-        "apply_subscription_filter",
-        "load_options",
+        "ProfileOptionsApplication",
+        "save_filter",
     )
     require(
         violations,

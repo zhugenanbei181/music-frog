@@ -613,6 +613,7 @@ fn test_profiles_empty_and_edge_case_projection() {
         snapshot_history: None,
         apply_transaction: None,
         profile_document: None,
+        profile_options: None,
     };
     app.world_mut()
         .commands()
@@ -2633,6 +2634,7 @@ fn subscription_fetch_projection() -> ProfilesProjection {
         snapshot_history: None,
         apply_transaction: None,
         profile_document: None,
+        profile_options: None,
         profiles: vec![ProfileItem {
             id: "sub-fetch".to_owned(),
             name: "抓取选项订阅".to_owned(),
@@ -3237,6 +3239,7 @@ fn aggregation_page_projection() -> ProfilesProjection {
         snapshot_history: None,
         apply_transaction: None,
         profile_document: None,
+        profile_options: None,
     }
 }
 
@@ -3613,6 +3616,7 @@ fn snapshot_diff_page_projection(
         snapshot_history: None,
         apply_transaction: None,
         profile_document: None,
+        profile_options: None,
     }
 }
 
@@ -3633,7 +3637,7 @@ fn test_profiles_snapshot_diff_renders_shared_rows_and_confirms_rollback() {
         subtree_has_text(
             app.world(),
             root,
-            "对比 snapshot-1735489200000 → current-profile · +1 -1 ~1 · 保真 L3-Anchors"
+            "对比 snapshot-1735489200000 → current-profile · +1 -1 ~1 · 保真通过 L3-Anchors"
         ),
         "the summary restamps from the shared diff snapshot"
     );
@@ -4388,4 +4392,514 @@ fn test_rules_page_renders_observed_provider_cache_fact() {
         root,
         "内核规则集缓存 · ~/.config/mihomo-rs/configs/rules · 3 个文件 · 1048576 字节"
     ));
+}
+
+// ---- DUAL-09-14: Mixin / Filter panes --------------------------------------
+
+fn editor_options_page_projection(
+    content: &str,
+    options: Option<infiltrator_contract::profile_options::ProfileOptionsSnapshot>,
+) -> ProfilesProjection {
+    let mut projection = editor_page_projection(
+        infiltrator_contract::profile_protection::ProfileWriteProtection::Editable,
+        content,
+    );
+    projection.profile_options = options;
+    projection
+}
+
+fn pane_button_entity(
+    app: &mut App,
+    pane: infiltrator_bevy_ui::pages::profiles_editor_panes::ProfileEditorPane,
+) -> Entity {
+    use infiltrator_bevy_ui::pages::profiles_editor_panes::ProfileEditorPaneButton;
+    let mut query = app
+        .world_mut()
+        .query::<(Entity, &ProfileEditorPaneButton)>();
+    query
+        .iter(app.world())
+        .find(|(_, button)| button.pane == pane)
+        .map(|(entity, _)| entity)
+        .expect("pane switch button")
+}
+
+fn filter_field_entity(
+    app: &mut App,
+    kind: infiltrator_bevy_ui::pages::profiles_editor_panes::EditorFilterFieldKind,
+) -> Entity {
+    use infiltrator_bevy_ui::pages::profiles_editor_panes::EditorFilterField;
+    let mut query = app.world_mut().query::<(Entity, &EditorFilterField)>();
+    query
+        .iter(app.world())
+        .find(|(_, field)| field.kind == Some(kind))
+        .map(|(entity, _)| entity)
+        .expect("filter field root")
+}
+
+fn filter_field_text(
+    app: &mut App,
+    kind: infiltrator_bevy_ui::pages::profiles_editor_panes::EditorFilterFieldKind,
+) -> String {
+    use infiltrator_bevy_ui::pages::profiles_editor_panes::EditorFilterField;
+    use infiltrator_bevy_widgets::text_input::TextField;
+    let child = {
+        let mut query = app.world_mut().query::<(&EditorFilterField, &Children)>();
+        query
+            .iter(app.world())
+            .find(|(field, _)| field.kind == Some(kind))
+            .and_then(|(_, children)| children.iter().next().copied())
+            .expect("filter field child")
+    };
+    app.world()
+        .get::<TextField>(child)
+        .map(|field| field.0.text().to_owned())
+        .unwrap_or_default()
+}
+
+fn pane_area_display(
+    app: &mut App,
+    pane: infiltrator_bevy_ui::pages::profiles_editor_panes::ProfileEditorPane,
+) -> Display {
+    use infiltrator_bevy_ui::pages::profiles_editor_panes::ProfileEditorPaneArea;
+    let mut query = app.world_mut().query::<(&ProfileEditorPaneArea, &Node)>();
+    query
+        .iter(app.world())
+        .find(|(area, _)| area.pane == pane)
+        .map(|(_, node)| node.display)
+        .expect("pane area node")
+}
+
+/// DUAL-09-14: the Mixin pane loads the stored sidecar through the shared
+/// `LoadProfileOptions` command, edits a real buffer with the same keyboard
+/// seam as the profile document, and commits through `SaveMixinOverlay` (the
+/// shared `ProfileOptionsApplication::save_mixin` use-case).
+#[test]
+fn test_profiles_editor_mixin_pane_uses_the_shared_sidecar_use_case() {
+    use infiltrator_bevy_ui::pages::profiles_editor_panes::{
+        MixinEditorFocusButton, MixinEditorReloadButton, MixinEditorSaveButton,
+        ProfileEditorOptionsState, ProfileEditorPane,
+    };
+    use infiltrator_bevy_ui::pages::profiles_editor_state::ProfileEditorState;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    // The stored document must be open before the pane knows which sidecar to
+    // ask for ("main" is the active profile in this fixture).
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(editor_options_page_projection(
+            "mode: rule\n",
+            None,
+        )));
+    app.update();
+
+    let switch = pane_button_entity(&mut app, ProfileEditorPane::Mixin);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: switch });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::LoadProfileOptions {
+            profile: Some("main".to_owned()),
+        }),
+        "opening the Mixin pane asks the shared application for the sidecar"
+    );
+    assert_eq!(
+        app.world().resource::<ProfileEditorOptionsState>().pane,
+        ProfileEditorPane::Mixin
+    );
+    assert_eq!(
+        pane_area_display(&mut app, ProfileEditorPane::Mixin),
+        Display::Flex,
+        "the Mixin area is shown"
+    );
+    assert_eq!(
+        pane_area_display(&mut app, ProfileEditorPane::Profile),
+        Display::None,
+        "the profile document rows are hidden while the Mixin pane is active"
+    );
+    {
+        use infiltrator_bevy_ui::pages::profiles_editor_panes::ProfileEditorPaneButton;
+        let mut query = app.world_mut().query::<(
+            &ProfileEditorPaneButton,
+            &bevy::ui::prelude::BackgroundColor,
+        )>();
+        let active = query
+            .iter(app.world())
+            .find(|(button, _)| button.pane == ProfileEditorPane::Mixin)
+            .map(|(_, background)| background.0)
+            .expect("mixin switcher chip");
+        let inactive = query
+            .iter(app.world())
+            .find(|(button, _)| button.pane == ProfileEditorPane::Profile)
+            .map(|(_, background)| background.0)
+            .expect("profile switcher chip");
+        assert_ne!(
+            active, inactive,
+            "the active pane chip is restamped from the shared palette"
+        );
+    }
+
+    // The shared snapshot fills the Mixin buffer + the shared filter draft.
+    let draft = infiltrator_contract::subscription_import::SubscriptionFilterDraft {
+        include: "香港".to_owned(),
+        ..Default::default()
+    };
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(editor_options_page_projection(
+            "mode: rule\n",
+            Some(
+                infiltrator_contract::profile_options::ProfileOptionsSnapshot::new(
+                    "main",
+                    "# 覆盖注释\nmode: global\n",
+                    draft.clone(),
+                ),
+            ),
+        )));
+    app.update();
+    {
+        let options = app.world().resource::<ProfileEditorOptionsState>();
+        assert!(
+            options.mixin.buffer.full_text().contains("# 覆盖注释"),
+            "the stored Mixin YAML is the buffer: {}",
+            options.mixin.buffer.full_text()
+        );
+        assert_eq!(
+            options.filter.include, "香港",
+            "the same snapshot carries the stored filter draft"
+        );
+    }
+    assert!(
+        subtree_has_text(
+            app.world(),
+            root,
+            "Mixin 覆盖：保存先剥离上一版注入的规则行"
+        ),
+        "the pane states how the shared use-case composes"
+    );
+
+    // Save submits the shared use-case command with the buffer bytes.
+    let save = marker_entity::<MixinEditorSaveButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: save });
+    app.update();
+    match sink.submitted().last() {
+        Some(UiCommand::SaveMixinOverlay {
+            profile,
+            mixin_yaml,
+        }) => {
+            assert_eq!(profile, "main");
+            assert!(mixin_yaml.contains("# 覆盖注释"));
+        }
+        other => panic!("expected SaveMixinOverlay, got {other:?}"),
+    }
+
+    // The keyboard seam routes to the Mixin buffer, not the profile document.
+    let focus = marker_entity::<MixinEditorFocusButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: focus });
+    app.update();
+    let profile_before = app
+        .world()
+        .resource::<ProfileEditorState>()
+        .buffer
+        .full_text();
+    app.world_mut()
+        .write_message(keyboard_press(Key::Character("x".into()), Some("x")));
+    app.update();
+    {
+        let options = app.world().resource::<ProfileEditorOptionsState>();
+        assert!(options.mixin.focused, "the explicit seam armed the buffer");
+        assert!(
+            options.mixin.buffer.full_text().starts_with('x'),
+            "the key landed in the Mixin buffer: {}",
+            options.mixin.buffer.full_text()
+        );
+        assert!(options.mixin.dirty);
+        assert!(
+            options.mixin.diagnostic.is_some(),
+            "the broken Mixin buffer fails the shared preflight"
+        );
+    }
+    assert_eq!(
+        app.world()
+            .resource::<ProfileEditorState>()
+            .buffer
+            .full_text(),
+        profile_before,
+        "the profile document buffer is untouched"
+    );
+
+    // A buffer that no longer passes the shared preflight is refused before
+    // the command pump sees it (the application would re-check anyway).
+    let before = sink.submitted().len();
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: save });
+    app.update();
+    assert_eq!(
+        sink.submitted().len(),
+        before,
+        "an invalid Mixin overlay is not submitted"
+    );
+    assert!(
+        app.world()
+            .resource::<ProfileEditorOptionsState>()
+            .mixin
+            .notice
+            .as_deref()
+            .is_some_and(|notice| notice.contains("语法预检")),
+        "the refusal is surfaced in the pane"
+    );
+
+    // Reload re-requests the shared sidecar instead of answering locally.
+    let reload = marker_entity::<MixinEditorReloadButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: reload });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::LoadProfileOptions {
+            profile: Some("main".to_owned()),
+        }),
+        "reload goes back through the shared application"
+    );
+}
+
+/// DUAL-09-14: the Filter pane renders the shared `SubscriptionFilterDraft`,
+/// mirrors typing into it and submits the same `SaveSubscriptionFilter`
+/// command the Iced filter pane runs — a malformed draft is refused with the
+/// shared parser before anything is submitted.
+#[test]
+fn test_profiles_editor_filter_pane_mirrors_the_shared_draft_and_gates_submits() {
+    use infiltrator_bevy_ui::pages::profiles_editor_panes::{
+        EditorFilterDedupButton, EditorFilterFieldKind, EditorFilterSaveButton,
+        ProfileEditorOptionsState, ProfileEditorPane,
+    };
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(editor_options_page_projection(
+            "mode: rule\n",
+            None,
+        )));
+    app.update();
+
+    let switch = pane_button_entity(&mut app, ProfileEditorPane::Filter);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: switch });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::LoadProfileOptions {
+            profile: Some("main".to_owned()),
+        }),
+        "opening the Filter pane loads the shared sidecar too"
+    );
+
+    let draft = infiltrator_contract::subscription_import::SubscriptionFilterDraft {
+        include: "香港".to_owned(),
+        dedup_index: 1,
+        ..Default::default()
+    };
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(editor_options_page_projection(
+            "mode: rule\n",
+            Some(
+                infiltrator_contract::profile_options::ProfileOptionsSnapshot::new(
+                    "main", "{}\n", draft,
+                ),
+            ),
+        )));
+    app.update();
+    assert_eq!(
+        filter_field_text(&mut app, EditorFilterFieldKind::Include),
+        "香港",
+        "the controlled field renders the shared draft"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "订阅过滤：保存即用共享管道重跑当前配置"),
+        "the pane states which shared use-case commits it"
+    );
+
+    // Typing mirrors into the shared draft through the same text field the
+    // restamp system owns.
+    let include = filter_field_entity(&mut app, EditorFilterFieldKind::Include);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: include });
+    app.update();
+    app.world_mut()
+        .write_message(keyboard_press(Key::Character("日本".into()), Some("日本")));
+    app.update();
+    assert_eq!(
+        app.world()
+            .resource::<ProfileEditorOptionsState>()
+            .filter
+            .include,
+        "香港日本",
+        "the field and the draft stay in step"
+    );
+
+    // A dedup strategy chip updates the shared draft, not a surface copy.
+    let chip = {
+        let mut query = app
+            .world_mut()
+            .query::<(Entity, &EditorFilterDedupButton)>();
+        query
+            .iter(app.world())
+            .find(|(_, chip)| chip.index == 3)
+            .map(|(entity, _)| entity)
+            .expect("dedup chip")
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: chip });
+    app.update();
+    assert_eq!(
+        app.world()
+            .resource::<ProfileEditorOptionsState>()
+            .filter
+            .dedup_index,
+        3
+    );
+
+    // Submit through the shared command with the edited draft.
+    let save = marker_entity::<EditorFilterSaveButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: save });
+    app.update();
+    match sink.submitted().last() {
+        Some(UiCommand::SaveSubscriptionFilter { profile_id, filter }) => {
+            assert_eq!(profile_id, "main");
+            assert_eq!(filter.include, "香港日本");
+            assert_eq!(filter.dedup_index, 3);
+        }
+        other => panic!("expected SaveSubscriptionFilter, got {other:?}"),
+    }
+
+    // A draft the shared parser rejects never reaches the command pump.
+    {
+        let mut options = app.world_mut().resource_mut::<ProfileEditorOptionsState>();
+        options.filter.renames = "没有箭头的规则".to_owned();
+        options.filter_notice = None;
+    }
+    let before = sink.submitted().len();
+    let save = marker_entity::<EditorFilterSaveButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: save });
+    app.update();
+    assert_eq!(
+        sink.submitted().len(),
+        before,
+        "a malformed draft is refused before the submit"
+    );
+    let notice = app
+        .world()
+        .resource::<ProfileEditorOptionsState>()
+        .filter_notice
+        .clone()
+        .unwrap_or_default();
+    assert!(
+        notice.contains("=>"),
+        "the refusal names the shared parser rule: {notice}"
+    );
+}
+
+/// DUAL-09-14: the history card's per-entry restore is the same two-step
+/// confirmed action the Iced panel offers (first click arms, second submits).
+#[test]
+fn test_profiles_snapshot_history_entry_restore_is_armed_before_it_executes() {
+    use infiltrator_bevy_ui::pages::profiles_diff::SnapshotDiffViewState;
+    use infiltrator_bevy_ui::pages::profiles_diff_history::SnapshotHistoryRestoreButton;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Profiles);
+
+    let mut projection = snapshot_diff_page_projection(None);
+    projection.snapshot_history = Some(snapshot_history_fixture());
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(projection));
+    app.update();
+
+    let restore = {
+        let mut query = app
+            .world_mut()
+            .query::<(Entity, &SnapshotHistoryRestoreButton)>();
+        query
+            .iter(app.world())
+            .find(|(_, button)| button.id.ends_with("snap-001.yaml"))
+            .map(|(entity, _)| entity)
+            .expect("restore button")
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: restore });
+    app.update();
+    assert_eq!(
+        app.world()
+            .resource::<SnapshotDiffViewState>()
+            .armed_restore
+            .as_deref(),
+        Some("/fake/configs/main-history/snap-001.yaml"),
+        "the first click only arms the restore"
+    );
+    assert!(
+        !sink
+            .submitted()
+            .iter()
+            .any(|command| matches!(command, UiCommand::RestoreSnapshot { .. })),
+        "the first click never submits a rollback"
+    );
+    let root = find_page_root(&mut app);
+    assert!(
+        subtree_has_text(app.world(), root, "再次点击确认回滚"),
+        "the armed button states the confirmation"
+    );
+
+    let restore = {
+        let mut query = app
+            .world_mut()
+            .query::<(Entity, &SnapshotHistoryRestoreButton)>();
+        query
+            .iter(app.world())
+            .find(|(_, button)| button.id.ends_with("snap-001.yaml"))
+            .map(|(entity, _)| entity)
+            .expect("restore button after rebuild")
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: restore });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::RestoreSnapshot {
+            id: "/fake/configs/main-history/snap-001.yaml".to_owned(),
+        }),
+        "the confirmed second click submits the shared restore"
+    );
+}
+
+fn find_page_root(app: &mut App) -> Entity {
+    let mut query = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<ProfilesPageRoot>>();
+    query.single(app.world()).expect("profiles page root")
 }

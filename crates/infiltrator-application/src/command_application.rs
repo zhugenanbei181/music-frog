@@ -30,6 +30,7 @@ use crate::port_conflict_application::PortConflictApplication;
 use crate::privileged_network_application::PrivilegedNetworkApplication;
 use crate::profile_application::ProfileApplication;
 use crate::profile_document_application::ProfileDocumentApplication;
+use crate::profile_options_application::ProfileOptionsApplication;
 use crate::routing_application::RoutingApplication;
 use crate::runtime_query_application::RuntimeQueryApplication;
 use crate::service_mode_application::ServiceModeApplication;
@@ -421,17 +422,11 @@ impl CommandApplication {
                         .map(|_| ())
                 }
             }
-            CommandIntent::SaveSubscriptionFilter { profile_id, filter } => {
-                let profile = self.profile()?;
-                let spec = infiltrator_domain::profile_options::filter_spec_from_draft(&filter)
-                    .map_err(|error| {
-                        Failure::new(ErrorCode::InvalidInput, error.to_string(), false)
-                    })?;
-                profile
-                    .apply_subscription_filter(self.managed_runtime.clone(), &profile_id, spec)
-                    .await
-                    .map(|_| ())
-            }
+            CommandIntent::SaveSubscriptionFilter { profile_id, filter } => self
+                .profile_options()?
+                .save_filter(self.managed_runtime.clone(), &profile_id, &filter)
+                .await
+                .map(|_| ()),
             CommandIntent::ImportSubscription {
                 profile_id,
                 channel,
@@ -701,6 +696,30 @@ impl CommandApplication {
                 let runtime = self.managed_runtime.clone();
                 self.profile_document()?
                     .save(runtime, &profile, &content, allow_protected)
+                    .await
+                    .map(|_| ())
+            }
+            // DUAL-09-14: the editor panes load/commit the option sidecar
+            // through the same use-case the Iced Mixin/Filter panes call.
+            CommandIntent::LoadProfileOptions { profile } => self
+                .profile_options()?
+                .load(profile.as_deref())
+                .await
+                .map(|_| ()),
+            CommandIntent::SaveMixinOverlay {
+                profile,
+                mixin_yaml,
+            } => {
+                let runtime = self.managed_runtime.clone();
+                self.profile_options()?
+                    .save_mixin(runtime, &profile, &mixin_yaml)
+                    .await
+                    .map(|_| ())?;
+                // The composed document changed: republish it so the editor's
+                // YAML pane renders the merged bytes, not the stale pre-mixin
+                // content (the Iced editor reloads through the same read model).
+                self.profile_document()?
+                    .load(Some(&profile))
                     .await
                     .map(|_| ())
             }
@@ -1220,6 +1239,12 @@ impl CommandApplication {
     /// DUAL-09-03/14: profile document use-cases over the same profile store.
     fn profile_document(&self) -> Result<ProfileDocumentApplication, Failure> {
         Ok(ProfileDocumentApplication::new(self.profile()?.clone()))
+    }
+
+    /// DUAL-09-14: the shared Mixin/filter sidecar use-case the editor panes
+    /// call on both surfaces.
+    fn profile_options(&self) -> Result<ProfileOptionsApplication, Failure> {
+        Ok(ProfileOptionsApplication::new(self.profile()?))
     }
 
     fn snapshots(&self) -> Result<SnapshotApplication, Failure> {

@@ -372,7 +372,8 @@ impl AppState {
                 mixin_content: iced::widget::text_editor::Content::new(),
                 mixin_loaded_for: None,
                 is_saving_mixin: false,
-                filter_draft: crate::types::options::FilterDraft::default(),
+                filter_draft:
+                    infiltrator_contract::subscription_import::SubscriptionFilterDraft::default(),
                 filter_loaded_for: None,
                 is_saving_filter: false,
                 mrs_details: Vec::new(),

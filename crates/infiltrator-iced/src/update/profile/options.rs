@@ -1,24 +1,22 @@
 //! Profile-options handlers: the mixin overlay editor (Editor page second
-//! pane) and the per-profile subscription filter editor (Profiles page card).
+//! pane) and the per-profile subscription filter editor.
 //!
-//! Both editors commit through the shared apply transaction. The mixin save
-//! strips the outgoing mixin's prepend/append rule lines first so repeated
-//! edits stay idempotent; the filter save re-runs the pipeline in place (the
-//! next subscription update recomposes from the raw source anyway).
+//! DUAL-09-14: both writes go through the *shared* application use-case
+//! [`ProfileOptionsApplication`] — the same call the Bevy editor panes make.
+//! The Mixin save strips the outgoing mixin's prepend/append rule lines first
+//! so repeated edits stay idempotent; the filter save re-runs the pipeline in
+//! place (the next subscription update recomposes from the raw source anyway).
 
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
-use crate::types::options::{EditorPane, FilterDraft};
+use crate::types::options::EditorPane;
 use crate::update::profile::editor::ViewportSync;
 use iced::Task;
 use iced::widget::text_editor;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::mixin::MixinConfig;
-use infiltrator_domain::profile_options::FilterSpec;
-use infiltrator_domain::profile_options::{self, ProfileOptions};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 impl AppState {
@@ -168,16 +166,11 @@ impl AppState {
     }
 
     /// Lazily load the profile's mixin overlay the first time the Mixin pane
-    /// is opened for it.
+    /// is opened for it. DUAL-09-14: the read is the shared sidecar use-case,
+    /// so the same snapshot lands in the surface projection the Bevy panes
+    /// consume.
     pub(super) fn ensure_mixin_loaded(&mut self) -> Task<Message> {
-        let Some(path) = self.editor.editor_path.clone() else {
-            return Task::none();
-        };
-        let Some(profile) = path
-            .file_stem()
-            .and_then(|name| name.to_str())
-            .map(str::to_string)
-        else {
+        let Some(profile) = self.editor_profile_name() else {
             return Task::none();
         };
         if self.editor.mixin_loaded_for.as_deref() == Some(profile.as_str()) {
@@ -186,12 +179,12 @@ impl AppState {
         self.editor.mixin_loaded_for = Some(profile.clone());
         Task::perform(
             async move {
-                let config_dir = crate::configs_dir::configs_dir().await?;
-                let options = crate::host::storage::load_profile_options(&config_dir, &profile)
+                let manager = crate::configs_dir::config_manager().await?;
+                let snapshot = ProfileOptionsApplication::new(ProfileApplication::new(manager))
+                    .load(Some(&profile))
                     .await
-                    .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                serde_yaml_ng::to_string(&options.mixin)
-                    .map_err(|error| InfiltratorError::Config(error.to_string()))
+                    .map_err(|failure| InfiltratorError::Config(failure.message))?;
+                Ok(snapshot.mixin_yaml)
             },
             Message::MixinLoaded,
         )
@@ -200,14 +193,7 @@ impl AppState {
     /// Lazily load the per-profile subscription filter the first time the
     /// Filter pane is opened for the profile currently open in the editor.
     pub(super) fn ensure_filter_loaded(&mut self) -> Task<Message> {
-        let Some(path) = self.editor.editor_path.clone() else {
-            return Task::none();
-        };
-        let Some(profile) = path
-            .file_stem()
-            .and_then(|name| name.to_str())
-            .map(str::to_string)
-        else {
+        let Some(profile) = self.editor_profile_name() else {
             return Task::none();
         };
         if self.editor.filter_loaded_for.as_deref() == Some(profile.as_str()) {
@@ -217,87 +203,55 @@ impl AppState {
         Task::perform(
             async move {
                 let manager = crate::configs_dir::config_manager().await?;
-                let options = ProfileApplication::new(manager)
-                    .load_options(&profile)
+                let snapshot = ProfileOptionsApplication::new(ProfileApplication::new(manager))
+                    .load(Some(&profile))
                     .await
                     .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                Ok(FilterDraft::from_spec(options.filter.as_ref()))
+                Ok(snapshot.filter)
             },
             Message::ProfileFilterLoaded,
         )
+    }
+
+    /// The profile the editor has open, derived from the edited document path.
+    fn editor_profile_name(&self) -> Option<String> {
+        self.editor
+            .editor_path
+            .as_ref()
+            .and_then(|path| path.file_stem())
+            .and_then(|name| name.to_str())
+            .map(str::to_string)
     }
 
     fn save_mixin(&mut self) -> Task<Message> {
         if self.editor.is_saving_mixin {
             return Task::none();
         }
-        let Some(path) = self.editor.editor_path.clone() else {
-            return Task::none();
-        };
-        let Some(profile) = path
-            .file_stem()
-            .and_then(|name| name.to_str())
-            .map(str::to_string)
-        else {
+        let Some(profile) = self.editor_profile_name() else {
             return Task::none();
         };
         // Validation gate: a malformed overlay is rejected before any state
         // flips or task spawns, so the editor keeps its content for fixing.
         let lang = Lang(&self.shell.lang);
-        let mixin: MixinConfig = match serde_yaml_ng::from_str(&self.editor.mixin_content.text()) {
-            Ok(mixin) => mixin,
-            Err(error) => {
-                let error = InfiltratorError::Config(format!(
-                    "{}: {error}",
-                    lang.tr("toast_mixin_invalid")
-                ));
-                self.set_error(&error);
-                return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
-            }
-        };
+        if let Err(error) = serde_yaml_ng::from_str::<infiltrator_domain::mixin::MixinConfig>(
+            &self.editor.mixin_content.text(),
+        ) {
+            let error =
+                InfiltratorError::Config(format!("{}: {error}", lang.tr("toast_mixin_invalid")));
+            self.set_error(&error);
+            return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
+        }
         self.editor.is_saving_mixin = true;
         let runtime = self.runtime.runtime.clone();
+        let text = self.editor.mixin_content.text();
         Task::perform(
             async move {
-                let config_dir = crate::configs_dir::configs_dir().await?;
-                let old = crate::host::storage::load_profile_options(&config_dir, &profile)
-                    .await
-                    .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 let manager = crate::configs_dir::config_manager().await?;
-                let content = manager
-                    .load(&profile)
+                ProfileOptionsApplication::new(ProfileApplication::new(manager))
+                    .save_mixin(runtime, &profile, &text)
                     .await
-                    .map_err(infiltrator_contract::error::from_mihomo)?;
-                let removals: Vec<String> = old
-                    .mixin
-                    .rules
-                    .iter()
-                    .flat_map(|rules| rules.prepend.iter().chain(rules.append.iter()).cloned())
-                    .collect();
-                let base = profile_options::strip_rule_lines(&content, &removals);
-                let merged =
-                    infiltrator_domain::mixin::merge_profile_with_config_fidelity(&base, &mixin)
-                        .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                infiltrator_domain::config::validate_yaml(&merged)
-                    .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                crate::update::core::profile_apply::save_profile_content(
-                    runtime,
-                    profile.clone(),
-                    merged,
-                    ApplyStrategy::PreferReload,
-                )
-                .await?;
-                crate::host::storage::save_profile_options(
-                    &config_dir,
-                    &profile,
-                    &ProfileOptions {
-                        mixin,
-                        filter: old.filter,
-                    },
-                )
-                .await
-                .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                Ok(())
+                    .map(|_| ())
+                    .map_err(|failure| InfiltratorError::Config(failure.message))
             },
             Message::MixinSaved,
         )
@@ -307,42 +261,31 @@ impl AppState {
         if self.editor.is_saving_filter {
             return Task::none();
         }
-        let Some(path) = self.editor.editor_path.clone() else {
+        let Some(profile) = self.editor_profile_name() else {
             return Task::none();
         };
-        let Some(profile) = path
-            .file_stem()
-            .and_then(|name| name.to_str())
-            .map(str::to_string)
-        else {
-            return Task::none();
-        };
-        // Validation gate: compile every pattern before spawning the task.
-        let spec = match parse_filter_draft(&self.editor.filter_draft) {
-            Ok(spec) => spec,
-            Err(error) => {
-                let error = InfiltratorError::Config(error.to_string());
-                self.set_error(&error);
-                return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
-            }
-        };
+        // Validation gate: the shared parser refuses a malformed draft before
+        // any state flips or task spawns (the application re-parses the same
+        // way when the command lands, so the rules stay single-sourced).
+        if let Err(error) =
+            infiltrator_domain::profile_options::filter_spec_from_draft(&self.editor.filter_draft)
+        {
+            let error = InfiltratorError::Config(error.to_string());
+            self.set_error(&error);
+            return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
+        }
         self.editor.is_saving_filter = true;
         let runtime = self.runtime.runtime.clone();
+        let draft = self.editor.filter_draft.clone();
         Task::perform(
             async move {
                 let manager = crate::configs_dir::config_manager().await?;
-                ProfileApplication::new(manager)
-                    .apply_subscription_filter(runtime, &profile, spec)
+                ProfileOptionsApplication::new(ProfileApplication::new(manager))
+                    .save_filter(runtime, &profile, &draft)
                     .await
                     .map_err(|failure| InfiltratorError::Config(failure.message))
             },
             Message::ProfileFilterSaved,
         )
     }
-}
-
-/// Compile the free-text filter draft into a stored spec (delegates to the
-/// type's own parser, which owns the splitting/format rules).
-pub(super) fn parse_filter_draft(draft: &FilterDraft) -> anyhow::Result<FilterSpec> {
-    draft.to_spec()
 }

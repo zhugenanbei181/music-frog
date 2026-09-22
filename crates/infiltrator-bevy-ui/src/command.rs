@@ -269,6 +269,10 @@ pub enum UiCommand {
         content: String,
         allow_protected: bool,
     },
+    /// DUAL-09-14: load a profile's Mixin/filter sidecar for the editor panes.
+    LoadProfileOptions { profile: Option<String> },
+    /// DUAL-09-14: commit an edited Mixin overlay through the shared use-case.
+    SaveMixinOverlay { profile: String, mixin_yaml: String },
     /// Select the last installed, locally recorded core version.
     RollbackCore,
     /// Update a core or UI setting.
@@ -577,6 +581,16 @@ impl UiCommand {
                 profile: profile.clone(),
                 content: content.clone(),
                 allow_protected: *allow_protected,
+            }),
+            Self::LoadProfileOptions { profile } => Some(CommandIntent::LoadProfileOptions {
+                profile: profile.clone(),
+            }),
+            Self::SaveMixinOverlay {
+                profile,
+                mixin_yaml,
+            } => Some(CommandIntent::SaveMixinOverlay {
+                profile: profile.clone(),
+                mixin_yaml: mixin_yaml.clone(),
             }),
             Self::RollbackCore => Some(CommandIntent::RollbackCore),
             Self::UpdateSetting { key, value } => Some(CommandIntent::UpdateSetting {

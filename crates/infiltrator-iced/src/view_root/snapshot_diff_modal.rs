@@ -38,14 +38,29 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
     ]
     .align_y(Alignment::Center);
 
-    let subtitle = text(format!(
-        "{}: {snapshot_id}",
-        lang.tr("snapshot_diff_compare_with"),
-    ))
-    .size(12)
-    .style(|t: &Theme| text::Style {
-        color: Some(tokens(t).text_secondary),
-    });
+    // DUAL-09-14: when the shared diff is loaded, the subtitle names the same
+    // source → target pair the Bevy card renders; before that it falls back to
+    // the requested snapshot id.
+    let subtitle = match &state.editor.snapshot_diff {
+        Some(diff) => text(format!(
+            "{}: {} → {}",
+            lang.tr("snapshot_diff_compare_with"),
+            diff.source_id,
+            diff.target_id
+        ))
+        .size(12)
+        .style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }),
+        None => text(format!(
+            "{}: {snapshot_id}",
+            lang.tr("snapshot_diff_compare_with"),
+        ))
+        .size(12)
+        .style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }),
+    };
 
     let body = match &state.editor.snapshot_diff {
         _ if state.editor.snapshot_diff_loading => {
@@ -106,6 +121,29 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
             SnapshotDiffMode::Inline
         })
     });
+
+    // DUAL-09-14: the same recompute action the Bevy card offers, so both
+    // surfaces can refresh the diff without closing and reopening it.
+    let refresh_button = button(
+        row![
+            svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).text_secondary),
+            Space::new().width(theme::SP_XS),
+            text(lang.tr("snapshot_diff_refresh").to_string())
+                .size(12)
+                .font(FONT_MEDIUM),
+        ]
+        .align_y(Alignment::Center),
+    )
+    .padding([4, 10])
+    .style(style_ghost)
+    .on_press(Message::RefreshSnapshotDiff);
+
+    let mode_row = row![
+        mode_switch,
+        Space::new().width(Length::Fill),
+        refresh_button,
+    ]
+    .align_y(Alignment::Center);
 
     let diff_container = container(modern_scrollable(body).height(Length::Fixed(260.0)))
         .padding([12, 16])
@@ -179,7 +217,7 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
         title_row,
         subtitle,
         Space::new().height(theme::SP_XS),
-        mode_switch,
+        mode_row,
     ]
     .spacing(theme::SP_SM);
     if let Some(stats) = stats_row {

@@ -28,6 +28,7 @@ pub mod privileged_network_application;
 pub mod profile_aggregation_application;
 pub mod profile_application;
 pub mod profile_document_application;
+pub mod profile_options_application;
 pub mod profile_reset_application;
 pub mod protocol_codec_application;
 pub mod protocol_codec_matrix_application;

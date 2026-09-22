@@ -7,7 +7,8 @@
 
 use super::support::{TempHome, block_on, feed, fresh_state, last_toast};
 use crate::types::message::Message;
-use crate::types::options::{EditorPane, FilterDraft};
+use crate::types::options::EditorPane;
+use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_core::profile_options_io;
 use infiltrator_domain::mixin::MixinConfig;
 use infiltrator_domain::profile_options::{self, ProfileOptions};
@@ -173,7 +174,7 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
     // Empty store → default draft 回灌.
     feed(
         &mut state,
-        Message::ProfileFilterLoaded(Ok(FilterDraft::default())),
+        Message::ProfileFilterLoaded(Ok(SubscriptionFilterDraft::default())),
     );
 
     // User edits the draft.
@@ -195,7 +196,9 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
     assert!(state.editor.is_saving_filter);
     assert_eq!(units, 1, "single persistence task armed");
 
-    let spec = state.editor.filter_draft.to_spec().unwrap();
+    let spec =
+        infiltrator_domain::profile_options::filter_spec_from_draft(&state.editor.filter_draft)
+            .unwrap();
     let report = block_on(async {
         let rule = spec.to_rule().unwrap();
         let manager = crate::configs_dir::config_manager().await.unwrap();
@@ -265,7 +268,7 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
     assert_eq!(stored_spec.include_keywords, vec!["HK".to_string()]);
 
     // 重开回读: the lazy loader would compile the spec back into a draft.
-    let reopened = FilterDraft::from_spec(Some(&stored_spec));
+    let reopened = infiltrator_domain::profile_options::filter_spec_to_draft(&stored_spec);
     feed(&mut state, Message::ProfileFilterLoaded(Ok(reopened)));
     assert_eq!(state.editor.filter_draft.include, "HK");
     assert_eq!(state.editor.filter_draft.exclude, "US");

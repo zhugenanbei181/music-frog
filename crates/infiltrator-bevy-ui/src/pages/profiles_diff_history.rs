@@ -57,6 +57,13 @@ pub struct SnapshotHistoryEntryButton {
     pub id: String,
 }
 
+/// DUAL-09-14: restore one history entry behind the same two-step
+/// confirmation the Iced history panel and the card rollback use.
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct SnapshotHistoryRestoreButton {
+    pub id: String,
+}
+
 /// Container whose children are the history rows.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SnapshotHistoryBody;
@@ -156,6 +163,7 @@ pub(super) fn prune_button(palette: &UiPalette) -> Box<dyn Scene> {
 fn history_row_scene(
     entry: &infiltrator_contract::snapshot_history::SnapshotEntry,
     selected: bool,
+    armed_restore: bool,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
     let stamp = entry.stamp_label();
@@ -174,20 +182,56 @@ fn history_row_scene(
     } else {
         palette.ink_dim
     };
+    let restore_label = if armed_restore {
+        "再次点击确认回滚"
+    } else {
+        "恢复此快照"
+    };
+    let restore_color = if armed_restore {
+        palette.accent
+    } else {
+        palette.surface_elevated
+    };
     let id = entry.id.clone();
+    let restore_id = entry.id.clone();
     Box::new(bsn! {
         Node {
             width: percent(100),
             min_height: px(20.0),
-            padding: UiRect::horizontal(Val::Px(space::S4)),
             align_items: AlignItems::Center,
-            border_radius: BorderRadius::all(Val::Px(4.0)),
+            column_gap: Val::Px(space::S4),
         }
-        BackgroundColor({ if selected { palette.surface_elevated } else { palette.window_clear } })
-        Button
-        template_value(SnapshotHistoryEntryButton { id })
         Children [
-            ( Text({ label }) TextRole(Role::Mono) TextColor({ color }) ),
+            (
+                Node {
+                    width: percent(70),
+                    min_height: px(20.0),
+                    padding: UiRect::horizontal(Val::Px(space::S4)),
+                    align_items: AlignItems::Center,
+                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                }
+                BackgroundColor({ if selected { palette.surface_elevated } else { palette.window_clear } })
+                Button
+                template_value(SnapshotHistoryEntryButton { id })
+                Children [
+                    ( Text({ label }) TextRole(Role::Mono) TextColor({ color }) ),
+                ]
+            ),
+            (
+                Node {
+                    min_height: px(20.0),
+                    padding: UiRect::horizontal(Val::Px(space::S4)),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                }
+                BackgroundColor({ restore_color })
+                Button
+                template_value(SnapshotHistoryRestoreButton { id: restore_id })
+                Children [
+                    ( Text({ restore_label.to_owned() }) TextRole(Role::Caption) ),
+                ]
+            ),
         ]
     })
 }
@@ -195,6 +239,7 @@ fn history_row_scene(
 pub(super) fn history_rows_scene(
     history: Option<&SnapshotHistorySnapshot>,
     selected: Option<&str>,
+    armed_restore: Option<&str>,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
     let rows: Vec<Box<dyn Scene>> = match history {
@@ -202,7 +247,14 @@ pub(super) fn history_rows_scene(
             .entries
             .iter()
             .take(12)
-            .map(|entry| history_row_scene(entry, selected == Some(entry.id.as_str()), palette))
+            .map(|entry| {
+                history_row_scene(
+                    entry,
+                    selected == Some(entry.id.as_str()),
+                    armed_restore == Some(entry.id.as_str()),
+                    palette,
+                )
+            })
             .collect(),
         Some(_) => vec![diff_notice_scene(
             "暂无历史快照；每次成功应用会自动备份一份",
@@ -301,6 +353,7 @@ pub(super) fn on_snapshot_history_entry_activated(
     };
     view.selected_snapshot = Some(button.id.clone());
     view.rollback_armed = false;
+    view.armed_restore = None;
     for mut label in &mut labels {
         label.0 = "一键安全还原此快照".to_owned();
     }
@@ -310,12 +363,65 @@ pub(super) fn on_snapshot_history_entry_activated(
         .and_then(|projection| projection.snapshot_history.as_ref());
     for entity in &history_bodies {
         commands.entity(entity).despawn_children();
-        let scene = history_rows_scene(history, view.selected_snapshot.as_deref(), &palette);
+        let scene = history_rows_scene(
+            history,
+            view.selected_snapshot.as_deref(),
+            view.armed_restore.as_deref(),
+            &palette,
+        );
         commands.spawn_scene(scene).insert(ChildOf(entity));
     }
     if let Some(handle) = handle.as_ref() {
         handle.submit(UiCommand::LoadSnapshotDiff {
             snapshot_id: Some(button.id.clone()),
+        });
+    }
+}
+
+/// DUAL-09-14: per-entry two-step restore — the same confirmed action the
+/// Iced history panel offers. The first click only arms; the second submits
+/// the shared `RestoreSnapshot` through the apply transaction.
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
+pub(super) fn on_snapshot_history_restore_activated(
+    activate: On<Activate>,
+    buttons: Query<&SnapshotHistoryRestoreButton>,
+    mut view: ResMut<SnapshotDiffViewState>,
+    last: Option<Res<LastProfilesProjection>>,
+    palette: Res<UiPalette>,
+    mut commands: Commands,
+    history_bodies: Query<Entity, With<SnapshotHistoryBody>>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Ok(button) = buttons.get(activate.entity) else {
+        return;
+    };
+    let history = last
+        .as_ref()
+        .and_then(|last| last.0.as_ref())
+        .and_then(|projection| projection.snapshot_history.as_ref());
+    if view.armed_restore.as_deref() != Some(button.id.as_str()) {
+        view.armed_restore = Some(button.id.clone());
+        for entity in &history_bodies {
+            commands.entity(entity).despawn_children();
+            let scene = history_rows_scene(
+                history,
+                view.selected_snapshot.as_deref(),
+                view.armed_restore.as_deref(),
+                &palette,
+            );
+            commands.spawn_scene(scene).insert(ChildOf(entity));
+        }
+        return;
+    }
+    view.armed_restore = None;
+    for entity in &history_bodies {
+        commands.entity(entity).despawn_children();
+        let scene = history_rows_scene(history, view.selected_snapshot.as_deref(), None, &palette);
+        commands.spawn_scene(scene).insert(ChildOf(entity));
+    }
+    if let Some(handle) = handle.as_ref() {
+        handle.submit(UiCommand::RestoreSnapshot {
+            id: button.id.clone(),
         });
     }
 }

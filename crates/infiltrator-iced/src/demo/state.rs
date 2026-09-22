@@ -233,7 +233,7 @@ impl AppState {
         state.profile.subscription_update_interval_hours = "24".to_string();
         // Per-profile subscription filter editor: prefilled from a fixture
         // spec so the Profiles page card shows a realistic working draft.
-        state.editor.filter_draft = crate::types::options::FilterDraft::from_spec(Some(
+        state.editor.filter_draft = infiltrator_domain::profile_options::filter_spec_to_draft(
             &infiltrator_domain::profile_options::FilterSpec {
                 include_keywords: vec!["香港".to_string(), "日本".to_string()],
                 exclude_keywords: vec!["剩余流量".to_string(), "官网".to_string()],
@@ -245,7 +245,7 @@ impl AppState {
                 deduplication: infiltrator_domain::profile_options::FilterDedup::AppendIndex,
                 ..Default::default()
             },
-        ));
+        );
         state.editor.filter_loaded_for = Some("机场订阅".to_string());
 
         // ---- sync / settings page ---------------------------------------------

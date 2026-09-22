@@ -267,6 +267,7 @@ pub(crate) fn empty_profiles() -> ProfilesProjection {
         snapshot_history: None,
         apply_transaction: None,
         profile_document: None,
+        profile_options: None,
     }
 }
 
@@ -456,6 +457,7 @@ impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
             snapshot_history: value.snapshot_history,
             apply_transaction: value.apply_transaction,
             profile_document: value.profile_document,
+            profile_options: value.profile_options,
             aggregation: value.aggregation,
             aggregation_templates: value.aggregation_templates,
             aggregation_templates_available: value.aggregation_templates_available,

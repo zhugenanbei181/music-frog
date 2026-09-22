@@ -80,6 +80,8 @@ pub enum SnapshotDiffViewMode {
 pub struct SnapshotDiffViewState {
     pub mode: SnapshotDiffViewMode,
     pub rollback_armed: bool,
+    /// DUAL-09-14: history entry whose restore button has been armed.
+    pub armed_restore: Option<String>,
     /// DUAL-09-06: history entry the user selected to diff (and roll back to).
     pub selected_snapshot: Option<String>,
     /// DUAL-09-07: retention requested by the manual prune control.
@@ -91,6 +93,7 @@ impl Default for SnapshotDiffViewState {
         Self {
             mode: SnapshotDiffViewMode::default(),
             rollback_armed: false,
+            armed_restore: None,
             selected_snapshot: None,
             prune_keep: SNAPSHOT_DEFAULT_KEEP,
         }
@@ -118,7 +121,7 @@ pub fn snapshot_diff_scene(
     let history = projection.snapshot_history.clone();
     let history_summary = snapshot_history_summary(history.as_ref(), SNAPSHOT_DEFAULT_KEEP);
     let initial_history_rows =
-        super::profiles_diff_history::history_rows_scene(history.as_ref(), None, palette);
+        super::profiles_diff_history::history_rows_scene(history.as_ref(), None, None, palette);
 
     surface_scene(
         vec![
@@ -327,10 +330,15 @@ fn rollback_button(available: bool, palette: &UiPalette) -> Box<dyn Scene> {
 pub fn diff_summary(diff: Option<&YamlAstDiffSnapshot>) -> String {
     match diff {
         Some(diff) if diff.has_differences() => format!(
-            "对比 {} → {} · {} · 保真 {}",
+            "对比 {} → {} · {} · 保真{} {}",
             diff.source_id,
             diff.target_id,
             diff.change_summary(),
+            if diff.fidelity_preserved {
+                "通过"
+            } else {
+                "降级"
+            },
             diff.fidelity_grade.as_str(),
         ),
         Some(_) => "快照与当前配置内容一致 (无差异)".to_owned(),
@@ -526,6 +534,7 @@ pub(super) fn sync_snapshot_diff(
         let scene = super::profiles_diff_history::history_rows_scene(
             projection.snapshot_history.as_ref(),
             view.selected_snapshot.as_deref(),
+            view.armed_restore.as_deref(),
             &palette,
         );
         commands.spawn_scene(scene).insert(ChildOf(entity));

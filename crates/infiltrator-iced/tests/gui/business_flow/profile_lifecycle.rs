@@ -723,10 +723,12 @@ fn subscription_filter_panel_rides_the_shared_pipeline() {
     // The view model loads the stored draft; editing replaces it.
     feed(
         &mut state,
-        Message::ProfileFilterLoaded(Ok(crate::types::options::FilterDraft {
-            include: "香港".into(),
-            ..Default::default()
-        })),
+        Message::ProfileFilterLoaded(Ok(
+            infiltrator_contract::subscription_import::SubscriptionFilterDraft {
+                include: "香港".into(),
+                ..Default::default()
+            },
+        )),
     );
     assert_eq!(state.editor.filter_draft.include, "香港");
     feed(
@@ -738,7 +740,9 @@ fn subscription_filter_panel_rides_the_shared_pipeline() {
 
     // The editor's draft compiles into the shared spec and runs the shared
     // pipeline over the real config-manager store.
-    let spec = state.editor.filter_draft.to_spec().expect("draft compiles");
+    let spec =
+        infiltrator_domain::profile_options::filter_spec_from_draft(&state.editor.filter_draft)
+            .expect("draft compiles");
     block_on(async {
         let manager = crate::configs_dir::config_manager().await.unwrap();
         let application = ProfileApplication::new(manager.clone());

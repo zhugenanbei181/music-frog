@@ -400,7 +400,12 @@ pub enum Message {
     MixinSaved(Result<(), InfiltratorError>),
     // Profile options: subscription filter editor (Profiles page card).
     LoadProfileFilter,
-    ProfileFilterLoaded(Result<crate::types::options::FilterDraft, InfiltratorError>),
+    ProfileFilterLoaded(
+        Result<
+            infiltrator_contract::subscription_import::SubscriptionFilterDraft,
+            InfiltratorError,
+        >,
+    ),
     UpdateFilterInclude(String),
     UpdateFilterExclude(String),
     UpdateFilterExcludeTypes(String),
@@ -631,6 +636,9 @@ pub enum Message {
     ),
     /// DUAL-09-08: inline vs split layout for the same shared diff.
     SetSnapshotDiffMode(crate::types::app::SnapshotDiffMode),
+    /// DUAL-09-14: recompute the open diff from the shared snapshot
+    /// application (the Bevy card's 「刷新差异」 is the same action).
+    RefreshSnapshotDiff,
     /// DUAL-09-09: arm the two-step rollback confirmation.
     ArmSnapshotRollback,
     CancelSnapshotRollback,

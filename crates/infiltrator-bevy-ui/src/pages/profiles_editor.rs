@@ -25,28 +25,33 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::input::ButtonInput;
-use bevy::input::ButtonState;
-use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy::input::keyboard::{KeyCode, KeyboardInput};
 use bevy::scene::{CommandsSceneExt, Scene, bsn, template_value};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
-    Overflow, UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent,
+    Node, Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_bevy_widgets::editor::{CodeEditorState, SyntaxTokenKind, tokenize_yaml_line};
+use infiltrator_bevy_widgets::editor::CodeEditorState;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::profiles::{LastProfilesProjection, ProfilesProjection};
+use crate::pages::profiles_editor_body::editor_rows_scene;
+use crate::pages::profiles_editor_panes::{
+    EditorFilterField, ProfileEditorOptionsState, ProfileEditorPane, ProfileEditorPaneArea,
+    filter_pane_scene, mixin_pane_scene, pane_switch_scene,
+};
 use crate::pages::profiles_editor_state::{
     PROFILE_EDITOR_RENDER_LIMIT, ProfileEditorState, diagnostic_line, protection_toggle_visual,
     status_line,
@@ -137,6 +142,7 @@ pub fn profile_editor_scene(
     let status = status_line(&state, Some(projection));
     let (diagnostic_text, has_error) = diagnostic_line(&state);
     let initial_rows = editor_rows_scene(&state, palette);
+    let options = ProfileEditorOptionsState::from_projection(projection);
 
     surface_scene(
         vec![
@@ -174,6 +180,7 @@ pub fn profile_editor_scene(
                             align_items: AlignItems::Center,
                             column_gap: Val::Px(space::S8),
                         }
+                        ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
                         Children [
                             ( { action_button("编辑", palette.surface_elevated) } ),
                             ( { protection_toggle(protection, palette) } ),
@@ -187,9 +194,18 @@ pub fn profile_editor_scene(
             Box::new(bsn! {
                 Node {
                     width: percent(100),
+                }
+                Children [
+                    ( { pane_switch_scene(&options, palette) } ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S8),
                 }
+                ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
                 Children [
                     ( { diagnostic_pill(has_error, palette) } ),
                     ( Text(diagnostic_text) ProfileEditorDiagnosticText TextRole(Role::Mono) ),
@@ -203,6 +219,7 @@ pub fn profile_editor_scene(
                     column_gap: Val::Px(space::S4),
                     row_gap: Val::Px(space::S4),
                 }
+                ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
                 Children [
                     ( Text({ "快速插入片段（共享目录）".to_owned() }) TextRole(Role::Caption) ),
                     { snippet_buttons(palette) },
@@ -217,6 +234,7 @@ pub fn profile_editor_scene(
                     overflow: Overflow::scroll_y(),
                 }
                 BackgroundColor({ palette.window_clear })
+                ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
                 Children [
                     (
                         Node {
@@ -228,6 +246,28 @@ pub fn profile_editor_scene(
                             ( { initial_rows } ),
                         ]
                     ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Column,
+                    display: Display::None,
+                }
+                ProfileEditorPaneArea { pane: ProfileEditorPane::Mixin }
+                Children [
+                    ( { mixin_pane_scene(&options, palette) } ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Column,
+                    display: Display::None,
+                }
+                ProfileEditorPaneArea { pane: ProfileEditorPane::Filter }
+                Children [
+                    ( { filter_pane_scene(&options, palette) } ),
                 ]
             }),
         ],
@@ -380,153 +420,6 @@ fn diagnostic_pill(has_error: bool, palette: &UiPalette) -> Box<dyn Scene> {
         BackgroundColor({ background })
         Children [
             ( Text({ label.to_owned() }) ProfileEditorDiagnosticPill TextRole(Role::Caption) ),
-        ]
-    })
-}
-
-fn token_color(kind: SyntaxTokenKind, palette: &UiPalette) -> Color {
-    match kind {
-        SyntaxTokenKind::Comment => palette.ink_dim,
-        SyntaxTokenKind::Keyword => palette.accent,
-        SyntaxTokenKind::StringLiteral => palette.success,
-        SyntaxTokenKind::NumberLiteral => palette.warning,
-        SyntaxTokenKind::Punctuation => palette.ink_dim,
-        SyntaxTokenKind::Plain => palette.ink,
-    }
-}
-
-/// Gutter + code rows for the current window, with the cursor line washed and
-/// the diagnostic line painted in the danger token. DUAL-09-02: the window,
-/// the hidden-line counts and the indentation levels come from the shared
-/// `EditorViewport`, so this surface and the Iced editor never drift.
-fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette) -> Box<dyn Scene> {
-    let viewport = state.viewport();
-    let diagnostic_row = state.diagnostic.as_ref().map(|diagnostic| diagnostic.line);
-    let cursor_row = state.buffer.cursor_row + 1;
-    let mut rows: Vec<Box<dyn Scene>> = Vec::with_capacity(viewport.rendered_len() + 2);
-    if viewport.hidden_above() > 0 {
-        rows.push(notice_row(
-            &format!(
-                "… 上方还有 {} 行未渲染（跟随光标的有界窗口）",
-                viewport.hidden_above()
-            ),
-            palette,
-        ));
-    }
-    for (number, line, indent_level) in state.rendered_lines() {
-        let is_diagnostic = diagnostic_row == Some(number);
-        let is_cursor = cursor_row == number && state.focused;
-        let background = if is_diagnostic {
-            palette.danger
-        } else if is_cursor {
-            palette.surface_elevated
-        } else {
-            palette.window_clear
-        };
-        let gutter_color = if is_diagnostic {
-            palette.window_clear
-        } else {
-            palette.ink_dim
-        };
-        let tokens: Vec<Box<dyn Scene>> = tokenize_yaml_line(line)
-            .into_iter()
-            .map(|token| {
-                let color = if is_diagnostic {
-                    palette.window_clear
-                } else {
-                    token_color(token.kind, palette)
-                };
-                Box::new(bsn! {
-                    (
-                        Text({ token.text })
-                        TextRole(Role::Mono)
-                        TextColor({ color })
-                    )
-                }) as Box<dyn Scene>
-            })
-            .collect();
-        rows.push(Box::new(bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(space::S8),
-                min_height: px(16.0),
-            }
-            BackgroundColor({ background })
-            Children [
-                (
-                    Node {
-                        min_width: px(36.0),
-                        justify_content: JustifyContent::FlexEnd,
-                    }
-                    Children [
-                        (
-                            Text({ format!("{number}") })
-                            TextRole(Role::Mono)
-                            TextColor({ gutter_color })
-                        ),
-                    ]
-                ),
-                ( { indent_rail(indent_level, palette) } ),
-                { tokens },
-            ]
-        }));
-    }
-    if viewport.hidden_below() > 0 {
-        rows.push(notice_row(
-            &format!(
-                "… 下方还有 {} 行未渲染（有界窗口，不是虚拟滚动）",
-                viewport.hidden_below()
-            ),
-            palette,
-        ));
-    }
-    Box::new(bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-        }
-        Children [
-            { rows },
-        ]
-    })
-}
-
-/// DUAL-09-02: the shared indentation reference, rendered as a rail at the
-/// start of the row (one tick per closed indentation level).
-fn indent_rail(level: usize, palette: &UiPalette) -> Box<dyn Scene> {
-    let color = palette.accent_container;
-    let mut ticks: Vec<Box<dyn Scene>> = Vec::with_capacity(level);
-    for _ in 0..level {
-        ticks.push(Box::new(bsn! {
-            Node {
-                width: px(2.0),
-                height: px(10.0),
-                margin: UiRect::right(Val::Px(2.0)),
-            }
-            BackgroundColor({ color })
-        }) as Box<dyn Scene>);
-    }
-    Box::new(bsn! {
-        Node {
-            flex_direction: FlexDirection::Row,
-            min_width: px(4.0),
-        }
-        Children [
-            { ticks },
-        ]
-    })
-}
-
-fn notice_row(text: &str, palette: &UiPalette) -> Box<dyn Scene> {
-    let label = text.to_owned();
-    let color = palette.warning;
-    Box::new(bsn! {
-        Node {
-            width: percent(100),
-        }
-        Children [
-            ( Text({ label }) TextRole(Role::Caption) TextColor({ color }) ),
         ]
     })
 }
@@ -789,68 +682,26 @@ pub fn on_profile_editor_protection_toggle(
 /// The editor keyboard seam: the buffer owns printable keys, Backspace,
 /// Delete, Enter, Tab, arrows, Home/End and Ctrl+S while focused.
 pub fn profile_editor_keyboard_input(
-    mut keys: MessageReader<KeyboardInput>,
+    keys: MessageReader<KeyboardInput>,
     keyboard: Option<Res<ButtonInput<KeyCode>>>,
-    mut state: ResMut<ProfileEditorState>,
+    state: ResMut<ProfileEditorState>,
+    options: ResMut<ProfileEditorOptionsState>,
+    fields: Query<(&EditorFilterField, &Children)>,
+    text_fields: Query<&mut TextField>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
-    if !state.focused {
-        keys.clear();
-        return;
-    }
-    let modifiers = keyboard
-        .as_deref()
-        .map(crate::shortcuts::modifiers_from_keyboard)
-        .unwrap_or_default();
-    for key in keys.read() {
-        if key.state != ButtonState::Pressed {
-            continue;
-        }
-        if modifiers.ctrl || modifiers.alt || modifiers.meta {
-            // Ctrl+S commits; every other modified chord falls through to the
-            // global shortcut registry.
-            let is_save = modifiers.ctrl
-                && !modifiers.alt
-                && !modifiers.meta
-                && matches!(&key.logical_key, Key::Character(text) if text.eq_ignore_ascii_case("s"));
-            if is_save && let Some(handle) = handle.as_ref() {
-                handle.submit(UiCommand::SaveProfileDocument {
-                    profile: state.profile.clone(),
-                    content: state.buffer.full_text(),
-                    allow_protected: state.protection_override,
-                });
-            }
-            continue;
-        }
-        match &key.logical_key {
-            Key::Character(text) => state.insert_text(text),
-            Key::Space => state.insert_text(" "),
-            Key::Enter => state.insert_text("\n"),
-            Key::Tab => state.insert_text("  "),
-            Key::Backspace => state.backspace(),
-            Key::Delete => state.delete_forward(),
-            Key::ArrowUp => state.move_cursor(true),
-            Key::ArrowDown => state.move_cursor(false),
-            Key::ArrowLeft => {
-                state.buffer.move_left();
-                state.generation += 1;
-            }
-            Key::ArrowRight => {
-                state.buffer.move_right();
-                state.generation += 1;
-            }
-            Key::Home => {
-                state.buffer.move_home();
-                state.generation += 1;
-            }
-            Key::End => {
-                state.buffer.move_end();
-                state.generation += 1;
-            }
-            Key::Escape => state.focused = false,
-            _ => {}
-        }
-    }
+    // DUAL-09-14: one seam routes to the active pane (profile document, Mixin
+    // buffer or the focused filter field); see
+    // `profiles_editor_panes_sync::route_editor_keyboard`.
+    crate::pages::profiles_editor_panes_sync::route_editor_keyboard(
+        keys,
+        keyboard,
+        state,
+        options,
+        fields,
+        text_fields,
+        handle,
+    );
 }
 
 /// Register the editor keyboard seam and its body rebuild.

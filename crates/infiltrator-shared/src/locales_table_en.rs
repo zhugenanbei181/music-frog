@@ -94,6 +94,7 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
         "editor_history_empty" => "No successful apply snapshots yet.".into(),
         "editor_restore" => "Restore".into(),
         "editor_backup_now" => "Back up now".into(),
+        "editor_history_refresh" => "Refresh list".into(),
         "editor_prune_keep" => "Keep".into(),
         "editor_prune_now" => "Prune now".into(),
         "editor_prune_pending" => "{count} pending".into(),

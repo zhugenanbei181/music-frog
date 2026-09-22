@@ -514,6 +514,7 @@ impl Plugin for ShellPlugin {
         app.add_plugins(crate::toast::ShellToastPlugin);
         app.add_plugins(crate::command_palette_shell::CommandPalettePlugin);
         app.add_plugins(crate::pages::profiles_editor::ProfilesEditorPlugin);
+        app.add_plugins(crate::pages::profiles_editor_panes_sync::ProfilesEditorPanesPlugin);
         app.add_plugins(crate::mini_hud_shell::MiniHudPlugin);
         app.insert_resource(crate::appearance::ThemeMode(self.preference));
         app.init_resource::<crate::appearance::SystemAppearance>();
