@@ -1,18 +1,19 @@
-//! Global Command Palette (`Ctrl+K` / search) overlay and keyboard geeks workflow.
+//! Global Command Palette (`Ctrl+K` / search): pure state machine + BSN scene.
 //!
 //! Charter law (docs/BEVY_UI_FRONTEND.md):
 //! - 100% `bsn!` scene composition for the modal scrim and floating search dialog;
-//! - Pure state machine core ([`CommandPaletteState`], [`PaletteAction`]) testable headlessly;
-//! - Direct dispatch into [`RouteChanged`] for navigation and [`CommandSinkHandle`] for actions.
+//! - Pure state machine core ([`CommandPaletteState`]) testable headlessly;
+//! - The rows are the shared `infiltrator_contract::command_catalogue` list —
+//!   the same entries (and the same accelerators from the shared shortcut
+//!   registry) the Iced palette renders. This module owns presentation and the
+//!   selection cursor only; dispatch lives in [`crate::command_palette_shell`].
 
 use bevy::a11y::AccessibilityNode;
 use bevy::color::{Alpha, Color};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Res, ResMut};
 use bevy::scene::{Scene, bsn, template_value};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node,
@@ -23,53 +24,19 @@ use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::command_catalogue::{CommandCatalogue, CommandEntry};
+use infiltrator_contract::shortcuts::ShortcutRegistry;
 
-use crate::appearance::ThemeMode;
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::route::{ActiveRoute, Route, RouteChanged};
-use infiltrator_contract::command::ProxyMode;
-
-/// Category classification of a command palette action item.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum PaletteCategory {
-    Navigation,
-    ProxyMode,
-    Maintenance,
-    Appearance,
-}
-
-impl PaletteCategory {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Navigation => "页面导航",
-            Self::ProxyMode => "代理模式",
-            Self::Maintenance => "快捷运维",
-            Self::Appearance => "外观偏好",
-        }
-    }
-}
-
-/// A runnable action item in the command palette.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PaletteAction {
-    pub id: &'static str,
-    pub title: &'static str,
-    pub category: PaletteCategory,
-    pub shortcut_hint: &'static str,
-    pub target_route: Option<Route>,
-    pub command: Option<UiCommand>,
-}
-
-/// Pure state machine for the global command palette.
+/// The palette's pure state: the shared catalogue plus the query/selection
+/// cursor. Arrow navigation wraps; an empty query keeps every row.
 #[derive(Resource, Clone, Debug, PartialEq)]
 pub struct CommandPaletteState {
     pub is_open: bool,
     pub query: String,
     pub selected_index: usize,
-    pub all_actions: Vec<PaletteAction>,
+    pub catalogue: CommandCatalogue,
     pub filtered_indices: Vec<usize>,
 }
 
@@ -81,197 +48,25 @@ impl Default for CommandPaletteState {
 
 impl CommandPaletteState {
     pub fn new() -> Self {
-        let all_actions = vec![
-            // Navigation (11 routes)
-            PaletteAction {
-                id: "nav.overview",
-                title: "核心概览 (Overview)",
-                category: PaletteCategory::Navigation,
-                shortcut_hint: "G O",
-                target_route: Some(Route::Overview),
-                command: None,
-            },
-            PaletteAction {
-                id: "nav.proxies",
-                title: "代理策略 (Proxies)",
-                category: PaletteCategory::Navigation,
-                shortcut_hint: "G P",
-                target_route: Some(Route::Proxies),
-                command: None,
-            },
-            PaletteAction {
-                id: "nav.profiles",
-                title: "配置订阅 (Profiles)",
-                category: PaletteCategory::Navigation,
-                shortcut_hint: "G S",
-                target_route: Some(Route::Profiles),
-                command: None,
-            },
-            PaletteAction {
-                id: "nav.rules",
-                title: "分流规则 (Rules)",
-                category: PaletteCategory::Navigation,
-                shortcut_hint: "G R",
-                target_route: Some(Route::Rules),
-                command: None,
-            },
-            PaletteAction {
-                id: "nav.connections",
-                title: "连接审计 (Connections)",
-                category: PaletteCategory::Navigation,
-                shortcut_hint: "G C",
-                target_route: Some(Route::Connections),
-                command: None,
-            },
-            PaletteAction {
-                id: "nav.logs",
-                title: "运行日志 (Logs)",
-                category: PaletteCategory::Navigation,
-                shortcut_hint: "G L",
-                target_route: Some(Route::Logs),
-                command: None,
-            },
-            PaletteAction {
-                id: "nav.dns",
-                title: "域名解析 (DNS)",
-                category: PaletteCategory::Navigation,
-                shortcut_hint: "G D",
-                target_route: Some(Route::Dns),
-                command: None,
-            },
-            PaletteAction {
-                id: "nav.doctor",
-                title: "自愈诊断 (Doctor)",
-                category: PaletteCategory::Navigation,
-                shortcut_hint: "G H",
-                target_route: Some(Route::Doctor),
-                command: None,
-            },
-            PaletteAction {
-                id: "nav.app_routing",
-                title: "应用分流 (App Routing)",
-                category: PaletteCategory::Navigation,
-                shortcut_hint: "G A",
-                target_route: Some(Route::AppRouting),
-                command: None,
-            },
-            PaletteAction {
-                id: "nav.sync",
-                title: "数据同步 (Sync)",
-                category: PaletteCategory::Navigation,
-                shortcut_hint: "G Y",
-                target_route: Some(Route::Sync),
-                command: None,
-            },
-            PaletteAction {
-                id: "nav.settings",
-                title: "系统设置 (Settings)",
-                category: PaletteCategory::Navigation,
-                shortcut_hint: "G T",
-                target_route: Some(Route::Settings),
-                command: None,
-            },
-            // Modes
-            PaletteAction {
-                id: "mode.rule",
-                title: "切换模式：规则分流 (Rule Mode)",
-                category: PaletteCategory::ProxyMode,
-                shortcut_hint: "M R",
-                target_route: None,
-                command: Some(UiCommand::SetProxyMode(ProxyMode::Rule)),
-            },
-            PaletteAction {
-                id: "mode.global",
-                title: "切换模式：全局代理 (Global Mode)",
-                category: PaletteCategory::ProxyMode,
-                shortcut_hint: "M G",
-                target_route: None,
-                command: Some(UiCommand::SetProxyMode(ProxyMode::Global)),
-            },
-            PaletteAction {
-                id: "mode.direct",
-                title: "切换模式：直接连接 (Direct Mode)",
-                category: PaletteCategory::ProxyMode,
-                shortcut_hint: "M D",
-                target_route: None,
-                command: Some(UiCommand::SetProxyMode(ProxyMode::Direct)),
-            },
-            // Maintenance
-            PaletteAction {
-                id: "maint.clear_logs",
-                title: "清空运行日志缓存",
-                category: PaletteCategory::Maintenance,
-                shortcut_hint: "C L",
-                target_route: None,
-                command: Some(UiCommand::ClearLogs),
-            },
-            PaletteAction {
-                id: "maint.clear_dns",
-                title: "刷新 DNS 缓存与 Fake-IP",
-                category: PaletteCategory::Maintenance,
-                shortcut_hint: "C D",
-                target_route: None,
-                command: Some(UiCommand::ClearDnsCache),
-            },
-            PaletteAction {
-                id: "maint.test_latency",
-                title: "全面测试全部代理策略组延时",
-                category: PaletteCategory::Maintenance,
-                shortcut_hint: "T A",
-                target_route: None,
-                command: Some(UiCommand::TestAllProxyGroups),
-            },
-            PaletteAction {
-                id: "maint.run_doctor",
-                title: "运行系统全景自愈体检",
-                category: PaletteCategory::Maintenance,
-                shortcut_hint: "D R",
-                target_route: None,
-                command: Some(UiCommand::RunDoctorDiagnostics),
-            },
-            PaletteAction {
-                id: "tool.mini_hud",
-                title: "切换迷你网速悬浮窗 (Toggle Mini HUD)",
-                category: PaletteCategory::Maintenance,
-                shortcut_hint: "Ctrl+M",
-                target_route: None,
-                command: None,
-            },
-            PaletteAction {
-                id: "maint.close_connections",
-                title: "断开全部实时活动连接",
-                category: PaletteCategory::Maintenance,
-                shortcut_hint: "C A",
-                target_route: None,
-                command: Some(UiCommand::CloseAllConnections),
-            },
-            PaletteAction {
-                id: "maint.sync_now",
-                title: "立即触发 WebDAV 配置同步",
-                category: PaletteCategory::Maintenance,
-                shortcut_hint: "S N",
-                target_route: None,
-                command: Some(UiCommand::SyncNow),
-            },
-            // Appearance
-            PaletteAction {
-                id: "theme.toggle",
-                title: "切换界面外观明暗主题",
-                category: PaletteCategory::Appearance,
-                shortcut_hint: "T T",
-                target_route: None,
-                command: None,
-            },
-        ];
+        Self::from_catalogue(CommandCatalogue::new())
+    }
 
-        let filtered_indices = (0..all_actions.len()).collect();
+    pub fn from_catalogue(catalogue: CommandCatalogue) -> Self {
+        let filtered_indices = (0..catalogue.len()).collect();
         Self {
             is_open: false,
             query: String::new(),
             selected_index: 0,
-            all_actions,
+            catalogue,
             filtered_indices,
         }
+    }
+
+    /// Swap in a catalogue (the stored profile list changed) while keeping the
+    /// open query and clamping the cursor into the new result set.
+    pub fn set_catalogue(&mut self, catalogue: CommandCatalogue) {
+        self.catalogue = catalogue;
+        self.refilter();
     }
 
     pub fn open(&mut self) {
@@ -296,29 +91,52 @@ impl CommandPaletteState {
     }
 
     pub fn set_query(&mut self, query: &str) {
-        self.query = query.to_lowercase();
+        self.query = query.to_owned();
         self.refilter();
         self.selected_index = 0;
     }
 
-    fn refilter(&mut self) {
-        if self.query.is_empty() {
-            self.filtered_indices = (0..self.all_actions.len()).collect();
+    /// Append one typed character (the palette's keyboard seam).
+    pub fn push_query_char(&mut self, character: char) {
+        self.query.push(character);
+        self.refilter();
+        self.selected_index = 0;
+    }
+
+    /// Remove the last character (Unicode-safe: the shared catalogue filter is
+    /// substring based, and `pop` removes one scalar value).
+    pub fn pop_query_char(&mut self) {
+        self.query.pop();
+        self.refilter();
+        self.selected_index = 0;
+    }
+
+    /// Recompute the filtered index list: the shared substring rule plus the
+    /// shared pinyin matcher over the bare-Chinese titles (the same matcher
+    /// the Iced palette applies), so "ymjx" finds the DNS page on both ends.
+    pub fn refilter(&mut self) {
+        let query = self.query.trim();
+        if query.is_empty() {
+            self.filtered_indices = (0..self.catalogue.len()).collect();
         } else {
             self.filtered_indices = self
-                .all_actions
+                .catalogue
+                .entries()
                 .iter()
                 .enumerate()
-                .filter(|(_, a)| {
-                    let title = a.title.to_lowercase();
-                    let category = a.category.label().to_lowercase();
-                    let hint = a.shortcut_hint.to_lowercase();
-                    title.contains(&self.query)
-                        || category.contains(&self.query)
-                        || hint.contains(&self.query)
+                .filter(|(_, entry)| {
+                    entry.matches(query)
+                        || infiltrator_shared::fuzzy_search::pinyin_fuzzy_match(
+                            &entry.title_zh,
+                            query,
+                        )
+                        || infiltrator_shared::fuzzy_search::pinyin_fuzzy_match(&entry.id, query)
                 })
-                .map(|(idx, _)| idx)
+                .map(|(index, _)| index)
                 .collect();
+        }
+        if !self.filtered_indices.is_empty() && self.selected_index >= self.filtered_indices.len() {
+            self.selected_index = self.filtered_indices.len() - 1;
         }
     }
 
@@ -330,18 +148,25 @@ impl CommandPaletteState {
 
     pub fn select_prev(&mut self) {
         if !self.filtered_indices.is_empty() {
-            if self.selected_index == 0 {
-                self.selected_index = self.filtered_indices.len() - 1;
-            } else {
-                self.selected_index -= 1;
-            }
+            self.selected_index = (self.selected_index + self.filtered_indices.len() - 1)
+                % self.filtered_indices.len();
         }
     }
 
-    pub fn current_selected_action(&self) -> Option<&PaletteAction> {
+    pub fn current_selected_action(&self) -> Option<&CommandEntry> {
         self.filtered_indices
             .get(self.selected_index)
-            .and_then(|&idx| self.all_actions.get(idx))
+            .and_then(|index| self.catalogue.entry(*index))
+    }
+
+    /// The accelerator the shared registry currently binds to this entry's
+    /// action, when the entry is a global-chord command.
+    pub fn accelerator_for(&self, index: usize, registry: &ShortcutRegistry) -> Option<String> {
+        let entry = self.catalogue.entry(index)?;
+        let action = entry.target.shortcut_action()?;
+        registry
+            .get(action)
+            .map(|binding| binding.chord.display_string(false))
     }
 }
 
@@ -361,11 +186,16 @@ pub struct ToggleCommandPalette;
 #[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ExecuteSelectedPaletteAction;
 
+/// Event requesting execution of one filtered row (row click).
+#[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExecutePaletteEntry(pub usize);
+
 /// Marker component on the command palette root entity.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CommandPaletteOverlayRoot;
 
-/// Marker on an individual action row button.
+/// Marker on an individual action row button: the display index within the
+/// filtered list.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CommandPaletteRow(pub usize);
 
@@ -376,10 +206,11 @@ pub fn command_palette_semantic_node() -> AccessibilityNode {
     AccessibilityNode(node)
 }
 
-/// Declarative scene for an individual action row.
+/// Declarative scene for an individual catalogue row.
 pub fn command_palette_item_scene(
     palette: &UiPalette,
-    action: &PaletteAction,
+    entry: &CommandEntry,
+    hint: Option<String>,
     is_selected: bool,
     display_index: usize,
 ) -> impl Scene + use<> {
@@ -393,9 +224,9 @@ pub fn command_palette_item_scene(
     } else {
         Color::NONE
     };
-    let title_text = action.title.to_owned();
-    let category_text = action.category.label().to_owned();
-    let hint_text = action.shortcut_hint.to_owned();
+    let title_text = entry.title_zh.clone();
+    let category_text = category_label(entry);
+    let hint_text = hint.unwrap_or_default();
 
     bsn! {
         Node {
@@ -445,14 +276,21 @@ pub fn command_palette_item_scene(
     }
 }
 
+/// Bare-Chinese category label used by the Bevy surface: the shared contract
+/// owns the vocabulary.
+fn category_label(entry: &CommandEntry) -> String {
+    entry.category.label_zh().to_owned()
+}
+
 /// Declarative BSN modal scene for the Command Palette.
 pub fn command_palette_modal_scene(
     palette: &UiPalette,
     state: &CommandPaletteState,
+    registry: &ShortcutRegistry,
 ) -> impl Scene + use<> {
     let semantic = command_palette_semantic_node();
     let query_display = if state.query.is_empty() {
-        "输入关键词检索 11 个页面或快捷运维指令...".to_owned()
+        "输入关键词检索页面或快捷运维指令...".to_owned()
     } else {
         state.query.clone()
     };
@@ -463,11 +301,16 @@ pub fn command_palette_modal_scene(
         .iter()
         .take(8)
         .enumerate()
-        .filter_map(|(disp_idx, &act_idx)| {
-            let action = state.all_actions.get(act_idx)?;
-            let is_sel = disp_idx == state.selected_index;
+        .filter_map(|(display_index, index)| {
+            let entry = state.catalogue.entry(*index)?;
+            let hint = state.accelerator_for(*index, registry);
+            let is_selected = display_index == state.selected_index;
             Some(Box::new(command_palette_item_scene(
-                palette, action, is_sel, disp_idx,
+                palette,
+                entry,
+                hint,
+                is_selected,
+                display_index,
             )) as Box<dyn Scene>)
         })
         .collect();
@@ -516,6 +359,7 @@ pub fn command_palette_modal_scene(
                             (
                                 Text({ query_display })
                                 TextRole(Role::Body)
+                                CommandPaletteQueryLabel
                             ),
                         ]
                     ),
@@ -543,7 +387,7 @@ pub fn command_palette_modal_scene(
                                 TextRole(Role::Caption)
                             ),
                             (
-                                Text({ format!("{}/{} 项", state.filtered_indices.len(), state.all_actions.len()) })
+                                Text({ format!("{}/{} 项", state.filtered_indices.len(), state.catalogue.len()) })
                                 TextRole(Role::Caption)
                             ),
                         ]
@@ -554,66 +398,10 @@ pub fn command_palette_modal_scene(
     }
 }
 
-/// Observer to open command palette.
-pub fn on_open_command_palette(
-    _trigger: On<OpenCommandPalette>,
-    mut state: ResMut<CommandPaletteState>,
-) {
-    state.open();
-}
-
-/// Observer to close command palette.
-pub fn on_close_command_palette(
-    _trigger: On<CloseCommandPalette>,
-    mut state: ResMut<CommandPaletteState>,
-) {
-    state.close();
-}
-
-/// Observer to toggle command palette.
-pub fn on_toggle_command_palette(
-    _trigger: On<ToggleCommandPalette>,
-    mut state: ResMut<CommandPaletteState>,
-) {
-    state.toggle();
-}
-
-/// Observer executing the currently selected command palette action.
-pub fn on_execute_selected_palette_action(
-    _trigger: On<ExecuteSelectedPaletteAction>,
-    mut state: ResMut<CommandPaletteState>,
-    mut active_route: ResMut<ActiveRoute>,
-    sink: Option<Res<CommandSinkHandle>>,
-    theme_mode: Option<ResMut<ThemeMode>>,
-    mut commands: Commands,
-) {
-    if let Some(action) = state.current_selected_action().cloned() {
-        if let Some(route) = action.target_route {
-            active_route.0 = Some(route);
-            commands.trigger(RouteChanged(route));
-        }
-        if let Some(cmd) = action.command
-            && let Some(sink) = sink
-        {
-            sink.submit(cmd);
-        }
-        if action.id == "theme.toggle" {
-            let next_preference = theme_mode
-                .as_ref()
-                .map(|mode| mode.0)
-                .unwrap_or_default()
-                .next();
-            if let Some(mut mode) = theme_mode {
-                mode.0 = next_preference;
-            }
-            commands.trigger(ThemeSwitch(crate::appearance::resolved_skin(
-                next_preference,
-                None,
-            )));
-        }
-    }
-    state.close();
-}
+/// Marker on the palette's query text node (so a remount latch can read it
+/// back in tests).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CommandPaletteQueryLabel;
 
 #[cfg(test)]
 mod tests {
@@ -623,12 +411,13 @@ mod tests {
     fn test_command_palette_lifecycle_and_filtering() {
         let mut state = CommandPaletteState::new();
         assert!(!state.is_open);
-        assert_eq!(state.filtered_indices.len(), state.all_actions.len());
+        assert_eq!(state.filtered_indices.len(), state.catalogue.len());
 
         state.open();
         assert!(state.is_open);
 
-        // Filter by 'dns' -> should match nav.dns and maint.clear_dns
+        // Filter by 'dns' -> the shared catalogue keeps the DNS page and the
+        // cache flush action.
         state.set_query("dns");
         assert_eq!(state.filtered_indices.len(), 2);
         let first = state.current_selected_action().unwrap();
@@ -637,12 +426,17 @@ mod tests {
         // Navigate next
         state.select_next();
         let second = state.current_selected_action().unwrap();
-        assert_eq!(second.id, "maint.clear_dns");
+        assert_eq!(second.id, "action.flush_dns_cache");
 
         // Wraparound
         state.select_next();
         let wrap = state.current_selected_action().unwrap();
         assert_eq!(wrap.id, "nav.dns");
+        state.select_prev();
+        assert_eq!(
+            state.current_selected_action().unwrap().id,
+            "action.flush_dns_cache"
+        );
 
         // Close
         state.close();
@@ -650,14 +444,67 @@ mod tests {
     }
 
     #[test]
-    fn test_command_palette_category_matching() {
+    fn test_command_palette_category_matching_and_typing() {
         let mut state = CommandPaletteState::new();
         state.open();
 
+        // Categories match by their shared Chinese label.
         state.set_query("代理模式");
         assert_eq!(state.filtered_indices.len(), 3);
 
-        state.set_query("运维");
-        assert_eq!(state.filtered_indices.len(), 7);
+        // The keyboard seam types and erases characters.
+        state.set_query("");
+        for character in "doct".chars() {
+            state.push_query_char(character);
+        }
+        assert_eq!(state.query, "doct");
+        assert_eq!(state.current_selected_action().unwrap().id, "nav.doctor");
+        state.pop_query_char();
+        assert_eq!(state.query, "doc");
+    }
+
+    #[test]
+    fn test_command_palette_pinyin_matches_the_same_rows_as_iced() {
+        // The shared matcher is the same engine Iced applies: substring plus
+        // the regional-keyword pinyin initials (香港 → xg). A stored profile
+        // named 香港 exercises it through the live profile rows.
+        let catalogue = CommandCatalogue::with_profiles(&[
+            infiltrator_contract::command_catalogue::ProfileChoice::new("sub-1", "香港 IEPL 01"),
+        ]);
+        let mut state = CommandPaletteState::from_catalogue(catalogue);
+        state.open();
+        state.set_query("xg");
+        assert_eq!(
+            state
+                .current_selected_action()
+                .map(|entry| entry.id.as_str()),
+            Some("profile.sub-1")
+        );
+
+        // A plain substring still matches the product rows.
+        state.set_query("dns");
+        assert_eq!(
+            state
+                .current_selected_action()
+                .map(|entry| entry.id.as_str()),
+            Some("nav.dns")
+        );
+    }
+
+    #[test]
+    fn test_palette_renders_the_registry_accelerator() {
+        let registry = ShortcutRegistry::with_defaults();
+        let mut state = CommandPaletteState::new();
+        state.open();
+        let index = state
+            .catalogue
+            .index_of("action.toggle_mini_hud")
+            .expect("mini hud row");
+        assert_eq!(
+            state.accelerator_for(index, &registry).as_deref(),
+            Some("Ctrl+Alt+M")
+        );
+        let nav_index = state.catalogue.index_of("nav.dns").expect("nav row");
+        assert_eq!(state.accelerator_for(nav_index, &registry), None);
     }
 }

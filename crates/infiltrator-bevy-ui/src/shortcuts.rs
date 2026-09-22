@@ -223,9 +223,9 @@ pub fn dispatch_chords(
             ShortcutAction::OpenCommandPalette => {
                 commands.trigger(crate::command_palette::ToggleCommandPalette);
             }
-            // The Mini HUD action is bound and captured on both surfaces; its
-            // Bevy dispatch lands with the mounted Mini HUD scene (DUAL-15-03).
-            ShortcutAction::ToggleMiniHud => {}
+            ShortcutAction::ToggleMiniHud => {
+                commands.trigger(crate::mini_hud::ToggleMiniHud);
+            }
         }
     }
 }

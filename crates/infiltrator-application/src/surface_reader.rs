@@ -1050,6 +1050,7 @@ fn build_settings_page(
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| "info".to_owned()),
         core_channel: settings.core_channel.clone(),
+        mini_hud: settings.mini_hud,
     })
 }
 

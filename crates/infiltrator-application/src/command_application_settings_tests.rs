@@ -124,3 +124,55 @@ async fn shortcut_capture_persists_and_rejects_conflicts() {
         .expect_err("multi-letter key");
     assert_eq!(malformed.code, ErrorCode::InvalidInput);
 }
+
+#[tokio::test]
+async fn mini_hud_placement_writes_are_validated_per_field() {
+    let (application, store) = settings_application();
+
+    for (key, value) in [("mini_hud.x", "320"), ("mini_hud.y", "-40")] {
+        application
+            .execute(CommandIntent::UpdateSetting {
+                key: key.to_owned(),
+                value: value.to_owned(),
+            })
+            .await
+            .expect("coordinate write");
+    }
+    application
+        .execute(CommandIntent::UpdateSetting {
+            key: "mini_hud.pinned".to_owned(),
+            value: "true".to_owned(),
+        })
+        .await
+        .expect("pin write");
+
+    let placement = store.settings.lock().expect("lock").mini_hud;
+    assert_eq!(
+        placement,
+        infiltrator_contract::mini_hud::MiniHudPlacement {
+            x: 320,
+            y: -40,
+            pinned: true,
+        }
+    );
+
+    let bad_coordinate = application
+        .execute(CommandIntent::UpdateSetting {
+            key: "mini_hud.x".to_owned(),
+            value: "left".to_owned(),
+        })
+        .await
+        .expect_err("reject a non-numeric coordinate");
+    assert_eq!(bad_coordinate.code, ErrorCode::InvalidInput);
+
+    let bad_field = application
+        .execute(CommandIntent::UpdateSetting {
+            key: "mini_hud.z".to_owned(),
+            value: "1".to_owned(),
+        })
+        .await
+        .expect_err("reject an unknown HUD field");
+    assert_eq!(bad_field.code, ErrorCode::InvalidInput);
+    // Rejected writes leave the stored placement untouched.
+    assert_eq!(store.settings.lock().expect("lock").mini_hud.x, 320);
+}

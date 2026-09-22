@@ -477,7 +477,7 @@ pub enum Message {
     SetCommandQuery(String),
     SelectNextCommand,
     SelectPrevCommand,
-    ExecuteCommand(super::app::CommandAction),
+    ExecuteCommand(infiltrator_contract::command_catalogue::CommandTarget),
     // Connection Deep Telemetry Inspector Drawer
     InspectConnection(Option<String>),
     CloseSingleConnection(String),
@@ -505,6 +505,14 @@ pub enum Message {
     // Mini HUD Mode (迷你网速悬浮窗)
     ToggleMiniHudMode,
     SetAlwaysOnTop(bool),
+    MiniHudMoved {
+        x: f32,
+        y: f32,
+    },
+    MiniHudDragReleased,
+    MiniHudPlacementUpdated(Result<infiltrator_contract::mini_hud::MiniHudPlacement, String>),
+    MiniHudDisplayKnown(Option<iced::Size>),
+    WindowIdResolved(Option<iced::window::Id>),
     // Script Sandbox Console (脚本沙箱控制台)
     RunScriptSandboxTest,
     SelectScriptPreset(String),

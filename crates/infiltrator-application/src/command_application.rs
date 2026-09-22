@@ -824,6 +824,52 @@ impl CommandApplication {
             self.shortcuts()?.capture(action, chord).await?;
             return Ok(());
         }
+        // DUAL-15-04: the Mini HUD placement persists through the same
+        // validated write path; surfaces never write raw coordinates into the
+        // settings file themselves.
+        if let Some(field) = key.strip_prefix("mini_hud.") {
+            let mut placement = self.settings()?.load().await?.mini_hud;
+            match field {
+                "pinned" => {
+                    placement.pinned = value.parse::<bool>().map_err(|_| {
+                        Failure::new(
+                            ErrorCode::InvalidInput,
+                            format!("invalid mini HUD pin value {value}"),
+                            false,
+                        )
+                    })?;
+                }
+                "x" => {
+                    placement.x = value.parse::<i32>().map_err(|_| {
+                        Failure::new(
+                            ErrorCode::InvalidInput,
+                            format!("invalid mini HUD x coordinate {value}"),
+                            false,
+                        )
+                    })?;
+                }
+                "y" => {
+                    placement.y = value.parse::<i32>().map_err(|_| {
+                        Failure::new(
+                            ErrorCode::InvalidInput,
+                            format!("invalid mini HUD y coordinate {value}"),
+                            false,
+                        )
+                    })?;
+                }
+                other => {
+                    return Err(Failure::new(
+                        ErrorCode::InvalidInput,
+                        format!("unknown mini HUD setting {other}"),
+                        false,
+                    ));
+                }
+            }
+            self.settings()?
+                .update(move |settings| settings.mini_hud = placement)
+                .await?;
+            return Ok(());
+        }
         if !matches!(
             key,
             "language" | "theme" | "notifications_enabled" | "close_to_tray"

@@ -1,7 +1,10 @@
 //! Compact floating Mini Speed HUD widget for desktop immersion.
 //!
-//! Renders a sleek 260x90 floating dashboard showing live duplex bandwidth,
-//! mini sparkline waveforms, active node pill, and one-click quick controls.
+//! Renders the shared read model (`infiltrator_contract::mini_hud`): live
+//! duplex bandwidth, mini sparkline waveforms, the real exit-node pill, the
+//! mode chip and the two quick switches whose states come from the shared
+//! system-toggle snapshot. Dragging the card moves the HUD window and persists
+//! the placement through the shared application facade.
 
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -10,19 +13,14 @@ use crate::view::components::{BadgeKind, badge, icon_button};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::waveform::mini_waveform;
-use iced::widget::{Space, button, column, container, row, text};
+use iced::widget::{Space, button, column, container, mouse_area, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
+use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleState};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
-
-    let (up_speed, down_speed) = state
-        .diag
-        .traffic
-        .as_ref()
-        .map(|t| (t.up, t.down))
-        .unwrap_or((0, 0));
+    let model = state.mini_hud_read_model();
 
     let down_samples: Vec<u64> = state.diag.traffic_history.iter().map(|(_, d)| *d).collect();
     let up_samples: Vec<u64> = state.diag.traffic_history.iter().map(|(u, _)| *u).collect();
@@ -32,7 +30,7 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
         svg_icons::icon_themed(Icon::ArrowDown, 14.0, |t: &Theme| tokens(t).accent),
         Space::new().width(theme::SP_XS),
         column![
-            text(format!("{}/s", format_bytes(down_speed)))
+            text(format!("{}/s", format_bytes(model.down_bytes_per_sec)))
                 .size(12)
                 .font(MONO)
                 .style(|t: &Theme| text::Style {
@@ -49,7 +47,7 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
         svg_icons::icon_themed(Icon::ArrowUp, 14.0, |t: &Theme| tokens(t).success),
         Space::new().width(theme::SP_XS),
         column![
-            text(format!("{}/s", format_bytes(up_speed)))
+            text(format!("{}/s", format_bytes(model.up_bytes_per_sec)))
                 .size(12)
                 .font(MONO)
                 .style(|t: &Theme| text::Style {
@@ -61,23 +59,8 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
     ]
     .align_y(Alignment::Center);
 
-    let active_node = if !state.runtime.runtime_selected_proxy.is_empty() {
-        state.runtime.runtime_selected_proxy.clone()
-    } else if let Some(active) = state.profile.profiles.iter().find(|p| p.active) {
-        active.name.clone()
-    } else {
-        "Default".to_string()
-    };
-
-    let mode_label = state
-        .runtime
-        .proxy_mode
-        .as_deref()
-        .unwrap_or("rule")
-        .to_ascii_uppercase();
-
-    // Top title row: logo + active mode + expand button
-    let header_row = row![
+    // Top title row: logo + real mode chip + pin/expand buttons
+    let mut header_row = row![
         svg_icons::icon_themed(Icon::Activity, 14.0, |t: &Theme| tokens(t).accent),
         Space::new().width(theme::SP_XS),
         text(lang.tr("mini_hud_title").to_string())
@@ -86,76 +69,82 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
             }),
-        Space::new().width(theme::SP_SM),
-        badge(mode_label, BadgeKind::Neutral),
-        Space::new().width(Length::Fill),
-        icon_button(
+    ]
+    .align_y(Alignment::Center);
+    if !model.mode_zh.is_empty() {
+        header_row = header_row
+            .push(Space::new().width(theme::SP_SM))
+            .push(badge(model.mode_zh.clone(), BadgeKind::Neutral));
+    }
+    header_row = header_row
+        .push(Space::new().width(Length::Fill))
+        .push(icon_button(
             Icon::Pin,
             12.0,
-            Message::SetAlwaysOnTop(!state.shell.always_on_top),
-        ),
-        Space::new().width(theme::SP_XS),
-        icon_button(Icon::ChevronUp, 14.0, Message::ToggleMiniHudMode),
-    ]
-    .align_y(Alignment::Center);
-
-    // Node pill & quick controls
-    let footer_row = row![
-        badge(active_node, BadgeKind::Accent),
-        Space::new().width(Length::Fill),
-        button(svg_icons::icon_themed(
-            Icon::Wifi,
-            12.0,
-            move |t: &Theme| {
-                if state.runtime.system_toggles.system_proxy.is_enabled() {
-                    tokens(t).accent
-                } else {
-                    tokens(t).text_tertiary
-                }
-            }
+            Message::SetAlwaysOnTop(!model.placement.pinned),
         ))
+        .push(Space::new().width(theme::SP_XS))
+        .push(icon_button(
+            Icon::ChevronUp,
+            14.0,
+            Message::ToggleMiniHudMode,
+        ));
+
+    // Node pill & quick controls, all state from the shared read model.
+    let proxy_state = model.system_proxy.clone();
+    let proxy_desired = model.next_value(SystemToggle::SystemProxy);
+    let tun_state = model.tun.clone();
+    let tun_desired = model.next_value(SystemToggle::Tun);
+    let proxy_tint = {
+        let state = proxy_state.clone();
+        move |t: &Theme| proxy_color(&state, t)
+    };
+    let tun_tint = {
+        let state = tun_state.clone();
+        move |t: &Theme| proxy_color(&state, t)
+    };
+
+    let mut footer_row = row![].align_y(Alignment::Center);
+    if !model.exit_node.is_empty() {
+        footer_row = footer_row.push(badge(model.exit_node.clone(), BadgeKind::Accent));
+    }
+    footer_row = footer_row.push(Space::new().width(Length::Fill));
+
+    let proxy_button = button(svg_icons::icon_themed(Icon::Wifi, 12.0, proxy_tint))
         .padding([4, 6])
-        .style(|t: &Theme, _| {
-            let tk = tokens(t);
-            button::Style {
-                background: Some(tk.control_bg.into()),
-                border: Border {
-                    radius: border::Radius::from(theme::R_CHIP),
-                    width: 1.0,
-                    color: tk.card_border,
-                },
-                ..Default::default()
-            }
-        })
-        .on_press(Message::SetSystemProxy(
-            !state.runtime.system_toggles.system_proxy.is_enabled(),
-        )),
-        Space::new().width(theme::SP_XS),
-        button(svg_icons::icon_themed(Icon::Zap, 12.0, move |t: &Theme| {
-            if state.runtime.system_toggles.tun.is_enabled() {
-                tokens(t).success
-            } else {
-                tokens(t).text_tertiary
-            }
-        }))
+        .style(control_style);
+    let proxy_button = match proxy_desired {
+        Some(next) => proxy_button.on_press(Message::SetSystemProxy(next)),
+        None => proxy_button,
+    };
+
+    let tun_button = button(svg_icons::icon_themed(Icon::Zap, 12.0, tun_tint))
         .padding([4, 6])
-        .style(|t: &Theme, _| {
-            let tk = tokens(t);
-            button::Style {
-                background: Some(tk.control_bg.into()),
-                border: Border {
-                    radius: border::Radius::from(theme::R_CHIP),
-                    width: 1.0,
-                    color: tk.card_border,
-                },
-                ..Default::default()
-            }
-        })
-        .on_press(Message::SetTunEnabled(
-            !state.runtime.system_toggles.tun.is_enabled(),
-        )),
-    ]
-    .align_y(Alignment::Center);
+        .style(control_style);
+    let tun_button = match tun_desired {
+        Some(next) => tun_button.on_press(Message::SetTunEnabled(next)),
+        None => tun_button,
+    };
+
+    footer_row = footer_row
+        .push(proxy_button)
+        .push(Space::new().width(theme::SP_XS));
+
+    // The compact state letters are the shared contract vocabulary; the
+    // surrounding labels are localized, so both ends read the same states.
+    let state_text = format!(
+        "{} {} · {} {}",
+        lang.tr("mini_hud_system_proxy_short"),
+        proxy_state.compact_label(),
+        lang.tr("mini_hud_tun_short"),
+        tun_state.compact_label()
+    );
+    footer_row = footer_row
+        .push(tun_button)
+        .push(Space::new().width(theme::SP_SM))
+        .push(text(state_text).size(10).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_tertiary),
+        }));
 
     let hud_card = container(
         column![
@@ -185,10 +174,40 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
         }
     });
 
-    container(hud_card)
+    // Whole-card drag: the pointer position is forwarded into the shared
+    // placement math in `update/ui.rs`; releasing persists and snaps.
+    let draggable = mouse_area(hud_card)
+        .on_move(|point| Message::MiniHudMoved {
+            x: point.x,
+            y: point.y,
+        })
+        .on_release(Message::MiniHudDragReleased);
+
+    container(draggable)
         .width(Length::Fill)
         .height(Length::Fill)
         .align_x(Alignment::Center)
         .align_y(Alignment::Center)
         .into()
+}
+
+fn proxy_color(state: &SystemToggleState, t: &Theme) -> iced::Color {
+    if state.is_enabled() {
+        tokens(t).accent
+    } else {
+        tokens(t).text_tertiary
+    }
+}
+
+fn control_style(t: &Theme, _status: button::Status) -> button::Style {
+    let tk = tokens(t);
+    button::Style {
+        background: Some(tk.control_bg.into()),
+        border: Border {
+            radius: border::Radius::from(theme::R_CHIP),
+            width: 1.0,
+            color: tk.card_border,
+        },
+        ..Default::default()
+    }
 }

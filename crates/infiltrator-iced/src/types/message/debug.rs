@@ -836,6 +836,21 @@ impl std::fmt::Debug for Message {
             Message::ResetProxyGroupOrder => write!(f, "ResetProxyGroupOrder"),
             Message::ToggleMiniHudMode => write!(f, "ToggleMiniHudMode"),
             Message::SetAlwaysOnTop(v) => write!(f, "SetAlwaysOnTop({v})"),
+            Message::MiniHudMoved { x, y } => write!(f, "MiniHudMoved({x}, {y})"),
+            Message::MiniHudDragReleased => write!(f, "MiniHudDragReleased"),
+            Message::MiniHudPlacementUpdated(result) => match result {
+                Ok(placement) => write!(
+                    f,
+                    "MiniHudPlacementUpdated({}, {}, pinned={})",
+                    placement.x, placement.y, placement.pinned
+                ),
+                Err(error) => write!(f, "MiniHudPlacementUpdated(Err({error}))"),
+            },
+            Message::MiniHudDisplayKnown(size) => match size {
+                Some(size) => write!(f, "MiniHudDisplayKnown({}x{})", size.width, size.height),
+                None => write!(f, "MiniHudDisplayKnown(None)"),
+            },
+            Message::WindowIdResolved(id) => write!(f, "WindowIdResolved({id:?})"),
             Message::RunScriptSandboxTest => write!(f, "RunScriptSandboxTest"),
             Message::SelectScriptPreset(p) => write!(f, "SelectScriptPreset({p})"),
             Message::UpdateScriptSandboxCode(c) => {

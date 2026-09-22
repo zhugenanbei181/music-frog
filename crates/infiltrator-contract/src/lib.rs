@@ -7,6 +7,7 @@
 pub mod active_exit;
 pub mod capability;
 pub mod command;
+pub mod command_catalogue;
 pub mod connection;
 pub mod controller;
 pub mod dns;
@@ -16,6 +17,7 @@ pub mod error;
 pub mod intent;
 pub mod ipv6;
 pub mod lan;
+pub mod mini_hud;
 pub mod mrs_acceleration;
 pub mod mtu;
 pub mod network_roaming;

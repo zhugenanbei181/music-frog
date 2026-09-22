@@ -13,6 +13,7 @@ pub mod core_application;
 pub mod dns_cache_application;
 pub mod dns_workbench_application;
 pub mod doctor_application;
+pub mod mini_hud_application;
 pub mod mrs_acceleration_application;
 pub mod mtu_application;
 pub mod network_application;

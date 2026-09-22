@@ -3,3 +3,16 @@
 # runs cannot silently fall back to nextest's CPU-count default.
 [profile.default]
 test-threads = 4
+
+# The subscription-metadata journeys write `subscription:<profile>` entries in
+# the real OS keyring (via `KeyringCredentialStore`). The keyring is a
+# machine-global namespace, and the URL-less metadata write path deletes the
+# entry, so two tests using the same profile name in parallel can wipe each
+# other's credential mid-journey. Serialize the business-flow suites that
+# exercise the real config manager.
+[test-groups]
+keyring-serial = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = 'test(/business_flow/)'
+test-group = 'keyring-serial'

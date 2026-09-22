@@ -249,6 +249,7 @@ impl AppState {
             Message::ToggleCommandPalette => {
                 self.shell.command_palette_open = !self.shell.command_palette_open;
                 if self.shell.command_palette_open {
+                    self.rebuild_command_catalogue();
                     self.shell.command_query.clear();
                     self.shell.command_selected_index = 0;
                 }
@@ -256,6 +257,7 @@ impl AppState {
             }
             Message::OpenCommandPalette => {
                 self.shell.command_palette_open = true;
+                self.rebuild_command_catalogue();
                 self.shell.command_query.clear();
                 self.shell.command_selected_index = 0;
                 Task::none()
@@ -272,49 +274,62 @@ impl AppState {
                 Task::none()
             }
             Message::SelectNextCommand => {
-                self.shell.command_selected_index =
-                    self.shell.command_selected_index.saturating_add(1);
+                let len = self.filtered_command_indices().len();
+                if len > 0 {
+                    self.shell.command_selected_index =
+                        (self.shell.command_selected_index + 1) % len;
+                }
                 Task::none()
             }
             Message::SelectPrevCommand => {
-                self.shell.command_selected_index =
-                    self.shell.command_selected_index.saturating_sub(1);
+                let len = self.filtered_command_indices().len();
+                if len > 0 {
+                    self.shell.command_selected_index =
+                        (self.shell.command_selected_index + len - 1) % len;
+                }
                 Task::none()
             }
-            Message::ExecuteCommand(action) => {
+            Message::ExecuteCommand(target) => {
                 self.shell.command_palette_open = false;
-                match action {
-                    crate::types::app::CommandAction::Navigate(route) => {
-                        Task::done(Message::Navigate(route))
+                // The shared target vocabulary: global-chord actions re-enter
+                // the single shortcut handler, everything else routes through
+                // the same update arm its own message uses.
+                if let Some(action) = target.shortcut_action() {
+                    return self.on_shell_shortcut(action);
+                }
+                match target {
+                    infiltrator_contract::command_catalogue::CommandTarget::Navigate(page) => self
+                        .update_ui(Message::Navigate(
+                            crate::types::app::Route::from_shell_page(page),
+                        )),
+                    infiltrator_contract::command_catalogue::CommandTarget::SetProxyMode(mode) => {
+                        self.update_ui(Message::SetProxyMode(mode.to_wire().to_owned()))
                     }
-                    crate::types::app::CommandAction::SetMode(mode) => {
-                        Task::done(Message::SetProxyMode(mode))
+                    infiltrator_contract::command_catalogue::CommandTarget::SwitchProfile {
+                        name,
+                        ..
+                    } => self.update_ui(Message::SetActiveProfile(name)),
+                    infiltrator_contract::command_catalogue::CommandTarget::FlushDnsCache => {
+                        self.update_ui(Message::FlushFakeIpCache)
                     }
-                    crate::types::app::CommandAction::ToggleSystemProxy => {
-                        let cur = self.runtime.system_toggles.system_proxy.is_enabled();
-                        Task::done(Message::SetSystemProxy(!cur))
+                    infiltrator_contract::command_catalogue::CommandTarget::TestAllProxyGroups => {
+                        self.update_ui(Message::TestAllProxyDelays)
                     }
-                    crate::types::app::CommandAction::ToggleTun => {
-                        let cur = self.runtime.system_toggles.tun.is_enabled();
-                        Task::done(Message::SetTunEnabled(!cur))
+                    infiltrator_contract::command_catalogue::CommandTarget::RunDoctor => {
+                        self.update_ui(Message::RunDoctor)
                     }
-                    crate::types::app::CommandAction::FlushFakeIp => {
-                        Task::done(Message::FlushFakeIpCache)
+                    infiltrator_contract::command_catalogue::CommandTarget::CloseAllConnections => {
+                        self.update_ui(Message::CloseAllConnections)
                     }
-                    crate::types::app::CommandAction::SpeedTestAll => {
-                        Task::done(Message::TestAllProxyDelays)
+                    infiltrator_contract::command_catalogue::CommandTarget::RestartKernel => {
+                        self.update_ui(Message::StartProxy)
                     }
-                    crate::types::app::CommandAction::CloseAllConnections => {
-                        Task::done(Message::CloseAllConnections)
-                    }
-                    crate::types::app::CommandAction::RestartKernel => {
-                        Task::done(Message::StartProxy)
-                    }
-                    crate::types::app::CommandAction::SwitchProfile(name) => {
-                        Task::done(Message::SetActiveProfile(name))
-                    }
-                    crate::types::app::CommandAction::ToggleMiniHud => {
-                        Task::done(Message::ToggleMiniHudMode)
+                    // Handled above through the shared shortcut vocabulary.
+                    infiltrator_contract::command_catalogue::CommandTarget::ToggleSystemProxy
+                    | infiltrator_contract::command_catalogue::CommandTarget::ToggleTun
+                    | infiltrator_contract::command_catalogue::CommandTarget::ToggleMiniHud
+                    | infiltrator_contract::command_catalogue::CommandTarget::CycleTheme => {
+                        Task::none()
                     }
                 }
             }
@@ -469,13 +484,14 @@ impl AppState {
                 self.runtime.proxy_group_order.clear();
                 Task::none()
             }
-            Message::ToggleMiniHudMode => {
-                self.shell.mini_hud_mode = !self.shell.mini_hud_mode;
-                Task::none()
-            }
-            Message::SetAlwaysOnTop(v) => {
-                self.shell.always_on_top = v;
-                Task::none()
+            Message::ToggleMiniHudMode
+            | Message::SetAlwaysOnTop(_)
+            | Message::MiniHudMoved { .. }
+            | Message::MiniHudDragReleased
+            | Message::MiniHudPlacementUpdated(_)
+            | Message::MiniHudDisplayKnown(_)
+            | Message::WindowIdResolved(_) => {
+                self.update_mini_hud(message).unwrap_or_else(Task::none)
             }
             Message::RunScriptSandboxTest => {
                 let script = self.editor.script_sandbox.script_code.clone();

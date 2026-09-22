@@ -97,9 +97,17 @@ def main() -> int:
     )
     require(
         violations,
+        "crates/infiltrator-iced/src/state.rs",
+        "fn mini_hud_read_model",
+        "runtime.system_toggles.system_proxy.clone()",
+        "runtime.system_toggles.tun.clone()",
+    )
+    require(
+        violations,
         "crates/infiltrator-iced/src/view/mini_hud.rs",
-        "system_toggles.system_proxy",
-        "system_toggles.tun",
+        "mini_hud_read_model",
+        "model.system_proxy",
+        "model.tun",
     )
     require(
         violations,

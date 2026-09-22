@@ -119,6 +119,25 @@ impl Route {
             Self::Settings => "系统设置",
         }
     }
+
+    /// Map a shared command-catalogue page onto this surface's route. The Bevy
+    /// route set covers every shared page one-to-one (the Iced surface folds
+    /// `Logs` into its runtime page and keeps a local editor page).
+    pub const fn from_shell_page(page: infiltrator_contract::command_catalogue::ShellPage) -> Self {
+        match page {
+            infiltrator_contract::command_catalogue::ShellPage::Overview => Self::Overview,
+            infiltrator_contract::command_catalogue::ShellPage::Proxies => Self::Proxies,
+            infiltrator_contract::command_catalogue::ShellPage::Profiles => Self::Profiles,
+            infiltrator_contract::command_catalogue::ShellPage::Rules => Self::Rules,
+            infiltrator_contract::command_catalogue::ShellPage::Connections => Self::Connections,
+            infiltrator_contract::command_catalogue::ShellPage::Logs => Self::Logs,
+            infiltrator_contract::command_catalogue::ShellPage::Dns => Self::Dns,
+            infiltrator_contract::command_catalogue::ShellPage::Doctor => Self::Doctor,
+            infiltrator_contract::command_catalogue::ShellPage::AppRouting => Self::AppRouting,
+            infiltrator_contract::command_catalogue::ShellPage::Sync => Self::Sync,
+            infiltrator_contract::command_catalogue::ShellPage::Settings => Self::Settings,
+        }
+    }
 }
 
 /// A navigation request. Observed by [`sync_route`] (installed by
