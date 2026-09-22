@@ -79,9 +79,28 @@ fn test_item_list_mutation() {
 
 #[test]
 fn test_domain_mapping_and_filter_mode_controls() {
-    let _ = domain_mapping_mode_control("fake-ip", &Lang("zh-CN"));
-    let _ = domain_mapping_mode_control("redir-host", &Lang("en-US"));
-    let _ = domain_mapping_mode_control("none", &Lang("zh-CN"));
-    let _ = filter_mode_control(&Lang("zh-CN"));
-    let _ = filter_mode_control(&Lang("en-US"));
+    let _ = domain_mapping_mode_control(DnsEnhancedMode::FakeIp, &Lang("zh-CN"));
+    let _ = domain_mapping_mode_control(DnsEnhancedMode::RedirHost, &Lang("en-US"));
+    let _ = domain_mapping_mode_control(DnsEnhancedMode::Unmapped, &Lang("zh-CN"));
+    let _ = filter_mode_control(DnsFakeIpFilterMode::Blacklist, &Lang("zh-CN"));
+    let _ = filter_mode_control(DnsFakeIpFilterMode::Whitelist, &Lang("zh-CN"));
+    let _ = filter_mode_control(DnsFakeIpFilterMode::Rules, &Lang("en-US"));
+}
+
+#[test]
+fn test_server_tag_labels_are_localized() {
+    let zh = Lang("zh-CN");
+    let en = Lang("en-US");
+    assert_eq!(server_tag_label(DnsServerTag::Domestic, &zh), "国内");
+    assert_eq!(server_tag_label(DnsServerTag::Encrypted, &en), "Encrypted");
+    assert_eq!(server_tag_label(DnsServerTag::Fallback, &en), "Fallback");
+    assert_eq!(server_tag_label(DnsServerTag::Plain, &zh), "明文");
+    let _ = token_row(
+        "https://doh.pub/dns-query",
+        0,
+        "https://doh.pub/dns-query",
+        false,
+        &zh,
+        Message::UpdateDnsFormNameserver,
+    );
 }

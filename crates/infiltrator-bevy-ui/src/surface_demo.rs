@@ -2,7 +2,7 @@ use super::*;
 
 use crate::pages::app_routing::{AppRouteRule, AppRoutingMode, AppRoutingProjection};
 use crate::pages::connections::ConnectionsProjection;
-use crate::pages::dns::{DnsMode, DnsProjection};
+use crate::pages::dns::DnsProjection;
 use crate::pages::doctor::{DoctorCheckState, DoctorProjection};
 use crate::pages::logs::LogsProjection;
 use crate::pages::profiles::ProfilesProjection;
@@ -12,6 +12,7 @@ use crate::pages::settings::settings_core::SettingsProjection;
 use crate::pages::sync::{SyncProjection, SyncStatus};
 use crate::projection::OverviewState;
 use infiltrator_contract::capability::CapabilitySnapshot;
+use infiltrator_contract::dns::DnsEnhancedMode;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 
 pub(super) fn snapshot_from_overview(
@@ -293,10 +294,12 @@ pub(crate) fn empty_logs() -> LogsProjection {
 
 pub(crate) fn empty_dns() -> DnsProjection {
     DnsProjection {
-        mode: DnsMode::FakeIp,
+        mode: DnsEnhancedMode::Unmapped,
         cache_entries: 0,
         fake_ip_range: "—".to_owned(),
         servers: Vec::new(),
+        switches: infiltrator_contract::dns::DnsCoreSwitches::default(),
+        filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::default(),
     }
 }
 
@@ -514,12 +517,11 @@ impl From<LogsProjection> for surface_snapshot::LogsPageSnapshot {
 impl From<DnsProjection> for surface_snapshot::DnsPageSnapshot {
     fn from(value: DnsProjection) -> Self {
         Self {
-            mode: match value.mode {
-                DnsMode::FakeIp => "fake-ip".to_owned(),
-                DnsMode::RedirHost => "redir-host".to_owned(),
-            },
+            enhanced_mode: value.mode,
             cache_entries: value.cache_entries,
             fake_ip_range: value.fake_ip_range,
+            switches: value.switches,
+            filter_mode: value.filter_mode,
             servers: value
                 .servers
                 .into_iter()
@@ -528,6 +530,7 @@ impl From<DnsProjection> for surface_snapshot::DnsPageSnapshot {
                     protocol: server.protocol,
                     latency_ms: server.latency_ms,
                     is_fallback: server.is_fallback,
+                    tags: server.tags,
                 })
                 .collect(),
         }

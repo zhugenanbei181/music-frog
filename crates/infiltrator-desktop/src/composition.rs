@@ -5,6 +5,7 @@
 //! adapter. UI crates receive the resulting `CoreApplication` handle.
 
 use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
@@ -66,11 +67,13 @@ pub fn core_application(
         std::sync::Arc::new(crate::network_roaming::DesktopNetworkRoamingPort::shared()),
         Some(std::sync::Arc::new(client.clone())),
     );
+    let configuration_store = std::sync::Arc::clone(&profile_store);
     application.install_command_handler(std::sync::Arc::new(
         CommandApplication::new()
             .with_runtime(std::sync::Arc::new(client.clone()))
             .with_application_runtime(runtime)
             .with_profile(ProfileApplication::new(profile_store))
+            .with_configuration(ConfigurationApplication::new(configuration_store))
             .with_subscription_source(subscription_source)
             .with_mtu(MtuApplication::new(std::sync::Arc::new(
                 crate::mtu::DesktopMtuProbe::new(),

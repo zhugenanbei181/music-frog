@@ -530,7 +530,7 @@ fn validate_fake_ip_config(config: &FakeIpConfig) -> Result<()> {
     }
     if let Some(mode) = config.fake_ip_filter_mode.as_ref() {
         let m = mode.trim().to_ascii_lowercase();
-        if m != "blacklist" && m != "whitelist" {
+        if m != "blacklist" && m != "whitelist" && m != "rule" {
             return Err(anyhow!("unsupported fake-ip-filter-mode: {}", mode));
         }
     }

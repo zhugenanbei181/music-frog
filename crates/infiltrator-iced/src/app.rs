@@ -290,7 +290,7 @@ impl AppState {
                 fake_ip_json_dirty: false,
                 tun_json_dirty: false,
                 dns_form: DnsFormDraft {
-                    enhanced_mode: "fake-ip".to_string(),
+                    enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::FakeIp,
                     ..DnsFormDraft::default()
                 },
                 fake_ip_form: FakeIpFormDraft::default(),

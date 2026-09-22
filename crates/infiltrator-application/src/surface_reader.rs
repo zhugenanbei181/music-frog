@@ -804,9 +804,15 @@ async fn build_dns_page(
             let nameservers = dns.nameserver.clone().unwrap_or_default();
             let fallback = dns.fallback.clone().unwrap_or_default();
             let data = surface_snapshot::DnsPageSnapshot {
-                mode: dns.enhanced_mode.unwrap_or_default(),
+                enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::from_config_value(
+                    dns.enhanced_mode.as_deref(),
+                ),
                 cache_entries: 0,
                 fake_ip_range: fake_ip.fake_ip_range.unwrap_or_default(),
+                switches: dns_core_switches(&dns),
+                filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::from_config_value(
+                    dns.fake_ip_filter_mode.as_deref(),
+                ),
                 servers: dns_servers(nameservers, fallback),
             };
             return surface_snapshot::PageData::ready(data);
@@ -815,15 +821,21 @@ async fn build_dns_page(
     match runtime_config {
         Some(Ok(config)) => match &config.dns {
             Some(dns) => surface_snapshot::PageData::ready(surface_snapshot::DnsPageSnapshot {
-                mode: dns.enhanced_mode.clone(),
+                enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::from_config_value(Some(
+                    dns.enhanced_mode.as_str(),
+                )),
                 cache_entries: 0,
                 fake_ip_range: String::new(),
+                switches: infiltrator_contract::dns::DnsCoreSwitches::default(),
+                filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::default(),
                 servers: dns_servers(dns.nameserver.clone(), dns.fallback.clone()),
             }),
             None => surface_snapshot::PageData::empty(surface_snapshot::DnsPageSnapshot {
-                mode: String::new(),
+                enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::Unmapped,
                 cache_entries: 0,
                 fake_ip_range: String::new(),
+                switches: infiltrator_contract::dns::DnsCoreSwitches::default(),
+                filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::default(),
                 servers: Vec::new(),
             }),
         },
@@ -844,6 +856,7 @@ fn dns_servers(
         .into_iter()
         .map(|address| surface_snapshot::DnsServerSnapshot {
             protocol: dns_protocol(&address),
+            tags: infiltrator_contract::dns::DnsServerTag::classify(&address, false),
             address,
             latency_ms: None,
             is_fallback: false,
@@ -853,12 +866,26 @@ fn dns_servers(
                 .into_iter()
                 .map(|address| surface_snapshot::DnsServerSnapshot {
                     protocol: dns_protocol(&address),
+                    tags: infiltrator_contract::dns::DnsServerTag::classify(&address, true),
                     address,
                     latency_ms: None,
                     is_fallback: true,
                 }),
         )
         .collect()
+}
+
+fn dns_core_switches(
+    config: &infiltrator_domain::dns::DnsConfig,
+) -> infiltrator_contract::dns::DnsCoreSwitches {
+    infiltrator_contract::dns::DnsCoreSwitches {
+        enable: config.enable.unwrap_or(false),
+        ipv6: config.ipv6.unwrap_or(false),
+        cache: config.cache.unwrap_or(false),
+        use_hosts: config.use_hosts.unwrap_or(false),
+        use_system_hosts: config.use_system_hosts.unwrap_or(false),
+        respect_rules: config.respect_rules.unwrap_or(false),
+    }
 }
 
 fn dns_protocol(address: &str) -> String {

@@ -24,6 +24,7 @@ pub mod connections_drawer;
 pub mod connections_idle;
 pub mod connections_view;
 pub mod dns;
+pub(crate) mod dns_form;
 pub mod doctor;
 pub mod logs;
 pub mod overview;

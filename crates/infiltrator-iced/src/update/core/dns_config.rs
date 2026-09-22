@@ -47,12 +47,14 @@ impl AppState {
             enable: config.enable.unwrap_or(false),
             nameserver: Self::join_list_field(&config.nameserver),
             fallback: Self::join_list_field(&config.fallback),
-            enhanced_mode: config
-                .enhanced_mode
-                .clone()
-                .unwrap_or_else(|| "fake-ip".to_string()),
+            enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::from_config_value(
+                config.enhanced_mode.as_deref(),
+            ),
             fake_ip_range: config.fake_ip_range.clone().unwrap_or_default(),
             fake_ip_filter: Self::join_list_field(&config.fake_ip_filter),
+            filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::from_config_value(
+                config.fake_ip_filter_mode.as_deref(),
+            ),
             ipv6: config.ipv6.unwrap_or(false),
             cache: config.cache.unwrap_or(false),
             use_hosts: config.use_hosts.unwrap_or(false),
@@ -77,35 +79,24 @@ impl AppState {
     fn dns_patch_from_form(
         &self,
     ) -> Result<infiltrator_domain::dns::DnsConfigPatch, InfiltratorError> {
-        let enhanced_mode = self
-            .editor
-            .dns_form
-            .enhanced_mode
-            .trim()
-            .to_ascii_lowercase();
-        if !enhanced_mode.is_empty() && enhanced_mode != "fake-ip" && enhanced_mode != "redir-host"
-        {
-            return Err(InfiltratorError::Config(
-                "enhanced_mode must be fake-ip or redir-host".to_string(),
-            ));
-        }
-
+        let enhanced_mode = self.editor.dns_form.enhanced_mode;
         let fake_ip_range = self.editor.dns_form.fake_ip_range.trim();
         Ok(infiltrator_domain::dns::DnsConfigPatch {
             enable: Some(self.editor.dns_form.enable),
             nameserver: Some(Self::split_list_field(&self.editor.dns_form.nameserver)),
             fallback: Some(Self::split_list_field(&self.editor.dns_form.fallback)),
-            enhanced_mode: if enhanced_mode.is_empty() {
-                None
-            } else {
-                Some(enhanced_mode)
-            },
+            enhanced_mode: enhanced_mode.config_value().map(str::to_owned),
+            clear_enhanced_mode: matches!(
+                enhanced_mode,
+                infiltrator_contract::dns::DnsEnhancedMode::Unmapped
+            ),
             fake_ip_range: if fake_ip_range.is_empty() {
                 None
             } else {
                 Some(fake_ip_range.to_string())
             },
             fake_ip_filter: Some(Self::split_list_field(&self.editor.dns_form.fake_ip_filter)),
+            fake_ip_filter_mode: Some(self.editor.dns_form.filter_mode.config_value().to_owned()),
             ipv6: Some(self.editor.dns_form.ipv6),
             cache: Some(self.editor.dns_form.cache),
             use_hosts: Some(self.editor.dns_form.use_hosts),
@@ -284,6 +275,11 @@ impl AppState {
             }
             Message::UpdateDnsFormEnhancedMode(value) => {
                 self.editor.dns_form.enhanced_mode = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormFilterMode(value) => {
+                self.editor.dns_form.filter_mode = value;
                 self.mark_dns_form_dirty_and_sync();
                 Task::none()
             }

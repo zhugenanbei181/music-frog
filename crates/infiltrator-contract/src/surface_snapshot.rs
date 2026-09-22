@@ -313,14 +313,24 @@ pub struct DnsServerSnapshot {
     pub protocol: String,
     pub latency_ms: Option<u32>,
     pub is_fallback: bool,
+    #[serde(default)]
+    pub tags: Vec<crate::dns::DnsServerTag>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DnsPageSnapshot {
-    pub mode: String,
+    /// Domain mapping mode (`dns.enhanced-mode`).
+    #[serde(default)]
+    pub enhanced_mode: crate::dns::DnsEnhancedMode,
     pub cache_entries: usize,
     pub fake_ip_range: String,
     pub servers: Vec<DnsServerSnapshot>,
+    /// The six system-level switches of the DNS workbench form.
+    #[serde(default)]
+    pub switches: crate::dns::DnsCoreSwitches,
+    /// Fake-IP filter mode (`dns.fake-ip-filter-mode`).
+    #[serde(default)]
+    pub filter_mode: crate::dns::DnsFakeIpFilterMode,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -73,6 +73,7 @@ pub struct CommandApplication {
     speedtest: Option<crate::speedtest_application::SpeedtestApplication>,
     proxy_preferences: Option<crate::proxy_preferences_application::ProxyPreferencesApplication>,
     rule_tracer: Option<crate::rule_tracer_application::RuleTracerApplication>,
+    configuration: Option<crate::configuration_application::ConfigurationApplication>,
 }
 
 impl CommandApplication {
@@ -204,6 +205,16 @@ impl CommandApplication {
         rule_tracer: crate::rule_tracer_application::RuleTracerApplication,
     ) -> Self {
         self.rule_tracer = Some(rule_tracer);
+        self
+    }
+
+    /// Install the validated profile configuration application so surfaces can
+    /// submit their shared DNS workbench edits through the same write path.
+    pub fn with_configuration(
+        mut self,
+        configuration: crate::configuration_application::ConfigurationApplication,
+    ) -> Self {
+        self.configuration = Some(configuration);
         self
     }
 
@@ -408,6 +419,11 @@ impl CommandApplication {
                 .flush_fakeip_cache()
                 .await
                 .map_err(Failure::from),
+            CommandIntent::ApplyDnsSettings { patch } => self
+                .configuration()?
+                .apply_dns_settings(patch)
+                .await
+                .map(|_| ()),
             CommandIntent::RunDoctorDiagnostics => self.doctor()?.run(None).await.map(|_| ()),
             CommandIntent::RepairDoctorIssue { check_id } => {
                 self.doctor()?.fix(Some(check_id)).await.map(|_| ())
@@ -736,6 +752,14 @@ impl CommandApplication {
         self.profile
             .clone()
             .ok_or_else(|| missing("profile application"))
+    }
+
+    fn configuration(
+        &self,
+    ) -> Result<crate::configuration_application::ConfigurationApplication, Failure> {
+        self.configuration
+            .clone()
+            .ok_or_else(|| missing("configuration application"))
     }
 
     fn runtime(&self) -> Result<Arc<dyn RuntimeGateway>, Failure> {

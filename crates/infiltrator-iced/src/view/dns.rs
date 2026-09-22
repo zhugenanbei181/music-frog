@@ -15,6 +15,7 @@ use iced::widget::{
     Space, button, column, container, pick_list, row, text, text_editor, text_input,
 };
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn save_button(
@@ -178,6 +179,7 @@ fn token_row<'a>(
     idx: usize,
     raw_list: &'a str,
     is_domain: bool,
+    lang: &Lang<'_>,
     on_update: impl Fn(String) -> Message + 'a,
 ) -> Element<'a, Message> {
     let tag: Element<'a, Message> = if is_domain {
@@ -185,6 +187,12 @@ fn token_row<'a>(
     } else {
         chip(dns_protocol_chip(item))
     };
+    let mut meta = row![tag].spacing(4).align_y(Alignment::Center);
+    if !is_domain {
+        for server_tag in DnsServerTag::classify(item, false) {
+            meta = meta.push(chip(server_tag_label(server_tag, lang)));
+        }
+    }
     let address = text(item.to_string())
         .size(12)
         .font(MONO)
@@ -199,7 +207,7 @@ fn token_row<'a>(
 
     container(
         row![
-            tag,
+            meta,
             Space::new().width(theme::SP_SM),
             address,
             Space::new().width(Length::Fill),
@@ -239,6 +247,7 @@ fn dynamic_token_section<'a>(
     placeholder: &str,
     templates: &[&'static str],
     is_domain: bool,
+    lang: &Lang<'_>,
     on_update: impl Fn(String) -> Message + 'a + Copy,
 ) -> Element<'a, Message> {
     let items = parse_item_list(raw_list);
@@ -249,7 +258,7 @@ fn dynamic_token_section<'a>(
     if !items.is_empty() {
         let mut list_col = column![].spacing(4);
         for (idx, item) in items.iter().enumerate() {
-            list_col = list_col.push(token_row(item, idx, raw_list, is_domain, on_update));
+            list_col = list_col.push(token_row(item, idx, raw_list, is_domain, lang, on_update));
         }
         col = col.push(list_col);
     }
@@ -264,27 +273,17 @@ fn dynamic_token_section<'a>(
     .into()
 }
 
-fn domain_mapping_mode_control<'a>(current_mode: &str, lang: &Lang<'_>) -> Element<'a, Message> {
+fn domain_mapping_mode_control(
+    mode: DnsEnhancedMode,
+    lang: &Lang<'_>,
+) -> Element<'static, Message> {
     let mode_labels = vec![
         lang.tr("dns_mode_fakeip").to_string(),
         lang.tr("dns_mode_redirhost").to_string(),
         lang.tr("dns_mode_none").to_string(),
     ];
-    let mode_lower = current_mode.trim().to_ascii_lowercase();
-    let selected = if mode_lower == "fake-ip" {
-        0
-    } else if mode_lower == "redir-host" {
-        1
-    } else {
-        2
-    };
-    let ctrl = segmented_control(&mode_labels, selected, |idx| {
-        let target = match idx {
-            0 => "fake-ip",
-            1 => "redir-host",
-            _ => "",
-        };
-        Message::UpdateDnsFormEnhancedMode(target.to_string())
+    let ctrl = segmented_control(&mode_labels, mode.to_index(), |idx| {
+        Message::UpdateDnsFormEnhancedMode(DnsEnhancedMode::from_index(idx))
     });
     let lbl = lang.tr("dns_mode_label").to_string();
     column![form_field_label(lbl), ctrl]
@@ -292,17 +291,29 @@ fn domain_mapping_mode_control<'a>(current_mode: &str, lang: &Lang<'_>) -> Eleme
         .into()
 }
 
-fn filter_mode_control<'a>(lang: &Lang<'_>) -> Element<'a, Message> {
+fn filter_mode_control(mode: DnsFakeIpFilterMode, lang: &Lang<'_>) -> Element<'static, Message> {
     let labels = vec![
         lang.tr("dns_filter_blacklist").to_string(),
         lang.tr("dns_filter_whitelist").to_string(),
         lang.tr("dns_filter_rules").to_string(),
     ];
-    let ctrl = segmented_control(&labels, 0, |_| Message::Noop);
+    let ctrl = segmented_control(&labels, mode.to_index(), |idx| {
+        Message::UpdateDnsFormFilterMode(DnsFakeIpFilterMode::from_index(idx))
+    });
     let lbl = lang.tr("dns_filter_label").to_string();
     column![form_field_label(lbl), ctrl]
         .spacing(theme::SP_XS)
         .into()
+}
+
+fn server_tag_label(tag: DnsServerTag, lang: &Lang<'_>) -> String {
+    match tag {
+        DnsServerTag::Domestic => lang.tr("dns_tag_domestic"),
+        DnsServerTag::Fallback => lang.tr("dns_tag_fallback"),
+        DnsServerTag::Encrypted => lang.tr("dns_tag_encrypted"),
+        DnsServerTag::Plain => lang.tr("dns_tag_plain"),
+    }
+    .to_string()
 }
 
 fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message> {
@@ -366,9 +377,9 @@ fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
             Message::UpdateDnsFormRespectRules
         ),
         Space::new().height(theme::SP_SM),
-        domain_mapping_mode_control(&state.editor.dns_form.enhanced_mode, lang),
+        domain_mapping_mode_control(state.editor.dns_form.enhanced_mode, lang),
         Space::new().height(theme::SP_XS),
-        filter_mode_control(lang),
+        filter_mode_control(state.editor.dns_form.filter_mode, lang),
         Space::new().height(theme::SP_SM),
         dynamic_token_section(
             "nameserver (DoH/DoT/DoQ/UDP)",
@@ -381,6 +392,7 @@ fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
                 "119.29.29.29"
             ],
             false,
+            lang,
             Message::UpdateDnsFormNameserver
         ),
         dynamic_token_section(
@@ -394,6 +406,7 @@ fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
                 "tls://1.0.0.1:853"
             ],
             false,
+            lang,
             Message::UpdateDnsFormFallback
         ),
         form_field_label("fake_ip_range".to_string()),
@@ -409,6 +422,7 @@ fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
             "*.lan, localhost.ptlogin2.qq.com",
             &["*.lan", "localhost.ptlogin2.qq.com", "*.local"],
             true,
+            lang,
             Message::UpdateDnsFormFakeIpFilter
         ),
         dynamic_token_section(
@@ -421,6 +435,7 @@ fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
                 "https://dns.alidns.com/dns-query"
             ],
             false,
+            lang,
             Message::UpdateDnsFormProxyServerNameserver
         ),
         dynamic_token_section(
@@ -429,6 +444,7 @@ fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
             "system",
             &["system", "223.5.5.5"],
             false,
+            lang,
             Message::UpdateDnsFormDirectNameserver
         ),
     ]
@@ -485,8 +501,6 @@ fn fake_ip_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, M
             .font(MONO)
             .style(form_input_style),
         Space::new().height(theme::SP_XS),
-        filter_mode_control(lang),
-        Space::new().height(theme::SP_XS),
         dynamic_token_section(
             "fake_ip_filter",
             &state.editor.fake_ip_form.fake_ip_filter,
@@ -498,6 +512,7 @@ fn fake_ip_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, M
                 "+.msftconnecttest.com"
             ],
             true,
+            lang,
             Message::UpdateFakeIpFormFilter
         ),
         Space::new().height(theme::SP_SM),
