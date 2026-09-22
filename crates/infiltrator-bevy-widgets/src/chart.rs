@@ -381,6 +381,37 @@ pub fn chart_image(
     chart_image_with_spec(&spec, palette)
 }
 
+/// A normalized sparkline: the caller hands real per-sample heights
+/// (`0.0..=1.0`, oldest first) and this projects the polyline over the
+/// optional fade fill, with no grid. It is the business-agnostic seam the
+/// Mini HUD strip adapter uses for its already-normalized bars.
+pub fn sparkline_image(
+    samples: &[f32],
+    width: u32,
+    height: u32,
+    line: Color,
+    fill: Option<Color>,
+) -> Image {
+    let points = linear_polyline(samples, width as f32, height as f32, Some(1.0));
+    let layers = [ChartLayer {
+        points,
+        line: to_rgba8(line),
+        fill: fill.map(to_rgba8),
+    }];
+    let data = rasterize(width, height, None, &layers);
+    Image::new(
+        Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    )
+}
+
 /// The chart scene constructor.
 pub fn chart_scene(
     up: Vec<f32>,

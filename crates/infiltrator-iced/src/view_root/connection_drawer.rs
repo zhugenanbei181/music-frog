@@ -274,7 +274,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
                         bottom_right: 0.0,
                         bottom_left: 16.0,
                     },
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 shadow: tk.floating_shadow,
@@ -339,7 +339,7 @@ fn stat_card<'a, Message: 'a>(
             background: Some(tk.control_bg.into()),
             border: Border {
                 radius: 8.0.into(),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: tk.card_border,
             },
             ..Default::default()

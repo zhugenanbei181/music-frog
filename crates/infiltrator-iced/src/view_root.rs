@@ -119,7 +119,7 @@ impl AppState {
                             background: Some(tokens.overlay.into()),
                             border: Border {
                                 radius: 12.0.into(),
-                                width: 1.0,
+                                width: crate::view::theme::HAIRLINE,
                                 color: color(theme),
                             },
                             shadow: tokens.floating_shadow,
@@ -181,7 +181,7 @@ impl AppState {
                             background: Some(tokens.overlay.into()),
                             border: Border {
                                 radius: crate::view::theme::R_CHIP.into(),
-                                width: 1.0,
+                                width: crate::view::theme::HAIRLINE,
                                 color: tokens.danger,
                             },
                             shadow: tokens.floating_shadow,
@@ -265,7 +265,7 @@ impl AppState {
                                 background: Some(tokens.overlay.into()),
                                 border: Border {
                                     radius: crate::view::theme::R_CHIP.into(),
-                                    width: 1.0,
+                                    width: crate::view::theme::HAIRLINE,
                                     color: color(theme),
                                 },
                                 shadow: tokens.floating_shadow,
@@ -368,7 +368,7 @@ impl AppState {
                             background: Some(tokens.overlay.into()),
                             border: Border {
                                 radius: 10.0.into(),
-                                width: 1.0,
+                                width: crate::view::theme::HAIRLINE,
                                 color: tokens.overlay_border,
                             },
                             shadow: tokens.floating_shadow,

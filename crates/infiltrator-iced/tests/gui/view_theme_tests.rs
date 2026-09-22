@@ -40,6 +40,20 @@ fn test_tokens_resolution() {
     assert_eq!(tokens(&amoled).canvas, Color::from_rgb(0.0, 0.0, 0.0));
 }
 
+/// DUAL-15-14: the hairline is a consumed shared token, not a page-local 1.0.
+#[test]
+fn theme_hairline_consumes_the_shared_contract_metric() {
+    assert_eq!(
+        HAIRLINE,
+        infiltrator_contract::design_tokens::metrics::HAIRLINE
+    );
+    // A hairline is thin, non-zero and sub-pixel-safe; the relation is
+    // constant-folded so it is checked at compile time, not at runtime.
+    const {
+        assert!(HAIRLINE > 0.0 && HAIRLINE <= 2.0);
+    }
+}
+
 #[test]
 fn test_floating_shadows() {
     const {

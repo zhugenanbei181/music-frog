@@ -165,6 +165,39 @@ fn capture_marker_without_path_is_a_noop() {
     assert!(state.shell.capture_marker.is_none());
 }
 
+/// DUAL-15-03: the demo surface seeds the shared live-waveform slot from the
+/// fixture history, so the HUD/Overview strip is the same projection the live
+/// pump publishes (never an empty placeholder in screenshots).
+#[test]
+fn demo_seeds_the_shared_live_waveform_slot() {
+    let (state, _) = AppState::demo(&demo_env(Route::Overview));
+    assert!(
+        state.runtime.traffic_waveform.is_drawable(),
+        "the demo history reaches the shared waveform slot"
+    );
+    let model = state.mini_hud_read_model();
+    assert!(!model.waveform.is_empty());
+    assert_eq!(
+        model.waveform,
+        infiltrator_contract::mini_hud::MiniHudWaveformStrip::from_snapshot(
+            &state.runtime.traffic_waveform
+        )
+    );
+    assert!(model.waveform.peak_bytes_per_sec > 0);
+    assert_eq!(
+        model.waveform.up.len().max(model.waveform.down.len()),
+        24,
+        "the strip keeps the newest 24 fixture samples"
+    );
+    // The Overview card consumes the same shared scale projection; a default
+    // scale would flatten the demo chart.
+    assert!(state.runtime.traffic_scale.max_bps > 0.0);
+    assert_eq!(
+        state.runtime.traffic_scale.revision,
+        state.runtime.traffic_waveform.revision
+    );
+}
+
 #[test]
 fn env_page_mapping_is_exhaustive() {
     let cases = [

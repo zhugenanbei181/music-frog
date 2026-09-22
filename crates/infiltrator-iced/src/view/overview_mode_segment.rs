@@ -61,7 +61,7 @@ pub fn overview_mode_segment<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'
                     text_color: txt_color,
                     border: Border {
                         radius: border::Radius::from(R_CONTROL),
-                        width: 1.0,
+                        width: theme::HAIRLINE,
                         color: if is_current {
                             tk.accent
                         } else {

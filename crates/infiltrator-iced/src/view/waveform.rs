@@ -310,6 +310,118 @@ pub fn mini_waveform<'a, Message: 'a>(samples: &[u64]) -> Element<'a, Message> {
     .into()
 }
 
+/// Which token ink a shared HUD waveform strip paints with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StripInk {
+    /// Downstream: the accent ink over its own wash.
+    Accent,
+    /// Upstream: the success ink over its own wash.
+    Success,
+}
+
+/// Full-scale bar value, straight from the shared HUD strip contract.
+const STRIP_PERMILLE: u16 = infiltrator_contract::mini_hud::MiniHudWaveformStrip::PERMILLE;
+
+/// The HUD waveform strip: bars already normalized by the shared contract
+/// ([`MiniHudWaveformStrip`](infiltrator_contract::mini_hud::MiniHudWaveformStrip)),
+/// drawn at their per-mille height without a per-surface re-normalization.
+/// Both surfaces therefore show the identical shape from one snapshot.
+pub struct MiniWaveformStrip {
+    pub bars: Vec<u16>,
+    pub ink: StripInk,
+}
+
+impl<Message> canvas::Program<Message> for MiniWaveformStrip {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &Renderer,
+        theme: &Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<canvas::Geometry> {
+        let tk = theme::tokens(theme);
+        let (line, wash) = match self.ink {
+            StripInk::Accent => (
+                tk.accent,
+                Color {
+                    a: 0.12,
+                    ..tk.accent
+                },
+            ),
+            StripInk::Success => (
+                tk.success,
+                Color {
+                    a: 0.10,
+                    ..tk.success
+                },
+            ),
+        };
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        let (width, height) = (bounds.width, bounds.height);
+
+        if self.bars.is_empty() {
+            let mid_y = height / 2.0;
+            let baseline = canvas::Path::line(Point::new(0.0, mid_y), Point::new(width, mid_y));
+            frame.stroke(
+                &baseline,
+                canvas::Stroke::default()
+                    .with_color(Color {
+                        a: 0.25,
+                        ..tk.text_tertiary
+                    })
+                    .with_width(1.0),
+            );
+            return vec![frame.into_geometry()];
+        }
+
+        // Per-mille heights are the shared projection; a single bar still
+        // paints its real level rather than a fabricated baseline.
+        let bar_count = self.bars.len();
+        let column = width / bar_count as f32;
+        let inner = (column - 1.0).max(1.0);
+        let level = |bar: u16| {
+            let fraction = f32::from(bar.min(STRIP_PERMILLE)) / f32::from(STRIP_PERMILLE);
+            height - fraction * (height - 2.0) - 1.0
+        };
+
+        let area_path = canvas::Path::new(|p| {
+            p.move_to(Point::new(0.0, height));
+            for (index, bar) in self.bars.iter().enumerate() {
+                let x = index as f32 * column + inner / 2.0;
+                p.line_to(Point::new(x, level(*bar)));
+            }
+            p.line_to(Point::new(width, height));
+            p.close();
+        });
+        frame.fill(&area_path, wash);
+
+        for (index, bar) in self.bars.iter().enumerate() {
+            let x = index as f32 * column;
+            let top = level(*bar);
+            let bar_path =
+                canvas::Path::rectangle(Point::new(x, top), iced::Size::new(inner, height - top));
+            frame.fill(&bar_path, line);
+        }
+
+        vec![frame.into_geometry()]
+    }
+}
+
+/// The HUD's compact strip canvas: 60x24 like the sidebar sparkline, but fed
+/// by the shared contract bars instead of raw samples.
+pub fn hud_waveform<'a, Message: 'a>(bars: &[u16], ink: StripInk) -> Element<'a, Message> {
+    canvas::Canvas::new(MiniWaveformStrip {
+        bars: bars.to_vec(),
+        ink,
+    })
+    .width(infiltrator_contract::mini_hud::MiniHudWaveformStrip::WIDTH_PX)
+    .height(infiltrator_contract::mini_hud::MiniHudWaveformStrip::HEIGHT_PX)
+    .into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

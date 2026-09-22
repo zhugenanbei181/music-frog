@@ -122,7 +122,7 @@ fn fidelity_section<'a>(
                 background: Some(tk.control_bg.into()),
                 border: Border {
                     radius: border::Radius::from(theme::R_CONTROL),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 ..Default::default()
@@ -464,7 +464,7 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 background: Some(tk.control_bg.into()),
                 border: Border {
                     radius: border::Radius::from(theme::R_CONTROL),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 ..Default::default()
@@ -519,7 +519,7 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 background: Some(tk.card_bg.into()),
                 border: Border {
                     radius: border::Radius::from(theme::R_CARD),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 shadow: tk.floating_shadow,

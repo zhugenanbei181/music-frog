@@ -145,7 +145,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         ),
                         border: Border {
                             radius: border::Radius::from(theme::R_CONTROL),
-                            width: 1.0,
+                            width: theme::HAIRLINE,
                             color: tk.warning,
                         },
                         ..Default::default()
@@ -377,7 +377,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         ),
                         border: Border {
                             radius: border::Radius::from(theme::R_CHIP),
-                            width: 1.0,
+                            width: theme::HAIRLINE,
                             color: Color {
                                 a: 0.35,
                                 ..tk.danger
@@ -430,7 +430,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         ),
                         border: Border {
                             radius: border::Radius::from(theme::R_CONTROL),
-                            width: 1.0,
+                            width: theme::HAIRLINE,
                             color: Color {
                                 a: 0.30,
                                 ..tk.danger
@@ -543,7 +543,7 @@ fn snip_btn<'a>(label: &str, snippet_id: &'static str) -> Element<'a, Message> {
             },
             border: Border {
                 radius: border::Radius::from(theme::R_CHIP),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: tk.card_border,
             },
             ..Default::default()

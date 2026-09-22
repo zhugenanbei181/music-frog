@@ -36,7 +36,7 @@ fn preset_chip<'a>(
                 background: Some(bg.into()),
                 border: Border {
                     radius: border::Radius::from(theme::R_CHIP),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: if is_active { tk.accent } else { tk.card_border },
                 },
                 text_color: if is_active {
@@ -182,7 +182,7 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                     ),
                     border: Border {
                         radius: border::Radius::from(theme::R_CONTROL),
-                        width: 1.0,
+                        width: theme::HAIRLINE,
                         color: Color {
                             a: 0.30,
                             ..tk.danger
@@ -254,7 +254,7 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                             background: Some(tk.control_bg.into()),
                             border: Border {
                                 radius: border::Radius::from(theme::R_CONTROL),
-                                width: 1.0,
+                                width: theme::HAIRLINE,
                                 color: tk.card_border,
                             },
                             ..Default::default()
@@ -277,7 +277,7 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                     ),
                     border: Border {
                         radius: border::Radius::from(theme::R_CARD),
-                        width: 1.0,
+                        width: theme::HAIRLINE,
                         color: Color {
                             a: 0.35,
                             ..tk.success
@@ -308,7 +308,7 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                     background: Some(tk.control_bg.into()),
                     border: Border {
                         radius: border::Radius::from(theme::R_CARD),
-                        width: 1.0,
+                        width: theme::HAIRLINE,
                         color: tk.card_border,
                     },
                     ..Default::default()

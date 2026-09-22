@@ -237,7 +237,7 @@ fn provider_icon_chip<'a>(icon: Icon, size: f32) -> Element<'a, Message> {
             background: Some(tk.accent_soft.into()),
             border: Border {
                 radius: border::Radius::from(theme::R_CONTROL),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: Color {
                     a: 0.20,
                     ..tk.accent
@@ -547,7 +547,7 @@ fn target_group_pill<'a>(target: &str, is_enabled: bool) -> Element<'a, Message>
             background: Some(bg_color.into()),
             border: Border {
                 radius: border::Radius::from(theme::R_CHIP),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: border_color,
             },
             ..Default::default()

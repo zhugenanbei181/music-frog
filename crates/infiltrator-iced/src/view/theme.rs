@@ -47,6 +47,12 @@ pub const R_CARD: f32 = infiltrator_contract::design_tokens::radius::CARD;
 pub const R_CONTROL: f32 = infiltrator_contract::design_tokens::radius::CONTROL;
 pub const R_CHIP: f32 = 999.0;
 
+/// Hairline border width (logical pixels), from the shared contract metrics
+/// (`infiltrator_contract::design_tokens::metrics::HAIRLINE`). Every 1px
+/// border in the shell draws with this constant so the Iced hairline and the
+/// Bevy widget mirror can never drift.
+pub const HAIRLINE: f32 = infiltrator_contract::design_tokens::metrics::HAIRLINE;
+
 /// Font used for latency / bytes / speed numerals. JetBrains Mono has
 /// tabular (monospaced) digits by default, so live-updating values do not
 /// jitter horizontally. Bundled in `assets/fonts` (SIL OFL 1.1).

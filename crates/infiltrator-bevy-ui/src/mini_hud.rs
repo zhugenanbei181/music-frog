@@ -13,7 +13,7 @@ use bevy::ecs::resource::Resource;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node,
-    PositionType, UiRect, Val, percent, px,
+    Overflow, PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -77,6 +77,44 @@ pub struct MiniHudSystemProxyToggle;
 /// Marker on the HUD's TUN quick switch.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MiniHudTunToggle;
+
+/// Marker on the HUD's downstream waveform strip. The bars come from the
+/// shared read model resource (`MiniHudModel`) — the scene only owns the slot,
+/// exactly like the chart plates own their spec.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MiniHudDownWaveform;
+
+/// Marker on the HUD's upstream waveform strip.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MiniHudUpWaveform;
+
+fn down_waveform_slot_scene() -> impl Scene + use<> {
+    let width = infiltrator_contract::mini_hud::MiniHudWaveformStrip::WIDTH_PX as f32;
+    let height = infiltrator_contract::mini_hud::MiniHudWaveformStrip::HEIGHT_PX as f32;
+    bsn! {
+        Node {
+            width: px(width),
+            height: px(height),
+            overflow: Overflow::clip(),
+            flex_shrink: 0.0,
+        }
+        MiniHudDownWaveform
+    }
+}
+
+fn up_waveform_slot_scene() -> impl Scene + use<> {
+    let width = infiltrator_contract::mini_hud::MiniHudWaveformStrip::WIDTH_PX as f32;
+    let height = infiltrator_contract::mini_hud::MiniHudWaveformStrip::HEIGHT_PX as f32;
+    bsn! {
+        Node {
+            width: px(width),
+            height: px(height),
+            overflow: Overflow::clip(),
+            flex_shrink: 0.0,
+        }
+        MiniHudUpWaveform
+    }
+}
 
 /// Format a byte/second rate with shared product units (B/KB/MB/GB).
 pub fn format_rate(bytes_per_second: u64) -> String {
@@ -236,6 +274,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                                 Children [
                                     ( { icon_tile_scene(IconId::ArrowDown, 16.0, palette) } ),
                                     ( Text(down_rate) TextRole(Role::BodyStrong) ),
+                                    ( { down_waveform_slot_scene() } ),
                                 ]
                             ),
                             (
@@ -246,6 +285,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                                 Children [
                                     ( { icon_tile_scene(IconId::ArrowUp, 16.0, palette) } ),
                                     ( Text(up_rate) TextRole(Role::BodyStrong) ),
+                                    ( { up_waveform_slot_scene() } ),
                                 ]
                             ),
                         ]
@@ -325,6 +365,27 @@ mod tests {
             .with_traffic(120 * 1024, 2 * 1024 * 1024)
             .with_exit_node("HK-01")
             .with_mode("规则模式")
+            .with_waveform(&waveform_snapshot())
+    }
+
+    fn waveform_snapshot() -> infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot {
+        use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+        TrafficWaveformSnapshot {
+            generation: 1,
+            revision: 3,
+            samples: vec![
+                TrafficSample {
+                    sampled_at_epoch_ms: None,
+                    upload_bps: 1.0,
+                    download_bps: 2.0,
+                },
+                TrafficSample {
+                    sampled_at_epoch_ms: None,
+                    upload_bps: 4.0,
+                    download_bps: 8.0,
+                },
+            ],
+        }
     }
 
     #[test]
@@ -349,6 +410,11 @@ mod tests {
 
         let pin_count = world.query::<&MiniHudPinButton>().iter(world).count();
         assert_eq!(pin_count, 1, "MiniHudPinButton must mount");
+
+        let down_slots = world.query::<&MiniHudDownWaveform>().iter(world).count();
+        assert_eq!(down_slots, 1, "the downstream waveform slot must mount");
+        let up_slots = world.query::<&MiniHudUpWaveform>().iter(world).count();
+        assert_eq!(up_slots, 1, "the upstream waveform slot must mount");
     }
 
     #[test]

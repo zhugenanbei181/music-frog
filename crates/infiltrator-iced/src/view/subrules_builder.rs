@@ -177,7 +177,7 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             background: Some(tk.control_bg.into()),
             border: Border {
                 radius: border::Radius::from(theme::R_CONTROL),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: tk.card_border,
             },
             ..Default::default()

@@ -116,7 +116,7 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
                 background: Some(tk.control_bg.into()),
                 border: Border {
                     radius: border::Radius::from(theme::R_CONTROL),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 ..Default::default()
@@ -200,7 +200,7 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
                 background: Some(tk.card_bg.into()),
                 border: Border {
                     radius: border::Radius::from(theme::R_CARD),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 shadow: tk.floating_shadow,

@@ -107,7 +107,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     ),
                     border: Border {
                         radius: border::Radius::from(theme::R_CARD),
-                        width: 1.0,
+                        width: theme::HAIRLINE,
                         color: tk.accent,
                     },
                     ..Default::default()
@@ -755,7 +755,7 @@ fn speed_pill<'a>(
             background: Some(Color { a: 0.10, ..c }.into()),
             border: Border {
                 radius: border::Radius::from(R_CHIP),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: Color { a: 0.20, ..c },
             },
             ..Default::default()
@@ -1014,7 +1014,7 @@ fn colored_flow_chip<'a>(
             background: Some(Color { a: 0.12, ..c }.into()),
             border: Border {
                 radius: border::Radius::from(R_CHIP),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: Color { a: 0.25, ..c },
             },
             ..Default::default()
@@ -1180,7 +1180,7 @@ fn latency_card<'a>(_state: &'a AppState, lang: &Lang<'a>, _is_en: bool) -> Elem
             ),
             border: Border {
                 radius: border::Radius::from(R_CHIP),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: Color {
                     a: 0.25,
                     ..tk.success

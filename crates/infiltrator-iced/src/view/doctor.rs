@@ -180,7 +180,7 @@ fn check_row(check: &DoctorCheckResult) -> Element<'static, Message> {
             background: Some(theme::tokens(t).control_bg.into()),
             border: iced::Border {
                 radius: iced::border::Radius::from(theme::R_CONTROL),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: theme::tokens(t).card_border,
             },
             ..Default::default()

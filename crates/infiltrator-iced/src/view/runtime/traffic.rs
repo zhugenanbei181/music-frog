@@ -341,7 +341,7 @@ fn public_ip_tile<'a>(state: &'a AppState, lang: &Lang<'a>, accent: Color) -> El
             background: Some(tk.card_bg.into()),
             border: Border {
                 radius: border::Radius::from(theme::R_CARD),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: tk.card_border,
             },
             shadow: tk.card_shadow,

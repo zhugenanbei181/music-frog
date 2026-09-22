@@ -214,7 +214,7 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 },
                 border: Border {
                     radius: border::Radius::from(theme::R_CONTROL),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: if is_selected {
                         Color {
                             a: 0.30,
@@ -326,7 +326,7 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                             background: Some(tk.control_bg.into()),
                             border: Border {
                                 radius: border::Radius::from(theme::R_CONTROL),
-                                width: 1.0,
+                                width: theme::HAIRLINE,
                                 color: tk.card_border,
                             },
                             ..Default::default()
@@ -352,7 +352,7 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
             background: Some(tk.card_bg.into()),
             border: Border {
                 radius: border::Radius::from(theme::R_CARD),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: tk.card_border,
             },
             shadow: tk.floating_shadow,
@@ -633,7 +633,7 @@ fn preview_section<'a>(report: &'a AggregationReport, lang: &Lang<'_>) -> Elemen
                 background: Some(tk.control_bg.into()),
                 border: Border {
                     radius: border::Radius::from(theme::R_CONTROL),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 ..Default::default()

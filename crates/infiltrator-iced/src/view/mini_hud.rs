@@ -12,7 +12,7 @@ use crate::utils::format_bytes;
 use crate::view::components::{BadgeKind, badge, icon_button};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
-use crate::view::waveform::mini_waveform;
+use crate::view::waveform::{StripInk, hud_waveform};
 use iced::widget::{Space, button, column, container, mouse_area, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleState};
@@ -22,10 +22,8 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
     let model = state.mini_hud_read_model();
 
-    let down_samples: Vec<u64> = state.diag.traffic_history.iter().map(|(_, d)| *d).collect();
-    let up_samples: Vec<u64> = state.diag.traffic_history.iter().map(|(u, _)| *u).collect();
-
-    // Downstream speed & waveform
+    // Downstream speed & the shared waveform strip (same bars the Bevy overlay
+    // rasterizes from the one read model).
     let down_card = row![
         svg_icons::icon_themed(Icon::ArrowDown, 14.0, |t: &Theme| tokens(t).accent),
         Space::new().width(theme::SP_XS),
@@ -38,7 +36,7 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
                 }),
         ],
         Space::new().width(theme::SP_SM),
-        mini_waveform(&down_samples),
+        hud_waveform(&model.waveform.down, StripInk::Accent),
     ]
     .align_y(Alignment::Center);
 
@@ -55,7 +53,7 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
                 }),
         ],
         Space::new().width(theme::SP_SM),
-        mini_waveform(&up_samples),
+        hud_waveform(&model.waveform.up, StripInk::Success),
     ]
     .align_y(Alignment::Center);
 
@@ -165,7 +163,7 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
             background: Some(tk.overlay.into()),
             border: Border {
                 radius: border::Radius::from(theme::R_CARD),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: tk.card_border,
             },
             shadow: tk.floating_shadow,
@@ -205,7 +203,7 @@ fn control_style(t: &Theme, _status: button::Status) -> button::Style {
         background: Some(tk.control_bg.into()),
         border: Border {
             radius: border::Radius::from(theme::R_CHIP),
-            width: 1.0,
+            width: theme::HAIRLINE,
             color: tk.card_border,
         },
         ..Default::default()

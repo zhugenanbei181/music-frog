@@ -156,7 +156,9 @@ def check_matrix(violations: list[str]) -> None:
     This is what makes `DUAL-15-15` a machine-checkable claim instead of a doc
     promise: every `path::test_name` evidence token must point at an existing
     file that really contains that test, closed items must carry evidence from
-    both surfaces, and planned items must not claim any.
+    both surfaces plus the shared/application source, planned items must not
+    claim any, and every matrix status must equal the authoritative per-item
+    status in the master plan.
     """
     text = read(MATRIX)
     evidence = re.compile(r"`(crates/[^`\s]+?\.rs)::([A-Za-z0-9_]+)`")
@@ -169,6 +171,15 @@ def check_matrix(violations: list[str]) -> None:
             continue
         rows[item.group(1)] = line
 
+    ledger = ledger_statuses()
+    shared_roots = (
+        "crates/infiltrator-contract/",
+        "crates/infiltrator-application/",
+        "crates/infiltrator-ports/",
+        "crates/infiltrator-domain/",
+        "crates/infiltrator-desktop/",
+    )
+
     expected = [f"DUAL-15-{index:02d}" for index in range(1, 16)]
     for item in expected:
         if item not in rows:
@@ -177,11 +188,23 @@ def check_matrix(violations: list[str]) -> None:
         line = rows[item]
         status_match = re.match(r"\| `DUAL-15-\d+` \| (?P<status>[^|]+)\|", line)
         status_cell = status_match.group("status").strip() if status_match else ""
-        if not any(
-            status in status_cell
-            for status in ("parity-ready", "shared-ready", "planned")
-        ):
+        status = next(
+            (
+                word
+                for word in ("parity-ready", "shared-ready", "planned")
+                if word in status_cell
+            ),
+            None,
+        )
+        if status is None:
             violations.append(f"{MATRIX} {item} has no known status: {status_cell!r}")
+        ledger_status = ledger.get(item)
+        if ledger_status is None:
+            violations.append(f"{LEDGER} has no group 15 item row for {item}")
+        elif status is not None and ledger_status != status:
+            violations.append(
+                f"{MATRIX} {item} says {status!r} but {LEDGER} says {ledger_status!r}"
+            )
         tokens = evidence.findall(line)
         for path, name in tokens:
             try:
@@ -193,7 +216,7 @@ def check_matrix(violations: list[str]) -> None:
                 violations.append(
                     f"{MATRIX} {item} cites {path}::{name} but the test is absent"
                 )
-        if "planned" in status_cell:
+        if status == "planned":
             if tokens:
                 violations.append(
                     f"{MATRIX} {item} is planned but claims evidence {tokens}"
@@ -209,6 +232,50 @@ def check_matrix(violations: list[str]) -> None:
             violations.append(
                 f"{MATRIX} {item} is {status_cell} but lacks dual-surface evidence: {surfaces}"
             )
+        shared_evidence = [
+            (path, name)
+            for path, name in tokens
+            if path.startswith(shared_roots)
+        ]
+        if not shared_evidence:
+            violations.append(
+                f"{MATRIX} {item} claims {status!r} without shared/application evidence"
+            )
+        if len(tokens) < 3:
+            violations.append(
+                f"{MATRIX} {item} claims {status!r} with only {len(tokens)} evidence "
+                "tokens; shared + Iced + Bevy are the minimum"
+            )
+
+
+def ledger_statuses() -> dict[str, str]:
+    """The authoritative per-item group 15 statuses from the master plan.
+
+    The first `DUAL-15-XX | 任务 | 状态 | 证据` row of an item wins, so the
+    per-item ledger table stays authoritative over any later batch notes.
+    """
+    text = read(LEDGER)
+    statuses: dict[str, str] = {}
+    for line in text.splitlines():
+        match = re.match(
+            r"\| `(DUAL-15-\d+)` \| [^|]+ \| (?P<status>[^|]+) \|", line
+        )
+        if not match:
+            continue
+        item = match.group(1)
+        if item in statuses:
+            continue
+        status = next(
+            (
+                word
+                for word in ("parity-ready", "shared-ready", "planned")
+                if word in match.group("status")
+            ),
+            None,
+        )
+        if status is not None:
+            statuses[item] = status
+    return statuses
 
 
 def check_design_token_mirrors(violations: list[str]) -> None:
@@ -280,6 +347,18 @@ def check_design_token_mirrors(violations: list[str]) -> None:
                     f"{core_name}.{field}"
                 )
 
+    # The hairline is part of the claimed shared scope: Iced must consume the
+    # contract metric by name, and the whole Iced shell must have exactly one
+    # spelling of a 1px border (the token).
+    if (
+        "pub const HAIRLINE: f32 = "
+        "infiltrator_contract::design_tokens::metrics::HAIRLINE;" not in iced_text
+    ):
+        violations.append(
+            f"{ICED_THEME} HAIRLINE must consume the shared contract metric"
+        )
+    check_no_raw_hairlines(violations)
+
     # Structural ladders: contract numbers, Iced by-name consumption, Bevy
     # numeric mirror.
     contract_text = read(DESIGN_TOKENS)
@@ -335,6 +414,38 @@ def check_design_token_mirrors(violations: list[str]) -> None:
             violations.append(
                 f"{BEVY_THEME} radius::{name}={bevy_value!r} must mirror contract {expected}"
             )
+    bevy_hairline = number_const(bevy_text, "HAIRLINE")
+    contract_hairline = number_const(contract_text, "HAIRLINE")
+    if bevy_hairline is None or bevy_hairline != contract_hairline:
+        violations.append(
+            f"{BEVY_THEME} metrics::HAIRLINE={bevy_hairline!r} must mirror "
+            f"contract metrics::HAIRLINE={contract_hairline!r}"
+        )
+
+
+def check_no_raw_hairlines(violations: list[str]) -> None:
+    """Fail closed if an Iced border goes back to a raw `width: 1.0`.
+
+    DUAL-15-14 claims the hairline as a shared token; a page-local literal
+    would silently break the claim (and the Bevy mirror would have nothing to
+    mirror), so the whole Iced view layer must spell it `theme::HAIRLINE`.
+    """
+    roots = [ROOT / "crates/infiltrator-iced/src/view", ROOT / "crates/infiltrator-iced/src/view_root.rs"]
+    roots.append(ROOT / "crates/infiltrator-iced/src/view_root")
+    for root in roots:
+        files = [root] if root.is_file() else sorted(root.rglob("*.rs"))
+        for path in files:
+            relative = path.relative_to(ROOT).as_posix()
+            if relative.endswith("view/theme.rs"):
+                continue
+            for number, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), start=1
+            ):
+                if "width: 1.0" in line or "width: 1," in line:
+                    violations.append(
+                        f"{relative}:{number} hardcodes a 1px border width; "
+                        "use theme::HAIRLINE (DUAL-15-14)"
+                    )
 
 
 def main() -> int:
@@ -368,7 +479,7 @@ def main() -> int:
         "planned",
         "组 15 逐项账目",
         "2026-09-22 组 15 批次 A",
-        "组 15 多模态外壳与极客命令流 | 15 | `in progress`",
+        "组 15 多模态外壳与极客命令流 | 15 | `in progress (8/15)`",
         # 15-01 stays authoritatively tracked in the responsive ledger.
         "RESPONSIVE_PARITY_LEDGER.md",
     )
@@ -1031,6 +1142,113 @@ def main() -> int:
         DESIGN_TOKENS,
         "fn every_skin_has_a_distinct_core_palette",
         "fn the_spacing_and_radius_ladders_are_positive_and_ordered",
+    )
+
+    # ---- Batch D (DUAL-15-03/14/15): the shared HUD waveform strip, the
+    # consumed hairline token, and the hardened matrix.
+    require(
+        violations,
+        LEDGER,
+        "2026-09-22 组 15 批次 D",
+        "MiniHudWaveformStrip",
+        "the_waveform_strip_projects_the_newest_real_samples",
+        "an_empty_or_non_finite_waveform_never_fabricates_bars",
+        "the_waveform_strip_comes_from_the_shared_live_samples",
+        "the_mounted_waveform_slots_rasterize_the_shared_strip",
+        "the_mini_hud_view_renders_the_shared_strip",
+        "demo_seeds_the_shared_live_waveform_slot",
+        "sparkline_image_projects_normalized_bars_without_a_grid",
+        "theme_hairline_consumes_the_shared_contract_metric",
+        "check_no_raw_hairlines",
+        "ledger_statuses",
+        "sync_mini_hud_waveforms",
+    )
+
+    # Contract: the shared normalization both surfaces consume.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/mini_hud.rs",
+        "pub const MINI_HUD_WAVEFORM_BARS",
+        "pub struct MiniHudWaveformStrip",
+        "pub fn from_snapshot(snapshot: &TrafficWaveformSnapshot) -> Self",
+        "pub fn bar_fraction(bar: u16) -> f32",
+        "pub fn with_waveform(mut self, snapshot: &TrafficWaveformSnapshot) -> Self",
+        "pub waveform: MiniHudWaveformStrip",
+        "pub const WIDTH_PX: u32 = 60",
+    )
+
+    # Iced: the strip canvas and the hairline token.
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/waveform.rs",
+        "pub enum StripInk",
+        "pub struct MiniWaveformStrip",
+        "pub fn hud_waveform<'a, Message: 'a>(bars: &[u16], ink: StripInk) -> Element<'a, Message>",
+        "MiniHudWaveformStrip::WIDTH_PX",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/mini_hud.rs",
+        "hud_waveform(&model.waveform.down, StripInk::Accent)",
+        "hud_waveform(&model.waveform.up, StripInk::Success)",
+    )
+    require(
+        violations,
+        ICED_THEME,
+        "pub const HAIRLINE: f32 = "
+        "infiltrator_contract::design_tokens::metrics::HAIRLINE;",
+    )
+
+    # Bevy: the business-agnostic sparkline seam and the mounted HUD slots.
+    require(
+        violations,
+        "crates/infiltrator-bevy-widgets/src/chart.rs",
+        "pub fn sparkline_image(",
+        "linear_polyline(samples, width as f32, height as f32, Some(1.0))",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/mini_hud.rs",
+        "pub struct MiniHudDownWaveform",
+        "pub struct MiniHudUpWaveform",
+        "fn down_waveform_slot_scene()",
+        "fn up_waveform_slot_scene()",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/mini_hud_shell.rs",
+        ".with_waveform(&overview.traffic_waveform)",
+        "pub fn sync_mini_hud_waveforms",
+        "sparkline_image(",
+        "MiniHudDownWaveform",
+        "MiniHudUpWaveform",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-widgets/tests/headless/chart_tests.rs",
+        "fn sparkline_image_projects_normalized_bars_without_a_grid",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/mini_hud_tests.rs",
+        "fn the_waveform_strip_comes_from_the_shared_live_samples",
+        "fn the_mounted_waveform_slots_rasterize_the_shared_strip",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_theme_tests.rs",
+        "fn theme_hairline_consumes_the_shared_contract_metric",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/multimodal_shell_tests.rs",
+        "fn the_mini_hud_view_renders_the_shared_strip",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/mini_hud.rs",
+        "fn the_waveform_strip_projects_the_newest_real_samples",
+        "fn an_empty_or_non_finite_waveform_never_fabricates_bars",
     )
 
     # The mirrored skin vocabulary must match the contract numerically.

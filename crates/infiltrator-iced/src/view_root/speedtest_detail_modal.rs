@@ -102,7 +102,7 @@ fn node_row(node: &NodeSpeedtestResult, lang: &Lang<'_>) -> Element<'static, Mes
         background: Some(tokens(theme).card_bg.into()),
         border: iced::Border {
             radius: 8.0.into(),
-            width: 1.0,
+            width: crate::view::theme::HAIRLINE,
             color: tokens(theme).card_border,
         },
         ..Default::default()

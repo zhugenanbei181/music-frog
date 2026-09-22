@@ -6,23 +6,30 @@
 //! routes the `Ctrl+Alt+M` shortcut / palette row into the toggle event.
 
 use bevy::app::{App, Plugin, Update};
+use bevy::asset::Assets;
+use bevy::color::Color;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::image::Image;
 use bevy::scene::CommandsSceneExt;
+use bevy::ui::widget::ImageNode;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
+use infiltrator_bevy_widgets::chart::sparkline_image;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::system_toggle::SystemToggle;
 
 use crate::app::SidebarToggleProjection;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::mini_hud::{
-    MiniHudExpandButton, MiniHudMode, MiniHudModel, MiniHudPinButton, MiniHudRoot,
-    MiniHudSystemProxyToggle, MiniHudTunToggle, SetMiniHudPinned, ToggleMiniHud, mini_hud_scene,
+    MiniHudDownWaveform, MiniHudExpandButton, MiniHudMode, MiniHudModel, MiniHudPinButton,
+    MiniHudRoot, MiniHudSystemProxyToggle, MiniHudTunToggle, MiniHudUpWaveform, SetMiniHudPinned,
+    ToggleMiniHud, mini_hud_scene,
 };
 use crate::pages::overview::{LastOverviewProjection, mode_label};
 use crate::surface::LatestSurfaceSnapshot;
@@ -62,7 +69,8 @@ pub fn sync_mini_hud_model(
                 sanitize_rate(overview.download_bps),
             )
             .with_mode(mode_label(overview.mode))
-            .with_exit_node(overview.active_exit.name.clone().unwrap_or_default());
+            .with_exit_node(overview.active_exit.name.clone().unwrap_or_default())
+            .with_waveform(&overview.traffic_waveform);
     }
     if *model != next {
         *model = next;
@@ -107,6 +115,84 @@ pub fn sync_mini_hud_overlay(
 /// Observer toggling the HUD visibility.
 pub fn on_toggle_mini_hud(_trigger: On<ToggleMiniHud>, mut mode: ResMut<MiniHudMode>) {
     mode.0 = !mode.0;
+}
+
+/// Rasterize every mounted HUD waveform slot from the shared contract bars.
+///
+/// Follows the widget layer's chart pattern: the first run stamps an
+/// `ImageNode`, later runs rewrite the same texture handle, so a live sample
+/// never allocates a new asset. The bars are already normalized by the shared
+/// [`MiniHudWaveformStrip`], so the Bevy strip and the Iced canvas draw the
+/// same shape from the same snapshot.
+pub fn sync_mini_hud_waveforms(
+    model: Res<MiniHudModel>,
+    palette: Res<UiPalette>,
+    images: Option<ResMut<Assets<Image>>>,
+    downstream: Query<(Entity, Option<&ImageNode>), With<MiniHudDownWaveform>>,
+    upstream: Query<(Entity, Option<&ImageNode>), With<MiniHudUpWaveform>>,
+    mut commands: Commands,
+) {
+    let Some(mut images) = images else {
+        return;
+    };
+    for (entity, node) in &downstream {
+        rasterize_waveform_slot(
+            &model.0.waveform.down,
+            palette.accent,
+            palette.chart_fill_down(),
+            entity,
+            node,
+            &mut images,
+            &mut commands,
+        );
+    }
+    for (entity, node) in &upstream {
+        rasterize_waveform_slot(
+            &model.0.waveform.up,
+            palette.success,
+            palette.chart_fill_up(),
+            entity,
+            node,
+            &mut images,
+            &mut commands,
+        );
+    }
+}
+
+fn rasterize_waveform_slot(
+    bars: &[u16],
+    line: Color,
+    fill: Color,
+    entity: Entity,
+    node: Option<&ImageNode>,
+    images: &mut Assets<Image>,
+    commands: &mut Commands,
+) {
+    let samples: Vec<f32> = bars
+        .iter()
+        .map(|bar| MiniHudWaveformStrip::bar_fraction(*bar))
+        .collect();
+    let image = sparkline_image(
+        &samples,
+        MiniHudWaveformStrip::WIDTH_PX,
+        MiniHudWaveformStrip::HEIGHT_PX,
+        line,
+        Some(fill),
+    );
+    match node {
+        Some(node) => {
+            if let Some(mut existing) = images.get_mut(&node.image) {
+                *existing = image;
+            }
+        }
+        None => {
+            let handle = images.add(image);
+            commands.entity(entity).insert(ImageNode {
+                image: handle,
+                ..ImageNode::default()
+            });
+        }
+    }
 }
 
 /// Observer: the expand button leaves HUD mode.
@@ -239,6 +325,14 @@ impl Plugin for MiniHudPlugin {
         app.add_observer(on_set_mini_hud_pinned);
         app.add_observer(on_mini_hud_system_proxy_activated);
         app.add_observer(on_mini_hud_tun_activated);
-        app.add_systems(Update, (sync_mini_hud_model, sync_mini_hud_overlay).chain());
+        app.add_systems(
+            Update,
+            (
+                sync_mini_hud_model,
+                sync_mini_hud_overlay,
+                sync_mini_hud_waveforms,
+            )
+                .chain(),
+        );
     }
 }

@@ -33,7 +33,7 @@ fn quick_test_btn<'a>(sample: &'static str) -> Element<'a, Message> {
                 background: Some(bg.into()),
                 border: Border {
                     radius: border::Radius::from(theme::R_CONTROL),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: Color {
                         a: 0.20,
                         ..tk.card_border
@@ -124,7 +124,7 @@ fn decision_chain_rows<'a>(
             background: Some(tk.control_bg.into()),
             border: Border {
                 radius: border::Radius::from(theme::R_CARD),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: tk.divider,
             },
             ..Default::default()
@@ -176,7 +176,7 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
                                     background: Some(bg.into()),
                                     border: Border {
                                         radius: border::Radius::from(theme::R_CONTROL),
-                                        width: 1.0,
+                                        width: theme::HAIRLINE,
                                         color: Color {
                                             a: 0.20,
                                             ..tk.card_border
@@ -315,7 +315,7 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
                     ),
                     border: Border {
                         radius: border::Radius::from(theme::R_CARD),
-                        width: 1.0,
+                        width: theme::HAIRLINE,
                         color: Color {
                             a: 0.35,
                             ..tk.success
@@ -370,7 +370,7 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
                 ),
                 border: Border {
                     radius: border::Radius::from(theme::R_CARD),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: Color {
                         a: 0.25,
                         ..tk.warning
@@ -400,7 +400,7 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
                 background: Some(tk.control_bg.into()),
                 border: Border {
                     radius: border::Radius::from(theme::R_CARD),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 ..Default::default()

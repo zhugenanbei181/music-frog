@@ -708,7 +708,7 @@ pub(super) fn params_section<'a>(state: &'a AppState) -> Element<'a, Message> {
                 background: Some(tk.control_bg.into()),
                 border: iced::Border {
                     radius: iced::border::Radius::from(theme::R_CONTROL),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 ..Default::default()

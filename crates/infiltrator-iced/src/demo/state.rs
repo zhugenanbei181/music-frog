@@ -3,9 +3,10 @@
 
 use super::DemoEnv;
 use super::fixtures::{
-    demo_connections, demo_logs, demo_profiles, demo_rules, demo_traffic_history, dns_json_fixture,
-    fake_ip_json_fixture, profile_yaml_fixture, proxy_providers_json_fixture,
-    rule_providers_json_fixture, sniffer_json_fixture, tun_json_fixture,
+    demo_connections, demo_logs, demo_profiles, demo_rules, demo_traffic_history,
+    demo_traffic_waveform, dns_json_fixture, fake_ip_json_fixture, profile_yaml_fixture,
+    proxy_providers_json_fixture, rule_providers_json_fixture, sniffer_json_fixture,
+    tun_json_fixture,
 };
 use super::proxy_fixtures::demo_proxy_tables;
 use crate::state::AppState;
@@ -80,6 +81,13 @@ impl AppState {
             up: last.0,
             down: last.1,
         });
+        // The shared live-waveform slot carries the fixture history so the
+        // demo HUD/Overview strip is the same projection the live pump feeds,
+        // and the shared scale projection is derived from it (the Overview
+        // card consumes both; a default scale would flatten the demo chart).
+        state.runtime.traffic_waveform = demo_traffic_waveform();
+        state.runtime.traffic_scale =
+            infiltrator_domain::traffic_scale::compute(&state.runtime.traffic_waveform, 60);
         state.diag.memory = Some(MemoryData {
             in_use: 96_468_992,
             os_limit: 0,

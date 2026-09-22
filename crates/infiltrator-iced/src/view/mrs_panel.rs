@@ -150,7 +150,7 @@ fn detail_row<'a>(
                     background: Some(tk.accent_soft.into()),
                     border: Border {
                         radius: border::Radius::from(theme::R_CONTROL),
-                        width: 1.0,
+                        width: theme::HAIRLINE,
                         color: Color {
                             a: 0.20,
                             ..tk.accent

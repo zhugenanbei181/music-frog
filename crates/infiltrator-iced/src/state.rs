@@ -711,6 +711,9 @@ impl AppState {
             system_proxy: self.runtime.system_toggles.system_proxy.clone(),
             tun: self.runtime.system_toggles.tun.clone(),
             placement: self.shell.mini_hud_placement,
+            waveform: infiltrator_contract::mini_hud::MiniHudWaveformStrip::from_snapshot(
+                &self.runtime.traffic_waveform,
+            ),
         }
     }
 

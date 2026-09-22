@@ -39,7 +39,8 @@ use infiltrator_bevy_widgets::chart::topology::{
     TopologyLink, TopologyNode, TopologyPlate, TopologySpec, rasterize_topology, topology_scene,
 };
 use infiltrator_bevy_widgets::chart::{
-    ChartLayer, ChartPlate, ChartSpec, Grid, chart_scene, polyline, rasterize, to_rgba8,
+    ChartLayer, ChartPlate, ChartSpec, Grid, chart_scene, polyline, rasterize, sparkline_image,
+    to_rgba8,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
@@ -160,6 +161,47 @@ fn to_rgba8_is_channel_exact() {
     assert_eq!(
         to_rgba8(Color::srgba(0.5, 0.0, 1.0, 0.5)),
         [128, 0, 255, 128]
+    );
+}
+
+/// The Mini HUD's rasterizer seam: real normalized bars in, a real sparkline
+/// out, with no grid and no per-call re-normalization.
+#[test]
+fn sparkline_image_projects_normalized_bars_without_a_grid() {
+    let empty = sparkline_image(&[], 8, 8, Color::WHITE, None);
+    assert_eq!(empty.texture_descriptor.size.width, 8);
+    assert_eq!(empty.texture_descriptor.size.height, 8);
+    assert!(
+        empty
+            .data
+            .as_ref()
+            .expect("raster data")
+            .iter()
+            .all(|byte| *byte == 0),
+        "no bars paints nothing — never a fabricated baseline"
+    );
+
+    let rising = sparkline_image(&[0.2, 0.6, 1.0], 6, 6, Color::WHITE, Some(Color::WHITE));
+    let data = rising.data.as_ref().expect("raster data");
+    assert_eq!(
+        pixel(data, 6, 5, 0),
+        [255, 255, 255, 255],
+        "the full-scale bar reaches the top row"
+    );
+    assert_eq!(
+        pixel(data, 6, 0, 5),
+        [255, 255, 255, 255],
+        "the first bar's real height is drawn"
+    );
+    assert!(
+        pixel(data, 6, 5, 5)[3] > 0,
+        "the fade fill sits under the line"
+    );
+    let no_fill = sparkline_image(&[0.2, 0.6, 1.0], 6, 6, Color::WHITE, None);
+    assert_eq!(
+        pixel(no_fill.data.as_ref().expect("raster data"), 6, 5, 5),
+        [0, 0, 0, 0],
+        "without the fill the area under the line stays clear"
     );
 }
 

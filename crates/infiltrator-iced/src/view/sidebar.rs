@@ -814,7 +814,7 @@ fn clickable_card<'a>(
                 text_color: tokens.text_primary,
                 border: Border {
                     radius: border::Radius::from(R_CARD),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: if hovered {
                         tokens.accent
                     } else {

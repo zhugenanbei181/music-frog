@@ -336,7 +336,7 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
                 background: Some(tk.card_bg.into()),
                 border: Border {
                     radius: 12.0.into(),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 shadow: tk.floating_shadow,

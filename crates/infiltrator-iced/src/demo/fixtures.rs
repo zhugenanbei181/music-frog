@@ -1,6 +1,7 @@
 //! Demo data fixtures: traffic history, mihomo-style logs, connection
 //! snapshots, rules, profiles and the JSON/YAML editor cache contents.
 
+use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata, ConnectionSnapshot};
@@ -20,6 +21,25 @@ pub(super) fn demo_traffic_history() -> VecDeque<(u64, u64)> {
             ((up_wave * MB) as u64, (down_wave * MB) as u64)
         })
         .collect()
+}
+
+/// The demo history as the shared live-waveform snapshot, so the demo HUD and
+/// Overview consume the same shape the live pump publishes (fixture values,
+/// never a fabricated live number).
+pub(super) fn demo_traffic_waveform() -> TrafficWaveformSnapshot {
+    let history = demo_traffic_history();
+    TrafficWaveformSnapshot {
+        generation: 1,
+        revision: history.len() as u64,
+        samples: history
+            .iter()
+            .map(|(up, down)| TrafficSample {
+                sampled_at_epoch_ms: None,
+                upload_bps: *up as f64,
+                download_bps: *down as f64,
+            })
+            .collect(),
+    }
 }
 
 /// ~40 mixed mihomo-style log lines (info/warn/error, Chinese included).

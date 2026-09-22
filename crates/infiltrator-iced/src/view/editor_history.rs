@@ -110,7 +110,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                     }),
                     border: Border {
                         radius: border::Radius::from(theme::R_CHIP),
-                        width: 1.0,
+                        width: theme::HAIRLINE,
                         color: tk.card_border,
                     },
                     ..Default::default()
@@ -203,7 +203,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                         background: Some(tk.control_bg.into()),
                         border: Border {
                             radius: border::Radius::from(4.0),
-                            width: 1.0,
+                            width: theme::HAIRLINE,
                             color: tk.card_border,
                         },
                         ..Default::default()
@@ -293,7 +293,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                     background: Some(tk.control_bg.into()),
                     border: Border {
                         radius: border::Radius::from(theme::R_CONTROL),
-                        width: 1.0,
+                        width: theme::HAIRLINE,
                         color: tk.card_border,
                     },
                     ..Default::default()

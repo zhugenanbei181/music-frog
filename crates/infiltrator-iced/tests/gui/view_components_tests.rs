@@ -77,3 +77,16 @@ fn test_mini_waveform_widget() {
     let zeros = [0u64, 0, 0];
     let _elem_zeros: Element<'_, TestMsg> = mini_waveform(&zeros);
 }
+
+/// DUAL-15-03: the HUD strip canvas consumes the shared contract bars (per
+/// mille heights) in either channel ink.
+#[test]
+fn test_hud_waveform_strip_widget() {
+    use crate::view::waveform::{StripInk, hud_waveform};
+
+    let empty: &[u16] = &[];
+    let _elem_empty: Element<'_, TestMsg> = hud_waveform(empty, StripInk::Accent);
+    let bars = [0u16, 125, 500, 1_000, 250];
+    let _elem_down: Element<'_, TestMsg> = hud_waveform(&bars, StripInk::Accent);
+    let _elem_up: Element<'_, TestMsg> = hud_waveform(&bars, StripInk::Success);
+}

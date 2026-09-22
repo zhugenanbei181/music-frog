@@ -40,7 +40,7 @@ pub(super) fn modal_card<'a>(content: Element<'a, Message>, width: f32) -> Eleme
                 background: Some(tokens.card_bg.into()),
                 border: Border {
                     radius: 16.0.into(),
-                    width: 1.0,
+                    width: crate::view::theme::HAIRLINE,
                     color: tokens.card_border,
                 },
                 shadow: tokens.floating_shadow,
@@ -297,7 +297,7 @@ fn latency_waterfall_section<'a>(delay: Option<u32>, lang: &Lang<'_>) -> Element
                 background: Some(tk.control_bg.into()),
                 border: Border {
                     radius: 12.0.into(),
-                    width: 1.0,
+                    width: crate::view::theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 ..Default::default()
@@ -338,7 +338,7 @@ fn meta_card<'a>(
                 background: Some(tk.control_bg.into()),
                 border: Border {
                     radius: 10.0.into(),
-                    width: 1.0,
+                    width: crate::view::theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 ..Default::default()
@@ -690,7 +690,7 @@ pub fn rule_provider_diff_modal<'a>(
                             background: Some(tk.control_bg.into()),
                             border: Border {
                                 radius: 6.0.into(),
-                                width: 1.0,
+                                width: crate::view::theme::HAIRLINE,
                                 color: Color {
                                     a: 0.15,
                                     ..tk.success
@@ -724,7 +724,7 @@ pub fn rule_provider_diff_modal<'a>(
                             background: Some(tk.control_bg.into()),
                             border: Border {
                                 radius: 6.0.into(),
-                                width: 1.0,
+                                width: crate::view::theme::HAIRLINE,
                                 color: Color {
                                     a: 0.15,
                                     ..tk.danger
@@ -802,7 +802,7 @@ pub fn rule_provider_diff_modal<'a>(
                     background: Some(tk.control_bg.into()),
                     border: Border {
                         radius: 10.0.into(),
-                        width: 1.0,
+                        width: crate::view::theme::HAIRLINE,
                         color: tk.card_border,
                     },
                     ..Default::default()

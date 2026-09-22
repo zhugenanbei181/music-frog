@@ -6,19 +6,23 @@ use std::sync::Arc;
 
 use bevy::MinimalPlugins;
 use bevy::app::App;
-use bevy::asset::AssetPlugin;
+use bevy::asset::{AssetApp, AssetPlugin};
 use bevy::ecs::query::With;
+use bevy::image::Image;
 use bevy::scene::ScenePlugin;
-use bevy::ui::widget::Text;
+use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_ui::app::{ShellPlugin, SidebarToggleProjection};
 use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::mini_hud::{
-    MiniHudMode, MiniHudModel, MiniHudRoot, MiniHudSystemProxyToggle, MiniHudTunToggle,
-    SetMiniHudPinned, ToggleMiniHud,
+    MiniHudDownWaveform, MiniHudMode, MiniHudModel, MiniHudRoot, MiniHudSystemProxyToggle,
+    MiniHudTunToggle, MiniHudUpWaveform, SetMiniHudPinned, ToggleMiniHud,
 };
+use infiltrator_bevy_ui::pages::overview::{LastOverviewProjection, OverviewProjectionUpdated};
 use infiltrator_bevy_ui::route::PagesPlugin;
+use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
+use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 
 fn mounted_app() -> (App, Arc<DemoCommandSink>) {
     let mut app = App::new();
@@ -92,6 +96,123 @@ fn the_read_model_comes_from_the_live_projections() {
     let model = app.world().resource::<MiniHudModel>().0.clone();
     assert_eq!(model.next_value(SystemToggle::Tun), None);
     assert!(model.status_line().contains('…'));
+}
+
+/// The waveform strip is a projection of the shared live samples, not a
+/// per-surface normalization.
+fn live_waveform() -> TrafficWaveformSnapshot {
+    TrafficWaveformSnapshot {
+        generation: 7,
+        revision: 3,
+        samples: vec![
+            TrafficSample {
+                sampled_at_epoch_ms: Some(1),
+                upload_bps: 1_024.0,
+                download_bps: 4_096.0,
+            },
+            TrafficSample {
+                sampled_at_epoch_ms: Some(2),
+                upload_bps: 8_192.0,
+                download_bps: 1_024.0,
+            },
+        ],
+    }
+}
+
+#[test]
+fn the_waveform_strip_comes_from_the_shared_live_samples() {
+    let (mut app, _) = mounted_app();
+    let mut projection = app
+        .world()
+        .resource::<LastOverviewProjection>()
+        .0
+        .clone()
+        .expect("the demo source published a projection");
+    projection.traffic_waveform = live_waveform();
+    app.world_mut()
+        .commands()
+        .trigger(OverviewProjectionUpdated(projection));
+    app.update();
+
+    let model = app.world().resource::<MiniHudModel>().0.clone();
+    assert_eq!(
+        model.waveform,
+        MiniHudWaveformStrip::from_snapshot(&live_waveform()),
+        "the HUD strip must be the shared contract projection of the live samples"
+    );
+    assert_eq!(
+        model.waveform.up,
+        vec![125, 1_000],
+        "per-mille against the observed peak: 1024/8192 then 8192/8192"
+    );
+    assert_eq!(model.waveform.down, vec![500, 125]);
+}
+
+#[test]
+fn the_mounted_waveform_slots_rasterize_the_shared_strip() {
+    let (mut app, _) = mounted_app();
+    app.init_asset::<Image>();
+    let mut projection = app
+        .world()
+        .resource::<LastOverviewProjection>()
+        .0
+        .clone()
+        .expect("the demo source published a projection");
+    projection.traffic_waveform = live_waveform();
+    app.world_mut()
+        .commands()
+        .trigger(OverviewProjectionUpdated(projection));
+    app.world_mut().commands().trigger(ToggleMiniHud);
+    app.update();
+    app.update();
+
+    let model = app.world().resource::<MiniHudModel>().0.clone();
+    assert_eq!(model.waveform.up.len(), 2);
+
+    let world = app.world_mut();
+    let mut down = world.query_filtered::<bevy::ecs::entity::Entity, With<MiniHudDownWaveform>>();
+    let down_entity = down
+        .iter(world)
+        .next()
+        .expect("the downstream slot mounted");
+    let mut up = world.query_filtered::<bevy::ecs::entity::Entity, With<MiniHudUpWaveform>>();
+    let up_entity = up.iter(world).next().expect("the upstream slot mounted");
+    drop(down);
+    drop(up);
+
+    let handle_of = |entity: bevy::ecs::entity::Entity| {
+        app.world()
+            .entity(entity)
+            .get::<ImageNode>()
+            .map(|node| node.image.clone())
+            .expect("the slot rasterized an ImageNode")
+    };
+    let down_image = handle_of(down_entity);
+    let up_image = handle_of(up_entity);
+    let images = app.world().resource::<bevy::asset::Assets<Image>>();
+    let down_image = images.get(&down_image).expect("downstream raster");
+    let up_image = images.get(&up_image).expect("upstream raster");
+    assert_eq!(down_image.texture_descriptor.size.width, 60);
+    assert_eq!(down_image.texture_descriptor.size.height, 24);
+    assert_eq!(
+        down_image.texture_descriptor.size.width,
+        MiniHudWaveformStrip::WIDTH_PX
+    );
+    assert_eq!(
+        down_image.texture_descriptor.size.height,
+        MiniHudWaveformStrip::HEIGHT_PX
+    );
+    assert!(
+        down_image
+            .data
+            .as_ref()
+            .is_some_and(|data| data.iter().any(|byte| *byte != 0)),
+        "the shared bars must paint real pixels"
+    );
+    assert_ne!(
+        down_image.data, up_image.data,
+        "the two channels carry different real series"
+    );
 }
 
 #[test]

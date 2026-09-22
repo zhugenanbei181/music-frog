@@ -203,6 +203,8 @@ fn the_palette_executes_shared_targets() {
 
 #[test]
 fn the_mini_hud_read_model_comes_from_live_projections() {
+    use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+
     let (mut state, _) = AppState::new();
     state.diag.traffic = Some(infiltrator_domain::runtime::TrafficData {
         up: 4 * 1024,
@@ -216,6 +218,22 @@ fn the_mini_hud_read_model_comes_from_live_projections() {
             Some(false),
             7,
         );
+    state.runtime.traffic_waveform = TrafficWaveformSnapshot {
+        generation: 4,
+        revision: 2,
+        samples: vec![
+            TrafficSample {
+                sampled_at_epoch_ms: Some(1),
+                upload_bps: 1_024.0,
+                download_bps: 4_096.0,
+            },
+            TrafficSample {
+                sampled_at_epoch_ms: Some(2),
+                upload_bps: 8_192.0,
+                download_bps: 1_024.0,
+            },
+        ],
+    };
 
     let model = state.mini_hud_read_model();
     assert_eq!(model.up_bytes_per_sec, 4 * 1024);
@@ -231,6 +249,54 @@ fn the_mini_hud_read_model_comes_from_live_projections() {
     );
     assert!(model.status_line().contains("系统代理: 开"));
     assert!(!model.mode_zh.is_empty());
+
+    // DUAL-15-03: the waveform strip is the shared projection of the live
+    // samples — the very same bars the Bevy overlay rasterizes.
+    assert_eq!(
+        model.waveform,
+        infiltrator_contract::mini_hud::MiniHudWaveformStrip::from_snapshot(
+            &state.runtime.traffic_waveform
+        )
+    );
+    assert_eq!(model.waveform.up, vec![125, 1_000]);
+    assert_eq!(model.waveform.down, vec![500, 125]);
+
+    // A surface without live waveform samples must not fabricate a strip.
+    state.runtime.traffic_waveform = TrafficWaveformSnapshot::default();
+    assert!(state.mini_hud_read_model().waveform.is_empty());
+}
+
+#[test]
+fn the_mini_hud_view_renders_the_shared_strip() {
+    use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+
+    let (mut state, _) = AppState::new();
+    state.shell.mini_hud_mode = true;
+    state.runtime.traffic_waveform = TrafficWaveformSnapshot {
+        generation: 1,
+        revision: 2,
+        samples: vec![
+            TrafficSample {
+                sampled_at_epoch_ms: None,
+                upload_bps: 512.0,
+                download_bps: 1_024.0,
+            },
+            TrafficSample {
+                sampled_at_epoch_ms: None,
+                upload_bps: 2_048.0,
+                download_bps: 512.0,
+            },
+        ],
+    };
+    assert!(!state.mini_hud_read_model().waveform.is_empty());
+    {
+        let _view = crate::view::mini_hud::mini_hud_view(&state);
+    }
+
+    // The same state with no live samples still renders an empty strip.
+    state.runtime.traffic_waveform = TrafficWaveformSnapshot::default();
+    assert!(state.mini_hud_read_model().waveform.is_empty());
+    let _empty_view = crate::view::mini_hud::mini_hud_view(&state);
 }
 
 #[test]
@@ -406,6 +472,13 @@ fn the_iced_tokens_resolve_the_shared_design_contract() {
     assert_eq!(theme::SP_XXL, space::XXL);
     assert_eq!(theme::R_CARD, radius::CARD);
     assert_eq!(theme::R_CONTROL, radius::CONTROL);
+    // The hairline is a real token, not a page-local 1.0 literal: every Iced
+    // border calls `theme::HAIRLINE`, and the guard forbids raw
+    // `width: 1.0` borders in the whole Iced shell.
+    assert_eq!(
+        theme::HAIRLINE,
+        infiltrator_contract::design_tokens::metrics::HAIRLINE
+    );
 }
 
 /// DUAL-15-08: the shell tracks the only window power fact Iced exposes and

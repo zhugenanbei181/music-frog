@@ -193,7 +193,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             background: Some(tokens(t).control_bg.into()),
             border: Border {
                 radius: border::Radius::from(theme::R_CONTROL),
-                width: 1.0,
+                width: theme::HAIRLINE,
                 color: tokens(t).card_border,
             },
             ..Default::default()
@@ -275,7 +275,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 background: Some(tk.accent_soft.into()),
                 border: Border {
                     radius: border::Radius::from(theme::R_CONTROL),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: Color {
                         a: 0.20,
                         ..tk.accent
@@ -453,7 +453,7 @@ fn node_button_style(
                 },
                 border: Border {
                     radius: border::Radius::from(theme::R_CONTROL),
-                    width: 1.0,
+                    width: theme::HAIRLINE,
                     color: tk.card_border,
                 },
                 shadow: tk.card_shadow,
@@ -769,7 +769,7 @@ fn delay_group_surface(t: &Theme) -> container::Style {
         background: Some(tk.control_bg.into()),
         border: Border {
             radius: border::Radius::from(theme::R_CONTROL),
-            width: 1.0,
+            width: theme::HAIRLINE,
             color: tk.card_border,
         },
         ..Default::default()
