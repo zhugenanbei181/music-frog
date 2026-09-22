@@ -115,6 +115,19 @@ impl AppState {
         })
     }
 
+    /// Honest editor message for an invalid shared hosts row.
+    pub(crate) fn hosts_issue_message(issue: &infiltrator_contract::dns::DnsHostsIssue) -> String {
+        use infiltrator_contract::dns::DnsHostsIssue;
+        match issue {
+            DnsHostsIssue::InvalidAddress { address } => {
+                format!("dns.hosts value must be an IP, 'lan' or an alias domain: '{address}'")
+            }
+            DnsHostsIssue::InvalidDomain { domain } => {
+                format!("dns.hosts key is not a valid domain: '{domain}'")
+            }
+        }
+    }
+
     fn sync_dns_json_from_form(&mut self) -> Result<(), InfiltratorError> {
         let patch = self.dns_patch_from_form()?;
         self.editor.dns_json_cache = serde_json::to_string_pretty(&patch)
@@ -347,6 +360,109 @@ impl AppState {
                 self.editor.fake_ip_form.store_fake_ip = value;
                 self.mark_fake_ip_form_dirty_and_sync();
                 Task::none()
+            }
+            Message::UpdateDnsFakeIpQuery(query) => {
+                self.editor.dns_fake_ip_query = query;
+                Task::none()
+            }
+            Message::UpdateDnsHostsAddress(value) => {
+                self.editor.dns_hosts_address = value;
+                Task::none()
+            }
+            Message::UpdateDnsHostsDomain(value) => {
+                self.editor.dns_hosts_domain = value;
+                Task::none()
+            }
+            Message::AddDnsHostRow => {
+                let address = self.editor.dns_hosts_address.trim().to_owned();
+                let domain = self.editor.dns_hosts_domain.trim().to_owned();
+                if !address.is_empty() && !domain.is_empty() {
+                    let row = infiltrator_contract::dns::DnsHostEntry { domain, address };
+                    if !self.editor.dns_hosts.contains(&row) {
+                        self.editor.dns_hosts.push(row);
+                    }
+                    self.editor.dns_hosts_address.clear();
+                    self.editor.dns_hosts_domain.clear();
+                    self.editor.dns_hosts_dirty = true;
+                }
+                Task::none()
+            }
+            Message::RemoveDnsHostRow(index) => {
+                if index < self.editor.dns_hosts.len() {
+                    self.editor.dns_hosts.remove(index);
+                    self.editor.dns_hosts_dirty = true;
+                }
+                Task::none()
+            }
+            Message::SaveDnsHosts => {
+                self.editor.is_saving_dns_hosts = true;
+                self.begin_save_phase("DNS Hosts");
+                let issues = infiltrator_contract::dns::validate_hosts(&self.editor.dns_hosts);
+                if let Some(issue) = issues.first() {
+                    self.editor.is_saving_dns_hosts = false;
+                    let message = Self::hosts_issue_message(issue);
+                    self.editor.advanced_validation.dns_hosts = Some(message.clone());
+                    self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                        label: "DNS Hosts".to_string(),
+                        error: message.clone(),
+                    };
+                    self.set_error(&message);
+                    return Task::batch(vec![
+                        Task::done(Message::ShowToast(message, ToastStatus::Error)),
+                        Task::perform(
+                            async {
+                                tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                            },
+                            |_| Message::ClearRebuildFlow,
+                        ),
+                    ]);
+                }
+                let entries = self.editor.dns_hosts.clone();
+                // The shared mapping is the single write path: both surfaces
+                // turn the same shared patch into the same domain patch.
+                let patch =
+                    infiltrator_application::configuration_application::dns_patch_from_settings(
+                        infiltrator_contract::dns::DnsSettingsPatch {
+                            hosts: Some(entries),
+                            ..infiltrator_contract::dns::DnsSettingsPatch::default()
+                        },
+                    );
+                save_task(
+                    self.runtime.runtime.clone(),
+                    move |content| infiltrator_domain::dns::apply_dns_patch_to_yaml(content, patch),
+                    Message::DnsHostsSaved,
+                )
+            }
+            Message::DnsHostsSaved(result) => {
+                self.editor.is_saving_dns_hosts = false;
+                match result {
+                    Ok(()) => {
+                        self.editor.dns_hosts_dirty = false;
+                        self.editor.advanced_validation.dns_hosts = None;
+                        Task::batch(vec![
+                            Task::done(Message::RefreshDnsOnly),
+                            self.finish_without_rebuild("DNS Hosts".to_string()),
+                        ])
+                    }
+                    Err(error) => {
+                        let mapped = Self::map_advanced_error_message(&error);
+                        self.editor.advanced_validation.dns_hosts = Some(mapped.clone());
+                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                            label: "DNS Hosts".to_string(),
+                            error: mapped.clone(),
+                        };
+                        self.set_error(&mapped);
+                        Task::batch(vec![
+                            Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
+                            Task::perform(
+                                async {
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                },
+                                |_| Message::ClearRebuildFlow,
+                            ),
+                        ])
+                    }
+                }
             }
             Message::DnsConfigEditorAction(action) => {
                 self.ensure_dns_editor_loaded();

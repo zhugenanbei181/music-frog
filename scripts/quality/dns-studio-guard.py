@@ -93,6 +93,15 @@ def main() -> int:
         "unmapped_mapping_mode_clears_the_key",
         "test_clear_enhanced_mode_removes_the_key",
         "test_filter_mode_accepts_rule_host_value",
+        "FakeIpMappingPool",
+        "DnsLatencyStatus",
+        "DnsHostEntry",
+        "hosts_map_from_entries",
+        "test_dns_fake_ip_pool_search_filters_the_observed_listing",
+        "test_dns_hosts_editor_submits_shared_patch",
+        "test_dns_latency_policy_line_is_honest",
+        "test_dns_fake_ip_pool_filters_the_observed_subset",
+        "test_dns_hosts_panel_add_remove_rows_uses_the_shared_draft",
     )
 
     # Shared contract: typed modes, switches, server tags and the patch.
@@ -117,6 +126,9 @@ def main() -> int:
         "pub fallback_policy: crate::dns::DnsFallbackPolicy",
         "pub cache_flush: crate::dns::DnsCacheFlushReport",
         "pub default_nameserver: Vec<String>",
+        "pub fake_ip_pool: crate::dns::FakeIpMappingPool",
+        "pub latency: crate::dns::DnsLatencyStatus",
+        "pub hosts: Vec<crate::dns::DnsHostEntry>",
     )
     require(
         violations,
@@ -137,6 +149,21 @@ def main() -> int:
         "pub geoip_code: String",
         "pub trigger_ipcidr: Vec<String>",
         "pub struct DnsCacheFlushReport",
+        "pub struct FakeIpMappingPool",
+        "pub struct FakeIpMappingEntry",
+        "pub enum FakeIpMappingSource",
+        "pub enum DnsLatencyStatus",
+        "pub struct DnsHostEntry",
+        "pub fn parse_hosts_editor",
+        "pub fn hosts_editor_text",
+        "pub fn validate_hosts",
+        "pub fn is_valid_hosts_address",
+        "hosts: Option<Vec<DnsHostEntry>>",
+        "pub clear_hosts: bool",
+        "pub fn is_observed_subset",
+        "fake_ip_pool_filters_observed_bindings",
+        "hosts_editor_round_trips_rows_without_ambiguity",
+        "hosts_validation_accepts_host_grammar_only",
     )
     require(
         violations,
@@ -160,6 +187,14 @@ def main() -> int:
         "pub struct FallbackFilterPatch",
         "pub fallback_filter_partial: Option<FallbackFilterPatch>",
         'lower != "whitelist" && lower != "blacklist" && lower != "rule"',
+        "pub hosts: Option<BTreeMap<String, serde_json::Value>>",
+        "pub clear_hosts: bool",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/dns_hosts.rs",
+        "pub fn hosts_map_from_entries",
+        "pub fn hosts_entries_from_map",
     )
 
     # Shared application: the workbench patch maps onto the validated write.
@@ -185,6 +220,13 @@ def main() -> int:
         "fn dns_core_switches",
         "DnsServerTag::classify",
         "fn cache_flush_report",
+        "fn fake_ip_pool_from_connections",
+        "fn hosts_entries",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/configuration_application.rs",
+        "hosts_map_from_entries",
     )
     require(
         violations,
@@ -250,6 +292,19 @@ def main() -> int:
         "Message::UpdateDnsFormFallbackGeoip",
         "Message::DnsCacheFlushed",
         "form_from_config",
+        "Message::AddDnsHostRow",
+        "Message::SaveDnsHosts",
+        "Message::DnsHostsSaved",
+        "Message::UpdateDnsFakeIpQuery",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/dns_hosts_panel.rs",
+        "pub(crate) fn fake_ip_pool_panel",
+        "pub(crate) fn hosts_panel",
+        "pub(crate) fn latency_policy_line",
+        "dns_fakeip_pool_search",
+        "dns_hosts_apply",
     )
     require(
         violations,
@@ -263,6 +318,9 @@ def main() -> int:
         "dns_form_issues",
         "dns_flush_unsupported",
         "dns_flush_flushed",
+        "dns_fakeip_pool_title",
+        "dns_hosts_title",
+        "dns_latency_unsupported",
     )
     require(
         violations,
@@ -270,6 +328,9 @@ def main() -> int:
         "dns_form_issues",
         "dns_flush_unsupported",
         "dns_flush_flushed",
+        "dns_fakeip_pool_title",
+        "dns_hosts_title",
+        "dns_latency_unsupported",
     )
 
     # Bevy consumes the same projection and submits the shared patch.
@@ -306,10 +367,35 @@ def main() -> int:
     )
     require(
         violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns_fakeip.rs",
+        "pub struct DnsFakeIpSearchField",
+        "pub fn fake_ip_mapping_listing",
+        "pub fn fake_ip_mapping_count",
+        "pub fn latency_policy_label",
+        "pub fn sync_dns_fake_ip_filter",
+        "pub fn dns_fakeip_pool_card_scene",
+        "DnsLineKind::FakeIpMapping",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns_hosts.rs",
+        "pub struct DnsHostsEditorField",
+        "pub struct DnsHostsApplyButton",
+        "pub struct DnsHostsEditorState",
+        "pub fn hosts_summary_label",
+        "pub fn dns_hosts_card_scene",
+        "pub(crate) fn on_dns_hosts_activated",
+        "pub(crate) fn apply_dns_hosts_projection",
+        "UiCommand::ApplyDnsSettings",
+    )
+    require(
+        violations,
         "crates/infiltrator-bevy-ui/src/route.rs",
         "crate::pages::dns::LastDnsProjection",
         "crate::pages::dns_edit::DnsFormState",
         "sync_dns_edit_dirty",
+        "crate::pages::dns_hosts::DnsHostsEditorState",
+        "crate::pages::dns_fakeip::sync_dns_fake_ip_filter",
     )
     # The old fabricated command and local enum must not come back.
     forbid(
@@ -335,6 +421,11 @@ def main() -> int:
         "test_dns_form_local_validation_blocks_invalid_scheme",
         "test_dns_quick_template_chip_appends_unique_entry",
         "test_dns_cache_flush_report_renders_honest_status",
+        "test_dns_fake_ip_pool_search_filters_the_observed_listing",
+        "test_dns_hosts_editor_submits_shared_patch",
+        "test_dns_hosts_editor_local_validation_blocks_bad_rows",
+        "test_dns_hosts_editor_clears_an_emptied_mapping",
+        "test_dns_latency_policy_line_is_honest",
     )
     require(
         violations,
@@ -350,6 +441,14 @@ def main() -> int:
         "test_dns_form_validation_issues_localize_in_both_locales",
         "test_dns_cache_flush_outcome_labels_are_localized",
         "test_dns_form_patch_uses_the_shared_workbench_mapping",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_dns_hosts_tests.rs",
+        "test_dns_fake_ip_pool_panel_filters_the_observed_subset",
+        "test_dns_hosts_panel_add_remove_rows_uses_the_shared_draft",
+        "test_dns_hosts_issue_copy_is_localized",
+        "test_dns_latency_policy_line_is_localized_and_honest",
     )
     require(
         violations,
@@ -372,6 +471,20 @@ def main() -> int:
         "test_filter_mode_accepts_rule_host_value",
         "test_clear_fake_ip_range_removes_the_key",
         "test_partial_fallback_filter_preserves_unedited_subfields",
+        "test_dns_save_preserves_an_untouched_hosts_map",
+        "test_hosts_patch_writes_and_clears_the_key",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/dns_workbench_application.rs",
+        "fake_ip_pool_publishes_only_observed_bindings",
+        "hosts_entries_project_the_profile_map",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/dns_hosts.rs",
+        "scalar_and_list_values_round_trip_losslessly",
+        "non_string_shapes_are_skipped_not_fabricated",
     )
 
     # The guard itself is registered on both suites.

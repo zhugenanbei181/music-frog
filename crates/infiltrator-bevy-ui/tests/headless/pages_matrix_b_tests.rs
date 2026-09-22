@@ -22,6 +22,10 @@ use infiltrator_bevy_ui::pages::dns::*;
 use infiltrator_bevy_ui::pages::dns_edit::{
     DnsEditApplyButton, DnsEditField, DnsEditGeoipToggle, DnsEditStatusLine, DnsEditTemplate,
 };
+use infiltrator_bevy_ui::pages::dns_fakeip::DnsFakeIpSearchField;
+use infiltrator_bevy_ui::pages::dns_hosts::{
+    DnsHostsApplyButton, DnsHostsEditorField, DnsHostsStatusLine,
+};
 use infiltrator_bevy_ui::pages::doctor::*;
 use infiltrator_bevy_ui::pages::settings::settings_core::{
     CoreLogLevelButton, ProbeTunMtuButton, SettingsProjection, TunEnableToggle, TunRouteToggle,
@@ -372,6 +376,17 @@ fn trigger_dns_edit_apply(app: &mut App) {
     app.update();
 }
 
+/// The rendered text of one typed DNS line kind.
+fn dns_line_text(app: &mut App, kind: DnsLineKind) -> String {
+    let world = app.world_mut();
+    let mut query = world.query::<(&Text, &DnsLine)>();
+    query
+        .iter(world)
+        .find(|(_, line)| line.0 == kind)
+        .map(|(text, _)| text.0.clone())
+        .expect("dns line")
+}
+
 #[test]
 fn test_dns_edit_rows_cover_every_shared_text_field() {
     let sink = Arc::new(DemoCommandSink::accepting());
@@ -613,6 +628,225 @@ fn test_dns_switch_patch_stays_full_after_shared_form_upgrade() {
             let switches = patch.switches.expect("switch set");
             assert!(switches.respect_rules);
             assert!(switches.enable);
+        }
+        other => panic!("expected ApplyDnsSettings, got {:?}", other),
+    }
+}
+
+// ===========================================================================
+// 1c. DNS Fake-IP Pool / Latency / Hosts Editor (DUAL-14-06 / 14-10 / 14-11)
+// ===========================================================================
+
+#[test]
+fn test_dns_fake_ip_pool_search_filters_the_observed_listing() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Dns);
+
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "198.18.0.5 ↔ music.example.org"
+    ));
+
+    let parent = app
+        .world_mut()
+        .query::<(Entity, &DnsFakeIpSearchField)>()
+        .iter(app.world())
+        .map(|(entity, _)| entity)
+        .next()
+        .expect("fake-ip search field");
+    let child = *app
+        .world()
+        .get::<Children>(parent)
+        .expect("search children")
+        .iter()
+        .next()
+        .expect("search text field child");
+    app.world_mut()
+        .entity_mut(child)
+        .get_mut::<TextField>()
+        .expect("search text field")
+        .0
+        .apply(TextFieldInput::SetText("cdn".to_owned()));
+    app.update();
+
+    let listing = dns_line_text(&mut app, DnsLineKind::FakeIpMapping);
+    assert_eq!(listing, "198.18.0.7 ↔ cdn.example.net");
+    let count = dns_line_text(&mut app, DnsLineKind::FakeIpMappingCount);
+    assert!(count.contains("显示 1 / 共 2 条"), "{count}");
+
+    // A host without the controller connection feed never renders a binding.
+    let mut unsupported = DnsProjection::demo();
+    unsupported.fake_ip_pool = infiltrator_contract::dns::FakeIpMappingPool::default();
+    app.world_mut()
+        .commands()
+        .trigger(DnsProjectionUpdated(unsupported));
+    app.update();
+    assert!(dns_line_text(&mut app, DnsLineKind::FakeIpMapping).contains("宿主未提供映射事实"));
+}
+
+#[test]
+fn test_dns_latency_policy_line_is_honest() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Dns);
+
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "逐 Nameserver 延迟: 宿主无该事实源，不填充假延迟"
+    ));
+}
+
+#[test]
+fn test_dns_hosts_editor_submits_shared_patch() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Dns);
+
+    // The editor is seeded with the applied rows from the shared model.
+    let parent = app
+        .world_mut()
+        .query::<(Entity, &DnsHostsEditorField)>()
+        .iter(app.world())
+        .map(|(entity, _)| entity)
+        .next()
+        .expect("hosts editor field");
+    let child = *app
+        .world()
+        .get::<Children>(parent)
+        .expect("hosts children")
+        .iter()
+        .next()
+        .expect("hosts text field child");
+    let seeded = app
+        .world()
+        .get::<TextField>(child)
+        .expect("hosts text field")
+        .0
+        .text()
+        .to_owned();
+    assert!(seeded.contains("192.168.1.1 router.lan"), "{seeded}");
+
+    app.world_mut()
+        .entity_mut(child)
+        .get_mut::<TextField>()
+        .expect("hosts text field")
+        .0
+        .apply(TextFieldInput::SetText(
+            "192.168.1.1 router.lan; 1.1.1.1 multi.example.com; 8.8.8.8 multi.example.com"
+                .to_owned(),
+        ));
+    let button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<DnsHostsApplyButton>>()
+        .single(app.world())
+        .expect("hosts apply button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+
+    match sink.submitted().first() {
+        Some(UiCommand::ApplyDnsSettings { patch }) => {
+            let hosts = patch.hosts.as_ref().expect("hosts rows");
+            assert_eq!(hosts.len(), 3);
+            assert!(!patch.clear_hosts);
+        }
+        other => panic!("expected ApplyDnsSettings, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_dns_hosts_editor_local_validation_blocks_bad_rows() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Dns);
+
+    let parent = app
+        .world_mut()
+        .query::<(Entity, &DnsHostsEditorField)>()
+        .iter(app.world())
+        .map(|(entity, _)| entity)
+        .next()
+        .expect("hosts editor field");
+    let child = *app
+        .world()
+        .get::<Children>(parent)
+        .expect("hosts children")
+        .iter()
+        .next()
+        .expect("hosts text field child");
+    app.world_mut()
+        .entity_mut(child)
+        .get_mut::<TextField>()
+        .expect("hosts text field")
+        .0
+        .apply(TextFieldInput::SetText("nope bad domain".to_owned()));
+    let button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<DnsHostsApplyButton>>()
+        .single(app.world())
+        .expect("hosts apply button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+
+    assert!(sink.submitted().is_empty(), "invalid hosts must not submit");
+    let status = {
+        let world = app.world_mut();
+        let mut query = world.query::<(&Text, &DnsHostsStatusLine)>();
+        query
+            .iter(world)
+            .map(|(text, _)| text.0.clone())
+            .next()
+            .expect("hosts status line")
+    };
+    assert!(status.contains("本地校验未通过"), "{status}");
+}
+
+#[test]
+fn test_dns_hosts_editor_clears_an_emptied_mapping() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Dns);
+
+    let parent = app
+        .world_mut()
+        .query::<(Entity, &DnsHostsEditorField)>()
+        .iter(app.world())
+        .map(|(entity, _)| entity)
+        .next()
+        .expect("hosts editor field");
+    let child = *app
+        .world()
+        .get::<Children>(parent)
+        .expect("hosts children")
+        .iter()
+        .next()
+        .expect("hosts text field child");
+    app.world_mut()
+        .entity_mut(child)
+        .get_mut::<TextField>()
+        .expect("hosts text field")
+        .0
+        .apply(TextFieldInput::SetText(String::new()));
+    let button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<DnsHostsApplyButton>>()
+        .single(app.world())
+        .expect("hosts apply button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+
+    match sink.submitted().first() {
+        Some(UiCommand::ApplyDnsSettings { patch }) => {
+            assert!(patch.clear_hosts, "an emptied editor clears dns.hosts");
+            assert!(patch.hosts.is_none());
         }
         other => panic!("expected ApplyDnsSettings, got {:?}", other),
     }

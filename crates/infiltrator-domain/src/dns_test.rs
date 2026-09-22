@@ -116,6 +116,11 @@ fn test_apply_patch_full() {
         bogus_nxdomain: Some(vec!["243.185.187.39".to_string()]),
         store_fake_ip: Some(true),
         clear_enhanced_mode: false,
+        hosts: Some(BTreeMap::from([(
+            "router.lan".to_string(),
+            json!("192.168.1.1"),
+        )])),
+        clear_hosts: false,
     };
 
     config.apply_patch(patch);
@@ -143,6 +148,13 @@ fn test_apply_patch_full() {
     assert_eq!(
         config.direct_nameserver,
         Some(vec!["https://119.29.29.29/dns-query".to_string()])
+    );
+    assert_eq!(
+        config.hosts,
+        Some(BTreeMap::from([(
+            "router.lan".to_string(),
+            json!("192.168.1.1")
+        )]))
     );
     assert_eq!(config.nameserver_policy, Some(policy));
     assert_eq!(config.cache, Some(true));
@@ -742,4 +754,61 @@ fn test_partial_fallback_filter_clears_an_emptied_trigger_list() {
     let config = extract_dns_config_from_doc(&doc).expect("extract config");
     let filter = config.fallback_filter.expect("fallback filter survives");
     assert_eq!(filter.ipcidr, Some(Vec::new()));
+}
+
+#[test]
+fn test_dns_save_preserves_an_untouched_hosts_map() {
+    // DUAL-14-11: before `hosts` was a typed field, any DNS form save
+    // re-serialized the section and silently deleted the mapping.
+    let yaml = "dns:\n  enable: true\n  hosts:\n    router.lan: 192.168.1.1\n    multi.example.com:\n      - 1.1.1.1\n      - 8.8.8.8\n";
+    let patch = DnsConfigPayload {
+        nameserver: Some(vec!["223.5.5.5".to_string()]),
+        ..DnsConfigPayload::default()
+    };
+    let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply patch");
+    let doc: Value = serde_yaml_ng::from_str(&updated).expect("parse updated");
+    let config = extract_dns_config_from_doc(&doc).expect("extract config");
+    let hosts = config.hosts.expect("hosts survive");
+    assert_eq!(
+        hosts.get("router.lan"),
+        Some(&json!("192.168.1.1")),
+        "unrelated DNS save must keep the hosts mapping"
+    );
+    assert_eq!(
+        hosts.get("multi.example.com"),
+        Some(&json!(["1.1.1.1", "8.8.8.8"]))
+    );
+}
+
+#[test]
+fn test_hosts_patch_writes_and_clears_the_key() {
+    let yaml = "dns:\n  enable: true\n  hosts:\n    old.example.com: 1.1.1.1\n";
+    let patch = DnsConfigPayload {
+        hosts: Some(BTreeMap::from([
+            ("router.lan".to_string(), json!("192.168.1.1")),
+            (
+                "multi.example.com".to_string(),
+                json!(["1.1.1.1", "8.8.8.8"]),
+            ),
+        ])),
+        ..DnsConfigPayload::default()
+    };
+    let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply hosts patch");
+    let doc: Value = serde_yaml_ng::from_str(&updated).expect("parse updated");
+    let config = extract_dns_config_from_doc(&doc).expect("extract config");
+    let hosts = config.hosts.expect("hosts written");
+    assert!(!hosts.contains_key("old.example.com"));
+    assert_eq!(hosts.len(), 2);
+
+    let cleared = apply_dns_patch_to_yaml(
+        &updated,
+        DnsConfigPayload {
+            clear_hosts: true,
+            ..DnsConfigPayload::default()
+        },
+    )
+    .expect("apply clear");
+    let doc: Value = serde_yaml_ng::from_str(&cleared).expect("parse cleared");
+    let config = extract_dns_config_from_doc(&doc).expect("extract config");
+    assert!(config.hosts.is_none());
 }

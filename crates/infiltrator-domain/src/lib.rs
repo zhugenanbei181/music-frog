@@ -15,6 +15,7 @@ pub mod connection_view;
 pub mod core_state;
 pub mod diagnostics;
 pub mod dns;
+pub mod dns_hosts;
 pub mod dns_tester;
 pub mod dns_topology;
 pub mod failover_arbiter;

@@ -317,6 +317,7 @@ impl Plugin for PagesPlugin {
         app.init_resource::<LastOverviewProjection>();
         app.init_resource::<crate::pages::dns::LastDnsProjection>();
         app.init_resource::<crate::pages::dns_edit::DnsFormState>();
+        app.init_resource::<crate::pages::dns_hosts::DnsHostsEditorState>();
         app.init_resource::<crate::pages::connections::LastConnectionsProjection>();
         app.init_resource::<crate::pages::connections_view::ConnectionsViewState>();
         app.init_resource::<crate::pages::connections_view::ConnectionsCloseAllState>();
@@ -367,6 +368,7 @@ impl Plugin for PagesPlugin {
                 crate::pages::rules_view::sync_rules_view,
                 crate::pages::connections_drawer::sync_connections_drawer,
                 crate::pages::dns_edit::sync_dns_edit_dirty,
+                crate::pages::dns_fakeip::sync_dns_fake_ip_filter,
             ),
         );
     }

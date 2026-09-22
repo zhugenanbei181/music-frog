@@ -404,6 +404,15 @@ pub struct DnsPageSnapshot {
     /// Honest per-target report of the last DNS cache flush.
     #[serde(default)]
     pub cache_flush: crate::dns::DnsCacheFlushReport,
+    /// DUAL-14-06: the observed Fake-IP bindings published to both surfaces.
+    #[serde(default)]
+    pub fake_ip_pool: crate::dns::FakeIpMappingPool,
+    /// DUAL-14-10: honest per-nameserver latency probe availability.
+    #[serde(default)]
+    pub latency: crate::dns::DnsLatencyStatus,
+    /// DUAL-14-11: the configured `dns.hosts` mapping as flat rows.
+    #[serde(default)]
+    pub hosts: Vec<crate::dns::DnsHostEntry>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

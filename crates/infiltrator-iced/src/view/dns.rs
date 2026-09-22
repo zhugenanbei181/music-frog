@@ -11,6 +11,7 @@ use crate::view::components::{
 use crate::view::dns_form_panel::{
     dns_cache_flush_status, dns_form_field_widget, dynamic_token_section, form_issue_banner,
 };
+use crate::view::dns_hosts_panel::{fake_ip_pool_panel, hosts_panel, latency_policy_line};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_LG, tokens};
 use iced::widget::{
@@ -663,7 +664,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             } else {
                 dns_json_panel(state, &lang)
             };
-            column![mode_tabs, Space::new().height(10), body].spacing(0)
+            column![
+                mode_tabs,
+                Space::new().height(10),
+                body,
+                Space::new().height(10),
+                card(None, latency_policy_line(state.editor.dns_latency, &lang)),
+                Space::new().height(10),
+                hosts_panel(state, &lang)
+            ]
+            .spacing(0)
         }
         DnsTab::FakeIp => {
             let mode_tabs = mode_tabs(DnsTab::FakeIp, state.editor.fake_ip_mode);
@@ -672,7 +682,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             } else {
                 fake_ip_json_panel(state, &lang)
             };
-            column![mode_tabs, Space::new().height(10), body].spacing(0)
+            column![
+                mode_tabs,
+                Space::new().height(10),
+                body,
+                Space::new().height(10),
+                fake_ip_pool_panel(state, &lang)
+            ]
+            .spacing(0)
         }
         DnsTab::Tun => {
             let mode_tabs = mode_tabs(DnsTab::Tun, state.editor.tun_mode);
