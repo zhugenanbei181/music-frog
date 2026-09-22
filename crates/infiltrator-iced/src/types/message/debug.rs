@@ -993,6 +993,7 @@ impl std::fmt::Debug for Message {
             }
             Message::CancelRestoreProfileSnapshot => write!(f, "CancelRestoreProfileSnapshot"),
             Message::SetSnapshotDiffMode(mode) => write!(f, "SetSnapshotDiffMode({mode:?})"),
+            Message::RefreshSnapshotDiff => write!(f, "RefreshSnapshotDiff"),
             Message::ArmSnapshotRollback => write!(f, "ArmSnapshotRollback"),
             Message::CancelSnapshotRollback => write!(f, "CancelSnapshotRollback"),
             Message::RollbackToSnapshot(id) => write!(f, "RollbackToSnapshot({id})"),

@@ -530,6 +530,7 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "snapshot_diff_fidelity" => "Fidelity".into(),
         "snapshot_diff_inline" => "Inline".into(),
         "snapshot_diff_split" => "Split".into(),
+        "snapshot_diff_refresh" => "Refresh Diff".into(),
         "snapshot_diff_confirm_hint" => {
             "Rollback overwrites the current config through the apply transaction and cannot be undone.".into()
         }

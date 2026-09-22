@@ -276,6 +276,10 @@ pub struct ProfilesPageSnapshot {
     /// means no document has been loaded yet.
     #[serde(default)]
     pub profile_document: Option<crate::profile_document::ProfileDocumentSnapshot>,
+    /// DUAL-09-14: the stored Mixin overlay + filter draft the editor panes
+    /// edit. `None` means the sidecar has not been loaded in this process yet.
+    #[serde(default)]
+    pub profile_options: Option<crate::profile_options::ProfileOptionsSnapshot>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

@@ -62,6 +62,13 @@ impl AppState {
                 self.editor.snapshot_diff_mode = mode;
                 Task::none()
             }
+            // DUAL-09-14: the same "recompute from the shared snapshot
+            // application" action the Bevy card offers. Re-dispatching through
+            // the open path keeps one loading/error state machine.
+            Message::RefreshSnapshotDiff => match self.editor.snapshot_diff_selected_id.clone() {
+                Some(id) => self.update_snapshot_diff(Message::OpenSnapshotDiff(id)),
+                None => Task::none(),
+            },
             Message::ArmSnapshotRollback => {
                 self.editor.snapshot_diff_rollback_armed = true;
                 Task::none()

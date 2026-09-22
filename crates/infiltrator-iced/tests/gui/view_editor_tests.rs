@@ -254,3 +254,27 @@ fn editor_live_preflight_reports_the_shared_diagnostic_line() {
         let _rendered = view(&state);
     }
 }
+
+/// DUAL-09-14: the snippet bar is a document-pane affordance on both surfaces
+/// (the Bevy card mounts the same shared catalogue only in Profile/Mixin).
+#[test]
+fn snippet_bar_is_mounted_in_the_document_panes_only() {
+    use crate::view::editor::pane_has_snippet_bar;
+
+    assert!(pane_has_snippet_bar(EditorPane::Profile));
+    assert!(pane_has_snippet_bar(EditorPane::Mixin));
+    assert!(!pane_has_snippet_bar(EditorPane::Filter));
+    assert!(!pane_has_snippet_bar(EditorPane::Script));
+
+    // The Filter/Script panes still render (with the history side panel).
+    {
+        let (mut state, _) = AppState::new();
+        state.editor.editor_pane = EditorPane::Script;
+        let _v = view(&state);
+    }
+    {
+        let (mut state, _) = AppState::new();
+        state.editor.editor_pane = EditorPane::Filter;
+        let _v = view(&state);
+    }
+}

@@ -33,6 +33,7 @@ pub mod pac;
 pub mod port_conflict;
 pub mod privileged_network;
 pub mod profile_document;
+pub mod profile_options;
 pub mod profile_protection;
 pub mod protocol_fidelity;
 pub mod protocol_matrix;

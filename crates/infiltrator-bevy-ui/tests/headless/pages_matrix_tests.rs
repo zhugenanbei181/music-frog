@@ -195,6 +195,7 @@ fn profiles_page_in_place_update() {
         snapshot_history: None,
         apply_transaction: None,
         profile_document: None,
+        profile_options: None,
         profiles: vec![ProfileItem {
             id: "sub-custom".to_owned(),
             name: "自建中继节点订阅".to_owned(),

@@ -649,6 +649,7 @@ impl AppState {
             | Message::CloseSnapshotDiff
             | Message::SnapshotDiffLoaded(_)
             | Message::SetSnapshotDiffMode(_)
+            | Message::RefreshSnapshotDiff
             | Message::ArmSnapshotRollback
             | Message::CancelSnapshotRollback
             | Message::RollbackToSnapshot(_)

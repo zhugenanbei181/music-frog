@@ -801,6 +801,8 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::PruneSnapshots { .. } => "prune_snapshots",
         CommandIntent::LoadProfileDocument { .. } => "load_profile_document",
         CommandIntent::SaveProfileDocument { .. } => "save_profile_document",
+        CommandIntent::LoadProfileOptions { .. } => "load_profile_options",
+        CommandIntent::SaveMixinOverlay { .. } => "save_mixin_overlay",
         CommandIntent::RefreshPublicIpProbe => "refresh_public_ip_probe",
         CommandIntent::RollbackCore => "rollback_core",
         CommandIntent::UpdateSetting { .. } => "update_setting",

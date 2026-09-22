@@ -428,7 +428,9 @@ pub struct ConfigEditorState {
     pub mixin_content: text_editor::Content,
     pub mixin_loaded_for: Option<String>,
     pub is_saving_mixin: bool,
-    pub filter_draft: crate::types::options::FilterDraft,
+    /// DUAL-09-14: the shared surface filter draft (`SubscriptionFilterDraft`),
+    /// parsed and persisted by the same application use-case both surfaces call.
+    pub filter_draft: infiltrator_contract::subscription_import::SubscriptionFilterDraft,
     pub filter_loaded_for: Option<String>,
     pub is_saving_filter: bool,
     pub mrs_details: Vec<crate::types::options::MrsProviderDetail>,

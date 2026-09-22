@@ -449,6 +449,8 @@ impl SurfaceReader for ApplicationSurfaceReader {
                             infiltrator_contract::apply_transaction::last_apply_transaction(),
                         profile_document:
                             infiltrator_contract::profile_document::last_profile_document(),
+                        profile_options:
+                            infiltrator_contract::profile_options::last_profile_options(),
                     })
                 }
                 Some(Ok(items)) => {
@@ -524,6 +526,8 @@ impl SurfaceReader for ApplicationSurfaceReader {
                             infiltrator_contract::apply_transaction::last_apply_transaction(),
                         profile_document:
                             infiltrator_contract::profile_document::last_profile_document(),
+                        profile_options:
+                            infiltrator_contract::profile_options::last_profile_options(),
                     })
                 }
                 Some(Err(failure)) => surface_snapshot::PageData::failed(failure),

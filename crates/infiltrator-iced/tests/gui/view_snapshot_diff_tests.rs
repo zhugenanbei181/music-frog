@@ -172,3 +172,29 @@ fn history_panel_restore_is_armed_before_it_executes() {
     let _ = state.update(Message::ArmRestoreProfileSnapshot(path.clone()));
     assert_eq!(state.editor.pending_restore_snapshot.as_ref(), Some(&path));
 }
+
+/// DUAL-09-14: the modal can recompute the open diff from the shared snapshot
+/// application — the same action the Bevy card's 「刷新差异」 offers.
+#[test]
+fn refresh_recomputes_the_open_diff_through_the_shared_application() {
+    let (mut state, _) = AppState::new();
+    let _ = state.update(Message::RefreshSnapshotDiff);
+    assert!(
+        !state.editor.snapshot_diff_loading,
+        "nothing is open, so refresh is an inert no-op"
+    );
+
+    let mut state = open_modal_state();
+    state.editor.editor_path = Some(std::path::PathBuf::from("/fake/configs/main.yaml"));
+    state.editor.snapshot_diff_loading = false;
+    let _ = state.update(Message::RefreshSnapshotDiff);
+    assert!(
+        state.editor.snapshot_diff_loading,
+        "refresh re-enters the shared loading path for the selected snapshot"
+    );
+    assert_eq!(
+        state.editor.snapshot_diff_selected_id.as_deref(),
+        Some("1-deadbeef.yaml"),
+        "the refreshed target is the snapshot the modal already shows"
+    );
+}

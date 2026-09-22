@@ -487,12 +487,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .on_press(Message::FormatYamlEditor),
     ]
     .align_y(Alignment::Center);
-    let mut content = column![
-        toolbar,
-        Space::new().height(theme::SP_XS),
-        snippets_bar,
-        Space::new().height(theme::SP_SM)
-    ];
+    // DUAL-09-14: the snippet bar belongs to the document panes only — the
+    // Bevy card mounts the same shared catalogue in exactly Profile and Mixin.
+    let mut content = column![toolbar, Space::new().height(theme::SP_XS)];
+    if pane_has_snippet_bar(state.editor.editor_pane) {
+        content = content.push(snippets_bar);
+    }
+    content = content.push(Space::new().height(theme::SP_SM));
     if let Some(alert) = syntax_alert {
         content = content.push(alert).push(Space::new().height(theme::SP_SM));
     }
@@ -505,23 +506,24 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     if let Some(banner) = super::editor_history::apply_banner(state, &lang) {
         content = content.push(banner).push(Space::new().height(theme::SP_SM));
     }
-    // The Filter pane owns its full-width form; the document panes share the
-    // editor + history side panel layout.
-    if state.editor.editor_pane == EditorPane::Filter
-        || state.editor.editor_pane == EditorPane::Script
-    {
-        content = content.push(editor);
-    } else {
-        content = content.push(
-            row![editor, Space::new().width(theme::SP_MD), history_panel].height(Length::Fill),
-        );
-    }
+    // DUAL-09-14: every pane keeps the history side panel, so the snapshot
+    // actions do not disappear when the Filter or Script pane is open (the
+    // Bevy history card is always mounted on the page as well).
+    content = content
+        .push(row![editor, Space::new().width(theme::SP_MD), history_panel].height(Length::Fill));
     let content = content.spacing(theme::SP_SM);
 
     container(content)
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
+}
+
+/// DUAL-09-14: the panes that carry the shared snippet bar. The Bevy editor
+/// card mounts the same catalogue in exactly these two panes, so a snippet can
+/// never be inserted into a filter form.
+pub fn pane_has_snippet_bar(pane: EditorPane) -> bool {
+    matches!(pane, EditorPane::Profile | EditorPane::Mixin)
 }
 
 fn snip_btn<'a>(label: &str, snippet_id: &'static str) -> Element<'a, Message> {

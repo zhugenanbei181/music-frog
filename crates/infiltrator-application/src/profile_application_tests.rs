@@ -881,3 +881,147 @@ async fn local_profiles_stay_directly_editable() {
         .expect("local profile edits need no unlock");
     assert_eq!(store.load("lab").await.expect("content"), "mode: global\n");
 }
+
+// ---- DUAL-09-14: one option-sidecar use-case for both editor panes --------
+
+/// The shared sidecar loader renders the stored mixin back into the editor's
+/// YAML buffer, converts the stored filter into the shared draft and publishes
+/// the snapshot both surfaces read.
+#[tokio::test]
+async fn options_load_publishes_the_sidecar_draft_for_both_surfaces() {
+    use crate::profile_options_application::ProfileOptionsApplication;
+    use infiltrator_contract::profile_options::{clear_profile_options, last_profile_options};
+
+    let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
+    {
+        let mut options = store.options.lock().expect("options lock");
+        options.insert(
+            "main".to_string(),
+            infiltrator_domain::profile_options::ProfileOptions {
+                mixin: infiltrator_domain::mixin::MixinConfig {
+                    mode: Some("global".to_string()),
+                    ..Default::default()
+                },
+                filter: Some(infiltrator_domain::profile_options::FilterSpec {
+                    include_keywords: vec!["香港".to_string()],
+                    ..Default::default()
+                }),
+            },
+        );
+    }
+    let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    let application = ProfileOptionsApplication::new(profiles);
+
+    let snapshot = application.load(None).await.expect("sidecar");
+    assert_eq!(snapshot.profile, "main");
+    assert!(
+        snapshot.mixin_yaml.contains("mode: global"),
+        "the stored mixin is rendered back into the editor buffer: {}",
+        snapshot.mixin_yaml
+    );
+    assert_eq!(snapshot.filter.include, "香港");
+    assert_eq!(
+        last_profile_options(),
+        Some(snapshot),
+        "the load publishes the same snapshot for the surface projection"
+    );
+    clear_profile_options();
+}
+
+/// The Mixin commit strips the outgoing mixin's injected rule lines, so
+/// re-saving an edited overlay never duplicates rules and never loses the
+/// hand-written comments around them.
+#[tokio::test]
+async fn mixin_save_is_idempotent_and_keeps_handwritten_comments() {
+    use crate::profile_options_application::ProfileOptionsApplication;
+
+    let store = Arc::new(FakeStore::with_profile(
+        "main",
+        "# 手写注释\nmode: rule\nrules:\n  - MATCH,DIRECT\n",
+        true,
+    ));
+    let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    let application = ProfileOptionsApplication::new(profiles);
+    let overlay = "rules:\n  append:\n    - DOMAIN-SUFFIX,example.com,DIRECT\n";
+
+    for _ in 0..2 {
+        application
+            .save_mixin(None::<Arc<dyn ManagedRuntime>>, "main", overlay)
+            .await
+            .expect("mixin save");
+    }
+
+    let saved = store.load("main").await.expect("content");
+    assert!(
+        saved.contains("# 手写注释"),
+        "the byte-faithful merge keeps the hand-written comment: {saved}"
+    );
+    assert_eq!(
+        saved.matches("DOMAIN-SUFFIX,example.com,DIRECT").count(),
+        1,
+        "the second save strips the first injection before re-applying: {saved}"
+    );
+    let options = store
+        .options
+        .lock()
+        .expect("options lock")
+        .get("main")
+        .cloned()
+        .expect("sidecar stored");
+    assert_eq!(
+        options.mixin.rules.expect("rule mixin").append,
+        vec!["DOMAIN-SUFFIX,example.com,DIRECT".to_string()]
+    );
+}
+
+/// The filter commit compiles the surface draft through the shared parser: a
+/// malformed rename line is a typed failure, a valid draft reshapes the stored
+/// document and persists the spec.
+#[tokio::test]
+async fn filter_draft_save_uses_the_shared_parser_and_persists_the_spec() {
+    use crate::profile_options_application::ProfileOptionsApplication;
+    use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
+
+    let store = Arc::new(FakeStore::with_profile(
+        "main",
+        "proxies:\n  - name: 香港-01\n    type: ss\n  - name: 广告-02\n    type: vmess\n",
+        true,
+    ));
+    let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    let application = ProfileOptionsApplication::new(profiles);
+
+    let broken = SubscriptionFilterDraft {
+        renames: "missing arrow".to_string(),
+        ..SubscriptionFilterDraft::default()
+    };
+    let failure = application
+        .save_filter(None::<Arc<dyn ManagedRuntime>>, "main", &broken)
+        .await
+        .expect_err("a malformed rename line must fail before any write");
+    assert_eq!(failure.code, ErrorCode::InvalidInput);
+
+    let draft = SubscriptionFilterDraft {
+        exclude: "广告".to_string(),
+        dedup_index: 1,
+        ..SubscriptionFilterDraft::default()
+    };
+    let report = application
+        .save_filter(None::<Arc<dyn ManagedRuntime>>, "main", &draft)
+        .await
+        .expect("filter run");
+    assert_eq!(report.total_input, 2);
+    assert_eq!(report.passed, 1);
+    let saved = store.load("main").await.expect("content");
+    assert!(!saved.contains("广告-02"));
+    let stored = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>)
+        .load_options("main")
+        .await
+        .expect("options")
+        .filter
+        .expect("filter stored");
+    assert_eq!(stored.exclude_keywords, vec!["广告".to_string()]);
+    assert_eq!(
+        stored.deduplication,
+        infiltrator_domain::profile_options::FilterDedup::KeepFirst
+    );
+}

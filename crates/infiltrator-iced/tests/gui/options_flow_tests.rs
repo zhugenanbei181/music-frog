@@ -7,8 +7,9 @@
 use crate::state::AppState;
 use crate::types::app::SyncConflict;
 use crate::types::message::Message;
-use crate::types::options::{EditorPane, FilterDraft, SyncDiffBundle, SyncDiffState};
+use crate::types::options::{EditorPane, SyncDiffBundle, SyncDiffState};
 use iced::widget::text_editor;
+use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -94,7 +95,7 @@ fn test_mixin_pane_switch_loads_and_saves_via_options_state() {
 #[test]
 fn test_filter_draft_updates_and_validation_gate() {
     let (mut state, _) = AppState::new();
-    let _ = state.update(Message::ProfileFilterLoaded(Ok(FilterDraft {
+    let _ = state.update(Message::ProfileFilterLoaded(Ok(SubscriptionFilterDraft {
         include: "HK, JP".into(),
         exclude: String::new(),
         exclude_types: "trojan".into(),
@@ -108,8 +109,11 @@ fn test_filter_draft_updates_and_validation_gate() {
     let _ = state.update(Message::UpdateFilterExclude("剩余流量".into()));
     assert_eq!(state.editor.filter_draft.exclude, "剩余流量");
 
-    // The draft compiles into a stored spec (comma + semicolon splitting).
-    let spec = state.editor.filter_draft.to_spec().unwrap();
+    // The draft compiles into a stored spec through the *shared* parser
+    // (comma + semicolon splitting), the same one the Bevy filter pane uses.
+    let spec =
+        infiltrator_domain::profile_options::filter_spec_from_draft(&state.editor.filter_draft)
+            .unwrap();
     assert_eq!(spec.include_keywords, vec!["HK", "JP"]);
     assert_eq!(spec.exclude_keywords, vec!["剩余流量"]);
     assert_eq!(spec.exclude_types, vec!["trojan"]);
@@ -120,11 +124,17 @@ fn test_filter_draft_updates_and_validation_gate() {
     );
 
     // A malformed rename line fails compilation with an actionable message.
-    let bad = FilterDraft {
+    let bad = SubscriptionFilterDraft {
         renames: "没有箭头的规则".into(),
-        ..FilterDraft::default()
+        ..SubscriptionFilterDraft::default()
     };
-    assert!(bad.to_spec().err().unwrap().to_string().contains("=>"));
+    assert!(
+        infiltrator_domain::profile_options::filter_spec_from_draft(&bad)
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("=>")
+    );
 
     // The filter draft loads lazily for the profile open in the editor:
     // switching to the Filter pane after ProfileContentLoaded keys the load
@@ -147,9 +157,9 @@ fn test_filter_draft_updates_and_validation_gate() {
         "mode: rule\n".to_string(),
     ))));
     let _ = state.update(Message::SetEditorPane(EditorPane::Filter));
-    let _ = state.update(Message::ProfileFilterLoaded(Ok(FilterDraft {
+    let _ = state.update(Message::ProfileFilterLoaded(Ok(SubscriptionFilterDraft {
         include: "JP".into(),
-        ..FilterDraft::default()
+        ..SubscriptionFilterDraft::default()
     })));
     assert_eq!(state.editor.filter_loaded_for.as_deref(), Some("alpha"));
     assert_eq!(state.editor.filter_draft.include, "JP");

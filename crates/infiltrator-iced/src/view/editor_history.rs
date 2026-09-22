@@ -135,6 +135,22 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
     }
 
     let actions_row = row![
+        // DUAL-09-14: explicit list refresh (the Bevy history card has the
+        // same button); the panel no longer depends on an incidental reload.
+        button(
+            text(if state.editor.is_loading_snapshots {
+                "...".to_string()
+            } else {
+                lang.tr("editor_history_refresh").to_string()
+            })
+            .size(10),
+        )
+        .padding([3, 8])
+        .style(style_ghost)
+        .on_press_maybe(
+            (!state.editor.is_loading_snapshots).then_some(Message::LoadProfileSnapshots),
+        ),
+        Space::new().width(theme::SP_XS),
         button(
             text(if state.editor.is_backing_up_snapshot {
                 "...".to_string()

@@ -169,6 +169,9 @@ pub struct ProfilesProjection {
         Option<infiltrator_contract::apply_transaction::ApplyTransactionSnapshot>,
     /// DUAL-09-03/14: the stored document the editor card renders.
     pub profile_document: Option<infiltrator_contract::profile_document::ProfileDocumentSnapshot>,
+    /// DUAL-09-14: the stored Mixin overlay + filter draft the editor panes
+    /// edit; published by the shared sidecar use-case.
+    pub profile_options: Option<infiltrator_contract::profile_options::ProfileOptionsSnapshot>,
 }
 
 impl ProfilesProjection {
@@ -183,6 +186,7 @@ impl ProfilesProjection {
             snapshot_history: None,
             apply_transaction: None,
             profile_document: None,
+            profile_options: None,
             profiles: vec![
                 ProfileItem {
                     id: "sub-1".to_owned(),
@@ -625,6 +629,8 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(crate::pages::profiles_diff_history::on_snapshot_prune_keep_activated);
     commands.add_observer(crate::pages::profiles_diff_history::on_prune_snapshots_activated);
     commands.add_observer(crate::pages::profiles_diff_history::on_snapshot_history_entry_activated);
+    commands
+        .add_observer(crate::pages::profiles_diff_history::on_snapshot_history_restore_activated);
     // DUAL-09-03/14: the document editor owns its own plugin
     // (`ProfilesEditorPlugin`): keyboard seam, observers and body rebuild.
 }
