@@ -6,6 +6,7 @@
 //! anchors (`&a`/`*a`), key order, quoting, CRLF, BOM — passes through byte-for-byte.
 
 pub mod anchor;
+pub mod format;
 pub mod mixin_fidelity;
 pub mod rules_fidelity;
 

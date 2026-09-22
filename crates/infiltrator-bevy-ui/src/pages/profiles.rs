@@ -162,6 +162,13 @@ pub struct ProfilesProjection {
     /// DUAL-09-08: the shared snapshot-vs-current AST diff. The surface renders
     /// it directly and never fabricates rows.
     pub yaml_ast_diff: Option<infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot>,
+    /// DUAL-09-06/07: the shared snapshot history (entries + shared prune view).
+    pub snapshot_history: Option<infiltrator_contract::snapshot_history::SnapshotHistorySnapshot>,
+    /// DUAL-09-11: the host core's typed apply-transaction outcome.
+    pub apply_transaction:
+        Option<infiltrator_contract::apply_transaction::ApplyTransactionSnapshot>,
+    /// DUAL-09-03/14: the stored document the editor card renders.
+    pub profile_document: Option<infiltrator_contract::profile_document::ProfileDocumentSnapshot>,
 }
 
 impl ProfilesProjection {
@@ -173,6 +180,9 @@ impl ProfilesProjection {
             aggregation: None,
             aggregation_templates: Vec::new(),
             aggregation_templates_available: true,
+            snapshot_history: None,
+            apply_transaction: None,
+            profile_document: None,
             profiles: vec![
                 ProfileItem {
                     id: "sub-1".to_owned(),
@@ -345,6 +355,7 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
             ( { crate::pages::profiles_subscription_policy::subscription_policy_card_scene(projection, palette) } ),
             ( { crate::pages::profiles_aggregator::profiles_aggregator_scene(projection, palette) } ),
             ( { crate::pages::profiles_diff::snapshot_diff_scene(projection, palette) } ),
+            ( { crate::pages::profiles_editor::profile_editor_scene(projection, palette) } ),
             ( { crate::pages::profiles_script::script_sandbox_scene(palette) } ),
             { profile_scenes },
         ]
@@ -609,6 +620,13 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(crate::pages::profiles_diff::on_refresh_snapshot_diff);
     commands.add_observer(crate::pages::profiles_diff::on_snapshot_diff_mode_activated);
     commands.add_observer(crate::pages::profiles_diff::on_rollback_snapshot_activated);
+    commands.add_observer(crate::pages::profiles_diff_history::on_backup_snapshot_activated);
+    commands.add_observer(crate::pages::profiles_diff_history::on_refresh_snapshot_history);
+    commands.add_observer(crate::pages::profiles_diff_history::on_snapshot_prune_keep_activated);
+    commands.add_observer(crate::pages::profiles_diff_history::on_prune_snapshots_activated);
+    commands.add_observer(crate::pages::profiles_diff_history::on_snapshot_history_entry_activated);
+    // DUAL-09-03/14: the document editor owns its own plugin
+    // (`ProfilesEditorPlugin`): keyboard seam, observers and body rebuild.
 }
 
 /// DUAL-07-11: route the toolbar "update all" click into the shared command bus.

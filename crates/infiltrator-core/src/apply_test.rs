@@ -1,6 +1,7 @@
 //! Integration and unit tests for config apply transaction and YAML fidelity.
 
 use super::*;
+use infiltrator_contract::apply_transaction::ApplyTransactionStage;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreProcess;
@@ -291,6 +292,13 @@ fn params(strategy: ApplyStrategy) -> ApplyParams {
     }
 }
 
+/// DUAL-09-11: the apply transaction publishes a process-wide typed outcome, so
+/// tests that assert on it (or that would publish over it) run one at a time.
+fn apply_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 async fn file_content(config: &ConfigManager<MockStore>) -> String {
     let _current = config.get_current().await.expect("current");
     let path = config.get_current_path().await.expect("path");
@@ -299,6 +307,7 @@ async fn file_content(config: &ConfigManager<MockStore>) -> String {
 
 #[tokio::test]
 async fn hot_reload_success_keeps_generation_and_updates_file() {
+    let _guard = apply_lock();
     let f = fixture(0, false).await;
     let generation = f.session.start().await.expect("start");
     f.session
@@ -327,6 +336,7 @@ async fn hot_reload_success_keeps_generation_and_updates_file() {
 
 #[tokio::test]
 async fn reload_failure_falls_back_to_restart() {
+    let _guard = apply_lock();
     let f = fixture(0, true).await;
     let generation = f.session.start().await.expect("start");
     f.session
@@ -355,6 +365,7 @@ async fn reload_failure_falls_back_to_restart() {
 
 #[tokio::test]
 async fn restart_failure_rolls_back_and_recovers() {
+    let _guard = apply_lock();
     let f = fixture(0, true).await;
     let generation = f.session.start().await.expect("start");
     f.session
@@ -376,10 +387,19 @@ async fn restart_failure_rolls_back_and_recovers() {
     assert!(matches!(err, ApplyError::RolledBack { .. }));
     assert_eq!(file_content(&f.config).await, OLD);
     assert_eq!(f.session.status(), CoreLifecycle::Ready);
+
+    // DUAL-09-11: the surfaces read this typed record, not a string guess.
+    let record = infiltrator_contract::apply_transaction::last_apply_transaction()
+        .expect("the failed transaction is published");
+    assert_eq!(record.profile, "main");
+    assert_eq!(record.stage, ApplyTransactionStage::RolledBack);
+    assert!(record.is_failure());
+    assert!(!record.detail.is_empty());
 }
 
 #[tokio::test]
 async fn stopped_core_starts_with_new_config_without_reload() {
+    let _guard = apply_lock();
     let f = fixture(0, false).await;
 
     let outcome = apply_current_profile(
@@ -400,6 +420,7 @@ async fn stopped_core_starts_with_new_config_without_reload() {
 
 #[tokio::test]
 async fn successful_apply_stores_snapshot_history() {
+    let _guard = apply_lock();
     let f = fixture(0, false).await;
     let generation = f.session.start().await.expect("start");
     f.session
@@ -412,6 +433,13 @@ async fn successful_apply_stores_snapshot_history() {
     apply_current_profile(&f.session, &f.config, &f.reloader, NEW, p)
         .await
         .expect("apply");
+
+    // DUAL-09-11: a committed transaction is published with its reload method.
+    let record = infiltrator_contract::apply_transaction::last_apply_transaction()
+        .expect("the committed transaction is published");
+    assert_eq!(record.stage, ApplyTransactionStage::Committed);
+    assert_eq!(record.method.as_deref(), Some("hot_reload"));
+    assert!(!record.is_failure());
 
     let config_dir = f._dir.path().join("configs");
     let snapshots = crate::history::list_snapshots(&config_dir, "main")
@@ -428,6 +456,7 @@ async fn successful_apply_stores_snapshot_history() {
 
 #[tokio::test]
 async fn invalid_content_aborts_before_any_write() {
+    let _guard = apply_lock();
     let f = fixture(0, false).await;
 
     let err = apply_current_profile(
@@ -447,6 +476,7 @@ async fn invalid_content_aborts_before_any_write() {
 
 #[tokio::test]
 async fn busy_transition_rejects_apply() {
+    let _guard = apply_lock();
     let f = fixture(0, false).await;
     f.session.start().await.expect("start");
 
@@ -501,6 +531,7 @@ proxy-groups:
 
 #[tokio::test]
 async fn fidelity_apply_current_profile_doc_preserves_100_percent() {
+    let _guard = apply_lock();
     let f = fixture(0, false).await;
     f.config
         .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
@@ -528,6 +559,7 @@ async fn fidelity_apply_current_profile_doc_preserves_100_percent() {
 
 #[tokio::test]
 async fn fidelity_scalar_override_preserves_all_comments_and_anchors() {
+    let _guard = apply_lock();
     let f = fixture(0, false).await;
     f.config
         .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
@@ -569,6 +601,7 @@ async fn fidelity_scalar_override_preserves_all_comments_and_anchors() {
 
 #[tokio::test]
 async fn fidelity_append_and_remove_rules_preserves_comments_and_anchors() {
+    let _guard = apply_lock();
     let f = fixture(0, false).await;
     f.config
         .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
@@ -614,6 +647,7 @@ async fn fidelity_append_and_remove_rules_preserves_comments_and_anchors() {
 
 #[tokio::test]
 async fn fidelity_rewrite_anchors_preserves_comments() {
+    let _guard = apply_lock();
     let f = fixture(0, false).await;
     f.config
         .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
@@ -650,6 +684,7 @@ async fn fidelity_rewrite_anchors_preserves_comments() {
 
 #[tokio::test]
 async fn fidelity_mixin_apply_preserves_comments_and_anchors() {
+    let _guard = apply_lock();
     let f = fixture(0, false).await;
     f.config
         .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)

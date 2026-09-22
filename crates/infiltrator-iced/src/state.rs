@@ -42,7 +42,6 @@ use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{
     ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
-use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
@@ -396,9 +395,21 @@ pub struct ConfigEditorState {
     pub editor_content: text_editor::Content,
     pub editor_path: Option<PathBuf>,
     pub editor_path_setting: String,
-    pub profile_snapshots: Vec<SnapshotMeta>,
+    /// DUAL-09-06/07: the shared snapshot history (entries + shared prune
+    /// view) for the profile being edited. The surface never re-derives the
+    /// retention policy locally.
+    pub snapshot_history: Option<infiltrator_contract::snapshot_history::SnapshotHistorySnapshot>,
     pub is_loading_snapshots: bool,
     pub is_restoring_snapshot: bool,
+    /// DUAL-09-06: manual "back up now" in flight.
+    pub is_backing_up_snapshot: bool,
+    /// DUAL-09-07: requested retention for the manual prune control.
+    pub snapshot_prune_keep: usize,
+    /// DUAL-09-07: manual prune in flight.
+    pub is_pruning_snapshots: bool,
+    /// DUAL-09-11: the last apply transaction the host core recorded.
+    pub apply_transaction:
+        Option<infiltrator_contract::apply_transaction::ApplyTransactionSnapshot>,
     /// DUAL-09-09: the snapshot whose restore has been armed but not confirmed.
     pub pending_restore_snapshot: Option<PathBuf>,
     pub editor_pane: crate::types::options::EditorPane,

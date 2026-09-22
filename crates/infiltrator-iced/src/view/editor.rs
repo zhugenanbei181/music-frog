@@ -6,8 +6,7 @@ use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
 use crate::view::components::{
-    BadgeKind, badge, card_surface, chip, kbd_badge, modern_scrollable, segmented_control,
-    style_accent, style_ghost,
+    card_surface, chip, kbd_badge, segmented_control, style_accent, style_ghost,
 };
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
@@ -355,7 +354,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .style(card_surface);
 
     // History snapshots side panel
-    let history_panel = build_history_panel(state, &lang);
+    let history_panel = super::editor_history::history_panel(state, &lang);
 
     let hint_style = |t: &Theme| text::Style {
         color: Some(tokens(t).text_secondary),
@@ -521,6 +520,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     if let Some(banner) = protection_banner {
         content = content.push(banner).push(Space::new().height(theme::SP_SM));
     }
+    if let Some(banner) = super::editor_history::apply_banner(state, &lang) {
+        content = content.push(banner).push(Space::new().height(theme::SP_SM));
+    }
     // The Filter pane owns its full-width form; the document panes share the
     // editor + history side panel layout.
     if state.editor.editor_pane == EditorPane::Filter
@@ -537,172 +539,6 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     container(content)
         .width(Length::Fill)
         .height(Length::Fill)
-        .into()
-}
-
-fn build_history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let mut history_header = row![
-        icon_themed(Icon::RefreshCw, 14.0, |t: &Theme| tokens(t).text_secondary),
-        text(lang.tr("editor_history").to_string())
-            .font(FONT_SEMIBOLD)
-            .size(13)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
-    ]
-    .spacing(theme::SP_SM)
-    .align_y(Alignment::Center);
-
-    if !state.editor.profile_snapshots.is_empty() {
-        history_header = history_header
-            .push(Space::new().width(Length::Fill))
-            .push(badge(
-                format!("{}", state.editor.profile_snapshots.len()),
-                BadgeKind::Neutral,
-            ));
-    }
-
-    let mut items_col = column![].spacing(theme::SP_SM);
-
-    if state.editor.is_loading_snapshots {
-        items_col = items_col.push(
-            text(lang.tr("editor_history_loading").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_tertiary),
-                }),
-        );
-    } else if state.editor.profile_snapshots.is_empty() {
-        items_col = items_col.push(
-            text(lang.tr("editor_history_empty").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_tertiary),
-                }),
-        );
-    } else {
-        for snapshot in state.editor.profile_snapshots.iter().take(12) {
-            let short_hash = format_short_sha(&snapshot.sha256);
-            let hash_pill =
-                container(
-                    text(short_hash)
-                        .size(10)
-                        .font(MONO)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).text_secondary),
-                        }),
-                )
-                .padding([2, 6])
-                .style(|t: &Theme| {
-                    let tk = tokens(t);
-                    container::Style {
-                        background: Some(tk.control_bg.into()),
-                        border: Border {
-                            radius: border::Radius::from(4.0),
-                            width: 1.0,
-                            color: tk.card_border,
-                        },
-                        ..Default::default()
-                    }
-                });
-
-            let timestamp_text = text(snapshot.timestamp.format("%m-%d %H:%M").to_string())
-                .size(11)
-                .font(FONT_MEDIUM)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary),
-                });
-
-            let confirm_pending =
-                state.editor.pending_restore_snapshot.as_deref() == Some(snapshot.path.as_path());
-            let restore_btn = button(
-                text(if state.editor.is_restoring_snapshot {
-                    "...".to_string()
-                } else if confirm_pending {
-                    lang.tr("editor_restore_confirm").to_string()
-                } else {
-                    lang.tr("editor_restore").to_string()
-                })
-                .size(11)
-                .font(FONT_MEDIUM),
-            )
-            .padding([4, 10])
-            .style(if confirm_pending {
-                style_accent
-            } else {
-                style_ghost
-            })
-            .on_press_maybe(
-                (!state.editor.is_restoring_snapshot).then_some(if confirm_pending {
-                    Message::RestoreProfileSnapshot(snapshot.path.clone())
-                } else {
-                    Message::ArmRestoreProfileSnapshot(snapshot.path.clone())
-                }),
-            );
-
-            let diff_btn = button(
-                text(lang.tr("snapshot_diff_open").to_string())
-                    .size(11)
-                    .font(FONT_MEDIUM),
-            )
-            .padding([4, 10])
-            .style(style_ghost)
-            .on_press(Message::OpenSnapshotDiff(
-                snapshot.path.to_string_lossy().to_string(),
-            ));
-
-            let mut actions = row![diff_btn, Space::new().width(theme::SP_XS), restore_btn]
-                .align_y(Alignment::Center);
-            if confirm_pending {
-                actions = actions.push(Space::new().width(theme::SP_XS)).push(
-                    button(text(lang.tr("btn_cancel").to_string()).size(11))
-                        .padding([4, 10])
-                        .style(style_ghost)
-                        .on_press(Message::CancelRestoreProfileSnapshot),
-                );
-            }
-
-            let snapshot_card = container(
-                row![
-                    column![timestamp_text, hash_pill]
-                        .spacing(3)
-                        .width(Length::Fill),
-                    actions,
-                ]
-                .spacing(theme::SP_SM)
-                .align_y(Alignment::Center),
-            )
-            .padding([8, 10])
-            .width(Length::Fill)
-            .style(|t: &Theme| {
-                let tk = tokens(t);
-                container::Style {
-                    background: Some(tk.control_bg.into()),
-                    border: Border {
-                        radius: border::Radius::from(theme::R_CONTROL),
-                        width: 1.0,
-                        color: tk.card_border,
-                    },
-                    ..Default::default()
-                }
-            });
-
-            items_col = items_col.push(snapshot_card);
-        }
-    }
-
-    let panel_body = column![
-        history_header,
-        Space::new().height(theme::SP_XS),
-        modern_scrollable(items_col).height(Length::Fill),
-    ]
-    .spacing(theme::SP_SM);
-
-    container(panel_body)
-        .width(Length::Fixed(260.0))
-        .height(Length::Fill)
-        .padding(theme::SP_MD)
-        .style(card_surface)
         .into()
 }
 

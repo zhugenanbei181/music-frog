@@ -413,6 +413,11 @@ impl SurfaceReader for ApplicationSurfaceReader {
                             crate::profile_aggregation_application::last_aggregation_report(),
                         aggregation_templates,
                         aggregation_templates_available,
+                        snapshot_history: crate::snapshot_application::last_snapshot_history(),
+                        apply_transaction:
+                            infiltrator_contract::apply_transaction::last_apply_transaction(),
+                        profile_document:
+                            infiltrator_contract::profile_document::last_profile_document(),
                     })
                 }
                 Some(Ok(items)) => {
@@ -480,6 +485,14 @@ impl SurfaceReader for ApplicationSurfaceReader {
                             crate::profile_aggregation_application::last_aggregation_report(),
                         aggregation_templates,
                         aggregation_templates_available,
+                        // DUAL-09-06/11/14: the shared history, the host apply
+                        // transaction and the loaded editor document are
+                        // process-wide facts this reader only forwards.
+                        snapshot_history: crate::snapshot_application::last_snapshot_history(),
+                        apply_transaction:
+                            infiltrator_contract::apply_transaction::last_apply_transaction(),
+                        profile_document:
+                            infiltrator_contract::profile_document::last_profile_document(),
                     })
                 }
                 Some(Err(failure)) => surface_snapshot::PageData::failed(failure),

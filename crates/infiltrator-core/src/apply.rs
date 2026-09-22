@@ -26,6 +26,7 @@ use mihomo_config::manager::ConfigManager;
 use tokio::io::AsyncWriteExt;
 use yaml_rust2::{Yaml, YamlLoader};
 
+use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
@@ -69,6 +70,16 @@ pub enum ApplyMethod {
     HotReload,
     /// Process restart (or first start); a new generation was produced.
     Restart,
+}
+
+impl ApplyMethod {
+    /// Wire name used by the shared apply-transaction read model.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::HotReload => "hot_reload",
+            Self::Restart => "restart",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -359,6 +370,12 @@ pub async fn apply_current_profile<S: SecureStore>(
                     Err(err) => log::warn!("config snapshot save failed: {err}"),
                 }
             }
+            // DUAL-09-11: both surfaces read the same typed outcome instead of
+            // inferring a rollback from an error string.
+            record_transaction(ApplyTransactionSnapshot::committed(
+                &current,
+                outcome.method.as_str(),
+            ));
             return Ok(outcome);
         }
         Err(failure) => failure,
@@ -367,12 +384,13 @@ pub async fn apply_current_profile<S: SecureStore>(
     // Rollback: restore the previous file; bring the core back if it had
     // been serving before this transaction.
     if let Some(old) = old_content {
-        atomic_write(&path, &old)
-            .await
-            .map_err(|err| ApplyError::RollbackFailed {
-                cause: cause.clone(),
-                rollback: format!("restoring {}: {err}", path.display()),
-            })?;
+        if let Err(err) = atomic_write(&path, &old).await {
+            let rollback = format!("restoring {}: {err}", path.display());
+            record_transaction(ApplyTransactionSnapshot::rollback_failed(
+                &current, &cause, &rollback,
+            ));
+            return Err(ApplyError::RollbackFailed { cause, rollback });
+        }
     } else {
         log::warn!(
             "no previous content for {}; rollback only marks the failure",
@@ -382,15 +400,27 @@ pub async fn apply_current_profile<S: SecureStore>(
 
     if was_running {
         match restart_and_check(session, &params).await {
-            Ok(_) => Err(ApplyError::RolledBack { cause }),
-            Err(err) => Err(ApplyError::RollbackFailed {
-                cause,
-                rollback: err.to_string(),
-            }),
+            Ok(_) => {
+                record_transaction(ApplyTransactionSnapshot::rolled_back(&current, &cause));
+                Err(ApplyError::RolledBack { cause })
+            }
+            Err(err) => {
+                let rollback = err.to_string();
+                record_transaction(ApplyTransactionSnapshot::rollback_failed(
+                    &current, &cause, &rollback,
+                ));
+                Err(ApplyError::RollbackFailed { cause, rollback })
+            }
         }
     } else {
+        record_transaction(ApplyTransactionSnapshot::rolled_back(&current, &cause));
         Err(ApplyError::RolledBack { cause })
     }
+}
+
+/// Publish one transaction outcome for the surface read model.
+fn record_transaction(snapshot: ApplyTransactionSnapshot) {
+    infiltrator_contract::apply_transaction::record_apply_transaction(snapshot);
 }
 
 // ---- SourceDoc Fidelity Track Integration ----------------------------------
@@ -553,6 +583,10 @@ pub async fn apply_profile_mixin_fidelity<S: SecureStore>(
     apply_current_profile(session, config, reloader, &new_content, params).await
 }
 
+// The apply transaction publishes a process-wide typed outcome, so its tests
+// serialize through a lock; they run on a current-thread runtime, so holding
+// the guard across an await cannot deadlock.
 #[cfg(test)]
+#[allow(clippy::await_holding_lock)]
 #[path = "apply_test.rs"]
 mod apply_test;

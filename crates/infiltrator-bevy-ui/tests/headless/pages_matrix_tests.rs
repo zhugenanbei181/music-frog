@@ -191,6 +191,9 @@ fn profiles_page_in_place_update() {
         aggregation_templates: Vec::new(),
         aggregation_templates_available: true,
         yaml_ast_diff: None,
+        snapshot_history: None,
+        apply_transaction: None,
+        profile_document: None,
         profiles: vec![ProfileItem {
             id: "sub-custom".to_owned(),
             name: "自建中继节点订阅".to_owned(),

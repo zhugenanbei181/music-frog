@@ -634,3 +634,142 @@ rules:
     assert!(out.contains("# 兜底"), "inline comment kept: {out}");
     assert_eq!(crate::rules::load_rules_from_yaml(&out).unwrap(), rules);
 }
+
+// --- DUAL-09-05: AST-preserving formatter ---------------------------------
+
+use super::format::{CLASH_TOP_LEVEL_ORDER, FormatSkipReason, format_yaml};
+
+const UNFORMATTED: &str = "\
+# 端口与模式（手写注释）
+mixed-port: 7890
+mode: rule   # rule / global / direct
+rules:
+   # 手写的兜底规则
+   - &catchall MATCH,DIRECT
+proxies:
+   - name: HK-01
+     type: ss
+     server: hk.example.com
+";
+
+#[test]
+fn format_keeps_every_comment_anchor_and_scalar_style() {
+    let report = format_yaml(UNFORMATTED).expect("format");
+    // Anchors are present: no reordering, and the file says why.
+    assert!(!report.reordered_top_level_keys);
+    assert_eq!(report.skip_reason(), Some(FormatSkipReason::AnchorsPresent));
+    assert!(report.content.contains("# 端口与模式（手写注释）"));
+    assert!(
+        report
+            .content
+            .contains("mode: rule   # rule / global / direct")
+    );
+    assert!(report.content.contains("# 手写的兜底规则"));
+    assert!(report.content.contains("- &catchall MATCH,DIRECT"));
+    // Indentation was normalized to two spaces without touching the text.
+    assert!(report.content.contains("  - &catchall MATCH,DIRECT"));
+    assert!(report.content.contains("  - name: HK-01"));
+    assert!(report.content.contains("    type: ss"));
+    assert!(report.content.contains("    server: hk.example.com"));
+    assert_eq!(doc(&report.content).render(), report.content);
+}
+
+#[test]
+fn format_orders_top_level_keys_and_keeps_blocks_together() {
+    let input = "\
+rules:
+  - MATCH,DIRECT
+# DNS 段说明
+dns:
+  enable: true
+  nameserver:
+    - 8.8.8.8
+mode: rule
+mixed-port: 7890
+";
+    let report = format_yaml(input).expect("format");
+    assert!(report.reordered_top_level_keys);
+    assert_eq!(
+        report.content,
+        "\
+mixed-port: 7890
+mode: rule
+# DNS 段说明
+dns:
+  enable: true
+  nameserver:
+    - 8.8.8.8
+rules:
+  - MATCH,DIRECT
+"
+    );
+    // Every canonical key really is known to the table.
+    for key in ["mixed-port", "mode", "dns", "rules"] {
+        assert!(CLASH_TOP_LEVEL_ORDER.contains(&key), "{key} must be known");
+    }
+}
+
+#[test]
+fn format_is_idempotent_and_reports_no_change_on_second_pass() {
+    let first = format_yaml(UNFORMATTED).expect("format");
+    let second = format_yaml(&first.content).expect("format again");
+    assert_eq!(first.content, second.content);
+    assert!(!second.changed(&first.content));
+    assert_eq!(second.skip_reason(), Some(FormatSkipReason::AnchorsPresent));
+}
+
+#[test]
+fn format_collapses_blank_runs_and_strips_trailing_whitespace() {
+    let input = "mode: rule  \n\n\n\nrules:\n  - MATCH,DIRECT\n\n\n";
+    let report = format_yaml(input).expect("format");
+    assert_eq!(report.content, "mode: rule\n\nrules:\n  - MATCH,DIRECT\n");
+}
+
+#[test]
+fn format_keeps_block_scalar_bodies_verbatim() {
+    let input = "\
+mode: rule
+experimental:
+    script: |
+        line one
+            indented
+        line three
+rules:
+    - MATCH,DIRECT
+";
+    let report = format_yaml(input).expect("format");
+    // Block-scalar bodies are data: their indentation is never rewritten.
+    assert!(report.content.contains("        line one"));
+    assert!(report.content.contains("            indented"));
+    assert!(report.content.contains("        line three"));
+    assert!(crate::config::validate_yaml(&report.content).is_ok());
+}
+
+#[test]
+fn format_refuses_documents_that_do_not_parse() {
+    let error = format_yaml("mode: [\n").unwrap_err();
+    assert!(matches!(error, YamlEditError::Unsupported(_)));
+}
+
+#[test]
+fn format_skips_root_sequences_and_merge_keys_without_guessing() {
+    let sequence = format_yaml("- one\n- two\n").expect("format");
+    assert!(!sequence.reordered_top_level_keys);
+    assert_eq!(sequence.skip_reason(), Some(FormatSkipReason::RootSequence));
+
+    let merge = "base: &base\n  a: 1\nitem:\n  <<: *base\n  b: 2\n";
+    let report = format_yaml(merge).expect("format");
+    assert!(!report.reordered_top_level_keys);
+    assert_eq!(report.skip_reason(), Some(FormatSkipReason::AnchorsPresent));
+    assert!(report.content.contains("  <<: *base"));
+}
+
+#[test]
+fn format_keeps_crlf_and_bom_out_of_its_way() {
+    let input = "\u{feff}mode: rule  \r\nrules:\r\n    - MATCH,DIRECT\r\n";
+    let report = format_yaml(input).expect("format");
+    assert!(report.content.starts_with('\u{feff}'));
+    assert!(report.content.contains("\r\n"));
+    assert_eq!(report.content.matches('\n').count(), 3);
+    assert!(report.content.contains("  - MATCH,DIRECT\r\n"));
+}

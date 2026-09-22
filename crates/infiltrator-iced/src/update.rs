@@ -379,6 +379,11 @@ impl AppState {
             | Message::ProfileContentLoaded(_)
             | Message::LoadProfileSnapshots
             | Message::ProfileSnapshotsLoaded(_)
+            | Message::BackupProfileSnapshot
+            | Message::ProfileSnapshotBackedUp(_)
+            | Message::SetSnapshotPruneKeep(_)
+            | Message::PruneProfileSnapshots
+            | Message::ProfileSnapshotsPruned(_)
             | Message::ArmRestoreProfileSnapshot(_)
             | Message::CancelRestoreProfileSnapshot
             | Message::RestoreProfileSnapshot(_)

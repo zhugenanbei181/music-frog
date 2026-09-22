@@ -21,7 +21,6 @@ use infiltrator_domain::runtime::{
     ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
 use infiltrator_domain::settings::AppSettings;
-use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_ports::host_runtime::HostRuntime;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -367,7 +366,20 @@ pub enum Message {
     EditProfileAs(PathBuf, crate::types::options::EditorPane),
     ProfileContentLoaded(Result<(PathBuf, String), InfiltratorError>),
     LoadProfileSnapshots,
-    ProfileSnapshotsLoaded(Result<Vec<SnapshotMeta>, InfiltratorError>),
+    /// DUAL-09-06/07: the shared history read model (entries + prune view).
+    ProfileSnapshotsLoaded(
+        Result<infiltrator_contract::snapshot_history::SnapshotHistorySnapshot, InfiltratorError>,
+    ),
+    /// DUAL-09-06: write a manual snapshot of the edited profile now.
+    BackupProfileSnapshot,
+    ProfileSnapshotBackedUp(Result<(), InfiltratorError>),
+    /// DUAL-09-07: select the retention the manual prune keeps.
+    SetSnapshotPruneKeep(usize),
+    /// DUAL-09-07: run the shared dedupe+LRU prune with the selected retention.
+    PruneProfileSnapshots,
+    ProfileSnapshotsPruned(
+        Result<infiltrator_contract::snapshot_history::SnapshotPruneReport, InfiltratorError>,
+    ),
     /// DUAL-09-09: arm the history-panel restore confirmation (first step).
     ArmRestoreProfileSnapshot(PathBuf),
     CancelRestoreProfileSnapshot,

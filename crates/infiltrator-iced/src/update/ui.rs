@@ -4,6 +4,7 @@ use crate::types::message::Message;
 use iced::Task;
 use iced::window;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 use std::path::Path;
 use std::time::Instant;
@@ -346,15 +347,43 @@ impl AppState {
                     ));
                 Task::none()
             }
+            // DUAL-09-05: the shared AST-preserving formatter. A serde
+            // re-serialize would drop comments and anchors, so it is not an
+            // acceptable fallback here: a refusal keeps the user's bytes and
+            // says why.
             Message::FormatYamlEditor => {
                 let text = self.editor.editor_content.text();
-                if let Ok(val) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&text)
-                    && let Ok(formatted) = serde_yaml_ng::to_string(&val)
-                {
-                    self.editor.editor_content =
-                        iced::widget::text_editor::Content::with_text(&formatted);
+                match infiltrator_domain::yaml_edit::format::format_yaml(&text) {
+                    Ok(report) => {
+                        self.editor.editor_content =
+                            iced::widget::text_editor::Content::with_text(&report.content);
+                        match report.skip_reason() {
+                            Some(reason) if reason.is_advisory() => {
+                                let key = match reason {
+                                    infiltrator_domain::yaml_edit::format::FormatSkipReason::AnchorsPresent => {
+                                        "yaml_format_skipped_anchors"
+                                    }
+                                    infiltrator_domain::yaml_edit::format::FormatSkipReason::RootSequence => {
+                                        "yaml_format_skipped_root_sequence"
+                                    }
+                                    infiltrator_domain::yaml_edit::format::FormatSkipReason::MergeKey => {
+                                        "yaml_format_skipped_merge_key"
+                                    }
+                                    _ => "yaml_format_skipped_unclassified",
+                                };
+                                let lang = Lang(&self.shell.lang);
+                                let message = lang.tr(key).to_string();
+                                return Task::done(Message::ShowToast(message, ToastStatus::Info));
+                            }
+                            _ => {}
+                        }
+                        Task::none()
+                    }
+                    Err(error) => Task::done(Message::ShowToast(
+                        format!("Format refused: {error}"),
+                        ToastStatus::Error,
+                    )),
                 }
-                Task::none()
             }
             Message::RefreshAppRoutingProcesses => {
                 self.app_routing.is_refreshing = true;

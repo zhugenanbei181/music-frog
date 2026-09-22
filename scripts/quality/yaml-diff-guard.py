@@ -16,6 +16,17 @@ must stay single-sourced:
 * both surfaces render the shared diff rows and perform a two-step confirmed
   rollback: the Iced modal and the Bevy card may not keep their fabricated
   `+ Added` / `- Removed` / demo rows;
+* one AST-preserving formatter (`yaml_edit::format::format_yaml`) is the only
+  formatter either surface may call — the lossy `serde_yaml_ng` re-serialize is
+  forbidden on the format paths;
+* one snapshot history read model + prune policy
+  (`SnapshotHistorySnapshot` / `history::prune_snapshots` over
+  `backup::prune_snapshots`) is surfaced on both ends (list, manual backup,
+  retention presets, prune) and the Bevy editor is a real surface running the
+  shared preflight, formatter and guarded save;
+* the host core publishes the typed apply transaction outcome
+  (`ApplyTransactionStage::RolledBack` / `RollbackFailed`) instead of letting a
+  surface infer a rollback from an error string;
 * the guard is registered in both test entrypoints.
 
 Modeled on `aggregator-guard.py`.
@@ -80,7 +91,10 @@ def main() -> int:
         violations,
         LEDGER,
         "yaml-diff-guard.py",
-        "in progress (6/15)",
+        "### 组 09 逐项账目",
+        "parity-ready",
+        "shared-ready",
+        "planned",
         "可视化并排/行内 Diff",
         "只读保护与远程订阅防手滑覆写",
         "LEFT-05",
@@ -258,9 +272,15 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-iced/src/view/editor.rs",
-        "Message::OpenSnapshotDiff(",
         "editor_protection_use_mixin",
         "Message::SetProfileProtectionOverride(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/editor_history.rs",
+        "Message::OpenSnapshotDiff(",
+        "Message::ArmRestoreProfileSnapshot(",
+        "Message::RestoreProfileSnapshot(",
     )
     require(
         violations,
@@ -377,6 +397,292 @@ def main() -> int:
         "test_profiles_snapshot_diff_states_are_honest_without_a_diff",
     )
 
+    # 8. One AST-preserving formatter, shared by both surfaces.
+    require(
+        violations,
+        "crates/infiltrator-domain/src/yaml_edit/format.rs",
+        "pub fn format_yaml(",
+        "pub enum FormatSkipReason",
+        "pub const CLASH_TOP_LEVEL_ORDER",
+        "fn verify_structure_preserved(",
+        "fn structure_signature(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/yaml_edit.rs",
+        "pub mod format;",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/ui.rs",
+        "infiltrator_domain::yaml_edit::format::format_yaml(",
+        "FormatSkipReason::AnchorsPresent",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/update/ui.rs",
+        "serde_yaml_ng::to_string(&val)",
+        "serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&text)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor.rs",
+        "infiltrator_bevy_widgets::editor::{CodeEditorState, SyntaxTokenKind, tokenize_yaml_line}",
+        "pub fn profile_editor_scene(",
+        "pub fn profile_editor_keyboard_input(",
+        "UiCommand::SaveProfileDocument",
+        "UiCommand::LoadProfileDocument",
+        "pub struct ProfilesEditorPlugin",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor_state.rs",
+        "infiltrator_domain::yaml_edit::format::format_yaml",
+        "infiltrator_domain::config::preflight_yaml_syntax",
+        "pub const PROFILE_EDITOR_RENDER_LIMIT",
+    )
+
+    # 9. One snapshot history read model, one prune policy, both ends.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/snapshot_history.rs",
+        "pub struct SnapshotEntry",
+        "pub struct SnapshotHistorySnapshot",
+        "pub pending_prune: usize",
+        "pub duplicate_entries: usize",
+        "pub enum SnapshotPruneSource",
+        "pub const SNAPSHOT_DEFAULT_KEEP",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/backup.rs",
+        "pub fn prune_snapshots(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-core/src/history.rs",
+        "infiltrator_domain::backup::prune_snapshots(&snapshots, keep)",
+        "prune_deduplicates_identical_content_before_the_lru_cut",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/snapshot_store.rs",
+        "async fn delete(&self, profile: &str, path: &Path)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/snapshot_application.rs",
+        "pub fn last_snapshot_history()",
+        "pub fn publish_snapshot_history(",
+        "pub async fn history(",
+        "pub async fn prune(",
+        "infiltrator_domain::backup::prune_snapshots(&snapshots, keep)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "CommandIntent::LoadSnapshotHistory",
+        "CommandIntent::PruneSnapshots { keep }",
+        "SnapshotPruneSource::Manual",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "snapshot_history: crate::snapshot_application::last_snapshot_history()",
+        "apply_transaction:",
+        "profile_document:",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/editor.rs",
+        ".history(",
+        "Message::BackupProfileSnapshot",
+        "Message::PruneProfileSnapshots",
+        "SnapshotPruneSource::Manual",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/editor_history.rs",
+        "editor_backup_now",
+        "editor_prune_now",
+        "editor_prune_pending",
+        "editor_apply_stage_rolled_back",
+        "Message::SetSnapshotPruneKeep(",
+        "Message::PruneProfileSnapshots",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/editor.rs",
+        "super::editor_history::history_panel(",
+        "super::editor_history::apply_banner(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table.rs",
+        "editor_backup_now",
+        "editor_prune_now",
+        "editor_prune_pending",
+        "editor_prune_duplicates",
+        "editor_prune_last",
+        "editor_apply_stage_committed",
+        "editor_apply_stage_rolled_back",
+        "editor_apply_stage_rollback_failed",
+        "yaml_format_skipped_anchors",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en.rs",
+        "editor_backup_now",
+        "editor_prune_now",
+        "editor_prune_pending",
+        "editor_prune_duplicates",
+        "editor_prune_last",
+        "editor_apply_stage_committed",
+        "editor_apply_stage_rolled_back",
+        "editor_apply_stage_rollback_failed",
+        "yaml_format_skipped_anchors",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_diff.rs",
+        "pub fn snapshot_history_summary(",
+        "super::profiles_diff_history::history_rows_scene(",
+        "super::profiles_diff_history::{SnapshotHistoryBody, SnapshotHistorySummaryText}",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_diff_history.rs",
+        "pub struct BackupSnapshotButton",
+        "pub struct RefreshSnapshotHistoryButton",
+        "pub struct SnapshotPruneKeepButton",
+        "pub struct PruneSnapshotsButton",
+        "pub struct SnapshotHistoryEntryButton",
+        "pub struct SnapshotHistoryBody",
+        "pub struct SnapshotHistorySummaryText",
+        "UiCommand::CreateBackupSnapshot",
+        "UiCommand::LoadSnapshotHistory",
+        "UiCommand::PruneSnapshots {",
+        "snapshot_id: Some(button.id.clone())",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor_state.rs",
+        "pub struct ProfileEditorState",
+        "pub fn refresh_preflight(",
+        "pub fn format(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor.rs",
+        "pub fn profile_editor_scene(",
+        "pub struct ProfileEditorDiagnosticText",
+        "pub struct ProfileEditorSaveButton",
+        "pub struct ProfileEditorProtectionToggle",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles.rs",
+        "crate::pages::profiles_editor::profile_editor_scene(projection, palette)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/app.rs",
+        "crate::pages::profiles_editor::ProfilesEditorPlugin",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages.rs",
+        "pub mod profiles_editor;",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "LoadSnapshotHistory,",
+        "PruneSnapshots { keep: Option<usize> },",
+        "LoadProfileDocument { profile: Option<String> },",
+        "SaveProfileDocument {",
+    )
+
+    # 10. One typed apply-transaction outcome published by the core.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/apply_transaction.rs",
+        "pub enum ApplyTransactionStage",
+        "RolledBack",
+        "RollbackFailed",
+        "pub struct ApplyTransactionSnapshot",
+        "pub fn record_apply_transaction(",
+        "pub fn last_apply_transaction(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-core/src/apply.rs",
+        "ApplyTransactionSnapshot::committed(",
+        "ApplyTransactionSnapshot::rolled_back(",
+        "ApplyTransactionSnapshot::rollback_failed(",
+        "infiltrator_contract::apply_transaction::record_apply_transaction(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/profile_document.rs",
+        "pub struct ProfileDocumentSnapshot",
+        "pub struct SyntaxDiagnosticSnapshot",
+        "pub fn publish_profile_document(",
+        "pub fn last_profile_document(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_document_application.rs",
+        "pub async fn load(",
+        "pub async fn save<",
+        "preflight_yaml_syntax(content)",
+        "save_edited_profile_content(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/command.rs",
+        "LoadSnapshotHistory,",
+        "PruneSnapshots {",
+        "LoadProfileDocument {",
+        "SaveProfileDocument {",
+    )
+
+    # 11. Dual headless evidence for the second batch.
+    require(
+        violations,
+        "crates/infiltrator-domain/src/yaml_edit_test.rs",
+        "format_keeps_every_comment_anchor_and_scalar_style",
+        "format_orders_top_level_keys_and_keeps_blocks_together",
+        "format_is_idempotent_and_reports_no_change_on_second_pass",
+        "format_keeps_block_scalar_bodies_verbatim",
+        "format_refuses_documents_that_do_not_parse",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/snapshot_application_test.rs",
+        "history_reports_duplicates_and_the_shared_prune_view",
+        "prune_executes_the_shared_policy_and_publishes_the_report",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application_tests.rs",
+        "load_and_save_profile_document_round_trips_through_the_shared_guard",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_editor_tests.rs",
+        "format_yaml_editor_keeps_comments_through_the_shared_engine",
+        "format_yaml_editor_refuses_an_invalid_buffer_without_rewriting_it",
+        "snapshot_history_state_follows_the_shared_prune_view_and_renders_it",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_profiles_snapshot_history_lists_prunes_and_backs_up_through_the_shared_app",
+        "test_profiles_editor_runs_the_shared_preflight_and_formatter",
+        "test_profiles_editor_formats_with_the_shared_engine_and_saves_through_the_guard",
+    )
+
     # 8. Both test entrypoints register this guard.
     require(
         violations,
@@ -394,7 +700,7 @@ def main() -> int:
             print(f"yaml-diff-guard: {violation}", file=sys.stderr)
         print(f"yaml-diff-guard: violations={len(violations)}", file=sys.stderr)
         return 1 if args.mode == "enforce" else 0
-    print("yaml-diff-guard: DUAL-09 ledger_rows=15 parity_items=6 violations=0")
+    print("yaml-diff-guard: DUAL-09 ledger_rows=15 parity_items=11 violations=0")
     return 0
 
 

@@ -243,6 +243,18 @@ pub enum UiCommand {
     /// DUAL-09-08: compute the snapshot-vs-current diff through the shared
     /// snapshot application. `snapshot_id = None` diffs the newest snapshot.
     LoadSnapshotDiff { snapshot_id: Option<String> },
+    /// DUAL-09-06/07: refresh the shared snapshot history (entries + prune view).
+    LoadSnapshotHistory,
+    /// DUAL-09-07: run the shared dedupe+LRU prune now.
+    PruneSnapshots { keep: Option<usize> },
+    /// DUAL-09-03/14: load the stored profile document for the editor card.
+    LoadProfileDocument { profile: Option<String> },
+    /// DUAL-09-14: commit the editor buffer through the shared guarded write.
+    SaveProfileDocument {
+        profile: String,
+        content: String,
+        allow_protected: bool,
+    },
     /// Select the last installed, locally recorded core version.
     RollbackCore,
     /// Update a core or UI setting.
@@ -527,6 +539,20 @@ impl UiCommand {
             Self::RestoreSnapshot { id } => Some(CommandIntent::RestoreSnapshot { id: id.clone() }),
             Self::LoadSnapshotDiff { snapshot_id } => Some(CommandIntent::LoadSnapshotDiff {
                 snapshot_id: snapshot_id.clone(),
+            }),
+            Self::LoadSnapshotHistory => Some(CommandIntent::LoadSnapshotHistory),
+            Self::PruneSnapshots { keep } => Some(CommandIntent::PruneSnapshots { keep: *keep }),
+            Self::LoadProfileDocument { profile } => Some(CommandIntent::LoadProfileDocument {
+                profile: profile.clone(),
+            }),
+            Self::SaveProfileDocument {
+                profile,
+                content,
+                allow_protected,
+            } => Some(CommandIntent::SaveProfileDocument {
+                profile: profile.clone(),
+                content: content.clone(),
+                allow_protected: *allow_protected,
             }),
             Self::RollbackCore => Some(CommandIntent::RollbackCore),
             Self::UpdateSetting { key, value } => Some(CommandIntent::UpdateSetting {

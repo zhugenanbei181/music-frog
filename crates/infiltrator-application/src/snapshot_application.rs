@@ -1,6 +1,10 @@
 //! Configuration snapshot use-cases over profile and snapshot ports.
 
 use infiltrator_contract::error::Failure;
+use infiltrator_contract::snapshot_history::{
+    SNAPSHOT_DEFAULT_KEEP, SnapshotEntry, SnapshotHistorySnapshot, SnapshotPruneReport,
+    SnapshotPruneSource,
+};
 use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::myers_diff;
@@ -50,6 +54,33 @@ pub fn clear_snapshot_diff() {
     }
 }
 
+/// DUAL-09-06/07: process-wide cache of the snapshot history a surface just
+/// loaded. The Bevy surface owns no storage port, so it renders exactly the
+/// entries + prune view the shared application computed.
+fn history_cache() -> &'static Mutex<Option<SnapshotHistorySnapshot>> {
+    static HISTORY: OnceLock<Mutex<Option<SnapshotHistorySnapshot>>> = OnceLock::new();
+    HISTORY.get_or_init(|| Mutex::new(None))
+}
+
+/// The last snapshot history computed in this process, if any.
+pub fn last_snapshot_history() -> Option<SnapshotHistorySnapshot> {
+    history_cache().lock().ok().and_then(|cache| cache.clone())
+}
+
+/// Replace the process-wide snapshot history.
+pub fn publish_snapshot_history(history: SnapshotHistorySnapshot) {
+    if let Ok(mut cache) = history_cache().lock() {
+        *cache = Some(history);
+    }
+}
+
+/// Drop the cached history (profile switch, delete, restore).
+pub fn clear_snapshot_history() {
+    if let Ok(mut cache) = history_cache().lock() {
+        *cache = None;
+    }
+}
+
 impl SnapshotApplication {
     pub fn new(profile_store: Arc<dyn ProfileStore>, snapshots: Arc<dyn SnapshotStore>) -> Self {
         Self {
@@ -73,7 +104,97 @@ impl SnapshotApplication {
         // The new snapshot becomes the newest candidate; a cached diff no
         // longer describes "newest snapshot vs current".
         clear_snapshot_diff();
+        // DUAL-09-06: refresh the shared history view as part of the create, so
+        // both surfaces see the new entry (the create itself already succeeded —
+        // a history refresh failure must not turn it into a failure).
+        let _ = self.history(&meta.profile, SNAPSHOT_DEFAULT_KEEP).await;
         Ok(meta)
+    }
+
+    /// DUAL-09-06/07: build the shared history view of `profile` — newest first,
+    /// with the shared prune decision (`pending_prune` / `duplicate_entries`) and
+    /// the last prune report — and publish it for both surfaces.
+    pub async fn history(
+        &self,
+        profile: &str,
+        keep: usize,
+    ) -> Result<SnapshotHistorySnapshot, Failure> {
+        let keep = SnapshotHistorySnapshot::clamp_keep(keep);
+        let mut snapshots = self.list(profile).await?;
+        snapshots.sort_by_key(|meta| std::cmp::Reverse(meta.timestamp));
+        let mut seen = std::collections::HashSet::new();
+        let entries: Vec<SnapshotEntry> = snapshots
+            .iter()
+            .enumerate()
+            .map(|(index, meta)| SnapshotEntry {
+                id: meta.path.to_string_lossy().to_string(),
+                file_name: meta
+                    .path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_default(),
+                timestamp_millis: meta.timestamp.timestamp_millis(),
+                sha256: meta.sha256.clone(),
+                is_newest: index == 0,
+                is_duplicate: !seen.insert(meta.sha256.clone()),
+            })
+            .collect();
+        let pending_prune = infiltrator_domain::backup::prune_snapshots(&snapshots, keep).len();
+        let duplicate_entries = entries.iter().filter(|entry| entry.is_duplicate).count();
+        let history = SnapshotHistorySnapshot {
+            profile: profile.to_string(),
+            entries,
+            keep_limit: keep,
+            pending_prune,
+            duplicate_entries,
+            last_prune: last_snapshot_history()
+                .filter(|cached| cached.profile == profile)
+                .and_then(|cached| cached.last_prune),
+        };
+        publish_snapshot_history(history.clone());
+        Ok(history)
+    }
+
+    /// DUAL-09-07: execute the shared dedupe+LRU prune now.
+    ///
+    /// Every deletion goes through the [`SnapshotStore`] identity check; a
+    /// partial failure still publishes the honest post-prune history and then
+    /// reports the first error.
+    pub async fn prune(
+        &self,
+        profile: &str,
+        keep: usize,
+        source: SnapshotPruneSource,
+    ) -> Result<SnapshotPruneReport, Failure> {
+        let keep = SnapshotHistorySnapshot::clamp_keep(keep);
+        let mut snapshots = self.list(profile).await?;
+        snapshots.sort_by_key(|meta| std::cmp::Reverse(meta.timestamp));
+        let doomed = infiltrator_domain::backup::prune_snapshots(&snapshots, keep);
+        let mut removed = 0usize;
+        let mut first_error = None;
+        for path in doomed {
+            match self.snapshots.delete(profile, Path::new(&path)).await {
+                Ok(()) => removed += 1,
+                Err(error) => {
+                    if first_error.is_none() {
+                        first_error = Some(error);
+                    }
+                }
+            }
+        }
+        let report = SnapshotPruneReport {
+            removed,
+            keep_limit: keep,
+            source,
+        };
+        if let Ok(mut history) = self.history(profile, keep).await {
+            history.last_prune = Some(report);
+            publish_snapshot_history(history);
+        }
+        match first_error {
+            Some(error) => Err(Failure::from(error)),
+            None => Ok(report),
+        }
     }
 
     pub async fn list(&self, profile: &str) -> Result<Vec<SnapshotMeta>, Failure> {
