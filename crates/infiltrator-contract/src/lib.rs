@@ -21,6 +21,7 @@ pub mod dns_form;
 pub mod doctor;
 pub mod editor_viewport;
 pub mod error;
+pub mod ime;
 pub mod intent;
 pub mod ipv6;
 pub mod lan;

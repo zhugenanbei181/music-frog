@@ -386,6 +386,14 @@ impl AppState {
             _ => None,
         }));
 
+        // 4d. 输入法组合订阅（DUAL-15-11）：把 toolkit 的真实 `InputMethod`
+        //     事件映射进共享组合语法。候选框位置由 iced 的 `text_input`
+        //     经 `set_ime_cursor_area` 自行携带，shell 只记录会话状态，
+        //     组合期间的按键不再被当作全局和弦。
+        subs.push(iced::event::listen_with(|event, _status, _window| {
+            crate::ime::composition_message(&event)
+        }));
+
         // 5. 高性能动画订阅：只有正在转场时才开启帧回调；帧率由共享
         //    `RenderCadence` 决定（前台跟随真实帧信号，后台 2 FPS）。
         if self.shell.transition.start_time.is_some()

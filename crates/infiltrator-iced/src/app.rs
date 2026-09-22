@@ -495,6 +495,7 @@ impl AppState {
                 shortcut_registry: infiltrator_contract::shortcuts::ShortcutRegistry::with_defaults(
                 ),
                 hotkey_capture: None,
+                ime: infiltrator_contract::ime::ImeCompositionTracker::new(),
                 uwp_loopback: Default::default(),
             },
             app_routing: Default::default(),

@@ -141,6 +141,14 @@ impl AppState {
                 self.shell.window_focused = focused;
                 Task::none()
             }
+            // DUAL-15-11: one shared composition state fed by the real toolkit
+            // IME events (the text widget still owns the field text). Chord
+            // dispatch consults this state so composing keys stay with the
+            // input method instead of triggering shell shortcuts.
+            Message::ImeComposition(event) => {
+                self.shell.ime.apply(event);
+                Task::none()
+            }
             // Overview card order is the shared `OverviewLayoutSnapshot`; the
             // view assembles its cards from this local projection of it.
             Message::MoveOverviewCardUp(kind) => {

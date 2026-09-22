@@ -60,3 +60,6 @@ mod protocol_codec_tests;
 
 #[path = "../tests/gui/multimodal_shell_tests.rs"]
 mod multimodal_shell_tests;
+
+#[path = "../tests/gui/ime_tests.rs"]
+mod ime_tests;

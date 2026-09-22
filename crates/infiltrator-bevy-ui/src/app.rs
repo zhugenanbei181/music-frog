@@ -521,6 +521,9 @@ impl Plugin for ShellPlugin {
         // get the same facts as the windowed launcher.
         app.add_plugins(crate::chrome::WindowChromePlugin);
         app.add_plugins(crate::tray_status::TrayStatusPlugin);
+        // DUAL-15-11: the OS IME path (enable + caret area + composition) is
+        // part of the shell, so headless compositions see the same plan.
+        app.add_plugins(crate::ime::ShellImePlugin);
         app.insert_resource(crate::appearance::ThemeMode(self.preference));
         app.init_resource::<crate::appearance::SystemAppearance>();
 

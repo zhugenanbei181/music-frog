@@ -14,6 +14,9 @@ impl std::fmt::Debug for Message {
             Message::WindowFocusChanged(focused) => {
                 write!(f, "WindowFocusChanged({focused})")
             }
+            Message::ImeComposition(event) => {
+                write!(f, "ImeComposition({event:?})")
+            }
             Message::NavigateBack => write!(f, "NavigateBack"),
             Message::NavigateForward => write!(f, "NavigateForward"),
             Message::StartProxy => write!(f, "StartProxy"),

@@ -52,6 +52,10 @@ pub enum Message {
     /// ([`infiltrator_contract::cadence`], DUAL-15-08): foreground keeps the
     /// 60 FPS tick, background drops to 2 FPS.
     WindowFocusChanged(bool),
+    /// One OS IME composition transition ([`infiltrator_contract::ime`],
+    /// DUAL-15-11). The toolkit text widget owns the field text; the shell
+    /// records the session and stops treating composing keys as chords.
+    ImeComposition(infiltrator_contract::ime::ImeCompositionEvent),
     Navigate(Route),
     NavigateBack,
     NavigateForward,

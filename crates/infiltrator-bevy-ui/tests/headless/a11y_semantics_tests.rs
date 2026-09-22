@@ -128,3 +128,20 @@ fn every_shared_role_maps_onto_a_real_accesskit_role() {
     assert_eq!(accesskit_role(A11yRole::Switch), accesskit::Role::Switch);
     assert_eq!(accesskit_role(A11yRole::Text), accesskit::Role::Label);
 }
+
+/// The palette's live query line is a real `Text` grammar row mounted on the
+/// node that shows the query, so a screen reader hears the search phrase
+/// (DUAL-15-10/11).
+#[test]
+fn the_command_palette_query_line_publishes_the_shared_text_row() {
+    use bevy::ecs::query::With;
+    use infiltrator_bevy_ui::command_palette::CommandPaletteQueryLabel;
+
+    let mut app = mounted_everything();
+    let world = app.world_mut();
+    let mut query = world.query_filtered::<&AccessibilityNode, With<CommandPaletteQueryLabel>>();
+    let nodes: Vec<&AccessibilityNode> = query.iter(world).collect();
+    assert_eq!(nodes.len(), 1, "one query line per mounted palette");
+    assert_eq!(nodes[0].0.role(), accesskit::Role::Label);
+    assert_eq!(nodes[0].0.label(), Some("命令面板查询词"));
+}

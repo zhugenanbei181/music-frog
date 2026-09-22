@@ -598,6 +598,7 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "a11y_mini_hud_system_proxy" => "Mini HUD system proxy toggle".into(),
         "a11y_mini_hud_tun" => "Mini HUD TUN toggle".into(),
         "a11y_command_palette" => "Command palette".into(),
+        "a11y_command_palette_query" => "Command palette query".into(),
         "a11y_toast_region" => "Notifications".into(),
         "a11y_traffic_readout" => "Live upload and download rates".into(),
         "chrome_minimize" => "Minimize".into(),

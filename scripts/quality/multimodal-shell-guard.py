@@ -150,6 +150,30 @@ def number_const(text: str, name: str) -> float | None:
     return float(match.group(1)) if match else None
 
 
+def ignored_test_reason(source: str, name: str) -> str | None:
+    """Why a cited test could not fail: ignored, or only mentioned in comments.
+
+    A `path::test_name` token is evidence only if the test really runs; an
+    `#[ignore]`-annotated (or commented-out) function would make the matrix
+    cite a test that can never fail the suite.
+    """
+    declaration = re.compile(rf"\bfn\s+{re.escape(name)}\b")
+    found = False
+    lines = source.splitlines()
+    for index, line in enumerate(lines):
+        if not declaration.search(line):
+            continue
+        if line.strip().startswith("//"):
+            continue
+        found = True
+        for previous in lines[max(0, index - 4) : index]:
+            if previous.strip().startswith("#[ignore"):
+                return "annotated #[ignore]"
+            if previous.strip().startswith("//"):
+                continue
+    return None if found else "only mentioned in comments"
+
+
 def check_matrix(violations: list[str]) -> None:
     """Verify the group 15 regression matrix against the real test sources.
 
@@ -206,6 +230,13 @@ def check_matrix(violations: list[str]) -> None:
                 f"{MATRIX} {item} says {status!r} but {LEDGER} says {ledger_status!r}"
             )
         tokens = evidence.findall(line)
+        if len(tokens) != len(set(tokens)):
+            violations.append(f"{MATRIX} {item} cites the same evidence twice: {tokens}")
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) >= 6 and not cells[5]:
+            violations.append(
+                f"{MATRIX} {item} must state its honest deviation / blocker"
+            )
         for path, name in tokens:
             try:
                 source = read(path)
@@ -215,6 +246,13 @@ def check_matrix(violations: list[str]) -> None:
             if name not in source:
                 violations.append(
                     f"{MATRIX} {item} cites {path}::{name} but the test is absent"
+                )
+                continue
+            ignored = ignored_test_reason(source, name)
+            if ignored is not None:
+                violations.append(
+                    f"{MATRIX} {item} cites {path}::{name}, but the cited test is "
+                    f"{ignored} (evidence must be able to fail)"
                 )
         if status == "planned":
             if tokens:
@@ -496,24 +534,134 @@ def a11y_label_keys() -> list[str]:
     return re.findall(r'=>\s*"([a-z0-9_]+)"', match.group("body"))
 
 
+def a11y_enum_variants() -> list[str]:
+    """The variant names of the shared `ShellA11yNode` grammar."""
+    text = re.sub(r"//[^\n]*", "", read(A11Y))
+    match = re.search(
+        r"pub enum ShellA11yNode \{(?P<body>.*?)\n\}", text, re.DOTALL
+    )
+    if not match:
+        return []
+    return re.findall(r"^\s{4}([A-Z][A-Za-z0-9_]*)\s*(?:\{[^}]*\})?,", match.group("body"), re.MULTILINE)
+
+
+def a11y_per_node_table(fn_name: str) -> dict[str, str]:
+    """One `fn <name>(self)` arm table as `node -> literal`.
+
+    Grouped arms (`Self::A | Self::B => ...`) expand to one entry per node, so
+    the table is comparable to the variant list.
+    """
+    text = re.sub(r"//[^\n]*", "", read(A11Y))
+    match = re.search(
+        rf"pub const fn {fn_name}\(self\)[^{{]*\{{(?P<body>.*?)\n    \}}",
+        text,
+        re.DOTALL,
+    )
+    if not match:
+        return {}
+    table: dict[str, str] = {}
+    # Arms may span lines (`Self::A\n | Self::B => ...`), so the left-hand
+    # side excludes commas only.
+    for left, right in re.findall(r"([^,=]*?)=>\s*([^,\n]+?),", match.group("body")):
+        for node in re.findall(r"Self::(\w+)", left):
+            table[node] = right.strip()
+    return table
+
+
+def a11y_inventory_size() -> int | None:
+    """The `ShellA11yNode::ALL` array length from the grammar."""
+    match = re.search(r"pub const ALL: \[Self; (\d+)\]", read(A11Y))
+    return int(match.group(1)) if match else None
+
+
+def bevy_accesskit_roles() -> set[str]:
+    """Every shared `A11yRole` variant the Bevy mapping translates."""
+    text = re.sub(r"//[^\n]*", "", read("crates/infiltrator-bevy-ui/src/a11y.rs"))
+    match = re.search(
+        r"pub const fn accesskit_role\(role: A11yRole\)[^{]*\{(?P<body>.*?)\n\}",
+        text,
+        re.DOTALL,
+    )
+    if not match:
+        return set()
+    return set(re.findall(r"A11yRole::(\w+)\s*=>", match.group("body")))
+
+
 def check_a11y_label_coverage(violations: list[str]) -> None:
     """DUAL-15-10: every grammar row must resolve in both locales.
 
     The Iced surface resolves `label_key()` through its localizer and the
     Bevy surface publishes `label_zh()`; a key without copy would silently
     fall back to the raw key, which is exactly the drift this gate forbids.
+    The inventory itself is checked too: the `ALL` array, the enum and the
+    three per-node tables must describe the same rows, so a node added
+    without copy or without inventory coverage fails the gate.
     """
-    keys = a11y_label_keys()
-    if not keys or len(keys) != len(set(keys)):
-        violations.append(f"{A11Y} label_key() must define one unique key per node")
+    variants = a11y_enum_variants()
+    inventory = a11y_inventory_size()
+    keys = a11y_per_node_table("label_key")
+    roles = a11y_per_node_table("role")
+    zh_labels = a11y_per_node_table("label_zh")
+
+    if not variants or not keys or not roles or not zh_labels:
+        violations.append(f"{A11Y} grammar tables must be parseable")
         return
+    for name, table in (("label_key", keys), ("role", roles), ("label_zh", zh_labels)):
+        missing = sorted(set(variants) - set(table))
+        extra = sorted(set(table) - set(variants))
+        if missing or extra:
+            violations.append(
+                f"{A11Y} {name}() must cover every node once; missing={missing} extra={extra}"
+            )
+    if inventory != len(variants):
+        violations.append(
+            f"{A11Y} ShellA11yNode::ALL declares {inventory} rows for "
+            f"{len(variants)} enum variants"
+        )
+
+    label_keys = [value.strip().strip('"') for value in keys.values()]
+    if len(label_keys) != len(set(label_keys)):
+        violations.append(f"{A11Y} label_key() must define one unique key per node")
+    zh_texts = [value.strip().strip('"') for value in zh_labels.values()]
+    empty = sorted(node for node, value in zh_labels.items() if not value.strip().strip('"'))
+    if empty:
+        violations.append(f"{A11Y} label_zh() rows without copy: {empty}")
+    if len(zh_texts) != len(set(zh_texts)):
+        duplicates = sorted({text for text in zh_texts if zh_texts.count(text) > 1})
+        violations.append(f"{A11Y} label_zh() must be unique; duplicated: {duplicates}")
+
+    # The Bevy surface must translate every shared role into a real AccessKit
+    # role; a missing arm would silently fall back to a wrong role.
+    mapped = bevy_accesskit_roles()
+    shared_roles = set(a11y_role_variants())
+    if not shared_roles:
+        violations.append(f"{A11Y} A11yRole must define its variants")
+    missing_roles = sorted(shared_roles - mapped)
+    if missing_roles:
+        violations.append(
+            f"crates/infiltrator-bevy-ui/src/a11y.rs accesskit_role() misses {missing_roles}"
+        )
+
     zh_keys = locale_keys(ZH_LOCALES)
     en_keys = locale_keys(EN_LOCALES)
-    for key in keys:
+    for key in label_keys:
         if key not in zh_keys:
             violations.append(f"{A11Y} label key {key!r} missing from the zh-CN tables")
         if key not in en_keys:
             violations.append(f"{A11Y} label key {key!r} missing from the en-US tables")
+
+
+def a11y_role_variants() -> list[str]:
+    """The variant names of the shared `A11yRole` vocabulary."""
+    text = re.sub(r"//[^\n]*", "", read(A11Y))
+    match = re.search(r"pub enum A11yRole \{(?P<body>.*?)\n\}", text, re.DOTALL)
+    if not match:
+        return []
+    return re.findall(
+        r"^\s{4}([A-Z][A-Za-z0-9_]*)\s*(?:\{[^}]*\})?,",
+        match.group("body"),
+        re.MULTILINE,
+    )
 
 
 def check_capability_honesty(violations: list[str]) -> None:
@@ -541,6 +689,21 @@ def check_capability_honesty(violations: list[str]) -> None:
                     violations.append(
                         f"{relative}:{number} references {marker!r}; the Bevy "
                         "surface reports no tray host instead (DUAL-15-02)"
+                    )
+
+    # DUAL-15-11: Iced's candidate box is the toolkit text widget's job. The
+    # toolkit seam is pinned by a test; the shell must not fabricate a cursor
+    # area of its own (there is no public iced API to set one), and it must not
+    # claim the surface-computed source vocabulary.
+    for path in sorted((ROOT / "crates/infiltrator-iced/src").rglob("*.rs")):
+        relative = path.relative_to(ROOT).as_posix()
+        for number, code in code_lines(relative):
+            lowered = code.lower()
+            for marker in ("set_ime", "ime_enabled", "ime_position", "surfacecomputed"):
+                if marker in lowered:
+                    violations.append(
+                        f"{relative}:{number} references {marker!r}; Iced's text "
+                        "widget owns the IME cursor area (DUAL-15-11 must stay honest)"
                     )
 
 
@@ -575,7 +738,7 @@ def main() -> int:
         "planned",
         "组 15 逐项账目",
         "2026-09-22 组 15 批次 A",
-        "组 15 多模态外壳与极客命令流 | 15 | `in progress (10/15)`",
+        "组 15 多模态外壳与极客命令流 | 15 | `in progress (12/15)`",
         # 15-01 stays authoritatively tracked in the responsive ledger.
         "RESPONSIVE_PARITY_LEDGER.md",
     )
@@ -600,6 +763,17 @@ def main() -> int:
         "the_open_palette_owns_the_arrow_keys",
         "capture_rebinds_through_the_shared_settings_command",
         "a_stored_custom_chord_blocks_later_captures",
+        # DUAL-15-10/11/15: the extended coverage + IME evidence.
+        "CommandPaletteQuery",
+        "19 行",
+        "IME 中文输入法候选框定位 | `parity-ready`",
+        "infiltrator-contract/src/ime.rs",
+        "ImeCursorRect",
+        "ImeCompositionTracker",
+        "ToolkitProvided",
+        "ime_tests.rs",
+        "Window.ime_enabled",
+        "set_ime_cursor_area",
     )
 
     # Shared contracts: appearance, shortcuts, notifications.
@@ -1421,7 +1595,7 @@ def main() -> int:
         A11Y,
         "pub enum A11yRole",
         "pub enum ShellA11yNode",
-        "pub const ALL: [Self; 18]",
+        "pub const ALL: [Self; 19]",
         "pub const fn label_key",
         "pub const fn label_zh",
         "pub const fn role",
@@ -1600,6 +1774,96 @@ def main() -> int:
         violations,
         "crates/infiltrator-bevy-ui/src/command_palette.rs",
         "ShellA11yNode::CommandPaletteDialog",
+    )
+
+    # DUAL-15-11: the shared IME grammar, the Bevy host wiring, the Iced
+    # toolkit boundary, and the dual tests that pin them.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/ime.rs",
+        "pub struct ImeCursorRect",
+        "pub enum ImeCursorSource",
+        "SurfaceComputed",
+        "ToolkitProvided",
+        "pub enum ImeCursorSupport",
+        "pub struct ImeFocusPlan",
+        "pub enum ImeCompositionEvent",
+        "pub struct ImeCompositionTracker",
+        "pub fn announcement",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/ime.rs",
+        "pub const fn cursor_support",
+        "ImeCursorSource::SurfaceComputed",
+        "pub struct ShellImePlugin",
+        "pub struct ImeHostReport",
+        "Window::ime_enabled",
+        "window.ime_position",
+        "Ime::Preedit",
+        "Ime::Commit",
+        "pub fn shared_composition_event",
+        "pub fn apply_composition_action",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/app.rs",
+        "crate::ime::ShellImePlugin",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/ime.rs",
+        "pub const fn cursor_support",
+        "ImeCursorSource::ToolkitProvided",
+        "pub fn composition_event",
+        "pub fn composition_message",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/subscription.rs",
+        "crate::ime::composition_message",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/shell.rs",
+        "self.shell.ime.is_composing()",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/types/message.rs",
+        "ImeComposition(infiltrator_contract::ime::ImeCompositionEvent)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command_palette.rs",
+        "ShellA11yNode::CommandPaletteDialog",
+        "ShellA11yNode::CommandPaletteQuery",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/ime_tests.rs",
+        "fn the_focused_field_enables_the_window_ime_at_the_real_caret",
+        "fn an_unfocused_shell_disables_the_window_ime_instead_of_tracking_a_stale_caret",
+        "fn a_caret_outside_the_window_is_clamped_before_it_reaches_the_os",
+        "fn composition_events_reach_the_focused_field_through_the_shared_tracker",
+        "fn a_cancelled_composition_rolls_the_field_back",
+        "fn composition_for_another_window_is_ignored",
+        "fn a_headless_composition_without_a_window_reports_the_plan_honestly",
+        "fn a_mounted_shell_keeps_its_ime_disabled_until_a_field_is_focused",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/ime_tests.rs",
+        "fn the_shell_reports_the_toolkit_provided_cursor_source",
+        "fn the_raw_toolkit_ime_events_map_onto_the_shared_vocabulary",
+        "fn a_composition_session_keeps_the_shared_phase_and_never_steals_chords",
+        "fn the_pinned_toolkit_forwards_a_widget_caret_to_the_shell_strategy",
+        "fn the_palette_query_line_carries_the_shared_label_as_a_visible_tooltip",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/test_mounts.rs",
+        "../tests/gui/ime_tests.rs",
     )
 
     # The dual tests introduced by this batch.

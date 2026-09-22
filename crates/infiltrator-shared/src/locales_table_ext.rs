@@ -609,6 +609,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "a11y_mini_hud_system_proxy" => "悬浮窗系统代理开关".into(),
         "a11y_mini_hud_tun" => "悬浮窗 TUN 开关".into(),
         "a11y_command_palette" => "命令面板".into(),
+        "a11y_command_palette_query" => "命令面板查询词".into(),
         "a11y_toast_region" => "通知与告警".into(),
         "a11y_traffic_readout" => "上下行实时速率".into(),
         "chrome_minimize" => "最小化".into(),

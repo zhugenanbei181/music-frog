@@ -63,6 +63,8 @@ pub enum ShellA11yNode {
     MiniHudTunSwitch,
     /// The command palette dialog.
     CommandPaletteDialog,
+    /// The command palette's live query line.
+    CommandPaletteQuery,
     /// The toast live region.
     ToastRegion,
     /// The duplex live-rate readout.
@@ -77,7 +79,7 @@ pub enum ShellA11yNode {
 
 impl ShellA11yNode {
     /// Every node a complete shell description must cover.
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::Window,
         Self::ShellHeader,
         Self::ContentRegion,
@@ -91,6 +93,7 @@ impl ShellA11yNode {
         Self::MiniHudSystemProxySwitch,
         Self::MiniHudTunSwitch,
         Self::CommandPaletteDialog,
+        Self::CommandPaletteQuery,
         Self::ToastRegion,
         Self::TrafficReadout,
         Self::ChromeMinimize,
@@ -114,6 +117,7 @@ impl ShellA11yNode {
             | Self::MiniHudTunSwitch => A11yRole::Switch,
             Self::ThemeToggle => A11yRole::Button,
             Self::CommandPaletteDialog => A11yRole::Dialog,
+            Self::CommandPaletteQuery => A11yRole::Text,
             Self::ToastRegion => A11yRole::LiveRegion,
             Self::ChromeMinimize | Self::ChromeMaximize | Self::ChromeClose => A11yRole::Button,
         }
@@ -135,6 +139,7 @@ impl ShellA11yNode {
             Self::MiniHudSystemProxySwitch => "a11y_mini_hud_system_proxy",
             Self::MiniHudTunSwitch => "a11y_mini_hud_tun",
             Self::CommandPaletteDialog => "a11y_command_palette",
+            Self::CommandPaletteQuery => "a11y_command_palette_query",
             Self::ToastRegion => "a11y_toast_region",
             Self::TrafficReadout => "a11y_traffic_readout",
             Self::ChromeMinimize => "chrome_minimize",
@@ -160,6 +165,7 @@ impl ShellA11yNode {
             Self::MiniHudSystemProxySwitch => "悬浮窗系统代理开关",
             Self::MiniHudTunSwitch => "悬浮窗 TUN 开关",
             Self::CommandPaletteDialog => "命令面板",
+            Self::CommandPaletteQuery => "命令面板查询词",
             Self::ToastRegion => "通知与告警",
             Self::TrafficReadout => "上下行实时速率",
             Self::ChromeMinimize => "最小化",

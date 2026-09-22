@@ -13,6 +13,7 @@ use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, tokens};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::command_catalogue::{CommandCategory, CommandTarget, ShellPage};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -120,6 +121,15 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             .on_press(Message::CloseCommandPalette),
     ]
     .align_y(Alignment::Center);
+
+    // DUAL-15-10/11: the query line is a shared semantics row; Iced cannot
+    // publish roles, so it carries the localized label as a real tooltip on
+    // the search row (the same key Bevy mounts on the query node).
+    let search_row = crate::accessibility::labelled(
+        ShellA11yNode::CommandPaletteQuery,
+        &state.shell.lang,
+        search_row.into(),
+    );
 
     let search_container = container(search_row)
         .padding([12, 16])

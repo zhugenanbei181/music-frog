@@ -207,6 +207,13 @@ pub fn command_palette_semantic_node() -> AccessibilityNode {
     crate::a11y::semantic_node(ShellA11yNode::CommandPaletteDialog)
 }
 
+/// Accessibility node constructor for the palette's live query line: a
+/// read-only `Text` row of the shared grammar, mounted on the real query node
+/// so a screen reader hears what is being typed (DUAL-15-10).
+pub fn command_palette_query_semantic_node() -> AccessibilityNode {
+    crate::a11y::semantic_node(ShellA11yNode::CommandPaletteQuery)
+}
+
 /// Declarative scene for an individual catalogue row.
 pub fn command_palette_item_scene(
     palette: &UiPalette,
@@ -290,6 +297,7 @@ pub fn command_palette_modal_scene(
     registry: &ShortcutRegistry,
 ) -> impl Scene + use<> {
     let semantic = command_palette_semantic_node();
+    let query_semantic = command_palette_query_semantic_node();
     let query_display = if state.query.is_empty() {
         "输入关键词检索页面或快捷运维指令...".to_owned()
     } else {
@@ -361,6 +369,7 @@ pub fn command_palette_modal_scene(
                                 Text({ query_display })
                                 TextRole(Role::Body)
                                 CommandPaletteQueryLabel
+                                template_value(query_semantic)
                             ),
                         ]
                     ),

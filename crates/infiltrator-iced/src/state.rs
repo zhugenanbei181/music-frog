@@ -589,6 +589,10 @@ pub struct ShellState {
     pub shortcut_registry: infiltrator_contract::shortcuts::ShortcutRegistry,
     /// Action awaiting the next captured chord, if any.
     pub hotkey_capture: Option<infiltrator_contract::shortcuts::ShortcutAction>,
+    /// Live OS IME composition session (DUAL-15-11). The toolkit text widget
+    /// owns the field text; the shell records the session so composing keys are
+    /// not treated as global chords and the capability stays one shared fact.
+    pub ime: infiltrator_contract::ime::ImeCompositionTracker,
     pub uwp_loopback: crate::types::app::UwpLoopbackState,
 }
 

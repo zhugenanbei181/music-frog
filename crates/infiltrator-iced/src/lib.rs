@@ -15,6 +15,7 @@ pub mod configuration;
 pub mod demo;
 pub mod desktop_composition;
 pub mod host;
+pub mod ime;
 pub mod mini_hud_store;
 pub mod mini_hud_window;
 pub mod network;

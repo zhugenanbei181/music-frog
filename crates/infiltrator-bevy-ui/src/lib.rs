@@ -28,6 +28,7 @@ pub mod command_palette_shell;
 pub mod controller;
 pub mod domain_state;
 pub mod history;
+pub mod ime;
 pub mod lifecycle;
 pub mod mini_hud;
 pub mod mini_hud_shell;

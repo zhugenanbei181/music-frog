@@ -127,6 +127,13 @@ impl AppState {
         modifiers: infiltrator_contract::shortcuts::KeyModifiers,
     ) -> Task<Message> {
         let escape = key == "Escape";
+        // DUAL-15-11: while the input method composes, the keys belong to it
+        // (the toolkit widget shows the preedit); the shell must not steal
+        // them as global chords, and Escape cancels the composition instead of
+        // closing overlays.
+        if self.shell.ime.is_composing() {
+            return Task::none();
+        }
         if let Some(action) = self.shell.hotkey_capture {
             if escape {
                 self.shell.hotkey_capture = None;
