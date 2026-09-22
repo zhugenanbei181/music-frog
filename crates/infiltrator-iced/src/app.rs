@@ -11,11 +11,11 @@ use crate::types::app::Route;
 use crate::types::dns::{AdvancedEditMode, DnsTab, FakeIpFormDraft, TunFormDraft};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
-use crate::types::rules::{RulesJsonTab, RulesTab};
 use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
 use iced::Task;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use std::sync::{Arc, Mutex};
 
 /// `INFILTRATOR_LANG` 会话级语言覆写（非 demo 启动路径；demo 有自己的同名
@@ -248,10 +248,12 @@ impl AppState {
                 rules_loaded_once: false,
                 is_saving_rules: false,
                 rules_dirty: false,
-                rules_tab: RulesTab::RulesList,
-                rules_json_tab: RulesJsonTab::RuleProviders,
+                rules_tab: RulesTab::List,
+                rules_json_tab: RulesJsonSection::RuleProviders,
                 rules_page: 0,
                 rules_page_size: 200,
+                rules_scroll_offset_px: 0.0,
+                rules_viewport_px: infiltrator_domain::rules::view::RULE_DEFAULT_VIEWPORT_PX,
                 rules_tracer_input: String::new(),
                 rules_tracer_src_ip: String::new(),
                 rules_tracer_chain: None,

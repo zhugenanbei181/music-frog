@@ -986,6 +986,19 @@ impl CommandApplication {
                 self.edit_rules(move |rules| edit::inject_game_presets(rules, &target) > 0)
                     .await
             }
+            // DUAL-11-14: the kernel owns the database upgrade; the shared
+            // gateway call is the only real trigger (`POST /upgrade/geo`).
+            CommandIntent::UpgradeGeoDatabases => self
+                .runtime()?
+                .upgrade_geo()
+                .await
+                .map_err(|error| Failure::new(ErrorCode::Network, error.to_string(), true)),
+            // DUAL-11-14: validate the edited document and hand it to the same
+            // shared configuration use-case the profile writers use. An invalid
+            // document is a typed input error and never a silent no-op.
+            CommandIntent::ApplyRulesJsonDocument { section, json } => {
+                self.apply_rules_json_document(section, &json).await
+            }
             // DUAL-11-06: import a provider's real rules through the same
             // read/modify/write seam the other rule edits use.
             CommandIntent::UnpackRuleProvider { provider_name } => {
@@ -1091,6 +1104,54 @@ impl CommandApplication {
         let updated = infiltrator_domain::rules::apply_rules_to_yaml(&content, &rules)
             .map_err(rule_failure)?;
         profile.save_profile(&name, &updated).await
+    }
+
+    /// DUAL-11-14: apply one rules-workspace JSON document. The section decides
+    /// which shared configuration use-case owns the write; the document is
+    /// parsed and validated there, so a malformed editor buffer is refused
+    /// before the profile is touched.
+    async fn apply_rules_json_document(
+        &self,
+        section: infiltrator_contract::rules_workspace::RulesJsonSection,
+        json: &str,
+    ) -> Result<(), Failure> {
+        use infiltrator_contract::rules_workspace::RulesJsonSection;
+        if json.trim().is_empty() {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                "the JSON document is empty",
+                false,
+            ));
+        }
+        let configuration = self.configuration()?;
+        let invalid = |error: &str| Failure::new(ErrorCode::InvalidInput, error.to_owned(), false);
+        match section {
+            RulesJsonSection::RuleProviders => {
+                let providers: infiltrator_domain::rules::RuleProviders =
+                    serde_json::from_str(json).map_err(|error| {
+                        invalid(&format!("invalid rule providers JSON: {error}"))
+                    })?;
+                configuration
+                    .save_rule_providers(providers)
+                    .await
+                    .map(|_| ())
+            }
+            RulesJsonSection::ProxyProviders => {
+                let providers: infiltrator_domain::proxy_providers::ProxyProviders =
+                    serde_json::from_str(json).map_err(|error| {
+                        invalid(&format!("invalid proxy providers JSON: {error}"))
+                    })?;
+                configuration
+                    .save_proxy_providers(providers)
+                    .await
+                    .map(|_| ())
+            }
+            RulesJsonSection::Sniffer => {
+                let config: serde_json::Value = serde_json::from_str(json)
+                    .map_err(|error| invalid(&format!("invalid sniffer JSON: {error}")))?;
+                configuration.save_sniffer_config(config).await.map(|_| ())
+            }
+        }
     }
 
     async fn update_setting(&self, key: &str, value: &str) -> Result<(), Failure> {

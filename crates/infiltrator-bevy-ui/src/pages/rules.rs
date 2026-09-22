@@ -24,7 +24,7 @@ use bevy::ui::prelude::{
     UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, Button, ScrollArea};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -40,8 +40,8 @@ use crate::pages::rules_projection::{
     RuleProxyText, RuleTypeBadge, RuleTypeText, RulesLine, RulesLineKind, truncation_label,
 };
 use crate::pages::rules_view::{
-    RuleRow, RuleSearchField, RulesPageIndicator, RulesPageNextButton, RulesPagePrevButton,
-    RulesViewState,
+    RuleRow, RuleSearchField, RulesListScrollArea, RulesPageIndicator, RulesPageNextButton,
+    RulesPagePrevButton, RulesViewState, RulesWindowRows,
 };
 use crate::route::{PageRoot, Route};
 
@@ -111,6 +111,9 @@ pub struct RulesProjection {
     pub rule_publish_limit: usize,
     /// DUAL-11-07: the observed kernel rule-provider cache location.
     pub provider_cache: infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
+    /// DUAL-11-14: the rules-workspace JSON documents published by the shared
+    /// reader (the same text the Iced JSON editors load).
+    pub json_documents: Vec<infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot>,
 }
 
 impl RulesProjection {
@@ -131,6 +134,20 @@ impl RulesProjection {
                 3,
                 1_048_576,
             ),
+            json_documents: vec![
+                infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot {
+                    section: infiltrator_contract::rules_workspace::RulesJsonSection::RuleProviders,
+                    json: "{\n  \"geosite-geolocation-!cn\": {\n    \"type\": \"http\",\n    \"behavior\": \"domain\",\n    \"url\": \"https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.mrs\",\n    \"interval\": 86400\n  }\n}".to_owned(),
+                },
+                infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot {
+                    section: infiltrator_contract::rules_workspace::RulesJsonSection::ProxyProviders,
+                    json: "{}".to_owned(),
+                },
+                infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot {
+                    section: infiltrator_contract::rules_workspace::RulesJsonSection::Sniffer,
+                    json: "{\n  \"enable\": true,\n  \"sniff\": {\n    \"HTTP\": {\n      \"ports\": [80, \"8080-8880\"]\n    }\n  }\n}".to_owned(),
+                },
+            ],
             providers: vec![
                 RuleProviderItem {
                     name: "geosite-geolocation-!cn".to_owned(),
@@ -257,11 +274,21 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         .map(|(idx, p)| Box::new(provider_item_scene(idx, p, palette)) as Box<dyn Scene>)
         .collect();
 
-    let rule_scenes: Vec<Box<dyn Scene>> = projection
-        .rules
-        .iter()
-        .enumerate()
-        .map(|(idx, r)| Box::new(rule_row_scene(idx, r, palette)) as Box<dyn Scene>)
+    // DUAL-11-08: the first paint mounts the shared render window at offset 0
+    // instead of one row per published rule. Every later scroll/search mounts
+    // the next window through `rules_view::sync_rules_window`.
+    let initial_window = infiltrator_domain::rules::view::rule_window(
+        0.0,
+        infiltrator_domain::rules::view::RULE_DEFAULT_VIEWPORT_PX,
+        projection.rules.len(),
+    );
+    let rule_scenes: Vec<Box<dyn Scene>> = (initial_window.start..initial_window.end)
+        .filter_map(|source_index| {
+            projection
+                .rules
+                .get(source_index)
+                .map(|rule| Box::new(rule_row_scene(source_index, rule, palette)) as Box<dyn Scene>)
+        })
         .collect();
 
     bsn! {
@@ -277,17 +304,84 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         }
         PageRoot(Route::Rules)
         RulesPageRoot
+        // DUAL-11-14: the official wheel/trackpad scroll behavior for the page
+        // itself; the list partition owns a nested scroll area of its own.
+        ScrollArea
         Children [
             ( { header_card_scene(summary, default_action, hit_audit_line, truncation_line, palette) } ),
-            ( { crate::pages::rules_tracer::rules_tracer_scene(palette, &projection.tracer) } ),
-            ( { crate::pages::rules_mrs::rules_mrs_scene(palette, &projection.mrs_acceleration, &projection.provider_cache) } ),
+            ( { crate::pages::rules_tabs::rules_tabs_scene(palette) } ),
+            (
+                { crate::pages::rules_tabs::tab_body_scene(
+                    infiltrator_contract::rules_workspace::RulesTab::List,
+                    Box::new(rules_list_partition(rule_scenes, palette)),
+                ) }
+            ),
+            (
+                { crate::pages::rules_tabs::tab_body_scene(
+                    infiltrator_contract::rules_workspace::RulesTab::Providers,
+                    Box::new(providers_partition(provider_scenes, palette, &projection.mrs_acceleration, &projection.provider_cache)),
+                ) }
+            ),
+            (
+                { crate::pages::rules_tabs::tab_body_scene(
+                    infiltrator_contract::rules_workspace::RulesTab::JsonEditors,
+                    Box::new(crate::pages::rules_json::rules_json_scene(
+                        palette,
+                        &crate::pages::rules_json::RulesJsonState::default(),
+                    )),
+                ) }
+            ),
+            (
+                { crate::pages::rules_tabs::tab_body_scene(
+                    infiltrator_contract::rules_workspace::RulesTab::Tracer,
+                    Box::new(crate::pages::rules_tracer::rules_tracer_scene(palette, &projection.tracer)),
+                ) }
+            ),
+        ]
+    }
+}
+
+/// DUAL-11-14: the list partition — the windowed rule table, the add-rule
+/// wizard and the visual logical sub-rule builder, exactly the panels Iced
+/// shows on its list tab.
+fn rules_list_partition(
+    rule_scenes: Vec<Box<dyn Scene>>,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    bsn! {
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(space::S16),
+        }
+        Children [
             ( { crate::pages::rules_builder::rules_builder_scene(palette) } ),
             ( { crate::pages::rules_subrules::rules_subrules_scene(
                 palette,
                 &crate::pages::rules_subrules::RulesSubRuleState::default(),
             ) } ),
-            ( { providers_card_scene(provider_scenes, palette) } ),
             ( { rules_table_scene(rule_scenes, palette) } ),
+        ]
+    }
+}
+
+/// DUAL-11-14: the providers partition — the MRS acceleration card (which also
+/// hosts the Geo database update entry) and the provider lifecycle table.
+fn providers_partition(
+    provider_scenes: Vec<Box<dyn Scene>>,
+    palette: &UiPalette,
+    mrs: &infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
+    provider_cache: &infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
+) -> impl Scene + use<> {
+    bsn! {
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(space::S16),
+        }
+        Children [
+            ( { crate::pages::rules_mrs::rules_mrs_scene(palette, mrs, provider_cache) } ),
+            ( { providers_card_scene(provider_scenes, palette) } ),
         ]
     }
 }
@@ -517,11 +611,26 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
             Box::new(bsn! {
                 Node {
                     width: percent(100),
+                    // DUAL-11-08: the fixed-height list viewport. Only the
+                    // shared render window is mounted inside it; the spacers
+                    // keep the scrollable range the full list height.
+                    height: px(infiltrator_domain::rules::view::RULE_DEFAULT_VIEWPORT_PX),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
+                    overflow: Overflow::scroll_y(),
                 }
+                ScrollArea
+                RulesListScrollArea
                 Children [
-                    { rule_scenes },
+                    (
+                        Node {
+                            width: percent(100),
+                            flex_direction: FlexDirection::Column,
+                        }
+                        RulesWindowRows
+                        Children [
+                            { rule_scenes },
+                        ]
+                    ),
                 ]
             }),
         ],
@@ -579,7 +688,11 @@ pub(crate) fn provider_updated_label(provider: &RuleProviderItem) -> String {
     format!("更新: {} · {source} · {schedule}", provider.updated_at)
 }
 
-fn rule_row_scene(idx: usize, rule: &RuleItem, palette: &UiPalette) -> impl Scene + use<> {
+pub(crate) fn rule_row_scene(
+    idx: usize,
+    rule: &RuleItem,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let idx_str = format!("#{}", rule.id);
     let type_str = format!(
         "[{}]",
@@ -725,6 +838,11 @@ fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.insert_resource(crate::pages::rules_subrules::RulesSubRuleState::default());
     // DUAL-11-06: the unpack target follows the shared MRS projection.
     commands.insert_resource(crate::pages::rules_mrs::RulesMrsState::default());
+    // DUAL-11-14: every mount starts from the shared default partition and a
+    // fresh (unfocused) JSON partition whose buffers are seeded from the read
+    // model by the projection observer.
+    commands.insert_resource(crate::pages::rules_tabs::RulesTabState::default());
+    commands.insert_resource(rules_json_seed());
     if !first_bind {
         return;
     }
@@ -742,7 +860,20 @@ fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(crate::pages::rules_tracer::apply_tracer_projection);
     commands.add_observer(crate::pages::rules_tracer::on_tracer_action_activated);
     commands.add_observer(crate::pages::rules_tracer::on_tracer_override_activated);
+    // DUAL-11-14: the partition bar, the JSON editor partition and its
+    // projection adoption.
+    commands.add_observer(crate::pages::rules_tabs::on_rules_tab_activated);
+    commands.add_observer(crate::pages::rules_json::on_rules_json_action_activated);
+    commands.add_observer(crate::pages::rules_json::sync_rules_json);
     commands.add_observer(on_rules_action_activated);
+}
+
+/// DUAL-11-14: an empty JSON partition; the projection observer fills the
+/// buffers from the shared read model on the first update.
+fn rules_json_seed() -> crate::pages::rules_json::RulesJsonState {
+    let mut state = crate::pages::rules_json::RulesJsonState::default();
+    state.adopt(&[]);
+    state
 }
 
 pub(crate) fn on_rules_action_activated(

@@ -342,6 +342,11 @@ pub struct RulesPageSnapshot {
     /// DUAL-11-07: the observed kernel rule-provider cache location.
     #[serde(default)]
     pub provider_cache: crate::provider_cache::RuleProviderCacheSnapshot,
+    /// DUAL-11-14: the rules-workspace JSON documents, serialised from the same
+    /// active profile the Iced JSON editors load through their ports. Empty on
+    /// hosts without a configuration application.
+    #[serde(default)]
+    pub json_documents: Vec<crate::rules_workspace::RulesJsonDocumentSnapshot>,
 }
 
 impl RulesPageSnapshot {

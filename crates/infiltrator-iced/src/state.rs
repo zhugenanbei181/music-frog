@@ -15,7 +15,7 @@ use crate::types::dns::{
 };
 use crate::types::editor::EditorLazyState;
 use crate::types::perf::PerfSnapshot;
-use crate::types::rules::{RuleRenderItem, RulesJsonTab, RulesTab};
+use crate::types::rules::RuleRenderItem;
 use crate::types::runtime::{
     RebuildFlowState, RuntimePatchSnapshot, RuntimeStatus, RuntimeStreamState,
 };
@@ -28,6 +28,7 @@ use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
 use infiltrator_contract::resources::CoreResourceSnapshot;
+use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot;
@@ -270,10 +271,17 @@ pub struct ConfigEditorState {
     pub rules_loaded_once: bool,
     pub is_saving_rules: bool,
     pub rules_dirty: bool,
+    /// DUAL-11-14: the shared workspace partition vocabulary.
     pub rules_tab: RulesTab,
-    pub rules_json_tab: RulesJsonTab,
+    pub rules_json_tab: RulesJsonSection,
     pub rules_page: usize,
     pub rules_page_size: usize,
+    /// DUAL-11-08: scroll offset (logical px) of the rules list viewport, fed
+    /// back by the list's `on_scroll`. Drives the render window.
+    pub rules_scroll_offset_px: f32,
+    /// DUAL-11-08: measured height of the rules list viewport, or the shared
+    /// declared fallback until the scrollable has reported one.
+    pub rules_viewport_px: f32,
     pub rules_tracer_input: String,
     /// DUAL-12-10: simulated inbound source IP typed into the tracer sandbox.
     /// It is pushed into the shared tracer engine via `RuleTracerPort` so the

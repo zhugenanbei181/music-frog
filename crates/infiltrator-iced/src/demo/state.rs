@@ -103,7 +103,7 @@ impl AppState {
         // Capture variant `rules-providers` opens the Providers tab so the
         // provider lists and MRS metadata panel are in frame.
         if env.providers_tab {
-            state.editor.rules_tab = crate::types::rules::RulesTab::Providers;
+            state.editor.rules_tab = infiltrator_contract::rules_workspace::RulesTab::Providers;
             state.editor.rules_providers_expanded = true;
         }
         state.rebuild_rules_render_cache();

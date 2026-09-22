@@ -46,6 +46,131 @@ pub fn is_truncated_rule_list(received: usize) -> bool {
     received > RULE_PUBLISH_LIMIT
 }
 
+/// DUAL-11-08: fixed row height of one rule row in the virtual window
+/// (logical pixels). The window arithmetic below only holds for uniform rows,
+/// so both surfaces render every rule row at exactly this height.
+pub const RULE_ROW_HEIGHT_PX: f32 = 56.0;
+
+/// DUAL-11-08: extra rows rendered above and below the visible band so a fast
+/// scroll never exposes a blank strip while the window catches up.
+pub const RULE_WINDOW_OVERSCAN: usize = 4;
+
+/// DUAL-11-08: viewport height assumed before a surface has measured its real
+/// list viewport. A declared fallback, never a fabricated measurement.
+pub const RULE_DEFAULT_VIEWPORT_PX: f32 = 560.0;
+
+/// DUAL-11-08: the fixed row height is also the scroll quantum: a rule at
+/// filtered position `index` sits at `index * RULE_ROW_HEIGHT_PX`.
+pub fn rule_scroll_offset_for_index(index: usize) -> f32 {
+    index as f32 * RULE_ROW_HEIGHT_PX
+}
+
+/// DUAL-11-08: the filtered position a scroll offset lands on. Used by both
+/// surfaces to report which page the viewport currently shows.
+pub fn rule_index_at_scroll_offset(offset_px: f32) -> usize {
+    if !offset_px.is_finite() || offset_px <= 0.0 {
+        return 0;
+    }
+    (offset_px / RULE_ROW_HEIGHT_PX).floor() as usize
+}
+
+/// DUAL-11-08: the page a filtered position belongs to, so the paging
+/// indicator follows the scroll-driven window instead of a second cursor.
+pub fn page_for_rule_index(index: usize, page_size: usize) -> usize {
+    index / effective_page_size(page_size)
+}
+
+/// DUAL-11-08: rows in the visible band, including the partially visible row
+/// at each edge. Depends only on the viewport height, never on the list
+/// length — this is what makes the render bound O(1).
+pub fn visible_rule_rows(viewport_height_px: f32) -> usize {
+    let viewport = if viewport_height_px.is_finite() && viewport_height_px > 0.0 {
+        viewport_height_px
+    } else {
+        RULE_DEFAULT_VIEWPORT_PX
+    };
+    (viewport / RULE_ROW_HEIGHT_PX).ceil() as usize + 1
+}
+
+/// DUAL-11-08: the hard upper bound on rule rows any surface may render for
+/// one window, whatever the list length is (50,000+ included).
+pub fn rendered_row_bound(viewport_height_px: f32) -> usize {
+    visible_rule_rows(viewport_height_px) + RULE_WINDOW_OVERSCAN * 2
+}
+
+/// DUAL-11-08: the slice of a filtered rule list a surface renders for the
+/// current scroll position, plus the spacer heights that keep the scrollable
+/// content the full `total * row_height` tall.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RuleWindow {
+    /// First rendered filtered position.
+    pub start: usize,
+    /// One past the last rendered filtered position.
+    pub end: usize,
+    /// Filtered rows behind the window (top spacer height).
+    pub top_spacer_px: f32,
+    /// Filtered rows ahead of the window (bottom spacer height).
+    pub bottom_spacer_px: f32,
+    /// Full scrollable content height of the filtered list.
+    pub content_height_px: f32,
+    /// Total filtered rows the spacers + window cover.
+    pub total: usize,
+}
+
+impl RuleWindow {
+    /// Number of rule rows a surface renders for this window.
+    pub fn rendered_rows(&self) -> usize {
+        self.end.saturating_sub(self.start)
+    }
+
+    /// Whether a filtered position is inside the rendered window.
+    pub fn contains(&self, index: usize) -> bool {
+        index >= self.start && index < self.end
+    }
+
+    /// Empty window over an empty list.
+    pub fn is_empty(&self) -> bool {
+        self.rendered_rows() == 0
+    }
+}
+
+/// DUAL-11-08: O(1) geometric clipping over a filtered rule list. The window
+/// size is bounded by [`rendered_row_bound`] for any `total`; scrolling only
+/// shifts `start`/`end` and the spacers, so no surface ever builds a row per
+/// entry of a 50,000-entry list.
+pub fn rule_window(scroll_offset_px: f32, viewport_height_px: f32, total: usize) -> RuleWindow {
+    let content_height_px = total as f32 * RULE_ROW_HEIGHT_PX;
+    if total == 0 {
+        return RuleWindow {
+            start: 0,
+            end: 0,
+            top_spacer_px: 0.0,
+            bottom_spacer_px: 0.0,
+            content_height_px: 0.0,
+            total: 0,
+        };
+    }
+    let offset = if scroll_offset_px.is_finite() {
+        scroll_offset_px.clamp(0.0, content_height_px)
+    } else {
+        0.0
+    };
+    let first_visible = rule_index_at_scroll_offset(offset).min(total - 1);
+    let start = first_visible.saturating_sub(RULE_WINDOW_OVERSCAN);
+    let end = first_visible
+        .saturating_add(visible_rule_rows(viewport_height_px))
+        .saturating_add(RULE_WINDOW_OVERSCAN)
+        .min(total);
+    RuleWindow {
+        start,
+        end,
+        top_spacer_px: start as f32 * RULE_ROW_HEIGHT_PX,
+        bottom_spacer_px: (total - end) as f32 * RULE_ROW_HEIGHT_PX,
+        content_height_px,
+        total,
+    }
+}
+
 /// Case-insensitive substring match over the rule expression. An empty query
 /// matches every row.
 pub fn matches_rule_search<T: RuleView>(item: &T, query: &str) -> bool {
@@ -164,6 +289,92 @@ mod tests {
         assert_eq!(omitted_rule_count(120), 0);
         assert!(!is_truncated_rule_list(5_000));
         assert!(is_truncated_rule_list(50_000));
+    }
+
+    #[test]
+    fn virtual_window_is_bounded_and_slides_with_the_scroll_offset() {
+        let total = 50_000;
+        let viewport = RULE_DEFAULT_VIEWPORT_PX;
+        let bound = rendered_row_bound(viewport);
+
+        let top = rule_window(0.0, viewport, total);
+        assert_eq!(top.start, 0);
+        assert_eq!(
+            top.rendered_rows(),
+            visible_rule_rows(viewport) + RULE_WINDOW_OVERSCAN,
+            "at the top there is no overscan above, only below"
+        );
+        assert!(top.rendered_rows() <= bound);
+        assert_eq!(top.top_spacer_px, 0.0);
+        assert_eq!(
+            top.bottom_spacer_px,
+            (total - top.end) as f32 * RULE_ROW_HEIGHT_PX
+        );
+        assert_eq!(top.content_height_px, total as f32 * RULE_ROW_HEIGHT_PX);
+        assert!(top.contains(0));
+        assert!(!top.contains(top.end));
+
+        // Middle of the list: the window follows the offset, never grows.
+        let middle = rule_window(rule_scroll_offset_for_index(25_000), viewport, total);
+        assert_eq!(
+            middle.start + RULE_WINDOW_OVERSCAN,
+            25_000,
+            "the first visible row is the offset's row, overscan above"
+        );
+        assert!(middle.rendered_rows() <= bound);
+        assert!(middle.contains(25_000));
+        assert!(!middle.contains(middle.start - 1));
+        assert_eq!(
+            middle.top_spacer_px,
+            middle.start as f32 * RULE_ROW_HEIGHT_PX
+        );
+        assert_eq!(
+            middle.top_spacer_px
+                + middle.rendered_rows() as f32 * RULE_ROW_HEIGHT_PX
+                + middle.bottom_spacer_px,
+            middle.content_height_px,
+            "spacers + rendered rows always cover the whole list"
+        );
+
+        // Scrolled past the end: clamped onto the last rows, still bounded.
+        let bottom = rule_window(1.0e9, viewport, total);
+        assert!(bottom.end <= total);
+        assert!(bottom.rendered_rows() <= bound);
+        assert!(bottom.contains(total - 1));
+        assert_eq!(bottom.bottom_spacer_px, 0.0);
+
+        // Small lists render every row and never windows past the list.
+        let small = rule_window(10_000.0, viewport, 3);
+        assert_eq!((small.start, small.end), (0, 3));
+        assert_eq!(small.bottom_spacer_px, 0.0);
+
+        // Degenerate inputs stay total.
+        let empty = rule_window(-4.0, 0.0, 0);
+        assert!(empty.is_empty());
+        assert_eq!(empty.content_height_px, 0.0);
+        let nan = rule_window(f32::NAN, f32::NAN, 100);
+        assert_eq!(nan.start, 0);
+        assert!(nan.rendered_rows() <= bound);
+    }
+
+    #[test]
+    fn window_index_and_page_arithmetic_follow_the_scroll_offset() {
+        assert_eq!(rule_scroll_offset_for_index(0), 0.0);
+        assert_eq!(
+            rule_scroll_offset_for_index(120),
+            120.0 * RULE_ROW_HEIGHT_PX
+        );
+        assert_eq!(rule_index_at_scroll_offset(0.0), 0);
+        assert_eq!(rule_index_at_scroll_offset(-1.0), 0);
+        assert_eq!(rule_index_at_scroll_offset(f32::NAN), 0);
+        assert_eq!(
+            rule_index_at_scroll_offset(rule_scroll_offset_for_index(7) + 1.0),
+            7
+        );
+        assert_eq!(page_for_rule_index(0, 200), 0);
+        assert_eq!(page_for_rule_index(199, 200), 0);
+        assert_eq!(page_for_rule_index(200, 200), 1);
+        assert_eq!(page_for_rule_index(50_000, 0), 250);
     }
 
     #[test]

@@ -13,23 +13,6 @@ pub struct RulesLoadBundle {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RulesTab {
-    #[default]
-    RulesList,
-    Providers,
-    JsonEditors,
-    Tracer,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RulesJsonTab {
-    #[default]
-    RuleProviders,
-    ProxyProviders,
-    Sniffer,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RuleBadgeKind {
     Domain,
     Ip,

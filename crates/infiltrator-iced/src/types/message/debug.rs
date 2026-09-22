@@ -334,6 +334,13 @@ impl std::fmt::Debug for Message {
             Message::RulesPrevPage => write!(f, "RulesPrevPage"),
             Message::RulesNextPage => write!(f, "RulesNextPage"),
             Message::RulesSetPage(page) => write!(f, "RulesSetPage({})", page),
+            Message::RulesListScrolled {
+                offset_px,
+                viewport_px,
+            } => write!(
+                f,
+                "RulesListScrolled {{ offset_px: {offset_px}, viewport_px: {viewport_px} }}"
+            ),
             Message::EnsureRuleProvidersEditorLoaded => {
                 write!(f, "EnsureRuleProvidersEditorLoaded")
             }

@@ -301,6 +301,17 @@ pub enum CommandIntent {
     ApplyGameRoutingPresets {
         target: String,
     },
+    /// DUAL-11-14: trigger the kernel's GeoIP/GeoSite database upgrade
+    /// (`POST /upgrade/geo`) through the shared runtime gateway, so both
+    /// surfaces expose the same entry point.
+    UpgradeGeoDatabases,
+    /// DUAL-11-14: replace one rules-workspace JSON document (rule providers /
+    /// proxy providers / sniffer) through the shared configuration use-case,
+    /// which validates the document before writing the active profile.
+    ApplyRulesJsonDocument {
+        section: crate::rules_workspace::RulesJsonSection,
+        json: String,
+    },
     CloseConnection {
         id: String,
     },
@@ -530,6 +541,8 @@ impl CommandIntent {
             | Self::MoveRule { .. }
             | Self::AddCustomRule { .. }
             | Self::ApplyGameRoutingPresets { .. } => CommandKind::Profile,
+            Self::UpgradeGeoDatabases => CommandKind::Runtime,
+            Self::ApplyRulesJsonDocument { .. } => CommandKind::Profile,
             Self::SimulateRuleTrace { .. }
             | Self::SetRuleTracerContext { .. }
             | Self::ApplyTracerRuleOverride { .. }

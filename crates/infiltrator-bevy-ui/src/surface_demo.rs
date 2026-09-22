@@ -283,6 +283,7 @@ pub(crate) fn empty_rules() -> RulesProjection {
         truncated_rule_count: None,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
+        json_documents: Vec::new(),
     }
 }
 
@@ -499,6 +500,7 @@ impl From<RulesProjection> for surface_snapshot::RulesPageSnapshot {
             total_hits: 0,
             rule_publish_limit: value.rule_publish_limit,
             provider_cache: value.provider_cache,
+            json_documents: value.json_documents,
         }
     }
 }

@@ -94,11 +94,12 @@ pub fn bind_rules_projection(world: &mut DeferredWorld<'_>) -> bool {
 }
 
 /// DUAL-11-08: the honest publish-cap note. Empty when the rendered list is the
-/// complete profile list.
+/// complete profile list. The rendered list itself is a real virtual window
+/// (`sync_rules_window`), so this note now only reports the publisher's cap.
 pub(crate) fn truncation_label(omitted: Option<usize>, limit: usize) -> String {
     match omitted {
         Some(omitted) if omitted > 0 => {
-            format!("发布视口已截断 · 已省略 {omitted} 条 (发布上限 {limit} 条，非 O(1) 虚拟滚动)")
+            format!("发布视口已截断 · 已省略 {omitted} 条 (发布上限 {limit} 条)")
         }
         _ => String::new(),
     }

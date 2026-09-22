@@ -9,8 +9,8 @@ use crate::types::app::Route;
 use crate::types::app_routing::{AppRouteRule, AppRoutingMode};
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
-use crate::types::rules::RulesTab;
 use crate::view::virtual_list::VirtualListConfig;
+use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
 use infiltrator_domain::rules::RuleEntry;
 
@@ -19,7 +19,7 @@ fn test_advancement_1_live_rule_tracer_contract() {
     let (mut state, _) = AppState::new();
 
     // 1. Initial tracer state check
-    assert_eq!(state.editor.rules_tab, RulesTab::RulesList);
+    assert_eq!(state.editor.rules_tab, RulesTab::List);
     assert_eq!(state.editor.rules_tracer_input, "");
     assert!(state.editor.rules_tracer_chain.is_none());
 

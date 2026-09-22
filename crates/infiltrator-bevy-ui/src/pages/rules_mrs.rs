@@ -43,6 +43,13 @@ pub struct UnpackRuleProviderButton;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PurgeRuleProviderCacheButton;
 
+/// DUAL-11-14: marker for the GeoIP/GeoSite database upgrade button. The
+/// kernel owns the download; the button submits the shared
+/// `UiCommand::UpgradeGeoDatabases` intent, the same trigger the Iced button
+/// drives through the runtime gateway.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct UpgradeGeoDatabasesButton;
+
 /// DUAL-11-07: marker on the observed provider-cache fact line.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProviderCacheText;
@@ -209,6 +216,21 @@ pub fn rules_mrs_scene(
                                 }
                                 BackgroundColor({ palette.border })
                                 Button
+                                UpgradeGeoDatabasesButton
+                                Children [
+                                    ( Text({ "更新 Geo 数据库".to_owned() }) TextRole(Role::Body) ),
+                                ]
+                            ),
+                            (
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.border })
+                                Button
                                 PurgeRuleProviderCacheButton
                                 Children [
                                     ( Text({ "清理规则集本地缓存".to_owned() }) TextRole(Role::Body) ),
@@ -307,6 +329,7 @@ pub(crate) fn on_rules_mrs_action_activated(
     activate: On<Activate>,
     unpack: Query<(), With<UnpackRuleProviderButton>>,
     purge: Query<(), With<PurgeRuleProviderCacheButton>>,
+    geo: Query<(), With<UpgradeGeoDatabasesButton>>,
     state: Res<RulesMrsState>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
@@ -315,6 +338,11 @@ pub(crate) fn on_rules_mrs_action_activated(
     };
     if purge.contains(activate.entity) {
         handle.submit(UiCommand::PurgeRuleProviderCache);
+        return;
+    }
+    // DUAL-11-14: the same kernel trigger the Iced button drives.
+    if geo.contains(activate.entity) {
+        handle.submit(UiCommand::UpgradeGeoDatabases);
         return;
     }
     if unpack.contains(activate.entity)

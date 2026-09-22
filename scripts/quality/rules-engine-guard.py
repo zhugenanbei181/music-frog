@@ -307,7 +307,6 @@ def main() -> int:
         "pub(crate) fn truncation_label",
         "matrix_label",
         "RuleTypeFamily::Host",
-        "非 O(1) 虚拟滚动",
     )
     require(
         violations,
@@ -522,8 +521,15 @@ def main() -> int:
         "crates/infiltrator-iced/src/update/core/rules.rs",
         "infiltrator_domain::rules::view::filter_rule_indices",
         "infiltrator_domain::rules::view::clamp_page",
-        "infiltrator_domain::rules::view::page_bounds",
         "infiltrator_domain::rules::view::page_count",
+        "rules_window::page_scroll_offset",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/rules_window.rs",
+        "view::page_bounds",
+        "view::clamp_page",
+        "view::page_for_rule_index",
     )
     require(
         violations,
@@ -583,7 +589,7 @@ def main() -> int:
         violations,
         "crates/infiltrator-bevy-ui/src/pages/rules.rs",
         "pub mrs_acceleration:",
-        "rules_mrs_scene(palette, &projection.mrs_acceleration, &projection.provider_cache)",
+        "rules_mrs_scene(palette, mrs, provider_cache)",
         "pub(crate) fn provider_updated_label",
         "RuleSearchField",
         "RulesPagePrevButton",
@@ -883,6 +889,275 @@ def main() -> int:
         violations,
         "crates/infiltrator-iced/tests/gui/view_rules_tests.rs",
         "test_provider_lifecycle_line_reports_shared_source_url",
+    )
+
+    # Batch E (DUAL-11-08): the real virtual window. One shared O(1) window
+    # reduction, an Iced spacer/scroll-driven render, a Bevy despawn+respawn
+    # window, and a bounded-render test on each surface.
+    require(
+        violations,
+        LEDGER,
+        "RuleWindow",
+        "rendered_row_bound",
+        "visible_rule_items",
+        "test_rules_virtual_window_renders_bounded_rows_for_50k_list",
+        "test_rules_window_mounts_bounded_rows_for_50k_projection",
+        "visible_projection_rows",
+        "sync_rules_window",
+        "RulesListScrollArea",
+        "RulesWindowRows",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/rules/view.rs",
+        "pub const RULE_ROW_HEIGHT_PX",
+        "pub const RULE_WINDOW_OVERSCAN",
+        "pub const RULE_DEFAULT_VIEWPORT_PX",
+        "pub struct RuleWindow",
+        "pub fn rule_window",
+        "pub fn rendered_row_bound",
+        "pub fn visible_rule_rows",
+        "pub fn rule_scroll_offset_for_index",
+        "pub fn rule_index_at_scroll_offset",
+        "pub fn page_for_rule_index",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/rules_window.rs",
+        "pub const RULES_LIST_SCROLL_ID",
+        "pub fn rules_window",
+        "pub fn visible_rule_items",
+        "pub fn rendered_rule_rows",
+        "pub fn rules_window_page",
+        "pub fn page_scroll_offset",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/types/message.rs",
+        "RulesListScrolled",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/rules.rs",
+        "rules_window::visible_rule_items",
+        "rules_window::rules_window_spacers",
+        "RULES_LIST_SCROLL_ID",
+        "on_scroll",
+        "RULE_ROW_HEIGHT_PX",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules_view.rs",
+        "pub struct RulesListScrollArea",
+        "pub struct RulesWindowRows",
+        "pub rendered_rows: usize",
+        "pub fn visible_projection_rows",
+        "pub(crate) fn sync_rules_window",
+        "pub(crate) fn rebuild_rules_window",
+        "view::rule_window",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules.rs",
+        "RulesListScrollArea",
+        "RulesWindowRows",
+        "rule_window(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/tests/rules_matrix_test.rs",
+        "matrix_11_08_search_and_pagination_reduce_in_shared_view",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_rules_window_mounts_bounded_rows_for_50k_projection",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/rules_dns_tests.rs",
+        "test_rules_virtual_window_renders_bounded_rows_for_50k_list",
+    )
+    # The window is real now: the old "not a virtual scroll" disclaimer (and
+    # the paging-only visible-row fact it described) must not come back.
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules_projection.rs",
+        "非 O(1) 虚拟滚动",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-shared/src/locales_table.rs",
+        "非 O(1) 虚拟滚动",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en.rs",
+        "no O(1) virtual scroll",
+    )
+
+    # Batch E (DUAL-11-14): the shared workspace partition vocabulary, the
+    # shared Geo upgrade intent, the published JSON documents and the Bevy
+    # JSON partition that edits them through the shared application.
+    require(
+        violations,
+        LEDGER,
+        "RulesJsonSection",
+        "RulesJsonDocumentSnapshot",
+        "UpgradeGeoDatabases",
+        "ApplyRulesJsonDocument",
+        "json_documents",
+        "rules_tabs_scene",
+        "rules_json_scene",
+        "test_rules_workspace_partitions_delegate_to_shared_vocabulary",
+        "test_rules_tab_partition_matches_the_shared_capability_set",
+        "test_rules_geo_databases_button_submits_shared_intent",
+        "test_rules_json_partition_edits_and_submits_shared_intent",
+        "apply_rules_json_document_validates_and_persists_each_section",
+        "upgrade_geo_databases_requires_the_runtime_gateway",
+        "rules_json_documents_cover_the_shared_sections_and_omit_unreadable_ones",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/rules_workspace.rs",
+        "pub enum RulesTab",
+        "pub enum RulesJsonSection",
+        "pub struct RulesJsonDocumentSnapshot",
+        "pub const ALL: [Self; 4]",
+        "pub const ALL: [Self; 3]",
+        "pub const fn index(self)",
+        "pub const fn from_index(index: usize)",
+        "pub const fn i18n_key(self)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/command.rs",
+        "UpgradeGeoDatabases",
+        "ApplyRulesJsonDocument",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub json_documents: Vec<crate::rules_workspace::RulesJsonDocumentSnapshot>",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "fn rules_json_documents(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "async fn apply_rules_json_document",
+        "RulesJsonSection::RuleProviders",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application_tests.rs",
+        "apply_rules_json_document_validates_and_persists_each_section",
+        "upgrade_geo_databases_requires_the_runtime_gateway",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader_test.rs",
+        "rules_json_documents_cover_the_shared_sections_and_omit_unreadable_ones",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages.rs",
+        "pub mod rules_json;",
+        "pub mod rules_tabs;",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules_tabs.rs",
+        "pub struct RulesTabState",
+        "pub struct RulesTabChip",
+        "pub struct RulesTabBody",
+        "pub fn rules_tabs_scene",
+        "pub fn tab_body_scene",
+        "pub fn sync_rules_tabs",
+        "pub fn on_rules_tab_activated",
+        "pub const fn tab_label_zh",
+        "RulesTab::ALL",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules_json.rs",
+        "pub struct RulesJsonState",
+        "pub struct RulesJsonSectionChip",
+        "pub struct RulesJsonEditorBody",
+        "pub struct RulesJsonEditButton",
+        "pub struct RulesJsonSaveButton",
+        "pub fn rules_json_scene",
+        "pub fn sync_rules_json",
+        "pub fn restamp_rules_json",
+        "pub fn refresh_rules_json_body",
+        "pub fn on_rules_json_action_activated",
+        "pub fn rules_json_keyboard_input",
+        "UiCommand::ApplyRulesJsonDocument",
+        "code_editor_scene",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules_mrs.rs",
+        "pub struct UpgradeGeoDatabasesButton",
+        "UiCommand::UpgradeGeoDatabases",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "UpgradeGeoDatabases",
+        "ApplyRulesJsonDocument {",
+        "CommandIntent::ApplyRulesJsonDocument",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/surface_projection.rs",
+        "json_documents: value.json_documents.clone()",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/state.rs",
+        "infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab}",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/rules.rs",
+        "RulesTab::ALL",
+        "RulesJsonSection::ALL",
+        "RulesJsonSection::from_index",
+        "RulesTab::from_index",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table.rs",
+        "rules_proxy_providers_json",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en.rs",
+        "rules_proxy_providers_json",
+    )
+    # The partition vocabulary is shared: neither surface may re-declare its
+    # own tab or JSON-section enums.
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/types/rules.rs",
+        "pub enum RulesTab",
+        "pub enum RulesJsonTab",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_rules_tab_partition_matches_the_shared_capability_set",
+        "test_rules_geo_databases_button_submits_shared_intent",
+        "test_rules_json_partition_edits_and_submits_shared_intent",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/rules_dns_tests.rs",
+        "test_rules_workspace_partitions_delegate_to_shared_vocabulary",
     )
 
     # The guard itself is registered on both suites.

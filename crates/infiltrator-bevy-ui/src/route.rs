@@ -24,6 +24,7 @@ use bevy::ecs::lifecycle::Add;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
+use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{CommandsSceneExt, Scene};
 use bevy::ui::widget::Text;
@@ -331,6 +332,10 @@ impl Plugin for PagesPlugin {
         app.init_resource::<TrafficHistory>();
         app.insert_resource(OverviewSourceHandle(Arc::clone(&self.overview_source)));
         app.insert_resource(SurfaceSourceHandle(Arc::clone(&self.surface_source)));
+        // DUAL-11-14: the rules JSON editor routes raw keyboard messages; a
+        // headless composition has no InputPlugin, so the queue is registered
+        // here (a windowed composition reuses the same queue).
+        app.add_message::<bevy::input::keyboard::KeyboardInput>();
         let initial_snapshot = self.surface_source.surface_snapshot();
         app.insert_resource(LatestCoreLifecycle(core_lifecycle_projection(
             &initial_snapshot,
@@ -365,7 +370,20 @@ impl Plugin for PagesPlugin {
                 sync_overview_speedtest_detail,
                 sync_proxies_node_columns,
                 crate::pages::connections_view::sync_connections_search,
-                crate::pages::rules_view::sync_rules_view,
+                // DUAL-11-08: the filter reduction runs first, then the window
+                // rebuild mounts exactly the rows the window covers.
+                (
+                    crate::pages::rules_view::sync_rules_view,
+                    crate::pages::rules_view::sync_rules_window,
+                )
+                    .chain(),
+                // DUAL-11-14: the partition bar restyles from the shared tab
+                // state, the JSON body rebuilds from its buffer generation and
+                // the editor keys are routed only while it owns focus.
+                crate::pages::rules_tabs::sync_rules_tabs,
+                crate::pages::rules_json::refresh_rules_json_body,
+                crate::pages::rules_json::restamp_rules_json,
+                crate::pages::rules_json::rules_json_keyboard_input,
                 crate::pages::connections_drawer::sync_connections_drawer,
                 crate::pages::dns_edit::sync_dns_edit_dirty,
                 crate::pages::dns_fakeip::sync_dns_fake_ip_filter,

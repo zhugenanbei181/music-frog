@@ -7,10 +7,11 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
-use crate::types::rules::{RuleBadgeKind, RuleRenderItem, RulesJsonTab, RulesLoadBundle, RulesTab};
+use crate::types::rules::{RuleBadgeKind, RuleRenderItem, RulesLoadBundle};
 use crate::types::runtime::RebuildFlowState;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_domain::rules;
 
 impl AppState {
@@ -57,7 +58,8 @@ impl AppState {
     /// constructor can apply its empty filter once at boot. DUAL-11-13: the
     /// match predicate, page size fallback, clamp and visible-row arithmetic
     /// all delegate to `infiltrator_domain::rules::view` so both surfaces page
-    /// identically.
+    /// identically. DUAL-11-08: the visible rows are the shared virtual window
+    /// at the current scroll offset, not a whole page.
     pub(crate) fn apply_rules_filter(&mut self) {
         self.editor.rules_filtered_indices = infiltrator_domain::rules::view::filter_rule_indices(
             &self.editor.rules,
@@ -70,12 +72,55 @@ impl AppState {
             self.editor.rules_filtered_indices.len(),
             self.editor.rules_page_size,
         );
-        let (start, end) = infiltrator_domain::rules::view::page_bounds(
-            self.editor.rules_page,
+        self.sync_rules_window_facts();
+    }
+
+    /// DUAL-11-08: keep the scroll offset inside the filtered list and publish
+    /// the honest render count of the shared window. The window's own
+    /// arithmetic is O(1): it is derived from the offset and the viewport, so
+    /// this never walks the rule list.
+    pub(crate) fn sync_rules_window_facts(&mut self) {
+        let total = self.editor.rules_filtered_indices.len();
+        let content_height = infiltrator_domain::rules::view::rule_scroll_offset_for_index(total);
+        if self.editor.rules_scroll_offset_px > content_height {
+            self.editor.rules_scroll_offset_px = content_height;
+        }
+        let window = crate::view::rules_window::rules_window(self);
+        self.diag.perf_snapshot.rules_visible_rows = window.rendered_rows();
+    }
+
+    /// DUAL-11-08: align the scrollable with the render window after the
+    /// window moved on its own (a new list or a recomputed filter). Without
+    /// this the mounted rows and the viewport could disagree.
+    fn scroll_rules_list_to_window(&self) -> Task<Message> {
+        iced::widget::operation::scroll_to(
+            iced::widget::Id::new(crate::view::rules_window::RULES_LIST_SCROLL_ID),
+            iced::widget::scrollable::AbsoluteOffset {
+                x: None,
+                y: Some(self.editor.rules_scroll_offset_px),
+            },
+        )
+    }
+
+    /// DUAL-11-08: move the paging cursor to `page` and hand the scrollable
+    /// the absolute offset of that page's first row. The window follows the
+    /// offset immediately, so the jump never waits for a scroll event.
+    pub(crate) fn goto_rules_page(&mut self, page: usize) -> Task<Message> {
+        self.editor.rules_page = infiltrator_domain::rules::view::clamp_page(
+            page,
             self.editor.rules_filtered_indices.len(),
             self.editor.rules_page_size,
         );
-        self.diag.perf_snapshot.rules_visible_rows = end.saturating_sub(start);
+        let offset = crate::view::rules_window::page_scroll_offset(self, self.editor.rules_page);
+        self.editor.rules_scroll_offset_px = offset;
+        self.sync_rules_window_facts();
+        iced::widget::operation::scroll_to(
+            iced::widget::Id::new(crate::view::rules_window::RULES_LIST_SCROLL_ID),
+            iced::widget::scrollable::AbsoluteOffset {
+                x: None,
+                y: Some(offset),
+            },
+        )
     }
 
     fn reset_rules_lazy_state(&mut self) {
@@ -155,8 +200,12 @@ impl AppState {
             Message::FilterRules(filter) => {
                 self.editor.rules_filter = filter;
                 self.editor.rules_page = 0;
+                // DUAL-11-08: the filtered list shrank or changed shape, so the
+                // viewport returns to the top of the new result set — the
+                // window and the scrollable move together.
+                self.editor.rules_scroll_offset_px = 0.0;
                 self.apply_rules_filter();
-                Task::none()
+                self.scroll_rules_list_to_window()
             }
             Message::UpdateRulesTracerInput(input) => {
                 self.editor.rules_tracer_input = input;
@@ -322,9 +371,11 @@ impl AppState {
                 self.editor.rules_page = 0;
                 match tab {
                     RulesTab::JsonEditors => Task::done(match self.editor.rules_json_tab {
-                        RulesJsonTab::RuleProviders => Message::EnsureRuleProvidersEditorLoaded,
-                        RulesJsonTab::ProxyProviders => Message::EnsureProxyProvidersEditorLoaded,
-                        RulesJsonTab::Sniffer => Message::EnsureSnifferEditorLoaded,
+                        RulesJsonSection::RuleProviders => Message::EnsureRuleProvidersEditorLoaded,
+                        RulesJsonSection::ProxyProviders => {
+                            Message::EnsureProxyProvidersEditorLoaded
+                        }
+                        RulesJsonSection::Sniffer => Message::EnsureSnifferEditorLoaded,
                     }),
                     _ => Task::none(),
                 }
@@ -332,9 +383,9 @@ impl AppState {
             Message::SetRulesJsonTab(tab) => {
                 self.editor.rules_json_tab = tab;
                 Task::done(match tab {
-                    RulesJsonTab::RuleProviders => Message::EnsureRuleProvidersEditorLoaded,
-                    RulesJsonTab::ProxyProviders => Message::EnsureProxyProvidersEditorLoaded,
-                    RulesJsonTab::Sniffer => Message::EnsureSnifferEditorLoaded,
+                    RulesJsonSection::RuleProviders => Message::EnsureRuleProvidersEditorLoaded,
+                    RulesJsonSection::ProxyProviders => Message::EnsureProxyProvidersEditorLoaded,
+                    RulesJsonSection::Sniffer => Message::EnsureSnifferEditorLoaded,
                 })
             }
             Message::ToggleRulesProvidersExpanded => {
@@ -342,22 +393,31 @@ impl AppState {
                 Task::none()
             }
             Message::RulesPrevPage => {
-                self.editor.rules_page = self.editor.rules_page.saturating_sub(1);
-                Task::none()
+                self.goto_rules_page(self.editor.rules_page.saturating_sub(1))
             }
             Message::RulesNextPage => {
                 let total_pages = infiltrator_domain::rules::view::page_count(
                     self.editor.rules_filtered_indices.len(),
                     self.editor.rules_page_size,
                 );
-                if self.editor.rules_page + 1 < total_pages {
-                    self.editor.rules_page += 1;
-                }
-                Task::none()
+                let target = if self.editor.rules_page + 1 < total_pages {
+                    self.editor.rules_page + 1
+                } else {
+                    self.editor.rules_page
+                };
+                self.goto_rules_page(target)
             }
-            Message::RulesSetPage(page) => {
-                self.editor.rules_page = page;
-                self.apply_rules_filter();
+            Message::RulesSetPage(page) => self.goto_rules_page(page),
+            Message::RulesListScrolled {
+                offset_px,
+                viewport_px,
+            } => {
+                self.editor.rules_scroll_offset_px = offset_px;
+                if viewport_px > 0.0 {
+                    self.editor.rules_viewport_px = viewport_px;
+                }
+                self.sync_rules_window_facts();
+                self.editor.rules_page = crate::view::rules_window::rules_window_page(self);
                 Task::none()
             }
             Message::EnsureRuleProvidersEditorLoaded => {
@@ -376,9 +436,11 @@ impl AppState {
                 self.editor.rules_heavy_ready = true;
                 if self.editor.rules_tab == RulesTab::JsonEditors {
                     Task::done(match self.editor.rules_json_tab {
-                        RulesJsonTab::RuleProviders => Message::EnsureRuleProvidersEditorLoaded,
-                        RulesJsonTab::ProxyProviders => Message::EnsureProxyProvidersEditorLoaded,
-                        RulesJsonTab::Sniffer => Message::EnsureSnifferEditorLoaded,
+                        RulesJsonSection::RuleProviders => Message::EnsureRuleProvidersEditorLoaded,
+                        RulesJsonSection::ProxyProviders => {
+                            Message::EnsureProxyProvidersEditorLoaded
+                        }
+                        RulesJsonSection::Sniffer => Message::EnsureSnifferEditorLoaded,
                     })
                 } else {
                     Task::none()
@@ -508,8 +570,13 @@ impl AppState {
                         self.editor.rules_loaded_once = true;
                         self.editor.rules = rules;
                         self.editor.rules_dirty = false;
+                        // DUAL-11-08: a fresh list restarts the viewport at the
+                        // top instead of keeping a stale scroll offset.
+                        self.editor.rules_scroll_offset_px = 0.0;
+                        self.editor.rules_page = 0;
                         self.rebuild_rules_render_cache();
                         self.apply_rules_filter();
+                        return self.scroll_rules_list_to_window();
                     }
                     Err(e) => {
                         self.editor.rules_loaded_once = false;

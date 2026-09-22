@@ -8,7 +8,7 @@
 use crate::state::AppState;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
-use crate::types::rules::{RuleBadgeKind, RulesJsonTab, RulesTab};
+use crate::types::rules::RuleBadgeKind;
 use crate::view::components::{
     BadgeKind, badge, card, chip, editor_frame_surface, empty_state, form_field_label,
     form_input_style, form_pick_style, icon_button, kbd_badge, modern_scrollable, row_card_surface,
@@ -21,6 +21,7 @@ use iced::widget::{
     Space, button, column, container, pick_list, row, text, text_editor, text_input,
 };
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_domain::rules::matrix::RuleTypeFamily;
 use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -737,25 +738,27 @@ fn rules_list_view<'a>(
 
     let page_size = state.editor.rules_page_size.max(1);
     let total_count = state.editor.rules_filtered_indices.len();
-    let total_pages = if total_count == 0 {
-        1
-    } else {
-        (total_count - 1) / page_size + 1
-    };
-    let current_page = state.editor.rules_page.min(total_pages.saturating_sub(1));
-    let start = current_page * page_size;
-    let end = (start + page_size).min(total_count);
-    let visible = &state.editor.rules_filtered_indices[start..end];
+    let total_pages = infiltrator_domain::rules::view::page_count(total_count, page_size);
+    // DUAL-11-08: the rendered band is the shared virtual window of the
+    // filtered list — fixed-height rows, visible band + overscan, spacers for
+    // the rest. The list length never enters the row count.
+    let visible = crate::view::rules_window::visible_rule_items(state);
+    let (top_spacer, bottom_spacer) = crate::view::rules_window::rules_window_spacers(state);
+    let (first_shown, last_shown) = crate::view::rules_window::rules_window_range(state);
+    let current_page = crate::view::rules_window::rules_window_page(state);
 
-    let mut rules_list = column![].spacing(theme::SP_SM);
-    if visible.is_empty() {
+    let mut rules_list = column![].spacing(0.0);
+    if total_count == 0 {
         rules_list = rules_list.push(empty_state(
             Icon::ListChecks,
             lang.tr("rules_empty").as_ref(),
             "",
         ));
     } else {
-        for cache_index in visible {
+        if top_spacer > 0.0 {
+            rules_list = rules_list.push(Space::new().height(Length::Fixed(top_spacer)));
+        }
+        for cache_index in &visible {
             let Some(item) = state.editor.rules_render_cache.get(*cache_index) else {
                 continue;
             };
@@ -858,8 +861,18 @@ fn rules_list_view<'a>(
                 )
                 .padding([theme::SP_SM, SP_MD])
                 .width(Length::Fill)
+                // DUAL-11-08: fixed-height rows are what makes the window
+                // arithmetic exact; content that would overflow is clipped
+                // instead of pushing the row taller.
+                .height(Length::Fixed(
+                    infiltrator_domain::rules::view::RULE_ROW_HEIGHT_PX,
+                ))
+                .clip(true)
                 .style(row_card_surface),
             );
+        }
+        if bottom_spacer > 0.0 {
+            rules_list = rules_list.push(Space::new().height(Length::Fixed(bottom_spacer)));
         }
     }
 
@@ -868,11 +881,8 @@ fn rules_list_view<'a>(
             text(infiltrator_shared::i18n_interpolator::interpolate(
                 &lang.tr("rule_rules_showing"),
                 &[
-                    (
-                        "start",
-                        &(if total_count == 0 { 0 } else { start + 1 }).to_string()
-                    ),
-                    ("end", &end.to_string()),
+                    ("start", &first_shown.to_string()),
+                    ("end", &last_shown.to_string()),
                     ("total", &total_count.to_string()),
                 ],
             ))
@@ -901,6 +911,27 @@ fn rules_list_view<'a>(
     ]
     .align_y(Alignment::Center);
 
+    // DUAL-11-08: the viewport itself is the scroll driver — its measured
+    // offset and height are published back as `RulesListScrolled`, which is
+    // the only thing the render window depends on.
+    let window_scroller = modern_scrollable(rules_list)
+        .id(iced::widget::Id::new(
+            crate::view::rules_window::RULES_LIST_SCROLL_ID,
+        ))
+        .on_scroll(|viewport: iced::widget::scrollable::Viewport| {
+            let offset = viewport.absolute_offset();
+            Message::RulesListScrolled {
+                offset_px: offset.y,
+                viewport_px: viewport.bounds().height,
+            }
+        })
+        .height(Length::Fixed(
+            state
+                .editor
+                .rules_viewport_px
+                .max(infiltrator_domain::rules::view::RULE_ROW_HEIGHT_PX),
+        ));
+
     column![
         tracer_card,
         Space::new().height(theme::SP_MD),
@@ -914,7 +945,7 @@ fn rules_list_view<'a>(
         Space::new().height(theme::SP_SM),
         pager,
         Space::new().height(theme::SP_SM),
-        modern_scrollable(rules_list).height(Length::Fill),
+        window_scroller,
     ]
     .spacing(theme::SP_SM)
     .into()
@@ -1099,26 +1130,19 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
 }
 
 fn json_editors_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let json_tab_labels: Vec<String> = vec![
-        "Rule Providers".to_string(),
-        "Proxy Providers".to_string(),
-        "Sniffer".to_string(),
-    ];
-    let json_tab_index = match state.editor.rules_json_tab {
-        RulesJsonTab::ProxyProviders => 1,
-        RulesJsonTab::Sniffer => 2,
-        RulesJsonTab::RuleProviders => 0,
-    };
+    // DUAL-11-14: the section identities, order and labels are the shared
+    // workspace vocabulary, not a per-surface list.
+    let json_tab_labels: Vec<String> = RulesJsonSection::ALL
+        .iter()
+        .map(|section| lang.tr(section.i18n_key()).to_string())
+        .collect();
+    let json_tab_index = state.editor.rules_json_tab.index();
     let json_tab_buttons = segmented_control(&json_tab_labels, json_tab_index, |index| {
-        Message::SetRulesJsonTab(match index {
-            1 => RulesJsonTab::ProxyProviders,
-            2 => RulesJsonTab::Sniffer,
-            _ => RulesJsonTab::RuleProviders,
-        })
+        Message::SetRulesJsonTab(RulesJsonSection::from_index(index))
     });
 
     let json_view = match state.editor.rules_json_tab {
-        RulesJsonTab::RuleProviders => json_tab_card(
+        RulesJsonSection::RuleProviders => json_tab_card(
             lang.tr("rules_rule_providers_json").to_string(),
             state.editor.rule_providers_editor_state,
             &state.editor.rule_providers_json_content,
@@ -1130,8 +1154,8 @@ fn json_editors_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
             lang.tr("rules_saved").as_ref(),
             lang.tr("rules_save_rule_providers_btn").as_ref(),
         ),
-        RulesJsonTab::ProxyProviders => json_tab_card(
-            "Proxy Providers JSON".to_string(),
+        RulesJsonSection::ProxyProviders => json_tab_card(
+            lang.tr("rules_proxy_providers_json").to_string(),
             state.editor.proxy_providers_editor_state,
             &state.editor.proxy_providers_json_content,
             state.editor.proxy_providers_json_dirty,
@@ -1142,7 +1166,7 @@ fn json_editors_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
             lang.tr("rules_saved").as_ref(),
             lang.tr("rules_save_proxy_providers_btn").as_ref(),
         ),
-        RulesJsonTab::Sniffer => json_tab_card(
+        RulesJsonSection::Sniffer => json_tab_card(
             lang.tr("rules_sniffer_json").to_string(),
             state.editor.sniffer_editor_state,
             &state.editor.sniffer_json_content,
@@ -1203,25 +1227,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .align_y(Alignment::Center);
 
-    let tab_labels: Vec<String> = vec![
-        lang.tr("rules_tab_list").to_string(),
-        lang.tr("rules_tab_providers").to_string(),
-        lang.tr("rules_tab_json").to_string(),
-        lang.tr("rules_tab_tracer").to_string(),
-    ];
-    let tab_index = match state.editor.rules_tab {
-        RulesTab::Providers => 1,
-        RulesTab::JsonEditors => 2,
-        RulesTab::Tracer => 3,
-        RulesTab::RulesList => 0,
-    };
+    // DUAL-11-14: the partition list, its order and its i18n keys are the
+    // shared workspace vocabulary.
+    let tab_labels: Vec<String> = RulesTab::ALL
+        .iter()
+        .map(|tab| lang.tr(tab.i18n_key()).to_string())
+        .collect();
+    let tab_index = state.editor.rules_tab.index();
     let tabs = segmented_control(&tab_labels, tab_index, |index| {
-        Message::SetRulesTab(match index {
-            1 => RulesTab::Providers,
-            2 => RulesTab::JsonEditors,
-            3 => RulesTab::Tracer,
-            _ => RulesTab::RulesList,
-        })
+        Message::SetRulesTab(RulesTab::from_index(index))
     });
 
     if !state.editor.rules_heavy_ready {
@@ -1268,7 +1282,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
 
     let tab_content: Element<'_, Message> = match state.editor.rules_tab {
-        RulesTab::RulesList => rules_list_view(state, &lang, available_targets),
+        RulesTab::List => rules_list_view(state, &lang, available_targets),
         RulesTab::Providers => providers_view(state, &lang),
         RulesTab::JsonEditors => json_editors_view(state, &lang),
         RulesTab::Tracer => crate::view::rules_tracer::tracer_view(state, &lang),
