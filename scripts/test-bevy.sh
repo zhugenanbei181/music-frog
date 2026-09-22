@@ -96,3 +96,4 @@ python3 "$repo_root/scripts/quality/rules-engine-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/dns-studio-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/aggregator-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/multimodal-shell-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/notification-timeout-guard.py" --mode enforce

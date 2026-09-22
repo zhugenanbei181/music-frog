@@ -60,23 +60,32 @@ pub fn send(title: &str, body: &str, urgency: NotifyUrgency) -> bool {
 #[cfg(all(unix, not(target_os = "macos")))]
 mod backend {
     use super::NotifyUrgency;
-    use infiltrator_desktop::notify::{SystemNotification, SystemNotifier, warn_throttled};
+    use infiltrator_desktop::notify::{
+        NotificationLevel, SystemNotification, SystemNotifier, warn_throttled,
+    };
 
-    fn to_daemon_urgency(urgency: NotifyUrgency) -> notify_rust::Urgency {
+    /// D-Bus urgency hint. `Critical` is capped at `Normal`: the freedesktop
+    /// spec defines critical as "must be acknowledged", and daemons (KDE
+    /// Plasma) keep critical notifications on screen regardless of the
+    /// `expire_timeout` we send. Bounded display wins over the hint.
+    pub(super) fn to_daemon_urgency(urgency: NotifyUrgency) -> notify_rust::Urgency {
         match urgency {
             NotifyUrgency::Low => notify_rust::Urgency::Low,
-            NotifyUrgency::Normal => notify_rust::Urgency::Normal,
-            NotifyUrgency::Critical => notify_rust::Urgency::Critical,
+            NotifyUrgency::Normal | NotifyUrgency::Critical => notify_rust::Urgency::Normal,
         }
     }
 
     /// 阻塞式 D-Bus 提交，必须运行在阻塞线程上（见
     /// [`AppState::system_notify`] 的 spawn_blocking 护栏）。
     pub(super) fn send(title: &str, body: &str, urgency: NotifyUrgency) -> bool {
+        // Always send an explicit bounded expiry; without it the daemon picks
+        // the lifetime and may keep the notification visible indefinitely.
+        let timeout_ms = NotificationLevel::from(urgency).display_timeout_ms();
         let result = notify_rust::Notification::new()
             .summary(title)
             .body(body)
             .urgency(to_daemon_urgency(urgency))
+            .timeout(notify_rust::Timeout::Milliseconds(timeout_ms))
             .show();
         match result {
             Ok(_handle) => true,

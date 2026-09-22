@@ -41,11 +41,29 @@ impl NotificationLevel {
         }
     }
 
+    /// Freedesktop urgency hint for `notify-send -u`.
+    ///
+    /// `critical` is deliberately never emitted: the freedesktop spec defines it
+    /// as "the user must acknowledge this notification", and desktop daemons
+    /// (KDE Plasma, GNOME Shell) render it persistent regardless of the
+    /// `expire_timeout` we pass. Severity is still preserved in the app-level
+    /// [`NotificationLevel`] and by the icon/body text, but on-screen lifetime
+    /// must stay bounded.
     pub fn to_linux_urgency(&self) -> &'static str {
         match self {
             Self::Info => "low",
-            Self::Warning => "normal",
-            Self::Error => "critical",
+            Self::Warning | Self::Error => "normal",
+        }
+    }
+
+    /// Bounded on-screen lifetime in milliseconds, passed as `notify-send -t`.
+    ///
+    /// Every notification expires; there is intentionally no `never` value.
+    pub fn display_timeout_ms(&self) -> u32 {
+        match self {
+            Self::Info => 5_000,
+            Self::Warning => 7_000,
+            Self::Error => 10_000,
         }
     }
 }
@@ -354,6 +372,16 @@ pub fn build_linux_command_for(notification: &SystemNotification) -> Command {
 
     cmd.arg("-u").arg(notification.level.to_linux_urgency());
 
+    // Explicit bounded expiry: without `-t` the daemon decides (and persists
+    // for high urgencies), which pinned notifications on screen forever.
+    cmd.arg("-t")
+        .arg(notification.level.display_timeout_ms().to_string());
+
+    // Print the daemon-assigned notification id so the dispatcher can force a
+    // `CloseNotification` after the same bounded window, covering daemons that
+    // ignore `expire_timeout` regardless of what we ask for.
+    cmd.arg("--print-id");
+
     if let Some(ref icon) = notification.icon {
         cmd.arg("-i").arg(icon);
     }
@@ -362,6 +390,108 @@ pub fn build_linux_command_for(notification: &SystemNotification) -> Command {
     cmd.arg(&notification.body);
 
     cmd
+}
+
+/// Force-closes a Linux notification after its bounded display window.
+///
+/// `expire_timeout` is only a request: some daemons keep certain
+/// notifications on screen regardless (KDE Plasma does this for the
+/// `critical` urgency hint), which is the defect this guards against. A
+/// short-lived detached thread calls `CloseNotification` on the daemon; the
+/// notification id comes from `notify-send --print-id`. Every failure is
+/// silent and best-effort: the notification daemon may be absent, the
+/// notification may already be gone, and both are fine.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn spawn_linux_notification_closer(notification_id: u32, timeout_ms: u32) {
+    let _ = std::thread::Builder::new()
+        .name("notify-close".to_owned())
+        .spawn(move || {
+            std::thread::sleep(Duration::from_millis(u64::from(timeout_ms)));
+            let id = notification_id.to_string();
+
+            let busctl_args = [
+                "--user",
+                "call",
+                "org.freedesktop.Notifications",
+                "/org/freedesktop/Notifications",
+                "org.freedesktop.Notifications",
+                "CloseNotification",
+                "u",
+                id.as_str(),
+            ];
+            let closed = Command::new("busctl")
+                .args(busctl_args)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|status| status.success())
+                .unwrap_or(false);
+            if closed {
+                return;
+            }
+
+            let gdbus_args = [
+                "call",
+                "--session",
+                "--dest",
+                "org.freedesktop.Notifications",
+                "--object-path",
+                "/org/freedesktop/Notifications",
+                "--method",
+                "org.freedesktop.Notifications.CloseNotification",
+                id.as_str(),
+            ];
+            let _ = Command::new("gdbus")
+                .args(gdbus_args)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+        });
+}
+
+/// Spawns the platform notification command.
+///
+/// Linux/*BSD additionally reads the daemon-assigned notification id from
+/// `notify-send --print-id` and arms a forced close after the bounded display
+/// window, so a notification can never outlive its timeout.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn dispatch_command(cmd: &mut Command, notification: &SystemNotification) -> Result<()> {
+    use std::io::Read;
+
+    cmd.stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null());
+    let timeout_ms = notification.level.display_timeout_ms();
+    match cmd.spawn() {
+        Ok(mut child) => {
+            let mut raw = String::new();
+            let notification_id = child
+                .stdout
+                .take()
+                .and_then(|mut stdout| stdout.read_to_string(&mut raw).ok().map(|_| raw))
+                .and_then(|text| text.trim().parse::<u32>().ok());
+            let _ = child.wait();
+            if let Some(id) = notification_id {
+                spawn_linux_notification_closer(id, timeout_ms);
+            }
+            Ok(())
+        }
+        Err(e) => {
+            warn_throttled(&format!("System notification dispatch failed: {e}"));
+            Err(e)
+        }
+    }
+}
+
+/// Spawns the platform notification command (non-Linux platforms).
+#[cfg(not(all(unix, not(target_os = "macos"))))]
+fn dispatch_command(cmd: &mut Command, _notification: &SystemNotification) -> Result<()> {
+    match cmd.spawn() {
+        Ok(_child) => Ok(()),
+        Err(e) => {
+            warn_throttled(&format!("System notification dispatch failed: {e}"));
+            Err(e)
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -417,14 +547,7 @@ impl SystemNotifier {
 
         let sanitized = notification.sanitized();
         let mut cmd = self.build_command(&sanitized);
-
-        match cmd.spawn() {
-            Ok(_child) => Ok(()),
-            Err(e) => {
-                warn_throttled(&format!("System notification dispatch failed: {e}"));
-                Err(e)
-            }
-        }
+        dispatch_command(&mut cmd, &sanitized)
     }
 
     /// Synchronously dispatches a notification with a strict timeout guard.
@@ -644,13 +767,61 @@ World"#;
                 "-a",
                 "CustomApp",
                 "-u",
-                "critical",
+                "normal",
+                "-t",
+                "10000",
+                "--print-id",
                 "-i",
                 "icon.png",
                 "Linux Title",
                 "Linux Body"
             ]
         );
+    }
+
+    #[test]
+    fn test_notification_display_time_is_always_bounded() {
+        // Regression guard for the "notification pinned on screen forever"
+        // defect: every level must carry a positive, bounded expiry and the
+        // Linux urgency must never be the persistent `critical` hint.
+        for (level, upper_bound) in [
+            (NotificationLevel::Info, 5_000),
+            (NotificationLevel::Warning, 7_000),
+            (NotificationLevel::Error, 10_000),
+        ] {
+            let timeout = level.display_timeout_ms();
+            assert!(timeout > 0, "{level:?} must expire");
+            assert!(
+                timeout <= upper_bound,
+                "{level:?} timeout must stay bounded"
+            );
+            assert_ne!(level.to_linux_urgency(), "critical");
+        }
+
+        for level in [
+            NotificationLevel::Info,
+            NotificationLevel::Warning,
+            NotificationLevel::Error,
+        ] {
+            let cmd = build_linux_command_for(&SystemNotification::new("t", "b", level));
+            let args: Vec<String> = cmd
+                .get_args()
+                .map(|a| a.to_string_lossy().to_string())
+                .collect();
+            let index = args
+                .iter()
+                .position(|arg| arg == "-t")
+                .expect("notify-send must carry an explicit -t timeout");
+            let timeout: u32 = args[index + 1].parse().expect("numeric timeout");
+            assert!(timeout > 0 && timeout <= 10_000);
+            assert!(!args.iter().any(|arg| arg == "critical"));
+            // The id is required so the dispatcher can force-close the
+            // notification after the same bounded window.
+            assert!(
+                args.iter().any(|arg| arg == "--print-id"),
+                "notify-send must print the id for the forced close"
+            );
+        }
     }
 
     #[test]
