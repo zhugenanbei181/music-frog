@@ -115,9 +115,26 @@ fn test_proxy_and_rule_provider_row_render() {
         updated_at: "2026-09-02 12:00:00".into(),
         rule_count: 179,
     };
-    let _rule_element = rule_provider_row(&rule_p, &lang);
+    let _rule_element = rule_provider_row(&rule_p, Some("https://example.com/reject.mrs"), &lang);
 
     assert_eq!(format_provider_behavior(&rule_p.behavior), "Domain");
     assert_eq!(format_rule_provider_format(&rule_p), "HTTP");
     assert_eq!(total_external_rules(&[rule_p]), 179);
+}
+
+#[test]
+fn test_provider_lifecycle_line_reports_shared_source_url() {
+    // DUAL-11-04: declared URL renders; runtime-only providers stay honest.
+    assert_eq!(
+        provider_lifecycle_line("2026-09-06 12:00", Some("https://example.com/a.mrs")),
+        "Updated: 2026-09-06 12:00 · Source: https://example.com/a.mrs"
+    );
+    assert_eq!(
+        provider_lifecycle_line("2026-09-06 12:00", None),
+        "Updated: 2026-09-06 12:00 · Source: not declared"
+    );
+    assert_eq!(
+        provider_lifecycle_line("", None),
+        "Updated: — · Source: not declared"
+    );
 }

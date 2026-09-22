@@ -68,6 +68,55 @@ fn test_mrs_card_empty_and_populated() {
 }
 
 #[test]
+fn test_mrs_acceleration_card_renders_shared_status_and_items() {
+    let (mut state, _) = AppState::new();
+    let lang = Lang("en");
+
+    // The shared card always renders (unlike the cache-scan card).
+    drop(mrs_acceleration_card(&state));
+    assert!(
+        mrs_acceleration_status_line(&lang, &state.editor.mrs_acceleration).contains("Unavailable")
+    );
+
+    let item = infiltrator_contract::mrs_acceleration::MrsItemSnapshot {
+        name: "geoip-cn.mrs".into(),
+        behavior: infiltrator_contract::mrs_acceleration::MrsBehaviorKind::IpCidr,
+        format_version: 1,
+        compression: infiltrator_contract::mrs_acceleration::MrsCompressionKind::None,
+        rule_count: 8500,
+        payload_size_bytes: 128,
+        file_size_bytes: 192,
+        sha256_digest: Some("deadbeefcafebabe0123456789abcdef".into()),
+        crc32_checksum: Some(1),
+        is_mmap_accelerated: true,
+        is_valid: true,
+        description: String::new(),
+        updated_at: String::new(),
+        source_url: None,
+        unpack_supported: true,
+    };
+    state.editor.mrs_acceleration =
+        infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot::ready(
+            1,
+            1,
+            vec![item.clone()],
+            true,
+        );
+
+    let status = mrs_acceleration_status_line(&lang, &state.editor.mrs_acceleration);
+    assert!(status.contains("Acceleration ready"));
+    assert!(status.contains("1 rule sets"));
+    assert!(status.contains("mmap enabled"));
+
+    let label = mrs_acceleration_item_label(&lang, &item);
+    assert!(label.contains("geoip-cn.mrs"));
+    assert!(label.contains("8500 ipcidr"));
+    assert!(label.contains("valid"));
+    assert!(label.contains("sha256 deadbeefcafe"));
+    drop(mrs_acceleration_card(&state));
+}
+
+#[test]
 fn test_detail_row_render() {
     let lang = Lang("en");
     let detail = MrsProviderDetail {

@@ -232,6 +232,7 @@ fn rules_page_in_place_update() {
             rule_count: 5000,
             behavior: "domain".to_owned(),
             updated_at: "2026-09-02 12:00".to_owned(),
+            source_url: None,
         }],
         rules: vec![RuleItem {
             id: 1,
@@ -245,6 +246,7 @@ fn rules_page_in_place_update() {
         }],
         tracer: Default::default(),
         hit_audit: Default::default(),
+        mrs_acceleration: Default::default(),
     };
 
     app.world_mut()

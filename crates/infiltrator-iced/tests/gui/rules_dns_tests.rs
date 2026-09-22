@@ -38,6 +38,46 @@ fn test_rules_render_cache_and_filter() {
 }
 
 #[test]
+fn test_rules_filter_and_pagination_delegate_to_shared_reduction() {
+    let (mut state, _) = AppState::new();
+    let rules: Vec<RuleEntry> = (0..5)
+        .map(|index| RuleEntry {
+            rule: format!("DOMAIN-SUFFIX,site{index}.com,DIRECT"),
+            enabled: true,
+        })
+        .collect();
+    let _ = state.update(Message::RulesLoaded(Ok(rules)));
+    assert_eq!(
+        state.editor.rules_filtered_indices,
+        infiltrator_domain::rules::view::filter_rule_indices(&state.editor.rules, "")
+    );
+
+    state.editor.rules_page_size = 2;
+    let _ = state.update(Message::RulesSetPage(1));
+    assert_eq!(
+        infiltrator_domain::rules::view::page_bounds(1, 5, 2),
+        (2, 4)
+    );
+    assert_eq!(state.editor.rules_page, 1);
+    assert_eq!(state.diag.perf_snapshot.rules_visible_rows, 2);
+
+    // Forward paging stops at the shared last page; a stale page clamps back.
+    let _ = state.update(Message::RulesNextPage);
+    assert_eq!(state.editor.rules_page, 2);
+    let _ = state.update(Message::RulesNextPage);
+    assert_eq!(state.editor.rules_page, 2);
+    let _ = state.update(Message::RulesSetPage(99));
+    assert_eq!(
+        state.editor.rules_page,
+        infiltrator_domain::rules::view::clamp_page(99, 5, 2)
+    );
+
+    let _ = state.update(Message::FilterRules("site4".into()));
+    assert_eq!(state.editor.rules_page, 0);
+    assert_eq!(state.editor.rules_filtered_indices.len(), 1);
+}
+
+#[test]
 fn test_rules_pagination_bounds() {
     let (mut state, _) = AppState::new();
     let rules: Vec<RuleEntry> = (0..450)
@@ -474,9 +514,13 @@ fn test_rule_provider_diff_and_unpack_flow() {
         1420 + 850 + 572
     );
 
-    let _dom_elem = crate::view::rules::rule_provider_row(&domain_provider, &lang);
-    let _ipc_elem = crate::view::rules::rule_provider_row(&ipcidr_provider, &lang);
-    let _cls_elem = crate::view::rules::rule_provider_row(&classical_provider, &lang);
+    let _dom_elem = crate::view::rules::rule_provider_row(
+        &domain_provider,
+        Some("https://example.com/domain.mrs"),
+        &lang,
+    );
+    let _ipc_elem = crate::view::rules::rule_provider_row(&ipcidr_provider, None, &lang);
+    let _cls_elem = crate::view::rules::rule_provider_row(&classical_provider, None, &lang);
 
     state.editor.rule_providers = providers;
     let _providers_elem = crate::view::rules::providers_view(&state, &lang);

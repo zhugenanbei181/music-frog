@@ -44,7 +44,6 @@ impl AppState {
                 let (rule_type, payload, target) = Self::split_rule_parts(&entry.rule);
                 RuleRenderItem {
                     source_index: index,
-                    search_key: entry.rule.to_lowercase(),
                     badge: Self::rule_badge_kind(&rule_type),
                     rule_type,
                     payload,
@@ -56,46 +55,28 @@ impl AppState {
     }
 
     /// Recompute the filtered rules page indices. pub(crate) so the demo
-    /// constructor can apply its empty filter once at boot.
+    /// constructor can apply its empty filter once at boot. DUAL-11-13: the
+    /// match predicate, page size fallback, clamp and visible-row arithmetic
+    /// all delegate to `infiltrator_domain::rules::view` so both surfaces page
+    /// identically.
     pub(crate) fn apply_rules_filter(&mut self) {
-        let filter = self.editor.rules_filter.trim().to_ascii_lowercase();
-        self.editor.rules_filtered_indices = if filter.is_empty() {
-            (0..self.editor.rules_render_cache.len()).collect()
-        } else {
-            self.editor
-                .rules_render_cache
-                .iter()
-                .enumerate()
-                .filter_map(|(cache_index, item)| {
-                    if item.search_key.contains(&filter) {
-                        Some(cache_index)
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        };
-        if self.editor.rules_page_size == 0 {
-            self.editor.rules_page_size = 200;
-        }
-        let total_pages = if self.editor.rules_filtered_indices.is_empty() {
-            1
-        } else {
-            (self.editor.rules_filtered_indices.len() - 1) / self.editor.rules_page_size + 1
-        };
-        if self.editor.rules_page >= total_pages {
-            self.editor.rules_page = total_pages.saturating_sub(1);
-        }
-        let start = self
-            .editor
-            .rules_page
-            .saturating_mul(self.editor.rules_page_size);
-        self.diag.perf_snapshot.rules_visible_rows = self
-            .editor
-            .rules_filtered_indices
-            .len()
-            .saturating_sub(start)
-            .min(self.editor.rules_page_size);
+        self.editor.rules_filtered_indices = infiltrator_domain::rules::view::filter_rule_indices(
+            &self.editor.rules,
+            &self.editor.rules_filter,
+        );
+        self.editor.rules_page_size =
+            infiltrator_domain::rules::view::effective_page_size(self.editor.rules_page_size);
+        self.editor.rules_page = infiltrator_domain::rules::view::clamp_page(
+            self.editor.rules_page,
+            self.editor.rules_filtered_indices.len(),
+            self.editor.rules_page_size,
+        );
+        let (start, end) = infiltrator_domain::rules::view::page_bounds(
+            self.editor.rules_page,
+            self.editor.rules_filtered_indices.len(),
+            self.editor.rules_page_size,
+        );
+        self.diag.perf_snapshot.rules_visible_rows = end.saturating_sub(start);
     }
 
     fn reset_rules_lazy_state(&mut self) {
@@ -371,11 +352,10 @@ impl AppState {
                 Task::none()
             }
             Message::RulesNextPage => {
-                let total_pages = if self.editor.rules_filtered_indices.is_empty() {
-                    1
-                } else {
-                    (self.editor.rules_filtered_indices.len() - 1) / self.editor.rules_page_size + 1
-                };
+                let total_pages = infiltrator_domain::rules::view::page_count(
+                    self.editor.rules_filtered_indices.len(),
+                    self.editor.rules_page_size,
+                );
                 if self.editor.rules_page + 1 < total_pages {
                     self.editor.rules_page += 1;
                 }

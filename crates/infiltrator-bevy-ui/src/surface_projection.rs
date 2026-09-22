@@ -176,6 +176,7 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
             default_action: value.default_action.clone(),
             tracer: value.tracer.clone(),
             hit_audit: value.tracer.hit_audit.clone(),
+            mrs_acceleration: value.mrs_acceleration.clone(),
             providers: value
                 .providers
                 .iter()
@@ -184,6 +185,7 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
                     rule_count: provider.rule_count,
                     behavior: provider.behavior.clone(),
                     updated_at: provider.updated_at.clone(),
+                    source_url: provider.source_url.clone(),
                 })
                 .collect(),
             rules: value

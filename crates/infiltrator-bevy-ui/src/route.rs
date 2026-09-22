@@ -340,6 +340,7 @@ impl Plugin for PagesPlugin {
                 sync_overview_speedtest_detail,
                 sync_proxies_node_columns,
                 crate::pages::connections_view::sync_connections_search,
+                crate::pages::rules_view::sync_rules_view,
             ),
         );
     }

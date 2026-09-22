@@ -244,6 +244,11 @@ pub struct RuleProviderSnapshot {
     pub rule_count: usize,
     pub behavior: String,
     pub updated_at: String,
+    /// DUAL-11-04: the `rule-providers` source URL declared in the active
+    /// profile, when the provider is config-backed (runtime-only providers
+    /// honestly report `None` instead of a fabricated address).
+    #[serde(default)]
+    pub source_url: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

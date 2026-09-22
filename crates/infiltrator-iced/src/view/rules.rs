@@ -364,15 +364,32 @@ pub fn total_external_rules(rule_providers: &[RuleProvider]) -> u32 {
     rule_providers.iter().map(|rp| rp.rule_count).sum()
 }
 
-pub fn rule_provider_row<'a>(provider: &RuleProvider, _lang: &Lang<'_>) -> Element<'a, Message> {
+/// DUAL-11-04: provider lifecycle line combining the last update time with the
+/// declared source URL (or an honest "not declared" for runtime-only
+/// providers). No fabricated address.
+pub fn provider_lifecycle_line(updated_at: &str, source_url: Option<&str>) -> String {
+    let mut parts = Vec::new();
+    if updated_at.is_empty() {
+        parts.push("Updated: —".to_string());
+    } else {
+        parts.push(format!("Updated: {updated_at}"));
+    }
+    match source_url {
+        Some(url) if !url.is_empty() => parts.push(format!("Source: {url}")),
+        _ => parts.push("Source: not declared".to_string()),
+    }
+    parts.join(" · ")
+}
+
+pub fn rule_provider_row<'a>(
+    provider: &RuleProvider,
+    source_url: Option<&str>,
+    _lang: &Lang<'_>,
+) -> Element<'a, Message> {
     let behavior_badge_text = format_provider_behavior(&provider.behavior);
     let rule_count_str = crate::view::mrs_panel::format_rule_count(provider.rule_count);
     let format_str = format_rule_provider_format(provider);
-    let updated_text = if provider.updated_at.is_empty() {
-        "—".to_string()
-    } else {
-        format!("Updated: {}", provider.updated_at)
-    };
+    let updated_text = provider_lifecycle_line(&provider.updated_at, source_url);
 
     let actions = row![
         button(
@@ -941,7 +958,12 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             ));
         } else {
             for provider in &state.editor.rule_providers {
-                rule_list = rule_list.push(rule_provider_row(provider, lang));
+                let source_url = state
+                    .editor
+                    .rule_provider_source_urls
+                    .get(&provider.name)
+                    .map(String::as_str);
+                rule_list = rule_list.push(rule_provider_row(provider, source_url, lang));
             }
         }
 
@@ -1043,6 +1065,9 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                 .push(Space::new().height(theme::SP_MD))
                 .push(mrs_panel);
         }
+        content = content
+            .push(Space::new().height(theme::SP_MD))
+            .push(crate::view::mrs_panel::mrs_acceleration_card(state));
     }
     content.into()
 }

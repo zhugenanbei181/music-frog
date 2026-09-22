@@ -264,6 +264,13 @@ pub struct ConfigEditorState {
     pub rules_render_cache: Vec<RuleRenderItem>,
     pub rules_filtered_indices: Vec<usize>,
     pub rules_heavy_ready: bool,
+    /// DUAL-11-04: provider source URLs declared in the active profile, keyed
+    /// by provider name and projected from the shared surface read model.
+    pub rule_provider_source_urls: HashMap<String, String>,
+    /// DUAL-11-03: shared MRS binary acceleration read model, projected from
+    /// the surface reader. The providers tab renders this, never a local
+    /// fabricated rule-set list.
+    pub mrs_acceleration: infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
     pub rule_providers_json_content: text_editor::Content,
     pub proxy_providers_json_content: text_editor::Content,
     pub sniffer_json_content: text_editor::Content,
@@ -522,6 +529,19 @@ impl AppState {
             self.editor.rules_tracer_can_reverse_apply = rules_page.tracer.can_reverse_apply;
             self.editor.rules_tracer_suggested_target =
                 rules_page.tracer.suggested_override_target.clone();
+            // DUAL-11-03 / 11-04: the MRS acceleration read model and the
+            // declared provider source URLs are shared facts, never UI-local.
+            self.editor.mrs_acceleration = rules_page.mrs_acceleration.clone();
+            self.editor.rule_provider_source_urls = rules_page
+                .providers
+                .iter()
+                .filter_map(|provider| {
+                    provider
+                        .source_url
+                        .as_ref()
+                        .map(|url| (provider.name.clone(), url.clone()))
+                })
+                .collect();
         }
         self.diag.overview_card_order = snapshot.overview_layout.order.clone();
         self.runtime.system_toggles =
