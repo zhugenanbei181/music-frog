@@ -57,6 +57,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_bevy_widgets::adaptive_modal::{OpenModal, adaptive_modal_scene};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::chart::topology::TopologyPlate;
 use infiltrator_bevy_widgets::chart::{ChartPlate, ChartSpec, chart_scene_with_scale};
@@ -77,6 +78,7 @@ use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::speedtest::{EgressCountryMatch, NodeSpeedtestResult, SpeedtestSnapshot};
 use infiltrator_contract::speedtest::{HistoricalSpeedtestRecord, SpeedtestScope};
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
 
@@ -391,6 +393,20 @@ pub struct OverviewSpeedtestConcurrencyText;
 /// observer reads the live bound and submits `SetSpeedtestConcurrency`.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewSpeedtestConcurrencyStep(pub i64);
+
+/// DUAL-06-12: caption showing the fastest node's reported egress endpoint and
+/// the honest label-vs-egress country comparison.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewSpeedtestEgressText;
+
+/// DUAL-06-13: button that opens the per-node speedtest detail modal.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewSpeedtestDetailButton;
+
+/// DUAL-06-13: the modal body caption restamped with every measured node's
+/// metrics from the shared snapshot (honest empty / failed states).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewSpeedtestDetailBodyText;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewModePill(pub ProxyMode);
@@ -832,8 +848,63 @@ fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> {
                 OverviewSpeedtestHistoryText
                 TextRole(Role::Caption)
             ),
+            (
+                Node {
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(space::S6),
+                    flex_shrink: 0.0,
+                }
+                Children [
+                    (
+                        Node {
+                            min_height: px(24.0),
+                            padding: UiRect::horizontal(Val::Px(space::S8)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            flex_shrink: 0.0,
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.border })
+                        Button
+                        OverviewSpeedtestDetailButton
+                        Children [ ( Text({ "详情".to_owned() }) TextRole(Role::Caption) ) ]
+                    ),
+                    (
+                        Text({ "—".to_owned() })
+                        OverviewSpeedtestEgressText
+                        TextRole(Role::Caption)
+                    ),
+                ]
+            ),
         ]
     }
+}
+
+/// DUAL-06-13: the Overview speedtest detail modal scene. The body caption is
+/// restamped from the shared snapshot by `sync_overview_speedtest_detail`; the
+/// modal widget layer owns open/close visibility and responsive morphology.
+pub fn overview_speedtest_detail_modal_scene(palette: &UiPalette) -> Box<dyn Scene> {
+    let body = Box::new(bsn! {
+        Node {
+            width: percent(100),
+            max_height: px(360.0),
+            flex_direction: FlexDirection::Column,
+            overflow: Overflow::scroll_y(),
+        }
+        Children [
+            (
+                Text({ "—".to_owned() })
+                OverviewSpeedtestDetailBodyText
+                TextRole(Role::Caption)
+            ),
+        ]
+    });
+    adaptive_modal_scene(
+        "测速结果明细".to_owned(),
+        body,
+        Vec::<Box<dyn Scene>>::new(),
+        palette,
+    )
 }
 
 /// The banner's trailing action: demo sources keep the danger stop pill
@@ -1407,6 +1478,7 @@ fn bind_overview_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(on_overview_mode_segment_activated);
     commands.add_observer(on_overview_speedtest_activated);
     commands.add_observer(on_overview_speedtest_concurrency_stepped);
+    commands.add_observer(on_overview_speedtest_detail_activated);
     commands.add_observer(on_overview_public_ip_refresh_activated);
     commands.add_observer(on_overview_card_move_up_activated);
     commands.add_observer(on_overview_card_move_down_activated);
@@ -1533,6 +1605,129 @@ pub(crate) fn on_overview_speedtest_concurrency_stepped(
     let current = latest.0.speedtest.config.concurrency as i64;
     let next = (current + step.0).clamp(1, 64) as usize;
     handle.submit(UiCommand::SetSpeedtestConcurrency { limit: next });
+}
+
+/// DUAL-06-13: open the detail modal from the shared snapshot. Pure view state
+/// in the modal widget layer; the observer never probes or fabricates a node.
+pub(crate) fn on_overview_speedtest_detail_activated(
+    activate: On<Activate>,
+    buttons: Query<&OverviewSpeedtestDetailButton>,
+    mut commands: Commands,
+) {
+    if buttons.get(activate.entity).is_err() {
+        return;
+    }
+    commands.trigger(OpenModal);
+}
+
+/// Disjoint filter for the reported egress caption.
+type SpeedtestEgressFilter = (
+    With<OverviewSpeedtestEgressText>,
+    Without<OverviewSpeedtestDetailBodyText>,
+    Without<OverviewSpeedtestText>,
+    Without<OverviewSpeedtestMetricsText>,
+    Without<OverviewSpeedtestDeadText>,
+    Without<OverviewSpeedtestHistoryText>,
+    Without<OverviewSpeedtestConcurrencyText>,
+);
+
+/// Disjoint filter for the detail-modal body caption.
+type SpeedtestDetailBodyFilter = (
+    With<OverviewSpeedtestDetailBodyText>,
+    Without<OverviewSpeedtestEgressText>,
+    Without<OverviewSpeedtestText>,
+    Without<OverviewSpeedtestMetricsText>,
+    Without<OverviewSpeedtestDeadText>,
+    Without<OverviewSpeedtestHistoryText>,
+    Without<OverviewSpeedtestConcurrencyText>,
+);
+
+/// One honest line for a node in the detail modal.
+fn overview_detail_line(node: &NodeSpeedtestResult) -> String {
+    let delay = node
+        .delay_ms
+        .map(|ms| format!("{ms}ms"))
+        .unwrap_or_else(|| "—".to_owned());
+    let jitter = node
+        .jitter
+        .as_ref()
+        .map(|j| format!("{:.1}ms", j.jitter_ms))
+        .unwrap_or_else(|| "—".to_owned());
+    let loss = node
+        .jitter
+        .as_ref()
+        .map(|j| format!("{:.1}%", j.loss_percent))
+        .unwrap_or_else(|| "—".to_owned());
+    let bandwidth = node
+        .bandwidth_mbps
+        .map(|mbps| format!("{mbps:.1}Mbps"))
+        .unwrap_or_else(|| "—".to_owned());
+    let stars = "★".repeat(node.star_rating.min(5) as usize);
+    let match_label = match node.egress_country_match() {
+        EgressCountryMatch::Match => "归属一致",
+        EgressCountryMatch::Mismatch => "归属不一致",
+        EgressCountryMatch::Unlabelled => "无标签国家",
+        EgressCountryMatch::Unknown => "出口未探测",
+    };
+    format!(
+        "{} · 延迟 {delay} · 抖动 {jitter} · 丢包 {loss} · 带宽 {bandwidth} · {stars} · 出口 {} · {match_label}",
+        node.node_name,
+        node.egress_endpoint_label(),
+    )
+}
+
+/// Honest modal body: empty / failed states are literal, never fabricated.
+fn overview_detail_body(snapshot: &SpeedtestSnapshot) -> String {
+    if snapshot.node_results.is_empty() {
+        return match &snapshot.failure {
+            Some(failure) => format!("测速失败: {failure}"),
+            None => "暂无测速结果".to_owned(),
+        };
+    }
+    let mut lines: Vec<String> = vec![format!("出口状态: {}", snapshot.egress_summary())];
+    for node in snapshot.sorted_by_latency() {
+        lines.push(overview_detail_line(node));
+    }
+    lines.join("\n")
+}
+
+/// DUAL-06-12/13: restamp the egress caption and the detail-modal body from the
+/// one shared snapshot. Neither surface owns a metric of its own.
+pub fn sync_overview_speedtest_detail(
+    last: Res<LastOverviewProjection>,
+    mut egress: Query<&mut Text, SpeedtestEgressFilter>,
+    mut detail: Query<&mut Text, SpeedtestDetailBodyFilter>,
+) {
+    let Some(projection) = last.0.as_ref() else {
+        return;
+    };
+    let snapshot = &projection.speedtest;
+
+    let egress_label = match snapshot.fastest_node() {
+        Some(node) => format!(
+            "出口 {} · {}",
+            node.egress_endpoint_label(),
+            match node.egress_country_match() {
+                EgressCountryMatch::Match => "归属一致",
+                EgressCountryMatch::Mismatch => "归属不一致",
+                EgressCountryMatch::Unlabelled => "无标签国家",
+                EgressCountryMatch::Unknown => "出口未探测",
+            }
+        ),
+        None => "—".to_owned(),
+    };
+    for mut text in &mut egress {
+        if text.0 != egress_label {
+            text.0 = egress_label.clone();
+        }
+    }
+
+    let body_label = overview_detail_body(snapshot);
+    for mut text in &mut detail {
+        if text.0 != body_label {
+            text.0 = body_label.clone();
+        }
+    }
 }
 
 /// Restamp the Overview speedtest button from the shared engine snapshot.

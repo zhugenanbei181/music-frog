@@ -219,6 +219,55 @@ impl JitterCalculation {
     }
 }
 
+/// DUAL-06-12: honest comparison between the country implied by a node label
+/// and the country actually reported by a real egress probe through that node.
+///
+/// This is a pure classification over two already-known facts; the read model
+/// never derives an egress fact it does not have. Desktop hosts that cannot
+/// probe through a node leave the reported country `None`, which stays
+/// [`EgressCountryMatch::Unknown`] rather than being guessed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EgressCountryMatch {
+    /// No egress country was reported yet (host cannot probe through a node,
+    /// or the probe has not run). Never a failure — just an unknown fact.
+    Unknown,
+    /// Neither the label nor the probe implies a country.
+    Unlabelled,
+    /// The label-derived country equals the reported egress country.
+    Match,
+    /// Both countries are known and differ: the node's label is misleading.
+    Mismatch,
+}
+
+impl EgressCountryMatch {
+    /// Compare a label-derived country with a reported egress country.
+    pub fn classify(label_country: Option<&str>, egress_country: Option<&str>) -> Self {
+        let label = label_country.map(str::trim).filter(|s| !s.is_empty());
+        let egress = egress_country.map(str::trim).filter(|s| !s.is_empty());
+        match (label, egress) {
+            (_, None) => Self::Unknown,
+            (None, Some(_)) => Self::Unlabelled,
+            (Some(l), Some(e)) if l.eq_ignore_ascii_case(e) => Self::Match,
+            (Some(_), Some(_)) => Self::Mismatch,
+        }
+    }
+
+    pub const fn is_mismatch(self) -> bool {
+        matches!(self, Self::Mismatch)
+    }
+
+    /// One honest token for guards and compact captions.
+    pub const fn as_token(self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Unlabelled => "unlabelled",
+            Self::Match => "match",
+            Self::Mismatch => "mismatch",
+        }
+    }
+}
+
 /// Lifecycle phases of the speedtest engine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -281,10 +330,41 @@ pub struct NodeSpeedtestResult {
     pub bandwidth_mbps: Option<f64>,
     pub packet_loss: PacketLossRating,
     pub star_rating: u8,
+    /// DUAL-06-12: ISO country code derived from the node's own label. This is
+    /// a label fact, kept separate from the reported egress fact so the two can
+    /// be compared honestly instead of conflated.
+    pub label_country: Option<String>,
+    /// DUAL-06-12: real egress IP reported by the host's outbound probe. `None`
+    /// until a probe through the node has actually succeeded.
     pub outbound_ip: Option<String>,
+    /// DUAL-06-12: real egress country reported by the host's outbound probe.
     pub outbound_country: Option<String>,
     pub is_alive: bool,
     pub tested_at_epoch_ms: u64,
+}
+
+impl NodeSpeedtestResult {
+    /// Classify the label-derived country against the reported egress country.
+    pub fn egress_country_match(&self) -> EgressCountryMatch {
+        EgressCountryMatch::classify(
+            self.label_country.as_deref(),
+            self.outbound_country.as_deref(),
+        )
+    }
+
+    /// Honest one-line egress endpoint caption: `ip (CC)` when reported, `—`
+    /// when the host has not probed through this node.
+    pub fn egress_endpoint_label(&self) -> String {
+        match (
+            self.outbound_ip.as_deref(),
+            self.outbound_country.as_deref(),
+        ) {
+            (Some(ip), Some(country)) if !country.is_empty() => format!("{ip} ({country})"),
+            (Some(ip), _) => ip.to_string(),
+            (None, Some(country)) if !country.is_empty() => format!("— ({country})"),
+            _ => "—".to_string(),
+        }
+    }
 }
 
 /// Historical summary entry of a completed speedtest run.
@@ -359,6 +439,7 @@ impl SpeedtestSnapshot {
                 bandwidth_mbps: Some(184.5),
                 packet_loss: PacketLossRating::Excellent,
                 star_rating: 5,
+                label_country: Some("HK".to_string()),
                 outbound_ip: Some("103.242.175.12".to_string()),
                 outbound_country: Some("HK".to_string()),
                 is_alive: true,
@@ -378,6 +459,7 @@ impl SpeedtestSnapshot {
                 bandwidth_mbps: Some(125.0),
                 packet_loss: PacketLossRating::Excellent,
                 star_rating: 4,
+                label_country: Some("JP".to_string()),
                 outbound_ip: Some("133.242.18.5".to_string()),
                 outbound_country: Some("JP".to_string()),
                 is_alive: true,
@@ -397,6 +479,7 @@ impl SpeedtestSnapshot {
                 bandwidth_mbps: None,
                 packet_loss: PacketLossRating::Dead,
                 star_rating: 1,
+                label_country: None,
                 outbound_ip: None,
                 outbound_country: None,
                 is_alive: false,
@@ -444,6 +527,34 @@ impl SpeedtestSnapshot {
 
     pub fn dead_nodes(&self) -> Vec<&NodeSpeedtestResult> {
         self.node_results.values().filter(|n| !n.is_alive).collect()
+    }
+
+    /// DUAL-06-12: nodes whose label country and reported egress country are
+    /// both known and disagree. Derived purely from the published results.
+    pub fn egress_country_mismatches(&self) -> Vec<&NodeSpeedtestResult> {
+        self.node_results
+            .values()
+            .filter(|n| n.egress_country_match().is_mismatch())
+            .collect()
+    }
+
+    /// DUAL-06-12: how many nodes have a real reported egress IP.
+    pub fn egress_reported_count(&self) -> usize {
+        self.node_results
+            .values()
+            .filter(|n| n.outbound_ip.is_some())
+            .count()
+    }
+
+    /// DUAL-06-12: compact read-model caption for the egress comparison, e.g.
+    /// `出口 2/3 · 不一致 1`. Honest zero/empty facts are represented literally.
+    pub fn egress_summary(&self) -> String {
+        format!(
+            "出口 {}/{} · 不一致 {}",
+            self.egress_reported_count(),
+            self.node_count(),
+            self.egress_country_mismatches().len()
+        )
     }
 
     pub fn fastest_node(&self) -> Option<&NodeSpeedtestResult> {
@@ -561,5 +672,40 @@ mod tests {
             snapshot.fastest_node().unwrap().node_name,
             "🇭🇰 香港 01 · BGP 专线"
         );
+    }
+
+    #[test]
+    fn test_egress_country_match_classification() {
+        assert_eq!(
+            EgressCountryMatch::classify(None, None),
+            EgressCountryMatch::Unknown
+        );
+        assert_eq!(
+            EgressCountryMatch::classify(Some("HK"), None),
+            EgressCountryMatch::Unknown
+        );
+        assert_eq!(
+            EgressCountryMatch::classify(None, Some("US")),
+            EgressCountryMatch::Unlabelled
+        );
+        assert_eq!(
+            EgressCountryMatch::classify(Some("hk"), Some("HK")),
+            EgressCountryMatch::Match
+        );
+        assert_eq!(
+            EgressCountryMatch::classify(Some("HK"), Some("US")),
+            EgressCountryMatch::Mismatch
+        );
+        assert!(EgressCountryMatch::Mismatch.is_mismatch());
+        assert_eq!(EgressCountryMatch::Mismatch.as_token(), "mismatch");
+    }
+
+    #[test]
+    fn test_snapshot_egress_summary_from_fixture() {
+        let snapshot = SpeedtestSnapshot::demo_fixture();
+        // Two nodes reported a real egress IP; neither label contradicts it.
+        assert_eq!(snapshot.egress_reported_count(), 2);
+        assert!(snapshot.egress_country_mismatches().is_empty());
+        assert_eq!(snapshot.egress_summary(), "出口 2/3 · 不一致 0");
     }
 }

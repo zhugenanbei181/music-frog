@@ -425,6 +425,11 @@ pub enum Message {
     /// DUAL-06-01: adjust the shared engine's concurrency bound by a signed
     /// step. The effective value is read back from `snapshot.config.concurrency`.
     AdjustSpeedtestConcurrency(i32),
+    /// DUAL-06-13: open the per-node speedtest detail modal. The modal only
+    /// reads the shared snapshot; it owns no metrics of its own.
+    OpenSpeedtestDetail,
+    /// DUAL-06-13: close the speedtest detail modal.
+    CloseSpeedtestDetail,
     /// Move one Overview card one slot up in the shared layout order.
     MoveOverviewCardUp(infiltrator_contract::overview_layout::OverviewCardKind),
     /// Move one Overview card one slot down in the shared layout order.

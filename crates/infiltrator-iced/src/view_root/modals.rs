@@ -9,7 +9,7 @@ use iced::widget::{
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
 
-fn modal_backdrop<'a>(dialog: Element<'a, Message>) -> Element<'a, Message> {
+pub(super) fn modal_backdrop<'a>(dialog: Element<'a, Message>) -> Element<'a, Message> {
     container(
         container(dialog)
             .center_x(Length::Fill)
@@ -30,7 +30,7 @@ fn modal_backdrop<'a>(dialog: Element<'a, Message>) -> Element<'a, Message> {
     .into()
 }
 
-fn modal_card<'a>(content: Element<'a, Message>, width: f32) -> Element<'a, Message> {
+pub(super) fn modal_card<'a>(content: Element<'a, Message>, width: f32) -> Element<'a, Message> {
     container(content)
         .width(Length::Fixed(width))
         .padding(24)

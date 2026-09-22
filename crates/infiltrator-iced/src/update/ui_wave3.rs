@@ -137,6 +137,16 @@ impl AppState {
                 format!("Speedtest failed: {error}"),
                 ToastStatus::Error,
             )),
+            // DUAL-06-13: the detail modal is pure view state over the shared
+            // snapshot; opening it never triggers a probe or fabricates data.
+            Message::OpenSpeedtestDetail => {
+                self.diag.speedtest_detail_open = true;
+                Task::none()
+            }
+            Message::CloseSpeedtestDetail => {
+                self.diag.speedtest_detail_open = false;
+                Task::none()
+            }
             Message::CheckGeoDataUpdates => {
                 // mihomo's controller exposes no geo version/size query, so
                 // the honest answer is "cannot verify" — never fabricated

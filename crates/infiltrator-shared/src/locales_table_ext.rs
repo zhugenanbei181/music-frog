@@ -105,6 +105,17 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "speedtest_target_url_label" => "测速目标 URL".into(),
         "speedtest_target_url_placeholder" => "留空使用共享引擎默认目标".into(),
         "speedtest_concurrency_label" => "并发数".into(),
+        "speedtest_detail_open" => "结果透视".into(),
+        "speedtest_detail_title" => "测速结果明细".into(),
+        "speedtest_detail_empty" => "暂无测速结果".into(),
+        "speedtest_detail_failed" => "测速失败".into(),
+        "speedtest_detail_egress" => "出口".into(),
+        "speedtest_detail_delay" => "延迟".into(),
+        "speedtest_detail_stars" => "星级".into(),
+        "speedtest_detail_match" => "归属一致".into(),
+        "speedtest_detail_mismatch" => "归属不一致".into(),
+        "speedtest_detail_unlabelled" => "无标签国家".into(),
+        "speedtest_detail_unknown" => "出口未探测".into(),
 
         // Category 4: Geo Database Updater
         "geodata_title" => "GeoIP / GeoSite 数据库管理".into(),

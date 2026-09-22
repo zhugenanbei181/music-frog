@@ -2151,3 +2151,103 @@ fn test_overview_dual_surface_headless_regression_matrix_full_coverage() {
     assert_eq!(report.total_scenarios, 14);
     assert_eq!(report.passed_scenarios, 14);
 }
+
+#[test]
+fn overview_speedtest_egress_and_detail_modal_follow_shared_engine() {
+    // DUAL-06-12/13/14: the egress comparison caption and the detail modal
+    // must both restamp from the one shared snapshot Iced reads.
+    let mut app = mounted_default();
+
+    let read_egress = |app: &mut App| -> String {
+        let world = app.world_mut();
+        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
+            infiltrator_bevy_ui::pages::overview::OverviewSpeedtestEgressText,
+        >>();
+        texts
+            .iter(world)
+            .next()
+            .map(|t| t.0.clone())
+            .expect("speedtest egress caption mounted")
+    };
+    let read_body = |app: &mut App| -> String {
+        let world = app.world_mut();
+        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
+            infiltrator_bevy_ui::pages::overview::OverviewSpeedtestDetailBodyText,
+        >>();
+        texts
+            .iter(world)
+            .next()
+            .map(|t| t.0.clone())
+            .expect("speedtest detail body mounted")
+    };
+
+    // Honest empty state: no fabricated node, no fabricated egress.
+    let mut projection = DemoOverviewSource::running().current();
+    projection.speedtest = infiltrator_contract::speedtest::SpeedtestSnapshot::default();
+    app.world_mut()
+        .commands()
+        .trigger(infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated(projection));
+    app.update();
+    assert_eq!(read_egress(&mut app), "—");
+    assert!(read_body(&mut app).contains("暂无测速结果"));
+
+    // A HK-labelled node reporting a US egress is an honest mismatch.
+    let mut projection = DemoOverviewSource::running().current();
+    let mut snapshot = infiltrator_contract::speedtest::SpeedtestSnapshot::demo_fixture();
+    if let Some(node) = snapshot.node_results.get_mut("💀 超时不可用节点 01") {
+        node.is_alive = true;
+        node.delay_ms = Some(20);
+        node.star_rating = 2;
+        node.label_country = Some("HK".to_owned());
+        node.outbound_ip = Some("45.32.1.9".to_owned());
+        node.outbound_country = Some("US".to_owned());
+    }
+    projection.speedtest = snapshot;
+    app.world_mut()
+        .commands()
+        .trigger(infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated(projection));
+    app.update();
+
+    let egress = read_egress(&mut app);
+    assert!(egress.contains("45.32.1.9 (US)"), "egress={egress}");
+    assert!(egress.contains("归属不一致"), "egress={egress}");
+
+    let body = read_body(&mut app);
+    assert!(body.contains("出口状态"), "body={body}");
+    assert!(body.contains("归属不一致"), "body={body}");
+    assert!(body.contains("20ms"), "body={body}");
+
+    // The modal is closed by default and opens from its shared-intent button.
+    assert!(
+        !app.world()
+            .resource::<infiltrator_bevy_widgets::adaptive_modal::ModalState>()
+            .is_open
+    );
+    let button = {
+        let world = app.world_mut();
+        let mut buttons = world.query::<(
+            Entity,
+            &infiltrator_bevy_ui::pages::overview::OverviewSpeedtestDetailButton,
+        )>();
+        buttons
+            .iter(world)
+            .next()
+            .expect("speedtest detail button mounted")
+            .0
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+    assert!(
+        app.world()
+            .resource::<infiltrator_bevy_widgets::adaptive_modal::ModalState>()
+            .is_open
+    );
+
+    // DUAL-06-14: both surfaces are driven by the one shared matrix report.
+    let report =
+        infiltrator_contract::speedtest_matrix::SpeedtestRegressionMatrixReport::run_deterministic_matrix();
+    assert!(report.is_all_passed());
+    assert_eq!(report.total_scenarios, 15);
+}

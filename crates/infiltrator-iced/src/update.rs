@@ -197,6 +197,8 @@ impl AppState {
             | Message::InsertSubRuleIntoRules
             | Message::RunNodeSpeedtest(_)
             | Message::SpeedtestSnapshotUpdated(_)
+            | Message::OpenSpeedtestDetail
+            | Message::CloseSpeedtestDetail
             | Message::CheckGeoDataUpdates
             | Message::TriggerGeoDataUpdate
             | Message::GeoDataUpdateResult(_)

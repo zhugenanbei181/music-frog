@@ -34,6 +34,7 @@ pub mod service_mode;
 pub mod session;
 pub mod snapshot;
 pub mod speedtest;
+pub mod speedtest_matrix;
 pub mod subscription_import;
 pub mod subscription_quota;
 pub mod surface;

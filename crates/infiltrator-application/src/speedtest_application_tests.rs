@@ -2,6 +2,7 @@
 
 use super::*;
 use async_trait::async_trait;
+use infiltrator_contract::speedtest::EgressCountryMatch;
 use infiltrator_domain::proxy::{ProxyBase, ProxyGroup, Shadowsocks, Vmess};
 use infiltrator_domain::runtime::{
     ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider,
@@ -448,6 +449,75 @@ async fn test_record_bandwidth_populates_shared_snapshot() {
 
     // A zero-duration sample is honest 0.0, never a divide-by-zero fiction.
     assert_eq!(app.record_bandwidth("HK-Node-1", 4096, 0).unwrap(), 0.0);
+}
+
+#[tokio::test]
+async fn test_record_outbound_ip_populates_and_compares_label_country() {
+    let gateway = Arc::new(TestGateway::new(sample_proxies()));
+    let app = SpeedtestApplication::new(gateway);
+
+    // "HK-Node-1" carries an HK label; a report of a HK egress is a match.
+    app.record_outbound_ip("HK-Node-1", "103.242.175.12", Some("HK"))
+        .expect("egress recorded");
+    let snapshot = app.snapshot();
+    let entry = snapshot
+        .node_results
+        .get("HK-Node-1")
+        .expect("node published");
+    assert_eq!(entry.label_country.as_deref(), Some("HK"));
+    assert_eq!(entry.outbound_ip.as_deref(), Some("103.242.175.12"));
+    assert_eq!(entry.outbound_country.as_deref(), Some("HK"));
+    assert_eq!(entry.egress_country_match(), EgressCountryMatch::Match);
+    assert!(snapshot.egress_country_mismatches().is_empty());
+
+    // A different egress country is an honest mismatch, not silently rewritten.
+    app.record_outbound_ip("HK-Node-2", "45.32.1.9", Some("US"))
+        .expect("egress recorded");
+    let snapshot = app.snapshot();
+    let entry = snapshot.node_results.get("HK-Node-2").unwrap();
+    assert_eq!(entry.egress_country_match(), EgressCountryMatch::Mismatch);
+    assert_eq!(snapshot.egress_country_mismatches().len(), 1);
+    assert_eq!(snapshot.egress_reported_count(), 2);
+
+    // An empty IP is rejected rather than stored as a fiction.
+    let err = app
+        .record_outbound_ip("HK-Node-1", "   ", Some("HK"))
+        .expect_err("empty ip rejected");
+    assert_eq!(
+        err.code,
+        infiltrator_contract::error::ErrorCode::InvalidInput
+    );
+
+    // A probe with no geolocation is honest `Unlabelled`, never a guessed CC.
+    app.record_outbound_ip("HK-Node-1", "1.2.3.4", None)
+        .expect("egress without country recorded");
+    let snapshot = app.snapshot();
+    let entry = snapshot.node_results.get("HK-Node-1").unwrap();
+    assert_eq!(entry.outbound_country, None);
+    assert_eq!(entry.egress_country_match(), EgressCountryMatch::Unknown);
+}
+
+#[tokio::test]
+async fn test_test_delays_publishes_label_country_not_egress_fiction() {
+    let gateway = Arc::new(TestGateway::new(sample_proxies()));
+    let app = SpeedtestApplication::new(gateway);
+
+    let snapshot = app
+        .test_delays(
+            SpeedtestScope::SingleNode("JP-Node-1".to_string()),
+            None,
+            None,
+        )
+        .await
+        .expect("probe succeeds");
+
+    let entry = snapshot.node_results.get("JP-Node-1").unwrap();
+    // The label fact is published; the egress fact stays honestly absent until
+    // a real host probe reports it.
+    assert_eq!(entry.label_country.as_deref(), Some("JP"));
+    assert_eq!(entry.outbound_ip, None);
+    assert_eq!(entry.outbound_country, None);
+    assert_eq!(entry.egress_country_match(), EgressCountryMatch::Unknown);
 }
 
 #[derive(Default)]

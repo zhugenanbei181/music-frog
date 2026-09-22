@@ -7,6 +7,7 @@ mod connection_drawer;
 mod custom_node_modal;
 mod modals;
 mod snapshot_diff_modal;
+pub(crate) mod speedtest_detail_modal;
 
 use crate::state::AppState;
 use crate::types::app::{Route, ToastStatus};
@@ -317,6 +318,10 @@ impl AppState {
             && self.editor.snapshot_diff_modal_open
         {
             layers.push(snapshot_diff_modal::snapshot_diff_modal(self, snap_id));
+        }
+
+        if self.diag.speedtest_detail_open {
+            layers.push(speedtest_detail_modal::speedtest_detail_modal(self));
         }
 
         if self.diag.perf_panel_visible {

@@ -12,7 +12,7 @@ use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::speedtest::{
-    NodeSpeedtestResult, PacketLossRating, SpeedtestScope, SpeedtestSnapshot,
+    EgressCountryMatch, NodeSpeedtestResult, PacketLossRating, SpeedtestScope, SpeedtestSnapshot,
 };
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -36,6 +36,17 @@ fn star_label(stars: u8) -> String {
         out.push('☆');
     }
     out
+}
+
+/// DUAL-06-12: honest match/mismatch badge for the label-vs-egress country.
+fn egress_match_badge(matched: EgressCountryMatch, lang: &Lang<'_>) -> Element<'static, Message> {
+    let (key, kind) = match matched {
+        EgressCountryMatch::Match => ("speedtest_detail_match", BadgeKind::Success),
+        EgressCountryMatch::Mismatch => ("speedtest_detail_mismatch", BadgeKind::Danger),
+        EgressCountryMatch::Unlabelled => ("speedtest_detail_unlabelled", BadgeKind::Neutral),
+        EgressCountryMatch::Unknown => ("speedtest_detail_unknown", BadgeKind::Neutral),
+    };
+    badge(lang.tr(key).to_string(), kind)
 }
 
 fn format_scope(scope: &SpeedtestScope, lang: &Lang<'_>) -> String {
@@ -329,6 +340,32 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     }
     let history_section: Element<'_, Message> = history_column.into();
 
+    // DUAL-06-12: the reported egress endpoint + honest label-vs-egress match.
+    let egress_section: Element<'_, Message> = if let Some(res) = result {
+        row![
+            text(lang.tr("speedtest_detail_egress").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
+            Space::new().width(theme::SP_XS),
+            text(res.egress_endpoint_label()).size(12).font(MONO),
+            Space::new().width(theme::SP_XS),
+            egress_match_badge(res.egress_country_match(), lang),
+            Space::new().width(Length::Fill),
+            text(snapshot.egress_summary())
+                .size(10)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
+        ]
+        .align_y(Alignment::Center)
+        .into()
+    } else {
+        Space::new().height(0).into()
+    };
+
     card(
         Some(lang.tr("speedtest_title").to_string()),
         column![
@@ -340,6 +377,17 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                 .size(12)
                 .font(MONO)
                 .width(Length::Fill),
+                // DUAL-06-13: open the per-node detail modal over the shared
+                // snapshot; the modal owns no metrics of its own.
+                button(
+                    text(lang.tr("speedtest_detail_open").to_string())
+                        .size(11)
+                        .font(FONT_MEDIUM)
+                )
+                .padding([6, 12])
+                .style(style_accent)
+                .on_press(Message::OpenSpeedtestDetail),
+                Space::new().width(theme::SP_SM),
                 run_btn,
             ]
             .align_y(Alignment::Center),
@@ -347,6 +395,7 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             controls_row,
             Space::new().height(theme::SP_XS),
             metric_content,
+            egress_section,
             history_section,
             dead_section,
         ]

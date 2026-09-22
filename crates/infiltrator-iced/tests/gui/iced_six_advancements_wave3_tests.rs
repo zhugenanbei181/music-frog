@@ -254,6 +254,53 @@ fn test_advancement_w3_3_speedtest_concurrency_reads_shared_and_clamps() {
 }
 
 #[test]
+fn test_advancement_w3_3_speedtest_egress_detail_and_matrix() {
+    let (mut state, _) = AppState::new();
+
+    // DUAL-06-12: a label of HK with a US egress is an honest mismatch.
+    let mut snapshot = SpeedtestSnapshot::demo_fixture();
+    if let Some(node) = snapshot.node_results.get_mut("💀 超时不可用节点 01") {
+        node.is_alive = true;
+        node.delay_ms = Some(210);
+        node.label_country = Some("HK".to_owned());
+        node.outbound_ip = Some("45.32.1.9".to_owned());
+        node.outbound_country = Some("US".to_owned());
+    }
+    let _ = state.update(Message::SpeedtestScopeUpdated(Ok(snapshot)));
+    assert_eq!(state.diag.speedtest.egress_country_mismatches().len(), 1);
+    assert_eq!(state.diag.speedtest.egress_reported_count(), 3);
+    let mismatches = state.diag.speedtest.egress_country_mismatches();
+    let mismatched = *mismatches.first().expect("mismatch node present");
+    assert_eq!(mismatched.egress_endpoint_label(), "45.32.1.9 (US)");
+
+    // DUAL-06-13: the detail modal is pure view state over the shared snapshot.
+    assert!(!state.diag.speedtest_detail_open);
+    let _ = state.update(Message::OpenSpeedtestDetail);
+    assert!(state.diag.speedtest_detail_open);
+    {
+        let _modal = crate::view_root::speedtest_detail_modal::speedtest_detail_modal(&state);
+        let lang = infiltrator_shared::locales::Lang("zh-CN");
+        let _card = crate::view::speedtest_modal::speedtest_card(&state, &lang);
+    }
+    let _ = state.update(Message::CloseSpeedtestDetail);
+    assert!(!state.diag.speedtest_detail_open);
+
+    // DUAL-06-14: both surfaces are driven by the one shared matrix report.
+    let report =
+        infiltrator_contract::speedtest_matrix::SpeedtestRegressionMatrixReport::run_deterministic_matrix();
+    assert!(report.is_all_passed());
+    assert_eq!(report.total_scenarios, 15);
+    assert_eq!(
+        format!("{:?}", Message::OpenSpeedtestDetail),
+        "OpenSpeedtestDetail"
+    );
+    assert_eq!(
+        format!("{:?}", Message::CloseSpeedtestDetail),
+        "CloseSpeedtestDetail"
+    );
+}
+
+#[test]
 fn test_advancement_w3_4_geodata_updater_stays_honest() {
     let (mut state, _) = AppState::new();
 

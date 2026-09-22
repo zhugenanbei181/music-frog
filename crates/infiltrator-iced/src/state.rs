@@ -384,6 +384,9 @@ pub struct DiagnosticsState {
     /// engine. This replaces the former UI-local fabricated metrics: the view
     /// renders this snapshot, and `RunSpeedtest` intents drive the engine.
     pub speedtest: infiltrator_contract::speedtest::SpeedtestSnapshot,
+    /// DUAL-06-13: whether the per-node speedtest detail modal is open. Pure
+    /// view state; the modal reads the shared `speedtest` snapshot above.
+    pub speedtest_detail_open: bool,
     /// Overview card display order from the shared `OverviewLayoutSnapshot`.
     /// Local render projection of the shared contract; the view assembles its
     /// reorderable cards in this order.

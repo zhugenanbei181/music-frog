@@ -141,6 +141,15 @@ pub enum CommandIntent {
         total_bytes: u64,
         duration_ms: u64,
     },
+    /// DUAL-06-12: report the real egress IP + country the host observed when
+    /// probing through a node. The host owns the probe; the engine stores the
+    /// fact and compares it against the node label.
+    RecordSpeedtestOutboundIp {
+        node: String,
+        ip: String,
+        #[serde(default)]
+        country: Option<String>,
+    },
     /// DUAL-06-01: set the shared speedtest engine's concurrency limit at
     /// runtime (clamped to >= 1 by the engine).
     SetSpeedtestConcurrency {
@@ -350,6 +359,7 @@ impl CommandIntent {
             | Self::TestDelay { .. }
             | Self::RunSpeedtest { .. }
             | Self::RecordSpeedtestBandwidth { .. }
+            | Self::RecordSpeedtestOutboundIp { .. }
             | Self::SetSpeedtestConcurrency { .. }
             | Self::CancelSpeedtest
             | Self::ToggleProxyGroupExpand { .. }

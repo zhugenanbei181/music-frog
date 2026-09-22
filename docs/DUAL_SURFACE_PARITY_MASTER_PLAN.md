@@ -76,7 +76,7 @@
 | 业务组 | 项数 | 当前状态 | 单端代码路径（未验收） | 备注 |
 | :--- | :---: | :--- | :--- | :--- |
 | 组 05 协议生态保真与多路复用 | 15 | `planned` | `infiltrator-domain::profile_converter` | 后端解析已有测试；双端 UI 编辑面未验收 |
-| 组 06 并发测速与稳定性评估 | 15 | `in progress` | `SpeedtestApplication` 引擎 | 已闭环：单端口 `SpeedtestPort`、reader 发布真实快照、Iced 渲染共享快照（不再伪造）、Bevy 按钮按 phase/progress 重盖；其余 12 项未验收 |
+| 组 06 并发测速与稳定性评估 | 15 | `parity-ready` | `SpeedtestApplication` 引擎 | 15/15 收口（2026-09-22 批次 D）：单端口 `SpeedtestPort`、reader 发布真实快照、Iced 渲染共享快照（不再伪造）、Bevy 按钮按 phase/progress 重盖；出口 IP 对比、双端明细弹窗与共享状态机矩阵已闭环 |
 | 组 07 订阅生命周期与定时更新 | 15 | `in progress` | `subscription`、`filter` 管道 | 2026-09-22 起逐项展开（见组 07 逐项账目）：07-02/04/12 已双端收口，其余 07-01/03/05/06/07/08/10/11/13/15 为 `shared-ready`，07-09/14 `planned` |
 | 组 08 多源聚合器与自动拓扑 | 15 | `planned` | `aggregator_modal.rs`（Iced） | Bevy `profiles_aggregator.rs` 与双端测试未验收 |
 | 组 09 AST YAML 引擎与快照 Diff | 15 | `planned` | `snapshot_diff_modal.rs`、`profiles_diff.rs` | 双端编辑器与回滚事务未验收 |
@@ -104,9 +104,9 @@
 | `DUAL-06-09` | 超时与不可用节点即时归档 | `parity-ready` | `is_alive` / `dead_nodes()`；Iced `speedtest_card` 死链归档区（计数徽标 + 前 4 名 + 溢出），Bevy `OverviewSpeedtestDeadText`「超时归档 n · 名单」；空态诚实 `—` |
 | `DUAL-06-10` | 测速取消与安全中断 | `parity-ready` | `SpeedtestPort::cancel`；Iced `Message::CancelSpeedtest` 经 port、运行中 Overview 按钮切换为取消；Bevy `UiCommand::CancelSpeedtest`→`CommandIntent::CancelSpeedtest`，同一按钮运行中提交取消 |
 | `DUAL-06-11` | 历史测速数据持久化缓存 | `parity-ready` | `SpeedtestHistoryStore` port（`speedtest_history.rs`）+ `SpeedtestApplication::with_history_store`：构造时载入有界历史（上限 3），每次完成 run 与带宽上报后写回；desktop `FileSpeedtestHistoryStore`（home 目录 JSON）经 `runtime.rs` 注入同一 engine。Iced `shared_speedtest_history_lines` 与 Bevy `OverviewSpeedtestHistoryText` 都只渲染共享 `snapshot.recent_history`（run 时间/scope/存活/平均延迟/抖动/带宽/星级）；跨重启证明测试 `test_history_store_round_trip_restores_across_restart` + `file_store_round_trips_records` |
-| `DUAL-06-12` | 节点真实 IP 与出口探测对比 | `shared-ready` | `outbound_ip` / `outbound_country`；需真实 core |
-| `DUAL-06-13` | 测速结果弹窗详细透视 | `planned` | 双端雷达图弹窗未实现 |
-| `DUAL-06-14` | 双端测速状态机与动效一致 | `in progress` | 已对齐：同一引擎快照驱动 Iced 卡片与 Bevy 按钮；结果弹窗未验收 |
+| `DUAL-06-12` | 节点真实 IP 与出口探测对比 | `parity-ready` | seam 级诚实链路：`SpeedtestPort::probe_outbound_ip`（缺省 typed unsupported，Desktop 无穿透探测能力时保持拒绝）由 host 实测，经 `CommandIntent::RecordSpeedtestOutboundIp` / `SpeedtestPort::record_outbound_ip` 上报，`SpeedtestApplication::record_outbound_ip` 只存事实（空 IP 拒绝、国家可诚实为 `None`）。contract 将「标签国家」`label_country`（`extract_country_code`）与「真实出口国家」`outbound_country` 分离，`EgressCountryMatch::classify` 给出 `Unknown/Unlabelled/Match/Mismatch`，`SpeedtestSnapshot::egress_country_mismatches/egress_reported_count/egress_summary` 为纯读模型派生，绝不伪造出口。Iced 卡片与 `speedtest_detail_modal` 渲染 `egress_endpoint_label()` 与归属徽标；Bevy `OverviewSpeedtestEgressText` 从同一 `fastest_node()` 重盖。证据：`test_record_outbound_ip_populates_and_compares_label_country`（HK 标签 + US 出口 = mismatch；空 IP 拒绝；无国家 = Unknown）、`test_egress_country_match_classification`、`test_advancement_w3_3_speedtest_egress_detail_and_matrix`、`overview_speedtest_egress_and_detail_modal_follow_shared_engine` |
+| `DUAL-06-13` | 测速结果弹窗详细透视 | `parity-ready` | Iced 新增 `view_root/speedtest_detail_modal.rs`（`modal_backdrop`/`modal_card` 复用既有 modal 形态），`Message::OpenSpeedtestDetail`/`CloseSpeedtestDetail` 驱动 `diag.speedtest_detail_open`，卡片「结果透视」按钮唤起；弹窗逐节点渲染延迟/抖动/丢包/带宽/星级/出口 IP+国家与归属对比，空态「暂无测速结果」、失败态回显 `snapshot.failure`。Bevy 用 `infiltrator-bevy-widgets::adaptive_modal::adaptive_modal_scene` 在 shell 根挂载 `overview_speedtest_detail_modal_scene`（`OverviewSpeedtestDetailButton` 触发 `OpenModal`），`sync_overview_speedtest_detail` 从共享快照重盖 `OverviewSpeedtestDetailBodyText`（含 `出口状态` 摘要与逐节点行）。证据：`test_advancement_w3_3_speedtest_egress_detail_and_matrix`、`overview_speedtest_egress_and_detail_modal_follow_shared_engine` |
+| `DUAL-06-14` | 双端测速状态机与动效一致 | `parity-ready` | 新增共享回归矩阵契约 `SpeedtestRegressionMatrixReport::run_deterministic_matrix()`（contract `speedtest_matrix.rs`）覆盖 15 项：六阶段（Idle/Probing/Measuring/Completed/Cancelled/Failed）状态机、取消、并发、目标 URL、历史、出口对比、明细投影与双端一致性；每个 `passed` 为真实计算（非硬编码）。`SpeedtestMatrixApplication::execute`（application）统一执行，`verify_dual_surface_snapshot` 校验任意实时快照是唯一事实源。两端 UI 均只消费同一 `SpeedtestSnapshot`：Iced `diag.speedtest`、Bevy `OverviewProjection.speedtest`（`surface_projection` clone）。证据：contract `deterministic_matrix_passes_all_scenarios`、application `test_speedtest_matrix_application_execution`、Iced/Bevy 测试中调用同一 `run_deterministic_matrix()` 断言 15/15 |
 | `DUAL-06-15` | 测速流控与状态机无头测试 | `parity-ready` | `speedtest_headless_tests.rs` + Iced 快照/失败断言 + Bevy 阶段重盖断言 |
 
 > **2026-09-21 组 06 批次 A**：`DUAL-06-02/05/06/07/08/10` 收口为 `parity-ready`。
@@ -141,6 +141,22 @@
 > `UiCommand::TestAllProxyGroupsWithUrl` → `TestDelay { url: Some(..) }`。
 > 守卫 `speedtest-config-guard.py`（含「UI 不得持有 effective concurrency /
 > target URL 事实」反向断言）。剩余 06-12/13/14。
+
+> **2026-09-22 组 06 批次 D（收官）**：`DUAL-06-12/13/14` 收口为
+> `parity-ready`，组 06 达到 **15/15**。
+> 12：新增 `SpeedtestPort::probe_outbound_ip` / `record_outbound_ip` 与
+> `CommandIntent::RecordSpeedtestOutboundIp`，contract 将标签国家
+> (`label_country`) 与真实出口国家 (`outbound_country`) 分离，
+> `EgressCountryMatch` 给出诚实 Match/Mismatch/Unknown/Unlabelled 对比；
+> Desktop 无穿透探测能力时保持 typed unsupported，不伪造出口。
+> 13：Iced 新增 `view_root/speedtest_detail_modal.rs` 逐节点明细弹窗
+> （`OpenSpeedtestDetail`/`CloseSpeedtestDetail`），Bevy 用
+> `adaptive_modal_scene` 在 shell 根挂载明细抽屉（`sync_overview_speedtest_detail`
+> 重盖），两端均含诚实空态/失败态。
+> 14：新增共享 `SpeedtestRegressionMatrixReport` + `SpeedtestMatrixApplication`
+> 覆盖六阶段状态机/取消/并发/URL/历史/出口对比/双端一致性，`passed` 均为真实
+> 计算。守卫 `speedtest-final-guard.py`（含「Iced 不得本地伪造 outbound_ip/country」
+> 反向断言）。
 
 > **关键修复**：此前 Iced 的测速结果由 UI 内硬编码的 48MB/2400ms 与假抖动样本伪造。现已删除该第二条事实源，改为经 `SpeedtestPort` 驱动 `SpeedtestApplication` 并渲染共享快照；host 无引擎时按 typed unsupported 报错，不再伪造成功。
 

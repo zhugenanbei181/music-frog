@@ -302,6 +302,11 @@ impl CommandApplication {
                 speedtest.record_bandwidth(&node, total_bytes, duration_ms)?;
                 Ok(())
             }
+            CommandIntent::RecordSpeedtestOutboundIp { node, ip, country } => {
+                let speedtest = self.speedtest()?;
+                speedtest.record_outbound_ip(&node, &ip, country.as_deref())?;
+                Ok(())
+            }
             CommandIntent::SetSpeedtestConcurrency { limit } => {
                 let speedtest = self.speedtest()?;
                 speedtest.set_concurrency(limit);

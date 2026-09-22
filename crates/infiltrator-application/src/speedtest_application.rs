@@ -186,7 +186,7 @@ impl SpeedtestApplication {
                 };
 
                 let jitter = delay_ms.map(|d| JitterCalculation::from_samples(&[Some(d)]));
-                let outbound_country = extract_country_code(&node_name).map(str::to_string);
+                let label_country = extract_country_code(&node_name).map(str::to_string);
 
                 let completed = completed_counter.fetch_add(1, Ordering::SeqCst) + 1;
                 let percent = (completed as f64 / total_nodes as f64) * 100.0;
@@ -208,8 +208,9 @@ impl SpeedtestApplication {
                     bandwidth_mbps: None,
                     packet_loss,
                     star_rating,
+                    label_country,
                     outbound_ip: None,
-                    outbound_country,
+                    outbound_country: None,
                     is_alive,
                     tested_at_epoch_ms: now_ms,
                 })
@@ -296,8 +297,9 @@ impl SpeedtestApplication {
                         bandwidth_mbps: None,
                         packet_loss: calculation.loss_rating,
                         star_rating: calculation.star_rating,
+                        label_country: extract_country_code(node).map(str::to_string),
                         outbound_ip: None,
-                        outbound_country: extract_country_code(node).map(str::to_string),
+                        outbound_country: None,
                         is_alive: calculation.successful_probes > 0,
                         tested_at_epoch_ms: current_epoch_ms(),
                     },
@@ -337,8 +339,9 @@ impl SpeedtestApplication {
                     bandwidth_mbps: Some(bandwidth_mbps),
                     packet_loss: PacketLossRating::Excellent,
                     star_rating: if bandwidth_mbps >= 100.0 { 5 } else { 4 },
+                    label_country: extract_country_code(node).map(str::to_string),
                     outbound_ip: None,
-                    outbound_country: extract_country_code(node).map(str::to_string),
+                    outbound_country: None,
                     is_alive: true,
                     tested_at_epoch_ms: current_epoch_ms(),
                 },
@@ -347,6 +350,62 @@ impl SpeedtestApplication {
         state.revision += 1;
         self.persist_history(&state);
         Ok(bandwidth_mbps)
+    }
+
+    /// DUAL-06-12: record the real egress IP + country the host observed when it
+    /// probed *through* this node.
+    ///
+    /// The host performs the probe and reports the observed endpoint; the shared
+    /// engine only stores the fact. An empty IP is rejected rather than stored
+    /// as a fiction, and the country may honestly be `None` (probe succeeded but
+    /// geolocation is unavailable). The node is inserted if it has no result
+    /// yet, exactly like `record_bandwidth`, so a host may report egress facts
+    /// before a latency batch has run.
+    pub fn record_outbound_ip(
+        &self,
+        node: &str,
+        ip: &str,
+        country: Option<&str>,
+    ) -> Result<(), Failure> {
+        let trimmed_ip = ip.trim();
+        if trimmed_ip.is_empty() {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                "outbound ip must not be empty",
+                false,
+            ));
+        }
+        let country = country
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+            .map(str::to_string);
+
+        let mut state = self.state.lock().unwrap();
+        if let Some(entry) = state.node_results.get_mut(node) {
+            entry.outbound_ip = Some(trimmed_ip.to_string());
+            entry.outbound_country = country;
+        } else {
+            state.node_results.insert(
+                node.to_string(),
+                NodeSpeedtestResult {
+                    node_name: node.to_string(),
+                    group_name: None,
+                    proxy_type: "Unknown".to_string(),
+                    delay_ms: None,
+                    jitter: None,
+                    bandwidth_mbps: None,
+                    packet_loss: PacketLossRating::Excellent,
+                    star_rating: 1,
+                    label_country: extract_country_code(node).map(str::to_string),
+                    outbound_ip: Some(trimmed_ip.to_string()),
+                    outbound_country: country,
+                    is_alive: true,
+                    tested_at_epoch_ms: current_epoch_ms(),
+                },
+            );
+        }
+        state.revision += 1;
+        Ok(())
     }
 
     /// Retrieve the cached history of recent runs.

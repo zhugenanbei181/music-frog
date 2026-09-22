@@ -376,6 +376,7 @@ impl AppState {
                 is_probing_dns_leak: false,
                 pcap_state: Default::default(),
                 speedtest: Default::default(),
+                speedtest_detail_open: false,
                 overview_card_order:
                     infiltrator_contract::overview_layout::OverviewCardKind::DEFAULT_ORDER.to_vec(),
                 crash_watchdog: Default::default(),

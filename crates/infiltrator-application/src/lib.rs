@@ -40,6 +40,7 @@ pub mod service_mode_application;
 pub mod settings_application;
 pub mod snapshot_application;
 pub mod speedtest_application;
+pub mod speedtest_matrix_application;
 pub mod subscription_quota_application;
 pub mod surface_application;
 pub mod surface_reader;

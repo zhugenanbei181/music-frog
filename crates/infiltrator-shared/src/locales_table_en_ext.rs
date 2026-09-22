@@ -99,6 +99,17 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "speedtest_target_url_label" => "Speedtest target URL".into(),
         "speedtest_target_url_placeholder" => "Blank uses the shared engine default".into(),
         "speedtest_concurrency_label" => "Concurrency".into(),
+        "speedtest_detail_open" => "Result details".into(),
+        "speedtest_detail_title" => "Speedtest result details".into(),
+        "speedtest_detail_empty" => "No speedtest results yet".into(),
+        "speedtest_detail_failed" => "Speedtest failed".into(),
+        "speedtest_detail_egress" => "Egress".into(),
+        "speedtest_detail_delay" => "Delay".into(),
+        "speedtest_detail_stars" => "Stars".into(),
+        "speedtest_detail_match" => "Label matches".into(),
+        "speedtest_detail_mismatch" => "Label mismatch".into(),
+        "speedtest_detail_unlabelled" => "No label country".into(),
+        "speedtest_detail_unknown" => "Egress not probed".into(),
 
         // Category 4: Geo Database Updater
         "geodata_title" => "GeoIP / GeoSite Database Manager".into(),

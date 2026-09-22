@@ -45,6 +45,32 @@ pub trait SpeedtestPort: Send + Sync {
         duration_ms: u64,
     ) -> Result<f64, PortError>;
 
+    /// DUAL-06-12: report the real egress IP + country the host observed when
+    /// probing *through* the given node.
+    ///
+    /// The host performs the outbound probe (`probe_outbound_ip`) and reports
+    /// the observed endpoint here; the shared engine stores the fact and never
+    /// guesses one. The country may honestly be `None` when geolocation is
+    /// unavailable.
+    fn record_outbound_ip(
+        &self,
+        node: &str,
+        ip: &str,
+        country: Option<&str>,
+    ) -> Result<(), PortError>;
+
+    /// DUAL-06-12: probe the node's real egress IP + country.
+    ///
+    /// Hosts that cannot route a probe through a specific proxy node return a
+    /// typed unsupported error instead of fabricating an endpoint. The default
+    /// is the honest refusal; a real core adapter may override it.
+    async fn probe_outbound_ip(&self, _node: &str) -> Result<(String, Option<String>), PortError> {
+        Err(PortError::unsupported(
+            Capability::Speedtest,
+            "outbound ip probing through a node is not available on this host",
+        ))
+    }
+
     /// Request cancellation of the active batch. Returns whether one was running.
     fn cancel(&self) -> bool;
 
