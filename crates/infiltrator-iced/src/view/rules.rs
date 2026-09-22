@@ -609,20 +609,10 @@ fn add_rule_panel<'a>(
     lang: &Lang<'_>,
     available_targets: Vec<String>,
 ) -> Element<'a, Message> {
-    let rule_types = vec![
-        "DOMAIN".to_string(),
-        "DOMAIN-SUFFIX".to_string(),
-        "DOMAIN-KEYWORD".to_string(),
-        "IP-CIDR".to_string(),
-        "IP-CIDR6".to_string(),
-        "GEOIP".to_string(),
-        "MATCH".to_string(),
-        "RULE-SET".to_string(),
-        "AND".to_string(),
-        "OR".to_string(),
-        "NOT".to_string(),
-        "SUB-RULE".to_string(),
-    ];
+    let rule_types = infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES
+        .iter()
+        .map(|choice| (*choice).to_string())
+        .collect::<Vec<String>>();
     let add_rule_btn_style = if state.editor.is_adding_rule {
         style_ghost
     } else {

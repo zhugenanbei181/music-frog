@@ -170,6 +170,7 @@ mod tests {
             payload: payload.to_owned(),
             proxy: proxy.to_owned(),
             hit_count: 0,
+            is_enabled: true,
             last_hit_secs: None,
             is_shadowed: false,
             shadow_reason: None,

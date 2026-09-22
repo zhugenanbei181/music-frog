@@ -81,7 +81,7 @@
 | 组 08 多源聚合器与自动拓扑 | 15 | `planned` | `aggregator_modal.rs`（Iced） | Bevy `profiles_aggregator.rs` 与双端测试未验收 |
 | 组 09 AST YAML 引擎与快照 Diff | 15 | `planned` | `snapshot_diff_modal.rs`、`profiles_diff.rs` | 双端编辑器与回滚事务未验收 |
 | 组 10 脚本沙箱与多级 Mixin | 15 | `planned` | `script_console.rs`、`profiles_script.rs` | 双端控制台与熔断测试未验收 |
-| 组 11 规则引擎与 MRS 治理 | 15 | `in progress` | `rules.rs`、`rules_mrs.rs`、`mrs` | 2026-09-22 起逐项展开（见组 11 逐项账目）：03/04/13 已双端收口，01/02/05/08/09/10/11/12/15 为 `shared-ready`，06/07/14 `planned` |
+| 组 11 规则引擎与 MRS 治理 | 15 | `in progress` | `rules.rs`、`rules_mrs.rs`、`mrs` | 2026-09-22 起逐项展开（见组 11 逐项账目）：03/04/09/10/11/12/13/15 已双端收口，01/02/05/08 为 `shared-ready`，06/07/14 `planned` |
 | 组 12 Live Rule Tracer 与命中审计 | 15 | `parity-ready` | `rules_tracer.rs`（两端同名） | 15/15 收口（2026-09-22）：决策链回放/预设/离线模拟/命中审计/时延审计/沙盒来源 IP/反向应用均双端接线（见组 12 逐项账目） |
 | 组 13 连接审计与深度透视 | 15 | `in progress` | `connections.rs`、`connection_drawer.rs` | 2026-09-22 起逐项展开（见组 13 逐项账目）：01/02/03/06/07/08/09/11/13/15 已双端收口，04/05/10/12/14 `planned`（04 宿主无阶段耗时、05 无 ASN 事实源、10/12 无瞬时速率、14 受 04 阻塞） |
 | 组 14 DNS 工作台与泄漏探活 | 15 | `planned` | `dns.rs`（两端） | 双端表单与探活状态机未验收 |
@@ -538,13 +538,13 @@
 | `DUAL-11-06` | 规则集一键解构导入 (Unpack Provider) | `planned` | 共享后端存在：`unpack_provider_rules_to_custom`（`infiltrator-domain/src/rules.rs:89`）、`unpack_mrs_to_rule_entries`（`mrs.rs:487`）；但 `CommandIntent::UnpackRuleProvider` 在 `command_application.rs:620` 明确返回 `unsupported()`；Iced 两个入口均为伪造样本（`update/core/rules.rs:773` 用 provider 名造样本、`ui_wave5.rs:315` 硬编码 `apple.com`/`icloud.com`），Bevy `UnpackRuleProviderButton` 未接线 |
 | `DUAL-11-07` | 规则集本地缓存一键清理 | `planned` | 无真实删除路径：Iced `Message::PurgeRuleProviderCache` 仅弹成功 toast、不做文件清理（`update/ui_wave5.rs:337`），Bevy 无对应动作；不伪造“已清理”磁盘结果 |
 | `DUAL-11-08` | 50,000+ 条目虚拟视口滚动 | `shared-ready` | 共享分页归约 `infiltrator-domain/src/rules/view.rs`（`page_count`/`page_bounds`/`clamp_page`）双端消费：Iced 每页 200 条（`update/core/rules.rs` `apply_rules_filter`）；Bevy 新增 `RulesViewState` + 分页控件（`pages/rules_view.rs:47`、`pages/rules.rs:480`）；为分页裁剪而非 $O(1)$ 几何虚拟滚动，且 reader 将规则截断至 5000 条（`surface_reader.rs:744`） |
-| `DUAL-11-09` | 单规则一键停用/启用 Switch | `shared-ready` | 共享事实 `RuleEntry.enabled` + `format_rule_entry`（`infiltrator-domain/src/rules.rs:271`，禁用落为 `# 前缀`）；Iced `Message::ToggleRuleEnabled`（`update/core/rules.rs:566`）本地切换并置脏、经 `SaveRules` 落盘；Bevy 规则行无 toggle 控件，未接线 |
-| `DUAL-11-10` | 规则拖拽调序与优先级置顶 | `shared-ready` | Iced `Message::MoveRuleUp/Down`（`update/core/rules.rs:575/584`）交换顺序并落盘；无拖拽手势，Bevy 无排序控件；共享层无独立 move 归约（直接 swap） |
-| `DUAL-11-11` | 快速新增自定义规则表单向导 | `shared-ready` | Iced `add_rule_panel`（`view/rules.rs:607`）+ `Message::AddCustomRule`（`update/core/rules.rs:267`，含逻辑规则语法校验）经 `apply_rules_to_yaml` 落盘；Bevy `AddCustomRuleButton`（`pages/rules_builder.rs:24`）仅静态 chip，未接线 |
-| `DUAL-11-12` | 一键注入游戏分流预设规则集 | `shared-ready` | 共享预设 `game_routing_presets`（`infiltrator-domain/src/rules.rs:118`，Steam/Epic/Riot/Blizzard/EA 进程与域名）；Iced `Message::ApplyGameRoutingPresets`（`update/core/rules.rs:593`）注入并落盘；Bevy `InjectGamePresetsButton`（`pages/rules_builder.rs:28`）未接线 |
+| `DUAL-11-09` | 单规则一键停用/启用 Switch | `parity-ready` | 共享事实 `RuleEntry.enabled` + `format_rule_entry`（`infiltrator-domain/src/rules.rs:273`，禁用落为 `#` 前缀）与纯归约 `edit::toggle_rule_enabled`（`infiltrator-domain/src/rules/edit.rs:66`）；契约 `CommandIntent::ToggleRuleEnabled`（`infiltrator-contract/src/command.rs:227`）经 application `edit_rules`（`infiltrator-application/src/command_application.rs:682`）读改写活动 profile；Iced `Message::ToggleRuleEnabled` 改委托共享归约（`update/core/rules.rs:561`）；Bevy 规则行新增 `RuleToggleButton`（`pages/rules_edit.rs:16`）+ `rule_row_controls_scene`（`pages/rules.rs:635`），`RuleItem.is_enabled` 由 `rule_snapshot` 投影（`surface_projection.rs:200`），禁用行渲染「已停用」（`pages/rules.rs:565`）；双端测试 Bevy `test_rules_toggle_and_reorder_submit_shared_intents`、Iced `test_rules_edit_operations_delegate_to_shared_module`、application `toggle_and_move_apply_shared_reductions_and_persist`。Bevy 经应用即时落盘，Iced 仍为本地置脏 + `SaveRules`（归约同源），行为等价 |
+| `DUAL-11-10` | 规则拖拽调序与优先级置顶 | `parity-ready` | 共享方向枚举 `RuleMoveDirection`（`infiltrator-contract/src/rule_edit.rs:12`）与纯归约 `edit::move_rule`（`infiltrator-domain/src/rules/edit.rs:78`，边界内交换、越界 typed no-op）；契约 `CommandIntent::MoveRule`（`command.rs:232`）；Iced `MoveRuleUp/Down` 委托共享归约（`update/core/rules.rs:569/581`）；Bevy 上行/下行把手 `RuleMoveUpButton`/`RuleMoveDownButton`（`pages/rules_edit.rs:20/24`）经 `on_rules_row_edit_activated` 提交共享意图，`UiCommand::MoveRuleUp/Down` 映射 `MoveRule`（`command.rs`）；双端测试 Bevy `test_rules_toggle_and_reorder_submit_shared_intents`、Iced `test_rules_edit_operations_delegate_to_shared_module`。**诚实边界**：两端均为把手按钮调序（Iced 本就无拖拽手势），未实现指针拖拽 |
+| `DUAL-11-11` | 快速新增自定义规则表单向导 | `parity-ready` | 共享构建器 `edit::build_custom_rule`（`infiltrator-domain/src/rules/edit.rs:43`，空 payload 拒绝 + 逻辑规则经 `validate_logical_rule_syntax`）与类型词表 `CUSTOM_RULE_TYPE_CHOICES`/`DEFAULT_RULE_TARGET`（`:13/29`）；契约 `CommandIntent::AddCustomRule`（`command.rs:238`）经 application 校验并 `prepend_rules` 落盘；Iced `add_rule_panel` 类型列表改读共享词表（`view/rules.rs:612`），`AddCustomRule` 委托共享构建器（`update/core/rules.rs:280`）；Bevy 向导实现类型 chip `RuleTypeChip` + 载荷/目标输入 `RulePayloadField`/`RuleTargetField` + `RulesBuilderState`，`on_rules_builder_activated` 提交共享意图（`pages/rules_builder.rs`）；双端测试 Bevy `test_rules_add_wizard_submits_shared_draft_and_type_selection`、Iced `test_rules_edit_operations_delegate_to_shared_module`、application `add_custom_rule_prepends_and_rejects_invalid_logical_form` |
+| `DUAL-11-12` | 一键注入游戏分流预设规则集 | `parity-ready` | 共享预设 `game_routing_presets`（`infiltrator-domain/src/rules.rs:119`，Steam/Epic/Riot/Blizzard/EA 进程与域名）与归约 `edit::inject_game_presets`/`prepend_rules`（`rules/edit.rs:113/100`，保序置顶）；契约 `CommandIntent::ApplyGameRoutingPresets`（`command.rs:245`）；Iced `ApplyGameRoutingPresets` 委托共享归约（`update/core/rules.rs:594`）；Bevy `InjectGamePresetsButton` 接线，`on_rules_builder_activated` 读取目标输入并提交共享意图（`pages/rules_builder.rs`）；双端测试 Bevy `test_rules_game_presets_submit_shared_target`、Iced `test_rules_game_presets_and_geo_update`、application `game_presets_prepend_the_shared_default_list` |
 | `DUAL-11-13` | 规则列表关键词模糊搜索与分页 | `parity-ready` | 共享归约 `infiltrator-domain/src/rules/view.rs`：`RuleView` seam、`matches_rule_search`、`filter_rule_indices`、`page_count`/`clamp_page`/`page_bounds`；Iced `apply_rules_filter`（`update/core/rules.rs`）与 `RulesNextPage` 全部委托共享函数；Bevy 新增搜索框 `RuleSearchField` + `RulesViewState` + 分页按钮/指示器与 `sync_rules_view`/`on_rules_paging_activated`（`pages/rules_view.rs:89/134`），按共享谓词与页界隐藏行；双端测试 Iced `test_rules_filter_and_pagination_delegate_to_shared_reduction`、Bevy `test_rules_search_hides_non_matching_rows`/`test_rules_pagination_hides_rows_outside_page` |
 | `DUAL-11-14` | 双端规则管理视口与组件 1:1 对等 | `planned` | Iced 具备 tabs/新增向导/子规则构建/命中审计/缓存扫描等完整闭环，Bevy 仅补上 MRS 共享卡与搜索分页，仍缺新增/停用/调序/解构/缓存清理，形态未 1:1 |
-| `DUAL-11-15` | 规则引擎与 MRS 解析无头测试 | `shared-ready` | 共享单测：`mrs.rs` `#[cfg(test)]`（解析/校验/压缩/CRC-SHA/解构）、`sub_rules.rs` `#[cfg(test)]`、`rules/view.rs` `#[cfg(test)]`、`rules.rs` `rewrite_rule_target`；双端新增 11-03/04/13 用例；无覆盖全 15 项的回归矩阵 |
+| `DUAL-11-15` | 规则引擎与 MRS 解析无头测试 | `parity-ready` | 共享回归矩阵 `crates/infiltrator-domain/tests/rules_matrix_test.rs`：`matrix_11_01_rule_type_vocabulary_parses`（28 种类型拼写 + MATCH）、`matrix_11_02_logical_sub_rules_evaluate`（AND/OR/NOT/SUB-RULE + 非法括号）、`matrix_11_03_mrs_binary_pipeline`（`build_mrs_bytes`/`parse_mrs_header`/`deconstruct_mrs_payload`）、`matrix_11_04_rule_provider_source_url_projection`、`matrix_11_05_provider_refresh_intent_exists`、`matrix_11_08_search_and_pagination_reduce_in_shared_view`、`matrix_11_09_to_12_rule_edit_reductions`；双端矩阵：Bevy `test_rules_matrix_covers_closed_items`（泛型类型投影 + MRS/provider/search/paging + toggle/reorder/wizard 控件计数）、Iced `test_rules_type_matrix_and_logical_builder_delegate_to_shared`（28 类型渲染缓存 + 共享语法门 + 共享常量）。11-06/07 仍诚实 `planned`，矩阵不伪造其后端 |
 
 > **2026-09-22 组 11 批次 A**：`DUAL-11-03/04/13` 收口为 `parity-ready`。
 > 03：Bevy 删除硬编码伪造 MRS 条目，改为渲染共享 `MrsAccelerationSnapshot`
@@ -556,6 +556,18 @@
 > 共享谓词/页界隐藏行。**关键修复**：删除 Bevy `rules_mrs.rs` 中伪造的
 > `14,200 条目` 列表；11-06/07 因 Iced 仍为伪造样本/no-op 诚实标记为 `planned`。
 > 守卫 `scripts/quality/rules-engine-guard.py` 固化本组账目与关键标记。
+>
+> **2026-09-22 组 11 批次 B**：`DUAL-11-09/10/11/12/15` 收口为 `parity-ready`。
+> 新增共享契约 `infiltrator_contract::rule_edit`（`RuleMoveDirection`/`RuleDraft`）与
+> 纯归约模块 `infiltrator_domain::rules::edit`（`toggle_rule_enabled`/`move_rule`/
+> `prepend_rules`/`build_custom_rule`/`inject_game_presets`），新增
+> `CommandIntent::{ToggleRuleEnabled,MoveRule,AddCustomRule,ApplyGameRoutingPresets}`，
+> application 经 `edit_rules` 读改写活动 profile 落盘。Bevy 规则行补齐启停/调序
+> 控件，向导补齐类型 chip + 载荷/目标输入与资源选择；Iced 的启停/调序/新增/预设
+> 全部改委托同一批共享归约。新增共享回归矩阵
+> `crates/infiltrator-domain/tests/rules_matrix_test.rs` 及双端矩阵用例。
+> **诚实边界**：11-06/07 仍为 `planned`（Iced 解构/清缓存为伪造样本/no-op，
+> 不新增伪造后端）；11-10 为把手按钮调序而非指针拖拽（Iced 原本亦无拖拽手势）。
 
 ### 组 12：交互式实时分流追踪器 (Live Rule Tracer) 与命中审计 (Rule Tracer)
 1. **交互式分流追踪沙盒视口**：输入目标（域名/IP）、端口、进程名与来源网络，立即模拟分流匹配。

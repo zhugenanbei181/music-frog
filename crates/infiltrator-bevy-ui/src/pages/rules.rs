@@ -34,6 +34,7 @@ use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
 use infiltrator_bevy_widgets::theme::space;
 
 use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::rules_edit::{RuleMoveDownButton, RuleMoveUpButton, RuleToggleButton};
 use crate::pages::rules_view::{
     RuleRow, RuleSearchField, RulesPageIndicator, RulesPageNextButton, RulesPagePrevButton,
     RulesViewState,
@@ -109,6 +110,8 @@ pub struct RuleItem {
     pub payload: String,
     pub proxy: String,
     pub hit_count: u64,
+    /// DUAL-11-09: shared persisted enabled flag (`#`-prefixed when disabled).
+    pub is_enabled: bool,
     /// Last observed hit time (epoch seconds), if any.
     pub last_hit_secs: Option<u64>,
     /// Whether static analysis found this rule shadowed by an earlier rule.
@@ -190,6 +193,7 @@ impl RulesProjection {
                     payload: "google.com".to_owned(),
                     proxy: "国外媒体 (GLOBAL-MEDIA)".to_owned(),
                     hit_count: 1420,
+                    is_enabled: true,
                     last_hit_secs: Some(1_700_000_010),
                     is_shadowed: false,
                     shadow_reason: None,
@@ -200,6 +204,7 @@ impl RulesProjection {
                     payload: "github".to_owned(),
                     proxy: "节点选择 (PROXIES)".to_owned(),
                     hit_count: 852,
+                    is_enabled: false,
                     last_hit_secs: Some(1_700_000_008),
                     is_shadowed: false,
                     shadow_reason: None,
@@ -210,6 +215,7 @@ impl RulesProjection {
                     payload: "CN".to_owned(),
                     proxy: "DIRECT".to_owned(),
                     hit_count: 4210,
+                    is_enabled: true,
                     last_hit_secs: Some(1_700_000_004),
                     is_shadowed: false,
                     shadow_reason: None,
@@ -220,6 +226,7 @@ impl RulesProjection {
                     payload: "custom-reject-ads".to_owned(),
                     proxy: "REJECT".to_owned(),
                     hit_count: 128,
+                    is_enabled: true,
                     last_hit_secs: Some(1_699_999_900),
                     is_shadowed: false,
                     shadow_reason: None,
@@ -230,6 +237,7 @@ impl RulesProjection {
                     payload: "".to_owned(),
                     proxy: "DIRECT".to_owned(),
                     hit_count: 56,
+                    is_enabled: true,
                     last_hit_secs: None,
                     is_shadowed: true,
                     shadow_reason: Some(
@@ -551,10 +559,12 @@ pub(crate) fn hit_audit_label(
     )
 }
 
-/// Live hit label for one rule, flagging zero-hit and shadowed rules from the
-/// shared audit rather than showing a bare count.
+/// Live hit label for one rule, flagging disabled, zero-hit and shadowed rules
+/// from the shared audit rather than showing a bare count.
 pub(crate) fn rule_hit_label(rule: &RuleItem) -> String {
-    if rule.is_shadowed {
+    if !rule.is_enabled {
+        format!("{} 次命中 · 已停用", rule.hit_count)
+    } else if rule.is_shadowed {
         format!("{} 次命中 · 被遮蔽", rule.hit_count)
     } else if rule.hit_count == 0 {
         format!("{} 次命中 · 冷门", rule.hit_count)
@@ -612,6 +622,66 @@ fn rule_row_scene(idx: usize, rule: &RuleItem, palette: &UiPalette) -> impl Scen
                 Children [
                     ( Text(proxy) RuleProxyText(idx) TextRole(Role::Body) ),
                     ( Text(hits) RuleHitText(idx) TextRole(Role::Caption) ),
+                    ( { rule_row_controls_scene(idx, palette) } ),
+                ]
+            ),
+        ]
+    }
+}
+
+/// DUAL-11-09/10: one row's enable/disable switch plus reorder handles. Every
+/// control forwards the same typed intent for the row index to the shared
+/// application, which applies `infiltrator_domain::rules::edit`.
+fn rule_row_controls_scene(idx: usize, palette: &UiPalette) -> impl Scene + use<> {
+    bsn! {
+        Node {
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(space::S4),
+        }
+        Children [
+            (
+                Node {
+                    min_height: px(24.0),
+                    padding: UiRect::horizontal(Val::Px(space::S8)),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                }
+                BackgroundColor({ palette.surface_elevated })
+                Button
+                RuleToggleButton(idx)
+                Children [
+                    ( Text({ "启停".to_owned() }) TextRole(Role::Caption) ),
+                ]
+            ),
+            (
+                Node {
+                    min_height: px(24.0),
+                    padding: UiRect::horizontal(Val::Px(space::S6)),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                }
+                BackgroundColor({ palette.border })
+                Button
+                RuleMoveUpButton(idx)
+                Children [
+                    ( Text({ "↑".to_owned() }) TextRole(Role::Caption) ),
+                ]
+            ),
+            (
+                Node {
+                    min_height: px(24.0),
+                    padding: UiRect::horizontal(Val::Px(space::S6)),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                }
+                BackgroundColor({ palette.border })
+                Button
+                RuleMoveDownButton(idx)
+                Children [
+                    ( Text({ "↓".to_owned() }) TextRole(Role::Caption) ),
                 ]
             ),
         ]
@@ -631,7 +701,11 @@ fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.insert_resource(LastRulesProjection::default());
     // DUAL-11-13: the shared page cursor for the keyword search + pagination.
     commands.insert_resource(RulesViewState::default());
+    // DUAL-11-11: the shared wizard type selection for the add-rule form.
+    commands.insert_resource(crate::pages::rules_builder::RulesBuilderState::default());
     commands.add_observer(apply_rules_projection);
+    commands.add_observer(crate::pages::rules_edit::on_rules_row_edit_activated);
+    commands.add_observer(crate::pages::rules_builder::on_rules_builder_activated);
     commands.add_observer(crate::pages::rules_view::on_rules_paging_activated);
     commands.add_observer(crate::pages::rules_mrs::apply_mrs_projection);
     commands.add_observer(crate::pages::rules_tracer::apply_tracer_projection);

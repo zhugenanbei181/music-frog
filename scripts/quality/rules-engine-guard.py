@@ -92,6 +92,148 @@ def main() -> int:
         "test_mrs_acceleration_card_renders_shared_status_and_items",
         "test_rules_filter_and_pagination_delegate_to_shared_reduction",
     )
+    # Batch B: the shared edit reductions, the command bus and both surfaces.
+    require(
+        violations,
+        LEDGER,
+        "RuleMoveDirection",
+        "build_custom_rule",
+        "inject_game_presets",
+        "test_rules_toggle_and_reorder_submit_shared_intents",
+        "test_rules_add_wizard_submits_shared_draft_and_type_selection",
+        "test_rules_game_presets_submit_shared_target",
+        "test_rules_matrix_covers_closed_items",
+        "test_rules_type_matrix_and_logical_builder_delegate_to_shared",
+        "test_rules_edit_operations_delegate_to_shared_module",
+        "toggle_and_move_apply_shared_reductions_and_persist",
+        "add_custom_rule_prepends_and_rejects_invalid_logical_form",
+        "game_presets_prepend_the_shared_default_list",
+        "matrix_11_01_rule_type_vocabulary_parses",
+        "matrix_11_09_to_12_rule_edit_reductions",
+        "rules_matrix_test.rs",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/rule_edit.rs",
+        "pub enum RuleMoveDirection",
+        "pub struct RuleDraft",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/command.rs",
+        "ToggleRuleEnabled",
+        "MoveRule",
+        "AddCustomRule",
+        "ApplyGameRoutingPresets",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/rules.rs",
+        "pub mod edit;",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/rules/edit.rs",
+        "pub const CUSTOM_RULE_TYPE_CHOICES",
+        "pub const DEFAULT_RULE_TARGET",
+        "pub fn build_custom_rule",
+        "pub fn toggle_rule_enabled",
+        "pub fn move_rule",
+        "pub fn prepend_rules",
+        "pub fn inject_game_presets",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "async fn edit_rules",
+        "edit::toggle_rule_enabled",
+        "edit::move_rule",
+        "edit::build_custom_rule",
+        "edit::inject_game_presets",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application_tests.rs",
+        "toggle_and_move_apply_shared_reductions_and_persist",
+        "add_custom_rule_prepends_and_rejects_invalid_logical_form",
+        "game_presets_prepend_the_shared_default_list",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/core/rules.rs",
+        "rules::edit::toggle_rule_enabled",
+        "rules::edit::move_rule",
+        "rules::edit::build_custom_rule",
+        "rules::edit::inject_game_presets",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/rules.rs",
+        "CUSTOM_RULE_TYPE_CHOICES",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules_edit.rs",
+        "pub struct RuleToggleButton",
+        "pub struct RuleMoveUpButton",
+        "pub struct RuleMoveDownButton",
+        "on_rules_row_edit_activated",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules_builder.rs",
+        "pub struct RuleTypeChip",
+        "pub struct RulePayloadField",
+        "pub struct RuleTargetField",
+        "pub struct RulesBuilderState",
+        "on_rules_builder_activated",
+        "CUSTOM_RULE_TYPE_CHOICES",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules.rs",
+        "pub is_enabled:",
+        "rule_row_controls_scene",
+        "RuleToggleButton",
+        "RuleMoveUpButton",
+        "RuleMoveDownButton",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/surface_projection.rs",
+        "is_enabled: rule.is_enabled",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "ToggleRuleEnabled",
+        "MoveRuleUp",
+        "MoveRuleDown",
+        "AddCustomRule",
+        "ApplyGameRoutingPresets",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/tests/rules_matrix_test.rs",
+        "matrix_11_01_rule_type_vocabulary_parses",
+        "matrix_11_02_logical_sub_rules_evaluate",
+        "matrix_11_03_mrs_binary_pipeline",
+        "matrix_11_09_to_12_rule_edit_reductions",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_rules_toggle_and_reorder_submit_shared_intents",
+        "test_rules_add_wizard_submits_shared_draft_and_type_selection",
+        "test_rules_game_presets_submit_shared_target",
+        "test_rules_matrix_covers_closed_items",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/rules_dns_tests.rs",
+        "test_rules_edit_operations_delegate_to_shared_module",
+        "test_rules_type_matrix_and_logical_builder_delegate_to_shared",
+    )
 
     # Shared reduction lives in the domain crate.
     require(

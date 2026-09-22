@@ -240,6 +240,7 @@ fn rules_page_in_place_update() {
             payload: "anthropic.com".to_owned(),
             proxy: "AI-PROXIES".to_owned(),
             hit_count: 8888,
+            is_enabled: true,
             last_hit_secs: None,
             is_shadowed: false,
             shadow_reason: None,

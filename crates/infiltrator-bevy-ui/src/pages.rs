@@ -39,6 +39,7 @@ pub mod proxies_custom;
 pub mod proxies_filter;
 pub mod rules;
 pub mod rules_builder;
+pub mod rules_edit;
 pub mod rules_mrs;
 pub mod rules_tracer;
 pub mod rules_view;

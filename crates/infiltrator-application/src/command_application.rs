@@ -11,6 +11,7 @@ use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
 use infiltrator_contract::version::CoreReleaseChannel;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::proxy::Proxy;
+use infiltrator_domain::rules::edit;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
 use infiltrator_ports::subscription_source::SubscriptionSource;
@@ -626,6 +627,33 @@ impl CommandApplication {
                     None => Ok(()),
                 }
             }
+            CommandIntent::ToggleRuleEnabled { index } => {
+                self.edit_rules(|rules| edit::toggle_rule_enabled(rules, index))
+                    .await
+            }
+            CommandIntent::MoveRule { index, direction } => {
+                self.edit_rules(|rules| edit::move_rule(rules, index, direction))
+                    .await
+            }
+            CommandIntent::AddCustomRule {
+                rule_type,
+                payload,
+                target,
+            } => {
+                let draft = infiltrator_contract::rule_edit::RuleDraft {
+                    rule_type,
+                    payload,
+                    target,
+                };
+                let entry = edit::build_custom_rule(&draft)
+                    .map_err(|error| Failure::new(ErrorCode::InvalidInput, error, false))?;
+                self.edit_rules(move |rules| edit::prepend_rules(rules, [entry]) > 0)
+                    .await
+            }
+            CommandIntent::ApplyGameRoutingPresets { target } => {
+                self.edit_rules(move |rules| edit::inject_game_presets(rules, &target) > 0)
+                    .await
+            }
             CommandIntent::RunPrivilegedNetworkRegression => self
                 .privileged_network()?
                 .run(infiltrator_contract::privileged_network::PrivilegedNetworkRequest::standard())
@@ -645,6 +673,25 @@ impl CommandApplication {
             | CommandIntent::ResolveConflictTakeRemote
             | CommandIntent::UnpackRuleProvider { .. } => Err(unsupported()),
         }
+    }
+
+    /// DUAL-11-09/10/11/12: apply a rule-list mutation to the active profile
+    /// and persist it atomically. `mutate` reports whether it changed anything;
+    /// an unchanged list is a no-op so a stale click never rewrites the file.
+    async fn edit_rules<F>(&self, mutate: F) -> Result<(), Failure>
+    where
+        F: FnOnce(&mut Vec<infiltrator_domain::rules::RuleEntry>) -> bool,
+    {
+        let profile = self.profile()?;
+        let (name, content) = profile.current_content().await?;
+        let mut rules =
+            infiltrator_domain::rules::load_rules_from_yaml(&content).map_err(rule_failure)?;
+        if !mutate(&mut rules) {
+            return Ok(());
+        }
+        let updated = infiltrator_domain::rules::apply_rules_to_yaml(&content, &rules)
+            .map_err(rule_failure)?;
+        profile.save_profile(&name, &updated).await
     }
 
     async fn update_setting(&self, key: &str, value: &str) -> Result<(), Failure> {
@@ -904,6 +951,11 @@ fn unsupported() -> Failure {
     Failure::unsupported("command has no host port in this composition")
 }
 
+/// Configuration failure for the shared rule-edit path.
+fn rule_failure(error: impl std::fmt::Display) -> Failure {
+    Failure::new(ErrorCode::Configuration, error.to_string(), false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -919,3 +971,7 @@ mod tests {
         assert!(parse_routing_rule("drop").is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "command_application_tests.rs"]
+mod rule_edit_tests;

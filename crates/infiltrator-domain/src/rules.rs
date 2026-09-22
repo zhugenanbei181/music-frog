@@ -10,6 +10,7 @@ use serde_yaml_ng::{Mapping, Value};
 use std::collections::{BTreeMap, HashSet};
 
 pub mod analyzer;
+pub mod edit;
 pub mod tracer;
 pub mod types;
 pub mod view;

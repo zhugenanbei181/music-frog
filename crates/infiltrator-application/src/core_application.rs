@@ -803,6 +803,10 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::ApplyTracerRuleOverride { .. } => "apply_tracer_rule_override",
         CommandIntent::ResetRuleHitCounters => "reset_rule_hit_counters",
         CommandIntent::UnpackRuleProvider { .. } => "unpack_rule_provider",
+        CommandIntent::ToggleRuleEnabled { .. } => "toggle_rule_enabled",
+        CommandIntent::MoveRule { .. } => "move_rule",
+        CommandIntent::AddCustomRule { .. } => "add_custom_rule",
+        CommandIntent::ApplyGameRoutingPresets { .. } => "apply_game_routing_presets",
     }
 }
 

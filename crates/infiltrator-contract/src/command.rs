@@ -221,6 +221,30 @@ pub enum CommandIntent {
     UnpackRuleProvider {
         provider_name: String,
     },
+    /// DUAL-11-09: invert one rule's enabled flag in the active profile. The
+    /// disabled form is persisted as a `#`-prefixed entry via the shared
+    /// `format_rule_entry`.
+    ToggleRuleEnabled {
+        index: usize,
+    },
+    /// DUAL-11-10: move one rule a single step up or down in the active
+    /// profile's rule order.
+    MoveRule {
+        index: usize,
+        direction: crate::rule_edit::RuleMoveDirection,
+    },
+    /// DUAL-11-11: insert a wizard-built custom rule at the top of the list,
+    /// applying the shared logical-rule validation.
+    AddCustomRule {
+        rule_type: String,
+        payload: String,
+        target: String,
+    },
+    /// DUAL-11-12: prepend the built-in game-routing preset rules for the
+    /// supplied outbound target.
+    ApplyGameRoutingPresets {
+        target: String,
+    },
     CloseConnection {
         id: String,
     },
@@ -357,6 +381,10 @@ impl CommandIntent {
             | Self::DeleteProfile { .. }
             | Self::RefreshRuleProviders
             | Self::UnpackRuleProvider { .. } => CommandKind::Profile,
+            Self::ToggleRuleEnabled { .. }
+            | Self::MoveRule { .. }
+            | Self::AddCustomRule { .. }
+            | Self::ApplyGameRoutingPresets { .. } => CommandKind::Profile,
             Self::SimulateRuleTrace { .. }
             | Self::SetRuleTracerContext { .. }
             | Self::ApplyTracerRuleOverride { .. }

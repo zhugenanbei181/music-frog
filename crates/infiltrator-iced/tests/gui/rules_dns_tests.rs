@@ -393,6 +393,138 @@ fn test_rules_tracer_reverse_apply_override_dual_surface_flow() {
 }
 
 #[test]
+fn test_rules_edit_operations_delegate_to_shared_module() {
+    let (mut state, _) = AppState::new();
+    let entry = |rule: &str| RuleEntry {
+        rule: rule.into(),
+        enabled: true,
+    };
+    state.editor.rules = vec![
+        entry("DOMAIN,a.com,DIRECT"),
+        entry("DOMAIN,b.com,PROXY"),
+        entry("MATCH,DIRECT"),
+    ];
+    state.rebuild_rules_render_cache();
+
+    // DUAL-11-09: toggle flips the shared `RuleEntry.enabled` fact.
+    let _ = state.update(Message::ToggleRuleEnabled(1));
+    assert!(!state.editor.rules[1].enabled);
+    assert!(state.editor.rules_dirty);
+    // A stale index is a typed no-op.
+    state.editor.rules_dirty = false;
+    let _ = state.update(Message::ToggleRuleEnabled(9));
+    assert!(!state.editor.rules_dirty);
+
+    // DUAL-11-10: reorder uses the shared swap reduction and edge guards.
+    let _ = state.update(Message::MoveRuleUp(2));
+    assert_eq!(state.editor.rules[1].rule, "MATCH,DIRECT");
+    let _ = state.update(Message::MoveRuleDown(0));
+    assert_eq!(state.editor.rules[0].rule, "MATCH,DIRECT");
+    assert_eq!(state.editor.rules[1].rule, "DOMAIN,a.com,DIRECT");
+    let _ = state.update(Message::MoveRuleUp(0));
+    assert_eq!(state.editor.rules[0].rule, "MATCH,DIRECT");
+
+    // DUAL-11-12: presets prepend exactly the shared list, in order.
+    state.editor.new_rule_target = "Game-Proxy".into();
+    let before = state.editor.rules.len();
+    let _ = state.update(Message::ApplyGameRoutingPresets);
+    let presets = infiltrator_domain::rules::game_routing_presets("Game-Proxy");
+    assert_eq!(state.editor.rules.len(), before + presets.len());
+    assert_eq!(state.editor.rules[0].rule, presets[0].rule);
+    assert_eq!(state.editor.rules[presets.len()].rule, "MATCH,DIRECT");
+
+    // DUAL-11-11: the wizard and the shared builder agree on the type list and
+    // reject an empty payload before any async save is scheduled.
+    assert_eq!(
+        infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES.len(),
+        12
+    );
+    state.editor.is_adding_rule = false;
+    let rule = infiltrator_domain::rules::edit::build_custom_rule(
+        &infiltrator_contract::rule_edit::RuleDraft {
+            rule_type: "AND".into(),
+            payload: "(DOMAIN,a.com),(DST-PORT,443)".into(),
+            target: "AI".into(),
+        },
+    )
+    .expect("shared builder");
+    assert_eq!(rule.rule, "AND((DOMAIN,a.com),(DST-PORT,443),AI)");
+}
+
+#[test]
+fn test_rules_type_matrix_and_logical_builder_delegate_to_shared() {
+    let (mut state, _) = AppState::new();
+    let types = [
+        "DOMAIN",
+        "DOMAIN-SUFFIX",
+        "DOMAIN-KEYWORD",
+        "DOMAIN-REGEX",
+        "GEOSITE",
+        "IP-CIDR",
+        "IP-CIDR6",
+        "IP-SUFFIX",
+        "IP-ASN",
+        "GEOIP",
+        "SRC-GEOIP",
+        "SRC-IP-CIDR",
+        "SRC-IP-ASN",
+        "DST-PORT",
+        "SRC-PORT",
+        "IN-PORT",
+        "IN-TYPE",
+        "IN-NAME",
+        "IN-USER",
+        "PROCESS-PATH",
+        "PROCESS-PATH-REGEX",
+        "PROCESS-NAME",
+        "PROCESS-NAME-REGEX",
+        "NETWORK",
+        "DSCP",
+        "UID",
+        "PACKAGE-NAME",
+        "RULE-SET",
+    ];
+    let rules: Vec<RuleEntry> = types
+        .iter()
+        .map(|rule_type| RuleEntry {
+            rule: format!("{rule_type},payload,TARGET"),
+            enabled: true,
+        })
+        .collect();
+    let _ = state.update(Message::RulesLoaded(Ok(rules)));
+    let rendered: Vec<String> = state
+        .editor
+        .rules_render_cache
+        .iter()
+        .map(|item| item.rule_type.clone())
+        .collect();
+    assert_eq!(rendered.len(), types.len());
+    for rule_type in types {
+        assert!(rendered.iter().any(|item| item == rule_type), "{rule_type}");
+    }
+
+    // DUAL-11-02: the surface relies on the shared logical-rule syntax gate.
+    assert!(
+        infiltrator_domain::sub_rules::validate_logical_rule_syntax(
+            "AND((DOMAIN,a.com),(DST-PORT,443),T)"
+        )
+        .is_ok()
+    );
+    assert!(
+        infiltrator_domain::sub_rules::validate_logical_rule_syntax("AND((DOMAIN,a.com),T")
+            .is_err()
+    );
+
+    // DUAL-11-15: the shared view/edit reductions are reachable from the
+    // surface and use the same constants the Bevy page consumes.
+    assert_eq!(infiltrator_domain::rules::view::DEFAULT_RULE_PAGE_SIZE, 200);
+    assert_eq!(
+        infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES.len(),
+        12
+    );
+}
+
+#[test]
 fn test_rules_game_presets_and_geo_update() {
     let (mut state, _) = AppState::new();
     state.editor.rules = vec![RuleEntry {

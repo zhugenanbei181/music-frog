@@ -28,6 +28,13 @@ use infiltrator_bevy_ui::pages::profiles_import::{
 };
 use infiltrator_bevy_ui::pages::proxies::*;
 use infiltrator_bevy_ui::pages::rules::*;
+use infiltrator_bevy_ui::pages::rules_builder::{
+    AddCustomRuleButton, InjectGamePresetsButton, RuleBuilderSelection, RulePayloadField,
+    RuleTargetField, RuleTypeChip, RulesBuilderState,
+};
+use infiltrator_bevy_ui::pages::rules_edit::{
+    RuleMoveDownButton, RuleMoveUpButton, RuleToggleButton,
+};
 use infiltrator_bevy_ui::pages::rules_mrs::{RulesMrsRoot, UnpackRuleProviderButton};
 use infiltrator_bevy_ui::pages::rules_tracer::{
     ApplyTracerRuleOverrideButton, SimulateRuleTraceButton, TracerOverrideTargetField,
@@ -1189,6 +1196,24 @@ fn test_rules_page_mounting_and_default_state() {
     ));
     assert!(subtree_has_text(app.world(), root, "一键注入游戏分流预设"));
     assert!(subtree_has_text(app.world(), root, "+ 确认添加规则"));
+    // DUAL-11-09: the shared disabled flag reaches the row label.
+    assert!(subtree_has_text(app.world(), root, "已停用"));
+    assert!(
+        app.world_mut()
+            .query_filtered::<Entity, bevy::ecs::query::With<RuleToggleButton>>()
+            .iter(app.world())
+            .count()
+            == 5,
+        "one toggle control per demo rule"
+    );
+    assert!(
+        app.world_mut()
+            .query_filtered::<Entity, bevy::ecs::query::With<RuleTypeChip>>()
+            .iter(app.world())
+            .count()
+            == infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES.len(),
+        "wizard exposes the shared rule-type vocabulary"
+    );
     assert!(subtree_has_text(
         app.world(),
         root,
@@ -1795,6 +1820,224 @@ fn test_rules_pagination_hides_rows_outside_page() {
         .find(|text| text.contains("页"))
         .expect("page indicator");
     assert_eq!(indicator, "第 2/3 页 · 共 5 条");
+}
+
+fn activate(app: &mut App, entity: Entity) {
+    app.world_mut().commands().trigger(Activate { entity });
+    app.update();
+}
+
+#[test]
+fn test_rules_toggle_and_reorder_submit_shared_intents() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Rules);
+
+    // DUAL-11-09: row #1 is disabled in the demo fixture; the toggle submits the
+    // shared index intent.
+    let toggle = app
+        .world_mut()
+        .query::<(Entity, &RuleToggleButton)>()
+        .iter(app.world())
+        .find(|(_, button)| button.0 == 1)
+        .map(|(entity, _)| entity)
+        .expect("row #1 toggle");
+    activate(&mut app, toggle);
+    assert_eq!(sink.submitted(), vec![UiCommand::ToggleRuleEnabled(1)]);
+
+    // DUAL-11-10: the reorder handles map to the shared move directions.
+    let up = app
+        .world_mut()
+        .query::<(Entity, &RuleMoveUpButton)>()
+        .iter(app.world())
+        .find(|(_, button)| button.0 == 3)
+        .map(|(entity, _)| entity)
+        .expect("row #3 move up");
+    activate(&mut app, up);
+    assert_eq!(sink.submitted().last(), Some(&UiCommand::MoveRuleUp(3)));
+
+    let down = app
+        .world_mut()
+        .query::<(Entity, &RuleMoveDownButton)>()
+        .iter(app.world())
+        .find(|(_, button)| button.0 == 0)
+        .map(|(entity, _)| entity)
+        .expect("row #0 move down");
+    activate(&mut app, down);
+    assert_eq!(sink.submitted().last(), Some(&UiCommand::MoveRuleDown(0)));
+}
+
+#[test]
+fn test_rules_add_wizard_submits_shared_draft_and_type_selection() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Rules);
+
+    // DUAL-11-11: pick a non-default type chip; the shared state and caption
+    // restamp together.
+    let geoip_chip = app
+        .world_mut()
+        .query::<(Entity, &RuleTypeChip)>()
+        .iter(app.world())
+        .find(|(_, chip)| {
+            infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES
+                .get(chip.0)
+                .is_some_and(|choice| *choice == "GEOIP")
+        })
+        .map(|(entity, _)| entity)
+        .expect("GEOIP chip");
+    activate(&mut app, geoip_chip);
+    assert_eq!(
+        app.world().resource::<RulesBuilderState>().rule_type,
+        "GEOIP"
+    );
+
+    // Type the payload and target into the wizard fields.
+    let set_field = |app: &mut App, wrapper: fn(&mut App) -> Entity, text: &str| {
+        let field = wrapper(app);
+        app.world_mut()
+            .get_mut::<TextField>(field)
+            .expect("wizard field")
+            .0 = TextFieldState::new(text);
+    };
+    set_field(&mut app, payload_field_entity, "CN");
+    set_field(&mut app, target_field_entity, "DIRECT");
+
+    let add = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<AddCustomRuleButton>>()
+        .single(app.world())
+        .expect("add button");
+    activate(&mut app, add);
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::AddCustomRule {
+            rule_type: "GEOIP".to_owned(),
+            payload: "CN".to_owned(),
+            target: "DIRECT".to_owned(),
+        })
+    );
+}
+
+fn payload_field_entity(app: &mut App) -> Entity {
+    let children: Vec<Entity> = app
+        .world_mut()
+        .query_filtered::<&Children, bevy::ecs::query::With<RulePayloadField>>()
+        .single(app.world())
+        .expect("payload wrapper")
+        .iter()
+        .copied()
+        .collect();
+    children
+        .into_iter()
+        .find(|child| app.world().get::<TextField>(*child).is_some())
+        .expect("payload text field")
+}
+
+fn target_field_entity(app: &mut App) -> Entity {
+    let children: Vec<Entity> = app
+        .world_mut()
+        .query_filtered::<&Children, bevy::ecs::query::With<RuleTargetField>>()
+        .single(app.world())
+        .expect("target wrapper")
+        .iter()
+        .copied()
+        .collect();
+    children
+        .into_iter()
+        .find(|child| app.world().get::<TextField>(*child).is_some())
+        .expect("target text field")
+}
+
+#[test]
+fn test_rules_game_presets_submit_shared_target() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Rules);
+
+    // DUAL-11-12: the target field defaults to the shared constant; the inject
+    // button forwards whatever the field holds.
+    let target = target_field_entity(&mut app);
+    assert_eq!(
+        app.world()
+            .get::<TextField>(target)
+            .expect("target")
+            .0
+            .text(),
+        infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET
+    );
+    app.world_mut()
+        .get_mut::<TextField>(target)
+        .expect("target")
+        .0 = TextFieldState::new("Game-Proxy");
+
+    let inject = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<InjectGamePresetsButton>>()
+        .single(app.world())
+        .expect("inject button");
+    activate(&mut app, inject);
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::ApplyGameRoutingPresets {
+            target: "Game-Proxy".to_owned(),
+        })
+    );
+
+    // The wizard caption is a real i18n-free bare-Chinese label on Bevy.
+    let caption = app
+        .world_mut()
+        .query::<(&Text, &RuleBuilderSelection)>()
+        .iter(app.world())
+        .map(|(text, _)| text.0.clone())
+        .next()
+        .expect("selection caption");
+    assert!(caption.contains("已选类型"));
+}
+
+#[test]
+fn test_rules_matrix_covers_closed_items() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Rules);
+
+    // 11-01: rule types are projected generically, so any type renders from the
+    // shared read model without a per-type branch.
+    let mut projection = RulesProjection::demo();
+    projection.rules[0].rule_type = "PROCESS-NAME".to_owned();
+    projection.rules[1].rule_type = "GEOIP".to_owned();
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection));
+    app.update();
+    assert!(subtree_has_text(app.world(), root, "[PROCESS-NAME]"));
+    assert!(subtree_has_text(app.world(), root, "[GEOIP]"));
+
+    // 11-03/04/13: shared MRS card, provider lifecycle and search/paging.
+    assert!(subtree_has_text(app.world(), root, "MRS 加速就绪"));
+    assert!(subtree_has_text(app.world(), root, "来源:"));
+    assert!(subtree_has_text(app.world(), root, "第 1/1 页"));
+
+    // 11-09/10: one toggle + one reorder pair per mounted rule row.
+    assert_eq!(count_with::<RuleToggleButton>(&mut app), 5);
+    assert_eq!(count_with::<RuleMoveUpButton>(&mut app), 5);
+    assert_eq!(count_with::<RuleMoveDownButton>(&mut app), 5);
+
+    // 11-11/12: the wizard exposes the shared type vocabulary + both actions.
+    assert_eq!(
+        count_with::<RuleTypeChip>(&mut app),
+        infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES.len()
+    );
+    assert_eq!(count_with::<AddCustomRuleButton>(&mut app), 1);
+    assert_eq!(count_with::<InjectGamePresetsButton>(&mut app), 1);
+}
+
+/// Count mounted entities carrying a marker component.
+fn count_with<T: bevy::ecs::component::Component>(app: &mut App) -> usize {
+    app.world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<T>>()
+        .iter(app.world())
+        .count()
 }
 
 #[test]

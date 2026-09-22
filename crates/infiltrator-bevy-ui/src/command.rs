@@ -93,6 +93,20 @@ pub enum UiCommand {
     RefreshRuleProviders,
     /// Reset every accumulated rule hit counter.
     ClearRuleHitCounters,
+    /// DUAL-11-09: invert the enabled flag of one rule in the active profile.
+    ToggleRuleEnabled(usize),
+    /// DUAL-11-10: move one rule a single step up in the active profile.
+    MoveRuleUp(usize),
+    /// DUAL-11-10: move one rule a single step down in the active profile.
+    MoveRuleDown(usize),
+    /// DUAL-11-11: insert a wizard-built custom rule at the top of the list.
+    AddCustomRule {
+        rule_type: String,
+        payload: String,
+        target: String,
+    },
+    /// DUAL-11-12: prepend the built-in game-routing presets for a target.
+    ApplyGameRoutingPresets { target: String },
     /// DUAL-12-10: set the simulated sandbox source IP the tracer replays.
     SetRuleTracerContext { src_ip: Option<String> },
     /// Re-run the shared rule tracer for a target query.
@@ -280,6 +294,31 @@ impl UiCommand {
             }),
             Self::RefreshRuleProviders => Some(CommandIntent::RefreshRuleProviders),
             Self::ClearRuleHitCounters => Some(CommandIntent::ResetRuleHitCounters),
+            Self::ToggleRuleEnabled(index) => {
+                Some(CommandIntent::ToggleRuleEnabled { index: *index })
+            }
+            Self::MoveRuleUp(index) => Some(CommandIntent::MoveRule {
+                index: *index,
+                direction: infiltrator_contract::rule_edit::RuleMoveDirection::Up,
+            }),
+            Self::MoveRuleDown(index) => Some(CommandIntent::MoveRule {
+                index: *index,
+                direction: infiltrator_contract::rule_edit::RuleMoveDirection::Down,
+            }),
+            Self::AddCustomRule {
+                rule_type,
+                payload,
+                target,
+            } => Some(CommandIntent::AddCustomRule {
+                rule_type: rule_type.clone(),
+                payload: payload.clone(),
+                target: target.clone(),
+            }),
+            Self::ApplyGameRoutingPresets { target } => {
+                Some(CommandIntent::ApplyGameRoutingPresets {
+                    target: target.clone(),
+                })
+            }
             Self::SetRuleTracerContext { src_ip } => Some(CommandIntent::SetRuleTracerContext {
                 src_ip: src_ip.clone(),
             }),

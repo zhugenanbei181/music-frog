@@ -29,6 +29,7 @@ pub mod public_ip;
 pub mod reconnect_mask;
 pub mod resources;
 pub mod responsive_viewport;
+pub mod rule_edit;
 pub mod rule_tracer;
 pub mod script_sandbox;
 pub mod service_mode;

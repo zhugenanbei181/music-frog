@@ -12,7 +12,6 @@ use crate::types::runtime::RebuildFlowState;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::rules;
-use infiltrator_domain::rules::RuleEntry;
 
 impl AppState {
     fn split_rule_parts(rule: &str) -> (String, String, String) {
@@ -273,24 +272,19 @@ impl AppState {
                     ));
                 }
 
-                let rule_type = self.editor.new_rule_type.clone();
-                let target = self.editor.new_rule_target.clone();
-                let rule = if matches!(rule_type.as_str(), "AND" | "OR" | "NOT" | "SUB-RULE") {
-                    format!("{rule_type}({payload},{target})")
-                } else {
-                    format!("{rule_type},{payload},{target}")
+                let draft = infiltrator_contract::rule_edit::RuleDraft {
+                    rule_type: self.editor.new_rule_type.clone(),
+                    payload,
+                    target: self.editor.new_rule_target.clone(),
                 };
-                if matches!(rule_type.as_str(), "AND" | "OR" | "NOT" | "SUB-RULE")
-                    && let Err(error) = infiltrator_application::validate_logical_rule_syntax(&rule)
-                {
-                    return Task::done(Message::ShowToast(
-                        format!("Invalid logical rule: {error}"),
-                        ToastStatus::Error,
-                    ));
-                }
-                let entry = RuleEntry {
-                    rule,
-                    enabled: true,
+                let entry = match rules::edit::build_custom_rule(&draft) {
+                    Ok(entry) => entry,
+                    Err(error) => {
+                        return Task::done(Message::ShowToast(
+                            format!("Invalid rule: {error}"),
+                            ToastStatus::Error,
+                        ));
+                    }
                 };
                 self.editor.is_adding_rule = true;
                 let runtime = self.runtime.runtime.clone();
@@ -564,8 +558,7 @@ impl AppState {
                 Task::none()
             }
             Message::ToggleRuleEnabled(index) => {
-                if let Some(entry) = self.editor.rules.get_mut(index) {
-                    entry.enabled = !entry.enabled;
+                if rules::edit::toggle_rule_enabled(&mut self.editor.rules, index) {
                     self.editor.rules_dirty = true;
                     self.rebuild_rules_render_cache();
                     self.apply_rules_filter();
@@ -573,8 +566,11 @@ impl AppState {
                 Task::none()
             }
             Message::MoveRuleUp(index) => {
-                if index > 0 && index < self.editor.rules.len() {
-                    self.editor.rules.swap(index, index - 1);
+                if rules::edit::move_rule(
+                    &mut self.editor.rules,
+                    index,
+                    infiltrator_contract::rule_edit::RuleMoveDirection::Up,
+                ) {
                     self.editor.rules_dirty = true;
                     self.rebuild_rules_render_cache();
                     self.apply_rules_filter();
@@ -582,8 +578,11 @@ impl AppState {
                 Task::none()
             }
             Message::MoveRuleDown(index) => {
-                if index + 1 < self.editor.rules.len() {
-                    self.editor.rules.swap(index, index + 1);
+                if rules::edit::move_rule(
+                    &mut self.editor.rules,
+                    index,
+                    infiltrator_contract::rule_edit::RuleMoveDirection::Down,
+                ) {
                     self.editor.rules_dirty = true;
                     self.rebuild_rules_render_cache();
                     self.apply_rules_filter();
@@ -592,10 +591,7 @@ impl AppState {
             }
             Message::ApplyGameRoutingPresets => {
                 let target = self.editor.new_rule_target.clone();
-                let presets = rules::game_routing_presets(&target);
-                for preset in presets.into_iter().rev() {
-                    self.editor.rules.insert(0, preset);
-                }
+                rules::edit::inject_game_presets(&mut self.editor.rules, &target);
                 self.editor.rules_dirty = true;
                 self.rebuild_rules_render_cache();
                 self.apply_rules_filter();

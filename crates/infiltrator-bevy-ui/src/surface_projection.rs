@@ -197,6 +197,7 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
                     payload: rule.payload.clone(),
                     proxy: rule.proxy.clone(),
                     hit_count: rule.hit_count,
+                    is_enabled: rule.is_enabled,
                     last_hit_secs: rule.last_hit_secs,
                     is_shadowed: rule.is_shadowed,
                     shadow_reason: rule.shadow_reason.clone(),
