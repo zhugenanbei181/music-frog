@@ -324,6 +324,12 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "profiles_conditional_request_empty" => "条件请求：尚无 ETag / Last-Modified 缓存".into(),
         "sub_update_not_modified" => "订阅未变更 (304 Not Modified)".into(),
         "sub_update_quota_warning" => "配额或到期预警".into(),
+        "profiles_update_all" => "一键更新全部订阅".into(),
+        "profiles_backup_available" => "安全备份已就绪：保存订阅配置时自动生成 .bak".into(),
+        "profiles_backup_none" => "安全备份：暂无（保存订阅配置时自动生成）".into(),
+        "profiles_restore_backup" => "还原安全备份".into(),
+        "profiles_backup_restored" => "已还原上次写入前的配置备份".into(),
+        "profiles_backup_missing" => "没有可还原的安全备份".into(),
         _ => key.to_string().into(),
     }
 }

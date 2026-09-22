@@ -198,6 +198,7 @@ fn profiles_page_in_place_update() {
             insecure_skip_verify: false,
             etag: Some("\"etag-custom\"".to_owned()),
             last_modified: None,
+            has_backup: false,
         }],
     };
 

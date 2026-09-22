@@ -143,6 +143,7 @@ fn profile_info(profile: Profile) -> ProfileInfo {
         cron_expression: profile.cron_expression.clone(),
         insecure_skip_verify: profile.insecure_skip_verify,
         auto_reload_core: profile.auto_reload_core,
+        has_backup: profile.has_backup,
     }
 }
 

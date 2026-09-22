@@ -409,6 +409,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
                                 insecure_skip_verify: item.insecure_skip_verify,
                                 etag: item.etag,
                                 last_modified: item.last_modified,
+                                has_backup: item.has_backup,
                             })
                             .collect(),
                         auto_update_interval_hours: 0,

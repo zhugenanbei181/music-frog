@@ -77,6 +77,10 @@ pub enum UiCommand {
     ActivateProfile { id: String },
     /// Trigger an immediate remote update for a profile.
     UpdateProfile { id: String },
+    /// DUAL-07-11: refresh every subscription profile now, ignoring schedules.
+    UpdateAllSubscriptions,
+    /// DUAL-07-13: restore a profile's transient pre-save backup copy.
+    RestoreSubscriptionBackup { id: String },
     /// Persist a profile's subscription fetch options.
     SaveSubscriptionFetchSettings {
         profile_id: String,
@@ -256,6 +260,12 @@ impl UiCommand {
             Self::UpdateProfile { id } => Some(CommandIntent::UpdateProfile {
                 profile_id: id.clone(),
             }),
+            Self::UpdateAllSubscriptions => Some(CommandIntent::UpdateAllSubscriptions),
+            Self::RestoreSubscriptionBackup { id } => {
+                Some(CommandIntent::RestoreSubscriptionBackup {
+                    profile_id: id.clone(),
+                })
+            }
             Self::SaveSubscriptionFetchSettings {
                 profile_id,
                 user_agent,

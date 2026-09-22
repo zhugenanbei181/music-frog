@@ -10,7 +10,9 @@ use super::runtime::{IpProbeResult, RuntimeConfig, RuntimeStreamKind, RuntimeStr
 use iced::{widget::text_editor, window};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::session::SessionToken;
-use infiltrator_contract::subscription_import::SubscriptionUpdateReport;
+use infiltrator_contract::subscription_import::{
+    SubscriptionBatchReport, SubscriptionUpdateReport,
+};
 use infiltrator_contract::version::InstalledCoreVersion;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::proxy::Proxy;
@@ -26,9 +28,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-/// Per-profile outcome list of the tray-driven "update all subscriptions"
-/// entry: `(profile name, update result)` per refreshed subscription.
-pub type SubscriptionUpdateOutcomes = Result<Vec<(String, Result<(), String>)>, InfiltratorError>;
+/// Shared batch report of the "update all subscriptions" entry. Both the tray
+/// and the Profiles toolbar consume the same application-produced counts.
+pub type SubscriptionUpdateOutcomes = Result<SubscriptionBatchReport, InfiltratorError>;
 
 #[derive(Clone)]
 pub struct MtuProbeCompletion {
@@ -84,6 +86,9 @@ pub enum Message {
     SubscriptionSettingsSaved(Result<(), InfiltratorError>),
     UpdateSubscriptionNow,
     SubscriptionUpdatedNow(Result<SubscriptionUpdateReport, InfiltratorError>),
+    /// DUAL-07-13: restore the selected profile's transient pre-save backup.
+    RestoreSubscriptionBackup,
+    SubscriptionBackupRestored(Result<bool, InfiltratorError>),
     SubscriptionAutoUpdated(Result<(Vec<String>, bool), InfiltratorError>),
     // Tray entries: update every subscription now (ignoring schedules) and
     // flip one profile's auto-update flag straight from the menu.

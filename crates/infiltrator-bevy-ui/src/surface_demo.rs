@@ -418,6 +418,7 @@ impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
                     insecure_skip_verify: profile.insecure_skip_verify,
                     etag: profile.etag,
                     last_modified: profile.last_modified,
+                    has_backup: profile.has_backup,
                 })
                 .collect(),
             auto_update_interval_hours: value.auto_update_interval_hours,

@@ -82,6 +82,10 @@ pub struct ActivateProfileButton {
     pub profile_idx: usize,
 }
 
+/// DUAL-07-11: one-click refresh of every subscription profile on the toolbar.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct UpdateAllSubscriptionsButton;
+
 /// A single subscription profile snapshot.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProfileItem {
@@ -101,6 +105,8 @@ pub struct ProfileItem {
     pub etag: Option<String>,
     /// Cached `Last-Modified` validator from the last successful download.
     pub last_modified: Option<String>,
+    /// DUAL-07-13: a transient pre-save `.bak` copy exists and can be restored.
+    pub has_backup: bool,
 }
 
 /// Snapshot of the Profiles domain.
@@ -132,6 +138,7 @@ impl ProfilesProjection {
                     insecure_skip_verify: false,
                     etag: Some("\"etag-sub-1\"".to_owned()),
                     last_modified: Some("Tue, 02 Sep 2026 08:30:00 GMT".to_owned()),
+                    has_backup: true,
                 },
                 ProfileItem {
                     id: "sub-2".to_owned(),
@@ -146,6 +153,7 @@ impl ProfilesProjection {
                     insecure_skip_verify: true,
                     etag: None,
                     last_modified: None,
+                    has_backup: false,
                 },
                 ProfileItem {
                     id: "sub-3".to_owned(),
@@ -160,6 +168,7 @@ impl ProfilesProjection {
                     insecure_skip_verify: false,
                     etag: Some("\"etag-sub-3\"".to_owned()),
                     last_modified: Some("Fri, 28 Aug 2026 15:45:00 GMT".to_owned()),
+                    has_backup: false,
                 },
             ],
         }
@@ -270,6 +279,21 @@ fn header_card_scene(
                         column_gap: Val::Px(space::S8),
                     }
                     Children [
+                        (
+                            Node {
+                                min_height: px(palette.control_height_px),
+                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            Button
+                            UpdateAllSubscriptionsButton
+                            Children [
+                                ( Text({ "一键更新全部订阅".to_owned() }) TextRole(Role::Body) ),
+                            ]
+                        ),
                         (
                             Node {
                                 min_height: px(palette.control_height_px),
@@ -395,8 +419,24 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.init_resource::<LastProfilesProjection>();
     commands.add_observer(apply_profiles_projection);
     commands.add_observer(on_profiles_action_activated);
+    commands.add_observer(on_update_all_subscriptions_activated);
     commands.add_observer(crate::pages::profiles_import::sync_subscription_fetch_controls);
     commands.add_observer(crate::pages::profiles_import::on_save_subscription_fetch_settings);
+    commands.add_observer(crate::pages::profiles_import::on_restore_subscription_backup);
+}
+
+/// DUAL-07-11: route the toolbar "update all" click into the shared command bus.
+pub(crate) fn on_update_all_subscriptions_activated(
+    activate: On<Activate>,
+    buttons: Query<(), With<UpdateAllSubscriptionsButton>>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    if buttons.get(activate.entity).is_ok() {
+        handle.submit(UiCommand::UpdateAllSubscriptions);
+    }
 }
 
 pub(crate) fn on_profiles_action_activated(

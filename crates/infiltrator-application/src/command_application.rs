@@ -320,6 +320,19 @@ impl CommandApplication {
                     .await
                     .map(|_| ())
             }
+            CommandIntent::UpdateAllSubscriptions => {
+                let profile = self.profile()?;
+                let source = self.subscription_source()?;
+                profile
+                    .update_all_subscriptions(source.as_ref(), BATCH_UPDATE_CONCURRENCY)
+                    .await
+                    .map(|_| ())
+            }
+            CommandIntent::RestoreSubscriptionBackup { profile_id } => self
+                .profile()?
+                .restore_backup(&profile_id)
+                .await
+                .map(|_| ()),
             CommandIntent::UpdateSubscriptionFetchSettings {
                 profile_id,
                 user_agent,
@@ -770,6 +783,8 @@ impl CommandHandler for CommandApplication {
 const DEFAULT_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
 const DEFAULT_DELAY_TIMEOUT_MS: u32 = 5000;
 const DEFAULT_DELAY_CONCURRENCY: usize = 30;
+/// Bounded concurrency for the shared "update all subscriptions" batch.
+const BATCH_UPDATE_CONCURRENCY: usize = 5;
 
 fn delay_candidates(
     proxies: &std::collections::HashMap<String, Proxy>,

@@ -5,7 +5,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{Has, With};
+use bevy::ecs::query::{Has, With, Without};
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
@@ -59,6 +59,14 @@ pub struct SubscriptionConditionalStatus;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SaveUserAgentButton;
 
+/// DUAL-07-13: status line for the selected profile's safe pre-save backup.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SubscriptionBackupStatus;
+
+/// DUAL-07-13: restore the selected profile's transient pre-save backup.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RestoreSubscriptionBackupButton;
+
 fn selected_profile(
     projection: &ProfilesProjection,
 ) -> Option<&crate::pages::profiles::ProfileItem> {
@@ -91,6 +99,12 @@ pub fn profiles_import_card_scene(
     });
     let conditional =
         conditional.unwrap_or_else(|| "条件请求：尚无 ETag / Last-Modified 缓存".to_owned());
+    let has_backup = selected_profile(projection).is_some_and(|profile| profile.has_backup);
+    let backup_status = if has_backup {
+        "安全备份已就绪 · 可还原上次写入前的配置".to_owned()
+    } else {
+        "安全备份：暂无（保存订阅配置时自动生成）".to_owned()
+    };
     surface_scene(
         vec![
             // Section 1: "导入本地配置文件 (Import Local Config)" Header
@@ -306,6 +320,33 @@ pub fn profiles_import_card_scene(
                     ( Text({ conditional.clone() }) SubscriptionConditionalStatus TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
                 ]
             }),
+            // Section 2: Safe pre-save backup status + restore action
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::SpaceBetween,
+                    padding: UiRect::vertical(Val::Px(space::S4)),
+                }
+                Children [
+                    ( Text({ backup_status }) SubscriptionBackupStatus TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
+                    (
+                        Node {
+                            min_height: px(palette.control_height_px),
+                            padding: UiRect::horizontal(Val::Px(space::S12)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.surface_elevated })
+                        Button
+                        RestoreSubscriptionBackupButton
+                        Children [
+                            ( Text({ "还原安全备份".to_owned() }) TextRole(Role::Body) ),
+                        ]
+                    ),
+                ]
+            }),
             // Section 2: Preset UA badges / description
             Box::new(bsn! {
                 Node {
@@ -378,7 +419,20 @@ pub(super) fn sync_subscription_fetch_controls(
     checkboxes: Query<(Entity, Has<Checked>), With<Checkbox>>,
     fields: Query<&Children, With<SubscriptionUserAgentField>>,
     mut text_fields: Query<&mut TextField>,
-    mut status_lines: Query<&mut Text, With<SubscriptionConditionalStatus>>,
+    mut status_lines: Query<
+        &mut Text,
+        (
+            With<SubscriptionConditionalStatus>,
+            Without<SubscriptionBackupStatus>,
+        ),
+    >,
+    mut backup_lines: Query<
+        &mut Text,
+        (
+            With<SubscriptionBackupStatus>,
+            Without<SubscriptionConditionalStatus>,
+        ),
+    >,
     mut commands: Commands,
 ) {
     let profile = selected_profile(&update.0);
@@ -419,6 +473,45 @@ pub(super) fn sync_subscription_fetch_controls(
     for mut line in &mut status_lines {
         line.0 = status.clone();
     }
+
+    let backup = backup_status(profile);
+    for mut line in &mut backup_lines {
+        line.0 = backup.clone();
+    }
+}
+
+fn backup_status(profile: Option<&crate::pages::profiles::ProfileItem>) -> String {
+    if profile.is_some_and(|profile| profile.has_backup) {
+        "安全备份已就绪 · 可还原上次写入前的配置".to_owned()
+    } else {
+        "安全备份：暂无（保存订阅配置时自动生成）".to_owned()
+    }
+}
+
+/// DUAL-07-13: restore the selected profile's safe pre-save backup through the
+/// shared command bus.
+pub(super) fn on_restore_subscription_backup(
+    activate: On<Activate>,
+    buttons: Query<(), With<RestoreSubscriptionBackupButton>>,
+    last: Option<Res<LastProfilesProjection>>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    if buttons.get(activate.entity).is_err() {
+        return;
+    }
+    let Some(profile) = last
+        .as_ref()
+        .and_then(|last| last.0.as_ref())
+        .and_then(selected_profile)
+    else {
+        return;
+    };
+    handle.submit(UiCommand::RestoreSubscriptionBackup {
+        id: profile.id.clone(),
+    });
 }
 
 /// Save the selected profile's User-Agent and insecure-TLS preference through

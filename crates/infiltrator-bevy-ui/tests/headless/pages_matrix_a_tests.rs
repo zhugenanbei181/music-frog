@@ -17,7 +17,8 @@ use infiltrator_bevy_ui::pages::connections::*;
 use infiltrator_bevy_ui::pages::logs::*;
 use infiltrator_bevy_ui::pages::profiles::*;
 use infiltrator_bevy_ui::pages::profiles_import::{
-    ChooseLocalFileButton, ImportLocalFileButton, ProfilesImportRoot, SaveUserAgentButton,
+    ChooseLocalFileButton, ImportLocalFileButton, ProfilesImportRoot,
+    RestoreSubscriptionBackupButton, SaveUserAgentButton, SubscriptionBackupStatus,
     SubscriptionInsecureToggle, SubscriptionUserAgentField,
 };
 use infiltrator_bevy_ui::pages::proxies::*;
@@ -1582,6 +1583,7 @@ fn subscription_fetch_projection() -> ProfilesProjection {
             insecure_skip_verify: true,
             etag: Some("\"fetch-etag\"".to_owned()),
             last_modified: Some("Tue, 22 Sep 2026 09:00:00 GMT".to_owned()),
+            has_backup: true,
         }],
     }
 }
@@ -1665,5 +1667,82 @@ fn test_profiles_save_fetch_settings_submits_shared_command() {
             user_agent: Some("Custom-UA/9".to_owned()),
             insecure_skip_verify: true,
         }]
+    );
+}
+
+// ---- DUAL-07-11/13: batch update + safe backup dual surface -------------------
+
+#[test]
+fn test_profiles_update_all_toolbar_submits_shared_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    assert!(
+        subtree_has_text(app.world(), root, "一键更新全部订阅"),
+        "toolbar exposes the batch update entry"
+    );
+
+    let button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<UpdateAllSubscriptionsButton>>()
+        .single(app.world())
+        .expect("update-all button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+
+    assert_eq!(sink.submitted(), vec![UiCommand::UpdateAllSubscriptions]);
+}
+
+#[test]
+fn test_profiles_restore_backup_submits_shared_command_and_restamps_status() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(subscription_fetch_projection()));
+    app.update();
+    assert!(
+        subtree_has_text(app.world(), root, "安全备份已就绪"),
+        "available backup reaches the status line"
+    );
+
+    let button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<RestoreSubscriptionBackupButton>>()
+        .single(app.world())
+        .expect("restore backup button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::RestoreSubscriptionBackup {
+            id: "sub-fetch".to_owned(),
+        }]
+    );
+
+    let mut no_backup = subscription_fetch_projection();
+    no_backup.profiles[0].has_backup = false;
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(no_backup));
+    app.update();
+    assert!(
+        subtree_has_text(app.world(), root, "安全备份：暂无"),
+        "missing backup restamps the status line"
+    );
+    assert!(
+        app.world_mut()
+            .query_filtered::<Entity, bevy::ecs::query::With<SubscriptionBackupStatus>>()
+            .iter(app.world())
+            .next()
+            .is_some(),
+        "backup status marker is mounted"
     );
 }

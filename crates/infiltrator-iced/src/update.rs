@@ -312,6 +312,8 @@ impl AppState {
             | Message::UpdateSubscriptionNow
             | Message::SubscriptionUpdatedNow(_)
             | Message::SubscriptionAutoUpdated(_)
+            | Message::RestoreSubscriptionBackup
+            | Message::SubscriptionBackupRestored(_)
             | Message::UpdateAllSubscriptionsNow
             | Message::AllSubscriptionsUpdated(_)
             | Message::SetProfileAutoUpdate { .. }
