@@ -32,6 +32,21 @@ pub(crate) fn is_positive_number_or_bandwidth(value: &str) -> bool {
     matches!(first, Some(c) if c.is_ascii_digit() || c == '.')
 }
 
+/// DUAL-05-13: a SHA-256 certificate fingerprint (`fingerprint:`), accepting
+/// the openssl spelling (`AA:BB:...`) and an optional `sha256:` prefix.
+pub(crate) fn is_valid_sha256_fingerprint(value: &str) -> bool {
+    let trimmed = value.trim();
+    let trimmed = trimmed
+        .strip_prefix("sha256:")
+        .or_else(|| trimmed.strip_prefix("SHA256:"))
+        .unwrap_or(trimmed);
+    let compact: String = trimmed
+        .chars()
+        .filter(|c| !matches!(c, ':' | ' ' | '\t'))
+        .collect();
+    compact.len() == 64 && compact.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 /// AmneziaWG obfuscation block (`amnezia-wg-option`).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]

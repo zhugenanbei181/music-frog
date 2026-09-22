@@ -18,13 +18,13 @@ use infiltrator_contract::protocol_params_ext::TransportParams;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Apply one edit to a clone of the shared draft and publish it back.
-fn edit(draft: &ProtocolDraft, apply: impl FnOnce(&mut ProtocolDraft)) -> Message {
+pub(super) fn edit(draft: &ProtocolDraft, apply: impl FnOnce(&mut ProtocolDraft)) -> Message {
     let mut next = draft.clone();
     apply(&mut next);
     Message::UpdateCustomNodeDraft(Box::new(next))
 }
 
-fn label_text<'a>(label: String) -> Element<'a, Message> {
+pub(super) fn label_text<'a>(label: String) -> Element<'a, Message> {
     text(label)
         .size(11)
         .font(FONT_SEMIBOLD)
@@ -34,7 +34,7 @@ fn label_text<'a>(label: String) -> Element<'a, Message> {
         .into()
 }
 
-fn field<'a>(
+pub(super) fn field<'a>(
     label: String,
     placeholder: &str,
     value: &str,
@@ -68,7 +68,7 @@ fn toggle_row<'a>(
     .into()
 }
 
-fn params_row<'a>(items: Vec<Element<'a, Message>>) -> Element<'a, Message> {
+pub(super) fn params_row<'a>(items: Vec<Element<'a, Message>>) -> Element<'a, Message> {
     let mut row_items: Vec<Element<'a, Message>> = Vec::new();
     for item in items {
         if !row_items.is_empty() {
@@ -681,6 +681,9 @@ pub(super) fn params_section<'a>(state: &'a AppState) -> Element<'a, Message> {
     }
     for row_element in anytls_and_trojan_params(draft, &lang) {
         body = body.push(row_element);
+    }
+    for block in super::custom_node_trust::hop_and_trust_params(draft, studio, &lang) {
+        body = body.push(block);
     }
 
     let notes: Vec<String> = studio

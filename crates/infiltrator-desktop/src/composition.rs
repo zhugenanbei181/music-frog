@@ -88,6 +88,9 @@ pub fn core_application(
             .with_subscription_notifier(std::sync::Arc::new(
                 crate::subscription_notification_port::DesktopSubscriptionNotificationPort,
             ))
+            .with_certificate_authority(std::sync::Arc::new(
+                crate::certificate_authority::DesktopCertificateAuthority::new(),
+            ))
             .with_mtu(MtuApplication::new(std::sync::Arc::new(
                 crate::mtu::DesktopMtuProbe::new(),
             )))

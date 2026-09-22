@@ -17,6 +17,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::protocol_psk::check_2022_psk;
+
 /// DUAL-05-01: Shadowsocks cipher family, including the whole 2022-blake3 set.
 ///
 /// `parse` is strict about names and case because mihomo derives the key
@@ -594,6 +596,9 @@ pub struct ProtocolDraft {
     pub flow: String,
     pub reality: RealityParams,
     pub smux: SmuxParams,
+    /// DUAL-05-09: `dialer-proxy:` — the node or proxy-group name this node
+    /// dials through. Empty means no hop.
+    pub dialer_proxy: String,
     pub tls: bool,
     pub skip_cert_verify: bool,
     pub alpn: Vec<String>,
@@ -745,6 +750,17 @@ impl ProtocolDraft {
             issues.push(ProtocolIssue::new("alpn", "ALPN entries must not be empty"));
         }
 
+        // DUAL-05-09: a node that dials through itself is a dependency loop the
+        // core cannot build; longer loops are typed findings from the shared
+        // dialer topology (05-10) instead of a silently accepted chain.
+        let dialer_proxy = self.dialer_proxy.trim();
+        if !dialer_proxy.is_empty() && dialer_proxy == self.name.trim() {
+            issues.push(ProtocolIssue::new(
+                "dialer-proxy",
+                "`dialer-proxy` must not name the node itself; that is a self-referencing chain",
+            ));
+        }
+
         // DUAL-05-03…05-12: typed parameter blocks, gated by the family.
         self.params
             .validate(self.family(), &self.password, &self.alpn, &mut issues);
@@ -754,43 +770,6 @@ impl ProtocolDraft {
 
     pub fn report(&self) -> ProtocolFidelityReport {
         ProtocolFidelityReport::from_draft(self)
-    }
-}
-
-/// Validate a Shadowsocks-2022 PSK: one base64 key, or `key:key` for the
-/// multi-user form, each decoding to the cipher's key size.
-fn check_2022_psk(password: &str, key_bytes: usize, issues: &mut Vec<ProtocolIssue>) {
-    if password.is_empty() {
-        return;
-    }
-    for part in password.split(':') {
-        let trimmed = part.trim();
-        if trimmed.is_empty() {
-            issues.push(ProtocolIssue::new(
-                "password",
-                "2022 PSK components must not be empty",
-            ));
-            return;
-        }
-        if !trimmed
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '=')
-        {
-            issues.push(ProtocolIssue::new(
-                "password",
-                "2022 PSK must be standard base64 (one key, or key:key for multi-user)",
-            ));
-            return;
-        }
-        let padding = trimmed.chars().filter(|c| *c == '=').count();
-        let decoded = (trimmed.len() * 3 / 4).saturating_sub(padding);
-        if decoded != key_bytes {
-            issues.push(ProtocolIssue::new(
-                "password",
-                "2022 PSK length does not match the cipher key size",
-            ));
-            return;
-        }
     }
 }
 
@@ -947,6 +926,14 @@ pub struct ProtocolStudioSnapshot {
     /// round-tripping the draft through the URI codec (honest, never hard-coded).
     #[serde(default)]
     pub uri_gaps: Vec<String>,
+    /// DUAL-05-09/10: the static dialer chains + loop findings for the profile
+    /// the studio last analysed. Empty until a profile was analysed.
+    #[serde(default)]
+    pub dialer: crate::dialer_chain::DialerChainReport,
+    /// DUAL-05-13: what the host really did with the CA request (loaded /
+    /// unsupported / failed). Never claims a CA the host did not read.
+    #[serde(default)]
+    pub ca_trust: crate::protocol_trust::CaTrustReport,
 }
 
 impl ProtocolStudioSnapshot {

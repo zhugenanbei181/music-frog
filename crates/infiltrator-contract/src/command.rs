@@ -431,6 +431,22 @@ pub enum CommandIntent {
         /// the intent enum must stay small (clippy::large_enum_variant).
         draft: Box<crate::protocol_fidelity::ProtocolDraft>,
     },
+    /// DUAL-05-09/10: analyse the active profile's dialer/relay graph and
+    /// publish the resolved chains + typed loop findings for both surfaces.
+    ScanDialerChains,
+    /// DUAL-05-09/13: edit one whitelisted field of the published custom-node
+    /// draft (dialer hop / CA carriers). An unknown field is a typed failure,
+    /// so a surface can never invent a schema key.
+    UpdateCustomNodeDraftField {
+        field: String,
+        value: String,
+    },
+    /// DUAL-05-13: resolve a draft's custom-CA request against the host reader
+    /// and publish the typed outcome (loaded / unsupported / failed).
+    ResolveCertificateAuthority {
+        /// Boxed for the same reason as `SaveCustomNodeDraft`.
+        trust: Box<crate::protocol_trust::TlsTrustParams>,
+    },
     UpdateSetting {
         key: String,
         value: String,
@@ -490,6 +506,9 @@ impl CommandIntent {
             | Self::ReAggregateProfile { .. }
             | Self::ImportCustomNodeUri { .. }
             | Self::SaveCustomNodeDraft { .. }
+            | Self::ScanDialerChains
+            | Self::ResolveCertificateAuthority { .. }
+            | Self::UpdateCustomNodeDraftField { .. }
             | Self::RefreshRuleProviders
             | Self::UnpackRuleProvider { .. }
             | Self::PurgeRuleProviderCache => CommandKind::Profile,

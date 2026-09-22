@@ -52,6 +52,7 @@
 //! * `profile_yaml` — profile YAML document <-> node list conversion
 //! * `validate` — advisory per-protocol validation rules
 
+pub mod dialer;
 pub mod model;
 pub mod profile_yaml;
 #[cfg(test)]

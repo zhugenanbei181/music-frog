@@ -66,6 +66,10 @@ pub struct ProxyNodeItem {
     pub packet_encoding: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub network: Option<String>,
+    /// DUAL-05-13: `fingerprint:` — SHA-256 of the peer certificate
+    /// (certificate whitelist). Distinct from `client-fingerprint` (uTLS).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fingerprint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -226,6 +230,7 @@ impl ProxyNodeItem {
             skip_cert_verify: None,
             packet_encoding: None,
             network: None,
+            fingerprint: None,
             public_key: None,
             short_id: None,
             spider_x: None,

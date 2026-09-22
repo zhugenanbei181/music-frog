@@ -14,6 +14,7 @@ pub mod command_catalogue;
 pub mod connection;
 pub mod controller;
 pub mod design_tokens;
+pub mod dialer_chain;
 pub mod dns;
 pub mod dns_form;
 pub mod doctor;
@@ -38,6 +39,8 @@ pub mod protocol_fidelity;
 pub mod protocol_matrix;
 pub mod protocol_params;
 pub mod protocol_params_ext;
+mod protocol_psk;
+pub mod protocol_trust;
 pub mod provider_cache;
 pub mod proxies;
 

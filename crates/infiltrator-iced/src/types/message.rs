@@ -562,6 +562,16 @@ pub enum Message {
     ExportCustomNodeUri,
     SaveCustomNodeForm,
     CustomNodeSaved(Result<(), InfiltratorError>),
+    /// DUAL-05-09/10: analyse the active profile's dialer/relay graph and
+    /// publish the shared chain + loop report.
+    ScanCustomNodeDialer,
+    /// DUAL-05-09/10: the shared analyzer's report (published for both surfaces).
+    CustomNodeDialerScanned(
+        Result<infiltrator_contract::dialer_chain::DialerChainReport, InfiltratorError>,
+    ),
+    /// DUAL-05-13: resolve the draft's custom-CA request against this host's
+    /// reader and publish the typed outcome.
+    VerifyCustomNodeCertificateAuthority,
     // Multi-Profile Aggregator (Category 3, DUAL-08)
     OpenAggregatorModal,
     CloseAggregatorModal,

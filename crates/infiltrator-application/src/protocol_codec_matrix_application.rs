@@ -1,9 +1,13 @@
 //! DUAL-05-15: the shared protocol-codec regression matrix execution.
 //!
 //! Every row runs the real domain codec + shared application and reports what
-//! it measured. The `planned` group 05 items (09 dialer chains, 10 dialer
-//! cycle detection, 13 custom CA) are registered uncovered with their real
-//! reason; nothing here is hard-coded to `true`.
+//! it measured: all 15 group 05 items are closed (05-09 dialer chains, 05-10
+//! dialer cycle detection and 05-13 custom CA included), and nothing here is
+//! hard-coded to `true`.
+
+#[cfg(test)]
+#[path = "protocol_codec_matrix_application_test.rs"]
+mod protocol_codec_matrix_application_test;
 
 use infiltrator_contract::protocol_fidelity::{NodeCodecFormat, ProtocolDraft};
 use infiltrator_contract::protocol_matrix::{
@@ -11,10 +15,6 @@ use infiltrator_contract::protocol_matrix::{
 };
 
 use crate::protocol_codec_application::ProtocolCodecApplication;
-
-#[cfg(test)]
-#[path = "protocol_codec_matrix_application_test.rs"]
-mod protocol_codec_matrix_application_test;
 
 /// The one shared executor both surfaces call.
 pub struct ProtocolCodecMatrixApplication;
@@ -28,16 +28,6 @@ fn closed(id: &str, item: &str, (passed, detail): Check) -> ProtocolCodecMatrixS
         covered: true,
         passed,
         detail,
-    }
-}
-
-fn planned(id: &str, item: &str, reason: &str) -> ProtocolCodecMatrixScenario {
-    ProtocolCodecMatrixScenario {
-        id: id.to_string(),
-        item: item.to_string(),
-        covered: false,
-        passed: false,
-        detail: reason.to_string(),
     }
 }
 
@@ -112,15 +102,11 @@ impl ProtocolCodecMatrixApplication {
                     "AnyTLS + trojan-go ss-opts",
                     check_anytls_and_trojan_go(),
                 ),
-                planned(
-                    "DUAL-05-09",
-                    "dialer-proxy hop chain",
-                    "no chain topology exists: `dialer-proxy` is a typed field with no resolver, projection or surface",
-                ),
-                planned(
+                closed("DUAL-05-09", "dialer-proxy hop chain", check_dialer_chain()),
+                closed(
                     "DUAL-05-10",
                     "dialer dependency cycle detection",
-                    "`detect_group_cycles` covers proxy-group references only; no dialer graph is built anywhere",
+                    check_dialer_cycles(),
                 ),
                 closed(
                     "DUAL-05-11",
@@ -132,10 +118,10 @@ impl ProtocolCodecMatrixApplication {
                     "TLS ECH + multi-version ALPN order",
                     check_ech_and_alpn(),
                 ),
-                planned(
+                closed(
                     "DUAL-05-13",
                     "custom CA / certificate whitelist",
-                    "no custom-CA field, import port or fingerprint check exists in the workspace",
+                    check_custom_ca(),
                 ),
                 closed(
                     "DUAL-05-14",
@@ -464,6 +450,227 @@ fn check_anytls_and_trojan_go() -> Check {
     )
 }
 
+/// A real, tiny self-signed certificate used by the matrix (05-13). Only its
+/// PEM structure matters here; the fingerprint is always computed, never faked.
+const MATRIX_CA_PEM: &str = "\
+-----BEGIN CERTIFICATE-----
+MIIBhTCCASugAwIBAgIQIRi6zePL6mKjOipn+dNuaTAKBggqhkjOPQQDAjASMRAw
+DgYDVQQKEwdBY21lIENvMB4XDTE3MTAyMDE5NDMwNloXDTE4MTAyMDE5NDMwNlow
+EjEQMA4GA1UEChMHQWNtZSBDbzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABD0d
+7VNhbWvZLWPuj/RtHFjvtJBEwOkhbN/BnnE8rnZR8+sbwnc/KhCk3FhnpHZnQz7B
+5aETbbIgmuvewdjvSBSjYzBhMA4GA1UdDwEB/wQEAwICpDATBgNVHSUEDDAKBggr
+BgEFBQcDATAPBgNVHRMBAf8EBTADAQH/MCkGA1UdEQQiMCCCDmxvY2FsaG9zdDo1
+NDUzgg4xMjcuMC4wLjE6NTQ1MzAKBggqhkjOPQQDAgNIADBFAiEA2zpJEPQyz6/l
+Wf86aX6PepsntZv2GYlA5UpabfT2EZICICpJ5h/iI+i341gBmLiAFQOyTDT+/wQc
+6MF9+Yw1Yy0t
+-----END CERTIFICATE-----
+";
+
+/// DUAL-05-09: a `dialer-proxy` hop chain resolves statically and survives the
+/// profile round trip; the share link honestly cannot carry it.
+fn check_dialer_chain() -> Check {
+    let profile = r#"
+proxies:
+  - name: nas
+    type: ss
+    server: 1.1.1.1
+    port: 8388
+    cipher: aes-128-gcm
+    password: pw
+    dialer-proxy: gateway
+  - name: gateway
+    type: vless
+    server: 2.2.2.2
+    port: 443
+    uuid: b831381d-6324-4d53-ad4f-8cda48b30811
+    dialer-proxy: hop
+  - name: hop
+    type: trojan
+    server: 3.3.3.3
+    port: 443
+    password: pw
+"#;
+    let report = crate::dialer_chain_application::DialerChainApplication::analyze_profile(profile)
+        .expect("dialer report");
+    let chain = report.chain_for("nas").expect("nas chain");
+    let hops_ok = chain.valid() && chain.hops.len() == 3 && chain.hops[2].name == "hop";
+    let line = chain.chain_line();
+    let line_ok = line.contains("nas") && line.contains("gateway") && line.contains("hop");
+
+    let mut draft = vless_draft();
+    draft.name = "hop-two".into();
+    draft.dialer_proxy = "gateway".into();
+    let commit = ProtocolCodecApplication::upsert_draft_into_profile(profile, &draft).unwrap();
+    let written_ok = commit.profile_yaml.contains("dialer-proxy: gateway");
+    let committed_ok = commit
+        .dialer
+        .chain_for("hop-two")
+        .is_some_and(|view| view.valid() && view.hops.len() == 3);
+    let round_trip_ok = profile_round_trip(&draft).dialer_proxy == "gateway";
+    let gap_ok =
+        ProtocolCodecApplication::uri_fidelity_gaps(&draft).contains(&"dialer-proxy".to_string());
+
+    (
+        hops_ok && line_ok && written_ok && committed_ok && round_trip_ok && gap_ok,
+        format!(
+            "hops={hops_ok} line={line_ok} yaml={written_ok} commit={committed_ok} round-trip={round_trip_ok} uri-gap={gap_ok}"
+        ),
+    )
+}
+
+/// DUAL-05-10: a loop is typed, detected and never presented as a valid chain;
+/// a self-referencing draft is refused before it can be written.
+fn check_dialer_cycles() -> Check {
+    let profile = r#"
+proxies:
+  - name: a
+    type: ss
+    server: 1.1.1.1
+    port: 8388
+    cipher: aes-128-gcm
+    password: pw
+    dialer-proxy: b
+  - name: b
+    type: ss
+    server: 2.2.2.2
+    port: 8388
+    cipher: aes-128-gcm
+    password: pw
+    dialer-proxy: a
+  - name: c
+    type: ss
+    server: 3.3.3.3
+    port: 8388
+    cipher: aes-128-gcm
+    password: pw
+    dialer-proxy: dial
+proxy-groups:
+  - name: dial
+    type: select
+    proxies: [c]
+  - name: g1
+    type: select
+    proxies: [g2]
+  - name: g2
+    type: select
+    proxies: [g1]
+"#;
+    let report = crate::dialer_chain_application::DialerChainApplication::analyze_profile(profile)
+        .expect("dialer report");
+    let mutual_ok = report.loops.iter().any(|finding| {
+        finding.kind == infiltrator_contract::dialer_chain::DialerLoopKind::Mutual
+            && finding.path == vec!["a", "b", "a"]
+            && finding.spans_dialer_proxy
+    });
+    let group_ok = report.loops.iter().any(|finding| {
+        finding.kind == infiltrator_contract::dialer_chain::DialerLoopKind::RelayGroupCycle
+    });
+    // Every chain that touches a loop must be invalid and render the loop.
+    let loop_chains_ok = report
+        .chains
+        .iter()
+        .filter(|chain| report.loop_for(&chain.root).is_some())
+        .all(|chain| !chain.valid() && chain.chain_line().contains("环路"));
+    let chain_a_ok = report.chain_for("a").is_some_and(|chain| chain.has_loop());
+
+    let mut self_ref = vless_draft();
+    self_ref.name = "self".into();
+    self_ref.dialer_proxy = "self".into();
+    let refused = self_ref
+        .validate()
+        .iter()
+        .any(|issue| issue.field == "dialer-proxy");
+
+    (
+        mutual_ok && group_ok && loop_chains_ok && chain_a_ok && refused,
+        format!(
+            "mutual={mutual_ok} group-cycle={group_ok} loop-chains={loop_chains_ok} chain-a={chain_a_ok} self-refused={refused}"
+        ),
+    )
+}
+
+/// DUAL-05-13: inline bundles are validated in-process, whitelist pins are
+/// enforced, a host without a reader degrades to typed unsupported (never a
+/// claimed load), and the file path reaches the real v1.19.18 carrier.
+fn check_custom_ca() -> Check {
+    use infiltrator_contract::protocol_trust::{CaLoadStatus, TlsTrustParams};
+    use infiltrator_ports::certificate_authority::UnsupportedCertificateAuthority;
+
+    let fingerprint = infiltrator_domain::tls_trust::sha256_fingerprint(MATRIX_CA_PEM);
+    let params = TlsTrustParams {
+        ca_str: MATRIX_CA_PEM.to_string(),
+        fingerprint: fingerprint.clone(),
+        ..TlsTrustParams::default()
+    };
+    let inline = crate::certificate_authority_application::CertificateAuthorityApplication::resolve(
+        &params, None,
+    );
+    let inline_ok = inline.is_loaded() && !inline.is_unsupported();
+
+    let mut pinned = params.clone();
+    pinned.fingerprint = "00".repeat(32);
+    let mismatch =
+        crate::certificate_authority_application::CertificateAuthorityApplication::resolve(
+            &pinned, None,
+        );
+    let mismatch_ok = mismatch.status() == CaLoadStatus::FingerprintMismatch
+        && mismatch.is_loaded()
+        && !mismatch.is_trusted()
+        && mismatch.chips().contains(&"ca:pin-mismatch".to_string());
+
+    let path_params = TlsTrustParams {
+        ca_path: "/etc/ssl/private/custom-ca.pem".to_string(),
+        ..TlsTrustParams::default()
+    };
+    let unsupported =
+        crate::certificate_authority_application::CertificateAuthorityApplication::resolve(
+            &path_params,
+            Some(&UnsupportedCertificateAuthority),
+        );
+    let unsupported_ok = unsupported.is_unsupported() && !unsupported.is_loaded();
+    let unsupported_chip_ok = unsupported.chips().contains(&"ca:unsupported".to_string());
+
+    let profile = "mode: rule\ntls:\n  certificate: /etc/ssl/cert.pem\nrules:\n  - MATCH,DIRECT\n";
+    let commit =
+        crate::certificate_authority_application::CertificateAuthorityApplication::upsert_trust_anchors_into_profile(
+            profile, &path_params,
+        )
+        .expect("trust commit");
+    let carrier_ok = commit.changed
+        && commit.ca_paths == vec!["/etc/ssl/private/custom-ca.pem".to_string()]
+        && commit.profile_yaml.contains("custom-certifactes")
+        && commit
+            .profile_yaml
+            .contains("certificate: /etc/ssl/cert.pem")
+        && commit.profile_yaml.contains("MATCH,DIRECT");
+
+    // `fingerprint` is a real v1.19.18 node key and must survive the round trip.
+    let mut draft = vless_draft();
+    draft.params.tls_trust.fingerprint = fingerprint.clone();
+    let round_trip_ok = profile_round_trip(&draft).params.tls_trust.fingerprint == fingerprint;
+
+    // A malformed fingerprint is refused by the shared validator.
+    let mut broken = draft.clone();
+    broken.params.tls_trust.fingerprint = "not-hex".into();
+    let refused = broken
+        .validate()
+        .iter()
+        .any(|issue| issue.field == "fingerprint");
+
+    (
+        inline_ok
+            && mismatch_ok
+            && unsupported_ok
+            && unsupported_chip_ok
+            && carrier_ok
+            && round_trip_ok
+            && refused,
+        format!(
+            "inline={inline_ok} mismatch={mismatch_ok} unsupported={unsupported_ok}/{unsupported_chip_ok} carrier={carrier_ok} round-trip={round_trip_ok} refused={refused}"
+        ),
+    )
+}
+
 fn check_smux() -> Check {
     let mut draft = vless_draft();
     draft.smux.enabled = true;
@@ -581,8 +788,11 @@ fn check_matrix_self(report: &ProtocolCodecMatrixReport) -> Check {
         "DUAL-05-06",
         "DUAL-05-07",
         "DUAL-05-08",
+        "DUAL-05-09",
+        "DUAL-05-10",
         "DUAL-05-11",
         "DUAL-05-12",
+        "DUAL-05-13",
         "DUAL-05-14",
     ];
     let missing: Vec<&str> = expected_covered
@@ -590,10 +800,9 @@ fn check_matrix_self(report: &ProtocolCodecMatrixReport) -> Check {
         .copied()
         .filter(|id| !covered.contains(id))
         .collect();
-    let planned = report.not_covered_ids();
-    let expected_planned = ["DUAL-05-09", "DUAL-05-10", "DUAL-05-13"];
-    let planned_ok = expected_planned.iter().all(|id| planned.contains(id))
-        && planned.len() == expected_planned.len();
+    // Every group 05 item is closed: an uncovered row would be a regression in
+    // the matrix itself, not an expected gap.
+    let no_planned = report.not_covered_ids().is_empty();
     let no_failures = report.all_covered_passed();
     let details_ok = report
         .scenarios
@@ -601,9 +810,9 @@ fn check_matrix_self(report: &ProtocolCodecMatrixReport) -> Check {
         .all(|row| !row.detail.trim().is_empty());
 
     (
-        missing.is_empty() && planned_ok && no_failures && details_ok,
+        missing.is_empty() && no_planned && no_failures && details_ok,
         format!(
-            "covered={}/{} missing={missing:?} planned={planned:?} failures={:?}",
+            "covered={}/{} missing={missing:?} failures={:?}",
             report.covered_passed_count(),
             report.covered_count(),
             report.failed_ids()

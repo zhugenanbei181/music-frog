@@ -129,6 +129,15 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "custom_node_trojan_ss" => "Trojan-Go SS multiplexing".into(),
         "custom_node_trojan_ss_method" => "SS mux cipher".into(),
         "custom_node_trojan_ss_password" => "SS mux password".into(),
+        // DUAL-05-09/10: dialer-proxy hop chain + loop warnings.
+        "custom_node_dialer_proxy" => "Dialer proxy hop".into(),
+        "custom_node_dialer_scan" => "Scan dialer chains".into(),
+        "custom_node_dialer_chain" => "Dialer chain".into(),
+        // DUAL-05-13: custom CA / certificate whitelist.
+        "custom_node_ca_path" => "Custom CA path (ca)".into(),
+        "custom_node_ca_str" => "Inline CA PEM (ca-str)".into(),
+        "custom_node_ca_fingerprint" => "Certificate whitelist (sha256)".into(),
+        "custom_node_ca_verify" => "Verify certificate trust".into(),
 
 
         // Category 3: Multi-Profile Aggregator & Topology Generator

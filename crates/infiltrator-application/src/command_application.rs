@@ -63,6 +63,9 @@ pub struct CommandApplication {
     import_source: Option<Arc<dyn SubscriptionImportPort>>,
     /// DUAL-07-10: host port for subscription system notifications.
     notifier: Option<Arc<dyn SubscriptionNotificationPort>>,
+    /// DUAL-05-13: host port that reads CA certificate bundles.
+    certificate_authority:
+        Option<Arc<dyn infiltrator_ports::certificate_authority::CertificateAuthorityPort>>,
     doctor: Option<DoctorApplication>,
     routing: Option<RoutingApplication>,
     sync: Option<SyncApplication>,
@@ -125,6 +128,18 @@ impl CommandApplication {
         notifier: Arc<dyn SubscriptionNotificationPort>,
     ) -> Self {
         self.notifier = Some(notifier);
+        self
+    }
+
+    /// DUAL-05-13: install the host CA-bundle reader.
+    ///
+    /// Hosts without one keep the field empty and the shared application
+    /// reports the request as typed unsupported instead of claiming a load.
+    pub fn with_certificate_authority(
+        mut self,
+        port: Arc<dyn infiltrator_ports::certificate_authority::CertificateAuthorityPort>,
+    ) -> Self {
+        self.certificate_authority = Some(port);
         self
     }
 
@@ -545,6 +560,7 @@ impl CommandApplication {
                 // DUAL-05-14: splice the node into the active profile without
                 // disturbing any other section, then commit through the same
                 // apply transaction the other profile editors use.
+                let trust = draft.params.tls_trust.clone();
                 self.profile()?
                     .save_current_profile_content(
                         self.managed_runtime.clone(),
@@ -557,7 +573,41 @@ impl CommandApplication {
                             .map_err(|failure| failure.message)
                         },
                     )
-                    .await
+                    .await?;
+                // DUAL-05-13: the CA request is resolved against the host
+                // reader *after* the profile committed, so a reported load can
+                // never describe a document that was not written.
+                crate::protocol_codec_application::ProtocolCodecApplication::publish_ca_trust(
+                    &trust,
+                    self.certificate_authority.as_deref(),
+                );
+                Ok(())
+            }
+            CommandIntent::ScanDialerChains => {
+                // DUAL-05-09/10: one shared analyzer over the active profile;
+                // both surfaces render the published report.
+                let content = self.profile()?.current_profile().await?;
+                crate::protocol_codec_application::ProtocolCodecApplication::publish_dialer_report(
+                    &content,
+                )?;
+                Ok(())
+            }
+            CommandIntent::UpdateCustomNodeDraftField { field, value } => {
+                // DUAL-05-09/13: a typed, whitelisted draft edit; an unknown
+                // field is refused by the shared application.
+                crate::protocol_codec_application::ProtocolCodecApplication::update_draft_field(
+                    &field, &value,
+                )?;
+                Ok(())
+            }
+            CommandIntent::ResolveCertificateAuthority { trust } => {
+                // DUAL-05-13: resolve and publish; the outcome is a state, not
+                // an error, because a host without a reader is expected.
+                crate::protocol_codec_application::ProtocolCodecApplication::publish_ca_trust(
+                    &trust,
+                    self.certificate_authority.as_deref(),
+                );
+                Ok(())
             }
             CommandIntent::SetSubscriptionAutoReload {
                 profile_id,

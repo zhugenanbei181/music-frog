@@ -388,6 +388,8 @@ pub struct ProtocolParams {
     pub ssh: SshParams,
     pub anytls: AnyTlsParams,
     pub trojan_ss: TrojanSsParams,
+    /// DUAL-05-13: custom CA / certificate whitelist.
+    pub tls_trust: crate::protocol_trust::TlsTrustParams,
 }
 
 impl ProtocolParams {
@@ -519,6 +521,13 @@ impl ProtocolParams {
             self.trojan_ss.validate(issues);
         }
 
+        // DUAL-05-13: certificate trust is a profile-level store; structural
+        // validation always runs and the carrier facts are non-blocking notes
+        // (`ca` -> global `tls.custom-certifactes`, inline `ca-str` has no
+        // v1.19.18 carrier), never a fabricated per-node claim.
+        if self.tls_trust.is_present() {
+            self.tls_trust.validate(issues);
+        }
         // Multi-version ALPN is an ordered preference list: preserve the order,
         // reject duplicates (the negotiation order would be ambiguous).
         let mut seen: Vec<&str> = Vec::new();
@@ -554,6 +563,7 @@ impl ProtocolParams {
         if family == ProtocolFamily::Shadowsocks {
             self.plugin.notes(&mut notes);
         }
+        notes.extend(self.tls_trust.notes());
         notes
     }
 }
@@ -572,6 +582,8 @@ pub struct ProtocolParamsReport {
     pub anytls_chips: Vec<String>,
     /// DUAL-05-08: trojan-go's `ss-opts` chips (kept separate from AnyTLS).
     pub trojan_chips: Vec<String>,
+    /// DUAL-05-13: custom CA / certificate whitelist chips.
+    pub ca_chips: Vec<String>,
     /// Facts the pinned core ignores or falls back on; never blocking.
     pub notes: Vec<String>,
 }
@@ -636,6 +648,7 @@ impl ProtocolParamsReport {
             ssh_chips,
             anytls_chips,
             trojan_chips,
+            ca_chips: params.tls_trust.chips(),
             notes: params.notes(family),
         }
     }
@@ -654,6 +667,7 @@ impl ProtocolParamsReport {
         chips.extend(self.ssh_chips.iter().cloned());
         chips.extend(self.anytls_chips.iter().cloned());
         chips.extend(self.trojan_chips.iter().cloned());
+        chips.extend(self.ca_chips.iter().cloned());
         chips
     }
 }

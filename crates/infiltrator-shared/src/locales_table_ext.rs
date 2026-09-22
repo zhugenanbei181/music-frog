@@ -133,6 +133,15 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "custom_node_trojan_ss" => "Trojan-Go SS 复用".into(),
         "custom_node_trojan_ss_method" => "SS 复用加密".into(),
         "custom_node_trojan_ss_password" => "SS 复用口令".into(),
+        // DUAL-05-09/10: dialer-proxy hop chain + loop warnings.
+        "custom_node_dialer_proxy" => "前置跳板 (dialer-proxy)".into(),
+        "custom_node_dialer_scan" => "扫描跳板链".into(),
+        "custom_node_dialer_chain" => "跳板链路".into(),
+        // DUAL-05-13: custom CA / certificate whitelist.
+        "custom_node_ca_path" => "自定义 CA 路径 (ca)".into(),
+        "custom_node_ca_str" => "内嵌 CA PEM (ca-str)".into(),
+        "custom_node_ca_fingerprint" => "证书指纹白名单 (sha256)".into(),
+        "custom_node_ca_verify" => "校验证书信任".into(),
 
         // Category 3: Multi-Profile Aggregator & Topology Generator
         "aggregator_title" => "多订阅配置聚合器".into(),

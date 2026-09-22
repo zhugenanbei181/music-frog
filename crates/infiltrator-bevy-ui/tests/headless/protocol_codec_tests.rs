@@ -18,7 +18,8 @@ use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::pages::proxies::{ProxiesProjection, ProxiesProjectionUpdated};
 use infiltrator_bevy_ui::pages::proxies_custom::{
-    CustomNodeSlot, CustomNodeText, CustomNodeUriField, ImportUriButton, SaveCustomNodeButton,
+    CustomNodeCaField, CustomNodeDialerField, CustomNodeSlot, CustomNodeText, CustomNodeUriField,
+    ImportUriButton, SaveCustomNodeButton, ScanDialerChainsButton, VerifyCustomNodeCaButton,
 };
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
@@ -319,9 +320,9 @@ fn protocol_codec_matrix_passes_on_the_bevy_surface() {
         "matrix failures: {:?}",
         report.failed_ids()
     );
-    assert_eq!(report.covered_passed_count(), 12);
+    assert_eq!(report.covered_passed_count(), 15);
     assert!(
-        report.summary_zh().contains("12/12"),
+        report.summary_zh().contains("15/15"),
         "{}",
         report.summary_zh()
     );
@@ -366,4 +367,197 @@ fn custom_node_audit_line_reports_the_measured_lossless_verdict() {
     assert!(audit_line.contains("结构有损"), "{audit_line}");
     assert!(audit_line.contains("1 节点"), "{audit_line}");
     assert!(audit_line.contains("未知字段 1"), "{audit_line}");
+}
+
+#[test]
+fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
+    clear_studio();
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_app(sink);
+    navigate_to_proxies(&mut app);
+
+    // Honest empty states before anything is published.
+    assert_eq!(
+        text_for_slot(&mut app, CustomNodeSlot::Chain),
+        "无前置跳板链路"
+    );
+    assert_eq!(
+        text_for_slot(&mut app, CustomNodeSlot::CaTrust),
+        "未配置自定义证书信任"
+    );
+
+    // 05-09: a real hop chain resolved by the shared analyzer.
+    let profile = "proxies:\n  - name: nas\n    type: ss\n    server: 1.1.1.1\n    port: 8388\n    cipher: aes-128-gcm\n    password: pw\n    dialer-proxy: gateway\n  - name: gateway\n    type: vless\n    server: 2.2.2.2\n    port: 443\n    uuid: b831381d-6324-4d53-ad4f-8cda48b30811\n";
+    let report = ProtocolCodecApplication::publish_dialer_report(profile).expect("dialer report");
+    let mut draft = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
+    draft.name = "nas".to_owned();
+    draft.dialer_proxy = "gateway".to_owned();
+    let studio = ProtocolCodecApplication::publish_draft(draft, None);
+    assert_eq!(studio.dialer, report);
+    app.world_mut()
+        .commands()
+        .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            groups: Vec::new(),
+            testing: false,
+            active_exit: "—".to_owned(),
+            custom_node: studio,
+        }));
+    app.update();
+
+    let chain = text_for_slot(&mut app, CustomNodeSlot::Chain);
+    assert!(chain.contains("nas(Shadowsocks)"), "{chain}");
+    assert!(chain.contains("gateway(VLESS)"), "{chain}");
+    assert!(chain.contains("链路完整"), "{chain}");
+
+    // 05-10: a loop is rendered as a loop warning, never as a valid chain.
+    let loop_profile = "proxies:\n  - name: a\n    type: ss\n    server: 1.1.1.1\n    port: 8388\n    cipher: aes-128-gcm\n    password: pw\n    dialer-proxy: b\n  - name: b\n    type: ss\n    server: 2.2.2.2\n    port: 8388\n    cipher: aes-128-gcm\n    password: pw\n    dialer-proxy: a\n";
+    ProtocolCodecApplication::publish_dialer_report(loop_profile).expect("loop report");
+    let mut loop_draft = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
+    loop_draft.name = "a".to_owned();
+    loop_draft.dialer_proxy = "b".to_owned();
+    let studio = ProtocolCodecApplication::publish_draft(loop_draft, None);
+    app.world_mut()
+        .commands()
+        .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            groups: Vec::new(),
+            testing: false,
+            active_exit: "—".to_owned(),
+            custom_node: studio,
+        }));
+    app.update();
+    let chain = text_for_slot(&mut app, CustomNodeSlot::Chain);
+    assert!(chain.contains("环路"), "{chain}");
+    assert!(
+        chain.contains("⛔") || chain.contains("该链路不可用"),
+        "{chain}"
+    );
+
+    // 05-13: the CA slot renders what the host really reported. A host without
+    // a reader must never look loaded.
+    let mut ca_draft = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
+    ca_draft.params.tls_trust.ca_path = "/etc/ssl/custom-ca.pem".to_owned();
+    let studio = ProtocolCodecApplication::publish_draft(ca_draft, None);
+    let report = ProtocolCodecApplication::publish_ca_trust(
+        &studio.draft.as_ref().expect("draft").params.tls_trust,
+        None,
+    );
+    assert!(report.is_unsupported());
+    let studio = infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot {
+        ca_trust: report,
+        ..studio
+    };
+    app.world_mut()
+        .commands()
+        .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            groups: Vec::new(),
+            testing: false,
+            active_exit: "—".to_owned(),
+            custom_node: studio,
+        }));
+    app.update();
+    let ca = text_for_slot(&mut app, CustomNodeSlot::CaTrust);
+    assert!(ca.contains("宿主不支持"), "{ca}");
+    assert!(
+        ca.contains("未加载") || ca.contains("was not loaded"),
+        "{ca}"
+    );
+    clear_studio();
+}
+
+#[test]
+fn custom_node_scan_and_ca_buttons_submit_the_shared_commands() {
+    clear_studio();
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_app(Arc::clone(&sink));
+    navigate_to_proxies(&mut app);
+
+    // Publish a draft and project it, so the card has typed facts to edit.
+    let draft = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
+    let studio = ProtocolCodecApplication::publish_draft(draft, None);
+    app.world_mut()
+        .commands()
+        .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            groups: Vec::new(),
+            testing: false,
+            active_exit: "—".to_owned(),
+            custom_node: studio,
+        }));
+    app.update();
+
+    // Type into the hop + CA fields and activate the shared actions.
+    let field_of = |app: &mut App, marker: &'static str| -> Entity {
+        match marker {
+            "dialer" => {
+                let mut query = app
+                    .world_mut()
+                    .query::<(&CustomNodeDialerField, &Children)>();
+                *query
+                    .single(app.world())
+                    .expect("dialer field")
+                    .1
+                    .iter()
+                    .next()
+                    .unwrap()
+            }
+            _ => {
+                let mut query = app.world_mut().query::<(&CustomNodeCaField, &Children)>();
+                *query
+                    .single(app.world())
+                    .expect("ca field")
+                    .1
+                    .iter()
+                    .next()
+                    .unwrap()
+            }
+        }
+    };
+    let dialer_field = field_of(&mut app, "dialer");
+    let ca_field = field_of(&mut app, "ca");
+    app.world_mut()
+        .get_mut::<TextField>(dialer_field)
+        .expect("dialer state")
+        .0
+        .apply(TextFieldInput::SetText("gateway".to_owned()));
+    app.world_mut()
+        .get_mut::<TextField>(ca_field)
+        .expect("ca state")
+        .0
+        .apply(TextFieldInput::SetText("/etc/ssl/ca.pem".to_owned()));
+
+    let scan = button_entity::<ScanDialerChainsButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: scan });
+    app.update();
+    assert!(
+        sink.submitted().iter().any(|command| matches!(
+            command,
+            UiCommand::UpdateCustomNodeDraftField { field, value }
+                if field == "dialer-proxy" && value == "gateway"
+        )),
+        "{:?}",
+        sink.submitted()
+    );
+    assert!(
+        sink.submitted()
+            .iter()
+            .any(|command| matches!(command, UiCommand::ScanCustomNodeDialer)),
+        "{:?}",
+        sink.submitted()
+    );
+
+    let verify = button_entity::<VerifyCustomNodeCaButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: verify });
+    app.update();
+    assert!(
+        sink.submitted().iter().any(|command| matches!(
+            command,
+            UiCommand::VerifyCustomNodeCa { trust } if trust.ca_path == "/etc/ssl/ca.pem"
+        )),
+        "{:?}",
+        sink.submitted()
+    );
+    clear_studio();
 }

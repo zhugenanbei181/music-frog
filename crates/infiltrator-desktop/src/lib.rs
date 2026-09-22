@@ -1,5 +1,6 @@
 pub mod admin_client;
 pub mod boot;
+pub mod certificate_authority;
 pub mod clipboard_helper;
 pub mod composition;
 pub mod crash;

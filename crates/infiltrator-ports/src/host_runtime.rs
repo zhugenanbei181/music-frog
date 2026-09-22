@@ -62,6 +62,13 @@ pub trait HostRuntime: ManagedRuntime {
     fn privileged_network_port(&self) -> Option<Arc<dyn PrivilegedNetworkPort>> {
         None
     }
+    /// DUAL-05-13: optional CA-bundle file reader. Hosts without one surface a
+    /// typed unsupported certificate state instead of claiming a CA was loaded.
+    fn certificate_authority_port(
+        &self,
+    ) -> Option<Arc<dyn crate::certificate_authority::CertificateAuthorityPort>> {
+        None
+    }
     /// Optional native VPN service adapter. Desktop/iOS hosts return `None`
     /// and surface a typed unsupported state instead of emulating Android.
     fn vpn_service_port(&self) -> Option<Arc<dyn VpnServicePort>> {
