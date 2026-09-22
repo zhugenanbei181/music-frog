@@ -63,6 +63,10 @@ pub enum ConnectionSortKey {
     DownloadDesc,
     /// Highest uploaded total first.
     UploadDesc,
+    /// Highest instantaneous download rate first (DUAL-13-12).
+    DownloadRateDesc,
+    /// Highest instantaneous upload rate first (DUAL-13-12).
+    UploadRateDesc,
     /// Newest connection start first.
     LatestDesc,
     /// Destination host ascending.
@@ -75,6 +79,8 @@ impl ConnectionSortKey {
         match self {
             Self::DownloadDesc => "download_desc",
             Self::UploadDesc => "upload_desc",
+            Self::DownloadRateDesc => "download_rate_desc",
+            Self::UploadRateDesc => "upload_rate_desc",
             Self::LatestDesc => "latest_desc",
             Self::HostAsc => "host_asc",
         }
@@ -85,6 +91,8 @@ impl ConnectionSortKey {
     pub fn from_identifier(value: &str) -> Self {
         match value {
             "upload_desc" => Self::UploadDesc,
+            "download_rate_desc" => Self::DownloadRateDesc,
+            "upload_rate_desc" => Self::UploadRateDesc,
             "latest_desc" => Self::LatestDesc,
             "host_asc" => Self::HostAsc,
             _ => Self::DownloadDesc,
@@ -204,6 +212,15 @@ pub trait ConnectionView {
     fn view_upload_total(&self) -> u64;
     /// Cumulative downloaded bytes.
     fn view_download_total(&self) -> u64;
+    /// Instantaneous upload rate in bytes per second (DUAL-13-12). Rows that
+    /// only carry cumulative counters keep the honest zero.
+    fn view_upload_rate_bps(&self) -> f64 {
+        0.0
+    }
+    /// Instantaneous download rate in bytes per second (DUAL-13-12).
+    fn view_download_rate_bps(&self) -> f64 {
+        0.0
+    }
     /// Destination IP, used for rule drafting and host fallback.
     fn view_destination_ip(&self) -> &str {
         ""
@@ -278,6 +295,72 @@ impl ConnectionView for Connection {
     }
 }
 
+/// A connection row paired with the instantaneous rates of the shared rate
+/// book (DUAL-13-10/12). Surfaces that hold domain rows and a separate
+/// [`crate::connection_rate::ConnectionRates`] book wrap each row in this view
+/// so the one shared sort/threshold reduction sees the same rates as surfaces
+/// whose rows already carry them.
+pub struct RatedConnection<'a, C: ConnectionView> {
+    pub row: &'a C,
+    pub rate: crate::connection_rate::ConnectionRate,
+}
+
+impl<'a, C: ConnectionView> RatedConnection<'a, C> {
+    pub fn new(row: &'a C, rate: crate::connection_rate::ConnectionRate) -> Self {
+        Self { row, rate }
+    }
+}
+
+impl<C: ConnectionView> ConnectionView for RatedConnection<'_, C> {
+    fn view_id(&self) -> &str {
+        self.row.view_id()
+    }
+
+    fn view_host(&self) -> &str {
+        self.row.view_host()
+    }
+
+    fn view_process_path(&self) -> &str {
+        self.row.view_process_path()
+    }
+
+    fn view_upload_total(&self) -> u64 {
+        self.row.view_upload_total()
+    }
+
+    fn view_download_total(&self) -> u64 {
+        self.row.view_download_total()
+    }
+
+    fn view_upload_rate_bps(&self) -> f64 {
+        self.rate.upload_bps
+    }
+
+    fn view_download_rate_bps(&self) -> f64 {
+        self.rate.download_bps
+    }
+
+    fn view_destination_ip(&self) -> &str {
+        self.row.view_destination_ip()
+    }
+
+    fn view_start(&self) -> &str {
+        self.row.view_start()
+    }
+
+    fn view_chain(&self) -> &[String] {
+        self.row.view_chain()
+    }
+
+    fn view_joined_chain(&self) -> &str {
+        self.row.view_joined_chain()
+    }
+
+    fn view_search_terms(&self) -> Vec<&str> {
+        self.row.view_search_terms()
+    }
+}
+
 /// Extract a clean executable name from a system process path.
 pub fn process_display_name(path: &str) -> String {
     let trimmed = path.trim();
@@ -327,7 +410,9 @@ pub fn matches_search<C: ConnectionView>(conn: &C, query: &str) -> bool {
 }
 
 /// Sort the connection slice in place using the shared sort key, with stable
-/// id tie-breaking so both surfaces render identical order.
+/// id tie-breaking so both surfaces render identical order. The rate keys
+/// (DUAL-13-12) rank by the instantaneous accessors, which read zero for rows
+/// that carry only cumulative counters.
 pub fn sort_connections<C: ConnectionView>(conns: &mut [C], key: ConnectionSortKey) {
     conns.sort_by(|a, b| {
         let ordering = match key {
@@ -335,6 +420,12 @@ pub fn sort_connections<C: ConnectionView>(conns: &mut [C], key: ConnectionSortK
                 b.view_download_total().cmp(&a.view_download_total())
             }
             ConnectionSortKey::UploadDesc => b.view_upload_total().cmp(&a.view_upload_total()),
+            ConnectionSortKey::DownloadRateDesc => b
+                .view_download_rate_bps()
+                .total_cmp(&a.view_download_rate_bps()),
+            ConnectionSortKey::UploadRateDesc => b
+                .view_upload_rate_bps()
+                .total_cmp(&a.view_upload_rate_bps()),
             ConnectionSortKey::LatestDesc => b.view_start().cmp(a.view_start()),
             ConnectionSortKey::HostAsc => connection_host(a).cmp(connection_host(b)),
         };
@@ -497,6 +588,8 @@ mod tests {
         for key in [
             ConnectionSortKey::DownloadDesc,
             ConnectionSortKey::UploadDesc,
+            ConnectionSortKey::DownloadRateDesc,
+            ConnectionSortKey::UploadRateDesc,
             ConnectionSortKey::LatestDesc,
             ConnectionSortKey::HostAsc,
         ] {
@@ -505,6 +598,72 @@ mod tests {
         assert_eq!(
             ConnectionSortKey::from_identifier("bogus"),
             ConnectionSortKey::DownloadDesc
+        );
+    }
+
+    #[test]
+    fn rate_sort_keys_rank_through_the_shared_adapter() {
+        use crate::connection_rate::{ConnectionRate, ConnectionRates};
+
+        let conns = [
+            connection("c1", "a.com", "1.1.1.1", "/bin/a", 100, 500),
+            connection("c2", "b.com", "2.2.2.2", "/bin/b", 900, 200),
+            connection("c3", "c.com", "3.3.3.3", "/bin/c", 500, 800),
+        ];
+        let rates = ConnectionRates::from_pairs([
+            (
+                "c1".to_string(),
+                ConnectionRate {
+                    upload_bps: 0.0,
+                    download_bps: 9_000.0,
+                },
+            ),
+            (
+                "c2".to_string(),
+                ConnectionRate {
+                    upload_bps: 5_000.0,
+                    download_bps: 0.0,
+                },
+            ),
+            (
+                "c3".to_string(),
+                ConnectionRate {
+                    upload_bps: 1_000.0,
+                    download_bps: 1_000.0,
+                },
+            ),
+        ]);
+
+        let mut rows: Vec<RatedConnection<'_, Connection>> = conns
+            .iter()
+            .map(|conn| RatedConnection::new(conn, rates.get(&conn.id)))
+            .collect();
+        sort_connections(&mut rows, ConnectionSortKey::DownloadRateDesc);
+        assert_eq!(
+            rows.iter().map(|row| row.view_id()).collect::<Vec<_>>(),
+            vec!["c1", "c3", "c2"]
+        );
+        // The adapter still resolves every cumulative accessor through the row.
+        assert_eq!(rows[0].view_host(), "a.com");
+        assert_eq!(rows[0].view_download_total(), 500);
+
+        sort_connections(&mut rows, ConnectionSortKey::UploadRateDesc);
+        assert_eq!(
+            rows.iter().map(|row| row.view_id()).collect::<Vec<_>>(),
+            vec!["c2", "c3", "c1"]
+        );
+
+        // Without a derived rate every row reads zero and the stable id
+        // tie-break keeps the order deterministic.
+        let empty = ConnectionRates::default();
+        let mut rows: Vec<RatedConnection<'_, Connection>> = conns
+            .iter()
+            .map(|conn| RatedConnection::new(conn, empty.get(&conn.id)))
+            .collect();
+        sort_connections(&mut rows, ConnectionSortKey::DownloadRateDesc);
+        assert_eq!(
+            rows.iter().map(|row| row.view_id()).collect::<Vec<_>>(),
+            vec!["c1", "c2", "c3"]
         );
     }
 

@@ -394,11 +394,13 @@ impl AppState {
             crate::ime::composition_message(&event)
         }));
 
-        // 5. 高性能动画订阅：只有正在转场时才开启帧回调；帧率由共享
-        //    `RenderCadence` 决定（前台跟随真实帧信号，后台 2 FPS）。
+        // 5. 高性能动画订阅：只有正在转场、概览拓扑流动或连接高吞吐脉冲时
+        //    才开启帧回调；帧率由共享 `RenderCadence` 决定（前台跟随真实
+        //    帧信号，后台 2 FPS）。
         if self.shell.transition.start_time.is_some()
             || (self.shell.current_route == Route::Overview
                 && self.runtime.traffic_topology.is_flowing())
+            || (self.shell.current_route == Route::Runtime && self.diag.connection_pulse_active())
         {
             subs.push(frame_cadence_subscription(
                 infiltrator_contract::cadence::RenderCadence::from_focused(

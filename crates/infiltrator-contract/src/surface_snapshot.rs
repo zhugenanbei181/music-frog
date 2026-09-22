@@ -368,6 +368,9 @@ pub struct ConnectionSnapshot {
     pub host: String,
     pub process: String,
     pub rule: String,
+    /// DUAL-13-14: the matched rule payload the detail drawer renders.
+    #[serde(default)]
+    pub rule_payload: String,
     /// Joined route chain retained for compact fallback rendering.
     pub chain: String,
     /// DUAL-13-06: the parsed route chain, one hop per entry, from the matched
@@ -375,6 +378,19 @@ pub struct ConnectionSnapshot {
     /// core did not report a chain.
     #[serde(default)]
     pub chains: Vec<String>,
+    /// DUAL-13-14: transport label (`tcp`/`udp`) as the core reported it.
+    #[serde(default)]
+    pub network: String,
+    /// DUAL-13-14: local endpoint of the connection.
+    #[serde(default)]
+    pub source_ip: String,
+    #[serde(default)]
+    pub source_port: String,
+    /// DUAL-13-14: remote endpoint of the connection.
+    #[serde(default)]
+    pub destination_ip: String,
+    #[serde(default)]
+    pub destination_port: String,
     pub upload_bps: f64,
     pub download_bps: f64,
     pub upload_total: u64,

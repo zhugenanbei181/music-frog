@@ -230,6 +230,8 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
         "runtime_conn_sort" => "Connection Sort".into(),
         "runtime_conn_sort_download_desc" => "Download Desc".into(),
         "runtime_conn_sort_upload_desc" => "Upload Desc".into(),
+        "runtime_conn_sort_download_rate" => "Live Download".into(),
+        "runtime_conn_sort_upload_rate" => "Live Upload".into(),
         "runtime_conn_sort_latest_desc" => "Latest First".into(),
         "runtime_conn_sort_host_asc" => "Host Asc".into(),
         "runtime_conn_filter_placeholder" => "Filter connections (id/host/process/ip/rule)".into(),

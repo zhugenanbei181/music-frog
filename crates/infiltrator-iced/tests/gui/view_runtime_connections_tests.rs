@@ -1,4 +1,5 @@
 use super::*;
+use infiltrator_domain::connection_rate::{ConnectionRate, ConnectionRates};
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
 
 fn make_test_conn(id: &str, host: &str, process: &str, up: u64, down: u64) -> Connection {
@@ -73,20 +74,113 @@ fn test_sort_connections() {
         make_test_conn("3", "c.com", "", 500, 800),
     ];
 
-    sort_connections(&mut conns, "download_desc");
-    assert_eq!(conns[0].id, "3");
-    assert_eq!(conns[1].id, "1");
-    assert_eq!(conns[2].id, "2");
+    // Cumulative keys keep the original ordering through the shared reduction.
+    let empty = ConnectionRates::default();
+    let rows = sort_rated_connections(&conns, &empty, "download_desc");
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.row.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["3", "1", "2"]
+    );
+    let rows = sort_rated_connections(&conns, &empty, "upload_desc");
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.row.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["2", "3", "1"]
+    );
+    let rows = sort_rated_connections(&conns, &empty, "host_asc");
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.row.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["2", "1", "3"]
+    );
 
-    sort_connections(&mut conns, "upload_desc");
-    assert_eq!(conns[0].id, "2");
-    assert_eq!(conns[1].id, "3");
-    assert_eq!(conns[2].id, "1");
+    // DUAL-13-12: the rate keys rank on the derived instantaneous rates, not
+    // on the cumulative totals above.
+    let rates = ConnectionRates::from_pairs([
+        (
+            "1".to_string(),
+            ConnectionRate {
+                upload_bps: 0.0,
+                download_bps: 9_000.0,
+            },
+        ),
+        (
+            "2".to_string(),
+            ConnectionRate {
+                upload_bps: 5_000.0,
+                download_bps: 0.0,
+            },
+        ),
+        (
+            "3".to_string(),
+            ConnectionRate {
+                upload_bps: 1_000.0,
+                download_bps: 1_000.0,
+            },
+        ),
+    ]);
+    let rows = sort_rated_connections(&conns, &rates, "download_rate_desc");
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.row.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["1", "3", "2"]
+    );
+    let rows = sort_rated_connections(&conns, &rates, "upload_rate_desc");
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.row.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["2", "3", "1"]
+    );
 
-    sort_connections(&mut conns, "host_asc");
-    assert_eq!(conns[0].id, "2");
-    assert_eq!(conns[1].id, "1");
-    assert_eq!(conns[2].id, "3");
+    // The windowed view slices the rated rows, so the bounds still line up.
+    conns.truncate(2);
+    let rows = sort_rated_connections(&conns, &rates, "download_rate_desc");
+    assert_eq!(rows.len(), 2);
+}
+
+#[test]
+fn test_high_throughput_pulse_uses_the_shared_threshold() {
+    let slow = make_test_conn("slow", "slow.example.com", "/usr/bin/curl", 0, 0);
+    let fast = make_test_conn("fast", "fast.example.com", "/usr/bin/curl", 0, 0);
+    let threshold = infiltrator_domain::connection_rate::HIGH_THROUGHPUT_THRESHOLD_BPS;
+    let rates = ConnectionRates::from_pairs([
+        (
+            "slow".to_string(),
+            ConnectionRate {
+                upload_bps: threshold - 1.0,
+                download_bps: 1_000.0,
+            },
+        ),
+        (
+            "fast".to_string(),
+            ConnectionRate {
+                upload_bps: threshold,
+                download_bps: 0.0,
+            },
+        ),
+    ]);
+
+    // Below the threshold: no glow at any phase.
+    assert_eq!(connection_pulse_intensity(&slow, &rates, 0.5), 0.0);
+    // At/above the threshold: the shared breathing intensity, deterministic
+    // for a given phase and strongest at the mid-breath.
+    let low = connection_pulse_intensity(&fast, &rates, 0.0);
+    let peak = connection_pulse_intensity(&fast, &rates, 0.5);
+    assert_eq!(
+        low,
+        infiltrator_domain::connection_rate::PULSE_MIN_INTENSITY
+    );
+    assert!(peak > low);
+    assert!((peak - infiltrator_domain::connection_rate::PULSE_MAX_INTENSITY).abs() < 1e-5);
+    // A connection with no observation window shows no glow.
+    let unknown = make_test_conn("unknown", "x.example.com", "/bin/x", 0, 0);
+    assert_eq!(connection_pulse_intensity(&unknown, &rates, 0.5), 0.0);
 }
 
 #[test]
@@ -102,7 +196,7 @@ fn test_stream_badge_kinds() {
 fn test_shared_connection_view_reductions_are_delegated() {
     use infiltrator_domain::connection_view::{ConnectionGroupingMode, quick_rule_spec};
 
-    let mut conns = vec![
+    let conns = vec![
         make_test_conn("1", "b.com", "/usr/bin/git", 100, 500),
         make_test_conn("2", "a.com", "/usr/bin/curl", 900, 200),
     ];
@@ -110,8 +204,8 @@ fn test_shared_connection_view_reductions_are_delegated() {
     // Search (DUAL-13-13) and sort resolve through the shared domain.
     assert!(filter_connection(&conns[0], "git"));
     assert!(!filter_connection(&conns[0], "curl"));
-    sort_connections(&mut conns, "upload_desc");
-    assert_eq!(conns[0].id, "2");
+    let rows = sort_rated_connections(&conns, &ConnectionRates::default(), "upload_desc");
+    assert_eq!(rows[0].row.id, "2");
 
     // Aggregation (DUAL-13-02) is the shared bucket reduction.
     let buckets = infiltrator_domain::connection_view::aggregate_connections(
@@ -123,7 +217,7 @@ fn test_shared_connection_view_reductions_are_delegated() {
     assert_eq!(buckets[0].upload_total, 900);
 
     // Reverse rule draft (DUAL-13-09) uses the bare host, not host:port.
-    let spec = quick_rule_spec(&conns[0], "DIRECT");
+    let spec = quick_rule_spec(rows[0].row, "DIRECT");
     assert_eq!(spec.pattern, "DOMAIN-SUFFIX,a.com");
     assert_eq!(spec.rule_line(), "DOMAIN-SUFFIX,a.com,DIRECT");
 }

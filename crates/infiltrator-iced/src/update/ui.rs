@@ -112,6 +112,20 @@ impl AppState {
                     self.diag.topology_flow_phase = 0.0;
                 }
 
+                // DUAL-13-10: the high-throughput pulse breathes only while a
+                // real connection stays above the shared threshold; the same
+                // shared phase drives the Bevy pulse through the same domain
+                // intensity function.
+                if self.diag.connection_pulse_active() {
+                    // The breath frequency is the shared domain constant, so
+                    // both surfaces pulse at the same rate.
+                    self.diag.connection_pulse_phase = (self.diag.connection_pulse_phase
+                        + delta * infiltrator_domain::connection_rate::PULSE_BREATH_HZ)
+                        .fract();
+                } else {
+                    self.diag.connection_pulse_phase = 0.0;
+                }
+
                 if let (Some(start), Some(route)) =
                     (self.diag.perf_nav_started_at, self.diag.perf_nav_route)
                     && route == self.shell.current_route

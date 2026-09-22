@@ -213,6 +213,8 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "conn_idle_sweep_btn" => "Sweep Idle".into(),
         "conn_idle_last_sweep_none" => "Last sweep: not run yet".into(),
         "conn_idle_last_sweep" => "Last sweep: {count} idle connection(s)".into(),
+        "conn_pulse_high_throughput" => "High-Throughput Pulse".into(),
+        "conn_drawer_rate_pending" => "Instant rate: waiting for a second observation".into(),
 
         // Category 5: Config Snapshot Visual Diff & Rollback
         "snapshot_diff_title" => "Snapshot Visual Diff & Rollback".into(),

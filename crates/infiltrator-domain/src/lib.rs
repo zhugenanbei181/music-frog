@@ -11,6 +11,7 @@ pub mod backoff_strategy;
 pub mod backup;
 pub mod config;
 pub mod connection_activity;
+pub mod connection_rate;
 pub mod connection_view;
 pub mod core_state;
 pub mod diagnostics;

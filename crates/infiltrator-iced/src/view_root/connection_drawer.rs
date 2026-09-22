@@ -80,7 +80,37 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
     ]
     .spacing(6);
 
-    // Section 2: Real-time Throughput & Traffic
+    // Section 2: Real-time Throughput & Traffic. The instantaneous rates are
+    // the shared DUAL-13-10/12 derivation (successive total diff over a
+    // measured interval); before a second observation they read as an honest
+    // "no data yet" rather than a fabricated speed.
+    let rate = state.diag.connection_rate_book.get(&conn.id);
+    let rate_row = if rate.peak_bps() > 0.0 {
+        row![
+            stat_card(
+                lang.tr("conn_drawer_upload_speed"),
+                format!("{}/s", format_bytes(rate.upload_bps.max(0.0) as u64)),
+                Icon::ArrowUp,
+                |t| tokens(t).accent
+            ),
+            Space::new().width(theme::SP_SM),
+            stat_card(
+                lang.tr("conn_drawer_download_speed"),
+                format!("{}/s", format_bytes(rate.download_bps.max(0.0) as u64)),
+                Icon::ArrowDown,
+                |t| tokens(t).success
+            ),
+        ]
+    } else {
+        row![
+            text(lang.tr("conn_drawer_rate_pending"))
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary),
+                })
+        ]
+    };
+
     let throughput_section = column![
         row![
             icon_themed(Icon::Network, 14.0, |t: &Theme| tokens(t).accent),
@@ -106,6 +136,8 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
                 |t| tokens(t).success
             ),
         ],
+        Space::new().height(theme::SP_XS),
+        rate_row,
     ]
     .spacing(6);
 

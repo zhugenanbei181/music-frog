@@ -233,6 +233,8 @@ pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "runtime_conn_sort" => "连接排序".into(),
         "runtime_conn_sort_download_desc" => "下载降序".into(),
         "runtime_conn_sort_upload_desc" => "上传降序".into(),
+        "runtime_conn_sort_download_rate" => "瞬时下载".into(),
+        "runtime_conn_sort_upload_rate" => "瞬时上传".into(),
         "runtime_conn_sort_latest_desc" => "最新优先".into(),
         "runtime_conn_sort_host_asc" => "主机名升序".into(),
         "runtime_conn_filter_placeholder" => "过滤连接（ID/域名/进程/IP/规则）".into(),

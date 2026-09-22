@@ -40,9 +40,10 @@ use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::connections_idle::{ConnectionsIdleState, current_unix_secs};
 use crate::pages::connections_view::{
     CloseAllConnectionsLabel, CloseFilteredConnectionsButton, ConnAggregationSummary,
-    ConnAggregationSummaryContainer, ConnRowsContainer, ConnSearchField, ConnectionRow,
-    ConnectionsCloseAllState, ConnectionsViewState, restamp_aggregation_pills,
-    restamp_aggregation_summary, search_field_text,
+    ConnAggregationSummaryContainer, ConnRowsContainer, ConnSearchField, ConnSortPill,
+    ConnectionRow, ConnectionsCloseAllState, ConnectionsViewState, apply_connection_row_order,
+    restamp_aggregation_pills, restamp_aggregation_summary, restamp_sort_pills, search_field_text,
+    sort_pills_scene,
 };
 use crate::pages::overview::{format_byte_count, format_rate};
 use crate::route::{PageRoot, Route};
@@ -121,9 +122,17 @@ pub struct ConnectionItem {
     pub host: String,
     pub process: String,
     pub rule: String,
+    /// DUAL-13-14: matched rule payload the detail drawer renders.
+    pub rule_payload: String,
     pub chain: String,
     /// DUAL-13-06: parsed route-chain hops, one per stage.
     pub chains: Vec<String>,
+    /// DUAL-13-14: transport label as the core reported it.
+    pub network: String,
+    pub source_ip: String,
+    pub source_port: String,
+    pub destination_ip: String,
+    pub destination_port: String,
     pub upload_bps: f64,
     pub download_bps: f64,
     pub upload_total: u64,
@@ -139,68 +148,6 @@ pub struct ConnectionsProjection {
     /// DUAL-13-01: lifecycle phase of the connections telemetry feed.
     pub stream_phase: infiltrator_contract::connection::ConnectionStreamPhase,
     pub connections: Vec<ConnectionItem>,
-}
-
-impl ConnectionsProjection {
-    /// Believable demo fixture for the Connections page.
-    pub fn demo() -> Self {
-        Self {
-            total_connections: 4,
-            total_upload_bytes: 14_200_000,
-            total_download_bytes: 88_900_000,
-            stream_phase: infiltrator_contract::connection::ConnectionStreamPhase::Live,
-            connections: vec![
-                ConnectionItem {
-                    id: "c-1".to_owned(),
-                    host: "api.github.com:443".to_owned(),
-                    process: "git (pid: 14238)".to_owned(),
-                    rule: "DOMAIN-SUFFIX github.com".to_owned(),
-                    chain: "节点选择 -> 🇭🇰 香港 01".to_owned(),
-                    chains: vec!["节点选择".to_owned(), "🇭🇰 香港 01".to_owned()],
-                    upload_bps: 24_000.0,
-                    download_bps: 180_000.0,
-                    upload_total: 1_200_000,
-                    download_total: 12_400_000,
-                },
-                ConnectionItem {
-                    id: "c-2".to_owned(),
-                    host: "manifest.googlevideo.com:443".to_owned(),
-                    process: "chrome (pid: 8912)".to_owned(),
-                    rule: "GEOSITE youtube".to_owned(),
-                    chain: "国外媒体 -> 🇸🇬 新加坡 01".to_owned(),
-                    chains: vec!["国外媒体".to_owned(), "🇸🇬 新加坡 01".to_owned()],
-                    upload_bps: 8_500.0,
-                    download_bps: 2_450_000.0,
-                    upload_total: 450_000,
-                    download_total: 68_000_000,
-                },
-                ConnectionItem {
-                    id: "c-3".to_owned(),
-                    host: "gateway.discord.gg:443".to_owned(),
-                    process: "Discord (pid: 11024)".to_owned(),
-                    rule: "DOMAIN-SUFFIX discord.gg".to_owned(),
-                    chain: "节点选择 -> 🇭🇰 香港 01".to_owned(),
-                    chains: vec!["节点选择".to_owned(), "🇭🇰 香港 01".to_owned()],
-                    upload_bps: 1_200.0,
-                    download_bps: 3_400.0,
-                    upload_total: 890_000,
-                    download_total: 4_200_000,
-                },
-                ConnectionItem {
-                    id: "c-4".to_owned(),
-                    host: "119.29.29.29:53".to_owned(),
-                    process: "systemd-resolved".to_owned(),
-                    rule: "GEOIP CN".to_owned(),
-                    chain: "DIRECT".to_owned(),
-                    chains: vec!["DIRECT".to_owned()],
-                    upload_bps: 0.0,
-                    download_bps: 0.0,
-                    upload_total: 12_000,
-                    download_total: 34_000,
-                },
-            ],
-        }
-    }
 }
 
 /// The typed event dispatched when connection data updates.
@@ -438,10 +385,12 @@ fn connections_table_scene(
                     width: percent(100),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
+                    column_gap: Val::Px(space::S8),
                     padding: UiRect::bottom(Val::Px(space::S8)),
                 }
                 Children [
                     ( Text({ "实时连接表 (Active Sessions)".to_owned() }) TextRole(Role::BodyStrong) ),
+                    ( { sort_pills_scene(palette) } ),
                     ( Text({ "实时追踪链路与进程".to_owned() }) TextRole(Role::Caption) ),
                 ]
             }),
@@ -534,6 +483,7 @@ fn connection_row_scene(
                     }
                     Children [
                         ( Text(speed_info) ConnSpeedText(idx) TextRole(Role::Mono) ),
+                        ( { crate::pages::connections_pulse::connection_pulse_scene(idx, conn, palette) } ),
                         (
                             Node {
                                 min_height: px(palette.control_height_px * 0.8),
@@ -610,6 +560,7 @@ fn bind_connections_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(apply_connections_projection);
     commands.add_observer(on_connections_action_activated);
     commands.add_observer(on_connections_view_activated);
+    commands.add_observer(crate::pages::connections_view::on_connections_sort_activated);
     commands.add_observer(crate::pages::connections_drawer::on_connections_drawer_activated);
     commands.add_observer(crate::pages::connections_idle::on_connections_idle_activated);
 }
@@ -792,7 +743,11 @@ pub(crate) fn apply_connections_projection(
             Without<ConnChainHopText>,
         ),
     >,
-    mut pills: Query<(&mut BackgroundColor, &ConnAggregationPill)>,
+    mut pills: Query<(&mut BackgroundColor, &ConnAggregationPill), Without<ConnSortPill>>,
+    mut sort_pills: Query<(&mut BackgroundColor, &ConnSortPill), Without<ConnAggregationPill>>,
+    mut rows_containers: Query<&mut Children, With<ConnRowsContainer>>,
+    row_markers: Query<&ConnectionRow>,
+    row_subtrees: Query<&Children, Without<ConnRowsContainer>>,
     palette: Res<UiPalette>,
     view_state: Option<Res<ConnectionsViewState>>,
     mut idle: Option<ResMut<ConnectionsIdleState>>,
@@ -866,9 +821,27 @@ pub(crate) fn apply_connections_projection(
 
     // DUAL-13-02: a new projection restamps the aggregation view from the
     // shared reduction so grouped mode never shows stale buckets.
-    let grouping = view_state.map(|state| state.grouping).unwrap_or_default();
+    let grouping = view_state
+        .as_ref()
+        .map(|state| state.grouping)
+        .unwrap_or_default();
     restamp_aggregation_summary(&mut summaries, projection, grouping);
     restamp_aggregation_pills(&palette, &mut pills, grouping);
+
+    // DUAL-13-12: the flat rows follow the shared sort key of the view state;
+    // a fresh snapshot is re-ordered without touching the row markers.
+    let sort = view_state
+        .as_ref()
+        .map(|state| state.sort)
+        .unwrap_or_default();
+    restamp_sort_pills(&palette, &mut sort_pills, sort);
+    apply_connection_row_order(
+        projection,
+        sort,
+        &mut rows_containers,
+        &row_markers,
+        &row_subtrees,
+    );
 
     if let Some(ref mut last_proj) = last {
         last_proj.0 = Some(projection.clone());

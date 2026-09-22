@@ -1,21 +1,35 @@
 //! Reactive view state and shared reductions for the Connections page
-//! (DUAL-13-02 / 13-07 / 13-13).
+//! (DUAL-13-02 / 13-07 / 13-12 / 13-13).
 //!
 //! The page scene lives in [`super::connections`]. This module owns the parts
-//! that react to input: the aggregation segmented control, the keyword search
-//! field, range teardown, and the two-step close-all confirmation. Every
-//! reduction delegates to `infiltrator_domain::connection_view` so the Bevy
-//! page and the Iced page compute the same buckets and matches.
+//! that react to input: the aggregation segmented control, the instantaneous
+//! rate sort pills, the keyword search field, range teardown, and the
+//! two-step close-all confirmation. Every reduction delegates to
+//! `infiltrator_domain::connection_view` so the Bevy page and the Iced page
+//! compute the same buckets, order and matches.
 
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::query::{Changed, With};
+use bevy::ecs::observer::On;
+use bevy::ecs::query::{Changed, With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, Res};
-use bevy::ui::prelude::{Display, Node};
+use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::scene::{Scene, bsn};
+use bevy::text::TextColor;
+use bevy::ui::prelude::{
+    AlignItems, BackgroundColor, BorderRadius, Display, JustifyContent, Node, UiRect, Val,
+};
 use bevy::ui::widget::Text;
+use bevy::ui_widgets::{Activate, Button};
+use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
-use infiltrator_domain::connection_view::{self, ConnectionGroupingMode, ConnectionView};
+use infiltrator_bevy_widgets::theme::space;
+use infiltrator_domain::connection_view::{
+    self, ConnectionGroupingMode, ConnectionSortKey, ConnectionView,
+};
+use std::collections::HashMap;
 
 use crate::pages::connections::{ConnectionItem, ConnectionsProjection, LastConnectionsProjection};
 
@@ -52,6 +66,163 @@ pub struct CloseAllConnectionsLabel;
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ConnectionsViewState {
     pub grouping: ConnectionGroupingMode,
+    /// DUAL-13-12: shared order of the flat rows; defaults to the same
+    /// cumulative-download order the Iced surface starts with.
+    pub sort: ConnectionSortKey,
+}
+
+/// DUAL-13-12: one sort pill on the connections table header. The payload is
+/// the shared sort key, so both surfaces order through the same reduction.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConnSortPill(pub ConnectionSortKey);
+
+/// Bare-Chinese caption of a shared sort key.
+pub fn sort_key_label(key: ConnectionSortKey) -> &'static str {
+    match key {
+        ConnectionSortKey::DownloadDesc => "累计下载",
+        ConnectionSortKey::UploadDesc => "累计上传",
+        ConnectionSortKey::DownloadRateDesc => "瞬时下载",
+        ConnectionSortKey::UploadRateDesc => "瞬时上传",
+        ConnectionSortKey::LatestDesc => "最新优先",
+        ConnectionSortKey::HostAsc => "主机名升序",
+    }
+}
+
+/// DUAL-13-12: the clickable header pills that reorder the flat rows by the
+/// shared key (instantaneous download / upload included).
+pub fn sort_pills_scene(palette: &UiPalette) -> impl Scene + use<> {
+    let pills: Vec<Box<dyn Scene>> = [
+        ConnectionSortKey::DownloadDesc,
+        ConnectionSortKey::DownloadRateDesc,
+        ConnectionSortKey::UploadRateDesc,
+        ConnectionSortKey::HostAsc,
+    ]
+    .into_iter()
+    .map(|key| Box::new(sort_pill(key, palette)) as Box<dyn Scene>)
+    .collect();
+
+    bsn! {
+        Node {
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::FlexEnd,
+            column_gap: Val::Px(space::S4),
+        }
+        Children [ { pills } ]
+    }
+}
+
+fn sort_pill(key: ConnectionSortKey, palette: &UiPalette) -> impl Scene + use<> {
+    let active = key == ConnectionSortKey::default();
+    let (bg, text_color) = if active {
+        (palette.accent_container, palette.accent)
+    } else {
+        (palette.surface, palette.ink_dim)
+    };
+    let label = sort_key_label(key);
+
+    bsn! {
+        Node {
+            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+            border_radius: BorderRadius::all(Val::Px(4.0)),
+            align_items: AlignItems::Center,
+        }
+        BackgroundColor({ bg })
+        ConnSortPill(key)
+        Button
+        Children [
+            ( Text(label) TextRole(Role::Caption) TextColor({ text_color }) ),
+        ]
+    }
+}
+
+/// DUAL-13-12: switch the shared sort key, restamp the pills and reorder the
+/// flat rows. The row entities keep their projection-index markers, so every
+/// text restamp, the search visibility and the drawer keep pointing at the
+/// same connection; only the render order changes.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn on_connections_sort_activated(
+    activate: On<Activate>,
+    mut pills: Query<(&mut BackgroundColor, &ConnSortPill)>,
+    mut containers: Query<&mut Children, With<ConnRowsContainer>>,
+    rows: Query<&ConnectionRow>,
+    row_subtrees: Query<&Children, Without<ConnRowsContainer>>,
+    palette: Res<UiPalette>,
+    mut view_state: Option<ResMut<ConnectionsViewState>>,
+    last: Option<Res<LastConnectionsProjection>>,
+) {
+    let Ok((_, pill)) = pills.get(activate.entity) else {
+        return;
+    };
+    let key = pill.0;
+    if let Some(state) = view_state.as_deref_mut() {
+        state.sort = key;
+    }
+    restamp_sort_pills(&palette, &mut pills, key);
+    if let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref()) {
+        apply_connection_row_order(projection, key, &mut containers, &rows, &row_subtrees);
+    }
+}
+
+/// Restamp every sort pill fill for the active key.
+pub(crate) fn restamp_sort_pills<F: bevy::ecs::query::QueryFilter>(
+    palette: &UiPalette,
+    pills: &mut Query<(&mut BackgroundColor, &ConnSortPill), F>,
+    active: ConnectionSortKey,
+) {
+    for (mut fill, pill) in pills.iter_mut() {
+        fill.0 = if pill.0 == active {
+            palette.accent_container
+        } else {
+            palette.surface
+        };
+    }
+}
+
+/// DUAL-13-12: reorder the mounted flat rows through the one shared sort
+/// reduction. Each row mounts as a card wrapper around its marked node, so the
+/// wrapper's subtree is walked for the projection index. Unknown rows keep the
+/// last rank, so a row the projection no longer carries cannot jump to the
+/// front.
+pub(crate) fn apply_connection_row_order(
+    projection: &ConnectionsProjection,
+    key: ConnectionSortKey,
+    containers: &mut Query<&mut Children, With<ConnRowsContainer>>,
+    rows: &Query<&ConnectionRow>,
+    row_subtrees: &Query<&Children, Without<ConnRowsContainer>>,
+) {
+    let mut sorted = projection.connections.clone();
+    connection_view::sort_connections(&mut sorted, key);
+    let rank_of_id: HashMap<&str, usize> = sorted
+        .iter()
+        .enumerate()
+        .map(|(rank, item)| (item.id.as_str(), rank))
+        .collect();
+
+    let rank = |entity: &Entity| {
+        row_index_of(row_subtrees, rows, *entity)
+            .and_then(|index| projection.connections.get(index))
+            .and_then(|item| rank_of_id.get(item.id.as_str()).copied())
+            .unwrap_or(usize::MAX)
+    };
+    for mut children in containers.iter_mut() {
+        children.sort_by(|left, right| rank(left).cmp(&rank(right)));
+    }
+}
+
+/// The projection row index of a mounted row, found by walking the row's own
+/// subtree (the marked node sits inside the row's card wrapper).
+fn row_index_of(
+    row_subtrees: &Query<&Children, Without<ConnRowsContainer>>,
+    rows: &Query<&ConnectionRow>,
+    entity: Entity,
+) -> Option<usize> {
+    if let Ok(row) = rows.get(entity) {
+        return Some(row.0);
+    }
+    let subtrees = row_subtrees.get(entity).ok()?;
+    subtrees
+        .iter()
+        .find_map(|child| row_index_of(row_subtrees, rows, *child))
 }
 
 /// Two-step confirmation latch for close-all.
@@ -81,6 +252,14 @@ impl ConnectionView for ConnectionItem {
 
     fn view_download_total(&self) -> u64 {
         self.download_total
+    }
+
+    fn view_upload_rate_bps(&self) -> f64 {
+        self.upload_bps
+    }
+
+    fn view_download_rate_bps(&self) -> f64 {
+        self.download_bps
     }
 
     fn view_chain(&self) -> &[String] {
@@ -169,12 +348,15 @@ pub(crate) fn sync_connections_search(
 }
 
 /// Restamp every aggregation pill fill for the active mode.
-pub(crate) fn restamp_aggregation_pills(
+pub(crate) fn restamp_aggregation_pills<F: bevy::ecs::query::QueryFilter>(
     palette: &infiltrator_bevy_widgets::palette::UiPalette,
-    pills: &mut Query<(
-        &mut bevy::ui::prelude::BackgroundColor,
-        &crate::pages::connections::ConnAggregationPill,
-    )>,
+    pills: &mut Query<
+        (
+            &mut bevy::ui::prelude::BackgroundColor,
+            &crate::pages::connections::ConnAggregationPill,
+        ),
+        F,
+    >,
     active: ConnectionGroupingMode,
 ) {
     for (mut fill, pill) in pills.iter_mut() {
@@ -208,8 +390,14 @@ mod tests {
             host: host.to_owned(),
             process: process.to_owned(),
             rule: "DIRECT".to_owned(),
+            rule_payload: String::new(),
             chain: "DIRECT".to_owned(),
             chains: vec!["DIRECT".to_owned()],
+            network: "tcp".to_owned(),
+            source_ip: "192.168.1.5".to_owned(),
+            source_port: "50000".to_owned(),
+            destination_ip: "1.1.1.1".to_owned(),
+            destination_port: "443".to_owned(),
             upload_bps: 0.0,
             download_bps: 0.0,
             upload_total: up,

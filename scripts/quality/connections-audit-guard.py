@@ -7,6 +7,16 @@ the per-item ledger rows exist, that the shared domain reductions and both
 surface wirings are present, and — critically — that neither surface has
 re-introduced the fabricated DNS/TCP/TLS/TTFB timing waterfall (DUAL-13-04 is
 typed unsupported because the core exposes no such stages).
+
+DUAL-13-10/12 add the second hard rule: the per-connection instantaneous rate
+is the shared `connection_rate` derivation over successive cumulative-counter
+snapshots, published into the connections read model by the application layer.
+The guard forbids the previous hardcoded `upload_bps: 0.0` in the surface
+reader so a fabricated (or absent) rate cannot silently return.
+
+DUAL-13-14 adds the drawer parity rule: the contract carries every host-backed
+field both drawers render (endpoints, transport, rule payload) and the Bevy
+drawer owns the same teardown action the Iced drawer submits.
 """
 
 from __future__ import annotations
@@ -349,6 +359,176 @@ def main() -> int:
         "conn_idle_timeout_label",
     )
 
+    # DUAL-13-10/12: one shared instantaneous-rate derivation, published in the
+    # read model and consumed by both surfaces.
+    require(
+        violations,
+        "crates/infiltrator-domain/src/lib.rs",
+        "pub mod connection_rate;",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/connection_rate.rs",
+        "pub const HIGH_THROUGHPUT_THRESHOLD_BPS",
+        "pub const PULSE_MIN_INTENSITY",
+        "pub const PULSE_BREATH_HZ",
+        "pub struct ConnectionRate",
+        "pub struct ConnectionRates",
+        "pub struct ConnectionRateDiffer",
+        "pub fn instantaneous_rate",
+        "pub fn is_high_throughput",
+        "pub fn pulse_intensity",
+        "pub fn observe",
+        "pub fn has_high_throughput",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/connection_view.rs",
+        "pub struct RatedConnection",
+        "ConnectionSortKey::DownloadRateDesc",
+        "ConnectionSortKey::UploadRateDesc",
+        "fn view_upload_rate_bps",
+        "fn view_download_rate_bps",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/connection_rate_application.rs",
+        "pub struct ConnectionRateApplication",
+        "pub fn observe_at",
+        "pub fn connections_page_snapshot",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "connection_rate_application::ConnectionRateApplication",
+        "connection_rates",
+        "connections_page_snapshot",
+    )
+    # The hardcoded zero rate this group removed must not come back.
+    forbid(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "upload_bps: 0.0",
+        "download_bps: 0.0",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/core/monitoring.rs",
+        "pub(crate) fn apply_connections_snapshot",
+        "observe_at",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/runtime/connections.rs",
+        "pub fn sort_rated_connections",
+        "pub fn connection_pulse_intensity",
+        "connection_rate::pulse_intensity",
+        "RatedConnection",
+        "conn_pulse_high_throughput",
+        "runtime_conn_sort_download_rate",
+        "runtime_conn_sort_upload_rate",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view_root/connection_drawer.rs",
+        "conn_drawer_upload_speed",
+        "conn_drawer_download_speed",
+        "conn_drawer_rate_pending",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/subscription.rs",
+        "connection_pulse_active",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/ui.rs",
+        "connection_rate::PULSE_BREATH_HZ",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table.rs",
+        "runtime_conn_sort_download_rate",
+        "runtime_conn_sort_upload_rate",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en.rs",
+        "runtime_conn_sort_download_rate",
+        "runtime_conn_sort_upload_rate",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "conn_pulse_high_throughput",
+        "conn_drawer_rate_pending",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "conn_pulse_high_throughput",
+        "conn_drawer_rate_pending",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/connections_view.rs",
+        "pub struct ConnSortPill",
+        "pub fn sort_pills_scene",
+        "pub(crate) fn on_connections_sort_activated",
+        "pub(crate) fn apply_connection_row_order",
+        "fn view_upload_rate_bps",
+        "fn view_download_rate_bps",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/connections_pulse.rs",
+        "pub struct ConnHighThroughputPulse",
+        "pub struct ConnectionsPulseState",
+        "pub fn connection_pulse_scene",
+        "pub(crate) fn animate_connection_pulses",
+        "connection_rate::PULSE_BREATH_HZ",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages.rs",
+        "pub mod connections_demo;",
+        "pub mod connections_pulse;",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/connections.rs",
+        "on_connections_sort_activated",
+        "connection_pulse_scene",
+        "sort_pills_scene",
+        "ConnSortPill",
+        "apply_connection_row_order",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/route.rs",
+        "ConnectionsPulseState",
+        "animate_connection_pulses",
+    )
+    # DUAL-13-14: the drawer bodies carry the same host-backed data and the
+    # same teardown action on both surfaces.
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/connections_drawer.rs",
+        "DrawerCloseConnectionButton",
+        "ConnDrawerFieldKind::Endpoints",
+        "ConnDrawerFieldKind::Network",
+        "ConnDrawerFieldKind::Rate",
+        "ConnDrawerFieldKind::RulePayload",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub rule_payload: String",
+        "pub network: String",
+        "pub source_ip: String",
+        "pub destination_ip: String",
+    )
+
     # Dual headless evidence.
     require(
         violations,
@@ -356,11 +536,13 @@ def main() -> int:
         "test_shared_connection_view_reductions_are_delegated",
         "test_stream_state_maps_to_shared_phase",
         "test_route_chain_hops_parse_through_shared_model",
+        "test_high_throughput_pulse_uses_the_shared_threshold",
     )
     require(
         violations,
         "crates/infiltrator-iced/tests/gui/app_state_tests.rs",
         "connection_idle_timeout_and_activity_tracking",
+        "connection_instantaneous_rates_derive_from_successive_snapshots",
     )
     require(
         violations,
@@ -375,6 +557,22 @@ def main() -> int:
         "test_connections_add_rule_draft_uses_shared_seam",
         "test_connections_idle_sweep_submits_and_reports",
         "test_connections_idle_timeout_pill_switches_shared_choice",
+        "test_connections_high_throughput_pulse_follows_shared_threshold",
+        "test_connections_sort_pills_reorder_rows_by_instantaneous_rate",
+        "test_connections_drawer_parity_exposes_shared_fields_and_close_action",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/connection_rate_application_test.rs",
+        "successive_observations_publish_real_bytes_per_second",
+        "the_shared_read_model_carries_the_derived_rates",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/connection_rate.rs",
+        "second_observation_divides_the_delta_by_the_measured_interval",
+        "first_observation_never_fabricates_a_rate",
+        "threshold_and_pulse_only_react_to_real_high_throughput",
     )
 
     # The guard itself is registered on both suites.

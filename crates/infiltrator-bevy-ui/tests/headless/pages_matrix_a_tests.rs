@@ -1091,6 +1091,240 @@ fn test_connections_idle_sweep_submits_and_reports() {
     ));
 }
 
+#[test]
+fn test_connections_high_throughput_pulse_follows_shared_threshold() {
+    use infiltrator_bevy_ui::pages::connections_pulse::ConnHighThroughputPulse;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Connections);
+
+    // DUAL-13-10: the demo fixture has exactly one row above the shared
+    // 5 MB/s threshold (c-2 at 8.5 MB/s); every other row stays unlit.
+    let pulse_states = |app: &mut App| -> Vec<(usize, Display)> {
+        let mut query = app.world_mut().query::<(&Node, &ConnHighThroughputPulse)>();
+        query
+            .iter(app.world())
+            .map(|(node, pulse)| (pulse.0, node.display))
+            .collect()
+    };
+    let states = pulse_states(&mut app);
+    assert_eq!(states.len(), 4);
+    assert!(states.contains(&(1, Display::Flex)));
+    assert!(states.contains(&(0, Display::None)));
+    assert!(subtree_has_text(app.world(), root, "高吞吐脉冲"));
+
+    // A snapshot with every rate below the threshold hides every pulse.
+    let mut slow = ConnectionsProjection::demo();
+    slow.connections[1].download_bps = 1_000.0;
+    app.world_mut()
+        .commands()
+        .trigger(ConnectionsProjectionUpdated(slow));
+    app.update();
+    assert!(
+        pulse_states(&mut app)
+            .iter()
+            .all(|(_, display)| *display == Display::None)
+    );
+
+    // The animation system keeps the lit rows breathing from the shared phase.
+    let mut app2 = setup_matrix_a_app(Arc::new(DemoCommandSink::accepting()));
+    navigate_to(&mut app2, Route::Connections);
+    let mut frames = 0;
+    while frames < 5 {
+        app2.update();
+        frames += 1;
+    }
+    let phase = app2
+        .world()
+        .resource::<infiltrator_bevy_ui::pages::connections_pulse::ConnectionsPulseState>()
+        .phase;
+    assert!(
+        (0.0..1.0).contains(&phase),
+        "the breathing phase stays inside one breath, got {phase}"
+    );
+}
+
+#[test]
+fn test_connections_sort_pills_reorder_rows_by_instantaneous_rate() {
+    use infiltrator_bevy_ui::pages::connections_view::ConnSortPill;
+    use infiltrator_domain::connection_view::ConnectionSortKey;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Connections);
+
+    // DUAL-13-12: the header exposes the shared sort keys and starts on the
+    // same cumulative-download order the Iced surface defaults to.
+    assert!(subtree_has_text(app.world(), root, "累计下载"));
+    assert!(subtree_has_text(app.world(), root, "瞬时下载"));
+    assert!(subtree_has_text(app.world(), root, "瞬时上传"));
+    assert_eq!(
+        app.world_mut()
+            .query::<&ConnSortPill>()
+            .iter(app.world())
+            .count(),
+        4
+    );
+    assert_eq!(connection_row_order(&mut app), vec![1, 0, 2, 3]);
+
+    // A fresh snapshot where instantaneous trends disagree with the totals:
+    // c-1 is idle and c-3 is the fastest download despite the smallest total.
+    let mut updated = ConnectionsProjection::demo();
+    updated.connections[0].download_bps = 0.0;
+    updated.connections[2].download_bps = 9_000_000.0;
+    app.world_mut()
+        .commands()
+        .trigger(ConnectionsProjectionUpdated(updated));
+    app.update();
+    assert_eq!(
+        connection_row_order(&mut app),
+        vec![1, 0, 2, 3],
+        "the cumulative default order is unchanged"
+    );
+
+    // Clicking the instantaneous-download pill reorders by the derived rate:
+    // c-3 leads, then c-2, then the two idle rows in stable id order.
+    let download_rate_pill = {
+        let mut query = app.world_mut().query::<(Entity, &ConnSortPill)>();
+        query
+            .iter(app.world())
+            .find(|(_, pill)| pill.0 == ConnectionSortKey::DownloadRateDesc)
+            .map(|(entity, _)| entity)
+            .expect("instantaneous download sort pill")
+    };
+    app.world_mut().commands().trigger(Activate {
+        entity: download_rate_pill,
+    });
+    app.update();
+    assert_eq!(
+        app.world().resource::<ConnectionsViewState>().sort,
+        ConnectionSortKey::DownloadRateDesc
+    );
+    assert_eq!(connection_row_order(&mut app), vec![2, 1, 0, 3]);
+
+    // The instantaneous-upload pill ranks c-1 first (24 000 B/s vs 8 500).
+    let upload_rate_pill = {
+        let mut query = app.world_mut().query::<(Entity, &ConnSortPill)>();
+        query
+            .iter(app.world())
+            .find(|(_, pill)| pill.0 == ConnectionSortKey::UploadRateDesc)
+            .map(|(entity, _)| entity)
+            .expect("instantaneous upload sort pill")
+    };
+    app.world_mut().commands().trigger(Activate {
+        entity: upload_rate_pill,
+    });
+    app.update();
+    assert_eq!(connection_row_order(&mut app), vec![0, 1, 2, 3]);
+
+    // A fresh snapshot is re-sorted under the active key, so the order stays
+    // live instead of freezing at the click.
+    let mut updated = ConnectionsProjection::demo();
+    updated.connections[2].upload_bps = 900_000.0;
+    app.world_mut()
+        .commands()
+        .trigger(ConnectionsProjectionUpdated(updated));
+    app.update();
+    assert_eq!(connection_row_order(&mut app), vec![2, 0, 1, 3]);
+    // Row markers stay bound to their projection index, so the restamped
+    // texts still describe the same connection the row carries.
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "gateway.discord.gg:443",
+    ));
+}
+
+#[test]
+fn test_connections_drawer_parity_exposes_shared_fields_and_close_action() {
+    use infiltrator_bevy_ui::pages::connections_drawer::DrawerCloseConnectionButton;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Connections);
+
+    let inspect_entity = {
+        let mut query = app.world_mut().query::<(Entity, &ConnInspectButton)>();
+        query
+            .iter(app.world())
+            .find(|(_, button)| button.0 == 0)
+            .map(|(entity, _)| entity)
+            .expect("row 0 inspect button")
+    };
+    app.world_mut().commands().trigger(Activate {
+        entity: inspect_entity,
+    });
+    app.update();
+
+    // DUAL-13-14: the drawer carries the same host-backed fields the Iced
+    // drawer renders: endpoints, transport, matched rule payload and the
+    // derived instantaneous rates.
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "192.168.1.20:51432 → 140.82.121.5:443"
+    ));
+    assert!(subtree_has_text(app.world(), root, "TCP"));
+    assert!(subtree_has_text(app.world(), root, "github.com"));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "瞬时 ↑ 23.44 KB/s  ↓ 175.78 KB/s"
+    ));
+
+    // The drawer's disconnect action submits the shared teardown command and
+    // closes the drawer, matching the Iced drawer's action.
+    let close_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<DrawerCloseConnectionButton>>()
+        .single(app.world())
+        .expect("drawer close connection button");
+    app.world_mut().commands().trigger(Activate {
+        entity: close_entity,
+    });
+    app.update();
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::CloseConnection {
+            id: "c-1".to_owned(),
+        }]
+    );
+    assert!(!app.world().resource::<ConnectionsDrawerState>().open);
+}
+
+/// DUAL-13-12: the render order of the flat rows, read from the container's
+/// children in layout order. Each row mounts as a card wrapper around its
+/// marked node, so the wrapper's subtree is walked for the row marker.
+fn connection_row_order(app: &mut App) -> Vec<usize> {
+    let container = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<ConnRowsContainer>>()
+        .single(app.world())
+        .expect("rows container");
+    let children: Vec<Entity> = app
+        .world()
+        .get::<Children>(container)
+        .expect("rows container children")
+        .iter()
+        .copied()
+        .collect();
+    children
+        .iter()
+        .map(|child| subtree_row_index(app.world(), *child).unwrap_or(usize::MAX))
+        .collect()
+}
+
+fn subtree_row_index(world: &bevy::ecs::world::World, root: Entity) -> Option<usize> {
+    if let Some(row) = world.get::<ConnectionRow>(root) {
+        return Some(row.0);
+    }
+    let children = world.get::<Children>(root)?;
+    children
+        .iter()
+        .find_map(|child| subtree_row_index(world, *child))
+}
+
 // ===========================================================================
 // 4. Logs Page Tests
 // ===========================================================================
