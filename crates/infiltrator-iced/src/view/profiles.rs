@@ -777,6 +777,18 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     color: Some(tokens(t).text_tertiary)
                 }),
             Space::new().height(theme::SP_SM),
+            form_toggle_row(
+                lang.tr("profiles_auto_reload_core").to_string(),
+                state.profile.subscription_auto_reload_core,
+                Message::UpdateSubscriptionAutoReload
+            ),
+            Space::new().height(theme::SP_XS),
+            text(lang.tr("profiles_auto_reload_core_hint").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary)
+                }),
+            Space::new().height(theme::SP_SM),
             if let Some(profile) = selected_profile_meta {
                 let conditional = if profile.etag.is_some() || profile.last_modified.is_some() {
                     format!(

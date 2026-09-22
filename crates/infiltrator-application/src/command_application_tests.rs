@@ -1,4 +1,5 @@
-//! Headless tests for the shared rule-edit command path (DUAL-11-09/10/11/12).
+//! Headless tests for the shared rule-edit command path (DUAL-11-09/10/11/12)
+//! and the DUAL-07-09/14 subscription settings commands.
 //!
 //! A minimal in-memory `ProfileStore` proves the application applies the same
 //! list arithmetic as `infiltrator_domain::rules::edit` and persists the
@@ -7,6 +8,7 @@
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::rule_edit::{RuleDraft, RuleMoveDirection};
+use infiltrator_contract::subscription_import::SubscriptionScheduleDraft;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -17,6 +19,7 @@ use std::sync::Mutex;
 struct FakeStore {
     profile: Mutex<String>,
     content: Mutex<String>,
+    metadata: Mutex<ProfileMetadata>,
 }
 
 impl FakeStore {
@@ -24,11 +27,16 @@ impl FakeStore {
         Self {
             profile: Mutex::new("main".to_owned()),
             content: Mutex::new(content.to_owned()),
+            metadata: Mutex::new(ProfileMetadata::default()),
         }
     }
 
     fn content(&self) -> String {
         self.content.lock().expect("content lock").clone()
+    }
+
+    fn metadata(&self) -> ProfileMetadata {
+        self.metadata.lock().expect("metadata lock").clone()
     }
 }
 
@@ -70,14 +78,15 @@ impl ProfileStore for FakeStore {
     }
 
     async fn get_profile_metadata(&self, _profile: &str) -> Result<ProfileMetadata, PortError> {
-        Ok(ProfileMetadata::default())
+        Ok(self.metadata())
     }
 
     async fn update_profile_metadata(
         &self,
         _profile: &str,
-        _metadata: &ProfileMetadata,
+        metadata: &ProfileMetadata,
     ) -> Result<(), PortError> {
+        *self.metadata.lock().expect("metadata lock") = metadata.clone();
         Ok(())
     }
 
@@ -218,4 +227,79 @@ async fn game_presets_prepend_the_shared_default_list() {
         expected[expected.len() - 1].rule
     );
     assert_eq!(rules[expected.len()].rule, "DOMAIN,a.com,DIRECT");
+}
+
+/// DUAL-07-09: enabling auto-reload on a host without a managed-runtime reload
+/// seam is a typed unsupported failure; disabling is always allowed because it
+/// cannot silently no-op.
+#[tokio::test]
+async fn auto_reload_enable_requires_a_managed_runtime_seam() {
+    let store = Arc::new(FakeStore::with_profile(THREE_RULES));
+    let application = application(&store);
+
+    let failure = application
+        .execute(CommandIntent::SetSubscriptionAutoReload {
+            profile_id: "main".to_owned(),
+            enabled: true,
+        })
+        .await
+        .expect_err("no reload seam on this host");
+    assert_eq!(failure.code, ErrorCode::Unsupported);
+    assert!(!store.metadata().auto_reload_core, "nothing was persisted");
+
+    application
+        .execute(CommandIntent::SetSubscriptionAutoReload {
+            profile_id: "main".to_owned(),
+            enabled: false,
+        })
+        .await
+        .expect("disabling never needs the seam");
+    assert!(!store.metadata().auto_reload_core);
+}
+
+/// DUAL-07-14: the schedule command validates and persists through the same
+/// shared application both surfaces use.
+#[tokio::test]
+async fn subscription_schedule_command_persists_and_rejects_invalid_cron() {
+    let store = Arc::new(FakeStore::with_profile(THREE_RULES));
+    let application = application(&store);
+
+    application
+        .execute(CommandIntent::UpdateSubscriptionSchedule {
+            profile_id: "main".to_owned(),
+            draft: SubscriptionScheduleDraft {
+                url: "https://sub.example.com/token".to_owned(),
+                auto_update_enabled: true,
+                update_interval_hours: "6".to_owned(),
+                cron_expression: Some("0 */6 * * *".to_owned()),
+            },
+        })
+        .await
+        .expect("valid schedule persists");
+    let metadata = store.metadata();
+    assert_eq!(
+        metadata.subscription_url.as_deref(),
+        Some("https://sub.example.com/token")
+    );
+    assert_eq!(metadata.update_interval_hours, Some(6));
+    assert_eq!(metadata.cron_expression.as_deref(), Some("0 */6 * * *"));
+
+    let failure = application
+        .execute(CommandIntent::UpdateSubscriptionSchedule {
+            profile_id: "main".to_owned(),
+            draft: SubscriptionScheduleDraft {
+                url: "https://sub.example.com/token".to_owned(),
+                auto_update_enabled: true,
+                update_interval_hours: "6".to_owned(),
+                cron_expression: Some("definitely not a cron".to_owned()),
+            },
+        })
+        .await
+        .expect_err("malformed cron is rejected");
+    assert_eq!(failure.code, ErrorCode::InvalidInput);
+    assert_eq!(
+        store.metadata().cron_expression.as_deref(),
+        Some("0 */6 * * *"),
+        "a rejected draft never rewrites the stored schedule"
+    );
 }

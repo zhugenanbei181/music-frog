@@ -75,6 +75,17 @@ pub struct ProfileTimeText(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProfileStatusText(pub usize);
 
+/// Marker for a specific profile card's update-schedule line.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProfileScheduleText(pub usize);
+
+/// Marker and target information for the delete profile button.
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct DeleteProfileButton {
+    pub profile_id: String,
+    pub profile_idx: usize,
+}
+
 /// Marker and target information for the activate profile button.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ActivateProfileButton {
@@ -115,6 +126,14 @@ pub struct ProfileItem {
     pub has_backup: bool,
     /// DUAL-07-03: the profile's cron schedule (empty = interval/manual).
     pub cron_expression: Option<String>,
+    /// DUAL-07-14: whether the profile participates in scheduled updates.
+    pub auto_update_enabled: bool,
+    /// DUAL-07-14: the fixed update interval in hours (`None` = cron/manual).
+    pub update_interval_hours: Option<u32>,
+    /// DUAL-07-14: the next scheduled update instant, RFC3339, when known.
+    pub next_update: Option<String>,
+    /// DUAL-07-09: reload the running core after this profile's update.
+    pub auto_reload_core: bool,
     /// DUAL-07-08: the stored node-keyword filter draft.
     pub filter: infiltrator_contract::subscription_import::SubscriptionFilterDraft,
 }
@@ -131,7 +150,7 @@ impl ProfilesProjection {
     /// Believable demo fixture for the Profiles page.
     pub fn demo() -> Self {
         Self {
-            auto_update_interval_hours: 24,
+            auto_update_interval_hours: 6,
             updating: false,
             profiles: vec![
                 ProfileItem {
@@ -150,6 +169,10 @@ impl ProfilesProjection {
                     last_modified: Some("Tue, 02 Sep 2026 08:30:00 GMT".to_owned()),
                     has_backup: true,
                     cron_expression: Some("0 */6 * * *".to_owned()),
+                    auto_update_enabled: true,
+                    update_interval_hours: Some(24),
+                    next_update: Some("2026-09-22T12:00:00+00:00".to_owned()),
+                    auto_reload_core: true,
                     filter: Default::default(),
                 },
                 ProfileItem {
@@ -167,6 +190,10 @@ impl ProfilesProjection {
                     last_modified: None,
                     has_backup: false,
                     cron_expression: None,
+                    auto_update_enabled: true,
+                    update_interval_hours: Some(6),
+                    next_update: Some("2026-09-22T14:00:00+00:00".to_owned()),
+                    auto_reload_core: true,
                     filter: Default::default(),
                 },
                 ProfileItem {
@@ -184,6 +211,10 @@ impl ProfilesProjection {
                     last_modified: Some("Fri, 28 Aug 2026 15:45:00 GMT".to_owned()),
                     has_backup: false,
                     cron_expression: None,
+                    auto_update_enabled: false,
+                    update_interval_hours: None,
+                    next_update: None,
+                    auto_reload_core: false,
                     filter: Default::default(),
                 },
             ],
@@ -197,6 +228,48 @@ impl ProfilesProjection {
             .find(|p| p.is_active)
             .map(|p| p.name.as_str())
             .unwrap_or("无活动配置")
+    }
+}
+
+/// DUAL-07-14: the header summary is derived from the real profile list, never
+/// from a page-level constant: a "every N hours" claim only appears when a
+/// fixed interval is actually configured, and cron-only sets say so.
+pub fn auto_update_summary(projection: &ProfilesProjection) -> String {
+    let enabled = projection
+        .profiles
+        .iter()
+        .filter(|profile| profile.auto_update_enabled)
+        .count();
+    if enabled == 0 {
+        return "自动更新: 未启用".to_owned();
+    }
+    if projection.auto_update_interval_hours > 0 {
+        format!(
+            "自动更新: {} 个订阅已启用 · 最短周期 {} 小时",
+            enabled, projection.auto_update_interval_hours
+        )
+    } else {
+        format!("自动更新: {} 个订阅已启用 · 按 Cron 计划", enabled)
+    }
+}
+
+/// DUAL-07-14: one card line describing a profile's real update cadence,
+/// including the next scheduled run when the shared snapshot knows it.
+pub fn profile_schedule_summary(profile: &ProfileItem) -> String {
+    let cadence = if !profile.auto_update_enabled {
+        "定时计划: 手动".to_owned()
+    } else {
+        match profile.cron_expression.as_deref() {
+            Some(cron) if !cron.trim().is_empty() => format!("定时计划: Cron `{cron}`"),
+            _ => match profile.update_interval_hours {
+                Some(hours) => format!("定时计划: 每 {hours} 小时"),
+                None => "定时计划: 未设置周期".to_owned(),
+            },
+        }
+    };
+    match profile.next_update.as_deref() {
+        Some(next) if !next.trim().is_empty() => format!("{cadence} · 下次更新 {next}"),
+        _ => cadence,
     }
 }
 
@@ -216,10 +289,7 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
         projection.profiles.len(),
         projection.active_profile_name()
     );
-    let auto_update = format!(
-        "自动更新周期: 每 {} 小时",
-        projection.auto_update_interval_hours
-    );
+    let auto_update = auto_update_summary(projection);
 
     let profile_scenes: Vec<Box<dyn Scene>> = projection
         .profiles
@@ -244,6 +314,7 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
         Children [
             ( { header_card_scene(summary, auto_update, palette) } ),
             ( { crate::pages::profiles_import::profiles_import_card_scene(projection, palette) } ),
+            ( { crate::pages::profiles_subscription_policy::subscription_policy_card_scene(projection, palette) } ),
             ( { crate::pages::profiles_aggregator::profiles_aggregator_scene(palette) } ),
             ( { crate::pages::profiles_diff::snapshot_diff_scene(palette) } ),
             ( { crate::pages::profiles_script::script_sandbox_scene(palette) } ),
@@ -356,6 +427,7 @@ fn profile_card_scene(
     } else {
         "点击启用".to_owned()
     };
+    let schedule_str = profile_schedule_summary(profile);
     let btn_bg = if profile.is_active {
         palette.success
     } else {
@@ -389,6 +461,7 @@ fn profile_card_scene(
                         ),
                         ( Text(url) TextRole(Role::Caption) ),
                         ( Text(traffic_str) ProfileTrafficText(idx) TextRole(Role::Mono) ),
+                        ( Text(schedule_str) ProfileScheduleText(idx) TextRole(Role::Caption) ),
                     ]
                 ),
                 (
@@ -431,6 +504,25 @@ fn profile_card_scene(
                                 ( Text(status_str) ProfileStatusText(idx) TextRole(Role::Body) ),
                             ]
                         ),
+                        (
+                            Node {
+                                min_height: px(palette.control_height_px),
+                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            ControlVisual({ !profile.is_active })
+                            Button
+                            DeleteProfileButton {
+                                profile_id: { profile.id.clone() },
+                                profile_idx: { idx },
+                            }
+                            Children [
+                                ( Text({ "删除配置".to_owned() }) TextRole(Role::Body) ),
+                            ]
+                        ),
                     ]
                 ),
             ]
@@ -452,6 +544,7 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(on_profiles_action_activated);
     commands.add_observer(on_update_profile_activated);
     commands.add_observer(on_update_all_subscriptions_activated);
+    commands.add_observer(on_delete_profile_activated);
     commands.add_observer(crate::pages::profiles_import::sync_subscription_fetch_controls);
     commands
         .add_observer(crate::pages::profiles_import_channels::sync_subscription_filter_controls);
@@ -461,6 +554,12 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(crate::pages::profiles_import_channels::on_import_subscription_url);
     commands.add_observer(crate::pages::profiles_import_channels::on_import_local_subscription);
     commands.add_observer(crate::pages::profiles_import_channels::on_import_clipboard_subscription);
+    commands.add_observer(
+        crate::pages::profiles_subscription_policy::sync_subscription_policy_controls,
+    );
+    commands.add_observer(crate::pages::profiles_subscription_policy::on_save_subscription_policy);
+    commands
+        .add_observer(crate::pages::profiles_subscription_policy::on_save_subscription_auto_reload);
 }
 
 /// DUAL-07-11: route the toolbar "update all" click into the shared command bus.
@@ -518,6 +617,35 @@ pub(crate) fn on_update_profile_activated(
     });
 }
 
+/// DUAL-07-14: route a per-profile "delete" click into the shared command bus;
+/// the application owns the real deletion (document + options sidecar). The
+/// active profile is never deleted from this surface — exactly like the Iced
+/// card, which only offers the action for inactive profiles.
+pub(crate) fn on_delete_profile_activated(
+    activate: On<Activate>,
+    buttons: Query<&DeleteProfileButton>,
+    last: Option<Res<LastProfilesProjection>>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    let Ok(button) = buttons.get(activate.entity) else {
+        return;
+    };
+    let profile = last
+        .as_ref()
+        .and_then(|last| last.0.as_ref())
+        .and_then(|projection| projection.profiles.get(button.profile_idx));
+    let profile_id = profile
+        .map(|profile| profile.id.clone())
+        .unwrap_or_else(|| button.profile_id.clone());
+    if profile.is_some_and(|profile| profile.is_active) {
+        return;
+    }
+    handle.submit(UiCommand::DeleteProfile { id: profile_id });
+}
+
 #[allow(clippy::type_complexity)]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_profiles_projection(
@@ -572,13 +700,32 @@ pub(crate) fn apply_profiles_projection(
             Without<ProfileNameText>,
             Without<ProfileTimeText>,
             Without<ProfileTrafficText>,
+            Without<ProfileScheduleText>,
         ),
     >,
-    mut buttons: Query<(
-        &mut BackgroundColor,
-        &mut ControlVisual,
-        &mut ActivateProfileButton,
-    )>,
+    mut schedules: Query<
+        (&mut Text, &ProfileScheduleText),
+        (
+            With<ProfileScheduleText>,
+            Without<ProfilesLine>,
+            Without<ProfileNameText>,
+            Without<ProfileTimeText>,
+            Without<ProfileTrafficText>,
+            Without<ProfileStatusText>,
+        ),
+    >,
+    mut buttons: Query<
+        (
+            &mut BackgroundColor,
+            &mut ControlVisual,
+            &mut ActivateProfileButton,
+        ),
+        Without<DeleteProfileButton>,
+    >,
+    mut delete_buttons: Query<
+        (&mut DeleteProfileButton, &mut ControlVisual),
+        Without<ActivateProfileButton>,
+    >,
 ) {
     let projection = &update.0;
 
@@ -592,10 +739,7 @@ pub(crate) fn apply_profiles_projection(
                 );
             }
             ProfilesLineKind::AutoUpdate => {
-                text.0 = format!(
-                    "自动更新周期: 每 {} 小时",
-                    projection.auto_update_interval_hours
-                );
+                text.0 = auto_update_summary(projection);
             }
         }
     }
@@ -637,6 +781,12 @@ pub(crate) fn apply_profiles_projection(
         }
     }
 
+    for (mut text, marker) in &mut schedules {
+        if let Some(profile) = projection.profiles.get(marker.0) {
+            text.0 = profile_schedule_summary(profile);
+        }
+    }
+
     for (mut bg, mut visual, mut btn) in &mut buttons {
         if let Some(profile) = projection.profiles.get(btn.profile_idx) {
             btn.profile_id = profile.id.clone();
@@ -646,6 +796,16 @@ pub(crate) fn apply_profiles_projection(
             } else {
                 palette.surface_elevated
             };
+        }
+    }
+
+    // Keep every delete button bound to the profile it currently renders so a
+    // list reorder can never delete the wrong profile; the active profile's
+    // action reads as disabled because this surface never deletes it.
+    for (mut button, mut visual) in &mut delete_buttons {
+        if let Some(profile) = projection.profiles.get(button.profile_idx) {
+            button.profile_id = profile.id.clone();
+            visual.0 = !profile.is_active;
         }
     }
 
@@ -663,7 +823,7 @@ mod tests {
         let proj = ProfilesProjection::demo();
         assert_eq!(proj.profiles.len(), 3);
         assert_eq!(proj.active_profile_name(), "主力高速订阅 (Primary VIP)");
-        assert_eq!(proj.auto_update_interval_hours, 24);
+        assert_eq!(proj.auto_update_interval_hours, 6);
         assert_eq!(proj.profiles[0].id, "sub-1");
         assert_eq!(proj.profiles[0].name, "主力高速订阅 (Primary VIP)");
         assert_eq!(proj.profiles[0].total_bytes, 200_000_000_000);

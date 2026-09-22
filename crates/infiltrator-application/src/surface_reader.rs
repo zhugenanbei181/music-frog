@@ -391,6 +391,15 @@ impl SurfaceReader for ApplicationSurfaceReader {
                 }
                 Some(Ok(items)) => {
                     let mut snapshots = Vec::with_capacity(items.len());
+                    // DUAL-07-14: the page-level interval is the shortest fixed
+                    // interval actually scheduled; cron-only profiles are not
+                    // counted, so the header can stay honest.
+                    let auto_update_interval_hours = items
+                        .iter()
+                        .filter(|item| item.auto_update_enabled)
+                        .filter_map(|item| item.update_interval_hours)
+                        .min()
+                        .unwrap_or(0);
                     for item in items {
                         // DUAL-07-08: surface the stored node-keyword filter so
                         // both surfaces can prefill the editor.
@@ -424,12 +433,16 @@ impl SurfaceReader for ApplicationSurfaceReader {
                             last_modified: item.last_modified,
                             has_backup: item.has_backup,
                             cron_expression: item.cron_expression,
+                            auto_update_enabled: item.auto_update_enabled,
+                            update_interval_hours: item.update_interval_hours,
+                            next_update: item.next_update.map(|value| value.to_rfc3339()),
+                            auto_reload_core: item.auto_reload_core,
                             filter,
                         });
                     }
                     surface_snapshot::PageData::ready(surface_snapshot::ProfilesPageSnapshot {
                         profiles: snapshots,
-                        auto_update_interval_hours: 0,
+                        auto_update_interval_hours,
                         updating: false,
                     })
                 }

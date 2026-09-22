@@ -8,6 +8,7 @@ pub mod application_runtime;
 pub mod capability_provider;
 pub mod core_lifecycle;
 pub mod core_process;
+pub mod core_reload;
 pub mod core_watchdog;
 pub mod data_dir;
 pub mod data_store;

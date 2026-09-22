@@ -201,6 +201,10 @@ fn profiles_page_in_place_update() {
             last_modified: None,
             has_backup: false,
             cron_expression: None,
+            auto_update_enabled: true,
+            update_interval_hours: Some(12),
+            next_update: None,
+            auto_reload_core: true,
             filter: Default::default(),
         }],
     };

@@ -196,6 +196,8 @@ pub struct ProfileState {
     pub subscription_cron_expression: String,
     pub subscription_user_agent: String,
     pub subscription_insecure_skip_verify: bool,
+    /// DUAL-07-09: reload the core after a successful update of this profile.
+    pub subscription_auto_reload_core: bool,
     pub is_saving_subscription: bool,
     pub is_updating_subscription_now: bool,
     pub webdav_url: String,

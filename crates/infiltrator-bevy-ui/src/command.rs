@@ -81,6 +81,16 @@ pub enum UiCommand {
     UpdateAllSubscriptions,
     /// DUAL-07-13: restore a profile's transient pre-save backup copy.
     RestoreSubscriptionBackup { id: String },
+    /// DUAL-07-09: persist the post-update core-reload preference. A host
+    /// without a managed-runtime reload seam rejects `enabled = true` with a
+    /// typed unsupported failure.
+    SetSubscriptionAutoReload { profile_id: String, enabled: bool },
+    /// DUAL-07-14: persist the subscription URL / auto-update / interval / cron
+    /// through the shared schedule application.
+    UpdateSubscriptionSchedule {
+        profile_id: String,
+        draft: infiltrator_contract::subscription_import::SubscriptionScheduleDraft,
+    },
     /// Persist a profile's subscription fetch options.
     SaveSubscriptionFetchSettings {
         profile_id: String,
@@ -323,6 +333,19 @@ impl UiCommand {
             Self::DeleteProfile { id } => Some(CommandIntent::DeleteProfile {
                 profile_id: id.clone(),
             }),
+            Self::SetSubscriptionAutoReload {
+                profile_id,
+                enabled,
+            } => Some(CommandIntent::SetSubscriptionAutoReload {
+                profile_id: profile_id.clone(),
+                enabled: *enabled,
+            }),
+            Self::UpdateSubscriptionSchedule { profile_id, draft } => {
+                Some(CommandIntent::UpdateSubscriptionSchedule {
+                    profile_id: profile_id.clone(),
+                    draft: draft.clone(),
+                })
+            }
             Self::RefreshRuleProviders => Some(CommandIntent::RefreshRuleProviders),
             Self::ClearRuleHitCounters => Some(CommandIntent::ResetRuleHitCounters),
             Self::ToggleRuleEnabled(index) => {

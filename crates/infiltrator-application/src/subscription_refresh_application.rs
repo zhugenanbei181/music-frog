@@ -12,17 +12,24 @@
 //!   rejects a second concurrent refresh of the same profile with a typed
 //!   `InvalidState` failure instead of silently doubling the download.
 //!
+//! DUAL-07-09 adds the third shared decision: after an update commits new
+//! content for the *active* profile, the persisted `auto_reload_core`
+//! preference decides whether the host's [`CoreReloadPort`] brings it live.
+//! Without that seam the report carries a typed
+//! [`CoreReloadOutcome::Unsupported`] instead of a silent no-op.
+//!
 //! The profile store adapter and the outbound subscription source stay ports;
 //! only the orchestration is shared.
 
 use futures_util::stream::{self, StreamExt};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_import::{
-    SubscriptionBatchReport, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
+    CoreReloadOutcome, SubscriptionBatchReport, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
 };
 use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_domain::subscription_scheduler_policy::RetryBackoffPolicy;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
+use infiltrator_ports::core_reload::CoreReloadPort;
 use infiltrator_ports::subscription_notification::{
     SubscriptionNotification, SubscriptionNotificationKind, SubscriptionNotificationPort,
 };
@@ -73,6 +80,7 @@ pub struct SubscriptionRefreshApplication {
     runtime: Arc<dyn ApplicationRuntime>,
     policy: RetryBackoffPolicy,
     notifier: Option<Arc<dyn SubscriptionNotificationPort>>,
+    core_reload: Option<Arc<dyn CoreReloadPort>>,
 }
 
 impl SubscriptionRefreshApplication {
@@ -86,6 +94,7 @@ impl SubscriptionRefreshApplication {
             runtime,
             policy,
             notifier: None,
+            core_reload: None,
         }
     }
 
@@ -103,6 +112,19 @@ impl SubscriptionRefreshApplication {
     pub fn with_notifier(mut self, notifier: Arc<dyn SubscriptionNotificationPort>) -> Self {
         self.notifier = Some(notifier);
         self
+    }
+
+    /// DUAL-07-09: attach the host reload seam. A successful update of the
+    /// active profile is then applied to the running core when the profile's
+    /// persisted `auto_reload_core` preference allows it.
+    pub fn with_core_reload<Port: CoreReloadPort + 'static>(mut self, port: Port) -> Self {
+        self.core_reload = Some(Arc::new(port));
+        self
+    }
+
+    /// Whether a host reload seam is installed.
+    pub fn has_core_reload(&self) -> bool {
+        self.core_reload.is_some()
     }
 
     /// The retry policy this application applies.
@@ -136,7 +158,8 @@ impl SubscriptionRefreshApplication {
         Ok(SubscriptionRefreshGuard { key })
     }
 
-    /// Refresh one profile through the conditional path with backoff.
+    /// Refresh one profile through the conditional path with backoff, then
+    /// apply the DUAL-07-09 core-reload decision to the report.
     ///
     /// The single-flight guard is held across every retry so the app can never
     /// fan out into two competing downloads for the same profile.
@@ -145,15 +168,29 @@ impl SubscriptionRefreshApplication {
         source: &S,
         name: &str,
     ) -> Result<SubscriptionUpdateReport, Failure> {
-        let result = self.refresh_profile_inner(source, name).await;
+        let result = self.refresh_profile_once(source, name).await;
         if let Some(notifier) = &self.notifier {
             notifier.notify(notification_for_refresh(name, &result));
         }
         result
     }
 
-    /// The refresh body without notification, so the batch path can aggregate
-    /// one notification for the whole run instead of one per profile.
+    /// One full single-profile refresh: guarded download plus the reload
+    /// decision. The batch path uses [`Self::refresh_profile_inner`] so a
+    /// multi-profile run reloads the core at most once.
+    async fn refresh_profile_once<S: SubscriptionSource + ?Sized>(
+        &self,
+        source: &S,
+        name: &str,
+    ) -> Result<SubscriptionUpdateReport, Failure> {
+        let mut report = self.refresh_profile_inner(source, name).await?;
+        let changed = matches!(report.outcome, SubscriptionUpdateOutcome::Updated { .. });
+        report.core_reload = self.core_reload_outcome(name, changed).await?;
+        Ok(report)
+    }
+
+    /// The guarded refresh body without the reload decision, so the batch path
+    /// can aggregate first and reload once for the active profile.
     async fn refresh_profile_inner<S: SubscriptionSource + ?Sized>(
         &self,
         source: &S,
@@ -163,10 +200,47 @@ impl SubscriptionRefreshApplication {
         self.refresh_with_retry(source, name).await
     }
 
+    /// DUAL-07-09: decide — and perform — the post-update core reload.
+    ///
+    /// * no new content, a profile that opted out, or a profile that is not
+    ///   active: nothing is applied, and the report says exactly why;
+    /// * no host reload seam: a typed [`CoreReloadOutcome::Unsupported`], never
+    ///   a silent no-op;
+    /// * the seam fails: a typed [`CoreReloadOutcome::Failed`] carrying the
+    ///   adapter error, so the stored-but-not-live state is visible.
+    async fn core_reload_outcome(
+        &self,
+        name: &str,
+        changed: bool,
+    ) -> Result<CoreReloadOutcome, Failure> {
+        if !changed {
+            return Ok(CoreReloadOutcome::NotAttempted);
+        }
+        let metadata = self.profile.load_metadata(name).await?;
+        if !metadata.auto_reload_core {
+            return Ok(CoreReloadOutcome::Disabled);
+        }
+        if self.profile.current_profile().await? != name {
+            return Ok(CoreReloadOutcome::NotActive);
+        }
+        let Some(port) = &self.core_reload else {
+            return Ok(CoreReloadOutcome::Unsupported);
+        };
+        Ok(match port.reload_active_profile().await {
+            Ok(()) => CoreReloadOutcome::Reloaded,
+            Err(error) => CoreReloadOutcome::Failed {
+                error: error.to_string(),
+            },
+        })
+    }
+
     /// Bounded-concurrency refresh of every profile carrying a subscription
     /// URL, with per-profile retry and single-flight. Mirrors the aggregation
     /// of [`ProfileApplication::update_all_subscriptions`] so both surfaces
     /// keep rendering the same [`SubscriptionBatchReport`].
+    ///
+    /// DUAL-07-09: at most one core reload happens per batch — only the active
+    /// profile's own updated report carries the reload outcome.
     pub async fn refresh_all<S: SubscriptionSource + ?Sized>(
         &self,
         source: &S,
@@ -221,18 +295,37 @@ impl SubscriptionRefreshApplication {
                         quota: None,
                         usage_warning: false,
                         expiry_warning: false,
-                        reloaded_core: false,
+                        core_reload: CoreReloadOutcome::NotAttempted,
                         backed_up: false,
                     });
                 }
             }
         }
 
+        self.apply_batch_core_reload(&mut report).await?;
+
         if let Some(notifier) = &self.notifier {
             notifier.notify(notification_for_batch(&report));
         }
 
         Ok(report)
+    }
+
+    /// Stamp the single batch-wide reload decision onto the active profile's
+    /// updated report (when the batch really updated it).
+    async fn apply_batch_core_reload(
+        &self,
+        report: &mut SubscriptionBatchReport,
+    ) -> Result<(), Failure> {
+        let active = self.profile.current_profile().await?;
+        let Some(outcome) = report.outcomes.iter_mut().find(|outcome| {
+            outcome.profile_name == active
+                && matches!(outcome.outcome, SubscriptionUpdateOutcome::Updated { .. })
+        }) else {
+            return Ok(());
+        };
+        outcome.core_reload = self.core_reload_outcome(&active, true).await?;
+        Ok(())
     }
 
     async fn refresh_with_retry<S: SubscriptionSource + ?Sized>(

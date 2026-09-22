@@ -8,8 +8,9 @@ use chrono::Utc;
 use futures_util::stream::{self, StreamExt};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_import::{
-    SubscriptionBatchReport, SubscriptionImportChannel, SubscriptionImportReport,
-    SubscriptionQuotaFacts, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
+    CoreReloadOutcome, SubscriptionBatchReport, SubscriptionImportChannel,
+    SubscriptionImportReport, SubscriptionQuotaFacts, SubscriptionScheduleDraft,
+    SubscriptionUpdateOutcome, SubscriptionUpdateReport,
 };
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::filter::FilterReport;
@@ -19,7 +20,7 @@ use infiltrator_domain::profiles::{
 };
 use infiltrator_domain::subscription::{CheckedSubscriptionUrl, SubscriptionUserInfo};
 use infiltrator_domain::subscription_scheduler_policy::{
-    FormatDetector, QuotaWarningPolicy, SubscriptionSchedule,
+    CronSchedule, FormatDetector, QuotaWarningPolicy, SubscriptionSchedule,
 };
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
@@ -463,7 +464,7 @@ impl ProfileApplication {
                         quota: None,
                         usage_warning: false,
                         expiry_warning: false,
-                        reloaded_core: false,
+                        core_reload: CoreReloadOutcome::NotAttempted,
                         backed_up: false,
                     });
                 }
@@ -485,6 +486,113 @@ impl ProfileApplication {
         let mut metadata = self.load_metadata(&name).await?;
         metadata.user_agent = user_agent.filter(|value| !value.trim().is_empty());
         metadata.insecure_skip_verify = insecure_skip_verify;
+        self.update_metadata(&name, &metadata).await
+    }
+
+    /// DUAL-07-14: persist a profile's subscription URL, auto-update flag,
+    /// interval, and cron schedule as one validated draft.
+    ///
+    /// All validation happens here so every surface (and the command bus) sees
+    /// the same typed rejection: a malformed cron expression, an auto-update
+    /// request without a URL, or a zero interval never reaches the store. An
+    /// empty URL clears the subscription, its schedule, and the last-update
+    /// marker.
+    pub async fn update_subscription_schedule(
+        &self,
+        name: &str,
+        draft: &SubscriptionScheduleDraft,
+    ) -> Result<(), Failure> {
+        let name = valid_name(name)?;
+        let cron_expression = match draft
+            .cron_expression
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            Some(raw) => Some(
+                CronSchedule::parse(raw)
+                    .map_err(|error| {
+                        Failure::new(ErrorCode::InvalidInput, error.to_string(), false)
+                    })?
+                    .raw,
+            ),
+            None => None,
+        };
+        let url = draft.url.trim();
+        if url.is_empty() && draft.auto_update_enabled {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                "a subscription URL is required when auto update is enabled",
+                false,
+            ));
+        }
+        // The interval arrives as free text (the surface field); an
+        // unparseable or zero value is a typed rejection, never a silent
+        // default.
+        let interval_text = draft.update_interval_hours.trim();
+        let requested_interval = if interval_text.is_empty() {
+            None
+        } else {
+            match interval_text.parse::<u32>() {
+                Ok(0) => {
+                    return Err(Failure::new(
+                        ErrorCode::InvalidInput,
+                        "update interval must be a positive number of hours",
+                        false,
+                    ));
+                }
+                Ok(hours) => Some(hours),
+                Err(_) => {
+                    return Err(Failure::new(
+                        ErrorCode::InvalidInput,
+                        "update interval must be a whole number of hours",
+                        false,
+                    ));
+                }
+            }
+        };
+        let mut metadata = self.load_metadata(&name).await?;
+
+        if url.is_empty() {
+            metadata.subscription_url = None;
+            metadata.auto_update_enabled = false;
+            metadata.update_interval_hours = None;
+            metadata.cron_expression = None;
+            metadata.last_updated = None;
+            metadata.next_update = None;
+        } else {
+            // An interval-less schedule is only valid when a cron expression
+            // carries the cadence; otherwise the 24h default applies, exactly
+            // like the previous editor default.
+            let interval_hours = if draft.auto_update_enabled {
+                match requested_interval {
+                    Some(hours) => Some(hours),
+                    None if cron_expression.is_none() => Some(24),
+                    None => None,
+                }
+            } else {
+                None
+            };
+            metadata.subscription_url = Some(url.to_string());
+            metadata.auto_update_enabled = draft.auto_update_enabled;
+            metadata.update_interval_hours = interval_hours;
+            metadata.cron_expression = cron_expression;
+            metadata.next_update = None;
+        }
+        self.update_metadata(&name, &metadata).await
+    }
+
+    /// DUAL-07-09: persist whether a successful update of this profile is
+    /// applied to the running core. The preference is consumed by the shared
+    /// subscription refresh through the host's `CoreReloadPort`.
+    pub async fn update_subscription_auto_reload(
+        &self,
+        name: &str,
+        enabled: bool,
+    ) -> Result<(), Failure> {
+        let name = valid_name(name)?;
+        let mut metadata = self.load_metadata(&name).await?;
+        metadata.auto_reload_core = enabled;
         self.update_metadata(&name, &metadata).await
     }
 
@@ -696,7 +804,7 @@ fn report_from_metadata(
         }),
         usage_warning,
         expiry_warning,
-        reloaded_core: false,
+        core_reload: CoreReloadOutcome::NotAttempted,
         backed_up,
     }
 }

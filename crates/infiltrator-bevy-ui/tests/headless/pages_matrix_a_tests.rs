@@ -31,6 +31,10 @@ use infiltrator_bevy_ui::pages::profiles_import_channels::{
     ImportSubscriptionNameField, ImportSubscriptionUrlButton, ImportSubscriptionUrlField,
     SaveSubscriptionFilterButton, SubscriptionFilterIncludeField,
 };
+use infiltrator_bevy_ui::pages::profiles_subscription_policy::{
+    SaveSubscriptionAutoReloadButton, SaveSubscriptionPolicyButton, SubscriptionAutoReloadToggle,
+    SubscriptionPolicyCronField, SubscriptionPolicyIntervalField,
+};
 use infiltrator_bevy_ui::pages::proxies::*;
 use infiltrator_bevy_ui::pages::rules::*;
 use infiltrator_bevy_ui::pages::rules_builder::{
@@ -374,7 +378,7 @@ fn test_profiles_page_mounting_and_default_state() {
     assert!(subtree_has_text(
         app.world(),
         root,
-        "自动更新周期: 每 24 小时"
+        "自动更新: 2 个订阅已启用 · 最短周期 6 小时"
     ));
     assert!(subtree_has_text(
         app.world(),
@@ -508,10 +512,11 @@ fn test_profiles_projection_in_place_update() {
     let (root, _) = navigate_to(&mut app, Route::Profiles);
 
     let mut updated = ProfilesProjection::demo();
-    updated.auto_update_interval_hours = 6;
+    updated.auto_update_interval_hours = 3;
     updated.profiles[0].is_active = false;
     updated.profiles[1].is_active = true;
     updated.profiles[1].name = "备用容灾线路 (Active Live)".to_owned();
+    updated.profiles[1].update_interval_hours = Some(3);
 
     app.world_mut()
         .commands()
@@ -526,8 +531,9 @@ fn test_profiles_projection_in_place_update() {
     assert!(subtree_has_text(
         app.world(),
         root,
-        "自动更新周期: 每 6 小时"
+        "自动更新: 2 个订阅已启用 · 最短周期 3 小时"
     ));
+    assert!(subtree_has_text(app.world(), root, "定时计划: 每 3 小时"));
     assert!(subtree_has_text(
         app.world(),
         root,
@@ -565,11 +571,7 @@ fn test_profiles_empty_and_edge_case_projection() {
         root,
         "配置订阅 · 共 0 个配置 (当前生效: 无活动配置)"
     ));
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "自动更新周期: 每 0 小时"
-    ));
+    assert!(subtree_has_text(app.world(), root, "自动更新: 未启用"));
 }
 
 // ===========================================================================
@@ -2346,6 +2348,10 @@ fn subscription_fetch_projection() -> ProfilesProjection {
             last_modified: Some("Tue, 22 Sep 2026 09:00:00 GMT".to_owned()),
             has_backup: true,
             cron_expression: Some("0 */6 * * *".to_owned()),
+            auto_update_enabled: true,
+            update_interval_hours: Some(6),
+            next_update: None,
+            auto_reload_core: true,
             filter: infiltrator_contract::subscription_import::SubscriptionFilterDraft {
                 include: "香港".to_owned(),
                 exclude: "广告".to_owned(),
@@ -2640,5 +2646,175 @@ fn test_profiles_restore_backup_submits_shared_command_and_restamps_status() {
             .next()
             .is_some(),
         "backup status marker is mounted"
+    );
+}
+
+// ---- DUAL-07-09/14: subscription policy + auto-reload + delete --------------
+
+/// DUAL-07-14: the card actions delete a profile through the shared command
+/// bus, and the active profile's delete action is never submitted — exactly
+/// like the Iced card, which only offers the action for inactive profiles.
+#[test]
+fn test_profiles_delete_button_submits_shared_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Profiles);
+
+    let active = app
+        .world_mut()
+        .query::<(Entity, &DeleteProfileButton)>()
+        .iter(app.world())
+        .find(|(_, button)| button.profile_id == "sub-1")
+        .map(|(entity, _)| entity)
+        .expect("sub-1 delete button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: active });
+    app.update();
+    assert!(
+        sink.submitted().is_empty(),
+        "the active profile is never deleted from this surface"
+    );
+
+    let inactive = app
+        .world_mut()
+        .query::<(Entity, &DeleteProfileButton)>()
+        .iter(app.world())
+        .find(|(_, button)| button.profile_id == "sub-2")
+        .map(|(entity, _)| entity)
+        .expect("sub-2 delete button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: inactive });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::DeleteProfile {
+            id: "sub-2".to_owned(),
+        }],
+        "delete routes through the shared command"
+    );
+}
+
+/// DUAL-07-14: the update-policy card is driven by the shared projection and
+/// submits the whole schedule draft through the shared command bus.
+#[test]
+fn test_profiles_schedule_policy_restamps_and_submits_shared_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    let mut projection = subscription_fetch_projection();
+    projection.profiles[0].url = "https://fetch.example/sub".to_owned();
+    projection.profiles[0].auto_update_enabled = true;
+    projection.profiles[0].update_interval_hours = Some(12);
+    projection.profiles[0].auto_reload_core = true;
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(projection));
+    app.update();
+
+    assert!(
+        subtree_has_text(app.world(), root, "订阅更新策略 (Update Policy)"),
+        "the policy card mounts on the profiles page"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "更新策略：按 Cron `0 */6 * * *` 排程"),
+        "the status line restamps from the shared snapshot"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "保存更新策略"),
+        "the policy save action exists"
+    );
+
+    // The interval field is prefilled from the snapshot, then edited.
+    set_marker_text::<SubscriptionPolicyIntervalField>(&mut app, "6");
+    set_marker_text::<SubscriptionPolicyCronField>(&mut app, "");
+    let save = marker_entity::<SaveSubscriptionPolicyButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: save });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::UpdateSubscriptionSchedule {
+            profile_id: "sub-fetch".to_owned(),
+            draft: infiltrator_contract::subscription_import::SubscriptionScheduleDraft {
+                url: "https://fetch.example/sub".to_owned(),
+                auto_update_enabled: true,
+                update_interval_hours: "6".to_owned(),
+                cron_expression: None,
+            },
+        }],
+        "the edited schedule rides the shared command"
+    );
+}
+
+/// DUAL-07-09: the auto-reload control mirrors the shared projection and
+/// submits the shared command; the checkbox follows the persisted value.
+#[test]
+fn test_profiles_auto_reload_toggle_submits_shared_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    let mut projection = subscription_fetch_projection();
+    projection.profiles[0].auto_reload_core = true;
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(projection));
+    app.update();
+
+    assert!(
+        subtree_has_text(app.world(), root, "更新后自动重载内核"),
+        "the reload control exists on the profile management surface"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "内核重载：更新成功后重载内核"),
+        "the reload status line renders the persisted preference"
+    );
+    let checked = {
+        let mut toggles = app
+            .world_mut()
+            .query::<(&SubscriptionAutoReloadToggle, &Children)>();
+        let (_, children) = toggles.single(app.world()).expect("reload toggle");
+        children
+            .iter()
+            .any(|child| app.world().get::<bevy::ui::Checked>(*child).is_some())
+    };
+    assert!(checked, "the checkbox reflects the shared snapshot");
+
+    // Untick + save: the command carries the edited preference.
+    if let Some(child) = {
+        let mut toggles = app
+            .world_mut()
+            .query::<(&SubscriptionAutoReloadToggle, &Children)>();
+        toggles
+            .single(app.world())
+            .expect("reload toggle")
+            .1
+            .iter()
+            .next()
+            .copied()
+    } {
+        app.world_mut()
+            .entity_mut(child)
+            .remove::<bevy::ui::Checked>();
+    }
+    let save = marker_entity::<SaveSubscriptionAutoReloadButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: save });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::SetSubscriptionAutoReload {
+            profile_id: "sub-fetch".to_owned(),
+            enabled: false,
+        }],
+        "the reload preference rides the shared command"
     );
 }

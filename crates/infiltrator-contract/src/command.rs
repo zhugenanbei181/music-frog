@@ -200,6 +200,20 @@ pub enum CommandIntent {
         user_agent: Option<String>,
         insecure_skip_verify: bool,
     },
+    /// DUAL-07-09: persist whether the active profile is reloaded into the
+    /// running core after a successful subscription update. Hosts without a
+    /// managed-runtime seam reject `enabled = true` with a typed
+    /// `Unsupported` failure instead of storing a preference that no-ops.
+    SetSubscriptionAutoReload {
+        profile_id: String,
+        enabled: bool,
+    },
+    /// DUAL-07-14: persist a profile's subscription URL, auto-update flag,
+    /// interval, and cron schedule through the shared application.
+    UpdateSubscriptionSchedule {
+        profile_id: String,
+        draft: crate::subscription_import::SubscriptionScheduleDraft,
+    },
     /// DUAL-07-08: apply and persist a profile's subscription node-keyword
     /// filter (include/exclude/protocol/rename/dedupe) through the shared
     /// pipeline.
@@ -396,6 +410,8 @@ impl CommandIntent {
             | Self::UpdateAllSubscriptions
             | Self::RestoreSubscriptionBackup { .. }
             | Self::UpdateSubscriptionFetchSettings { .. }
+            | Self::SetSubscriptionAutoReload { .. }
+            | Self::UpdateSubscriptionSchedule { .. }
             | Self::SaveSubscriptionFilter { .. }
             | Self::ImportSubscription { .. }
             | Self::DeleteProfile { .. }

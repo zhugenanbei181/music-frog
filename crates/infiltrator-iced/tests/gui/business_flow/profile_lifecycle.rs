@@ -12,7 +12,7 @@ use crate::types::runtime::RuntimeStatus;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::{
-    SubscriptionBatchReport, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
+    CoreReloadOutcome, SubscriptionBatchReport, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
 };
 use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_domain::profiles::sanitize_profile_name;
@@ -32,7 +32,7 @@ fn subscription_report(profile: &str) -> SubscriptionUpdateReport {
         quota: None,
         usage_warning: false,
         expiry_warning: false,
-        reloaded_core: false,
+        core_reload: CoreReloadOutcome::NotAttempted,
         backed_up: true,
     }
 }
@@ -49,7 +49,7 @@ fn not_modified_report(profile: &str) -> SubscriptionUpdateReport {
         quota: None,
         usage_warning: false,
         expiry_warning: false,
-        reloaded_core: false,
+        core_reload: CoreReloadOutcome::NotAttempted,
         backed_up: false,
     }
 }
@@ -834,4 +834,159 @@ fn subscription_cron_editor_loads_and_validates() {
     assert!(state.profile.is_saving_subscription);
     feed(&mut state, Message::SubscriptionSettingsSaved(Ok(())));
     assert!(!state.profile.is_saving_subscription);
+}
+
+/// DUAL-07-09/14: the subscription editor's schedule draft and auto-reload
+/// preference are validated and persisted by the shared application, and
+/// enabling a reload this host cannot perform is a typed refusal instead of a
+/// stored no-op.
+#[test]
+fn subscription_policy_and_auto_reload_are_shared_application_wired() {
+    let home = TempHome::acquire("sub-policy");
+    home.seed_profile("Paid", LOCAL_IMPORT_YAML);
+    let mut state = fresh_state();
+    state.shell.lang = "zh-CN".into();
+
+    feed(&mut state, Message::ProfilesLoaded(Ok(list_profiles())));
+    feed(
+        &mut state,
+        Message::SelectSubscriptionProfile("Paid".into()),
+    );
+    assert!(
+        state.profile.subscription_auto_reload_core,
+        "the editor loads the store's reload preference"
+    );
+
+    // Validation gates run before any task spawns: auto-update needs a URL.
+    feed(&mut state, Message::UpdateSubscriptionUrl("  ".into()));
+    feed(&mut state, Message::UpdateSubscriptionAutoUpdate(true));
+    let units = feed(&mut state, Message::SaveSubscriptionSettings);
+    assert_eq!(units, 1, "auto-update without URL → toast only");
+    assert!(!state.profile.is_saving_subscription);
+
+    // Opt out for real so the editor state is the honest persisted one.
+    block_on(async {
+        let manager = crate::configs_dir::config_manager().await.unwrap();
+        ProfileApplication::new(manager)
+            .update_subscription_auto_reload("Paid", false)
+            .await
+            .expect("shared application persists the opt-out");
+    });
+    feed(&mut state, Message::ProfilesLoaded(Ok(list_profiles())));
+    feed(
+        &mut state,
+        Message::SelectSubscriptionProfile("Paid".into()),
+    );
+    assert!(!state.profile.subscription_auto_reload_core);
+
+    // No runtime seam on this state: re-enabling is refused up front, before
+    // any write, instead of silently storing a preference that cannot work.
+    feed(
+        &mut state,
+        Message::UpdateSubscriptionUrl("https://sub.example.com/token".into()),
+    );
+    feed(&mut state, Message::UpdateSubscriptionAutoReload(true));
+    assert!(
+        state.runtime.runtime.is_none(),
+        "this journey runs without a host runtime seam"
+    );
+    assert!(
+        state
+            .profile
+            .profiles
+            .iter()
+            .find(|profile| profile.name == "Paid")
+            .is_some_and(|profile| !profile.auto_reload_core),
+        "the persisted preference really is off before re-enabling"
+    );
+    let units = feed(&mut state, Message::SaveSubscriptionSettings);
+    assert_eq!(
+        units, 1,
+        "typed unsupported toast instead of spawning the save task"
+    );
+    assert!(
+        !state.profile.is_saving_subscription,
+        "a reload this host cannot perform never starts a save"
+    );
+
+    // Disabling never needs the seam: the save task really spawns.
+    feed(&mut state, Message::UpdateSubscriptionAutoReload(false));
+    let units = feed(&mut state, Message::SaveSubscriptionSettings);
+    assert!(state.profile.is_saving_subscription);
+    assert_eq!(units, 1);
+    let units = feed(&mut state, Message::SubscriptionSettingsSaved(Ok(())));
+    assert_eq!(units, 2, "LoadProfiles + success-toast legs");
+
+    // The persistence leg for real: the shared schedule + reload methods land
+    // in the config.toml store the editor reloads.
+    block_on(async {
+        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let application = ProfileApplication::new(manager.clone());
+        application
+            .update_subscription_schedule(
+                "Paid",
+                &infiltrator_contract::subscription_import::SubscriptionScheduleDraft {
+                    url: "https://sub.example.com/token".to_string(),
+                    auto_update_enabled: true,
+                    update_interval_hours: "12".to_string(),
+                    cron_expression: Some("0 */6 * * *".to_string()),
+                },
+            )
+            .await
+            .expect("shared schedule persists");
+        application
+            .update_subscription_auto_reload("Paid", true)
+            .await
+            .expect("shared reload preference persists");
+
+        let metadata = manager.get_profile_metadata("Paid").await.unwrap();
+        assert_eq!(metadata.update_interval_hours, Some(12));
+        assert_eq!(metadata.cron_expression.as_deref(), Some("0 */6 * * *"));
+        assert!(
+            metadata.auto_reload_core,
+            "the reload preference round-trips through the store"
+        );
+    });
+
+    // LoadProfiles回流 reflects every persisted fact in the editor.
+    feed(&mut state, Message::ProfilesLoaded(Ok(list_profiles())));
+    feed(
+        &mut state,
+        Message::SelectSubscriptionProfile("Paid".into()),
+    );
+    assert_eq!(state.profile.subscription_update_interval_hours, "12");
+    assert_eq!(state.profile.subscription_cron_expression, "0 */6 * * *");
+    assert!(
+        state.profile.subscription_auto_reload_core,
+        "the reload preference loads back from the store"
+    );
+}
+
+/// DUAL-07-09: the update toast tells the truth about the post-update reload —
+/// a typed unsupported or failed reload is a warning, not a clean success.
+#[test]
+fn subscription_toast_reports_the_reload_outcome_honestly() {
+    let lang = infiltrator_shared::locales::Lang("zh-CN");
+    let mut report = subscription_report("Paid");
+    report.core_reload = CoreReloadOutcome::Reloaded;
+    let (_, reloaded_status) =
+        crate::update::profile::subscription::subscription_update_toast(&lang, &report);
+    assert_eq!(reloaded_status, crate::types::app::ToastStatus::Success);
+
+    report.core_reload = CoreReloadOutcome::Unsupported;
+    let (text, unsupported_status) =
+        crate::update::profile::subscription::subscription_update_toast(&lang, &report);
+    assert_eq!(unsupported_status, crate::types::app::ToastStatus::Warning);
+    assert!(
+        text.contains("宿主") && text.contains("未应用"),
+        "the unsupported reload names the host gap, got {text:?}"
+    );
+
+    report.core_reload = CoreReloadOutcome::Failed {
+        error: "reload rejected".to_string(),
+    };
+    let (text, failed_status) =
+        crate::update::profile::subscription::subscription_update_toast(&lang, &report);
+    assert_eq!(failed_status, crate::types::app::ToastStatus::Warning);
+    assert!(text.contains("reload rejected"), "got {text:?}");
 }

@@ -109,6 +109,29 @@ pub struct SubscriptionQuotaFacts {
     pub expire_at_unix: Option<i64>,
 }
 
+/// DUAL-07-09: how one subscription update handled the optional post-update
+/// core reload. Every variant is a fact the shared refresh observed; a surface
+/// must never fabricate a reload.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CoreReloadOutcome {
+    /// The update did not commit new content (not modified or failed), so no
+    /// reload was warranted.
+    #[default]
+    NotAttempted,
+    /// The profile opts out of reloading the core after an update.
+    Disabled,
+    /// The profile is not the active one; its content applies on activation.
+    NotActive,
+    /// The updated active profile was handed to the running core.
+    Reloaded,
+    /// The host exposes no managed-runtime reload seam. Typed, never a silent
+    /// no-op.
+    Unsupported,
+    /// The reload seam ran and failed; the new content is stored but not live.
+    Failed { error: String },
+}
+
 /// Comprehensive report emitted after a subscription update attempt.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubscriptionUpdateReport {
@@ -119,8 +142,33 @@ pub struct SubscriptionUpdateReport {
     pub quota: Option<SubscriptionQuotaFacts>,
     pub usage_warning: bool,
     pub expiry_warning: bool,
-    pub reloaded_core: bool,
+    /// DUAL-07-09: the shared post-update core-reload decision.
+    #[serde(default)]
+    pub core_reload: CoreReloadOutcome,
     pub backed_up: bool,
+}
+
+impl SubscriptionUpdateReport {
+    /// True only when the running core really re-read the updated profile.
+    pub fn reloaded_core(&self) -> bool {
+        matches!(self.core_reload, CoreReloadOutcome::Reloaded)
+    }
+}
+
+/// DUAL-07-14: the per-profile subscription scheduling fields a surface edits.
+///
+/// Like [`SubscriptionFilterDraft`], the interval stays free text exactly as
+/// the surface field holds it; the application parses and validates it (cron
+/// expression, URL/auto-update relationship, positive interval) before
+/// persisting. An empty `url` clears the subscription and its schedule.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", default)]
+pub struct SubscriptionScheduleDraft {
+    pub url: String,
+    pub auto_update_enabled: bool,
+    /// Hours between updates as typed by the user (empty = unset).
+    pub update_interval_hours: String,
+    pub cron_expression: Option<String>,
 }
 
 /// Batch update summary for all configured subscriptions.

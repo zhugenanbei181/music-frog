@@ -78,6 +78,9 @@ impl std::fmt::Debug for Message {
             Message::UpdateSubscriptionUserAgent(v) => {
                 write!(f, "UpdateSubscriptionUserAgent({})", v)
             }
+            Message::UpdateSubscriptionAutoReload(v) => {
+                write!(f, "UpdateSubscriptionAutoReload({})", v)
+            }
             Message::UpdateSubscriptionInsecureSkipVerify(v) => {
                 write!(f, "UpdateSubscriptionInsecureSkipVerify({})", v)
             }

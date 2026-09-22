@@ -448,6 +448,27 @@ impl CommandApplication {
             CommandIntent::DeleteProfile { profile_id } => {
                 self.profile()?.delete_profile(&profile_id).await
             }
+            CommandIntent::SetSubscriptionAutoReload {
+                profile_id,
+                enabled,
+            } => {
+                // DUAL-07-09: a host without a managed-runtime reload seam must
+                // reject the enable action with a typed failure instead of
+                // persisting a preference that can only silently no-op.
+                if enabled && self.managed_runtime.is_none() {
+                    return Err(Failure::unsupported(
+                        "this host exposes no managed core-reload seam, so auto reload cannot be enabled",
+                    ));
+                }
+                self.profile()?
+                    .update_subscription_auto_reload(&profile_id, enabled)
+                    .await
+            }
+            CommandIntent::UpdateSubscriptionSchedule { profile_id, draft } => {
+                self.profile()?
+                    .update_subscription_schedule(&profile_id, &draft)
+                    .await
+            }
             CommandIntent::RefreshRuleProviders => {
                 let runtime = self.runtime()?;
                 let providers = runtime.get_rule_providers().await.map_err(Failure::from)?;
@@ -837,6 +858,12 @@ impl CommandApplication {
         runtime: Arc<dyn ApplicationRuntime>,
     ) -> SubscriptionRefreshApplication {
         let refresh = SubscriptionRefreshApplication::with_default_policy(profile, runtime);
+        // DUAL-07-09: the shipped command path reloads the updated active
+        // profile through the same managed-runtime seam it already holds.
+        let refresh = match &self.managed_runtime {
+            Some(managed) => refresh.with_core_reload(Arc::clone(managed)),
+            None => refresh,
+        };
         match &self.notifier {
             Some(notifier) => refresh.with_notifier(Arc::clone(notifier)),
             None => refresh,

@@ -758,6 +758,8 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::UpdateSubscriptionFetchSettings { .. } => {
             "update_subscription_fetch_settings"
         }
+        CommandIntent::SetSubscriptionAutoReload { .. } => "set_subscription_auto_reload",
+        CommandIntent::UpdateSubscriptionSchedule { .. } => "update_subscription_schedule",
         CommandIntent::DeleteProfile { .. } => "delete_profile",
         CommandIntent::RefreshRuleProviders => "refresh_rule_providers",
         CommandIntent::CloseConnection { .. } => "close_connection",

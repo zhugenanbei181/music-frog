@@ -83,6 +83,8 @@ pub enum Message {
     UpdateSubscriptionCron(String),
     UpdateSubscriptionUserAgent(String),
     UpdateSubscriptionInsecureSkipVerify(bool),
+    /// DUAL-07-09: toggle the post-update core reload preference.
+    UpdateSubscriptionAutoReload(bool),
     SaveSubscriptionSettings,
     SubscriptionSettingsSaved(Result<(), InfiltratorError>),
     UpdateSubscriptionNow,

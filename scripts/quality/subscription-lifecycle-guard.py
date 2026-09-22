@@ -2,7 +2,8 @@
 """Fail-closed guard for the DUAL-07 subscription lifecycle ledger closure.
 
 Group 07 (subscription lifecycle: multi-channel import, conditional requests,
-retry/backoff, scheduling, backup) must keep a per-item ledger, and the shared
+retry/backoff, scheduling, backup, post-update core reload, dual-surface
+management parity) must keep a per-item ledger, and the shared
 conditional-update path must stay single-sourced:
 
 * one shared application builds ETag / If-Modified-Since / custom User-Agent /
@@ -10,7 +11,13 @@ conditional-update path must stay single-sourced:
   `SubscriptionUpdateReport`; a `304` must not rewrite content;
 * insecure TLS is opt-in per profile and only `infiltrator-http` may call
   `danger_accept_invalid_certs` -- no surface may own a second HTTP path;
-* both surfaces (Iced + Bevy) consume the shared settings/state.
+* both surfaces (Iced + Bevy) consume the shared settings/state;
+* the persisted `auto_reload_core` preference is consumed by the shared
+  refresh through the host `CoreReloadPort` seam, and a host without one
+  reports a typed unsupported outcome (no silent no-op);
+* no surface assembles subscription metadata itself: the schedule draft,
+  the reload preference, and the fetch options all go through the shared
+  application.
 
 Modeled on `speedtest-history-guard.py`.
 """
@@ -805,6 +812,251 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/subscription_refresh_application_test.rs",
         "subscription_update_pipeline_regression_matrix",
+    )
+
+    # 19. DUAL-07-09 "optional post-update core reload": one shared reload
+    #     decision consumed by the shared refresh through the host seam, with a
+    #     typed unsupported outcome when the host exposes none.
+    require(
+        violations,
+        "crates/infiltrator-ports/src/core_reload.rs",
+        "pub trait CoreReloadPort",
+        "async fn reload_active_profile",
+        "ApplyStrategy::PreferReload",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/subscription_import.rs",
+        "pub enum CoreReloadOutcome",
+        "pub core_reload: CoreReloadOutcome",
+        "Unsupported",
+        "pub fn reloaded_core(&self) -> bool",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/subscription_refresh_application.rs",
+        "pub fn with_core_reload",
+        "pub fn has_core_reload",
+        "async fn core_reload_outcome",
+        "async fn apply_batch_core_reload",
+        "CoreReloadOutcome::Unsupported",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/command.rs",
+        "SetSubscriptionAutoReload",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "SetSubscriptionAutoReload",
+        "update_subscription_auto_reload",
+        "Failure::unsupported(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/core_application.rs",
+        '"set_subscription_auto_reload"',
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub auto_reload_core: bool",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "auto_reload_core: item.auto_reload_core",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/subscription.rs",
+        "Message::UpdateSubscriptionAutoReload",
+        "subscription_auto_reload_core",
+        "with_core_reload",
+        "update_subscription_auto_reload",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/types/message.rs",
+        "UpdateSubscriptionAutoReload",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/profiles.rs",
+        "Message::UpdateSubscriptionAutoReload",
+        "profiles_auto_reload_core",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "profiles_auto_reload_core",
+        "sub_reload_core_unsupported",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "profiles_auto_reload_core",
+        "sub_reload_core_unsupported",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_subscription_policy.rs",
+        "SubscriptionAutoReloadToggle",
+        "SaveSubscriptionAutoReloadButton",
+        "on_save_subscription_auto_reload",
+        "sync_subscription_policy_controls",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "SetSubscriptionAutoReload",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/subscription_refresh_application_test.rs",
+        "core_reload_follows_the_preference_and_the_host_seam",
+        "batch_reloads_the_core_once_for_the_active_profile",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application_tests.rs",
+        "auto_reload_preference_is_persisted_and_readable",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application_tests.rs",
+        "auto_reload_enable_requires_a_managed_runtime_seam",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/business_flow/profile_lifecycle.rs",
+        "subscription_policy_and_auto_reload_are_shared_application_wired",
+        "subscription_toast_reports_the_reload_outcome_honestly",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_profiles_auto_reload_toggle_submits_shared_command",
+    )
+
+    # 20. DUAL-07-14 "dual-surface subscription management parity": one shared
+    #     schedule draft + application method drives both editors, and the Bevy
+    #     page owns real management actions instead of demo content.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/subscription_import.rs",
+        "pub struct SubscriptionScheduleDraft",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/command.rs",
+        "UpdateSubscriptionSchedule",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application.rs",
+        "async fn update_subscription_schedule",
+        "async fn update_subscription_auto_reload",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "UpdateSubscriptionSchedule",
+        "update_subscription_schedule",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/core_application.rs",
+        '"update_subscription_schedule"',
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub auto_update_enabled: bool",
+        "pub update_interval_hours: Option<u32>",
+        "pub next_update: Option<String>",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "auto_update_enabled: item.auto_update_enabled",
+        "next_update: item.next_update",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/subscription.rs",
+        "update_subscription_schedule",
+        "SubscriptionScheduleDraft",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_subscription_policy.rs",
+        "SaveSubscriptionPolicyButton",
+        "SubscriptionPolicyUrlField",
+        "SubscriptionPolicyCronField",
+        "on_save_subscription_policy",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages.rs",
+        "pub mod profiles_subscription_policy",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles.rs",
+        "DeleteProfileButton",
+        "on_delete_profile_activated",
+        "pub fn auto_update_summary",
+        "pub fn profile_schedule_summary",
+        "ProfileScheduleText",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "UpdateSubscriptionSchedule",
+        "DeleteProfile",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application_tests.rs",
+        "schedule_draft_validates_and_persists_the_subscription_shape",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application_tests.rs",
+        "subscription_schedule_command_persists_and_rejects_invalid_cron",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_profiles_schedule_policy_restamps_and_submits_shared_command",
+        "test_profiles_delete_button_submits_shared_command",
+    )
+
+    # 21. Reverse assertions: the surfaces must not re-own the decisions the
+    #     shared layer just took over.
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/subscription.rs",
+        "AlwaysRestart",
+        "metadata.subscription_url =",
+        "metadata.update_interval_hours =",
+        "metadata.cron_expression =",
+        "metadata.last_updated =",
+        "metadata.next_update =",
+        "apply_current_config",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles.rs",
+        "自动更新周期: 每",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_subscription_policy.rs",
+        "ProfilesProjection::demo()",
+        "reqwest",
     )
 
     if violations:

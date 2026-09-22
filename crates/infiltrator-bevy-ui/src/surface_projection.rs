@@ -158,6 +158,10 @@ pub(super) fn profiles_projection(
                     last_modified: profile.last_modified.clone(),
                     has_backup: profile.has_backup,
                     cron_expression: profile.cron_expression.clone(),
+                    auto_update_enabled: profile.auto_update_enabled,
+                    update_interval_hours: profile.update_interval_hours,
+                    next_update: profile.next_update.clone(),
+                    auto_reload_core: profile.auto_reload_core,
                     filter: profile.filter.clone(),
                 })
                 .collect(),

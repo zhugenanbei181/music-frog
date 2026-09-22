@@ -310,6 +310,7 @@ impl AppState {
             | Message::UpdateSubscriptionCron(_)
             | Message::UpdateSubscriptionUserAgent(_)
             | Message::UpdateSubscriptionInsecureSkipVerify(_)
+            | Message::UpdateSubscriptionAutoReload(_)
             | Message::SaveSubscriptionSettings
             | Message::SubscriptionSettingsSaved(_)
             | Message::UpdateSubscriptionNow

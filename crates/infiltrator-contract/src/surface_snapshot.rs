@@ -213,9 +213,28 @@ pub struct ProfileSnapshot {
     /// DUAL-07-03: the profile's cron schedule (empty = interval/manual).
     #[serde(default)]
     pub cron_expression: Option<String>,
+    /// DUAL-07-14: whether the profile participates in scheduled auto-updates.
+    #[serde(default)]
+    pub auto_update_enabled: bool,
+    /// DUAL-07-14: the fixed update interval in hours (Cron-only profiles
+    /// honestly report `None`).
+    #[serde(default)]
+    pub update_interval_hours: Option<u32>,
+    /// DUAL-07-14: the next scheduled update instant, RFC3339, when known.
+    #[serde(default)]
+    pub next_update: Option<String>,
+    /// DUAL-07-09: whether a successful update of this profile is applied to
+    /// the running core. The profile metadata default is `true`.
+    #[serde(default = "default_auto_reload_core")]
+    pub auto_reload_core: bool,
     /// DUAL-07-08: the profile's stored node-keyword filter draft.
     #[serde(default)]
     pub filter: crate::subscription_import::SubscriptionFilterDraft,
+}
+
+/// DUAL-07-09: the profile metadata default for the auto-reload preference.
+fn default_auto_reload_core() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

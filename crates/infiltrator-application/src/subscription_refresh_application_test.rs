@@ -8,6 +8,7 @@ use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
+use infiltrator_ports::core_reload::CoreReloadPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
@@ -578,5 +579,172 @@ async fn command_application_update_profile_uses_the_shared_retry_seam() {
         runtime.sleeps.lock().expect("sleeps lock").as_slice(),
         &[Duration::from_secs(30), Duration::from_secs(60)],
         "the command path backs off through the injected runtime, not a busy loop"
+    );
+}
+
+/// DUAL-07-09: records every reload the shared refresh asks the host to make.
+#[derive(Clone, Default)]
+struct RecordingReload {
+    calls: Arc<AtomicUsize>,
+    fail: bool,
+}
+
+impl RecordingReload {
+    fn failing() -> Self {
+        Self {
+            calls: Arc::new(AtomicUsize::new(0)),
+            fail: true,
+        }
+    }
+
+    fn calls(&self) -> usize {
+        self.calls.load(Ordering::SeqCst)
+    }
+}
+
+#[async_trait]
+impl CoreReloadPort for RecordingReload {
+    async fn reload_active_profile(&self) -> Result<(), PortError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        if self.fail {
+            return Err(PortError::Failed("core reload rejected".to_string()));
+        }
+        Ok(())
+    }
+}
+
+/// DUAL-07-09: the post-update reload follows the persisted preference, the
+/// active-profile fact, and the host seam — every other case is a typed,
+/// visible outcome rather than a silent no-op.
+#[tokio::test]
+async fn core_reload_follows_the_preference_and_the_host_seam() {
+    let store = Arc::new(FakeStore::new(
+        "/fake/core-reload",
+        "main",
+        Some("https://example.com/sub"),
+    ));
+    let profile = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    let runtime = Arc::new(RecordingRuntime::default());
+    let reload = RecordingReload::default();
+    let app = SubscriptionRefreshApplication::new(
+        profile.clone(),
+        runtime,
+        RetryBackoffPolicy::test_immediate(),
+    )
+    .with_core_reload(reload.clone());
+    let source = FlakySource::new(0);
+
+    // Opted out: content is committed, the core is untouched.
+    let report = app.refresh_profile(&source, "main").await.expect("refresh");
+    assert_eq!(report.core_reload, CoreReloadOutcome::Disabled);
+    assert!(!report.reloaded_core());
+    assert_eq!(reload.calls(), 0);
+
+    // Enabled + active + seam: the host really reloads.
+    profile
+        .update_subscription_auto_reload("main", true)
+        .await
+        .expect("preference persists");
+    let report = app.refresh_profile(&source, "main").await.expect("refresh");
+    assert_eq!(report.core_reload, CoreReloadOutcome::Reloaded);
+    assert!(report.reloaded_core());
+    assert_eq!(reload.calls(), 1);
+
+    // A non-active profile never reloads.
+    store.set_current("other").await.expect("switch pointer");
+    let report = app.refresh_profile(&source, "main").await.expect("refresh");
+    assert_eq!(report.core_reload, CoreReloadOutcome::NotActive);
+    assert_eq!(reload.calls(), 1);
+    store.set_current("main").await.expect("restore pointer");
+
+    // A host without the seam reports the typed unsupported outcome.
+    let without_seam = SubscriptionRefreshApplication::new(
+        profile.clone(),
+        Arc::new(RecordingRuntime::default()),
+        RetryBackoffPolicy::test_immediate(),
+    );
+    assert!(!without_seam.has_core_reload());
+    let report = without_seam
+        .refresh_profile(&source, "main")
+        .await
+        .expect("refresh");
+    assert_eq!(report.core_reload, CoreReloadOutcome::Unsupported);
+    assert!(!report.reloaded_core());
+
+    // A failing seam keeps the update and records the adapter error.
+    let failing = RecordingReload::failing();
+    let failing_app = SubscriptionRefreshApplication::new(
+        profile.clone(),
+        Arc::new(RecordingRuntime::default()),
+        RetryBackoffPolicy::test_immediate(),
+    )
+    .with_core_reload(failing.clone());
+    let report = failing_app
+        .refresh_profile(&source, "main")
+        .await
+        .expect("the update itself succeeds");
+    assert!(matches!(
+        report.core_reload,
+        CoreReloadOutcome::Failed { .. }
+    ));
+    assert_eq!(failing.calls(), 1);
+    assert!(
+        matches!(report.outcome, SubscriptionUpdateOutcome::Updated { .. }),
+        "the committed content survives a failed reload"
+    );
+}
+
+/// DUAL-07-09: a batch reloads the core at most once — only the active
+/// profile's own report carries the reload decision.
+#[tokio::test]
+async fn batch_reloads_the_core_once_for_the_active_profile() {
+    let store = Arc::new(FakeStore::new(
+        "/fake/batch-reload",
+        "main",
+        Some("https://example.com/sub"),
+    ));
+    store.profiles.lock().expect("profiles lock").insert(
+        "backup".to_string(),
+        (
+            "proxies: []\n".to_string(),
+            ProfileMetadata {
+                subscription_url: Some("https://example.com/backup".to_string()),
+                auto_reload_core: true,
+                ..ProfileMetadata::default()
+            },
+        ),
+    );
+    let profile = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    profile
+        .update_subscription_auto_reload("main", true)
+        .await
+        .expect("preference persists");
+    let reload = RecordingReload::default();
+    let app = SubscriptionRefreshApplication::new(
+        profile,
+        Arc::new(RecordingRuntime::default()),
+        RetryBackoffPolicy::test_immediate(),
+    )
+    .with_core_reload(reload.clone());
+    let source = FlakySource::new(0);
+
+    let report = app.refresh_all(&source, 4).await.expect("batch");
+    assert_eq!(report.updated, 2);
+    assert_eq!(reload.calls(), 1, "one batch-wide reload");
+    let active = report
+        .outcomes
+        .iter()
+        .find(|outcome| outcome.profile_name == "main")
+        .expect("active outcome");
+    assert_eq!(active.core_reload, CoreReloadOutcome::Reloaded);
+    let inactive = report
+        .outcomes
+        .iter()
+        .find(|outcome| outcome.profile_name == "backup")
+        .expect("inactive outcome");
+    assert_eq!(
+        inactive.core_reload,
+        CoreReloadOutcome::NotAttempted,
+        "an inactive profile's report carries no reload claim"
     );
 }

@@ -425,6 +425,10 @@ impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
                     last_modified: profile.last_modified,
                     has_backup: profile.has_backup,
                     cron_expression: profile.cron_expression,
+                    auto_update_enabled: profile.auto_update_enabled,
+                    update_interval_hours: profile.update_interval_hours,
+                    next_update: profile.next_update,
+                    auto_reload_core: profile.auto_reload_core,
                     filter: profile.filter,
                 })
                 .collect(),
