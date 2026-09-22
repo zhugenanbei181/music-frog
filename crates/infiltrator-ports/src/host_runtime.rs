@@ -99,6 +99,11 @@ pub trait HostRuntime: ManagedRuntime {
     fn mini_hud_window_port(&self) -> Option<Arc<dyn crate::mini_hud_window::MiniHudWindowPort>> {
         None
     }
+    /// DUAL-14-10: optional per-nameserver latency prober. Hosts without one
+    /// publish a typed unsupported latency status instead of a made-up number.
+    fn dns_latency_probe_port(&self) -> Option<Arc<dyn crate::dns_latency::DnsLatencyProbePort>> {
+        None
+    }
     /// DUAL-11-06/07: the kernel's local rule-provider files. Hosts without a
     /// resolvable kernel home directory omit it instead of reporting a purge
     /// that never happened.

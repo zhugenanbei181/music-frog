@@ -102,6 +102,7 @@ impl AppState {
                 | Message::InstallTunService
                 | Message::RefreshTunServiceStatus
                 | Message::FlushFakeIpCache
+                | Message::RunDnsLatencyProbe
                 // Doctor 面板走 loopback HTTP；demo 会话没有内嵌 admin server。
                 | Message::RunDoctor
                 | Message::RunDoctorFix

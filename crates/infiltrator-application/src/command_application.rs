@@ -87,6 +87,8 @@ pub struct CommandApplication {
     rule_tracer: Option<crate::rule_tracer_application::RuleTracerApplication>,
     configuration: Option<crate::configuration_application::ConfigurationApplication>,
     dns_cache: Option<crate::dns_cache_application::DnsCacheApplication>,
+    /// DUAL-14-10: the shared latency prober `TestDnsLatency` drives.
+    dns_latency: Option<crate::dns_latency_application::DnsLatencyApplication>,
     rule_provider: Option<crate::rule_provider_application::RuleProviderApplication>,
 }
 
@@ -258,6 +260,17 @@ impl CommandApplication {
         dns_cache: crate::dns_cache_application::DnsCacheApplication,
     ) -> Self {
         self.dns_cache = Some(dns_cache);
+        self
+    }
+
+    /// DUAL-14-10: share the per-nameserver latency application so
+    /// `TestDnsLatency` runs the real host probe and both surfaces publish the
+    /// same report.
+    pub fn with_dns_latency(
+        mut self,
+        dns_latency: crate::dns_latency_application::DnsLatencyApplication,
+    ) -> Self {
+        self.dns_latency = Some(dns_latency);
         self
     }
 
@@ -1011,6 +1024,7 @@ impl CommandApplication {
                 .run(infiltrator_contract::privileged_network::PrivilegedNetworkRequest::standard())
                 .await
                 .map(|_| ()),
+            CommandIntent::TestDnsLatency => self.test_dns_latency().await,
             CommandIntent::RefreshPublicIpProbe
             | CommandIntent::ReorderOverviewCards { .. }
             | CommandIntent::ResetOverviewCardOrder
@@ -1019,11 +1033,27 @@ impl CommandApplication {
             | CommandIntent::RestartCore
             | CommandIntent::ClearLogs
             | CommandIntent::SetLogLevelFilter { .. }
-            | CommandIntent::TestDnsLatency
             | CommandIntent::ToggleIncludeSystemApps { .. }
             | CommandIntent::ResolveConflictKeepLocal
             | CommandIntent::ResolveConflictTakeRemote => Err(unsupported()),
         }
+    }
+
+    /// DUAL-14-10: measure every configured nameserver through the shared
+    /// latency application and publish the real report to both surfaces.
+    ///
+    /// The servers come from the same validated profile read the workbench
+    /// publishes, and a host without a prober keeps the typed refusal instead
+    /// of a fabricated number.
+    async fn test_dns_latency(&self) -> Result<(), Failure> {
+        let Some(application) = self.dns_latency.as_ref() else {
+            return Err(Failure::unsupported(
+                "this host injected no DNS latency prober",
+            ));
+        };
+        let config = self.configuration()?.load_dns_config().await?;
+        let servers = crate::dns_workbench_application::dns_servers(&config);
+        application.probe(&servers).await.map(|_| ())
     }
 
     /// DUAL-11-06: read the active profile's declaration for `provider_name`,

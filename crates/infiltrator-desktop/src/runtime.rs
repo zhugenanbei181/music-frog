@@ -48,6 +48,9 @@ pub struct MihomoRuntime {
     speedtest: infiltrator_application::speedtest_application::SpeedtestApplication,
     rule_tracer: infiltrator_application::rule_tracer_application::RuleTracerApplication,
     dns_cache: infiltrator_application::dns_cache_application::DnsCacheApplication,
+    /// DUAL-14-10: one prober instance shared by the command handler, the host
+    /// port and the surface reader.
+    dns_latency: infiltrator_application::dns_latency_application::DnsLatencyApplication,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -163,6 +166,13 @@ impl MihomoRuntime {
                 crate::system_dns_cache::DesktopSystemDnsCache::new(),
             )),
         );
+        // DUAL-14-10: the real per-nameserver prober. The desktop host owns
+        // the UDP/DoH network I/O; the shared application only publishes the
+        // measured report.
+        let dns_latency =
+            infiltrator_application::dns_latency_application::DnsLatencyApplication::new(Some(
+                Arc::new(infiltrator_core::dns_latency_io::HttpDnsLatencyProber::new()),
+            ));
         let application = Arc::new(crate::composition::core_application(
             &service_manager,
             endpoint.url.clone(),
@@ -170,6 +180,7 @@ impl MihomoRuntime {
             speedtest.clone(),
             rule_tracer.clone(),
             dns_cache.clone(),
+            dns_latency.clone(),
             cm.clone(),
             Arc::new(crate::storage::subscription_source()),
         )?);
@@ -219,6 +230,7 @@ impl MihomoRuntime {
             speedtest,
             rule_tracer,
             dns_cache,
+            dns_latency,
             network_roaming_port,
         })
     }
@@ -322,6 +334,7 @@ impl MihomoRuntime {
                 speedtest: self.speedtest.clone(),
                 rule_tracer: self.rule_tracer.clone(),
                 dns_cache: self.dns_cache.clone(),
+                dns_latency: self.dns_latency.clone(),
             },
         )
         .await
@@ -755,6 +768,15 @@ impl HostRuntime for MihomoRuntime {
         Some(Arc::new(
             crate::system_dns_cache::DesktopSystemDnsCache::new(),
         ))
+    }
+
+    /// DUAL-14-10: the desktop host owns the real UDP / DoH probe. The shared
+    /// application is the port itself, so a probe started from either surface
+    /// lands in the one report the surface reader publishes.
+    fn dns_latency_probe_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::dns_latency::DnsLatencyProbePort>> {
+        Some(Arc::new(self.dns_latency.clone()))
     }
 
     fn mini_hud_window_port(

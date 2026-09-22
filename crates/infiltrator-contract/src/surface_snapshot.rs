@@ -465,9 +465,12 @@ pub struct DnsPageSnapshot {
     /// DUAL-14-06: the observed Fake-IP bindings published to both surfaces.
     #[serde(default)]
     pub fake_ip_pool: crate::dns::FakeIpMappingPool,
-    /// DUAL-14-10: honest per-nameserver latency probe availability.
+    /// DUAL-14-10: the last real per-nameserver latency probe of this host.
     #[serde(default)]
-    pub latency: crate::dns::DnsLatencyStatus,
+    pub latency: crate::dns_latency::DnsLatencyReport,
+    /// DUAL-14-13: the shared DNS self-heal observation.
+    #[serde(default)]
+    pub self_heal: crate::dns_self_heal::DnsSelfHealSnapshot,
     /// DUAL-14-11: the configured `dns.hosts` mapping as flat rows.
     #[serde(default)]
     pub hosts: Vec<crate::dns::DnsHostEntry>,

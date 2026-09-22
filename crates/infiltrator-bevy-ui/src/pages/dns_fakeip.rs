@@ -21,7 +21,9 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::dns::{DnsLatencyStatus, FakeIpMappingPool, FakeIpMappingSource};
+use infiltrator_contract::dns::{FakeIpMappingPool, FakeIpMappingSource};
+use infiltrator_contract::dns_latency::{DnsLatencyReport, DnsLatencySummary, DnsProbeOutcome};
+use infiltrator_contract::dns_self_heal::DnsSelfHealState;
 
 use crate::pages::dns::{DnsLine, DnsLineKind, DnsProjection, LastDnsProjection};
 
@@ -30,13 +32,95 @@ use crate::pages::dns::{DnsLine, DnsLineKind, DnsProjection, LastDnsProjection};
 pub struct DnsFakeIpSearchField;
 
 /// DUAL-14-10: bare-Chinese latency policy copy (Bevy page convention).
-pub fn latency_policy_label(status: DnsLatencyStatus) -> String {
-    match status {
-        DnsLatencyStatus::Ready => "逐 Nameserver 延迟: 宿主提供真实事实".to_owned(),
-        DnsLatencyStatus::Unsupported => {
-            "逐 Nameserver 延迟: 宿主无该事实源，不填充假延迟".to_owned()
+pub fn latency_policy_label(report: &DnsLatencyReport) -> String {
+    match report.summary() {
+        DnsLatencySummary::AllMeasured {
+            count,
+            best_ms,
+            worst_ms,
+        } => format!("逐 Nameserver 延迟: {count} 个上游全部应答 ({best_ms}-{worst_ms} ms)"),
+        DnsLatencySummary::Partial { measured, total } => {
+            format!("逐 Nameserver 延迟: {total} 个上游中 {measured} 个应答")
+        }
+        DnsLatencySummary::NoneReachable { total } => {
+            format!("逐 Nameserver 延迟: {total} 个上游全部无应答")
+        }
+        DnsLatencySummary::NotProbed => "逐 Nameserver 延迟: 本次会话尚未测速".to_owned(),
+        DnsLatencySummary::Unsupported { reason } => {
+            format!("逐 Nameserver 延迟: 宿主未提供探测能力 ({reason})")
         }
     }
+}
+
+/// DUAL-14-10: one line per probed nameserver, with its real outcome.
+pub fn latency_result_listing(report: &DnsLatencyReport) -> String {
+    if !report.status.is_ready() {
+        return "无逐 Nameserver 结果: 宿主未注入探测端口".to_owned();
+    }
+    if report.results.is_empty() {
+        return "尚无逐 Nameserver 测速结果".to_owned();
+    }
+    report
+        .results
+        .iter()
+        .map(|result| {
+            let tier = if result.is_fallback {
+                "Fallback"
+            } else {
+                "主上游"
+            };
+            let outcome = match &result.outcome {
+                DnsProbeOutcome::Measured { rtt_ms } => format!("{rtt_ms} ms"),
+                DnsProbeOutcome::TimedOut => "超时无应答".to_owned(),
+                DnsProbeOutcome::InvalidResponse { reason } => format!("应答未通过校验 ({reason})"),
+                DnsProbeOutcome::Failed { message } => format!("探测失败 ({message})"),
+                DnsProbeOutcome::NotProbed { reason } => format!("未探测 ({reason})"),
+            };
+            format!("{} [{tier}] {outcome}", result.address)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// DUAL-14-13: the bare-Chinese self-heal state label.
+pub fn self_heal_state_label(state: DnsSelfHealState) -> &'static str {
+    match state {
+        DnsSelfHealState::Healthy => "正常",
+        DnsSelfHealState::Warning => "注意",
+        DnsSelfHealState::Critical => "故障",
+        DnsSelfHealState::Unknown => "未观测",
+    }
+}
+
+/// DUAL-14-13: the multi-line self-heal observation (one row per check).
+pub fn self_heal_listing(
+    snapshot: &infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot,
+) -> String {
+    use infiltrator_contract::dns_self_heal::DnsSelfHealKind;
+    if snapshot.checks.is_empty() {
+        return "尚未观测到 DNS 健康事实".to_owned();
+    }
+    snapshot
+        .checks
+        .iter()
+        .map(|check| {
+            let kind = match check.kind {
+                DnsSelfHealKind::ListenPort => "监听端口 (dns.listen)",
+                DnsSelfHealKind::UpstreamResolution => "上游解析可达性",
+                DnsSelfHealKind::Topology => "拓扑抗泄漏审计",
+            };
+            let fix = check
+                .fix
+                .map(|fix| format!(" · 建议修复: {}", fix.key()))
+                .unwrap_or_default();
+            format!(
+                "{kind} [{}] {}{fix}",
+                self_heal_state_label(check.state),
+                check.detail
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// The multi-line listing of the bindings matching `query`.
@@ -231,6 +315,115 @@ mod tests {
     }
 
     #[test]
+    fn the_latency_rows_carry_the_real_probe_outcomes() {
+        use infiltrator_contract::dns_latency::{
+            DEFAULT_PROBE_QUESTION, DnsLatencyReport, DnsLatencySummary, DnsProbeOutcome,
+            DnsProbeTransport, DnsServerLatency,
+        };
+
+        let report = DnsLatencyReport::measured(
+            DEFAULT_PROBE_QUESTION,
+            vec![
+                DnsServerLatency {
+                    address: "223.5.5.5".to_owned(),
+                    is_fallback: false,
+                    transport: DnsProbeTransport::Udp,
+                    outcome: DnsProbeOutcome::Measured { rtt_ms: 12 },
+                },
+                DnsServerLatency {
+                    address: "8.8.8.8".to_owned(),
+                    is_fallback: false,
+                    transport: DnsProbeTransport::Udp,
+                    outcome: DnsProbeOutcome::TimedOut,
+                },
+                DnsServerLatency {
+                    address: "tls://1.0.0.1:853".to_owned(),
+                    is_fallback: true,
+                    transport: DnsProbeTransport::Undrivable {
+                        reason: "DNS over TLS is not probed by this host".to_owned(),
+                    },
+                    outcome: DnsProbeOutcome::NotProbed {
+                        reason: "DNS over TLS is not probed by this host".to_owned(),
+                    },
+                },
+            ],
+        );
+        assert!(matches!(
+            report.summary(),
+            DnsLatencySummary::Partial {
+                measured: 1,
+                total: 3
+            }
+        ));
+        assert!(latency_policy_label(&report).contains("3 个上游中 1 个应答"));
+
+        let listing = latency_result_listing(&report);
+        assert_eq!(listing.lines().count(), 3);
+        assert!(listing.contains("223.5.5.5 [主上游] 12 ms"));
+        assert!(listing.contains("8.8.8.8 [主上游] 超时无应答"));
+        assert!(listing.contains("tls://1.0.0.1:853 [Fallback] 未探测"));
+
+        let all_measured = DnsLatencyReport::measured(
+            DEFAULT_PROBE_QUESTION,
+            vec![DnsServerLatency {
+                address: "1.1.1.1".to_owned(),
+                is_fallback: false,
+                transport: DnsProbeTransport::Doh,
+                outcome: DnsProbeOutcome::Measured { rtt_ms: 31 },
+            }],
+        );
+        assert!(latency_policy_label(&all_measured).contains("1 个上游全部应答 (31-31 ms)"));
+
+        let none = DnsLatencyReport::measured(
+            DEFAULT_PROBE_QUESTION,
+            vec![DnsServerLatency {
+                address: "1.1.1.1".to_owned(),
+                is_fallback: false,
+                transport: DnsProbeTransport::Udp,
+                outcome: DnsProbeOutcome::TimedOut,
+            }],
+        );
+        assert!(latency_policy_label(&none).contains("全部无应答"));
+        assert_eq!(
+            latency_policy_label(&DnsLatencyReport::default()),
+            "逐 Nameserver 延迟: 宿主未提供探测能力 (this host did not inject a DNS latency prober)"
+        );
+    }
+
+    #[test]
+    fn the_self_heal_listing_never_claims_health_without_an_observation() {
+        use infiltrator_contract::dns_self_heal::{
+            DnsSelfHealCheck, DnsSelfHealFix, DnsSelfHealKind, DnsSelfHealSnapshot,
+            DnsSelfHealState,
+        };
+
+        let empty = DnsSelfHealSnapshot::default();
+        assert_eq!(self_heal_state_label(empty.overall_state()), "未观测");
+        assert_eq!(self_heal_listing(&empty), "尚未观测到 DNS 健康事实");
+
+        let snapshot = DnsSelfHealSnapshot::new(vec![
+            DnsSelfHealCheck {
+                kind: DnsSelfHealKind::ListenPort,
+                state: DnsSelfHealState::Critical,
+                detail: "dns.listen port 1053 is already bound by dig (pid 4242)".to_owned(),
+                fix: Some(DnsSelfHealFix::RepairDnsListenPort),
+            },
+            DnsSelfHealCheck {
+                kind: DnsSelfHealKind::UpstreamResolution,
+                state: DnsSelfHealState::Healthy,
+                detail: "all 1 upstreams answered (9-9 ms)".to_owned(),
+                fix: None,
+            },
+        ]);
+        let listing = self_heal_listing(&snapshot);
+        assert_eq!(listing.lines().count(), 2);
+        assert!(listing.contains("监听端口 (dns.listen) [故障]"));
+        assert!(listing.contains("建议修复: repair_dns_listen_port"));
+        assert!(listing.contains("上游解析可达性 [正常]"));
+        assert_eq!(self_heal_state_label(snapshot.overall_state()), "故障");
+    }
+
+    #[test]
     fn unsupported_pool_never_renders_a_binding() {
         let unsupported = FakeIpMappingPool::default();
         assert!(fake_ip_mapping_listing(&unsupported, "").contains("宿主未提供映射事实"));
@@ -238,9 +431,13 @@ mod tests {
             fake_ip_mapping_count(&unsupported, ""),
             "实时连接观测: 不可用"
         );
-        assert_eq!(
-            latency_policy_label(DnsLatencyStatus::Unsupported),
-            "逐 Nameserver 延迟: 宿主无该事实源，不填充假延迟"
+        let report = infiltrator_contract::dns_latency::DnsLatencyReport::unsupported(
+            "host injected no DNS latency prober",
+        );
+        assert!(latency_policy_label(&report).contains("宿主未提供探测能力"));
+        assert!(
+            latency_result_listing(&report).contains("宿主未注入探测端口"),
+            "a host without a prober renders no fabricated result row"
         );
     }
 }

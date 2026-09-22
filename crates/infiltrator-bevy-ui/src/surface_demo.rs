@@ -320,7 +320,8 @@ pub(crate) fn empty_dns() -> DnsProjection {
         form: infiltrator_contract::dns_form::DnsWorkbenchForm::default(),
         cache_flush: infiltrator_contract::dns::DnsCacheFlushReport::default(),
         fake_ip_pool: infiltrator_contract::dns::FakeIpMappingPool::default(),
-        latency: infiltrator_contract::dns::DnsLatencyStatus::default(),
+        latency: infiltrator_contract::dns_latency::DnsLatencyReport::default(),
+        self_heal: infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot::default(),
         hosts: Vec::new(),
     }
 }
@@ -597,6 +598,7 @@ impl From<DnsProjection> for surface_snapshot::DnsPageSnapshot {
             cache_flush: value.cache_flush,
             fake_ip_pool: value.fake_ip_pool,
             latency: value.latency,
+            self_heal: value.self_heal,
             hosts: value.hosts,
         }
     }

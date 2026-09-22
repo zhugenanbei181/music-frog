@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub enum PortBinding {
     MixedProxy,
     Controller,
+    /// DUAL-14-13: the kernel's DNS listener (`dns.listen`).
+    DnsListen,
 }
 
 impl PortBinding {
@@ -13,6 +15,7 @@ impl PortBinding {
         match self {
             Self::MixedProxy => "mixed-port",
             Self::Controller => "external-controller",
+            Self::DnsListen => "dns.listen",
         }
     }
 }

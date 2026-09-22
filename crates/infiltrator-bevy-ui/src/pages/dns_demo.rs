@@ -6,13 +6,23 @@
 
 use infiltrator_contract::dns::{
     DnsCacheFlushReport, DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsHostEntry,
-    DnsLatencyStatus, DnsServerTag, FakeIpMappingEntry, FakeIpMappingPool, FakeIpMappingSource,
+    DnsServerTag, FakeIpMappingEntry, FakeIpMappingPool, FakeIpMappingSource,
+};
+use infiltrator_contract::dns_latency::{
+    DEFAULT_PROBE_QUESTION, DnsLatencyReport, DnsProbeOutcome, DnsProbeTransport, DnsServerLatency,
+};
+use infiltrator_contract::dns_self_heal::{
+    DnsSelfHealCheck, DnsSelfHealFix, DnsSelfHealKind, DnsSelfHealSnapshot, DnsSelfHealState,
 };
 
 use crate::pages::dns::{DnsProjection, DnsServerItem};
 
 impl DnsProjection {
     /// Believable demo fixture for the DNS page.
+    ///
+    /// The pinned latency values below are the demo's screenshot content, not
+    /// a runtime probe result: the runtime report can only come from an
+    /// injected host prober.
     pub fn demo() -> Self {
         Self {
             mode: DnsEnhancedMode::FakeIp,
@@ -67,7 +77,8 @@ impl DnsProjection {
                     },
                 ],
             },
-            latency: DnsLatencyStatus::Unsupported,
+            latency: demo_latency_report(),
+            self_heal: demo_self_heal_snapshot(),
             hosts: vec![
                 DnsHostEntry {
                     domain: "router.lan".to_owned(),
@@ -112,6 +123,68 @@ impl DnsProjection {
     }
 }
 
+/// The demo's pinned screenshot latencies, mirrored into the shared report
+/// type so the fixture page is internally consistent. `DemoSurfaceSource` is
+/// the only consumer; no runtime path can construct this.
+fn demo_latency_report() -> DnsLatencyReport {
+    DnsLatencyReport::measured(
+        DEFAULT_PROBE_QUESTION,
+        vec![
+            DnsServerLatency {
+                address: "https://1.1.1.1/dns-query".to_owned(),
+                is_fallback: false,
+                transport: DnsProbeTransport::Doh,
+                outcome: DnsProbeOutcome::Measured { rtt_ms: 28 },
+            },
+            DnsServerLatency {
+                address: "tls://8.8.8.8:853".to_owned(),
+                is_fallback: false,
+                transport: DnsProbeTransport::Undrivable {
+                    reason: "DNS over TLS is not probed by this host".to_owned(),
+                },
+                outcome: DnsProbeOutcome::NotProbed {
+                    reason: "DNS over TLS is not probed by this host".to_owned(),
+                },
+            },
+            DnsServerLatency {
+                address: "https://dns.alidns.com/dns-query".to_owned(),
+                is_fallback: false,
+                transport: DnsProbeTransport::Doh,
+                outcome: DnsProbeOutcome::Measured { rtt_ms: 18 },
+            },
+            DnsServerLatency {
+                address: "https://cloudflare-dns.com/dns-query".to_owned(),
+                is_fallback: true,
+                transport: DnsProbeTransport::Doh,
+                outcome: DnsProbeOutcome::Measured { rtt_ms: 35 },
+            },
+        ],
+    )
+}
+
+fn demo_self_heal_snapshot() -> DnsSelfHealSnapshot {
+    DnsSelfHealSnapshot::new(vec![
+        DnsSelfHealCheck {
+            kind: DnsSelfHealKind::ListenPort,
+            state: DnsSelfHealState::Healthy,
+            detail: "dns.listen port 1053 is available".to_owned(),
+            fix: None,
+        },
+        DnsSelfHealCheck {
+            kind: DnsSelfHealKind::UpstreamResolution,
+            state: DnsSelfHealState::Warning,
+            detail: "only 3 of 4 upstreams answered".to_owned(),
+            fix: Some(DnsSelfHealFix::RecheckUpstreams),
+        },
+        DnsSelfHealCheck {
+            kind: DnsSelfHealKind::Topology,
+            state: DnsSelfHealState::Healthy,
+            detail: "the configured topology has no finding (0 advisories)".to_owned(),
+            fix: None,
+        },
+    ])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,7 +202,23 @@ mod tests {
         assert!(proj.switches.enable);
         assert_eq!(proj.filter_mode, DnsFakeIpFilterMode::Blacklist);
         assert_eq!(proj.fake_ip_pool.total, 2);
-        assert_eq!(proj.latency, DnsLatencyStatus::Unsupported);
+        assert_eq!(proj.latency.results.len(), 4);
+        assert_eq!(
+            proj.latency.latency_of("https://1.1.1.1/dns-query"),
+            Some(28)
+        );
         assert_eq!(proj.hosts.len(), 2);
+    }
+
+    #[test]
+    fn the_demo_fixture_is_never_published_as_a_runtime_probe() {
+        // The runtime path always builds its report from a host port; the
+        // fixture only exists for screenshots and is documented as such.
+        let proj = DnsProjection::demo();
+        assert!(proj.latency.is_probed());
+        assert_eq!(proj.latency.question, DEFAULT_PROBE_QUESTION);
+        assert_eq!(proj.self_heal.checks.len(), DnsSelfHealKind::ALL.len());
+        assert_eq!(proj.self_heal.overall_state(), DnsSelfHealState::Warning);
+        assert!(proj.self_heal.needs_repair());
     }
 }

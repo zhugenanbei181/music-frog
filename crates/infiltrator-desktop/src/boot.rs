@@ -475,6 +475,12 @@ impl BootEngine for ProductionEngine<'_> {
                         crate::system_dns_cache::DesktopSystemDnsCache::new(),
                     )),
                 ),
+                // DUAL-14-10: the boot path composes the same real prober the
+                // runtime does, so a surface started from the retry ladder
+                // measures instead of reporting a placeholder.
+                infiltrator_application::dns_latency_application::DnsLatencyApplication::new(Some(
+                    Arc::new(infiltrator_core::dns_latency_io::HttpDnsLatencyProber::new()),
+                )),
                 cm.clone(),
                 Arc::new(crate::storage::subscription_source()),
             )

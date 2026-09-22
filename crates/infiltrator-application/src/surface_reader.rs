@@ -82,6 +82,9 @@ pub struct ApplicationSurfaceReader {
     subscription_quota: SubscriptionQuotaApplication,
     speedtest: Option<crate::speedtest_application::SpeedtestApplication>,
     dns_cache: Option<crate::dns_cache_application::DnsCacheApplication>,
+    /// DUAL-14-10/13: the shared latency prober whose last report drives both
+    /// the latency row and the self-heal snapshot.
+    dns_latency: Option<crate::dns_latency_application::DnsLatencyApplication>,
     rule_provider: crate::rule_provider_application::RuleProviderApplication,
     /// DUAL-13-10/12: the shared per-connection instantaneous-rate window.
     /// Kept across reads (and cloned readers) so successive snapshots diff.
@@ -123,6 +126,7 @@ impl ApplicationSurfaceReader {
             subscription_quota: SubscriptionQuotaApplication,
             speedtest: None,
             dns_cache: None,
+            dns_latency: None,
             rule_provider: crate::rule_provider_application::RuleProviderApplication::default(),
             connection_rates: ConnectionRateApplication::new(),
             version_cache: Arc::new(Mutex::new(None)),
@@ -263,6 +267,17 @@ impl ApplicationSurfaceReader {
         application: crate::dns_cache_application::DnsCacheApplication,
     ) -> Self {
         self.dns_cache = Some(application);
+        self
+    }
+
+    /// DUAL-14-10/13: share the latency probe application so the published read
+    /// model carries the last real per-nameserver probe and the DNS self-heal
+    /// observation derived from it.
+    pub fn with_dns_latency(
+        mut self,
+        application: crate::dns_latency_application::DnsLatencyApplication,
+    ) -> Self {
+        self.dns_latency = Some(application);
         self
     }
 
@@ -544,7 +559,9 @@ impl SurfaceReader for ApplicationSurfaceReader {
             self.configuration.as_ref(),
             runtime_config.as_ref(),
             self.dns_cache.as_ref(),
+            self.dns_latency.as_ref(),
             runtime_connections.as_ref(),
+            &port_conflicts,
         )
         .await;
 
@@ -970,11 +987,14 @@ async fn build_dns_page(
     configuration: Option<&ConfigurationApplication>,
     runtime_config: Option<&Result<infiltrator_domain::runtime::ConfigSnapshot, PortError>>,
     dns_cache: Option<&crate::dns_cache_application::DnsCacheApplication>,
+    dns_latency: Option<&crate::dns_latency_application::DnsLatencyApplication>,
     runtime_connections: Option<
         &Result<infiltrator_domain::runtime::ConnectionSnapshot, PortError>,
     >,
+    port_conflicts: &infiltrator_contract::port_conflict::PortConflictSnapshot,
 ) -> surface_snapshot::PageData<surface_snapshot::DnsPageSnapshot> {
     let cache_flush = crate::dns_workbench_application::cache_flush_report(dns_cache);
+    let latency = crate::dns_workbench_application::latency_report(dns_latency);
     let connections = runtime_connections.and_then(|result| result.as_ref().ok());
     if let Some(configuration) = configuration {
         let dns = configuration.load_dns_config().await;
@@ -991,6 +1011,12 @@ async fn build_dns_page(
                 &snapshot.fake_ip_range,
                 connections,
             );
+            crate::dns_workbench_application::apply_latency_report(&mut snapshot, &latency);
+            snapshot.self_heal = crate::dns_self_heal_application::dns_self_heal_snapshot(
+                &dns,
+                crate::dns_self_heal_application::dns_listen_conflict(port_conflicts),
+                &latency,
+            );
             return surface_snapshot::PageData::ready(snapshot);
         }
     }
@@ -1005,6 +1031,7 @@ async fn build_dns_page(
                     dns.fallback.clone(),
                 ),
                 cache_flush,
+                latency: latency.clone(),
                 // The runtime DnsSnapshot carries no fake-ip-range, so the
                 // pool stays honestly unsupported on this path.
                 ..surface_snapshot::DnsPageSnapshot::default()
@@ -1012,6 +1039,7 @@ async fn build_dns_page(
             None => surface_snapshot::PageData::empty(surface_snapshot::DnsPageSnapshot {
                 enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::Unmapped,
                 cache_flush,
+                latency,
                 ..surface_snapshot::DnsPageSnapshot::default()
             }),
         },

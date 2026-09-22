@@ -11,7 +11,9 @@ use crate::view::components::{
 use crate::view::dns_form_panel::{
     dns_cache_flush_status, dns_form_field_widget, dynamic_token_section, form_issue_banner,
 };
-use crate::view::dns_hosts_panel::{fake_ip_pool_panel, hosts_panel, latency_policy_line};
+use crate::view::dns_hosts_panel::{
+    fake_ip_pool_panel, hosts_panel, latency_policy_line, self_heal_panel,
+};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_LG, tokens};
 use iced::widget::{
@@ -669,7 +671,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 Space::new().height(10),
                 body,
                 Space::new().height(10),
-                card(None, latency_policy_line(state.editor.dns_latency, &lang)),
+                card(
+                    None,
+                    latency_policy_line(
+                        &state.editor.dns_latency,
+                        Some(Message::RunDnsLatencyProbe),
+                        state.editor.is_probing_dns_latency,
+                        &lang,
+                    )
+                ),
+                Space::new().height(10),
+                self_heal_panel(&state.editor.dns_self_heal, &lang),
                 Space::new().height(10),
                 hosts_panel(state, &lang)
             ]
