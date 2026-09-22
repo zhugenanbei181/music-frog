@@ -176,6 +176,10 @@ pub struct ProfilesProjection {
     /// It is the exact projection Iced produced and published; `None` before a
     /// run (never a fabricated execution).
     pub script_sandbox: Option<infiltrator_contract::script_sandbox::ScriptSandboxSnapshot>,
+    /// DUAL-10-12: the shared export projection (real file name/bytes/checksum
+    /// and the typed host outcome) the console card renders. The export action
+    /// runs in Iced through the shared application.
+    pub script_export: Option<infiltrator_contract::script_export::ScriptExportSnapshot>,
 }
 
 impl ProfilesProjection {
@@ -265,6 +269,7 @@ impl ProfilesProjection {
             ],
             yaml_ast_diff: None,
             script_sandbox: None,
+            script_export: None,
         }
     }
 

@@ -574,6 +574,50 @@ impl AppState {
                 infiltrator_application::script_application::clear_script_sandbox();
                 Task::none()
             }
+            Message::ExportScriptDraft(kind) => self.export_script_draft(kind),
+            Message::ScriptExportFinished(result) => {
+                self.editor.script_sandbox.is_exporting = false;
+                match result {
+                    Ok(snapshot) => {
+                        let lang = Lang(&self.shell.lang);
+                        let (message, status) = match &snapshot.outcome {
+                            infiltrator_contract::script_export::ScriptExportOutcome::Saved {
+                                path,
+                                ..
+                            } => (
+                                format!("{}: {path}", lang.tr("script_export_toast_saved")),
+                                ToastStatus::Success,
+                            ),
+                            infiltrator_contract::script_export::ScriptExportOutcome::Unsupported {
+                                ..
+                            } => (
+                                lang.tr("script_export_toast_unsupported").to_string(),
+                                ToastStatus::Warning,
+                            ),
+                            infiltrator_contract::script_export::ScriptExportOutcome::Failed {
+                                reason,
+                            } => (
+                                format!("{}: {reason}", lang.tr("script_export_toast_failed")),
+                                ToastStatus::Error,
+                            ),
+                            infiltrator_contract::script_export::ScriptExportOutcome::Prepared => (
+                                lang.tr("script_export_toast_prepared").to_string(),
+                                ToastStatus::Info,
+                            ),
+                        };
+                        self.editor.script_sandbox.export = Some(snapshot);
+                        // Synchronous toast entry: the dismissal task is the
+                        // returned work unit (the same path the worker-driven
+                        // journeys use).
+                        self.push_toast(message, status)
+                    }
+                    Err(error) => {
+                        self.set_error(&error);
+                        let message = error.to_string();
+                        self.push_toast(message, ToastStatus::Error)
+                    }
+                }
+            }
             Message::RunDnsLeakProbe => {
                 self.diag.is_probing_dns_leak = true;
                 Task::perform(

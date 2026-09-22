@@ -905,6 +905,16 @@ impl std::fmt::Debug for Message {
                 write!(f, "UpdateScriptSandboxInputYaml({} chars)", y.len())
             }
             Message::ClearScriptSandbox => write!(f, "ClearScriptSandbox"),
+            Message::ExportScriptDraft(kind) => write!(f, "ExportScriptDraft({kind:?})"),
+            Message::ScriptExportFinished(Ok(snapshot)) => write!(
+                f,
+                "ScriptExportFinished(Ok({} {} bytes))",
+                snapshot.file_name,
+                snapshot.byte_len()
+            ),
+            Message::ScriptExportFinished(Err(e)) => {
+                write!(f, "ScriptExportFinished(Err({:?}))", e)
+            }
 
             // Wave 2: DNS Leak, Custom Node, Aggregator, Grouping, Snapshot Diff, Hotkeys
             Message::RunDnsLeakProbe => write!(f, "RunDnsLeakProbe"),

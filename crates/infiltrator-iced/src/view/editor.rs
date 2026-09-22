@@ -305,26 +305,22 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .into()
         }
         EditorPane::Mixin => {
-            let viewport = document_window(
-                &state.editor.mixin_content,
-                state.editor.mixin_viewport.first_line(),
-            );
             column![
                 crate::view::mixin_studio::preflight_banner(state),
                 Space::new().height(theme::SP_SM),
                 crate::view::mixin_studio::toggle_row(state),
                 Space::new().height(theme::SP_SM),
-                row![
-                    editor_viewport::gutter(&state.editor.mixin_content, viewport),
-                    Space::new().width(theme::SP_XS),
-                    editor_viewport::editor_element(
-                        &state.editor.mixin_content,
-                        Message::MixinEditorAction,
-                        viewport.rendered_len(),
-                    ),
-                ],
-                Space::new().height(theme::SP_SM),
                 crate::view::mixin_studio::cascade_strip(state),
+                Space::new().height(theme::SP_SM),
+                // DUAL-10-09: Base | Mixin overlay | composed output, all from
+                // the shared cascade reduction.
+                crate::view::mixin_studio::three_column_row(state),
+                Space::new().height(theme::SP_SM),
+                // DUAL-10-12: the real per-surface export for the overlay.
+                crate::view::script_export::export_section(
+                    state,
+                    &[infiltrator_contract::script_export::ScriptExportKind::MixinOverlayYaml],
+                ),
             ]
             .into()
         }
@@ -469,8 +465,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         Space::new().width(Length::Fill),
         super::editor_viewport::viewport_label(
             match state.editor.editor_pane {
-                EditorPane::Mixin => document_window(
+                // DUAL-10-09: the Mixin pane's window is sized against its
+                // larger chrome so the three-column workspace fits on screen.
+                EditorPane::Mixin => editor_viewport::mixin_viewport_for(
                     &state.editor.mixin_content,
+                    state.shell.viewport.height_px,
                     state.editor.mixin_viewport.first_line(),
                 ),
                 _ => document_window(

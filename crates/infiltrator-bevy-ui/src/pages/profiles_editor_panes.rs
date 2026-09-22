@@ -37,7 +37,6 @@ use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 
 use crate::pages::profiles::ProfilesProjection;
-use crate::pages::profiles_editor_body::editor_rows_scene;
 use crate::pages::profiles_editor_mixin_studio::MixinStudioBody;
 use crate::pages::profiles_editor_state::{ProfileEditorState, diagnostic_line, status_line};
 
@@ -318,12 +317,11 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
     })
 }
 
-/// The Mixin pane: hint, status, shared preflight, snippet bar, actions and
-/// the bounded editor body.
+/// The Mixin pane: hint, status, shared preflight, the three-column workspace,
+/// snippet bar and actions.
 pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) -> Box<dyn Scene> {
     let (diagnostic_text, has_error) = diagnostic_line(&state.mixin);
     let status = status_line(&state.mixin, None);
-    let rows = editor_rows_scene(&state.mixin, palette);
     let error_color = if has_error {
         palette.danger
     } else {
@@ -334,7 +332,6 @@ pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) 
     } else {
         "语法通过"
     };
-    let editor_background = palette.window_clear;
     Box::new(bsn! {
         Node {
             width: percent(100),
@@ -378,28 +375,6 @@ pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) 
                 ]
             ),
             ( { mixin_snippet_bar(palette) } ),
-            (
-                Node {
-                    width: percent(100),
-                    max_height: px(300.0),
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                    overflow: bevy::ui::prelude::Overflow::scroll_y(),
-                }
-                BackgroundColor({ editor_background })
-                Children [
-                    (
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Column,
-                        }
-                        MixinEditorBody
-                        Children [
-                            ( { rows } ),
-                        ]
-                    ),
-                ]
-            ),
         ]
     })
 }

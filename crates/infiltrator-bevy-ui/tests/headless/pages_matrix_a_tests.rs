@@ -617,6 +617,7 @@ fn test_profiles_empty_and_edge_case_projection() {
         profile_document: None,
         profile_options: None,
         script_sandbox: None,
+        script_export: None,
     };
     app.world_mut()
         .commands()
@@ -3322,6 +3323,7 @@ fn subscription_fetch_projection() -> ProfilesProjection {
         profile_document: None,
         profile_options: None,
         script_sandbox: None,
+        script_export: None,
         profiles: vec![ProfileItem {
             id: "sub-fetch".to_owned(),
             name: "抓取选项订阅".to_owned(),
@@ -3928,6 +3930,7 @@ fn aggregation_page_projection() -> ProfilesProjection {
         profile_document: None,
         profile_options: None,
         script_sandbox: None,
+        script_export: None,
     }
 }
 
@@ -4306,6 +4309,7 @@ fn snapshot_diff_page_projection(
         profile_document: None,
         profile_options: None,
         script_sandbox: None,
+        script_export: None,
     }
 }
 
@@ -5644,6 +5648,25 @@ fn test_profiles_mixin_studio_renders_shared_preflight_toggles_and_cascade() {
         "the cascade pipeline strip renders"
     );
 
+    // DUAL-10-09: the three-column workspace renders the real base document,
+    // the editable overlay column and the real composed output.
+    assert!(
+        subtree_has_text(app.world(), root, "Base 配置"),
+        "the left Base column renders"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "Mixin 覆写块"),
+        "the middle overlay column renders"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "合成后最终配置"),
+        "the right composed column renders"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "mode: rule"),
+        "the composed column carries the real base document"
+    );
+
     // DUAL-10-11: the first chip flips IPv6 through the real MixinConfig codec.
     let toggle = {
         let mut query = app.world_mut().query::<(Entity, &MixinToggleButton)>();
@@ -5709,8 +5732,52 @@ fn test_script_sandbox_matrix_passes_on_the_bevy_surface() {
         "failed covered rows: {:?}",
         report.failed_ids()
     );
-    assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01", "DUAL-10-09"]);
-    assert_eq!(report.covered_passed_count(), 13);
+    assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01"]);
+    assert_eq!(report.covered_passed_count(), 14);
+}
+
+/// DUAL-10-12: the Bevy console renders the *shared* export projection — the
+/// real file name, byte count, SHA-256 and the typed host outcome produced by
+/// the shared application (the action runs in Iced; this card reads the same
+/// published fact). It also states the honest `.js` note.
+#[test]
+fn test_profiles_script_console_renders_the_shared_export_projection() {
+    use infiltrator_application::script_export_application::ScriptExportApplication;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    let export = ScriptExportApplication::without_host_port()
+        .export_directive_dsl(
+            Some("bevy-export"),
+            "function main(config) {\n  auto_country_groups(config);\n  return config;\n}",
+            Some("auto-country-groups"),
+        )
+        .expect("compose export");
+    let mut projection = editor_options_page_projection("mode: rule\n", None);
+    projection.script_export = Some(export);
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(projection));
+    app.update();
+
+    assert!(
+        subtree_has_text(app.world(), root, "bevy-export.js"),
+        "the real export file name renders"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "宿主不支持文件对话框"),
+        "the typed unsupported host outcome renders"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "不是 JavaScript"),
+        "the honest directive-DSL note renders"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "导出内容预览"),
+        "the real exported bytes are previewed"
+    );
 }
 
 /// DUAL-10-05/06/07/13/14: the Bevy console renders the *shared* script-sandbox

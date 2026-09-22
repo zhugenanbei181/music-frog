@@ -107,5 +107,11 @@ pub trait HostRuntime: ManagedRuntime {
     ) -> Option<Arc<dyn crate::rule_provider_cache::RuleProviderCachePort>> {
         None
     }
+    /// DUAL-10-12: the host save-file adapter for script/Mixin exports. Hosts
+    /// with no file dialog and no writable export directory omit it and every
+    /// export answers a typed unsupported outcome instead of a fake path.
+    fn script_export_port(&self) -> Option<Arc<dyn crate::script_export::ScriptExportPort>> {
+        None
+    }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;
 }

@@ -225,7 +225,7 @@ impl AppState {
     }
 
     /// The profile the editor has open, derived from the edited document path.
-    fn editor_profile_name(&self) -> Option<String> {
+    pub(crate) fn editor_profile_name(&self) -> Option<String> {
         self.editor
             .editor_path
             .as_ref()

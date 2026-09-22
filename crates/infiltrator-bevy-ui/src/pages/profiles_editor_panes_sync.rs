@@ -618,8 +618,10 @@ impl Plugin for ProfilesEditorPanesPlugin {
             Update,
             (
                 sync_profile_editor_pane_areas,
-                refresh_mixin_editor_body,
+                // The studio rebuild respawns the middle column's editor body,
+                // so it must run before the editor rows are restamped.
                 crate::pages::profiles_editor_mixin_studio::refresh_mixin_studio_body,
+                refresh_mixin_editor_body,
             )
                 .chain(),
         );

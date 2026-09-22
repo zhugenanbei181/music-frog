@@ -19,6 +19,10 @@ pub struct ScriptSandboxState {
     pub snapshot: Option<ScriptSandboxSnapshot>,
     pub is_running: bool,
     pub selected_preset: Option<String>,
+    /// DUAL-10-12: the shared export projection (real file name/bytes/checksum
+    /// plus the typed host outcome) — the same fact the Bevy console reads.
+    pub export: Option<infiltrator_contract::script_export::ScriptExportSnapshot>,
+    pub is_exporting: bool,
 }
 
 impl ScriptSandboxState {

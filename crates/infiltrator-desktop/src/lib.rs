@@ -23,6 +23,7 @@ pub mod proxy;
 pub mod rule_override;
 pub mod rule_provider_cache;
 pub mod runtime;
+pub mod script_export;
 pub mod service;
 pub mod service_mode;
 pub mod shortcut_manager;

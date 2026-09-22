@@ -4,6 +4,7 @@ pub mod core;
 mod mini_hud;
 pub mod profile;
 pub mod protocol_codec;
+mod script_export;
 pub mod shell;
 mod snapshot_diff;
 mod system_proxy;
@@ -233,6 +234,8 @@ impl AppState {
             | Message::UpdateScriptSandboxCode(_)
             | Message::UpdateScriptSandboxInputYaml(_)
             | Message::ClearScriptSandbox
+            | Message::ExportScriptDraft(_)
+            | Message::ScriptExportFinished(_)
             | Message::RunDnsLeakProbe
             | Message::DnsLeakProbeFinished(_)
             | Message::OpenCustomNodeModal

@@ -668,6 +668,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             subscription_quota,
             yaml_ast_diff: crate::snapshot_application::last_snapshot_diff(),
             script_sandbox: crate::script_application::last_script_sandbox(),
+            script_export: crate::script_export_application::last_script_export(),
             speedtest: self
                 .speedtest
                 .as_ref()

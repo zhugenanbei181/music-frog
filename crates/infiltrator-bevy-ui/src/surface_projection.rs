@@ -179,6 +179,7 @@ pub(super) fn profiles_projection(
             profile_document: value.profile_document.clone(),
             profile_options: value.profile_options.clone(),
             script_sandbox: snapshot.script_sandbox.clone(),
+            script_export: snapshot.script_export.clone(),
         })
         .unwrap_or_else(empty_profiles)
 }

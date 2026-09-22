@@ -20,6 +20,7 @@ use infiltrator_domain::script_engine::{HookStage, ScriptCircuitBreaker, ScriptE
 use std::time::Duration;
 
 use crate::script_application::ScriptApplication;
+use crate::script_export_application::ScriptExportApplication;
 
 /// The one shared executor both surfaces call.
 pub struct ScriptSandboxMatrixApplication;
@@ -324,6 +325,117 @@ fn check_extension_round_trip() -> Check {
     }
 }
 
+/// DUAL-10-09: the three-column editor model carries the real base, the real
+/// overlay buffer and the real composed pipeline output (never a mock).
+fn check_three_column_editor() -> Check {
+    let base = "mode: rule\nport: 7890\n";
+    let columns = mixin_studio::mixin_editor_columns(base, "mode: global\n");
+    let blocked = mixin_studio::mixin_editor_columns("mode: rule\n", "mode: [bad\n");
+    let composed_is_real = columns.composed.content.contains("port: 7890")
+        && columns.composed.content.contains("mode: global");
+    (
+        columns.base.content == base
+            && !columns.base.editable
+            && columns.overlay.content == "mode: global\n"
+            && columns.overlay.editable
+            && columns.is_composed()
+            && composed_is_real
+            && !columns.composed.editable
+            && blocked.is_blocked()
+            && blocked.composed.content.is_empty()
+            && !blocked.is_composed(),
+        format!(
+            "composed={} lines, blocked={}",
+            columns.composed_line_count(),
+            blocked.is_blocked()
+        ),
+    )
+}
+
+/// DUAL-10-12: the per-surface export artifacts are real files — a `.yaml`
+/// overlay that re-parses through the shared preflight, a `.js`-named
+/// directive-DSL script whose header states it is not JavaScript, and a JSON
+/// package with its real SHA-256. A host without a save port reports typed
+/// unsupported and keeps the composed bytes.
+fn check_extension_export() -> Check {
+    let (round_trip, round_trip_detail) = check_extension_round_trip();
+
+    let js = match infiltrator_domain::script_export::compose_directive_dsl_export(
+        Some("matrix-country"),
+        COUNTRY_SCRIPT,
+        Some("auto-country-groups"),
+    ) {
+        Ok(artifact) => artifact,
+        Err(error) => return (false, error),
+    };
+    let js_is_honest = js.file_name.ends_with(".js")
+        && !js.kind.is_javascript()
+        && js.content.contains("不是 JavaScript")
+        && js.content.contains("auto_country_groups");
+
+    let base = "mode: rule\nport: 7890\n";
+    let overlay = match infiltrator_domain::script_export::compose_mixin_overlay_export(
+        "matrix",
+        base,
+        "ipv6: true\n",
+    ) {
+        Ok(artifact) => artifact,
+        Err(error) => return (false, error),
+    };
+    let overlay_round_trip = mixin_studio::preflight_mixin(base, &overlay.content);
+
+    let package = infiltrator_domain::script_engine::ExtensionPackage {
+        name: "matrix-export".to_string(),
+        version: "1.0.0".to_string(),
+        author: "matrix".to_string(),
+        description: "export".to_string(),
+        stage: HookStage::PreMerge,
+        script_code: COUNTRY_SCRIPT.to_string(),
+        mixin_yaml: Some("ipv6: true\n".to_string()),
+        tags: vec!["matrix".to_string()],
+    };
+    let package_artifact =
+        match infiltrator_domain::script_export::compose_extension_package_export(&package) {
+            Ok(artifact) => artifact,
+            Err(error) => return (false, error),
+        };
+    let checksum_is_real = package_artifact
+        .checksum
+        .as_deref()
+        .is_some_and(|checksum| checksum == package.calculate_checksum() && checksum.len() == 64);
+
+    // A host without a save-file port reports a typed unsupported outcome and
+    // still carries the composed content; nothing is fabricated.
+    let hostless = match ScriptExportApplication::without_host_port().export_directive_dsl(
+        Some("matrix-country"),
+        COUNTRY_SCRIPT,
+        Some("auto-country-groups"),
+    ) {
+        Ok(snapshot) => snapshot,
+        Err(failure) => return (false, failure.message),
+    };
+    let unsupported_keeps_bytes = hostless.outcome.is_unsupported()
+        && hostless.content.contains("不是 JavaScript")
+        && hostless.byte_len() > 0;
+
+    (
+        round_trip
+            && js_is_honest
+            && overlay_round_trip.valid
+            && overlay_round_trip
+                .merged_preview
+                .as_deref()
+                .is_some_and(|preview| preview.contains("ipv6: true"))
+            && checksum_is_real
+            && unsupported_keeps_bytes,
+        format!(
+            "round_trip={round_trip_detail}; js={}; overlay_lines={}; unsupported={unsupported_keeps_bytes}",
+            js.file_name,
+            overlay.content.lines().count()
+        ),
+    )
+}
+
 impl ScriptSandboxMatrixApplication {
     /// Run every scenario deterministically (no time, no I/O, no randomness).
     pub fn run_deterministic_matrix() -> ScriptSandboxMatrixReport {
@@ -361,10 +473,10 @@ impl ScriptSandboxMatrixApplication {
                     "Cascade overlay pipeline",
                     check_cascade_pipeline(),
                 ),
-                planned(
+                closed(
                     "DUAL-10-09",
                     "Three-column Mixin editor",
-                    "双端 Mixin 面板为分页式而非 Base/Mixin/合成三栏",
+                    check_three_column_editor(),
                 ),
                 closed(
                     "DUAL-10-10",
@@ -379,7 +491,7 @@ impl ScriptSandboxMatrixApplication {
                 closed(
                     "DUAL-10-12",
                     "Extension export & community sharing",
-                    check_extension_round_trip(),
+                    check_extension_export(),
                 ),
                 closed(
                     "DUAL-10-13",
