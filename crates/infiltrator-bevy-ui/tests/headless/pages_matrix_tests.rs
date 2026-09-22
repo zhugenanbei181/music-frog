@@ -612,6 +612,9 @@ fn dns_page_in_place_update() {
         }],
         form: infiltrator_contract::dns_form::DnsWorkbenchForm::default(),
         cache_flush: infiltrator_contract::dns::DnsCacheFlushReport::default(),
+        fake_ip_pool: infiltrator_contract::dns::FakeIpMappingPool::default(),
+        latency: infiltrator_contract::dns::DnsLatencyStatus::default(),
+        hosts: Vec::new(),
     };
 
     app.world_mut()

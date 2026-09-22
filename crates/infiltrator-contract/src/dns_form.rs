@@ -241,6 +241,8 @@ impl DnsWorkbenchForm {
             fake_ip_filter: Some(parse_server_list(&self.fake_ip_filter)),
             proxy_server_nameserver: Some(parse_server_list(&self.proxy_server_nameserver)),
             direct_nameserver: Some(parse_server_list(&self.direct_nameserver)),
+            hosts: None,
+            clear_hosts: false,
         }
     }
 

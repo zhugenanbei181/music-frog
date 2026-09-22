@@ -6,7 +6,10 @@
 //! surface reader both call the same mapping, so the two surfaces cannot show
 //! different DNS facts.
 
-use infiltrator_contract::dns::{DnsUpstreamProtocol, join_server_list};
+use infiltrator_contract::dns::{
+    DnsHostEntry, DnsLatencyStatus, DnsUpstreamProtocol, FakeIpMappingEntry, FakeIpMappingPool,
+    FakeIpMappingSource, join_server_list,
+};
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
 use infiltrator_contract::surface_snapshot::DnsServerSnapshot;
 use infiltrator_domain::dns;
@@ -77,6 +80,76 @@ pub fn dns_page_snapshot(
         proxy_server_nameserver: config.proxy_server_nameserver.clone().unwrap_or_default(),
         direct_nameserver: config.direct_nameserver.clone().unwrap_or_default(),
         cache_flush: infiltrator_contract::dns::DnsCacheFlushReport::default(),
+        fake_ip_pool: FakeIpMappingPool::default(),
+        latency: DnsLatencyStatus::Unsupported,
+        hosts: hosts_entries(config),
+    }
+}
+
+/// DUAL-14-11: the configured `dns.hosts` map as flat shared rows.
+pub fn hosts_entries(config: &dns::DnsConfig) -> Vec<DnsHostEntry> {
+    config
+        .hosts
+        .as_ref()
+        .map(infiltrator_domain::dns_hosts::hosts_entries_from_map)
+        .unwrap_or_default()
+}
+
+/// DUAL-14-06: the Fake-IP bindings observed in the running core's live
+/// connection table.
+///
+/// mihomo exposes no controller endpoint that lists its persisted Fake-IP
+/// pool, but every connection it resolves in Fake-IP mode reports the original
+/// `host` and the virtual `destinationIP`. Those two fields are a real
+/// controller fact, so the workbench publishes exactly the bindings it can
+/// observe and marks the source as `LiveConnections` — it never guesses the
+/// rest of the pool.
+pub fn fake_ip_pool_from_connections(
+    range: &str,
+    connections: Option<&infiltrator_domain::runtime::ConnectionSnapshot>,
+) -> FakeIpMappingPool {
+    let Some(snapshot) = connections else {
+        return FakeIpMappingPool::default();
+    };
+    let range = range.trim();
+    if range.is_empty() {
+        return FakeIpMappingPool {
+            source: FakeIpMappingSource::Unsupported {
+                reason: "fake-ip-range is not configured".to_owned(),
+            },
+            ..FakeIpMappingPool::default()
+        };
+    }
+
+    let mut entries: Vec<FakeIpMappingEntry> = Vec::new();
+    for connection in &snapshot.connections {
+        let metadata = &connection.metadata;
+        let host = metadata.host.trim();
+        let address = metadata.destination_ip.trim();
+        if host.is_empty() || address.is_empty() {
+            continue;
+        }
+        if !infiltrator_domain::dns_tester::DnsTester::check_fake_ip_range(address, range) {
+            continue;
+        }
+        if entries.iter().any(|entry| entry.address == address) {
+            continue;
+        }
+        entries.push(FakeIpMappingEntry {
+            domain: host.to_owned(),
+            address: address.to_owned(),
+        });
+    }
+    entries.sort_by(|left, right| {
+        left.domain
+            .cmp(&right.domain)
+            .then(left.address.cmp(&right.address))
+    });
+    FakeIpMappingPool {
+        source: FakeIpMappingSource::LiveConnections,
+        range: range.to_owned(),
+        total: entries.len(),
+        entries,
     }
 }
 
@@ -210,5 +283,77 @@ mod tests {
             DnsFlushOutcome::Unsupported { .. }
         ));
         assert_eq!(cache_flush_report(Some(&application)), report);
+    }
+
+    #[test]
+    fn fake_ip_pool_publishes_only_observed_bindings() {
+        use infiltrator_domain::runtime::{Connection, ConnectionMetadata, ConnectionSnapshot};
+
+        let connection = |host: &str, destination: &str| Connection {
+            id: format!("{host}-{destination}"),
+            metadata: ConnectionMetadata {
+                host: host.to_owned(),
+                destination_ip: destination.to_owned(),
+                dns_mode: "fake-ip".to_owned(),
+                ..ConnectionMetadata::default()
+            },
+            ..Connection::default()
+        };
+        let snapshot = ConnectionSnapshot {
+            connections: vec![
+                connection("music.example.org", "198.18.0.5"),
+                connection("cdn.example.net", "198.18.0.7"),
+                // Outside the configured range: never published as a binding.
+                connection("direct.example.com", "203.0.113.9"),
+                // Duplicate address: one binding only.
+                connection("dup.example.org", "198.18.0.5"),
+                // Missing host: skipped rather than fabricated.
+                connection("", "198.18.0.9"),
+            ],
+            ..ConnectionSnapshot::default()
+        };
+
+        let pool = fake_ip_pool_from_connections("198.18.0.1/16", Some(&snapshot));
+        assert!(pool.is_observed_subset());
+        assert_eq!(pool.range, "198.18.0.1/16");
+        assert_eq!(pool.total, 2);
+        assert_eq!(pool.entries[0].domain, "cdn.example.net");
+        assert_eq!(pool.entries[1].address, "198.18.0.5");
+
+        // A host without a connection feed stays honestly unsupported.
+        let unsupported = fake_ip_pool_from_connections("198.18.0.1/16", None);
+        assert!(!unsupported.is_observed_subset());
+        assert_eq!(unsupported.total, 0);
+
+        // Without a configured range there is nothing to filter against.
+        let no_range = fake_ip_pool_from_connections("", Some(&snapshot));
+        assert!(!no_range.is_observed_subset());
+        assert!(no_range.entries.is_empty());
+    }
+
+    #[test]
+    fn hosts_entries_project_the_profile_map() {
+        let mut hosts_config = config();
+        let mut map = std::collections::BTreeMap::new();
+        map.insert(
+            "localhost".to_owned(),
+            serde_json::Value::String("127.0.0.1".to_owned()),
+        );
+        map.insert(
+            "multi.example.com".to_owned(),
+            serde_json::Value::Array(vec![
+                serde_json::Value::String("1.1.1.1".to_owned()),
+                serde_json::Value::String("8.8.8.8".to_owned()),
+            ]),
+        );
+        hosts_config.hosts = Some(map);
+
+        let entries = hosts_entries(&hosts_config);
+        assert_eq!(entries.len(), 3);
+        let snapshot = form_from_config(&hosts_config);
+        assert_eq!(snapshot.fake_ip_range, "198.18.0.1/16");
+        assert_eq!(entries[0].domain, "localhost");
+        assert_eq!(entries[2].address, "8.8.8.8");
+        assert!(hosts_entries(&config()).is_empty());
     }
 }

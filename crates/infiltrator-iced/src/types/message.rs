@@ -279,6 +279,15 @@ pub enum Message {
     UpdateFakeIpFormRange(String),
     UpdateFakeIpFormFilter(String),
     UpdateFakeIpFormStore(bool),
+    /// DUAL-14-06: filter the observed Fake-IP mapping pool (view-local).
+    UpdateDnsFakeIpQuery(String),
+    /// DUAL-14-11: edit the shared `dns.hosts` draft rows.
+    UpdateDnsHostsAddress(String),
+    UpdateDnsHostsDomain(String),
+    AddDnsHostRow,
+    RemoveDnsHostRow(usize),
+    SaveDnsHosts,
+    DnsHostsSaved(Result<(), InfiltratorError>),
     UpdateTunFormEnable(bool),
     UpdateTunFormStack(String),
     UpdateTunFormMtu(String),

@@ -242,6 +242,14 @@ pub fn dns_patch_from_settings(patch: DnsSettingsPatch) -> dns::DnsConfigPatch {
     if let Some(servers) = patch.direct_nameserver {
         domain_patch.direct_nameserver = Some(servers);
     }
+    if let Some(hosts) = patch.hosts {
+        domain_patch.hosts = Some(infiltrator_domain::dns_hosts::hosts_map_from_entries(
+            &hosts,
+        ));
+    }
+    if patch.clear_hosts {
+        domain_patch.clear_hosts = true;
+    }
     domain_patch
 }
 

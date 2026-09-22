@@ -481,6 +481,14 @@ impl SurfaceReader for ApplicationSurfaceReader {
             };
         }
 
+        pages.dns = build_dns_page(
+            self.configuration.as_ref(),
+            runtime_config.as_ref(),
+            self.dns_cache.as_ref(),
+            runtime_connections.as_ref(),
+        )
+        .await;
+
         pages.connections = page_from_result(
             runtime_connections,
             |connections| surface_snapshot::ConnectionsPageSnapshot {
@@ -541,13 +549,6 @@ impl SurfaceReader for ApplicationSurfaceReader {
                 proxies: runtime_proxy_map.as_ref(),
             },
             mrs_acceleration_snapshot,
-        )
-        .await;
-
-        pages.dns = build_dns_page(
-            self.configuration.as_ref(),
-            runtime_config.as_ref(),
-            self.dns_cache.as_ref(),
         )
         .await;
 
@@ -875,17 +876,27 @@ async fn build_dns_page(
     configuration: Option<&ConfigurationApplication>,
     runtime_config: Option<&Result<infiltrator_domain::runtime::ConfigSnapshot, PortError>>,
     dns_cache: Option<&crate::dns_cache_application::DnsCacheApplication>,
+    runtime_connections: Option<
+        &Result<infiltrator_domain::runtime::ConnectionSnapshot, PortError>,
+    >,
 ) -> surface_snapshot::PageData<surface_snapshot::DnsPageSnapshot> {
     let cache_flush = crate::dns_workbench_application::cache_flush_report(dns_cache);
+    let connections = runtime_connections.and_then(|result| result.as_ref().ok());
     if let Some(configuration) = configuration {
         let dns = configuration.load_dns_config().await;
         let fake_ip = configuration.load_fake_ip_config().await;
         if let (Ok(dns), Ok(fake_ip)) = (dns, fake_ip) {
-            let mut snapshot = crate::dns_workbench_application::dns_page_snapshot(
-                &dns,
-                fake_ip.fake_ip_range.unwrap_or_default(),
-            );
+            let range = dns
+                .fake_ip_range
+                .clone()
+                .or(fake_ip.fake_ip_range)
+                .unwrap_or_default();
+            let mut snapshot = crate::dns_workbench_application::dns_page_snapshot(&dns, range);
             snapshot.cache_flush = cache_flush;
+            snapshot.fake_ip_pool = crate::dns_workbench_application::fake_ip_pool_from_connections(
+                &snapshot.fake_ip_range,
+                connections,
+            );
             return surface_snapshot::PageData::ready(snapshot);
         }
     }
@@ -900,6 +911,8 @@ async fn build_dns_page(
                     dns.fallback.clone(),
                 ),
                 cache_flush,
+                // The runtime DnsSnapshot carries no fake-ip-range, so the
+                // pool stays honestly unsupported on this path.
                 ..surface_snapshot::DnsPageSnapshot::default()
             }),
             None => surface_snapshot::PageData::empty(surface_snapshot::DnsPageSnapshot {

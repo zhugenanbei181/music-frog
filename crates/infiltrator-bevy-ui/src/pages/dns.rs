@@ -34,8 +34,8 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns::{
-    DnsCacheFlushReport, DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag,
-    DnsSettingsPatch, DnsSwitchField,
+    DnsCacheFlushReport, DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsHostEntry,
+    DnsLatencyStatus, DnsServerTag, DnsSettingsPatch, DnsSwitchField, FakeIpMappingPool,
 };
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
 
@@ -74,6 +74,14 @@ pub enum DnsLineKind {
     FilterModeLabel(DnsFakeIpFilterMode),
     /// The honest last DNS cache flush report line.
     CacheFlush,
+    /// DUAL-14-06: the filtered Fake-IP binding listing (multi-line text).
+    FakeIpMapping,
+    /// DUAL-14-06: the shown/total counter of the mapping listing.
+    FakeIpMappingCount,
+    /// DUAL-14-10: the honest per-nameserver latency policy line.
+    LatencyPolicy,
+    /// DUAL-14-11: the applied `dns.hosts` row count.
+    HostsSummary,
 }
 
 /// Marker for a DNS server's address display text.
@@ -155,6 +163,12 @@ pub struct DnsProjection {
     pub form: DnsWorkbenchForm,
     /// Honest last Fake-IP / OS cache flush report.
     pub cache_flush: DnsCacheFlushReport,
+    /// DUAL-14-06: observed Fake-IP bindings from the shared read model.
+    pub fake_ip_pool: FakeIpMappingPool,
+    /// DUAL-14-10: honest latency-probe availability.
+    pub latency: DnsLatencyStatus,
+    /// DUAL-14-11: the configured `dns.hosts` rows.
+    pub hosts: Vec<DnsHostEntry>,
 }
 
 impl DnsProjection {
@@ -181,79 +195,9 @@ impl DnsProjection {
                 .collect(),
             form: DnsWorkbenchForm::from_snapshot(snapshot),
             cache_flush: snapshot.cache_flush.clone(),
-        }
-    }
-
-    /// Believable demo fixture for the DNS page.
-    pub fn demo() -> Self {
-        Self {
-            mode: DnsEnhancedMode::FakeIp,
-            cache_entries: 342,
-            fake_ip_range: "198.18.0.1/16".to_owned(),
-            switches: DnsCoreSwitches {
-                enable: true,
-                ipv6: true,
-                cache: true,
-                use_hosts: true,
-                use_system_hosts: true,
-                respect_rules: false,
-            },
-            filter_mode: DnsFakeIpFilterMode::Blacklist,
-            form: DnsWorkbenchForm {
-                switches: DnsCoreSwitches {
-                    enable: true,
-                    ipv6: true,
-                    cache: true,
-                    use_hosts: true,
-                    use_system_hosts: true,
-                    respect_rules: false,
-                },
-                enhanced_mode: DnsEnhancedMode::FakeIp,
-                filter_mode: DnsFakeIpFilterMode::Blacklist,
-                bootstrap_nameserver: "223.5.5.5".to_owned(),
-                nameserver: "https://1.1.1.1/dns-query, tls://8.8.8.8:853".to_owned(),
-                fallback: "https://cloudflare-dns.com/dns-query".to_owned(),
-                fallback_policy: infiltrator_contract::dns_form::DnsFallbackPolicyDraft {
-                    geoip: true,
-                    geoip_code: "CN".to_owned(),
-                    trigger_ipcidr: "240.0.0.0/4".to_owned(),
-                },
-                fake_ip_range: "198.18.0.1/16".to_owned(),
-                fake_ip_filter: "*.lan, localhost.ptlogin2.qq.com".to_owned(),
-                proxy_server_nameserver: "tls://223.5.5.5:853".to_owned(),
-                direct_nameserver: "system".to_owned(),
-            },
-            cache_flush: DnsCacheFlushReport::default(),
-            servers: vec![
-                DnsServerItem {
-                    address: "https://1.1.1.1/dns-query".to_owned(),
-                    protocol: "DoH (HTTPS)".to_owned(),
-                    latency_ms: Some(28),
-                    is_fallback: false,
-                    tags: vec![DnsServerTag::Encrypted],
-                },
-                DnsServerItem {
-                    address: "tls://8.8.8.8:853".to_owned(),
-                    protocol: "DoT (TLS)".to_owned(),
-                    latency_ms: Some(45),
-                    is_fallback: false,
-                    tags: vec![DnsServerTag::Encrypted],
-                },
-                DnsServerItem {
-                    address: "https://dns.alidns.com/dns-query".to_owned(),
-                    protocol: "DoH (Domestic)".to_owned(),
-                    latency_ms: Some(18),
-                    is_fallback: false,
-                    tags: vec![DnsServerTag::Domestic, DnsServerTag::Encrypted],
-                },
-                DnsServerItem {
-                    address: "https://cloudflare-dns.com/dns-query".to_owned(),
-                    protocol: "DoH (Fallback)".to_owned(),
-                    latency_ms: Some(35),
-                    is_fallback: true,
-                    tags: vec![DnsServerTag::Fallback, DnsServerTag::Encrypted],
-                },
-            ],
+            fake_ip_pool: snapshot.fake_ip_pool.clone(),
+            latency: snapshot.latency,
+            hosts: snapshot.hosts.clone(),
         }
     }
 }
@@ -358,7 +302,9 @@ pub fn dns_page(projection: &DnsProjection, palette: &UiPalette) -> impl Scene +
             ( { header_card_scene(summary, projection, palette) } ),
             ( { crate::pages::dns_form::dns_form_card_scene(projection, palette) } ),
             ( { crate::pages::dns_edit::dns_edit_card_scene(projection, palette) } ),
-            ( { servers_card_scene(server_scenes, palette) } ),
+            ( { crate::pages::dns_hosts::dns_hosts_card_scene(projection, palette) } ),
+            ( { crate::pages::dns_fakeip::dns_fakeip_pool_card_scene(projection, palette) } ),
+            ( { servers_card_scene(server_scenes, projection.latency, palette) } ),
             ( { fake_ip_card_scene(&projection.fake_ip_range, palette) } ),
         ]
     }
@@ -452,8 +398,11 @@ fn header_card_scene(
 
 fn servers_card_scene(
     server_scenes: Vec<Box<dyn Scene>>,
+    latency: infiltrator_contract::dns::DnsLatencyStatus,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let latency_label = crate::pages::dns_fakeip::latency_policy_label(latency);
+
     surface_scene(
         vec![
             Box::new(bsn! {
@@ -466,6 +415,20 @@ fn servers_card_scene(
                 Children [
                     ( Text({ "上游加密 DNS 服务器 (Nameservers)".to_owned() }) TextRole(Role::BodyStrong) ),
                     ( Text({ "支持 DoH / DoT / DoQ".to_owned() }) TextRole(Role::Caption) ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    align_items: AlignItems::Center,
+                    padding: UiRect::bottom(Val::Px(space::S8)),
+                }
+                Children [
+                    (
+                        Text(latency_label)
+                        DnsLine(DnsLineKind::LatencyPolicy)
+                        TextRole(Role::Caption)
+                    ),
                 ]
             }),
             Box::new(bsn! {
@@ -572,6 +535,8 @@ fn bind_dns_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(on_dns_action_activated);
     commands.add_observer(crate::pages::dns_edit::apply_dns_edit_projection);
     commands.add_observer(crate::pages::dns_edit::on_dns_edit_activated);
+    commands.add_observer(crate::pages::dns_hosts::apply_dns_hosts_projection);
+    commands.add_observer(crate::pages::dns_hosts::on_dns_hosts_activated);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -730,6 +695,24 @@ pub(crate) fn apply_dns_projection(
             DnsLineKind::CacheFlush => {
                 text.0 = cache_flush_label(&projection.cache_flush);
             }
+            DnsLineKind::FakeIpMapping => {
+                text.0 =
+                    crate::pages::dns_fakeip::fake_ip_mapping_listing(&projection.fake_ip_pool, "");
+            }
+            DnsLineKind::FakeIpMappingCount => {
+                text.0 =
+                    crate::pages::dns_fakeip::fake_ip_mapping_count(&projection.fake_ip_pool, "");
+            }
+            DnsLineKind::LatencyPolicy => {
+                text.0 = crate::pages::dns_fakeip::latency_policy_label(projection.latency);
+                color.0 = match projection.latency {
+                    infiltrator_contract::dns::DnsLatencyStatus::Ready => palette.success,
+                    infiltrator_contract::dns::DnsLatencyStatus::Unsupported => palette.ink_dim,
+                };
+            }
+            DnsLineKind::HostsSummary => {
+                text.0 = crate::pages::dns_hosts::hosts_summary_label(&projection.hosts);
+            }
             DnsLineKind::SwitchStatus(field) => {
                 let enabled = projection.switches.value(field);
                 text.0 = if enabled { "已开启" } else { "已关闭" }.to_owned();
@@ -835,24 +818,5 @@ pub(crate) fn apply_dns_projection(
 
     if let Some(ref mut last_proj) = last {
         last_proj.0 = Some(projection.clone());
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn demo_dns_fixture() {
-        let proj = DnsProjection::demo();
-        assert_eq!(proj.mode, DnsEnhancedMode::FakeIp);
-        assert_eq!(proj.cache_entries, 342);
-        assert_eq!(proj.fake_ip_range, "198.18.0.1/16");
-        assert_eq!(proj.servers.len(), 4);
-        assert_eq!(proj.servers[0].address, "https://1.1.1.1/dns-query");
-        assert_eq!(proj.servers[0].protocol, "DoH (HTTPS)");
-        assert_eq!(proj.servers[0].latency_ms, Some(28));
-        assert!(proj.switches.enable);
-        assert_eq!(proj.filter_mode, DnsFakeIpFilterMode::Blacklist);
     }
 }

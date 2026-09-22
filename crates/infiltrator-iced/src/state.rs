@@ -367,6 +367,18 @@ pub struct ConfigEditorState {
     pub dns_nameservers: Vec<String>,
     pub dns_fallback_servers: Vec<String>,
     pub dns_enhanced_mode: String,
+    /// DUAL-14-06: observed Fake-IP bindings from the shared read model.
+    pub dns_fake_ip_pool: infiltrator_contract::dns::FakeIpMappingPool,
+    /// DUAL-14-06: the local search box filter (view-local, not a fact).
+    pub dns_fake_ip_query: String,
+    /// DUAL-14-10: the shared latency-probe availability fact.
+    pub dns_latency: infiltrator_contract::dns::DnsLatencyStatus,
+    /// DUAL-14-11: the shared `dns.hosts` draft (one row per address).
+    pub dns_hosts: Vec<infiltrator_contract::dns::DnsHostEntry>,
+    pub dns_hosts_address: String,
+    pub dns_hosts_domain: String,
+    pub dns_hosts_dirty: bool,
+    pub is_saving_dns_hosts: bool,
     pub is_saving_dns: bool,
     pub is_saving_fake_ip: bool,
     pub is_saving_tun: bool,
@@ -723,6 +735,14 @@ impl AppState {
             if !self.editor.dns_form_dirty && !self.editor.dns_json_dirty {
                 self.editor.dns_form =
                     infiltrator_contract::dns_form::DnsWorkbenchForm::from_snapshot(dns);
+            }
+            // DUAL-14-06: the observed Fake-IP bindings are a shared fact.
+            self.editor.dns_fake_ip_pool = dns.fake_ip_pool.clone();
+            // DUAL-14-10: the latency-probe availability is a shared fact.
+            self.editor.dns_latency = dns.latency;
+            // DUAL-14-11: re-seed the hosts draft while it has no pending edit.
+            if !self.editor.dns_hosts_dirty && !self.editor.is_saving_dns_hosts {
+                self.editor.dns_hosts = dns.hosts.clone();
             }
             // The read model carries the honest last flush report for the
             // shared host application; a local report from this session is

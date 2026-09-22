@@ -40,6 +40,9 @@ pub struct DnsConfig {
     pub search_domains: Option<Vec<String>>,
     pub ecs_override_policy: Option<String>,
     pub bogus_nxdomain: Option<Vec<String>>,
+    /// `dns.hosts`: static domain → address (or address list / alias domain)
+    /// mappings. DUAL-14-11: typed here so a DNS save never drops the key.
+    pub hosts: Option<BTreeMap<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -111,6 +114,12 @@ pub struct DnsConfigPatch {
     pub search_domains: Option<Vec<String>>,
     pub ecs_override_policy: Option<String>,
     pub bogus_nxdomain: Option<Vec<String>>,
+    /// `dns.hosts` full-map write from the shared hosts editor.
+    pub hosts: Option<BTreeMap<String, serde_json::Value>>,
+    /// Clear the `dns.hosts` key (the editor was emptied). Mirrors
+    /// `clear_enhanced_mode`: a merge patch cannot delete with `None` alone.
+    #[serde(default)]
+    pub clear_hosts: bool,
 }
 
 pub type DnsConfigPayload = DnsConfigPatch;
@@ -148,6 +157,8 @@ impl From<DnsConfig> for DnsConfigPatch {
             search_domains: c.search_domains,
             ecs_override_policy: c.ecs_override_policy,
             bogus_nxdomain: c.bogus_nxdomain,
+            hosts: c.hosts,
+            clear_hosts: false,
         }
     }
 }
@@ -182,6 +193,7 @@ impl From<DnsConfigPatch> for DnsConfig {
             search_domains: p.search_domains,
             ecs_override_policy: p.ecs_override_policy,
             bogus_nxdomain: p.bogus_nxdomain,
+            hosts: p.hosts,
         }
     }
 }
@@ -289,6 +301,12 @@ impl DnsConfig {
         if let Some(v) = patch.bogus_nxdomain {
             self.bogus_nxdomain = Some(v);
         }
+        if let Some(v) = patch.hosts {
+            self.hosts = Some(v);
+        }
+        if patch.clear_hosts {
+            self.hosts = None;
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -319,6 +337,7 @@ impl DnsConfig {
             && self.search_domains.is_none()
             && self.ecs_override_policy.is_none()
             && self.bogus_nxdomain.is_none()
+            && self.hosts.is_none()
     }
 
     /// Retrieve nameservers belonging to a specific topology tier.

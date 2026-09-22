@@ -39,6 +39,8 @@ pub struct AdvancedValidationState {
     pub dns: Option<String>,
     pub fake_ip: Option<String>,
     pub tun: Option<String>,
+    /// DUAL-14-11: shared `dns.hosts` editor validation message.
+    pub dns_hosts: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
