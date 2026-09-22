@@ -48,6 +48,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "conn_group_flat" => "实时流".into(),
         "conn_group_process" => "按进程聚合".into(),
         "conn_group_host" => "按域名聚合".into(),
+        "conn_aggregate_count" => "{count} 条连接".into(),
+        "conn_aggregate_empty" => "暂无聚合数据".into(),
+        "conn_close_filtered_btn" => "断开筛选结果".into(),
         "quick_rule_btn" => "一键添加分流规则".into(),
         "quick_rule_success" => "已将目标添加至分流规则".into(),
 

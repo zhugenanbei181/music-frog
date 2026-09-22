@@ -6,8 +6,9 @@ use crate::utils::format_bytes;
 use crate::view::components::{chip, modern_scrollable, style_accent, style_danger, style_ghost};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
-use iced::widget::{Space, button, column, container, progress_bar, row, text};
+use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_domain::connection_view;
 use infiltrator_domain::runtime::Connection;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -57,12 +58,10 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
     ]
     .align_y(Alignment::Center);
 
-    // Section 1: Lifecycle Latency Waterfall
-    let dns_ms = 18.0_f32;
-    let tcp_ms = 42.0_f32;
-    let tls_ms = 68.0_f32;
-    let ttfb_ms = 92.0_f32;
-
+    // Section 1: Lifecycle latency. The mihomo `/connections` payload does not
+    // carry DNS/TCP/TLS/TTFB timings, so DUAL-13-04 is reported as typed
+    // unsupported instead of the fabricated 18/42/68/92 ms bars this drawer
+    // previously drew.
     let latency_section = column![
         row![
             icon_themed(Icon::Zap, 14.0, |t: &Theme| tokens(t).warning),
@@ -73,33 +72,11 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         ]
         .align_y(Alignment::Center),
         Space::new().height(theme::SP_XS),
-        column![
-            waterfall_row(
-                lang.tr("conn_drawer_dns_time"),
-                "18 ms",
-                dns_ms / 150.0,
-                |t| tokens(t).accent
-            ),
-            waterfall_row(
-                lang.tr("conn_drawer_tcp_time"),
-                "42 ms",
-                tcp_ms / 150.0,
-                |t| tokens(t).accent_soft
-            ),
-            waterfall_row(
-                lang.tr("conn_drawer_tls_time"),
-                "68 ms",
-                tls_ms / 150.0,
-                |t| tokens(t).success
-            ),
-            waterfall_row(
-                lang.tr("conn_drawer_ttfb_time"),
-                "92 ms",
-                ttfb_ms / 150.0,
-                |t| tokens(t).warning
-            ),
-        ]
-        .spacing(8),
+        text(lang.tr("conn_drawer_timing_unsupported"))
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            }),
     ]
     .spacing(6);
 
@@ -202,6 +179,11 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
 
     // Actions
     let close_conn_id = conn.id.clone();
+    // DUAL-13-09: the reverse rule draft is the shared domain spec (bare host,
+    // no port); an un-draftable destination disables the button instead of
+    // emitting a bogus empty pattern.
+    let rule_spec =
+        connection_view::quick_rule_spec(conn, connection_view::DEFAULT_QUICK_RULE_TARGET);
     let actions_bar = row![
         button(
             row![
@@ -227,14 +209,12 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         )
         .style(style_accent)
         .padding([8, 14])
-        .on_press(Message::AddQuickRuleFromConnection {
-            pattern: if !target_host.is_empty() {
-                format!("DOMAIN-SUFFIX,{target_host}")
-            } else {
-                format!("IP-CIDR,{}/32", conn.metadata.destination_ip)
-            },
-            target: "DIRECT".to_string(),
-        }),
+        .on_press_maybe(rule_spec.is_draftable().then(|| {
+            Message::AddQuickRuleFromConnection {
+                pattern: rule_spec.pattern.clone(),
+                target: rule_spec.target.clone(),
+            }
+        })),
         Space::new().width(theme::SP_SM),
         button(
             row![
@@ -323,48 +303,6 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         ),
         ..Default::default()
     })
-    .into()
-}
-
-fn waterfall_row<'a, Message: 'a>(
-    label: impl Into<String>,
-    val_str: impl Into<String>,
-    ratio: f32,
-    color: fn(&Theme) -> Color,
-) -> Element<'a, Message> {
-    let label_s = label.into();
-    let val_s = val_str.into();
-    row![
-        text(label_s)
-            .size(11)
-            .width(Length::Fixed(110.0))
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            }),
-        container(
-            progress_bar(0.0..=1.0, ratio.clamp(0.05, 1.0)).style(move |t: &Theme| {
-                progress_bar::Style {
-                    background: Color {
-                        a: 0.15,
-                        ..color(t)
-                    }
-                    .into(),
-                    bar: color(t).into(),
-                    border: Border::default(),
-                }
-            })
-        )
-        .width(Length::Fill),
-        Space::new().width(theme::SP_SM),
-        text(val_s)
-            .size(11)
-            .font(MONO)
-            .width(Length::Fixed(55.0))
-            .style(move |t: &Theme| text::Style {
-                color: Some(color(t)),
-            }),
-    ]
-    .align_y(Alignment::Center)
     .into()
 }
 

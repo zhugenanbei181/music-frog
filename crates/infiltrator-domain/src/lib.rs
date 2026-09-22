@@ -10,6 +10,7 @@ pub mod apply;
 pub mod backoff_strategy;
 pub mod backup;
 pub mod config;
+pub mod connection_view;
 pub mod core_state;
 pub mod diagnostics;
 pub mod dns;

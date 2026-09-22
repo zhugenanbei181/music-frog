@@ -117,15 +117,6 @@ pub enum RebuildFlowState {
     },
 }
 
-/// Grouping dimension for the live connections audit view.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ConnectionGroupingMode {
-    #[default]
-    Flat,
-    ByProcess,
-    ByHost,
-}
-
 /// State for the PCAP network packet capture and Sniffer auditor.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PcapCaptureState {

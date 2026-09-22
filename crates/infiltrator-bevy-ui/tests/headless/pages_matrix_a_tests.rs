@@ -9,11 +9,13 @@ use std::sync::Arc;
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
+use bevy::ui::prelude::{Display, Node};
 use bevy::ui_widgets::Activate;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::pages::connections::*;
+use infiltrator_bevy_ui::pages::connections_view::*;
 use infiltrator_bevy_ui::pages::logs::*;
 use infiltrator_bevy_ui::pages::profiles::*;
 use infiltrator_bevy_ui::pages::profiles_import::{
@@ -32,8 +34,10 @@ use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
+use infiltrator_bevy_widgets::text_input::state::TextFieldState;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::rule_tracer::{RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot};
+use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_tracer::RuleOverridePort;
@@ -544,10 +548,20 @@ fn test_connections_page_mounting_and_default_state() {
     assert!(subtree_has_text(
         app.world(),
         root,
-        "单连接深度透视 (Deep Telemetry Waterfall)"
+        "单连接深度透视 (Deep Telemetry)"
     ));
-    assert!(subtree_has_text(app.world(), root, "DNS 解析"));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "内核未提供该连接的 DNS/TCP/TLS/TTFB 耗时明细"
+    ));
     assert!(subtree_has_text(app.world(), root, "一键添加为规则"));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "按域名/IP/进程即时搜索连接"
+    ));
+    assert!(subtree_has_text(app.world(), root, "断开筛选结果"));
     assert_eq!(
         app.world_mut()
             .query::<&ConnAggregationPill>()
@@ -558,7 +572,7 @@ fn test_connections_page_mounting_and_default_state() {
 }
 
 #[test]
-fn test_connections_close_all_submits_command() {
+fn test_connections_close_all_requires_confirmation() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(Arc::clone(&sink));
     navigate_to(&mut app, Route::Connections);
@@ -569,12 +583,127 @@ fn test_connections_close_all_submits_command() {
         .single(app.world())
         .expect("close all connections button");
 
+    // First click only arms the destructive action.
     app.world_mut()
         .commands()
         .trigger(Activate { entity: btn_entity });
     app.update();
+    assert!(sink.submitted().is_empty());
+    let armed = app
+        .world_mut()
+        .query::<(&bevy::ui::widget::Text, &CloseAllConnectionsLabel)>()
+        .iter(app.world())
+        .map(|(text, _)| text.0.clone())
+        .collect::<Vec<_>>();
+    assert!(armed.iter().any(|line| line.contains("确认关闭全部")));
 
+    // Second click executes it.
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: btn_entity });
+    app.update();
     assert_eq!(sink.submitted(), vec![UiCommand::CloseAllConnections]);
+}
+
+#[test]
+fn test_connections_aggregation_pill_switches_shared_mode() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Connections);
+
+    let mut query = app.world_mut().query::<(Entity, &ConnAggregationPill)>();
+    let (pill_entity, _) = query
+        .iter(app.world())
+        .find(|(_, pill)| pill.0 == ConnectionGroupingMode::ByProcess)
+        .expect("by-process aggregation pill");
+
+    app.world_mut().commands().trigger(Activate {
+        entity: pill_entity,
+    });
+    app.update();
+
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "按应用进程聚合 · 共 4 组"
+    ));
+    // Grouped mode hides the flat rows and shows the summary.
+    let rows_container_display = app
+        .world_mut()
+        .query_filtered::<&Node, bevy::ecs::query::With<ConnRowsContainer>>()
+        .single(app.world())
+        .expect("rows container")
+        .display;
+    assert_eq!(rows_container_display, Display::None);
+}
+
+#[test]
+fn test_connections_search_hides_non_matching_rows() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    navigate_to(&mut app, Route::Connections);
+
+    let field_entity = app
+        .world_mut()
+        .query_filtered::<&Children, bevy::ecs::query::With<ConnSearchField>>()
+        .single(app.world())
+        .expect("search field wrapper")
+        .iter()
+        .copied()
+        .find(|child| app.world().get::<TextField>(*child).is_some())
+        .expect("search text field");
+    app.world_mut()
+        .get_mut::<TextField>(field_entity)
+        .expect("text field")
+        .0 = TextFieldState::new("github");
+    app.update();
+
+    let mut rows = app.world_mut().query::<(&Node, &ConnectionRow)>();
+    let displays: Vec<(usize, Display)> = rows
+        .iter(app.world())
+        .map(|(node, row)| (row.0, node.display))
+        .collect();
+    assert!(displays.contains(&(0, Display::Flex)));
+    assert!(displays.contains(&(1, Display::None)));
+}
+
+#[test]
+fn test_connections_close_filtered_submits_matching_only() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Connections);
+
+    let field_entity = app
+        .world_mut()
+        .query_filtered::<&Children, bevy::ecs::query::With<ConnSearchField>>()
+        .single(app.world())
+        .expect("search field wrapper")
+        .iter()
+        .copied()
+        .find(|child| app.world().get::<TextField>(*child).is_some())
+        .expect("search text field");
+    app.world_mut()
+        .get_mut::<TextField>(field_entity)
+        .expect("text field")
+        .0 = TextFieldState::new("github");
+    app.update();
+
+    let button_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<CloseFilteredConnectionsButton>>()
+        .single(app.world())
+        .expect("close filtered button");
+    app.world_mut().commands().trigger(Activate {
+        entity: button_entity,
+    });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::CloseConnection {
+            id: "c-1".to_owned(),
+        }]
+    );
 }
 
 #[test]

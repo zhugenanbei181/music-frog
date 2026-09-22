@@ -390,7 +390,7 @@ pub struct DiagnosticsState {
     pub overview_card_order: Vec<infiltrator_contract::overview_layout::OverviewCardKind>,
     pub crash_watchdog: crate::types::doctor::CrashWatchdogState,
     pub log_filter: crate::types::runtime::LogFilterState,
-    pub connection_grouping_mode: crate::types::runtime::ConnectionGroupingMode,
+    pub connection_grouping_mode: infiltrator_domain::connection_view::ConnectionGroupingMode,
 }
 
 /// 外壳域:导航路由、语言/主题、全局错误与 Toast、托盘、Admin 管理端、

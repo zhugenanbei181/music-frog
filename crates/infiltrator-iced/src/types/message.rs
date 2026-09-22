@@ -145,6 +145,7 @@ pub enum Message {
     CoreLogLevelFinished(Result<(), InfiltratorError>, String),
     CloseConnection(String),
     CloseAllConnections,
+    CloseFilteredConnections,
     ConnectionsPrevPage,
     ConnectionsNextPage,
     FetchRuntimeConfig,
@@ -500,7 +501,7 @@ pub enum Message {
     UpdateAggregatorName(String),
     ExecuteProfileAggregation,
     // Connection Grouping & Quick Rule (Category 4)
-    SetConnectionGroupingMode(super::runtime::ConnectionGroupingMode),
+    SetConnectionGroupingMode(infiltrator_domain::connection_view::ConnectionGroupingMode),
     AddQuickRuleFromConnection {
         pattern: String,
         target: String,

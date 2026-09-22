@@ -42,6 +42,9 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "conn_group_flat" => "Flat Stream".into(),
         "conn_group_process" => "By Process".into(),
         "conn_group_host" => "By Domain".into(),
+        "conn_aggregate_count" => "{count} connections".into(),
+        "conn_aggregate_empty" => "No aggregates".into(),
+        "conn_close_filtered_btn" => "Close Filtered".into(),
         "quick_rule_btn" => "Add Route Rule".into(),
         "quick_rule_success" => "Route rule added successfully".into(),
 

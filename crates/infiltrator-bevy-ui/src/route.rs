@@ -296,6 +296,9 @@ impl Plugin for PagesPlugin {
         app.init_resource::<ActiveRoute>();
         app.init_resource::<RouteHistory>();
         app.init_resource::<LastOverviewProjection>();
+        app.init_resource::<crate::pages::connections::LastConnectionsProjection>();
+        app.init_resource::<crate::pages::connections_view::ConnectionsViewState>();
+        app.init_resource::<crate::pages::connections_view::ConnectionsCloseAllState>();
         // The trend chart's sample ring: written by the live pump's drain
         // (when one is mounted), read by the page's refresh observer and
         // mount scene. The demo fixture ignores it (its trend is the
@@ -335,6 +338,7 @@ impl Plugin for PagesPlugin {
                 sync_overview_metrics_columns,
                 sync_overview_speedtest_button,
                 sync_proxies_node_columns,
+                crate::pages::connections_view::sync_connections_search,
             ),
         );
     }

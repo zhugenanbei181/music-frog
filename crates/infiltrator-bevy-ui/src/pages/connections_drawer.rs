@@ -1,4 +1,6 @@
-//! Connections detail inspection drawer & latency waterfall component (连接透视与耗时瀑布流).
+//! Connections detail inspection drawer (连接透视). The timing waterfall
+//! (DUAL-13-04) is typed unsupported: the core exposes no DNS/TCP/TLS/TTFB
+//! stages, so no fabricated bars are drawn.
 
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -24,49 +26,11 @@ pub struct ConnectionDrawerRoot;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DrawerAddRuleButton;
 
-/// Connection detail inspection drawer scene with DNS/TCP/TLS/TTFB waterfall.
+/// Connection detail inspection drawer. The mihomo `/connections` payload does
+/// not carry DNS/TCP/TLS/TTFB timings, so this drawer renders an honest
+/// unsupported line instead of the previously fabricated waterfall bars
+/// (DUAL-13-04).
 pub fn connection_drawer_scene(palette: &UiPalette) -> impl Scene + use<> {
-    let waterfall_items = vec![
-        ("DNS 解析", "18 ms", palette.accent),
-        ("TCP 握手", "42 ms", palette.success),
-        ("TLS 握手", "65 ms", palette.warning),
-        ("TTFB 首包", "110 ms", palette.danger),
-    ];
-
-    let waterfall_bars: Vec<Box<dyn Scene>> = waterfall_items
-        .into_iter()
-        .map(|(label, ms, color)| {
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            (
-                                Node {
-                                    width: px(8.0),
-                                    height: px(8.0),
-                                    border_radius: BorderRadius::all(Val::Px(4.0)),
-                                }
-                                BackgroundColor({ color })
-                            ),
-                            ( Text({ label.to_owned() }) TextRole(Role::Caption) ),
-                        ]
-                    ),
-                    ( Text({ ms.to_owned() }) TextRole(Role::BodyStrong) ),
-                ]
-            }) as Box<dyn Scene>
-        })
-        .collect();
-
     surface_scene(
         vec![
             Box::new(bsn! {
@@ -85,7 +49,7 @@ pub fn connection_drawer_scene(palette: &UiPalette) -> impl Scene + use<> {
                         }
                         Children [
                             ( { icon_tile_scene(IconId::Activity, 24.0, palette) } ),
-                            ( Text({ "单连接深度透视 (Deep Telemetry Waterfall)".to_owned() }) TextRole(Role::BodyStrong) ),
+                            ( Text({ "单连接深度透视 (Deep Telemetry)".to_owned() }) TextRole(Role::BodyStrong) ),
                         ]
                     ),
                     ( Text({ "api.github.com:443 · AS36459 GitHub, Inc.".to_owned() }) TextRole(Role::Caption) ),
@@ -99,7 +63,7 @@ pub fn connection_drawer_scene(palette: &UiPalette) -> impl Scene + use<> {
                     padding: UiRect::vertical(Val::Px(space::S8)),
                 }
                 Children [
-                    { waterfall_bars },
+                    ( Text({ "内核未提供该连接的 DNS/TCP/TLS/TTFB 耗时明细".to_owned() }) TextRole(Role::Caption) ),
                 ]
             }),
             Box::new(bsn! {
