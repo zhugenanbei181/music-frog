@@ -9,6 +9,7 @@ pub mod dns_hosts_panel;
 pub mod doctor;
 pub mod editor;
 pub(crate) mod editor_history;
+pub mod editor_viewport;
 pub mod geodata_card;
 pub mod icons;
 pub mod lan_security_card;

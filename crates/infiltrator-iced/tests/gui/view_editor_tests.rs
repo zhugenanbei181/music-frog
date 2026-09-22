@@ -40,6 +40,111 @@ fn test_editor_view_with_syntax_error() {
     let _v = view(&state);
 }
 
+// ---- DUAL-09-02/04: shared snippet catalogue + windowed editor ---------------
+
+fn caret_on(line: usize, column: usize) -> iced::widget::text_editor::Cursor {
+    iced::widget::text_editor::Cursor {
+        position: iced::widget::text_editor::Position { line, column },
+        selection: None,
+    }
+}
+
+#[test]
+fn the_snippet_bar_renders_the_shared_catalogue_and_not_a_local_copy() {
+    use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
+
+    let (mut state, _) = AppState::new();
+    state.editor.editor_pane = EditorPane::Profile;
+    state.editor.editor_content = iced::widget::text_editor::Content::with_text("proxies:\n");
+    let _v = view(&state);
+
+    // The bar is rendered from the catalogue, so every catalogue id is a
+    // message the surface can dispatch: the view builds one button per entry.
+    assert!(
+        YAML_SNIPPETS.len() >= 8,
+        "the shared catalogue the bar renders is the single source of snippets"
+    );
+    for snippet in YAML_SNIPPETS {
+        let label = Lang("zh-CN").tr(snippet.label_key).to_string();
+        assert_ne!(label, snippet.label_key, "{} is localized", snippet.id);
+    }
+}
+
+#[test]
+fn insert_yaml_snippet_splices_through_the_shared_application() {
+    let (mut state, _) = AppState::new();
+    state.editor.editor_pane = EditorPane::Profile;
+    state.editor.editor_content =
+        iced::widget::text_editor::Content::with_text("proxies:\n  - name: keep\n");
+    state.editor.editor_content.move_to(caret_on(1, 16));
+
+    let _ = state.update(Message::InsertYamlSnippet("ss"));
+
+    let text = state.editor.editor_content.text();
+    assert!(
+        text.starts_with("proxies:\n  - name: keep\n  - name: SS-Node"),
+        "the catalogue body is spliced at the caret: {text}"
+    );
+    assert!(
+        text.contains("    type: ss"),
+        "the untouched part of the document is preserved"
+    );
+    // The caret lands after the inserted item, so typing continues in place.
+    assert_eq!(state.editor.editor_content.cursor().position.line, 8);
+    // The shared preflight still sees a valid document.
+    assert!(state.editor.syntax_error.is_none());
+}
+
+#[test]
+fn a_snippet_that_would_break_the_document_is_refused_and_the_buffer_survives() {
+    let (mut state, _) = AppState::new();
+    state.editor.editor_pane = EditorPane::Profile;
+    state.editor.editor_content = iced::widget::text_editor::Content::with_text("mode: rule\n");
+    // Splitting the scalar to open a block sequence is not valid YAML.
+    state.editor.editor_content.move_to(caret_on(0, 6));
+
+    let _ = state.update(Message::InsertYamlSnippet("select"));
+
+    assert_eq!(
+        state.editor.editor_content.text(),
+        "mode: rule\n",
+        "a refused snippet never rewrites the user's bytes"
+    );
+}
+
+#[test]
+fn the_windowed_editor_and_gutter_follow_the_shared_viewport() {
+    let (mut state, _) = AppState::new();
+    state.editor.editor_pane = EditorPane::Profile;
+    let large: String = (0..400)
+        .map(|index| format!("key-{index}: value-{index}\n"))
+        .collect();
+    state.editor.editor_content = iced::widget::text_editor::Content::with_text(&large);
+    assert_eq!(
+        state.editor.profile_viewport.first_line(),
+        0,
+        "a fresh document starts at the top of the window"
+    );
+    let _v = view(&state);
+    drop(_v);
+
+    // A caret step past the window edge moves the shared window, which is the
+    // fact the gutter renders from.
+    state.editor.editor_content.move_to(caret_on(300, 0));
+    let _ = state.update(Message::EditorAction(
+        iced::widget::text_editor::Action::Move(iced::widget::text_editor::Motion::Down),
+    ));
+    assert!(
+        state.editor.profile_viewport.first_line() > 0,
+        "the window followed the caret into view"
+    );
+    assert!(
+        !state.editor.profile_viewport.covers_document(),
+        "a 400-line document is windowed, not fully rendered"
+    );
+    let _v = view(&state);
+}
+
 // ---- DUAL-09-05/06/07: shared formatter + shared prune view -----------------
 
 fn history_fixture() -> infiltrator_contract::snapshot_history::SnapshotHistorySnapshot {

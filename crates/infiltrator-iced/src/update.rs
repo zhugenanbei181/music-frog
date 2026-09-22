@@ -193,7 +193,6 @@ impl AppState {
             | Message::ExecuteCommand(_)
             | Message::InspectConnection(_)
             | Message::CloseSingleConnection(_)
-            | Message::InsertYamlSnippet(_)
             | Message::FormatYamlEditor
             | Message::RefreshAppRoutingProcesses
             | Message::AppRoutingProcessesLoaded(_)
@@ -399,6 +398,7 @@ impl AppState {
             | Message::RestoreProfileSnapshot(_)
             | Message::ProfileSnapshotRestored(_)
             | Message::EditorAction(_)
+            | Message::InsertYamlSnippet(_)
             | Message::SaveProfile
             | Message::ProfileSaved(_)
             | Message::SetEditorPane(_)

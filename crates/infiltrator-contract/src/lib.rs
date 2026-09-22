@@ -17,6 +17,7 @@ pub mod design_tokens;
 pub mod dns;
 pub mod dns_form;
 pub mod doctor;
+pub mod editor_viewport;
 pub mod error;
 pub mod intent;
 pub mod ipv6;
@@ -71,6 +72,7 @@ pub mod uwp;
 pub mod version;
 pub mod vpn;
 pub mod yaml_ast_diff;
+pub mod yaml_snippets;
 
 #[cfg(test)]
 mod tests {

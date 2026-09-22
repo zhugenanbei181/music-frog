@@ -391,6 +391,13 @@ pub struct ConfigEditorState {
     pub is_saving_fake_ip: bool,
     pub is_saving_tun: bool,
     pub editor_content: text_editor::Content,
+    /// DUAL-09-02/13: the shared viewport window the profile editor renders.
+    /// The widget owns its pixel scroll; this mirrors its published scroll
+    /// deltas through the shared clamp and follows the caret, which is what
+    /// keeps the line-number gutter and the rendered window in step.
+    pub profile_viewport: infiltrator_contract::editor_viewport::EditorViewport,
+    /// Same window model for the Mixin overlay pane.
+    pub mixin_viewport: infiltrator_contract::editor_viewport::EditorViewport,
     pub editor_path: Option<PathBuf>,
     pub editor_path_setting: String,
     /// DUAL-09-06/07: the shared snapshot history (entries + shared prune

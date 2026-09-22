@@ -354,6 +354,8 @@ impl AppState {
                 tun_strict_route: false,
                 sniffer_enabled: false,
                 editor_content: iced::widget::text_editor::Content::new(),
+                profile_viewport: infiltrator_contract::editor_viewport::EditorViewport::top(1, 1),
+                mixin_viewport: infiltrator_contract::editor_viewport::EditorViewport::top(1, 1),
                 editor_path: None,
                 editor_path_setting: String::new(),
                 snapshot_history: None,

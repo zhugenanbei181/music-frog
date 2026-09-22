@@ -4,10 +4,22 @@
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use crate::types::options::EditorPane;
 use iced::Task;
 use iced::widget::text_editor;
+use infiltrator_contract::editor_viewport::EditorViewport;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::apply::ApplyStrategy;
+
+/// Why the shared editor window is being re-synced (DUAL-09-02/13).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ViewportSync {
+    /// The widget published its own wheel delta and already applied it; the
+    /// shared window mirrors the same clamped delta.
+    Scrolled(i32),
+    /// An action may have moved the caret; the window follows it into view.
+    Caret,
+}
 
 impl AppState {
     /// Profile name of the document currently open in the editor.
@@ -18,6 +30,150 @@ impl AppState {
             .and_then(|path| path.file_stem())
             .and_then(|name| name.to_str())
             .map(str::to_string)
+    }
+
+    /// The window height the document panes can afford, in lines (DUAL-09-02).
+    fn document_window_lines(&self) -> usize {
+        crate::view::editor_viewport::window_lines_for_window_height(self.shell.viewport.height_px)
+    }
+    /// DUAL-09-02/13: keep the shared window in step with the text widget.
+    ///
+    /// The widget owns its pixel scroll offset, so the surface mirrors the
+    /// deltas the widget publishes and applies the same shared clamp. A window
+    /// that moved without the widget moving (a caret step past the window
+    /// edge) is written back through `Action::Scroll`, which is the only way
+    /// Iced 0.14 lets a surface place the editor's viewport.
+    pub(super) fn sync_document_viewport(&mut self, pane: EditorPane, source: ViewportSync) {
+        let window_lines = self.document_window_lines();
+        let (content, viewport) = match pane {
+            EditorPane::Mixin => (
+                &mut self.editor.mixin_content,
+                &mut self.editor.mixin_viewport,
+            ),
+            EditorPane::Profile | EditorPane::Filter | EditorPane::Script => (
+                &mut self.editor.editor_content,
+                &mut self.editor.profile_viewport,
+            ),
+        };
+        let line_count = content.line_count().max(1);
+        let current = viewport.with_document(line_count, window_lines);
+        let caret_line = content.cursor().position.line + 1;
+        let next = match source {
+            ViewportSync::Scrolled(delta) => current.scrolled(delta),
+            ViewportSync::Caret => current.follow_caret(caret_line),
+        };
+        if next.first_line() != current.first_line() {
+            let delta = next.first_line() as i64 - current.first_line() as i64;
+            content.perform(text_editor::Action::Scroll {
+                lines: delta as i32,
+            });
+        }
+        *viewport = next;
+    }
+
+    /// The widget's own scroll restarts at line 0 whenever its content is
+    /// replaced, so the shared window restarts there too and then re-reveals
+    /// the caret. Also called from the format action in the UI domain, which
+    /// replaces the profile buffer the same way.
+    pub(crate) fn reset_document_viewport(&mut self, pane: EditorPane) {
+        let window_lines = self.document_window_lines();
+        let (content, viewport) = match pane {
+            EditorPane::Mixin => (
+                &mut self.editor.mixin_content,
+                &mut self.editor.mixin_viewport,
+            ),
+            EditorPane::Profile | EditorPane::Filter | EditorPane::Script => (
+                &mut self.editor.editor_content,
+                &mut self.editor.profile_viewport,
+            ),
+        };
+        *viewport = EditorViewport::top(content.line_count().max(1), window_lines);
+        self.sync_document_viewport(pane, ViewportSync::Caret);
+    }
+
+    /// Live shared preflight on the profile buffer (same rule as the save gate).
+    fn refresh_profile_preflight(&mut self) {
+        let text = self.editor.editor_content.text();
+        match infiltrator_domain::config::preflight_yaml_syntax(&text) {
+            Ok(()) => {
+                self.editor.syntax_error = None;
+                self.editor.syntax_error_line = None;
+            }
+            Err(diag) => {
+                self.editor.syntax_error = Some(diag.message);
+                self.editor.syntax_error_line = Some(diag.line);
+            }
+        }
+    }
+
+    /// DUAL-09-04: insert a catalogue snippet at the caret through the shared
+    /// application use-case (byte-faithful splice + shared preflight gate).
+    /// The active document pane receives it: the Mixin overlay edits its own
+    /// document, every other pane edits the profile document.
+    pub(super) fn insert_yaml_snippet(&mut self, snippet_id: &'static str) -> Task<Message> {
+        let pane = self.editor.editor_pane;
+        let content = match pane {
+            EditorPane::Mixin => self.editor.mixin_content.text(),
+            EditorPane::Profile | EditorPane::Filter | EditorPane::Script => {
+                self.editor.editor_content.text()
+            }
+        };
+        // The widget reports a byte column; the shared caret is a character
+        // column (see the contract's conversions).
+        let widget_cursor = match pane {
+            EditorPane::Mixin => self.editor.mixin_content.cursor(),
+            EditorPane::Profile | EditorPane::Filter | EditorPane::Script => {
+                self.editor.editor_content.cursor()
+            }
+        };
+        let caret_line = widget_cursor.position.line;
+        let line_text = content.split('\n').nth(caret_line).unwrap_or_default();
+        let caret_column = infiltrator_contract::yaml_snippets::column_of_byte_offset(
+            line_text,
+            widget_cursor.position.column,
+        );
+        match infiltrator_application::profile_document_application::insert_snippet(
+            &content,
+            snippet_id,
+            caret_line + 1,
+            caret_column,
+        ) {
+            Ok(insertion) => {
+                let inserted_line = insertion
+                    .content
+                    .split('\n')
+                    .nth(insertion.cursor_line - 1)
+                    .unwrap_or_default();
+                let cursor = text_editor::Cursor {
+                    position: text_editor::Position {
+                        line: insertion.cursor_line - 1,
+                        column: infiltrator_contract::yaml_snippets::byte_offset_of_column(
+                            inserted_line,
+                            insertion.cursor_column,
+                        ),
+                    },
+                    selection: None,
+                };
+                match pane {
+                    EditorPane::Mixin => {
+                        self.editor.mixin_content =
+                            text_editor::Content::with_text(&insertion.content);
+                        self.editor.mixin_content.move_to(cursor);
+                    }
+                    EditorPane::Profile | EditorPane::Filter | EditorPane::Script => {
+                        self.editor.editor_content =
+                            text_editor::Content::with_text(&insertion.content);
+                        self.editor.editor_content.move_to(cursor);
+                    }
+                }
+                self.reset_document_viewport(pane);
+                if pane == EditorPane::Profile {
+                    self.refresh_profile_preflight();
+                }
+                Task::none()
+            }
+            Err(failure) => Task::done(Message::ShowToast(failure.message, ToastStatus::Error)),
+        }
     }
 
     /// DUAL-09-11: mirror the host core's typed apply outcome into the editor
@@ -49,6 +205,7 @@ impl AppState {
                 Ok((path, content)) => {
                     self.editor.editor_path = Some(path);
                     self.editor.editor_content = text_editor::Content::with_text(&content);
+                    self.reset_document_viewport(EditorPane::Profile);
                     let mut tasks = vec![
                         Task::done(Message::Navigate(crate::types::app::Route::Editor)),
                         Task::done(Message::LoadProfileSnapshots),
@@ -73,20 +230,24 @@ impl AppState {
                 }
             },
             Message::EditorAction(action) => {
+                let scroll_delta = match &action {
+                    text_editor::Action::Scroll { lines } => Some(*lines),
+                    _ => None,
+                };
                 self.editor.editor_content.perform(action);
-                let text = self.editor.editor_content.text();
-                match infiltrator_domain::config::preflight_yaml_syntax(&text) {
-                    Ok(()) => {
-                        self.editor.syntax_error = None;
-                        self.editor.syntax_error_line = None;
-                    }
-                    Err(diag) => {
-                        self.editor.syntax_error = Some(diag.message);
-                        self.editor.syntax_error_line = Some(diag.line);
-                    }
+                // DUAL-09-02/13: the widget's own scroll and the shared window
+                // are synced from the same deltas, so the gutter always shows
+                // the lines the widget rendered.
+                match scroll_delta {
+                    Some(delta) => self
+                        .sync_document_viewport(EditorPane::Profile, ViewportSync::Scrolled(delta)),
+                    None => self.sync_document_viewport(EditorPane::Profile, ViewportSync::Caret),
                 }
+                self.refresh_profile_preflight();
                 Task::none()
             }
+            // DUAL-09-04: the snippet bar dispatches the catalogue id.
+            Message::InsertYamlSnippet(snippet_id) => self.insert_yaml_snippet(snippet_id),
             Message::LoadProfileSnapshots => {
                 let Some(profile) = self.edited_profile() else {
                     self.editor.snapshot_history = None;

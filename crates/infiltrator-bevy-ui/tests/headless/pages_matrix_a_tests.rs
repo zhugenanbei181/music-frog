@@ -4071,3 +4071,197 @@ fn test_profiles_editor_formats_with_the_shared_engine_and_saves_through_the_gua
         other => panic!("expected a SaveProfileDocument command, got {other:?}"),
     }
 }
+
+// ---- DUAL-09-02/04/13: shared viewport, gutter, snippets -------------------
+
+/// Every `Text` entity in a subtree (the bounded-render evidence needs a
+/// count, not just a presence check).
+fn subtree_text_count(world: &bevy::ecs::world::World, root: Entity) -> usize {
+    let mut count = usize::from(world.get::<Text>(root).is_some());
+    if let Some(children) = world.get::<Children>(root) {
+        for child in children.iter() {
+            count += subtree_text_count(world, *child);
+        }
+    }
+    count
+}
+
+fn snippet_button_entity(app: &mut App, index: usize) -> Entity {
+    use infiltrator_bevy_ui::pages::profiles_editor::ProfileEditorSnippetButton;
+    let mut query = app
+        .world_mut()
+        .query::<(Entity, &ProfileEditorSnippetButton)>();
+    query
+        .iter(app.world())
+        .find(|(_, button)| button.index == index)
+        .map(|(entity, _)| entity)
+        .expect("snippet button")
+}
+
+#[test]
+fn test_profiles_editor_renders_a_bounded_window_on_a_large_document() {
+    use infiltrator_bevy_ui::pages::profiles_editor::ProfileEditorBody;
+    use infiltrator_bevy_ui::pages::profiles_editor_state::{
+        PROFILE_EDITOR_RENDER_LIMIT, ProfileEditorState,
+    };
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Profiles);
+
+    // DUAL-09-13 evidence: a 10,000-line document renders the *same* bounded
+    // window as a short one — the count is a real entity count from the
+    // spawned scene, not a claimed frame rate.
+    let large: String = (0..10_000)
+        .map(|index| format!("key-{index}: value-{index}\n"))
+        .collect();
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(editor_page_projection(
+            infiltrator_contract::profile_protection::ProfileWriteProtection::Editable,
+            &large,
+        )));
+    app.update();
+
+    {
+        let state = app.world().resource::<ProfileEditorState>();
+        let viewport = state.viewport();
+        let total = state.buffer.line_count();
+        assert_eq!(total, 10_000, "the buffer keeps every non-empty line");
+        assert_eq!(viewport.rendered_len(), PROFILE_EDITOR_RENDER_LIMIT);
+        assert_eq!(viewport.line_numbers().count(), PROFILE_EDITOR_RENDER_LIMIT);
+        assert_eq!(viewport.hidden_below(), total - PROFILE_EDITOR_RENDER_LIMIT);
+        assert!(!viewport.covers_document());
+    }
+
+    let body = marker_entity::<ProfileEditorBody>(&mut app);
+    let rendered_texts = subtree_text_count(app.world(), body);
+    // Each rendered line contributes its line number plus at least one token;
+    // the window is 240 lines, so the count must stay far below the document's
+    // 10,000 lines and above the window size.
+    assert!(
+        rendered_texts >= PROFILE_EDITOR_RENDER_LIMIT,
+        "the window renders every line of the window ({rendered_texts})"
+    );
+    assert!(
+        rendered_texts <= (PROFILE_EDITOR_RENDER_LIMIT + 2) * 4,
+        "the render is bounded by the window, not the document ({rendered_texts} text nodes)"
+    );
+    let hidden_below = 10_000 - PROFILE_EDITOR_RENDER_LIMIT;
+    assert!(
+        subtree_has_text(
+            app.world(),
+            body,
+            &format!("下方还有 {hidden_below} 行未渲染")
+        ),
+        "the window states its bounds instead of pretending to show everything"
+    );
+
+    // The window follows the caret: moving to the end of the document renders
+    // the last window, and nothing beyond it.
+    {
+        let mut state = app.world_mut().resource_mut::<ProfileEditorState>();
+        state.buffer.cursor_row = state.buffer.line_count() - 1;
+        state.generation = state.generation.wrapping_add(1);
+    }
+    app.update();
+    let state = app.world().resource::<ProfileEditorState>();
+    let viewport = state.viewport();
+    assert_eq!(viewport.last_line(), 9_999);
+    assert_eq!(viewport.hidden_below(), 0);
+    assert_eq!(
+        viewport.hidden_above(),
+        10_000 - PROFILE_EDITOR_RENDER_LIMIT
+    );
+    let body = marker_entity::<ProfileEditorBody>(&mut app);
+    let rendered_texts = subtree_text_count(app.world(), body);
+    assert!(
+        rendered_texts <= (PROFILE_EDITOR_RENDER_LIMIT + 2) * 4,
+        "the window stays bounded while scrolled to the end ({rendered_texts})"
+    );
+}
+
+#[test]
+fn test_profiles_editor_inserts_the_shared_snippet_catalogue() {
+    use infiltrator_bevy_ui::pages::profiles_editor_state::ProfileEditorState;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Profiles);
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(editor_page_projection(
+            infiltrator_contract::profile_protection::ProfileWriteProtection::Editable,
+            "proxies:\n  - name: keep\n",
+        )));
+    app.update();
+
+    // The first button is the first catalogue entry; its body comes from the
+    // contract, and the splice runs through the shared application use-case.
+    // The caret is parked at the end of the last list item first, so the
+    // snippet joins the list instead of splitting a scalar.
+    {
+        let mut state = app.world_mut().resource_mut::<ProfileEditorState>();
+        state.buffer.cursor_row = 1;
+        state.buffer.cursor_col = state.buffer.lines[1].len();
+    }
+    let first = infiltrator_contract::yaml_snippets::YAML_SNIPPETS
+        .first()
+        .expect("catalogue");
+    let button = snippet_button_entity(&mut app, 0);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+
+    let state = app.world().resource::<ProfileEditorState>();
+    let text = state.buffer.full_text();
+    assert!(
+        text.contains(first.body.trim_end()),
+        "the catalogue body is spliced into the Bevy buffer: {text}"
+    );
+    assert!(
+        text.starts_with("proxies:\n  - name: keep"),
+        "the untouched bytes stay in place: {text}"
+    );
+    assert!(state.dirty, "the insertion marks the buffer dirty");
+
+    // A snippet that would break the document is refused with the shared
+    // diagnostic and never rewrites the buffer.
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(editor_page_projection(
+            infiltrator_contract::profile_protection::ProfileWriteProtection::Editable,
+            "mode: rule\n",
+        )));
+    app.update();
+    {
+        // Splitting the scalar to open a block sequence is not valid YAML.
+        let mut state = app.world_mut().resource_mut::<ProfileEditorState>();
+        state.buffer.cursor_col = 6;
+    }
+    let before = app
+        .world()
+        .resource::<ProfileEditorState>()
+        .buffer
+        .full_text();
+    let group = snippet_button_entity(&mut app, 4);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: group });
+    app.update();
+    let state = app.world().resource::<ProfileEditorState>();
+    assert_eq!(
+        state.buffer.full_text(),
+        before,
+        "a refused snippet keeps the user's bytes"
+    );
+    assert!(
+        state
+            .notice
+            .as_deref()
+            .is_some_and(|notice| notice.contains("片段")),
+        "the refusal is surfaced: {:?}",
+        state.notice
+    );
+}

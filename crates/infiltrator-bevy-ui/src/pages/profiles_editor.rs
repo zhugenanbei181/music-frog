@@ -27,11 +27,11 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::input::ButtonInput;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
-use bevy::scene::{CommandsSceneExt, Scene, bsn};
+use bevy::scene::{CommandsSceneExt, Scene, bsn, template_value};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
+    Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
@@ -43,6 +43,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
+use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::profiles::{LastProfilesProjection, ProfilesProjection};
@@ -94,6 +95,13 @@ pub struct ProfileEditorSaveButton;
 /// Explicit unlock for a protected subscription (DUAL-09-12).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProfileEditorProtectionToggle;
+
+/// DUAL-09-04: one snippet-bar button. The component carries the *index* into
+/// the shared catalogue, so the scene never inlines a snippet body.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProfileEditorSnippetButton {
+    pub index: usize,
+}
 
 /// The profile document editor card.
 pub fn profile_editor_scene(
@@ -190,6 +198,19 @@ pub fn profile_editor_scene(
             Box::new(bsn! {
                 Node {
                     width: percent(100),
+                    align_items: AlignItems::Center,
+                    flex_wrap: FlexWrap::Wrap,
+                    column_gap: Val::Px(space::S4),
+                    row_gap: Val::Px(space::S4),
+                }
+                Children [
+                    ( Text({ "快速插入片段（共享目录）".to_owned() }) TextRole(Role::Caption) ),
+                    { snippet_buttons(palette) },
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
                     max_height: px(PROFILE_EDITOR_RENDER_LIMIT as f32 * 18.0),
                     padding: UiRect::all(Val::Px(space::S8)),
                     border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
@@ -212,6 +233,35 @@ pub fn profile_editor_scene(
         ],
         palette,
     )
+}
+
+/// DUAL-09-04: the snippet bar — one button per shared catalogue entry. The
+/// labels and bodies come from `infiltrator_contract::yaml_snippets`, so the
+/// Bevy bar and the Iced bar offer exactly the same snippets.
+fn snippet_buttons(palette: &UiPalette) -> Vec<Box<dyn Scene>> {
+    YAML_SNIPPETS
+        .iter()
+        .enumerate()
+        .map(|(index, snippet)| {
+            let label = snippet.label_zh.to_owned();
+            let background = palette.surface_elevated;
+            Box::new(bsn! {
+                Node {
+                    min_height: px(22.0),
+                    padding: UiRect::horizontal(Val::Px(space::S6)),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                }
+                BackgroundColor({ background })
+                Button
+                template_value(ProfileEditorSnippetButton { index })
+                Children [
+                    ( Text({ label }) TextRole(Role::Caption) ),
+                ]
+            }) as Box<dyn Scene>
+        })
+        .collect()
 }
 
 fn action_button(label: &str, background: Color) -> Box<dyn Scene> {
@@ -346,21 +396,24 @@ fn token_color(kind: SyntaxTokenKind, palette: &UiPalette) -> Color {
 }
 
 /// Gutter + code rows for the current window, with the cursor line washed and
-/// the diagnostic line painted in the danger token.
+/// the diagnostic line painted in the danger token. DUAL-09-02: the window,
+/// the hidden-line counts and the indentation levels come from the shared
+/// `EditorViewport`, so this surface and the Iced editor never drift.
 fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette) -> Box<dyn Scene> {
-    let (start, end) = state.rendered_range();
+    let viewport = state.viewport();
     let diagnostic_row = state.diagnostic.as_ref().map(|diagnostic| diagnostic.line);
     let cursor_row = state.buffer.cursor_row + 1;
-    let mut rows: Vec<Box<dyn Scene>> = Vec::with_capacity(end.saturating_sub(start) + 1);
-    if start > 0 {
+    let mut rows: Vec<Box<dyn Scene>> = Vec::with_capacity(viewport.rendered_len() + 2);
+    if viewport.hidden_above() > 0 {
         rows.push(notice_row(
-            &format!("… 上方还有 {start} 行未渲染（跟随光标窗口）"),
+            &format!(
+                "… 上方还有 {} 行未渲染（跟随光标的有界窗口）",
+                viewport.hidden_above()
+            ),
             palette,
         ));
     }
-    for index in start..end {
-        let number = index + 1;
-        let text = &state.buffer.lines[index];
+    for (number, line, indent_level) in state.rendered_lines() {
         let is_diagnostic = diagnostic_row == Some(number);
         let is_cursor = cursor_row == number && state.focused;
         let background = if is_diagnostic {
@@ -375,7 +428,7 @@ fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette) -> Box<dyn
         } else {
             palette.ink_dim
         };
-        let tokens: Vec<Box<dyn Scene>> = tokenize_yaml_line(text)
+        let tokens: Vec<Box<dyn Scene>> = tokenize_yaml_line(line)
             .into_iter()
             .map(|token| {
                 let color = if is_diagnostic {
@@ -414,15 +467,16 @@ fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette) -> Box<dyn
                         ),
                     ]
                 ),
+                ( { indent_rail(indent_level, palette) } ),
                 { tokens },
             ]
         }));
     }
-    if end < state.buffer.line_count() {
+    if viewport.hidden_below() > 0 {
         rows.push(notice_row(
             &format!(
-                "… 下方还有 {} 行未渲染（虚拟滚动属 DUAL-09-13，尚未实现）",
-                state.buffer.line_count() - end
+                "… 下方还有 {} 行未渲染（有界窗口，不是虚拟滚动）",
+                viewport.hidden_below()
             ),
             palette,
         ));
@@ -434,6 +488,32 @@ fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette) -> Box<dyn
         }
         Children [
             { rows },
+        ]
+    })
+}
+
+/// DUAL-09-02: the shared indentation reference, rendered as a rail at the
+/// start of the row (one tick per closed indentation level).
+fn indent_rail(level: usize, palette: &UiPalette) -> Box<dyn Scene> {
+    let color = palette.accent_container;
+    let mut ticks: Vec<Box<dyn Scene>> = Vec::with_capacity(level);
+    for _ in 0..level {
+        ticks.push(Box::new(bsn! {
+            Node {
+                width: px(2.0),
+                height: px(10.0),
+                margin: UiRect::right(Val::Px(2.0)),
+            }
+            BackgroundColor({ color })
+        }) as Box<dyn Scene>);
+    }
+    Box::new(bsn! {
+        Node {
+            flex_direction: FlexDirection::Row,
+            min_width: px(4.0),
+        }
+        Children [
+            { ticks },
         ]
     })
 }
@@ -639,6 +719,21 @@ pub fn on_profile_editor_format(
     let _ = state.format();
 }
 
+/// DUAL-09-04: insert the catalogue snippet this button stands for.
+pub fn on_profile_editor_snippet_activated(
+    activate: On<Activate>,
+    buttons: Query<&ProfileEditorSnippetButton>,
+    mut state: ResMut<ProfileEditorState>,
+) {
+    let Ok(button) = buttons.get(activate.entity) else {
+        return;
+    };
+    let Some(snippet) = YAML_SNIPPETS.get(button.index) else {
+        return;
+    };
+    let _ = state.insert_snippet(snippet.id);
+}
+
 /// Commit the buffer through the shared guarded write path.
 pub fn on_profile_editor_save(
     activate: On<Activate>,
@@ -770,6 +865,7 @@ impl Plugin for ProfilesEditorPlugin {
         app.add_observer(on_profile_editor_focus);
         app.add_observer(on_profile_editor_reload);
         app.add_observer(on_profile_editor_format);
+        app.add_observer(on_profile_editor_snippet_activated);
         app.add_observer(on_profile_editor_save);
         app.add_observer(on_profile_editor_protection_toggle);
         app.add_observer(sync_profile_editor);

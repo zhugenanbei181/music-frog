@@ -683,6 +683,171 @@ def main() -> int:
         "test_profiles_editor_formats_with_the_shared_engine_and_saves_through_the_guard",
     )
 
+    # 12. DUAL-09-02/04/13: one shared viewport window + one snippet catalogue.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/editor_viewport.rs",
+        "pub struct EditorViewport",
+        "pub fn follow_caret(",
+        "pub fn scrolled(",
+        "pub fn line_numbers(",
+        "pub fn range_label(",
+        "pub fn indent_guides(",
+        "pub fn line_indent_level(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/lib.rs",
+        "pub mod editor_viewport;",
+        "pub mod yaml_snippets;",
+    )
+    # 09-02 Iced: the fixed line metrics, the gutter and the mirrored window.
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/editor_viewport.rs",
+        "pub const EDITOR_LINE_HEIGHT_PX",
+        "pub const EDITOR_MIN_WINDOW_LINES",
+        "pub const EDITOR_MAX_WINDOW_LINES",
+        "pub fn window_lines_for_window_height(",
+        "pub fn editor_box_height_px(",
+        "pub fn editor_element<'a>(",
+        "pub fn gutter<'a>(",
+        "pub fn viewport_label(",
+        "LineHeight::Absolute(Pixels(EDITOR_LINE_HEIGHT_PX))",
+        "Wrapping::None",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/editor.rs",
+        "editor_viewport::gutter(",
+        "editor_viewport::editor_element(",
+        "editor_viewport::viewport_label(",
+        "state.editor.profile_viewport.first_line()",
+        "infiltrator_contract::yaml_snippets::YAML_SNIPPETS",
+        "lang.tr(snippet.label_key)",
+        "Message::InsertYamlSnippet(snippet_id)",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/view/editor.rs",
+        "SNIPPET_SS",
+        "+ Shadowsocks",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/editor.rs",
+        "fn sync_document_viewport(",
+        "ViewportSync::Scrolled(delta)",
+        "text_editor::Action::Scroll",
+        "pub(crate) fn reset_document_viewport(",
+        "pub(super) fn insert_yaml_snippet(",
+        "profile_document_application::insert_snippet(",
+        "column_of_byte_offset(",
+        "byte_offset_of_column(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/state.rs",
+        "pub profile_viewport: infiltrator_contract::editor_viewport::EditorViewport",
+        "pub mixin_viewport: infiltrator_contract::editor_viewport::EditorViewport",
+    )
+    # 09-02 Bevy: the same window model plus the indentation rail.
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor_state.rs",
+        "pub fn viewport(",
+        "pub fn rendered_lines(",
+        "EditorViewport::new(self.buffer.line_count(), PROFILE_EDITOR_RENDER_LIMIT, 0)",
+        "pub fn insert_snippet(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_editor.rs",
+        "fn indent_rail(",
+        "fn snippet_buttons(",
+        "state.rendered_lines()",
+        "有界窗口，不是虚拟滚动",
+        "pub struct ProfileEditorSnippetButton",
+        "ProfileEditorSnippetButton { index }",
+        "pub fn on_profile_editor_snippet_activated(",
+    )
+    # 09-04: one catalogue, one application use-case, both surfaces.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/yaml_snippets.rs",
+        "pub const YAML_SNIPPETS",
+        "pub fn yaml_snippet(",
+        "pub fn insertion_text(",
+        "pub fn insert_at_caret(",
+        "pub fn byte_offset_of_column(",
+        "pub fn column_of_byte_offset(",
+        "pub enum SnippetInsertError",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_document_application.rs",
+        "pub fn insert_snippet(",
+        "insert_at_caret(content, snippet_id, SnippetCaret { line, column })",
+        "preflight_yaml_syntax(&insertion.content)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "yaml_snippet_ss",
+        "yaml_snippet_rule_geoip",
+        "editor_viewport_label",
+        "editor_viewport_hidden_above",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "yaml_snippet_ss",
+        "yaml_snippet_rule_geoip",
+        "editor_viewport_label",
+        "editor_viewport_hidden_above",
+    )
+    # 09-13: bounded-window evidence, never a virtual-scroll claim.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/editor_viewport_test.rs",
+        "window_arithmetic_is_shared_and_deterministic_on_a_large_document",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_editor_viewport_tests.rs",
+        "a_ten_thousand_line_document_still_renders_one_window",
+        "window_lines_track_the_pane_height_and_stay_bounded",
+        "every_catalogue_snippet_is_localized_on_both_surfaces",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_editor_tests.rs",
+        "the_snippet_bar_renders_the_shared_catalogue_and_not_a_local_copy",
+        "insert_yaml_snippet_splices_through_the_shared_application",
+        "the_windowed_editor_and_gutter_follow_the_shared_viewport",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application_tests.rs",
+        "insert_snippet_keeps_the_document_parseable_and_refuses_a_broken_splice",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_profiles_editor_renders_a_bounded_window_on_a_large_document",
+        "test_profiles_editor_inserts_the_shared_snippet_catalogue",
+    )
+    # The ledger must carry the third batch note and keep 09-14 honest.
+    require(
+        violations,
+        LEDGER,
+        "2026-09-22 组 09 第三批",
+        "DUAL-09-02` | Monaco 级代码编辑器视口 | `parity-ready`",
+        "DUAL-09-04` | 常用代码片段一键插入 (Snippets) | `parity-ready`",
+        "DUAL-09-13` | 大文件编辑器性能优化 | `parity-ready`",
+        "DUAL-09-14` | 双端编辑器与 Diff 模态完全镜像 | `shared-ready`",
+    )
+
     # 8. Both test entrypoints register this guard.
     require(
         violations,
@@ -700,7 +865,7 @@ def main() -> int:
             print(f"yaml-diff-guard: {violation}", file=sys.stderr)
         print(f"yaml-diff-guard: violations={len(violations)}", file=sys.stderr)
         return 1 if args.mode == "enforce" else 0
-    print("yaml-diff-guard: DUAL-09 ledger_rows=15 parity_items=11 violations=0")
+    print("yaml-diff-guard: DUAL-09 ledger_rows=15 parity_items=14 violations=0")
     return 0
 
 

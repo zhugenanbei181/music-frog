@@ -8,67 +8,14 @@ use crate::types::options::EditorPane;
 use crate::view::components::{
     card_surface, chip, kbd_badge, segmented_control, style_accent, style_ghost,
 };
+use crate::view::editor_viewport;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
-use iced::widget::{Space, button, column, container, row, text, text_editor};
+use iced::widget::{Row, Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::path::PathBuf;
-
-const SNIPPET_SS: &str = "
-  - name: SS-Node
-    type: ss
-    server: server.example.com
-    port: 8388
-    cipher: aes-256-gcm
-    password: password
-";
-const SNIPPET_VMESS: &str = "
-  - name: Vmess-Node
-    type: vmess
-    server: server.example.com
-    port: 443
-    uuid: a3482e88-7d8f-4a42-9988-1a2b3c4d5e6f
-    alterId: 0
-    cipher: auto
-    tls: true
-";
-const SNIPPET_TROJAN: &str = "
-  - name: Trojan-Node
-    type: trojan
-    server: server.example.com
-    port: 443
-    password: password
-    sni: example.com
-";
-const SNIPPET_HY2: &str = "
-  - name: Hy2-Node
-    type: hysteria2
-    server: server.example.com
-    port: 443
-    password: password
-    sni: example.com
-";
-const SNIPPET_SELECT: &str = "
-  - name: PROXIES
-    type: select
-    proxies:
-      - DIRECT
-";
-const SNIPPET_URLTEST: &str = "
-  - name: AUTO-TEST
-    type: url-test
-    url: http://www.gstatic.com/generate_204
-    interval: 300
-    proxies:
-      - DIRECT
-";
-const SNIPPET_RULE_DOMAIN: &str = "
-  - DOMAIN-SUFFIX,google.com,PROXIES
-";
-const SNIPPET_RULE_GEOIP: &str = "
-  - GEOIP,CN,DIRECT
-";
 
 /// Truncate full SHA-256 to 8-character short hash pill string.
 pub fn format_short_sha(sha: &str) -> String {
@@ -332,19 +279,47 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // Editor area framed in a card surface, mono typeface for YAML. The
     // Mixin pane shows the overlay document; the Filter pane renders the
     // per-profile filter form instead of a text editor.
+    //
+    // DUAL-09-02/13: the two document panes render a *bounded window* of the
+    // document with the shared line-number gutter next to it. The window is an
+    // exact number of fixed-height lines, which is what lets the gutter follow
+    // the widget's own scroll (see `view::editor_viewport`).
+    let document_window = |content: &text_editor::Content, first_line: usize| {
+        editor_viewport::viewport_for(content, state.shell.viewport.height_px, first_line)
+    };
     let editor_document: Element<'_, Message> = match state.editor.editor_pane {
-        EditorPane::Profile => text_editor(&state.editor.editor_content)
-            .on_action(Message::EditorAction)
-            .font(MONO)
-            .padding(14)
-            .height(Length::Fill)
-            .into(),
-        EditorPane::Mixin => text_editor(&state.editor.mixin_content)
-            .on_action(Message::MixinEditorAction)
-            .font(MONO)
-            .padding(14)
-            .height(Length::Fill)
-            .into(),
+        EditorPane::Profile => {
+            let viewport = document_window(
+                &state.editor.editor_content,
+                state.editor.profile_viewport.first_line(),
+            );
+            row![
+                editor_viewport::gutter(&state.editor.editor_content, viewport),
+                Space::new().width(theme::SP_XS),
+                editor_viewport::editor_element(
+                    &state.editor.editor_content,
+                    Message::EditorAction,
+                    viewport.rendered_len(),
+                ),
+            ]
+            .into()
+        }
+        EditorPane::Mixin => {
+            let viewport = document_window(
+                &state.editor.mixin_content,
+                state.editor.mixin_viewport.first_line(),
+            );
+            row![
+                editor_viewport::gutter(&state.editor.mixin_content, viewport),
+                Space::new().width(theme::SP_XS),
+                editor_viewport::editor_element(
+                    &state.editor.mixin_content,
+                    Message::MixinEditorAction,
+                    viewport.rendered_len(),
+                ),
+            ]
+            .into()
+        }
         EditorPane::Filter => crate::view::profile_filter::filter_pane(state),
         EditorPane::Script => crate::view::script_console::view(state),
     };
@@ -467,29 +442,36 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .into()
         });
 
-    let snippets_bar = row![
+    // DUAL-09-04: the snippet bar renders the shared catalogue — the surface
+    // owns no snippet body of its own, and the same ids drive the Bevy bar.
+    let mut snippet_items: Vec<Element<'_, Message>> = vec![
         text(lang.tr("yaml_snippets_title").to_string())
             .size(11)
             .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_tertiary)
-            }),
-        Space::new().width(theme::SP_SM),
-        snip_btn("+ Shadowsocks", SNIPPET_SS),
-        Space::new().width(theme::SP_XS),
-        snip_btn("+ Vmess", SNIPPET_VMESS),
-        Space::new().width(theme::SP_XS),
-        snip_btn("+ Trojan", SNIPPET_TROJAN),
-        Space::new().width(theme::SP_XS),
-        snip_btn("+ Hy2", SNIPPET_HY2),
-        Space::new().width(theme::SP_XS),
-        snip_btn("+ Select", SNIPPET_SELECT),
-        Space::new().width(theme::SP_XS),
-        snip_btn("+ URL-Test", SNIPPET_URLTEST),
-        Space::new().width(theme::SP_XS),
-        snip_btn("+ DOMAIN", SNIPPET_RULE_DOMAIN),
-        Space::new().width(theme::SP_XS),
-        snip_btn("+ GEOIP", SNIPPET_RULE_GEOIP),
+                color: Some(tokens(t).text_tertiary),
+            })
+            .into(),
+    ];
+    for snippet in YAML_SNIPPETS {
+        snippet_items.push(Space::new().width(theme::SP_XS).into());
+        snippet_items.push(snip_btn(lang.tr(snippet.label_key).as_ref(), snippet.id));
+    }
+    let snippets_bar = row![
+        Row::with_children(snippet_items).align_y(Alignment::Center),
         Space::new().width(Length::Fill),
+        super::editor_viewport::viewport_label(
+            match state.editor.editor_pane {
+                EditorPane::Mixin => document_window(
+                    &state.editor.mixin_content,
+                    state.editor.mixin_viewport.first_line(),
+                ),
+                _ => document_window(
+                    &state.editor.editor_content,
+                    state.editor.profile_viewport.first_line(),
+                ),
+            },
+            &lang,
+        ),
         button(
             row![
                 icon_themed(Icon::Code2, 12.0, |t: &Theme| tokens(t).accent),
@@ -542,9 +524,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .into()
 }
 
-fn snip_btn<'a>(label: &'static str, snippet: &'static str) -> Element<'a, Message> {
+fn snip_btn<'a>(label: &str, snippet_id: &'static str) -> Element<'a, Message> {
     button(
-        text(label)
+        text(label.to_owned())
             .size(10)
             .font(MONO)
             .style(|t: &Theme| text::Style {
@@ -567,7 +549,7 @@ fn snip_btn<'a>(label: &'static str, snippet: &'static str) -> Element<'a, Messa
             ..Default::default()
         }
     })
-    .on_press(Message::InsertYamlSnippet(snippet))
+    .on_press(Message::InsertYamlSnippet(snippet_id))
     .into()
 }
 

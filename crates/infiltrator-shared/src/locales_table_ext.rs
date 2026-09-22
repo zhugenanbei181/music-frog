@@ -493,6 +493,18 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "editor_protection_lock" => "恢复只读保护".into(),
         "editor_protection_use_mixin" => "前往 Mixin 覆写".into(),
         "editor_restore_confirm" => "确认恢复".into(),
+        "yaml_snippet_ss" => "+ Shadowsocks".into(),
+        "yaml_snippet_vmess" => "+ Vmess".into(),
+        "yaml_snippet_trojan" => "+ Trojan".into(),
+        "yaml_snippet_hy2" => "+ Hysteria2".into(),
+        "yaml_snippet_select" => "+ 策略组 Select".into(),
+        "yaml_snippet_urltest" => "+ 策略组 URL-Test".into(),
+        "yaml_snippet_rule_domain" => "+ 域名规则".into(),
+        "yaml_snippet_rule_geoip" => "+ GEOIP 规则".into(),
+        "editor_gutter_window" => "行号槽显示当前渲染窗口".into(),
+        "editor_viewport_label" => "视口".into(),
+        "editor_viewport_hidden_above" => "上方 {count} 行未渲染".into(),
+        "editor_viewport_hidden_below" => "下方 {count} 行未渲染".into(),
         _ => key.to_string().into(),
     }
 }

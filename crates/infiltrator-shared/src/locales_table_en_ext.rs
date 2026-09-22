@@ -477,6 +477,18 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "editor_protection_lock" => "Restore Protection".into(),
         "editor_protection_use_mixin" => "Use a Mixin".into(),
         "editor_restore_confirm" => "Confirm Restore".into(),
+        "yaml_snippet_ss" => "+ Shadowsocks".into(),
+        "yaml_snippet_vmess" => "+ Vmess".into(),
+        "yaml_snippet_trojan" => "+ Trojan".into(),
+        "yaml_snippet_hy2" => "+ Hysteria2".into(),
+        "yaml_snippet_select" => "+ Select group".into(),
+        "yaml_snippet_urltest" => "+ URL-Test group".into(),
+        "yaml_snippet_rule_domain" => "+ Domain rule".into(),
+        "yaml_snippet_rule_geoip" => "+ GEOIP rule".into(),
+        "editor_gutter_window" => "Line numbers follow the rendered window".into(),
+        "editor_viewport_label" => "Viewport".into(),
+        "editor_viewport_hidden_above" => "{count} lines above not rendered".into(),
+        "editor_viewport_hidden_below" => "{count} lines below not rendered".into(),
         _ => key.to_string().into(),
     }
 }

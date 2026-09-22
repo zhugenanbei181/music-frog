@@ -103,6 +103,7 @@ impl AppState {
             | Message::RestoreProfileSnapshot(_)
             | Message::ProfileSnapshotRestored(_)
             | Message::EditorAction(_)
+            | Message::InsertYamlSnippet(_)
             | Message::SaveProfile
             | Message::ProfileSaved(_) => self.update_editor(message),
 

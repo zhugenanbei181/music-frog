@@ -10,6 +10,7 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::options::{EditorPane, FilterDraft};
+use crate::update::profile::editor::ViewportSync;
 use iced::Task;
 use iced::widget::text_editor;
 use infiltrator_application::profile_application::ProfileApplication;
@@ -32,7 +33,18 @@ impl AppState {
                 }
             }
             Message::MixinEditorAction(action) => {
+                let scroll_delta = match &action {
+                    text_editor::Action::Scroll { lines } => Some(*lines),
+                    _ => None,
+                };
                 self.editor.mixin_content.perform(action);
+                // DUAL-09-02/13: the Mixin overlay is windowed the same way the
+                // profile document is, from the same shared model.
+                match scroll_delta {
+                    Some(delta) => self
+                        .sync_document_viewport(EditorPane::Mixin, ViewportSync::Scrolled(delta)),
+                    None => self.sync_document_viewport(EditorPane::Mixin, ViewportSync::Caret),
+                }
                 let text = self.editor.mixin_content.text();
                 match infiltrator_domain::config::preflight_yaml_syntax(&text) {
                     Ok(()) => {
@@ -50,6 +62,7 @@ impl AppState {
                 match result {
                     Ok(text) => {
                         self.editor.mixin_content = text_editor::Content::with_text(&text);
+                        self.reset_document_viewport(EditorPane::Mixin);
                     }
                     Err(error) => self.set_error(&error),
                 }

@@ -339,14 +339,6 @@ impl AppState {
                 Task::none()
             }
             Message::CloseSingleConnection(id) => Task::done(Message::CloseConnection(id)),
-            Message::InsertYamlSnippet(snip) => {
-                self.editor
-                    .editor_content
-                    .perform(iced::widget::text_editor::Action::Edit(
-                        iced::widget::text_editor::Edit::Paste(snip.to_string().into()),
-                    ));
-                Task::none()
-            }
             // DUAL-09-05: the shared AST-preserving formatter. A serde
             // re-serialize would drop comments and anchors, so it is not an
             // acceptable fallback here: a refusal keeps the user's bytes and
@@ -357,6 +349,9 @@ impl AppState {
                     Ok(report) => {
                         self.editor.editor_content =
                             iced::widget::text_editor::Content::with_text(&report.content);
+                        // The replaced content restarts the widget's scroll at
+                        // line 0; the shared window restarts with it (DUAL-09-02).
+                        self.reset_document_viewport(crate::types::options::EditorPane::Profile);
                         match report.skip_reason() {
                             Some(reason) if reason.is_advisory() => {
                                 let key = match reason {

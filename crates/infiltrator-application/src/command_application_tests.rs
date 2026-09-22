@@ -412,6 +412,49 @@ async fn load_and_save_profile_document_round_trips_through_the_shared_guard() {
     );
 }
 
+// ---- DUAL-09-04: shared snippet insertion ----------------------------------
+
+#[test]
+fn insert_snippet_keeps_the_document_parseable_and_refuses_a_broken_splice() {
+    let document = "proxies:\n  - name: keep\n    type: ss\nrules:\n  - MATCH,DIRECT\n";
+
+    // A node item appended to the proxies list keeps the document valid, and
+    // every untouched byte is preserved.
+    let insertion = crate::profile_document_application::insert_snippet(document, "ss", 3, 12)
+        .expect("a node item may join the list");
+    assert!(
+        insertion.is_clean(),
+        "the splice keeps the document parseable"
+    );
+    assert!(
+        insertion
+            .content
+            .starts_with("proxies:\n  - name: keep\n    type: ss"),
+        "the original bytes stay in place: {}",
+        insertion.content
+    );
+    assert!(
+        insertion.content.contains("- name: SS-Node"),
+        "the catalogue body is spliced verbatim"
+    );
+
+    // Splitting a scalar to make room for a block sequence is not valid YAML:
+    // the shared preflight refuses it instead of writing a broken profile.
+    let refusal =
+        crate::profile_document_application::insert_snippet("mode: rule\n", "select", 1, 6)
+            .expect_err("a sequence cannot continue a scalar");
+    assert!(
+        refusal.message.contains("片段") && refusal.message.contains("无法解析"),
+        "the typed failure carries the shared diagnostic: {}",
+        refusal.message
+    );
+
+    // An unknown id is a programming error, never a silently dropped insert.
+    let unknown = crate::profile_document_application::insert_snippet(document, "nope", 1, 0)
+        .expect_err("unknown snippet ids are rejected");
+    assert!(unknown.message.contains("nope"));
+}
+
 #[tokio::test]
 async fn snapshot_history_intents_require_the_shared_application() {
     let store = Arc::new(FakeStore::with_profile(THREE_RULES));

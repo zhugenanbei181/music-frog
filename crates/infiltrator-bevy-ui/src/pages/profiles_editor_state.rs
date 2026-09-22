@@ -9,6 +9,7 @@ use bevy::color::Color;
 use bevy::ecs::resource::Resource;
 use infiltrator_bevy_widgets::editor::CodeEditorState;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_contract::editor_viewport::{EditorViewport, line_indent_level};
 use infiltrator_contract::profile_document::{ProfileDocumentSnapshot, SyntaxDiagnosticSnapshot};
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_domain::config::preflight_yaml_syntax;
@@ -18,7 +19,8 @@ use crate::pages::profiles::ProfilesProjection;
 
 /// Maximum number of lines rendered per frame (no virtual scroll; see the
 /// scene module docs). The window follows the cursor, so editing never leaves
-/// the window.
+/// the window, and it is the `window_lines` parameter of the *shared*
+/// [`EditorViewport`] — the same window arithmetic the Iced editor uses.
 pub const PROFILE_EDITOR_RENDER_LIMIT: usize = 240;
 
 /// Surface-local editor state. The document itself stays owned by the shared
@@ -128,23 +130,63 @@ impl ProfileEditorState {
         !self.profile.is_empty() && (!protection.is_protected() || self.protection_override)
     }
 
-    /// First rendered line of the cursor-following window.
-    pub fn window_start(&self) -> usize {
-        self.buffer
-            .cursor_row
-            .saturating_sub(PROFILE_EDITOR_RENDER_LIMIT / 2)
+    /// DUAL-09-02: the shared window the body renders. The caret follows the
+    /// window through the same rule the Iced surface uses.
+    pub fn viewport(&self) -> EditorViewport {
+        EditorViewport::new(self.buffer.line_count(), PROFILE_EDITOR_RENDER_LIMIT, 0)
+            .follow_caret(self.buffer.cursor_row + 1)
     }
 
-    /// Rendered line range (inclusive start, exclusive end).
-    pub fn rendered_range(&self) -> (usize, usize) {
-        if self.buffer.line_count() <= PROFILE_EDITOR_RENDER_LIMIT {
-            return (0, self.buffer.line_count());
+    /// The lines of the rendered window, with their shared indentation levels.
+    pub fn rendered_lines(&self) -> Vec<(usize, &str, usize)> {
+        let viewport = self.viewport();
+        (viewport.first_line()..=viewport.last_line())
+            .filter_map(|index| {
+                self.buffer
+                    .lines
+                    .get(index)
+                    .map(|line| (index + 1, line.as_str(), line_indent_level(line)))
+            })
+            .collect()
+    }
+
+    /// DUAL-09-04: insert a catalogue snippet at the caret through the shared
+    /// application use-case — the same splice and the same preflight gate the
+    /// Iced surface runs.
+    pub fn insert_snippet(&mut self, snippet_id: &str) -> Result<(), String> {
+        let text = self.buffer.full_text();
+        let caret_line = self.buffer.cursor_row.min(self.buffer.line_count() - 1);
+        let line_text = self.buffer.lines[caret_line].as_str();
+        let caret_column = infiltrator_contract::yaml_snippets::column_of_byte_offset(
+            line_text,
+            self.buffer.cursor_col,
+        );
+        match infiltrator_application::profile_document_application::insert_snippet(
+            &text,
+            snippet_id,
+            caret_line + 1,
+            caret_column,
+        ) {
+            Ok(insertion) => {
+                let cursor_row = insertion.cursor_line - 1;
+                self.buffer = CodeEditorState::new(&insertion.content);
+                self.buffer.cursor_row = cursor_row.min(self.buffer.line_count().saturating_sub(1));
+                let inserted_line = &self.buffer.lines[self.buffer.cursor_row];
+                self.buffer.cursor_col = infiltrator_contract::yaml_snippets::byte_offset_of_column(
+                    inserted_line,
+                    insertion.cursor_column,
+                );
+                self.notice = insertion.syntax.as_ref().map(|diagnostic| {
+                    format!("{} · {}", diagnostic.line_label(), diagnostic.message)
+                });
+                self.after_edit();
+                Ok(())
+            }
+            Err(failure) => {
+                self.notice = Some(failure.message.clone());
+                Err(failure.message)
+            }
         }
-        let start = self.window_start();
-        (
-            start,
-            (start + PROFILE_EDITOR_RENDER_LIMIT).min(self.buffer.line_count()),
-        )
     }
 }
 
@@ -163,6 +205,12 @@ pub(crate) fn status_line(
         state.buffer.cursor_row + 1,
         state.buffer.cursor_col + 1
     ));
+    // DUAL-09-02: the shared window is stated, not implied — a windowed
+    // document says which lines it is rendering right now.
+    let viewport = state.viewport();
+    if !viewport.covers_document() {
+        parts.push(viewport.range_label());
+    }
     if state.focused {
         parts.push("键盘已接管".to_owned());
     }
