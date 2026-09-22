@@ -15,7 +15,7 @@ use infiltrator_bevy_widgets::button::{
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::theme::{LightDark, Theme};
+use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -185,7 +185,7 @@ fn button_theme_flip_repaints_in_place() {
 
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Light));
+        .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
 
     let light_palette = UiPalette::new(&Theme::light());

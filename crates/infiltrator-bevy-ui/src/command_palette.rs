@@ -25,9 +25,9 @@ use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::{LightDark, space};
+use infiltrator_bevy_widgets::theme::space;
 
-use crate::app::ThemeMode;
+use crate::appearance::ThemeMode;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{ActiveRoute, Route, RouteChanged};
 use infiltrator_contract::command::ProxyMode;
@@ -598,14 +598,18 @@ pub fn on_execute_selected_palette_action(
             sink.submit(cmd);
         }
         if action.id == "theme.toggle" {
-            let next_skin = match theme_mode.as_ref().map(|m| m.0).unwrap_or(LightDark::Dark) {
-                LightDark::Dark => LightDark::Light,
-                LightDark::Light => LightDark::Dark,
-            };
-            if let Some(mut tm) = theme_mode {
-                tm.0 = next_skin;
+            let next_preference = theme_mode
+                .as_ref()
+                .map(|mode| mode.0)
+                .unwrap_or_default()
+                .next();
+            if let Some(mut mode) = theme_mode {
+                mode.0 = next_preference;
             }
-            commands.trigger(ThemeSwitch(next_skin));
+            commands.trigger(ThemeSwitch(crate::appearance::resolved_skin(
+                next_preference,
+                None,
+            )));
         }
     }
     state.close();

@@ -18,7 +18,7 @@ use infiltrator_bevy_widgets::stat_chip::{
 };
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::{LightDark, Theme};
+use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -100,7 +100,7 @@ fn chip_fill_flips_with_the_theme_without_respawn() {
 
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Light));
+        .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
 
     let light = UiPalette::new(&Theme::light());

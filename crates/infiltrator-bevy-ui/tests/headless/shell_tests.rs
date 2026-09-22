@@ -27,8 +27,9 @@ use infiltrator_bevy_ui::app::{
     ShellHeader, ShellLayoutState, ShellPlugin, ShellRoot, SidebarActiveProfileCard,
     SidebarNavItem, SidebarPanel, SidebarScriptModePill, SidebarShortcutMatrix,
     SidebarShortcutTile, SidebarSpeedFooter, SidebarSystemProxyCard, SidebarSystemProxyToggle,
-    SidebarTunCard, SidebarTunToggle, ThemeMode, ThemeToggle,
+    SidebarTunCard, SidebarTunToggle, ThemeToggle,
 };
+use infiltrator_bevy_ui::appearance::ThemeMode;
 use infiltrator_bevy_ui::pages::overview::OverviewModePill;
 use infiltrator_bevy_ui::route::{ActiveRoute, Route};
 use infiltrator_bevy_widgets::button::ControlVisual;
@@ -38,8 +39,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::{Density, ResponsiveContext};
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::{Breakpoint, LightDark, Theme};
+use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, ThemeSkin};
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::theme::ThemePreference;
 
 #[test]
 fn shell_mounts_camera_content_slot_and_stamped_header() {
@@ -296,7 +298,7 @@ fn theme_switch_restamps_ink_and_fill_in_place() {
 
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Light));
+        .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
     let world = app.world_mut();
 
@@ -316,7 +318,7 @@ fn theme_switch_restamps_ink_and_fill_in_place() {
 
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Dark));
+        .trigger(ThemeSwitch(ThemeSkin::Dark));
     app.update();
     let world = app.world_mut();
 
@@ -348,7 +350,7 @@ fn theme_flip_repaints_every_sidebar_surface_in_place() {
 
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Light));
+        .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
 
     let light = UiPalette::new(&Theme::light());
@@ -394,7 +396,7 @@ fn theme_flip_repaints_every_sidebar_surface_in_place() {
 }
 
 #[test]
-fn activating_the_pill_flips_the_mode_mirror() {
+fn activating_the_pill_cycles_every_shared_skin() {
     let mut app = mounted_shell();
     let pill = theme_pill_entity(app.world_mut());
     let slot = {
@@ -404,33 +406,61 @@ fn activating_the_pill_flips_the_mode_mirror() {
     };
     let dark = UiPalette::new(&Theme::dark());
     let light = UiPalette::new(&Theme::light());
-    assert_eq!(app.world().resource::<ThemeMode>().0, LightDark::Dark);
+    let forest = UiPalette::new(&Theme::forest());
+    let amoled = UiPalette::new(&Theme::amoled());
+    // Cold start: the preference follows the OS and the shell paints its
+    // documented dark default until a window reports its appearance.
+    assert_eq!(
+        app.world().resource::<ThemeMode>().0,
+        ThemePreference::System
+    );
+    assert_eq!(app.world().resource::<UiPalette>(), &dark);
 
     // A non-pill activation is a no-op for the mode.
     app.world_mut()
         .commands()
         .trigger(Activate { entity: slot });
     app.update();
-    assert_eq!(app.world().resource::<ThemeMode>().0, LightDark::Dark);
+    assert_eq!(
+        app.world().resource::<ThemeMode>().0,
+        ThemePreference::System
+    );
     assert_eq!(app.world().resource::<UiPalette>(), &dark);
 
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: pill });
-    app.update();
-    assert_eq!(app.world().resource::<ThemeMode>().0, LightDark::Light);
-    assert_eq!(app.world().resource::<UiPalette>(), &light);
-
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: pill });
-    app.update();
-    assert_eq!(app.world().resource::<ThemeMode>().0, LightDark::Dark);
-    assert_eq!(
-        app.world().resource::<UiPalette>(),
-        &dark,
-        "palette is Color-exact through the round trip"
-    );
+    let expectations = [
+        (
+            ThemePreference::Fixed(infiltrator_contract::theme::ThemeSkin::Dark),
+            dark,
+        ),
+        (
+            ThemePreference::Fixed(infiltrator_contract::theme::ThemeSkin::Light),
+            light,
+        ),
+        (
+            ThemePreference::Fixed(infiltrator_contract::theme::ThemeSkin::Forest),
+            forest,
+        ),
+        (
+            ThemePreference::Fixed(infiltrator_contract::theme::ThemeSkin::Amoled),
+            amoled,
+        ),
+        (
+            ThemePreference::Fixed(infiltrator_contract::theme::ThemeSkin::Dark),
+            dark,
+        ),
+    ];
+    for (expected, palette) in expectations {
+        app.world_mut()
+            .commands()
+            .trigger(Activate { entity: pill });
+        app.update();
+        assert_eq!(app.world().resource::<ThemeMode>().0, expected);
+        assert_eq!(
+            app.world().resource::<UiPalette>(),
+            &palette,
+            "palette is Color-exact for {expected:?}"
+        );
+    }
 }
 
 #[test]
@@ -676,7 +706,7 @@ fn theme_flip_repaints_bottom_nav_bar_in_place() {
     // Flip to light theme
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Light));
+        .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
 
     let light = UiPalette::new(&Theme::light());

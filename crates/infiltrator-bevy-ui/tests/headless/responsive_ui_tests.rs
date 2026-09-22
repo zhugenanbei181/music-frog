@@ -119,7 +119,9 @@ fn setup_responsive_app(width: f32) -> App {
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::new_with_width(
-        infiltrator_bevy_widgets::theme::LightDark::Dark,
+        infiltrator_contract::theme::ThemePreference::Fixed(
+            infiltrator_contract::theme::ThemeSkin::Dark,
+        ),
         width,
     ));
     app.add_plugins(PagesPlugin::new(DemoOverviewSource::running()));

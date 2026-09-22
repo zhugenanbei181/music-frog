@@ -620,24 +620,40 @@ pub fn tokens(theme: &Theme) -> &'static Tokens {
 
 /// Canonical string identifier for a theme ("light", "dark", "forest", "amoled").
 pub fn theme_to_name(theme: &Theme) -> &'static str {
+    theme_for_skin_name(theme).as_setting()
+}
+
+/// Which shared skin a painted [`Theme`] corresponds to.
+pub fn theme_for_skin_name(theme: &Theme) -> infiltrator_contract::theme::ThemeSkin {
     if is_forest(theme) {
-        "forest"
+        infiltrator_contract::theme::ThemeSkin::Forest
     } else if is_amoled(theme) {
-        "amoled"
+        infiltrator_contract::theme::ThemeSkin::Amoled
     } else if matches!(theme, Theme::Light) {
-        "light"
+        infiltrator_contract::theme::ThemeSkin::Light
     } else {
-        "dark"
+        infiltrator_contract::theme::ThemeSkin::Dark
     }
 }
 
-/// Parse a theme identifier string into an iced Theme.
+/// Paint one shared skin. The single mapping from the shared vocabulary to
+/// the Iced toolkit theme.
+pub fn theme_for_skin(skin: infiltrator_contract::theme::ThemeSkin) -> Theme {
+    match skin {
+        infiltrator_contract::theme::ThemeSkin::Dark => Theme::Dark,
+        infiltrator_contract::theme::ThemeSkin::Light => Theme::Light,
+        infiltrator_contract::theme::ThemeSkin::Forest => forest_theme(),
+        infiltrator_contract::theme::ThemeSkin::Amoled => amoled_theme(),
+    }
+}
+
+/// Parse a theme identifier string into an iced Theme. The shared contract
+/// owns the accepted spellings; an unknown value honestly falls back to the
+/// cold-start dark skin.
 pub fn theme_from_name(value: &str) -> Theme {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "forest" | "eyeforest" | "eye-forest" => forest_theme(),
-        "amoled" | "black" | "pitch-black" | "pitch_black" | "pitchblack" => amoled_theme(),
-        "light" => Theme::Light,
-        _ => Theme::Dark,
+    match infiltrator_contract::theme::ThemeSkin::from_setting(value) {
+        Some(skin) => theme_for_skin(skin),
+        None => Theme::Dark,
     }
 }
 

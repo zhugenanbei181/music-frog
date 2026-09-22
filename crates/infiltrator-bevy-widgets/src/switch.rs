@@ -8,9 +8,9 @@
 //! identity, only component values change (charter law: observers change
 //! components, never rebuild trees).
 //!
-//! The switch carries a [`LightDark`] mode, not a [`Theme`] value: callers
-//! can only pick between the two token sets defined in [`crate::theme`], so
-//! an off-token color has no path into the palette.
+//! The switch carries a [`ThemeSkin`] (never a [`Theme`] value): callers can
+//! only pick between the four token sets defined in [`crate::theme`], so an
+//! off-token color has no path into the palette.
 
 use bevy::ecs::event::Event;
 use bevy::ecs::observer::On;
@@ -23,12 +23,12 @@ use crate::button::{ControlVisual, control_fill};
 use crate::fonts::FontSources;
 use crate::palette::UiPalette;
 use crate::text::{TextRole, role_typography};
-use crate::theme::{LightDark, Theme};
+use crate::theme::{Theme, ThemeSkin};
 
 /// Pick one of the token sets defined in [`crate::theme`]. Observe with
 /// [`apply_theme`], registered by [`crate::WidgetsPlugin`].
 #[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ThemeSwitch(pub LightDark);
+pub struct ThemeSwitch(pub ThemeSkin);
 
 /// Re-resolve the palette for the switched mode and restamp the mounted
 /// tree in place. Text roles re-project size/face/ink; pill fills

@@ -16,7 +16,7 @@ use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::nav::{NavActive, NavItem, nav_fill, nav_item_scene, nav_label_ink};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::theme::{LightDark, Theme};
+use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -113,7 +113,7 @@ fn theme_flip_repaints_items_without_respawn() {
 
     app.world_mut()
         .commands()
-        .trigger(ThemeSwitch(LightDark::Light));
+        .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
 
     let light = UiPalette::new(&Theme::light());

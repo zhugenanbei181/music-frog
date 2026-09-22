@@ -27,3 +27,12 @@ mod command_palette_tests;
 
 #[path = "headless/surface_tests.rs"]
 mod surface_tests;
+
+#[path = "headless/theme_skin_tests.rs"]
+mod theme_skin_tests;
+
+#[path = "headless/shortcut_tests.rs"]
+mod shortcut_tests;
+
+#[path = "headless/toast_overlay_tests.rs"]
+mod toast_overlay_tests;

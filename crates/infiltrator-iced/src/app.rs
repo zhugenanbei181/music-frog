@@ -403,6 +403,10 @@ impl AppState {
                 error_msg: None,
                 lang: get_system_language(),
                 toasts: Vec::new(),
+                toast_ids: Vec::new(),
+                toast_gate: infiltrator_contract::toast::ToastGate::default(),
+                toast_epoch: std::time::Instant::now(),
+                next_toast_id: 1,
                 theme: iced::Theme::Dark,
                 tray_controller: None,
                 tray_events: None,
@@ -442,26 +446,11 @@ impl AppState {
                 command_selected_index: 0,
                 mini_hud_mode: false,
                 always_on_top: false,
-                hotkeys_config: vec![
-                    crate::types::app::HotkeyBinding {
-                        id: "system_proxy".into(),
-                        action_title_key: "hotkey_system_proxy",
-                        combo: "Ctrl+Alt+P".into(),
-                        enabled: true,
-                    },
-                    crate::types::app::HotkeyBinding {
-                        id: "tun_mode".into(),
-                        action_title_key: "hotkey_tun_mode",
-                        combo: "Ctrl+Alt+T".into(),
-                        enabled: true,
-                    },
-                    crate::types::app::HotkeyBinding {
-                        id: "mini_hud".into(),
-                        action_title_key: "hotkey_mini_hud",
-                        combo: "Ctrl+Alt+M".into(),
-                        enabled: true,
-                    },
-                ],
+                theme_preference: infiltrator_contract::theme::ThemePreference::System,
+                system_prefers_dark: true,
+                shortcut_registry: infiltrator_contract::shortcuts::ShortcutRegistry::with_defaults(
+                ),
+                hotkey_capture: None,
                 uwp_loopback: Default::default(),
             },
             app_routing: Default::default(),
@@ -535,6 +524,10 @@ impl AppState {
                     Message::ProfilesLoaded,
                 ),
                 Task::done(Message::LoadKernels),
+                // 启动即读取 OS 外观：`system` 偏好下冷启动就与系统一致。
+                iced::system::theme().map(|mode| {
+                    Message::SystemThemeChanged(matches!(mode, iced::theme::Mode::Dark))
+                }),
                 // desktop-smoke 钩子（仅测试用）：INFILTRATOR_FORCE_NOTIFY=1
                 // 时启动即发一条探针通知，见 notify.rs 模块文档。
                 crate::notify::startup_probe_task(),

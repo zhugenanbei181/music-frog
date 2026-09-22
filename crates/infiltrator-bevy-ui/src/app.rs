@@ -12,6 +12,7 @@ use bevy::camera::ClearColor;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::message::MessageWriter;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
@@ -28,10 +29,10 @@ use infiltrator_bevy_widgets::icon::IconTint;
 use infiltrator_bevy_widgets::nav::{NavActive, NavLabel, nav_fill, nav_label_ink};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::{Density, DensitySwitch, ResponsiveContext};
-use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::{Breakpoint, LightDark, Theme, space};
+use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, space};
 use infiltrator_contract::system_toggle::SystemToggle;
+use infiltrator_contract::theme::ThemePreference;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::controller::FailureDwell;
@@ -234,10 +235,6 @@ pub struct BottomNavActive(pub bool);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SidebarFoot;
 
-/// The shell's mirror of the current appearance.
-#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ThemeMode(pub LightDark);
-
 /// Latch for a proxy-mode command in flight.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ModeCommandInFlight(pub bool);
@@ -277,24 +274,6 @@ pub fn region_semantic_node(label: &str) -> AccessibilityNode {
     let mut node = accesskit::Node::new(accesskit::Role::Region);
     node.set_label(label);
     AccessibilityNode(node)
-}
-
-/// Theme toggle observer.
-fn on_theme_pill_activated(
-    activate: On<Activate>,
-    toggles: Query<(), With<ThemeToggle>>,
-    mut mode: ResMut<ThemeMode>,
-    mut commands: Commands,
-) {
-    if !toggles.contains(activate.entity) {
-        return;
-    }
-    let next = match mode.0 {
-        LightDark::Dark => LightDark::Light,
-        LightDark::Light => LightDark::Dark,
-    };
-    mode.0 = next;
-    commands.trigger(ThemeSwitch(next));
 }
 
 /// Density toggle observer.
@@ -454,6 +433,7 @@ fn drain_mode_ack(
     mut in_flight: ResMut<ModeCommandInFlight>,
     handle: Option<Res<OverviewSourceHandle>>,
     mut dwell: Option<ResMut<FailureDwell>>,
+    mut toast_requests: MessageWriter<crate::toast::ShellToast>,
     mut commands: Commands,
 ) {
     let Some(slot) = pending.0.as_mut() else {
@@ -487,6 +467,11 @@ fn drain_mode_ack(
             if let Some(dwell) = dwell.as_deref_mut() {
                 dwell.latch(Instant::now());
             }
+            // User-visible feedback: one redacted, deduplicated toast per
+            // distinct mode-switch failure (shared notification policy).
+            toast_requests.write(crate::toast::ShellToast::danger(format!(
+                "模式切换失败：{reason}"
+            )));
             commands.trigger(OverviewProjectionUpdated(projection));
         }
     }
@@ -494,21 +479,21 @@ fn drain_mode_ack(
 
 /// App shell plugin.
 pub struct ShellPlugin {
-    mode: LightDark,
+    preference: ThemePreference,
     initial_width_px: Option<f32>,
 }
 
 impl ShellPlugin {
-    pub fn new(mode: LightDark) -> Self {
+    pub fn new(preference: ThemePreference) -> Self {
         Self {
-            mode,
+            preference,
             initial_width_px: None,
         }
     }
 
-    pub fn new_with_width(mode: LightDark, width_px: f32) -> Self {
+    pub fn new_with_width(preference: ThemePreference, width_px: f32) -> Self {
         Self {
-            mode,
+            preference,
             initial_width_px: Some(width_px),
         }
     }
@@ -516,14 +501,19 @@ impl ShellPlugin {
 
 impl Default for ShellPlugin {
     fn default() -> Self {
-        Self::new(LightDark::Dark)
+        Self::new(ThemePreference::default())
     }
 }
 
 impl Plugin for ShellPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(WidgetsPlugin::new(&Theme::for_mode(self.mode)));
-        app.insert_resource(ThemeMode(self.mode));
+        app.add_plugins(WidgetsPlugin::new(&Theme::for_mode(
+            crate::appearance::resolved_skin(self.preference, None),
+        )));
+        app.add_plugins(crate::shortcuts::ShortcutsPlugin);
+        app.add_plugins(crate::toast::ShellToastPlugin);
+        app.insert_resource(crate::appearance::ThemeMode(self.preference));
+        app.init_resource::<crate::appearance::SystemAppearance>();
 
         let width = self.initial_width_px.unwrap_or(1180.0);
         let initial_layout = ShellLayoutState::from_width(width);
@@ -533,7 +523,7 @@ impl Plugin for ShellPlugin {
         app.init_resource::<ModeCommandInFlight>();
         app.init_resource::<PendingModeAck>();
         app.init_resource::<SidebarToggleProjection>();
-        app.add_observer(on_theme_pill_activated);
+        app.add_observer(crate::appearance::on_theme_pill_activated);
         app.add_observer(on_density_pill_activated);
         app.add_observer(on_mode_pill_activated);
         app.add_observer(on_bottom_nav_activated);
@@ -555,6 +545,7 @@ impl Plugin for ShellPlugin {
                 sync_bottom_nav_visuals,
                 sync_responsive_shell,
                 sync_window_clear,
+                crate::appearance::sync_system_appearance,
                 drain_mode_ack,
             ),
         );

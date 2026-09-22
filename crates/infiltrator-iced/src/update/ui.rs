@@ -1,8 +1,10 @@
 use crate::state::AppState;
 use crate::types::app::{ConfirmAction, Route, ToastStatus};
 use crate::types::message::Message;
-use iced::{Task, Theme, window};
+use iced::Task;
+use iced::window;
 use infiltrator_contract::error::InfiltratorError;
+
 use std::path::Path;
 use std::time::Instant;
 
@@ -126,20 +128,6 @@ impl AppState {
                         self.shell.transition.start_time = None;
                     }
                 }
-                Task::none()
-            }
-            Message::ToggleTheme => {
-                self.shell.theme = if self.shell.theme == Theme::Dark {
-                    Theme::Light
-                } else if self.shell.theme == Theme::Light {
-                    crate::view::theme::forest_theme()
-                } else {
-                    Theme::Dark
-                };
-                Task::none()
-            }
-            Message::SetTheme(theme_name) => {
-                self.shell.theme = crate::view::theme::theme_from_name(&theme_name);
                 Task::none()
             }
             Message::TogglePerfPanel => {
@@ -727,41 +715,20 @@ impl AppState {
                 self.editor.snapshot_diff_modal_open = false;
                 Task::done(Message::RestoreProfileSnapshot(id.into()))
             }
-            Message::UpdateHotkeyCombo { id, combo } => {
-                if let Some(h) = self.shell.hotkeys_config.iter_mut().find(|h| h.id == id) {
-                    h.combo = combo;
-                }
-                Task::none()
-            }
-            Message::ToggleHotkeyEnabled(id) => {
-                if let Some(h) = self.shell.hotkeys_config.iter_mut().find(|h| h.id == id) {
-                    h.enabled = !h.enabled;
-                }
-                Task::none()
-            }
-            Message::ShowToast(content, status) => {
-                // Toast text originates from raw error chains (subscription
-                // updates, transport failures) that can embed access tokens;
-                // redact here — the one ingestion point for every toast —
-                // before anything reaches the screen (CORE-001).
-                self.shell
-                    .toasts
-                    .push((crate::utils::sanitize_ui_text(&content), status));
-                let index = self.shell.toasts.len() - 1;
-                Task::perform(
-                    async move {
-                        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                        index
-                    },
-                    Message::RemoveToast,
-                )
-            }
-            Message::RemoveToast(index) => {
-                if index < self.shell.toasts.len() {
-                    self.shell.toasts.remove(index);
-                }
-                Task::none()
-            }
+            // Group 15 shell domain (appearance preference, global shortcut
+            // registry, toast ingestion) lives in `update/shell.rs`.
+            Message::ToggleTheme
+            | Message::SetTheme(_)
+            | Message::SystemThemeChanged(_)
+            | Message::CycleThemePreference
+            | Message::BeginHotkeyCapture(_)
+            | Message::CancelHotkeyCapture
+            | Message::KeyboardChord { .. }
+            | Message::ToggleHotkeyEnabled(_)
+            | Message::ResetHotkey(_)
+            | Message::ShortcutsUpdated(_)
+            | Message::ShowToast(_, _)
+            | Message::RemoveToast(_) => self.update_shell(message).unwrap_or_else(Task::none),
             Message::UpdateSystemProxyBypass(bypass) => {
                 self.shell.system_proxy_bypass = bypass;
                 Task::none()
@@ -818,7 +785,6 @@ impl AppState {
         }
     }
 }
-
 fn open_directory(path: &Path) -> Result<(), InfiltratorError> {
     #[cfg(target_os = "windows")]
     let result = std::process::Command::new("explorer").arg(path).spawn();

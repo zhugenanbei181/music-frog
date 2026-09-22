@@ -30,18 +30,69 @@ impl TokenColor {
     }
 }
 
-/// Which appearance the tokens resolve for.
+/// Which appearance the tokens resolve for. The four skins mirror
+/// `infiltrator_contract::theme::ThemeSkin` (the widget layer is
+/// business-agnostic by charter and cannot depend on the contract crate);
+/// `crates/infiltrator-bevy-ui/tests/headless/theme_parity_tests.rs` asserts
+/// the two vocabularies never drift.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum LightDark {
+pub enum ThemeSkin {
     #[default]
     Dark,
     Light,
+    /// Eye-care forest appearance (mirrors the Iced `FOREST` token set).
+    Forest,
+    /// Pitch-black OLED appearance (mirrors the Iced `AMOLED` token set).
+    Amoled,
+}
+
+impl ThemeSkin {
+    pub const ALL: [Self; 4] = [Self::Dark, Self::Light, Self::Forest, Self::Amoled];
+
+    /// Canonical settings value (must equal the contract's spelling).
+    pub const fn as_setting(self) -> &'static str {
+        match self {
+            Self::Dark => "dark",
+            Self::Light => "light",
+            Self::Forest => "forest",
+            Self::Amoled => "amoled",
+        }
+    }
+
+    pub const fn to_index(self) -> usize {
+        match self {
+            Self::Dark => 0,
+            Self::Light => 1,
+            Self::Forest => 2,
+            Self::Amoled => 3,
+        }
+    }
+
+    pub const fn from_index(index: usize) -> Self {
+        match index {
+            1 => Self::Light,
+            2 => Self::Forest,
+            3 => Self::Amoled,
+            _ => Self::Dark,
+        }
+    }
+
+    /// Whether the skin paints a dark canvas (icon tiles and hover washes
+    /// tint more strongly on dark tokens).
+    pub const fn is_dark(self) -> bool {
+        matches!(self, Self::Dark | Self::Amoled)
+    }
+
+    /// Next skin in the shell's appearance cycle.
+    pub const fn next(self) -> Self {
+        Self::ALL[(self.to_index() + 1) % Self::ALL.len()]
+    }
 }
 
 /// The resolved token set for one appearance.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Theme {
-    pub mode: LightDark,
+    pub mode: ThemeSkin,
     /// Window backdrop (iced: canvas).
     pub window_bg: TokenColor,
     /// Card / panel fill.
@@ -83,10 +134,12 @@ pub struct Theme {
 impl Theme {
     /// The token set for one appearance — the only constructor runtime
     /// switches may use, so a `ThemeSwitch` can never inject off-token colors.
-    pub fn for_mode(mode: LightDark) -> Self {
+    pub fn for_mode(mode: ThemeSkin) -> Self {
         match mode {
-            LightDark::Dark => Self::dark(),
-            LightDark::Light => Self::light(),
+            ThemeSkin::Dark => Self::dark(),
+            ThemeSkin::Light => Self::light(),
+            ThemeSkin::Forest => Self::forest(),
+            ThemeSkin::Amoled => Self::amoled(),
         }
     }
 
@@ -94,7 +147,7 @@ impl Theme {
     /// is [`crate::switch::ThemeSwitch`].
     pub fn dark() -> Self {
         Self {
-            mode: LightDark::Dark,
+            mode: ThemeSkin::Dark,
             window_bg: TokenColor::rgb(0.055, 0.063, 0.078), // #0E1014
             surface: TokenColor::rgb(0.129, 0.141, 0.161),   // #212429
             surface_elevated: TokenColor::rgba(1.0, 1.0, 1.0, 0.06),
@@ -116,7 +169,7 @@ impl Theme {
 
     pub fn light() -> Self {
         Self {
-            mode: LightDark::Light,
+            mode: ThemeSkin::Light,
             window_bg: TokenColor::rgb(0.949, 0.949, 0.969), // #F2F2F7
             surface: TokenColor::rgb(1.0, 1.0, 1.0),         // #FFFFFF
             surface_elevated: TokenColor::rgb(0.949, 0.949, 0.969),
@@ -133,6 +186,55 @@ impl Theme {
             success: TokenColor::rgb(0.204, 0.780, 0.349), // #34C759
             warning: TokenColor::rgb(1.0, 0.584, 0.0),     // #FF9500
             danger: TokenColor::rgb(1.0, 0.231, 0.188),    // #FF3B30
+        }
+    }
+
+    /// Eye-care forest appearance. Values are measured from the Iced
+    /// reference token set (`infiltrator-iced/src/view/theme.rs` `FOREST`)
+    /// so both surfaces paint the same product language.
+    pub fn forest() -> Self {
+        Self {
+            mode: ThemeSkin::Forest,
+            window_bg: TokenColor::rgb(0.937, 0.961, 0.925), // #EFF5EC canvas
+            surface: TokenColor::rgb(0.973, 0.984, 0.961),   // #F8FBF5 card
+            surface_elevated: TokenColor::rgba(0.341, 0.439, 0.353, 0.12),
+            ink: TokenColor::rgb(0.122, 0.208, 0.145), // #1F3525
+            ink_dim: TokenColor::rgba(0.341, 0.439, 0.353, 0.75),
+            accent: TokenColor::rgb(0.188, 0.435, 0.306), // #306F4E
+            on_accent: TokenColor::rgb(1.0, 1.0, 1.0),
+            accent_container: TokenColor::rgba(0.188, 0.435, 0.306, 0.14),
+            sidebar: TokenColor::rgb(0.851, 0.910, 0.843), // #D9E8D7
+            icon_tile: TokenColor::rgba(0.188, 0.435, 0.306, 0.18),
+            hover: TokenColor::rgba(0.122, 0.208, 0.145, 0.06),
+            pressed: TokenColor::rgba(0.122, 0.208, 0.145, 0.12),
+            border: TokenColor::rgba(0.341, 0.439, 0.353, 0.22),
+            success: TokenColor::rgb(0.243, 0.490, 0.314), // #3E7D50
+            warning: TokenColor::rgb(0.663, 0.439, 0.157), // #A97028
+            danger: TokenColor::rgb(0.702, 0.231, 0.275),  // #B33B46
+        }
+    }
+
+    /// Pitch-black OLED appearance. Values are measured from the Iced
+    /// reference token set (`AMOLED`) for the same reason as [`Self::forest`].
+    pub fn amoled() -> Self {
+        Self {
+            mode: ThemeSkin::Amoled,
+            window_bg: TokenColor::rgb(0.0, 0.0, 0.0), // #000000
+            surface: TokenColor::rgb(0.086, 0.098, 0.110), // #16191C
+            surface_elevated: TokenColor::rgba(1.0, 1.0, 1.0, 0.12),
+            ink: TokenColor::rgb(0.973, 0.980, 0.988), // #F8FAFC
+            ink_dim: TokenColor::rgba(0.90, 0.92, 0.94, 0.68),
+            accent: TokenColor::rgb(0.12, 0.56, 0.96), // #1E8FF5
+            on_accent: TokenColor::rgb(1.0, 1.0, 1.0),
+            accent_container: TokenColor::rgba(0.12, 0.56, 0.96, 0.18),
+            sidebar: TokenColor::rgb(0.051, 0.059, 0.067), // #0D0F11
+            icon_tile: TokenColor::rgba(0.12, 0.56, 0.96, 0.62),
+            hover: TokenColor::rgba(1.0, 1.0, 1.0, 0.08),
+            pressed: TokenColor::rgba(1.0, 1.0, 1.0, 0.14),
+            border: TokenColor::rgba(0.85, 0.90, 0.95, 0.12),
+            success: TokenColor::rgb(0.063, 0.725, 0.506), // #10B981
+            warning: TokenColor::rgb(0.96, 0.62, 0.15),    // #F59E26
+            danger: TokenColor::rgb(0.96, 0.35, 0.32),     // #F55952
         }
     }
 }
@@ -403,5 +505,35 @@ mod tests {
         let same_ratio = contrast::contrast_ratio(white, white);
         assert!((same_ratio - 1.0).abs() < 1e-4);
         assert!(!contrast::is_wcag_aa(same_ratio));
+    }
+
+    #[test]
+    fn every_skin_has_its_own_token_set_and_setting_name() {
+        for skin in ThemeSkin::ALL {
+            let theme = Theme::for_mode(skin);
+            assert_eq!(theme.mode, skin);
+            assert_eq!(
+                Theme::for_mode(ThemeSkin::from_index(skin.to_index())).mode,
+                skin
+            );
+            assert!(theme.window_bg.r.is_finite());
+        }
+        assert_eq!(ThemeSkin::Dark.as_setting(), "dark");
+        assert_eq!(ThemeSkin::Light.as_setting(), "light");
+        assert_eq!(ThemeSkin::Forest.as_setting(), "forest");
+        assert_eq!(ThemeSkin::Amoled.as_setting(), "amoled");
+        assert!(ThemeSkin::Dark.is_dark());
+        assert!(ThemeSkin::Amoled.is_dark());
+        assert!(!ThemeSkin::Light.is_dark());
+        assert!(!ThemeSkin::Forest.is_dark());
+    }
+
+    #[test]
+    fn forest_and_amoled_have_distinct_canvases() {
+        assert_ne!(Theme::forest().window_bg, Theme::light().window_bg);
+        assert_ne!(Theme::forest().window_bg, Theme::dark().window_bg);
+        assert_eq!(Theme::amoled().window_bg, TokenColor::rgb(0.0, 0.0, 0.0));
+        assert_eq!(ThemeSkin::Dark.next(), ThemeSkin::Light);
+        assert_eq!(ThemeSkin::Amoled.next(), ThemeSkin::Dark);
     }
 }

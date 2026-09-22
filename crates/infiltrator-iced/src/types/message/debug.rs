@@ -707,8 +707,12 @@ impl std::fmt::Debug for Message {
             Message::TogglePerfPanel => write!(f, "TogglePerfPanel"),
             Message::ToggleTheme => write!(f, "ToggleTheme"),
             Message::SetTheme(t) => write!(f, "SetTheme({t})"),
+            Message::SystemThemeChanged(prefers_dark) => {
+                write!(f, "SystemThemeChanged(prefers_dark={prefers_dark})")
+            }
+            Message::CycleThemePreference => write!(f, "CycleThemePreference"),
             Message::ShowToast(s, st) => write!(f, "ShowToast({}, {:?})", s, st),
-            Message::RemoveToast(i) => write!(f, "RemoveToast({})", i),
+            Message::RemoveToast(id) => write!(f, "RemoveToast({id})"),
             Message::TestAllProxyDelays => write!(f, "TestAllProxyDelays"),
             Message::MoveOverviewCardUp(kind) => write!(f, "MoveOverviewCardUp({kind:?})"),
             Message::MoveOverviewCardDown(kind) => write!(f, "MoveOverviewCardDown({kind:?})"),
@@ -869,10 +873,29 @@ impl std::fmt::Debug for Message {
             Message::OpenSnapshotDiff(id) => write!(f, "OpenSnapshotDiff({id})"),
             Message::CloseSnapshotDiff => write!(f, "CloseSnapshotDiff"),
             Message::RollbackToSnapshot(id) => write!(f, "RollbackToSnapshot({id})"),
-            Message::UpdateHotkeyCombo { id, combo } => {
-                write!(f, "UpdateHotkeyCombo({id}: {combo})")
+            Message::BeginHotkeyCapture(action) => {
+                write!(f, "BeginHotkeyCapture({})", action.id())
             }
-            Message::ToggleHotkeyEnabled(id) => write!(f, "ToggleHotkeyEnabled({id})"),
+            Message::CancelHotkeyCapture => write!(f, "CancelHotkeyCapture"),
+            Message::KeyboardChord { key, modifiers } => write!(
+                f,
+                "KeyboardChord(key={key}, ctrl={}, alt={}, shift={}, meta={})",
+                modifiers.ctrl, modifiers.alt, modifiers.shift, modifiers.meta
+            ),
+            Message::ToggleHotkeyEnabled(action) => {
+                write!(f, "ToggleHotkeyEnabled({})", action.id())
+            }
+            Message::ResetHotkey(action) => write!(f, "ResetHotkey({})", action.id()),
+            Message::ShortcutsUpdated(Ok(registry)) => {
+                write!(
+                    f,
+                    "ShortcutsUpdated(Ok(bindings={}))",
+                    registry.bindings().len()
+                )
+            }
+            Message::ShortcutsUpdated(Err(error)) => {
+                write!(f, "ShortcutsUpdated(Err({error}))")
+            }
 
             // Wave 3: PCAP Exporter, Sub-Rules, Speedtest, GeoData, UWP, Encrypted Backup
             Message::TogglePcapCapture => write!(f, "TogglePcapCapture"),

@@ -33,6 +33,7 @@ use crate::routing_application::RoutingApplication;
 use crate::runtime_query_application::RuntimeQueryApplication;
 use crate::service_mode_application::ServiceModeApplication;
 use crate::settings_application::SettingsApplication;
+use crate::shortcut_application::ShortcutApplication;
 use crate::snapshot_application::SnapshotApplication;
 use crate::subscription_refresh_application::SubscriptionRefreshApplication;
 use crate::sync_application::SyncApplication;
@@ -803,6 +804,26 @@ impl CommandApplication {
     async fn update_setting(&self, key: &str, value: &str) -> Result<(), Failure> {
         let key = key.trim();
         let value = value.trim();
+        if let Some(action_id) = key.strip_prefix("shortcut.") {
+            let action = infiltrator_contract::shortcuts::ShortcutAction::from_id(action_id)
+                .ok_or_else(|| {
+                    Failure::new(
+                        ErrorCode::InvalidInput,
+                        format!("unknown shortcut action {action_id}"),
+                        false,
+                    )
+                })?;
+            let chord =
+                infiltrator_contract::shortcuts::ShortcutChord::parse(value).ok_or_else(|| {
+                    Failure::new(
+                        ErrorCode::InvalidInput,
+                        format!("invalid shortcut chord {value}"),
+                        false,
+                    )
+                })?;
+            self.shortcuts()?.capture(action, chord).await?;
+            return Ok(());
+        }
         if !matches!(
             key,
             "language" | "theme" | "notifications_enabled" | "close_to_tray"
@@ -825,10 +846,27 @@ impl CommandApplication {
             }
             _ => None,
         };
+        // A theme value is a shared appearance preference: reject a typo
+        // instead of storing a string no surface can resolve, and persist the
+        // canonical spelling so both ends read the same value back.
+        if key == "theme"
+            && infiltrator_contract::theme::ThemePreference::parse_strict(value).is_none()
+        {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                format!("unknown theme {value}"),
+                false,
+            ));
+        }
         self.settings()?
             .update(|settings| match key {
                 "language" => settings.language = value.to_string(),
-                "theme" => settings.theme = value.to_string(),
+                "theme" => {
+                    settings.theme =
+                        infiltrator_contract::theme::ThemePreference::from_setting(value)
+                            .as_setting()
+                            .to_string()
+                }
                 "notifications_enabled" => {
                     settings.notifications_enabled = parsed_bool.unwrap_or(false)
                 }
@@ -836,6 +874,10 @@ impl CommandApplication {
                 _ => {}
             })
             .await
+    }
+
+    fn shortcuts(&self) -> Result<ShortcutApplication, Failure> {
+        Ok(ShortcutApplication::new(self.settings()?))
     }
 
     fn profile(&self) -> Result<ProfileApplication, Failure> {
@@ -1109,3 +1151,7 @@ mod tests {
 #[cfg(test)]
 #[path = "command_application_tests.rs"]
 mod rule_edit_tests;
+
+#[cfg(test)]
+#[path = "command_application_settings_tests.rs"]
+mod settings_write_tests;

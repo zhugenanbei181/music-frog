@@ -70,11 +70,22 @@ impl ToastMessage {
 }
 
 /// Pure state manager and queue for toast notifications.
-#[derive(Resource, Clone, Debug, Default, PartialEq)]
+#[derive(Resource, Clone, Debug, PartialEq)]
 pub struct ToastQueue {
     toasts: Vec<ToastMessage>,
     max_capacity: usize,
     next_id: u64,
+}
+
+/// Capacity used when the queue is created as a bare resource (the shell's
+/// `WidgetsPlugin` default). A zero-capacity queue panics on push, so the
+/// default must be a real capacity.
+pub const DEFAULT_TOAST_CAPACITY: usize = 3;
+
+impl Default for ToastQueue {
+    fn default() -> Self {
+        Self::new(DEFAULT_TOAST_CAPACITY)
+    }
 }
 
 impl ToastQueue {

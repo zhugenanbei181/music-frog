@@ -166,7 +166,7 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
     feed(&mut state, Message::SetLanguage("zh".into()));
     assert_eq!(state.shell.lang, "zh-CN", "aliases normalize to zh-CN");
     feed(&mut state, Message::SetLanguage("en-US".into()));
-    let units = feed(&mut state, Message::ToggleTheme);
+    let units = feed(&mut state, Message::SetTheme("light".into()));
     assert_eq!(units, 0);
     assert_eq!(state.shell.theme, iced::Theme::Light);
 
@@ -240,7 +240,8 @@ fn toast_lifecycle_redacts_secrets_and_survives_stale_removal() {
     assert_eq!(state.shell.toasts.len(), 1);
 
     // Removing the real index clears the toast.
-    feed(&mut state, Message::RemoveToast(0));
+    let live_id = state.shell.toast_ids[0];
+    feed(&mut state, Message::RemoveToast(live_id));
     assert!(state.shell.toasts.is_empty());
 
     // The auto-update notification path re-checks the subscription catalog:

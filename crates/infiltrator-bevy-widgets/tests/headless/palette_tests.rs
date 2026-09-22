@@ -6,7 +6,7 @@
 //! here without any window.
 
 use infiltrator_bevy_widgets::palette::{UiPalette, theme_color};
-use infiltrator_bevy_widgets::theme::{LightDark, Theme, TokenColor, metrics, radius, type_scale};
+use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin, TokenColor, metrics, radius, type_scale};
 
 fn assert_same_color(bevy_color: bevy::color::Color, token: TokenColor) {
     let srgba = bevy_color.to_srgba();
@@ -77,8 +77,8 @@ fn palette_carries_every_token_and_scale() {
 fn appearances_stay_distinct() {
     let dark = Theme::dark();
     let light = Theme::light();
-    assert_eq!(dark.mode, LightDark::Dark);
-    assert_eq!(light.mode, LightDark::Light);
+    assert_eq!(dark.mode, ThemeSkin::Dark);
+    assert_eq!(light.mode, ThemeSkin::Light);
     assert_ne!(dark.window_bg, light.window_bg);
     assert_ne!(dark.accent, light.accent);
 }

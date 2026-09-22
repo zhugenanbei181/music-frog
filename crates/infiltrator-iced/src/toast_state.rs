@@ -1,3 +1,11 @@
+//! Iced toast queue over the shared notification policy.
+//!
+//! Severity vocabulary, the dedup window and the visible cap come from
+//! `infiltrator_contract::toast`; this module only owns the per-surface
+//! timers and the visible order. Text redaction stays at the single toast
+//! ingestion point (`AppState::push_toast` → `crate::utils::sanitize_ui_text`).
+
+use infiltrator_contract::toast::{ToastAdmission, ToastGate, ToastPolicy, ToastSeverity};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -6,6 +14,18 @@ pub enum ToastLevel {
     Success,
     Warning,
     Error,
+}
+
+impl ToastLevel {
+    /// Map onto the shared severity vocabulary both surfaces agree on.
+    pub const fn severity(&self) -> ToastSeverity {
+        match self {
+            Self::Info => ToastSeverity::Info,
+            Self::Success => ToastSeverity::Success,
+            Self::Warning => ToastSeverity::Warning,
+            Self::Error => ToastSeverity::Error,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -18,30 +38,46 @@ pub struct ToastItem {
 }
 
 pub struct ToastManager {
-    max_visible: usize,
+    policy: ToastPolicy,
+    gate: ToastGate,
+    now_ms: u64,
     active_toasts: Vec<ToastItem>,
     next_id: u64,
 }
 
 impl ToastManager {
     pub fn new(max_visible: usize) -> Self {
-        Self {
+        let policy = ToastPolicy {
             max_visible,
+            ..ToastPolicy::default()
+        };
+        Self {
+            policy,
+            gate: ToastGate::new(policy),
+            now_ms: 0,
             active_toasts: Vec::new(),
             next_id: 1,
         }
     }
 
+    pub const fn policy(&self) -> ToastPolicy {
+        self.policy
+    }
+
+    /// Offer a toast. An identical `(level, message)` inside the shared dedup
+    /// window refreshes the live toast instead of stacking a duplicate.
     pub fn push(&mut self, level: ToastLevel, message: String, duration_ms: u64) {
-        for toast in self.active_toasts.iter_mut().rev() {
-            if toast.level == level && toast.message == message {
-                let elapsed = toast.duration_ms.saturating_sub(toast.remaining_ms);
-                if elapsed <= 2000 {
-                    toast.remaining_ms = duration_ms;
-                    toast.duration_ms = duration_ms;
-                    return;
-                }
+        if self.gate.admit(level.severity(), &message, self.now_ms) == ToastAdmission::Coalesced {
+            if let Some(existing) = self
+                .active_toasts
+                .iter_mut()
+                .rev()
+                .find(|toast| toast.level == level && toast.message == message)
+            {
+                existing.duration_ms = duration_ms;
+                existing.remaining_ms = duration_ms;
             }
+            return;
         }
 
         let item = ToastItem {
@@ -55,12 +91,13 @@ impl ToastManager {
 
         self.active_toasts.push(item);
 
-        if self.active_toasts.len() > self.max_visible {
+        while self.active_toasts.len() > self.policy.max_visible {
             self.active_toasts.remove(0);
         }
     }
 
     pub fn tick(&mut self, elapsed_ms: u64) {
+        self.now_ms = self.now_ms.saturating_add(elapsed_ms);
         for toast in &mut self.active_toasts {
             toast.remaining_ms = toast.remaining_ms.saturating_sub(elapsed_ms);
         }
