@@ -472,12 +472,12 @@ proxies:
     assert!(result.contains("proxy-groups:"));
     assert!(result.contains("🚀 节点选择"));
     assert!(result.contains("♻️ 自动选择"));
-    assert!(result.contains("HK 节点"));
-    assert!(result.contains("JP 节点"));
-    assert!(result.contains("US 节点"));
+    assert!(result.contains("香港自动测速"));
+    assert!(result.contains("日本自动测速"));
+    assert!(result.contains("美国自动测速"));
     assert!(result.contains("[AirportA]"));
     // Sub2's duplicate 1.1.1.1 should have been deduplicated by content fingerprint
-    assert!(!result.contains("[AirportB] [HK] 香港 01"));
+    assert!(!result.contains("[HK] [AirportB] 香港 01"));
 }
 
 #[test]

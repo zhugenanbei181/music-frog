@@ -144,6 +144,9 @@ pub struct ProfilesProjection {
     pub profiles: Vec<ProfileItem>,
     pub auto_update_interval_hours: u32,
     pub updating: bool,
+    /// DUAL-08: the last shared aggregation preview, or `None` when no draft
+    /// has been previewed yet. The surface never builds this locally.
+    pub aggregation: Option<infiltrator_contract::aggregator::AggregationReport>,
 }
 
 impl ProfilesProjection {
@@ -152,6 +155,7 @@ impl ProfilesProjection {
         Self {
             auto_update_interval_hours: 6,
             updating: false,
+            aggregation: None,
             profiles: vec![
                 ProfileItem {
                     id: "sub-1".to_owned(),
@@ -315,7 +319,7 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
             ( { header_card_scene(summary, auto_update, palette) } ),
             ( { crate::pages::profiles_import::profiles_import_card_scene(projection, palette) } ),
             ( { crate::pages::profiles_subscription_policy::subscription_policy_card_scene(projection, palette) } ),
-            ( { crate::pages::profiles_aggregator::profiles_aggregator_scene(palette) } ),
+            ( { crate::pages::profiles_aggregator::profiles_aggregator_scene(projection, palette) } ),
             ( { crate::pages::profiles_diff::snapshot_diff_scene(palette) } ),
             ( { crate::pages::profiles_script::script_sandbox_scene(palette) } ),
             { profile_scenes },
@@ -560,6 +564,9 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(crate::pages::profiles_subscription_policy::on_save_subscription_policy);
     commands
         .add_observer(crate::pages::profiles_subscription_policy::on_save_subscription_auto_reload);
+    commands.add_observer(crate::pages::profiles_aggregator::sync_aggregation_preview);
+    commands.add_observer(crate::pages::profiles_aggregator::on_preview_aggregation);
+    commands.add_observer(crate::pages::profiles_aggregator::on_save_aggregated_profile);
 }
 
 /// DUAL-07-11: route the toolbar "update all" click into the shared command bus.

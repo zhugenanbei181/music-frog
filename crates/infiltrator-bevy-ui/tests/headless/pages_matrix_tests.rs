@@ -186,6 +186,7 @@ fn profiles_page_in_place_update() {
     let updated = ProfilesProjection {
         auto_update_interval_hours: 12,
         updating: false,
+        aggregation: None,
         profiles: vec![ProfileItem {
             id: "sub-custom".to_owned(),
             name: "自建中继节点订阅".to_owned(),

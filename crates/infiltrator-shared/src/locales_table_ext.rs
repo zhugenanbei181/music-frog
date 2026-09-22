@@ -55,6 +55,25 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "aggregator_name_placeholder" => "聚合配置名称 (例如: Aggregated-All)".into(),
         "aggregator_selected_count" => "已选中 {count} 个订阅".into(),
         "aggregator_result_nodes" => "已合并 {count} 个有效节点".into(),
+        "aggregator_btn_preview" => "预览聚合结果".into(),
+        "aggregator_btn_save" => "保存为新配置".into(),
+        "aggregator_dedup" => "跨订阅节点自动去重".into(),
+        "aggregator_geo_cluster" => "区域节点自动归类".into(),
+        "aggregator_generate_groups" => "生成区域测速策略组".into(),
+        "aggregator_remove_emojis" => "清洗节点名 emoji".into(),
+        "aggregator_preview_title" => "聚合预览".into(),
+        "aggregator_preview_nodes" => {
+            "节点 {total} 个 · 去重 {removed} 个 · 归一化 {renamed} 个".into()
+        }
+        "aggregator_preview_input" => "输入节点 {count} 个".into(),
+        "aggregator_preview_regions" => "区域分组 ({count})".into(),
+        "aggregator_preview_groups" => "策略组拓扑 ({count})".into(),
+        "aggregator_preview_master" => "主选择器级联".into(),
+        "aggregator_region_nodes" => "{count} 节点".into(),
+        "aggregator_missing_sources" => "未能读取: {names}".into(),
+        "aggregator_preview_hint" => "勾选订阅源并选择清洗选项后点击预览".into(),
+        "aggregator_group_select" => "手动选择".into(),
+        "aggregator_group_urltest" => "自动测速".into(),
 
         // Category 4: Connection Grouping & Quick-Rule Generator
         "conn_grouping_mode" => "连接聚合模式".into(),

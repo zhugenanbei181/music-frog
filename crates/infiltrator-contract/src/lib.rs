@@ -5,6 +5,7 @@
 //! UniFFI conversion without exposing Tokio or a concrete HTTP client.
 
 pub mod active_exit;
+pub mod aggregator;
 pub mod capability;
 pub mod command;
 pub mod connection;

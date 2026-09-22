@@ -223,7 +223,16 @@ pub struct ProfileState {
     pub aggregator_modal_open: bool,
     pub aggregator_selected_profiles: Vec<String>,
     pub aggregator_name_input: String,
-    pub aggregator_result_summary: Option<String>,
+    /// DUAL-08: the last shared aggregation preview (never built locally).
+    pub aggregator_report: Option<infiltrator_contract::aggregator::AggregationReport>,
+    /// DUAL-08-02: drop fingerprint-identical nodes across sources.
+    pub aggregator_deduplicate: bool,
+    /// DUAL-08-03: normalise names so geo clustering can bucket them.
+    pub aggregator_geo_cluster: bool,
+    /// DUAL-08-04/08-05: synthesize region url-test groups + master cascade.
+    pub aggregator_generate_groups: bool,
+    /// Strip emoji characters from node names before grouping.
+    pub aggregator_remove_emojis: bool,
     pub is_aggregating: bool,
     pub encrypted_backup: crate::types::options::EncryptedBackupState,
     pub quota_schedule: crate::types::options::QuotaScheduleState,

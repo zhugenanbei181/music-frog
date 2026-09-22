@@ -78,7 +78,7 @@
 | 组 05 协议生态保真与多路复用 | 15 | `planned` | `infiltrator-domain::profile_converter` | 后端解析已有测试；双端 UI 编辑面未验收 |
 | 组 06 并发测速与稳定性评估 | 15 | `parity-ready` | `SpeedtestApplication` 引擎 | 15/15 收口（2026-09-22 批次 D）：单端口 `SpeedtestPort`、reader 发布真实快照、Iced 渲染共享快照（不再伪造）、Bevy 按钮按 phase/progress 重盖；出口 IP 对比、双端明细弹窗与共享状态机矩阵已闭环 |
 | 组 07 订阅生命周期与定时更新 | 15 | `parity-ready` | `subscription`、`filter` 管道 | 15/15 收口（2026-09-22）：07-09/14 于批次 E 双端接线（见组 07 逐项账目） |
-| 组 08 多源聚合器与自动拓扑 | 15 | `planned` | `aggregator_modal.rs`（Iced） | Bevy `profiles_aggregator.rs` 与双端测试未验收 |
+| 组 08 多源聚合器与自动拓扑 | 15 | `in-progress (8/15)` | `profile_aggregator.rs`（domain）、`aggregator_modal.rs`（Iced）、`profiles_aggregator.rs`（Bevy） | 2026-09-22 批次 A：08-01/02/03/04/05/06/14/15 收口为 `parity-ready`（见组 08 逐项账目）；08-11/08-08/08-09/08-12 为 `shared-ready` |
 | 组 09 AST YAML 引擎与快照 Diff | 15 | `planned` | `snapshot_diff_modal.rs`、`profiles_diff.rs` | 双端编辑器与回滚事务未验收 |
 | 组 10 脚本沙箱与多级 Mixin | 15 | `planned` | `script_console.rs`、`profiles_script.rs` | 双端控制台与熔断测试未验收 |
 | 组 11 规则引擎与 MRS 治理 | 15 | `in progress` | `rules.rs`、`rules_mrs.rs`、`mrs` | 2026-09-22 起逐项展开（见组 11 逐项账目）：03/04/09/10/11/12/13/15 已双端收口，01/02/05/08 为 `shared-ready`，06/07/14 `planned` |
@@ -295,6 +295,54 @@
 > unsupported（Iced 桌面宿主持有 `Arc<dyn HostRuntime>`，功能完整可用）。这与
 > 07-09 的 typed unsupported 口径一致，不是静默 no-op；待桌面 Bevy 组合根接入
 > `with_managed_runtime` 后该开关即可工作，共享层与双端 UI 无需改动。
+
+---
+
+### 组 08 逐项账目（2026-09-22 展开）
+
+闭环口径同组 06/07/12 = shared contract/application + Iced + Bevy + 双端无头测试 + 宿主证据。
+判定保守：仅当四层全部存在才记 `parity-ready`；只有共享/单端后端时记 `shared-ready`；仅有字段、未接线或未持久化记 `planned`。
+本组此前的唯一共享后端是 domain 的 `MultiSubscriptionAggregator::aggregate`（只返回 YAML 字符串，无结构化事实、无 application、无宿主端口），Iced 模态的「执行合并」只 `format!` 一个计数串（伪数据），Bevy 页面的区域分组是硬编码 demo 列表。
+
+| 项 | 任务 | 状态 | 证据 |
+| :--- | :--- | :--- | :--- |
+| `DUAL-08-01` | 多订阅源勾选聚合向导 | `parity-ready` | 共享 `AggregationDraft.source_profiles`（`contract/aggregator.rs:18`）+ `ProfileAggregationApplication::preview`（`application/profile_aggregation_application.rs:96`）按勾选真实读取每个源 profile 内容；Iced 源勾选列表（`view_root/aggregator_modal.rs:92/164`）由真实 `state.profile.profiles` 派生，`update/aggregator.rs:33` 维护选择；Bevy 源勾选清单 `AggregatorSourceToggle`（`pages/profiles_aggregator.rs:54/181`）；测试 Iced `test_advancement_w2_3_multi_profile_aggregator_workflow`、Bevy `test_profiles_aggregator_previews_and_saves_through_shared_command` |
+| `DUAL-08-02` | 跨订阅节点自动去重（Server+Port+Protocol 指纹） | `parity-ready` | domain `ProfileAggregator::pipeline` 注入 `FilterStage::content_deduplicator`（`domain/profile_aggregator.rs:147`）复用既有 `compute_node_fingerprint`（type+server+port+凭据，`domain/filter.rs:626`），`aggregate()` 改为委托 `plan()` 单一实现（`domain/profile_converter.rs:540`）；application `aggregation_options` 把 `draft.deduplicate` 映射为 `KeepFirst`（`application/profile_aggregation_application.rs:60/66`），报告发布真实 `duplicates_removed`（`contract/aggregator.rs:91`）；Iced 开关 `state.rs:229` + `update/aggregator.rs:66` + 预览计数；Bevy `AggregatorDeduplicateToggle` + 计数行；测试 domain `plan_reports_real_dedup_and_region_counts`、application `preview_reports_real_dedup_clusters_and_master_cascade`、Iced `test_advancement_w2_3_multi_profile_aggregator_workflow`、Bevy 断言「去重 2」 |
+| `DUAL-08-03` | 区域节点自动归类（ISO 国家代码） | `parity-ready` | domain `ProfileAggregator::cluster_regions`（`domain/profile_aggregator.rs:181`）复用 `extract_country_code`（`domain/filter.rs:534`）与 `COUNTRY_DEFS`，`region_label` 从别名表取本地化标签（`domain/profile_aggregator.rs:333`）；contract `RegionalClusterSnapshot { iso, label, flag, group_name, node_names }`（`contract/aggregator.rs:49`）经 reader 发布（`application/surface_reader.rs:402/460`）；Iced 区域行（`view_root/aggregator_modal.rs:328`）、Bevy 区域块 `aggregation_regions`（`pages/profiles_aggregator.rs:117`）；测试 domain `plan_reports_real_dedup_and_region_counts`、Bevy 断言「🇭🇰 HK 香港 → 香港自动测速（2 节点）」 |
+| `DUAL-08-04` | 自动生成区域测速策略组 | `parity-ready` | domain `ProfileAggregator::synthesize_groups`（`domain/profile_aggregator.rs:201`）为每个区域生成 `url-test`（`{label}自动测速`，探测 `AGGREGATION_HEALTH_CHECK_URL`、interval 300、tolerance 50，`RegionalCluster::group_name`）；contract `GeneratedGroupSnapshot`（`contract/aggregator.rs:65`）；YAML 渲染写入 `proxy-groups`（`domain/profile_aggregator.rs` `render_yaml`）；Iced 策略组行（`view_root/aggregator_modal.rs:416`）、Bevy 策略组块（`pages/profiles_aggregator.rs:142`）；测试 domain `plan_generates_master_cascade_before_concrete_nodes`、application `aggregation_pipeline_regression_matrix`、Bevy 断言「香港自动测速」 |
+| `DUAL-08-05` | 主选择器自动级联（Master Cascade） | `parity-ready` | domain `MASTER_SELECT_GROUP` 先列 `♻️ 自动选择` + `🎯 全球直连` + 全部区域组，再列具体节点（`domain/profile_aggregator.rs:214`），`GeneratedGroup.is_master` 标记唯一主选择器；contract `AggregationReport::master_group`（`contract/aggregator.rs:117`）；Iced 预览用 `BadgeKind::Accent` 标「主选择器级联」，Bevy 计数行输出「主选择器级联 N 项」并给主组加 `[主选择器]`；测试 domain `plan_generates_master_cascade_before_concrete_nodes`（断言区域组位置早于具体节点）、application `preview_reports_real_dedup_clusters_and_master_cascade`、Bevy 断言「🚀 节点选择 [主选择器]」 |
+| `DUAL-08-06` | 聚合后生成新独立 Profile | `parity-ready` | application `ProfileAggregationApplication::create_profile`（`application/profile_aggregation_application.rs:145`）先 `sanitize_profile_name` + 拒绝覆盖既有 profile，再 `preview` 后 `ProfileApplication::save_profile` 落盘，源 profile 不被修改；`CommandIntent::CreateAggregatedProfile`（`contract/command.rs:242`）经 `CommandApplication` 路由（`application/command_application.rs:470`）；Iced `Message::CreateAggregatedProfile`（`update/aggregator.rs:123`）与保存按钮；Bevy `SaveAggregatedProfileButton` + 观察者（`pages/profiles_aggregator.rs:513`）→ `UiCommand::CreateAggregatedProfile`（`bevy-ui/command.rs:120`）；测试 application `create_profile_saves_a_new_independent_profile`、`create_profile_refuses_to_overwrite_an_existing_profile`、`aggregation_pipeline_regression_matrix`、Bevy 保存命令断言 |
+| `DUAL-08-07` | 一键保持源订阅联动更新 | `planned` | 共享 `SubscriptionRefreshApplication`（`application/subscription_refresh_application.rs:78`）具备单条/批量刷新能力，但聚合 profile 与源 profile 之间没有持久化来源关系，也没有「重新聚合」入口；本项未接线 |
+| `DUAL-08-08` | 自定义节点重命名规则 | `shared-ready` | domain 已有 `FilterStage::RegexRename`（`domain/filter_pipeline.rs:16/144`），但 `AggregationOptions`（`domain/profile_converter.rs:524`）没有重命名规则字段，聚合向导未暴露；仅共享后端具备，未接双端 |
+| `DUAL-08-09` | 节点可用性预检与过滤 | `shared-ready` | domain `proxy_nodes::validate`（`domain/proxy_nodes/validate.rs:25`）与协议强制模型已存在，但聚合管线不调用校验、不剔除缺端口/缺凭据节点；仅共享能力存在，未接双端 |
+| `DUAL-08-10` | 自定义新策略组拓扑编排 | `planned` | `GeneratedGroup` 只由区域聚类派生；向导没有追加「流媒体/游戏」自定义组的输入与持久化 |
+| `DUAL-08-11` | 聚合生成结果可视化预览 | `shared-ready` | 共享 `AggregationReport`（含完整 YAML）与 `yaml_preview(max_lines)`（`contract/aggregator.rs:106`）已发布，Iced/Bevy 都渲染真实计数、区域分组与策略组拓扑树；但两端都尚未渲染 YAML 结构视口，故保守记 `shared-ready` |
+| `DUAL-08-12` | 一键设为当前活动配置 | `shared-ready` | `ProfileApplication::activate_profile`（`application/profile_application.rs:652`）已具备「切换 + 热载入 + 失败回滚」，但聚合创建路径不调用激活，双端向导也没有激活开关 |
+| `DUAL-08-13` | 历史聚合模板保存与复用 | `planned` | 聚合草稿只存在于表面内存（Iced `state.rs:225-235`、Bevy 控件状态），未写入 `ProfileStore`/sidecar；重启不复用 |
+| `DUAL-08-14` | 双端聚合器模态 100% 对等 | `parity-ready` | Iced 模态（`view_root/aggregator_modal.rs`）与 Bevy 卡片（`pages/profiles_aggregator.rs:181`）消费同一 `AggregationDraft`/`AggregationReport`，提交同一 `CommandIntent::{Preview,Create}ProfileAggregation`；Bevy 观察者注册于 `pages/profiles.rs:567-569`；两端都只投影共享报告、不做本地去重/聚类/组生成；测试见 08-01/08-06/08-15 |
+| `DUAL-08-15` | 聚合器引擎全链路行为测试 | `parity-ready` | domain `profile_aggregator_test.rs`（合并/去重/区域/主级联/空源 4 测）、application `profile_aggregation_application_test.rs`（9 测，含端到端矩阵 `aggregation_pipeline_regression_matrix`：多源合并→指纹去重→区域聚类→组生成→落盘，并断言源 profile 未被修改）、Iced `test_advancement_w2_3_multi_profile_aggregator_workflow`/`test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared`、Bevy `test_profiles_aggregator_previews_and_saves_through_shared_command` |
+
+> **2026-09-22 组 08 批次 A**：`DUAL-08-01/02/03/04/05/06/14/15` 收口为 `parity-ready`。
+> 新增 domain 结构化聚合器 `ProfileAggregator::plan`（`profile_aggregator.rs`）：把原先只返回
+> YAML 字符串的 `MultiSubscriptionAggregator::aggregate` 下沉为唯一实现，返回 `AggregationPlan`
+> （输入/输出去重计数、区域聚类、策略组级联、渲染 YAML），`aggregate()` 变为 `plan().yaml` 的薄委托，
+> 消除双实现漂移；区域组命名改为 `{本地化标签}自动测速`（如「香港自动测速」），主选择器
+> `🚀 节点选择` 先级联各区域组再列具体节点。新增共享契约 `contract/aggregator.rs`
+> （`AggregationDraft`/`AggregationReport`/`RegionalClusterSnapshot`/`GeneratedGroupSnapshot`）与
+> `CommandIntent::{Preview,Create}ProfileAggregation`；新增 application
+> `ProfileAggregationApplication`（`preview`/`plan_documents`/`create_profile`）与进程级预览缓存
+> `last_aggregation_report()`，`ProfilesPageSnapshot.aggregation` 由 reader 投影到双端。Iced 模态删除
+> 伪计数 `aggregator_result_summary`，改存共享 `aggregator_report` 并新增四个清洗开关、
+> 真实预览区与「保存为新配置」动作（新消息 `PreviewProfileAggregation`/`AggregationPreviewFinished`/
+> `CreateAggregatedProfile`/`AggregatedProfileCreated`，处理下沉到 `update/aggregator.rs`）；Bevy
+> `profiles_aggregator.rs` 删除硬编码区域 demo 列表，改为投影驱动：源勾选、开关、计数/区域/组拓扑
+> 全部来自共享报告，并新增预览/保存观察者。双端严格「无伪数据」：Bevy 卡片不再展示固定节点数。
+> 新增守卫 `aggregator-guard.py` 固化本组账目与共享/双端标记。
+>
+> **已知偏差（诚实记录）**：08-11 只做到「拓扑树 + 计数」预览，YAML 结构视口两端都未渲染；
+> 08-07/08-08/08-09/08-13 的联动、重命名、预检与模板持久化仍未接线。批次范围超出题目建议的
+> 3～4 项（实际收口 8 项），原因是「共享聚合应用 + 双端投影」这一必要使能层同时补齐了
+> 08-01/06/14/15，已逐项给出真实证据。
 
 ---
 

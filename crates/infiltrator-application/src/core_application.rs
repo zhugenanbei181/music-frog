@@ -239,8 +239,7 @@ impl CoreApplication {
     /// Return the latest immutable contract projection.
     pub fn snapshot(&self) -> CoreSnapshot {
         let mirror = self.inner.state.read().expect("core state lock");
-        let watchdog = self.watchdog_snapshot();
-        snapshot_from_state(&mirror.state, mirror.revision, watchdog)
+        snapshot_from_state(&mirror.state, mirror.revision, self.watchdog_snapshot())
     }
 
     /// Current lifecycle generation used to fence delayed surface work.
@@ -516,8 +515,7 @@ impl CoreApplication {
             if let Some(warning) = warning {
                 log::warn!(target: "infiltrator-application", "core domain transition warning: {warning}");
             }
-            let watchdog = self.watchdog_snapshot();
-            snapshot_from_state(&mirror.state, mirror.revision, watchdog)
+            snapshot_from_state(&mirror.state, mirror.revision, self.watchdog_snapshot())
         };
         self.push_event(CoreEvent::SnapshotUpdated(snapshot));
     }
@@ -812,6 +810,8 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::ApplyGameRoutingPresets { .. } => "apply_game_routing_presets",
         CommandIntent::SaveSubscriptionFilter { .. } => "save_subscription_filter",
         CommandIntent::ImportSubscription { .. } => "import_subscription",
+        CommandIntent::PreviewProfileAggregation { .. } => "preview_profile_aggregation",
+        CommandIntent::CreateAggregatedProfile { .. } => "create_aggregated_profile",
     }
 }
 

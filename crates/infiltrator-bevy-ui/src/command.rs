@@ -111,6 +111,15 @@ pub enum UiCommand {
     },
     /// Delete a subscription profile.
     DeleteProfile { id: String },
+    /// DUAL-08-01/08-11: persist the aggregation draft and recompute the
+    /// shared preview from the real source contents.
+    PreviewProfileAggregation {
+        draft: infiltrator_contract::aggregator::AggregationDraft,
+    },
+    /// DUAL-08-06: materialise the aggregation draft into a new profile.
+    CreateAggregatedProfile {
+        draft: infiltrator_contract::aggregator::AggregationDraft,
+    },
     /// Trigger a remote update for all rule providers.
     RefreshRuleProviders,
     /// Reset every accumulated rule hit counter.
@@ -333,6 +342,16 @@ impl UiCommand {
             Self::DeleteProfile { id } => Some(CommandIntent::DeleteProfile {
                 profile_id: id.clone(),
             }),
+            Self::PreviewProfileAggregation { draft } => {
+                Some(CommandIntent::PreviewProfileAggregation {
+                    draft: draft.clone(),
+                })
+            }
+            Self::CreateAggregatedProfile { draft } => {
+                Some(CommandIntent::CreateAggregatedProfile {
+                    draft: draft.clone(),
+                })
+            }
             Self::SetSubscriptionAutoReload {
                 profile_id,
                 enabled,

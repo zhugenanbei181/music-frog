@@ -1,3 +1,4 @@
+pub mod aggregator;
 pub mod core;
 pub mod profile;
 pub mod shell;
@@ -58,6 +59,8 @@ impl AppState {
                 | Message::UpdateSubscriptionNow
                 | Message::ImportProfile
                 | Message::ImportLocalProfile
+                | Message::PreviewProfileAggregation
+                | Message::CreateAggregatedProfile
                 | Message::BrowseLocalImportFile
                 | Message::DeleteProfile(_)
                 | Message::SetActiveProfile(_)
@@ -139,6 +142,20 @@ impl AppState {
                     infiltrator_contract::overview_layout::OverviewCardKind::DEFAULT_ORDER.to_vec();
                 Task::none()
             }
+            // DUAL-08 multi-subscription aggregator: the modal state, the real
+            // shared preview and the "save as new profile" action.
+            Message::OpenAggregatorModal
+            | Message::CloseAggregatorModal
+            | Message::ToggleAggregatorProfileSelection(_)
+            | Message::UpdateAggregatorName(_)
+            | Message::ToggleAggregatorDeduplicate
+            | Message::ToggleAggregatorGeoCluster
+            | Message::ToggleAggregatorGenerateGroups
+            | Message::ToggleAggregatorRemoveEmojis
+            | Message::PreviewProfileAggregation
+            | Message::AggregationPreviewFinished(_)
+            | Message::CreateAggregatedProfile
+            | Message::AggregatedProfileCreated(_) => self.update_aggregator(message),
             // UI & Navigation
             Message::ToggleCommandPalette
             | Message::OpenCommandPalette
@@ -177,11 +194,6 @@ impl AppState {
             | Message::ParseAndImportCustomUri
             | Message::ExportNodeAsUri(_)
             | Message::SaveCustomNodeForm
-            | Message::OpenAggregatorModal
-            | Message::CloseAggregatorModal
-            | Message::ToggleAggregatorProfileSelection(_)
-            | Message::UpdateAggregatorName(_)
-            | Message::ExecuteProfileAggregation
             | Message::SetConnectionGroupingMode(_)
             | Message::AddQuickRuleFromConnection { .. }
             | Message::OpenSnapshotDiff(_)

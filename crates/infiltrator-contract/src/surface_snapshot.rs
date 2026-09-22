@@ -242,6 +242,10 @@ pub struct ProfilesPageSnapshot {
     pub profiles: Vec<ProfileSnapshot>,
     pub auto_update_interval_hours: u32,
     pub updating: bool,
+    /// DUAL-08: the last shared aggregation preview, or `None` when no draft
+    /// has been previewed in this process yet.
+    #[serde(default)]
+    pub aggregation: Option<crate::aggregator::AggregationReport>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

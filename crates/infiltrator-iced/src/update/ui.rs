@@ -637,46 +637,6 @@ impl AppState {
                     ToastStatus::Success,
                 ))
             }
-            Message::OpenAggregatorModal => {
-                self.profile.aggregator_modal_open = true;
-                self.profile.aggregator_selected_profiles = self
-                    .profile
-                    .profiles
-                    .iter()
-                    .map(|p| p.name.clone())
-                    .collect();
-                self.profile.aggregator_result_summary = None;
-                Task::none()
-            }
-            Message::CloseAggregatorModal => {
-                self.profile.aggregator_modal_open = false;
-                Task::none()
-            }
-            Message::ToggleAggregatorProfileSelection(name) => {
-                if let Some(pos) = self
-                    .profile
-                    .aggregator_selected_profiles
-                    .iter()
-                    .position(|n| n == &name)
-                {
-                    self.profile.aggregator_selected_profiles.remove(pos);
-                } else {
-                    self.profile.aggregator_selected_profiles.push(name);
-                }
-                Task::none()
-            }
-            Message::UpdateAggregatorName(name) => {
-                self.profile.aggregator_name_input = name;
-                Task::none()
-            }
-            Message::ExecuteProfileAggregation => {
-                let count = self.profile.aggregator_selected_profiles.len();
-                self.profile.aggregator_result_summary = Some(format!(
-                    "Merged {count} profiles into '{}'",
-                    self.profile.aggregator_name_input
-                ));
-                Task::none()
-            }
             Message::SetConnectionGroupingMode(mode) => {
                 self.diag.connection_grouping_mode = mode;
                 Task::none()

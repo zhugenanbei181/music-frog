@@ -399,6 +399,8 @@ impl SurfaceReader for ApplicationSurfaceReader {
                         profiles: Vec::new(),
                         auto_update_interval_hours: 0,
                         updating: false,
+                        aggregation:
+                            crate::profile_aggregation_application::last_aggregation_report(),
                     })
                 }
                 Some(Ok(items)) => {
@@ -456,6 +458,8 @@ impl SurfaceReader for ApplicationSurfaceReader {
                         profiles: snapshots,
                         auto_update_interval_hours,
                         updating: false,
+                        aggregation:
+                            crate::profile_aggregation_application::last_aggregation_report(),
                     })
                 }
                 Some(Err(failure)) => surface_snapshot::PageData::failed(failure),

@@ -6,13 +6,10 @@
 use anyhow::{Result, anyhow};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
-use serde_yaml_ng::Value;
 use std::collections::{BTreeMap, HashSet};
 
-use crate::filter::{
-    ContentDedupStrategy, DeduplicationStrategy, FilterPipeline, FilterStage, NodeSortOrder,
-    extract_country_code,
-};
+use crate::filter::{ContentDedupStrategy, DeduplicationStrategy, NodeSortOrder};
+use crate::profile_aggregator::ProfileAggregator;
 use crate::proxy_nodes::model::PortHopping;
 
 #[path = "profile_converter/uri_export.rs"]
@@ -541,138 +538,6 @@ impl MultiSubscriptionAggregator {
         sources: &[SourceSubscription],
         options: &AggregationOptions,
     ) -> Result<String> {
-        let mut all_nodes = Vec::new();
-
-        for source in sources {
-            let converted = ProfileConverter::detect_and_convert(&source.content)?;
-            let mut nodes = ProfileConverter::parse_nodes(&converted, ProfileFormat::ClashYaml)?;
-            if let Some(ref pfx) = source.prefix {
-                let tag = format!("[{pfx}]");
-                for node in &mut nodes {
-                    if !node.name.starts_with(&tag) {
-                        node.name = format!("{tag} {}", node.name.trim());
-                    }
-                }
-            }
-            all_nodes.extend(nodes);
-        }
-
-        if all_nodes.is_empty() {
-            return Err(anyhow!(
-                "No valid proxy nodes found across sources to aggregate"
-            ));
-        }
-
-        // Apply filter pipeline for cleaning / dedup / sorting
-        let mut pipeline = FilterPipeline::new();
-        if options.remove_emojis {
-            pipeline.add_stage(FilterStage::remove_emojis());
-        }
-        if options.normalize_country_code {
-            pipeline.add_stage(FilterStage::country_code_normalizer());
-        }
-        if options.content_dedup != ContentDedupStrategy::Disabled {
-            pipeline.add_stage(FilterStage::content_deduplicator(options.content_dedup));
-        }
-        if options.name_dedup != DeduplicationStrategy::Disabled {
-            pipeline.add_stage(FilterStage::duplicate_deduplicator(options.name_dedup));
-        }
-        if options.sort_by != NodeSortOrder::Preserve {
-            pipeline.add_stage(FilterStage::sort_nodes(options.sort_by));
-        }
-
-        pipeline.apply_pipeline(&mut all_nodes);
-
-        if options.generate_proxy_groups {
-            Self::generate_profile_with_groups(&all_nodes)
-        } else {
-            ProfileConverter::export_nodes(&all_nodes, ProfileFormat::ClashYaml)
-        }
-    }
-
-    fn generate_profile_with_groups(nodes: &[ProxyNodeItem]) -> Result<String> {
-        let node_names: Vec<String> = nodes.iter().map(|n| n.name.clone()).collect();
-        let mut country_groups: BTreeMap<String, Vec<String>> = BTreeMap::new();
-
-        for node in nodes {
-            if let Some(iso) = extract_country_code(&node.name) {
-                country_groups
-                    .entry(iso.to_string())
-                    .or_default()
-                    .push(node.name.clone());
-            }
-        }
-
-        let mut groups = Vec::new();
-
-        // 1. Main select group
-        let mut main_proxies = vec!["♻️ 自动选择".to_string(), "🎯 全球直连".to_string()];
-        for iso in country_groups.keys() {
-            main_proxies.push(format!("{iso} 节点"));
-        }
-        main_proxies.extend(node_names.clone());
-
-        groups.push(serde_json::json!({
-            "name": "🚀 节点选择",
-            "type": "select",
-            "proxies": main_proxies,
-        }));
-
-        // 2. Auto-test group
-        groups.push(serde_json::json!({
-            "name": "♻️ 自动选择",
-            "type": "url-test",
-            "url": "http://www.gstatic.com/generate_204",
-            "interval": 300,
-            "tolerance": 50,
-            "proxies": node_names,
-        }));
-
-        // 3. Country groups
-        for (iso, proxies) in country_groups {
-            groups.push(serde_json::json!({
-                "name": format!("{iso} 节点"),
-                "type": "url-test",
-                "url": "http://www.gstatic.com/generate_204",
-                "interval": 300,
-                "tolerance": 50,
-                "proxies": proxies,
-            }));
-        }
-
-        // 4. Direct & Reject
-        groups.push(serde_json::json!({
-            "name": "🎯 全球直连",
-            "type": "select",
-            "proxies": ["DIRECT"],
-        }));
-        groups.push(serde_json::json!({
-            "name": "🛑 广告拦截",
-            "type": "select",
-            "proxies": ["REJECT", "DIRECT"],
-        }));
-
-        let mut doc = serde_yaml_ng::Mapping::new();
-        doc.insert(Value::String("port".into()), Value::Number(7890.into()));
-        doc.insert(
-            Value::String("socks-port".into()),
-            Value::Number(7891.into()),
-        );
-        doc.insert(Value::String("mode".into()), Value::String("rule".into()));
-        doc.insert(
-            Value::String("log-level".into()),
-            Value::String("info".into()),
-        );
-
-        let proxies_yaml: Value = serde_yaml_ng::to_value(nodes)?;
-        doc.insert(Value::String("proxies".into()), proxies_yaml);
-
-        let groups_yaml: Value = serde_yaml_ng::to_value(groups)?;
-        doc.insert(Value::String("proxy-groups".into()), groups_yaml);
-
-        let rules = vec![Value::String("MATCH,🚀 节点选择".into())];
-        doc.insert(Value::String("rules".into()), Value::Sequence(rules));
-
-        serde_yaml_ng::to_string(&Value::Mapping(doc)).map_err(|e| anyhow!("{e}"))
+        Ok(ProfileAggregator::plan(sources, options)?.yaml)
     }
 }
