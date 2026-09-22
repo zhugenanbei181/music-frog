@@ -461,6 +461,10 @@ pub struct SettingsPageSnapshot {
     pub log_level: String,
     #[serde(default)]
     pub core_channel: String,
+    /// Persisted Mini HUD placement (shared geometry, DUAL-15-04). Carried in
+    /// the settings page snapshot so both surfaces read one placement.
+    #[serde(default)]
+    pub mini_hud: crate::mini_hud::MiniHudPlacement,
 }
 
 fn default_lan_bind_address() -> String {

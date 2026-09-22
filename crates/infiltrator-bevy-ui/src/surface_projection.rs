@@ -441,6 +441,7 @@ pub(super) fn settings_projection(
             core_resources: snapshot.resources.clone(),
             offline_startup: snapshot.offline_startup.clone(),
             mtu: snapshot.mtu.clone(),
+            mini_hud: value.mini_hud,
         })
         .unwrap_or_else(|| {
             let mut projection = empty_settings();

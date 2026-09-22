@@ -17,6 +17,7 @@ pub mod endpoint;
 pub mod error;
 pub mod fake_ip_cache;
 pub mod host_runtime;
+pub mod mini_hud_window;
 pub mod mtu_probe;
 pub mod network_roaming;
 pub mod offline_startup;

@@ -104,6 +104,9 @@ pub struct AppSettings {
     /// An empty list means "product defaults".
     #[serde(default)]
     pub shortcuts: Vec<infiltrator_contract::shortcuts::ShortcutBinding>,
+    /// Persisted Mini HUD placement (shared contract geometry, DUAL-15-04).
+    #[serde(default)]
+    pub mini_hud: infiltrator_contract::mini_hud::MiniHudPlacement,
 }
 
 fn default_notifications_enabled() -> bool {
@@ -133,6 +136,7 @@ impl Default for AppSettings {
             window_position: None,
             window_maximized: false,
             shortcuts: Vec::new(),
+            mini_hud: infiltrator_contract::mini_hud::MiniHudPlacement::default(),
         }
     }
 }

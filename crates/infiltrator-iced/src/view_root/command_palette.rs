@@ -1,265 +1,83 @@
 //! Global Command Palette (Ctrl+K) modal overlay with fuzzy matching.
+//!
+//! The catalogue, the category vocabulary and the typed targets are the shared
+//! contract (`infiltrator_contract::command_catalogue`); this module is the
+//! Iced projection only: icons, localized copy, pinyin matching on top of the
+//! shared substring rule, and dispatch into the same handlers the global
+//! chords use.
 
 use crate::state::AppState;
-use crate::types::app::{CommandAction, CommandCategory, CommandItem, Route};
 use crate::types::message::Message;
 use crate::view::components::{BadgeKind, badge, kbd_badge, modern_scrollable};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, tokens};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
+use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::command_catalogue::{CommandCategory, CommandTarget, ShellPage};
 use infiltrator_shared::locales::{Lang, Localizer};
 
-pub fn build_all_commands(state: &AppState) -> Vec<(CommandItem, Icon)> {
-    let mut items = vec![
-        // Navigation
-        (
-            CommandItem {
-                id: "nav_overview".into(),
-                title_key: "cmd_nav_overview",
-                category: CommandCategory::Navigation,
-                shortcut_hint: Some("1"),
-                action: CommandAction::Navigate(Route::Overview),
-            },
-            Icon::Activity,
-        ),
-        (
-            CommandItem {
-                id: "nav_proxies".into(),
-                title_key: "cmd_nav_proxies",
-                category: CommandCategory::Navigation,
-                shortcut_hint: Some("2"),
-                action: CommandAction::Navigate(Route::Proxies),
-            },
-            Icon::Server,
-        ),
-        (
-            CommandItem {
-                id: "nav_rules".into(),
-                title_key: "cmd_nav_rules",
-                category: CommandCategory::Navigation,
-                shortcut_hint: Some("3"),
-                action: CommandAction::Navigate(Route::Rules),
-            },
-            Icon::Target,
-        ),
-        (
-            CommandItem {
-                id: "nav_runtime".into(),
-                title_key: "cmd_nav_connections",
-                category: CommandCategory::Navigation,
-                shortcut_hint: Some("4"),
-                action: CommandAction::Navigate(Route::Runtime),
-            },
-            Icon::Network,
-        ),
-        (
-            CommandItem {
-                id: "nav_dns".into(),
-                title_key: "cmd_nav_dns",
-                category: CommandCategory::Navigation,
-                shortcut_hint: Some("5"),
-                action: CommandAction::Navigate(Route::Dns),
-            },
-            Icon::Globe,
-        ),
-        (
-            CommandItem {
-                id: "nav_sync".into(),
-                title_key: "cmd_nav_sync",
-                category: CommandCategory::Navigation,
-                shortcut_hint: Some("6"),
-                action: CommandAction::Navigate(Route::Sync),
-            },
-            Icon::RefreshCw,
-        ),
-        (
-            CommandItem {
-                id: "nav_editor".into(),
-                title_key: "cmd_nav_editor",
-                category: CommandCategory::Navigation,
-                shortcut_hint: Some("7"),
-                action: CommandAction::Navigate(Route::Editor),
-            },
-            Icon::FileText,
-        ),
-        (
-            CommandItem {
-                id: "nav_settings".into(),
-                title_key: "cmd_nav_settings",
-                category: CommandCategory::Navigation,
-                shortcut_hint: Some("8"),
-                action: CommandAction::Navigate(Route::Settings),
-            },
-            Icon::Settings,
-        ),
-        (
-            CommandItem {
-                id: "nav_app_routing".into(),
-                title_key: "nav_app_routing",
-                category: CommandCategory::Navigation,
-                shortcut_hint: Some("9"),
-                action: CommandAction::Navigate(Route::AppRouting),
-            },
-            Icon::LayoutGrid,
-        ),
-        (
-            CommandItem {
-                id: "nav_doctor".into(),
-                title_key: "nav_doctor",
-                category: CommandCategory::Navigation,
-                shortcut_hint: Some("0"),
-                action: CommandAction::Navigate(Route::Doctor),
-            },
-            Icon::ListChecks,
-        ),
-        // Modes
-        (
-            CommandItem {
-                id: "mode_rule".into(),
-                title_key: "cmd_mode_rule",
-                category: CommandCategory::Modes,
-                shortcut_hint: None,
-                action: CommandAction::SetMode("rule".into()),
-            },
-            Icon::Target,
-        ),
-        (
-            CommandItem {
-                id: "mode_global".into(),
-                title_key: "cmd_mode_global",
-                category: CommandCategory::Modes,
-                shortcut_hint: None,
-                action: CommandAction::SetMode("global".into()),
-            },
-            Icon::Globe,
-        ),
-        (
-            CommandItem {
-                id: "mode_direct".into(),
-                title_key: "cmd_mode_direct",
-                category: CommandCategory::Modes,
-                shortcut_hint: None,
-                action: CommandAction::SetMode("direct".into()),
-            },
-            Icon::Zap,
-        ),
-        // Actions
-        (
-            CommandItem {
-                id: "action_toggle_sysproxy".into(),
-                title_key: "cmd_action_toggle_sysproxy",
-                category: CommandCategory::Actions,
-                shortcut_hint: None,
-                action: CommandAction::ToggleSystemProxy,
-            },
-            Icon::Plug,
-        ),
-        (
-            CommandItem {
-                id: "action_toggle_tun".into(),
-                title_key: "cmd_action_toggle_tun",
-                category: CommandCategory::Actions,
-                shortcut_hint: None,
-                action: CommandAction::ToggleTun,
-            },
-            Icon::Shield,
-        ),
-        (
-            CommandItem {
-                id: "toggle_mini_hud".into(),
-                title_key: "command_mini_hud",
-                category: CommandCategory::Actions,
-                shortcut_hint: None,
-                action: CommandAction::ToggleMiniHud,
-            },
-            Icon::Activity,
-        ),
-        (
-            CommandItem {
-                id: "action_flush_fakeip".into(),
-                title_key: "cmd_action_flush_fakeip",
-                category: CommandCategory::Actions,
-                shortcut_hint: None,
-                action: CommandAction::FlushFakeIp,
-            },
-            Icon::Trash2,
-        ),
-        (
-            CommandItem {
-                id: "action_speed_test_all".into(),
-                title_key: "cmd_action_speed_test_all",
-                category: CommandCategory::Actions,
-                shortcut_hint: None,
-                action: CommandAction::SpeedTestAll,
-            },
-            Icon::Zap,
-        ),
-        (
-            CommandItem {
-                id: "action_close_all_conns".into(),
-                title_key: "cmd_action_close_all_conns",
-                category: CommandCategory::Actions,
-                shortcut_hint: None,
-                action: CommandAction::CloseAllConnections,
-            },
-            Icon::X,
-        ),
-        (
-            CommandItem {
-                id: "action_restart_kernel".into(),
-                title_key: "cmd_action_restart_kernel",
-                category: CommandCategory::Actions,
-                shortcut_hint: None,
-                action: CommandAction::RestartKernel,
-            },
-            Icon::RefreshCw,
-        ),
-    ];
-
-    // Profile switching items
-    for p in &state.profile.profiles {
-        let name = p.name.clone();
-        items.push((
-            CommandItem {
-                id: format!("profile_{name}"),
-                title_key: "cmd_cat_profiles",
-                category: CommandCategory::Profiles,
-                shortcut_hint: None,
-                action: CommandAction::SwitchProfile(name.clone()),
-            },
-            Icon::Pin,
-        ));
+/// The Iced icon for a shared command target (presentation only).
+pub fn command_icon(target: &CommandTarget) -> Icon {
+    match target {
+        CommandTarget::Navigate(page) => match page {
+            ShellPage::Overview => Icon::Activity,
+            ShellPage::Proxies => Icon::Server,
+            ShellPage::Profiles => Icon::FileText,
+            ShellPage::Rules => Icon::Target,
+            ShellPage::Connections => Icon::Network,
+            ShellPage::Logs => Icon::ListChecks,
+            ShellPage::Dns => Icon::Globe,
+            ShellPage::Doctor => Icon::ListChecks,
+            ShellPage::AppRouting => Icon::LayoutGrid,
+            ShellPage::Sync => Icon::RefreshCw,
+            ShellPage::Settings => Icon::Settings,
+        },
+        CommandTarget::SetProxyMode(mode) => match mode {
+            ProxyMode::Rule => Icon::Target,
+            ProxyMode::Global => Icon::Globe,
+            ProxyMode::Direct => Icon::Zap,
+            ProxyMode::Script => Icon::Code2,
+        },
+        CommandTarget::SwitchProfile { .. } => Icon::Pin,
+        CommandTarget::ToggleSystemProxy => Icon::Plug,
+        CommandTarget::ToggleTun => Icon::Shield,
+        CommandTarget::ToggleMiniHud => Icon::Activity,
+        CommandTarget::CycleTheme => Icon::Settings,
+        CommandTarget::FlushDnsCache => Icon::Trash2,
+        CommandTarget::TestAllProxyGroups => Icon::Zap,
+        CommandTarget::RunDoctor => Icon::ListChecks,
+        CommandTarget::CloseAllConnections => Icon::X,
+        CommandTarget::RestartKernel => Icon::RefreshCw,
     }
+}
 
-    items
+/// The badge tint for a shared category (presentation only).
+pub fn command_category_badge(category: CommandCategory) -> BadgeKind {
+    match category {
+        CommandCategory::Navigation => BadgeKind::Accent,
+        CommandCategory::Modes => BadgeKind::Success,
+        CommandCategory::Maintenance => BadgeKind::Warning,
+        CommandCategory::Appearance => BadgeKind::Neutral,
+        CommandCategory::Profiles => BadgeKind::Neutral,
+    }
+}
+
+/// The localized title of one catalogue row. Profile rows render the category
+/// label plus the live profile name, exactly like the shared `title_zh`.
+fn localized_title(
+    lang: &Lang<'_>,
+    entry: &infiltrator_contract::command_catalogue::CommandEntry,
+) -> String {
+    match entry.profile_name() {
+        Some(name) => format!("{}: {}", lang.tr(entry.title_key), name),
+        None => lang.tr(entry.title_key).into_owned(),
+    }
 }
 
 pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
-    let all_commands = build_all_commands(state);
-    let query = state.shell.command_query.trim();
-
-    let mut filtered_items = Vec::new();
-    for (item, icon) in all_commands {
-        let title_translated = if item.category == CommandCategory::Profiles {
-            if let CommandAction::SwitchProfile(ref p_name) = item.action {
-                format!("{}: {}", lang.tr("cmd_cat_profiles"), p_name)
-            } else {
-                lang.tr(item.title_key).to_string()
-            }
-        } else {
-            lang.tr(item.title_key).to_string()
-        };
-
-        if query.is_empty()
-            || pinyin_fuzzy_match(&title_translated, query)
-            || pinyin_fuzzy_match(&item.id, query)
-        {
-            filtered_items.push((item, icon, title_translated));
-        }
-    }
+    let filtered = state.filtered_command_indices();
 
     // Modal Search Input header
     let search_row = row![
@@ -270,11 +88,15 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             &state.shell.command_query,
         )
         .on_input(Message::SetCommandQuery)
-        .on_submit(if let Some((first_item, _, _)) = filtered_items.first() {
-            Message::ExecuteCommand(first_item.action.clone())
-        } else {
-            Message::Noop
-        })
+        .on_submit(
+            match filtered
+                .first()
+                .and_then(|index| state.shell.command_catalogue.entry(*index))
+            {
+                Some(entry) => Message::ExecuteCommand(entry.target.clone()),
+                None => Message::Noop,
+            }
+        )
         .padding([8, 12])
         .size(14)
         .width(Length::Fill)
@@ -321,7 +143,7 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
         });
 
     // Items list
-    let list_element: Element<'_, Message> = if filtered_items.is_empty() {
+    let list_element: Element<'_, Message> = if filtered.is_empty() {
         container(
             column![
                 icon_themed(Icon::Search, 24.0, |t: &Theme| tokens(t).text_tertiary),
@@ -343,22 +165,25 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
         let selected_idx = state
             .shell
             .command_selected_index
-            .min(filtered_items.len().saturating_sub(1));
+            .min(filtered.len().saturating_sub(1));
 
-        for (idx, (item, icon, title_str)) in filtered_items.into_iter().enumerate() {
-            let is_selected = idx == selected_idx;
-            let cat_label = match item.category {
-                CommandCategory::Navigation => lang.tr("cmd_cat_nav"),
-                CommandCategory::Modes => lang.tr("cmd_cat_modes"),
-                CommandCategory::Actions => lang.tr("cmd_cat_actions"),
-                CommandCategory::Profiles => lang.tr("cmd_cat_profiles"),
+        for (position, index) in filtered.into_iter().enumerate() {
+            let Some(entry) = state.shell.command_catalogue.entry(index) else {
+                continue;
             };
-            let cat_badge_kind = match item.category {
-                CommandCategory::Navigation => BadgeKind::Accent,
-                CommandCategory::Modes => BadgeKind::Success,
-                CommandCategory::Actions => BadgeKind::Warning,
-                CommandCategory::Profiles => BadgeKind::Neutral,
-            };
+            let is_selected = position == selected_idx;
+            let title_str = localized_title(&lang, entry);
+            let cat_label = lang.tr(entry.category.label_key());
+            let cat_badge_kind = command_category_badge(entry.category);
+            let icon = command_icon(&entry.target);
+            let target = entry.target.clone();
+            // A global-chord action renders the live registry accelerator
+            // instead of a decorative hint.
+            let accelerator = entry
+                .target
+                .shortcut_action()
+                .and_then(|action| state.shell.shortcut_registry.get(action))
+                .map(|binding| binding.chord.display_string(false));
 
             let mut item_row = row![
                 icon_themed(icon, 16.0, move |t: &Theme| {
@@ -388,7 +213,7 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             ]
             .align_y(Alignment::Center);
 
-            if let Some(hint) = item.shortcut_hint {
+            if let Some(hint) = accelerator {
                 item_row = item_row
                     .push(Space::new().width(theme::SP_XS))
                     .push(kbd_badge(hint));
@@ -427,7 +252,7 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
                         ..Default::default()
                     }
                 })
-                .on_press(Message::ExecuteCommand(item.action));
+                .on_press(Message::ExecuteCommand(target));
 
             list_col = list_col.push(item_btn);
         }

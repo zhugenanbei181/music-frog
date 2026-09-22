@@ -178,8 +178,9 @@ impl AppState {
         self.on_shell_shortcut(action)
     }
 
-    /// Route one bound shortcut action to its product handler.
-    fn on_shell_shortcut(&mut self, action: ShortcutAction) -> Task<Message> {
+    /// Route one bound shortcut action to its product handler. Shared with the
+    /// command palette so a catalogue row and its global chord cannot diverge.
+    pub(crate) fn on_shell_shortcut(&mut self, action: ShortcutAction) -> Task<Message> {
         match action {
             ShortcutAction::OpenCommandPalette => self.update_ui(Message::ToggleCommandPalette),
             ShortcutAction::ToggleSystemProxy => {

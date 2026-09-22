@@ -46,6 +46,7 @@ impl SettingsProjection {
             core_resources: Default::default(),
             offline_startup: Default::default(),
             mtu: Default::default(),
+            mini_hud: Default::default(),
         }
     }
 }

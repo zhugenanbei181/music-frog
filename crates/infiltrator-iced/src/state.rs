@@ -466,6 +466,21 @@ pub struct ShellState {
     pub command_palette_open: bool,
     pub command_query: String,
     pub command_selected_index: usize,
+    /// Shared command-palette catalogue (DUAL-15-05). Rebuilt from the stored
+    /// profile list whenever the palette opens so both surfaces list the same
+    /// entries plus the same live profile rows.
+    pub command_catalogue: infiltrator_contract::command_catalogue::CommandCatalogue,
+    /// Persisted Mini HUD placement (shared geometry, DUAL-15-04).
+    pub mini_hud_placement: infiltrator_contract::mini_hud::MiniHudPlacement,
+    /// Mini HUD drag anchor: the cursor's widget-local point and the placement
+    /// captured when the drag started.
+    pub mini_hud_drag_anchor: Option<MiniHudDragAnchor>,
+    /// The host's monitor rectangle once resolved, used for clamping and edge
+    /// snapping the HUD placement.
+    pub mini_hud_display: Option<infiltrator_contract::mini_hud::MiniHudDisplay>,
+    /// The host window id once resolved (single-window desktop app), needed
+    /// to move/level the Mini HUD window.
+    pub window_id: Option<iced::window::Id>,
     pub mini_hud_mode: bool,
     pub always_on_top: bool,
     /// Shared appearance preference (pinned skin or system follow).
@@ -477,6 +492,15 @@ pub struct ShellState {
     /// Action awaiting the next captured chord, if any.
     pub hotkey_capture: Option<infiltrator_contract::shortcuts::ShortcutAction>,
     pub uwp_loopback: crate::types::app::UwpLoopbackState,
+}
+
+/// Drag state for the Mini HUD window: the cursor's widget-local anchor and
+/// the placement mirror when the drag began. The actual window move is issued
+/// through the host window task; this only tracks the delta math.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MiniHudDragAnchor {
+    pub origin: (f32, f32),
+    pub placement: infiltrator_contract::mini_hud::MiniHudPlacement,
 }
 
 impl ShellState {
@@ -511,6 +535,100 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// Rebuild the command catalogue from the stored profile list. Called when
+    /// the palette opens and after the profile list changes, so the palette
+    /// always lists the live profiles alongside the shared product commands.
+    pub fn rebuild_command_catalogue(&mut self) {
+        let profiles: Vec<infiltrator_contract::command_catalogue::ProfileChoice> = self
+            .profile
+            .profiles
+            .iter()
+            .map(|profile| {
+                infiltrator_contract::command_catalogue::ProfileChoice::new(
+                    profile.name.clone(),
+                    profile.name.clone(),
+                )
+            })
+            .collect();
+        self.shell.command_catalogue =
+            infiltrator_contract::command_catalogue::CommandCatalogue::with_profiles(&profiles);
+    }
+
+    /// Indices of the shared catalogue kept by the current query. The shared
+    /// substring rule plus the Iced pinyin matcher; both surfaces derive the
+    /// arrow-key order from the same shared catalogue.
+    pub fn filtered_command_indices(&self) -> Vec<usize> {
+        let catalogue = &self.shell.command_catalogue;
+        let query = self.shell.command_query.trim();
+        if query.is_empty() {
+            return (0..catalogue.len()).collect();
+        }
+        let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+        catalogue
+            .entries()
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| {
+                entry.matches(query)
+                    || infiltrator_shared::fuzzy_search::pinyin_fuzzy_match(
+                        &infiltrator_shared::locales::Localizer::tr(&lang, entry.title_key),
+                        query,
+                    )
+                    || infiltrator_shared::fuzzy_search::pinyin_fuzzy_match(
+                        &infiltrator_shared::locales::Localizer::tr(
+                            &lang,
+                            entry.category.label_key(),
+                        ),
+                        query,
+                    )
+                    || infiltrator_shared::fuzzy_search::pinyin_fuzzy_match(&entry.id, query)
+            })
+            .map(|(index, _)| index)
+            .collect()
+    }
+
+    /// The Mini HUD's shared read model, assembled from the live projections:
+    /// traffic rates, the controller-reported mode, the selected exit node and
+    /// the shared system-toggle snapshot. Nothing here is a constant.
+    pub fn mini_hud_read_model(&self) -> infiltrator_contract::mini_hud::MiniHudReadModel {
+        let active_node = if !self.runtime.runtime_selected_proxy.is_empty() {
+            self.runtime.runtime_selected_proxy.clone()
+        } else if let Some(active) = self.profile.profiles.iter().find(|profile| profile.active) {
+            active.name.clone()
+        } else {
+            String::new()
+        };
+        let mode_zh = self
+            .runtime
+            .proxy_mode
+            .as_deref()
+            .and_then(infiltrator_contract::command::ProxyMode::from_wire)
+            .map(|mode| {
+                infiltrator_shared::locales::Localizer::tr(
+                    &infiltrator_shared::locales::Lang(&self.shell.lang),
+                    &format!("mode_{}", mode.to_wire()),
+                )
+                .into_owned()
+            })
+            .unwrap_or_default();
+        let (up, down) = self
+            .diag
+            .traffic
+            .as_ref()
+            .map(|traffic| (traffic.up, traffic.down))
+            .unwrap_or((0, 0));
+        infiltrator_contract::mini_hud::MiniHudReadModel {
+            visible: self.shell.mini_hud_mode,
+            mode_zh,
+            exit_node: active_node,
+            down_bytes_per_sec: down,
+            up_bytes_per_sec: up,
+            system_proxy: self.runtime.system_toggles.system_proxy.clone(),
+            tun: self.runtime.system_toggles.tun.clone(),
+            placement: self.shell.mini_hud_placement,
+        }
+    }
+
     /// Move an Overview card up/down using the shared layout operators, then
     /// store the resulting order. Reusing `OverviewLayoutSnapshot` guarantees
     /// the Iced surface applies the exact same swap semantics as Bevy.

@@ -221,13 +221,24 @@ fn capture_refuses_a_chord_owned_by_another_action() {
 }
 
 #[test]
-fn a_chord_pressed_for_an_unmounted_action_is_inert() {
+fn a_chord_pressed_for_the_mini_hud_toggles_the_mounted_overlay() {
     let (mut app, sink) = mounted_app();
-    // Mini HUD (scene not mounted yet) resolves but dispatches nothing.
+    assert!(
+        !app.world()
+            .resource::<infiltrator_bevy_ui::mini_hud::MiniHudMode>()
+            .0
+    );
     press(
         &mut app,
         KeyCode::KeyM,
         &[KeyCode::ControlLeft, KeyCode::AltLeft],
+    );
+    // The shortcut flips the mounted HUD; it is a local view command, so no
+    // sink command goes out (the global-chord dispatch is not a settings write).
+    assert!(
+        app.world()
+            .resource::<infiltrator_bevy_ui::mini_hud::MiniHudMode>()
+            .0
     );
     assert!(sink.submitted().is_empty());
     let _ = ChordPressed {

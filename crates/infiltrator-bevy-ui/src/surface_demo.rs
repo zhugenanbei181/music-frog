@@ -365,6 +365,7 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         core_resources: Default::default(),
         offline_startup: Default::default(),
         mtu: Default::default(),
+        mini_hud: Default::default(),
     }
 }
 
@@ -670,6 +671,7 @@ impl From<SettingsProjection> for surface_snapshot::SettingsPageSnapshot {
             controller_port: value.controller_port,
             log_level: value.log_level,
             core_channel: value.core_channel,
+            mini_hud: value.mini_hud,
         }
     }
 }

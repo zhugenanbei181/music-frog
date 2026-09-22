@@ -148,6 +148,129 @@ fn the_open_palette_owns_the_arrow_keys() {
 }
 
 #[test]
+fn the_palette_lists_the_shared_catalogue_and_wraps_like_bevy() {
+    let (mut state, _) = AppState::new();
+    let _ = state.update(chord("k", KeyModifiers::ctrl()));
+    assert!(state.shell.command_palette_open);
+    let catalogue = state.shell.command_catalogue.clone();
+    assert!(catalogue.index_of("nav.dns").is_some());
+    assert!(catalogue.index_of("action.toggle_mini_hud").is_some());
+    assert!(catalogue.index_of("theme.toggle").is_some());
+
+    // Filtering uses the shared substring rule (plus pinyin on top).
+    let _ = state.update(Message::SetCommandQuery("dns".to_owned()));
+    let filtered = state.filtered_command_indices();
+    let ids: Vec<&str> = filtered
+        .iter()
+        .filter_map(|index| catalogue.entry(*index))
+        .map(|entry| entry.id.as_str())
+        .collect();
+    assert_eq!(ids, vec!["nav.dns", "action.flush_dns_cache"]);
+
+    // The cursor wraps exactly like the Bevy state machine.
+    let _ = state.update(Message::SelectPrevCommand);
+    assert_eq!(state.shell.command_selected_index, 1);
+    let _ = state.update(Message::SelectNextCommand);
+    assert_eq!(state.shell.command_selected_index, 0);
+}
+
+#[test]
+fn the_palette_executes_shared_targets() {
+    let (mut state, _) = AppState::new();
+    let _ = state.update(chord("k", KeyModifiers::ctrl()));
+    let _ = state.update(Message::ExecuteCommand(
+        infiltrator_contract::command_catalogue::CommandTarget::Navigate(
+            infiltrator_contract::command_catalogue::ShellPage::Dns,
+        ),
+    ));
+    assert!(!state.shell.command_palette_open);
+    assert_eq!(state.shell.current_route, crate::types::app::Route::Dns);
+
+    // A global-chord target re-enters the single shortcut handler.
+    let before = state.shell.theme_preference;
+    let _ = state.update(Message::ExecuteCommand(
+        infiltrator_contract::command_catalogue::CommandTarget::CycleTheme,
+    ));
+    assert_eq!(state.shell.theme_preference, before.next());
+
+    // The Mini HUD row toggles the same flag the chord does.
+    assert!(!state.shell.mini_hud_mode);
+    let _ = state.update(Message::ExecuteCommand(
+        infiltrator_contract::command_catalogue::CommandTarget::ToggleMiniHud,
+    ));
+    assert!(state.shell.mini_hud_mode);
+}
+
+#[test]
+fn the_mini_hud_read_model_comes_from_live_projections() {
+    let (mut state, _) = AppState::new();
+    state.diag.traffic = Some(infiltrator_domain::runtime::TrafficData {
+        up: 4 * 1024,
+        down: 3 * 1024 * 1024,
+    });
+    state.runtime.proxy_mode = Some("rule".to_owned());
+    state.runtime.runtime_selected_proxy = "HK-01".to_owned();
+    state.runtime.system_toggles =
+        infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
+            true,
+            Some(false),
+            7,
+        );
+
+    let model = state.mini_hud_read_model();
+    assert_eq!(model.up_bytes_per_sec, 4 * 1024);
+    assert_eq!(model.down_bytes_per_sec, 3 * 1024 * 1024);
+    assert_eq!(model.exit_node, "HK-01");
+    assert_eq!(
+        model.next_value(infiltrator_contract::system_toggle::SystemToggle::SystemProxy),
+        Some(false)
+    );
+    assert_eq!(
+        model.next_value(infiltrator_contract::system_toggle::SystemToggle::Tun),
+        Some(true)
+    );
+    assert!(model.status_line().contains("系统代理: 开"));
+    assert!(!model.mode_zh.is_empty());
+}
+
+#[test]
+fn the_mini_hud_drag_moves_the_persisted_placement() {
+    let (mut state, _) = AppState::new();
+    state.shell.mini_hud_placement =
+        infiltrator_contract::mini_hud::MiniHudPlacement::new(100, 200);
+    let _ = state.update(Message::MiniHudDisplayKnown(Some(iced::Size::new(
+        1920.0, 1080.0,
+    ))));
+
+    // First move anchors on the cursor; the delta moves the placement mirror.
+    let _ = state.update(Message::MiniHudMoved { x: 500.0, y: 400.0 });
+    assert_eq!(
+        state.shell.mini_hud_placement,
+        infiltrator_contract::mini_hud::MiniHudPlacement::new(100, 200)
+    );
+    let _ = state.update(Message::MiniHudMoved { x: 540.0, y: 430.0 });
+    assert_eq!(state.shell.mini_hud_placement.x, 140);
+    assert_eq!(state.shell.mini_hud_placement.y, 230);
+
+    // Releasing clears the anchor and snapshots the display for the
+    // application's clamp/snap pass.
+    let _ = state.update(Message::MiniHudDragReleased);
+    assert!(state.shell.mini_hud_drag_anchor.is_none());
+    assert!(state.shell.mini_hud_display.is_some());
+}
+
+#[test]
+fn always_on_top_mirrors_the_pin_onto_the_shared_placement() {
+    let (mut state, _) = AppState::new();
+    assert!(!state.shell.always_on_top);
+    let _ = state.update(Message::SetAlwaysOnTop(true));
+    assert!(state.shell.always_on_top);
+    assert!(state.shell.mini_hud_placement.pinned);
+    let _ = state.update(Message::SetAlwaysOnTop(false));
+    assert!(!state.shell.mini_hud_placement.pinned);
+}
+
+#[test]
 fn capture_records_the_conflict_without_touching_the_binding() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::BeginHotkeyCapture(ShortcutAction::ToggleMiniHud));

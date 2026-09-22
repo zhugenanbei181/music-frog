@@ -5006,6 +5006,7 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-domain",
  "infiltrator-ports",
+ "infiltrator-shared",
  "mockito",
  "serde",
  "serde_json",

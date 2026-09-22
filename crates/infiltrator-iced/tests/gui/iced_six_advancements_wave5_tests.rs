@@ -279,6 +279,7 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
         controller_port: 9090,
         log_level: "info".to_owned(),
         core_channel: "stable".to_owned(),
+        mini_hud: Default::default(),
     });
 
     assert!(state.apply_shared_surface_snapshot(snapshot));
@@ -483,6 +484,7 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
         controller_port: 9090,
         log_level: "info".to_owned(),
         core_channel: "stable".to_owned(),
+        mini_hud: Default::default(),
     });
 
     assert!(state.apply_shared_surface_snapshot(snapshot));

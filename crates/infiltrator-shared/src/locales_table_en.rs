@@ -828,6 +828,8 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
         "mini_hud_expand" => "Expand Window".into(),
         "mini_hud_pin" => "Pin on Top".into(),
         "mini_hud_unpin" => "Unpin".into(),
+        "mini_hud_system_proxy_short" => "Proxy".into(),
+        "mini_hud_tun_short" => "TUN".into(),
         "command_mini_hud" => "Toggle Mini Floating Speed HUD".into(),
         "script_sandbox_title" => "QuickJS Script Sandbox".into(),
         "script_sandbox_subtitle" => "Test and debug Clash JavaScript extension scripts and lifecycle hooks.".into(),

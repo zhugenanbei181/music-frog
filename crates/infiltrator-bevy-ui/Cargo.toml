@@ -16,6 +16,7 @@ accesskit = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-composition = { path = "../infiltrator-composition" }
+infiltrator-shared = { path = "../infiltrator-shared" }
 
 # Base `bevy` declaration with an EMPTY feature set; the per-target tables
 # below own the real closure (bevy derive macros scan this plain table).

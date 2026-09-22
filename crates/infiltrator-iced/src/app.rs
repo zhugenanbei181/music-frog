@@ -444,6 +444,11 @@ impl AppState {
                 command_palette_open: false,
                 command_query: String::new(),
                 command_selected_index: 0,
+                command_catalogue: infiltrator_contract::command_catalogue::CommandCatalogue::new(),
+                mini_hud_placement: infiltrator_contract::mini_hud::MiniHudPlacement::default(),
+                mini_hud_drag_anchor: None,
+                mini_hud_display: None,
+                window_id: None,
                 mini_hud_mode: false,
                 always_on_top: false,
                 theme_preference: infiltrator_contract::theme::ThemePreference::System,
@@ -524,6 +529,9 @@ impl AppState {
                     Message::ProfilesLoaded,
                 ),
                 Task::done(Message::LoadKernels),
+                // 单窗口桌面宿主：启动即解析窗口 id，Mini HUD 的移动/置顶
+                // 任务需要它（未解析前所有窗口任务都是 no-op）。
+                iced::window::latest().map(Message::WindowIdResolved),
                 // 启动即读取 OS 外观：`system` 偏好下冷启动就与系统一致。
                 iced::system::theme().map(|mode| {
                     Message::SystemThemeChanged(matches!(mode, iced::theme::Mode::Dark))

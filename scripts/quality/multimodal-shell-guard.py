@@ -318,6 +318,237 @@ def main() -> int:
         "theme_writes_are_validated_and_canonicalised",
     )
 
+    # ---- Batch B (DUAL-15-03/04/05): command palette catalogue and Mini HUD.
+    # The ledger records the batch and its evidence tokens.
+    require(
+        violations,
+        LEDGER,
+        "2026-09-22 组 15 批次 B",
+        "CommandCatalogue",
+        "CommandTarget",
+        "ShellPage",
+        "MiniHudReadModel",
+        "MiniHudPlacement",
+        "MiniHudWindowPort",
+        "MiniHudApplication",
+        "the_palette_lists_the_shared_catalogue_and_wraps_like_bevy",
+        "the_palette_executes_shared_targets",
+        "test_palette_keyboard_navigation_typing_and_close",
+        "test_palette_row_click_executes_that_row",
+        "the_mini_hud_read_model_comes_from_live_projections",
+        "the_mini_hud_drag_moves_the_persisted_placement",
+        "the_mounted_scene_renders_the_shared_read_model",
+        "the_pin_request_persists_through_the_shared_settings_command",
+        "place_snaps_clamps_persists_and_reports_the_host_outcome",
+        "a_host_without_the_window_adapter_reports_typed_unsupported",
+        "mini_hud_placement_writes_are_validated_per_field",
+    )
+
+    # Shared contracts: the palette catalogue and the Mini HUD read model.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/command_catalogue.rs",
+        "pub enum ShellPage",
+        "pub enum CommandCategory",
+        "pub enum CommandTarget",
+        "pub struct CommandCatalogue",
+        "pub fn with_profiles",
+        "pub fn filtered_indices",
+        "pub const fn label_zh",
+        "pub const fn shortcut_action",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/mini_hud.rs",
+        "pub struct MiniHudPlacement",
+        "pub struct MiniHudDisplay",
+        "pub struct MiniHudReadModel",
+        "pub struct MiniHudSnapPlacement",
+        "pub fn snap_to_edges",
+        "pub fn status_line",
+        "pub enum MiniHudHostOutcome",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub mini_hud: crate::mini_hud::MiniHudPlacement",
+    )
+
+    # Application + ports: placement use-cases and the host window capability.
+    require(
+        violations,
+        "crates/infiltrator-application/src/mini_hud_application.rs",
+        "pub struct MiniHudApplication",
+        "pub async fn place_from",
+        "pub async fn set_pinned_from",
+        "pub struct MiniHudPlacementReport",
+        "MINI_HUD_SNAP_THRESHOLD_PX",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/mini_hud_window.rs",
+        "pub trait MiniHudWindowPort",
+        "async fn apply_placement",
+        "async fn set_visible",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/host_runtime.rs",
+        "fn mini_hud_window_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/settings.rs",
+        "pub mini_hud: infiltrator_contract::mini_hud::MiniHudPlacement",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        'strip_prefix("mini_hud.")',
+        "placement.pinned = value.parse",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "mini_hud: settings.mini_hud",
+    )
+
+    # Iced surface: catalogue-driven palette and the real HUD window mode.
+    require(
+        violations,
+        "crates/infiltrator-iced/src/state.rs",
+        "pub command_catalogue",
+        "pub mini_hud_placement",
+        "pub fn rebuild_command_catalogue",
+        "pub fn filtered_command_indices",
+        "pub fn mini_hud_read_model",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view_root/command_palette.rs",
+        "infiltrator_contract::command_catalogue",
+        "state.filtered_command_indices()",
+        "shortcut_action()",
+        "command_category_badge",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/ui.rs",
+        "update_mini_hud",
+        "self.filtered_command_indices()",
+        "on_shell_shortcut(action)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/mini_hud.rs",
+        "update_mini_hud",
+        "mini_hud_store::place",
+        "mini_hud_store::set_pinned",
+        "mini_hud_window::enter",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/mini_hud_window.rs",
+        "iced::window::move_to",
+        "iced::window::set_level",
+        "Level::AlwaysOnTop",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/mini_hud_store.rs",
+        "MiniHudApplication::new",
+        "place_from",
+        "set_pinned_from",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/mini_hud.rs",
+        "mini_hud_read_model",
+        "Message::MiniHudMoved",
+        "Message::MiniHudDragReleased",
+        "mouse_area",
+    )
+
+    # Bevy surface: mounted palette overlay + keyboard seam, mounted HUD model.
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command_palette_shell.rs",
+        "pub struct CommandPalettePlugin",
+        "pub fn palette_keyboard_input",
+        "pub fn sync_palette_overlay",
+        "pub fn sync_palette_catalogue",
+        "pub fn on_execute_selected_palette_action",
+        "Route::from_shell_page",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command_palette.rs",
+        "pub catalogue: CommandCatalogue",
+        "pub fn from_catalogue",
+        "command_palette_modal_scene",
+        "pinyin_fuzzy_match",
+        "pub fn accelerator_for",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/mini_hud_shell.rs",
+        "pub struct MiniHudPlugin",
+        "pub fn sync_mini_hud_model",
+        "pub fn sync_mini_hud_overlay",
+        '"mini_hud.pinned"',
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/mini_hud.rs",
+        "MiniHudReadModel",
+        "pub fn mini_hud_scene",
+        "status_line",
+        "pub struct ToggleMiniHud",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/shortcuts.rs",
+        "crate::mini_hud::ToggleMiniHud",
+    )
+
+    # Dual headless tests for this batch.
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/multimodal_shell_tests.rs",
+        "the_palette_lists_the_shared_catalogue_and_wraps_like_bevy",
+        "the_palette_executes_shared_targets",
+        "the_mini_hud_read_model_comes_from_live_projections",
+        "the_mini_hud_drag_moves_the_persisted_placement",
+        "always_on_top_mirrors_the_pin_onto_the_shared_placement",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/command_palette_tests.rs",
+        "test_palette_mounts_and_unmounts_from_the_shared_catalogue",
+        "test_palette_keyboard_navigation_typing_and_close",
+        "test_palette_row_click_executes_that_row",
+        "test_command_palette_action_execution_dispatches_route_and_command",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/mini_hud_tests.rs",
+        "the_toggle_event_mounts_and_unmounts_the_overlay",
+        "the_read_model_comes_from_the_live_projections",
+        "the_mounted_scene_renders_the_shared_read_model",
+        "the_pin_request_persists_through_the_shared_settings_command",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application_settings_tests.rs",
+        "mini_hud_placement_writes_are_validated_per_field",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/mini_hud_application.rs",
+        "place_snaps_clamps_persists_and_reports_the_host_outcome",
+        "a_host_without_the_window_adapter_reports_typed_unsupported",
+    )
+
     # The mirrored skin vocabulary must match the contract numerically.
     contract_skins = skin_settings("crates/infiltrator-contract/src/theme.rs")
     widget_skins = skin_settings("crates/infiltrator-bevy-widgets/src/theme.rs")
@@ -359,6 +590,32 @@ def main() -> int:
         violations,
         "crates/infiltrator-iced/src/view/theme.rs",
         'value.trim().to_ascii_lowercase().as_str() {\n        "forest"',
+    )
+    # Batch B regressions: the HUD must stay read-model driven, the palette
+    # must stay catalogue driven, and the Iced command model must stay shared.
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/mini_hud.rs",
+        "系统代理: 开启",
+        'Text({ "RULE".to_owned() })',
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/types/app.rs",
+        "pub enum CommandAction",
+        "pub struct CommandItem",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command_palette.rs",
+        "Vec<PaletteAction>",
+        "pub enum PaletteCategory",
+        "pub struct PaletteAction",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/types/message.rs",
+        "CommandAction",
     )
 
     if args.mode == "enforce" and violations:

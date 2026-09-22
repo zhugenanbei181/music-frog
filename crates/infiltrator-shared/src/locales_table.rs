@@ -823,6 +823,8 @@ pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "mini_hud_expand" => "展开主窗口".into(),
         "mini_hud_pin" => "置顶".into(),
         "mini_hud_unpin" => "取消置顶".into(),
+        "mini_hud_system_proxy_short" => "代理".into(),
+        "mini_hud_tun_short" => "TUN".into(),
         "command_mini_hud" => "切换迷你悬浮窗模式".into(),
         "script_sandbox_title" => "QuickJS 脚本扩展控制台".into(),
         "script_sandbox_subtitle" => "测试与调试 Clash 社区 JavaScript 扩展脚本及配置生命周期 Hook".into(),

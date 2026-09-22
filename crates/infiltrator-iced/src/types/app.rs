@@ -19,6 +19,28 @@ pub enum Route {
     Doctor,
 }
 
+impl Route {
+    /// Map a shared command-catalogue page onto this surface's route. Iced has
+    /// no dedicated logs page (the runtime page hosts the logs section) and
+    /// keeps the config editor as a local page, so those two are the only
+    /// non-identical arms.
+    pub fn from_shell_page(page: infiltrator_contract::command_catalogue::ShellPage) -> Self {
+        match page {
+            infiltrator_contract::command_catalogue::ShellPage::Overview => Self::Overview,
+            infiltrator_contract::command_catalogue::ShellPage::Proxies => Self::Proxies,
+            infiltrator_contract::command_catalogue::ShellPage::Profiles => Self::Profiles,
+            infiltrator_contract::command_catalogue::ShellPage::Rules => Self::Rules,
+            infiltrator_contract::command_catalogue::ShellPage::Connections
+            | infiltrator_contract::command_catalogue::ShellPage::Logs => Self::Runtime,
+            infiltrator_contract::command_catalogue::ShellPage::Dns => Self::Dns,
+            infiltrator_contract::command_catalogue::ShellPage::Doctor => Self::Doctor,
+            infiltrator_contract::command_catalogue::ShellPage::AppRouting => Self::AppRouting,
+            infiltrator_contract::command_catalogue::ShellPage::Sync => Self::Sync,
+            infiltrator_contract::command_catalogue::ShellPage::Settings => Self::Settings,
+        }
+    }
+}
+
 /// Navigation history stack tracking back/forward navigation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RouteHistory {
@@ -159,36 +181,9 @@ impl Default for Transition {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CommandCategory {
-    Navigation,
-    Modes,
-    Actions,
-    Profiles,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CommandAction {
-    Navigate(Route),
-    SetMode(String),
-    ToggleSystemProxy,
-    ToggleTun,
-    FlushFakeIp,
-    SpeedTestAll,
-    CloseAllConnections,
-    RestartKernel,
-    SwitchProfile(String),
-    ToggleMiniHud,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommandItem {
-    pub id: String,
-    pub title_key: &'static str,
-    pub category: CommandCategory,
-    pub shortcut_hint: Option<&'static str>,
-    pub action: CommandAction,
-}
+// The command-palette catalogue, its categories and its typed targets live in
+// the shared contract (`infiltrator_contract::command_catalogue`); the Iced
+// types module keeps no second local command model.
 
 // User-configured global hotkeys live in the shared contract
 // (`infiltrator_contract::shortcuts::ShortcutRegistry`); the shell keeps no

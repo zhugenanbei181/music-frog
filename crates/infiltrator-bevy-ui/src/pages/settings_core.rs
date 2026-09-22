@@ -158,6 +158,9 @@ pub struct SettingsProjection {
     pub core_resources: CoreResourceSnapshot,
     pub offline_startup: OfflineStartupSnapshot,
     pub mtu: MtuNegotiationSnapshot,
+    /// DUAL-15-04: the persisted Mini HUD placement from the shared settings
+    /// snapshot.
+    pub mini_hud: infiltrator_contract::mini_hud::MiniHudPlacement,
 }
 
 pub(super) fn controller_settings_card(

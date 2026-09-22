@@ -67,6 +67,11 @@ impl AppState {
         self.shell.notifications_enabled = settings.notifications_enabled;
         self.shell.close_to_tray = settings.close_to_tray;
         self.shell.system_proxy_bypass = settings.system_proxy_bypass.unwrap_or_default();
+        // DUAL-15-04: restore the persisted Mini HUD placement through the
+        // shared contract geometry; the window itself is moved when the host
+        // enters HUD mode.
+        self.shell.mini_hud_placement = settings.mini_hud;
+        self.shell.always_on_top = settings.mini_hud.pinned;
         self.profile.webdav_enabled
             && self.profile.webdav_sync_on_startup
             && !self.profile.webdav_url.trim().is_empty()

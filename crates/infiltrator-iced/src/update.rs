@@ -1,4 +1,5 @@
 pub mod core;
+mod mini_hud;
 pub mod profile;
 pub mod shell;
 mod system_proxy;
@@ -164,6 +165,11 @@ impl AppState {
             | Message::ResetProxyGroupOrder
             | Message::ToggleMiniHudMode
             | Message::SetAlwaysOnTop(_)
+            | Message::MiniHudMoved { .. }
+            | Message::MiniHudDragReleased
+            | Message::MiniHudPlacementUpdated(_)
+            | Message::MiniHudDisplayKnown(_)
+            | Message::WindowIdResolved(_)
             | Message::RunScriptSandboxTest
             | Message::SelectScriptPreset(_)
             | Message::UpdateScriptSandboxCode(_)

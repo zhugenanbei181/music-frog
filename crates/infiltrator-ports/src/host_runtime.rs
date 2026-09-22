@@ -86,5 +86,11 @@ pub trait HostRuntime: ManagedRuntime {
     ) -> Option<Arc<dyn crate::system_dns_cache::SystemDnsCachePort>> {
         None
     }
+    /// Optional floating Mini HUD window adapter. Hosts that cannot move an
+    /// always-on-top frameless window omit it; the persisted placement still
+    /// round-trips through settings and is reported as typed unsupported.
+    fn mini_hud_window_port(&self) -> Option<Arc<dyn crate::mini_hud_window::MiniHudWindowPort>> {
+        None
+    }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;
 }
