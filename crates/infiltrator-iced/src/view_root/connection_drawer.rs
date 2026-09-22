@@ -110,11 +110,9 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
     .spacing(6);
 
     // Section 3: Routing & Outbound Proxy Chain
-    let chain_str = if !conn.chains.is_empty() {
-        conn.chains.join(" ➔ ")
-    } else {
-        "DIRECT".to_string()
-    };
+    // DUAL-13-06: every hop of the parsed chain is rendered as its own stage
+    // through the shared route-chain model.
+    let chain = connection_view::route_chain(conn);
 
     let routing_section = column![
         row![
@@ -142,7 +140,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
                 conn.rule_payload.clone()
             }
         ),
-        meta_field_row(lang.tr("conn_drawer_proxy_chain"), chain_str),
+        route_chain_row(lang.tr("conn_drawer_proxy_chain"), &chain),
     ]
     .spacing(6);
 
@@ -348,6 +346,42 @@ fn stat_card<'a, Message: 'a>(
         }
     })
     .into()
+}
+
+fn route_chain_row<'a>(
+    label: impl Into<String>,
+    chain: &connection_view::RouteChain,
+) -> Element<'a, Message> {
+    let label_s = label.into();
+    let tertiary = |t: &Theme| text::Style {
+        color: Some(tokens(t).text_tertiary),
+    };
+    let mut items: Vec<Element<'a, Message>> = vec![
+        text(label_s)
+            .size(11)
+            .width(Length::Fixed(120.0))
+            .style(tertiary)
+            .into(),
+    ];
+    if chain.is_empty() {
+        items.push(
+            text("DIRECT")
+                .size(11)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                })
+                .into(),
+        );
+    } else {
+        for (hop_idx, hop) in chain.hops().iter().enumerate() {
+            if hop_idx > 0 {
+                items.push(text(" ➔ ").size(11).font(MONO).style(tertiary).into());
+            }
+            items.push(chip(hop.clone()));
+        }
+    }
+    row(items).align_y(Alignment::Center).into()
 }
 
 fn meta_field_row<'a, Message: 'a>(

@@ -694,11 +694,19 @@ impl AppState {
                 Task::none()
             }
             Message::AddQuickRuleFromConnection { pattern, target } => {
-                let new_entry = infiltrator_domain::rules::RuleEntry {
-                    rule: format!("{pattern},{target}"),
-                    enabled: true,
+                // DUAL-13-09: both surfaces append through the shared domain
+                // draft seam, which rejects empty patterns and de-duplicates.
+                let spec = infiltrator_domain::connection_view::ConnectionRuleSpec {
+                    pattern: pattern.clone(),
+                    target: target.clone(),
                 };
-                self.editor.rules.push(new_entry);
+                let added = infiltrator_domain::connection_view::append_draft_rule(
+                    &mut self.editor.rules,
+                    &spec,
+                );
+                if added.is_none() {
+                    return Task::none();
+                }
                 self.editor.rules_dirty = true;
                 Task::done(Message::ShowToast(
                     format!("Added rule: {pattern} -> {target}"),

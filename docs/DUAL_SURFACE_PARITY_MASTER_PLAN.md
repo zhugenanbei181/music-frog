@@ -83,7 +83,7 @@
 | 组 10 脚本沙箱与多级 Mixin | 15 | `planned` | `script_console.rs`、`profiles_script.rs` | 双端控制台与熔断测试未验收 |
 | 组 11 规则引擎与 MRS 治理 | 15 | `planned` | `rules.rs`、`rules_mrs.rs`、`mrs` | 双端规则视口与虚拟滚动未验收 |
 | 组 12 Live Rule Tracer 与命中审计 | 15 | `parity-ready` | `rules_tracer.rs`（两端同名） | 15/15 收口（2026-09-22）：决策链回放/预设/离线模拟/命中审计/时延审计/沙盒来源 IP/反向应用均双端接线（见组 12 逐项账目） |
-| 组 13 连接审计与深度透视 | 15 | `in progress` | `connections.rs`、`connection_drawer.rs` | 2026-09-22 起逐项展开（见组 13 逐项账目）：02/07/08/13/15 已双端收口，01/03/06/09/11 为 `shared-ready`，04/05/10/12/14 `planned` |
+| 组 13 连接审计与深度透视 | 15 | `in progress` | `connections.rs`、`connection_drawer.rs` | 2026-09-22 起逐项展开（见组 13 逐项账目）：01/02/03/06/07/08/09/11/13/15 已双端收口，04/05/10/12/14 `planned`（04 宿主无阶段耗时、05 无 ASN 事实源、10/12 无瞬时速率、14 受 04 阻塞） |
 | 组 14 DNS 工作台与泄漏探活 | 15 | `planned` | `dns.rs`（两端） | 双端表单与探活状态机未验收 |
 | 组 15 多模态外壳与极客命令流 | 15 | `planned` | `mini_hud.rs`、`command_palette.rs`、`sidebar.rs` | **含多尺寸弹性**，见专项台账 |
 
@@ -548,20 +548,20 @@ Bevy 抽屉同样伪造（`18/42/65/110 ms`），而 mihomo `/connections` 载�
 
 | 项 | 任务 | 状态 | 证据 |
 | :--- | :--- | :--- | :--- |
-| `DUAL-13-01` | 高并发实时连接列表流式采集 | `shared-ready` | 后端 WS 推流：`mihomo-api/src/connection/manager.rs:83`（`stream`）、`infiltrator-application/src/connection_application.rs:52`；Iced 以 `RuntimeStreamState` + `stream_badge`（`infiltrator-iced/src/view/runtime/connections.rs`）渲染流状态，Bevy 仅渲染快照、无流状态徽标；快照字段见 `infiltrator-contract/src/surface_snapshot.rs:261` |
+| `DUAL-13-01` | 高并发实时连接列表流式采集 | `parity-ready` | 共享流相位枚举 `infiltrator_contract::connection::ConnectionStreamPhase`（`connection.rs`，`from_page_status` 由页面状态诚实推导）；后端 WS 推流：`mihomo-api/src/connection/manager.rs:83`（`stream`）、`infiltrator-application/src/connection_application.rs:52`；Iced `RuntimeStreamState::shared_phase`（`types/runtime.rs`）映射共享枚举并由 `stream_badge`（`view/runtime/connections.rs`）渲染；Bevy `connections_projection` 从共享快照页状态取相位（`surface_projection.rs`），`ConnectionsLineKind::Stream` + `stream_phase_label`（`pages/connections.rs`）渲染「连接流 · 相位」徽标；双端测试 `test_stream_state_maps_to_shared_phase`、`test_connections_stream_badge_reflects_shared_phase` |
 | `DUAL-13-02` | 多维聚合视图（Flat/按进程/按域名） | `parity-ready` | 共享归约 `infiltrator-domain/src/connection_view.rs:19`（`ConnectionGroupingMode`）与 `:261`（`aggregate_connections`）；Iced 视图直接消费 `connection_view::aggregate_connections`（`infiltrator-iced/src/view/runtime/connections.rs:280`、`:284`）并显示 `conn_aggregate_count`；Bevy 聚合胶囊持有共享枚举（`infiltrator-bevy-ui/src/pages/connections.rs:102`），`on_connections_view_activated`（`:585`）切换 `ConnectionsViewState` 并重盖聚合摘要/行可见性；双端测试 `test_connections_aggregation_pill_switches_shared_mode`、`aggregation_summary_reports_buckets`、Iced `test_shared_connection_view_reductions_are_delegated` |
-| `DUAL-13-03` | 单连接详情侧滑下钻抽屉 | `shared-ready` | Iced 右侧 420/480px 抽屉 + 半透明遮罩：`infiltrator-iced/src/view_root/connection_drawer.rs`；Bevy 仅有内联详情卡片（`infiltrator-bevy-ui/src/pages/connections_drawer.rs`），非侧滑；两端内容已改为同一诚实字段集，但形态未 1:1 |
+| `DUAL-13-03` | 单连接详情侧滑下钻抽屉 | `parity-ready` | Iced 右侧 420/480px 抽屉 + 半透明遮罩：`infiltrator-iced/src/view_root/connection_drawer.rs`；Bevy 改用共享 `infiltrator_bevy_widgets::drawer::drawer_scene(DrawerPlacement::Right, 420.0, …)`（`infiltrator-bevy-ui/src/pages/connections_drawer.rs`），行内 `ConnInspectButton` 打开、`DrawerCloseButton` 关闭，`ConnectionsDrawerState` + `sync_connections_drawer` 控制显隐；两端内容为同一诚实字段集（含 13-06 逐跳链路与 13-09 反向规则）；双端测试 `test_connections_inspect_opens_shared_drawer` |
 | `DUAL-13-04` | 耗时瀑布流（DNS/TCP/TLS/TTFB） | `planned` | **宿主能力缺失**：`mihomo-api`/`infiltrator-domain::runtime::ConnectionMetadata`（`infiltrator-domain/src/runtime.rs:89`）无任何阶段耗时字段，`/connections` 不提供；两端伪造色条已删除，Iced 改渲染 `conn_drawer_timing_unsupported`（`connection_drawer.rs:75`），Bevy 渲染「内核未提供…耗时明细」（`connections_drawer.rs:66`）；typed unsupported，不伪造阶段 |
 | `DUAL-13-05` | 目标 IP、ASN 归属机构与地理透视 | `planned` | 目标 IP 已展示（`connection_drawer.rs` 远端地址），但 ASN/组织字段不存在于 `ConnectionMetadata`；`infiltrator-domain/src/geo_lookup_cache.rs` 未接入连接数据流，无共享 ASN 事实源，不伪造 `AS36459 GitHub` |
-| `DUAL-13-06` | 完整路由链溯源 | `shared-ready` | 共享快照携带 `chains`（`infiltrator-domain/src/runtime.rs:122`；reader 映射 `surface_reader.rs:448` 为 `chain` 文本）；Iced 行/抽屉展示 `chains.join(" → ")`，Bevy 展示 `链路: {chain}`；无独立双端链溯源测试 |
+| `DUAL-13-06` | 完整路由链溯源 | `parity-ready` | 共享解析模型 `infiltrator-domain::connection_view::RouteChain`（`from_hops`/`from_joined`/`hops`/`display`）与 `ConnectionView::view_chain`、`route_chain`；契约 `ConnectionSnapshot.chains`（`infiltrator-contract/src/surface_snapshot.rs`），reader 映射 `infiltrator-application/src/surface_reader.rs:448`；Iced 行/抽屉逐跳渲染 `route_chain.hops()`（`view/runtime/connections.rs`、`view_root/connection_drawer.rs`）；Bevy `ConnChainHopText` 逐跳 + `connection_chain_scenes`（`pages/connections.rs`）；双端测试 `test_route_chain_hops_parse_through_shared_model`、`test_connections_route_chain_renders_each_hop`，领域 `route_chain_normalizes_and_parses_joined_form` |
 | `DUAL-13-07` | 连接实时治理（单条/过滤范围切断） | `parity-ready` | 应用层 `close`/`close_by_host`/`close_by_process`（`infiltrator-application/src/connection_application.rs:22/36/44`）；Iced 单条 `Message::CloseConnection`（`update/core/monitoring.rs:295`）+ 范围 `Message::CloseFilteredConnections`（`:323`，复用共享 `matches_search`），按钮 `conn_close_filtered_btn`（`view/runtime/connections.rs:223`）；Bevy `CloseConnectionButton` + `CloseFilteredConnectionsButton`（`pages/connections.rs:347`、`:571` 用共享 `matches_search` 选目标）；双端测试 `test_connections_close_single_submits_command`、`test_connections_close_filtered_submits_matching_only` |
 | `DUAL-13-08` | 一键关闭全部（二次确认） | `parity-ready` | Iced `ConfirmAction::CloseAllConnections` 经确认模态（`types/app.rs:113`、`view_root/modals.rs:905`、`view/runtime/connections.rs` 的 `btn_close_all`）；Bevy 两段式防呆 `ConnectionsCloseAllState`（`pages/connections.rs:545` 置 armed、再次点击提交 `CloseAllConnections`）；双端测试 `test_connections_close_all_requires_confirmation`（Bevy 首次不提交、二次提交）、Iced `app_state_tests` 确认路径 |
-| `DUAL-13-09` | 反向一键生成规则向导 | `shared-ready` | 共享 `quick_rule_spec`/`ConnectionRuleSpec`（`infiltrator-domain/src/connection_view.rs:308`，优先裸域名、回落 IP-CIDR）；Iced 抽屉改经共享 spec 且不可生成时禁用（`connection_drawer.rs:186`、`:212`）；Bevy `DrawerAddRuleButton` 仍未接线到共享命令，故未收口 |
+| `DUAL-13-09` | 反向一键生成规则向导 | `parity-ready` | 共享反向规则 seam：`quick_rule_spec`/`bare_host`/`draft_rule_entry`/`append_draft_rule`（`infiltrator-domain/src/connection_view.rs`，去重且拒绝空模式，`host:port` 归一为裸域名）；Iced 抽屉不可生成时禁用（`connection_drawer.rs:186`、`:212`），`AddQuickRuleFromConnection` 经 `append_draft_rule`（`infiltrator-iced/src/update/ui.rs`）；Bevy `DrawerAddRuleButton` 接线到共享 `ConnectionsRuleDraft` 资源并调用同一 `append_draft_rule`、回显草稿（`infiltrator-bevy-ui/src/pages/connections_drawer.rs`）；双端测试 `test_connections_add_rule_draft_uses_shared_seam`、领域 `draft_rule_entry_dedupes_and_rejects_empty`、`bare_host_strips_port_and_keeps_ipv6` |
 | `DUAL-13-10` | 高吞吐连接脉冲微光指示 | `planned` | 依赖瞬时带宽，但 reader 将 `upload_bps/download_bps` 硬编码为 `0.0`（`infiltrator-application/src/surface_reader.rs:449`），无真实速率来源，不做伪动效 |
-| `DUAL-13-11` | 空闲连接智能清退 | `shared-ready` | 域层 `IdleConnectionSweeper` 完整（`infiltrator-domain/src/idle_connection_sweeper.rs:356`，`sweep_idle:605`、`find_zombies_at:513`）并带单测；未接入 application/双端 UI，无共享配置入口 |
+| `DUAL-13-11` | 空闲连接智能清退 | `parity-ready` | 共享 `infiltrator-domain::connection_activity::ConnectionActivityTracker`（`observe`/`idle_ids`：首个观测计为活跃、计数不变跨满超时才判空闲、消失即遗忘）与 `IDLE_TIMEOUT_CHOICES`（5/10/30 分钟）、`DEFAULT_IDLE_TIMEOUT_SECS`（10 分钟）；应用层 `ConnectionApplication::sweep_idle`/`idle_connections`/`IdleSweepReport`（`infiltrator-application/src/connection_application.rs`）；Iced 超时分段控件 + `SweepIdleConnections` 经 `close_connection`，`last_idle_sweep` 诚实状态（`view/runtime/connections.rs`、`update/core/monitoring.rs`）；Bevy `ConnectionsIdleState` + `ConnIdleTimeoutPill` + `ConnIdleSweepButton` 提交 `CloseConnection`，`idle_status_label` 诚实状态（`pages/connections_idle.rs`）；双端测试 `connection_idle_timeout_and_activity_tracking`、`test_connections_idle_sweep_submits_and_reports`、`test_connections_idle_timeout_pill_switches_shared_choice`；领域 4 项单测 |
 | `DUAL-13-12` | 按上传/下载瞬时速率排序 | `planned` | 无瞬时速率（同上 `surface_reader.rs:449`）；Iced 现按累计字节排序（`view/runtime/connections.rs:71` 共享 `sort_connections`），Bevy 无排序控件，未达「瞬时速率实时排序」 |
 | `DUAL-13-13` | 连接关键词即时搜索 | `parity-ready` | 共享谓词 `infiltrator-domain/src/connection_view.rs:232`（`matches_search`，覆盖域名/IP/进程/规则/链）；Iced `filter_connection` 委托共享（`view/runtime/connections.rs:66`）；Bevy 搜索框 `ConnSearchField`（`pages/connections.rs:328`）+ `sync_connections_search`（`pages/connections_view.rs:134`）按共享谓词隐藏不匹配行；双端测试 `test_connections_search_hides_non_matching_rows`、Iced `test_shared_connection_view_reductions_are_delegated` |
-| `DUAL-13-14` | 双端连接抽屉与瀑布流 1:1 对等 | `planned` | Iced 为右侧侧滑抽屉、Bevy 为内联卡片，形态未对等；瀑布流本身 unsupported（13-04），故无法 1:1 |
+| `DUAL-13-14` | 双端连接抽屉与瀑布流 1:1 对等 | `planned` | 抽屉形态已对等（Iced 右侧侧滑、Bevy 共享 `drawer_scene(DrawerPlacement::Right)`，见 13-03）；但瀑布流本身 unsupported（13-04 宿主无阶段耗时），故「1:1 对等」仍缺一半 |
 | `DUAL-13-15` | 连接数据流与治理命令无头测试 | `parity-ready` | 共享归约单测 8 项（`connection_view.rs` `#[cfg(test)]`）；Bevy 无头：聚合/搜索/单条断开/范围断开/全连二次确认（`pages_matrix_a_tests.rs:575/609/641/671`）；Iced：`test_shared_connection_view_reductions_are_delegated` + 既有分组/快速规则用例 |
 
 > **2026-09-22 组 13 批次 A**：`DUAL-13-02/07/08/13/15` 收口为 `parity-ready`。
@@ -573,6 +573,18 @@ Bevy 抽屉同样伪造（`18/42/65/110 ms`），而 mihomo `/connections` 载�
 > （`ConnectionsCloseAllState`），Iced 维持确认模态。**关键修复**：删除两端抽屉伪造的
 > DNS/TCP/TLS/TTFB 耗时，13-04 诚实标记为 `planned`（宿主无该数据）。守卫
 > `connections-audit-guard.py`。
+
+> **2026-09-22 组 13 批次 B**：`DUAL-13-01/03/06/09/11` 收口为 `parity-ready`。
+> 01：新增共享 `infiltrator_contract::connection::ConnectionStreamPhase`，Iced 由
+> `RuntimeStreamState::shared_phase` 映射，Bevy 由共享快照页状态推导并渲染「连接流 · 相位」徽标。
+> 03：Bevy 详情改为共享 `drawer_scene(DrawerPlacement::Right, 420.0, …)` 侧滑抽屉，
+> 行内「详情」按钮驱动 `ConnectionsDrawerState`。06：新增共享 `connection_view::RouteChain`
+> 与契约 `ConnectionSnapshot.chains`，两端逐跳渲染。09：新增共享 `bare_host`/`draft_rule_entry`/
+> `append_draft_rule` seam，Iced 与 Bevy `DrawerAddRuleButton` 共用，Bevy `ConnectionsRuleDraft`
+> 资源承接草稿。11：新增共享 `connection_activity::ConnectionActivityTracker` + 应用层
+> `ConnectionApplication::sweep_idle`，双端超时控件与手动清退、诚实上次清理状态。
+> 04/05/10/12/14 仍因宿主事实缺失保持 `planned`（不伪造阶段耗时/ASN/瞬时速率）。
+> 守卫 `connections-audit-guard.py` 已扩展覆盖本批。
 
 ### 组 14：DNS 工作台、Fake-IP 治理与泄漏交叉探活 (DNS Studio & Leak Protection)
 1. **DNS 6 项系统级核心开关表单**：enable, ipv6, cache, use_hosts, use_system_hosts, respect_rules。

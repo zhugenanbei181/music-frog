@@ -184,6 +184,11 @@ impl AppState {
                 self.runtime.runtime_prev_upload_total = Some(upload_total);
                 self.runtime.runtime_prev_download_total = Some(download_total);
                 self.runtime.runtime_prev_snapshot_at = Some(now);
+                // DUAL-13-11: record byte-change times for idle detection.
+                let observed_at = crate::types::runtime::current_unix_secs();
+                self.diag
+                    .connection_activity
+                    .observe(&data.connections, observed_at);
                 self.diag.connections = Some(data);
                 self.clamp_connections_page();
                 Task::none()
@@ -352,6 +357,38 @@ impl AppState {
                     })
                     .unwrap_or_default();
                 Task::batch(ids.into_iter().map(|id| {
+                    let rt = rt.clone();
+                    Task::perform(
+                        async move {
+                            rt.close_connection(&id)
+                                .await
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
+                        },
+                        Message::OperationResult,
+                    )
+                }))
+            }
+            Message::SetConnectionIdleTimeout(secs) => {
+                self.diag.connection_idle_timeout_secs = secs;
+                Task::none()
+            }
+            Message::SweepIdleConnections => {
+                let Some(rt) = self.runtime.runtime.clone() else {
+                    return Task::none();
+                };
+                let timeout = self.diag.connection_idle_timeout_secs;
+                let now = crate::types::runtime::current_unix_secs();
+                let idle: Vec<String> = match self.diag.connections.clone() {
+                    Some(snapshot) => {
+                        self.diag
+                            .connection_activity
+                            .observe(&snapshot.connections, now);
+                        self.diag.connection_activity.idle_ids(now, timeout)
+                    }
+                    None => Vec::new(),
+                };
+                self.diag.last_idle_sweep = Some(idle.len());
+                Task::batch(idle.into_iter().map(|id| {
                     let rt = rt.clone();
                     Task::perform(
                         async move {

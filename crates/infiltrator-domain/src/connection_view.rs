@@ -105,6 +105,68 @@ pub struct ConnectionAggregate {
     pub download_total: u64,
 }
 
+/// Parsed route chain for one connection (DUAL-13-06): the ordered hops from
+/// the matched inbound rule through each policy group to the outbound node.
+///
+/// The core reports the chain as an ordered list in the domain [`Connection`]
+/// and as a joined string in the surface snapshot, so both surfaces parse and
+/// render hops through this one model instead of re-splitting text locally.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RouteChain {
+    hops: Vec<String>,
+}
+
+impl RouteChain {
+    /// Normalize an ordered hop list: trim, drop blanks, and collapse a hop
+    /// repeated back-to-back. Pure.
+    pub fn from_hops(hops: &[String]) -> Self {
+        let mut normalized: Vec<String> = Vec::with_capacity(hops.len());
+        for hop in hops {
+            let trimmed = hop.trim();
+            if trimmed.is_empty() || normalized.last().map(String::as_str) == Some(trimmed) {
+                continue;
+            }
+            normalized.push(trimmed.to_string());
+        }
+        Self { hops: normalized }
+    }
+
+    /// Parse the joined fallback form (`A -> B -> C`, `A → B`) into hops.
+    pub fn from_joined(joined: &str) -> Self {
+        let split: Vec<String> = joined
+            .split(['→', '➔'])
+            .flat_map(|part| part.split("->"))
+            .map(str::to_string)
+            .collect();
+        Self::from_hops(&split)
+    }
+
+    /// The normalized hops in routing order.
+    pub fn hops(&self) -> &[String] {
+        &self.hops
+    }
+
+    /// Number of hops after normalization.
+    pub fn len(&self) -> usize {
+        self.hops.len()
+    }
+
+    /// Whether the chain carries no hop at all.
+    pub fn is_empty(&self) -> bool {
+        self.hops.is_empty()
+    }
+
+    /// First hop, the matched inbound stage, when present.
+    pub fn first(&self) -> Option<&str> {
+        self.hops.first().map(String::as_str)
+    }
+
+    /// Render the hops with a caller-chosen separator.
+    pub fn display(&self, separator: &str) -> String {
+        self.hops.join(separator)
+    }
+}
+
 /// Reverse routing-rule draft derived from a connection (DUAL-13-09).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConnectionRuleSpec {
@@ -150,6 +212,14 @@ pub trait ConnectionView {
     fn view_start(&self) -> &str {
         ""
     }
+    /// Parsed route-chain hops in routing order (DUAL-13-06).
+    fn view_chain(&self) -> &[String] {
+        &[]
+    }
+    /// Joined route-chain fallback for rows that only carry the snapshot form.
+    fn view_joined_chain(&self) -> &str {
+        ""
+    }
     /// All strings a keyword query may match against. Override to widen search.
     fn view_search_terms(&self) -> Vec<&str> {
         vec![self.view_id(), self.view_host(), self.view_process_path()]
@@ -183,6 +253,10 @@ impl ConnectionView for Connection {
 
     fn view_start(&self) -> &str {
         &self.start
+    }
+
+    fn view_chain(&self) -> &[String] {
+        &self.chains
     }
 
     fn view_search_terms(&self) -> Vec<&str> {
@@ -224,6 +298,18 @@ pub fn connection_host<C: ConnectionView>(conn: &C) -> &str {
         conn.view_destination_ip()
     } else {
         host
+    }
+}
+
+/// Parse a connection's route chain into the shared hop model (DUAL-13-06).
+/// Falls back to parsing the joined snapshot form when no structured hops are
+/// available, so both surfaces render identical stages.
+pub fn route_chain<C: ConnectionView>(conn: &C) -> RouteChain {
+    let hops = conn.view_chain();
+    if hops.is_empty() {
+        RouteChain::from_joined(conn.view_joined_chain())
+    } else {
+        RouteChain::from_hops(hops)
     }
 }
 
@@ -302,11 +388,28 @@ pub fn aggregate_connections<C: ConnectionView>(
     aggregated
 }
 
+/// Strip a trailing `:port` from a `host:port` display key, leaving a bare
+/// domain or IPv4 host. IPv6 hosts (which contain multiple colons) are
+/// returned unchanged. Pure.
+pub fn bare_host(host: &str) -> &str {
+    match host.rsplit_once(':') {
+        Some((prefix, port))
+            if !prefix.is_empty()
+                && !prefix.contains(':')
+                && !port.is_empty()
+                && port.chars().all(|c| c.is_ascii_digit()) =>
+        {
+            prefix
+        }
+        _ => host,
+    }
+}
+
 /// Build a reverse routing-rule draft from a connection (DUAL-13-09). Prefers
 /// the domain suffix; falls back to a host IP-CIDR. An empty pattern means the
 /// connection carried no usable destination and must not be reported as added.
 pub fn quick_rule_spec<C: ConnectionView>(conn: &C, target: &str) -> ConnectionRuleSpec {
-    let host = conn.view_host().trim();
+    let host = bare_host(conn.view_host().trim()).trim();
     let pattern = if !host.is_empty() {
         format!("DOMAIN-SUFFIX,{host}")
     } else {
@@ -321,6 +424,31 @@ pub fn quick_rule_spec<C: ConnectionView>(conn: &C, target: &str) -> ConnectionR
         pattern,
         target: target.to_string(),
     }
+}
+
+/// Build a rules-editor entry from a reverse-drafted spec (DUAL-13-09). An
+/// un-draftable spec (no usable destination) yields `None` so an empty pattern
+/// is never reported as an added rule.
+pub fn draft_rule_entry(spec: &ConnectionRuleSpec) -> Option<crate::rules::RuleEntry> {
+    spec.is_draftable().then(|| crate::rules::RuleEntry {
+        rule: spec.rule_line(),
+        enabled: true,
+    })
+}
+
+/// Append a reverse-drafted rule to an editor draft list, de-duplicating by
+/// rule line. Returns the appended entry, or `None` when the spec was empty or
+/// the identical rule line already existed. Both surfaces call this one seam.
+pub fn append_draft_rule(
+    rules: &mut Vec<crate::rules::RuleEntry>,
+    spec: &ConnectionRuleSpec,
+) -> Option<crate::rules::RuleEntry> {
+    let entry = draft_rule_entry(spec)?;
+    if rules.iter().any(|existing| existing.rule == entry.rule) {
+        return None;
+    }
+    rules.push(entry.clone());
+    Some(entry)
 }
 
 #[cfg(test)]
@@ -474,5 +602,69 @@ mod tests {
 
         let empty = connection("c3", "", "", "/bin/x", 0, 0);
         assert!(!quick_rule_spec(&empty, DEFAULT_QUICK_RULE_TARGET).is_draftable());
+    }
+
+    #[test]
+    fn route_chain_normalizes_and_parses_joined_form() {
+        let conn = connection("c1", "a.com", "1.1.1.1", "/bin/a", 0, 0);
+        // The test fixture carries a single structured hop.
+        let chain = route_chain(&conn);
+        assert_eq!(chain.hops(), ["PROXY"]);
+        assert_eq!(chain.first(), Some("PROXY"));
+        assert_eq!(chain.display(" → "), "PROXY");
+
+        let joined = RouteChain::from_joined("节点选择 -> 香港 01 → PROXY");
+        assert_eq!(
+            joined.hops(),
+            ["节点选择", "香港 01", "PROXY"],
+            "both arrow styles split into hops"
+        );
+
+        let dirty = RouteChain::from_hops(&[
+            " PROXY ".to_string(),
+            String::new(),
+            "PROXY".to_string(),
+            "DIRECT".to_string(),
+        ]);
+        assert_eq!(dirty.hops(), ["PROXY", "DIRECT"]);
+        assert_eq!(dirty.len(), 2);
+        assert!(!dirty.is_empty());
+        assert!(RouteChain::default().is_empty());
+    }
+
+    #[test]
+    fn bare_host_strips_port_and_keeps_ipv6() {
+        assert_eq!(bare_host("api.github.com:443"), "api.github.com");
+        assert_eq!(bare_host("1.1.1.1:53"), "1.1.1.1");
+        assert_eq!(bare_host("2001:db8::1"), "2001:db8::1");
+        assert_eq!(bare_host("example.com"), "example.com");
+        assert_eq!(bare_host(""), "");
+
+        // A `host:port` display key drafts the bare domain, not `host:port`.
+        let conn = connection("c1", "api.github.com:443", "1.1.1.1", "/bin/git", 0, 0);
+        assert_eq!(
+            quick_rule_spec(&conn, "DIRECT").pattern,
+            "DOMAIN-SUFFIX,api.github.com"
+        );
+    }
+
+    #[test]
+    fn draft_rule_entry_dedupes_and_rejects_empty() {
+        let conn = connection("c1", "github.com", "1.1.1.1", "/bin/git", 0, 0);
+        let spec = quick_rule_spec(&conn, DEFAULT_QUICK_RULE_TARGET);
+        let mut rules = Vec::new();
+        let added = append_draft_rule(&mut rules, &spec).expect("first draft appended");
+        assert_eq!(added.rule, "DOMAIN-SUFFIX,github.com,DIRECT");
+        assert!(added.enabled);
+        // The same rule line is not duplicated.
+        assert!(append_draft_rule(&mut rules, &spec).is_none());
+        assert_eq!(rules.len(), 1);
+
+        let empty = quick_rule_spec(
+            &connection("c2", "", "", "/bin/x", 0, 0),
+            DEFAULT_QUICK_RULE_TARGET,
+        );
+        assert!(append_draft_rule(&mut rules, &empty).is_none());
+        assert_eq!(rules.len(), 1);
     }
 }

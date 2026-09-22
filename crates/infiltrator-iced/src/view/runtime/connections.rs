@@ -247,6 +247,68 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
     .align_y(Alignment::Center)
     .width(Length::Fill);
 
+    // DUAL-13-11: idle-timeout control + manual sweep with honest last-sweep
+    // status. The timeout choices and the idle reduction are the shared domain
+    // seam; this surface only selects and renders them.
+    let idle_choices = infiltrator_domain::connection_activity::IDLE_TIMEOUT_CHOICES;
+    let idle_timeout_labels: Vec<String> = idle_choices
+        .iter()
+        .map(|secs| infiltrator_domain::connection_activity::idle_timeout_minutes_label(*secs))
+        .collect();
+    let idle_timeout_index = idle_choices
+        .iter()
+        .position(|secs| *secs == state.diag.connection_idle_timeout_secs)
+        .unwrap_or(1);
+    let idle_timeout_control = segmented_control(&idle_timeout_labels, idle_timeout_index, |idx| {
+        let choices = infiltrator_domain::connection_activity::IDLE_TIMEOUT_CHOICES;
+        Message::SetConnectionIdleTimeout(choices[idx.min(choices.len() - 1)])
+    });
+    let idle_status_label = match state.diag.last_idle_sweep {
+        Some(count) => {
+            let count_text = count.to_string();
+            infiltrator_shared::i18n_interpolator::interpolate(
+                &lang.tr("conn_idle_last_sweep"),
+                &[("count", count_text.as_str())],
+            )
+        }
+        None => lang.tr("conn_idle_last_sweep_none").to_string(),
+    };
+    let idle_sweep_btn = button(
+        row![
+            svg_icons::icon_themed(Icon::Activity, 13.0, |t: &Theme| tokens(t).text_secondary),
+            Space::new().width(4),
+            text(lang.tr("conn_idle_sweep_btn").to_string())
+                .size(12)
+                .font(FONT_MEDIUM),
+        ]
+        .align_y(Alignment::Center),
+    )
+    .padding([6, 12])
+    .style(style_ghost)
+    .on_press_maybe(
+        (!state.diag.connection_activity.is_empty()).then_some(Message::SweepIdleConnections),
+    );
+
+    let idle_bar = row![
+        text(lang.tr("conn_idle_timeout_label").to_string())
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            }),
+        Space::new().width(theme::SP_SM),
+        idle_timeout_control,
+        Space::new().width(theme::SP_MD),
+        idle_sweep_btn,
+        Space::new().width(theme::SP_MD),
+        text(idle_status_label)
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
+    ]
+    .align_y(Alignment::Center)
+    .width(Length::Fill);
+
     let mut connections_section = column![
         section_header(
             lang.tr("runtime_connections_title").as_ref(),
@@ -254,6 +316,8 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         ),
         Space::new().height(theme::SP_MD),
         filter_bar,
+        Space::new().height(theme::SP_SM),
+        idle_bar,
         Space::new().height(theme::SP_MD),
     ];
 
@@ -426,17 +490,33 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                         .into(),
                 ];
 
-                if conn.chains.len() > 1 {
+                // DUAL-13-06: the route chain renders one element per parsed
+                // hop through the shared model, not a pre-joined string.
+                let route_chain = connection_view::route_chain(conn);
+                if route_chain.len() > 1 {
                     subline_items.push(Space::new().width(theme::SP_MD).into());
-                    subline_items.push(
-                        text(conn.chains.join(" → "))
-                            .size(11)
-                            .font(MONO)
-                            .style(|t: &Theme| text::Style {
-                                color: Some(tokens(t).text_tertiary),
-                            })
-                            .into(),
-                    );
+                    for (hop_idx, hop) in route_chain.hops().iter().enumerate() {
+                        if hop_idx > 0 {
+                            subline_items.push(
+                                text(" → ")
+                                    .size(11)
+                                    .font(MONO)
+                                    .style(|t: &Theme| text::Style {
+                                        color: Some(tokens(t).text_tertiary),
+                                    })
+                                    .into(),
+                            );
+                        }
+                        subline_items.push(
+                            text(hop.clone())
+                                .size(11)
+                                .font(MONO)
+                                .style(|t: &Theme| text::Style {
+                                    color: Some(tokens(t).text_tertiary),
+                                })
+                                .into(),
+                        );
+                    }
                 }
 
                 subline_items.push(Space::new().width(Length::Fill).into());
@@ -503,12 +583,13 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
 }
 
 fn stream_badge<'a>(state: &RuntimeStreamState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let (key, kind) = match state {
-        RuntimeStreamState::Idle => ("conn_state_disconnected", BadgeKind::Neutral),
-        RuntimeStreamState::Connecting => ("conn_state_connecting", BadgeKind::Neutral),
-        RuntimeStreamState::Connected => ("conn_state_live", BadgeKind::Success),
-        RuntimeStreamState::Reconnecting => ("conn_state_reconnecting", BadgeKind::Warning),
-        RuntimeStreamState::Failed(_) => ("conn_state_unavailable", BadgeKind::Danger),
+    use infiltrator_contract::connection::ConnectionStreamPhase;
+    let (key, kind) = match state.shared_phase() {
+        ConnectionStreamPhase::Idle => ("conn_state_disconnected", BadgeKind::Neutral),
+        ConnectionStreamPhase::Connecting => ("conn_state_connecting", BadgeKind::Neutral),
+        ConnectionStreamPhase::Live => ("conn_state_live", BadgeKind::Success),
+        ConnectionStreamPhase::Reconnecting => ("conn_state_reconnecting", BadgeKind::Warning),
+        ConnectionStreamPhase::Unavailable => ("conn_state_unavailable", BadgeKind::Danger),
     };
     badge(lang.tr(key).to_string(), kind)
 }

@@ -47,6 +47,10 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "conn_close_filtered_btn" => "Close Filtered".into(),
         "quick_rule_btn" => "Add Route Rule".into(),
         "quick_rule_success" => "Route rule added successfully".into(),
+        "conn_idle_timeout_label" => "Idle Timeout".into(),
+        "conn_idle_sweep_btn" => "Sweep Idle".into(),
+        "conn_idle_last_sweep_none" => "Last sweep: not run yet".into(),
+        "conn_idle_last_sweep" => "Last sweep: {count} idle connection(s)".into(),
 
         // Category 5: Config Snapshot Visual Diff & Rollback
         "snapshot_diff_title" => "Snapshot Visual Diff & Rollback".into(),

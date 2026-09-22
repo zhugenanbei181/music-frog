@@ -231,6 +231,10 @@ impl std::fmt::Debug for Message {
             Message::CloseConnection(id) => write!(f, "CloseConnection({})", id),
             Message::CloseAllConnections => write!(f, "CloseAllConnections"),
             Message::CloseFilteredConnections => write!(f, "CloseFilteredConnections"),
+            Message::SetConnectionIdleTimeout(secs) => {
+                write!(f, "SetConnectionIdleTimeout({secs}s)")
+            }
+            Message::SweepIdleConnections => write!(f, "SweepIdleConnections"),
             Message::ConnectionsPrevPage => write!(f, "ConnectionsPrevPage"),
             Message::ConnectionsNextPage => write!(f, "ConnectionsNextPage"),
             Message::FetchRuntimeConfig => write!(f, "FetchRuntimeConfig"),

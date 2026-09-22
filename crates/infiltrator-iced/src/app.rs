@@ -383,6 +383,11 @@ impl AppState {
                 log_filter: Default::default(),
                 connection_grouping_mode:
                     infiltrator_domain::connection_view::ConnectionGroupingMode::Flat,
+                connection_activity:
+                    infiltrator_domain::connection_activity::ConnectionActivityTracker::new(),
+                connection_idle_timeout_secs:
+                    infiltrator_domain::connection_activity::DEFAULT_IDLE_TIMEOUT_SECS,
+                last_idle_sweep: None,
             },
             shell: crate::state::ShellState {
                 current_route: Route::Overview,

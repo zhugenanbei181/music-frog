@@ -11,6 +11,14 @@ pub enum RuntimeStreamKind {
     Connections,
 }
 
+/// Wall-clock seconds used to timestamp connection activity observations.
+pub fn current_unix_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum RuntimeStreamState {
     #[default]
@@ -19,6 +27,21 @@ pub enum RuntimeStreamState {
     Connected,
     Reconnecting,
     Failed(String),
+}
+
+impl RuntimeStreamState {
+    /// Map the Iced-local stream state onto the cross-surface phase enum
+    /// (DUAL-13-01) so both surfaces' stream badges share one vocabulary.
+    pub fn shared_phase(&self) -> infiltrator_contract::connection::ConnectionStreamPhase {
+        use infiltrator_contract::connection::ConnectionStreamPhase;
+        match self {
+            Self::Idle => ConnectionStreamPhase::Idle,
+            Self::Connecting => ConnectionStreamPhase::Connecting,
+            Self::Connected => ConnectionStreamPhase::Live,
+            Self::Reconnecting => ConnectionStreamPhase::Reconnecting,
+            Self::Failed(_) => ConnectionStreamPhase::Unavailable,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]

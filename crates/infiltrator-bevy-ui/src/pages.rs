@@ -21,6 +21,7 @@ pub mod app_routing;
 pub mod app_routing_uwp;
 pub mod connections;
 pub mod connections_drawer;
+pub mod connections_idle;
 pub mod connections_view;
 pub mod dns;
 pub mod doctor;

@@ -7,6 +7,7 @@
 pub mod active_exit;
 pub mod capability;
 pub mod command;
+pub mod connection;
 pub mod controller;
 pub mod doctor;
 pub mod error;
