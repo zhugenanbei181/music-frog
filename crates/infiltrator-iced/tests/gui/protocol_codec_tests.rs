@@ -401,11 +401,8 @@ fn protocol_codec_matrix_passes_on_the_iced_surface() {
         "matrix failures: {:?}",
         report.failed_ids()
     );
-    assert_eq!(report.covered_passed_count(), 12);
-    assert_eq!(
-        report.not_covered_ids(),
-        vec!["DUAL-05-09", "DUAL-05-10", "DUAL-05-13"]
-    );
+    assert_eq!(report.covered_passed_count(), 15);
+    assert!(report.not_covered_ids().is_empty());
 }
 
 #[test]
@@ -439,6 +436,13 @@ fn new_locale_keys_resolve_in_both_languages() {
         "custom_node_ssh_username",
         "custom_node_anytls_idle",
         "custom_node_trojan_ss",
+        "custom_node_dialer_proxy",
+        "custom_node_dialer_scan",
+        "custom_node_dialer_chain",
+        "custom_node_ca_path",
+        "custom_node_ca_str",
+        "custom_node_ca_fingerprint",
+        "custom_node_ca_verify",
     ] {
         assert_ne!(zh.tr(key).as_ref(), key, "zh missing {key}");
         assert_ne!(en.tr(key).as_ref(), key, "en missing {key}");
@@ -448,4 +452,120 @@ fn new_locale_keys_resolve_in_both_languages() {
         &[("field", "smux")],
     );
     assert!(gap.contains("smux"), "{gap}");
+}
+
+#[test]
+fn the_shared_dialer_report_reaches_the_iced_studio_and_never_validates_a_loop() {
+    let mut state = state_with_modal();
+    let loop_profile = "proxies:\n  - name: a\n    type: ss\n    server: 1.1.1.1\n    port: 8388\n    cipher: aes-128-gcm\n    password: pw\n    dialer-proxy: b\n  - name: b\n    type: ss\n    server: 2.2.2.2\n    port: 8388\n    cipher: aes-128-gcm\n    password: pw\n    dialer-proxy: a\n";
+    let report =
+        infiltrator_application::dialer_chain_application::DialerChainApplication::analyze_profile(
+            loop_profile,
+        )
+        .expect("loop report");
+    assert!(report.has_loops());
+    let _ = state.update(Message::CustomNodeDialerScanned(Ok(report.clone())));
+    let studio = &state.runtime.custom_node_studio;
+    assert_eq!(studio.dialer, report);
+    assert!(studio.dialer.valid_chains().is_empty());
+    let chain = studio.dialer.chain_for("a").expect("chain");
+    assert!(!chain.valid());
+    assert!(chain.chain_line().contains("环路"));
+
+    // A draft with a hop keeps the shared report and honestly reports the URI
+    // gap: a share link cannot carry `dialer-proxy`.
+    let mut draft = ProtocolDraft::new("vless");
+    draft.name = "a".to_owned();
+    draft.server = "example.com".to_owned();
+    draft.port = 443;
+    draft.uuid = "b831381d-6324-4d53-ad4f-8cda48b30811".to_owned();
+    draft.dialer_proxy = "b".to_owned();
+    let _ = state.update(Message::UpdateCustomNodeDraft(Box::new(draft)));
+    let studio = &state.runtime.custom_node_studio;
+    // A draft edit re-derives the draft-owned facts; the profile-level dialer
+    // report is re-published by the analyzer/scan, so this test only asserts
+    // the draft-local verdicts (the shared app test covers preservation).
+    assert!(
+        studio.uri_gaps.contains(&"dialer-proxy".to_string()),
+        "{:?}",
+        studio.uri_gaps
+    );
+    // The draft itself stays valid: a hop to a *different* node is not a loop
+    // in this draft, and the shared validator only refuses self-reference.
+    let report = studio.report.as_ref().expect("report");
+    assert!(report.is_valid(), "{:?}", report.issues);
+}
+
+#[test]
+fn a_host_without_a_ca_reader_renders_the_typed_unsupported_state() {
+    let mut state = state_with_modal();
+    // The default test host composes no CA reader: the state must say so.
+    let mut draft = ProtocolDraft::new("vless");
+    draft.name = "ca-node".to_owned();
+    draft.server = "example.com".to_owned();
+    draft.port = 443;
+    draft.uuid = "b831381d-6324-4d53-ad4f-8cda48b30811".to_owned();
+    draft.params.tls_trust.ca_path = "/etc/ssl/custom-ca.pem".to_owned();
+    let _ = state.update(Message::UpdateCustomNodeDraft(Box::new(draft.clone())));
+
+    let _ = state.update(Message::VerifyCustomNodeCertificateAuthority);
+    let studio = &state.runtime.custom_node_studio;
+    assert!(studio.ca_trust.is_unsupported(), "{:?}", studio.ca_trust);
+    assert!(!studio.ca_trust.is_loaded());
+    let line = studio.ca_trust.lines().join(" ");
+    assert!(line.contains("宿主不支持"), "{line}");
+    assert!(line.contains("was not loaded"), "{line}");
+
+    // The draft edit itself reached the shared report's CA chips + notes, and
+    // the share-link gap is measured rather than assumed.
+    let report = studio.report.as_ref().expect("report");
+    assert!(report.params.ca_chips.contains(&"ca:path".to_string()));
+    assert!(
+        report
+            .params
+            .notes
+            .iter()
+            .any(|note| note.contains("tls.custom-certifactes"))
+    );
+    assert!(studio.uri_gaps.contains(&"tls-trust".to_string()));
+}
+
+#[test]
+fn an_inline_bundle_is_validated_in_process_and_a_mismatching_pin_is_refused() {
+    let mut state = state_with_modal();
+    let pem = "-----BEGIN CERTIFICATE-----\nMIIBhTCCASugAwIBAgIQIRi6zePL6mKjOipn+dNuaTAKBggqhkjOPQQDAjASMRAw\n-----END CERTIFICATE-----\n";
+    // A structurally valid PEM is required for the loaded path; use the real
+    // fixture from the domain tests.
+    let _ = pem;
+    let real_pem = "-----BEGIN CERTIFICATE-----\nMIIBhTCCASugAwIBAgIQIRi6zePL6mKjOipn+dNuaTAKBggqhkjOPQQDAjASMRAwDgYDVQQKEwdBY21lIENvMB4XDTE3MTAyMDE5NDMwNloXDTE4MTAyMDE5NDMwNlowEjEQMA4GA1UEChMHQWNtZSBDbzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABD0d7VNhbWvZLWPuj/RtHFjvtJBEwOkhbN/BnnE8rnZR8+sbwnc/KhCk3FhnpHZnQz7B5aETbbIgmuvewdjvSBSjYzBhMA4GA1UdDwEB/wQEAwICpDATBgNVHSUEDDAKBggrBgEFBQcDATAPBgNVHRMBAf8EBTADAQH/MCkGA1UdEQQiMCCCDmxvY2FsaG9zdDo1NDUzgg4xMjcuMC4wLjE6NTQ1MzAKBggqhkjOPQQDAgNIADBFAiEA2zpJEPQyz6/lWf86aX6PepsntZv2GYlA5UpabfT2EZICICpJ5h/iI+i341gBmLiAFQOyTDT+/wQc6MF9+Yw1Yy0t\n-----END CERTIFICATE-----\n";
+    let mut draft = ProtocolDraft::new("vless");
+    draft.name = "inline-ca".to_owned();
+    draft.server = "example.com".to_owned();
+    draft.port = 443;
+    draft.uuid = "b831381d-6324-4d53-ad4f-8cda48b30811".to_owned();
+    draft.params.tls_trust.ca_str = real_pem.to_owned();
+    let _ = state.update(Message::UpdateCustomNodeDraft(Box::new(draft.clone())));
+    let _ = state.update(Message::VerifyCustomNodeCertificateAuthority);
+    assert!(
+        state.runtime.custom_node_studio.ca_trust.is_loaded(),
+        "{:?}",
+        state.runtime.custom_node_studio.ca_trust
+    );
+
+    // A whitelist pin that cannot match is refused with the loaded fingerprint.
+    let mut pinned = draft.clone();
+    pinned.params.tls_trust.fingerprint = "00".repeat(32);
+    let _ = state.update(Message::UpdateCustomNodeDraft(Box::new(pinned)));
+    let _ = state.update(Message::VerifyCustomNodeCertificateAuthority);
+    let report = &state.runtime.custom_node_studio.ca_trust;
+    assert_eq!(
+        report.status(),
+        infiltrator_contract::protocol_trust::CaLoadStatus::FingerprintMismatch
+    );
+    assert!(
+        report
+            .resolutions
+            .iter()
+            .any(|resolution| resolution.fingerprint.is_some())
+    );
 }

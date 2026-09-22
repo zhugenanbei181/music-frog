@@ -729,6 +729,16 @@ impl HostRuntime for MihomoRuntime {
         None
     }
 
+    fn certificate_authority_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::certificate_authority::CertificateAuthorityPort>> {
+        // DUAL-05-13: the desktop host can read a CA bundle from disk; a host
+        // without this adapter surfaces a typed unsupported state instead.
+        Some(Arc::new(
+            crate::certificate_authority::DesktopCertificateAuthority::new(),
+        ))
+    }
+
     fn speedtest_port(&self) -> Option<Arc<dyn infiltrator_ports::speedtest::SpeedtestPort>> {
         Some(Arc::new(crate::speedtest::DesktopSpeedtestPort::new(
             self.speedtest.clone(),

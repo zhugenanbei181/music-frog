@@ -17,9 +17,13 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::protocol_fidelity::{
     CodecAudit, NodeCodecFormat, ProtocolDraft, ProtocolFidelityReport, ProtocolStudioSnapshot,
 };
+use infiltrator_contract::protocol_trust::CaTrustReport;
 use infiltrator_domain::profile_converter::{ProfileConverter, ProfileFormat, ProxyNodeItem};
+use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
 use serde_yaml_ng::{Mapping, Value};
 
+use crate::certificate_authority_application::CertificateAuthorityApplication;
+use crate::dialer_chain_application::DialerChainApplication;
 use crate::protocol_node_params::node_from_draft;
 use crate::protocol_node_projection::{
     DRAFT_NESTED_KEYS, draft_from_node, is_typed_extra_key_for, owned_keys,
@@ -39,6 +43,9 @@ pub struct ProtocolCommit {
     /// `true` when a node with the same name was replaced instead of added.
     pub replaced_existing: bool,
     pub node_count: usize,
+    /// DUAL-05-09/10: the dialer chains + loop findings of the produced
+    /// document, so the caller sees a loop the save would introduce.
+    pub dialer: infiltrator_contract::dialer_chain::DialerChainReport,
 }
 
 impl ProtocolCommit {
@@ -153,6 +160,16 @@ impl ProtocolCodecApplication {
                 "trojan-ss-opts",
                 draft.params.trojan_ss == returned.params.trojan_ss,
             ),
+            // DUAL-05-09/13: measured, not assumed — a share link carries
+            // neither the dialer hop nor any certificate trust.
+            (
+                "dialer-proxy",
+                draft.dialer_proxy.trim() == returned.dialer_proxy.trim(),
+            ),
+            (
+                "tls-trust",
+                draft.params.tls_trust == returned.params.tls_trust,
+            ),
         ] {
             if !same {
                 gaps.push(field.to_string());
@@ -162,10 +179,18 @@ impl ProtocolCodecApplication {
     }
 
     /// Publish the studio snapshot for a freshly decoded or edited draft.
+    ///
+    /// The dialer graph is a *profile* fact, so the report published by the last
+    /// [`Self::publish_dialer_report`] call survives draft edits; the CA
+    /// resolution is draft-specific and is therefore cleared here and re-derived
+    /// by whichever caller holds the host reader.
     pub fn publish_draft(
         draft: ProtocolDraft,
         uri_preview: Option<String>,
     ) -> ProtocolStudioSnapshot {
+        let dialer = studio_snapshot()
+            .map(|previous| previous.dialer)
+            .unwrap_or_default();
         let snapshot = ProtocolStudioSnapshot {
             report: Some(draft.report()),
             uri_preview,
@@ -174,9 +199,81 @@ impl ProtocolCodecApplication {
             audit: None,
             last_error: None,
             last_saved_node: None,
+            dialer,
+            ca_trust: CaTrustReport::default(),
         };
         publish_studio(snapshot.clone());
         snapshot
+    }
+
+    /// DUAL-05-09/10: analyse a profile document's dialer/relay graph and
+    /// publish the chains + loop findings for both surfaces.
+    pub fn publish_dialer_report(
+        profile_yaml: &str,
+    ) -> Result<infiltrator_contract::dialer_chain::DialerChainReport, Failure> {
+        let report = DialerChainApplication::analyze_profile(profile_yaml)?;
+        let mut studio = last_studio().lock().unwrap_or_else(|e| e.into_inner());
+        let mut next = studio.take().unwrap_or_default();
+        next.dialer = report.clone();
+        *studio = Some(next);
+        Ok(report)
+    }
+
+    /// DUAL-05-10: the dialer report both surfaces render (empty until a
+    /// profile was analysed).
+    pub fn dialer_report() -> infiltrator_contract::dialer_chain::DialerChainReport {
+        studio_snapshot()
+            .map(|studio| studio.dialer)
+            .unwrap_or_default()
+    }
+
+    /// DUAL-05-13: resolve the draft's CA request against the host reader and
+    /// publish the outcome. A host without a reader publishes the typed
+    /// unsupported state instead of a claimed load.
+    pub fn publish_ca_trust(
+        params: &infiltrator_contract::protocol_trust::TlsTrustParams,
+        port: Option<&dyn CertificateAuthorityPort>,
+    ) -> CaTrustReport {
+        let report = CertificateAuthorityApplication::resolve(params, port);
+        let mut studio = last_studio().lock().unwrap_or_else(|e| e.into_inner());
+        let mut next = studio.take().unwrap_or_default();
+        next.ca_trust = report.clone();
+        *studio = Some(next);
+        report
+    }
+
+    /// DUAL-05-13: the published CA resolution.
+    pub fn ca_trust_report() -> CaTrustReport {
+        studio_snapshot()
+            .map(|studio| studio.ca_trust)
+            .unwrap_or_default()
+    }
+
+    /// DUAL-05-09/13: edit one whitelisted field of the published draft.
+    ///
+    /// Only the fields this batch adds are editable through this seam; an
+    /// unknown name is a typed `InvalidInput`, never a silently ignored write.
+    pub fn update_draft_field(field: &str, value: &str) -> Result<ProtocolStudioSnapshot, Failure> {
+        let studio = studio_snapshot().ok_or_else(|| {
+            invalid_input("no custom-node draft is published; import or open a node first")
+        })?;
+        let mut draft = studio
+            .draft
+            .clone()
+            .ok_or_else(|| invalid_input("no custom-node draft is published"))?;
+        match field {
+            "dialer-proxy" => draft.dialer_proxy = value.to_string(),
+            "ca-path" => draft.params.tls_trust.ca_path = value.to_string(),
+            "ca-str" => draft.params.tls_trust.ca_str = value.to_string(),
+            "ca-fingerprint" => draft.params.tls_trust.fingerprint = value.to_string(),
+            other => {
+                return Err(invalid_input(&format!(
+                    "`{other}` is not an editable custom-node draft field"
+                )));
+            }
+        }
+        let preview = Self::uri_from_draft(&draft).ok();
+        Ok(Self::publish_draft(draft, preview))
     }
 
     /// DUAL-05-14: write the draft into the profile document, replacing an
@@ -241,10 +338,27 @@ impl ProtocolCodecApplication {
         unknown_fields.sort();
         unknown_fields.dedup();
 
+        // DUAL-05-13: project the file-path anchor into the global
+        // `tls.custom-certifactes` list — the carrier the pinned mihomo
+        // v1.19.18 really reads. Everything else in `tls:` stays untouched.
+        let trust_added = CertificateAuthorityApplication::write_ca_path(
+            &mut document,
+            &draft.params.tls_trust.ca_path,
+        );
+
         let profile_yaml = serde_yaml_ng::to_string(&document)
             .map_err(|error| invalid_input(&format!("could not serialize profile: {error}")))?;
-        let reported_sections = sections_without_proxies_from_str(&profile_yaml)?;
-        let structure_preserved = original_sections == reported_sections;
+        // The audit compares the untouched sections; the one CA entry this
+        // application added is its own key, so it is removed before comparing.
+        let mut reported: Value = serde_yaml_ng::from_str(&profile_yaml).map_err(|error| {
+            invalid_input(&format!("exported profile is invalid YAML: {error}"))
+        })?;
+        if let Some(added) = trust_added.as_deref() {
+            CertificateAuthorityApplication::remove_ca_path(&mut reported, added);
+        }
+        let structure_preserved = original_sections == sections_without_proxies(&reported);
+
+        let dialer = DialerChainApplication::analyze_profile(&profile_yaml).unwrap_or_default();
 
         let audit = CodecAudit {
             source_format: NodeCodecFormat::Uri,
@@ -270,6 +384,7 @@ impl ProtocolCodecApplication {
             audit,
             replaced_existing,
             node_count,
+            dialer: dialer.clone(),
         };
         publish_studio(ProtocolStudioSnapshot {
             draft: Some(draft.clone()),
@@ -279,6 +394,8 @@ impl ProtocolCodecApplication {
             last_error: None,
             last_saved_node: Some(draft.name.trim().to_string()),
             uri_gaps: Self::uri_fidelity_gaps(draft),
+            dialer,
+            ca_trust: CaTrustReport::default(),
         });
         Ok(commit)
     }
@@ -327,6 +444,7 @@ impl ProtocolCodecApplication {
             last_error: None,
             last_saved_node: None,
             uri_gaps: Vec::new(),
+            ..ProtocolStudioSnapshot::default()
         });
         Ok((output, audit))
     }
@@ -540,12 +658,6 @@ fn sections_without_proxies(document: &Value) -> Value {
         mapping.remove(Value::String("proxies".to_string()));
     }
     clone
-}
-
-fn sections_without_proxies_from_str(document: &str) -> Result<Value, Failure> {
-    let parsed: Value = serde_yaml_ng::from_str(document)
-        .map_err(|error| invalid_input(&format!("exported profile is invalid YAML: {error}")))?;
-    Ok(sections_without_proxies(&parsed))
 }
 
 fn invalid_input(message: &str) -> Failure {

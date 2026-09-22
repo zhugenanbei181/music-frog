@@ -227,6 +227,9 @@ impl AppState {
             | Message::ExportCustomNodeUri
             | Message::SaveCustomNodeForm
             | Message::CustomNodeSaved(_)
+            | Message::ScanCustomNodeDialer
+            | Message::CustomNodeDialerScanned(_)
+            | Message::VerifyCustomNodeCertificateAuthority
             | Message::SetConnectionGroupingMode(_)
             | Message::AddQuickRuleFromConnection { .. }
             | Message::OpenSnapshotDiff(_)

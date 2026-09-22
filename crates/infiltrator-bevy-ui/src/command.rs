@@ -142,6 +142,18 @@ pub enum UiCommand {
     SaveCustomNodeDraft {
         draft: Box<infiltrator_contract::protocol_fidelity::ProtocolDraft>,
     },
+    /// DUAL-05-09/13: edit one whitelisted field of the published shared draft
+    /// (the dialer hop or a certificate-trust carrier). Unknown field names are
+    /// refused by the shared application.
+    UpdateCustomNodeDraftField { field: String, value: String },
+    /// DUAL-05-09/10: analyse the active profile's dialer/relay graph and
+    /// publish the resolved chains + loop findings.
+    ScanCustomNodeDialer,
+    /// DUAL-05-13: resolve a certificate-trust request against the host reader
+    /// and publish the typed outcome.
+    VerifyCustomNodeCa {
+        trust: Box<infiltrator_contract::protocol_trust::TlsTrustParams>,
+    },
     /// Trigger a remote update for all rule providers.
     RefreshRuleProviders,
     /// Reset every accumulated rule hit counter.
@@ -413,6 +425,18 @@ impl UiCommand {
             Self::SaveCustomNodeDraft { draft } => Some(CommandIntent::SaveCustomNodeDraft {
                 draft: draft.clone(),
             }),
+            Self::UpdateCustomNodeDraftField { field, value } => {
+                Some(CommandIntent::UpdateCustomNodeDraftField {
+                    field: field.clone(),
+                    value: value.clone(),
+                })
+            }
+            Self::ScanCustomNodeDialer => Some(CommandIntent::ScanDialerChains),
+            Self::VerifyCustomNodeCa { trust } => {
+                Some(CommandIntent::ResolveCertificateAuthority {
+                    trust: trust.clone(),
+                })
+            }
             Self::ReAggregateProfile { template_name } => Some(CommandIntent::ReAggregateProfile {
                 template_name: template_name.clone(),
             }),

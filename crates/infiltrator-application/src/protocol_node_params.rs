@@ -497,6 +497,24 @@ pub fn params_from_node(item: &ProxyNodeItem, family: ProtocolFamily) -> Protoco
                 .unwrap_or_default(),
         };
     }
+    // DUAL-05-13: certificate trust. `fingerprint` is a real v1.19.18 node key;
+    // `ca`/`ca-str` are read back so a forward-compatible profile node keeps
+    // them losslessly even though the pinned node schema has neither.
+    params.tls_trust = infiltrator_contract::protocol_trust::TlsTrustParams {
+        ca_path: item
+            .extra
+            .get("ca")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        ca_str: item
+            .extra
+            .get("ca-str")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        fingerprint: item.fingerprint.clone().unwrap_or_default(),
+    };
     params
 }
 
@@ -547,6 +565,8 @@ pub fn node_from_draft(draft: &ProtocolDraft) -> ProxyNodeItem {
     if draft.smux.has_overrides() {
         item.smux = Some(smux_to_json(&draft.smux));
     }
+    // DUAL-05-09: the static dialer hop.
+    item.dialer_proxy = non_empty(&draft.dialer_proxy);
     write_params(&mut item, &draft.params, draft.family());
     item
 }
@@ -710,6 +730,18 @@ fn write_params(item: &mut ProxyNodeItem, params: &ProtocolParams, family: Proto
             }
             set_extra(item, "ss-opts", Value::Mapping(map));
         }
+    }
+
+    // DUAL-05-13: certificate trust. `fingerprint` is a real v1.19.18 node key;
+    // `ca`/`ca-str` are emitted only when the draft carries them (the pinned
+    // node schema has neither, the shared report says so, and the file-path
+    // anchor is additionally projected into the global tls list).
+    item.fingerprint = non_empty(&params.tls_trust.fingerprint);
+    if let Some(ca) = non_empty(&params.tls_trust.ca_path) {
+        set_extra(item, "ca", Value::String(ca));
+    }
+    if let Some(ca_str) = non_empty(&params.tls_trust.ca_str) {
+        set_extra(item, "ca-str", Value::String(ca_str));
     }
 }
 

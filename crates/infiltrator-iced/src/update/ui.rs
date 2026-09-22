@@ -620,7 +620,10 @@ impl AppState {
             | Message::UpdateCustomNodeDraft(_)
             | Message::ExportCustomNodeUri
             | Message::SaveCustomNodeForm
-            | Message::CustomNodeSaved(_) => self.update_protocol_codec(message),
+            | Message::CustomNodeSaved(_)
+            | Message::ScanCustomNodeDialer
+            | Message::CustomNodeDialerScanned(_)
+            | Message::VerifyCustomNodeCertificateAuthority => self.update_protocol_codec(message),
             Message::SetConnectionGroupingMode(mode) => {
                 self.diag.connection_grouping_mode = mode;
                 Task::none()

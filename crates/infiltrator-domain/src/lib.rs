@@ -55,6 +55,7 @@ pub mod subscription;
 pub mod subscription_quota;
 pub mod subscription_scheduler_policy;
 pub mod sync;
+pub mod tls_trust;
 pub mod traffic_audit;
 pub mod traffic_scale;
 pub mod traffic_topology;

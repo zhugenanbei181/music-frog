@@ -45,6 +45,50 @@ pub struct SaveCustomNodeButton;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CustomNodeUriField;
 
+/// DUAL-05-09: the dialer hop input field (`dialer-proxy`).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CustomNodeDialerField;
+
+/// DUAL-05-13: the custom-CA path input field (`ca`).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CustomNodeCaField;
+
+/// DUAL-05-09/10: run the shared dialer-chain scan.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ScanDialerChainsButton;
+
+/// DUAL-05-13: resolve the CA request against this host's reader.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct VerifyCustomNodeCaButton;
+
+/// Which shared action a card button submits. One component keeps the system
+/// signature inside the ECS argument budget.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CustomNodeActionButton(pub CustomNodeAction);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CustomNodeAction {
+    #[default]
+    ImportUri,
+    SaveDraft,
+    ScanDialer,
+    VerifyCa,
+}
+
+/// Which editable field a text input is. One component keeps the system
+/// signature inside the ECS argument budget while the per-field markers stay
+/// available to tests and layout code.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CustomNodeInputField(pub CustomNodeInput);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CustomNodeInput {
+    #[default]
+    Uri,
+    Dialer,
+    Ca,
+}
+
 /// DUAL-05: read-only text slots re-covered from the shared studio snapshot.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CustomNodeText(pub CustomNodeSlot);
@@ -65,17 +109,49 @@ pub enum CustomNodeSlot {
     Gaps,
     /// DUAL-05: non-blocking facts the pinned core ignores or falls back on.
     Notes,
+    /// DUAL-05-09/10: the resolved dialer chain (never a loop as valid).
+    Chain,
+    /// DUAL-05-13: what the host really did with the CA request.
+    CaTrust,
 }
 
 /// Text slots in render order.
-const SLOTS: [(CustomNodeSlot, &str); 6] = [
+const SLOTS: [(CustomNodeSlot, &str); 8] = [
     (CustomNodeSlot::Chips, "协议事实"),
     (CustomNodeSlot::Issues, "协议校验"),
     (CustomNodeSlot::Notes, "协议提示"),
+    (CustomNodeSlot::Chain, "跳板链路"),
+    (CustomNodeSlot::CaTrust, "证书信任"),
     (CustomNodeSlot::Audit, "编解码审计"),
     (CustomNodeSlot::UriPreview, "分享链接"),
     (CustomNodeSlot::Gaps, "URI 损失字段"),
 ];
+
+fn chain_initial(studio: &ProtocolStudioSnapshot) -> String {
+    let draft_name = studio
+        .draft
+        .as_ref()
+        .map(|draft| draft.name.trim().to_string())
+        .unwrap_or_default();
+    match studio.dialer.chain_for(&draft_name) {
+        Some(chain) => format!("{} · {}", chain.chain_line(), chain.end.label_zh()),
+        None => {
+            let loops = studio.dialer.loop_lines();
+            if loops.is_empty() {
+                "无前置跳板链路".to_owned()
+            } else {
+                loops.join("；")
+            }
+        }
+    }
+}
+
+fn ca_initial(studio: &ProtocolStudioSnapshot) -> String {
+    if studio.ca_trust.resolutions.is_empty() {
+        return "未配置自定义证书信任".to_owned();
+    }
+    studio.ca_trust.lines().join("；")
+}
 
 fn slot_initial(slot: CustomNodeSlot, studio: &ProtocolStudioSnapshot) -> String {
     let chips = studio
@@ -130,6 +206,8 @@ fn slot_initial(slot: CustomNodeSlot, studio: &ProtocolStudioSnapshot) -> String
                 format!("分享链接不携带: {}", studio.uri_gaps.join(" / "))
             }
         }
+        CustomNodeSlot::Chain => chain_initial(studio),
+        CustomNodeSlot::CaTrust => ca_initial(studio),
     }
 }
 
@@ -139,6 +217,16 @@ pub fn custom_node_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let uri_initial = studio.uri_preview.clone().unwrap_or_default();
+    let dialer_initial = studio
+        .draft
+        .as_ref()
+        .map(|draft| draft.dialer_proxy.clone())
+        .unwrap_or_default();
+    let ca_initial = studio
+        .draft
+        .as_ref()
+        .map(|draft| draft.params.tls_trust.ca_path.clone())
+        .unwrap_or_default();
     let slots: Vec<Box<dyn Scene>> = SLOTS
         .iter()
         .map(|(slot, label)| {
@@ -194,6 +282,7 @@ pub fn custom_node_scene(
                         BackgroundColor({ palette.accent })
                         Button
                         ImportUriButton
+                        CustomNodeActionButton(CustomNodeAction::ImportUri)
                         Children [
                             ( Text({ "解析分享链接 URI".to_owned() }) TextRole(Role::BodyStrong) ),
                         ]
@@ -206,12 +295,85 @@ pub fn custom_node_scene(
                     padding: UiRect::vertical(Val::Px(space::S4)),
                 }
                 CustomNodeUriField
+                CustomNodeInputField(CustomNodeInput::Uri)
                 Children [
                     ( { text_field_with_placeholder_scene(
                         uri_initial,
                         "粘贴 vless:// / ss:// / trojan:// / hysteria2:// / tuic:// / ssh:// / anytls:// 分享链接".to_owned(),
                         palette,
                     ) } ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    align_items: AlignItems::End,
+                    column_gap: Val::Px(space::S8),
+                    padding: UiRect::vertical(Val::Px(space::S4)),
+                }
+                Children [
+                    (
+                        Node {
+                            flex_grow: 1.0,
+                            padding: UiRect::vertical(Val::Px(space::S2)),
+                        }
+                        CustomNodeDialerField
+                        CustomNodeInputField(CustomNodeInput::Dialer)
+                        Children [
+                            ( { text_field_with_placeholder_scene(
+                                dialer_initial,
+                                "前置跳板 (dialer-proxy: 节点或策略组名)".to_owned(),
+                                palette,
+                            ) } ),
+                        ]
+                    ),
+                    (
+                        Node {
+                            flex_grow: 1.0,
+                            padding: UiRect::vertical(Val::Px(space::S2)),
+                        }
+                        CustomNodeCaField
+                        CustomNodeInputField(CustomNodeInput::Ca)
+                        Children [
+                            ( { text_field_with_placeholder_scene(
+                                ca_initial,
+                                "自定义 CA 路径 (tls.custom-certifactes)".to_owned(),
+                                palette,
+                            ) } ),
+                        ]
+                    ),
+                    (
+                        Node {
+                            min_height: px(palette.control_height_px),
+                            padding: UiRect::horizontal(Val::Px(space::S12)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.accent })
+                        Button
+                        ScanDialerChainsButton
+                        CustomNodeActionButton(CustomNodeAction::ScanDialer)
+                        Children [
+                            ( Text({ "扫描跳板链".to_owned() }) TextRole(Role::BodyStrong) ),
+                        ]
+                    ),
+                    (
+                        Node {
+                            min_height: px(palette.control_height_px),
+                            padding: UiRect::horizontal(Val::Px(space::S12)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.success })
+                        Button
+                        VerifyCustomNodeCaButton
+                        CustomNodeActionButton(CustomNodeAction::VerifyCa)
+                        Children [
+                            ( Text({ "校验证书信任".to_owned() }) TextRole(Role::BodyStrong) ),
+                        ]
+                    ),
                 ]
             }),
             Box::new(bsn! {
@@ -245,6 +407,7 @@ pub fn custom_node_scene(
                         BackgroundColor({ palette.success })
                         Button
                         SaveCustomNodeButton
+                        CustomNodeActionButton(CustomNodeAction::SaveDraft)
                         Children [
                             ( Text({ "保存为自定义节点".to_owned() }) TextRole(Role::BodyStrong) ),
                         ]
@@ -259,11 +422,15 @@ pub fn custom_node_scene(
 /// DUAL-05-14: the import button reads the typed URI from the shared field and
 /// submits the decode intent; the save button submits the *shared draft* it
 /// received from the application. Neither button fabricates a node locally.
+///
+/// DUAL-05-09/13: the scan button first applies the dialer hop field to the
+/// shared draft (typed field edit) and then runs the shared analyzer; the
+/// verify button applies the CA path field and resolves the trust request
+/// against this host's reader.
 pub(crate) fn on_custom_node_action_activated(
     activate: On<Activate>,
-    import_buttons: Query<(), With<ImportUriButton>>,
-    save_buttons: Query<(), With<SaveCustomNodeButton>>,
-    uri_fields: Query<&Children, With<CustomNodeUriField>>,
+    buttons: Query<&CustomNodeActionButton>,
+    fields: Query<(&CustomNodeInputField, &Children)>,
     text_fields: Query<&TextField>,
     last: Option<Res<LastProxiesProjection>>,
     handle: Option<Res<CommandSinkHandle>>,
@@ -271,31 +438,70 @@ pub(crate) fn on_custom_node_action_activated(
     let Some(handle) = handle else {
         return;
     };
-    if import_buttons.get(activate.entity).is_ok() {
-        let uri = uri_fields
+    let Some(action) = buttons.get(activate.entity).ok().map(|button| button.0) else {
+        return;
+    };
+    let field_text = |wanted: CustomNodeInput| -> String {
+        fields
             .iter()
+            .find(|(kind, _)| kind.0 == wanted)
+            .map(|(_, children)| children)
+            .into_iter()
             .flat_map(|children| children.iter())
             .find_map(|child| text_fields.get(child).ok())
             .map(|field| field.0.text())
-            .unwrap_or_default();
-        let uri = uri.trim().to_owned();
-        if uri.is_empty() {
-            return;
+            .unwrap_or_default()
+            .trim()
+            .to_owned()
+    };
+    match action {
+        CustomNodeAction::ImportUri => {
+            let uri = field_text(CustomNodeInput::Uri);
+            if !uri.is_empty() {
+                handle.submit(UiCommand::ImportCustomNodeUri { uri });
+            }
         }
-        handle.submit(UiCommand::ImportCustomNodeUri { uri });
-        return;
-    }
-    if save_buttons.get(activate.entity).is_ok() {
-        let draft = last
-            .as_ref()
-            .and_then(|last| last.0.as_ref())
-            .and_then(|projection| projection.custom_node.draft.clone());
-        let Some(draft) = draft else {
-            return;
-        };
-        handle.submit(UiCommand::SaveCustomNodeDraft {
-            draft: Box::new(draft),
-        });
+        CustomNodeAction::ScanDialer => {
+            let hop = field_text(CustomNodeInput::Dialer);
+            if !hop.is_empty() {
+                handle.submit(UiCommand::UpdateCustomNodeDraftField {
+                    field: "dialer-proxy".to_owned(),
+                    value: hop,
+                });
+            }
+            handle.submit(UiCommand::ScanCustomNodeDialer);
+        }
+        CustomNodeAction::VerifyCa => {
+            let ca_path = field_text(CustomNodeInput::Ca);
+            if !ca_path.is_empty() {
+                handle.submit(UiCommand::UpdateCustomNodeDraftField {
+                    field: "ca-path".to_owned(),
+                    value: ca_path.clone(),
+                });
+            }
+            let mut trust = last
+                .as_ref()
+                .and_then(|last| last.0.as_ref())
+                .and_then(|projection| projection.custom_node.draft.as_ref())
+                .map(|draft| draft.params.tls_trust.clone())
+                .unwrap_or_default();
+            trust.ca_path = ca_path;
+            handle.submit(UiCommand::VerifyCustomNodeCa {
+                trust: Box::new(trust),
+            });
+        }
+        CustomNodeAction::SaveDraft => {
+            let draft = last
+                .as_ref()
+                .and_then(|last| last.0.as_ref())
+                .and_then(|projection| projection.custom_node.draft.clone());
+            let Some(draft) = draft else {
+                return;
+            };
+            handle.submit(UiCommand::SaveCustomNodeDraft {
+                draft: Box::new(draft),
+            });
+        }
     }
 }
 

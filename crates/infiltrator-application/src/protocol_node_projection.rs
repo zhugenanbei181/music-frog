@@ -24,7 +24,7 @@ use infiltrator_contract::protocol_params_ext::TransportParams;
 use infiltrator_domain::profile_converter::ProxyNodeItem;
 
 /// Scalar keys every draft owns regardless of family.
-pub const DRAFT_OWNED_KEYS: [&str; 15] = [
+pub const DRAFT_OWNED_KEYS: [&str; 19] = [
     "name",
     "type",
     "server",
@@ -40,6 +40,14 @@ pub const DRAFT_OWNED_KEYS: [&str; 15] = [
     "alpn",
     "client-fingerprint",
     "smux",
+    // DUAL-05-09: the dialer hop is a node key in every v1.19.18 family.
+    "dialer-proxy",
+    // DUAL-05-13: the certificate whitelist pin is a real v1.19.18 node key;
+    // `ca`/`ca-str` are modelled for forward-compatible profiles (the pinned
+    // node schema has neither, see `ProtocolParamsReport::notes`).
+    "fingerprint",
+    "ca",
+    "ca-str",
 ];
 
 /// Every key the draft owns for one family: the base scalars plus the family's
@@ -130,7 +138,7 @@ pub const DRAFT_NESTED_KEYS: [&str; 10] = [
 ];
 
 /// Keys the draft now types, so an unknown-field audit must not call them unknown.
-pub const TYPED_EXTRA_KEYS: [&str; 8] = [
+pub const TYPED_EXTRA_KEYS: [&str; 10] = [
     "ech-opts",
     "ss-opts",
     "udp-mtu",
@@ -139,6 +147,9 @@ pub const TYPED_EXTRA_KEYS: [&str; 8] = [
     "idle-session-timeout",
     "idle-session-check-interval",
     "min-idle-session",
+    // DUAL-05-13: typed certificate-trust carriers.
+    "ca",
+    "ca-str",
 ];
 
 /// `true` when the key is modelled by a typed block *for this family* (audits
@@ -159,6 +170,9 @@ pub fn is_typed_extra_key_for(key: &str, family: ProtocolFamily) -> bool {
         "idle-session-timeout" | "idle-session-check-interval" | "min-idle-session" => {
             family == ProtocolFamily::Anytls
         }
+        // DUAL-05-13: modelled for every family (the typed block is
+        // family-independent); a foreign node's key is still preserved.
+        "ca" | "ca-str" => true,
         _ => false,
     }
 }
@@ -225,6 +239,8 @@ pub fn draft_from_node(item: &ProxyNodeItem) -> ProtocolDraft {
     draft.tls = item.tls;
     draft.skip_cert_verify = item.skip_cert_verify.unwrap_or(false);
     draft.alpn = item.alpn.clone().unwrap_or_default();
+    // DUAL-05-09: the static hop the node dials through.
+    draft.dialer_proxy = item.dialer_proxy.clone().unwrap_or_default();
     draft.params = crate::protocol_node_params::params_from_node(item, family);
     let mut preserved: Vec<String> = item
         .extra

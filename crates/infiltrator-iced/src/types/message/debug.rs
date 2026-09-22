@@ -907,6 +907,19 @@ impl std::fmt::Debug for Message {
             Message::CustomNodeSaved(Ok(_)) => write!(f, "CustomNodeSaved(Ok)"),
             Message::CustomNodeSaved(Err(e)) => write!(f, "CustomNodeSaved(Err({e:?}))"),
             Message::SaveCustomNodeForm => write!(f, "SaveCustomNodeForm"),
+            Message::ScanCustomNodeDialer => write!(f, "ScanCustomNodeDialer"),
+            Message::CustomNodeDialerScanned(Ok(report)) => write!(
+                f,
+                "CustomNodeDialerScanned(Ok(chains={}, loops={}))",
+                report.chains.len(),
+                report.loops.len()
+            ),
+            Message::CustomNodeDialerScanned(Err(e)) => {
+                write!(f, "CustomNodeDialerScanned(Err({e:?}))")
+            }
+            Message::VerifyCustomNodeCertificateAuthority => {
+                write!(f, "VerifyCustomNodeCertificateAuthority")
+            }
             Message::OpenAggregatorModal => write!(f, "OpenAggregatorModal"),
             Message::CloseAggregatorModal => write!(f, "CloseAggregatorModal"),
             Message::ToggleAggregatorProfileSelection(p) => {

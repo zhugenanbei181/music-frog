@@ -11,10 +11,52 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::protocol_codec_application::ProtocolCodecApplication;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 
+/// DUAL-05-09/10: load the active profile and run the shared dialer analyzer.
+async fn scan_dialer_chains()
+-> Result<infiltrator_contract::dialer_chain::DialerChainReport, InfiltratorError> {
+    let store = crate::configs_dir::config_manager().await?;
+    let application = ProfileApplication::new(store);
+    let (_profile, content) = application
+        .current_content()
+        .await
+        .map_err(|failure| InfiltratorError::Config(failure.message))?;
+    ProtocolCodecApplication::publish_dialer_report(&content)
+        .map_err(|failure| InfiltratorError::Config(failure.message))
+}
+
 impl AppState {
+    /// DUAL-05-13: this host's CA reader, if it composed one.
+    fn certificate_authority_port(
+        &self,
+    ) -> Option<
+        std::sync::Arc<dyn infiltrator_ports::certificate_authority::CertificateAuthorityPort>,
+    > {
+        self.runtime
+            .runtime
+            .as_ref()
+            .and_then(|runtime| runtime.certificate_authority_port())
+    }
+
+    /// DUAL-05-13: resolve the draft's CA request and refresh the studio.
+    fn refresh_custom_node_ca_trust(
+        &mut self,
+    ) -> infiltrator_contract::protocol_trust::CaTrustReport {
+        let draft = self.runtime.custom_node_studio.draft.clone();
+        let params = draft
+            .as_ref()
+            .map(|draft| draft.params.tls_trust.clone())
+            .unwrap_or_default();
+        let port = self.certificate_authority_port();
+        let report = ProtocolCodecApplication::publish_ca_trust(&params, port.as_deref());
+        self.runtime.custom_node_studio.ca_trust = report.clone();
+        report
+    }
+
     /// DUAL-05-01/02/11/14: the shared protocol codec handlers.
     pub(super) fn update_protocol_codec(&mut self, message: Message) -> Task<Message> {
         match message {
@@ -26,6 +68,26 @@ impl AppState {
                 self.runtime.custom_node_uri_input.clear();
                 self.runtime.custom_node_studio =
                     ProtocolCodecApplication::publish_draft(ProtocolDraft::new("vless"), None);
+                self.refresh_custom_node_ca_trust();
+                // DUAL-05-09/10: the dialer graph is a profile fact, so the
+                // modal scans the active profile through the shared analyzer.
+                Task::perform(scan_dialer_chains(), Message::CustomNodeDialerScanned)
+            }
+            Message::ScanCustomNodeDialer => {
+                Task::perform(scan_dialer_chains(), Message::CustomNodeDialerScanned)
+            }
+            Message::CustomNodeDialerScanned(result) => match result {
+                Ok(report) => {
+                    self.runtime.custom_node_studio.dialer = report;
+                    Task::none()
+                }
+                Err(error) => Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error)),
+            },
+            Message::VerifyCustomNodeCertificateAuthority => {
+                // DUAL-05-13: the outcome is a typed state (loaded / unsupported
+                // / failed) rendered by the modal, not a toast; an unsupported
+                // host is an expected answer.
+                self.refresh_custom_node_ca_trust();
                 Task::none()
             }
             Message::CloseCustomNodeModal => {
@@ -42,6 +104,9 @@ impl AppState {
                 let preview = ProtocolCodecApplication::uri_from_draft(&draft).ok();
                 self.runtime.custom_node_studio =
                     ProtocolCodecApplication::publish_draft(*draft, preview);
+                // DUAL-05-13: the trust request changed with the draft, so the
+                // host resolution is re-derived instead of going stale.
+                self.refresh_custom_node_ca_trust();
                 Task::none()
             }
             Message::ParseAndImportCustomUri => {
@@ -54,6 +119,9 @@ impl AppState {
                         let preview = ProtocolCodecApplication::uri_from_draft(&draft).ok();
                         self.runtime.custom_node_studio =
                             ProtocolCodecApplication::publish_draft(draft, preview);
+                        // DUAL-05-13: a freshly imported draft carries its own
+                        // trust request; resolve it against this host at once.
+                        self.refresh_custom_node_ca_trust();
                         Task::none()
                     }
                     Err(failure) => {
@@ -94,6 +162,9 @@ impl AppState {
                 let preview = ProtocolCodecApplication::uri_from_draft(&draft).ok();
                 self.runtime.custom_node_studio =
                     ProtocolCodecApplication::publish_draft(draft, preview);
+                // DUAL-05-13: keep the published CA resolution in step with the
+                // draft the modal is showing.
+                self.refresh_custom_node_ca_trust();
                 Task::none()
             }
             Message::SaveCustomNodeForm => {
@@ -142,6 +213,10 @@ impl AppState {
                 match result {
                     Ok(_) => {
                         self.runtime.custom_node_uri_input.clear();
+                        // DUAL-05-13/09: the save published the written
+                        // document's dialer verdict; re-derive the CA state so
+                        // the panel never shows a stale resolution.
+                        self.refresh_custom_node_ca_trust();
                         Task::batch(vec![
                             Task::done(Message::LoadProxies),
                             Task::done(Message::ShowToast(
