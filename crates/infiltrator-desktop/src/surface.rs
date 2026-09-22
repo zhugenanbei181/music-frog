@@ -79,6 +79,7 @@ pub fn desktop_capabilities() -> CapabilitySnapshot {
 pub struct SurfaceEngines {
     pub speedtest: SpeedtestApplication,
     pub rule_tracer: infiltrator_application::rule_tracer_application::RuleTracerApplication,
+    pub dns_cache: infiltrator_application::dns_cache_application::DnsCacheApplication,
 }
 
 /// Assemble all currently available desktop application facades into one
@@ -152,6 +153,7 @@ pub async fn application_surface_reader(
             .with_service_mode(service_mode)
             .with_speedtest(engines.speedtest)
             .with_rule_tracer(engines.rule_tracer)
+            .with_dns_cache(engines.dns_cache)
             .with_port_conflicts(port_conflicts),
     )
 }

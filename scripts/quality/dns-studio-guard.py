@@ -114,6 +114,9 @@ def main() -> int:
         "pub switches: crate::dns::DnsCoreSwitches",
         "pub filter_mode: crate::dns::DnsFakeIpFilterMode",
         "pub tags: Vec<crate::dns::DnsServerTag>",
+        "pub fallback_policy: crate::dns::DnsFallbackPolicy",
+        "pub cache_flush: crate::dns::DnsCacheFlushReport",
+        "pub default_nameserver: Vec<String>",
     )
     require(
         violations,
@@ -121,11 +124,41 @@ def main() -> int:
         "ApplyDnsSettings",
     )
 
-    # Domain: `rule` filter mode + explicit mapping-mode clear.
+    # DUAL-14-04/05: encrypted upstream transports and the fallback policy are
+    # shared contract value objects, not per-surface strings.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/dns.rs",
+        "pub enum DnsUpstreamProtocol",
+        "pub fn from_address",
+        "pub fn parse_server_list",
+        "pub fn append_server",
+        "pub struct DnsFallbackPolicy",
+        "pub geoip_code: String",
+        "pub trigger_ipcidr: Vec<String>",
+        "pub struct DnsCacheFlushReport",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/dns_form.rs",
+        "pub enum DnsFormField",
+        "pub const ALL: [Self; 18]",
+        "pub struct DnsWorkbenchForm",
+        "pub fn from_snapshot",
+        "pub fn patch",
+        "pub fn validate",
+        "pub enum DnsFormIssue",
+        "pub fn is_cidr_literal",
+    )
+
+    # Domain: `rule` filter mode + explicit mapping-mode/range clears.
     require(
         violations,
         "crates/infiltrator-domain/src/dns.rs",
         "pub clear_enhanced_mode: bool",
+        "pub clear_fake_ip_range: bool",
+        "pub struct FallbackFilterPatch",
+        "pub fallback_filter_partial: Option<FallbackFilterPatch>",
         'lower != "whitelist" && lower != "blacklist" && lower != "rule"',
     )
 
@@ -134,48 +167,109 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/configuration_application.rs",
         "pub async fn apply_dns_settings",
-        "fn dns_patch_from_settings",
+        "pub async fn apply_dns_settings_with_runtime",
+        "pub fn dns_patch_from_settings",
+        "FallbackFilter",
     )
     require(
         violations,
         "crates/infiltrator-application/src/surface_reader.rs",
         "fn build_dns_page",
+        "with_dns_cache",
+        "cache_flush_report",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/dns_workbench_application.rs",
+        "fn dns_page_snapshot",
         "fn dns_core_switches",
         "DnsServerTag::classify",
+        "fn cache_flush_report",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/dns_cache_application.rs",
+        "pub async fn flush_all",
+        "SystemDnsCachePort",
+        "flush_system_cache",
+        "DnsFlushOutcome::Unsupported",
     )
     require(
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "CommandIntent::ApplyDnsSettings { patch }",
+        "with_dns_cache",
     )
 
-    # Iced consumes the shared typed modes and renders the tag chips.
+    # DUAL-14-07: the OS DNS cache refresh is a real host port with a typed
+    # unsupported answer, and the desktop adapter carries the real commands.
+    require(
+        violations,
+        "crates/infiltrator-ports/src/system_dns_cache.rs",
+        "pub trait SystemDnsCachePort",
+        "async fn flush_system_cache",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/host_runtime.rs",
+        "fn system_dns_cache_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/system_dns_cache.rs",
+        "DesktopSystemDnsCache",
+        "flush_invocations",
+        "resolvectl",
+        "dscacheutil",
+        "ipconfig",
+    )
+
+    # Iced consumes the shared typed form and renders the tag chips.
     require(
         violations,
         "crates/infiltrator-iced/src/view/dns.rs",
-        "fn domain_mapping_mode_control",
-        "fn filter_mode_control",
-        "Message::UpdateDnsFormFilterMode",
+        "fn dns_form_panel",
         "fn server_tag_label",
+        "dns_cache_flush_status",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/dns_form_panel.rs",
+        "Message::UpdateDnsFormFilterMode",
+        "DnsFormField::ALL",
+        "pub(crate) fn dns_form_field_widget",
+        "pub(crate) fn localized_form_issue",
+        "pub(crate) fn flush_outcome_label",
+        "dns_flush_unsupported",
     )
     require(
         violations,
         "crates/infiltrator-iced/src/update/core/dns_config.rs",
-        "clear_enhanced_mode",
-        "Message::UpdateDnsFormFilterMode(value)",
+        "dns_patch_from_form",
+        "dns_patch_from_settings",
+        "Message::UpdateDnsFormFallbackGeoip",
+        "Message::DnsCacheFlushed",
+        "form_from_config",
     )
     require(
         violations,
-        "crates/infiltrator-shared/src/locales_table.rs",
-        "dns_tag_domestic",
-        "dns_tag_fallback",
-        "dns_tag_encrypted",
-        "dns_tag_plain",
+        "crates/infiltrator-iced/src/state.rs",
+        "DnsWorkbenchForm::from_snapshot",
+        "dns_cache_flush",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "dns_form_issues",
+        "dns_flush_unsupported",
+        "dns_flush_flushed",
     )
     require(
         violations,
         "crates/infiltrator-shared/src/locales_table_en_ext.rs",
-        "dns_leak_probe_title",
+        "dns_form_issues",
+        "dns_flush_unsupported",
+        "dns_flush_flushed",
     )
 
     # Bevy consumes the same projection and submits the shared patch.
@@ -183,13 +277,27 @@ def main() -> int:
         violations,
         "crates/infiltrator-bevy-ui/src/pages/dns.rs",
         "pub struct DnsSwitchButton(pub DnsSwitchField, pub bool)",
-        "pub struct DnsSwitchTrack",
         "pub struct DnsEnhancedModePill",
         "pub struct DnsFilterModePill",
         "pub struct DnsServerItem",
         "UiCommand::ApplyDnsSettings",
         "pub(crate) fn on_dns_action_activated",
         "pub(crate) fn apply_dns_projection",
+        "fn cache_flush_label",
+        "DnsLineKind::CacheFlush",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns_edit.rs",
+        "pub struct DnsFormState",
+        "pub struct DnsEditField",
+        "pub struct DnsEditApplyButton",
+        "pub struct DnsEditTemplate",
+        "pub struct DnsEditGeoipToggle",
+        "pub fn dns_edit_card_scene",
+        "pub(crate) fn on_dns_edit_activated",
+        "pub(crate) fn apply_dns_edit_projection",
+        "pub fn sync_dns_edit_dirty",
     )
     require(
         violations,
@@ -200,6 +308,8 @@ def main() -> int:
         violations,
         "crates/infiltrator-bevy-ui/src/route.rs",
         "crate::pages::dns::LastDnsProjection",
+        "crate::pages::dns_edit::DnsFormState",
+        "sync_dns_edit_dirty",
     )
     # The old fabricated command and local enum must not come back.
     forbid(
@@ -219,6 +329,12 @@ def main() -> int:
         "test_dns_enhanced_mode_pill_submits_shared_patch",
         "test_dns_filter_mode_pill_submits_shared_patch",
         "test_dns_projection_in_place_update",
+        "test_dns_edit_rows_cover_every_shared_text_field",
+        "test_dns_upstream_list_edit_submits_shared_patch",
+        "test_dns_fallback_policy_toggle_and_trigger_submit_shared_patch",
+        "test_dns_form_local_validation_blocks_invalid_scheme",
+        "test_dns_quick_template_chip_appends_unique_entry",
+        "test_dns_cache_flush_report_renders_honest_status",
     )
     require(
         violations,
@@ -230,18 +346,32 @@ def main() -> int:
         "crates/infiltrator-iced/tests/gui/view_dns_tests.rs",
         "test_domain_mapping_and_filter_mode_controls",
         "test_server_tag_labels_are_localized",
+        "test_dns_form_field_widgets_cover_every_shared_field",
+        "test_dns_form_validation_issues_localize_in_both_locales",
+        "test_dns_cache_flush_outcome_labels_are_localized",
+        "test_dns_form_patch_uses_the_shared_workbench_mapping",
     )
     require(
         violations,
         "crates/infiltrator-application/src/configuration_application.rs",
         "dns_settings_patch_maps_onto_domain_patch",
         "unmapped_mapping_mode_clears_the_key",
+        "workbench_lists_and_fallback_policy_map_onto_the_domain_patch",
+        "an_emptied_range_maps_to_the_explicit_clear_flag",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/dns_cache_application.rs",
+        "reports_both_targets_honestly",
+        "a_host_without_the_os_adapter_reports_typed_unsupported",
     )
     require(
         violations,
         "crates/infiltrator-domain/src/dns_test.rs",
         "test_clear_enhanced_mode_removes_the_key",
         "test_filter_mode_accepts_rule_host_value",
+        "test_clear_fake_ip_range_removes_the_key",
+        "test_partial_fallback_filter_preserves_unedited_subfields",
     )
 
     # The guard itself is registered on both suites.

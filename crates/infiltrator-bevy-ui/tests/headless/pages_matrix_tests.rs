@@ -602,6 +602,8 @@ fn dns_page_in_place_update() {
             is_fallback: false,
             tags: Vec::new(),
         }],
+        form: infiltrator_contract::dns_form::DnsWorkbenchForm::default(),
+        cache_flush: infiltrator_contract::dns::DnsCacheFlushReport::default(),
     };
 
     app.world_mut()

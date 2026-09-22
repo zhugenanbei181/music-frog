@@ -457,6 +457,24 @@ impl BootEngine for ProductionEngine<'_> {
                     ),
                 ),
                 infiltrator_application::rule_tracer_application::RuleTracerApplication::new(),
+                infiltrator_application::dns_cache_application::DnsCacheApplication::new(
+                    Some(Arc::new(
+                        mihomo_api::client::MihomoClient::new(
+                            &endpoint.url,
+                            endpoint.secret.clone(),
+                        )
+                        .map_err(|error| {
+                            AttemptFailure::new(
+                                anyhow!("build DNS cache controller client: {error}"),
+                                controller,
+                                false,
+                            )
+                        })?,
+                    )),
+                    Some(Arc::new(
+                        crate::system_dns_cache::DesktopSystemDnsCache::new(),
+                    )),
+                ),
                 cm.clone(),
                 Arc::new(crate::storage::subscription_source()),
             )

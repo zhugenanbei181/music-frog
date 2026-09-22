@@ -1,4 +1,10 @@
 use super::*;
+use crate::view::dns_form_panel::{
+    dns_form_field_widget, domain_mapping_mode_control, filter_mode_control, flush_outcome_label,
+    form_issue_banner, localized_form_issue, token_row,
+};
+use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode};
+use infiltrator_contract::dns_form::DnsWorkbenchForm;
 
 #[test]
 fn test_rebuild_status_badge_kinds() {
@@ -103,4 +109,128 @@ fn test_server_tag_labels_are_localized() {
         &zh,
         Message::UpdateDnsFormNameserver,
     );
+}
+
+// ===========================================================================
+// DUAL-14-04 / 14-05 / 14-07 / 14-14: shared workbench form parity
+// ===========================================================================
+
+#[test]
+fn test_dns_form_field_widgets_cover_every_shared_field() {
+    let form = DnsWorkbenchForm::default();
+    let zh = Lang("zh-CN");
+    let en = Lang("en-US");
+    for field in DnsFormField::ALL {
+        let _ = dns_form_field_widget(field, &form, &zh);
+        let _ = dns_form_field_widget(field, &form, &en);
+    }
+    assert_eq!(DnsFormField::ALL.len(), 18);
+}
+
+#[test]
+fn test_dns_form_panel_renders_the_shared_draft() {
+    let (mut state, _) = AppState::new();
+    state.editor.dns_form = DnsWorkbenchForm {
+        nameserver: "https://doh.pub/dns-query".to_owned(),
+        fallback_policy: infiltrator_contract::dns_form::DnsFallbackPolicyDraft {
+            geoip: true,
+            geoip_code: "CN".to_owned(),
+            trigger_ipcidr: "240.0.0.0/4".to_owned(),
+        },
+        ..DnsWorkbenchForm::default()
+    };
+    let _ = dns_form_panel(&state, &Lang("zh-CN"));
+    let _ = dns_form_panel(&state, &Lang("en-US"));
+}
+
+#[test]
+fn test_dns_form_validation_issues_localize_in_both_locales() {
+    let mut form = DnsWorkbenchForm {
+        nameserver: "ftp://dns.example".to_owned(),
+        bootstrap_nameserver: "doh.pub".to_owned(),
+        ..DnsWorkbenchForm::default()
+    };
+    form.fallback_policy.trigger_ipcidr = "192.168.0.0/33".to_owned();
+    form.fallback_policy.geoip_code = "CHN".to_owned();
+    let issues = form.validate();
+    assert!(!issues.is_empty());
+    let zh = localized_form_issue(&issues[0], &Lang("zh-CN"));
+    let en = localized_form_issue(&issues[0], &Lang("en-US"));
+    assert!(zh.contains("字段"), "{zh}");
+    assert!(en.contains("nameserver"), "{en}");
+    assert!(!en.chars().any(|c| ('\u{4e00}'..='\u{9fff}').contains(&c)));
+    for issue in &issues {
+        let _ = localized_form_issue(issue, &Lang("zh-CN"));
+        let _ = localized_form_issue(issue, &Lang("en-US"));
+    }
+    let _ = form_issue_banner(&issues, &Lang("zh-CN"));
+    let _ = form_issue_banner(&issues, &Lang("en-US"));
+}
+
+#[test]
+fn test_dns_cache_flush_outcome_labels_are_localized() {
+    use infiltrator_contract::dns::DnsFlushOutcome;
+    let zh = Lang("zh-CN");
+    let en = Lang("en-US");
+    assert_eq!(
+        flush_outcome_label(&DnsFlushOutcome::NotRequested, &zh),
+        "尚未执行"
+    );
+    assert_eq!(
+        flush_outcome_label(&DnsFlushOutcome::Flushed, &en),
+        "flushed"
+    );
+    let unsupported = flush_outcome_label(
+        &DnsFlushOutcome::Unsupported {
+            reason: "no adapter".to_owned(),
+        },
+        &zh,
+    );
+    assert!(unsupported.contains("宿主不支持"), "{unsupported}");
+    let failed = flush_outcome_label(
+        &DnsFlushOutcome::Failed {
+            message: "exit 1".to_owned(),
+        },
+        &en,
+    );
+    assert!(failed.contains("flush failed"), "{failed}");
+}
+
+#[test]
+fn test_dns_form_patch_uses_the_shared_workbench_mapping() {
+    let (mut state, _) = AppState::new();
+    state.editor.dns_form = DnsWorkbenchForm {
+        nameserver: "https://dns.google/dns-query, quic://dns.adguard.com".to_owned(),
+        fallback: "8.8.8.8".to_owned(),
+        fallback_policy: infiltrator_contract::dns_form::DnsFallbackPolicyDraft {
+            geoip: true,
+            geoip_code: "CN".to_owned(),
+            trigger_ipcidr: "240.0.0.0/4".to_owned(),
+        },
+        fake_ip_range: String::new(),
+        ..DnsWorkbenchForm::default()
+    };
+    let domain_patch = state
+        .dns_patch_from_form()
+        .expect("shared workbench patch mapping");
+    assert_eq!(
+        domain_patch.nameserver.as_deref(),
+        Some(
+            &[
+                "https://dns.google/dns-query".to_owned(),
+                "quic://dns.adguard.com".to_owned()
+            ][..]
+        )
+    );
+    assert_eq!(
+        domain_patch.fallback.as_deref(),
+        Some(&["8.8.8.8".to_owned()][..])
+    );
+    let filter = domain_patch
+        .fallback_filter_partial
+        .expect("fallback filter partial merge");
+    assert_eq!(filter.geoip, Some(true));
+    assert_eq!(filter.geoip_code.as_deref(), Some("CN"));
+    assert!(domain_patch.clear_fake_ip_range);
+    assert!(state.dns_form_issue().is_none());
 }

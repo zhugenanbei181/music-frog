@@ -300,6 +300,8 @@ pub(crate) fn empty_dns() -> DnsProjection {
         servers: Vec::new(),
         switches: infiltrator_contract::dns::DnsCoreSwitches::default(),
         filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::default(),
+        form: infiltrator_contract::dns_form::DnsWorkbenchForm::default(),
+        cache_flush: infiltrator_contract::dns::DnsCacheFlushReport::default(),
     }
 }
 
@@ -539,6 +541,20 @@ impl From<DnsProjection> for surface_snapshot::DnsPageSnapshot {
                     tags: server.tags,
                 })
                 .collect(),
+            default_nameserver: infiltrator_contract::dns::parse_server_list(
+                &value.form.bootstrap_nameserver,
+            ),
+            fallback_policy: value.form.fallback_policy.policy(),
+            fake_ip_filter: infiltrator_contract::dns::parse_server_list(
+                &value.form.fake_ip_filter,
+            ),
+            proxy_server_nameserver: infiltrator_contract::dns::parse_server_list(
+                &value.form.proxy_server_nameserver,
+            ),
+            direct_nameserver: infiltrator_contract::dns::parse_server_list(
+                &value.form.direct_nameserver,
+            ),
+            cache_flush: value.cache_flush,
         }
     }
 }

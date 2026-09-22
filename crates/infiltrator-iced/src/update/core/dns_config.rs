@@ -5,7 +5,7 @@
 use super::profile_apply::save_task;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
-use crate::types::dns::{AdvancedEditMode, DnsFormDraft, FakeIpFormDraft};
+use crate::types::dns::{AdvancedEditMode, FakeIpFormDraft};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
@@ -43,26 +43,8 @@ impl AppState {
         &mut self,
         config: &infiltrator_domain::dns::DnsConfig,
     ) {
-        self.editor.dns_form = DnsFormDraft {
-            enable: config.enable.unwrap_or(false),
-            nameserver: Self::join_list_field(&config.nameserver),
-            fallback: Self::join_list_field(&config.fallback),
-            enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::from_config_value(
-                config.enhanced_mode.as_deref(),
-            ),
-            fake_ip_range: config.fake_ip_range.clone().unwrap_or_default(),
-            fake_ip_filter: Self::join_list_field(&config.fake_ip_filter),
-            filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::from_config_value(
-                config.fake_ip_filter_mode.as_deref(),
-            ),
-            ipv6: config.ipv6.unwrap_or(false),
-            cache: config.cache.unwrap_or(false),
-            use_hosts: config.use_hosts.unwrap_or(false),
-            use_system_hosts: config.use_system_hosts.unwrap_or(false),
-            respect_rules: config.respect_rules.unwrap_or(false),
-            proxy_server_nameserver: Self::join_list_field(&config.proxy_server_nameserver),
-            direct_nameserver: Self::join_list_field(&config.direct_nameserver),
-        };
+        self.editor.dns_form =
+            infiltrator_application::dns_workbench_application::form_from_config(config);
     }
 
     pub(super) fn apply_fake_ip_form_from_config(
@@ -76,40 +58,43 @@ impl AppState {
         };
     }
 
-    fn dns_patch_from_form(
+    pub(crate) fn dns_patch_from_form(
         &self,
     ) -> Result<infiltrator_domain::dns::DnsConfigPatch, InfiltratorError> {
-        let enhanced_mode = self.editor.dns_form.enhanced_mode;
-        let fake_ip_range = self.editor.dns_form.fake_ip_range.trim();
-        Ok(infiltrator_domain::dns::DnsConfigPatch {
-            enable: Some(self.editor.dns_form.enable),
-            nameserver: Some(Self::split_list_field(&self.editor.dns_form.nameserver)),
-            fallback: Some(Self::split_list_field(&self.editor.dns_form.fallback)),
-            enhanced_mode: enhanced_mode.config_value().map(str::to_owned),
-            clear_enhanced_mode: matches!(
-                enhanced_mode,
-                infiltrator_contract::dns::DnsEnhancedMode::Unmapped
+        Ok(
+            infiltrator_application::configuration_application::dns_patch_from_settings(
+                self.editor.dns_form.patch(),
             ),
-            fake_ip_range: if fake_ip_range.is_empty() {
-                None
-            } else {
-                Some(fake_ip_range.to_string())
-            },
-            fake_ip_filter: Some(Self::split_list_field(&self.editor.dns_form.fake_ip_filter)),
-            fake_ip_filter_mode: Some(self.editor.dns_form.filter_mode.config_value().to_owned()),
-            ipv6: Some(self.editor.dns_form.ipv6),
-            cache: Some(self.editor.dns_form.cache),
-            use_hosts: Some(self.editor.dns_form.use_hosts),
-            use_system_hosts: Some(self.editor.dns_form.use_system_hosts),
-            respect_rules: Some(self.editor.dns_form.respect_rules),
-            proxy_server_nameserver: Some(Self::split_list_field(
-                &self.editor.dns_form.proxy_server_nameserver,
-            )),
-            direct_nameserver: Some(Self::split_list_field(
-                &self.editor.dns_form.direct_nameserver,
-            )),
-            ..infiltrator_domain::dns::DnsConfigPatch::default()
-        })
+        )
+    }
+
+    pub(crate) fn dns_form_issue(&self) -> Option<infiltrator_contract::dns_form::DnsFormIssue> {
+        self.editor.dns_form.validate().into_iter().next()
+    }
+
+    fn dns_issue_message(issue: &infiltrator_contract::dns_form::DnsFormIssue) -> String {
+        use infiltrator_contract::dns_form::DnsFormIssue;
+        match issue {
+            DnsFormIssue::UnsupportedScheme { field, entry } => {
+                format!(
+                    "{}: unsupported upstream scheme in '{}'",
+                    field.key(),
+                    entry
+                )
+            }
+            DnsFormIssue::BootstrapNotIp { entry } => {
+                format!("default-nameserver must be a pure IP: '{}'", entry)
+            }
+            DnsFormIssue::InvalidTriggerCidr { entry } => {
+                format!("fallback-filter ipcidr is not a CIDR network: '{}'", entry)
+            }
+            DnsFormIssue::InvalidGeoipCode { value } => {
+                format!(
+                    "fallback-filter geoip-code must be a 2-letter code: '{}'",
+                    value
+                )
+            }
+        }
     }
 
     fn fake_ip_patch_from_form(
@@ -259,7 +244,12 @@ impl AppState {
                 Task::none()
             }
             Message::UpdateDnsFormEnable(value) => {
-                self.editor.dns_form.enable = value;
+                self.editor.dns_form.switches.enable = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormBootstrapNameserver(value) => {
+                self.editor.dns_form.bootstrap_nameserver = value;
                 self.mark_dns_form_dirty_and_sync();
                 Task::none()
             }
@@ -270,6 +260,21 @@ impl AppState {
             }
             Message::UpdateDnsFormFallback(value) => {
                 self.editor.dns_form.fallback = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormFallbackGeoip(value) => {
+                self.editor.dns_form.fallback_policy.geoip = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormFallbackGeoipCode(value) => {
+                self.editor.dns_form.fallback_policy.geoip_code = value;
+                self.mark_dns_form_dirty_and_sync();
+                Task::none()
+            }
+            Message::UpdateDnsFormFallbackTrigger(value) => {
+                self.editor.dns_form.fallback_policy.trigger_ipcidr = value;
                 self.mark_dns_form_dirty_and_sync();
                 Task::none()
             }
@@ -294,27 +299,27 @@ impl AppState {
                 Task::none()
             }
             Message::UpdateDnsFormIpv6(value) => {
-                self.editor.dns_form.ipv6 = value;
+                self.editor.dns_form.switches.ipv6 = value;
                 self.mark_dns_form_dirty_and_sync();
                 Task::none()
             }
             Message::UpdateDnsFormCache(value) => {
-                self.editor.dns_form.cache = value;
+                self.editor.dns_form.switches.cache = value;
                 self.mark_dns_form_dirty_and_sync();
                 Task::none()
             }
             Message::UpdateDnsFormUseHosts(value) => {
-                self.editor.dns_form.use_hosts = value;
+                self.editor.dns_form.switches.use_hosts = value;
                 self.mark_dns_form_dirty_and_sync();
                 Task::none()
             }
             Message::UpdateDnsFormUseSystemHosts(value) => {
-                self.editor.dns_form.use_system_hosts = value;
+                self.editor.dns_form.switches.use_system_hosts = value;
                 self.mark_dns_form_dirty_and_sync();
                 Task::none()
             }
             Message::UpdateDnsFormRespectRules(value) => {
-                self.editor.dns_form.respect_rules = value;
+                self.editor.dns_form.switches.respect_rules = value;
                 self.mark_dns_form_dirty_and_sync();
                 Task::none()
             }
@@ -403,7 +408,12 @@ impl AppState {
                 self.editor.is_saving_dns = true;
                 self.begin_save_phase("DNS");
                 let patch = if self.editor.dns_mode == AdvancedEditMode::Form {
-                    self.dns_patch_from_form()
+                    match self.dns_form_issue() {
+                        Some(issue) => {
+                            Err(InfiltratorError::Config(Self::dns_issue_message(&issue)))
+                        }
+                        None => self.dns_patch_from_form(),
+                    }
                 } else {
                     self.ensure_dns_editor_loaded();
                     let text = self.editor.dns_json_content.text();
@@ -551,16 +561,35 @@ impl AppState {
                 if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
-                            rt.flush_fakeip_cache()
+                            let gateway: std::sync::Arc<
+                                dyn infiltrator_ports::runtime_gateway::RuntimeGateway,
+                            > = rt.clone();
+                            let application =
+                                infiltrator_application::dns_cache_application::DnsCacheApplication::new(
+                                    Some(gateway),
+                                    rt.system_dns_cache_port(),
+                                );
+                            application
+                                .flush_all()
                                 .await
-                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
+                                .map_err(|failure| failure.message)
                         },
-                        Message::OperationResult,
+                        Message::DnsCacheFlushed,
                     )
                 } else {
                     Task::none()
                 }
             }
+            Message::DnsCacheFlushed(result) => match result {
+                Ok(report) => {
+                    self.diag.dns_cache_flush = report;
+                    Task::none()
+                }
+                Err(message) => {
+                    self.set_error(&message);
+                    Task::done(Message::ShowToast(message, ToastStatus::Error))
+                }
+            },
             other => self.update_core_tun_config(other),
         }
     }

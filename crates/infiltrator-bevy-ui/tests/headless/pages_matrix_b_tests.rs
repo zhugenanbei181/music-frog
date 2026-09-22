@@ -19,6 +19,9 @@ use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand
 use infiltrator_bevy_ui::pages::app_routing::*;
 use infiltrator_bevy_ui::pages::app_routing_uwp::{UwpAction, UwpActionButton};
 use infiltrator_bevy_ui::pages::dns::*;
+use infiltrator_bevy_ui::pages::dns_edit::{
+    DnsEditApplyButton, DnsEditField, DnsEditGeoipToggle, DnsEditStatusLine, DnsEditTemplate,
+};
 use infiltrator_bevy_ui::pages::doctor::*;
 use infiltrator_bevy_ui::pages::settings::settings_core::{
     CoreLogLevelButton, ProbeTunMtuButton, SettingsProjection, TunEnableToggle, TunRouteToggle,
@@ -50,6 +53,7 @@ use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode, DnsSwitchField};
+use infiltrator_contract::dns_form::DnsFormField;
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::{LanCredentials, LanSecuritySnapshot};
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, PhysicalMtuSnapshot};
@@ -327,6 +331,291 @@ fn test_dns_projection_in_place_update() {
         "分配网段: 198.19.0.0/16"
     ));
     assert!(subtree_has_text(app.world(), root, "12 ms"));
+}
+
+// ===========================================================================
+// 1b. DNS Workbench Form Parity Tests (DUAL-14-04 / 14-05 / 14-07 / 14-14)
+// ===========================================================================
+
+fn set_dns_field(app: &mut App, field: DnsFormField, value: &str) {
+    let parent = app
+        .world_mut()
+        .query::<(Entity, &DnsEditField)>()
+        .iter(app.world())
+        .find(|(_, marker)| marker.0 == field)
+        .map(|(entity, _)| entity)
+        .expect("edit field row");
+    let child = *app
+        .world()
+        .get::<Children>(parent)
+        .expect("edit field children")
+        .iter()
+        .next()
+        .expect("text field child");
+    app.world_mut()
+        .entity_mut(child)
+        .get_mut::<TextField>()
+        .expect("text field component")
+        .0
+        .apply(TextFieldInput::SetText(value.to_owned()));
+}
+
+fn trigger_dns_edit_apply(app: &mut App) {
+    let button = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<DnsEditApplyButton>>()
+        .single(app.world())
+        .expect("dns edit apply button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+}
+
+#[test]
+fn test_dns_edit_rows_cover_every_shared_text_field() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Dns);
+
+    let rendered: Vec<DnsFormField> = {
+        let world = app.world_mut();
+        let mut query = world.query::<&DnsEditField>();
+        query.iter(world).map(|marker| marker.0).collect()
+    };
+    for field in DnsFormField::ALL {
+        if DnsFormField::SWITCH_FIELDS
+            .iter()
+            .any(|switch| DnsFormField::from_switch(*switch) == field)
+            || matches!(field, DnsFormField::EnhancedMode | DnsFormField::FilterMode)
+        {
+            continue;
+        }
+        if matches!(
+            field,
+            DnsFormField::FallbackGeoip | DnsFormField::FallbackGeoipCode
+        ) {
+            continue;
+        }
+        assert!(
+            rendered.contains(&field),
+            "Bevy workbench edit row missing for {field:?}"
+        );
+    }
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "上游加密 DNS 配置与回退策略 (DUAL-14-04/05)"
+    ));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "GEOIP 触发回退 (fallback_filter.geoip)"
+    ));
+}
+
+#[test]
+fn test_dns_upstream_list_edit_submits_shared_patch() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Dns);
+
+    set_dns_field(
+        &mut app,
+        DnsFormField::Nameserver,
+        "https://dns.google/dns-query, quic://dns.adguard.com",
+    );
+    trigger_dns_edit_apply(&mut app);
+
+    let submitted = sink.submitted();
+    assert_eq!(submitted.len(), 1);
+    match &submitted[0] {
+        UiCommand::ApplyDnsSettings { patch } => {
+            assert_eq!(
+                patch.nameserver.as_deref(),
+                Some(
+                    &[
+                        "https://dns.google/dns-query".to_owned(),
+                        "quic://dns.adguard.com".to_owned()
+                    ][..]
+                )
+            );
+            // The whole workbench patch is submitted, including the fallback tier.
+            assert!(patch.fallback.is_some());
+            assert!(patch.fallback_policy.is_some());
+        }
+        other => panic!("expected ApplyDnsSettings, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_dns_fallback_policy_toggle_and_trigger_submit_shared_patch() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Dns);
+
+    // Demo fixture starts with git-ip fallback geoip enabled; toggling flips it.
+    let toggle_before = app
+        .world_mut()
+        .query::<&DnsEditGeoipToggle>()
+        .single(app.world())
+        .copied()
+        .expect("geoip toggle");
+    let toggle_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<DnsEditGeoipToggle>>()
+        .single(app.world())
+        .expect("geoip toggle entity");
+    app.world_mut().commands().trigger(Activate {
+        entity: toggle_entity,
+    });
+    app.update();
+
+    set_dns_field(
+        &mut app,
+        DnsFormField::FallbackTriggerIp,
+        "240.0.0.0/4, 10.0.0.0/8",
+    );
+    trigger_dns_edit_apply(&mut app);
+
+    match sink.submitted().first() {
+        Some(UiCommand::ApplyDnsSettings { patch }) => {
+            let policy = patch.fallback_policy.as_ref().expect("fallback policy");
+            assert_eq!(policy.geoip, !toggle_before.0);
+            assert_eq!(
+                policy.trigger_ipcidr,
+                vec!["240.0.0.0/4".to_owned(), "10.0.0.0/8".to_owned()]
+            );
+        }
+        other => panic!("expected ApplyDnsSettings, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_dns_form_local_validation_blocks_invalid_scheme() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Dns);
+
+    set_dns_field(&mut app, DnsFormField::Nameserver, "ftp://dns.example");
+    trigger_dns_edit_apply(&mut app);
+
+    assert!(sink.submitted().is_empty(), "invalid form must not submit");
+    let status = {
+        let world = app.world_mut();
+        let mut query = world.query::<(&Text, &DnsEditStatusLine)>();
+        query
+            .iter(world)
+            .map(|(text, _)| text.0.clone())
+            .next()
+            .expect("status line")
+    };
+    assert!(status.contains("本地校验未通过"), "{status}");
+    assert!(status.contains("ftp://dns.example"), "{status}");
+}
+
+#[test]
+fn test_dns_quick_template_chip_appends_unique_entry() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(sink);
+    navigate_to(&mut app, Route::Dns);
+
+    let chip = app
+        .world_mut()
+        .query::<(Entity, &DnsEditTemplate)>()
+        .iter(app.world())
+        .find(|(_, chip)| chip.field == DnsFormField::Fallback && chip.server == "8.8.8.8")
+        .map(|(entity, _)| entity)
+        .expect("fallback template chip");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: chip });
+    app.update();
+
+    let parent = app
+        .world_mut()
+        .query::<(Entity, &DnsEditField)>()
+        .iter(app.world())
+        .find(|(_, marker)| marker.0 == DnsFormField::Fallback)
+        .map(|(entity, _)| entity)
+        .expect("fallback field");
+    let text = app
+        .world()
+        .get::<Children>(parent)
+        .and_then(|children| children.iter().next().copied())
+        .and_then(|child| app.world().get::<TextField>(child))
+        .expect("fallback text field")
+        .0
+        .text()
+        .to_owned();
+    assert!(text.contains("8.8.8.8"), "{text}");
+    assert!(
+        text.contains("https://cloudflare-dns.com/dns-query"),
+        "{text}"
+    );
+}
+
+#[test]
+fn test_dns_cache_flush_report_renders_honest_status() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Dns);
+
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "Fake-IP 缓存: 尚未执行 · 系统 DNS 缓存: 尚未执行"
+    ));
+
+    let mut updated = DnsProjection::demo();
+    updated.cache_flush = infiltrator_contract::dns::DnsCacheFlushReport {
+        fake_ip: infiltrator_contract::dns::DnsFlushOutcome::Flushed,
+        os_cache: infiltrator_contract::dns::DnsFlushOutcome::Unsupported {
+            reason: "host did not provide a system DNS cache adapter".to_owned(),
+        },
+    };
+    app.world_mut()
+        .commands()
+        .trigger(DnsProjectionUpdated(updated));
+    app.update();
+
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "Fake-IP 缓存: 已清空 · 系统 DNS 缓存: 宿主不支持 (host did not provide a system DNS cache adapter)"
+    ));
+}
+
+#[test]
+fn test_dns_switch_patch_stays_full_after_shared_form_upgrade() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Dns);
+
+    let switch_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<DnsSwitchButton>>()
+        .iter(app.world())
+        .find(|entity| {
+            matches!(
+                app.world().get::<DnsSwitchButton>(*entity),
+                Some(DnsSwitchButton(DnsSwitchField::RespectRules, _))
+            )
+        })
+        .expect("respect_rules switch");
+    app.world_mut().commands().trigger(Activate {
+        entity: switch_entity,
+    });
+    app.update();
+
+    match sink.submitted().first() {
+        Some(UiCommand::ApplyDnsSettings { patch }) => {
+            let switches = patch.switches.expect("switch set");
+            assert!(switches.respect_rules);
+            assert!(switches.enable);
+        }
+        other => panic!("expected ApplyDnsSettings, got {:?}", other),
+    }
 }
 
 // ===========================================================================

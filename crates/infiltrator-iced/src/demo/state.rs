@@ -177,21 +177,24 @@ impl AppState {
         ];
         state.editor.dns_fallback_servers = vec!["8.8.8.8".to_string(), "1.1.1.1".to_string()];
         state.editor.dns_enhanced_mode = "fake-ip".to_string();
-        state.editor.dns_form = crate::types::dns::DnsFormDraft {
-            enable: true,
+        state.editor.dns_form = infiltrator_contract::dns_form::DnsWorkbenchForm {
+            switches: infiltrator_contract::dns::DnsCoreSwitches {
+                enable: true,
+                ipv6: true,
+                cache: true,
+                use_hosts: true,
+                use_system_hosts: true,
+                respect_rules: false,
+            },
             nameserver: "223.5.5.5\n119.29.29.29\nhttps://doh.pub/dns-query".to_string(),
             fallback: "8.8.8.8\n1.1.1.1".to_string(),
             enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::FakeIp,
             fake_ip_range: "198.18.0.1/16".to_string(),
             fake_ip_filter: "*.lan\n*.local".to_string(),
             filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::Blacklist,
-            ipv6: true,
-            cache: true,
-            use_hosts: true,
-            use_system_hosts: true,
-            respect_rules: false,
             proxy_server_nameserver: "https://doh.pub/dns-query".to_string(),
             direct_nameserver: String::new(),
+            ..infiltrator_contract::dns_form::DnsWorkbenchForm::default()
         };
         state.editor.fake_ip_form = crate::types::dns::FakeIpFormDraft {
             fake_ip_range: "198.18.0.1/16".to_string(),

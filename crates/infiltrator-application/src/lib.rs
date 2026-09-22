@@ -10,6 +10,8 @@ pub mod command_application;
 pub mod configuration_application;
 pub mod connection_application;
 pub mod core_application;
+pub mod dns_cache_application;
+pub mod dns_workbench_application;
 pub mod doctor_application;
 pub mod mrs_acceleration_application;
 pub mod mtu_application;

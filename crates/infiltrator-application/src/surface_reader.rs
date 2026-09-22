@@ -80,6 +80,7 @@ pub struct ApplicationSurfaceReader {
     rule_tracer: crate::rule_tracer_application::RuleTracerApplication,
     subscription_quota: SubscriptionQuotaApplication,
     speedtest: Option<crate::speedtest_application::SpeedtestApplication>,
+    dns_cache: Option<crate::dns_cache_application::DnsCacheApplication>,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -116,6 +117,7 @@ impl ApplicationSurfaceReader {
             rule_tracer: crate::rule_tracer_application::RuleTracerApplication::new(),
             subscription_quota: SubscriptionQuotaApplication,
             speedtest: None,
+            dns_cache: None,
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -244,6 +246,16 @@ impl ApplicationSurfaceReader {
         application: crate::rule_tracer_application::RuleTracerApplication,
     ) -> Self {
         self.rule_tracer = application;
+        self
+    }
+
+    /// Share the DNS cache application so the published read model carries the
+    /// honest last Fake-IP / OS-cache flush report.
+    pub fn with_dns_cache(
+        mut self,
+        application: crate::dns_cache_application::DnsCacheApplication,
+    ) -> Self {
+        self.dns_cache = Some(application);
         self
     }
 
@@ -514,7 +526,12 @@ impl SurfaceReader for ApplicationSurfaceReader {
         )
         .await;
 
-        pages.dns = build_dns_page(self.configuration.as_ref(), runtime_config.as_ref()).await;
+        pages.dns = build_dns_page(
+            self.configuration.as_ref(),
+            runtime_config.as_ref(),
+            self.dns_cache.as_ref(),
+        )
+        .await;
 
         if self.gateway.is_some() {
             // Logs are an event stream, not an HTTP snapshot. Keep the page
@@ -826,26 +843,19 @@ fn rule_snapshot(
 async fn build_dns_page(
     configuration: Option<&ConfigurationApplication>,
     runtime_config: Option<&Result<infiltrator_domain::runtime::ConfigSnapshot, PortError>>,
+    dns_cache: Option<&crate::dns_cache_application::DnsCacheApplication>,
 ) -> surface_snapshot::PageData<surface_snapshot::DnsPageSnapshot> {
+    let cache_flush = crate::dns_workbench_application::cache_flush_report(dns_cache);
     if let Some(configuration) = configuration {
         let dns = configuration.load_dns_config().await;
         let fake_ip = configuration.load_fake_ip_config().await;
         if let (Ok(dns), Ok(fake_ip)) = (dns, fake_ip) {
-            let nameservers = dns.nameserver.clone().unwrap_or_default();
-            let fallback = dns.fallback.clone().unwrap_or_default();
-            let data = surface_snapshot::DnsPageSnapshot {
-                enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::from_config_value(
-                    dns.enhanced_mode.as_deref(),
-                ),
-                cache_entries: 0,
-                fake_ip_range: fake_ip.fake_ip_range.unwrap_or_default(),
-                switches: dns_core_switches(&dns),
-                filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::from_config_value(
-                    dns.fake_ip_filter_mode.as_deref(),
-                ),
-                servers: dns_servers(nameservers, fallback),
-            };
-            return surface_snapshot::PageData::ready(data);
+            let mut snapshot = crate::dns_workbench_application::dns_page_snapshot(
+                &dns,
+                fake_ip.fake_ip_range.unwrap_or_default(),
+            );
+            snapshot.cache_flush = cache_flush;
+            return surface_snapshot::PageData::ready(snapshot);
         }
     }
     match runtime_config {
@@ -854,19 +864,17 @@ async fn build_dns_page(
                 enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::from_config_value(Some(
                     dns.enhanced_mode.as_str(),
                 )),
-                cache_entries: 0,
-                fake_ip_range: String::new(),
-                switches: infiltrator_contract::dns::DnsCoreSwitches::default(),
-                filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::default(),
-                servers: dns_servers(dns.nameserver.clone(), dns.fallback.clone()),
+                servers: crate::dns_workbench_application::dns_servers_from_lists(
+                    dns.nameserver.clone(),
+                    dns.fallback.clone(),
+                ),
+                cache_flush,
+                ..surface_snapshot::DnsPageSnapshot::default()
             }),
             None => surface_snapshot::PageData::empty(surface_snapshot::DnsPageSnapshot {
                 enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::Unmapped,
-                cache_entries: 0,
-                fake_ip_range: String::new(),
-                switches: infiltrator_contract::dns::DnsCoreSwitches::default(),
-                filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::default(),
-                servers: Vec::new(),
+                cache_flush,
+                ..surface_snapshot::DnsPageSnapshot::default()
             }),
         },
         Some(Err(error)) => surface_snapshot::PageData::failed(Failure::new(
@@ -875,58 +883,6 @@ async fn build_dns_page(
             true,
         )),
         None => surface_snapshot::PageData::unavailable(missing("DNS reader")),
-    }
-}
-
-fn dns_servers(
-    nameservers: Vec<String>,
-    fallback: Vec<String>,
-) -> Vec<surface_snapshot::DnsServerSnapshot> {
-    nameservers
-        .into_iter()
-        .map(|address| surface_snapshot::DnsServerSnapshot {
-            protocol: dns_protocol(&address),
-            tags: infiltrator_contract::dns::DnsServerTag::classify(&address, false),
-            address,
-            latency_ms: None,
-            is_fallback: false,
-        })
-        .chain(
-            fallback
-                .into_iter()
-                .map(|address| surface_snapshot::DnsServerSnapshot {
-                    protocol: dns_protocol(&address),
-                    tags: infiltrator_contract::dns::DnsServerTag::classify(&address, true),
-                    address,
-                    latency_ms: None,
-                    is_fallback: true,
-                }),
-        )
-        .collect()
-}
-
-fn dns_core_switches(
-    config: &infiltrator_domain::dns::DnsConfig,
-) -> infiltrator_contract::dns::DnsCoreSwitches {
-    infiltrator_contract::dns::DnsCoreSwitches {
-        enable: config.enable.unwrap_or(false),
-        ipv6: config.ipv6.unwrap_or(false),
-        cache: config.cache.unwrap_or(false),
-        use_hosts: config.use_hosts.unwrap_or(false),
-        use_system_hosts: config.use_system_hosts.unwrap_or(false),
-        respect_rules: config.respect_rules.unwrap_or(false),
-    }
-}
-
-fn dns_protocol(address: &str) -> String {
-    if address.starts_with("tls://") {
-        "DoT".to_owned()
-    } else if address.starts_with("quic://") {
-        "DoQ".to_owned()
-    } else if address.starts_with("http://") || address.starts_with("https://") {
-        "DoH".to_owned()
-    } else {
-        "Plain".to_owned()
     }
 }
 

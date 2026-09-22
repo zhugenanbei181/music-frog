@@ -10,6 +10,7 @@ pub mod command;
 pub mod connection;
 pub mod controller;
 pub mod dns;
+pub mod dns_form;
 pub mod doctor;
 pub mod error;
 pub mod intent;

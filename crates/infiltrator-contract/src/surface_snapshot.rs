@@ -342,7 +342,7 @@ pub struct DnsServerSnapshot {
     pub tags: Vec<crate::dns::DnsServerTag>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DnsPageSnapshot {
     /// Domain mapping mode (`dns.enhanced-mode`).
     #[serde(default)]
@@ -356,6 +356,24 @@ pub struct DnsPageSnapshot {
     /// Fake-IP filter mode (`dns.fake-ip-filter-mode`).
     #[serde(default)]
     pub filter_mode: crate::dns::DnsFakeIpFilterMode,
+    /// Tier-1 bootstrap resolvers (`dns.default-nameserver`).
+    #[serde(default)]
+    pub default_nameserver: Vec<String>,
+    /// Fallback resolver policy (`dns.fallback-filter`).
+    #[serde(default)]
+    pub fallback_policy: crate::dns::DnsFallbackPolicy,
+    /// `dns.fake-ip-filter` patterns or rules.
+    #[serde(default)]
+    pub fake_ip_filter: Vec<String>,
+    /// `dns.proxy-server-nameserver` resolvers.
+    #[serde(default)]
+    pub proxy_server_nameserver: Vec<String>,
+    /// `dns.direct-nameserver` resolvers.
+    #[serde(default)]
+    pub direct_nameserver: Vec<String>,
+    /// Honest per-target report of the last DNS cache flush.
+    #[serde(default)]
+    pub cache_flush: crate::dns::DnsCacheFlushReport,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

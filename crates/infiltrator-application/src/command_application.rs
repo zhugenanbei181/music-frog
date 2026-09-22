@@ -80,6 +80,7 @@ pub struct CommandApplication {
     proxy_preferences: Option<crate::proxy_preferences_application::ProxyPreferencesApplication>,
     rule_tracer: Option<crate::rule_tracer_application::RuleTracerApplication>,
     configuration: Option<crate::configuration_application::ConfigurationApplication>,
+    dns_cache: Option<crate::dns_cache_application::DnsCacheApplication>,
 }
 
 impl CommandApplication {
@@ -228,6 +229,16 @@ impl CommandApplication {
         rule_tracer: crate::rule_tracer_application::RuleTracerApplication,
     ) -> Self {
         self.rule_tracer = Some(rule_tracer);
+        self
+    }
+
+    /// Share the DNS cache flush application with the surface reader so the
+    /// honest Fake-IP / OS-cache report reaches both surfaces.
+    pub fn with_dns_cache(
+        mut self,
+        dns_cache: crate::dns_cache_application::DnsCacheApplication,
+    ) -> Self {
+        self.dns_cache = Some(dns_cache);
         self
     }
 
@@ -490,14 +501,17 @@ impl CommandApplication {
                 .close_all_connections()
                 .await
                 .map_err(Failure::from),
-            CommandIntent::ClearDnsCache => self
-                .runtime()?
-                .flush_fakeip_cache()
-                .await
-                .map_err(Failure::from),
+            CommandIntent::ClearDnsCache => match self.dns_cache.as_ref() {
+                Some(dns_cache) => dns_cache.flush_all().await.map(|_| ()),
+                None => self
+                    .runtime()?
+                    .flush_fakeip_cache()
+                    .await
+                    .map_err(Failure::from),
+            },
             CommandIntent::ApplyDnsSettings { patch } => self
                 .configuration()?
-                .apply_dns_settings(patch)
+                .apply_dns_settings_with_runtime(self.managed_runtime.clone(), patch)
                 .await
                 .map(|_| ()),
             CommandIntent::RunDoctorDiagnostics => self.doctor()?.run(None).await.map(|_| ()),

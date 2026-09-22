@@ -67,7 +67,7 @@ fn demo_fixture_inventory_covers_all_pages() {
     assert!(!state.editor.rules_render_cache.is_empty());
     assert!(!state.editor.rules_filtered_indices.is_empty());
     assert!(!state.editor.dns_nameservers.is_empty());
-    assert!(state.editor.dns_form.enable);
+    assert!(state.editor.dns_form.switches.enable);
     assert!(state.editor.fake_ip_form.store_fake_ip);
     assert!(!state.editor.tun_form.stack.is_empty());
     assert!(state.runtime.installed_kernels.iter().any(|k| k.is_default));

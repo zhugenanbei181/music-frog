@@ -78,5 +78,13 @@ pub trait HostRuntime: ManagedRuntime {
     fn rule_tracer_port(&self) -> Option<Arc<dyn crate::rule_tracer::RuleTracerPort>> {
         None
     }
+    /// Optional operating-system resolver cache adapter. Hosts without one
+    /// surface a typed unsupported OS-cache outcome instead of claiming the
+    /// system cache was refreshed.
+    fn system_dns_cache_port(
+        &self,
+    ) -> Option<Arc<dyn crate::system_dns_cache::SystemDnsCachePort>> {
+        None
+    }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;
 }

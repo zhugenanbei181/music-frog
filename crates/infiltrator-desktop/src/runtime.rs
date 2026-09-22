@@ -47,6 +47,7 @@ pub struct MihomoRuntime {
     network_roaming_port: Arc<crate::network_roaming::DesktopNetworkRoamingPort>,
     speedtest: infiltrator_application::speedtest_application::SpeedtestApplication,
     rule_tracer: infiltrator_application::rule_tracer_application::RuleTracerApplication,
+    dns_cache: infiltrator_application::dns_cache_application::DnsCacheApplication,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -154,12 +155,21 @@ impl MihomoRuntime {
         // surface reader, so both surfaces replay the same query state.
         let rule_tracer =
             infiltrator_application::rule_tracer_application::RuleTracerApplication::new();
+        // One DNS cache application shared by the command handler and the
+        // surface reader, so the honest last flush report reaches the UI.
+        let dns_cache = infiltrator_application::dns_cache_application::DnsCacheApplication::new(
+            Some(Arc::new(client.clone())),
+            Some(Arc::new(
+                crate::system_dns_cache::DesktopSystemDnsCache::new(),
+            )),
+        );
         let application = Arc::new(crate::composition::core_application(
             &service_manager,
             endpoint.url.clone(),
             endpoint.secret.clone(),
             speedtest.clone(),
             rule_tracer.clone(),
+            dns_cache.clone(),
             cm.clone(),
             Arc::new(crate::storage::subscription_source()),
         )?);
@@ -208,6 +218,7 @@ impl MihomoRuntime {
             pac_service,
             speedtest,
             rule_tracer,
+            dns_cache,
             network_roaming_port,
         })
     }
@@ -310,6 +321,7 @@ impl MihomoRuntime {
             crate::surface::SurfaceEngines {
                 speedtest: self.speedtest.clone(),
                 rule_tracer: self.rule_tracer.clone(),
+                dns_cache: self.dns_cache.clone(),
             },
         )
         .await
@@ -725,6 +737,14 @@ impl HostRuntime for MihomoRuntime {
 
     fn rule_tracer_port(&self) -> Option<Arc<dyn infiltrator_ports::rule_tracer::RuleTracerPort>> {
         Some(Arc::new(self.rule_tracer.clone()))
+    }
+
+    fn system_dns_cache_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::system_dns_cache::SystemDnsCachePort>> {
+        Some(Arc::new(
+            crate::system_dns_cache::DesktopSystemDnsCache::new(),
+        ))
     }
 
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {

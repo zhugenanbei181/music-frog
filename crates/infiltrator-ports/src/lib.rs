@@ -40,6 +40,7 @@ pub mod subscription_notification;
 pub mod subscription_source;
 pub mod surface;
 pub mod sync;
+pub mod system_dns_cache;
 pub mod system_proxy;
 pub mod uwp_loopback;
 pub mod version;
